@@ -6669,6 +6669,12 @@ final class EpubReader
             foreach ($pageListNavs as $pageListNav) {
                 $diagnostics = array_merge($diagnostics, $this->pageListNavStructureDiagnostics($pageListNav, $context, $path, $declaredPrefixes));
             }
+            foreach ($navs as $sectionIndex => $nav) {
+                $diagnostics = array_merge(
+                    $diagnostics,
+                    $this->navNormalizedTargetCollisionDiagnostics($nav, $context, $path, $sectionIndex)
+                );
+            }
 
             $targetDocuments = [];
             foreach ($navs as $nav) {
@@ -6724,6 +6730,19 @@ final class EpubReader
                             'invalid-nav-link-href-fragment',
                             'EPUB3 navigation link href fragments must be non-empty fragment identifiers without whitespace.',
                             $fragmentContext
+                        );
+                        continue;
+                    }
+                    $targetReview = $this->navTargetReview($path, $href);
+                    if ($targetReview['unsafe']) {
+                        $diagnostics[] = $this->epubDiagnostic(
+                            'error',
+                            'unsafe-nav-href-target',
+                            'EPUB navigation link href escapes the package root after normalization.',
+                            $linkContext + [
+                                'target' => $targetReview['target'],
+                                'reason' => 'traversal',
+                            ]
                         );
                         continue;
                     }
@@ -7052,6 +7071,287 @@ final class EpubReader
         }
 
         return '';
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     * @return list<array<string, mixed>>
+     */
+    private function navNormalizedTargetCollisionDiagnostics(\DOMElement $nav, array $context, string $navPath, int $sectionIndex): array
+    {
+        $diagnostics = [];
+        $targets = [];
+        $sectionType = $this->navElementSectionType($nav);
+        $itemIndex = 0;
+
+        foreach ($this->navOrderedListLinkedAnchors($nav) as $anchor) {
+            $href = html_entity_decode(trim($anchor->getAttribute('href')), ENT_QUOTES | ENT_XML1, 'UTF-8');
+            if ($href === '') {
+                continue;
+            }
+
+            $linkContext = $context + $this->navElementDiagnosticContext($nav) + [
+                'sectionIndex' => $sectionIndex,
+                'sectionType' => $sectionType,
+                'itemIndex' => $itemIndex++,
+                'linkHref' => $href,
+            ];
+            $label = $this->xhtmlNavLabelText($anchor);
+            if ($label !== '') {
+                $linkContext['label'] = $label;
+            }
+            if ($this->navElementIsPageList($nav)) {
+                $value = $this->pageListAnchorValue($anchor);
+                if ($value !== '') {
+                    $linkContext['value'] = $value;
+                }
+            }
+
+            $pathReason = $this->navLinkHrefPathDiagnosticReason($href);
+            if ($pathReason !== '' && !str_starts_with($href, '#')) {
+                continue;
+            }
+            if ($this->navLinkHrefFragmentDiagnosticReason($href) !== '') {
+                continue;
+            }
+
+            $target = $this->navTargetReview($navPath, $href);
+            if ($target['external']) {
+                continue;
+            }
+            if ($target['unsafe']) {
+                continue;
+            }
+            if ($target['normalizedTarget'] === '') {
+                continue;
+            }
+
+            $targets[$target['normalizedTarget']][] = $linkContext + [
+                'target' => $target['target'],
+                'normalizedTarget' => $target['normalizedTarget'],
+                'targetPath' => $target['path'],
+                'fragment' => $target['fragment'],
+                'fragmentOnly' => $target['fragmentOnly'],
+            ];
+        }
+
+        $collisionDiagnostics = [];
+        foreach ($targets as $normalizedTarget => $matches) {
+            $hrefs = array_values(array_unique(array_map(
+                static fn (array $match): string => (string) ($match['linkHref'] ?? ''),
+                $matches
+            )));
+            if (count($matches) <= 1 || count($hrefs) <= 1) {
+                continue;
+            }
+
+            $collisionDiagnostics[] = $this->epubDiagnostic(
+                'error',
+                'normalized-nav-target-collision',
+                'EPUB navigation section contains distinct hrefs that normalize to the same target.',
+                $context + $this->navElementDiagnosticContext($nav) + [
+                    'sectionIndex' => $sectionIndex,
+                    'sectionType' => $sectionType,
+                    'normalizedTarget' => $normalizedTarget,
+                    'itemCount' => count($matches),
+                    'rawHrefCount' => count($hrefs),
+                    'itemIndexes' => array_column($matches, 'itemIndex'),
+                    'hrefs' => $hrefs,
+                    'targets' => array_values(array_unique(array_map(
+                        static fn (array $match): string => (string) ($match['target'] ?? ''),
+                        $matches
+                    ))),
+                    'labels' => array_values(array_filter(
+                        array_column($matches, 'label'),
+                        static fn (mixed $label): bool => is_string($label) && $label !== ''
+                    )),
+                    'collisionKinds' => $this->navCollisionKinds($matches),
+                ]
+            );
+        }
+
+        $sectionCollisionItemCount = array_sum(array_map(
+            static fn (array $diagnostic): int => (int) ($diagnostic['itemCount'] ?? 0),
+            $collisionDiagnostics
+        ));
+        $sectionCollisionGroupCount = count($collisionDiagnostics);
+        foreach ($collisionDiagnostics as $diagnostic) {
+            $diagnostics[] = $diagnostic + [
+                'sectionCollisionGroupCount' => $sectionCollisionGroupCount,
+                'sectionCollisionItemCount' => $sectionCollisionItemCount,
+            ];
+        }
+
+        return $diagnostics;
+    }
+
+    private function navElementSectionType(\DOMElement $nav): string
+    {
+        $type = strtolower($this->attributeByLocalName($nav, 'type'));
+        if ($this->tokenListContains($type, 'toc')) {
+            return 'toc';
+        }
+        if ($this->tokenListContains($type, 'landmarks')) {
+            return 'landmarks';
+        }
+        if ($this->tokenListContains($type, 'page-list') || $this->tokenListContains($type, 'pagebreaks')) {
+            return 'page-list';
+        }
+        foreach (['loi', 'lot', 'loa', 'lov'] as $auxiliaryType) {
+            if ($this->tokenListContains($type, $auxiliaryType)) {
+                return $auxiliaryType;
+            }
+        }
+
+        return $type === '' ? 'nav' : $type;
+    }
+
+    /**
+     * @return array{
+     *     path: string,
+     *     fragment: string,
+     *     target: string,
+     *     normalizedTarget: string,
+     *     fragmentOnly: bool,
+     *     external: bool,
+     *     unsafe: bool
+     * }
+     */
+    private function navTargetReview(string $navPath, string $href): array
+    {
+        $href = trim($href);
+        $hasFragment = str_contains($href, '#');
+        $fragmentOnly = str_starts_with($href, '#');
+        $fragment = $this->urlFragmentIdentifier($href);
+
+        if (!$fragmentOnly && !$this->isPackageRelativeResourceUrl($href)) {
+            return [
+                'path' => '',
+                'fragment' => $fragment,
+                'target' => $href,
+                'normalizedTarget' => '',
+                'fragmentOnly' => false,
+                'external' => true,
+                'unsafe' => false,
+            ];
+        }
+
+        if ($fragmentOnly) {
+            $targetPath = $navPath;
+        } else {
+            [$hrefPath] = $this->splitUrlPathSuffix($href);
+            [$targetPath, $unsafe] = $this->safeNavigationTargetPath($this->dirname($navPath), $hrefPath);
+            if ($unsafe) {
+                return [
+                    'path' => '',
+                    'fragment' => $fragment,
+                    'target' => $href,
+                    'normalizedTarget' => '',
+                    'fragmentOnly' => false,
+                    'external' => false,
+                    'unsafe' => true,
+                ];
+            }
+        }
+
+        $target = $targetPath;
+        if ($hasFragment) {
+            $target .= '#' . $fragment;
+        }
+
+        return [
+            'path' => $targetPath,
+            'fragment' => $fragment,
+            'target' => $target,
+            'normalizedTarget' => $this->normalizedNavTarget($targetPath, $hasFragment, $fragment),
+            'fragmentOnly' => $fragmentOnly,
+            'external' => false,
+            'unsafe' => false,
+        ];
+    }
+
+    /**
+     * @return array{0: string, 1: bool}
+     */
+    private function safeNavigationTargetPath(string $basePath, string $hrefPath): array
+    {
+        $hrefPath = trim($hrefPath);
+        if ($hrefPath === '') {
+            return ['', false];
+        }
+
+        $path = ($basePath === '' ? '' : $basePath . '/') . $this->decodeUrlPathPercentEscapes($hrefPath);
+        $parts = [];
+        foreach (explode('/', str_replace('\\', '/', $path)) as $part) {
+            if ($part === '' || $part === '.') {
+                continue;
+            }
+            if ($part === '..') {
+                if ($parts === []) {
+                    return ['', true];
+                }
+                array_pop($parts);
+                continue;
+            }
+            $parts[] = $part;
+        }
+
+        return [implode('/', $parts), false];
+    }
+
+    private function normalizedNavTarget(string $path, bool $hasFragment, string $fragment): string
+    {
+        if ($path === '') {
+            return '';
+        }
+
+        $target = strtolower($path);
+        if ($hasFragment) {
+            $target .= '#' . strtolower($fragment);
+        }
+
+        return $target;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $matches
+     * @return list<string>
+     */
+    private function navCollisionKinds(array $matches): array
+    {
+        $hrefs = array_values(array_unique(array_map(
+            static fn (array $match): string => (string) ($match['linkHref'] ?? ''),
+            $matches
+        )));
+        $targets = array_values(array_unique(array_map(
+            static fn (array $match): string => (string) ($match['target'] ?? ''),
+            $matches
+        )));
+        $kinds = [];
+
+        foreach ($hrefs as $href) {
+            if (preg_match('/%[0-9A-Fa-f]{2}/', $href) === 1) {
+                $kinds['percent-encoding'] = 'percent-encoding';
+            }
+            if (preg_match('~(?:^|/)\.{1,2}(?:/|$)~', explode('#', explode('?', $href, 2)[0], 2)[0]) === 1) {
+                $kinds['dot-segment'] = 'dot-segment';
+            }
+            if (str_contains($href, '#')) {
+                $kinds['fragment'] = 'fragment';
+            }
+        }
+
+        if (count(array_unique(array_map('strtolower', $hrefs))) < count($hrefs)
+            || count(array_unique(array_map('strtolower', $targets))) < count($targets)
+        ) {
+            $kinds['case'] = 'case';
+        }
+
+        if ($kinds === []) {
+            $kinds['normalized-target'] = 'normalized-target';
+        }
+
+        return array_values($kinds);
     }
 
     /**

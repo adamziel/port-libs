@@ -14528,16 +14528,18 @@ HTML);
         }
 
         $t->same(count($diagnostics), $meta['epubDiagnosticCount']);
-        $t->same(4, $meta['epubDiagnosticErrorCount']);
+        $t->same(6, $meta['epubDiagnosticErrorCount']);
         $t->same(0, $meta['epubDiagnosticWarningCount']);
         foreach ([
             'duplicate-nav-landmark-link',
             'duplicate-nav-page-list-target',
+            'normalized-nav-target-collision',
             'out-of-order-nav-landmark-entry',
             'out-of-order-nav-page-list-entry',
         ] as $code) {
             $t->true(isset($byCode[$code]), "Expected EPUB diagnostic {$code}.");
         }
+        $t->same(2, count($byCode['normalized-nav-target-collision'] ?? []));
 
         $t->same('landmarks', $byCode['duplicate-nav-landmark-link'][0]['navId'] ?? null);
         $t->same('bodymatter', $byCode['duplicate-nav-landmark-link'][0]['type'] ?? null);
@@ -14651,16 +14653,18 @@ HTML);
         }
 
         $t->same(count($diagnostics), $meta['epubDiagnosticCount']);
-        $t->same(5, $meta['epubDiagnosticErrorCount']);
+        $t->same(6, $meta['epubDiagnosticErrorCount']);
         $t->same(0, $meta['epubDiagnosticWarningCount']);
         foreach ([
             'duplicate-spine-itemref-idref',
             'duplicate-nav-page-list-target',
+            'normalized-nav-target-collision',
             'out-of-order-nav-page-list-entry',
             'invalid-nav-link-href-path',
         ] as $code) {
             $t->true(isset($byCode[$code]), "Expected EPUB diagnostic {$code}.");
         }
+        $t->same(1, count($byCode['normalized-nav-target-collision'] ?? []));
 
         $t->same('chapter-second', $byCode['duplicate-spine-itemref-idref'][0]['id'] ?? null);
         $t->same('chapter', $byCode['duplicate-spine-itemref-idref'][0]['idref'] ?? null);
@@ -14705,6 +14709,113 @@ HTML);
         $t->same('https://example.invalid/page#remote', $meta['epubPageListEntries'][4]['href'] ?? null);
         $t->same('#local-note', $meta['epubPageListEntries'][6]['href'] ?? null);
         $t->contains('Readable page-list collision content.', $blocks);
+    },
+    'records epub3 navigation normalized target collisions' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-nav-normalized-collisions-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = pandoc_epub_test_zip($path);
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">urn:uuid:nav-normalized-collisions</dc:identifier>
+    <dc:title>Nav Normalized Collisions</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-25T00:00:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="chapter-lower" href="text/chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="chapter-case" href="text/Chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="outside" href="../outside.xhtml" media-type="application/xhtml+xml"/>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter-lower"/>
+    <itemref idref="chapter-case"/>
+    <itemref idref="outside"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/text/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><h1 id="Intro">Intro</h1><p id="intro">Lowercase intro.</p><span id="p1" epub:type="pagebreak" title="1"></span><p>Lowercase chapter body.</p></body></html>');
+        $zip->addFromString('OPS/text/Chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="Case">Case path</h1><p>Case-sensitive chapter body.</p></body></html>');
+        $zip->addFromString('outside.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="bad">Outside target</h1><p>Outside package-root target body.</p></body></html>');
+        $zip->addFromString('OPS/nav.xhtml', <<<'HTML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav id="toc-normalized" epub:type="toc">
+      <ol>
+        <li><a href="text/chapter.xhtml">Lower path</a></li>
+        <li><a href="text/%63hapter.xhtml">Encoded path</a></li>
+        <li><a href="./text/../text/chapter.xhtml">Dot segment path</a></li>
+        <li><a href="text/chapter.xhtml#Intro">Intro fragment</a></li>
+        <li><a href="text/chapter.xhtml#%49ntro">Encoded intro fragment</a></li>
+        <li><a href="text/chapter.xhtml#intro">Lower intro fragment</a></li>
+        <li><a href="text/Chapter.xhtml">Case path</a></li>
+        <li><a href="../../outside.xhtml#bad">Escaping target</a></li>
+        <li><a href="https://example.invalid/remote.xhtml#intro">Remote target</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+HTML);
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+            $blocks = (new WordPressBlockWriter())->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $diagnostics = $meta['epubDiagnostics'] ?? [];
+        $byCode = [];
+        foreach ($diagnostics as $diagnostic) {
+            $code = (string) ($diagnostic['code'] ?? '');
+            if ($code !== '') {
+                $byCode[$code][] = $diagnostic;
+            }
+        }
+
+        $t->same(count($diagnostics), $meta['epubDiagnosticCount']);
+        $t->same(3, $meta['epubDiagnosticErrorCount']);
+        $t->same(0, $meta['epubDiagnosticWarningCount']);
+        $t->same(2, count($byCode['normalized-nav-target-collision'] ?? []));
+        $t->same(1, count($byCode['unsafe-nav-href-target'] ?? []));
+
+        $pathCollision = $byCode['normalized-nav-target-collision'][0] ?? [];
+        $t->same('toc-normalized', $pathCollision['navId'] ?? null);
+        $t->same('toc', $pathCollision['sectionType'] ?? null);
+        $t->same('ops/text/chapter.xhtml', $pathCollision['normalizedTarget'] ?? null);
+        $t->same(4, $pathCollision['itemCount'] ?? null);
+        $t->same(4, $pathCollision['rawHrefCount'] ?? null);
+        $t->same(['text/chapter.xhtml', 'text/%63hapter.xhtml', './text/../text/chapter.xhtml', 'text/Chapter.xhtml'], $pathCollision['hrefs'] ?? null);
+        $t->same(['percent-encoding', 'dot-segment', 'case'], $pathCollision['collisionKinds'] ?? null);
+        $t->same(2, $pathCollision['sectionCollisionGroupCount'] ?? null);
+        $t->same(7, $pathCollision['sectionCollisionItemCount'] ?? null);
+
+        $fragmentCollision = $byCode['normalized-nav-target-collision'][1] ?? [];
+        $t->same('ops/text/chapter.xhtml#intro', $fragmentCollision['normalizedTarget'] ?? null);
+        $t->same(3, $fragmentCollision['itemCount'] ?? null);
+        $t->same(['text/chapter.xhtml#Intro', 'text/chapter.xhtml#%49ntro', 'text/chapter.xhtml#intro'], $fragmentCollision['hrefs'] ?? null);
+        $t->same(['fragment', 'percent-encoding', 'case'], $fragmentCollision['collisionKinds'] ?? null);
+        $t->same(2, $fragmentCollision['sectionCollisionGroupCount'] ?? null);
+        $t->same(7, $fragmentCollision['sectionCollisionItemCount'] ?? null);
+
+        $t->same('../../outside.xhtml#bad', $byCode['unsafe-nav-href-target'][0]['linkHref'] ?? null);
+        $t->same('traversal', $byCode['unsafe-nav-href-target'][0]['reason'] ?? null);
+        $t->true(!isset($byCode['missing-nav-link-resource']), 'Package-root escape should not fall through as a missing ZIP resource.');
+        $t->same(['text', 'href', 'level'], array_keys($meta['epubTocEntries'][0] ?? []));
+        $t->same(9, $meta['epubTocEntryCount']);
+        $t->contains('Lowercase chapter body.', $blocks);
+        $t->contains('Case-sensitive chapter body.', $blocks);
     },
     'records epub ncx content src path diagnostics' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-ncx-src-path-diagnostics-');
