@@ -8749,6 +8749,162 @@ XML);
             ],
         ], $meta['epubContainerLinks']);
     },
+    'records mixed epub2 and epub3 alternate rootfile packages' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-mixed-alt-rootfiles-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary mixed EPUB rootfile path');
+        }
+
+        $zip = pandoc_epub_test_zip($path);
+        $zip->addFromString('META-INF/container.xml', <<<'XML'
+<?xml version="1.0"?>
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile id="primary" full-path="OPS/package.opf" media-type="application/oebps-package+xml"/>
+    <rootfile id="print-epub2" full-path="PRINT/package.opf" media-type="application/oebps-package+xml" properties="rendition:layout-pre-paginated"/>
+    <rootfile id="tablet-epub3" full-path="TABLET/package.opf" media-type="application/oebps-package+xml" properties="rendition:spread-none"/>
+  </rootfiles>
+  <links>
+    <link id="print-record" href="metadata/print.json" rel="record alternate" media-type="application/json" refines="#print-epub2"/>
+    <link id="tablet-record" href="metadata/tablet.json" rel="record alternate" media-type="application/json" refines="#tablet-epub3"/>
+  </links>
+</container>
+XML);
+        $zip->addFromString('META-INF/metadata/print.json', '{"rendition":"print","package":"2.0"}');
+        $zip->addFromString('META-INF/metadata/tablet.json', '{"rendition":"tablet","package":"3.0"}');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="primary-book-id">
+  <metadata>
+    <dc:identifier id="primary-book-id">urn:uuid:mixed-rootfile-primary</dc:identifier>
+    <dc:title>Mixed Rootfile Primary</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-25T00:00:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Mixed Rootfile Primary</h1><p>Primary body.</p></body></html>');
+        $zip->addFromString('OPS/nav.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol><li><a href="chapter.xhtml">Mixed Rootfile Primary</a></li></ol></nav></body></html>');
+        $zip->addFromString('PRINT/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="2.0"
+         unique-identifier="print-book-id">
+  <metadata>
+    <dc:identifier id="print-book-id">urn:uuid:mixed-rootfile-print</dc:identifier>
+    <dc:title>Print Mixed Package</dc:title>
+    <dc:language>en-GB</dc:language>
+    <meta name="cover" content="print-cover"/>
+  </metadata>
+  <manifest>
+    <item id="print-chapter" href="text/print.xhtml" media-type="application/xhtml+xml"/>
+    <item id="print-toc" href="print-toc.ncx" media-type="application/x-dtbncx+xml"/>
+    <item id="print-cover" href="images/cover.jpg" media-type="image/jpeg"/>
+  </manifest>
+  <spine toc="print-toc">
+    <itemref idref="print-chapter"/>
+  </spine>
+  <guide>
+    <reference type="cover" title="Cover" href="images/cover.jpg"/>
+    <reference type="text" title="Start" href="text/print.xhtml#print-mixed-package"/>
+  </guide>
+</package>
+XML);
+        $zip->addFromString('PRINT/text/print.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="print-mixed-package">Print Mixed Package</h1><p>Print-only alternate body.</p></body></html>');
+        $zip->addFromString('PRINT/print-toc.ncx', <<<'XML'
+<?xml version="1.0"?>
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <head><meta name="dtb:uid" content="urn:uuid:mixed-rootfile-print"/></head>
+  <docTitle><text>Print Mixed Package</text></docTitle>
+  <navMap>
+    <navPoint id="print-start" playOrder="1"><navLabel><text>Print Mixed Package</text></navLabel><content src="text/print.xhtml#print-mixed-package"/></navPoint>
+  </navMap>
+</ncx>
+XML);
+        $zip->addFromString('PRINT/images/cover.jpg', 'print-cover-bytes');
+        $zip->addFromString('TABLET/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="tablet-book-id">
+  <metadata>
+    <dc:identifier id="tablet-book-id">urn:uuid:mixed-rootfile-tablet</dc:identifier>
+    <dc:title>Tablet Mixed Package</dc:title>
+    <dc:language>en-US</dc:language>
+    <meta property="dcterms:modified">2026-06-25T00:00:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="tablet-chapter" href="text/tablet.xhtml" media-type="application/xhtml+xml"/>
+    <item id="tablet-nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+  </manifest>
+  <spine>
+    <itemref idref="tablet-chapter"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('TABLET/text/tablet.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="tablet-mixed-package">Tablet Mixed Package</h1><p>Tablet-only alternate body.</p></body></html>');
+        $zip->addFromString('TABLET/nav.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol><li><a href="text/tablet.xhtml#tablet-mixed-package">Tablet Mixed Package</a></li></ol></nav></body></html>');
+        $zip->close();
+
+        try {
+            $document = (new EpubReader(['extractResources' => true]))->readEpubFile($path);
+            $meta = $document->attr('meta');
+        } finally {
+            @unlink($path);
+        }
+
+        $alternates = $meta['epubAlternateRootfilePackages'] ?? [];
+        $print = $alternates['PRINT/package.opf'] ?? [];
+        $tablet = $alternates['TABLET/package.opf'] ?? [];
+        $diagnosticsJson = json_encode($meta['epubDiagnostics'] ?? [], JSON_THROW_ON_ERROR);
+
+        $t->same('3.0', $meta['epubPackageVersion'] ?? null);
+        $t->same(3, count($meta['epubContainerRootfiles'] ?? []));
+        $t->same(2, $meta['epubAlternateRootfilePackageCount'] ?? null);
+        $t->same('print-epub2', $meta['epubContainerRootfiles'][1]['id'] ?? null);
+        $t->same('tablet-epub3', $meta['epubContainerRootfiles'][2]['id'] ?? null);
+        $t->same('META-INF/metadata/print.json', $meta['epubContainerLinks'][0]['href'] ?? null);
+        $t->same('#print-epub2', $meta['epubContainerLinks'][0]['refines'] ?? null);
+        $t->same('META-INF/metadata/tablet.json', $meta['epubContainerLinks'][1]['href'] ?? null);
+        $t->same('#tablet-epub3', $meta['epubContainerLinks'][1]['refines'] ?? null);
+        $t->same('{"rendition":"print","package":"2.0"}', base64_decode($meta['epubOcfSidecarPayloads']['META-INF/metadata/print.json']['data'] ?? '', true));
+        $t->same('{"rendition":"tablet","package":"3.0"}', base64_decode($meta['epubOcfSidecarPayloads']['META-INF/metadata/tablet.json']['data'] ?? '', true));
+        $t->same('2.0', $print['epubPackageVersion'] ?? null);
+        $t->same('Print Mixed Package', $print['title'] ?? null);
+        $t->same('en-GB', $print['lang'] ?? null);
+        $t->same(['PRINT/print-toc.ncx'], $print['epubTocResources'] ?? null);
+        $t->same(['PRINT/text/print.xhtml'], $print['epubReadableResources'] ?? null);
+        $t->same('Print Mixed Package Print-only alternate body.', $print['epubBodyText'] ?? null);
+        $t->same('print-cover', $print['epubCoverItemId'] ?? null);
+        $t->same('PRINT/images/cover.jpg', $print['epubCoverImage'] ?? null);
+        $t->same([
+            ['type' => 'cover', 'title' => 'Cover', 'href' => 'PRINT/images/cover.jpg'],
+            ['type' => 'text', 'title' => 'Start', 'href' => 'PRINT/text/print.xhtml#print-mixed-package'],
+        ], $print['epubGuideReferences'] ?? null);
+        $t->same('3.0', $tablet['epubPackageVersion'] ?? null);
+        $t->same('Tablet Mixed Package', $tablet['title'] ?? null);
+        $t->same('en-US', $tablet['lang'] ?? null);
+        $t->same(['TABLET/nav.xhtml'], $tablet['epubTocResources'] ?? null);
+        $t->same(['TABLET/text/tablet.xhtml'], $tablet['epubReadableResources'] ?? null);
+        $t->same('Tablet Mixed Package Tablet-only alternate body.', $tablet['epubBodyText'] ?? null);
+        $t->true(!str_contains(json_encode($print, JSON_THROW_ON_ERROR), 'TABLET/nav.xhtml'), 'EPUB3 nav resources should not leak into the EPUB2 alternate package summary.');
+        $t->true(!str_contains(json_encode($tablet, JSON_THROW_ON_ERROR), 'PRINT/print-toc.ncx'), 'EPUB2 NCX resources should not leak into the EPUB3 alternate package summary.');
+        $t->true(!str_contains($diagnosticsJson, 'missing-container-link-resource'), 'Mixed rootfile graph sidecars should not self-diagnose missing resources.');
+        $t->true(!str_contains($diagnosticsJson, 'missing-container-rootfile-resource'), 'Mixed rootfile packages should not self-diagnose missing rootfiles.');
+        $t->true(!str_contains($diagnosticsJson, 'unsupported-package-version'), 'Mixed EPUB2/EPUB3 packages should not self-diagnose supported package versions.');
+    },
     'records alternate epub rootfile rich xhtml spine metadata' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-alt-xhtml-metadata-');
         if ($path === false) {
