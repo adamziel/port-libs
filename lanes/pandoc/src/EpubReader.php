@@ -124,6 +124,7 @@ final class EpubReader
                 $this->navPageListReadingOrderDiagnostics($zip, $page_list_entry_group, $spine_items, $manifest, $base_path)
             );
         }
+        $navigation = $this->navigationWithGuideDerivedLandmarks($navigation, $zip, $package, $spine_items, $manifest, $base_path);
         $package_diagnostics = array_merge(
             $package_diagnostics,
             $this->ncxNavigationDiagnostics($zip, $base_path, $manifest, $spine_toc_id, $spine_items)
@@ -11099,6 +11100,174 @@ final class EpubReader
     }
 
     /**
+     * @param array<string, mixed> $navigation
+     * @param list<array{idref: string, linear: bool, properties: list<string>, id?: string}> $spineItems
+     * @param array<string, array{href: string, media-type: string, properties: list<string>, fallback: string, fallback-style: string, media-overlay: string}> $manifest
+     * @return array<string, mixed>
+     */
+    private function navigationWithGuideDerivedLandmarks(
+        array $navigation,
+        \ZipArchive $zip,
+        \DOMElement $package,
+        array $spineItems,
+        array $manifest,
+        string $basePath
+    ): array {
+        if (($navigation['landmarks'] ?? []) !== []) {
+            return $navigation;
+        }
+        if ((int) ($navigation['landmarkNavCount'] ?? 0) > 0) {
+            return $navigation;
+        }
+
+        $landmarks = $this->guideReferenceLandmarkEntries($zip, $package, $spineItems, $manifest, $basePath);
+        if ($landmarks !== []) {
+            $navigation['landmarks'] = $landmarks;
+        }
+
+        return $navigation;
+    }
+
+    /**
+     * @param list<array{idref: string, linear: bool, properties: list<string>, id?: string}> $spineItems
+     * @param array<string, array{href: string, media-type: string, properties: list<string>, fallback: string, fallback-style: string, media-overlay: string}> $manifest
+     * @return list<array{text: string, href: string, level: int, type: string}>
+     */
+    private function guideReferenceLandmarkEntries(
+        \ZipArchive $zip,
+        \DOMElement $package,
+        array $spineItems,
+        array $manifest,
+        string $basePath
+    ): array {
+        $linearTargetPaths = $this->linearSpineTargetPaths($spineItems, $manifest, $basePath);
+        if ($linearTargetPaths === []) {
+            return [];
+        }
+
+        $guide = $this->directOpfChildElement($package, 'guide');
+        if ($guide === null) {
+            return [];
+        }
+
+        $entries = [];
+        $seen = [];
+        $targetDocuments = [];
+        foreach ($this->directOpfChildElements($guide, 'reference') as $reference) {
+            $guideType = strtolower(trim($reference->getAttribute('type')));
+            if ($guideType === '' || !$this->validXmlId($guideType)) {
+                continue;
+            }
+
+            $landmarkType = $this->landmarkTypeForGuideReference($guideType);
+            if ($landmarkType === '') {
+                continue;
+            }
+
+            $href = html_entity_decode(trim($reference->getAttribute('href')), ENT_QUOTES | ENT_XML1, 'UTF-8');
+            if (!$this->validGuideReferenceLandmarkHref($href)) {
+                continue;
+            }
+
+            $landmarkHref = $this->rewriteRelativeResourceUrl($href, $basePath);
+            [$targetPath] = $this->splitUrlPathSuffix($landmarkHref);
+            $targetPath = $this->normalizeZipPath($targetPath);
+            if ($targetPath === '' || !isset($linearTargetPaths[$targetPath])) {
+                continue;
+            }
+
+            $fragment = $this->urlFragmentIdentifier($href);
+            if ($fragment !== '' && !$this->guideReferenceFragmentExists($zip, $targetPath, $fragment, $targetDocuments)) {
+                continue;
+            }
+
+            $key = $landmarkType . "\0" . $landmarkHref;
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $entries[] = [
+                'text' => trim($reference->getAttribute('title')) ?: ucfirst($landmarkType),
+                'href' => $landmarkHref,
+                'level' => 1,
+                'type' => $landmarkType,
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param list<array{idref: string, linear: bool, properties: list<string>, id?: string}> $spineItems
+     * @param array<string, array{href: string, media-type: string, properties: list<string>, fallback: string, fallback-style: string, media-overlay: string}> $manifest
+     * @return array<string, true>
+     */
+    private function linearSpineTargetPaths(array $spineItems, array $manifest, string $basePath): array
+    {
+        $paths = [];
+        foreach ($spineItems as $spineItem) {
+            $idref = $spineItem['idref'];
+            if (!$spineItem['linear'] || !isset($manifest[$idref])) {
+                continue;
+            }
+
+            $readableItem = $this->readableSpineManifestItem($manifest, $idref, $basePath);
+            if ($readableItem === null) {
+                continue;
+            }
+
+            $path = $this->normalizeZipPath($readableItem['path']);
+            if ($path !== '') {
+                $paths[$path] = true;
+            }
+        }
+
+        return $paths;
+    }
+
+    private function landmarkTypeForGuideReference(string $type): string
+    {
+        return $type === 'text' ? 'bodymatter' : $type;
+    }
+
+    private function validGuideReferenceLandmarkHref(string $href): bool
+    {
+        $href = trim($href);
+        if ($href === '' || !$this->isPackageRelativeResourceUrl($href)) {
+            return false;
+        }
+        if (str_starts_with(strtolower($href), 'data:') || str_starts_with(strtolower($href), 'file:')) {
+            return false;
+        }
+
+        return $this->guideReferenceHrefPathDiagnosticReason($href) === ''
+            && $this->guideReferenceHrefFragmentDiagnosticReason($href) === '';
+    }
+
+    /**
+     * @param array<string, \DOMDocument|false> $targetDocuments
+     */
+    private function guideReferenceFragmentExists(\ZipArchive $zip, string $targetPath, string $fragment, array &$targetDocuments): bool
+    {
+        if (!array_key_exists($targetPath, $targetDocuments)) {
+            $targetDocuments[$targetPath] = false;
+            $targetXml = $zip->getFromName($targetPath);
+            if (is_string($targetXml)) {
+                try {
+                    $targetDocuments[$targetPath] = $this->loadXml($targetXml, 'EPUB guide reference landmark target');
+                } catch (\Throwable) {
+                    $targetDocuments[$targetPath] = false;
+                }
+            }
+        }
+
+        $targetDocument = $targetDocuments[$targetPath];
+
+        return $targetDocument instanceof \DOMDocument
+            && $this->xmlDocumentHasElementId($targetDocument, $fragment);
+    }
+
+    /**
      * @return list<array{mediaType: string, handler: string}>
      */
     private function bindings(\DOMElement $package): array
@@ -12971,6 +13140,7 @@ final class EpubReader
      *     tocReadingOrderGroups: list<list<array{text: string, level: int, href?: string, type?: string}>>,
      *     landmarkTargetGroups: list<list<array{text: string, level: int, href?: string, type?: string}>>,
      *     pageListTargetGroups: list<list<array{text: string, level: int, href?: string, type?: string, value?: string}>>,
+     *     landmarkNavCount: int,
      *     landmarks: list<array{text: string, level: int, href?: string, type?: string}>,
      *     pageList: list<array{text: string, level: int, href?: string, type?: string, value?: string}>,
      *     ncxNavLists: list<array<string, mixed>>,
@@ -13000,6 +13170,7 @@ final class EpubReader
         $toc_nav_attributes = [];
         $landmark_nav_attributes = [];
         $page_list_nav_attributes = [];
+        $landmark_nav_count = 0;
         $toc_nav_title = '';
         $landmark_nav_title = '';
         $page_list_nav_title = '';
@@ -13050,6 +13221,7 @@ final class EpubReader
                     }
                     array_push($landmark_entries, ...$parsed['landmarks']);
                     array_push($page_list_entries, ...$parsed['pageList']);
+                    $landmark_nav_count += (int) ($parsed['landmarkNavCount'] ?? 0);
                     if ($parsed['landmarks'] !== []) {
                         $landmark_target_groups[] = $parsed['landmarks'];
                     }
@@ -13103,6 +13275,7 @@ final class EpubReader
             'tocReadingOrderGroups' => $toc_reading_order_groups,
             'landmarkTargetGroups' => $landmark_target_groups,
             'pageListTargetGroups' => $page_list_target_groups,
+            'landmarkNavCount' => $landmark_nav_count,
             'landmarks' => $this->uniqueNavigationEntries($landmark_entries),
             'pageList' => $this->uniquePageListEntries($page_list_entries),
             'ncxNavLists' => $ncx_nav_lists,
@@ -15470,6 +15643,7 @@ final class EpubReader
      *     toc: list<array{text: string, level: int, href?: string, type?: string}>,
      *     landmarks: list<array{text: string, level: int, href?: string, type?: string}>,
      *     pageList: list<array{text: string, level: int, href?: string, type?: string, value?: string}>,
+     *     landmarkNavCount: int,
      *     auxiliaryNavSections: list<array{type: string, title?: string, attributes?: array<string, mixed>, entries: list<array<string, mixed>>}>,
      *     rootAttributes: array<string, mixed>,
      *     bodyAttributes: array<string, mixed>,
@@ -15560,6 +15734,7 @@ final class EpubReader
             'toc' => $toc_entries,
             'landmarks' => $landmark_entries,
             'pageList' => $page_list_entries,
+            'landmarkNavCount' => count($landmark_navs),
             'auxiliaryNavSections' => $auxiliary_nav_sections,
             'rootAttributes' => $this->xhtmlRootAttributesFromDom($dom),
             'bodyAttributes' => $this->xhtmlBodyAttributesFromDom($dom),
@@ -17590,6 +17765,7 @@ final class EpubReader
             $summary['epubSpineTocId'] = $spineMetadata['toc'];
         }
         $navigation = $this->navigation($zip, $basePath, $manifest, $spineMetadata['toc']);
+        $navigation = $this->navigationWithGuideDerivedLandmarks($navigation, $zip, $package, $spineItems, $manifest, $basePath);
         $summary = $this->alternateNavigationSummary($summary, $navigation);
         $diagnostics = $this->alternatePackageDiagnostics(
             $zip,

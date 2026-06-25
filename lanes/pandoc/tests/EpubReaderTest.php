@@ -2545,6 +2545,127 @@ XML);
             ['type' => 'text', 'title' => 'Start', 'href' => 'EPUB/chapter.xhtml'],
         ], $meta['epubGuideReferences']);
     },
+    'derives epub2 guide references into sanitized primary and alternate landmarks' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub2-guide-derived-landmarks-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB2 guide-derived landmarks path');
+        }
+
+        $zip = pandoc_epub_test_zip($path);
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/package.opf" media-type="application/oebps-package+xml"/><rootfile full-path="ALT/alternate.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OEBPS/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="2.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">urn:uuid:epub2-guide-derived-landmarks</dc:identifier>
+    <dc:title>EPUB2 Guide Derived Landmarks</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="appendix" href="text/appendix.xhtml" media-type="application/xhtml+xml"/>
+    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+  </manifest>
+  <spine toc="ncx">
+    <itemref idref="chapter"/>
+    <itemref idref="appendix" linear="no"/>
+  </spine>
+  <guide>
+    <reference type="text" title="Start" href="text/chapter.xhtml#start%2Danchor"/>
+    <reference type="bibliography" title="References" href="text/chapter.xhtml#refs"/>
+    <reference type="glossary" title="" href="text/chapter.xhtml#glossary"/>
+    <reference type="text" title="Duplicate Start" href="text/chapter.xhtml#start%2Danchor"/>
+    <reference type="backmatter" title="Appendix" href="text/appendix.xhtml#appendix"/>
+    <reference type="toc" title="Contents" href="toc.ncx"/>
+    <reference type="loi" title="Remote Figures" href="https://cdn.example.test/figures.xhtml"/>
+    <reference type="index" title="Missing Fragment" href="text/chapter.xhtml#missing"/>
+    <reference type="bad type" title="Invalid Type" href="text/chapter.xhtml#refs"/>
+    <reference type="text" title="Missing Href"/>
+    <reference type="text" title="Absolute Path" href="/text/chapter.xhtml#refs"/>
+    <reference type="text" title="Query Only" href="?print=1"/>
+  </guide>
+</package>
+XML);
+        $zip->addFromString('OEBPS/text/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="start-anchor">EPUB2 Guide Derived Landmarks</h1><section id="refs"><h2>References</h2></section><section id="glossary"><h2>Glossary</h2></section></body></html>');
+        $zip->addFromString('OEBPS/text/appendix.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><section id="appendix"><h1>Appendix</h1></section></body></html>');
+        $zip->addFromString('OEBPS/toc.ncx', '<?xml version="1.0"?><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head><meta name="dtb:uid" content="urn:uuid:epub2-guide-derived-landmarks"/></head><docTitle><text>EPUB2 Guide Derived Landmarks</text></docTitle><navMap><navPoint id="navpoint-1" playOrder="1"><navLabel><text>Start</text></navLabel><content src="text/chapter.xhtml#start-anchor"/></navPoint></navMap></ncx>');
+        $zip->addFromString('ALT/alternate.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="2.0"
+         unique-identifier="alt-book-id">
+  <metadata>
+    <dc:identifier id="alt-book-id">urn:uuid:alternate-epub2-guide-derived-landmarks</dc:identifier>
+    <dc:title>Alternate EPUB2 Guide Derived Landmarks</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="text/alternate.xhtml" media-type="application/xhtml+xml"/>
+    <item id="notes" href="text/notes.xhtml" media-type="application/xhtml+xml"/>
+    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+  </manifest>
+  <spine toc="ncx">
+    <itemref idref="chapter"/>
+    <itemref idref="notes" linear="no"/>
+  </spine>
+  <guide>
+    <reference type="text" title="Alternate Start" href="text/alternate.xhtml#alt-start"/>
+    <reference type="bibliography" title="Alternate References" href="text/alternate.xhtml#alt-refs"/>
+    <reference type="glossary" title="" href="text/alternate.xhtml#alt-glossary"/>
+    <reference type="text" title="Alternate Duplicate" href="text/alternate.xhtml#alt-start"/>
+    <reference type="notes" title="Nonlinear Notes" href="text/notes.xhtml#alt-notes"/>
+    <reference type="loi" title="Alternate Remote Figures" href="https://cdn.example.test/alt-figures.xhtml"/>
+    <reference type="index" title="Alternate Missing Fragment" href="text/alternate.xhtml#missing"/>
+  </guide>
+</package>
+XML);
+        $zip->addFromString('ALT/text/alternate.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="alt-start">Alternate EPUB2 Guide Derived Landmarks</h1><section id="alt-refs"><h2>Alternate References</h2></section><section id="alt-glossary"><h2>Alternate Glossary</h2></section></body></html>');
+        $zip->addFromString('ALT/text/notes.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><section id="alt-notes"><h1>Notes</h1></section></body></html>');
+        $zip->addFromString('ALT/toc.ncx', '<?xml version="1.0"?><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head><meta name="dtb:uid" content="urn:uuid:alternate-epub2-guide-derived-landmarks"/></head><docTitle><text>Alternate EPUB2 Guide Derived Landmarks</text></docTitle><navMap><navPoint id="alt-navpoint-1" playOrder="1"><navLabel><text>Alternate Start</text></navLabel><content src="text/alternate.xhtml#alt-start"/></navPoint></navMap></ncx>');
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+        } finally {
+            @unlink($path);
+        }
+
+        $landmarksJson = json_encode($meta['epubLandmarkEntries'] ?? [], JSON_THROW_ON_ERROR);
+        $diagnosticsJson = json_encode($meta['epubDiagnostics'] ?? [], JSON_THROW_ON_ERROR);
+        $t->same(3, $meta['epubLandmarkEntryCount']);
+        $t->same([
+            ['text' => 'Start', 'href' => 'OEBPS/text/chapter.xhtml#start%2Danchor', 'level' => 1, 'type' => 'bodymatter'],
+            ['text' => 'References', 'href' => 'OEBPS/text/chapter.xhtml#refs', 'level' => 1, 'type' => 'bibliography'],
+            ['text' => 'Glossary', 'href' => 'OEBPS/text/chapter.xhtml#glossary', 'level' => 1, 'type' => 'glossary'],
+        ], $meta['epubLandmarkEntries']);
+        foreach (['Duplicate Start', 'Appendix', 'Contents', 'Remote Figures', 'Missing Fragment', 'Invalid Type', 'Absolute Path', 'Query Only'] as $omittedLandmark) {
+            $t->true(!str_contains($landmarksJson, $omittedLandmark), "Invalid primary guide reference should not become a landmark: {$omittedLandmark}.");
+        }
+        foreach (['missing-nav-landmark-entry', 'missing-nav-landmark-link-type', 'missing-nav-landmark-spine-target', 'nav-landmark-target-non-linear-spine'] as $diagnosticCode) {
+            $t->true(!str_contains($diagnosticsJson, $diagnosticCode), "Derived primary guide landmarks should not self-diagnose {$diagnosticCode}.");
+        }
+
+        $alternate = $meta['epubAlternateRootfilePackages']['ALT/alternate.opf'] ?? [];
+        $alternateLandmarksJson = json_encode($alternate['epubLandmarkEntries'] ?? [], JSON_THROW_ON_ERROR);
+        $alternateDiagnosticsJson = json_encode($alternate['epubDiagnostics'] ?? [], JSON_THROW_ON_ERROR);
+        $t->same(3, $alternate['epubLandmarkEntryCount'] ?? null);
+        $t->same([
+            ['text' => 'Alternate Start', 'href' => 'ALT/text/alternate.xhtml#alt-start', 'level' => 1, 'type' => 'bodymatter'],
+            ['text' => 'Alternate References', 'href' => 'ALT/text/alternate.xhtml#alt-refs', 'level' => 1, 'type' => 'bibliography'],
+            ['text' => 'Glossary', 'href' => 'ALT/text/alternate.xhtml#alt-glossary', 'level' => 1, 'type' => 'glossary'],
+        ], $alternate['epubLandmarkEntries'] ?? null);
+        foreach (['Alternate Duplicate', 'Nonlinear Notes', 'Alternate Remote Figures', 'Alternate Missing Fragment'] as $omittedLandmark) {
+            $t->true(!str_contains($alternateLandmarksJson, $omittedLandmark), "Invalid alternate guide reference should not become a landmark: {$omittedLandmark}.");
+        }
+        foreach (['missing-nav-landmark-entry', 'missing-nav-landmark-link-type', 'missing-nav-landmark-spine-target', 'nav-landmark-target-non-linear-spine'] as $diagnosticCode) {
+            $t->true(!str_contains($alternateDiagnosticsJson, $diagnosticCode), "Derived alternate guide landmarks should not self-diagnose {$diagnosticCode}.");
+        }
+    },
     'normalizes percent-encoded epub cover and image manifest URLs' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-cover-url-');
         if ($path === false) {

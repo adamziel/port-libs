@@ -26,6 +26,42 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   Future EPUB3 parity notes should continue to distinguish preservation and
   diagnostics from script execution or cryptographic trust validation.
 
+## 2026-06-25 EPUB2 Guide-Derived Landmark Reader Closure Slice
+
+- Focused PHP coverage is now 1,140 behavior tests and 21,551 full-suite
+  assertions across the Pandoc lane. This closure slice derives sanitized EPUB
+  landmark metadata from OPF2 guide references when a package has no EPUB3
+  landmarks nav.
+- `EpubReader` now promotes only valid XML-name guide types into derived
+  landmark entries, maps guide `text` to landmark `bodymatter`, requires local
+  package-relative guide hrefs to target readable linear spine XHTML resources,
+  verifies guide fragments against well-formed target XML, and suppresses
+  duplicate type/target pairs.
+- Invalid guide types, empty or malformed hrefs, remote guide references,
+  missing fragments, non-linear spine targets, NCX/nav targets, and duplicate
+  guide references remain out of derived landmarks while source
+  `epubGuideReferences` stay available for review and diagnostics.
+- Focused reader coverage builds primary and alternate OPF2 rootfiles with
+  valid, duplicate, remote, missing-fragment, non-linear, and invalid guide
+  references, then verifies primary and alternate `epubLandmarkEntries` plus
+  clean landmark self-diagnostics. Existing writer-side EPUB3 guide-derived
+  landmark generation remains covered by the paired reader/writer gate.
+- Verification: `php -l` passed for `EpubReader.php`, `EpubReaderTest.php`,
+  and `EpubWriterTest.php`; `php tools/run-tests.php
+  lanes/pandoc/tests/EpubReaderTest.php` passed 1 file, 4,818 assertions, 0
+  failures; `php tools/run-tests.php lanes/pandoc/tests/EpubReaderTest.php
+  lanes/pandoc/tests/EpubWriterTest.php` passed 2 files, 14,993 assertions, 0
+  failures; and `php tools/run-tests.php lanes/pandoc/tests` passed 11 files,
+  21,551 assertions, 0 failures with pass-count verification `pass=1140
+  fail=0`.
+- Dependency-closure checkpoint: this closes bounded EPUB2 guide-derived
+  landmark import for primary and alternate OPF2 packages. It does not claim
+  EPUBCheck validation, full upstream Haskell runner parity, full EPUB fixture
+  corpus parity, arbitrary multi-rendition package graph validation beyond the
+  covered rootfile summaries, DRM decryption, XML signature cryptographic
+  validation, or broad EPUB2/EPUB3 navigation parity beyond existing focused
+  OPF guide, NCX, and landmark cases.
+
 ## 2026-06-25 EPUB3 Package-Document Link Closure Slice
 
 - Focused PHP coverage is now 1,139 behavior tests and 21,547
