@@ -1781,6 +1781,140 @@ XML);
             ['width' => 900, 'height' => 1200, 'content' => 'width=900, height=1200'],
         ], $meta['epubViewports']);
     },
+    'records epub3 fixed layout media overlay metadata together' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-fixed-overlay-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = pandoc_epub_test_zip($path);
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="FXL/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('FXL/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">urn:uuid:fixed-layout-media-overlay</dc:identifier>
+    <dc:title>Fixed Layout Media Overlay</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-25T11:30:00Z</meta>
+    <meta property="rendition:layout">pre-paginated</meta>
+    <meta property="rendition:orientation">landscape</meta>
+    <meta property="rendition:spread">none</meta>
+    <meta property="rendition:flow">paginated</meta>
+    <meta property="rendition:viewport">width=1024,height=768</meta>
+    <meta property="rendition:viewport" refines="#page-one-ref">width=1200,height=800, initial-scale=1.0</meta>
+    <meta property="rendition:viewport" refines="#page-two-ref">width=800,height=1200</meta>
+    <meta property="media:duration">0:00:09.000</meta>
+    <meta property="media:narrator">Layout Narrator</meta>
+    <meta property="media:active-class">layout-active</meta>
+    <meta property="media:duration" refines="#mo-page-one">0:00:04.000</meta>
+    <meta property="media:duration" refines="#mo-page-two">0:00:05.000</meta>
+    <meta property="media:playback-active-class" refines="#mo-page-two">layout-playing-two</meta>
+  </metadata>
+  <manifest>
+    <item id="page-one" href="page-one.xhtml" media-type="application/xhtml+xml" media-overlay="mo-page-one"/>
+    <item id="page-two" href="page-two.xhtml" media-type="application/xhtml+xml" media-overlay="mo-page-two"/>
+    <item id="mo-page-one" href="overlays/page-one.smil" media-type="application/smil+xml"/>
+    <item id="mo-page-two" href="overlays/page-two.smil" media-type="application/smil+xml"/>
+    <item id="audio-one" href="audio/page-one.mp3" media-type="audio/mpeg"/>
+    <item id="audio-two" href="audio/page-two.mp3" media-type="audio/mpeg"/>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+  </manifest>
+  <spine page-progression-direction="rtl">
+    <itemref id="page-one-ref" idref="page-one" properties="rendition:page-spread-right rendition:layout-pre-paginated rendition:orientation-landscape rendition:spread-none rendition:flow-paginated"/>
+    <itemref id="page-two-ref" idref="page-two" properties="rendition:page-spread-left rendition:layout-pre-paginated rendition:orientation-portrait rendition:spread-none rendition:flow-paginated"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('FXL/page-one.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head><meta name="viewport" content="width=1200, height=800"/></head><body><h1 id="page-one-title">Fixed Page One</h1><p id="p1">First fixed narrated page.</p></body></html>');
+        $zip->addFromString('FXL/page-two.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head><meta name="viewport" content="width=800, height=1200"/></head><body><h1 id="page-two-title">Fixed Page Two</h1><p id="p2">Second fixed narrated page.</p></body></html>');
+        $zip->addFromString('FXL/nav.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol><li><a href="page-one.xhtml">Fixed Page One</a></li><li><a href="page-two.xhtml">Fixed Page Two</a></li></ol></nav></body></html>');
+        $zip->addFromString('FXL/overlays/page-one.smil', <<<'XML'
+<?xml version="1.0"?>
+<smil xmlns="http://www.w3.org/ns/SMIL" xmlns:epub="http://www.idpf.org/2007/ops" version="3.0">
+  <body>
+    <seq id="seq-page-one" epub:textref="../page-one.xhtml#page-one-title">
+      <par id="par-page-one">
+        <text src="../page-one.xhtml#p1"/>
+        <audio src="../audio/page-one.mp3" clipBegin="0:00:00.000" clipEnd="0:00:04.000"/>
+      </par>
+    </seq>
+  </body>
+</smil>
+XML);
+        $zip->addFromString('FXL/overlays/page-two.smil', <<<'XML'
+<?xml version="1.0"?>
+<smil xmlns="http://www.w3.org/ns/SMIL" xmlns:epub="http://www.idpf.org/2007/ops" version="3.0">
+  <body>
+    <seq id="seq-page-two" epub:textref="../page-two.xhtml#page-two-title">
+      <par id="par-page-two">
+        <text src="../page-two.xhtml#p2"/>
+        <audio src="../audio/page-two.mp3" clipBegin="0:00:04.000" clipEnd="0:00:09.000"/>
+      </par>
+    </seq>
+  </body>
+</smil>
+XML);
+        $zip->addFromString('FXL/audio/page-one.mp3', 'page-one-audio');
+        $zip->addFromString('FXL/audio/page-two.mp3', 'page-two-audio');
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+        } finally {
+            @unlink($path);
+        }
+
+        $t->same('pre-paginated', $meta['epubRenditionLayout'] ?? null);
+        $t->same('landscape', $meta['epubRenditionOrientation'] ?? null);
+        $t->same('none', $meta['epubRenditionSpread'] ?? null);
+        $t->same('paginated', $meta['epubRenditionFlow'] ?? null);
+        $t->same(['width' => 1024, 'height' => 768, 'content' => 'width=1024, height=768'], $meta['epubRenditionViewport'] ?? null);
+        $t->same('rtl', $meta['epubPageProgressionDirection'] ?? null);
+        $t->same('0:00:09.000', $meta['epubMediaDuration'] ?? null);
+        $t->same('Layout Narrator', $meta['epubMediaNarrator'] ?? null);
+        $t->same('layout-active', $meta['epubMediaActiveClass'] ?? null);
+        $t->same(2, $meta['epubMediaOverlayCount'] ?? null);
+        $t->same(['FXL/overlays/page-one.smil', 'FXL/overlays/page-two.smil'], $meta['epubMediaOverlayResources'] ?? null);
+
+        $pageOne = $meta['epubSpineItemRefs'][0] ?? [];
+        $pageTwo = $meta['epubSpineItemRefs'][1] ?? [];
+        $t->same('page-one-ref', $pageOne['id'] ?? null);
+        $t->same('page-two-ref', $pageTwo['id'] ?? null);
+        $t->same('mo-page-one', $pageOne['mediaOverlay'] ?? null);
+        $t->same('mo-page-two', $pageTwo['mediaOverlay'] ?? null);
+        $t->same('right', $pageOne['pageSpread'] ?? null);
+        $t->same('left', $pageTwo['pageSpread'] ?? null);
+        $t->same('landscape', $pageOne['renditionOrientation'] ?? null);
+        $t->same('portrait', $pageTwo['renditionOrientation'] ?? null);
+        $t->same(['width' => 1200, 'height' => 800, 'content' => 'width=1200, height=800'], $pageOne['viewport'] ?? null);
+        $t->same(['width' => 800, 'height' => 1200, 'content' => 'width=800, height=1200'], $pageTwo['viewport'] ?? null);
+        $t->same('rendition:viewport', $pageOne['metadataProperties'][0]['property'] ?? null);
+        $t->same('width=1200, height=800, initial-scale=1.0', $pageOne['metadataProperties'][0]['value'] ?? null);
+        $t->same('rendition:viewport', $pageTwo['metadataProperties'][0]['property'] ?? null);
+        $t->same('width=800, height=1200', $pageTwo['metadataProperties'][0]['value'] ?? null);
+
+        $overlayOne = $meta['epubMediaOverlays'][0] ?? [];
+        $overlayTwo = $meta['epubMediaOverlays'][1] ?? [];
+        $t->same('mo-page-one', $overlayOne['overlayId'] ?? null);
+        $t->same('page-one', $overlayOne['contentId'] ?? null);
+        $t->same('FXL/page-one.xhtml', $overlayOne['contentPath'] ?? null);
+        $t->same('0:00:04.000', $overlayOne['duration'] ?? null);
+        $t->same(['FXL/page-one.xhtml#p1'], $overlayOne['textTargets'] ?? null);
+        $t->same(['FXL/audio/page-one.mp3'], $overlayOne['audioTargets'] ?? null);
+        $t->same('mo-page-two', $overlayTwo['overlayId'] ?? null);
+        $t->same('page-two', $overlayTwo['contentId'] ?? null);
+        $t->same('FXL/page-two.xhtml', $overlayTwo['contentPath'] ?? null);
+        $t->same('0:00:05.000', $overlayTwo['duration'] ?? null);
+        $t->same('layout-playing-two', $overlayTwo['playbackActiveClass'] ?? null);
+        $t->same(['FXL/page-two.xhtml#p2'], $overlayTwo['textTargets'] ?? null);
+        $t->same(['FXL/audio/page-two.mp3'], $overlayTwo['audioTargets'] ?? null);
+        $t->true(!isset($meta['epubDiagnostics']), 'Valid fixed-layout media-overlay metadata should not produce diagnostics.');
+    },
     'records invalid epub3 rendition metadata and spine property diagnostics' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-rendition-diagnostics-');
         if ($path === false) {

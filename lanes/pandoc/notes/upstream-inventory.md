@@ -26,6 +26,40 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   Future EPUB3 parity notes should continue to distinguish preservation and
   diagnostics from script execution or cryptographic trust validation.
 
+## 2026-06-25 EPUB3 Fixed-Layout Media Metadata Closure
+
+- Focused PHP reader coverage now builds a two-page pre-paginated EPUB3 package
+  that combines package-level `rendition:layout`, `rendition:orientation`,
+  `rendition:spread`, `rendition:flow`, and `rendition:viewport` metadata with
+  `rtl` page progression, itemref page-spread/orientation properties, scoped
+  per-spine viewport refinements, and two SMIL media overlays.
+- `EpubReader` is proved to preserve global rendition metadata, page
+  progression, itemref media-overlay links, per-spine viewport metadata
+  properties, media-overlay resources, text and audio targets, package and
+  per-overlay durations, narrator, active class, and per-overlay playback
+  active class without diagnostics for a valid metadata-only import fixture.
+- This closes the fixed-layout/page progression/rendition/viewport/media-overlay
+  metadata behavior requested for the EPUB3 media layout lane. The proof remains
+  package/import metadata coverage only; reading-system rendering, visual
+  viewport layout, pagination display, SMIL playback, and audio synchronization
+  are intentionally excluded.
+- Verification: `php -l lanes/pandoc/tests/EpubReaderTest.php` passed; `php
+  tools/run-tests.php lanes/pandoc/tests/EpubReaderTest.php` passed 1 file,
+  5,217 assertions, 0 failures; `php tools/run-tests.php
+  lanes/pandoc/tests/EpubWriterTest.php` passed 1 file, 10,450 assertions, 0
+  failures; `php tools/run-tests.php lanes/pandoc/tests/EpubReaderTest.php
+  lanes/pandoc/tests/EpubWriterTest.php` passed 2 files, 15,667 assertions, 0
+  failures; and `php tools/run-tests.php lanes/pandoc/tests` passed 11 files,
+  22,225 assertions, 0 failures with pass-count verification `pass=1159
+  fail=0`.
+- Dependency-closure checkpoint: this is limited to native PHP EPUB3
+  fixed-layout media metadata import behavior. It does not claim EPUBCheck
+  validation, upstream Haskell runner parity, arbitrary upstream EPUB fixture
+  parity, reading-system rendering behavior, viewport layout, pagination
+  display, SMIL playback, audio synchronization, DRM decryption, XML signature
+  cryptographic validation, or broader package graph validation beyond the
+  covered primary-package metadata fixture.
+
 ## 2026-06-25 EPUB3 OPF Package-Link Refines Sanitation Closure
 
 - Focused PHP coverage remains 1,151 behavior tests and now covers 21,940
