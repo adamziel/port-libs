@@ -2504,10 +2504,12 @@ final class HtmlWriter
     {
         $source = $this->stripTexMathIgnorable($source);
         $macros = [];
+        $environments = [];
         $source = $this->extractTexMathOperatorDeclarations($source, $macros);
         $source = $this->extractTexMathMacroDefinitions($source, $macros);
+        $source = $this->extractTexMathEnvironmentDefinitions($source, $environments);
 
-        return $this->expandTexMathMacros($source, $macros);
+        return $this->expandTexMathMacros($source, $macros, $environments);
     }
 
     private function stripTexMathIgnorable(string $source): string
@@ -2677,6 +2679,65 @@ final class HtmlWriter
         return $output;
     }
 
+    /**
+     * @param array<string,array{args:int,default:?string,opener:string,closer:string}> $environments
+     */
+    private function extractTexMathEnvironmentDefinitions(string $source, array &$environments): string
+    {
+        $output = '';
+        $offset = 0;
+        $length = strlen($source);
+        while ($offset < $length) {
+            if ($source[$offset] !== '\\') {
+                $output .= $source[$offset];
+                $offset++;
+                continue;
+            }
+
+            $commandStart = $offset;
+            $offset++;
+            $command = $this->readTexMathCommandName($source, $offset);
+            if (!in_array($command, ['newenvironment', 'renewenvironment'], true)) {
+                $output .= substr($source, $commandStart, $offset - $commandStart);
+                continue;
+            }
+
+            $definitionOffset = $offset;
+            $this->skipTexMathWhitespace($source, $definitionOffset);
+            if (($source[$definitionOffset] ?? '') === '*') {
+                $definitionOffset++;
+            }
+
+            $name = $this->readTexMathEnvironmentDefinitionName($source, $definitionOffset);
+            if ($name === null) {
+                $output .= substr($source, $commandStart, $offset - $commandStart);
+                continue;
+            }
+
+            $argCountRaw = $this->readTexMathOptionalRawBracket($source, $definitionOffset);
+            $argCount = is_string($argCountRaw) && preg_match('/^\s*[0-9]\s*$/', $argCountRaw) === 1
+                ? (int) trim($argCountRaw)
+                : 0;
+            $defaultArgument = $argCount > 0 ? $this->readTexMathOptionalRawBracket($source, $definitionOffset) : null;
+            $opener = $this->readTexMathRawDefinitionBody($source, $definitionOffset);
+            $closer = $this->readTexMathRawDefinitionBody($source, $definitionOffset);
+            if ($opener === null || $closer === null) {
+                $output .= substr($source, $commandStart, $offset - $commandStart);
+                continue;
+            }
+
+            $environments[$name] = [
+                'args' => $argCount,
+                'default' => $defaultArgument,
+                'opener' => $opener,
+                'closer' => $closer,
+            ];
+            $offset = $definitionOffset;
+        }
+
+        return $output;
+    }
+
     private function readTexMathMacroDefinitionName(string $source, int &$offset): ?string
     {
         $this->skipTexMathWhitespace($source, $offset);
@@ -2697,6 +2758,41 @@ final class HtmlWriter
         $name = $this->readTexMathCommandName($source, $offset);
 
         return $name === '' ? null : $name;
+    }
+
+    private function readTexMathEnvironmentDefinitionName(string $source, int &$offset): ?string
+    {
+        $this->skipTexMathWhitespace($source, $offset);
+        if (($source[$offset] ?? '') === '{') {
+            $name = $this->readTexMathRawGroup($source, $offset);
+            return is_string($name) && $name !== '' ? $name : null;
+        }
+
+        if (($source[$offset] ?? '') !== '\\') {
+            return null;
+        }
+
+        $offset++;
+        $name = $this->readTexMathCommandName($source, $offset);
+
+        return $name === '' ? null : $name;
+    }
+
+    private function readTexMathRawDefinitionBody(string $source, int &$offset): ?string
+    {
+        $this->skipTexMathWhitespace($source, $offset);
+        if (($source[$offset] ?? '') === '{') {
+            return $this->readTexMathRawGroup($source, $offset);
+        }
+
+        if (($source[$offset] ?? '') !== '\\') {
+            return null;
+        }
+
+        $offset++;
+        $command = $this->readTexMathCommandName($source, $offset);
+
+        return $command === '' ? null : '\\' . $command;
     }
 
     private function readTexMathOptionalRawBracket(string $source, int &$offset): ?string
@@ -2734,14 +2830,15 @@ final class HtmlWriter
 
     /**
      * @param array<string,array{args:int,default:?string,body:string}> $macros
+     * @param array<string,array{args:int,default:?string,opener:string,closer:string}> $environments
      */
-    private function expandTexMathMacros(string $source, array $macros): ?string
+    private function expandTexMathMacros(string $source, array $macros, array $environments = []): ?string
     {
-        if ($macros === []) {
+        if ($macros === [] && $environments === []) {
             return $source;
         }
 
-        $limit = (2 * count($macros)) + 1;
+        $limit = (2 * (count($macros) + count($environments))) + 1;
         for ($iteration = 0; $iteration < $limit; $iteration++) {
             $changed = false;
             $output = '';
@@ -2757,6 +2854,19 @@ final class HtmlWriter
                 $commandStart = $offset;
                 $offset++;
                 $command = $this->readTexMathCommandName($source, $offset);
+                if ($command === 'begin') {
+                    $environmentExpansion = $this->expandTexMathEnvironmentAt($source, $offset, $environments);
+                    if ($environmentExpansion === false) {
+                        return null;
+                    }
+                    if (is_array($environmentExpansion)) {
+                        $output .= $environmentExpansion['text'];
+                        $offset = $environmentExpansion['offset'];
+                        $changed = true;
+                        continue;
+                    }
+                }
+
                 $macro = $macros[$command] ?? null;
                 if ($macro === null) {
                     $output .= substr($source, $commandStart, $offset - $commandStart);
@@ -2798,6 +2908,51 @@ final class HtmlWriter
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string,array{args:int,default:?string,opener:string,closer:string}> $environments
+     * @return array{offset:int,text:string}|false|null
+     */
+    private function expandTexMathEnvironmentAt(string $source, int $offset, array $environments): array|false|null
+    {
+        if ($environments === []) {
+            return null;
+        }
+
+        $environmentOffset = $offset;
+        $name = $this->readTexMathRawGroup($source, $environmentOffset);
+        if (!is_string($name) || !array_key_exists($name, $environments)) {
+            return null;
+        }
+
+        $environment = $environments[$name];
+        $argumentOffset = $environmentOffset;
+        $arguments = [];
+        $firstRequiredArgument = 1;
+        if ($environment['default'] !== null && $environment['args'] > 0) {
+            $optional = $this->readTexMathOptionalRawBracket($source, $argumentOffset);
+            $arguments[] = $optional ?? $environment['default'];
+            $firstRequiredArgument = 2;
+        }
+        for ($argumentIndex = $firstRequiredArgument; $argumentIndex <= $environment['args']; $argumentIndex++) {
+            $argument = $this->readTexMathRawArgument($source, $argumentOffset);
+            if ($argument === null) {
+                return false;
+            }
+            $arguments[] = $argument;
+        }
+
+        $bodyOffset = $argumentOffset;
+        $body = $this->readTexMathEnvironmentBody($source, $bodyOffset, $name);
+        if ($body === null) {
+            return false;
+        }
+
+        return [
+            'offset' => $bodyOffset,
+            'text' => $this->applyTexMathMacroBody($environment['opener'] . $body . $environment['closer'], $arguments),
+        ];
     }
 
     private function readTexMathRawArgument(string $source, int &$offset): ?string

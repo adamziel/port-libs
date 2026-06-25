@@ -53,6 +53,32 @@ return [
         $t->contains('<msub><mrow><mo stretchy="true">‖</mo><mi>y</mi><mo stretchy="true">‖</mo></mrow><mn>1</mn></msub>', $defaultedHtml);
         $t->true(!str_contains($defaultedHtml, '<mi>norm</mi>'), 'Macro with optional argument should not fall back to a literal identifier.');
     },
+    'writes html tex custom environment definitions as mathml' => static function (TestRunner $t) use ($renderMathHtml, $assertXml): void {
+        $delimited = '\newenvironment{foo}{\left(}{\right)}\begin{foo}x\end{foo}';
+        $delimitedHtml = $renderMathHtml($delimited);
+        $assertXml($t, $delimitedHtml);
+        $t->contains('<mrow><mo stretchy="true">(</mo><mi>x</mi><mo stretchy="true">)</mo></mrow>', $delimitedHtml);
+        $t->true(!str_contains($delimitedHtml, '<mi>foo</mi>'), 'Custom environment name should not leak into generated MathML.');
+        $t->true(!str_contains($delimitedHtml, '<mi>newenvironment</mi>'), 'Environment definition should not leak into generated MathML.');
+
+        $renewed = '\newenvironment{foo}{\left(}{\right)}\renewenvironment{foo}{\left[}{\right]}\begin{foo}y\end{foo}';
+        $renewedHtml = $renderMathHtml($renewed);
+        $assertXml($t, $renewedHtml);
+        $t->contains('<mrow><mo stretchy="true">[</mo><mi>y</mi><mo stretchy="true">]</mo></mrow>', $renewedHtml);
+        $t->true(!str_contains($renewedHtml, '<mo stretchy="true">(</mo>'), 'Renewed environment should use the latest opener.');
+
+        $defaulted = '\newenvironment{shift}[2][2]{#2_{#1}+}{}\begin{shift}[3]{x}y\end{shift}';
+        $defaultedHtml = $renderMathHtml($defaulted);
+        $assertXml($t, $defaultedHtml);
+        $t->contains('<mrow><msub><mi>x</mi><mn>3</mn></msub><mo>+</mo><mi>y</mi></mrow>', $defaultedHtml);
+    },
+    'falls back predictably for malformed custom tex environments' => static function (TestRunner $t) use ($renderMathHtml, $assertXml): void {
+        $html = $renderMathHtml('\newenvironment{foo}{\left(}{\right)}\begin{foo}x');
+
+        $assertXml($t, $html);
+        $t->contains('<span class="math inline">\newenvironment{foo}{\left(}{\right)}\begin{foo}x</span>', $html);
+        $t->true(!str_contains($html, '<math'), 'Malformed custom environment should not emit partial MathML.');
+    },
     'writes html tex operator declarations and ignorable tokens as mathml' => static function (TestRunner $t) use ($renderMathHtml, $assertXml): void {
         $operator = '\DeclareMathOperator*{\argmax}{arg\,max}\argmax_{x} f(x)';
         $operatorHtml = $renderMathHtml($operator);
