@@ -17,8 +17,8 @@
 - Shell-out based format claims; direct EPUB support must remain native PHP.
 
 ## Ground Truth
-- Recovered baseline: `origin/epub3-recovery-baseline-20260625T091320Z`, latest local commit `79d36bbe75`.
-- Current evidence: `lanes/pandoc/lane-status.json` reports 1,153 passes, 0 failures, and 22,134 assertions for the recovered EPUB lane.
+- Recovered baseline: `origin/epub3-recovery-baseline-20260625T091320Z`, plus integrated closure commits on the local recovery worktree.
+- Current evidence: the recovered EPUB lane passes focused reader/writer tests with 15,767 assertions and the full Pandoc lane with 22,325 assertions after the CSS image-set resource policy recovery.
 - Static upstream inventory: `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`.
 - Core code: `lanes/pandoc/src/EpubReader.php`, `lanes/pandoc/src/EpubWriter.php`, `lanes/pandoc/src/EpubPackageMetadataReader.php`.
 - Core tests: `lanes/pandoc/tests/EpubReaderTest.php`, `lanes/pandoc/tests/EpubWriterTest.php`, `lanes/pandoc/tests/EpubPackageMetadataReaderTest.php`.

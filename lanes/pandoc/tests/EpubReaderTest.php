@@ -3871,13 +3871,16 @@ XML);
         }
         $css = "@import \"../styles/theme.css\";\n"
             . "@font-face { font-family: \"Brand\"; src: url(\"../fonts/brand.woff2?rev=2#external\") format(\"woff2\"); }\n"
-            . "body { color: #111; background-image: url('../images/pixel2.png#bg'); }\n";
+            . "body { color: #111; background-image: url('../images/pixel2.png#bg'); }\n"
+            . ".cover { background-image: image-set(\"../images/pixel.png\" type(\"image/png\") 1x, '../images/pixel2.png#cover' 2x, url(\"../images/pixel.png\") 1x); }\n";
         $normalizedCss = "@import \"EPUB/styles/theme.css\";\n"
             . "@font-face { font-family: \"Brand\"; src: url(\"EPUB/fonts/brand.woff2?rev=2#external\") format(\"woff2\"); }\n"
-            . "body { color: #111; background-image: url('EPUB/images/pixel2.png#bg'); }\n";
+            . "body { color: #111; background-image: url('EPUB/images/pixel2.png#bg'); }\n"
+            . ".cover { background-image: image-set(\"EPUB/images/pixel.png\" type(\"image/png\") 1x, 'EPUB/images/pixel2.png#cover' 2x, url(\"EPUB/images/pixel.png\") 1x); }\n";
         $roundTripCss = "@import \"theme.css\";\n"
             . "@font-face { font-family: \"Brand\"; src: url(\"../fonts/brand.woff2?rev=2#external\") format(\"woff2\"); }\n"
-            . "body { color: #111; background-image: url('../images/pixel2.png#bg'); }\n";
+            . "body { color: #111; background-image: url('../images/pixel2.png#bg'); }\n"
+            . ".cover { background-image: image-set(\"../images/pixel.png\" type(\"image/png\") 1x, '../images/pixel2.png#cover' 2x, url(\"../images/pixel.png\") 1x); }\n";
         $themeCss = ".theme { background: url('../images/pixel.png'); }\n";
         $normalizedThemeCss = ".theme { background: url('EPUB/images/pixel.png'); }\n";
         $headCss = "@font-face { font-family: \"Brand\"; src: url(\"../fonts/brand.woff2?rev=1#main\") format(\"woff2\"); }\n"
@@ -3972,6 +3975,7 @@ HTML;
             'EPUB/fonts/brand.woff2?rev=1#main',
             'EPUB/fonts/brand.woff2?rev=2#external',
             'EPUB/images/pixel2.png#bg',
+            'EPUB/images/pixel2.png#cover',
             'EPUB/styles/theme.css',
         ], $meta['epubReferencedResources']);
         $t->same([

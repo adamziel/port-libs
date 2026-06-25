@@ -14708,10 +14708,12 @@ XML;
     'preserves epub3 xhtml head styles across package output' => static function (TestRunner $t): void {
         $css = ".chapter > p::before { content: \"A & B\"; }\n"
             . "@font-face { font-family: \"Brand\"; src: url(\"OEBPS/fonts/brand.woff2?rev=1#main\") format(\"woff2\"); }\n"
-            . "body { color: #123456; background-image: url('OEBPS/images/bg.png'); }";
+            . "body { color: #123456; background-image: url('OEBPS/images/bg.png'); }\n"
+            . ".cover { background-image: image-set(\"OEBPS/images/bg.png\" type(\"image/png\") 1x, 'OEBPS/images/bg.png#retina' 2x); }";
         $baseCss = "@import \"OEBPS/styles/theme.css\";\n"
             . "body { font-family: serif; background-image: url('OEBPS/images/bg.png'); }\n"
-            . "@font-face { font-family: \"Brand\"; src: url(\"OEBPS/fonts/brand.woff2?rev=base#font\") format(\"woff2\"); }";
+            . "@font-face { font-family: \"Brand\"; src: url(\"OEBPS/fonts/brand.woff2?rev=base#font\") format(\"woff2\"); }\n"
+            . ".cover-alt { background-image: -webkit-image-set('OEBPS/images/bg.png' 1x, \"OEBPS/images/bg.png#wide\" type(\"image/png\") 2x); }";
         $themeCss = ".theme { color: #234; }\n";
         $document = new AstNode('document', [
             'meta' => [
@@ -14807,10 +14809,12 @@ XML;
             $t->contains('.chapter &gt; p::before { content: &quot;A &amp; B&quot;; }', $chapter);
             $t->contains('url(&quot;../fonts/brand.woff2?rev=1#main&quot;)', $chapter);
             $t->contains('url(&#039;../images/bg.png&#039;)', $chapter);
+            $t->contains('image-set(&quot;../images/bg.png&quot; type(&quot;image/png&quot;) 1x, &#039;../images/bg.png#retina&#039; 2x)', $chapter);
             $t->true(strpos($chapter, $link) < strpos($chapter, $style), 'Head style should be emitted after linked stylesheet resources.');
             $t->contains('@import "theme.css"', $baseCssEntry);
             $t->contains("url('../images/bg.png')", $baseCssEntry);
             $t->contains('url("../fonts/brand.woff2?rev=base#font")', $baseCssEntry);
+            $t->contains("-webkit-image-set('../images/bg.png' 1x, \"../images/bg.png#wide\" type(\"image/png\") 2x)", $baseCssEntry);
             $t->same($themeCss, $themeCssEntry);
         } finally {
             $zip->close();
@@ -14838,7 +14842,9 @@ XML;
             'OEBPS/styles/theme.css',
             'OEBPS/fonts/brand.woff2?rev=1#main',
             'OEBPS/images/bg.png',
+            'OEBPS/images/bg.png#retina',
             'OEBPS/fonts/brand.woff2?rev=base#font',
+            'OEBPS/images/bg.png#wide',
         ], $meta['epubReferencedResources']);
         $t->same('background-image-bytes', base64_decode($meta['epubResourcePayloads']['OEBPS/images/bg.png']['data'] ?? '', true));
         $t->same('brand-font-bytes', base64_decode($meta['epubResourcePayloads']['OEBPS/fonts/brand.woff2']['data'] ?? '', true));
@@ -26785,7 +26791,7 @@ XML;
                         'headStyles' => [
                             [
                                 'id' => 'remote-style',
-                                'css' => '@import "https://cdn.example.test/styles/theme.css"; body { background-image: url("https://cdn.example.test/images/paper.png"); }',
+                                'css' => '@import "https://cdn.example.test/styles/theme.css"; body { background-image: image-set("https://cdn.example.test/images/paper.avif" type("image/avif") 1x, "https://cdn.example.test/images/paper.png" 1x); }',
                             ],
                         ],
                     ],
@@ -26826,6 +26832,7 @@ XML;
             $t->contains('<link id="remote-preload" rel="preload" as="image" href="https://cdn.example.test/images/cover.png" />', $chapter);
             $t->contains('https://cdn.example.test/images/cover@2x.png 2x', $chapter);
             $t->contains('https://cdn.example.test/styles/theme.css', $chapter);
+            $t->contains('https://cdn.example.test/images/paper.avif', $chapter);
             $t->contains('https://cdn.example.test/images/paper.png', $chapter);
         } finally {
             $zip->close();

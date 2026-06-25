@@ -9931,6 +9931,12 @@ final class EpubReader
             }
         }
 
+        foreach ($this->cssImageSetStringCandidateUrls($css) as $url) {
+            if ($this->isRemoteResourceUrl($url)) {
+                return true;
+            }
+        }
+
         return false;
     }
 
@@ -9950,6 +9956,12 @@ final class EpubReader
                 if ($this->isPackageRelativeResourceUrl(html_entity_decode($match[2], ENT_QUOTES | ENT_HTML5, 'UTF-8'))) {
                     return true;
                 }
+            }
+        }
+
+        foreach ($this->cssImageSetStringCandidateUrls($css) as $url) {
+            if ($this->isPackageRelativeResourceUrl($url)) {
+                return true;
             }
         }
 
@@ -20330,6 +20342,7 @@ final class EpubReader
     private function rewriteCssResourceReferences(string $css, string $base_path, array &$referenced_resources): string
     {
         $css = $this->rewriteCssResourceUrls($css, $base_path, $referenced_resources);
+        $css = $this->rewriteCssImageSetStringResourceUrls($css, $base_path, $referenced_resources);
 
         return $this->rewriteCssImportStringResourceUrls($css, $base_path, $referenced_resources);
     }
@@ -20362,6 +20375,25 @@ final class EpubReader
     /**
      * @param list<string> $referenced_resources
      */
+    private function rewriteCssImageSetStringResourceUrls(string $css, string $base_path, array &$referenced_resources): string
+    {
+        return $this->mapCssImageSetStringCandidates($css, function (string $url, string $quote) use ($base_path, &$referenced_resources): string {
+            $decoded = html_entity_decode($url, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $rewritten = $this->rewriteRelativeResourceUrl($decoded, $base_path);
+            if ($this->isPackageRelativeResourceUrl($decoded)) {
+                $referenced_resources[] = $rewritten;
+            }
+            if ($rewritten === $decoded) {
+                return $quote . $url . $quote;
+            }
+
+            return $this->cssUrlLiteral($rewritten, $quote);
+        });
+    }
+
+    /**
+     * @param list<string> $referenced_resources
+     */
     private function rewriteCssImportStringResourceUrls(string $css, string $base_path, array &$referenced_resources): string
     {
         return preg_replace_callback('/(@import\s+)(["\'])([^"\']+)\2/is', function (array $match) use ($base_path, &$referenced_resources): string {
@@ -20381,6 +20413,130 @@ final class EpubReader
 
             return $match[1] . $this->cssUrlLiteral($rewritten, $match[2]);
         }, $css) ?? $css;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function cssImageSetStringCandidateUrls(string $css): array
+    {
+        $urls = [];
+        $this->mapCssImageSetStringCandidates($css, static function (string $url) use (&$urls): string {
+            $urls[] = html_entity_decode($url, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+            return '';
+        });
+
+        return $urls;
+    }
+
+    /**
+     * @param callable(string, string): string $mapper
+     */
+    private function mapCssImageSetStringCandidates(string $css, callable $mapper): string
+    {
+        $offset = 0;
+        $output = '';
+        while (preg_match('/(?<![\w-])(?:-webkit-)?image-set\(/i', $css, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
+            $start = $match[0][1];
+            $open = $start + strlen($match[0][0]) - 1;
+            $close = $this->cssFunctionCloseOffset($css, $open);
+            if ($close === null) {
+                break;
+            }
+
+            $bodyStart = $open + 1;
+            $body = substr($css, $bodyStart, $close - $bodyStart);
+            $output .= substr($css, $offset, $bodyStart - $offset)
+                . $this->mapCssImageSetBodyStringCandidates($body, $mapper);
+            $offset = $close;
+        }
+
+        return $output . substr($css, $offset);
+    }
+
+    /**
+     * @param callable(string, string): string $mapper
+     */
+    private function mapCssImageSetBodyStringCandidates(string $body, callable $mapper): string
+    {
+        $length = strlen($body);
+        $index = 0;
+        $depth = 0;
+        $expectCandidate = true;
+        $output = '';
+        $last = 0;
+        while ($index < $length) {
+            $char = $body[$index];
+            if ($char === '"' || $char === "'") {
+                $end = $this->cssStringEndOffset($body, $index);
+                if ($depth === 0 && $expectCandidate && $end !== null) {
+                    $output .= substr($body, $last, $index - $last)
+                        . $mapper(substr($body, $index + 1, $end - $index - 1), $char);
+                    $last = $end + 1;
+                    $expectCandidate = false;
+                }
+                $index = ($end ?? $index) + 1;
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                $expectCandidate = false;
+            } elseif ($char === ')') {
+                $depth = max(0, $depth - 1);
+            } elseif ($depth === 0 && $char === ',') {
+                $expectCandidate = true;
+            } elseif ($depth === 0 && $expectCandidate && !ctype_space($char)) {
+                $expectCandidate = false;
+            }
+            $index++;
+        }
+
+        return $output . substr($body, $last);
+    }
+
+    private function cssFunctionCloseOffset(string $css, int $openOffset): ?int
+    {
+        $length = strlen($css);
+        $depth = 0;
+        for ($index = $openOffset; $index < $length; $index++) {
+            $char = $css[$index];
+            if ($char === '"' || $char === "'") {
+                $end = $this->cssStringEndOffset($css, $index);
+                $index = $end ?? $index;
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    return $index;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function cssStringEndOffset(string $css, int $quoteOffset): ?int
+    {
+        $quote = $css[$quoteOffset] ?? '';
+        $length = strlen($css);
+        for ($index = $quoteOffset + 1; $index < $length; $index++) {
+            $char = $css[$index];
+            if ($char === '\\') {
+                $index++;
+                continue;
+            }
+            if ($char === $quote) {
+                return $index;
+            }
+        }
+
+        return null;
     }
 
     private function cssUrlLiteral(string $url, string $preferredQuote = ''): string

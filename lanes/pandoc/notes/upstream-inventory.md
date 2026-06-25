@@ -26,6 +26,33 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   Future EPUB3 parity notes should continue to distinguish preservation and
   diagnostics from script execution or cryptographic trust validation.
 
+## 2026-06-25 EPUB3 CSS Image-Set Resource Policy Closure
+
+- `EpubReader` and `EpubWriter` now treat top-level quoted string candidates
+  in CSS `image-set()` and `-webkit-image-set()` functions as package resource
+  references for EPUB import/export, matching existing `url(...)` and
+  string-based `@import` resource handling.
+- Reader import now rewrites package-local `image-set()` candidates to
+  normalized EPUB resource paths, records the referenced resource targets, and
+  preserves descriptor strings such as `type("image/png")` as descriptors
+  rather than false resource references. Existing nested `url(...)` handling
+  remains responsible for URL-function candidates inside `image-set()`.
+- Writer export now rewrites rendered package-local image-set candidates into
+  chapter/package-relative paths and detects remote image-set candidates for
+  `remote-resources` metadata without fetching remote bytes.
+- This closes the current CSS resource policy gap on the recovered EPUB
+  reader/writer surfaces. It does not claim CSS rendering, media query
+  evaluation, browser layout behavior, remote fetching, JavaScript runtime,
+  DRM/decryption, or cryptographic signature validation.
+- Verification: `php -l` passed for `EpubReader.php`, `EpubWriter.php`,
+  `EpubReaderTest.php`, and `EpubWriterTest.php`; `jq empty` passed for
+  `lane-status.json` and `UPSTREAM_TEST_MANIFEST.json`; the Pandoc lane diff
+  check passed; `php tools/run-tests.php
+  lanes/pandoc/tests/EpubReaderTest.php lanes/pandoc/tests/EpubWriterTest.php`
+  passed 2 files, 15,767 assertions, 0 failures; and `php
+  tools/run-tests.php lanes/pandoc/tests` passed 11 files, 22,325 assertions,
+  0 failures.
+
 ## 2026-06-25 EPUB3 Fixed-Layout Media Metadata Closure
 
 - Focused PHP reader coverage now builds a two-page pre-paginated EPUB3 package
