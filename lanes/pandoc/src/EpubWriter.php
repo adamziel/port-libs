@@ -2763,6 +2763,16 @@ final class EpubWriter
         }
 
         $declaredPrefixes = $this->packagePropertyPrefixNames($meta);
+        $linkTargetIds = $this->metadataLinkTargetIds(
+            $source,
+            $packageDir,
+            $packagePath,
+            $packageElementIds,
+            $resourcePaths,
+            $xmlResourcePayloads,
+            $declaredPrefixes
+        );
+        $refinesTargetIds = array_replace($packageElementIds, $linkTargetIds);
         $items = [];
         $seen = [];
         $seenIds = $packageElementIds;
@@ -2785,7 +2795,7 @@ final class EpubWriter
                 $candidate,
                 $packageDir,
                 $packagePath,
-                $packageElementIds,
+                $refinesTargetIds,
                 $resourcePaths,
                 $xmlResourcePayloads
             );
@@ -2819,7 +2829,7 @@ final class EpubWriter
                 $sanitizedLink,
                 $packageDir,
                 $packagePath,
-                $packageElementIds,
+                $refinesTargetIds,
                 $resourcePaths,
                 $xmlResourcePayloads
             );
@@ -2857,6 +2867,100 @@ final class EpubWriter
         }
 
         return $items;
+    }
+
+    /**
+     * @param list<array<string, mixed>|mixed> $source
+     * @param array<string, true> $packageElementIds
+     * @param array<string, true> $resourcePaths
+     * @param array<string, string> $xmlResourcePayloads
+     * @param array<string, true> $declaredPrefixes
+     * @return array<string, true>
+     */
+    private function metadataLinkTargetIds(
+        array $source,
+        string $packageDir,
+        string $packagePath,
+        array $packageElementIds,
+        array $resourcePaths,
+        array $xmlResourcePayloads,
+        array $declaredPrefixes
+    ): array {
+        $candidateIds = [];
+        $seenIds = $packageElementIds;
+        foreach ($source as $link) {
+            if (!is_array($link)) {
+                continue;
+            }
+            $id = $this->validManifestId($this->entryString($link, 'id'));
+            if ($id === '' || isset($seenIds[$id])) {
+                continue;
+            }
+            $href = $this->entryString($link, 'href');
+            if (
+                $href === ''
+                || !$this->validPackageLinkHref($href)
+                || $this->packageLinkHrefTargetsPackageDocument($href, $packageDir, $packagePath)
+                || !$this->packageLinkHrefTargetsAvailableResource($href, $packageDir, $packagePath, $resourcePaths, $xmlResourcePayloads)
+            ) {
+                continue;
+            }
+
+            $candidateIds[$id] = true;
+            $seenIds[$id] = true;
+        }
+
+        $targetIds = [];
+        $seenIds = $packageElementIds;
+        $availableIds = array_replace($packageElementIds, $candidateIds);
+        foreach ($source as $link) {
+            if (!is_array($link)) {
+                continue;
+            }
+            $id = $this->validManifestId($this->entryString($link, 'id'));
+            if ($id === '' || isset($seenIds[$id])) {
+                continue;
+            }
+            $href = $this->entryString($link, 'href');
+            if (
+                $href === ''
+                || !$this->validPackageLinkHref($href)
+                || $this->packageLinkHrefTargetsPackageDocument($href, $packageDir, $packagePath)
+                || !$this->packageLinkHrefTargetsAvailableResource($href, $packageDir, $packagePath, $resourcePaths, $xmlResourcePayloads)
+            ) {
+                continue;
+            }
+
+            $candidate = $link;
+            $validatedRefines = $this->packageMetadataLinkRefinesAttribute(
+                $candidate,
+                $packageDir,
+                $packagePath,
+                $availableIds,
+                $resourcePaths,
+                $xmlResourcePayloads
+            );
+            if ($validatedRefines !== '') {
+                $candidate['refines'] = $validatedRefines;
+            } elseif ($this->entryString($candidate, 'refines') !== '') {
+                $candidate['refines'] = '';
+            }
+
+            $rel = $this->packageLinkRelationTokenList($candidate['rel'] ?? '', $declaredPrefixes, true, $this->entryString($candidate, 'refines'));
+            if ($rel === '') {
+                continue;
+            }
+            $candidate['rel'] = $rel;
+            $mediaType = $this->packageLinkMediaType($candidate, $href, $packageDir, true);
+            if ($mediaType === '' && $this->packageLinkRelRequiresMediaType($candidate)) {
+                continue;
+            }
+
+            $targetIds[$id] = true;
+            $seenIds[$id] = true;
+        }
+
+        return $targetIds;
     }
 
     /**
@@ -4515,6 +4619,10 @@ final class EpubWriter
                 $candidate = $entry;
                 if ($linkId !== '' && (isset($seenIds[$linkId]) || isset($seenPackageIds[$linkId]))) {
                     $candidate['id'] = '';
+                }
+                $refines = $this->validMetadataRefinesValue($this->entryString($candidate, 'refines'));
+                if ($refines !== '' && !isset($refinesTargetIds[substr($refines, 1)])) {
+                    $candidate['refines'] = '';
                 }
                 $link = $this->collectionLinkElementXml($candidate, $packageDir, $packagePath, $resourcePaths, $itemPad, $declaredPrefixes, true, true, $xmlResourcePayloads);
                 if ($link !== '') {

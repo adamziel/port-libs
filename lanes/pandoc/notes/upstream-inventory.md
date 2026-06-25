@@ -26,6 +26,42 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   Future EPUB3 parity notes should continue to distinguish preservation and
   diagnostics from script execution or cryptographic trust validation.
 
+## 2026-06-25 EPUB3 OPF Package-Link Refines Sanitation Closure
+
+- Focused PHP coverage remains 1,151 behavior tests and now covers 21,940
+  full-suite assertions across the Pandoc lane.
+- `EpubWriter` now builds OPF package metadata-link `refines` target inventory
+  from package metadata links that are valid enough to be emitted. Invalid
+  package-link IDs, duplicate IDs, missing local resources, malformed fragment
+  hrefs, and package-document self-reference links do not become local
+  `refines` anchors.
+- Collection metadata links now use the containing collection's emitted target
+  inventory before preserving `refines`, so valid metadata link-to-link
+  refinements survive while missing or invalid collection link IDs are stripped
+  before OPF output. Direct collection member links still omit `refines`.
+- Focused writer/read-back coverage exercises generated alternate rootfiles for
+  package metadata links, collection metadata links, and direct collection
+  member links. It preserves valid package-link and collection-link `voicing`
+  refinements, omits invalid/missing-resource/self-reference targets, keeps
+  alternate package sidecars isolated from primary packages, and avoids
+  package-link, collection metadata-refines, and direct collection-link
+  self-diagnostics.
+- Verification: `php -l` passed for `EpubWriter.php` and
+  `EpubWriterTest.php`; `php tools/run-tests.php
+  lanes/pandoc/tests/EpubWriterTest.php` passed 1 file, 10,405 assertions, 0
+  failures; `php tools/run-tests.php lanes/pandoc/tests/EpubReaderTest.php
+  lanes/pandoc/tests/EpubWriterTest.php` passed 2 files, 15,382 assertions, 0
+  failures; and `php tools/run-tests.php lanes/pandoc/tests` passed 11 files,
+  21,940 assertions, 0 failures with pass-count verification `pass=1151
+  fail=0`.
+- Dependency-closure checkpoint: this is limited to native PHP EPUB3 OPF
+  package-link/refines sanitation on the recovery branch. It does not claim
+  EPUBCheck validation, upstream Haskell runner parity, arbitrary upstream EPUB
+  fixture parity, reading-system rendering behavior, DRM decryption, XML
+  signature cryptographic validation, or broader package graph validation
+  beyond the covered generated primary and alternate rootfile link/refines
+  cases.
+
 ## 2026-06-25 EPUB3 Nav Landmark/Page-List Ordering Closure
 
 - Focused PHP coverage now exercises EPUB3 nav `landmarks` and `page-list`

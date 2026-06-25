@@ -34410,6 +34410,44 @@ HTML;
                                     ['property' => 'title', 'id' => 'alt-series-title', 'value' => 'Alternate Series Title'],
                                     [
                                         'name' => 'link',
+                                        'id' => 'alt-record-refines-target',
+                                        'href' => 'metadata/series.xml',
+                                        'rel' => 'alternate',
+                                        'mediaType' => 'application/xml',
+                                    ],
+                                    [
+                                        'name' => 'link',
+                                        'id' => 'alt-link-target-voice',
+                                        'href' => 'audio/title.mp3',
+                                        'rel' => 'voicing',
+                                        'mediaType' => 'audio/mpeg',
+                                        'refines' => '#alt-record-refines-target',
+                                    ],
+                                    [
+                                        'name' => 'link',
+                                        'id' => 'alt-missing-target-voice',
+                                        'href' => 'audio/title.mp3',
+                                        'rel' => 'voicing alternate',
+                                        'mediaType' => 'audio/mpeg',
+                                        'refines' => '#alt-missing-collection-link',
+                                    ],
+                                    [
+                                        'name' => 'link',
+                                        'id' => 'bad:alt-collection-link-target',
+                                        'href' => 'metadata/series.xml',
+                                        'rel' => 'alternate',
+                                        'mediaType' => 'application/xml',
+                                    ],
+                                    [
+                                        'name' => 'link',
+                                        'id' => 'alt-invalid-target-voice',
+                                        'href' => 'audio/title.mp3',
+                                        'rel' => 'voicing alternate',
+                                        'mediaType' => 'audio/mpeg',
+                                        'refines' => '#bad:alt-collection-link-target',
+                                    ],
+                                    [
+                                        'name' => 'link',
                                         'id' => 'alt-record-bad-media',
                                         'href' => 'metadata/series.xml',
                                         'rel' => 'record',
@@ -34467,6 +34505,12 @@ HTML;
                                         'rel' => 'contents',
                                         'mediaType' => 'bad media',
                                     ],
+                                    [
+                                        'id' => 'alt-refining-direct-member',
+                                        'href' => 'text/chapter.xhtml',
+                                        'rel' => 'contents',
+                                        'refines' => '#alt-series-title',
+                                    ],
                                 ],
                             ],
                         ],
@@ -34519,11 +34563,17 @@ HTML;
                 throw new RuntimeException('Generated EPUB package is missing alternate collection link href/media OPF files');
             }
 
+            $t->contains('<link href="metadata/series.xml" rel="alternate" media-type="application/xml" id="alt-record-refines-target"/>', $alternatePackage);
+            $t->contains('<link href="audio/title.mp3" rel="voicing" media-type="audio/mpeg" refines="#alt-record-refines-target" id="alt-link-target-voice"/>', $alternatePackage);
+            $t->contains('<link href="audio/title.mp3" rel="alternate" media-type="audio/mpeg" id="alt-missing-target-voice"/>', $alternatePackage);
+            $t->contains('<link href="audio/title.mp3" rel="alternate" media-type="audio/mpeg" id="alt-invalid-target-voice"/>', $alternatePackage);
             $t->contains('<link href="metadata/series.xml" rel="record" media-type="application/xml" id="alt-record-bad-media"/>', $alternatePackage);
             $t->contains('<link href="audio/title.mp3" rel="alternate" media-type="audio/mpeg" id="alt-bad-voicing-invalid-refines"/>', $alternatePackage);
             $t->contains('<link href="audio/title.mp3" rel="voicing" media-type="audio/mpeg" refines="#alt-series-title" id="alt-valid-voicing"/>', $alternatePackage);
             $t->contains('<link href="text/chapter.xhtml" rel="contents" id="alt-bad-media-direct"/>', $alternatePackage);
+            $t->contains('<link href="text/chapter.xhtml" rel="contents" id="alt-refining-direct-member"/>', $alternatePackage);
             foreach ([
+                'bad:alt-collection-link-target',
                 'alt-bad-voicing-missing-refines',
                 'alt-bad-metadata-fragment',
                 'alt-bad-data-link',
@@ -34532,6 +34582,8 @@ HTML;
                 'media-type="application xml"',
                 'media-type="bad media"',
                 'refines="bad refines"',
+                'refines="#alt-missing-collection-link"',
+                'refines="#bad:alt-collection-link-target"',
             ] as $invalidAlternateLinkContent) {
                 $t->true(!str_contains($alternatePackage, $invalidAlternateLinkContent), "Alternate collection link href/media content should be omitted: {$invalidAlternateLinkContent}.");
             }
@@ -34551,6 +34603,13 @@ HTML;
                 $metadataLinksById[$entry['id']] = $entry;
             }
         }
+        $t->same('alternate', $metadataLinksById['alt-record-refines-target']['rel'] ?? null);
+        $t->same('voicing', $metadataLinksById['alt-link-target-voice']['rel'] ?? null);
+        $t->same('#alt-record-refines-target', $metadataLinksById['alt-link-target-voice']['refines'] ?? null);
+        $t->same('alternate', $metadataLinksById['alt-missing-target-voice']['rel'] ?? null);
+        $t->true(!array_key_exists('refines', $metadataLinksById['alt-missing-target-voice'] ?? []), 'Missing collection metadata-link IDs should not become refines targets.');
+        $t->same('alternate', $metadataLinksById['alt-invalid-target-voice']['rel'] ?? null);
+        $t->true(!array_key_exists('refines', $metadataLinksById['alt-invalid-target-voice'] ?? []), 'Invalid collection metadata-link IDs should not become refines targets.');
         $t->same('application/xml', $metadataLinksById['alt-record-bad-media']['mediaType'] ?? null);
         $t->true(!array_key_exists('refines', $metadataLinksById['alt-record-bad-media'] ?? []), 'Alternate record metadata links should not round-trip refines attributes.');
         $t->true(!isset($metadataLinksById['alt-bad-voicing-missing-refines']), 'Alternate voicing metadata links without valid refines should not round-trip.');
@@ -34568,6 +34627,8 @@ HTML;
         }
         $t->same('alt-bad-media-direct', $linksById['alt-bad-media-direct']['id'] ?? null);
         $t->true(!array_key_exists('mediaType', $linksById['alt-bad-media-direct'] ?? []), 'Invalid alternate direct collection link media types should not round-trip.');
+        $t->same('alt-refining-direct-member', $linksById['alt-refining-direct-member']['id'] ?? null);
+        $t->true(!array_key_exists('refines', $linksById['alt-refining-direct-member'] ?? []), 'Direct collection member links should not round-trip refines attributes.');
         foreach ([
             'invalid-package-link-data-url',
             'invalid-package-link-file-url',
@@ -34577,6 +34638,9 @@ HTML;
             'missing-package-link-media-type',
             'invalid-package-link-record-refines',
             'missing-package-link-voicing-refines',
+            'invalid-collection-metadata-refines',
+            'collection-metadata-refines-outside',
+            'invalid-collection-link-refines',
         ] as $code) {
             $t->true(!str_contains($diagnosticsJson, $code), "Generated alternate collection link href/media/refines values should not self-diagnose {$code}.");
         }
@@ -36081,6 +36145,57 @@ HTML;
                                 'mediaType' => 'application/xml',
                             ],
                             [
+                                'id' => 'alt-package-link-anchor',
+                                'href' => 'metadata/onix.xml',
+                                'rel' => 'alternate',
+                                'mediaType' => 'application/xml',
+                            ],
+                            [
+                                'id' => 'alt-package-link-voice',
+                                'href' => 'audio/title.mp3',
+                                'rel' => 'voicing',
+                                'mediaType' => 'audio/mpeg',
+                                'refines' => '#alt-package-link-anchor',
+                            ],
+                            [
+                                'id' => 'bad:alt-package-link-anchor',
+                                'href' => 'metadata/onix.xml',
+                                'rel' => 'alternate',
+                                'mediaType' => 'application/xml',
+                            ],
+                            [
+                                'id' => 'alt-invalid-package-link-refines',
+                                'href' => 'audio/title.mp3',
+                                'rel' => 'voicing alternate',
+                                'mediaType' => 'audio/mpeg',
+                                'refines' => '#bad:alt-package-link-anchor',
+                            ],
+                            [
+                                'id' => 'alt-missing-package-link-anchor',
+                                'href' => 'metadata/missing-link-target.xml',
+                                'rel' => 'alternate',
+                                'mediaType' => 'application/xml',
+                            ],
+                            [
+                                'id' => 'alt-missing-package-link-refines',
+                                'href' => 'audio/title.mp3',
+                                'rel' => 'voicing alternate',
+                                'mediaType' => 'audio/mpeg',
+                                'refines' => '#alt-missing-package-link-anchor',
+                            ],
+                            [
+                                'id' => 'alt-package-document-link',
+                                'href' => 'metadata-links.opf#alt-book-id',
+                                'rel' => 'alternate',
+                                'mediaType' => 'application/oebps-package+xml',
+                            ],
+                            [
+                                'id' => 'alt-empty-fragment-link',
+                                'href' => 'metadata/onix.xml#',
+                                'rel' => 'alternate',
+                                'mediaType' => 'application/xml',
+                            ],
+                            [
                                 'id' => 'alt-record-bad-media',
                                 'href' => 'metadata/onix.xml',
                                 'rel' => 'record record bad: missing:term',
@@ -36172,6 +36287,10 @@ HTML;
             }
 
             $t->contains('prefix="custom: https://example.com/vocab#"', $alternatePackage);
+            $t->contains('<link href="metadata/onix.xml" rel="alternate" media-type="application/xml" id="alt-package-link-anchor"/>', $alternatePackage);
+            $t->contains('<link href="audio/title.mp3" rel="voicing" media-type="audio/mpeg" refines="#alt-package-link-anchor" id="alt-package-link-voice"/>', $alternatePackage);
+            $t->contains('<link href="audio/title.mp3" rel="alternate" media-type="audio/mpeg" id="alt-invalid-package-link-refines"/>', $alternatePackage);
+            $t->contains('<link href="audio/title.mp3" rel="alternate" media-type="audio/mpeg" id="alt-missing-package-link-refines"/>', $alternatePackage);
             $t->contains('<link href="metadata/onix.xml" rel="record" media-type="application/xml" id="alt-record-bad-media" properties="preview custom:featured"/>', $alternatePackage);
             $t->contains('<link href="audio/title.mp3" rel="alternate" media-type="audio/mpeg" id="bad-alt-voicing-invalid-refines"/>', $alternatePackage);
             $t->contains('<link href="audio/title.mp3" rel="voicing" hreflang="pl" media-type="audio/mpeg" refines="#alt-book-id" xml:lang="pl" dir="rtl" id="alt-valid-voicing"/>', $alternatePackage);
@@ -36180,6 +36299,10 @@ HTML;
                 'bad-alt-fragment-metadata-link',
                 'bad-alt-rel-metadata-link',
                 'bad-alt-malformed-fragment-metadata-link',
+                'bad:alt-package-link-anchor',
+                'alt-missing-package-link-anchor',
+                'alt-package-document-link',
+                'alt-empty-fragment-link',
                 'bad-alt-voicing-missing-refines',
                 'missing:term',
                 'missing:property',
@@ -36189,6 +36312,10 @@ HTML;
                 'xml:lang="en_US"',
                 'dir="sideways"',
                 'refines="bad refines"',
+                'refines="#bad:alt-package-link-anchor"',
+                'refines="#alt-missing-package-link-anchor"',
+                'href="metadata-links.opf#alt-book-id"',
+                'href="metadata/onix.xml#"',
                 'primary-record-leak',
             ] as $invalidAlternateMetadata) {
                 $t->true(!str_contains($alternatePackage, $invalidAlternateMetadata), "Alternate OPF should omit invalid package metadata link content: {$invalidAlternateMetadata}.");
@@ -36212,7 +36339,14 @@ HTML;
             }
         }
 
-        $t->same(3, count($linksById));
+        $t->same(7, count($linksById));
+        $t->same('alternate', $linksById['alt-package-link-anchor']['rel'] ?? null);
+        $t->same('voicing', $linksById['alt-package-link-voice']['rel'] ?? null);
+        $t->same('#alt-package-link-anchor', $linksById['alt-package-link-voice']['refines'] ?? null);
+        $t->same('alternate', $linksById['alt-invalid-package-link-refines']['rel'] ?? null);
+        $t->true(!array_key_exists('refines', $linksById['alt-invalid-package-link-refines'] ?? []), 'Invalid package-link IDs should not become metadata-link refines targets.');
+        $t->same('alternate', $linksById['alt-missing-package-link-refines']['rel'] ?? null);
+        $t->true(!array_key_exists('refines', $linksById['alt-missing-package-link-refines'] ?? []), 'Package-link IDs from missing resources should not become metadata-link refines targets.');
         $t->same('application/xml', $linksById['alt-record-bad-media']['mediaType'] ?? null);
         $t->same(['preview', 'custom:featured'], $linksById['alt-record-bad-media']['properties'] ?? null);
         $t->true(!array_key_exists('refines', $linksById['alt-record-bad-media'] ?? []), 'Alternate record metadata links should not round-trip invalid refines attributes.');
@@ -36250,6 +36384,7 @@ HTML;
             'invalid-package-link-dir',
             'invalid-package-link-record-refines',
             'missing-package-link-voicing-refines',
+            'invalid-package-link-package-document-reference',
         ] as $code) {
             $t->true(!str_contains($alternateDiagnosticsJson, $code), "Generated alternate package metadata links should not self-diagnose {$code}.");
         }
