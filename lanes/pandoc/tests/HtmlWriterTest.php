@@ -57,9 +57,17 @@ return [
         $operator = '\DeclareMathOperator*{\argmax}{arg\,max}\argmax_{x} f(x)';
         $operatorHtml = $renderMathHtml($operator);
         $assertXml($t, $operatorHtml);
-        $t->contains('<msub><mi mathvariant="normal">arg max</mi><mi>x</mi></msub>', $operatorHtml);
+        $t->contains('<munder><mi mathvariant="normal">arg max</mi><mi>x</mi></munder><mo>&#x2061;</mo><mi>f</mi>', $operatorHtml);
         $t->true(!str_contains($operatorHtml, '<mi>argmax</mi>'), 'Declared operator should not fall back to a literal identifier.');
         $t->true(!str_contains($operatorHtml, '<mi>DeclareMathOperator</mi>'), 'Operator declaration should not leak into generated MathML.');
+
+        $limitsHtml = $renderMathHtml('\operatorname{median}\limits_{i}^{n} p_i');
+        $assertXml($t, $limitsHtml);
+        $t->contains('<munderover><mi mathvariant="normal">median</mi><mi>i</mi><mi>n</mi></munderover><mo>&#x2061;</mo><msub><mi>p</mi><mi>i</mi></msub>', $limitsHtml);
+
+        $nolimitsHtml = $renderMathHtml('\operatorname*{rank}\nolimits_{j} q_j');
+        $assertXml($t, $nolimitsHtml);
+        $t->contains('<msub><mi mathvariant="normal">rank</mi><mi>j</mi></msub><mo>&#x2061;</mo><msub><mi>q</mi><mi>j</mi></msub>', $nolimitsHtml);
 
         $ignorable = "x% comment\n+ y\\label{eq:a}\\tag*{A}\\nonumber\\allowbreak";
         $ignorableHtml = $renderMathHtml($ignorable);

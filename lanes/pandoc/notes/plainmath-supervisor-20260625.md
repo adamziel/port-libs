@@ -104,33 +104,21 @@
 
 ## Phase Two Fanout - Full Generic TeX Parser Parity
 
-After the fixture expansion lane, the branch covers 43 static PlainMath MathML
+After the operator and typed-atom lanes, the branch covers 47 static PlainMath MathML
 fixtures, 6 fallback fixtures, and 4 known gaps. Further work should prefer
 deep parser semantics over more alias-table expansion.
 
-Active backlog:
+Remaining active backlog:
 
 - `newenvironment` / `renewenvironment`: expand simple begin/end custom
   environments through preprocessing and cover nested/custom delimiter fixtures.
-- Malformed structural fallback: detect incomplete structural commands early
-  enough to return the original math span instead of XML-safe visible command
-  tokens.
-- Typed atom/category model: prototype the smallest internal representation
-  needed for `Ord`, `Bin`, `Rel`, `Open`, `Close`, `Pun`, and `Op` semantics
-  without rewriting EPUB/package behavior.
-- Atom coercion commands: implement or precisely scope `\mathop`, `\mathrel`,
-  `\mathbin`, `\mathord`, `\mathopen`, `\mathclose`, and `\mathpunct` using the
-  typed atom work when practical.
-- Function application and operator limits: close bounded parity for
-  `\operatorname`, `\operatorname*`, declared operators, `\limits`,
-  `\nolimits`, and MathML invisible apply-function where current architecture
-  can support it.
-- Dimensioned spacing: parse representative `\hspace`, `\mspace`, `\kern`,
-  `\mkern`, and named mu/pt/em forms into stable MathML spacing or documented
-  known gaps.
-- Text-mode recursion: improve `\text`, `\mbox`, and related commands where
-  TexMath recursively parses or preserves styled text, while keeping XHTML
-  output valid.
+- Typed expression extraction: move from direct MathML string fragments to a
+  parser/writer boundary so category correction, source spans, and diagnostics
+  can be represented structurally.
+- Writer fidelity: tighten explicit fence `form`, per-cell table alignment, and
+  styled Unicode conversion only with fixture-backed changes.
+- Package-like TeX families: keep `\ensuremath`, SIUnitX, and similar package
+  surfaces as expected gaps until a fixture owner scopes them.
 - Writer fidelity audit: identify which TexMath MathML attributes (`form`,
   per-cell alignment, style/text-align, styled Unicode conversion) matter for
   parser parity and which remain accepted layout differences.

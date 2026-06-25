@@ -6,6 +6,12 @@ namespace PortLibs\Pandoc;
 
 final class HtmlWriter
 {
+    private const TEX_MATH_APPLY_FUNCTION_MARKER = '<!--plainmath-apply-function-->';
+
+    private const TEX_MATH_DEFAULT_LIMITS_MARKER = '<!--plainmath-default-limits-->';
+
+    private const TEX_MATH_APPLY_FUNCTION_OPERATOR = '<mo>&#x2061;</mo>';
+
     /** @var list<array{number:int, node:AstNode}> */
     private array $footnotes = [];
 
@@ -2730,6 +2736,7 @@ final class HtmlWriter
      */
     private function texMathAtomCategoryPrototypeTokenFromElement(string $source, string $element, string $category): ?array
     {
+        $element = $this->stripTexMathInternalMarkers($element);
         if ($element === '' || str_starts_with($element, '<mspace')) {
             return null;
         }
@@ -3402,9 +3409,10 @@ final class HtmlWriter
             return '';
         }
 
+        [$base, $insertApplyFunction, $defaultLimits] = $this->texMathOperatorMetadata($base);
         $limitModifier = $this->consumeTexMathLimitModifier($source, $offset);
         $useUnderOverLimits = $limitModifier !== 'nolimits'
-            && $limitModifier !== null
+            && ($limitModifier !== null || $defaultLimits)
             && $this->texMathSupportsUnderOverLimits($base);
         $superscript = '';
         $subscript = '';
@@ -3436,27 +3444,220 @@ final class HtmlWriter
 
         if ($useUnderOverLimits) {
             if ($superscript !== '' && $subscript !== '') {
-                return '<munderover>' . $base . $this->mathMLRow($subscript) . $this->mathMLRow($superscript) . '</munderover>';
+                return $this->texMathApplyFunctionSuffix(
+                    '<munderover>' . $base . $this->mathMLRow($subscript) . $this->mathMLRow($superscript) . '</munderover>',
+                    $insertApplyFunction,
+                    $source,
+                    $offset
+                );
             }
             if ($superscript !== '') {
-                return '<mover>' . $base . $this->mathMLRow($superscript) . '</mover>';
+                return $this->texMathApplyFunctionSuffix(
+                    '<mover>' . $base . $this->mathMLRow($superscript) . '</mover>',
+                    $insertApplyFunction,
+                    $source,
+                    $offset
+                );
             }
             if ($subscript !== '') {
-                return '<munder>' . $base . $this->mathMLRow($subscript) . '</munder>';
+                return $this->texMathApplyFunctionSuffix(
+                    '<munder>' . $base . $this->mathMLRow($subscript) . '</munder>',
+                    $insertApplyFunction,
+                    $source,
+                    $offset
+                );
             }
         }
 
         if ($superscript !== '' && $subscript !== '') {
-            return '<msubsup>' . $base . $this->mathMLRow($subscript) . $this->mathMLRow($superscript) . '</msubsup>';
+            return $this->texMathApplyFunctionSuffix(
+                '<msubsup>' . $base . $this->mathMLRow($subscript) . $this->mathMLRow($superscript) . '</msubsup>',
+                $insertApplyFunction,
+                $source,
+                $offset
+            );
         }
         if ($superscript !== '') {
-            return '<msup>' . $base . $this->mathMLRow($superscript) . '</msup>';
+            return $this->texMathApplyFunctionSuffix(
+                '<msup>' . $base . $this->mathMLRow($superscript) . '</msup>',
+                $insertApplyFunction,
+                $source,
+                $offset
+            );
         }
         if ($subscript !== '') {
-            return '<msub>' . $base . $this->mathMLRow($subscript) . '</msub>';
+            return $this->texMathApplyFunctionSuffix(
+                '<msub>' . $base . $this->mathMLRow($subscript) . '</msub>',
+                $insertApplyFunction,
+                $source,
+                $offset
+            );
         }
 
-        return $base;
+        return $this->texMathApplyFunctionSuffix($base, $insertApplyFunction, $source, $offset);
+    }
+
+    private function texMathApplyFunctionSuffix(string $item, bool $insertApplyFunction, string $source, int $offset): string
+    {
+        return $insertApplyFunction && $this->texMathNextAtomCanBeFunctionArgument($source, $offset)
+            ? $item . self::TEX_MATH_APPLY_FUNCTION_OPERATOR
+            : $item;
+    }
+
+    /**
+     * @return array{0:string,1:bool,2:bool}
+     */
+    private function texMathOperatorMetadata(string $element): array
+    {
+        $insertApplyFunction = str_contains($element, self::TEX_MATH_APPLY_FUNCTION_MARKER);
+        $defaultLimits = str_contains($element, self::TEX_MATH_DEFAULT_LIMITS_MARKER);
+
+        return [
+            $this->stripTexMathInternalMarkers($element),
+            $insertApplyFunction,
+            $defaultLimits,
+        ];
+    }
+
+    private function texMathMarkedOperator(string $element, bool $defaultLimits = false): string
+    {
+        return self::TEX_MATH_APPLY_FUNCTION_MARKER
+            . ($defaultLimits ? self::TEX_MATH_DEFAULT_LIMITS_MARKER : '')
+            . $element;
+    }
+
+    private function stripTexMathInternalMarkers(string $content): string
+    {
+        return str_replace([
+            self::TEX_MATH_APPLY_FUNCTION_MARKER,
+            self::TEX_MATH_DEFAULT_LIMITS_MARKER,
+        ], '', $content);
+    }
+
+    private function texMathNextAtomCanBeFunctionArgument(string $source, int $offset): bool
+    {
+        $length = strlen($source);
+        while ($offset < $length) {
+            $this->skipTexMathWhitespace($source, $offset);
+            if (($source[$offset] ?? '') !== '\\') {
+                break;
+            }
+
+            $commandOffset = $offset + 1;
+            $command = $this->readTexMathCommandName($source, $commandOffset);
+            if ($this->texMathCommandIsSpacing($command)) {
+                $offset = $commandOffset;
+                continue;
+            }
+
+            if (!$this->texMathCommandIsDimensionedSpacing($command)) {
+                break;
+            }
+
+            $spacingOffset = $commandOffset;
+            if ($this->parseTexMathDimensionedSpacing($source, $spacingOffset, $command) === null) {
+                break;
+            }
+
+            $offset = $spacingOffset;
+        }
+
+        $char = $source[$offset] ?? '';
+        if ($char === '' || str_contains('^_+-=*/<>,;:!|)]}&', $char)) {
+            return false;
+        }
+        if ($char === '{' || $char === '(' || $char === '[' || ctype_digit($char)) {
+            return true;
+        }
+
+        $identifierOffset = $offset;
+        if ($this->readTexMathIdentifier($source, $identifierOffset) !== '') {
+            return true;
+        }
+
+        if ($char !== '\\') {
+            return false;
+        }
+
+        $commandOffset = $offset + 1;
+        $command = $this->readTexMathCommandName($source, $commandOffset);
+        if ($command === '') {
+            return false;
+        }
+        if ($this->texMathCommandIsSpacing($command)) {
+            return false;
+        }
+        if (in_array($command, [
+            '\\',
+            'right',
+            'middle',
+            'end',
+            'limits',
+            'nolimits',
+            'displaylimits',
+            'over',
+            'atop',
+            'choose',
+            'brack',
+            'brace',
+            'bangle',
+            'hline',
+            'hdashline',
+            'cline',
+            'hhline',
+            'notag',
+            'nonumber',
+            'allowbreak',
+        ], true)) {
+            return false;
+        }
+        if (in_array($command, [
+            'left',
+            'lparen',
+            'lbrack',
+            'lbrace',
+            'langle',
+            'lfloor',
+            'lceil',
+            'lvert',
+            'lVert',
+        ], true)) {
+            return true;
+        }
+
+        $mapped = $this->texMathCommandElement($command);
+        if ($mapped !== null) {
+            return str_starts_with($mapped, '<mi') || str_starts_with($mapped, '<mn');
+        }
+
+        return true;
+    }
+
+    private function texMathCommandIsSpacing(string $command): bool
+    {
+        return in_array($command, [
+            "\n",
+            ' ',
+            ',',
+            ':',
+            ';',
+            '>',
+            '!',
+            'thinspace',
+            'medspace',
+            'thickspace',
+            'negthinspace',
+            'negmedspace',
+            'negthickspace',
+            'enspace',
+            'quad',
+            'qquad',
+        ], true);
+    }
+
+    private function texMathCommandIsDimensionedSpacing(string $command): bool
+    {
+        return in_array($command, ['hspace', 'mspace', 'kern', 'mkern'], true);
     }
 
     private function consumeTexMathLimitModifier(string $source, int &$offset): ?string
@@ -3479,6 +3680,8 @@ final class HtmlWriter
 
     private function texMathSupportsUnderOverLimits(string $base): bool
     {
+        $base = $this->stripTexMathInternalMarkers($base);
+
         if (preg_match('/^<mi mathvariant="normal">[^<]+<\/mi>$/', $base) === 1) {
             return true;
         }
@@ -3927,12 +4130,17 @@ final class HtmlWriter
         }
 
         if ($command === 'operatorname') {
+            $starred = false;
             if (($source[$offset] ?? '') === '*') {
+                $starred = true;
                 $offset++;
             }
             $name = $this->readTexMathRawGroup($source, $offset);
             if (is_string($name) && trim($name) !== '') {
-                return '<mi mathvariant="normal">' . $this->esc($this->texMathOperatorNameText($name)) . '</mi>';
+                return $this->texMathMarkedOperator(
+                    '<mi mathvariant="normal">' . $this->esc($this->texMathOperatorNameText($name)) . '</mi>',
+                    $starred
+                );
             }
         }
 
@@ -4518,7 +4726,7 @@ final class HtmlWriter
             return null;
         }
 
-        return '<mi mathvariant="normal">' . $this->esc($command) . '</mi>';
+        return $this->texMathMarkedOperator('<mi mathvariant="normal">' . $this->esc($command) . '</mi>');
     }
 
     /**
@@ -7877,6 +8085,8 @@ final class HtmlWriter
 
     private function mathMLRow(string $content): string
     {
+        $content = $this->stripTexMathInternalMarkers($content);
+
         return $this->mathMLContentIsSingleElement($content)
             ? $content
             : '<mrow>' . $content . '</mrow>';

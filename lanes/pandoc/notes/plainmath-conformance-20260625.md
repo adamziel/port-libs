@@ -35,7 +35,7 @@
 - Upstream reference: local TexMath cache at commit `17089967`, matching the
   supervisor brief's `1708996` family. The runnable PHP tests snapshot selected
   expectations rather than reading that cache at runtime.
-- Current corpus count after `plib-wj70q.18`: 43 passing MathML fixtures, 6
+- Current corpus count after `plib-wj70q.14`: 47 passing MathML fixtures, 6
   fallback fixtures, and 4 known gaps.
 - Initial passing corpus:
   - `script-super`: `x^2`, from `test/reader/tex/03.test` and

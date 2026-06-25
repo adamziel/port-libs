@@ -65,7 +65,7 @@ return [
                 ['source' => 'b', 'value' => 'b', 'category' => 'Ord', 'mathmlElement' => 'mi'],
                 ['source' => ')', 'value' => ')', 'category' => 'Close', 'mathmlElement' => 'mo'],
             ],
-            'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>∑</mo><mi>x</mi><mo>+</mo><mi mathvariant="normal">sin</mi><mi>y</mi><mo>≤</mo><mi>z</mi><mo>,</mo><mo>(</mo><mi>a</mi><mo>-</mo><mi>b</mi><mo>)</mo></mrow><annotation encoding="application/x-tex">\sum x + \sin y \leq z, (a-b)</annotation></semantics></math>',
+            'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>∑</mo><mi>x</mi><mo>+</mo><mi mathvariant="normal">sin</mi><mo>&#x2061;</mo><mi>y</mi><mo>≤</mo><mi>z</mi><mo>,</mo><mo>(</mo><mi>a</mi><mo>-</mo><mi>b</mi><mo>)</mo></mrow><annotation encoding="application/x-tex">\sum x + \sin y \leq z, (a-b)</annotation></semantics></math>',
         ],
         [
             'id' => 'sqrt-subscript',
@@ -197,7 +197,43 @@ return [
                 'reader' => 'test/reader/tex/operatorname.test and TeX/Macros.hs DeclareMathOperator',
                 'writer' => 'test/writer/mml/operatorname.test derived subset',
             ],
-            'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi mathvariant="normal">arg max</mi><mi>x</mi></msub><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo></mrow><annotation encoding="application/x-tex">\DeclareMathOperator*{\argmax}{arg\,max}\argmax_{x} f(x)</annotation></semantics></math>',
+            'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><munder><mi mathvariant="normal">arg max</mi><mi>x</mi></munder><mo>&#x2061;</mo><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo></mrow><annotation encoding="application/x-tex">\DeclareMathOperator*{\argmax}{arg\,max}\argmax_{x} f(x)</annotation></semantics></math>',
+        ],
+        [
+            'id' => 'operatorname-unstarred-application',
+            'family' => 'macros-and-operators',
+            'tex' => '\operatorname{rank}_{j} q_j',
+            'display' => false,
+            'upstream' => [
+                'texmath' => '17089967',
+                'reader' => 'test/reader/tex/operatorname.test unstarred subset',
+                'writer' => 'test/writer/mml/operatorname.test function application subset',
+            ],
+            'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi mathvariant="normal">rank</mi><mi>j</mi></msub><mo>&#x2061;</mo><msub><mi>q</mi><mi>j</mi></msub></mrow><annotation encoding="application/x-tex">\operatorname{rank}_{j} q_j</annotation></semantics></math>',
+        ],
+        [
+            'id' => 'operatorname-limits-application',
+            'family' => 'macros-and-operators',
+            'tex' => '\operatorname{median}\limits_{i}^{n} p_i',
+            'display' => false,
+            'upstream' => [
+                'texmath' => '17089967',
+                'reader' => 'test/reader/tex/operatorname.test limits subset',
+                'writer' => 'test/writer/mml/operatorname.test limits/function application subset',
+            ],
+            'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><munderover><mi mathvariant="normal">median</mi><mi>i</mi><mi>n</mi></munderover><mo>&#x2061;</mo><msub><mi>p</mi><mi>i</mi></msub></mrow><annotation encoding="application/x-tex">\operatorname{median}\limits_{i}^{n} p_i</annotation></semantics></math>',
+        ],
+        [
+            'id' => 'operatorname-star-nolimits',
+            'family' => 'macros-and-operators',
+            'tex' => '\operatorname*{rank}\nolimits_{j} q_j',
+            'display' => false,
+            'upstream' => [
+                'texmath' => '17089967',
+                'reader' => 'test/reader/tex/operatorname.test starred nolimits subset',
+                'writer' => 'test/writer/mml/operatorname.test nolimits/function application subset',
+            ],
+            'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi mathvariant="normal">rank</mi><mi>j</mi></msub><mo>&#x2061;</mo><msub><mi>q</mi><mi>j</mi></msub></mrow><annotation encoding="application/x-tex">\operatorname*{rank}\nolimits_{j} q_j</annotation></semantics></math>',
         ],
         [
             'id' => 'ignorable-label-tag-comment',
@@ -504,7 +540,7 @@ return [
                 'reader' => 'test/reader/tex/09.test',
                 'writer' => 'test/writer/mml/09.test operator-limit subset',
             ],
-            'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi mathvariant="normal">lim</mi><mrow><mi>z</mi><mo>→</mo><msub><mi>z</mi><mn>0</mn></msub></mrow></msub><mi>f</mi><mo>(</mo><mi>z</mi><mo>)</mo><mo>=</mo><mi>f</mi><mo>(</mo><msub><mi>z</mi><mn>0</mn></msub><mo>)</mo></mrow><annotation encoding="application/x-tex">\lim_{z\rightarrow z_0} f(z)=f(z_0)</annotation></semantics></math>',
+            'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi mathvariant="normal">lim</mi><mrow><mi>z</mi><mo>→</mo><msub><mi>z</mi><mn>0</mn></msub></mrow></msub><mo>&#x2061;</mo><mi>f</mi><mo>(</mo><mi>z</mi><mo>)</mo><mo>=</mo><mi>f</mi><mo>(</mo><msub><mi>z</mi><mn>0</mn></msub><mo>)</mo></mrow><annotation encoding="application/x-tex">\lim_{z\rightarrow z_0} f(z)=f(z_0)</annotation></semantics></math>',
         ],
         [
             'id' => 'cases-mbox',
@@ -616,7 +652,7 @@ return [
             'id' => 'unicode-symbol-category-parity',
             'upstream' => 'test/reader/tex/unicode.test and Text.TeXMath.Unicode.ToTeX',
             'tex' => 'α + β',
-            'gap' => 'Direct UTF-8 identifiers/operators now tokenize safely, but HtmlWriter does not retain TexMath Unicode symbol categories for Bin/Rel/Open/Close/Pun/Ord correction, form attributes, or function-application insertion.',
+            'gap' => 'Direct UTF-8 identifiers/operators now tokenize safely, but HtmlWriter does not retain TexMath Unicode symbol categories for Bin/Rel/Open/Close/Pun/Ord correction or form attributes; function application is bounded to recognized TeX named operators and declared operator names.',
         ],
         [
             'id' => 'atom-coercion-bin-context-correction',

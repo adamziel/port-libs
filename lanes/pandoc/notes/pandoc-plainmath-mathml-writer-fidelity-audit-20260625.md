@@ -47,7 +47,7 @@ the target branch's parity notes.
 - Style commands emit `mstyle mathvariant=...`; they do not convert styled
   characters to Mathematical Alphanumeric Symbols.
 
-The PlainMath corpus currently has 43 passing `mathml` fixtures, 6 fallback
+The PlainMath corpus currently has 47 passing `mathml` fixtures, 6 fallback
 fixtures, and 4 `knownGaps` entries. Relevant fixture IDs include
 `pmatrix-two-by-two`, `align-environment`, `alignat-environment`,
 `flalign-star-environment`, `gather-environment`, `multline-environment`,
@@ -109,7 +109,7 @@ Probes were run through
 | `mathcolor` and `mathbackground` | Style/text note and probes show `mstyle mathcolor` / `mathbackground` for bounded color commands. | Covered. | Done | Existing EPUB/style coverage is enough for this audit. |
 | Generic CSS/style parsing | No source of arbitrary CSS style declarations exists in the PlainMath parser. | Parser/format-scope blocker. | P3 | Do not add a generic style fixture until the TeX source syntax and target semantics are scoped. |
 | Styled Unicode conversion for style commands | `texMathStyleCommandVariant()` maps variants, but `parseTexMathCommand()` wraps existing child MathML in `mstyle` instead of rewriting characters. | Writer/model gap; robust support wants typed nodes or targeted XML rewriting. | P1 for fixture, P2 for broad implementation | Add a fixture for `\mathbb{R09}`, `\mathcal{F}`, `\mathfrak{g}`, and `\mathbf{\Gamma\alpha}` documenting expected TexMath-like Unicode output. Implement only with a constrained conversion table and XML-safe tests. |
-| Function application after named operators | Evaluator note lists invisible apply-function insertion as P0/P1 parser-model work. | Parser/model blocker. | P2 | Keep out of this writer-only audit unless the typed expression model lands. |
+| Function application after named operators | Corpus operator application fixtures cover bounded named/operatorname/declaration cases with U+2061 output. | Covered for bounded parser output; broader category-driven behavior remains parser/model work. | P2 | Keep future writer-only work focused on emitted attributes/layout unless the typed expression model lands. |
 
 ## Prioritized Follow-Ups
 
@@ -159,6 +159,6 @@ Commands run from the port-libs worktree:
 - `php -l lanes/pandoc/tests/fixtures/plainmath-conformance-corpus.php`
 - `php -l lanes/pandoc/tests/PlainMathConformanceTest.php`
 - `php tools/run-tests.php lanes/pandoc/tests/PlainMathConformanceTest.php`
-  - Result: 1 test file, 306 assertions, 0 failures on the updated target
+  - Result: 1 test file, 337 assertions, 0 failures on the updated target
     branch.
 - `git diff --check origin/plainmath-parity-20260625...HEAD`
