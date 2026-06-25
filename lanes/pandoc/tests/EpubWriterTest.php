@@ -44012,6 +44012,222 @@ HTML;
             $t->true(!str_contains($diagnosticsJson, $diagnosticCode), "Generated alternate package-link graph should not self-diagnose {$diagnosticCode}.");
         }
     },
+    'writes multi rendition alternate rootfile container and package link graphs without cross leakage' => static function (TestRunner $t): void {
+        $printContainerJson = '{"container":"print"}';
+        $mobileContainerJson = '{"container":"mobile"}';
+        $printRecord = '{"record":"print-combined"}';
+        $printCollection = '{"collection":"print-combined"}';
+        $mobileRecord = '{"record":"mobile-combined"}';
+        $mobileCollection = '{"collection":"mobile-combined"}';
+        $printDocument = new AstNode('document', [], [
+            new AstNode('heading', ['level' => 1, 'text' => 'Combined Print Graph'], [
+                new AstNode('text', ['text' => 'Combined Print Graph']),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Print alternate combined graph body.']),
+            ]),
+        ]);
+        $mobileDocument = new AstNode('document', [], [
+            new AstNode('heading', ['level' => 1, 'text' => 'Combined Mobile Graph'], [
+                new AstNode('text', ['text' => 'Combined Mobile Graph']),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Mobile alternate combined graph body.']),
+            ]),
+        ]);
+        $document = new AstNode('document', [
+            'meta' => [
+                'identifier' => 'urn:uuid:combined-alternate-rootfile-graphs',
+                'title' => 'Combined Alternate Rootfile Graphs',
+                'lang' => 'en',
+                'epubContainerLinks' => [
+                    [
+                        'href' => 'META-INF/graphs/print-container.json',
+                        'rel' => 'record alternate',
+                        'mediaType' => 'application/json',
+                        'id' => 'print-container-record',
+                        'refines' => '#combined-print-rendition',
+                    ],
+                    [
+                        'href' => 'META-INF/graphs/mobile-container.json',
+                        'rel' => 'record alternate',
+                        'mediaType' => 'application/json',
+                        'id' => 'mobile-container-record',
+                        'refines' => '#combined-mobile-rendition',
+                    ],
+                ],
+                'epubOcfSidecarPayloads' => [
+                    'META-INF/graphs/print-container.json' => [
+                        'kind' => 'container-link',
+                        'encoding' => 'base64',
+                        'bytes' => strlen($printContainerJson),
+                        'data' => base64_encode($printContainerJson),
+                    ],
+                    'META-INF/graphs/mobile-container.json' => [
+                        'kind' => 'container-link',
+                        'encoding' => 'base64',
+                        'bytes' => strlen($mobileContainerJson),
+                        'data' => base64_encode($mobileContainerJson),
+                    ],
+                ],
+                'epubAlternateRootfiles' => [
+                    [
+                        'path' => 'ALT/combined-print.opf',
+                        'id' => 'combined-print-rendition',
+                        'mediaType' => 'application/oebps-package+xml',
+                        'properties' => ['rendition:layout-pre-paginated'],
+                        'identifier' => 'urn:uuid:combined-print-rendition',
+                        'title' => 'Combined Print Graph',
+                        'lang' => 'en',
+                        'chapterPath' => 'ALT/text/print.xhtml',
+                        'navPath' => 'ALT/print-nav.xhtml',
+                        'packagePrefix' => 'schema: https://schema.org/',
+                        'metadataLinks' => [
+                            ['href' => 'metadata/print-record.json', 'rel' => 'record', 'mediaType' => 'application/json', 'id' => 'print-record'],
+                        ],
+                        'collections' => [
+                            [
+                                'role' => 'schema:Collection',
+                                'id' => 'print-collection',
+                                'links' => [
+                                    ['href' => 'metadata/print-collection.json', 'rel' => 'contents', 'mediaType' => 'application/json', 'id' => 'print-collection-record'],
+                                ],
+                            ],
+                        ],
+                        'resources' => [
+                            'ALT/metadata/print-record.json' => $printRecord,
+                            'ALT/metadata/print-collection.json' => $printCollection,
+                        ],
+                        'document' => $printDocument,
+                    ],
+                    [
+                        'path' => 'MOBI/combined-mobile.opf',
+                        'id' => 'combined-mobile-rendition',
+                        'mediaType' => 'application/oebps-package+xml',
+                        'properties' => ['rendition:spread-none'],
+                        'identifier' => 'urn:uuid:combined-mobile-rendition',
+                        'title' => 'Combined Mobile Graph',
+                        'lang' => 'en-US',
+                        'chapterPath' => 'MOBI/text/mobile.xhtml',
+                        'navPath' => 'MOBI/mobile-nav.xhtml',
+                        'packagePrefix' => 'schema: https://schema.org/',
+                        'epubMetadataLinks' => [
+                            ['href' => 'metadata/mobile-record.json', 'rel' => 'record', 'mediaType' => 'application/json', 'id' => 'mobile-record'],
+                        ],
+                        'epubCollections' => [
+                            [
+                                'role' => 'schema:Collection',
+                                'id' => 'mobile-collection',
+                                'links' => [
+                                    ['href' => 'metadata/mobile-collection.json', 'rel' => 'contents', 'mediaType' => 'application/json', 'id' => 'mobile-collection-record'],
+                                ],
+                            ],
+                        ],
+                        'epubResources' => [
+                            'MOBI/metadata/mobile-record.json' => $mobileRecord,
+                            'MOBI/metadata/mobile-collection.json' => $mobileCollection,
+                        ],
+                        'document' => $mobileDocument,
+                    ],
+                ],
+            ],
+        ], [
+            new AstNode('heading', ['level' => 1, 'text' => 'Combined Alternate Rootfile Graphs'], [
+                new AstNode('text', ['text' => 'Combined Alternate Rootfile Graphs']),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Primary combined graph body.']),
+            ]),
+        ]);
+
+        $epub = PandocConverter::write($document, 'epub3', [
+            'modified' => '2026-06-25T11:40:00Z',
+        ]);
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-combined-alt-rootfile-graphs-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary combined alternate graph EPUB path');
+        }
+        file_put_contents($path, $epub);
+
+        $zip = new ZipArchive();
+        try {
+            if ($zip->open($path) !== true) {
+                throw new RuntimeException('Unable to open generated combined alternate graph EPUB package');
+            }
+            $container = $zip->getFromName('META-INF/container.xml');
+            $primaryPackage = $zip->getFromName('OEBPS/package.opf');
+            $printPackage = $zip->getFromName('ALT/combined-print.opf');
+            $mobilePackage = $zip->getFromName('MOBI/combined-mobile.opf');
+            if (!is_string($container) || !is_string($primaryPackage) || !is_string($printPackage) || !is_string($mobilePackage)) {
+                throw new RuntimeException('Generated EPUB package is missing combined alternate graph OPF files');
+            }
+
+            $t->contains('<rootfile full-path="ALT/combined-print.opf" media-type="application/oebps-package+xml" id="combined-print-rendition" properties="rendition:layout-pre-paginated"/>', $container);
+            $t->contains('<rootfile full-path="MOBI/combined-mobile.opf" media-type="application/oebps-package+xml" id="combined-mobile-rendition" properties="rendition:spread-none"/>', $container);
+            $t->contains('<link href="graphs/print-container.json" rel="record alternate" media-type="application/json" id="print-container-record" refines="#combined-print-rendition"/>', $container);
+            $t->contains('<link href="graphs/mobile-container.json" rel="record alternate" media-type="application/json" id="mobile-container-record" refines="#combined-mobile-rendition"/>', $container);
+            $t->contains('<link href="metadata/print-record.json" rel="record" media-type="application/json" id="print-record"/>', $printPackage);
+            $t->contains('<link href="metadata/print-collection.json" rel="contents" media-type="application/json" id="print-collection-record"/>', $printPackage);
+            $t->contains('<link href="metadata/mobile-record.json" rel="record" media-type="application/json" id="mobile-record"/>', $mobilePackage);
+            $t->contains('<link href="metadata/mobile-collection.json" rel="contents" media-type="application/json" id="mobile-collection-record"/>', $mobilePackage);
+            $t->same($printContainerJson, $zip->getFromName('META-INF/graphs/print-container.json'));
+            $t->same($mobileContainerJson, $zip->getFromName('META-INF/graphs/mobile-container.json'));
+            $t->same($printRecord, $zip->getFromName('ALT/metadata/print-record.json'));
+            $t->same($printCollection, $zip->getFromName('ALT/metadata/print-collection.json'));
+            $t->same($mobileRecord, $zip->getFromName('MOBI/metadata/mobile-record.json'));
+            $t->same($mobileCollection, $zip->getFromName('MOBI/metadata/mobile-collection.json'));
+            $t->true(!str_contains($primaryPackage, 'graphs/print-container.json'), 'Print container graph sidecar leaked into the primary OPF.');
+            $t->true(!str_contains($primaryPackage, 'graphs/mobile-container.json'), 'Mobile container graph sidecar leaked into the primary OPF.');
+            $t->true(!str_contains($primaryPackage, 'metadata/print-record.json'), 'Print package-link sidecar leaked into the primary OPF.');
+            $t->true(!str_contains($primaryPackage, 'metadata/mobile-record.json'), 'Mobile package-link sidecar leaked into the primary OPF.');
+            $t->true(!str_contains($printPackage, 'metadata/mobile-record.json'), 'Mobile package-link sidecar leaked into the print OPF.');
+            $t->true(!str_contains($mobilePackage, 'metadata/print-record.json'), 'Print package-link sidecar leaked into the mobile OPF.');
+        } finally {
+            $zip->close();
+            @unlink($path);
+        }
+
+        $roundTrip = PandocConverter::read($epub, 'epub', ['extractResources' => true]);
+        $meta = $roundTrip->attr('meta');
+        $alternates = $meta['epubAlternateRootfilePackages'] ?? [];
+        $print = $alternates['ALT/combined-print.opf'] ?? [];
+        $mobile = $alternates['MOBI/combined-mobile.opf'] ?? [];
+        $printPayloads = $print['epubResourcePayloads'] ?? [];
+        $mobilePayloads = $mobile['epubResourcePayloads'] ?? [];
+        $printJson = json_encode($print, JSON_THROW_ON_ERROR);
+        $mobileJson = json_encode($mobile, JSON_THROW_ON_ERROR);
+        $diagnosticsJson = json_encode(array_merge($meta['epubDiagnostics'] ?? [], $print['epubDiagnostics'] ?? [], $mobile['epubDiagnostics'] ?? []), JSON_THROW_ON_ERROR);
+
+        $t->same('META-INF/graphs/print-container.json', $meta['epubContainerLinks'][0]['href'] ?? null);
+        $t->same('#combined-print-rendition', $meta['epubContainerLinks'][0]['refines'] ?? null);
+        $t->same('META-INF/graphs/mobile-container.json', $meta['epubContainerLinks'][1]['href'] ?? null);
+        $t->same('#combined-mobile-rendition', $meta['epubContainerLinks'][1]['refines'] ?? null);
+        $t->same($printContainerJson, base64_decode($meta['epubOcfSidecarPayloads']['META-INF/graphs/print-container.json']['data'] ?? '', true));
+        $t->same($mobileContainerJson, base64_decode($meta['epubOcfSidecarPayloads']['META-INF/graphs/mobile-container.json']['data'] ?? '', true));
+        $t->same('Combined Print Graph', $print['title'] ?? null);
+        $t->same('Combined Mobile Graph', $mobile['title'] ?? null);
+        $t->same('print-record', $print['epubMetadataLinks'][0]['id'] ?? null);
+        $t->same('ALT/metadata/print-record.json', $print['epubMetadataLinks'][0]['href'] ?? null);
+        $t->same('mobile-record', $mobile['epubMetadataLinks'][0]['id'] ?? null);
+        $t->same('MOBI/metadata/mobile-record.json', $mobile['epubMetadataLinks'][0]['href'] ?? null);
+        $t->same($printRecord, base64_decode($printPayloads['ALT/metadata/print-record.json']['data'] ?? '', true));
+        $t->same($printCollection, base64_decode($printPayloads['ALT/metadata/print-collection.json']['data'] ?? '', true));
+        $t->same($mobileRecord, base64_decode($mobilePayloads['MOBI/metadata/mobile-record.json']['data'] ?? '', true));
+        $t->same($mobileCollection, base64_decode($mobilePayloads['MOBI/metadata/mobile-collection.json']['data'] ?? '', true));
+        $t->true(!str_contains($printJson, 'mobile-record'), 'Mobile package-link graph should not appear in print read-back.');
+        $t->true(!str_contains($mobileJson, 'print-record'), 'Print package-link graph should not appear in mobile read-back.');
+        foreach ([
+            'missing-container-link-resource',
+            'missing-container-rootfile-resource',
+            'missing-package-link-resource',
+            'missing-package-link-fragment',
+            'invalid-package-link-manifest-resource',
+            'invalid-package-link-package-document-reference',
+            'missing-manifest-resource',
+        ] as $diagnosticCode) {
+            $t->true(!str_contains($diagnosticsJson, $diagnosticCode), "Combined alternate rootfile graph should not self-diagnose {$diagnosticCode}.");
+        }
+    },
     'writes split fixed layout alternate epub rootfile media overlay aliases' => static function (TestRunner $t): void {
         $pageOneAudio = 'fixed-overlay-page-one-audio';
         $pageTwoAudio = 'fixed-overlay-page-two-audio';
