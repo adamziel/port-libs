@@ -97,5 +97,7 @@ Out of scope for this effort:
   - No syntax errors detected.
 - `php tools/run-tests.php lanes/pandoc/tests/PlainMathConformanceTest.php lanes/pandoc/tests/HtmlWriterTest.php lanes/pandoc/tests/EpubWriterTest.php`
   - 3 files, 10,973 assertions, 0 failures.
+- `php tools/run-tests.php lanes/pandoc/tests/PlainMathWriterTest.php lanes/pandoc/tests/PlainMathTokenStreamTest.php lanes/pandoc/tests/PlainMathConformanceTest.php lanes/pandoc/tests/HtmlWriterTest.php lanes/pandoc/tests/EpubWriterTest.php`
+  - 5 files, 11,033 assertions, 0 failures.
 - `php tools/run-tests.php lanes/pandoc/tests`
-  - 13 files, 22,797 assertions, 0 failures.
+  - 18 files, 22,999 assertions, 0 failures.

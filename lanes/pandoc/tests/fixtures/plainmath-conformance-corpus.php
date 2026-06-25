@@ -14,6 +14,13 @@ return [
                 'reader' => 'test/reader/tex/03.test subset',
                 'writer' => 'test/writer/mml/03.test subset',
             ],
+            'expectedExpression' => [
+                'kind' => 'super',
+                'children' => [
+                    ['kind' => 'identifier', 'value' => 'x'],
+                    ['kind' => 'number', 'value' => '2'],
+                ],
+            ],
             'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msup><mi>x</mi><mn>2</mn></msup><annotation encoding="application/x-tex">x^2</annotation></semantics></math>',
         ],
         [
@@ -25,6 +32,26 @@ return [
                 'texmath' => '17089967',
                 'reader' => 'test/reader/tex/03.test subset',
                 'writer' => 'test/writer/mml/03.test subset',
+            ],
+            'expectedExpression' => [
+                'kind' => 'row',
+                'children' => [
+                    ['kind' => 'identifier', 'value' => 'a'],
+                    [
+                        'kind' => 'super',
+                        'children' => [
+                            ['kind' => 'identifier', 'value' => 'x'],
+                            ['kind' => 'number', 'value' => '2'],
+                        ],
+                    ],
+                    ['kind' => 'operator', 'value' => '+'],
+                    ['kind' => 'identifier', 'value' => 'b'],
+                    ['kind' => 'identifier', 'value' => 'x'],
+                    ['kind' => 'operator', 'value' => '+'],
+                    ['kind' => 'identifier', 'value' => 'c'],
+                    ['kind' => 'operator', 'value' => '='],
+                    ['kind' => 'number', 'value' => '0'],
+                ],
             ],
             'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>a</mi><msup><mi>x</mi><mn>2</mn></msup><mo>+</mo><mi>b</mi><mi>x</mi><mo>+</mo><mi>c</mi><mo>=</mo><mn>0</mn></mrow><annotation encoding="application/x-tex">ax^2 + bx + c = 0</annotation></semantics></math>',
         ],
@@ -89,6 +116,30 @@ return [
                 'reader' => 'test/reader/tex/01.test structure subset',
                 'writer' => 'test/writer/mml/01.test structure subset',
             ],
+            'expectedExpression' => [
+                'kind' => 'fraction',
+                'children' => [
+                    [
+                        'kind' => 'super',
+                        'children' => [
+                            ['kind' => 'identifier', 'value' => 'x'],
+                            ['kind' => 'number', 'value' => '2'],
+                        ],
+                    ],
+                    [
+                        'kind' => 'sqrt',
+                        'children' => [
+                            [
+                                'kind' => 'sub',
+                                'children' => [
+                                    ['kind' => 'identifier', 'value' => 'y'],
+                                    ['kind' => 'number', 'value' => '1'],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
             'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mfrac><msup><mi>x</mi><mn>2</mn></msup><msqrt><msub><mi>y</mi><mn>1</mn></msub></msqrt></mfrac><annotation encoding="application/x-tex">\frac{x^2}{\sqrt{y_1}}</annotation></semantics></math>',
         ],
         [
@@ -149,6 +200,25 @@ return [
                 'reader' => 'test/reader/tex/19.test subset',
                 'writer' => 'test/writer/mml/19.test subset',
             ],
+            'expectedExpression' => [
+                'kind' => 'delimited',
+                'attributes' => ['left' => '(', 'right' => ')'],
+                'children' => [
+                    [
+                        'kind' => 'table',
+                        'rows' => [
+                            [
+                                ['kind' => 'number', 'value' => '1'],
+                                ['kind' => 'number', 'value' => '2'],
+                            ],
+                            [
+                                ['kind' => 'number', 'value' => '3'],
+                                ['kind' => 'number', 'value' => '4'],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
             'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mo stretchy="true">(</mo><mtable><mtr><mtd><mn>1</mn></mtd><mtd><mn>2</mn></mtd></mtr><mtr><mtd><mn>3</mn></mtd><mtd><mn>4</mn></mtd></mtr></mtable><mo stretchy="true">)</mo></mrow><annotation encoding="application/x-tex">\begin{pmatrix}1 &amp; 2 \\\\ 3 &amp; 4\end{pmatrix}</annotation></semantics></math>',
         ],
         [
@@ -160,6 +230,20 @@ return [
                 'texmath' => '17089967',
                 'reader' => 'test/reader/tex/choose.test subset',
                 'writer' => 'test/writer/mml/choose.test subset',
+            ],
+            'expectedExpression' => [
+                'kind' => 'delimited',
+                'attributes' => ['left' => '(', 'right' => ')'],
+                'children' => [
+                    [
+                        'kind' => 'fraction',
+                        'attributes' => ['linethickness' => '0'],
+                        'children' => [
+                            ['kind' => 'identifier', 'value' => 'n'],
+                            ['kind' => 'identifier', 'value' => 'k'],
+                        ],
+                    ],
+                ],
             ],
             'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="true">(</mo><mfrac linethickness="0"><mi>n</mi><mi>k</mi></mfrac><mo stretchy="true">)</mo></mrow><annotation encoding="application/x-tex">n \choose k</annotation></semantics></math>',
         ],

@@ -182,7 +182,7 @@ Expression kinds should cover the current corpus and TexMath `Types.hs` shape:
 
 ## First Safe Extraction Step
 
-The first code slice should be a shadow `PlainMath\MathMlWriter` plus
+The first code slice is now a shadow `PlainMath\MathMlWriter` plus
 `PlainMath\Expression`, not a parser move and not a `HtmlWriter` rewrite.
 
 Reason:
@@ -194,14 +194,19 @@ Reason:
 
 Concrete first slice:
 
-- Add `lanes/pandoc/src/PlainMath/Expression.php`.
-- Add `lanes/pandoc/src/PlainMath/MathMlBuilder.php`.
-- Add `lanes/pandoc/src/PlainMath/MathMlWriter.php`.
-- Add `lanes/pandoc/tests/PlainMathWriterTest.php`.
-- Cover direct expression-to-MathML cases corresponding to corpus IDs
+- Added `lanes/pandoc/src/PlainMath/Expression.php`.
+- Added `lanes/pandoc/src/PlainMath/MathMlBuilder.php`.
+- Added `lanes/pandoc/src/PlainMath/MathMlWriter.php`.
+- Added `lanes/pandoc/tests/PlainMathWriterTest.php`.
+- Covered direct expression-to-MathML cases corresponding to corpus IDs
   `script-super`, `implicit-product-identifiers`, `display-fraction-root`,
   `infix-choose`, and `pmatrix-two-by-two`.
-- Do not modify `HtmlWriter.php` in that first slice.
+- Added `expectedExpression` metadata for those corpus cases so future parser
+  work has a typed shape contract independent of MathML serialization.
+- Added a shadow `PlainMath\TexTokenStream` skeleton with immutable cursor,
+  span, command, raw group, optional bracket, comment/whitespace, and UTF-8
+  character tests.
+- Did not modify `HtmlWriter.php` in this extraction slice.
 
 ## Test Strategy
 

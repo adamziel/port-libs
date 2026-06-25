@@ -30,6 +30,9 @@
   `PandocConverter::write(..., 'epub3')`, verifies the OPF `mathml` property,
   parses generated XHTML, extracts MathML nodes, and reuses the same normalized
   assertions.
+- Selected cases now also carry `expectedExpression` metadata for the shadow
+  typed PlainMath model. This is not production rendering yet; it gives the
+  future parser a shape contract before the `HtmlWriter` adapter changes.
 
 ## Corpus Selection
 - Upstream reference: local TexMath cache at commit `17089967`, matching the
@@ -77,6 +80,12 @@
   - `fraction-tfrac-control-space`: `test/reader/tex/14.test`.
   - `substack-sum`: `test/reader/tex/substack.test`.
   - `stackrel-arrow`: `test/reader/tex/stackrel.test`.
+- Initial expression-shape corpus for parser extraction:
+  - `script-super`
+  - `implicit-product-identifiers`
+  - `display-fraction-root`
+  - `pmatrix-two-by-two`
+  - `infix-choose`
 - Fallback corpus:
   - `empty-source-span`: empty TeX source returns an inline math span instead of
     partial MathML.
