@@ -9329,6 +9329,123 @@ XML;
         $t->same($report['byteExposurePolicyCounts'], $case['byteExposurePolicyCounts']);
     },
 
+    'summarizes EPUB image-set stylesheet string resource references for compact handoff' => static function (TestRunner $t) use ($epubContainerXml, $buildZipPackage): void {
+        $styleCss = <<<'CSS'
+.hero {
+  background-image: image-set("../images/hero-1x.png" 1x, url("../images/hero-2x.png") 2x, "../images/missing-3x.png" 3x, "https://cdn.example.invalid/hero.avif" type("image/avif"));
+}
+.prefixed { background-image: -webkit-image-set('../images/prefixed.png' 1x); }
+CSS;
+        $hero1xBytes = 'HERO-1X';
+        $hero2xBytes = 'HERO-2X';
+        $prefixedBytes = 'PREFIXED';
+        $opfWithImageSetStylesheet = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:stylesheet-image-set-review</dc:identifier>
+    <dc:title>Stylesheet Image Set Review</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="style" href="styles/book.css" media-type="text/css"/>
+    <item id="hero-1x" href="images/hero-1x.png" media-type="image/png"/>
+    <item id="hero-2x" href="images/hero-2x.png" media-type="image/png"/>
+    <item id="prefixed" href="images/prefixed.png" media-type="image/png"/>
+  </manifest>
+  <spine><itemref idref="chapter"/></spine>
+</package>
+XML;
+
+        $epub = EpubPackage::fromPackage($buildZipPackage([
+            ['name' => 'mimetype', 'data' => EpubPackage::EPUB_MIMETYPE, 'method' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithImageSetStylesheet],
+            ['name' => 'EPUB/nav.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol><li><a href="chapter.xhtml">Chapter</a></li></ol></nav></body></html>'],
+            ['name' => 'EPUB/chapter.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Chapter</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => $styleCss],
+            ['name' => 'EPUB/images/hero-1x.png', 'data' => $hero1xBytes],
+            ['name' => 'EPUB/images/hero-2x.png', 'data' => $hero2xBytes],
+            ['name' => 'EPUB/images/prefixed.png', 'data' => $prefixedBytes],
+        ]));
+
+        $summary = $epub->summary();
+        $report = $epub->stylesheetResources();
+        $case = $summary['compactPackageReport']['casesById']['stylesheet-resources'];
+        $itemsByHref = [];
+        foreach ($report['itemsBySourceId']['style'] as $item) {
+            $itemsByHref[$item['href']] = $item;
+        }
+
+        $t->same($report, $summary['stylesheetResources']);
+        $t->same($report, $summary['wordpressImport']['stylesheetResources']);
+        $t->same(true, $report['present']);
+        $t->same(1, $report['stylesheetCount']);
+        $t->same(5, $report['referenceCount']);
+        $t->same(4, $report['localReferenceCount']);
+        $t->same(1, $report['externalReferenceCount']);
+        $t->same(0, $report['dataReferenceCount']);
+        $t->same(1, $report['missingReferenceCount']);
+        $t->same(0, $report['unmanifestedReferenceCount']);
+        $t->same(0, $report['blockedReferenceCount']);
+        $t->same(3, $report['exposableReferenceCount']);
+        $t->same(strlen($hero1xBytes) + strlen($hero2xBytes) + strlen($prefixedBytes), $report['totalByteLength']);
+        $t->same([
+            'external-stylesheet-resource-metadata-only' => 1,
+            'missing-stylesheet-resource-metadata-only' => 1,
+            'stylesheet-resource-bytes-exposable' => 3,
+        ], $report['byteExposurePolicyCounts']);
+        $t->same(['style'], $report['sourceIds']);
+        $t->same([
+            '/EPUB/images/hero-1x.png',
+            '/EPUB/images/hero-2x.png',
+            '/EPUB/images/missing-3x.png',
+            '/EPUB/images/prefixed.png',
+        ], $report['targetPartNames']);
+        $t->same(['/EPUB/images/missing-3x.png'], $report['missingPartNames']);
+        $t->same(['https://cdn.example.invalid/hero.avif'], $report['externalTargets']);
+        $t->same([
+            'missing-stylesheet-resource-package-part',
+            'external-stylesheet-resource-reference',
+        ], $report['diagnosticTypes']);
+        $t->same(false, isset($itemsByHref['image/avif']));
+
+        $t->same('image-set', $itemsByHref['../images/hero-1x.png']['relation']);
+        $t->same('/EPUB/images/hero-1x.png', $itemsByHref['../images/hero-1x.png']['targetPartName']);
+        $t->same('hero-1x', $itemsByHref['../images/hero-1x.png']['targetManifestId']);
+        $t->same('image', $itemsByHref['../images/hero-1x.png']['targetResourceKind']);
+        $t->same('stylesheet-resource-bytes-exposable', $itemsByHref['../images/hero-1x.png']['byteExposurePolicy']);
+        $t->same(strlen($hero1xBytes), $itemsByHref['../images/hero-1x.png']['byteLength']);
+
+        $t->same('url', $itemsByHref['../images/hero-2x.png']['relation']);
+        $t->same('/EPUB/images/hero-2x.png', $itemsByHref['../images/hero-2x.png']['targetPartName']);
+        $t->same('hero-2x', $itemsByHref['../images/hero-2x.png']['targetManifestId']);
+
+        $t->same('image-set', $itemsByHref['../images/missing-3x.png']['relation']);
+        $t->same(true, $itemsByHref['../images/missing-3x.png']['missing']);
+        $t->same('/EPUB/images/missing-3x.png', $itemsByHref['../images/missing-3x.png']['targetPartName']);
+        $t->same('missing-stylesheet-resource-package-part', $itemsByHref['../images/missing-3x.png']['diagnostics'][0]['type']);
+
+        $t->same('image-set', $itemsByHref['https://cdn.example.invalid/hero.avif']['relation']);
+        $t->same(true, $itemsByHref['https://cdn.example.invalid/hero.avif']['external']);
+        $t->same('external-stylesheet-resource-metadata-only', $itemsByHref['https://cdn.example.invalid/hero.avif']['byteExposurePolicy']);
+        $t->same('external-stylesheet-resource-reference', $itemsByHref['https://cdn.example.invalid/hero.avif']['diagnostics'][0]['type']);
+
+        $t->same('image-set', $itemsByHref['../images/prefixed.png']['relation']);
+        $t->same('/EPUB/images/prefixed.png', $itemsByHref['../images/prefixed.png']['targetPartName']);
+        $t->same('prefixed', $itemsByHref['../images/prefixed.png']['targetManifestId']);
+
+        $t->same(true, $case['present']);
+        $t->same(5, $case['itemCount']);
+        $t->same(true, $case['reviewRequired']);
+        $t->same(1, $case['stylesheetCount']);
+        $t->same(1, $case['missingReferenceCount']);
+        $t->same(0, $case['unmanifestedReferenceCount']);
+        $t->same(0, $case['blockedReferenceCount']);
+        $t->same($report['byteExposurePolicyCounts'], $case['byteExposurePolicyCounts']);
+    },
+
     'summarizes encrypted OPF manifest dependency targets for compact handoff' => static function (TestRunner $t) use ($epubContainerXml): void {
         $lockedStyle = 'body { color: #660000; }';
         $lockedOverlay = <<<'XML'

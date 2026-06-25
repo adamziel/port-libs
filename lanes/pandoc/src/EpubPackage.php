@@ -11969,12 +11969,180 @@ final class EpubPackage
             }
         }
 
+        array_push($references, ...self::stylesheetImageSetReferences($css));
+
         usort(
             $references,
             static fn (array $left, array $right): int => [$left['offset'], $left['relation']] <=> [$right['offset'], $right['relation']]
         );
 
         return $references;
+    }
+
+    /**
+     * @return list<array{relation:string, href:string, offset:int}>
+     */
+    private static function stylesheetImageSetReferences(string $css): array
+    {
+        $references = [];
+
+        foreach (self::stylesheetImageSetSpans($css) as $span) {
+            $bodyStart = $span['bodyStart'];
+            $body = substr($css, $bodyStart, $span['end'] - $bodyStart);
+            foreach (self::stylesheetTopLevelCssSegments($body, $bodyStart) as $segment) {
+                if (preg_match(
+                    '/^\s*(?:"((?:\\\\.|[^"\\\\])*)"|\'((?:\\\\.|[^\'\\\\])*)\')/s',
+                    $segment['text'],
+                    $match,
+                    PREG_OFFSET_CAPTURE
+                ) !== 1) {
+                    continue;
+                }
+
+                $quoted = isset($match[1]) && (int) ($match[1][1] ?? -1) >= 0 ? $match[1] : $match[2];
+                $references[] = [
+                    'relation' => 'image-set',
+                    'href' => trim((string) $quoted[0]),
+                    'offset' => $segment['offset'] + (int) $match[0][1],
+                ];
+            }
+        }
+
+        return $references;
+    }
+
+    /**
+     * @return list<array{name:string, start:int, bodyStart:int, end:int}>
+     */
+    private static function stylesheetImageSetSpans(string $css): array
+    {
+        if (preg_match_all(
+            '/(?<![A-Za-z0-9_-])(-webkit-image-set|image-set)\s*\(/i',
+            $css,
+            $matches,
+            PREG_SET_ORDER | PREG_OFFSET_CAPTURE
+        ) === false) {
+            return [];
+        }
+
+        $spans = [];
+        foreach ($matches as $match) {
+            $openParenInMatch = strrpos($match[0][0], '(');
+            if ($openParenInMatch === false) {
+                continue;
+            }
+
+            $openParenOffset = (int) $match[0][1] + $openParenInMatch;
+            $end = self::stylesheetFindClosingParen($css, $openParenOffset);
+            if ($end === null) {
+                continue;
+            }
+
+            $spans[] = [
+                'name' => strtolower((string) $match[1][0]),
+                'start' => (int) $match[1][1],
+                'bodyStart' => $openParenOffset + 1,
+                'end' => $end,
+            ];
+        }
+
+        return $spans;
+    }
+
+    private static function stylesheetFindClosingParen(string $css, int $openParenOffset): ?int
+    {
+        $depth = 0;
+        $quote = null;
+        $length = strlen($css);
+
+        for ($offset = $openParenOffset; $offset < $length; ++$offset) {
+            $char = $css[$offset];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    ++$offset;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                ++$depth;
+                continue;
+            }
+
+            if ($char === ')') {
+                --$depth;
+                if ($depth === 0) {
+                    return $offset;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<array{text:string, offset:int}>
+     */
+    private static function stylesheetTopLevelCssSegments(string $css, int $baseOffset): array
+    {
+        $segments = [];
+        $start = 0;
+        $depth = 0;
+        $quote = null;
+        $length = strlen($css);
+
+        for ($offset = 0; $offset < $length; ++$offset) {
+            $char = $css[$offset];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    ++$offset;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                ++$depth;
+                continue;
+            }
+
+            if ($char === ')') {
+                $depth = max(0, $depth - 1);
+                continue;
+            }
+
+            if ($char === ',' && $depth === 0) {
+                $segments[] = [
+                    'text' => substr($css, $start, $offset - $start),
+                    'offset' => $baseOffset + $start,
+                ];
+                $start = $offset + 1;
+            }
+        }
+
+        $segments[] = [
+            'text' => substr($css, $start),
+            'offset' => $baseOffset + $start,
+        ];
+
+        return $segments;
     }
 
     /**
