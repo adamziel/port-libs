@@ -11882,6 +11882,87 @@ XML;
         $t->true(in_array('activex-binary', $inventory['word/activeX/activeX1.bin']['roles'], true), 'ActiveX binary inventory role missing');
         $t->true(!isset($docx['media']['word/activeX/activeX1.bin']), 'ActiveX binary should not be exposed as document media');
     },
+    'preflights docx activex binary external target policy metadata' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $controlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/control';
+        $binaryRel = 'http://schemas.microsoft.com/office/2006/relationships/activeXControlBinary';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/activeX/policy.xml" ContentType="application/vnd.ms-office.activeX+xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rPolicyActiveX" Type="' . $controlRel . '" Target="activeX/policy.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '    <w:tbl>',
+            '    <w:p><w:r><w:object><w:control r:id="rPolicyActiveX" w:name="PolicyControl"/></w:object></w:r></w:p>' . "\n" .
+            '    <w:tbl>',
+            $parts['word/document.xml']
+        );
+        $parts['word/activeX/policy.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<ax:ocx xmlns:ax="http://schemas.microsoft.com/office/2006/activeX" ax:classid="{44444444-5555-6666-7777-888888888888}"/>
+XML;
+        $parts['word/activeX/_rels/policy.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rSafeBinary" Type="http://schemas.microsoft.com/office/2006/relationships/activeXControlBinary" Target="https://example.test/controls/policy.bin?download=1#state" TargetMode="External"/>
+  <Relationship Id="rUnsafeBinary" Type="http://schemas.microsoft.com/office/2006/relationships/activeXControlBinary" Target="javascript:alert(1)" TargetMode="External"/>
+</Relationships>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $activeX = $package['activeXControls'];
+        $control = $activeX['byRelationshipId']['rPolicyActiveX'];
+        $safeBinary = $control['binaries']['byRelationshipId']['rSafeBinary'];
+        $unsafeBinary = $control['binaries']['byRelationshipId']['rUnsafeBinary'];
+        $summary = $package['summary'];
+        $binaryType = $package['relationshipTypes'][$binaryRel];
+
+        $t->same(1, $activeX['count']);
+        $t->same(2, $activeX['binaryCount']);
+        $t->same(2, $activeX['externalBinaryCount']);
+        $t->same(1, $activeX['allowedExternalBinaryCount']);
+        $t->same(1, $activeX['unsafeExternalBinaryCount']);
+        $t->same(['javascript:alert(1)'], $activeX['unsafeBinaryExternalTargets']);
+        $t->same(['external-target-unsafe-scheme'], $activeX['binaryExternalTargetIssueCodes']);
+
+        $t->same(2, $control['binaries']['externalCount']);
+        $t->same(1, $control['binaries']['allowedExternalTargetCount']);
+        $t->same(1, $control['binaries']['unsafeExternalTargetCount']);
+        $t->same(['javascript:alert(1)'], $control['binaries']['unsafeExternalTargets']);
+        $t->same(['external-target-unsafe-scheme'], $control['binaries']['externalTargetIssueCodes']);
+        $t->same('https://example.test/controls/policy.bin?download=1#state', $safeBinary['target']);
+        $t->same('absolute-uri', $safeBinary['externalTargetKind']);
+        $t->same('https', $safeBinary['externalTargetScheme']);
+        $t->same(true, $safeBinary['externalTargetAllowed']);
+        $t->same([], $safeBinary['externalTargetIssues']);
+        $t->same(['external-activex-binary'], $safeBinary['issues']);
+        $t->same('javascript:alert(1)', $unsafeBinary['target']);
+        $t->same('absolute-uri', $unsafeBinary['externalTargetKind']);
+        $t->same('javascript', $unsafeBinary['externalTargetScheme']);
+        $t->same(false, $unsafeBinary['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $unsafeBinary['externalTargetIssues']);
+        $t->same(['external-activex-binary'], $unsafeBinary['issues']);
+
+        $t->same(2, $summary['activeXBinaryExternalCount']);
+        $t->same(1, $summary['activeXBinaryAllowedExternalCount']);
+        $t->same(1, $summary['activeXBinaryUnsafeExternalCount']);
+        $t->same(['external-target-unsafe-scheme'], $summary['activeXBinaryExternalTargetIssueCodes']);
+        $t->same(2, $binaryType['externalCount']);
+        $t->same(1, $binaryType['allowedExternalTargetCount']);
+        $t->same(1, $binaryType['unsafeExternalTargetCount']);
+        $t->same(['https' => 1, 'javascript' => 1], $binaryType['externalTargetSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme' => 1], $binaryType['externalTargetIssueCounts']);
+        $t->same('javascript:alert(1)', $binaryType['unsafeExternalTargets'][0]['target']);
+    },
     'recovers docx activex unqualified descriptor attributes for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $controlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/control';

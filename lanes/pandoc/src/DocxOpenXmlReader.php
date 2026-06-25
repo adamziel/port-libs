@@ -1039,6 +1039,10 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['activeXBinaryCount'] = $activeXControls['binaryCount'];
         $packageProvenance['summary']['activeXBinaryExistingCount'] = $activeXControls['existingBinaryCount'];
         $packageProvenance['summary']['activeXBinaryMissingCount'] = $activeXControls['missingBinaryCount'];
+        $packageProvenance['summary']['activeXBinaryExternalCount'] = $activeXControls['externalBinaryCount'];
+        $packageProvenance['summary']['activeXBinaryAllowedExternalCount'] = $activeXControls['allowedExternalBinaryCount'];
+        $packageProvenance['summary']['activeXBinaryUnsafeExternalCount'] = $activeXControls['unsafeExternalBinaryCount'];
+        $packageProvenance['summary']['activeXBinaryExternalTargetIssueCodes'] = $activeXControls['binaryExternalTargetIssueCodes'];
         $packageProvenance['summary']['activeXIssueCount'] = $activeXControls['issueCount'];
         $packageProvenance['summary']['activeXIssueCodes'] = $activeXControls['issueCodes'];
         $packageProvenance['vbaProjects'] = $vbaProjects;
@@ -7143,8 +7147,12 @@ final class DocxOpenXmlReader
         $partNames = [];
         $binaryPartNames = [];
         $externalTargets = [];
+        $unsafeBinaryExternalTargets = [];
         $contentTypesSeen = [];
         $issueCodes = [];
+        $binaryExternalTargetIssueCodes = [];
+        $allowedExternalBinaryCount = 0;
+        $unsafeExternalBinaryCount = 0;
         foreach ($items as $item) {
             $this->appendUniqueString($partNames, is_string($item['partName'] ?? null) ? $item['partName'] : null);
             $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
@@ -7164,6 +7172,17 @@ final class DocxOpenXmlReader
                 $this->appendUniqueString($contentTypesSeen, is_string($binary['contentType'] ?? null) ? $binary['contentType'] : null);
                 if (($binary['external'] ?? false) === true) {
                     $this->appendUniqueString($externalTargets, is_string($binary['target'] ?? null) ? $binary['target'] : null);
+                    if (($binary['externalTargetAllowed'] ?? null) === true) {
+                        ++$allowedExternalBinaryCount;
+                    } else {
+                        ++$unsafeExternalBinaryCount;
+                        $this->appendUniqueString($unsafeBinaryExternalTargets, is_string($binary['target'] ?? null) ? $binary['target'] : null);
+                    }
+                    foreach (($binary['externalTargetIssues'] ?? []) as $issue) {
+                        if (is_string($issue) && $issue !== '') {
+                            $binaryExternalTargetIssueCodes[$issue] = true;
+                        }
+                    }
                 }
                 foreach (($binary['issues'] ?? []) as $issue) {
                     if (is_string($issue) && $issue !== '') {
@@ -7173,6 +7192,7 @@ final class DocxOpenXmlReader
             }
         }
         ksort($issueCodes, SORT_STRING);
+        ksort($binaryExternalTargetIssueCodes, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -7195,6 +7215,8 @@ final class DocxOpenXmlReader
             'existingBinaryCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['binaries']['existingCount'] ?? 0), $items)),
             'missingBinaryCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['binaries']['missingCount'] ?? 0), $items)),
             'externalBinaryCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['binaries']['externalCount'] ?? 0), $items)),
+            'allowedExternalBinaryCount' => $allowedExternalBinaryCount,
+            'unsafeExternalBinaryCount' => $unsafeExternalBinaryCount,
             'unexpectedBinaryContentTypeCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['binaries']['unexpectedContentTypeCount'] ?? 0), $items)),
             'issueCount' => count(array_filter(
                 $items,
@@ -7206,8 +7228,10 @@ final class DocxOpenXmlReader
             'partNames' => $partNames,
             'binaryPartNames' => $binaryPartNames,
             'externalTargets' => $externalTargets,
+            'unsafeBinaryExternalTargets' => $unsafeBinaryExternalTargets,
             'contentTypes' => $contentTypesSeen,
             'issueCodes' => array_keys($issueCodes),
+            'binaryExternalTargetIssueCodes' => array_keys($binaryExternalTargetIssueCodes),
             'byRelationshipId' => $byRelationshipId,
             'items' => $items,
             'byteExposurePolicy' => 'activex-bytes-blocked',
@@ -7417,11 +7441,15 @@ final class DocxOpenXmlReader
             'existingCount' => 0,
             'missingCount' => 0,
             'externalCount' => 0,
+            'allowedExternalTargetCount' => 0,
+            'unsafeExternalTargetCount' => 0,
             'unexpectedContentTypeCount' => 0,
             'issueCount' => 0,
             'relationshipIds' => [],
             'partNames' => [],
             'externalTargets' => [],
+            'unsafeExternalTargets' => [],
+            'externalTargetIssueCodes' => [],
             'contentTypes' => [],
             'issueCodes' => [],
             'byRelationshipId' => [],
@@ -7451,8 +7479,10 @@ final class DocxOpenXmlReader
         $relationshipIds = [];
         $partNames = [];
         $externalTargets = [];
+        $unsafeExternalTargets = [];
         $contentTypesSeen = [];
         $issueCodes = [];
+        $externalTargetIssueCodes = [];
         foreach ($relationships as $relationship) {
             if ($relationship['type'] !== self::ACTIVEX_BINARY_REL) {
                 continue;
@@ -7466,6 +7496,14 @@ final class DocxOpenXmlReader
             $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
             if (($item['external'] ?? false) === true) {
                 $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+                if (($item['externalTargetAllowed'] ?? null) !== true) {
+                    $this->appendUniqueString($unsafeExternalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+                }
+                foreach (($item['externalTargetIssues'] ?? []) as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $externalTargetIssueCodes[$issue] = true;
+                    }
+                }
             }
             foreach (($item['issues'] ?? []) as $issue) {
                 if (is_string($issue) && $issue !== '') {
@@ -7474,17 +7512,22 @@ final class DocxOpenXmlReader
             }
         }
         ksort($issueCodes, SORT_STRING);
+        ksort($externalTargetIssueCodes, SORT_STRING);
 
         return [
             'count' => count($items),
             'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === false && $item['exists'] === true)),
             'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-activex-binary', $item['issues'], true))),
             'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'allowedExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true && $item['externalTargetAllowed'] === true)),
+            'unsafeExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true && $item['externalTargetAllowed'] !== true)),
             'unexpectedContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-binary-content-type', $item['issues'], true))),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'relationshipIds' => $relationshipIds,
             'partNames' => $partNames,
             'externalTargets' => $externalTargets,
+            'unsafeExternalTargets' => $unsafeExternalTargets,
+            'externalTargetIssueCodes' => array_keys($externalTargetIssueCodes),
             'contentTypes' => $contentTypesSeen,
             'issueCodes' => array_keys($issueCodes),
             'byRelationshipId' => $byRelationshipId,
@@ -7536,6 +7579,10 @@ final class DocxOpenXmlReader
             'targetQuery' => $summary['targetQuery'],
             'targetFragment' => $summary['targetFragment'],
             'targetReferenceSuffix' => $summary['targetReferenceSuffix'],
+            'externalTargetKind' => $summary['externalTargetKind'],
+            'externalTargetScheme' => $summary['externalTargetScheme'],
+            'externalTargetAllowed' => $summary['externalTargetAllowed'],
+            'externalTargetIssues' => $summary['externalTargetIssues'],
             'contentType' => $summary['contentType'],
             'contentTypeBase' => $summary['contentTypeBase'],
             'contentTypeHasParameters' => $summary['contentTypeHasParameters'],
