@@ -1339,7 +1339,7 @@ final class MathTexConverter
     }
 
     /**
-     * @param array<string, array{arity?: int, template?: string, optionalDefault?: string}> $macros
+     * @param array<string, array{arity?: int, template?: string, optionalDefault?: string, environment?: bool, opener?: string, closer?: string}> $macros
      * @param array<string, array{label?: string, id?: string, reference?: string, tag?: ?string, tagStarred?: bool}|string> $referenceLabels
      */
     public function mathMlFor(AstNode $node, array $macros = [], array $referenceLabels = []): string
@@ -1348,7 +1348,7 @@ final class MathTexConverter
     }
 
     /**
-     * @param array<string, array{arity?: int, template?: string, optionalDefault?: string}> $macros
+     * @param array<string, array{arity?: int, template?: string, optionalDefault?: string, environment?: bool, opener?: string, closer?: string}> $macros
      * @param array<string, array{label?: string, id?: string, reference?: string, tag?: ?string, tagStarred?: bool}|string> $referenceLabels
      */
     public function accessibleMathMlFor(AstNode $node, array $macros = [], array $referenceLabels = []): string
@@ -1357,7 +1357,7 @@ final class MathTexConverter
     }
 
     /**
-     * @param array<string, array{arity?: int, template?: string, optionalDefault?: string}> $macros
+     * @param array<string, array{arity?: int, template?: string, optionalDefault?: string, environment?: bool, opener?: string, closer?: string}> $macros
      * @param array<string, array{label?: string, id?: string, reference?: string, tag?: ?string, tagStarred?: bool}|string> $referenceLabels
      */
     public function texToAccessibleMathMl(string $tex, bool $display = false, array $macros = [], array $referenceLabels = []): string
@@ -1366,7 +1366,7 @@ final class MathTexConverter
     }
 
     /**
-     * @param array<string, array{arity?: int, template?: string, optionalDefault?: string}> $macros
+     * @param array<string, array{arity?: int, template?: string, optionalDefault?: string, environment?: bool, opener?: string, closer?: string}> $macros
      * @param array<string, array{label?: string, id?: string, reference?: string, tag?: ?string, tagStarred?: bool}|string> $referenceLabels
      */
     public function texToMathMl(string $tex, bool $display = false, array $macros = [], array $referenceLabels = [], bool $includeAccessibility = false): string
@@ -1377,7 +1377,9 @@ final class MathTexConverter
         $this->mathChoiceStyle = $display ? 'display' : 'text';
 
         try {
-            $expandedTex = $this->expandRawTexMathMacros($tex, $this->normalizeMacroDefinitions($macros));
+            $definitions = $this->normalizeMacroDefinitions($macros);
+            $preprocessedTex = $this->extractRawTexEnvironmentDefinitions($tex, $definitions['environments']);
+            $expandedTex = $this->expandRawTexMathMacros($preprocessedTex, $definitions['commands'], $definitions['environments']);
             $equation = $this->extractEquationMetadata($expandedTex);
             $this->activeLeftFenceDepth = 0;
             $offset = 0;
@@ -1898,7 +1900,7 @@ final class MathTexConverter
     }
 
     /**
-     * @return array<string, array{arity:int, template:string}>
+     * @return array<string, array{arity:int, template?:string, optionalDefault?: string, environment?: bool, opener?: string, closer?: string}>
      */
     public function macroDefinitionsFromDocument(AstNode $node): array
     {
@@ -1921,17 +1923,26 @@ final class MathTexConverter
     }
 
     /**
-     * @param array<string, array{arity:int, template:string, optionalDefault?: string}> $macros
+     * @param array<string, array{arity:int, template?:string, optionalDefault?: string, environment?: bool, opener?: string, closer?: string}> $macros
      */
     private function collectMacroDefinitions(AstNode $node, array &$macros): void
     {
         if ($node->type === 'raw_tex') {
             $macro = $this->readRawTexMacroDefinition((string) $node->attr('tex', ''));
             if ($macro !== null) {
-                $definition = [
-                    'arity' => $macro['arity'],
-                    'template' => $macro['template'],
-                ];
+                if (($macro['environment'] ?? false) === true) {
+                    $definition = [
+                        'environment' => true,
+                        'arity' => $macro['arity'],
+                        'opener' => $macro['opener'],
+                        'closer' => $macro['closer'],
+                    ];
+                } else {
+                    $definition = [
+                        'arity' => $macro['arity'],
+                        'template' => $macro['template'],
+                    ];
+                }
                 if (array_key_exists('optionalDefault', $macro)) {
                     $definition['optionalDefault'] = $macro['optionalDefault'];
                 }
@@ -1946,11 +1957,16 @@ final class MathTexConverter
     }
 
     /**
-     * @return array{name:string, arity:int, template:string, optionalDefault?: string}|null
+     * @return array{name:string, arity:int, template?:string, optionalDefault?: string, environment?: bool, opener?: string, closer?: string}|null
      */
     private function readRawTexMacroDefinition(string $tex): ?array
     {
         $source = trim($tex);
+        $environment = $this->readRawTexEnvironmentDefinition($source);
+        if ($environment !== null) {
+            return $environment;
+        }
+
         $declaredOperator = $this->readRawTexDeclaredMathOperator($source);
         if ($declaredOperator !== null) {
             return $declaredOperator;
@@ -2026,6 +2042,103 @@ final class MathTexConverter
         }
 
         return $definition;
+    }
+
+    /**
+     * @return array{name:string, arity:int, optionalDefault?: string, environment:bool, opener:string, closer:string}|null
+     */
+    private function readRawTexEnvironmentDefinition(string $source): ?array
+    {
+        $parsed = $this->readRawTexEnvironmentDefinitionAt($source, 0);
+        if ($parsed === null) {
+            return null;
+        }
+
+        $offset = $parsed['next'];
+        $this->skipWhitespace($source, $offset);
+        if ($offset !== strlen($source)) {
+            return null;
+        }
+
+        return $parsed['definition'];
+    }
+
+    /**
+     * @return array{definition:array{name:string, arity:int, optionalDefault?: string, environment:bool, opener:string, closer:string}, next:int}|null
+     */
+    private function readRawTexEnvironmentDefinitionAt(string $source, int $offset): ?array
+    {
+        if (preg_match('/\G\\\\((?:re)?newenvironment)/', $source, $m, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $cursor = $offset + strlen($m[0]);
+        $this->skipWhitespace($source, $cursor);
+        if (($source[$cursor] ?? '') === '*') {
+            $cursor++;
+        }
+
+        $this->skipWhitespace($source, $cursor);
+        $name = $this->readTexBraceArgument($source, $cursor);
+        if ($name === null) {
+            return null;
+        }
+        $environment = trim($name['value']);
+        if (preg_match('/^[A-Za-z][A-Za-z0-9*_-]*$/', $environment) !== 1) {
+            return null;
+        }
+        $cursor = $name['next'];
+
+        $arity = 0;
+        $optionalDefault = null;
+        $this->skipWhitespace($source, $cursor);
+        $arityArgument = $this->readTexBracketArgument($source, $cursor);
+        if ($arityArgument !== null) {
+            if (preg_match('/^[0-9]$/', trim($arityArgument['value'])) !== 1) {
+                return null;
+            }
+
+            $arity = (int) trim($arityArgument['value']);
+            $cursor = $arityArgument['next'];
+            if ($arity > 0) {
+                $this->skipWhitespace($source, $cursor);
+                $defaultArgument = $this->readTexBracketArgument($source, $cursor);
+                if ($defaultArgument !== null) {
+                    $optionalDefault = $defaultArgument['value'];
+                    $cursor = $defaultArgument['next'];
+                }
+            }
+        }
+
+        $this->skipWhitespace($source, $cursor);
+        $opener = $this->readTexBraceArgument($source, $cursor);
+        if ($opener === null) {
+            return null;
+        }
+        $cursor = $opener['next'];
+
+        $this->skipWhitespace($source, $cursor);
+        $closer = $this->readTexBraceArgument($source, $cursor);
+        if ($closer === null) {
+            return null;
+        }
+        $cursor = $closer['next'];
+
+        $definition = [
+            'name' => $environment,
+            'environment' => true,
+            'arity' => $arity,
+            'opener' => $opener['value'],
+            'closer' => $closer['value'],
+        ];
+        if ($optionalDefault !== null) {
+            $definition['optionalDefault'] = $optionalDefault;
+        }
+
+        return [
+            'definition' => $definition,
+            'next' => $cursor,
+        ];
     }
 
     /**
@@ -2436,19 +2549,57 @@ final class MathTexConverter
     }
 
     /**
-     * @param array<string, array{arity?: int, template?: string, optionalDefault?: string}> $macros
-     * @return array<string, array{arity:int, template:string, optionalDefault?: string}>
+     * @param array<string, array{arity?: int, template?: string, optionalDefault?: string, environment?: bool, opener?: string, closer?: string}> $macros
+     * @return array{commands:array<string, array{arity:int, template:string, optionalDefault?: string}>, environments:array<string, array{arity:int, opener:string, closer:string, optionalDefault?: string}>}
      */
     private function normalizeMacroDefinitions(array $macros): array
     {
-        $normalized = [];
+        $commands = [];
+        $environments = [];
         foreach ($macros as $name => $definition) {
-            $macroName = ltrim($name, '\\');
+            if (!is_array($definition)) {
+                throw new \InvalidArgumentException('Expected TeX macro definition for ' . $name);
+            }
+
+            if (($definition['environment'] ?? false) === true) {
+                $environmentName = $this->normalizeRawTexEnvironmentName((string) $name);
+                if (!isset($definition['opener']) || !is_string($definition['opener']) || !isset($definition['closer']) || !is_string($definition['closer'])) {
+                    throw new \InvalidArgumentException('Expected TeX environment opener and closer for ' . $environmentName);
+                }
+
+                $arity = $definition['arity'] ?? $this->inferMacroArity($definition['opener'] . $definition['closer']);
+                if (!is_int($arity) || $arity < 0 || $arity > 9) {
+                    throw new \InvalidArgumentException('Unsupported TeX environment arity for ' . $environmentName);
+                }
+
+                $environment = [
+                    'arity' => $arity,
+                    'opener' => $definition['opener'],
+                    'closer' => $definition['closer'],
+                ];
+
+                if (array_key_exists('optionalDefault', $definition)) {
+                    if (!is_string($definition['optionalDefault'])) {
+                        throw new \InvalidArgumentException('Expected TeX optional environment default for ' . $environmentName);
+                    }
+
+                    if ($arity < 1) {
+                        throw new \InvalidArgumentException('Unsupported TeX optional environment arity for ' . $environmentName);
+                    }
+
+                    $environment['optionalDefault'] = $definition['optionalDefault'];
+                }
+
+                $environments[$environmentName] = $environment;
+                continue;
+            }
+
+            $macroName = ltrim((string) $name, '\\');
             if (preg_match('/^[A-Za-z]+$/', $macroName) !== 1) {
                 throw new \InvalidArgumentException('Unsupported TeX macro name ' . $name);
             }
 
-            if (!is_array($definition) || !isset($definition['template']) || !is_string($definition['template'])) {
+            if (!isset($definition['template']) || !is_string($definition['template'])) {
                 throw new \InvalidArgumentException('Expected TeX macro template for \\' . $macroName);
             }
 
@@ -2474,24 +2625,67 @@ final class MathTexConverter
                 $macro['optionalDefault'] = $definition['optionalDefault'];
             }
 
-            $normalized[$macroName] = $macro;
+            $commands[$macroName] = $macro;
         }
 
-        return $normalized;
+        return [
+            'commands' => $commands,
+            'environments' => $environments,
+        ];
+    }
+
+    /**
+     * @param array<string, array{arity:int, opener:string, closer:string, optionalDefault?: string}> $environments
+     */
+    private function extractRawTexEnvironmentDefinitions(string $math, array &$environments): string
+    {
+        $output = '';
+        $offset = 0;
+        $length = strlen($math);
+
+        while ($offset < $length) {
+            if (($math[$offset] ?? '') !== '\\') {
+                $output .= $math[$offset];
+                $offset++;
+                continue;
+            }
+
+            $definition = $this->readRawTexEnvironmentDefinitionAt($math, $offset);
+            if ($definition === null) {
+                $output .= $math[$offset];
+                $offset++;
+                continue;
+            }
+
+            $parsed = $definition['definition'];
+            $environments[$parsed['name']] = [
+                'arity' => $parsed['arity'],
+                'opener' => $parsed['opener'],
+                'closer' => $parsed['closer'],
+            ];
+            if (array_key_exists('optionalDefault', $parsed)) {
+                $environments[$parsed['name']]['optionalDefault'] = $parsed['optionalDefault'];
+            }
+            $offset = $definition['next'];
+        }
+
+        return $output;
     }
 
     /**
      * @param array<string, array{arity:int, template:string, optionalDefault?: string}> $macros
+     * @param array<string, array{arity:int, opener:string, closer:string, optionalDefault?: string}> $environments
      */
-    private function expandRawTexMathMacros(string $math, array $macros): string
+    private function expandRawTexMathMacros(string $math, array $macros, array $environments): string
     {
-        if ($macros === []) {
+        if ($macros === [] && $environments === []) {
             return $math;
         }
 
         $expanded = $math;
-        for ($iteration = 0; $iteration < 5; $iteration++) {
-            $next = $this->expandRawTexMathMacrosOnce($expanded, $macros);
+        $limit = max(5, (2 * (count($macros) + count($environments))) + 1);
+        for ($iteration = 0; $iteration < $limit; $iteration++) {
+            $next = $this->expandRawTexMathMacrosOnce($expanded, $macros, $environments);
             if ($next === $expanded) {
                 break;
             }
@@ -2503,14 +2697,24 @@ final class MathTexConverter
 
     /**
      * @param array<string, array{arity:int, template:string, optionalDefault?: string}> $macros
+     * @param array<string, array{arity:int, opener:string, closer:string, optionalDefault?: string}> $environments
      */
-    private function expandRawTexMathMacrosOnce(string $math, array $macros): string
+    private function expandRawTexMathMacrosOnce(string $math, array $macros, array $environments): string
     {
         $output = '';
         $offset = 0;
         $length = strlen($math);
 
         while ($offset < $length) {
+            if (($math[$offset] ?? '') === '\\' && preg_match('/\G\\\\begin(?![A-Za-z])/', $math, $m, 0, $offset) === 1) {
+                $expandedEnvironment = $this->expandRawTexEnvironmentInvocation($math, $offset + strlen($m[0]), $environments);
+                if ($expandedEnvironment !== null) {
+                    $output .= $expandedEnvironment['tex'];
+                    $offset = $expandedEnvironment['next'];
+                    continue;
+                }
+            }
+
             if (
                 ($math[$offset] ?? '') === '\\'
                 && preg_match('/\G\\\\([A-Za-z]+)/', $math, $m, 0, $offset) === 1
@@ -2565,6 +2769,73 @@ final class MathTexConverter
         }
 
         return $output;
+    }
+
+    /**
+     * @param array<string, array{arity:int, opener:string, closer:string, optionalDefault?: string}> $environments
+     * @return array{tex:string, next:int}|null
+     */
+    private function expandRawTexEnvironmentInvocation(string $math, int $cursor, array $environments): ?array
+    {
+        if ($environments === []) {
+            return null;
+        }
+
+        $this->skipWhitespace($math, $cursor);
+        $nameArgument = $this->readTexBraceArgument($math, $cursor);
+        if ($nameArgument === null) {
+            return null;
+        }
+
+        $name = $this->normalizeRawTexEnvironmentName($nameArgument['value']);
+        if (!isset($environments[$name])) {
+            return null;
+        }
+
+        $environment = $environments[$name];
+        $cursor = $nameArgument['next'];
+        $args = [];
+        $requiredArity = $environment['arity'];
+        if (array_key_exists('optionalDefault', $environment)) {
+            $optionalOffset = $cursor;
+            $this->skipWhitespace($math, $optionalOffset);
+            $optionalArgument = $this->readTexBracketArgument($math, $optionalOffset);
+            if ($optionalArgument !== null) {
+                $args[] = $optionalArgument['value'];
+                $cursor = $optionalArgument['next'];
+            } else {
+                $args[] = $environment['optionalDefault'];
+            }
+            $requiredArity--;
+        }
+
+        for ($argument = 0; $argument < $requiredArity; $argument++) {
+            $this->skipWhitespace($math, $cursor);
+            $parsed = $this->readTexBraceArgument($math, $cursor);
+            if ($parsed === null) {
+                throw new \InvalidArgumentException('Expected TeX environment argument ' . ($argument + 1) . ' for ' . $name . ' at offset ' . $cursor);
+            }
+            $args[] = $parsed['value'];
+            $cursor = $parsed['next'];
+        }
+
+        $bodyOffset = $cursor;
+        $body = $this->readEnvironmentContent($math, $bodyOffset, $name);
+
+        return [
+            'tex' => $this->renderRawTexMacroTemplate($environment['opener'] . $body . $environment['closer'], $args),
+            'next' => $bodyOffset,
+        ];
+    }
+
+    private function normalizeRawTexEnvironmentName(string $name): string
+    {
+        $environment = trim($name);
+        if (preg_match('/^[A-Za-z][A-Za-z0-9*_-]*$/', $environment) !== 1) {
+            throw new \InvalidArgumentException('Unsupported TeX environment macro name ' . $name);
+        }
+
+        return $environment;
     }
 
     /**
