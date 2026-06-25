@@ -101,3 +101,40 @@
 - Existing EPUB3 reader/writer and full Pandoc lane tests pass.
 - Remaining gaps are explicit, classified, and backed by failing/skipped
   fixtures or a clear out-of-scope decision.
+
+## Phase Two Fanout - Full Generic TeX Parser Parity
+
+After the first wave landed, the branch covers 27 static PlainMath MathML
+fixtures, 2 fallback fixtures, and 4 known gaps. The next wave should prefer
+deep parser semantics over more alias-table expansion.
+
+Active backlog:
+
+- `newenvironment` / `renewenvironment`: expand simple begin/end custom
+  environments through preprocessing and cover nested/custom delimiter fixtures.
+- Malformed structural fallback: detect incomplete structural commands early
+  enough to return the original math span instead of XML-safe visible command
+  tokens.
+- Typed atom/category model: prototype the smallest internal representation
+  needed for `Ord`, `Bin`, `Rel`, `Open`, `Close`, `Pun`, and `Op` semantics
+  without rewriting EPUB/package behavior.
+- Atom coercion commands: implement or precisely scope `\mathop`, `\mathrel`,
+  `\mathbin`, `\mathord`, `\mathopen`, `\mathclose`, and `\mathpunct` using the
+  typed atom work when practical.
+- Function application and operator limits: close bounded parity for
+  `\operatorname`, `\operatorname*`, declared operators, `\limits`,
+  `\nolimits`, and MathML invisible apply-function where current architecture
+  can support it.
+- Dimensioned spacing: parse representative `\hspace`, `\mspace`, `\kern`,
+  `\mkern`, and named mu/pt/em forms into stable MathML spacing or documented
+  known gaps.
+- Text-mode recursion: improve `\text`, `\mbox`, and related commands where
+  TexMath recursively parses or preserves styled text, while keeping XHTML
+  output valid.
+- Writer fidelity audit: identify which TexMath MathML attributes (`form`,
+  per-cell alignment, style/text-align, styled Unicode conversion) matter for
+  parser parity and which remain accepted layout differences.
+
+Phase-two workers must use `plainmath-parity-20260625` as their base branch,
+avoid JS/DRM/crypto/runtime shell-outs, and submit focused tests or audit notes
+with exact fixture provenance.
