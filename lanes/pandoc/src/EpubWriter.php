@@ -2646,11 +2646,25 @@ final class EpubWriter
             if (!$this->packageLinkHrefTargetsAvailableResource($href, $packageDir, $packagePath, $resourcePaths, $xmlResourcePayloads)) {
                 continue;
             }
-            $rel = $this->packageLinkRelationTokenList($link['rel'] ?? '', $declaredPrefixes, true, $this->entryString($link, 'refines'));
+            $candidate = $link;
+            $validatedRefines = $this->packageMetadataLinkRefinesAttribute(
+                $candidate,
+                $packageDir,
+                $packagePath,
+                $packageElementIds,
+                $resourcePaths,
+                $xmlResourcePayloads
+            );
+            if ($validatedRefines !== '') {
+                $candidate['refines'] = $validatedRefines;
+            } elseif ($this->entryString($candidate, 'refines') !== '') {
+                $candidate['refines'] = '';
+            }
+            $rel = $this->packageLinkRelationTokenList($candidate['rel'] ?? '', $declaredPrefixes, true, $this->entryString($candidate, 'refines'));
             if ($rel === '') {
                 continue;
             }
-            $sanitizedLink = $link;
+            $sanitizedLink = $candidate;
             $sanitizedLink['rel'] = $rel;
             $attrs = [
                 'href' => $this->packageEntryHref($href, $packageDir),

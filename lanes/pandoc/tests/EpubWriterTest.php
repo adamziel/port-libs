@@ -31328,6 +31328,20 @@ XML;
                         'refines' => 'bad refines',
                     ],
                     [
+                        'id' => 'bad-voicing-missing-target',
+                        'href' => 'audio/title.mp3',
+                        'rel' => 'voicing',
+                        'mediaType' => 'audio/mpeg',
+                        'refines' => '#missing-package-title',
+                    ],
+                    [
+                        'id' => 'bad-alternate-missing-target',
+                        'href' => 'audio/title.mp3',
+                        'rel' => 'alternate voicing',
+                        'mediaType' => 'audio/mpeg',
+                        'refines' => '#missing-package-title',
+                    ],
+                    [
                         'id' => 'valid-voicing',
                         'href' => 'audio/title.mp3',
                         'rel' => 'voicing',
@@ -31393,12 +31407,14 @@ XML;
             $t->contains('prefix="custom: https://example.com/vocab#"', $package);
             $t->contains('<link href="metadata/onix.xml" rel="record" media-type="application/xml" id="record-bad-media" properties="preview custom:featured"/>', $package);
             $t->contains('<link href="audio/title.mp3" rel="alternate" media-type="audio/mpeg" id="bad-voicing-invalid-refines"/>', $package);
+            $t->contains('<link href="audio/title.mp3" rel="alternate" media-type="audio/mpeg" id="bad-alternate-missing-target"/>', $package);
             $t->contains('<link href="audio/title.mp3" rel="voicing" hreflang="pl" media-type="audio/mpeg" refines="#book-id" xml:lang="pl" dir="rtl" id="valid-voicing"/>', $package);
             $t->true(!str_contains($package, 'bad-data-metadata-link'), 'Package metadata links with data URLs should not be emitted.');
             $t->true(!str_contains($package, 'bad-fragment-metadata-link'), 'Package metadata links with invalid fragments should not be emitted.');
             $t->true(!str_contains($package, 'bad-rel-metadata-link'), 'Package metadata links without valid rel tokens should not be emitted.');
             $t->true(!str_contains($package, 'bad-malformed-fragment-metadata-link'), 'Package metadata links into malformed XML fragments should not be emitted.');
             $t->true(!str_contains($package, 'bad-voicing-missing-refines'), 'Package metadata voicing links without valid refines should not be emitted.');
+            $t->true(!str_contains($package, 'bad-voicing-missing-target'), 'Package metadata voicing links with missing refines targets should not be emitted.');
             $t->true(!str_contains($package, 'missing:term'), 'Undeclared package metadata-link rel prefixes should not be emitted.');
             $t->true(!str_contains($package, 'missing:property'), 'Undeclared package metadata-link properties should not be emitted.');
             $t->true(!str_contains($package, 'bad:'), 'Malformed package metadata-link tokens should not be emitted.');
@@ -31421,7 +31437,7 @@ XML;
                 $linksById[$entry['id']] = $entry;
             }
         }
-        $t->same(3, count($linksById));
+        $t->same(4, count($linksById));
         $t->same('application/xml', $linksById['record-bad-media']['mediaType'] ?? null);
         $t->same(['preview', 'custom:featured'], $linksById['record-bad-media']['properties'] ?? null);
         $t->true(!array_key_exists('refines', $linksById['record-bad-media'] ?? []), 'Record package metadata links should not round-trip refines attributes.');
@@ -31431,6 +31447,9 @@ XML;
         $t->true(!isset($linksById['bad-malformed-fragment-metadata-link']), 'Malformed-fragment package metadata links should not round-trip.');
         $t->same('alternate', $linksById['bad-voicing-invalid-refines']['rel'] ?? null);
         $t->true(!array_key_exists('refines', $linksById['bad-voicing-invalid-refines'] ?? []), 'Invalid package metadata-link refines values should not round-trip.');
+        $t->true(!isset($linksById['bad-voicing-missing-target']), 'Package metadata voicing links with missing refines targets should not round-trip.');
+        $t->same('alternate', $linksById['bad-alternate-missing-target']['rel'] ?? null);
+        $t->true(!array_key_exists('refines', $linksById['bad-alternate-missing-target'] ?? []), 'Package metadata links with missing refines targets should keep only non-refining relations.');
         $t->same('voicing', $linksById['valid-voicing']['rel'] ?? null);
         $t->same('#book-id', $linksById['valid-voicing']['refines'] ?? null);
         $t->same('pl', $linksById['valid-voicing']['hreflang'] ?? null);
@@ -31458,6 +31477,7 @@ XML;
             'invalid-package-link-dir',
             'invalid-package-link-record-refines',
             'missing-package-link-voicing-refines',
+            'missing-metadata-refines-target',
         ] as $code) {
             $t->true(!str_contains($diagnosticsJson, $code), "Generated package metadata links should not self-diagnose {$code}.");
         }
