@@ -392,6 +392,34 @@ return [
             'expectedHtml' => '<span class="math inline">\newcommand{\loop}{\loop}\loop</span>',
             'reason' => 'Bounded macro expansion must fall back instead of emitting partial MathML for non-terminating user macros.',
         ],
+        [
+            'id' => 'incomplete-fraction-span',
+            'tex' => '\frac{a}{',
+            'display' => false,
+            'expectedHtml' => '<span class="math inline">\frac{a}{</span>',
+            'reason' => 'Incomplete fraction arguments should preserve the original source span instead of exposing command-token MathML.',
+        ],
+        [
+            'id' => 'incomplete-root-span',
+            'tex' => '\sqrt{x',
+            'display' => false,
+            'expectedHtml' => '<span class="math inline">\sqrt{x</span>',
+            'reason' => 'Incomplete root groups should preserve the original source span instead of exposing partial MathML.',
+        ],
+        [
+            'id' => 'incomplete-left-fence-span',
+            'tex' => '\left( x + y',
+            'display' => true,
+            'expectedHtml' => '<span class="math display">\left( x + y</span>',
+            'reason' => 'Missing right fences should preserve the original source span instead of emitting a partial fenced body.',
+        ],
+        [
+            'id' => 'incomplete-matrix-environment-span',
+            'tex' => '\begin{pmatrix}a&b',
+            'display' => true,
+            'expectedHtml' => '<span class="math display">\begin{pmatrix}a&amp;b</span>',
+            'reason' => 'Unclosed table environments should preserve the original source span instead of emitting mtext MathML.',
+        ],
     ],
     'knownGaps' => [
         [
@@ -399,12 +427,6 @@ return [
             'upstream' => 'test/reader/tex/macros.test',
             'tex' => '\newenvironment{foo}{\left(}{\right)}\begin{foo}x\end{foo}',
             'gap' => 'TexMath expands newenvironment definitions; current HtmlWriter only expands command macros and declared operators.',
-        ],
-        [
-            'id' => 'malformed-structural-command-fallback',
-            'upstream' => 'Pandoc HTML convertMath fallback on TexMath parse failure',
-            'tex' => '\frac{a}{',
-            'gap' => 'Malformed structural commands remain XML-parseable but currently degrade to visible command tokens instead of falling back the whole math span.',
         ],
         [
             'id' => 'recursive-macro-diagnostics',

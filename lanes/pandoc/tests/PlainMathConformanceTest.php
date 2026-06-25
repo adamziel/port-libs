@@ -109,6 +109,58 @@ return [
             $t->true(!str_contains($actual, '<math'), 'PlainMath fallback case ' . $case['id'] . ' should not emit partial MathML.');
         }
     },
+    'keeps malformed plainmath fallback valid through epub3 writer integration' => static function (TestRunner $t) use ($loadXml): void {
+        $document = new AstNode('document', [
+            'meta' => [
+                'title' => 'PlainMath Fallback EPUB',
+            ],
+        ], [
+            new AstNode('heading', ['level' => 1, 'text' => 'PlainMath Fallback EPUB'], [
+                new AstNode('text', ['text' => 'PlainMath Fallback EPUB']),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Inline ']),
+                new AstNode('math', ['text' => '\frac{a}{', 'display' => false]),
+                new AstNode('text', ['text' => '.']),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('math', ['text' => '\left( x + y', 'display' => true]),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('math', ['text' => '\begin{pmatrix}a&b', 'display' => true]),
+            ]),
+        ]);
+
+        $epub = PandocConverter::write($document, 'epub3', [
+            'modified' => '2026-06-25T14:20:00Z',
+        ]);
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-plainmath-fallback-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary PlainMath fallback EPUB path.');
+        }
+        file_put_contents($path, $epub);
+
+        $zip = new ZipArchive();
+        try {
+            if ($zip->open($path) !== true) {
+                throw new RuntimeException('Unable to open generated PlainMath fallback EPUB package.');
+            }
+
+            $chapter = $zip->getFromName('OEBPS/text/chapter.xhtml');
+            if (!is_string($chapter)) {
+                throw new RuntimeException('Generated PlainMath fallback EPUB is missing package or chapter files.');
+            }
+
+            $loadXml($chapter, 'PlainMath fallback EPUB chapter XHTML');
+            $t->contains('<span class="math inline">\frac{a}{</span>', $chapter);
+            $t->contains('<span class="math display">\left( x + y</span>', $chapter);
+            $t->contains('<span class="math display">\begin{pmatrix}a&amp;b</span>', $chapter);
+            $t->true(!str_contains($chapter, '<math'), 'Malformed PlainMath fallback XHTML should not contain MathML nodes.');
+        } finally {
+            $zip->close();
+            @unlink($path);
+        }
+    },
     'keeps plainmath mathml valid through epub3 writer integration' => static function (TestRunner $t) use ($mathCasesById, $loadXml, $assertMathMLCase): void {
         $inline = $mathCasesById['script-super'];
         $display = $mathCasesById['display-fraction-root'];

@@ -142,11 +142,21 @@ TEX, true);
         $t->contains('<mo stretchy="true">)</mo>', $html);
         $t->contains('<mo>≤</mo>', $html);
     },
-    'falls back predictably for malformed plainmath matrix environments' => static function (TestRunner $t) use ($renderMathHtml, $assertXml): void {
-        $html = $renderMathHtml('\begin{pmatrix}a&b', true);
+    'falls back to source spans for malformed plainmath structural commands' => static function (TestRunner $t) use ($renderMathHtml, $assertXml): void {
+        $cases = [
+            '\frac{a}{' => '<p><span class="math display">\frac{a}{</span></p>',
+            '\sqrt{x' => '<p><span class="math display">\sqrt{x</span></p>',
+            '\left( x + y' => '<p><span class="math display">\left( x + y</span></p>',
+            '\begin{pmatrix}a&b' => '<p><span class="math display">\begin{pmatrix}a&amp;b</span></p>',
+        ];
 
-        $assertXml($t, $html);
-        $t->contains('<mtext>\begin{pmatrix}a&amp;b</mtext>', $html);
-        $t->same(0, substr_count($html, '<mtable'));
+        foreach ($cases as $tex => $expectedHtml) {
+            $html = $renderMathHtml($tex, true);
+
+            $assertXml($t, $html);
+            $t->same($expectedHtml, $html);
+            $t->same(0, substr_count($html, '<math'));
+            $t->same(0, substr_count($html, '<mtable'));
+        }
     },
 ];

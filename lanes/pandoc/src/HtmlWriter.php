@@ -13,6 +13,8 @@ final class HtmlWriter
 
     private int $flushedFootnoteCount = 0;
 
+    private bool $texMathStructuralParseFailed = false;
+
     /**
      * @param array{htmlQTags?: bool, htmlMathMethod?: string|array<string, mixed>, mathMethod?: string, writerHTMLMathMethod?: string|array<string, mixed>, referenceLocation?: string, writerReferenceLocation?: string, sectionDivs?: bool, writerSectionDivs?: bool, writerWrapText?: string, wrap?: string, writerSemanticBlockElements?: array<int, string>, semanticBlockElements?: array<int, string>} $options
      */
@@ -2468,36 +2470,47 @@ final class HtmlWriter
 
     private function texMathToMathML(string $text, bool $display): string
     {
-        $source = trim($text);
-        if ($source === '') {
-            return '';
-        }
+        $previousStructuralParseFailed = $this->texMathStructuralParseFailed;
+        $this->texMathStructuralParseFailed = false;
 
-        $parseSource = $this->preprocessTexMathSource($source);
-        if ($parseSource === null || $parseSource === '') {
-            return '';
-        }
+        try {
+            $source = trim($text);
+            if ($source === '') {
+                return '';
+            }
 
-        $offset = 0;
-        $body = $this->parseTexMathRow($parseSource, $offset, '');
-        $trailingOffset = $offset;
-        $this->skipTexMathWhitespace($parseSource, $trailingOffset);
-        if ($trailingOffset < strlen($parseSource)) {
-            $body = '<mtext>' . $this->esc($source) . '</mtext>';
-        }
-        if ($body === '') {
-            return '';
-        }
+            $parseSource = $this->preprocessTexMathSource($source);
+            if ($parseSource === null || $parseSource === '') {
+                return '';
+            }
 
-        $attributes = ' xmlns="http://www.w3.org/1998/Math/MathML"';
-        if ($display) {
-            $attributes .= ' display="block"';
-        }
+            $offset = 0;
+            $body = $this->parseTexMathRow($parseSource, $offset, '');
+            if ($this->texMathStructuralParseFailed) {
+                return '';
+            }
 
-        return '<math' . $attributes . '><semantics>'
-            . $this->mathMLRow($body)
-            . '<annotation encoding="application/x-tex">' . $this->esc($source) . '</annotation>'
-            . '</semantics></math>';
+            $trailingOffset = $offset;
+            $this->skipTexMathWhitespace($parseSource, $trailingOffset);
+            if ($trailingOffset < strlen($parseSource)) {
+                $body = '<mtext>' . $this->esc($source) . '</mtext>';
+            }
+            if ($body === '') {
+                return '';
+            }
+
+            $attributes = ' xmlns="http://www.w3.org/1998/Math/MathML"';
+            if ($display) {
+                $attributes .= ' display="block"';
+            }
+
+            return '<math' . $attributes . '><semantics>'
+                . $this->mathMLRow($body)
+                . '<annotation encoding="application/x-tex">' . $this->esc($source) . '</annotation>'
+                . '</semantics></math>';
+        } finally {
+            $this->texMathStructuralParseFailed = $previousStructuralParseFailed;
+        }
     }
 
     private function preprocessTexMathSource(string $source): ?string
@@ -3092,6 +3105,11 @@ final class HtmlWriter
 
         if ($command === 'left') {
             $afterCommand = $offset;
+            $delimiterOffset = $offset;
+            $this->skipTexMathWhitespace($source, $delimiterOffset);
+            if ($delimiterOffset >= strlen($source)) {
+                return $this->failTexMathStructuralParse($source, $offset);
+            }
             $leftDelimiter = $this->readTexMathDelimiter($source, $offset);
             $bodyOffset = $offset;
             $fenced = $this->parseTexMathRowUntilRight($source, $bodyOffset);
@@ -3099,7 +3117,7 @@ final class HtmlWriter
                 $offset = $bodyOffset;
                 return $this->texMathFencedRow($fenced[0], $leftDelimiter, $fenced[1]);
             }
-            $offset = $afterCommand;
+            return $this->failTexMathStructuralParse($source, $afterCommand);
         }
 
         if ($command === 'middle') {
@@ -3133,7 +3151,7 @@ final class HtmlWriter
                     }
                 }
 
-                return $this->texMathMalformedEnvironmentFallback($source, $offset, $commandStart);
+                return $this->texMathMalformedEnvironmentFallback($source, $offset);
             }
 
             if ($environment === 'equation') {
@@ -3148,7 +3166,7 @@ final class HtmlWriter
                     }
                 }
 
-                return $this->texMathMalformedEnvironmentFallback($source, $offset, $commandStart);
+                return $this->texMathMalformedEnvironmentFallback($source, $offset);
             }
 
             $fences = $environment === null ? null : $this->texMathMatrixEnvironmentFences($environment);
@@ -3157,7 +3175,7 @@ final class HtmlWriter
                 if ($this->texMathEnvironmentConsumesLeadingGroup($environment)) {
                     $pairCount = $this->readTexMathRawGroup($source, $bodyOffset);
                     if ($pairCount === null) {
-                        return $this->texMathMalformedEnvironmentFallback($source, $offset, $commandStart);
+                        return $this->texMathMalformedEnvironmentFallback($source, $offset);
                     }
                 }
 
@@ -3172,27 +3190,31 @@ final class HtmlWriter
                     );
                 }
 
-                return $this->texMathMalformedEnvironmentFallback($source, $offset, $commandStart);
+                return $this->texMathMalformedEnvironmentFallback($source, $offset);
             }
         }
 
         if (in_array($command, ['frac', 'dfrac', 'tfrac'], true)) {
-            $numerator = $this->parseTexMathArgument($source, $offset);
-            $denominator = $this->parseTexMathArgument($source, $offset);
+            $numerator = $this->parseTexMathRequiredStructuralArgument($source, $offset);
+            $denominator = $this->parseTexMathRequiredStructuralArgument($source, $offset);
             if ($numerator !== '' && $denominator !== '') {
                 return $this->texMathFractionElement($numerator, $denominator, $this->texMathFractionDisplayStyle($command));
             }
+
+            return $this->failTexMathStructuralParse($source, $offset);
         }
 
         if (in_array($command, ['binom', 'dbinom', 'tbinom'], true)) {
-            $numerator = $this->parseTexMathArgument($source, $offset);
-            $denominator = $this->parseTexMathArgument($source, $offset);
+            $numerator = $this->parseTexMathRequiredStructuralArgument($source, $offset);
+            $denominator = $this->parseTexMathRequiredStructuralArgument($source, $offset);
             if ($numerator !== '' && $denominator !== '') {
                 $fraction = $this->texMathFractionElement($numerator, $denominator, null, false);
                 $binomial = $this->texMathFencedRow($fraction, '(', ')');
 
                 return $this->texMathApplyDisplayStyle($binomial, $this->texMathFractionDisplayStyle($command));
             }
+
+            return $this->failTexMathStructuralParse($source, $offset);
         }
 
         if ($command === 'genfrac') {
@@ -3200,8 +3222,8 @@ final class HtmlWriter
             $rightFence = $this->readTexMathRawGroup($source, $offset);
             $lineThickness = $this->readTexMathRawGroup($source, $offset);
             $style = $this->readTexMathRawGroup($source, $offset);
-            $numerator = $this->parseTexMathArgument($source, $offset);
-            $denominator = $this->parseTexMathArgument($source, $offset);
+            $numerator = $this->parseTexMathRequiredStructuralArgument($source, $offset);
+            $denominator = $this->parseTexMathRequiredStructuralArgument($source, $offset);
             if (
                 $leftFence !== null
                 && $rightFence !== null
@@ -3219,11 +3241,17 @@ final class HtmlWriter
                     $denominator
                 );
             }
+
+            return $this->failTexMathStructuralParse($source, $offset);
         }
 
         if ($command === 'sqrt' || ($command === 'surd' && $this->texMathHasGroupedRootArgument($source, $offset))) {
-            $rootIndex = $this->parseTexMathOptionalBracketArgument($source, $offset);
-            $radicand = $this->parseTexMathArgument($source, $offset);
+            $rootIndex = $this->parseTexMathOptionalStructuralBracketArgument($source, $offset);
+            if ($rootIndex === null) {
+                return $this->failTexMathStructuralParse($source, $offset);
+            }
+
+            $radicand = $this->parseTexMathRequiredStructuralArgument($source, $offset);
             if ($radicand !== '') {
                 if ($rootIndex !== '') {
                     return '<mroot>' . $this->mathMLRow($radicand) . $this->mathMLRow($rootIndex) . '</mroot>';
@@ -3231,6 +3259,8 @@ final class HtmlWriter
 
                 return '<msqrt>' . $this->mathMLRow($radicand) . '</msqrt>';
             }
+
+            return $this->failTexMathStructuralParse($source, $offset);
         }
 
         $overscript = [
@@ -3468,6 +3498,42 @@ final class HtmlWriter
         }
 
         return $this->parseTexMathAtom($source, $offset);
+    }
+
+    private function parseTexMathRequiredStructuralArgument(string $source, int &$offset): string
+    {
+        $this->skipTexMathWhitespace($source, $offset);
+        $char = $source[$offset] ?? '';
+        if ($char === '') {
+            return $this->failTexMathStructuralParse($source, $offset);
+        }
+
+        if ($char === '{') {
+            $groupOffset = $offset;
+            $raw = $this->readTexMathRawGroup($source, $groupOffset);
+            if ($raw === null) {
+                return $this->failTexMathStructuralParse($source, $offset);
+            }
+
+            $innerOffset = 0;
+            $content = $this->parseTexMathRow($raw, $innerOffset, '');
+            if ($this->texMathStructuralParseFailed) {
+                return '';
+            }
+            if ($content === '' || trim(substr($raw, $innerOffset)) !== '') {
+                return $this->failTexMathStructuralParse($source, $offset);
+            }
+
+            $offset = $groupOffset;
+            return $content;
+        }
+
+        $content = $this->parseTexMathArgument($source, $offset);
+        if ($content === '') {
+            return $this->failTexMathStructuralParse($source, $offset);
+        }
+
+        return $content;
     }
 
     private function texMathOperatorNameText(string $name): string
@@ -3887,6 +3953,22 @@ final class HtmlWriter
         }
 
         return '';
+    }
+
+    private function parseTexMathOptionalStructuralBracketArgument(string $source, int &$offset): ?string
+    {
+        $this->skipTexMathWhitespace($source, $offset);
+        if (($source[$offset] ?? '') !== '[') {
+            return '';
+        }
+
+        $before = $offset;
+        $content = $this->parseTexMathOptionalBracketArgument($source, $offset);
+        if ($offset === $before) {
+            return null;
+        }
+
+        return $content;
     }
 
     private function texMathHasGroupedRootArgument(string $source, int $offset): bool
@@ -4391,11 +4473,17 @@ final class HtmlWriter
         return $offset;
     }
 
-    private function texMathMalformedEnvironmentFallback(string $source, int &$offset, int $start): string
+    private function texMathMalformedEnvironmentFallback(string $source, int &$offset): string
     {
+        return $this->failTexMathStructuralParse($source, $offset);
+    }
+
+    private function failTexMathStructuralParse(string $source, int &$offset): string
+    {
+        $this->texMathStructuralParseFailed = true;
         $offset = strlen($source);
 
-        return '<mtext>' . $this->esc(substr($source, $start)) . '</mtext>';
+        return '';
     }
 
     private function texMathMatrixCellToMathML(string $cell): string
