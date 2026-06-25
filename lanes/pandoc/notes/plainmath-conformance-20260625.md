@@ -46,6 +46,17 @@
   - `pmatrix-two-by-two`: `\begin{pmatrix}1 & 2 \\ 3 & 4\end{pmatrix}`, from
     the matrix fixture family in `19.test`.
   - `infix-choose`: `n \choose k`, from `choose.test` style infix fractions.
+  - `macro-square`: one-argument `\newcommand` expansion.
+  - `macro-optional-default`: optional/default macro argument expansion through
+    fenced norm notation.
+  - `declared-operator`: `\DeclareMathOperator*` expansion to
+    `\operatorname*`.
+  - `ignorable-label-tag-comment`: TeX comments, labels, tags, `\nonumber`,
+    and `\allowbreak` are ignored during parsing while the original annotation
+    is preserved.
+  - `align-environment`: AMS `align` table parsing.
+  - `equation-environment`: `equation` parses as a grouped formula rather than
+    a table.
 - Fallback corpus:
   - `empty-source-span`: empty TeX source returns an inline math span instead of
     partial MathML.
@@ -54,11 +65,12 @@
 - `implicit-product-identifiers`: TexMath splits adjacent letters such as
   `ax^2 + bx + c = 0` into individual identifiers; current `HtmlWriter` emits
   `mi ax` and `mi bx`.
-- `labels-ignored`: TexMath ignores `\label{...}` in math source; current
-  `HtmlWriter` exposes `label` and the argument as visible identifiers.
-- `macro-expansion`: TexMath expands `\newcommand`, `\renewcommand`, and related
-  macro/environment definitions; current `HtmlWriter` has no macro-definition
-  pass and tokenizes those commands visibly.
+- `macro-environments`: TexMath expands `\newenvironment` and
+  `\renewenvironment`; current `HtmlWriter` only expands command macros and
+  declared operators.
+- `direct-unicode-token-types`: TexMath classifies direct non-ASCII math
+  characters by Unicode symbol type; current `HtmlWriter` tokenization is still
+  byte-oriented.
 - `writer-style-attrs`: TexMath MathML often adds `form`, `columnalign`, and
   text-align style attributes not emitted by the local bounded writer. The
   initial passing corpus snapshots current XHTML-safe output and records
