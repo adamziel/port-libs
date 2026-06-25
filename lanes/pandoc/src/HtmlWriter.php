@@ -2474,13 +2474,15 @@ final class HtmlWriter
         }
 
         $parseSource = $this->preprocessTexMathSource($source);
-        if ($parseSource === '') {
+        if ($parseSource === null || $parseSource === '') {
             return '';
         }
 
         $offset = 0;
         $body = $this->parseTexMathRow($parseSource, $offset, '');
-        if (trim(substr($parseSource, $offset)) !== '') {
+        $trailingOffset = $offset;
+        $this->skipTexMathWhitespace($parseSource, $trailingOffset);
+        if ($trailingOffset < strlen($parseSource)) {
             $body = '<mtext>' . $this->esc($source) . '</mtext>';
         }
         if ($body === '') {
@@ -2498,7 +2500,7 @@ final class HtmlWriter
             . '</semantics></math>';
     }
 
-    private function preprocessTexMathSource(string $source): string
+    private function preprocessTexMathSource(string $source): ?string
     {
         $source = $this->stripTexMathIgnorable($source);
         $macros = [];
@@ -2535,7 +2537,7 @@ final class HtmlWriter
             $commandStart = $offset;
             $offset++;
             $command = $this->readTexMathCommandName($source, $offset);
-            if ($command === 'nonumber' || $command === 'allowbreak') {
+            if (in_array($command, ['notag', 'nonumber', 'allowbreak'], true)) {
                 continue;
             }
 
@@ -2733,13 +2735,14 @@ final class HtmlWriter
     /**
      * @param array<string,array{args:int,default:?string,body:string}> $macros
      */
-    private function expandTexMathMacros(string $source, array $macros): string
+    private function expandTexMathMacros(string $source, array $macros): ?string
     {
         if ($macros === []) {
             return $source;
         }
 
-        for ($iteration = 0; $iteration < 20; $iteration++) {
+        $limit = (2 * count($macros)) + 1;
+        for ($iteration = 0; $iteration < $limit; $iteration++) {
             $changed = false;
             $output = '';
             $offset = 0;
@@ -2790,11 +2793,11 @@ final class HtmlWriter
 
             $source = $output;
             if (!$changed) {
-                break;
+                return $source;
             }
         }
 
-        return $source;
+        return null;
     }
 
     private function readTexMathRawArgument(string $source, int &$offset): ?string
@@ -5592,9 +5595,12 @@ final class HtmlWriter
         }
 
         $operators = [
+            "\n" => '<mspace width="0.222em"/>',
+            ' ' => '<mspace width="0.222em"/>',
             ',' => '<mspace width="0.167em"/>',
             ':' => '<mspace width="0.222em"/>',
             ';' => '<mspace width="0.278em"/>',
+            '>' => '<mspace width="0.222em"/>',
             '!' => '<mspace width="0em"/>',
             'thinspace' => '<mspace width="0.167em"/>',
             'medspace' => '<mspace width="0.222em"/>',

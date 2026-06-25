@@ -175,14 +175,26 @@ return [
         [
             'id' => 'ignorable-label-tag-comment',
             'family' => 'lexing',
-            'tex' => "x% comment\n+ y\\label{eq:a}\\tag*{A}\\nonumber\\allowbreak",
+            'tex' => "x% comment\n+ y\\label{eq:a}\\tag*{A}\\notag\\nonumber\\allowbreak",
             'display' => false,
             'upstream' => [
                 'texmath' => '17089967',
                 'reader' => 'test/reader/tex/labels.test and TeX.hs ignorable parser',
                 'writer' => 'test/writer/mml/labels.test derived subset',
             ],
-            'expectedMathML' => "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mi>x</mi><mo>+</mo><mi>y</mi></mrow><annotation encoding=\"application/x-tex\">x% comment\n+ y\\label{eq:a}\\tag*{A}\\nonumber\\allowbreak</annotation></semantics></math>",
+            'expectedMathML' => "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mi>x</mi><mo>+</mo><mi>y</mi></mrow><annotation encoding=\"application/x-tex\">x% comment\n+ y\\label{eq:a}\\tag*{A}\\notag\\nonumber\\allowbreak</annotation></semantics></math>",
+        ],
+        [
+            'id' => 'control-space-token',
+            'family' => 'lexing',
+            'tex' => 'x\ y',
+            'display' => false,
+            'upstream' => [
+                'texmath' => '17089967',
+                'reader' => 'test/reader/tex/14.test subset and Commands.hs symbolMapOverrides',
+                'writer' => 'test/writer/mml spacing subset',
+            ],
+            'expectedMathML' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>x</mi><mspace width="0.222em"/><mi>y</mi></mrow><annotation encoding="application/x-tex">x\ y</annotation></semantics></math>',
         ],
         [
             'id' => 'align-environment',
@@ -313,6 +325,13 @@ return [
             'expectedHtml' => '<span class="math inline"></span>',
             'reason' => 'Empty TeX has no TexMath expression and must not emit malformed MathML.',
         ],
+        [
+            'id' => 'recursive-macro-span',
+            'tex' => '\newcommand{\loop}{\loop}\loop',
+            'display' => false,
+            'expectedHtml' => '<span class="math inline">\newcommand{\loop}{\loop}\loop</span>',
+            'reason' => 'Bounded macro expansion must fall back instead of emitting partial MathML for non-terminating user macros.',
+        ],
     ],
     'knownGaps' => [
         [
@@ -326,6 +345,12 @@ return [
             'upstream' => 'Pandoc HTML convertMath fallback on TexMath parse failure',
             'tex' => '\frac{a}{',
             'gap' => 'Malformed structural commands remain XML-parseable but currently degrade to visible command tokens instead of falling back the whole math span.',
+        ],
+        [
+            'id' => 'recursive-macro-diagnostics',
+            'upstream' => 'Text.TeXMath.Readers.TeX.Macros applyMacros fixed-point fallback',
+            'tex' => '\newcommand{\loop}{\loop}\loop',
+            'gap' => 'Recursive macros are bounded and fall back to the original TeX span, but HtmlWriter does not yet surface a structured diagnostic for the expansion failure.',
         ],
     ],
 ];
