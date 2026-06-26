@@ -4321,23 +4321,170 @@ final class MathTexConverter
 
     private function parseTextModeCommand(string $source, int &$offset, string $command): string
     {
-        $text = '<mtext>' . $this->esc($this->readTextModeCommandContent($source, $offset, $command)) . '</mtext>';
         $variant = self::TEXT_MODE_COMMANDS[$command];
-        if ($variant === null) {
-            return $text;
-        }
 
-        return '<mstyle mathvariant="' . $this->esc($variant) . '">' . $text . '</mstyle>';
+        return $this->row($this->parseTextModeCommandContent($source, $offset, $command, $variant));
     }
 
-    private function readTextModeCommandContent(string $source, int &$offset, string $command): string
+    /**
+     * @return list<string>
+     */
+    private function parseTextModeCommandContent(string $source, int &$offset, string $command, ?string $variant): array
     {
         $this->skipWhitespace($source, $offset);
         if (($source[$offset] ?? '') === '{') {
-            return $this->normalizeTextModeContent($this->readRequiredGroupText($source, $offset));
+            $content = $this->readRequiredGroupText($source, $offset);
+
+            return $this->parseTextModeGroupContent($content, $variant);
         }
 
-        return $this->readTextModeTokenContent($source, $offset, $command);
+        return [$this->textModeTextNode($this->readTextModeTokenContent($source, $offset, $command), $variant)];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function parseTextModeGroupContent(string $source, ?string $variant): array
+    {
+        $children = [];
+        $buffer = '';
+        $offset = 0;
+        $length = strlen($source);
+
+        while ($offset < $length) {
+            $innerMath = $this->readTextModeInnerMath($source, $offset);
+            if ($innerMath !== null) {
+                $this->flushTextModeBuffer($children, $buffer, $variant);
+                $children[] = $innerMath;
+                continue;
+            }
+
+            $char = $source[$offset] ?? '';
+            if ($char === '{') {
+                $this->flushTextModeBuffer($children, $buffer, $variant);
+                $content = $this->readRequiredGroupText($source, $offset);
+                $children[] = $this->row($this->parseTextModeGroupContent($content, $variant));
+                continue;
+            }
+
+            if ($char === '\\') {
+                $commandOffset = $offset + 1;
+                $textCommand = $this->readCommandName($source, $commandOffset);
+                if (array_key_exists($textCommand, self::TEXT_MODE_COMMANDS)) {
+                    $this->flushTextModeBuffer($children, $buffer, $variant);
+                    $offset = $commandOffset;
+                    $children[] = $this->parseTextModeCommandAfterName($source, $offset, $textCommand);
+                    continue;
+                }
+
+                if ($textCommand !== ' ' && isset(self::SPACING_COMMANDS[$textCommand])) {
+                    $this->flushTextModeBuffer($children, $buffer, $variant);
+                    $offset = $commandOffset;
+                    $children[] = '<mspace width="' . self::SPACING_COMMANDS[$textCommand] . '"></mspace>';
+                    continue;
+                }
+
+                $buffer .= $this->normalizeTextModeGroupCommand($textCommand);
+                $offset = $commandOffset;
+                continue;
+            }
+
+            $remaining = substr($source, $offset);
+            if (preg_match('/\A./us', $remaining, $m) === 1) {
+                $buffer .= $m[0];
+                $offset += strlen($m[0]);
+                continue;
+            }
+
+            $buffer .= $char;
+            $offset++;
+        }
+
+        $this->flushTextModeBuffer($children, $buffer, $variant);
+        if ($children === []) {
+            $children[] = $this->textModeTextNode('', $variant);
+        }
+
+        return $children;
+    }
+
+    private function parseTextModeCommandAfterName(string $source, int &$offset, string $command): string
+    {
+        $variant = self::TEXT_MODE_COMMANDS[$command];
+
+        return $this->row($this->parseTextModeCommandContent($source, $offset, $command, $variant));
+    }
+
+    /**
+     * @param list<string> $children
+     */
+    private function flushTextModeBuffer(array &$children, string &$buffer, ?string $variant): void
+    {
+        if ($buffer === '') {
+            return;
+        }
+
+        $children[] = $this->textModeTextNode($buffer, $variant);
+        $buffer = '';
+    }
+
+    private function textModeTextNode(string $text, ?string $variant): string
+    {
+        $node = '<mtext>' . $this->esc($text) . '</mtext>';
+        if ($variant === null) {
+            return $node;
+        }
+
+        return '<mstyle mathvariant="' . $this->esc($variant) . '">' . $node . '</mstyle>';
+    }
+
+    private function readTextModeInnerMath(string $source, int &$offset): ?string
+    {
+        foreach ([['$$', '$$'], ['\\[', '\\]'], ['\\(', '\\)'], ['$', '$']] as [$opener, $closer]) {
+            if (substr_compare($source, $opener, $offset, strlen($opener)) !== 0) {
+                continue;
+            }
+
+            $innerStart = $offset + strlen($opener);
+            $end = $this->findTextModeInnerMathDelimiter($source, $innerStart, $closer);
+            if ($end === null) {
+                return null;
+            }
+
+            $math = substr($source, $innerStart, $end - $innerStart);
+            $offset = $end + strlen($closer);
+
+            return $this->parseTexFragment($math, 'text-mode inner math');
+        }
+
+        return null;
+    }
+
+    private function findTextModeInnerMathDelimiter(string $source, int $offset, string $delimiter): ?int
+    {
+        while (($position = strpos($source, $delimiter, $offset)) !== false) {
+            if ($position > 0 && $source[$position - 1] === '\\') {
+                $offset = $position + strlen($delimiter);
+                continue;
+            }
+
+            return $position;
+        }
+
+        return null;
+    }
+
+    private function normalizeTextModeGroupCommand(string $command): string
+    {
+        return match ($command) {
+            '&', '%', '$', '#', '_', '{', '}' => $command,
+            ' ' => ' ',
+            'LaTeX' => 'LaTeX',
+            'TeX' => 'TeX',
+            'dots', 'ldots' => '…',
+            'textbackslash' => '\\',
+            default => ctype_alpha($command[0] ?? '') ? '\\' . $command : $command,
+        };
     }
 
     private function readTextModeTokenContent(string $source, int &$offset, string $command): string

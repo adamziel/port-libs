@@ -437,6 +437,29 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\textbf\\unknown'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\textbf_1'));
     },
+    'converts bounded tex recursive text mode groups to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $groupMathml = $converter->texToMathMl('\\text{pre {grouped text} post} + q');
+        $innerMathml = $converter->texToMathMl('\\text{if $x_i \\in S$ then \\mbox{review}}', true);
+        $styledMathml = $converter->texToMathMl('\\mbox{plain \\textbf{bold} and \\emph{note}} + \\textit{mix \\texttt{code}}');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\text{if $x_i$ then \\textbf{ok}}');
+        $groupBody = strstr($groupMathml, '<annotation', true) ?: $groupMathml;
+        $nestedBody = (strstr($innerMathml, '<annotation', true) ?: $innerMathml)
+            . (strstr($styledMathml, '<annotation', true) ?: $styledMathml);
+
+        $t->contains('<mrow><mtext>pre </mtext><mtext>grouped text</mtext><mtext> post</mtext></mrow><mo>+</mo><mi>q</mi>', $groupMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\text{pre {grouped text} post} + q</annotation>', $groupMathml);
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $innerMathml);
+        $t->contains('<mtext>if </mtext><mrow><msub><mi>x</mi><mi>i</mi></msub><mo>∈</mo><mi>S</mi></mrow><mtext> then </mtext><mtext>review</mtext>', $innerMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\text{if $x_i \\in S$ then \\mbox{review}}</annotation>', $innerMathml);
+        $t->contains('<mtext>plain </mtext><mstyle mathvariant="bold"><mtext>bold</mtext></mstyle><mtext> and </mtext><mstyle mathvariant="italic"><mtext>note</mtext></mstyle>', $styledMathml);
+        $t->contains('<mstyle mathvariant="italic"><mtext>mix </mtext></mstyle><mstyle mathvariant="monospace"><mtext>code</mtext></mstyle>', $styledMathml);
+        $t->contains('alttext="if x sub i then ok"', $accessibleMathml);
+        $t->contains('intent="row(if,subscript(x,i),then,ok)"', $accessibleMathml);
+        $t->true(!str_contains($groupBody, '{grouped text}'));
+        $t->true(!str_contains($nestedBody, '<mtext>\\mbox'));
+        $t->true(!str_contains($nestedBody, '<mtext>\\textbf'));
+    },
     'converts bounded tex escaped special symbols to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $symbolMathml = $converter->texToMathMl('\\{p_i\\} + a\\#b + c\\&d + e\\$f + g\\%h + i\\_j + \\textbackslash', true);
