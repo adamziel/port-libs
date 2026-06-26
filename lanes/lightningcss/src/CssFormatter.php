@@ -4270,8 +4270,53 @@ final class CssFormatter
     {
         $value = trim(preg_replace('/\s+/', ' ', $value) ?? $value);
         $value = $this->quoteSimpleUrlFunctions($value);
+        $value = $this->normalizeCalcNumberLiterals($value);
 
         return preg_replace('/\bcounter\(\s*([_a-zA-Z-][_a-zA-Z0-9-]*)\s*\)/', 'counter($1)', $value) ?? $value;
+    }
+
+    private function normalizeCalcNumberLiterals(string $value): string
+    {
+        $length = strlen($value);
+        $output = '';
+
+        for ($i = 0; $i < $length;) {
+            if (!$this->startsFunctionAt($value, $i, 'calc')) {
+                $output .= $value[$i];
+                $i++;
+                continue;
+            }
+
+            $open = $i + 4;
+            $close = $this->findMatchingParenthesis($value, $open);
+            if ($close === null) {
+                $output .= $value[$i];
+                $i++;
+                continue;
+            }
+
+            $content = substr($value, $open + 1, $close - $open - 1);
+            $output .= 'calc(' . $this->normalizeLeadingZeroDecimals($content) . ')';
+            $i = $close + 1;
+        }
+
+        return $output;
+    }
+
+    private function normalizeLeadingZeroDecimals(string $value): string
+    {
+        return preg_replace_callback(
+            '/(?<![a-zA-Z0-9_.-])([+-]?)0+\.(\d+)([a-zA-Z%]+)?(?![a-zA-Z0-9_-])/',
+            static function (array $matches): string {
+                $fraction = rtrim($matches[2], '0');
+                if ($fraction === '') {
+                    return $matches[1] . '0' . ($matches[3] ?? '');
+                }
+
+                return $matches[1] . '.' . $fraction . ($matches[3] ?? '');
+            },
+            $value
+        ) ?? $value;
     }
 
     private function quoteSimpleUrlFunctions(string $value): string
@@ -4311,7 +4356,13 @@ final class CssFormatter
 
     private function startsUrlFunctionAt(string $value, int $offset): bool
     {
-        if (strncasecmp(substr($value, $offset, 4), 'url(', 4) !== 0) {
+        return $this->startsFunctionAt($value, $offset, 'url');
+    }
+
+    private function startsFunctionAt(string $value, int $offset, string $name): bool
+    {
+        $length = strlen($name);
+        if (strncasecmp(substr($value, $offset, $length + 1), $name . '(', $length + 1) !== 0) {
             return false;
         }
 

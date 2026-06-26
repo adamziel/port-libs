@@ -147,7 +147,8 @@ final class TransitionPrefixer
                     $rewrittenStyleRule,
                     $rewrittenStyleRule !== $prelude . '{' . $body . '}',
                     $lastMergeableStyleRule,
-                    $targetOptions
+                    $targetOptions,
+                    $prelude
                 );
             }
             $cursor = $close + 1;
@@ -234,19 +235,40 @@ final class TransitionPrefixer
         string $rule,
         bool $changed,
         ?array &$lastMergeableStyleRule,
-        array $targetOptions
+        array $targetOptions,
+        string $originalSelectors
     ): void
     {
         $rules = $this->splitStyleRuleList($rule);
         if ($rules !== null && count($rules) > 1) {
-            foreach ($rules as $singleRule) {
-                $this->appendSingleRewrittenStyleRule($output, $singleRule, $changed, $lastMergeableStyleRule, $targetOptions, false);
+            $originalSelectorList = $this->splitTopLevel($originalSelectors, ',');
+            foreach ($rules as $index => $singleRule) {
+                $allowSelectorMerge = $index === 0
+                    && $this->splitStyleRuleCanMergeBackward($singleRule, $lastMergeableStyleRule, $originalSelectorList);
+                $this->appendSingleRewrittenStyleRule($output, $singleRule, $changed, $lastMergeableStyleRule, $targetOptions, $allowSelectorMerge);
             }
 
             return;
         }
 
         $this->appendSingleRewrittenStyleRule($output, $rule, $changed, $lastMergeableStyleRule, $targetOptions, true);
+    }
+
+    /**
+     * @param array{selectors:string, body:string, start:int, changed:bool, prefixInfo:array{canonical:string,prefixed:bool,needed:bool}, selectorSet:array<string, bool>}|null $lastMergeableStyleRule
+     * @param list<string> $originalSelectorList
+     */
+    private function splitStyleRuleCanMergeBackward(string $rule, ?array $lastMergeableStyleRule, array $originalSelectorList): bool
+    {
+        if ($lastMergeableStyleRule === null) {
+            return false;
+        }
+
+        $parsed = $this->parseSingleStyleRule($rule);
+
+        return $parsed !== null
+            && $parsed['body'] === $lastMergeableStyleRule['body']
+            && in_array($parsed['selectors'], $originalSelectorList, true);
     }
 
     /**
@@ -3781,12 +3803,35 @@ final class TransitionPrefixer
             }
 
             $variants = [];
+            $unchangedGroup = [];
+            $changed = false;
+            $flushUnchangedGroup = static function () use (&$variants, &$unchangedGroup): void {
+                if ($unchangedGroup === []) {
+                    return;
+                }
+
+                $variants[] = implode(',', $unchangedGroup);
+                $unchangedGroup = [];
+            };
             foreach ($selectorList as $selector) {
-                array_push($variants, ...($this->singleSelectorPrefixVariants($selector, $targetOptions) ?? [$selector]));
+                $selectorVariants = $this->singleSelectorPrefixVariants($selector, $targetOptions);
+                if ($selectorVariants === null) {
+                    $unchangedGroup[] = $selector;
+                    continue;
+                }
+
+                $changed = true;
+                $flushUnchangedGroup();
+                array_push($variants, ...$selectorVariants);
             }
+            if (!$changed) {
+                return null;
+            }
+
+            $flushUnchangedGroup();
             $variants = array_values(array_unique($variants));
 
-            return $variants === $selectorList ? null : $variants;
+            return $variants;
         }
 
         return $this->singleSelectorPrefixVariants($selectors, $targetOptions);

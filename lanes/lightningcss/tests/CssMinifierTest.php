@@ -124,6 +124,8 @@ CSS
         $minifier = new CssMinifier();
 
         $cases = [
+            // Pinned upstream 22bdda3d node/test/transform.test.mjs::can enable non-standard syntax line 19.
+            '.foo >>> .bar { color: red }' => '.foo>>>.bar{color:red}',
             ':nth-col(2n) {width: 20px}' => ':nth-col(2n){width:20px}',
             ':nth-col(10n-1) {width: 20px}' => ':nth-col(10n-1){width:20px}',
             ':nth-col(-n+2) {width: 20px}' => ':nth-col(-n+2){width:20px}',
@@ -4144,6 +4146,15 @@ CSS;
         $t->same('.foo{text-justify:auto}', $minifier->minify('.foo { text-justify: auto }'));
         $t->same('.foo{text-justify:inter-word}', $minifier->minify('.foo { text-justify: inter-word }'));
     },
+    'css minifier maps upstream text-overflow keyword value' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_overflow line 17628.
+        $t->same(
+            '.foo{text-overflow:ellipsis}',
+            $minifier->minify('.foo { text-overflow: ellipsis }')
+        );
+    },
     'css minifier maps upstream text-align keyword values' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -4165,17 +4176,19 @@ CSS;
     'css minifier maps upstream UI keyword and URL values' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
-        // Pinned upstream 22bdda3d src/lib.rs::test_ui lines 17588-17693.
+        // Pinned upstream 22bdda3d src/lib.rs::test_ui lines 17670-17700.
         $cases = [
-            [17588, '.foo { resize: both }', '.foo{resize:both}'],
-            [17589, '.foo { resize: Horizontal }', '.foo{resize:horizontal}'],
-            [17590, '.foo { cursor: ew-resize }', '.foo{cursor:ew-resize}'],
-            [17687, '.foo { user-select: none }', '.foo{user-select:none}'],
-            [17688, '.foo { -webkit-user-select: none }', '.foo{-webkit-user-select:none}'],
-            [17689, '.foo { accent-color: auto }', '.foo{accent-color:auto}'],
-            [17690, '.foo { accent-color: yellow }', '.foo{accent-color:#ff0}'],
-            [17691, '.foo { appearance: None }', '.foo{appearance:none}'],
-            [17693, '.foo { -webkit-appearance: textfield }', '.foo{-webkit-appearance:textfield}'],
+            [17670, '.foo { resize: both }', '.foo{resize:both}'],
+            [17671, '.foo { resize: Horizontal }', '.foo{resize:horizontal}'],
+            [17672, '.foo { cursor: ew-resize }', '.foo{cursor:ew-resize}'],
+            [17673, '.foo { cursor: url("test.cur"), ew-resize }', '.foo{cursor:url(test.cur),ew-resize}'],
+            [17677, '.foo { cursor: url("test.cur"), url("foo.cur"), ew-resize }', '.foo{cursor:url(test.cur),url(foo.cur),ew-resize}'],
+            [17692, '.foo { user-select: none }', '.foo{user-select:none}'],
+            [17693, '.foo { -webkit-user-select: none }', '.foo{-webkit-user-select:none}'],
+            [17694, '.foo { accent-color: auto }', '.foo{accent-color:auto}'],
+            [17695, '.foo { accent-color: yellow }', '.foo{accent-color:#ff0}'],
+            [17696, '.foo { appearance: None }', '.foo{appearance:none}'],
+            [17697, '.foo { -webkit-appearance: textfield }', '.foo{-webkit-appearance:textfield}'],
         ];
 
         foreach ($cases as [$line, $input, $expected]) {

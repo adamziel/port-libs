@@ -947,6 +947,18 @@ CSS, $formatter->format(<<<'CSS'
   background-position: var(--pos);
 }
 CSS));
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_background lines 4731-4738.
+        $t->same(<<<'CSS'
+.foo {
+  background: calc(var(--v) / .3);
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  background: calc(var(--v) / 0.3);
+}
+CSS));
     },
     'css formatter maps upstream border image printer cases' => static function (TestRunner $t): void {
         $formatter = new CssFormatter();

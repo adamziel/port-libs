@@ -378,6 +378,16 @@ return [
             $prefixer->prefixForTargets('a::after:hover, a::after:focus-visible { color: red; }', ['safari' => 14])
         );
     },
+    'transition prefixer merges supported selector-list split fragment with prior rule' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d src/lib.rs::test_merge_rules lines 10742-10764.
+        $t->same(
+            '.foo,:hover{color:red}:focus-visible{color:red}',
+            (new TransitionPrefixer())->prefixForTargets(
+                '.foo { color: red; } :hover, :focus-visible { color: red; }',
+                ['safari' => 13]
+            )
+        );
+    },
     'transition prefixer maps upstream scroll navigation target pseudo boundaries' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
         $targetPair = 'a:target-before, a:target-after { color: green; }';
@@ -551,6 +561,8 @@ return [
         $t->same('dialog::-webkit-backdrop{background:#000}dialog::backdrop{background:#000}', $prefixer->prefixForTargets('dialog::backdrop { background: black; }', ['chrome' => 36]));
         $t->same('dialog::backdrop{background:#000}', $prefixer->prefixForTargets('dialog::backdrop { background: black; }', ['chrome' => 37]));
         $t->same('dialog::-ms-backdrop{background:#000}dialog::backdrop{background:#000}', $prefixer->prefixForTargets('dialog::backdrop { background: black; }', ['edge' => 18]));
+        // Pinned upstream 22bdda3d src/lib.rs::test_merge_rules lines 11037-11063.
+        $t->same('*,:before,:after{padding:5px}::-webkit-backdrop{padding:5px}::backdrop{padding:5px}', $prefixer->prefixForTargets('*, ::before, ::after, ::backdrop { padding: 5px; }', ['chrome' => 33]));
         $t->same('input::-webkit-file-upload-button{color:red}input::file-selector-button{color:red}', $prefixer->prefixForTargets('input::file-selector-button { color: red; }', ['chrome' => 88]));
         $t->same('input::file-selector-button{color:red}', $prefixer->prefixForTargets('input::file-selector-button { color: red; }', ['chrome' => 89]));
         $t->same('input::-ms-browse{color:red}input::file-selector-button{color:red}', $prefixer->prefixForTargets('input::file-selector-button { color: red; }', ['edge' => 18]));
@@ -1578,7 +1590,7 @@ CSS;
             $prefixer->prefixForTargets('.foo { cursor: grabbing; }', ['opera' => 55])
         );
         $t->same(
-            '.foo{cursor:url("hand.cur"),-webkit-grab;cursor:url("hand.cur"),grab}',
+            '.foo{cursor:url(hand.cur),-webkit-grab;cursor:url(hand.cur),grab}',
             $prefixer->prefixForTargets('.foo { cursor: url("hand.cur"), grab; }', ['safari' => 10])
         );
         $t->same(

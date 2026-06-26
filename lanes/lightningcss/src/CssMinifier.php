@@ -3779,6 +3779,7 @@ final class CssMinifier
         $value = $this->minifyBoxShadowValue($property, $value);
         $value = $this->minifyTextEmphasisValue($property, $value);
         $value = $this->minifyCaretValue($property, $value);
+        $value = $this->minifyCursorValue($property, $value);
         $value = $this->minifyListStyleValue($property, $value);
         $value = $this->minifyContainerDeclarationValue($property, $value);
         $value = $this->minifyBorderRadiusValue($property, $value);
@@ -8787,6 +8788,33 @@ final class CssMinifier
             'caret-shape' => strtolower(trim($value)),
             default => $value,
         };
+    }
+
+    private function minifyCursorValue(string $property, string $value): string
+    {
+        if (strtolower($property) !== 'cursor') {
+            return $value;
+        }
+
+        $items = [];
+        foreach ($this->splitTopLevel($value, ',') as $item) {
+            $item = trim($item);
+            if ($item === '' || !$this->startsUrlFunction($item, 0)) {
+                $items[] = $item;
+                continue;
+            }
+
+            [$url, $offset] = $this->readFunctionRaw($item, 0);
+            $tail = trim(substr($item, $offset + 1));
+            $normalized = $this->normalizeCssUrlToken($url, false);
+            if ($tail !== '') {
+                $normalized .= ' ' . implode(' ', $this->splitWhitespaceTopLevel($tail));
+            }
+
+            $items[] = $normalized;
+        }
+
+        return implode(',', $items);
     }
 
     private function minifyListStyleValue(string $property, string $value): string
