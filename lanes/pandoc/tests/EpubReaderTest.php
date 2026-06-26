@@ -215,6 +215,151 @@ HTML);
         ], $meta['epubLandmarkEntries']);
         $t->same([], $meta['epubReferencedResources']);
     },
+    'preserves epub manifest and spine metadata without fetching remote targets' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary EPUB path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary EPUB package');
+        }
+        $zip->addFromString('META-INF/container.xml', '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+        $zip->addFromString('OPS/package.opf', <<<'XML'
+<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         version="3.0"
+         unique-identifier="book-id">
+  <metadata>
+    <dc:identifier id="book-id">book-manifest-spine</dc:identifier>
+    <dc:title>Manifest Spine EPUB</dc:title>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml" properties="scripted mathml"/>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="cover" href="images/cover.svg" media-type="image/svg+xml" properties="cover-image svg"/>
+    <item id="remote" href="https://example.invalid/remote.xhtml" media-type="application/xhtml+xml" properties="remote-resources"/>
+  </manifest>
+  <spine>
+    <itemref id="spine-chapter" idref="chapter" properties="page-spread-right"/>
+    <itemref id="spine-remote" idref="remote" linear="no"/>
+    <itemref idref="missing"/>
+  </spine>
+</package>
+XML);
+        $zip->addFromString('OPS/text/chapter.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Manifest Spine EPUB</h1><p>Local body.</p></body></html>');
+        $zip->addFromString('OPS/nav.xhtml', '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol><li><a href="text/chapter.xhtml">Chapter</a></li></ol></nav></body></html>');
+        $zip->close();
+
+        try {
+            $document = (new EpubReader())->readEpubFile($path);
+            $meta = $document->attr('meta');
+        } finally {
+            @unlink($path);
+        }
+
+        $t->same('Manifest Spine EPUB', $meta['title']);
+        $t->same(4, $meta['epubManifestItemCount']);
+        $t->same([
+            [
+                'id' => 'chapter',
+                'href' => 'text/chapter.xhtml',
+                'path' => 'OPS/text/chapter.xhtml',
+                'mediaType' => 'application/xhtml+xml',
+                'properties' => ['scripted', 'mathml'],
+                'external' => false,
+                'readable' => true,
+                'navigation' => false,
+                'ncx' => false,
+                'coverImage' => false,
+            ],
+            [
+                'id' => 'nav',
+                'href' => 'nav.xhtml',
+                'path' => 'OPS/nav.xhtml',
+                'mediaType' => 'application/xhtml+xml',
+                'properties' => ['nav'],
+                'external' => false,
+                'readable' => true,
+                'navigation' => true,
+                'ncx' => false,
+                'coverImage' => false,
+            ],
+            [
+                'id' => 'cover',
+                'href' => 'images/cover.svg',
+                'path' => 'OPS/images/cover.svg',
+                'mediaType' => 'image/svg+xml',
+                'properties' => ['cover-image', 'svg'],
+                'external' => false,
+                'readable' => false,
+                'navigation' => false,
+                'ncx' => false,
+                'coverImage' => true,
+            ],
+            [
+                'id' => 'remote',
+                'href' => 'https://example.invalid/remote.xhtml',
+                'path' => 'https://example.invalid/remote.xhtml',
+                'mediaType' => 'application/xhtml+xml',
+                'properties' => ['remote-resources'],
+                'external' => true,
+                'readable' => false,
+                'navigation' => false,
+                'ncx' => false,
+                'coverImage' => false,
+            ],
+        ], $meta['epubManifestItems']);
+        $t->same(3, $meta['epubSpineItems']);
+        $t->same([
+            [
+                'index' => 0,
+                'id' => 'spine-chapter',
+                'idref' => 'chapter',
+                'href' => 'text/chapter.xhtml',
+                'path' => 'OPS/text/chapter.xhtml',
+                'mediaType' => 'application/xhtml+xml',
+                'linear' => true,
+                'properties' => ['page-spread-right'],
+                'manifestProperties' => ['scripted', 'mathml'],
+                'missingManifestItem' => false,
+                'external' => false,
+                'readable' => true,
+            ],
+            [
+                'index' => 1,
+                'id' => 'spine-remote',
+                'idref' => 'remote',
+                'href' => 'https://example.invalid/remote.xhtml',
+                'path' => 'https://example.invalid/remote.xhtml',
+                'mediaType' => 'application/xhtml+xml',
+                'linear' => false,
+                'properties' => [],
+                'manifestProperties' => ['remote-resources'],
+                'missingManifestItem' => false,
+                'external' => true,
+                'readable' => false,
+            ],
+            [
+                'index' => 2,
+                'id' => null,
+                'idref' => 'missing',
+                'href' => '',
+                'path' => '',
+                'mediaType' => '',
+                'linear' => true,
+                'properties' => [],
+                'manifestProperties' => [],
+                'missingManifestItem' => true,
+                'external' => false,
+                'readable' => false,
+            ],
+        ], $meta['epubSpineItemRefs']);
+        $t->same(['OPS/text/chapter.xhtml'], $meta['epubReadableResources']);
+        $t->same(['OPS/nav.xhtml'], $meta['epubTocResources']);
+    },
     'reads epub ncx table of contents metadata' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-');
         if ($path === false) {

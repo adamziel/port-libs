@@ -71,21 +71,22 @@ final class EpubReader
         $base_path = $this->dirname($rootfile);
         $metadata = $this->metadata($package);
         $manifest = $this->manifest($package);
-        $spine_ids = $this->spineIds($package);
+        $spine_items = $this->spineItems($package, $base_path, $manifest);
         $toc = $this->toc($zip, $base_path, $manifest, $this->spineTocId($package));
         $children = [];
         $resources = [];
         $referenced_resources = [];
         $image_resources = $this->imageResources($base_path, $manifest);
 
-        foreach ($spine_ids as $idref) {
+        foreach ($spine_items as $spine_item) {
+            $idref = $spine_item['idref'];
             if (!isset($manifest[$idref])) {
                 continue;
             }
             $item = $manifest[$idref];
             $href = $this->normalizeZipPath($base_path . '/' . $item['href']);
             $media_type = strtolower($item['media-type']);
-            if (!str_contains($media_type, 'html') && !str_ends_with($href, '.xhtml') && !str_ends_with($href, '.html')) {
+            if (!$this->isReadablePackageXhtml($href, $media_type) || $this->isAbsoluteUrl($item['href'])) {
                 continue;
             }
             $xhtml = $zip->getFromName($href);
@@ -105,7 +106,10 @@ final class EpubReader
         }
 
         $metadata['epubRootfile'] = $rootfile;
-        $metadata['epubSpineItems'] = count($spine_ids);
+        $metadata['epubManifestItemCount'] = count($manifest);
+        $metadata['epubManifestItems'] = $this->manifestItemsMetadata($base_path, $manifest);
+        $metadata['epubSpineItems'] = count($spine_items);
+        $metadata['epubSpineItemRefs'] = $spine_items;
         $metadata['epubReadableResources'] = $resources;
         $metadata['epubReferencedResources'] = array_values(array_unique($referenced_resources));
         $metadata['epubImageResources'] = $image_resources;
@@ -246,22 +250,75 @@ final class EpubReader
     }
 
     /**
-     * @return list<string>
+     * @param array<string, array{href: string, media-type: string, properties: list<string>}> $manifest
+     * @return list<array{id: string, href: string, path: string, mediaType: string, properties: list<string>, external: bool, readable: bool, navigation: bool, ncx: bool, coverImage: bool}>
      */
-    private function spineIds(\DOMElement $package): array
+    private function manifestItemsMetadata(string $base_path, array $manifest): array
     {
-        $ids = [];
+        $items = [];
+        foreach ($manifest as $id => $item) {
+            $href = $item['href'];
+            $path = $this->rewriteRelativeResourceUrl($href, $base_path);
+            $media_type = strtolower($item['media-type']);
+            $properties = $item['properties'];
+            $lower_properties = array_map('strtolower', $properties);
+
+            $items[] = [
+                'id' => $id,
+                'href' => $href,
+                'path' => $path,
+                'mediaType' => $item['media-type'],
+                'properties' => $properties,
+                'external' => $this->isAbsoluteUrl($href),
+                'readable' => !$this->isAbsoluteUrl($href) && $this->isReadablePackageXhtml($path, $media_type),
+                'navigation' => in_array('nav', $lower_properties, true),
+                'ncx' => str_contains($media_type, 'x-dtbncx') || str_ends_with(strtolower($path), '.ncx'),
+                'coverImage' => in_array('cover-image', $lower_properties, true),
+            ];
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param array<string, array{href: string, media-type: string, properties: list<string>}> $manifest
+     * @return list<array{index: int, id: ?string, idref: string, href: string, path: string, mediaType: string, linear: bool, properties: list<string>, manifestProperties: list<string>, missingManifestItem: bool, external: bool, readable: bool}>
+     */
+    private function spineItems(\DOMElement $package, string $base_path, array $manifest): array
+    {
+        $items = [];
         foreach ($package->getElementsByTagName('*') as $element) {
             if (!$element instanceof \DOMElement || $element->localName !== 'itemref') {
                 continue;
             }
             $idref = trim($element->getAttribute('idref'));
-            if ($idref !== '') {
-                $ids[] = $idref;
+            if ($idref === '') {
+                continue;
             }
+            $manifest_item = $manifest[$idref] ?? null;
+            $href = is_array($manifest_item) ? $manifest_item['href'] : '';
+            $path = $href === '' ? '' : $this->rewriteRelativeResourceUrl($href, $base_path);
+            $media_type = is_array($manifest_item) ? $manifest_item['media-type'] : '';
+            $external = $href !== '' && $this->isAbsoluteUrl($href);
+            $linear = strtolower(trim($element->getAttribute('linear'))) !== 'no';
+
+            $items[] = [
+                'index' => count($items),
+                'id' => trim($element->getAttribute('id')) !== '' ? trim($element->getAttribute('id')) : null,
+                'idref' => $idref,
+                'href' => $href,
+                'path' => $path,
+                'mediaType' => $media_type,
+                'linear' => $linear,
+                'properties' => $this->tokenList($element->getAttribute('properties')),
+                'manifestProperties' => is_array($manifest_item) ? $manifest_item['properties'] : [],
+                'missingManifestItem' => !is_array($manifest_item),
+                'external' => $external,
+                'readable' => is_array($manifest_item) && !$external && $this->isReadablePackageXhtml($path, strtolower($media_type)),
+            ];
         }
 
-        return $ids;
+        return $items;
     }
 
     private function spineTocId(\DOMElement $package): string
@@ -604,6 +661,16 @@ final class EpubReader
             && !str_starts_with($url, '#')
             && !str_starts_with(strtolower($url), 'data:')
             && !str_starts_with(strtolower($url), 'mailto:');
+    }
+
+    private function isReadablePackageXhtml(string $path, string $media_type): bool
+    {
+        $path = strtolower($path);
+        $media_type = strtolower($media_type);
+
+        return str_contains($media_type, 'html')
+            || str_ends_with($path, '.xhtml')
+            || str_ends_with($path, '.html');
     }
 
     private function isAbsoluteUrl(string $url): bool
