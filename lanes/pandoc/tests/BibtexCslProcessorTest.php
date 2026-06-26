@@ -1751,6 +1751,93 @@ XML);
         $t->contains('Date addendum: first source capture', $blocks);
         $t->contains('Event date addendum: hybrid review window', $blocks);
     },
+    'carries legacy biblatex source file attachment policy metadata' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@online{legacy-file-source,
+  author = {Ng, Nia},
+  title  = {Legacy File Source},
+  date   = {2026-06-17},
+  url    = {https://example.test/legacy-file-source},
+  file   = {Review PDF:attachments/legacy%20audit.pdf:application/pdf; Remote PDF:https://example.test/legacy.pdf:application/pdf; Traversal PDF:../private/legacy.pdf:application/pdf; Missing::application/pdf},
+  pdf    = {PDF Mirror:attachments/legacy-mirror.pdf:application/pdf}
+}
+
+@report{legacy-pdf-source,
+  author = {Roe, Pat},
+  title  = {Legacy PDF Alias Source},
+  date   = {2025},
+  pdf    = {PDF Alias:attachments/pdf-alias.pdf:application/pdf}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $fileItem = $items['legacy-file-source'];
+        $pdfItem = $items['legacy-pdf-source'];
+
+        $t->same([
+            ['label' => 'Review PDF', 'path' => 'attachments/legacy audit.pdf', 'mediaType' => 'application/pdf'],
+            ['label' => 'PDF Mirror', 'path' => 'attachments/legacy-mirror.pdf', 'mediaType' => 'application/pdf'],
+        ], $fileItem['sourceFiles'] ?? null);
+        $t->same(['remote-uri', 'path-traversal', 'missing-path'], array_column($fileItem['sourceFileDiagnostics'] ?? [], 'reason'));
+        $t->same('Remote PDF', $fileItem['sourceFileDiagnostics'][0]['label'] ?? null);
+        $t->same('https://example.test/legacy.pdf', $fileItem['sourceFileDiagnostics'][0]['path'] ?? null);
+        $t->same(false, $fileItem['sourceFileDiagnostics'][0]['importable'] ?? null);
+        $t->same('Missing', $fileItem['sourceFileDiagnostics'][2]['label'] ?? null);
+        $t->same('application/pdf', $fileItem['sourceFileDiagnostics'][2]['mediaType'] ?? null);
+        $t->same([
+            ['label' => 'PDF Alias', 'path' => 'attachments/pdf-alias.pdf', 'mediaType' => 'application/pdf'],
+        ], $pdfItem['sourceFiles'] ?? null);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Source File Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-source-file-review</id>
+    <updated>2026-06-26T18:34:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="source-file-summary"/>
+        <text variable="source-file-diagnostic-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="source-file-labels"/>
+      <text variable="source-file-paths"/>
+      <text variable="source-file-diagnostic-reasons"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('Bounded Legacy BibLaTeX Source File Review', $styled->cslStyleSummary()['title'] ?? null);
+        $t->same('[Legacy File Source | Review PDF: attachments/legacy audit.pdf (application/pdf); PDF Mirror: attachments/legacy-mirror.pdf (application/pdf) | Remote PDF: remote-uri (https://example.test/legacy.pdf); Traversal PDF: path-traversal (../private/legacy.pdf); Missing: missing-path; Legacy PDF Alias Source | PDF Alias: attachments/pdf-alias.pdf (application/pdf)]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-file-source', 'text' => '[@legacy-file-source]']),
+            new AstNode('citation', ['id' => 'legacy-pdf-source', 'text' => '[@legacy-pdf-source]']),
+        ]));
+        $t->same('Legacy File Source :: Review PDF; PDF Mirror :: attachments/legacy audit.pdf; attachments/legacy-mirror.pdf :: remote-uri; path-traversal; missing-path', $styled->renderBibliographyEntry('legacy-file-source'));
+        $t->same('Legacy PDF Alias Source :: PDF Alias :: attachments/pdf-alias.pdf', $styled->renderBibliographyEntry('legacy-pdf-source'));
+
+        $document = (new MarkdownReader())->read('Legacy attachments [@legacy-file-source; @legacy-pdf-source] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Legacy attachments [Legacy File Source | Review PDF: attachments/legacy audit.pdf (application/pdf); PDF Mirror: attachments/legacy-mirror.pdf (application/pdf) | Remote PDF: remote-uri (https://example.test/legacy.pdf); Traversal PDF: path-traversal (../private/legacy.pdf); Missing: missing-path; Legacy PDF Alias Source | PDF Alias: attachments/pdf-alias.pdf (application/pdf)] stay visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Legacy File Source :: Review PDF; PDF Mirror :: attachments/legacy audit.pdf; attachments/legacy-mirror.pdf :: remote-uri; path-traversal; missing-path</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Legacy PDF Alias Source :: PDF Alias :: attachments/pdf-alias.pdf</dd>', $blocks);
+
+        $handoff = $processor->citationHandoff($document, $source);
+        $t->same(['legacy-file-source', 'legacy-pdf-source'], $handoff['citedKeys']);
+        $t->same('attachments/legacy audit.pdf', $handoff['items'][0]['sourceFiles'][0]['path'] ?? null);
+        $t->same('attachments/legacy-mirror.pdf', $handoff['items'][0]['sourceFiles'][1]['path'] ?? null);
+        $t->same('remote-uri', $handoff['items'][0]['sourceFileDiagnostics'][0]['reason'] ?? null);
+        $t->same('attachments/pdf-alias.pdf', $handoff['items'][1]['sourceFiles'][0]['path'] ?? null);
+    },
     'coalesces markdown bracket citation runs for legacy csl wordpress handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @misc{cluster-alpha,

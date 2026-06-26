@@ -772,6 +772,16 @@ final class BibtexCslProcessor
             $item['categories'] = $categories;
         }
 
+        $sourceFileField = $this->combinedSourceFileField($fields);
+        $sourceFiles = $this->sourceFilesFromField($sourceFileField);
+        if ($sourceFiles !== []) {
+            $item['sourceFiles'] = $sourceFiles;
+        }
+        $sourceFileDiagnostics = $this->sourceFileDiagnosticsFromField($sourceFileField);
+        if ($sourceFileDiagnostics !== []) {
+            $item['sourceFileDiagnostics'] = $sourceFileDiagnostics;
+        }
+
         if (($item['archive'] ?? '') !== '' || ($item['archive-collection'] ?? '') !== '' || ($item['archive_location'] ?? '') !== '') {
             $summaryParts = [];
             foreach (['archive', 'archive-collection', 'archive-place', 'archive_location'] as $field) {
@@ -1097,6 +1107,22 @@ final class BibtexCslProcessor
 
     /**
      * @param array<string, string> $fields
+     */
+    private function combinedSourceFileField(array $fields): ?string
+    {
+        $values = [];
+        foreach (['file', 'pdf'] as $name) {
+            $value = trim($fields[$name] ?? '');
+            if ($value !== '') {
+                $values[] = $value;
+            }
+        }
+
+        return $values === [] ? null : implode('; ', $values);
+    }
+
+    /**
+     * @param array<string, string> $fields
      * @param list<string> $names
      */
     private function firstField(array $fields, array $names): ?string
@@ -1191,6 +1217,162 @@ final class BibtexCslProcessor
         }
 
         return $keywords;
+    }
+
+    /**
+     * @return list<array{label:string, path:string, mediaType:string}>
+     */
+    private function sourceFilesFromField(?string $value): array
+    {
+        return array_map(
+            static fn (array $entry): array => [
+                'label' => $entry['label'],
+                'path' => $entry['normalizedPath'],
+                'mediaType' => $entry['mediaType'],
+            ],
+            array_values(array_filter(
+                $this->sourceFileEntriesFromField($value),
+                static fn (array $entry): bool => $entry['reason'] === ''
+            ))
+        );
+    }
+
+    /**
+     * @return list<array{label:string, path:string, mediaType:string, reason:string, importable:bool}>
+     */
+    private function sourceFileDiagnosticsFromField(?string $value): array
+    {
+        return array_map(
+            static fn (array $entry): array => [
+                'label' => $entry['label'],
+                'path' => $entry['path'],
+                'mediaType' => $entry['mediaType'],
+                'reason' => $entry['reason'],
+                'importable' => false,
+            ],
+            array_values(array_filter(
+                $this->sourceFileEntriesFromField($value),
+                static fn (array $entry): bool => $entry['reason'] !== ''
+            ))
+        );
+    }
+
+    /**
+     * @return list<array{label:string, path:string, normalizedPath:string, mediaType:string, reason:string}>
+     */
+    private function sourceFileEntriesFromField(?string $value): array
+    {
+        if ($value === null || trim($value) === '') {
+            return [];
+        }
+
+        $files = [];
+        foreach (explode(';', $value) as $entry) {
+            $entry = trim($entry);
+            if ($entry === '') {
+                continue;
+            }
+
+            $parsed = $this->parseSourceFileEntry($entry);
+            $policy = $this->sourceFilePathPolicy($parsed['path']);
+            $files[] = [
+                'label' => $parsed['label'],
+                'path' => $parsed['path'],
+                'normalizedPath' => $policy['path'],
+                'mediaType' => $parsed['mediaType'],
+                'reason' => $policy['reason'],
+            ];
+        }
+
+        return $files;
+    }
+
+    /**
+     * @return array{label:string, path:string, mediaType:string}
+     */
+    private function parseSourceFileEntry(string $entry): array
+    {
+        $parts = array_map('trim', explode(':', $entry));
+        if (count($parts) >= 3) {
+            $label = array_shift($parts) ?? '';
+            $mediaType = array_pop($parts) ?? '';
+            $path = implode(':', $parts);
+        } elseif (count($parts) === 2) {
+            $label = '';
+            [$path, $mediaType] = $parts;
+        } else {
+            $label = '';
+            $path = $entry;
+            $mediaType = '';
+        }
+
+        return [
+            'label' => $label,
+            'path' => trim($path),
+            'mediaType' => $mediaType,
+        ];
+    }
+
+    /**
+     * @return array{path:string, reason:string}
+     */
+    private function sourceFilePathPolicy(string $path): array
+    {
+        if ($path === '') {
+            return ['path' => '', 'reason' => 'missing-path'];
+        }
+
+        if (preg_match('/[\x00-\x1F\x7F]/', $path) === 1) {
+            return ['path' => $path, 'reason' => 'control-character'];
+        }
+
+        if (preg_match('/^[A-Za-z]:/', $path) === 1) {
+            return ['path' => $path, 'reason' => 'windows-drive-path'];
+        }
+
+        if (preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $path) === 1) {
+            return ['path' => $path, 'reason' => 'remote-uri'];
+        }
+
+        if (str_starts_with($path, '//')) {
+            return ['path' => $path, 'reason' => 'uri-authority-path'];
+        }
+
+        if (str_starts_with($path, '/') || str_starts_with($path, '\\')) {
+            return ['path' => $path, 'reason' => 'absolute-path'];
+        }
+
+        if (str_contains($path, '\\')) {
+            return ['path' => $path, 'reason' => 'backslash-separator'];
+        }
+
+        if (preg_match('/%(?![0-9A-Fa-f]{2})/', $path) === 1) {
+            return ['path' => $path, 'reason' => 'malformed-percent-escape'];
+        }
+
+        $segments = [];
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '' || $segment === '.') {
+                continue;
+            }
+
+            $decoded = rawurldecode($segment);
+            if (preg_match('/[\x00-\x1F\x7F]/', $decoded) === 1 || str_contains($decoded, '/') || str_contains($decoded, '\\')) {
+                return ['path' => $path, 'reason' => 'unsafe-percent-encoded-path-byte'];
+            }
+
+            if ($decoded === '..') {
+                return ['path' => $path, 'reason' => 'path-traversal'];
+            }
+
+            $segments[] = $decoded;
+        }
+
+        if ($segments === []) {
+            return ['path' => $path, 'reason' => 'missing-path'];
+        }
+
+        return ['path' => implode('/', $segments), 'reason' => ''];
     }
 
     /**
