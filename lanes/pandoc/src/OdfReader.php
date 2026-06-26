@@ -39,6 +39,9 @@ final class OdfReader
     private const MANIFEST_ROOT_STRUCTURAL_ATTRIBUTES = [
         'version' => true,
     ];
+    private const OFFICE_DOCUMENT_ROOT_STRUCTURAL_ATTRIBUTES = [
+        'version' => true,
+    ];
     private const PREFERRED_VIEW_MODE_VALUES = [
         'edit' => true,
         'presentation-slide-show' => true,
@@ -731,6 +734,30 @@ final class OdfReader
     }
 
     /**
+     * @return array{
+     *     attributeCount:int,
+     *     attributeNames:list<string>,
+     *     attributes:list<array<string, mixed>>,
+     *     customAttributeCount:int,
+     *     customAttributeNames:list<string>,
+     *     customAttributes:list<array<string, mixed>>,
+     *     customAttributeMap:array<string, string>,
+     *     namespaceDeclarationCount:int,
+     *     namespaceDeclarationNames:list<string>,
+     *     namespaceDeclarations:list<array<string, mixed>>,
+     *     namespaceDeclarationMap:array<string, string>
+     * }
+     */
+    private function documentPartRootAttributeProvenance(\DOMElement $element): array
+    {
+        return $this->manifestElementAttributeProvenance(
+            $element,
+            self::OFFICE_DOCUMENT_ROOT_STRUCTURAL_ATTRIBUTES,
+            self::OFFICE_NS
+        );
+    }
+
+    /**
      * @param array<string, bool> $structuralAttributes
      * @return array{
      *     attributeCount:int,
@@ -746,8 +773,11 @@ final class OdfReader
      *     namespaceDeclarationMap:array<string, string>
      * }
      */
-    private function manifestElementAttributeProvenance(\DOMElement $element, array $structuralAttributes): array
-    {
+    private function manifestElementAttributeProvenance(
+        \DOMElement $element,
+        array $structuralAttributes,
+        string $structuralNamespace = self::MANIFEST_NS
+    ): array {
         $attributes = [];
         $customAttributes = [];
         $customAttributeMap = [];
@@ -793,7 +823,7 @@ final class OdfReader
                 $name = $attribute->prefix !== ''
                     ? $attribute->prefix . ':' . $attribute->localName
                     : $attribute->name;
-                $structural = $attribute->namespaceURI === self::MANIFEST_NS
+                $structural = $attribute->namespaceURI === $structuralNamespace
                     && isset($structuralAttributes[$attribute->localName]);
                 $record = [
                     'name' => $name,
@@ -888,6 +918,9 @@ final class OdfReader
         $versionCounts = [];
         $missingVersionParts = [];
         $versionMismatches = [];
+        $rootCustomAttributeCount = 0;
+        $rootCustomAttributeNames = [];
+        $rootCustomAttributeItems = [];
 
         foreach ($expectedRoots as $part => $expectedRoot) {
             $manifestItem = $manifestByPart[$part] ?? null;
@@ -900,6 +933,19 @@ final class OdfReader
             $officeVersion = null;
             $validRoot = false;
             $diagnostics = [];
+            $rootAttributeProvenance = [
+                'attributeCount' => 0,
+                'attributeNames' => [],
+                'attributes' => [],
+                'customAttributeCount' => 0,
+                'customAttributeNames' => [],
+                'customAttributes' => [],
+                'customAttributeMap' => [],
+                'namespaceDeclarationCount' => 0,
+                'namespaceDeclarationNames' => [],
+                'namespaceDeclarations' => [],
+                'namespaceDeclarationMap' => [],
+            ];
 
             if (!$entry instanceof ZipPackageEntry) {
                 $diagnostics[] = 'odf-xml-part-missing-package-part';
@@ -910,6 +956,7 @@ final class OdfReader
                     $rootName = $root->localName;
                     $validRoot = $root->namespaceURI === self::OFFICE_NS && $root->localName === $expectedRoot;
                     $officeVersion = self::nullable(self::attr($root, self::OFFICE_NS, 'version'));
+                    $rootAttributeProvenance = $this->documentPartRootAttributeProvenance($root);
                 }
 
                 if (!$validRoot) {
@@ -935,12 +982,46 @@ final class OdfReader
                 $diagnostics[] = 'odf-xml-part-undeclared-package-part';
             }
 
+            $partCustomAttributeCount = (int) ($rootAttributeProvenance['customAttributeCount'] ?? 0);
+            if ($partCustomAttributeCount > 0) {
+                $rootCustomAttributeCount += $partCustomAttributeCount;
+                foreach ($rootAttributeProvenance['customAttributeNames'] ?? [] as $attributeName) {
+                    if (is_string($attributeName) && $attributeName !== '' && !in_array($attributeName, $rootCustomAttributeNames, true)) {
+                        $rootCustomAttributeNames[] = $attributeName;
+                    }
+                }
+                $rootCustomAttributeItems[] = [
+                    'part' => $part,
+                    'expectedRoot' => $expectedRoot,
+                    'rootName' => $rootName,
+                    'rootCustomAttributeCount' => $partCustomAttributeCount,
+                    'rootCustomAttributeNames' => $rootAttributeProvenance['customAttributeNames'] ?? [],
+                    'rootCustomAttributes' => $rootAttributeProvenance['customAttributes'] ?? [],
+                    'rootCustomAttributeMap' => $rootAttributeProvenance['customAttributeMap'] ?? [],
+                    'rootNamespaceDeclarationCount' => $rootAttributeProvenance['namespaceDeclarationCount'] ?? 0,
+                    'rootNamespaceDeclarationNames' => $rootAttributeProvenance['namespaceDeclarationNames'] ?? [],
+                    'rootNamespaceDeclarations' => $rootAttributeProvenance['namespaceDeclarations'] ?? [],
+                    'rootNamespaceDeclarationMap' => $rootAttributeProvenance['namespaceDeclarationMap'] ?? [],
+                ];
+            }
+
             $items[] = [
                 'part' => $part,
                 'expectedRoot' => $expectedRoot,
                 'rootName' => $rootName,
                 'validRoot' => $validRoot,
                 'officeVersion' => $officeVersion,
+                'rootAttributeCount' => $rootAttributeProvenance['attributeCount'] ?? 0,
+                'rootAttributeNames' => $rootAttributeProvenance['attributeNames'] ?? [],
+                'rootAttributes' => $rootAttributeProvenance['attributes'] ?? [],
+                'rootCustomAttributeCount' => $rootAttributeProvenance['customAttributeCount'] ?? 0,
+                'rootCustomAttributeNames' => $rootAttributeProvenance['customAttributeNames'] ?? [],
+                'rootCustomAttributes' => $rootAttributeProvenance['customAttributes'] ?? [],
+                'rootCustomAttributeMap' => $rootAttributeProvenance['customAttributeMap'] ?? [],
+                'rootNamespaceDeclarationCount' => $rootAttributeProvenance['namespaceDeclarationCount'] ?? 0,
+                'rootNamespaceDeclarationNames' => $rootAttributeProvenance['namespaceDeclarationNames'] ?? [],
+                'rootNamespaceDeclarations' => $rootAttributeProvenance['namespaceDeclarations'] ?? [],
+                'rootNamespaceDeclarationMap' => $rootAttributeProvenance['namespaceDeclarationMap'] ?? [],
                 'manifestVersion' => $manifestVersion,
                 'declaredInManifest' => is_array($manifestItem),
                 'manifestFullPath' => is_array($manifestItem) ? $manifestItem['fullPath'] : null,
@@ -956,6 +1037,7 @@ final class OdfReader
         }
 
         ksort($versionCounts, SORT_STRING);
+        sort($rootCustomAttributeNames, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -966,6 +1048,10 @@ final class OdfReader
             'versionMismatches' => $versionMismatches,
             'manifestVersion' => $manifestVersion,
             'versionCounts' => $versionCounts,
+            'rootCustomAttributePartCount' => count($rootCustomAttributeItems),
+            'rootCustomAttributeCount' => $rootCustomAttributeCount,
+            'rootCustomAttributeNames' => $rootCustomAttributeNames,
+            'rootCustomAttributeItems' => $rootCustomAttributeItems,
             'items' => $items,
         ];
     }
