@@ -352,7 +352,7 @@ final class PandocFormatRegistry
         'pptx' => [
             'status' => 'partial',
             'implementation' => PptxReader::class,
-            'notes' => 'Bounded PPTX OpenXML package reader maps presentation slide order, title placeholders, text boxes, Wingdings/explicit bullet groups, simple tables, image references, and SmartArt hierarchy into the shared AST with pinned upstream pptx-reader/basic fixture parity. PPTX writing remains unsupported.',
+            'notes' => 'Bounded PPTX OpenXML package reader maps presentation slide order, title placeholders, text boxes, Wingdings/explicit bullet groups, simple tables, image references, SmartArt hierarchy with placeholder/layout sidecars, slide comments, shape z-order/layout metadata, and internal rich-media references into the shared AST with pinned upstream pptx-reader/basic fixture parity. PPTX writing remains unsupported.',
         ],
         'ris' => [
             'status' => 'partial',

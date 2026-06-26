@@ -8,6 +8,7 @@ final class PptxReader
 {
     private const OFFICE_DOCUMENT_RELATIONSHIP = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
     private const RELATIONSHIP_NAMESPACE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+    private const COMMENT_AUTHORS_PART = '/ppt/commentAuthors.xml';
     private const MAX_XML_PART_BYTES = 8_388_608;
 
     public function read(string $bytes): AstNode
@@ -25,6 +26,7 @@ final class PptxReader
         $presentation = $this->loadPackageXml($package, $presentationPart, 'PPTX presentation');
         $slides = $this->parsePresentationSlides($presentation);
         $presentationRelationships = $this->relationshipsOrEmpty($package, $presentationPart);
+        $commentAuthors = $this->commentAuthors($package);
 
         $blocks = [];
         $slideReviews = [];
@@ -41,16 +43,22 @@ final class PptxReader
             $slideDocument = $this->loadPackageXml($package, $slidePart, 'PPTX slide ' . $slide['index']);
             $slideRelationships = $this->relationshipsOrEmpty($package, $slidePart);
             $slideContext = $this->slideContext($package, $slideRelationships);
-            $slideBlocks = $this->slideToBlocks($package, $slide['index'], $slideDocument, $slideRelationships, $slideContext);
+            $slideComments = $this->slideComments($package, $slideRelationships, $commentAuthors);
+            $slideBlocks = $this->slideToBlocks($package, $slide['index'], $slideDocument, $slideRelationships, $slideContext, $slideComments);
             foreach ($slideBlocks as $block) {
                 $blocks[] = $block;
             }
 
+            $richMedia = $this->collectRichMediaReviews($slideBlocks);
             $slideReviews[] = [
                 'index' => $slide['index'],
                 'relationshipId' => $slide['relationshipId'],
                 'partName' => ltrim($slidePart, '/'),
                 'blockCount' => count($slideBlocks),
+                'commentCount' => count($slideComments),
+                'comments' => $slideComments,
+                'richMediaCount' => count($richMedia),
+                'richMedia' => $richMedia,
             ];
         }
 
@@ -65,6 +73,7 @@ final class PptxReader
                 'presentationPart' => ltrim($presentationPart, '/'),
                 'slideCount' => count($slides),
                 'slides' => $slideReviews,
+                'commentAuthors' => $commentAuthors,
                 'payloadExposurePolicy' => 'xml-text-and-media-reference-only',
                 'upstreamEvidence' => [
                     'denominator' => 1,
@@ -140,9 +149,10 @@ final class PptxReader
 
     /**
      * @param array<string, mixed> $slideContext
+     * @param list<array<string, mixed>> $slideComments
      * @return list<AstNode>
      */
-    private function slideToBlocks(ZipPackage $package, int $slideIndex, \DOMDocument $document, OpcRelationships $slideRelationships, array $slideContext): array
+    private function slideToBlocks(ZipPackage $package, int $slideIndex, \DOMDocument $document, OpcRelationships $slideRelationships, array $slideContext, array $slideComments): array
     {
         $root = XmlHtmlDom::rootElement($document, 'sld');
         if (!$root instanceof \DOMElement) {
@@ -165,13 +175,22 @@ final class PptxReader
             return $blocks;
         }
 
+        $zOrder = 0;
         foreach ($this->childElements($spTree, null) as $shapeElement) {
+            if (!$this->isDrawableShapeElement($shapeElement)) {
+                continue;
+            }
+            $zOrder++;
             if ($this->isTitlePlaceholder($shapeElement)) {
                 continue;
             }
-            foreach ($this->shapeToBlocks($package, $shapeElement, $slideRelationships, $slideContext) as $block) {
+            foreach ($this->shapeToBlocks($package, $shapeElement, $slideRelationships, $slideContext, $zOrder) as $block) {
                 $blocks[] = $block;
             }
+        }
+
+        foreach ($this->commentsToBlocks($slideComments) as $commentBlock) {
+            $blocks[] = $commentBlock;
         }
 
         return $blocks;
@@ -261,6 +280,195 @@ final class PptxReader
         } catch (\InvalidArgumentException | \RuntimeException) {
             return null;
         }
+    }
+
+    /**
+     * @return array<string, array<string, string>>
+     */
+    private function commentAuthors(ZipPackage $package): array
+    {
+        if (!$package->has(self::COMMENT_AUTHORS_PART)) {
+            return [];
+        }
+
+        $document = $this->optionalPackageXml($package, self::COMMENT_AUTHORS_PART, 'PPTX comment authors');
+        if (!$document instanceof \DOMDocument) {
+            return [];
+        }
+
+        $root = XmlHtmlDom::rootElement($document);
+        if (!$root instanceof \DOMElement) {
+            return [];
+        }
+
+        $authors = [];
+        foreach ($this->childElements($root, 'cmAuthor') as $authorElement) {
+            $id = $authorElement->getAttribute('id');
+            if ($id === '') {
+                continue;
+            }
+
+            $author = [];
+            foreach (['name', 'initials', 'lastIdx'] as $attribute) {
+                $value = $authorElement->getAttribute($attribute);
+                if ($value !== '') {
+                    $author[$attribute] = $value;
+                }
+            }
+            $authors[$id] = $author;
+        }
+
+        return $authors;
+    }
+
+    /**
+     * @param array<string, array<string, string>> $commentAuthors
+     * @return list<array<string, mixed>>
+     */
+    private function slideComments(ZipPackage $package, OpcRelationships $slideRelationships, array $commentAuthors): array
+    {
+        $comments = [];
+        foreach ($slideRelationships->all() as $relationship) {
+            if (!str_ends_with($relationship->type, '/comments') || $relationship->isExternal()) {
+                continue;
+            }
+
+            $partName = OpcPackagePath::stripQueryAndFragment($slideRelationships->resolveTarget($relationship));
+            $document = $this->optionalPackageXml($package, $partName, 'PPTX slide comments');
+            if (!$document instanceof \DOMDocument) {
+                continue;
+            }
+
+            $root = XmlHtmlDom::rootElement($document);
+            if (!$root instanceof \DOMElement) {
+                continue;
+            }
+
+            $index = 0;
+            foreach ($root->getElementsByTagName('*') as $commentElement) {
+                if (!$commentElement instanceof \DOMElement || !in_array($commentElement->localName, ['cm', 'comment'], true)) {
+                    continue;
+                }
+
+                $index++;
+                $authorId = $commentElement->getAttribute('authorId');
+                $author = $commentAuthors[$authorId] ?? [];
+                $text = $this->commentText($commentElement);
+                if ($text === '') {
+                    continue;
+                }
+
+                $comment = [
+                    'id' => $commentElement->getAttribute('idx') !== '' ? $commentElement->getAttribute('idx') : ltrim($partName, '/') . '#' . $index,
+                    'authorId' => $authorId,
+                    'author' => $author['name'] ?? '',
+                    'initials' => $author['initials'] ?? '',
+                    'date' => $commentElement->getAttribute('dt'),
+                    'text' => $text,
+                    'partName' => ltrim($partName, '/'),
+                ];
+
+                $position = $this->firstChildElement($commentElement, 'pos');
+                if ($position instanceof \DOMElement) {
+                    foreach (['x', 'y'] as $attribute) {
+                        $value = $this->integerAttribute($position, $attribute);
+                        if ($value !== null) {
+                            $comment[$attribute] = $value;
+                        }
+                    }
+                }
+
+                $comments[] = $comment;
+            }
+        }
+
+        return $comments;
+    }
+
+    private function commentText(\DOMElement $commentElement): string
+    {
+        $textElement = $this->firstChildElement($commentElement, 'text');
+        if ($textElement instanceof \DOMElement) {
+            return trim($this->allDescendantText($textElement));
+        }
+
+        return trim($this->drawingText($commentElement));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $comments
+     * @return list<AstNode>
+     */
+    private function commentsToBlocks(array $comments): array
+    {
+        if ($comments === []) {
+            return [];
+        }
+
+        $children = [];
+        foreach ($comments as $comment) {
+            $id = (string) ($comment['id'] ?? '');
+            $author = (string) ($comment['author'] ?? '');
+            $date = (string) ($comment['date'] ?? '');
+            $text = (string) ($comment['text'] ?? '');
+            $label = $author !== '' ? 'Comment by ' . $author : 'Comment';
+            $children[] = new AstNode('paragraph', ['text' => $label . ': ' . $text], [
+                new AstNode('span', [
+                    'classes' => ['comment-start'],
+                    'attributes' => array_filter([
+                        'id' => $id,
+                        'author' => $author,
+                        'date' => $date,
+                    ], static fn (string $value): bool => $value !== ''),
+                ], $this->textInlines($label)),
+                new AstNode('text', ['text' => ': ' . $text]),
+            ]);
+        }
+
+        return [new AstNode('div', [
+            'classes' => ['pptx-comments'],
+            'attributes' => ['count' => (string) count($comments)],
+            'pptxComments' => $comments,
+        ], $children)];
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<array<string, string|bool>>
+     */
+    private function collectRichMediaReviews(array $blocks): array
+    {
+        $media = [];
+        $seen = [];
+        foreach ($blocks as $block) {
+            foreach ($this->collectRichMediaReviewsFromNode($block) as $record) {
+                $key = (string) ($record['relationshipId'] ?? '') . "\0" . (string) ($record['partName'] ?? '') . "\0" . (string) ($record['target'] ?? '');
+                if (isset($seen[$key])) {
+                    continue;
+                }
+                $seen[$key] = true;
+                $media[] = $record;
+            }
+        }
+
+        return $media;
+    }
+
+    /**
+     * @return list<array<string, string|bool>>
+     */
+    private function collectRichMediaReviewsFromNode(AstNode $node): array
+    {
+        $media = [];
+        $record = $node->attr('pptxMedia');
+        if (is_array($record)) {
+            $media[] = $record;
+        }
+        foreach ($node->children as $child) {
+            array_push($media, ...$this->collectRichMediaReviewsFromNode($child));
+        }
+
+        return $media;
     }
 
     private function firstRelationshipWithTypeSuffix(OpcRelationships $relationships, string $suffix): ?OpcRelationship
@@ -364,66 +572,342 @@ final class PptxReader
 
     private function placeholderElement(\DOMElement $shapeElement): ?\DOMElement
     {
-        if ($shapeElement->localName !== 'sp') {
-            return null;
+        foreach ($this->childElements($shapeElement, null) as $child) {
+            if (!str_starts_with($child->localName, 'nv')) {
+                continue;
+            }
+
+            $nonVisualProperties = $this->firstChildElement($child, 'nvPr');
+
+            return $nonVisualProperties instanceof \DOMElement ? $this->firstChildElement($nonVisualProperties, 'ph') : null;
         }
 
-        $nonVisual = $this->firstChildElement($shapeElement, 'nvSpPr');
-        $nonVisualProperties = $nonVisual instanceof \DOMElement ? $this->firstChildElement($nonVisual, 'nvPr') : null;
-
-        return $nonVisualProperties instanceof \DOMElement ? $this->firstChildElement($nonVisualProperties, 'ph') : null;
+        return null;
     }
 
     /**
      * @param array<string, mixed> $slideContext
      * @return list<AstNode>
      */
-    private function shapeToBlocks(ZipPackage $package, \DOMElement $shapeElement, OpcRelationships $slideRelationships, array $slideContext): array
+    private function shapeToBlocks(ZipPackage $package, \DOMElement $shapeElement, OpcRelationships $slideRelationships, array $slideContext, int $zOrder): array
     {
         if ($shapeElement->localName === 'sp') {
             $textBody = $this->firstChildElement($shapeElement, 'txBody');
             if (!$textBody instanceof \DOMElement) {
-                return $this->inheritedPlaceholderBlocks($shapeElement, $slideContext);
+                return $this->withShapeMetadata(
+                    $this->inheritedPlaceholderBlocks($shapeElement, $slideContext),
+                    $shapeElement,
+                    $zOrder
+                );
             }
 
             $paragraphs = $this->parseParagraphs($textBody);
             if ($this->paragraphsContainText($paragraphs)) {
-                return $this->paragraphsToBlocks($paragraphs);
+                return $this->withShapeMetadata(
+                    $this->paragraphsToBlocks($paragraphs),
+                    $shapeElement,
+                    $zOrder
+                );
             }
 
             $blocks = $this->inheritedPlaceholderBlocks($shapeElement, $slideContext);
+            $blocks = $blocks !== [] ? $blocks : $this->paragraphsToBlocks($paragraphs);
 
-            return $blocks !== [] ? $blocks : $this->paragraphsToBlocks($paragraphs);
+            return $this->withShapeMetadata($blocks, $shapeElement, $zOrder);
         }
 
         if ($shapeElement->localName === 'pic') {
             $image = $this->pictureNode($shapeElement, $slideRelationships);
+            $blocks = $image instanceof AstNode ? [new AstNode('paragraph', [], [$image])] : [];
+            foreach ($this->richMediaBlocks($shapeElement, $slideRelationships) as $mediaBlock) {
+                $blocks[] = $mediaBlock;
+            }
 
-            return $image instanceof AstNode ? [new AstNode('paragraph', [], [$image])] : [];
+            return $this->withShapeMetadata($blocks, $shapeElement, $zOrder);
         }
 
         if ($shapeElement->localName !== 'graphicFrame') {
-            return [];
+            return $this->withShapeMetadata($this->richMediaBlocks($shapeElement, $slideRelationships), $shapeElement, $zOrder);
         }
 
         $graphicData = $this->graphicDataElement($shapeElement);
         if (!$graphicData instanceof \DOMElement) {
-            return [];
+            return $this->withShapeMetadata($this->richMediaBlocks($shapeElement, $slideRelationships), $shapeElement, $zOrder);
         }
 
         $uri = $graphicData->getAttribute('uri');
         if (str_contains($uri, 'table')) {
             $table = $this->firstDescendantElement($graphicData, 'tbl');
 
-            return $table instanceof \DOMElement ? [$this->tableNode($table)] : [];
+            return $this->withShapeMetadata($table instanceof \DOMElement ? [$this->tableNode($table)] : [], $shapeElement, $zOrder);
         }
         if (str_contains($uri, 'diagram')) {
             $diagram = $this->diagramNode($package, $graphicData, $slideRelationships);
 
-            return $diagram instanceof AstNode ? [$diagram] : [];
+            return $this->withShapeMetadata($diagram instanceof AstNode ? [$diagram] : [], $shapeElement, $zOrder);
         }
 
-        return [$this->paragraph('[Graphic: other: ' . $uri . ']')];
+        return $this->withShapeMetadata([$this->paragraph('[Graphic: other: ' . $uri . ']')], $shapeElement, $zOrder);
+    }
+
+    private function isDrawableShapeElement(\DOMElement $element): bool
+    {
+        return in_array($element->localName, ['sp', 'pic', 'graphicFrame', 'grpSp', 'cxnSp', 'contentPart'], true);
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<AstNode>
+     */
+    private function withShapeMetadata(array $blocks, \DOMElement $shapeElement, int $zOrder): array
+    {
+        if ($blocks === []) {
+            return [];
+        }
+
+        $metadata = $this->shapeMetadata($shapeElement, $zOrder);
+
+        return array_map(fn (AstNode $block): AstNode => $this->withShapeMetadataNode($block, $metadata), $blocks);
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    private function withShapeMetadataNode(AstNode $node, array $metadata): AstNode
+    {
+        $attrs = $node->attrs;
+        $existing = $attrs['pptxShape'] ?? [];
+        $attrs['pptxShape'] = is_array($existing) ? array_replace($metadata, $existing) : $metadata;
+
+        $children = [];
+        $changed = false;
+        foreach ($node->children as $child) {
+            if ($child->type === 'image') {
+                $children[] = $this->withShapeMetadataNode($child, $metadata);
+                $changed = true;
+                continue;
+            }
+
+            $children[] = $child;
+        }
+
+        return new AstNode($node->type, $attrs, $changed ? $children : $node->children);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function shapeMetadata(\DOMElement $shapeElement, int $zOrder): array
+    {
+        $metadata = [
+            'element' => $shapeElement->localName,
+            'zOrder' => $zOrder,
+        ];
+
+        $properties = $this->nonVisualDrawingProperties($shapeElement);
+        if ($properties instanceof \DOMElement) {
+            foreach (['id', 'name', 'descr', 'title'] as $attribute) {
+                $value = $properties->getAttribute($attribute);
+                if ($value !== '') {
+                    $metadata[$attribute] = $value;
+                }
+            }
+        }
+
+        $placeholder = $this->placeholderElement($shapeElement);
+        if ($placeholder instanceof \DOMElement) {
+            $type = $placeholder->getAttribute('type') !== '' ? $placeholder->getAttribute('type') : 'obj';
+            $metadata['placeholderType'] = $type;
+            if ($placeholder->getAttribute('idx') !== '') {
+                $metadata['placeholderIndex'] = $placeholder->getAttribute('idx');
+            }
+        }
+
+        $layout = $this->shapeTransformMetadata($shapeElement);
+        if ($layout !== []) {
+            $metadata['layout'] = $layout;
+        }
+
+        return $metadata;
+    }
+
+    private function nonVisualDrawingProperties(\DOMElement $shapeElement): ?\DOMElement
+    {
+        foreach ($this->childElements($shapeElement, null) as $child) {
+            if (!str_starts_with($child->localName, 'nv')) {
+                continue;
+            }
+
+            $properties = $this->firstChildElement($child, 'cNvPr');
+            if ($properties instanceof \DOMElement) {
+                return $properties;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function shapeTransformMetadata(\DOMElement $shapeElement): array
+    {
+        $properties = $this->firstChildElement($shapeElement, 'spPr')
+            ?? $this->firstChildElement($shapeElement, 'grpSpPr')
+            ?? $shapeElement;
+        $transform = $this->firstChildElement($properties, 'xfrm') ?? $this->firstChildElement($shapeElement, 'xfrm');
+        if (!$transform instanceof \DOMElement) {
+            return [];
+        }
+
+        $layout = [];
+        $offset = $this->firstChildElement($transform, 'off');
+        if ($offset instanceof \DOMElement) {
+            foreach (['x', 'y'] as $attribute) {
+                $value = $this->integerAttribute($offset, $attribute);
+                if ($value !== null) {
+                    $layout[$attribute] = $value;
+                }
+            }
+        }
+
+        $extent = $this->firstChildElement($transform, 'ext');
+        if ($extent instanceof \DOMElement) {
+            foreach (['cx', 'cy'] as $attribute) {
+                $value = $this->integerAttribute($extent, $attribute);
+                if ($value !== null) {
+                    $layout[$attribute] = $value;
+                }
+            }
+        }
+
+        $rotation = $this->integerAttribute($transform, 'rot');
+        if ($rotation !== null) {
+            $layout['rot'] = $rotation;
+        }
+
+        return $layout;
+    }
+
+    private function integerAttribute(\DOMElement $element, string $name): ?int
+    {
+        $value = $element->getAttribute($name);
+
+        return preg_match('/^-?\d+$/', $value) === 1 ? (int) $value : null;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function richMediaBlocks(\DOMElement $shapeElement, OpcRelationships $slideRelationships): array
+    {
+        $blocks = [];
+        foreach ($this->richMediaReferences($shapeElement, $slideRelationships) as $media) {
+            $label = $this->richMediaLabel($media);
+            $attributes = [
+                'kind' => (string) $media['kind'],
+                'relationship-id' => (string) $media['relationshipId'],
+            ];
+            if (($media['partName'] ?? '') !== '') {
+                $attributes['src'] = (string) $media['partName'];
+            } else {
+                $attributes['target'] = (string) $media['target'];
+                $attributes['target-mode'] = 'external';
+            }
+
+            $blocks[] = new AstNode('div', [
+                'classes' => ['pptx-rich-media', 'pptx-' . (string) $media['kind']],
+                'attributes' => $attributes,
+                'pptxMedia' => $media,
+            ], [$this->paragraph('[PPTX ' . (string) $media['kind'] . ': ' . $label . ']')]);
+        }
+
+        return $blocks;
+    }
+
+    /**
+     * @return list<array<string, string|bool>>
+     */
+    private function richMediaReferences(\DOMElement $shapeElement, OpcRelationships $slideRelationships): array
+    {
+        $media = [];
+        $seen = [];
+        foreach ($shapeElement->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement || !$this->isRichMediaElement($element)) {
+                continue;
+            }
+
+            foreach (['embed', 'link', 'id'] as $relationshipAttribute) {
+                $relationshipId = $this->relationshipId($element, $relationshipAttribute);
+                if ($relationshipId === '' || isset($seen[$relationshipId])) {
+                    continue;
+                }
+
+                $relationship = $slideRelationships->byId($relationshipId);
+                if (!$relationship instanceof OpcRelationship) {
+                    continue;
+                }
+
+                $kind = $this->relationshipRichMediaKind($relationship, $element);
+                if ($kind === '') {
+                    continue;
+                }
+
+                $seen[$relationshipId] = true;
+                $partName = '';
+                if (!$relationship->isExternal()) {
+                    $partName = ltrim(OpcPackagePath::stripQueryAndFragment($slideRelationships->resolveTarget($relationship)), '/');
+                }
+
+                $media[] = [
+                    'kind' => $kind,
+                    'relationshipId' => $relationshipId,
+                    'relationshipType' => $relationship->type,
+                    'target' => $relationship->target,
+                    'partName' => $partName,
+                    'external' => $relationship->isExternal(),
+                ];
+            }
+        }
+
+        return $media;
+    }
+
+    private function isRichMediaElement(\DOMElement $element): bool
+    {
+        return in_array($element->localName, ['audioFile', 'videoFile', 'wavAudioFile', 'media', 'audio', 'video'], true);
+    }
+
+    private function relationshipRichMediaKind(OpcRelationship $relationship, \DOMElement $element): string
+    {
+        $target = strtolower($relationship->target);
+        $haystack = strtolower($relationship->type . ' ' . $target . ' ' . $element->localName);
+        if (str_contains($haystack, 'audio') || str_contains($haystack, 'wav') || preg_match('/\.(?:aac|m4a|mp3|oga|ogg|wav|wma)(?:$|[?#])/i', $target) === 1) {
+            return 'audio';
+        }
+        if (str_contains($haystack, 'video') || str_contains($haystack, 'movie') || preg_match('/\.(?:avi|m4v|mov|mp4|mpeg|mpg|ogv|webm|wmv)(?:$|[?#])/i', $target) === 1) {
+            return 'video';
+        }
+
+        return str_contains($haystack, '/media') || $element->localName === 'media' ? 'media' : '';
+    }
+
+    /**
+     * @param array<string, string|bool> $media
+     */
+    private function richMediaLabel(array $media): string
+    {
+        $partName = (string) ($media['partName'] ?? '');
+        if ($partName !== '') {
+            $base = basename($partName);
+
+            return $base === '' ? $partName : $base;
+        }
+
+        $target = (string) ($media['target'] ?? '');
+        $base = basename(strtok($target, '?#') ?: $target);
+
+        return $base === '' ? $target : $base;
     }
 
     /**

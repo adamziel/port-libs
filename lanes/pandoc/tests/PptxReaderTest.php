@@ -34,6 +34,7 @@ XML);
     <p:sldId id="444" r:id="rId3"/>
     <p:sldId id="459" r:id="rId4"/>
     <p:sldId id="462" r:id="rId5"/>
+    <p:sldId id="463" r:id="rId6"/>
   </p:sldIdLst>
   <p:sldSz cx="12192000" cy="6858000"/>
 </p:presentation>
@@ -45,6 +46,7 @@ XML);
   <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide2.xml"/>
   <Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide3.xml"/>
   <Relationship Id="rId5" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide4.xml"/>
+  <Relationship Id="rId6" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide5.xml"/>
 </Relationships>
 XML);
 
@@ -189,6 +191,8 @@ XML);
 
     $zip->addFromString('ppt/slides/slide4.xml', $slideOpen . $titleShape('Smart Art') . <<<'XML'
     <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="20" name="SmartArt Placeholder"/><p:cNvGraphicFramePr/><p:nvPr><p:ph type="body" idx="9"/></p:nvPr></p:nvGraphicFramePr>
+      <p:xfrm><a:off x="1000" y="2000"/><a:ext cx="3000" cy="4000"/></p:xfrm>
       <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" r:dm="rId2" r:lo="rId3"/></a:graphicData></a:graphic>
     </p:graphicFrame>
 XML . $slideClose);
@@ -225,6 +229,47 @@ XML);
   </dgm:cxnLst>
 </dgm:dataModel>
 XML);
+
+    $zip->addFromString('ppt/slides/slide5.xml', $slideOpen . $titleShape('Review Media') . <<<'XML'
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="30" name="Back layer text"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+      <p:spPr><a:xfrm><a:off x="111" y="222"/><a:ext cx="333" cy="444"/></a:xfrm></p:spPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Back layer</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:pic>
+      <p:nvPicPr>
+        <p:cNvPr id="31" name="Video Placeholder" descr="Training clip"/>
+        <p:cNvPicPr/>
+        <p:nvPr><a:videoFile r:link="rIdVideo"/></p:nvPr>
+      </p:nvPicPr>
+      <p:spPr><a:xfrm><a:off x="555" y="666"/><a:ext cx="777" cy="888"/></a:xfrm></p:spPr>
+    </p:pic>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="32" name="Front layer text"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+      <p:spPr><a:xfrm><a:off x="999" y="1000"/><a:ext cx="1001" cy="1002"/></a:xfrm></p:spPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Front layer</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+XML . $slideClose);
+    $zip->addFromString('ppt/slides/_rels/slide5.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="../comments/comment1.xml"/>
+  <Relationship Id="rIdVideo" Type="http://schemas.microsoft.com/office/2007/relationships/media" Target="../media/video1.mp4"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/commentAuthors.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:cmAuthorLst xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:cmAuthor id="0" name="Ada Reviewer" initials="AR" lastIdx="1"/>
+</p:cmAuthorLst>
+XML);
+    $zip->addFromString('ppt/comments/comment1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:cmLst xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:cm authorId="0" dt="2026-06-26T12:00:00Z" idx="1"><p:pos x="12" y="34"/><p:text>Review this clip</p:text></p:cm>
+</p:cmLst>
+XML);
+    $zip->addFromString('ppt/media/video1.mp4', 'fake-video-bytes');
     $zip->close();
 
     try {
@@ -248,8 +293,16 @@ $nodesOfType = static function (AstNode $node, string $type) use (&$nodesOfType)
     return $nodes;
 };
 
+$nodesWithClass = static function (array $nodes, string $class): array {
+    return array_values(array_filter($nodes, static function (AstNode $node) use ($class): bool {
+        $classes = $node->attr('classes', []);
+
+        return is_array($classes) && in_array($class, $classes, true);
+    }));
+};
+
 return [
-    'matches pinned upstream pptx reader basic fixture semantics' => static function (TestRunner $t) use ($buildPptxPackage, $nodesOfType): void {
+    'matches pinned upstream pptx reader basic fixture semantics' => static function (TestRunner $t) use ($buildPptxPackage, $nodesOfType, $nodesWithClass): void {
         $document = (new PptxReader())->read($buildPptxPackage());
         $review = $document->attr('pptx');
         $native = PandocConverter::write($document, 'native');
@@ -257,12 +310,23 @@ return [
         $tables = $nodesOfType($document, 'table');
         $images = $nodesOfType($document, 'image');
         $divs = $nodesOfType($document, 'div');
+        $paragraphs = $nodesOfType($document, 'paragraph');
+        $smartArtDivs = $nodesWithClass($divs, 'smartart');
+        $mediaDivs = $nodesWithClass($divs, 'pptx-rich-media');
+        $commentDivs = $nodesWithClass($divs, 'pptx-comments');
+        $backLayerParagraphs = array_values(array_filter($paragraphs, static fn (AstNode $node): bool => $node->attr('text') === 'Back layer'));
+        $frontLayerParagraphs = array_values(array_filter($paragraphs, static fn (AstNode $node): bool => $node->attr('text') === 'Front layer'));
 
         $t->same('pptx', $document->attr('sourceFormat'));
         $t->same([], $document->attr('meta'));
         $t->same(1, $review['upstreamEvidence']['denominator'] ?? null);
         $t->same(['test/pptx-reader/basic.pptx', 'test/pptx-reader/basic.native'], $review['upstreamEvidence']['fixtures'] ?? null);
-        $t->same(4, $review['slideCount'] ?? null);
+        $t->same(5, $review['slideCount'] ?? null);
+        $t->same('Ada Reviewer', $review['commentAuthors']['0']['name'] ?? null);
+        $t->same(1, $review['slides'][4]['commentCount'] ?? null);
+        $t->same('Review this clip', $review['slides'][4]['comments'][0]['text'] ?? null);
+        $t->same(1, $review['slides'][4]['richMediaCount'] ?? null);
+        $t->same('ppt/media/video1.mp4', $review['slides'][4]['richMedia'][0]['partName'] ?? null);
 
         $t->same('heading', $document->children[0]->type);
         $t->same('slide-1', $document->children[0]->attr('id'));
@@ -283,22 +347,45 @@ return [
         $t->same('ppt/media/image1.png', $images[0]->attr('url'));
         $t->same('Picture 6', $images[0]->attr('title'));
 
-        $t->same(1, count($divs));
-        $t->same(['smartart', 'chevron2'], $divs[0]->attr('classes'));
-        $t->same(['layout' => 'chevron2'], $divs[0]->attr('attributes'));
-        $t->same('strong', $divs[0]->children[0]->children[0]->type);
-        $t->same('First', $divs[0]->children[0]->children[0]->children[0]->attr('text'));
-        $t->same('another', $divs[0]->children[1]->children[0]->children[0]->children[0]->attr('text'));
-        $t->same('Second', $divs[0]->children[2]->children[0]->children[0]->attr('text'));
+        $t->same(1, count($smartArtDivs));
+        $t->same(['smartart', 'chevron2'], $smartArtDivs[0]->attr('classes'));
+        $t->same(['layout' => 'chevron2'], $smartArtDivs[0]->attr('attributes'));
+        $t->same('graphicFrame', $smartArtDivs[0]->attr('pptxShape')['element'] ?? null);
+        $t->same('body', $smartArtDivs[0]->attr('pptxShape')['placeholderType'] ?? null);
+        $t->same(['x' => 1000, 'y' => 2000, 'cx' => 3000, 'cy' => 4000], $smartArtDivs[0]->attr('pptxShape')['layout'] ?? null);
+        $t->same('strong', $smartArtDivs[0]->children[0]->children[0]->type);
+        $t->same('First', $smartArtDivs[0]->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('another', $smartArtDivs[0]->children[1]->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('Second', $smartArtDivs[0]->children[2]->children[0]->children[0]->attr('text'));
+
+        $t->same(1, count($mediaDivs));
+        $t->same(['pptx-rich-media', 'pptx-video'], $mediaDivs[0]->attr('classes'));
+        $t->same('ppt/media/video1.mp4', $mediaDivs[0]->attr('attributes')['src'] ?? null);
+        $t->same('video', $mediaDivs[0]->attr('pptxMedia')['kind'] ?? null);
+        $t->same('pic', $mediaDivs[0]->attr('pptxShape')['element'] ?? null);
+        $t->same(3, $mediaDivs[0]->attr('pptxShape')['zOrder'] ?? null);
+        $t->same(['x' => 555, 'y' => 666, 'cx' => 777, 'cy' => 888], $mediaDivs[0]->attr('pptxShape')['layout'] ?? null);
+
+        $t->same(1, count($commentDivs));
+        $t->same('Ada Reviewer', $commentDivs[0]->attr('pptxComments')[0]['author'] ?? null);
+        $t->same('Review this clip', $commentDivs[0]->attr('pptxComments')[0]['text'] ?? null);
+        $t->same(1, count($backLayerParagraphs));
+        $t->same(2, $backLayerParagraphs[0]->attr('pptxShape')['zOrder'] ?? null);
+        $t->same(['x' => 111, 'y' => 222, 'cx' => 333, 'cy' => 444], $backLayerParagraphs[0]->attr('pptxShape')['layout'] ?? null);
+        $t->same(1, count($frontLayerParagraphs));
+        $t->same(4, $frontLayerParagraphs[0]->attr('pptxShape')['zOrder'] ?? null);
 
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "LLMs" ]', $native);
         $t->contains('BulletList', $native);
         $t->contains('Table ( "" , [  ] , [  ] )', $native);
         $t->contains('Image ( "" , [  ] , [  ] ) [  ] ( "ppt/media/image1.png" , "Picture 6" )', $native);
         $t->contains('Div ( "" , [ "smartart" , "chevron2" ] , [ ( "layout" , "chevron2" ) ] )', $native);
+        $t->contains('Div ( "" , [ "pptx-rich-media" , "pptx-video" ]', $native);
+        $t->contains('( "src" , "ppt/media/video1.mp4" )', $native);
         $t->contains('<!-- wp:heading {"level":2} -->', $blocks);
         $t->contains('<th>Col1</th>', $blocks);
         $t->contains('ppt/media/image1.png', $blocks);
+        $t->contains('data-pandoc-comment-author="Ada Reviewer"', $blocks);
         $t->contains('Inherited Layout Body', $blocks);
         $t->contains('Inherited Master Footer', $blocks);
     },
