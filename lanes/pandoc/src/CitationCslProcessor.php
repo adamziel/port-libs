@@ -7608,7 +7608,7 @@ final class CitationCslProcessor
         $id = (string) $citation->attr('id', '');
         $item = $this->itemsById[$id] ?? null;
         if ($item === null) {
-            return $this->sourceCitationText($citation);
+            return $this->missingCitationEntryText($citation);
         }
 
         $item = $this->itemWithCitationContext($item, $citation);
@@ -7641,6 +7641,18 @@ final class CitationCslProcessor
         return $prefix === '' ? $entry : $prefix . ' ' . $entry;
     }
 
+    private function missingCitationEntryText(AstNode $citation): string
+    {
+        $entry = $this->sourceCitationText($citation);
+        $suffix = $this->citationSuffix($citation);
+        if ($suffix !== '') {
+            $entry .= ', ' . $suffix;
+        }
+
+        $prefix = $this->citationPrefix($citation);
+        return $prefix === '' ? $entry : $prefix . ' ' . $entry;
+    }
+
     /**
      * @return list<array{text:string, formatting?:array<string, string>}>
      */
@@ -7649,7 +7661,7 @@ final class CitationCslProcessor
         $id = (string) $citation->attr('id', '');
         $item = $this->itemsById[$id] ?? null;
         if ($item === null) {
-            return [['text' => $this->sourceCitationText($citation)]];
+            return [['text' => $this->missingCitationEntryText($citation)]];
         }
 
         $item = $this->itemWithCitationContext($item, $citation);

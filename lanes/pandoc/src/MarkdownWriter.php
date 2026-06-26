@@ -5107,7 +5107,7 @@ final class MarkdownWriter
 
             $lines[] = $this->renderDefinitionTerm($item);
             $definitions = $this->definitionItemDefinitions($item);
-            $tight = $this->definitionItemIsTight($definitions);
+            $tight = $this->definitionItemIsTight($definitions) || $this->definitionListIsCompact($node);
             if (!$tight) {
                 $lines[] = '';
             }
@@ -5202,6 +5202,17 @@ final class MarkdownWriter
         $first = $definitions[0]->children[0] ?? null;
 
         return $first instanceof AstNode && $first->type === 'plain';
+    }
+
+    private function definitionListIsCompact(AstNode $node): bool
+    {
+        $classes = $node->attr('classes', []);
+        if (!is_array($classes)) {
+            return false;
+        }
+
+        return in_array('pandoc-csl-bibliography', $classes, true)
+            || in_array('pandoc-csl-shorthand-list', $classes, true);
     }
 
     /**
@@ -5826,7 +5837,7 @@ final class MarkdownWriter
             'quoted' => $this->renderQuoted($node),
             'link' => $this->renderLink($node, $following),
             'image' => $this->renderImage($node, $following),
-            'citation' => $this->renderCitation($node),
+            'citation', 'citation_group' => $this->renderCitation($node),
             'math' => $this->renderMath($node),
             'raw_tex', 'raw_tex_inline' => $this->renderRawInline($node),
             'raw_inline', 'raw_markdown', 'raw_html_inline' => $this->renderRawInline($node),
@@ -6329,6 +6340,11 @@ final class MarkdownWriter
 
     private function renderCitation(AstNode $node): string
     {
+        $rendered = $node->attr('rendered', null);
+        if (is_scalar($rendered) && (string) $rendered !== '') {
+            return (string) $rendered;
+        }
+
         $citations = $this->citationEntries($node);
         if ($citations === []) {
             return $node->attr('text', null) !== null
@@ -6360,6 +6376,17 @@ final class MarkdownWriter
      */
     private function citationEntries(AstNode $node): array
     {
+        if ($node->type === 'citation_group') {
+            $entries = [];
+            foreach ($node->children as $child) {
+                if ($child->type === 'citation') {
+                    $entries[] = $this->citationEntryFromNode($child);
+                }
+            }
+
+            return $entries;
+        }
+
         $citations = $node->attr('citations', null);
         if (is_array($citations) && $citations !== []) {
             $entries = [];

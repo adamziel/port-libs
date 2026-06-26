@@ -9364,6 +9364,11 @@ final class MarkdownReader
         }
 
         if (($text[$offset] ?? '') === '[') {
+            $cluster = $this->tryParseBracketedCitationCluster($text, $offset);
+            if ($cluster !== null) {
+                return $cluster;
+            }
+
             if (preg_match('/\G\[@([A-Za-z0-9_:.#\/$%&+?<>~|-]+)\]/u', $text, $m, 0, $offset) !== 1) {
                 return null;
             }
@@ -9410,6 +9415,279 @@ final class MarkdownReader
             ),
             'next' => $next,
         ];
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseBracketedCitationCluster(string $text, int $offset): ?array
+    {
+        $label = $this->parseBracketedLabel($text, $offset);
+        if ($label === null || !str_contains($label['text'], '@')) {
+            return null;
+        }
+        if (($text[$label['next']] ?? '') === '{') {
+            return null;
+        }
+
+        $source = substr($text, $offset, $label['next'] - $offset);
+        $citations = $this->parseBracketedCitationEntries($label['text']);
+        if ($citations === null) {
+            return null;
+        }
+
+        if (count($citations) === 1) {
+            $citation = $citations[0];
+
+            return [
+                'node' => new AstNode(
+                    'citation',
+                    [
+                        ...$citation->attrs,
+                        'text' => $source,
+                    ],
+                    [new AstNode('text', ['text' => $source])]
+                ),
+                'next' => $label['next'],
+            ];
+        }
+
+        return [
+            'node' => new AstNode('citation_group', ['text' => $source], $citations),
+            'next' => $label['next'],
+        ];
+    }
+
+    /**
+     * @return list<AstNode>|null
+     */
+    private function parseBracketedCitationEntries(string $content): ?array
+    {
+        $entries = [];
+        $cursor = 0;
+        $length = strlen($content);
+
+        while ($cursor < $length) {
+            $marker = $this->findBracketedCitationMarker($content, $cursor);
+            if ($marker === null) {
+                return $entries === [] && trim(substr($content, $cursor)) === '' ? [] : null;
+            }
+
+            $prefix = trim(substr($content, $cursor, $marker['start'] - $cursor));
+            $id = $this->readBracketedCitationId($content, $marker['at']);
+            if ($id === null) {
+                return null;
+            }
+
+            $afterId = $id['next'];
+            $separator = $this->findBracketedCitationSeparator($content, $afterId);
+            $end = $separator ?? $length;
+            $suffix = $this->normalizeBracketedCitationSuffix(substr($content, $afterId, $end - $afterId));
+            $citationText = trim(substr($content, $marker['start'], $end - $marker['start']));
+            $attrs = [
+                'id' => $id['id'],
+                'text' => $citationText,
+                'mode' => $marker['suppress'] ? 'suppress_author' : 'normal',
+            ];
+            if ($prefix !== '') {
+                $attrs['prefix'] = $prefix;
+            }
+            if ($suffix !== '') {
+                $attrs['locator'] = $suffix;
+                $locatorParts = $this->inferBracketedCitationLocatorParts($suffix);
+                $attrs['locatorLabel'] = $locatorParts['label'];
+                $attrs['locatorValue'] = $locatorParts['value'];
+            }
+
+            $entries[] = new AstNode('citation', $attrs, [new AstNode('text', ['text' => $citationText])]);
+            if ($separator === null) {
+                break;
+            }
+
+            $cursor = $separator + 1;
+        }
+
+        return $entries === [] ? null : $entries;
+    }
+
+    /**
+     * @return array{id:string, next:int}|null
+     */
+    private function readBracketedCitationId(string $content, int $at): ?array
+    {
+        if (($content[$at] ?? '') !== '@') {
+            return null;
+        }
+
+        if (($content[$at + 1] ?? '') === '{') {
+            $length = strlen($content);
+            for ($cursor = $at + 2; $cursor < $length; $cursor++) {
+                if ($content[$cursor] === '\\') {
+                    $cursor++;
+                    continue;
+                }
+
+                if ($content[$cursor] !== '}') {
+                    continue;
+                }
+
+                $id = substr($content, $at + 2, $cursor - $at - 2);
+                return $id === '' ? null : ['id' => $id, 'next' => $cursor + 1];
+            }
+
+            return null;
+        }
+
+        if (preg_match('/\G@([A-Za-z0-9_:.#\/$%&+?<>~|-]*[A-Za-z0-9_#\/$%&+?<>~|-])/u', $content, $match, 0, $at) !== 1) {
+            return null;
+        }
+
+        return ['id' => $match[1], 'next' => $at + strlen($match[0])];
+    }
+
+    /**
+     * @return array{start:int, at:int, suppress:bool}|null
+     */
+    private function findBracketedCitationMarker(string $content, int $offset): ?array
+    {
+        $length = strlen($content);
+        for ($cursor = $offset; $cursor < $length; $cursor++) {
+            if ($content[$cursor] !== '@') {
+                continue;
+            }
+
+            $start = $cursor;
+            $suppress = false;
+            if ($cursor > $offset && $content[$cursor - 1] === '-') {
+                $start = $cursor - 1;
+                $suppress = true;
+            }
+
+            $previous = $start === 0 ? '' : $content[$start - 1];
+            if ($previous !== '' && preg_match('/[A-Za-z0-9_@.\/-]/', $previous) === 1) {
+                continue;
+            }
+
+            return [
+                'start' => $start,
+                'at' => $cursor,
+                'suppress' => $suppress,
+            ];
+        }
+
+        return null;
+    }
+
+    private function findBracketedCitationSeparator(string $content, int $offset): ?int
+    {
+        $braceDepth = 0;
+        $length = strlen($content);
+        for ($cursor = $offset; $cursor < $length; $cursor++) {
+            $char = $content[$cursor];
+            if ($char === '\\') {
+                $cursor++;
+                continue;
+            }
+
+            if ($char === '{') {
+                $braceDepth++;
+                continue;
+            }
+
+            if ($char === '}' && $braceDepth > 0) {
+                $braceDepth--;
+                continue;
+            }
+
+            if ($char !== ';' || $braceDepth > 0) {
+                continue;
+            }
+
+            if ($this->findBracketedCitationMarker($content, $cursor + 1) !== null) {
+                return $cursor;
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeBracketedCitationSuffix(string $suffix): string
+    {
+        $suffix = trim($suffix);
+        $suffix = ltrim($suffix, ", \t\n\r");
+        $suffix = trim($suffix);
+        if (strlen($suffix) >= 2 && $suffix[0] === '{') {
+            $closing = $this->findBracketedCitationForcedLocatorEnd($suffix);
+            if ($closing !== null) {
+                $forced = trim(substr($suffix, 1, $closing - 1));
+                $trailing = trim(substr($suffix, $closing + 1));
+                $suffix = trim($forced . ($trailing === '' ? '' : ' ' . $trailing));
+            }
+        }
+
+        return $suffix;
+    }
+
+    private function findBracketedCitationForcedLocatorEnd(string $suffix): ?int
+    {
+        $length = strlen($suffix);
+        for ($cursor = 1; $cursor < $length; $cursor++) {
+            if ($suffix[$cursor] === '\\') {
+                $cursor++;
+                continue;
+            }
+
+            if ($suffix[$cursor] === '}') {
+                return $cursor;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{label:string, value:string}
+     */
+    private function inferBracketedCitationLocatorParts(string $locator): array
+    {
+        $locator = trim(preg_replace('/\s+/u', ' ', $locator) ?? $locator);
+        $patterns = [
+            'page' => '/^(?:p(?:p)?\.?|pages?)\s+(.+)$/iu',
+            'article-locator' => '/^(?:art(?:icles?|s)?\.?|article(?:s)?)\s+(.+)$/iu',
+            'appendix' => '/^(?:app(?:endices|endixes|s)?\.?|appendix|appendices|appendixes)\s+(.+)$/iu',
+            'book' => '/^(?:bks?\.?|books?)\s+(.+)$/iu',
+            'canon' => '/^(?:cc?\.?|canons?)\s+(.+)$/iu',
+            'chapter' => '/^(?:chap(?:ters?|s)?\.?|chapter(?:s)?)\s+(.+)$/iu',
+            'column' => '/^(?:col(?:umns?|s)?\.?|column(?:s)?)\s+(.+)$/iu',
+            'elocation' => '/^(?:e-?loc(?:ations?|s)?\.?|elocations?|e-locations?)\s+(.+)$/iu',
+            'equation' => '/^(?:eq(?:uations?|s)?\.?|equation(?:s)?)\s+(.+)$/iu',
+            'figure' => '/^(?:fig(?:ures?|s)?\.?|figure(?:s)?)\s+(.+)$/iu',
+            'folio' => '/^(?:fol(?:ios?|s)?\.?|folio(?:s)?)\s+(.+)$/iu',
+            'line' => '/^(?:l(?:ines?|s)?\.?|line(?:s)?)\s+(.+)$/iu',
+            'note' => '/^(?:n(?:otes?|s)?\.?|note(?:s)?)\s+(.+)$/iu',
+            'opus' => '/^(?:opp?\.?|opus|opera)\s+(.+)$/iu',
+            'part' => '/^(?:pts?\.?|part(?:s)?)\s+(.+)$/iu',
+            'rule' => '/^(?:rr?\.?|rule(?:s)?)\s+(.+)$/iu',
+            'section' => '/^(?:sec(?:tions?|s)?\.?|section(?:s)?|\x{00A7}\x{00A7}?)\s+(.+)$/iu',
+            'paragraph' => '/^(?:para(?:graphs?|s)?\.?|paragraph(?:s)?|\x{00B6}\x{00B6}?)\s+(.+)$/iu',
+            'sub-verbo' => '/^(?:s\.?\s*vv?\.?|sub[-\s]?verb[aois]+|sub-verbo|sub-verbum)\s+(.+)$/iu',
+            'supplement' => '/^(?:supp(?:lements?|s)?\.?|supplement(?:s)?)\s+(.+)$/iu',
+            'table' => '/^(?:tbl(?:s)?\.?|table(?:s)?)\s+(.+)$/iu',
+            'timestamp' => '/^(?:timestamps?|ts\.?)\s+(.+)$/iu',
+            'title' => '/^(?:tit(?:les?|s)?\.?|title(?:s)?)\s+(.+)$/iu',
+            'verse' => '/^(?:v(?:erses?|s)?\.?|verse(?:s)?)\s+(.+)$/iu',
+            'volume' => '/^(?:vol(?:umes?|s)?\.?|volume(?:s)?)\s+(.+)$/iu',
+            'issue' => '/^(?:iss(?:ues?|s)?\.?|issue(?:s)?)\s+(.+)$/iu',
+            'number' => '/^(?:no(?:s)?\.?|number(?:s)?)\s+(.+)$/iu',
+        ];
+
+        foreach ($patterns as $label => $pattern) {
+            if (preg_match($pattern, $locator, $match) === 1) {
+                return ['label' => $label, 'value' => trim($match[1])];
+            }
+        }
+
+        return ['label' => 'page', 'value' => $locator];
     }
 
     /**
