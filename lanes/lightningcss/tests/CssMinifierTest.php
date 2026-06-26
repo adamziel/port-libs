@@ -278,6 +278,43 @@ CSS
             $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_selectors line ' . $line);
         }
     },
+    'css minifier maps upstream view transition pseudo-element function selector tail' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_selectors lines 7262-7311.
+        $names = [
+            [7263, 'view-transition-group'],
+            [7264, 'view-transition-image-pair'],
+            [7265, 'view-transition-new'],
+            [7266, 'view-transition-old'],
+        ];
+        $argumentCases = [
+            [7268, '*', '*', ''],
+            [7272, '*.class', '*.class', ''],
+            [7276, '*.class.class', '*.class.class', ''],
+            [7280, 'foo', 'foo', ''],
+            [7284, 'foo.class', 'foo.class', ''],
+            [7288, 'foo.bar.baz', 'foo.bar.baz', ''],
+            [7292, 'foo', 'foo', ':only-child'],
+            [7296, 'foo.bar.baz', 'foo.bar.baz', ':only-child'],
+            [7300, '.foo', '.foo', ''],
+            [7304, '.foo.bar', '.foo.bar', ''],
+            [7308, '  .foo.bar  ', '.foo.bar', ''],
+        ];
+
+        foreach ($names as [$nameLine, $name]) {
+            foreach ($argumentCases as [$line, $argument, $expectedArgument, $tail]) {
+                $input = sprintf(':root::%s(%s)%s {position: fixed}', $name, $argument, $tail);
+                $expected = sprintf(':root::%s(%s)%s{position:fixed}', $name, $expectedArgument, $tail);
+
+                $t->same(
+                    $expected,
+                    $minifier->minify($input),
+                    sprintf('upstream src/lib.rs::test_selectors line %d with name line %d', $line, $nameLine)
+                );
+            }
+        }
+    },
     'css minifier maps upstream quoted and unquoted url tokens' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
