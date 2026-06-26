@@ -236,4 +236,69 @@ return [
         $t->contains('alt="Chart alt" title="Chart title" data-pandoc-width="2in" data-pandoc-height="1in"', $blocks);
         $t->contains('data-docx-image-name="Chart 1"', $blocks);
     },
+    'reads docx text boxes vml object images and inherited table style metadata' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-docx-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary DOCX path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary DOCX package');
+        }
+        $zip->addFromString('word/_rels/document.xml.rels', '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdObject" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/object-preview.png"/></Relationships>');
+        $zip->addFromString('word/styles.xml', '<?xml version="1.0"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="character" w:styleId="BaseChar"><w:name w:val="Base Character"/><w:rPr><w:b/></w:rPr></w:style><w:style w:type="character" w:styleId="DerivedChar"><w:name w:val="Derived Character"/><w:basedOn w:val="BaseChar"/><w:rPr><w:i/></w:rPr></w:style><w:style w:type="table" w:styleId="BaseTable"><w:name w:val="Base Table"/><w:tblPr><w:shd w:fill="D9EAF7"/><w:jc w:val="center"/></w:tblPr></w:style><w:style w:type="table" w:styleId="DerivedTable"><w:name w:val="Derived Table"/><w:basedOn w:val="BaseTable"/></w:style></w:styles>');
+        $zip->addFromString('word/media/object-preview.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII='));
+        $zip->addFromString('word/document.xml', '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office"><w:body><w:p><w:r><w:t>Before </w:t></w:r><w:r><w:pict><v:shape id="TextBox1" type="#_x0000_t202" style="width:120pt;height:40pt"><v:textbox><w:txbxContent><w:p><w:r><w:t>Boxed </w:t></w:r><w:r><w:rPr><w:rStyle w:val="DerivedChar"/></w:rPr><w:t>strong italic</w:t></w:r></w:p></w:txbxContent></v:textbox></v:shape></w:pict></w:r><w:r><w:t> after.</w:t></w:r></w:p><w:p><w:r><w:object><v:shape id="_x0000_i1025" type="#_x0000_t75" style="width:48pt;height:24pt"><v:imagedata r:id="rIdObject" o:title="Object preview"/></v:shape><w:dxaOrig w:val="960"/><w:dyaOrig w:val="480"/></w:object></w:r></w:p><w:tbl><w:tblPr><w:tblStyle w:val="DerivedTable"/></w:tblPr><w:tr><w:tc><w:p><w:r><w:t>Styled cell</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:body></w:document>');
+        $zip->close();
+
+        try {
+            $document = (new DocxReader())->readDocxFile($path);
+            $blocks = (new WordPressBlockWriter())->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $paragraph = $document->children[0];
+        $textBox = $paragraph->children[1];
+        $styledText = $textBox->children[1];
+        $image = $document->children[1]->children[0];
+        $table = $document->children[2];
+        $tableAttributes = $table->attr('htmlAttributes');
+
+        $t->same('Before Boxed strong italic after.', $paragraph->attr('text'));
+        $t->same('span', $textBox->type);
+        $t->same(['docx-textbox'], $textBox->attr('classes'));
+        $t->same('vml-pict', $textBox->attr('attributes')['data-docx-textbox-source']);
+        $t->same('TextBox1', $textBox->attr('attributes')['data-docx-vml-shape-id']);
+        $t->same('emph', $styledText->type);
+        $t->same('strong', $styledText->children[0]->type);
+        $t->same('strong italic', $styledText->children[0]->children[0]->attr('text'));
+
+        $t->same('image', $image->type);
+        $t->same('word/media/object-preview.png', $image->attr('url'));
+        $t->same('Object preview', $image->attr('alt'));
+        $t->same('Object preview', $image->attr('title'));
+        $t->same('48pt', $image->attr('width'));
+        $t->same('24pt', $image->attr('height'));
+        $t->same('vml-object', $image->attr('attributes')['data-docx-image-source']);
+        $t->same('rIdObject', $image->attr('attributes')['data-docx-image-relationship-id']);
+        $t->same('_x0000_i1025', $image->attr('attributes')['data-docx-vml-shape-id']);
+        $t->same('960', $image->attr('attributes')['data-docx-object-dxa-orig']);
+        $t->same('480', $image->attr('attributes')['data-docx-object-dya-orig']);
+
+        $t->same('DerivedTable', $tableAttributes['data-docx-table-style']);
+        $t->same('Derived Table', $tableAttributes['data-docx-table-style-name']);
+        $t->same('BaseTable', $tableAttributes['data-docx-table-style-based-on']);
+        $t->same('BaseTable DerivedTable', $tableAttributes['data-docx-table-style-chain']);
+        $t->same('D9EAF7', $tableAttributes['data-docx-table-style-fill']);
+        $t->same('center', $tableAttributes['data-docx-table-style-align']);
+
+        $t->contains('<span class="docx-textbox" data-docx-textbox-source="vml-pict"', $blocks);
+        $t->contains('Boxed <em><strong>strong italic</strong></em>', $blocks);
+        $t->contains('data-docx-image-source="vml-object"', $blocks);
+        $t->contains('data-docx-vml-shape-id="_x0000_i1025"', $blocks);
+        $t->contains('data-docx-table-style-chain="BaseTable DerivedTable"', $blocks);
+        $t->contains('data-docx-table-style-fill="D9EAF7"', $blocks);
+    },
 ];

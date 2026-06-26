@@ -12,8 +12,9 @@ final class DocxReader
     private const WP_NS = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
     private const M_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
     private const REL_NS = 'http://schemas.openxmlformats.org/package/2006/relationships';
+    private const OFFICE_NS = 'urn:schemas-microsoft-com:office:office';
 
-    /** @var array<string, array{headingLevel?: int, strong?: bool, emph?: bool, underline?: bool, strikeout?: bool, small_caps?: bool, superscript?: bool, subscript?: bool}> */
+    /** @var array<string, array<string, mixed>> */
     private array $styles = [];
 
     /** @var array<string, array<int, array{ordered: bool, style?: string, delimiter?: string, start?: int}>> */
@@ -455,10 +456,15 @@ final class DocxReader
                 continue;
             }
             if ($child->localName === 'drawing') {
-                $image = $this->drawingImage($child);
-                if ($image instanceof AstNode) {
-                    $nodes[] = $image;
-                }
+                array_push($nodes, ...$this->drawingNodes($child));
+                continue;
+            }
+            if ($child->localName === 'pict') {
+                array_push($nodes, ...$this->vmlNodes($child, 'vml-pict'));
+                continue;
+            }
+            if ($child->localName === 'object') {
+                array_push($nodes, ...$this->vmlNodes($child, 'vml-object'));
                 continue;
             }
             if ($child->localName === 'oMath' || $child->localName === 'oMathPara') {
@@ -782,6 +788,189 @@ final class DocxReader
         return $open . $this->ommlFirstChildTex($node, 'e') . $close;
     }
 
+    /**
+     * @return list<AstNode>
+     */
+    private function drawingNodes(\DOMElement $drawing): array
+    {
+        $nodes = [];
+        $image = $this->drawingImage($drawing);
+        if ($image instanceof AstNode) {
+            $nodes[] = $image;
+        }
+        array_push($nodes, ...$this->textBoxSpans($drawing, 'drawing'));
+
+        return $nodes;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function vmlNodes(\DOMElement $container, string $source): array
+    {
+        $nodes = [];
+        foreach ($this->descendantElementsByLocalName($container, 'imagedata') as $imageData) {
+            $image = $this->vmlImage($imageData, $container, $source);
+            if ($image instanceof AstNode) {
+                $nodes[] = $image;
+            }
+        }
+        array_push($nodes, ...$this->textBoxSpans($container, $source));
+
+        return $nodes;
+    }
+
+    private function vmlImage(\DOMElement $imageData, \DOMElement $container, string $source): ?AstNode
+    {
+        $rid = $this->attr($imageData, self::R_NS, 'id');
+        if ($rid === '') {
+            $rid = $this->attr($imageData, self::OFFICE_NS, 'relid');
+        }
+
+        $target = $rid !== '' ? ($this->relationships[$rid]['target'] ?? '') : '';
+        if ($target === '') {
+            $target = $imageData->getAttribute('src');
+        }
+        if ($target === '') {
+            return null;
+        }
+
+        $mode = $rid !== '' ? (string) ($this->relationships[$rid]['mode'] ?? '') : '';
+        $url = $mode === 'External' ? $target : $this->normalizeWordTarget($target);
+        $shape = $this->nearestAncestorByLocalName($imageData, 'shape');
+
+        $title = $this->attr($imageData, self::OFFICE_NS, 'title');
+        $alt = $title;
+        if ($shape instanceof \DOMElement) {
+            $shapeAlt = $shape->getAttribute('alt');
+            if ($shapeAlt !== '') {
+                $alt = $shapeAlt;
+            }
+            $shapeTitle = $shape->getAttribute('title');
+            if ($shapeTitle !== '') {
+                $title = $shapeTitle;
+            }
+        }
+
+        $attrs = [
+            'url' => $url,
+            'title' => $title,
+            'alt' => $alt,
+        ];
+        $sourceAttributes = ['data-docx-image-source' => $source];
+        if ($rid !== '') {
+            $sourceAttributes['data-docx-image-relationship-id'] = $rid;
+        }
+        if ($shape instanceof \DOMElement) {
+            $sourceAttributes = array_replace($sourceAttributes, $this->vmlShapeSourceAttributes($shape));
+            $style = $shape->getAttribute('style');
+            $width = $this->cssStyleDimension($style, 'width');
+            if ($width !== '') {
+                $attrs['width'] = $width;
+                $sourceAttributes['width'] = $width;
+            }
+            $height = $this->cssStyleDimension($style, 'height');
+            if ($height !== '') {
+                $attrs['height'] = $height;
+                $sourceAttributes['height'] = $height;
+            }
+        }
+        if ($source === 'vml-object') {
+            foreach (['dxaOrig' => 'data-docx-object-dxa-orig', 'dyaOrig' => 'data-docx-object-dya-orig'] as $localName => $attrName) {
+                foreach ($this->descendantElementsByLocalName($container, $localName) as $dimension) {
+                    $value = $this->attr($dimension, self::W_NS, 'val');
+                    if ($value !== '') {
+                        $sourceAttributes[$attrName] = $value;
+                    }
+                    break;
+                }
+            }
+        }
+
+        $attrs['attributes'] = $sourceAttributes;
+
+        return new AstNode('image', $attrs);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function textBoxSpans(\DOMElement $container, string $source): array
+    {
+        $spans = [];
+        foreach ($this->descendantElementsByLocalName($container, 'txbxContent') as $textBox) {
+            $blocks = $this->bodyBlocks($textBox);
+            $inlines = $this->blocksAsInlineNodes($blocks);
+            if ($inlines === []) {
+                continue;
+            }
+
+            $attributes = ['data-docx-textbox-source' => $source];
+            $shape = $this->nearestAncestorByLocalName($textBox, 'shape');
+            if ($shape instanceof \DOMElement) {
+                $attributes = array_replace($attributes, $this->vmlShapeSourceAttributes($shape));
+            }
+
+            $spans[] = new AstNode('span', [
+                'classes' => ['docx-textbox'],
+                'attributes' => $attributes,
+            ], $inlines);
+        }
+
+        return $spans;
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<AstNode>
+     */
+    private function blocksAsInlineNodes(array $blocks): array
+    {
+        $inlines = [];
+        foreach ($blocks as $index => $block) {
+            if ($index > 0) {
+                $inlines[] = new AstNode('linebreak');
+            }
+
+            if (in_array($block->type, ['paragraph', 'plain', 'heading'], true)) {
+                array_push($inlines, ...$block->children);
+                continue;
+            }
+
+            $text = trim($this->nodeText($block));
+            if ($text !== '') {
+                $inlines[] = new AstNode('text', ['text' => $text]);
+            }
+        }
+
+        return $inlines;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function vmlShapeSourceAttributes(\DOMElement $shape): array
+    {
+        $attrs = [];
+        foreach ([
+            'id' => 'data-docx-vml-shape-id',
+            'type' => 'data-docx-vml-shape-type',
+            'style' => 'data-docx-vml-shape-style',
+        ] as $sourceName => $attrName) {
+            $value = $shape->getAttribute($sourceName);
+            if ($value !== '') {
+                $attrs[$attrName] = $value;
+            }
+        }
+
+        $spid = $this->attr($shape, self::OFFICE_NS, 'spid');
+        if ($spid !== '') {
+            $attrs['data-docx-vml-shape-spid'] = $spid;
+        }
+
+        return $attrs;
+    }
+
     private function drawingImage(\DOMElement $drawing): ?AstNode
     {
         foreach ($drawing->getElementsByTagNameNS(self::A_NS, 'blip') as $blip) {
@@ -1023,6 +1212,22 @@ final class DocxReader
                 $style = $this->attr($child, self::W_NS, 'val');
                 if ($style !== '') {
                     $htmlAttributes['data-docx-table-style'] = $style;
+                    $styleEntry = $this->styles[$style] ?? [];
+                    foreach ([
+                        'styleName' => 'data-docx-table-style-name',
+                        'basedOn' => 'data-docx-table-style-based-on',
+                        'tableFill' => 'data-docx-table-style-fill',
+                        'tableAlignment' => 'data-docx-table-style-align',
+                    ] as $styleKey => $attrName) {
+                        $value = (string) ($styleEntry[$styleKey] ?? '');
+                        if ($value !== '') {
+                            $htmlAttributes[$attrName] = $value;
+                        }
+                    }
+                    $chain = $styleEntry['styleChain'] ?? [];
+                    if (is_array($chain) && $chain !== []) {
+                        $htmlAttributes['data-docx-table-style-chain'] = implode(' ', array_map(static fn (mixed $value): string => (string) $value, $chain));
+                    }
                 }
             }
         }
@@ -1150,7 +1355,7 @@ final class DocxReader
     }
 
     /**
-     * @return array{strong?: bool, emph?: bool, underline?: bool, strikeout?: bool, small_caps?: bool, superscript?: bool, subscript?: bool}
+     * @return array<string, bool>
      */
     private function runStyle(\DOMElement $run): array
     {
@@ -1163,26 +1368,48 @@ final class DocxReader
                 if (!$prop instanceof \DOMElement) {
                     continue;
                 }
-                if ($prop->localName === 'b' && $this->truthyOnOff($prop)) {
-                    $style['strong'] = true;
-                } elseif ($prop->localName === 'i' && $this->truthyOnOff($prop)) {
-                    $style['emph'] = true;
-                } elseif ($prop->localName === 'u' && $this->truthyUnderline($prop)) {
-                    $style['underline'] = true;
-                } elseif (($prop->localName === 'strike' || $prop->localName === 'dstrike') && $this->truthyOnOff($prop)) {
-                    $style['strikeout'] = true;
-                } elseif ($prop->localName === 'smallCaps' && $this->truthyOnOff($prop)) {
-                    $style['small_caps'] = true;
-                } elseif ($prop->localName === 'vertAlign') {
-                    $value = strtolower($this->attr($prop, self::W_NS, 'val'));
-                    if ($value === 'superscript') {
-                        $style['superscript'] = true;
-                    } elseif ($value === 'subscript') {
-                        $style['subscript'] = true;
-                    }
-                } elseif ($prop->localName === 'rStyle') {
+                if ($prop->localName === 'rStyle') {
                     $styleId = $this->attr($prop, self::W_NS, 'val');
                     $style = array_replace($style, $this->styles[$styleId] ?? []);
+                }
+            }
+            $style = array_replace($style, $this->runPropertyStyle($rPr));
+        }
+
+        return array_filter($style, 'is_bool');
+    }
+
+    /**
+     * @return array<string, bool>
+     */
+    private function runPropertyStyle(\DOMElement $rPr): array
+    {
+        $style = [];
+        foreach ($rPr->childNodes as $prop) {
+            if (!$prop instanceof \DOMElement) {
+                continue;
+            }
+            if ($prop->localName === 'b') {
+                $style['strong'] = $this->truthyOnOff($prop);
+            } elseif ($prop->localName === 'i') {
+                $style['emph'] = $this->truthyOnOff($prop);
+            } elseif ($prop->localName === 'u') {
+                $style['underline'] = $this->truthyUnderline($prop);
+            } elseif ($prop->localName === 'strike' || $prop->localName === 'dstrike') {
+                $style['strikeout'] = $this->truthyOnOff($prop);
+            } elseif ($prop->localName === 'smallCaps') {
+                $style['small_caps'] = $this->truthyOnOff($prop);
+            } elseif ($prop->localName === 'vertAlign') {
+                $value = strtolower($this->attr($prop, self::W_NS, 'val'));
+                if ($value === 'superscript') {
+                    $style['superscript'] = true;
+                    $style['subscript'] = false;
+                } elseif ($value === 'subscript') {
+                    $style['subscript'] = true;
+                    $style['superscript'] = false;
+                } elseif ($value === 'baseline') {
+                    $style['superscript'] = false;
+                    $style['subscript'] = false;
                 }
             }
         }
@@ -1192,7 +1419,7 @@ final class DocxReader
 
     /**
      * @param list<AstNode> $nodes
-     * @param array{strong?: bool, emph?: bool, underline?: bool, strikeout?: bool, small_caps?: bool, superscript?: bool, subscript?: bool} $style
+     * @param array<string, mixed> $style
      * @return list<AstNode>
      */
     private function styledRunNodes(array $nodes, array $style): array
@@ -1227,7 +1454,7 @@ final class DocxReader
     }
 
     /**
-     * @return array<string, array{headingLevel?: int, strong?: bool, emph?: bool, underline?: bool, strikeout?: bool, small_caps?: bool, superscript?: bool, subscript?: bool}>
+     * @return array<string, array<string, mixed>>
      */
     private function styles(\DOMDocument $dom): array
     {
@@ -1240,50 +1467,104 @@ final class DocxReader
             if ($styleId === '') {
                 continue;
             }
-            $entry = [];
+            $entry = ['styleId' => $styleId];
+            $type = $this->attr($style, self::W_NS, 'type');
+            if ($type !== '') {
+                $entry['styleType'] = $type;
+            }
             foreach ($style->childNodes as $child) {
                 if (!$child instanceof \DOMElement) {
                     continue;
                 }
-                if ($child->localName === 'pPr') {
+                if ($child->localName === 'name') {
+                    $name = $this->attr($child, self::W_NS, 'val');
+                    if ($name !== '') {
+                        $entry['styleName'] = $name;
+                    }
+                } elseif ($child->localName === 'basedOn') {
+                    $basedOn = $this->attr($child, self::W_NS, 'val');
+                    if ($basedOn !== '') {
+                        $entry['basedOn'] = $basedOn;
+                    }
+                } elseif ($child->localName === 'pPr') {
                     foreach ($child->getElementsByTagNameNS(self::W_NS, 'outlineLvl') as $outline) {
                         if ($outline instanceof \DOMElement) {
                             $entry['headingLevel'] = max(1, min(6, (int) ($this->attr($outline, self::W_NS, 'val') ?: '0') + 1));
                         }
                     }
                 } elseif ($child->localName === 'rPr') {
-                    foreach ($child->childNodes as $prop) {
-                        if (!$prop instanceof \DOMElement) {
-                            continue;
-                        }
-                        if ($prop->localName === 'b' && $this->truthyOnOff($prop)) {
-                            $entry['strong'] = true;
-                        } elseif ($prop->localName === 'i' && $this->truthyOnOff($prop)) {
-                            $entry['emph'] = true;
-                        } elseif ($prop->localName === 'u' && $this->truthyUnderline($prop)) {
-                            $entry['underline'] = true;
-                        } elseif (($prop->localName === 'strike' || $prop->localName === 'dstrike') && $this->truthyOnOff($prop)) {
-                            $entry['strikeout'] = true;
-                        } elseif ($prop->localName === 'smallCaps' && $this->truthyOnOff($prop)) {
-                            $entry['small_caps'] = true;
-                        } elseif ($prop->localName === 'vertAlign') {
-                            $value = strtolower($this->attr($prop, self::W_NS, 'val'));
-                            if ($value === 'superscript') {
-                                $entry['superscript'] = true;
-                            } elseif ($value === 'subscript') {
-                                $entry['subscript'] = true;
-                            }
-                        }
-                    }
+                    $entry = array_replace($entry, $this->runPropertyStyle($child));
+                } elseif ($child->localName === 'tblPr') {
+                    $entry = array_replace($entry, $this->tableStyleMetadata($child));
                 }
             }
-            if ($entry === [] && preg_match('/heading\s*([1-6])|Heading([1-6])/i', $styleId, $m)) {
+            if (!isset($entry['headingLevel']) && preg_match('/heading\s*([1-6])|Heading([1-6])/i', $styleId, $m)) {
                 $entry['headingLevel'] = (int) ($m[1] !== '' ? $m[1] : $m[2]);
             }
             $styles[$styleId] = $entry;
         }
 
+        foreach (array_keys($styles) as $styleId) {
+            $styles[$styleId] = $this->resolveStyleEntry($styleId, $styles, []);
+        }
+
         return $styles;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $styles
+     * @param list<string> $seen
+     * @return array<string, mixed>
+     */
+    private function resolveStyleEntry(string $styleId, array $styles, array $seen): array
+    {
+        $entry = $styles[$styleId] ?? [];
+        if ($entry === [] || in_array($styleId, $seen, true)) {
+            return $entry;
+        }
+
+        $basedOn = (string) ($entry['basedOn'] ?? '');
+        if ($basedOn === '' || !isset($styles[$basedOn])) {
+            $entry['styleChain'] = [$styleId];
+
+            return $entry;
+        }
+
+        $parent = $this->resolveStyleEntry($basedOn, $styles, [...$seen, $styleId]);
+        $merged = array_replace($parent, $entry);
+        $parentChain = $parent['styleChain'] ?? [$basedOn];
+        $merged['styleChain'] = array_values(array_unique([
+            ...array_map(static fn (mixed $value): string => (string) $value, is_array($parentChain) ? $parentChain : [$basedOn]),
+            $styleId,
+        ]));
+
+        return $merged;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function tableStyleMetadata(\DOMElement $tblPr): array
+    {
+        $metadata = [];
+        foreach ($tblPr->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+            if ($child->localName === 'shd') {
+                $fill = strtoupper($this->attr($child, self::W_NS, 'fill'));
+                if ($fill !== '' && $fill !== 'AUTO') {
+                    $metadata['tableFill'] = $fill;
+                }
+            } elseif ($child->localName === 'jc') {
+                $alignment = strtolower($this->attr($child, self::W_NS, 'val'));
+                if ($alignment !== '') {
+                    $metadata['tableAlignment'] = $alignment;
+                }
+            }
+        }
+
+        return $metadata;
     }
 
     /**
@@ -1572,6 +1853,34 @@ final class DocxReader
         return null;
     }
 
+    /**
+     * @return list<\DOMElement>
+     */
+    private function descendantElementsByLocalName(\DOMElement $element, string $localName): array
+    {
+        $matches = [];
+        foreach ($element->getElementsByTagName('*') as $descendant) {
+            if ($descendant instanceof \DOMElement && $descendant->localName === $localName) {
+                $matches[] = $descendant;
+            }
+        }
+
+        return $matches;
+    }
+
+    private function nearestAncestorByLocalName(\DOMElement $element, string $localName): ?\DOMElement
+    {
+        $node = $element->parentNode;
+        while ($node instanceof \DOMNode) {
+            if ($node instanceof \DOMElement && $node->localName === $localName) {
+                return $node;
+            }
+            $node = $node->parentNode;
+        }
+
+        return null;
+    }
+
     private function attr(\DOMElement $element, string $namespace, string $name): string
     {
         $value = $element->getAttributeNS($namespace, $name);
@@ -1662,6 +1971,26 @@ final class DocxReader
         $formatted = rtrim(rtrim(number_format($inches, 4, '.', ''), '0'), '.');
 
         return ($formatted === '' ? '0' : $formatted) . 'in';
+    }
+
+    private function cssStyleDimension(string $style, string $name): string
+    {
+        if ($style === '') {
+            return '';
+        }
+
+        foreach (explode(';', $style) as $declaration) {
+            [$property, $value] = array_pad(explode(':', $declaration, 2), 2, '');
+            if (strtolower(trim($property)) !== strtolower($name)) {
+                continue;
+            }
+            $value = trim($value);
+            if (preg_match('/^(?:\d+(?:\.\d+)?|\.\d+)(?:cm|mm|in|pt|pc|px|em|rem|%)$/i', $value) === 1) {
+                return $value;
+            }
+        }
+
+        return '';
     }
 
     private function xmlAttr(string $value): string
