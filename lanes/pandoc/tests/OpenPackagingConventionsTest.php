@@ -1116,6 +1116,143 @@ XML;
         $t->same(0, $rawManifest['missingContentTypePartCount']);
         $t->same(true, $rawManifest['valid']);
     },
+    'preflights selected OPC package part content type diagnostics before graph construction' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/_rels/case.xml.rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+</Types>
+XML;
+
+        $summary = OpcRelationshipGraph::preflightSelectedContentTypes(
+            ZipPackage::fromParts([
+                ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+                ['name' => '_rels/.rels', 'data' => '<Relationships/>'],
+                ['name' => 'word/document.xml', 'data' => '<w:document/>'],
+                ['name' => 'word/media/review-image.PNG', 'data' => 'PNG'],
+                ['name' => 'Word/_rels/CasE.xml.rels', 'data' => '<Relationships/>'],
+                ['name' => 'word/theme/theme1.thmx', 'data' => '<a:theme/>'],
+                ['name' => 'word/media/source', 'data' => 'raw'],
+            ]),
+            [
+                'word/document.xml?review=ready#source',
+                '/word/media/review-image.PNG',
+                '/WORD/_rels/CASE.xml.rels',
+                '/word/theme/theme1.thmx',
+                'word/media/source',
+                '/word/missing.xml',
+                '/WORD/DOCUMENT.XML',
+            ]
+        );
+
+        $records = [];
+        foreach ($summary['records'] as $record) {
+            $records[$record['selectedPartName']] = $record;
+        }
+
+        $t->same(false, $summary['valid']);
+        $t->same('caller-provided-part-list', $summary['selectionPolicy']);
+        $t->same(true, $summary['normalizesQueryAndFragment']);
+        $t->same(true, $summary['matchesEquivalentPartNames']);
+        $t->same(false, $summary['readsSelectedPartPayloadBytes']);
+        $t->same(true, $summary['contentTypeDeclarationAvailable']);
+        $t->same(null, $summary['contentTypesParseError']);
+        $t->same(7, $summary['selectedPartCount']);
+        $t->same(6, $summary['uniqueSelectedPartCount']);
+        $t->same(1, $summary['duplicateSelectedPartCount']);
+        $t->same(0, $summary['invalidSelectedPartCount']);
+        $t->same(6, $summary['existingSelectedPartCount']);
+        $t->same(1, $summary['missingSelectedPartCount']);
+        $t->same(4, $summary['exactSelectedPartCount']);
+        $t->same(2, $summary['equivalentSelectedPartCount']);
+        $t->same(5, $summary['contentTypeResolvedPartCount']);
+        $t->same(2, $summary['contentTypeDefaultResolvedPartCount']);
+        $t->same(3, $summary['contentTypeOverrideResolvedPartCount']);
+        $t->same(2, $summary['missingContentTypePartCount']);
+        $t->same(1, $summary['missingContentTypeDefaultCount']);
+        $t->same(1, $summary['missingContentTypeExtensionlessCount']);
+        $t->same(['/word/media/source', '/word/theme/theme1.thmx'], $summary['missingContentTypeParts']);
+        $t->same(['/word/missing.xml'], $summary['missingSelectedPartNames']);
+        $t->same(['/WORD/DOCUMENT.XML'], $summary['duplicateSelectedPartNames']);
+        $t->same([
+            'duplicate-selected-part' => 1,
+            'missing-content-type' => 2,
+            'missing-content-type-default' => 1,
+            'missing-content-type-extension' => 1,
+            'selected-part-missing' => 1,
+        ], $summary['issueCounts']);
+        $t->same([
+            'duplicate-selected-part',
+            'missing-content-type',
+            'missing-content-type-default',
+            'missing-content-type-extension',
+            'selected-part-missing',
+        ], $summary['issues']);
+        $t->same([
+            'default' => 2,
+            'missing' => 2,
+            'override' => 3,
+        ], $summary['contentTypeSourceCounts']);
+        $t->same([
+            '/word/media/review-image.PNG',
+            '/word/missing.xml',
+        ], $summary['partNamesByContentTypeSource']['default']);
+        $t->same([
+            '/WORD/DOCUMENT.XML',
+            '/WORD/_rels/CASE.xml.rels',
+            '/word/document.xml',
+        ], $summary['partNamesByContentTypeSource']['override']);
+        $t->same([
+            '/WORD/DOCUMENT.XML',
+            '/WORD/_rels/CASE.xml.rels',
+        ], $summary['selectedPartNamesByMatchKind']['equivalent']);
+        $t->same(['/word/missing.xml'], $summary['partNamesByIssue']['selected-part-missing']);
+        $t->same(['word/media/source'], $summary['selectedPartNamesByIssue']['missing-content-type-extension']);
+
+        $document = $records['word/document.xml?review=ready#source'];
+        $t->same('/word/document.xml', $document['partName']);
+        $t->same('/word/document.xml', $document['packagePartName']);
+        $t->same('exact', $document['matchKind']);
+        $t->same('override', $document['contentTypeSource']);
+        $t->same('/word/document.xml', $document['contentTypeOverridePartName']);
+        $t->same(true, $document['contentTypeOverridePartNameExactMatch']);
+
+        $image = $records['/word/media/review-image.PNG'];
+        $t->same('default', $image['contentTypeSource']);
+        $t->same('png', $image['contentTypeDefaultExtension']);
+        $t->same('image/png', $image['contentType']);
+
+        $caseRelationship = $records['/WORD/_rels/CASE.xml.rels'];
+        $t->same('/Word/_rels/CasE.xml.rels', $caseRelationship['packagePartName']);
+        $t->same('equivalent', $caseRelationship['matchKind']);
+        $t->same('override', $caseRelationship['contentTypeSource']);
+        $t->same('/word/_rels/case.xml.rels', $caseRelationship['contentTypeOverridePartName']);
+        $t->same(true, $caseRelationship['contentTypeOverridePartNameEquivalentMatch']);
+
+        $missingDefault = $records['/word/theme/theme1.thmx'];
+        $t->same(true, $missingDefault['exists']);
+        $t->same('missing', $missingDefault['contentTypeSource']);
+        $t->same(['missing-content-type', 'missing-content-type-default'], $missingDefault['issues']);
+
+        $missingExtension = $records['word/media/source'];
+        $t->same(true, $missingExtension['exists']);
+        $t->same(['missing-content-type', 'missing-content-type-extension'], $missingExtension['issues']);
+
+        $missingSelected = $records['/word/missing.xml'];
+        $t->same(false, $missingSelected['exists']);
+        $t->same('default', $missingSelected['contentTypeSource']);
+        $t->same(['selected-part-missing'], $missingSelected['issues']);
+
+        $duplicate = $records['/WORD/DOCUMENT.XML'];
+        $t->same(0, $duplicate['duplicateOfIndex']);
+        $t->same('/word/document.xml', $duplicate['packagePartName']);
+        $t->same('equivalent', $duplicate['matchKind']);
+        $t->same('override', $duplicate['contentTypeSource']);
+        $t->same(['duplicate-selected-part'], $duplicate['issues']);
+    },
     'summarizes OPC ZIP entry manifest content type byte buckets before graph construction' => static function (TestRunner $t): void {
         $documentContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
         $embeddedPackageContentType = 'application/vnd.openxmlformats-officedocument.package';
