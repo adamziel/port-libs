@@ -31,6 +31,16 @@ final class DocxReader
     /** @var array<string, array{author: string, date: string, children: list<AstNode>, text: string}> */
     private array $comments = [];
 
+    private string $revisionMode;
+
+    /**
+     * @param array{revisionMode?: string} $options
+     */
+    public function __construct(array $options = [])
+    {
+        $this->revisionMode = $this->normalizeRevisionMode((string) ($options['revisionMode'] ?? 'preserve'));
+    }
+
     public function read(string $bytes): AstNode
     {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-docx-');
@@ -419,9 +429,8 @@ final class DocxReader
                 continue;
             }
             if (in_array($child->localName, ['ins', 'del', 'moveFrom', 'moveTo'], true)) {
-                $span = $this->trackedChangeSpan($child);
-                if ($span instanceof AstNode) {
-                    $inlines[] = $span;
+                foreach ($this->trackedChangeInlines($child) as $inline) {
+                    $inlines[] = $inline;
                 }
             }
         }
@@ -492,6 +501,26 @@ final class DocxReader
 
         $style = $this->runStyle($run);
         return $this->styledRunNodes($nodes, $style);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function trackedChangeInlines(\DOMElement $change): array
+    {
+        $accepted = $change->localName === 'ins' || $change->localName === 'moveTo';
+
+        if ($this->revisionMode === 'accept') {
+            return $accepted ? $this->inlineChildren($change) : [];
+        }
+
+        if ($this->revisionMode === 'reject') {
+            return $accepted ? [] : $this->inlineChildren($change);
+        }
+
+        $span = $this->trackedChangeSpan($change);
+
+        return $span instanceof AstNode ? [$span] : [];
     }
 
     private function trackedChangeSpan(\DOMElement $change): ?AstNode
@@ -1531,6 +1560,16 @@ final class DocxReader
         }
 
         return $meta;
+    }
+
+    private function normalizeRevisionMode(string $mode): string
+    {
+        $mode = strtolower(trim($mode));
+        if (in_array($mode, ['preserve', 'accept', 'reject'], true)) {
+            return $mode;
+        }
+
+        throw new \InvalidArgumentException("Unsupported DOCX revisionMode '{$mode}'. Expected preserve, accept, or reject.");
     }
 
     private function loadXml(string $xml, string $label): \DOMDocument
