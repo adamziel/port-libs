@@ -845,6 +845,11 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['attachedTemplateUnreferencedRelationshipCount'] = $attachedTemplates['unreferencedRelationshipCount'];
         $packageProvenance['summary']['attachedTemplateInternalCount'] = $attachedTemplates['internalCount'];
         $packageProvenance['summary']['attachedTemplateExternalCount'] = $attachedTemplates['externalCount'];
+        $packageProvenance['summary']['attachedTemplateAllowedExternalTargetCount'] = $attachedTemplates['allowedExternalTargetCount'];
+        $packageProvenance['summary']['attachedTemplateUnsafeExternalTargetCount'] = $attachedTemplates['unsafeExternalTargetCount'];
+        $packageProvenance['summary']['attachedTemplateExternalTargetKindCounts'] = $attachedTemplates['externalTargetKindCounts'];
+        $packageProvenance['summary']['attachedTemplateExternalTargetSchemeCounts'] = $attachedTemplates['externalTargetSchemeCounts'];
+        $packageProvenance['summary']['attachedTemplateExternalTargetIssueCodes'] = $attachedTemplates['externalTargetIssueCodes'];
         $packageProvenance['summary']['attachedTemplateExistingCount'] = $attachedTemplates['existingCount'];
         $packageProvenance['summary']['attachedTemplateMissingCount'] = $attachedTemplates['missingCount'];
         $packageProvenance['summary']['attachedTemplateUnresolvedCount'] = $attachedTemplates['unresolvedCount'];
@@ -8422,14 +8427,26 @@ final class DocxOpenXmlReader
 
         $partNames = [];
         $externalTargets = [];
+        $externalTargetKindCounts = [];
+        $externalTargetSchemeCounts = [];
+        $externalTargetIssueCodes = [];
         $contentTypesSeen = [];
         $issueCodes = [];
         $issueCount = 0;
         foreach ($items as $item) {
             $this->appendUniqueString($partNames, is_string($item['partName'] ?? null) ? $item['partName'] : null);
             $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
-            if (($item['external'] ?? false) === true) {
+            if (($item['relationshipType'] ?? null) === self::ATTACHED_TEMPLATE_REL && ($item['external'] ?? false) === true) {
                 $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+                $kind = is_string($item['externalTargetKind'] ?? null) ? $item['externalTargetKind'] : '(unknown)';
+                $scheme = is_string($item['externalTargetScheme'] ?? null) ? $item['externalTargetScheme'] : '(none)';
+                $externalTargetKindCounts[$kind] = ($externalTargetKindCounts[$kind] ?? 0) + 1;
+                $externalTargetSchemeCounts[$scheme] = ($externalTargetSchemeCounts[$scheme] ?? 0) + 1;
+                foreach (($item['externalTargetIssues'] ?? []) as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $externalTargetIssueCodes[$issue] = true;
+                    }
+                }
             }
             foreach (($item['issues'] ?? []) as $issue) {
                 if (is_string($issue) && $issue !== '') {
@@ -8439,6 +8456,9 @@ final class DocxOpenXmlReader
             $issueCount += count($item['issues']);
         }
         ksort($issueCodes, SORT_STRING);
+        ksort($externalTargetKindCounts, SORT_STRING);
+        ksort($externalTargetSchemeCounts, SORT_STRING);
+        ksort($externalTargetIssueCodes, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -8447,6 +8467,11 @@ final class DocxOpenXmlReader
             'unreferencedRelationshipCount' => count($unreferencedRelationshipIds),
             'internalCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::ATTACHED_TEMPLATE_REL && $item['external'] === false)),
             'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::ATTACHED_TEMPLATE_REL && $item['external'] === true)),
+            'allowedExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::ATTACHED_TEMPLATE_REL && $item['external'] === true && ($item['externalTargetAllowed'] ?? null) === true)),
+            'unsafeExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::ATTACHED_TEMPLATE_REL && $item['external'] === true && ($item['externalTargetAllowed'] ?? null) !== true)),
+            'externalTargetKindCounts' => $externalTargetKindCounts,
+            'externalTargetSchemeCounts' => $externalTargetSchemeCounts,
+            'externalTargetIssueCodes' => array_keys($externalTargetIssueCodes),
             'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::ATTACHED_TEMPLATE_REL && $item['exists'] === true)),
             'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-in-package', $item['issues'], true))),
             'unresolvedCount' => count(array_filter(
