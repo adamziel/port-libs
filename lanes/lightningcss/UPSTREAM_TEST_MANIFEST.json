@@ -2069,7 +2069,7 @@
         "upstreamEvidence": "Worker evidence cites pinned LightningCSS commit 22bdda3d190f1cd321d98026225cfc964af64ad9 src/lib.rs::test_viewport lines 28454-28467, src/lib.rs::test_important lines 8021-8035, src/lib.rs::test_container_queries lines 30384-30421, src/lib.rs::test_css_modules line 26891, node/test/bundle.test.mjs resolve-throw behavior lines 285-307 plus src/bundler.rs resolver error handling, and parcel_sourcemap 2.1.1 SourceMap::add_mapping/write_vlq dangling source-index behavior. Full Rust/Node/WASM runners were not executed."
     },
     "focusedEnvZindexImportantLchBatch20260626": {
-        "sourceCommit": "pending source commit for env zindex important lch batch",
+        "sourceCommit": "4218886be67530e1d332b673710ed7b8751da07f",
         "mappedSliceIncrease": 16,
         "mappedBefore": 2546,
         "mappedAfter": 2562,
