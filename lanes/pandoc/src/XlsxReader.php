@@ -50,10 +50,16 @@ final class XlsxReader
                 $sharedStrings = $this->sharedStrings($package->read($sharedStringsPath) ?? '');
             }
 
+            $themeColors = [];
+            $themePath = $this->relationshipTargetByType($workbookPath, $workbookRels, '/theme');
+            if ($themePath !== null) {
+                $themeColors = $this->themeColors($package->read($themePath) ?? '');
+            }
+
             $styles = ['fonts' => [], 'fills' => [], 'borders' => [], 'numFmts' => $this->builtinNumberFormats(), 'cellFonts' => [], 'cellFormats' => []];
             $stylesPath = $this->relationshipTargetByType($workbookPath, $workbookRels, '/styles');
             if ($stylesPath !== null) {
-                $styles = $this->styles($package->read($stylesPath) ?? '');
+                $styles = $this->styles($package->read($stylesPath) ?? '', $themeColors);
             }
             $date1904 = $this->workbookDate1904($workbookXml);
 
@@ -1184,7 +1190,7 @@ final class XlsxReader
     /**
      * @return array<string, mixed>
      */
-    private function styles(string $xml): array
+    private function styles(string $xml, array $themeColors = []): array
     {
         if ($xml === '') {
             return ['fonts' => [], 'fills' => [], 'borders' => [], 'numFmts' => $this->builtinNumberFormats(), 'cellFonts' => [], 'cellFormats' => []];
@@ -1210,7 +1216,7 @@ final class XlsxReader
                     'italic' => $font->getElementsByTagNameNS(self::SS_NS, 'i')->length > 0,
                     'underline' => $font->getElementsByTagNameNS(self::SS_NS, 'u')->length > 0,
                     'strike' => $font->getElementsByTagNameNS(self::SS_NS, 'strike')->length > 0,
-                    'color' => $this->firstColor($font),
+                    'color' => $this->firstColor($font, $themeColors),
                     'name' => $this->firstVal($font, 'name'),
                     'size' => $this->firstVal($font, 'sz'),
                 ];
@@ -1225,7 +1231,7 @@ final class XlsxReader
                     continue;
                 }
                 $fills[] = [
-                    'color' => $this->fillColor($fill),
+                    'color' => $this->fillColor($fill, $themeColors),
                 ];
             }
         }
@@ -1237,7 +1243,7 @@ final class XlsxReader
                 if (!$border instanceof \DOMElement || $border->localName !== 'border') {
                     continue;
                 }
-                $borders[] = $this->borderStyle($border);
+                $borders[] = $this->borderStyle($border, $themeColors);
             }
         }
 
@@ -1625,11 +1631,11 @@ final class XlsxReader
         return '';
     }
 
-    private function firstColor(\DOMElement $element): string
+    private function firstColor(\DOMElement $element, array $themeColors = []): string
     {
         foreach ($element->getElementsByTagNameNS(self::SS_NS, 'color') as $color) {
             if ($color instanceof \DOMElement) {
-                return $this->colorValue($color);
+                return $this->colorValue($color, $themeColors);
             }
         }
 
@@ -1670,16 +1676,16 @@ final class XlsxReader
         return $name;
     }
 
-    private function fillColor(\DOMElement $fill): string
+    private function fillColor(\DOMElement $fill, array $themeColors = []): string
     {
         foreach ($fill->getElementsByTagNameNS(self::SS_NS, 'fgColor') as $color) {
             if ($color instanceof \DOMElement) {
-                return $this->colorValue($color);
+                return $this->colorValue($color, $themeColors);
             }
         }
         foreach ($fill->getElementsByTagNameNS(self::SS_NS, 'bgColor') as $color) {
             if ($color instanceof \DOMElement) {
-                return $this->colorValue($color);
+                return $this->colorValue($color, $themeColors);
             }
         }
 
@@ -1689,7 +1695,7 @@ final class XlsxReader
     /**
      * @return array{css:string}
      */
-    private function borderStyle(\DOMElement $border): array
+    private function borderStyle(\DOMElement $border, array $themeColors = []): array
     {
         $styles = [];
         foreach (['left', 'right', 'top', 'bottom'] as $side) {
@@ -1704,7 +1710,7 @@ final class XlsxReader
             $color = '';
             foreach ($edge->getElementsByTagNameNS(self::SS_NS, 'color') as $colorNode) {
                 if ($colorNode instanceof \DOMElement) {
-                    $color = $this->colorValue($colorNode);
+                    $color = $this->colorValue($colorNode, $themeColors);
                     break;
                 }
             }
@@ -1716,17 +1722,125 @@ final class XlsxReader
         return ['css' => implode(';', $styles)];
     }
 
-    private function colorValue(\DOMElement $color): string
+    /**
+     * @param array<int, string> $themeColors
+     */
+    private function colorValue(\DOMElement $color, array $themeColors = []): string
     {
         $rgb = strtoupper($color->getAttribute('rgb'));
         if (preg_match('/^[0-9A-F]{8}$/', $rgb) === 1) {
-            return '#' . substr($rgb, 2);
+            return $this->applyTint('#' . substr($rgb, 2), $color->getAttribute('tint'));
         }
         if (preg_match('/^[0-9A-F]{6}$/', $rgb) === 1) {
-            return '#' . $rgb;
+            return $this->applyTint('#' . $rgb, $color->getAttribute('tint'));
+        }
+        if (ctype_digit($color->getAttribute('theme'))) {
+            $theme = (int) $color->getAttribute('theme');
+            $value = $themeColors[$theme] ?? '';
+            if ($value !== '') {
+                return $this->applyTint($value, $color->getAttribute('tint'));
+            }
+        }
+        if (ctype_digit($color->getAttribute('indexed'))) {
+            return $this->indexedColor((int) $color->getAttribute('indexed'));
         }
 
         return '';
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function themeColors(string $xml): array
+    {
+        if ($xml === '') {
+            return [];
+        }
+        $dom = $this->loadXml($xml, 'XLSX theme');
+        $scheme = $dom->getElementsByTagNameNS(self::A_NS, 'clrScheme')->item(0);
+        if (!$scheme instanceof \DOMElement) {
+            return [];
+        }
+
+        $byName = [];
+        foreach ($scheme->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+            $color = $this->themeColorChoice($child);
+            if ($color !== '') {
+                $byName[$child->localName] = $color;
+            }
+        }
+
+        $order = ['lt1', 'dk1', 'lt2', 'dk2', 'accent1', 'accent2', 'accent3', 'accent4', 'accent5', 'accent6', 'hlink', 'folHlink'];
+        $colors = [];
+        foreach ($order as $index => $name) {
+            if (isset($byName[$name])) {
+                $colors[$index] = $byName[$name];
+            }
+        }
+
+        return $colors;
+    }
+
+    private function themeColorChoice(\DOMElement $element): string
+    {
+        foreach ($element->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+            if ($child->localName === 'srgbClr') {
+                $value = strtoupper($child->getAttribute('val'));
+                return preg_match('/^[0-9A-F]{6}$/', $value) === 1 ? '#' . $value : '';
+            }
+            if ($child->localName === 'sysClr') {
+                $value = strtoupper($child->getAttribute('lastClr'));
+                return preg_match('/^[0-9A-F]{6}$/', $value) === 1 ? '#' . $value : '';
+            }
+        }
+
+        return '';
+    }
+
+    private function applyTint(string $hex, string $tint): string
+    {
+        if ($hex === '' || !is_numeric($tint)) {
+            return $hex;
+        }
+        $value = max(-1.0, min(1.0, (float) $tint));
+        $raw = ltrim($hex, '#');
+        if (preg_match('/^[0-9A-Fa-f]{6}$/', $raw) !== 1) {
+            return $hex;
+        }
+
+        $channels = [
+            hexdec(substr($raw, 0, 2)),
+            hexdec(substr($raw, 2, 2)),
+            hexdec(substr($raw, 4, 2)),
+        ];
+        foreach ($channels as $index => $channel) {
+            $channels[$index] = $value < 0
+                ? (int) round($channel * (1 + $value))
+                : (int) round($channel + ((255 - $channel) * $value));
+            $channels[$index] = max(0, min(255, $channels[$index]));
+        }
+
+        return sprintf('#%02X%02X%02X', $channels[0], $channels[1], $channels[2]);
+    }
+
+    private function indexedColor(int $index): string
+    {
+        $palette = [
+            0 => '#000000', 1 => '#FFFFFF', 2 => '#FF0000', 3 => '#00FF00',
+            4 => '#0000FF', 5 => '#FFFF00', 6 => '#FF00FF', 7 => '#00FFFF',
+            8 => '#000000', 9 => '#FFFFFF', 10 => '#FF0000', 11 => '#00FF00',
+            12 => '#0000FF', 13 => '#FFFF00', 14 => '#FF00FF', 15 => '#00FFFF',
+            16 => '#800000', 17 => '#008000', 18 => '#000080', 19 => '#808000',
+            20 => '#800080', 21 => '#008080', 22 => '#C0C0C0', 23 => '#808080',
+        ];
+
+        return $palette[$index] ?? '';
     }
 
     private function workbookDate1904(string $workbookXml): bool

@@ -137,17 +137,22 @@ XML);
 <?xml version="1.0"?>
 <c:chartSpace
   xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"
-  xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <c:style val="10"/>
   <c:chart>
     <c:title><c:tx><c:rich><a:p><a:r><a:t>Revenue chart</a:t></a:r></a:p></c:rich></c:tx></c:title>
-    <c:plotArea><c:barChart><c:ser>
+    <c:plotArea><c:barChart><c:grouping val="clustered"/><c:varyColors val="1"/><c:ser>
       <c:tx><c:strRef><c:strCache><c:pt idx="0"><c:v>Revenue</c:v></c:pt></c:strCache></c:strRef></c:tx>
       <c:cat><c:strRef><c:strCache><c:pt idx="0"><c:v>Q1</c:v></c:pt><c:pt idx="1"><c:v>Q2</c:v></c:pt></c:strCache></c:strRef></c:cat>
       <c:val><c:numRef><c:numCache><c:pt idx="0"><c:v>12</c:v></c:pt><c:pt idx="1"><c:v>18</c:v></c:pt></c:numCache></c:numRef></c:val>
-    </c:ser></c:barChart></c:plotArea>
+    </c:ser><c:axId val="100"/><c:axId val="200"/></c:barChart><c:catAx><c:axId val="100"/><c:title><c:tx><c:rich><a:p><a:r><a:t>Quarter</a:t></a:r></a:p></c:rich></c:tx></c:title></c:catAx><c:valAx><c:axId val="200"/><c:title><c:tx><c:rich><a:p><a:r><a:t>Revenue</a:t></a:r></a:p></c:rich></c:tx></c:title></c:valAx></c:plotArea>
+    <c:legend><c:legendPos val="r"/></c:legend>
   </c:chart>
+  <c:externalData r:id="rIdWorkbook"/>
 </c:chartSpace>
 XML);
+        $zip->addFromString('ppt/charts/_rels/chart1.xml.rels', '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="../embeddings/Microsoft_Excel_Worksheet1.xlsx"/></Relationships>');
         $zip->addFromString('ppt/media/image1.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII='));
         $zip->close();
 
@@ -216,6 +221,13 @@ XML);
         $t->same('Revenue chart', $chart->children[0]->attr('text'));
         $t->same('barChart', $chart->attr('attributes')['data-pptx-chart-types']);
         $t->same('1', $chart->attr('attributes')['data-pptx-chart-series-count']);
+        $t->same('r', $chart->attr('attributes')['data-pptx-chart-legend-position']);
+        $t->same('100,200', $chart->attr('attributes')['data-pptx-chart-axis-ids']);
+        $t->same('Quarter,Revenue', $chart->attr('attributes')['data-pptx-chart-axis-titles']);
+        $t->same('clustered', $chart->attr('attributes')['data-pptx-chart-groupings']);
+        $t->same('true', $chart->attr('attributes')['data-pptx-chart-vary-colors']);
+        $t->same('10', $chart->attr('attributes')['data-pptx-chart-style']);
+        $t->same('ppt/embeddings/Microsoft_Excel_Worksheet1.xlsx', $chart->attr('attributes')['data-pptx-chart-workbook']);
         $t->same('Q2', $chart->children[1]->children[1]->children[1]->children[0]->attr('text'));
         $t->same('18', $chart->children[1]->children[1]->children[1]->children[1]->attr('text'));
         $t->contains('class="pptx-slide"', $blocks);
@@ -235,6 +247,8 @@ XML);
         $t->contains('<td rowspan="2"><p>Tall A</p></td>', $blocks);
         $t->contains('Cell E', $blocks);
         $t->contains('class="pptx-chart"', $blocks);
+        $t->contains('data-pptx-chart-legend-position="r"', $blocks);
+        $t->contains('data-pptx-chart-axis-titles="Quarter,Revenue"', $blocks);
         $t->contains('<h3>Revenue chart</h3>', $blocks);
         $t->contains('data-pptx-chart-category-index="1">Q2</td>', $blocks);
         $t->contains('data-pptx-chart-point-index="1">18</td>', $blocks);

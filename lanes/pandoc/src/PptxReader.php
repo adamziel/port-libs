@@ -981,19 +981,31 @@ final class PptxReader
                 continue;
             }
 
-            return $this->chartBlock($chartXml, $chartPath, $relationshipId);
+            $chartRels = $this->relationships($package->read($this->relationshipsPath($chartPath)) ?? '');
+
+            return $this->chartBlock($chartXml, $chartPath, $relationshipId, $chartRels);
         }
 
         return null;
     }
 
-    private function chartBlock(string $chartXml, string $chartPath, string $relationshipId): AstNode
+    /**
+     * @param array<string, array{target:string,type:string,mode:string}> $relationships
+     */
+    private function chartBlock(string $chartXml, string $chartPath, string $relationshipId, array $relationships = []): AstNode
     {
         $dom = $this->loadXml($chartXml, 'PPTX chart ' . $chartPath);
         $titleNode = $dom->getElementsByTagNameNS(self::C_NS, 'title')->item(0);
         $title = $titleNode instanceof \DOMElement ? $this->drawingText($titleNode) : '';
         $series = $this->chartSeries($dom);
         $chartTypes = $this->chartTypes($dom);
+        $attributes = array_merge([
+            'data-pandoc-source' => 'pptx-chart',
+            'data-pptx-chart-path' => $chartPath,
+            'data-pptx-relationship-id' => $relationshipId,
+            'data-pptx-chart-types' => implode(',', $chartTypes),
+            'data-pptx-chart-series-count' => (string) count($series),
+        ], $this->chartMetadata($dom, $chartPath, $relationships));
         $children = [];
         if ($title !== '') {
             $children[] = new AstNode('heading', ['level' => 3, 'text' => $title], [new AstNode('text', ['text' => $title])]);
@@ -1007,14 +1019,141 @@ final class PptxReader
 
         return new AstNode('div', [
             'classes' => ['pptx-chart'],
-            'attributes' => [
-                'data-pandoc-source' => 'pptx-chart',
-                'data-pptx-chart-path' => $chartPath,
-                'data-pptx-relationship-id' => $relationshipId,
-                'data-pptx-chart-types' => implode(',', $chartTypes),
-                'data-pptx-chart-series-count' => (string) count($series),
-            ],
+            'attributes' => $attributes,
         ], $children);
+    }
+
+    /**
+     * @param array<string, array{target:string,type:string,mode:string}> $relationships
+     * @return array<string, string>
+     */
+    private function chartMetadata(\DOMDocument $dom, string $chartPath, array $relationships): array
+    {
+        $attrs = array_filter([
+            'data-pptx-chart-legend-position' => $this->chartLegendPosition($dom),
+            'data-pptx-chart-axis-ids' => implode(',', $this->chartAxisIds($dom)),
+            'data-pptx-chart-axis-titles' => implode(',', $this->chartAxisTitles($dom)),
+            'data-pptx-chart-groupings' => implode(',', $this->chartGroupings($dom)),
+            'data-pptx-chart-vary-colors' => $this->chartVaryColors($dom),
+            'data-pptx-chart-style' => $this->chartValueElement($dom, 'style'),
+        ], static fn (string $value): bool => $value !== '');
+
+        $workbook = $this->chartExternalWorkbook($dom, $chartPath, $relationships);
+        if ($workbook !== '') {
+            $attrs['data-pptx-chart-workbook'] = $workbook;
+        }
+
+        return $attrs;
+    }
+
+    private function chartLegendPosition(\DOMDocument $dom): string
+    {
+        foreach ($dom->getElementsByTagNameNS(self::C_NS, 'legendPos') as $position) {
+            if ($position instanceof \DOMElement) {
+                return $position->getAttribute('val');
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function chartAxisIds(\DOMDocument $dom): array
+    {
+        $ids = [];
+        foreach ($dom->getElementsByTagNameNS(self::C_NS, 'axId') as $axis) {
+            if ($axis instanceof \DOMElement && $axis->getAttribute('val') !== '') {
+                $ids[] = $axis->getAttribute('val');
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function chartAxisTitles(\DOMDocument $dom): array
+    {
+        $titles = [];
+        foreach (['catAx', 'valAx', 'dateAx', 'serAx'] as $axisName) {
+            foreach ($dom->getElementsByTagNameNS(self::C_NS, $axisName) as $axis) {
+                if (!$axis instanceof \DOMElement) {
+                    continue;
+                }
+                $title = $this->firstChildElementByLocalName($axis, 'title');
+                $text = $title instanceof \DOMElement ? trim($this->drawingText($title)) : '';
+                if ($text !== '') {
+                    $titles[] = $text;
+                }
+            }
+        }
+
+        return array_values(array_unique($titles));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function chartGroupings(\DOMDocument $dom): array
+    {
+        $groups = [];
+        foreach ($dom->getElementsByTagNameNS(self::C_NS, 'grouping') as $grouping) {
+            if ($grouping instanceof \DOMElement && $grouping->getAttribute('val') !== '') {
+                $groups[] = $grouping->getAttribute('val');
+            }
+        }
+
+        return array_values(array_unique($groups));
+    }
+
+    private function chartVaryColors(\DOMDocument $dom): string
+    {
+        foreach ($dom->getElementsByTagNameNS(self::C_NS, 'varyColors') as $varyColors) {
+            if ($varyColors instanceof \DOMElement) {
+                return $this->drawingBoolAttribute($varyColors, 'val') ? 'true' : 'false';
+            }
+        }
+
+        return '';
+    }
+
+    private function chartValueElement(\DOMDocument $dom, string $localName): string
+    {
+        foreach ($dom->getElementsByTagNameNS(self::C_NS, $localName) as $element) {
+            if ($element instanceof \DOMElement && $element->getAttribute('val') !== '') {
+                return $element->getAttribute('val');
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @param array<string, array{target:string,type:string,mode:string}> $relationships
+     */
+    private function chartExternalWorkbook(\DOMDocument $dom, string $chartPath, array $relationships): string
+    {
+        foreach ($dom->getElementsByTagNameNS(self::C_NS, 'externalData') as $externalData) {
+            if (!$externalData instanceof \DOMElement) {
+                continue;
+            }
+            $relationshipId = $this->attr($externalData, self::R_NS, 'id');
+            $relationship = $relationships[$relationshipId] ?? null;
+            if (!is_array($relationship) || ($relationship['target'] ?? '') === '') {
+                continue;
+            }
+            $target = (string) $relationship['target'];
+            if (($relationship['mode'] ?? '') !== 'External') {
+                $target = $this->resolveRelationshipTarget($chartPath, $target);
+            }
+
+            return $target;
+        }
+
+        return '';
     }
 
     /**
