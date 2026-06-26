@@ -6,7 +6,74 @@ use PortLibs\Pandoc\DocxReader;
 use PortLibs\Pandoc\PandocConverter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
+$buildDocxReaderPackageBytes = static function (string $documentXml): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-docx-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary DOCX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary DOCX package');
+    }
+    $zip->addFromString('[Content_Types].xml', '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');
+    $zip->addFromString('word/document.xml', $documentXml);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary DOCX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 return [
+    'resolves docx tracked revisions by configured revision mode' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t xml:space="preserve">Base </w:t></w:r><w:ins w:author="Insert Reviewer" w:date="2026-06-26T12:00:00Z"><w:r><w:t xml:space="preserve">inserted </w:t></w:r></w:ins><w:del w:author="Delete Reviewer" w:date="2026-06-26T12:01:00Z"><w:r><w:delText xml:space="preserve">deleted </w:delText></w:r></w:del><w:moveFrom w:id="9" w:author="Move Reviewer" w:date="2026-06-26T12:02:00Z"><w:r><w:delText xml:space="preserve">moved-from </w:delText></w:r></w:moveFrom><w:moveTo w:id="9" w:author="Move Reviewer" w:date="2026-06-26T12:03:00Z"><w:r><w:t xml:space="preserve">moved-to </w:t></w:r></w:moveTo><w:r><w:t>tail</w:t></w:r></w:p></w:body></w:document>');
+
+        $preserveDocument = (new DocxReader(['revisionMode' => 'preserve']))->read($bytes);
+        $preserve = $preserveDocument->children[0];
+        $preserveBlocks = (new WordPressBlockWriter())->write($preserveDocument);
+        $t->same('Base inserted deleted moved-from moved-to tail', $preserve->attr('text'));
+        $t->same(['insertion'], $preserve->children[1]->attr('classes'));
+        $t->same(['deletion'], $preserve->children[2]->attr('classes'));
+        $t->same(['deletion', 'move-from'], $preserve->children[3]->attr('classes'));
+        $t->same(['insertion', 'move-to'], $preserve->children[4]->attr('classes'));
+        $t->contains('<ins class="insertion" data-pandoc-change-author="Insert Reviewer"', $preserveBlocks);
+        $t->contains('<del class="deletion" data-pandoc-change-author="Delete Reviewer"', $preserveBlocks);
+        $t->contains('<del class="deletion move-from" data-pandoc-change-author="Move Reviewer"', $preserveBlocks);
+        $t->contains('<ins class="insertion move-to" data-pandoc-change-author="Move Reviewer"', $preserveBlocks);
+
+        $acceptDocument = (new DocxReader(['revisionMode' => 'accept']))->read($bytes);
+        $accept = $acceptDocument->children[0];
+        $acceptBlocks = (new WordPressBlockWriter())->write($acceptDocument);
+        $t->same('Base inserted moved-to tail', $accept->attr('text'));
+        $t->same(1, count($accept->children));
+        $t->same('text', $accept->children[0]->type);
+        $t->true(!str_contains($acceptBlocks, '<ins'), 'accepted revisions should not preserve insertion spans');
+        $t->true(!str_contains($acceptBlocks, '<del'), 'accepted revisions should not preserve deletion spans');
+        $t->true(!str_contains($acceptBlocks, 'deleted'), 'accepted revisions should drop deleted text');
+        $t->true(!str_contains($acceptBlocks, 'moved-from'), 'accepted revisions should drop moveFrom text');
+
+        $rejectDocument = PandocConverter::read($bytes, 'docx', ['revisionMode' => 'reject']);
+        $reject = $rejectDocument->children[0];
+        $rejectBlocks = (new WordPressBlockWriter())->write($rejectDocument);
+        $t->same('Base deleted moved-from tail', $reject->attr('text'));
+        $t->same(1, count($reject->children));
+        $t->same('text', $reject->children[0]->type);
+        $t->true(!str_contains($rejectBlocks, '<ins'), 'rejected revisions should not preserve insertion spans');
+        $t->true(!str_contains($rejectBlocks, '<del'), 'rejected revisions should not preserve deletion spans');
+        $t->true(!str_contains($rejectBlocks, 'inserted'), 'rejected revisions should drop inserted text');
+        $t->true(!str_contains($rejectBlocks, 'moved-to'), 'rejected revisions should drop moveTo text');
+
+        $t->throws(InvalidArgumentException::class, static fn (): DocxReader => new DocxReader(['revisionMode' => 'merge']));
+    },
     'reads docx package body metadata notes headers footers and review spans into shared ast' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-docx-');
         if ($path === false) {
