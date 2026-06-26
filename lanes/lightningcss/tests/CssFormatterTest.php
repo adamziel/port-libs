@@ -66,6 +66,93 @@ CSS));
 }
 CSS));
     },
+    'css formatter maps upstream namespace printer cases' => static function (TestRunner $t): void {
+        $formatter = new CssFormatter();
+
+        $t->same(<<<'CSS'
+@namespace "http://example.com/foo";
+
+x {
+  color: red;
+}
+
+CSS, $formatter->format(<<<'CSS'
+@namespace "http://example.com/foo";
+
+x {
+  color: red;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+@namespace toto "http://toto.example.org";
+
+toto|x {
+  color: red;
+}
+
+[toto|att="val"] {
+  color: #00f;
+}
+
+CSS, $formatter->format(<<<'CSS'
+@namespace toto "http://toto.example.org";
+
+toto|x {
+  color: red;
+}
+
+[toto|att=val] {
+  color: blue
+}
+CSS));
+
+        $t->same(<<<'CSS'
+@namespace "http://example.com/foo";
+
+|x {
+  color: red;
+}
+
+[att="val"] {
+  color: #00f;
+}
+
+CSS, $formatter->format(<<<'CSS'
+@namespace "http://example.com/foo";
+
+|x {
+  color: red;
+}
+
+[|att=val] {
+  color: blue
+}
+CSS));
+
+        $t->same(<<<'CSS'
+@namespace "http://example.com/foo";
+
+*|x {
+  color: red;
+}
+
+[*|att="val"] {
+  color: #00f;
+}
+
+CSS, $formatter->format(<<<'CSS'
+@namespace "http://example.com/foo";
+
+*|x {
+  color: red;
+}
+
+[*|att=val] {
+  color: blue
+}
+CSS));
+    },
     'css formatter maps upstream counter-style printer case' => static function (TestRunner $t): void {
         $formatter = new CssFormatter();
 

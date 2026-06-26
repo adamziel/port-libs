@@ -3164,7 +3164,9 @@ return [
         $t->same('color: green', $block->setProperty('color: red !important', 'color', 'green'));
         $t->same('color: green !important', $block->setProperty('color: red !important', 'color', 'green', true));
         $t->same('color: red; background-color: #00f', $block->setProperty('color: red', 'background-color', 'blue'));
+        $t->same('margin: 10px', $block->setProperty('margin: 5px', 'margin', '10px'));
         $t->same('margin: 8px 5px 5px', $block->setProperty('margin: 5px', 'margin-top', '8px'));
+        $t->same('margin: 5px; margin-inline-start: 8px', $block->setProperty('margin: 5px', 'margin-inline-start', '8px'));
         $t->same('padding: 1rem 2rem 1rem 4rem', $block->setProperty('padding: 1rem 2rem', 'padding-left', '4rem'));
         $t->same(
             'margin: 5px; margin-inline-start: 8px; margin-left: 10px',
@@ -4433,6 +4435,7 @@ return [
         $block = new DeclarationBlock();
 
         $t->same('', $block->removeProperty('margin-top: 10px', 'margin-top'));
+        $t->same('margin-left: 5px', $block->removeProperty('margin-top: 10px; margin-left: 5px', 'margin-top'));
         $t->same('margin-left: 5px', $block->removeProperty('margin-top: 10px !important; margin-left: 5px', 'margin-top'));
         $t->same('color: red', $block->removeProperty('margin-top: 10px; color: red; margin-top: 12px', 'margin-top'));
         $t->same(

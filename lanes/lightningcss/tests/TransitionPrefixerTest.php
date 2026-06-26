@@ -2192,6 +2192,11 @@ CSS;
     },
     'transition prefixer maps upstream scroll snap browser boundaries' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
+        $t->same(
+            '.foo{scroll-padding-inline:2px}',
+            $prefixer->prefixForTargets('.foo { scroll-padding-inline: 2px; }', ['safari' => 8])
+        );
+
         $css = '.foo { scroll-snap-type: x mandatory; scroll-snap-coordinate: 0 0; scroll-snap-destination: 50% 50%; scroll-snap-points-x: repeat(100%); scroll-snap-points-y: repeat(50%); }';
         $modern = '.foo{scroll-snap-type:x mandatory;scroll-snap-coordinate:0 0;scroll-snap-destination:50% 50%;scroll-snap-points-x:repeat(100%);scroll-snap-points-y:repeat(50%)}';
         $webkit = '.foo{-webkit-scroll-snap-type:x mandatory;scroll-snap-type:x mandatory;-webkit-scroll-snap-coordinate:0 0;scroll-snap-coordinate:0 0;-webkit-scroll-snap-destination:50% 50%;scroll-snap-destination:50% 50%;-webkit-scroll-snap-points-x:repeat(100%);scroll-snap-points-x:repeat(100%);-webkit-scroll-snap-points-y:repeat(50%);scroll-snap-points-y:repeat(50%)}';

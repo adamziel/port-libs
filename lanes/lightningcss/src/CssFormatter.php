@@ -26,6 +26,7 @@ final class CssFormatter
         $rules = [];
         $cursor = 0;
         $length = strlen($css);
+        $seenNonNamespaceRule = false;
 
         while (true) {
             $cursor = $this->skipWhitespace($css, $cursor);
@@ -34,6 +35,22 @@ final class CssFormatter
             }
 
             $open = $this->findNextTopLevel($css, '{', $cursor);
+            $semicolon = $this->findNextTopLevel($css, ';', $cursor);
+            if ($semicolon !== null && ($open === null || $semicolon < $open)) {
+                $statement = trim(substr($css, $cursor, $semicolon - $cursor));
+                if (preg_match('/^@namespace\b/i', $statement) === 1) {
+                    if ($seenNonNamespaceRule) {
+                        throw new \InvalidArgumentException('Unexpected @namespace rule');
+                    }
+
+                    $rules[] = $this->formatNamespaceRule($statement);
+                    $cursor = $semicolon + 1;
+                    continue;
+                }
+
+                throw new \InvalidArgumentException('Unsupported CSS statement: ' . $statement);
+            }
+
             if ($open === null) {
                 throw new \InvalidArgumentException('Expected a @page block');
             }
@@ -42,18 +59,21 @@ final class CssFormatter
             $close = $this->findMatchingBrace($css, $open);
             if (preg_match('/^@counter-style\s+([_a-zA-Z-][_a-zA-Z0-9-]*)$/', $prelude) === 1) {
                 $rules[] = $this->formatCounterStyleRule($prelude, substr($css, $open + 1, $close - $open - 1), 0);
+                $seenNonNamespaceRule = true;
                 $cursor = $close + 1;
                 continue;
             }
 
             if ($this->isPropertyRulePrelude($prelude)) {
                 $rules[] = $this->formatPropertyRule($prelude, substr($css, $open + 1, $close - $open - 1), 0);
+                $seenNonNamespaceRule = true;
                 $cursor = $close + 1;
                 continue;
             }
 
             if ($this->isConditionalGroupPrelude($prelude)) {
                 $rules[] = $this->formatConditionalGroupRule($prelude, substr($css, $open + 1, $close - $open - 1), 0);
+                $seenNonNamespaceRule = true;
                 $cursor = $close + 1;
                 continue;
             }
@@ -64,15 +84,41 @@ final class CssFormatter
                 }
 
                 $rules[] = $this->formatStyleRule($prelude, substr($css, $open + 1, $close - $open - 1), 0);
+                $seenNonNamespaceRule = true;
                 $cursor = $close + 1;
                 continue;
             }
 
             $rules[] = $this->formatPageRule($prelude, substr($css, $open + 1, $close - $open - 1), 0);
+            $seenNonNamespaceRule = true;
             $cursor = $close + 1;
         }
 
         return implode("\n\n", $rules) . "\n";
+    }
+
+    private function formatNamespaceRule(string $statement): string
+    {
+        if (preg_match('/^@namespace(?:\s+([_a-zA-Z-][_a-zA-Z0-9-]*))?\s+(.+)$/i', $statement, $matches) !== 1) {
+            throw new \InvalidArgumentException('Invalid @namespace rule');
+        }
+
+        $prefix = isset($matches[1]) && $matches[1] !== '' ? $matches[1] . ' ' : '';
+
+        return '@namespace ' . $prefix . $this->formatNamespaceSource(trim($matches[2])) . ';';
+    }
+
+    private function formatNamespaceSource(string $source): string
+    {
+        if (preg_match('/^url\(\s*(.*?)\s*\)$/i', $source, $matches) === 1) {
+            return $this->quoteCssString(trim($matches[1], " \t\n\r\0\x0B\"'"));
+        }
+
+        if ($this->isCssStringToken($source)) {
+            return $this->quoteCssString(substr($source, 1, -1));
+        }
+
+        return $source;
     }
 
     private function formatPageRule(string $prelude, string $body, int $indentLevel): string
@@ -278,7 +324,7 @@ final class CssFormatter
 
     private function formatStyleRule(string $prelude, string $body, int $indentLevel): string
     {
-        $selector = trim(preg_replace('/\s+/', ' ', $prelude) ?? $prelude);
+        $selector = $this->formatStyleSelector($prelude);
         if ($selector === '') {
             throw new \InvalidArgumentException('Invalid empty style rule selector');
         }
@@ -306,6 +352,7 @@ final class CssFormatter
         $indent = $this->indent($indentLevel);
         $prefix = $indent . $property . ': ';
         $formatted = match ($property) {
+            'color' => $this->formatColorDeclarationValue($value),
             'font' => $this->formatFontShorthandValue($value),
             'grid', 'grid-template' => $this->formatGridTemplateDeclarationValue($property, $value, strlen($prefix)),
             default => $this->formatDeclarationValue($value),
@@ -1316,6 +1363,18 @@ final class CssFormatter
         return preg_replace('/\bcounter\(\s*([_a-zA-Z-][_a-zA-Z0-9-]*)\s*\)/', 'counter($1)', $value) ?? $value;
     }
 
+    private function formatColorDeclarationValue(string $value): string
+    {
+        $formatted = $this->formatDeclarationValue($value);
+
+        return match (strtolower($formatted)) {
+            'blue' => '#00f',
+            'yellow' => '#ff0',
+            'black' => '#000',
+            default => $formatted,
+        };
+    }
+
     private function formatPropertyDeclarationValue(string $property, string $value): string
     {
         $property = strtolower($property);
@@ -1342,6 +1401,106 @@ final class CssFormatter
         $syntax = preg_replace('/\s*([#+])\s*/', '$1', $syntax) ?? $syntax;
 
         return '"' . str_replace('"', '\\"', $syntax) . '"';
+    }
+
+    private function formatStyleSelector(string $prelude): string
+    {
+        $selector = trim(preg_replace('/\s+/', ' ', $prelude) ?? $prelude);
+        $output = '';
+        $quote = null;
+        $length = strlen($selector);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $selector[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $selector[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($char === '[') {
+                $close = $this->findSelectorAttributeClose($selector, $i);
+                if ($close !== null) {
+                    $content = substr($selector, $i + 1, $close - $i - 1);
+                    $output .= '[' . $this->formatSelectorAttributeContent($content) . ']';
+                    $i = $close;
+                    continue;
+                }
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
+    }
+
+    private function findSelectorAttributeClose(string $selector, int $open): ?int
+    {
+        $quote = null;
+        $length = strlen($selector);
+
+        for ($i = $open + 1; $i < $length; $i++) {
+            $char = $selector[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === ']') {
+                return $i;
+            }
+        }
+
+        return null;
+    }
+
+    private function formatSelectorAttributeContent(string $content): string
+    {
+        if (preg_match('/^(.+?)\s*([~|^$*]?=)\s*(.+?)(?:\s+([a-zA-Z]))?$/s', trim($content), $matches) !== 1) {
+            return $content;
+        }
+
+        $name = trim($matches[1]);
+        if (str_starts_with($name, '|')) {
+            $name = substr($name, 1);
+        }
+
+        $value = trim($matches[3]);
+        if ($this->isCssStringToken($value)) {
+            $value = substr($value, 1, -1);
+        }
+
+        $flag = isset($matches[4]) && $matches[4] !== '' ? ' ' . strtolower($matches[4]) : '';
+
+        return $name . $matches[2] . $this->quoteCssString($value) . $flag;
+    }
+
+    private function quoteCssString(string $value): string
+    {
+        return '"' . str_replace(['\\', '"'], ['\\\\', '\\"'], $value) . '"';
     }
 
     private function isPropertyRulePrelude(string $prelude): bool

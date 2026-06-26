@@ -1536,6 +1536,25 @@ return [
             );
         }
     },
+    'source map ignores upstream json sourceRoot and file fields before vlq import' => static function (TestRunner $t): void {
+        $json = '{"version":3,"sourceRoot":"/theme/generated","file":"dist/app.css","mappings":"AAAA","sources":["src/card.css"],"sourcesContent":[".card{}"],"names":[]}';
+
+        $map = SourceMap::fromJson($json, '/theme');
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+        $data = $map->toArray('/maps');
+
+        $t->same('AAAA', $map->writeVlq());
+        $t->same(['src/card.css'], $map->getSources());
+        $t->same(['.card{}'], $map->getSourcesContent());
+        $t->same(0, $decoded[0]['sourceIndex']);
+        $t->same('/maps', $data['sourceRoot']);
+        $t->same(['src/card.css'], $data['sources']);
+
+        $dataUrl = 'data:application/json,' . rawurlencode($json);
+        $roundTrip = SourceMap::fromDataUrl($dataUrl, '/theme');
+
+        $t->same($map->toArray(null, false), $roundTrip->toArray(null, false));
+    },
     'source map rejects upstream invalid relative vlq decode offsets' => static function (TestRunner $t): void {
         $t->same(4294967295, SourceMap::decodeVlq('+/////H')[0]['generatedColumn']);
 

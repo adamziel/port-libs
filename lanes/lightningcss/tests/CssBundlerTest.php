@@ -679,6 +679,37 @@ CSS,
             ], $resolved);
         });
     },
+    'css bundler maps upstream only custom resolve filesystem row' => static function (TestRunner $t) use ($withTempFiles): void {
+        $withTempFiles([
+            'tests/testdata/foo.css' => <<<'CSS'
+@import 'root:hello/world.css';
+
+.foo { color: red; }
+CSS,
+            'tests/testdata/hello/world.css' => <<<'CSS'
+@import 'root:baz.css';
+
+.bar { color: green; }
+CSS,
+            'tests/testdata/baz.css' => '.baz { color: blue; }',
+        ], static function (string $root) use ($t): void {
+            $resolved = [];
+            $code = (new CssBundler())->bundleFile(
+                $root . '/tests/testdata/foo.css',
+                static function (string $specifier, string $originatingFile) use (&$resolved, $root): string {
+                    $resolved[] = [$specifier, $originatingFile];
+
+                    return $root . '/tests/testdata/' . substr($specifier, strlen('root:'));
+                }
+            );
+
+            $t->same('.baz{color:#00f}.bar{color:green}.foo{color:red}', $code);
+            $t->same([
+                ['root:hello/world.css', $root . '/tests/testdata/foo.css'],
+                ['root:baz.css', $root . '/tests/testdata/hello/world.css'],
+            ], $resolved);
+        });
+    },
     'css bundler maps upstream custom source provider prefix resolution' => static function (TestRunner $t) use ($bundle): void {
         $resolved = [];
         $resolveFoo = static function (string $specifier, string $originatingFile) use (&$resolved): string {

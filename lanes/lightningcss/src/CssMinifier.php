@@ -7466,9 +7466,540 @@ final class CssMinifier
     private function minifySvgValue(string $property, string $value): string
     {
         return match (strtolower($property)) {
+            'mask',
+            '-webkit-mask' => $this->minifyMaskShorthandValue($value),
+            'mask-border' => $this->minifyMaskBorderValue($value),
+            'clip-path',
+            '-webkit-clip-path' => $this->minifyClipPathValue($value),
             'stroke-dasharray' => $this->minifyStrokeDasharrayValue($value),
             default => $value,
         };
+    }
+
+    private function minifyMaskShorthandValue(string $value): string
+    {
+        $layers = [];
+        foreach ($this->splitTopLevel($value, ',') as $layer) {
+            $layers[] = $this->minifyMaskLayerValue($layer);
+        }
+
+        return implode(',', $layers);
+    }
+
+    private function minifyMaskLayerValue(string $layer): string
+    {
+        $layer = $this->normalizeUrlFunctionsInValue(trim($layer));
+        $slashParts = array_map('trim', $this->splitTopLevel($layer, '/'));
+        if (count($slashParts) > 1) {
+            $layer = implode('/', $slashParts);
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel($layer);
+        if ($tokens === []) {
+            return trim($layer);
+        }
+
+        foreach ($tokens as $index => $token) {
+            if (preg_match('/^url\(/i', trim($token)) === 1) {
+                $tokens[$index] = $this->normalizeCssUrlToken($token, false);
+                continue;
+            }
+
+            if (str_contains($token, '/')) {
+                $parts = $this->splitTopLevel($token, '/');
+                if (count($parts) > 1) {
+                    $parts[0] = $this->minifyMaskPositionComponent($parts[0]);
+                    $tokens[$index] = implode('/', array_map('trim', $parts));
+                }
+            }
+        }
+
+        if (count($tokens) === 2 && preg_match('/^url\(/i', $tokens[0]) === 1 && strtolower($tokens[1]) === 'border-box') {
+            array_pop($tokens);
+        }
+
+        $deduped = [];
+        $previousGeometryBox = null;
+        foreach ($tokens as $token) {
+            $lower = strtolower(trim($token));
+            if ($this->isMaskGeometryBoxToken($lower)) {
+                if ($previousGeometryBox === $lower) {
+                    continue;
+                }
+                $previousGeometryBox = $lower;
+            } else {
+                $previousGeometryBox = null;
+            }
+            $deduped[] = $token;
+        }
+
+        return implode(' ', $deduped);
+    }
+
+    private function minifyMaskPositionComponent(string $token): string
+    {
+        return match (strtolower(trim($token))) {
+            'left', 'top' => '0',
+            'right', 'bottom' => '100%',
+            'center' => '50%',
+            default => trim($token),
+        };
+    }
+
+    private function isMaskGeometryBoxToken(string $token): bool
+    {
+        return in_array($token, [
+            'border-box',
+            'padding-box',
+            'content-box',
+            'fill-box',
+            'stroke-box',
+            'view-box',
+            'margin-box',
+        ], true);
+    }
+
+    private function minifyMaskBorderValue(string $value): string
+    {
+        $groups = array_map('trim', $this->splitTopLevel($this->normalizeUrlFunctionsInValue($value), '/'));
+        if (count($groups) > 3) {
+            return $this->normalizeUrlFunctionsInValue(trim($value));
+        }
+
+        $source = 'none';
+        $sliceTokens = [];
+        $repeatTokens = [];
+        $mode = 'alpha';
+
+        foreach ($this->splitWhitespaceTopLevel($groups[0] ?? '') as $token) {
+            $lower = strtolower(trim($token));
+            if ($this->isMaskBorderModeToken($lower)) {
+                $mode = $lower;
+                continue;
+            }
+            if ($this->isMaskBorderRepeatToken($lower)) {
+                $repeatTokens[] = $lower;
+                continue;
+            }
+            if ($source === 'none' && $this->isMaskBorderSourceToken($token)) {
+                $source = $this->minifyMaskBorderSourceToken($token);
+                continue;
+            }
+
+            $sliceTokens[] = $token;
+        }
+
+        $slice = $sliceTokens === [] ? '100%' : $this->minifySvgBoxSideList($sliceTokens);
+        $width = '1';
+        $outset = '0';
+
+        if (isset($groups[1]) && $groups[1] !== '') {
+            $parsed = $this->parseMaskBorderSlashGroup($groups[1]);
+            if ($parsed['rect'] !== null) {
+                $width = $parsed['rect'];
+            }
+            array_push($repeatTokens, ...$parsed['repeat']);
+            if ($parsed['mode'] !== null) {
+                $mode = $parsed['mode'];
+            }
+        }
+
+        if (isset($groups[2]) && $groups[2] !== '') {
+            $parsed = $this->parseMaskBorderSlashGroup($groups[2]);
+            if ($parsed['rect'] !== null) {
+                $outset = $parsed['rect'];
+            }
+            array_push($repeatTokens, ...$parsed['repeat']);
+            if ($parsed['mode'] !== null) {
+                $mode = $parsed['mode'];
+            }
+        }
+
+        $repeat = $this->minifyMaskBorderRepeatTokens($repeatTokens);
+        $parts = [];
+        if ($source !== 'none') {
+            $parts[] = $source;
+        }
+        if ($slice !== '100%' || $width !== '1' || $outset !== '0') {
+            $slicePart = $slice;
+            if ($width !== '1' || $outset !== '0') {
+                $slicePart .= '/' . ($width !== '1' ? $width : '');
+                if ($outset !== '0') {
+                    $slicePart .= '/' . $outset;
+                }
+            }
+            $parts[] = $slicePart;
+        }
+        if ($repeat !== 'stretch') {
+            $parts[] = $repeat;
+        }
+        if ($mode !== 'alpha') {
+            $parts[] = $mode;
+        }
+
+        return $parts === [] ? 'none' : implode(' ', $parts);
+    }
+
+    /**
+     * @return array{rect:?string,repeat:list<string>,mode:?string}
+     */
+    private function parseMaskBorderSlashGroup(string $group): array
+    {
+        $rectTokens = [];
+        $repeat = [];
+        $mode = null;
+
+        foreach ($this->splitWhitespaceTopLevel($group) as $token) {
+            $lower = strtolower(trim($token));
+            if ($this->isMaskBorderModeToken($lower)) {
+                $mode = $lower;
+                continue;
+            }
+            if ($this->isMaskBorderRepeatToken($lower)) {
+                $repeat[] = $lower;
+                continue;
+            }
+
+            $rectTokens[] = $token;
+        }
+
+        return [
+            'rect' => $rectTokens === [] ? null : $this->minifySvgBoxSideList($rectTokens),
+            'repeat' => $repeat,
+            'mode' => $mode,
+        ];
+    }
+
+    private function isMaskBorderSourceToken(string $token): bool
+    {
+        return strtolower(trim($token)) === 'none'
+            || preg_match('/^(?:url|(?:-(?:webkit|o)-)?(?:linear|radial|conic)-gradient|image-set|cross-fade|paint)\(/i', trim($token)) === 1;
+    }
+
+    private function minifyMaskBorderSourceToken(string $token): string
+    {
+        return preg_match('/^url\(/i', trim($token)) === 1
+            ? $this->normalizeCssUrlToken($token, false)
+            : trim($token);
+    }
+
+    private function isMaskBorderModeToken(string $token): bool
+    {
+        return $token === 'alpha' || $token === 'luminance';
+    }
+
+    private function isMaskBorderRepeatToken(string $token): bool
+    {
+        return in_array($token, ['stretch', 'repeat', 'round', 'space'], true);
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function minifyMaskBorderRepeatTokens(array $tokens): string
+    {
+        $tokens = array_values(array_filter($tokens, static fn (string $token): bool => $token !== ''));
+        if ($tokens === []) {
+            return 'stretch';
+        }
+        if (count($tokens) === 1 || ($tokens[0] ?? null) === ($tokens[1] ?? null)) {
+            return $tokens[0];
+        }
+
+        return $tokens[0] . ' ' . $tokens[1];
+    }
+
+    private function minifyClipPathValue(string $value): string
+    {
+        $trimmed = trim($this->normalizeUrlFunctionsInValue($value));
+        if ($trimmed === '') {
+            return $trimmed;
+        }
+        if (strcasecmp($trimmed, 'none') === 0) {
+            return 'none';
+        }
+        if (preg_match('/^url\(/i', $trimmed) === 1) {
+            return $this->normalizeCssUrlToken($trimmed, false);
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel($trimmed);
+        if (count($tokens) === 1) {
+            $box = $this->minifyClipPathGeometryBox($tokens[0]);
+
+            return $box ?? $this->minifyClipPathShape($tokens[0]) ?? $trimmed;
+        }
+
+        if (count($tokens) === 2) {
+            $firstBox = $this->minifyClipPathGeometryBox($tokens[0]);
+            $secondBox = $this->minifyClipPathGeometryBox($tokens[1]);
+            $shape = $firstBox !== null
+                ? $this->minifyClipPathShape($tokens[1])
+                : ($secondBox !== null ? $this->minifyClipPathShape($tokens[0]) : null);
+            $box = $firstBox ?? $secondBox;
+
+            if ($shape !== null && $box !== null) {
+                return $box === 'border-box' ? $shape : $shape . ' ' . $box;
+            }
+        }
+
+        return $trimmed;
+    }
+
+    private function minifyClipPathGeometryBox(string $token): ?string
+    {
+        $box = strtolower(trim($token));
+
+        return $this->isMaskGeometryBoxToken($box) ? $box : null;
+    }
+
+    private function minifyClipPathShape(string $shape): ?string
+    {
+        $shape = trim($shape);
+        if (preg_match('/^([_a-zA-Z][_a-zA-Z0-9-]*)\((.*)\)$/s', $shape, $matches) !== 1) {
+            return null;
+        }
+
+        $function = strtolower($matches[1]);
+        $body = trim($matches[2]);
+
+        return match ($function) {
+            'inset' => $this->minifyClipPathInset($body),
+            'circle' => $this->minifyClipPathCircle($body),
+            'ellipse' => $this->minifyClipPathEllipse($body),
+            'polygon' => $this->minifyClipPathPolygon($body),
+            default => null,
+        };
+    }
+
+    private function minifyClipPathInset(string $body): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($body);
+        if ($tokens === []) {
+            return 'inset()';
+        }
+
+        $roundIndex = null;
+        foreach ($tokens as $index => $token) {
+            if (strcasecmp($token, 'round') === 0) {
+                $roundIndex = $index;
+                break;
+            }
+        }
+
+        $insets = $roundIndex === null ? $tokens : array_slice($tokens, 0, $roundIndex);
+        $parts = [$this->minifySvgBoxSideList($insets)];
+        if ($roundIndex !== null) {
+            $radius = array_slice($tokens, $roundIndex + 1);
+            if ($radius !== []) {
+                $parts[] = 'round';
+                $parts[] = $this->minifySvgBoxSideList($radius);
+            }
+        }
+
+        return 'inset(' . implode(' ', array_filter($parts, static fn (string $part): bool => $part !== '')) . ')';
+    }
+
+    private function minifyClipPathCircle(string $body): string
+    {
+        [$radiusTokens, $positionTokens] = $this->splitClipPathAtPositionTokens($body);
+        $parts = [];
+        $radius = $this->minifyClipPathRadiusTokens($radiusTokens, true);
+        if ($radius !== null) {
+            $parts[] = $radius;
+        }
+        $position = $this->minifyClipPathPositionTokens($positionTokens);
+        if ($position !== null) {
+            $parts[] = 'at ' . $position;
+        }
+
+        return 'circle(' . implode(' ', $parts) . ')';
+    }
+
+    private function minifyClipPathEllipse(string $body): string
+    {
+        [$radiusTokens, $positionTokens] = $this->splitClipPathAtPositionTokens($body);
+        $parts = [];
+        $radius = $this->minifyClipPathRadiusTokens($radiusTokens, false);
+        if ($radius !== null) {
+            $parts[] = $radius;
+        }
+        $position = $this->minifyClipPathPositionTokens($positionTokens);
+        if ($position !== null) {
+            $parts[] = 'at ' . $position;
+        }
+
+        return 'ellipse(' . implode(' ', $parts) . ')';
+    }
+
+    private function minifyClipPathPolygon(string $body): string
+    {
+        $parts = array_map('trim', $this->splitTopLevel($body, ','));
+        if ($parts === [] || in_array('', $parts, true)) {
+            return 'polygon(' . trim($body) . ')';
+        }
+
+        $fillRule = strtolower($parts[0]);
+        if ($fillRule === 'nonzero') {
+            array_shift($parts);
+        } elseif ($fillRule === 'evenodd') {
+            $parts[0] = 'evenodd';
+        }
+
+        $normalized = [];
+        foreach ($parts as $part) {
+            if ($part === 'evenodd') {
+                $normalized[] = $part;
+                continue;
+            }
+
+            $normalized[] = implode(
+                ' ',
+                array_map(fn (string $token): string => $this->minifyClipPathComponentToken($token), $this->splitWhitespaceTopLevel($part))
+            );
+        }
+
+        return 'polygon(' . implode(',', $normalized) . ')';
+    }
+
+    /**
+     * @return array{0:list<string>,1:list<string>}
+     */
+    private function splitClipPathAtPositionTokens(string $body): array
+    {
+        $tokens = $this->splitWhitespaceTopLevel($body);
+        foreach ($tokens as $index => $token) {
+            if (strcasecmp($token, 'at') === 0) {
+                return [array_slice($tokens, 0, $index), array_slice($tokens, $index + 1)];
+            }
+        }
+
+        return [$tokens, []];
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function minifyClipPathRadiusTokens(array $tokens, bool $circle): ?string
+    {
+        if ($tokens === []) {
+            return null;
+        }
+
+        $normalized = array_map(fn (string $token): string => $this->minifyClipPathComponentToken($token), $tokens);
+        if ($circle && count($normalized) === 1 && $normalized[0] === 'closest-side') {
+            return null;
+        }
+        if (!$circle && count($normalized) === 2 && $normalized[0] === 'closest-side' && $normalized[1] === 'closest-side') {
+            return null;
+        }
+
+        return implode(' ', $normalized);
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function minifyClipPathPositionTokens(array $tokens): ?string
+    {
+        if ($tokens === []) {
+            return null;
+        }
+
+        $normalized = array_map(fn (string $token): string => $this->minifyClipPathComponentToken($token), $tokens);
+        if ($normalized === ['center', 'center'] || $normalized === ['50%', '50%']) {
+            return null;
+        }
+
+        return implode(' ', $normalized);
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function minifySvgBoxSideList(array $tokens): string
+    {
+        if ($tokens === []) {
+            return '';
+        }
+
+        $values = array_map(fn (string $token): string => $this->minifyClipPathComponentToken($token), $tokens);
+        if (count($values) >= 1 && count($values) <= 4) {
+            return match (count($values)) {
+                1 => $values[0],
+                2 => $values[0] === $values[1] ? $values[0] : $values[0] . ' ' . $values[1],
+                3 => $values[1] === $values[0] && $values[2] === $values[0] ? $values[0] : implode(' ', $values),
+                default => match (true) {
+                    $values[0] === $values[1] && $values[0] === $values[2] && $values[0] === $values[3] => $values[0],
+                    $values[0] === $values[2] && $values[1] === $values[3] => $values[0] . ' ' . $values[1],
+                    $values[1] === $values[3] => $values[0] . ' ' . $values[1] . ' ' . $values[2],
+                    default => implode(' ', $values),
+                },
+            };
+        }
+
+        return implode(' ', $values);
+    }
+
+    private function minifyClipPathComponentToken(string $token): string
+    {
+        $token = trim($token);
+        $keyword = strtolower($token);
+        if (in_array($keyword, ['closest-side', 'farthest-side', 'center', 'left', 'right', 'top', 'bottom', 'nonzero', 'evenodd'], true)) {
+            return $keyword;
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $token, $matches) === 1) {
+            return $this->minifyNumber((float) $matches[1]) . '%';
+        }
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))([a-z]+)$/i', $token, $matches) === 1) {
+            $number = $this->minifyNumber((float) $matches[1]);
+
+            return $number === '0' ? '0' : $number . strtolower($matches[2]);
+        }
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $token) === 1) {
+            return $this->minifyNumber((float) $token);
+        }
+
+        return $token;
+    }
+
+    private function normalizeUrlFunctionsInValue(string $value): string
+    {
+        $output = '';
+        $quote = null;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($this->startsUrlFunction($value, $i)) {
+                [$url, $offset] = $this->readFunctionRaw($value, $i);
+                $output .= $this->normalizeCssUrlToken($url, false);
+                $i = $offset;
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
     }
 
     private function minifyStrokeDasharrayValue(string $value): string

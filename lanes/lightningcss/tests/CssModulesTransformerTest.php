@@ -1757,6 +1757,9 @@ CSS);
             '.my-class a { color: red }' => '.EgL3uq_my-class a{color:red}',
             '.my-class:is(a) { color: red }' => '.EgL3uq_my-class:is(a){color:red}',
             'div:has(.my-class) { color: red }' => 'div:has(.EgL3uq_my-class){color:red}',
+            '.foo { html &:hover { a_value: some-value; } }' => 'html .EgL3uq_foo:hover{a_value:some-value}',
+            '.foo { span { color: red; } }' => '.EgL3uq_foo span{color:red}',
+            '.foo { div { span { color: red; } } }' => '.EgL3uq_foo div span{color:red}',
         ];
 
         foreach ($passing as $css => $expected) {
@@ -1804,6 +1807,7 @@ CSS, [
             ':global(.foo) { width: 20px }',
             '[foo=bar] { width: 20px }',
             'div, .foo { width: 20px }',
+            'html { .foo { span { color: red; } } }',
         ] as $css) {
             $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform($css, ['pure' => true]));
         }

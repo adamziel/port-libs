@@ -3676,6 +3676,62 @@ CSS;
         $t->same('.foo{stroke-dasharray:4 1 2}', $minifier->minify('.foo { stroke-dasharray: 4, 1, 2; }'));
         $t->same('.foo{stroke-dasharray:4 1 2}', $minifier->minify('.foo { stroke-dasharray: 4px, 1px, 2px; }'));
     },
+    'css minifier maps upstream svg mask values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $cases = [
+            ".foo { mask: url('foo.svg'); }" => '.foo{mask:url(foo.svg)}',
+            '.foo { mask: url(masks.svg#star) luminance }' => '.foo{mask:url(masks.svg#star) luminance}',
+            '.foo { mask: url(masks.svg#star) 40px 20px }' => '.foo{mask:url(masks.svg#star) 40px 20px}',
+            '.foo { mask: url(masks.svg#star) 0 0 / 50px 50px }' => '.foo{mask:url(masks.svg#star) 0 0/50px 50px}',
+            '.foo { mask: url(masks.svg#star) repeat-x }' => '.foo{mask:url(masks.svg#star) repeat-x}',
+            '.foo { mask: url(masks.svg#star) stroke-box }' => '.foo{mask:url(masks.svg#star) stroke-box}',
+            '.foo { mask: url(masks.svg#star) stroke-box stroke-box }' => '.foo{mask:url(masks.svg#star) stroke-box}',
+            '.foo { mask: url(masks.svg#star) border-box }' => '.foo{mask:url(masks.svg#star)}',
+            '.foo { mask: url(masks.svg#star) left / 16px repeat-y, url(masks.svg#circle) right / 16px repeat-y }' => '.foo{mask:url(masks.svg#star) 0/16px repeat-y,url(masks.svg#circle) 100%/16px repeat-y}',
+            ".foo { mask-border: url('border-mask.png') 25; }" => '.foo{mask-border:url(border-mask.png) 25}',
+            ".foo { mask-border: url('border-mask.png') 25 / 35px / 12px space alpha; }" => '.foo{mask-border:url(border-mask.png) 25/35px/12px space}',
+            ".foo { mask-border: url('border-mask.png') 25 / 35px / 12px space luminance; }" => '.foo{mask-border:url(border-mask.png) 25/35px/12px space luminance}',
+            ".foo { mask-border: url('border-mask.png') luminance 25 / 35px / 12px space; }" => '.foo{mask-border:url(border-mask.png) 25/35px/12px space luminance}',
+        ];
+
+        foreach ($cases as $input => $expected) {
+            $t->same($expected, $minifier->minify($input));
+        }
+    },
+    'css minifier maps upstream clip path values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $cases = [
+            ".foo { clip-path: url('clip.svg#star'); }" => '.foo{clip-path:url(clip.svg#star)}',
+            '.foo { clip-path: margin-box; }' => '.foo{clip-path:margin-box}',
+            '.foo { clip-path: inset(100px 50px); }' => '.foo{clip-path:inset(100px 50px)}',
+            '.foo { clip-path: inset(100px 50px round 5px); }' => '.foo{clip-path:inset(100px 50px round 5px)}',
+            '.foo { clip-path: inset(100px 50px round 5px 5px 5px 5px); }' => '.foo{clip-path:inset(100px 50px round 5px)}',
+            '.foo { clip-path: circle(50px); }' => '.foo{clip-path:circle(50px)}',
+            '.foo { clip-path: circle(50px at center center); }' => '.foo{clip-path:circle(50px)}',
+            '.foo { clip-path: circle(50px at 50% 50%); }' => '.foo{clip-path:circle(50px)}',
+            '.foo { clip-path: circle(50px at 0 100px); }' => '.foo{clip-path:circle(50px at 0 100px)}',
+            '.foo { clip-path: circle(closest-side at 0 100px); }' => '.foo{clip-path:circle(at 0 100px)}',
+            '.foo { clip-path: circle(farthest-side at 0 100px); }' => '.foo{clip-path:circle(farthest-side at 0 100px)}',
+            '.foo { clip-path: circle(closest-side at 50% 50%); }' => '.foo{clip-path:circle()}',
+            '.foo { clip-path: ellipse(50px 60px at 0 10% 20%); }' => '.foo{clip-path:ellipse(50px 60px at 0 10% 20%)}',
+            '.foo { clip-path: ellipse(50px 60px at center center); }' => '.foo{clip-path:ellipse(50px 60px)}',
+            '.foo { clip-path: ellipse(closest-side closest-side at 50% 50%); }' => '.foo{clip-path:ellipse()}',
+            '.foo { clip-path: ellipse(closest-side closest-side at 10% 20%); }' => '.foo{clip-path:ellipse(at 10% 20%)}',
+            '.foo { clip-path: ellipse(farthest-side closest-side at 10% 20%); }' => '.foo{clip-path:ellipse(farthest-side closest-side at 10% 20%)}',
+            '.foo { clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); }' => '.foo{clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%)}',
+            '.foo { clip-path: polygon(nonzero, 50% 0%, 100% 50%, 50% 100%, 0% 50%); }' => '.foo{clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%)}',
+            '.foo { clip-path: polygon(evenodd, 50% 0%, 100% 50%, 50% 100%, 0% 50%); }' => '.foo{clip-path:polygon(evenodd,50% 0%,100% 50%,50% 100%,0% 50%)}',
+            '.foo { clip-path: padding-box circle(50px at 0 100px); }' => '.foo{clip-path:circle(50px at 0 100px) padding-box}',
+            '.foo { clip-path: circle(50px at 0 100px) padding-box; }' => '.foo{clip-path:circle(50px at 0 100px) padding-box}',
+            '.foo { clip-path: circle(50px at 0 100px) border-box; }' => '.foo{clip-path:circle(50px at 0 100px)}',
+        ];
+
+        foreach ($cases as $input => $expected) {
+            $t->same($expected, $minifier->minify($input));
+        }
+    },
     'css minifier maps upstream filter value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
