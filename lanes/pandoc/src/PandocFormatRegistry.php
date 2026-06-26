@@ -201,8 +201,8 @@ final class PandocFormatRegistry
         ],
         'docbook' => [
             'status' => 'partial',
-            'implementation' => MarkdownReader::class,
-            'notes' => 'Bounded DocBook table command fixtures are mapped; full DocBook XML reader is not implemented.',
+            'implementation' => XmlReader::class,
+            'notes' => 'Bounded DocBook XML reader uses the generic XML path for document-like content and CALS-style table structures, including informaltable roots, tgroup rows, entry cells, namest/nameend spans, morerows, and emphasis. Full DocBook semantic parity remains open.',
         ],
         'docx' => [
             'status' => 'partial',

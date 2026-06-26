@@ -18,10 +18,18 @@ final class XmlReader
         'doc',
         'document',
         'front',
+        'info',
         'main',
         'part',
         'root',
         'section',
+        'sect1',
+        'sect2',
+        'sect3',
+        'sect4',
+        'sect5',
+        'sect6',
+        'simplesect',
         'subsection',
         'topic',
     ];
@@ -33,6 +41,7 @@ final class XmlReader
         'cite',
         'code',
         'del',
+        'emphasis',
         'em',
         'i',
         'inline',
@@ -66,6 +75,7 @@ final class XmlReader
         'image',
         'imagedata',
         'img',
+        'informaltable',
         'itemizedlist',
         'li',
         'list',
@@ -82,6 +92,7 @@ final class XmlReader
         'quote',
         'row',
         'screen',
+        'simpara',
         'sourcecode',
         'table',
         'tbody',
@@ -127,7 +138,9 @@ final class XmlReader
 
         $namespaceReview = XmlHtmlDom::summarizeXmlNamespaceUsage($dom);
         $body = $this->documentBody($root);
-        $blocks = $this->parseChildrenAsBlocks($body, 1);
+        $blocks = $this->shouldParseRootAsBlock($body)
+            ? $this->parseBlockElement($body, 1)
+            : $this->parseChildrenAsBlocks($body, 1);
         if ($blocks === []) {
             $inlines = $this->trimInlineEdges($this->parseInlineChildren($body));
             if ($inlines !== []) {
@@ -180,6 +193,18 @@ final class XmlReader
         }
 
         return $root;
+    }
+
+    private function shouldParseRootAsBlock(\DOMElement $element): bool
+    {
+        return $this->isTableElement($element)
+            || $this->isListElement($element)
+            || in_array($this->localName($element), ['p', 'para', 'paragraph', 'simpara'], true)
+            || in_array($this->localName($element), ['dl', 'variablelist'], true)
+            || in_array($this->localName($element), ['figure', 'mediaobject'], true)
+            || $this->isImageElement($element)
+            || $this->isCodeBlockElement($element)
+            || in_array($this->localName($element), ['blockquote', 'quote', 'epigraph', 'pullquote'], true);
     }
 
     /**
@@ -235,7 +260,7 @@ final class XmlReader
             ], $this->trimInlineEdges($this->parseInlineChildren($element)))];
         }
 
-        if (in_array($local, ['p', 'para', 'paragraph'], true)) {
+        if (in_array($local, ['p', 'para', 'paragraph', 'simpara', 'subtitle'], true)) {
             $inlines = $this->trimInlineEdges($this->parseInlineChildren($element));
 
             return $inlines === [] ? [] : [$this->paragraph($inlines, $element)];
@@ -249,7 +274,7 @@ final class XmlReader
             return [$this->parseDefinitionList($element)];
         }
 
-        if ($local === 'table') {
+        if ($this->isTableElement($element)) {
             return [$this->parseTable($element)];
         }
 
@@ -275,7 +300,7 @@ final class XmlReader
             return [new AstNode('horizontal_rule')];
         }
 
-        $childDepth = in_array($local, ['section', 'chapter', 'part', 'subsection'], true) ? $depth + 1 : $depth;
+        $childDepth = $this->isSectionContainer($element) ? $depth + 1 : $depth;
         $children = $this->parseChildrenAsBlocks($element, $childDepth);
         if ($children === []) {
             $inlines = $this->trimInlineEdges($this->parseInlineChildren($element));
@@ -394,13 +419,15 @@ final class XmlReader
     {
         ++$this->tableCount;
         $captionInlines = $this->captionInlines($element);
+        $columnMap = $this->tableColumnMap($element);
+        $spanMap = $this->tableSpanMap($element, $columnMap);
         $headRows = [];
         $bodyRows = [];
         $footRows = [];
 
         foreach ($this->tableRows($element) as $row) {
             $section = $this->tableRowSection($row);
-            $parsed = $this->parseTableRow($row, $section === 'head');
+            $parsed = $this->parseTableRow($row, $section === 'head', $columnMap, $spanMap);
             if ($section === 'head') {
                 $headRows[] = $parsed;
             } elseif ($section === 'foot') {
@@ -426,7 +453,11 @@ final class XmlReader
         ], $children);
     }
 
-    private function parseTableRow(\DOMElement $row, bool $headerSection): AstNode
+    /**
+     * @param array<string, int> $columnMap
+     * @param array<string, int> $spanMap
+     */
+    private function parseTableRow(\DOMElement $row, bool $headerSection, array $columnMap = [], array $spanMap = []): AstNode
     {
         $cells = [];
         foreach ($this->directChildElements($row) as $cell) {
@@ -434,13 +465,18 @@ final class XmlReader
             if (!in_array($local, ['td', 'th', 'entry', 'cell'], true)) {
                 continue;
             }
-            $inlines = $this->trimInlineEdges($this->parseInlineChildren($cell));
-            $cells[] = new AstNode('table_cell', [
+            $inlines = $this->tableCellInlines($cell);
+            $alignment = $this->tableCellAlignment($cell);
+            $attrs = [
                 'header' => $headerSection || $local === 'th' || strtolower($cell->getAttribute('role')) === 'header',
-                'colspan' => $this->positiveIntAttribute($cell, ['colspan', 'cols'], 1),
-                'rowspan' => $this->positiveIntAttribute($cell, ['rowspan', 'rows'], 1),
+                'colspan' => $this->tableCellColspan($cell, $columnMap, $spanMap),
+                'rowspan' => $this->tableCellRowspan($cell),
                 'htmlAttributes' => $this->htmlAttributes($cell),
-            ], $inlines);
+            ];
+            if ($alignment !== '') {
+                $attrs['align'] = $alignment;
+            }
+            $cells[] = new AstNode('table_cell', $attrs, $inlines);
         }
 
         return new AstNode('table_row', [
@@ -456,7 +492,7 @@ final class XmlReader
         $rows = [];
         $walker = function (\DOMElement $element) use (&$walker, &$rows, $table): void {
             foreach ($this->directChildElements($element) as $child) {
-                if ($child !== $table && $this->localName($child) === 'table') {
+                if ($child !== $table && $this->isTableElement($child)) {
                     continue;
                 }
                 if (in_array($this->localName($child), ['tr', 'row'], true)) {
@@ -469,6 +505,149 @@ final class XmlReader
         $walker($table);
 
         return $rows;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableCellInlines(\DOMElement $cell): array
+    {
+        $inlines = [];
+        foreach ($cell->childNodes as $child) {
+            if ($child instanceof \DOMText || $child instanceof \DOMCdataSection) {
+                $this->appendTextInline($inlines, (string) $child->nodeValue);
+                continue;
+            }
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $local = $this->localName($child);
+            if (in_array($local, ['p', 'para', 'paragraph', 'simpara'], true)) {
+                if ($this->trimInlineEdges($inlines) !== []) {
+                    $inlines[] = new AstNode('linebreak');
+                }
+                foreach ($this->parseInlineChildren($child) as $inline) {
+                    $inlines[] = $inline;
+                }
+                continue;
+            }
+
+            foreach ($this->parseInlineElement($child) as $inline) {
+                $inlines[] = $inline;
+            }
+        }
+
+        return $this->trimInlineEdges($inlines);
+    }
+
+    private function tableCellAlignment(\DOMElement $cell): string
+    {
+        $align = strtolower($this->attributeValue($cell, ['align']));
+        if ($align === '') {
+            return '';
+        }
+
+        return match ($align) {
+            'left', 'right', 'center' => $align,
+            'centre' => 'center',
+            default => '',
+        };
+    }
+
+    /**
+     * @param array<string, int> $columnMap
+     * @param array<string, int> $spanMap
+     */
+    private function tableCellColspan(\DOMElement $cell, array $columnMap, array $spanMap): int
+    {
+        $htmlColspan = $this->positiveIntAttribute($cell, ['colspan', 'cols'], 0);
+        if ($htmlColspan > 0) {
+            return $htmlColspan;
+        }
+
+        $spanName = $this->attributeValue($cell, ['spanname']);
+        if ($spanName !== '' && isset($spanMap[$spanName])) {
+            return $spanMap[$spanName];
+        }
+
+        $nameStart = $this->attributeValue($cell, ['namest']);
+        $nameEnd = $this->attributeValue($cell, ['nameend']);
+        if ($nameStart !== '' && $nameEnd !== '' && isset($columnMap[$nameStart], $columnMap[$nameEnd])) {
+            return max(1, $columnMap[$nameEnd] - $columnMap[$nameStart] + 1);
+        }
+
+        return 1;
+    }
+
+    private function tableCellRowspan(\DOMElement $cell): int
+    {
+        $htmlRowspan = $this->positiveIntAttribute($cell, ['rowspan', 'rows'], 0);
+        if ($htmlRowspan > 0) {
+            return $htmlRowspan;
+        }
+
+        $moreRows = $this->positiveIntAttribute($cell, ['morerows'], 0);
+        if ($moreRows > 0) {
+            return $moreRows + 1;
+        }
+
+        return 1;
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function tableColumnMap(\DOMElement $table): array
+    {
+        $columns = [];
+        $walker = function (\DOMElement $element) use (&$walker, &$columns, $table): void {
+            foreach ($this->directChildElements($element) as $child) {
+                if ($child !== $table && $this->isTableElement($child)) {
+                    continue;
+                }
+                if ($this->localName($child) === 'colspec') {
+                    $name = $this->attributeValue($child, ['colname']);
+                    if ($name !== '' && !isset($columns[$name])) {
+                        $columns[$name] = count($columns) + 1;
+                    }
+                    continue;
+                }
+                $walker($child);
+            }
+        };
+        $walker($table);
+
+        return $columns;
+    }
+
+    /**
+     * @param array<string, int> $columnMap
+     * @return array<string, int>
+     */
+    private function tableSpanMap(\DOMElement $table, array $columnMap): array
+    {
+        $spans = [];
+        $walker = function (\DOMElement $element) use (&$walker, &$spans, $table, $columnMap): void {
+            foreach ($this->directChildElements($element) as $child) {
+                if ($child !== $table && $this->isTableElement($child)) {
+                    continue;
+                }
+                if ($this->localName($child) === 'spanspec') {
+                    $name = $this->attributeValue($child, ['spanname']);
+                    $nameStart = $this->attributeValue($child, ['namest']);
+                    $nameEnd = $this->attributeValue($child, ['nameend']);
+                    if ($name !== '' && isset($columnMap[$nameStart], $columnMap[$nameEnd])) {
+                        $spans[$name] = max(1, $columnMap[$nameEnd] - $columnMap[$nameStart] + 1);
+                    }
+                    continue;
+                }
+                $walker($child);
+            }
+        };
+        $walker($table);
+
+        return $spans;
     }
 
     private function parseFigure(\DOMElement $element): AstNode
@@ -577,6 +756,9 @@ final class XmlReader
 
         return match ($local) {
             'b', 'strong' => [new AstNode('strong', [], $children)],
+            'emphasis' => strtolower($this->attributeValue($element, ['role'])) === 'strong'
+                ? [new AstNode('strong', [], $children)]
+                : [new AstNode('emph', [], $children)],
             'cite', 'em', 'i', 'italic' => [new AstNode('emph', [], $children)],
             'code', 'literal', 'monospace', 'tt' => [new AstNode('code', [
                 'text' => $this->elementText($element),
@@ -586,11 +768,7 @@ final class XmlReader
             'sub' => [new AstNode('subscript', [], $children)],
             'sup' => [new AstNode('superscript', [], $children)],
             'u' => [new AstNode('underline', [], $children)],
-            'a', 'link', 'ref', 'xref' => [new AstNode('link', [
-                'url' => $this->attributeValue($element, ['href', 'xlink:href', 'target', 'rid']),
-                'title' => $this->attributeValue($element, ['title']),
-                'htmlAttributes' => $this->htmlAttributes($element),
-            ], $children === [] ? [new AstNode('text', ['text' => $this->attributeValue($element, ['href', 'xlink:href', 'target', 'rid'])])] : $children)],
+            'a', 'link', 'ref', 'xref' => [$this->linkInline($element, $children)],
             default => [new AstNode('span', [
                 'classes' => ['xml-inline', 'xml-' . $this->sanitizeClass($local)],
                 'htmlAttributes' => $this->htmlAttributes($element),
@@ -676,6 +854,16 @@ final class XmlReader
         return in_array($this->localName($element), ['li', 'item', 'listitem'], true);
     }
 
+    private function isSectionContainer(\DOMElement $element): bool
+    {
+        return in_array($this->localName($element), ['section', 'chapter', 'part', 'subsection', 'sect1', 'sect2', 'sect3', 'sect4', 'sect5', 'sect6', 'simplesect'], true);
+    }
+
+    private function isTableElement(\DOMElement $element): bool
+    {
+        return in_array($this->localName($element), ['table', 'informaltable'], true);
+    }
+
     private function isImageElement(\DOMElement $element): bool
     {
         return in_array($this->localName($element), ['graphic', 'image', 'imagedata', 'img', 'inlinegraphic', 'media'], true)
@@ -691,6 +879,74 @@ final class XmlReader
     {
         return $this->localName($element) === 'math'
             || (string) ($element->namespaceURI ?? '') === 'http://www.w3.org/1998/Math/MathML';
+    }
+
+    /**
+     * @param list<AstNode> $children
+     */
+    private function linkInline(\DOMElement $element, array $children): AstNode
+    {
+        $target = $this->xmlLinkTarget($element);
+        $htmlAttributes = $this->htmlAttributes($element);
+        if ($target['droppedScheme'] !== '') {
+            $htmlAttributes['data-pandoc-dropped-href-scheme'] = $target['droppedScheme'];
+
+            return new AstNode('span', [
+                'classes' => ['xml-inline', 'xml-link'],
+                'htmlAttributes' => $htmlAttributes,
+            ], $children === [] ? [new AstNode('text', ['text' => $target['label']])] : $children);
+        }
+
+        return new AstNode('link', [
+            'url' => $target['url'],
+            'title' => $this->attributeValue($element, ['title']),
+            'htmlAttributes' => $htmlAttributes,
+        ], $children === [] ? [new AstNode('text', ['text' => $target['label']])] : $children);
+    }
+
+    /**
+     * @return array{url:string, label:string, droppedScheme:string}
+     */
+    private function xmlLinkTarget(\DOMElement $element): array
+    {
+        $linkend = $this->attributeValue($element, ['linkend']);
+        if ($linkend !== '') {
+            $linkend = ltrim($linkend, '#');
+
+            return [
+                'url' => '#' . $linkend,
+                'label' => $linkend,
+                'droppedScheme' => '',
+            ];
+        }
+
+        $url = $this->attributeValue($element, ['href', 'xlink:href', 'target', 'rid']);
+        $droppedScheme = $this->unsafeLinkScheme($url);
+        if ($droppedScheme !== '') {
+            return [
+                'url' => '',
+                'label' => '',
+                'droppedScheme' => $droppedScheme,
+            ];
+        }
+
+        return [
+            'url' => $url,
+            'label' => $url,
+            'droppedScheme' => '',
+        ];
+    }
+
+    private function unsafeLinkScheme(string $url): string
+    {
+        $url = trim($url);
+        if ($url === '' || preg_match('/^([A-Za-z][A-Za-z0-9+.-]*):/', $url, $match) !== 1) {
+            return '';
+        }
+
+        $scheme = strtolower($match[1]);
+
+        return in_array($scheme, ['http', 'https', 'mailto', 'tel', 'ftp'], true) ? '' : $scheme;
     }
 
     /**
@@ -736,7 +992,7 @@ final class XmlReader
             if ($local === 'tfoot') {
                 return 'foot';
             }
-            if ($local === 'table') {
+            if ($this->isTableElement($parent)) {
                 break;
             }
             $parent = $parent->parentNode;

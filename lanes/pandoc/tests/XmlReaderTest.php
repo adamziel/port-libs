@@ -92,6 +92,56 @@ XML;
         $t->contains('<td data-xml-element="td">Widget</td><td data-xml-element="td">7</td>', $blocks);
         $t->contains('<figcaption class="wp-element-caption">Inventory</figcaption>', $blocks);
     },
+    'maps docbook informaltable roots into wordpress table blocks' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-docbook-table.xml');
+        $document = PandocConverter::read($source, 'docbook');
+        $blocks = PandocConverter::convert($source, 'docbook', 'blocks');
+        $table = $document->children[0];
+        $body = $table->children[0];
+        $foot = $table->children[1];
+
+        $t->same(1, $document->attr('meta')['xmlTableCount']);
+        $t->same(0, $document->attr('meta')['xmlGenericContainerCount']);
+        $t->same('table', $table->type);
+        $t->same('informaltable', $table->attr('htmlAttributes')['data-xml-element']);
+        $t->same('table_body', $body->type);
+        $t->same('table_foot', $foot->type);
+        $t->same(5, count($body->children));
+        $t->same(1, count($foot->children));
+        $t->same(4, $body->children[0]->children[0]->attr('colspan'));
+        $t->same('center', $body->children[0]->children[0]->attr('align'));
+        $t->same(2, $body->children[2]->children[0]->attr('colspan'));
+        $t->same(2, $body->children[2]->children[1]->attr('colspan'));
+        $t->same(2, $body->children[3]->children[0]->attr('rowspan'));
+        $t->same(3, $body->children[3]->children[1]->attr('colspan'));
+        $t->same(4, $foot->children[0]->children[0]->attr('colspan'));
+        $t->contains('<!-- wp:table -->', $blocks);
+        $t->true(!str_contains($blocks, '<!-- wp:html -->'), 'DocBook table should not fall back to a generic HTML block.');
+        $t->contains('<td data-xml-element="entry" colspan="4" style="text-align:center"><strong>Migration Batch 42</strong></td>', $blocks);
+        $t->contains('<td data-xml-element="entry" colspan="2" style="text-align:center">Needs media review</td><td data-xml-element="entry" colspan="2" style="text-align:center">Ready for block publish</td>', $blocks);
+        $t->contains('<td data-xml-element="entry" rowspan="2" style="text-align:left">Media review window</td><td data-xml-element="entry" colspan="3" style="text-align:center">Initial sweep</td>', $blocks);
+        $t->contains('<tfoot><tr data-xml-element="row"><td data-xml-element="entry" colspan="4" style="text-align:right">Review before publish</td></tr></tfoot>', $blocks);
+    },
+    'maps docbook sections metadata and link targets without javascript hrefs' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-docbook-sections.xml');
+        $document = PandocConverter::read($source, 'docbook');
+        $blocks = PandocConverter::convert($source, 'docbook', 'blocks');
+        $meta = $document->attr('meta');
+
+        $t->same(0, $meta['xmlGenericContainerCount']);
+        $t->same(5, $meta['xmlHeadingCount']);
+        $t->same(8, $meta['xmlParagraphCount']);
+        $t->true(!str_contains($blocks, '<!-- wp:html -->'), 'DocBook section metadata should not require generic HTML blocks.');
+        $t->contains('<h1 id="wordpress-docbook-review-packet" data-xml-element="title" data-xml-namespace="http://docbook.org/ns/docbook">WordPress DocBook Review Packet</h1>', $blocks);
+        $t->contains('<p data-xml-element="subtitle" data-xml-namespace="http://docbook.org/ns/docbook">Section title metadata</p>', $blocks);
+        $t->contains('<h2 id="import-overview" data-xml-element="title" data-xml-namespace="http://docbook.org/ns/docbook">Import Overview</h2>', $blocks);
+        $t->contains('<h3 id="review-queue" data-xml-element="title" data-xml-namespace="http://docbook.org/ns/docbook">Review Queue</h3>', $blocks);
+        $t->contains('<h2 id="legacy-section" data-xml-element="title" data-xml-namespace="http://docbook.org/ns/docbook">Legacy Section</h2>', $blocks);
+        $t->contains('resolved <a href="#legacy-section" data-xml-element="xref" data-xml-namespace="http://docbook.org/ns/docbook">legacy-section</a>.', $blocks);
+        $t->contains('Queue duplicate target <a href="#queue" data-xml-element="link" data-xml-namespace="http://docbook.org/ns/docbook">review queue</a>', $blocks);
+        $t->contains('<span data-xml-element="link" data-xml-namespace="http://docbook.org/ns/docbook" data-pandoc-dropped-href-scheme="javascript" class="xml-inline xml-link">unsafe target</span>', $blocks);
+        $t->true(!str_contains($blocks, 'href="javascript:'), 'Unsafe DocBook link schemes must not be emitted as hrefs.');
+    },
     'preserves unknown xml containers and mathml while rejecting unsafe xml' => static function (TestRunner $t): void {
         $source = <<<'XML'
 <doc xmlns:m="http://www.w3.org/1998/Math/MathML">

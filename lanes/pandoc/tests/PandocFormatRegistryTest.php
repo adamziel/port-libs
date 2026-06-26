@@ -136,6 +136,8 @@ return [
         $t->same(CsvReader::class, $support['csv']['implementation']);
         $t->same('partial', $support['tsv']['status']);
         $t->same(CsvReader::class, $support['tsv']['implementation']);
+        $t->same('partial', $support['docbook']['status']);
+        $t->same(XmlReader::class, $support['docbook']['implementation']);
         $t->same('partial', $support['markdown']['status']);
         $t->same(MarkdownReader::class, $support['markdown']['implementation']);
         $t->same('partial', $support['native']['status']);
