@@ -6,6 +6,7 @@ use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\PandocConverter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 use PortLibs\Pandoc\XlsxReader;
+use PortLibs\Pandoc\ZipPackage;
 
 $buildXlsxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-xlsx-');
@@ -219,6 +220,137 @@ XML);
     }
 };
 
+$buildReviewXlsxPackage = static function (): string {
+    return ZipPackage::build([
+        [
+            'name' => '_rels/.rels',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>
+XML,
+        ],
+        [
+            'name' => 'xl/workbook.xml',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+          xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <workbookPr date1904="1" filterPrivacy="1" backupFile="1" showObjects="placeholders" codeName="ThisWorkbook"/>
+  <calcPr calcId="191029" calcMode="manual" fullCalcOnLoad="1" forceFullCalc="0" iterate="1"/>
+  <definedNames>
+    <definedName name="VisibleRange">Visible!$A$1:$C$3</definedName>
+  </definedNames>
+  <externalReferences>
+    <externalReference r:id="rIdExternalBook"/>
+  </externalReferences>
+  <sheets>
+    <sheet name="Visible" sheetId="1" r:id="rIdSheet1"/>
+    <sheet name="Hidden Audit" sheetId="2" state="hidden" r:id="rIdSheet2"/>
+    <sheet name="Very Hidden" sheetId="3" state="veryHidden" r:id="rIdSheet3"/>
+  </sheets>
+</workbook>
+XML,
+        ],
+        [
+            'name' => 'xl/_rels/workbook.xml.rels',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSheet1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rIdSheet2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>
+  <Relationship Id="rIdSheet3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet3.xml"/>
+  <Relationship Id="rIdSharedStrings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>
+  <Relationship Id="rIdExternalBook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/externalLink" Target="externalLinks/externalLink1.xml"/>
+</Relationships>
+XML,
+        ],
+        [
+            'name' => 'xl/sharedStrings.xml',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="5" uniqueCount="5">
+  <si><t>Formula</t></si>
+  <si><t>Result</t></si>
+  <si><t>Error</t></si>
+  <si><t>Hidden value</t></si>
+  <si><t>Very hidden value</t></si>
+</sst>
+XML,
+        ],
+        [
+            'name' => 'xl/worksheets/sheet1.xml',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+           xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheetData>
+    <row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c><c r="C1" t="s"><v>2</v></c></row>
+    <row r="2"><c r="A2"><f>1+1</f><v>999</v></c><c r="B2" t="e"><f>A2/0</f><v>#DIV/0!</v></c><c r="C2" t="str"><f>&quot;cached&quot;</f><v>Cached string</v></c></row>
+  </sheetData>
+  <autoFilter ref="A1:C3"/>
+  <tableParts count="1">
+    <tablePart r:id="rIdTable1"/>
+  </tableParts>
+</worksheet>
+XML,
+        ],
+        [
+            'name' => 'xl/worksheets/_rels/sheet1.xml.rels',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdTable1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/table" Target="../tables/table1.xml"/>
+</Relationships>
+XML,
+        ],
+        [
+            'name' => 'xl/tables/table1.xml',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<table xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" id="1" name="VisibleTable" displayName="VisibleTable" ref="A1:C3" headerRowCount="1" totalsRowShown="0">
+  <autoFilter ref="A1:C3"/>
+  <tableColumns count="3">
+    <tableColumn id="1" name="Formula"/>
+    <tableColumn id="2" name="Result"/>
+    <tableColumn id="3" name="Error"/>
+  </tableColumns>
+</table>
+XML,
+        ],
+        [
+            'name' => 'xl/worksheets/sheet2.xml',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>
+    <row r="1"><c r="A1" t="s"><v>3</v></c></row>
+  </sheetData>
+</worksheet>
+XML,
+        ],
+        [
+            'name' => 'xl/worksheets/sheet3.xml',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>
+    <row r="1"><c r="A1" t="s"><v>4</v></c></row>
+  </sheetData>
+</worksheet>
+XML,
+        ],
+        [
+            'name' => 'xl/externalLinks/externalLink1.xml',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<externalLink xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"/>
+XML,
+        ],
+    ]);
+};
+
 return [
     'matches pinned upstream xlsx reader basic fixture semantics' => static function (TestRunner $t) use ($buildXlsxPackage): void {
         $document = (new XlsxReader())->read($buildXlsxPackage());
@@ -321,6 +453,74 @@ return [
         $t->contains('<a href="https://example.test/report" title="Open source"><strong>Link</strong></a>', $html);
         $t->contains('<td>12.00</td>', $html);
         $t->contains('<td><em>2024-01-15</em></td>', $html);
+    },
+
+    'reports hidden sheets workbook metadata formulas errors and table filters without evaluation' => static function (TestRunner $t) use ($buildReviewXlsxPackage): void {
+        $document = (new XlsxReader())->read($buildReviewXlsxPackage());
+        $review = $document->attr('xlsx');
+        $sheets = $review['sheets'];
+        $visibleSheet = $sheets[0];
+        $visibleTable = $document->children[1];
+        $visibleBodyCells = $visibleTable->children[1]->children[0]->children;
+
+        $t->same(3, $review['sheetCount'] ?? null);
+        $t->same('emit-all-sheets-record-visibility', $review['hiddenSheetPolicy'] ?? null);
+        $t->same(2, $review['hiddenSheetCount'] ?? null);
+        $t->same(1, $review['veryHiddenSheetCount'] ?? null);
+        $t->same(['visible', 'hidden', 'veryHidden'], array_column($sheets, 'state'));
+        $t->same(true, $sheets[1]['hidden'] ?? null);
+        $t->same(false, $sheets[1]['veryHidden'] ?? null);
+        $t->same(true, $sheets[2]['veryHidden'] ?? null);
+        $t->same('Hidden Audit', $document->children[2]->attr('text'));
+        $t->same('Very Hidden', $document->children[4]->attr('text'));
+
+        $t->same(true, $review['workbookProperties']['date1904'] ?? null);
+        $t->same(true, $review['workbookProperties']['filterPrivacy'] ?? null);
+        $t->same(true, $review['workbookProperties']['backupFile'] ?? null);
+        $t->same('placeholders', $review['workbookProperties']['showObjects'] ?? null);
+        $t->same(true, $review['workbookProperties']['codeNamePresent'] ?? null);
+        $t->same(true, $review['calculationProperties']['present'] ?? null);
+        $t->same(191029, $review['calculationProperties']['calcId'] ?? null);
+        $t->same('manual', $review['calculationProperties']['calcMode'] ?? null);
+        $t->same(true, $review['calculationProperties']['fullCalcOnLoad'] ?? null);
+        $t->same(false, $review['calculationProperties']['forceFullCalc'] ?? null);
+        $t->same(true, $review['calculationProperties']['iterate'] ?? null);
+        $t->same(1, $review['definedNameCount'] ?? null);
+        $t->same(1, $review['externalReferenceCount'] ?? null);
+
+        $t->same('cached-values-only-no-formula-evaluation', $review['formulaPolicy'] ?? null);
+        $t->same(3, $review['formulaCellCount'] ?? null);
+        $t->same(3, $review['formulaCachedValueCount'] ?? null);
+        $t->same(1, $review['errorCellCount'] ?? null);
+        $t->same(3, $visibleSheet['formulaCellCount'] ?? null);
+        $t->same(1, $visibleSheet['errorCellCount'] ?? null);
+        $t->same('A2', $visibleSheet['formulaDiagnostics'][0]['ref'] ?? null);
+        $t->same('normal', $visibleSheet['formulaDiagnostics'][0]['formulaType'] ?? null);
+        $t->same('number', $visibleSheet['formulaDiagnostics'][0]['cachedValueType'] ?? null);
+        $t->same(3, $visibleSheet['formulaDiagnostics'][0]['formulaTextBytes'] ?? null);
+        $t->same(hash('sha256', '1+1'), $visibleSheet['formulaDiagnostics'][0]['formulaSha256'] ?? null);
+        $t->true(!array_key_exists('formulaText', $visibleSheet['formulaDiagnostics'][0]), 'Formula diagnostics should not expose formula text');
+        $t->same('B2', $visibleSheet['errorDiagnostics'][0]['ref'] ?? null);
+        $t->same('#DIV/0!', $visibleSheet['errorDiagnostics'][0]['code'] ?? null);
+        $t->same(true, $visibleSheet['errorDiagnostics'][0]['fromFormula'] ?? null);
+        $t->same('999.0', $visibleBodyCells[0]->attr('text'));
+        $t->same('number', $visibleBodyCells[0]->attr('xlsxValueType'));
+        $t->same('#DIV/0!', $visibleBodyCells[1]->attr('text'));
+        $t->same('error', $visibleBodyCells[1]->attr('xlsxValueType'));
+        $t->same('Cached string', $visibleBodyCells[2]->attr('text'));
+
+        $t->same(1, $review['tablePartCount'] ?? null);
+        $t->same(1, $review['autoFilterCount'] ?? null);
+        $t->same(['A1:C3'], $visibleSheet['autoFilterRanges'] ?? null);
+        $t->same([], $visibleSheet['tablePartDiagnostics'] ?? null);
+        $t->same('rIdTable1', $visibleSheet['tableParts'][0]['relationshipId'] ?? null);
+        $t->same('xl/tables/table1.xml', $visibleSheet['tableParts'][0]['partName'] ?? null);
+        $t->same(true, $visibleSheet['tableParts'][0]['available'] ?? null);
+        $t->same(1, $visibleSheet['tableParts'][0]['id'] ?? null);
+        $t->same('VisibleTable', $visibleSheet['tableParts'][0]['displayName'] ?? null);
+        $t->same('A1:C3', $visibleSheet['tableParts'][0]['ref'] ?? null);
+        $t->same('A1:C3', $visibleSheet['tableParts'][0]['autoFilterRef'] ?? null);
+        $t->same(3, $visibleSheet['tableParts'][0]['columnCount'] ?? null);
     },
 
     'reads xlsx bytes through the converter input path' => static function (TestRunner $t) use ($buildXlsxPackage): void {

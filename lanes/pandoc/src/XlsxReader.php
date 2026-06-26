@@ -32,6 +32,11 @@ final class XlsxReader
         $blocks = [];
         $sheetReviews = [];
         $tableCount = 0;
+        $formulaCellCount = 0;
+        $formulaCachedValueCount = 0;
+        $errorCellCount = 0;
+        $tablePartCount = 0;
+        $autoFilterCount = 0;
         foreach ($sheets as $sheet) {
             $relationship = $workbookRelationships->byId($sheet['relationshipId']);
             if (!$relationship instanceof OpcRelationship) {
@@ -44,6 +49,8 @@ final class XlsxReader
             $sheetPart = OpcPackagePath::stripQueryAndFragment($workbookRelationships->resolveTarget($relationship));
             $sheetDocument = $this->loadPackageXml($package, $sheetPart, 'XLSX worksheet ' . $sheet['name']);
             $sheetRelationships = $this->relationshipsOrEmpty($package, $sheetPart);
+            $sheetDiagnostics = $this->parseSheetDiagnostics($sheetDocument);
+            $sheetTableMetadata = $this->parseSheetTableMetadata($package, $sheetPart, $sheetDocument, $sheetRelationships);
             $cells = $this->parseSheetCells($sheetDocument, $sharedStrings, $styles, $workbookInfo['date1904'], $sheetRelationships);
             $table = $this->cellsToTable($sheet['name'], $cells);
             $blocks[] = new AstNode('heading', [
@@ -56,14 +63,31 @@ final class XlsxReader
                 $tableCount++;
             }
 
+            $formulaCellCount += $sheetDiagnostics['formulaCellCount'];
+            $formulaCachedValueCount += $sheetDiagnostics['formulaCachedValueCount'];
+            $errorCellCount += $sheetDiagnostics['errorCellCount'];
+            $tablePartCount += count($sheetTableMetadata['tableParts']);
+            $autoFilterCount += count($sheetTableMetadata['autoFilterRanges']);
+
             $sheetReviews[] = [
                 'index' => $sheet['index'],
                 'name' => $sheet['name'],
                 'relationshipId' => $sheet['relationshipId'],
                 'partName' => ltrim($sheetPart, '/'),
+                'state' => $sheet['state'],
+                'hidden' => $sheet['hidden'],
+                'veryHidden' => $sheet['veryHidden'],
                 'cellCount' => count($cells),
                 'hyperlinkCount' => count(array_filter($cells, static fn (array $cell): bool => ($cell['url'] ?? '') !== '')),
                 'mergedCellCount' => count(array_filter($cells, static fn (array $cell): bool => (int) ($cell['colspan'] ?? 1) > 1 || (int) ($cell['rowspan'] ?? 1) > 1)),
+                'formulaCellCount' => $sheetDiagnostics['formulaCellCount'],
+                'formulaCachedValueCount' => $sheetDiagnostics['formulaCachedValueCount'],
+                'formulaDiagnostics' => $sheetDiagnostics['formulaDiagnostics'],
+                'errorCellCount' => $sheetDiagnostics['errorCellCount'],
+                'errorDiagnostics' => $sheetDiagnostics['errorDiagnostics'],
+                'autoFilterRanges' => $sheetTableMetadata['autoFilterRanges'],
+                'tableParts' => $sheetTableMetadata['tableParts'],
+                'tablePartDiagnostics' => $sheetTableMetadata['tablePartDiagnostics'],
                 'tableEmitted' => $table instanceof AstNode,
             ];
         }
@@ -79,13 +103,26 @@ final class XlsxReader
                 'workbookPart' => ltrim($workbookPart, '/'),
                 'sheetCount' => count($sheets),
                 'tableCount' => $tableCount,
+                'hiddenSheetPolicy' => 'emit-all-sheets-record-visibility',
+                'hiddenSheetCount' => count(array_filter($sheets, static fn (array $sheet): bool => $sheet['hidden'])),
+                'veryHiddenSheetCount' => count(array_filter($sheets, static fn (array $sheet): bool => $sheet['veryHidden'])),
+                'workbookProperties' => $workbookInfo['workbookProperties'],
+                'calculationProperties' => $workbookInfo['calculationProperties'],
+                'definedNameCount' => $workbookInfo['definedNameCount'],
+                'externalReferenceCount' => $workbookInfo['externalReferenceCount'],
                 'sharedStringCount' => count($sharedStrings),
                 'styleFontCount' => count($styles['fonts']),
                 'styleCellFormatCount' => count($styles['cellFormats']),
                 'styleCustomNumberFormatCount' => count($styles['customNumberFormats']),
                 'date1904' => $workbookInfo['date1904'],
+                'formulaCellCount' => $formulaCellCount,
+                'formulaCachedValueCount' => $formulaCachedValueCount,
+                'errorCellCount' => $errorCellCount,
+                'tablePartCount' => $tablePartCount,
+                'autoFilterCount' => $autoFilterCount,
                 'sheets' => $sheetReviews,
                 'payloadExposurePolicy' => 'xml-text-only',
+                'formulaPolicy' => 'cached-values-only-no-formula-evaluation',
                 'upstreamEvidence' => [
                     'denominator' => 1,
                     'fixtures' => [
@@ -136,7 +173,11 @@ final class XlsxReader
     /**
      * @return array{
      *     date1904:bool,
-     *     sheets:list<array{index:int, name:string, relationshipId:string}>
+     *     workbookProperties:array<string, bool|string|null>,
+     *     calculationProperties:array<string, bool|int|string|null>,
+     *     definedNameCount:int,
+     *     externalReferenceCount:int,
+     *     sheets:list<array{index:int, name:string, relationshipId:string, state:string, hidden:bool, veryHidden:bool}>
      * }
      */
     private function parseWorkbook(\DOMDocument $document): array
@@ -163,19 +204,56 @@ final class XlsxReader
                 throw new \RuntimeException('XLSX workbook sheet is missing r:id');
             }
 
+            $state = match (strtolower(trim($sheetElement->getAttribute('state')))) {
+                'hidden' => 'hidden',
+                'veryhidden' => 'veryHidden',
+                default => 'visible',
+            };
             $sheets[] = [
                 'index' => $index,
                 'name' => $name,
                 'relationshipId' => $relationshipId,
+                'state' => $state,
+                'hidden' => $state !== 'visible',
+                'veryHidden' => $state === 'veryHidden',
             ];
             $index++;
         }
 
         $workbookProperties = $this->firstChildElement($root, 'workbookPr');
+        $date1904 = $workbookProperties instanceof \DOMElement
+            ? ($this->booleanAttribute($workbookProperties, 'date1904') ?? false)
+            : false;
+        $calculationProperties = $this->firstChildElement($root, 'calcPr');
+        $definedNames = $this->firstChildElement($root, 'definedNames');
+        $externalReferences = $this->firstChildElement($root, 'externalReferences');
 
         return [
-            'date1904' => $workbookProperties instanceof \DOMElement
-                && in_array(strtolower(trim($workbookProperties->getAttribute('date1904'))), ['1', 'true'], true),
+            'date1904' => $date1904,
+            'workbookProperties' => [
+                'date1904' => $date1904,
+                'filterPrivacy' => $workbookProperties instanceof \DOMElement ? $this->booleanAttribute($workbookProperties, 'filterPrivacy') : null,
+                'backupFile' => $workbookProperties instanceof \DOMElement ? $this->booleanAttribute($workbookProperties, 'backupFile') : null,
+                'showObjects' => $workbookProperties instanceof \DOMElement && $workbookProperties->hasAttribute('showObjects')
+                    ? $workbookProperties->getAttribute('showObjects')
+                    : null,
+                'updateLinks' => $workbookProperties instanceof \DOMElement && $workbookProperties->hasAttribute('updateLinks')
+                    ? $workbookProperties->getAttribute('updateLinks')
+                    : null,
+                'codeNamePresent' => $workbookProperties instanceof \DOMElement && trim($workbookProperties->getAttribute('codeName')) !== '',
+            ],
+            'calculationProperties' => [
+                'present' => $calculationProperties instanceof \DOMElement,
+                'calcId' => $calculationProperties instanceof \DOMElement ? $this->integerAttribute($calculationProperties, 'calcId') : null,
+                'calcMode' => $calculationProperties instanceof \DOMElement && $calculationProperties->hasAttribute('calcMode')
+                    ? $calculationProperties->getAttribute('calcMode')
+                    : null,
+                'fullCalcOnLoad' => $calculationProperties instanceof \DOMElement ? $this->booleanAttribute($calculationProperties, 'fullCalcOnLoad') : null,
+                'forceFullCalc' => $calculationProperties instanceof \DOMElement ? $this->booleanAttribute($calculationProperties, 'forceFullCalc') : null,
+                'iterate' => $calculationProperties instanceof \DOMElement ? $this->booleanAttribute($calculationProperties, 'iterate') : null,
+            ],
+            'definedNameCount' => $definedNames instanceof \DOMElement ? count($this->childElements($definedNames, 'definedName')) : 0,
+            'externalReferenceCount' => $externalReferences instanceof \DOMElement ? count($this->childElements($externalReferences, 'externalReference')) : 0,
             'sheets' => $sheets,
         ];
     }
@@ -411,6 +489,10 @@ final class XlsxReader
             $text = $inlineString instanceof \DOMElement ? $this->allDescendantText($inlineString) : '';
             $empty = $text === '';
             $valueType = $empty ? 'empty' : 'text';
+        } elseif ($cellType === 'e') {
+            $text = trim($rawValue);
+            $empty = $text === '';
+            $valueType = $empty ? 'empty' : 'error';
         } elseif (trim($rawValue) === '') {
             $text = '';
             $empty = true;
@@ -747,6 +829,220 @@ final class XlsxReader
     }
 
     /**
+     * @return array{
+     *     formulaCellCount:int,
+     *     formulaCachedValueCount:int,
+     *     formulaDiagnostics:list<array{ref:string, formulaType:string, sharedIndex:int|null, hasCachedValue:bool, cachedValueType:string, formulaTextBytes:int, formulaSha256:string}>,
+     *     errorCellCount:int,
+     *     errorDiagnostics:list<array{ref:string, code:string, fromFormula:bool}>
+     * }
+     */
+    private function parseSheetDiagnostics(\DOMDocument $document): array
+    {
+        $root = XmlHtmlDom::rootElement($document, 'worksheet');
+        if (!$root instanceof \DOMElement) {
+            return [
+                'formulaCellCount' => 0,
+                'formulaCachedValueCount' => 0,
+                'formulaDiagnostics' => [],
+                'errorCellCount' => 0,
+                'errorDiagnostics' => [],
+            ];
+        }
+
+        $sheetData = $this->firstChildElement($root, 'sheetData');
+        if (!$sheetData instanceof \DOMElement) {
+            return [
+                'formulaCellCount' => 0,
+                'formulaCachedValueCount' => 0,
+                'formulaDiagnostics' => [],
+                'errorCellCount' => 0,
+                'errorDiagnostics' => [],
+            ];
+        }
+
+        $formulaDiagnostics = [];
+        $errorDiagnostics = [];
+        foreach ($this->childElements($sheetData, 'row') as $rowElement) {
+            foreach ($this->childElements($rowElement, 'c') as $cellElement) {
+                $ref = trim($cellElement->getAttribute('r'));
+                if ($ref === '' || $this->parseCellReference($ref) === null) {
+                    continue;
+                }
+
+                $formulaElement = $this->firstChildElement($cellElement, 'f');
+                $valueElement = $this->firstChildElement($cellElement, 'v');
+                $rawValue = $valueElement instanceof \DOMElement ? trim($valueElement->textContent) : '';
+                if ($formulaElement instanceof \DOMElement) {
+                    $formulaText = $formulaElement->textContent;
+                    $formulaDiagnostics[] = [
+                        'ref' => $ref,
+                        'formulaType' => trim($formulaElement->getAttribute('t')) !== '' ? trim($formulaElement->getAttribute('t')) : 'normal',
+                        'sharedIndex' => $this->integerAttribute($formulaElement, 'si'),
+                        'hasCachedValue' => $rawValue !== '',
+                        'cachedValueType' => $this->cachedValueTypeForCell($cellElement),
+                        'formulaTextBytes' => strlen($formulaText),
+                        'formulaSha256' => hash('sha256', $formulaText),
+                    ];
+                }
+
+                if (trim($cellElement->getAttribute('t')) === 'e' && $rawValue !== '') {
+                    $errorDiagnostics[] = [
+                        'ref' => $ref,
+                        'code' => $rawValue,
+                        'fromFormula' => $formulaElement instanceof \DOMElement,
+                    ];
+                }
+            }
+        }
+
+        return [
+            'formulaCellCount' => count($formulaDiagnostics),
+            'formulaCachedValueCount' => count(array_filter($formulaDiagnostics, static fn (array $diagnostic): bool => $diagnostic['hasCachedValue'])),
+            'formulaDiagnostics' => $formulaDiagnostics,
+            'errorCellCount' => count($errorDiagnostics),
+            'errorDiagnostics' => $errorDiagnostics,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     autoFilterRanges:list<string>,
+     *     tableParts:list<array<string, bool|int|string|null>>,
+     *     tablePartDiagnostics:list<string>
+     * }
+     */
+    private function parseSheetTableMetadata(ZipPackage $package, string $sheetPart, \DOMDocument $document, OpcRelationships $relationships): array
+    {
+        $root = XmlHtmlDom::rootElement($document, 'worksheet');
+        if (!$root instanceof \DOMElement) {
+            return ['autoFilterRanges' => [], 'tableParts' => [], 'tablePartDiagnostics' => []];
+        }
+
+        $autoFilterRanges = [];
+        $worksheetAutoFilter = $this->firstChildElement($root, 'autoFilter');
+        if ($worksheetAutoFilter instanceof \DOMElement) {
+            $this->appendAutoFilterRange($autoFilterRanges, $worksheetAutoFilter->getAttribute('ref'));
+        }
+
+        $tableParts = [];
+        $diagnostics = [];
+        $tablePartsElement = $this->firstChildElement($root, 'tableParts');
+        if (!$tablePartsElement instanceof \DOMElement) {
+            return [
+                'autoFilterRanges' => $autoFilterRanges,
+                'tableParts' => [],
+                'tablePartDiagnostics' => [],
+            ];
+        }
+
+        foreach ($this->childElements($tablePartsElement, 'tablePart') as $tablePartElement) {
+            $relationshipId = $this->relationshipId($tablePartElement);
+            if ($relationshipId === '') {
+                $diagnostics[] = 'table-part-missing-relationship-id';
+                continue;
+            }
+
+            $relationship = $relationships->byId($relationshipId);
+            if (!$relationship instanceof OpcRelationship) {
+                $diagnostics[] = 'table-part-relationship-missing:' . $relationshipId;
+                continue;
+            }
+            if ($relationship->isExternal()) {
+                $diagnostics[] = 'table-part-external-relationship-skipped:' . $relationshipId;
+                continue;
+            }
+
+            $part = OpcPackagePath::stripQueryAndFragment($relationships->resolveTarget($relationship));
+            $available = $package->has($part);
+            $tablePart = [
+                'relationshipId' => $relationshipId,
+                'partName' => ltrim($part, '/'),
+                'available' => $available,
+            ];
+            if (!$available) {
+                $diagnostics[] = 'table-part-missing:' . ltrim($part, '/');
+                $tableParts[] = $tablePart;
+                continue;
+            }
+
+            try {
+                $tableDocument = $this->loadPackageXml($package, $part, 'XLSX table ' . $relationshipId . ' for ' . ltrim($sheetPart, '/'));
+            } catch (\InvalidArgumentException|\RuntimeException) {
+                $diagnostics[] = 'table-part-unreadable:' . ltrim($part, '/');
+                $tableParts[] = $tablePart;
+                continue;
+            }
+            $tableMetadata = $this->parseTablePart($tableDocument);
+            if (($tableMetadata['autoFilterRef'] ?? null) !== null) {
+                $this->appendAutoFilterRange($autoFilterRanges, (string) $tableMetadata['autoFilterRef']);
+            }
+            $tableParts[] = array_merge($tablePart, $tableMetadata);
+        }
+
+        return [
+            'autoFilterRanges' => $autoFilterRanges,
+            'tableParts' => $tableParts,
+            'tablePartDiagnostics' => array_values(array_unique($diagnostics)),
+        ];
+    }
+
+    /**
+     * @return array{id:int|null, name:string|null, displayName:string|null, ref:string|null, autoFilterRef:string|null, headerRowCount:int|null, totalsRowShown:bool|null, columnCount:int}
+     */
+    private function parseTablePart(\DOMDocument $document): array
+    {
+        $root = XmlHtmlDom::rootElement($document, 'table');
+        if (!$root instanceof \DOMElement) {
+            return [
+                'id' => null,
+                'name' => null,
+                'displayName' => null,
+                'ref' => null,
+                'autoFilterRef' => null,
+                'headerRowCount' => null,
+                'totalsRowShown' => null,
+                'columnCount' => 0,
+            ];
+        }
+
+        $autoFilter = $this->firstChildElement($root, 'autoFilter');
+        $tableColumns = $this->firstChildElement($root, 'tableColumns');
+
+        return [
+            'id' => $this->integerAttribute($root, 'id'),
+            'name' => $root->hasAttribute('name') ? $root->getAttribute('name') : null,
+            'displayName' => $root->hasAttribute('displayName') ? $root->getAttribute('displayName') : null,
+            'ref' => $root->hasAttribute('ref') ? $root->getAttribute('ref') : null,
+            'autoFilterRef' => $autoFilter instanceof \DOMElement && trim($autoFilter->getAttribute('ref')) !== ''
+                ? trim($autoFilter->getAttribute('ref'))
+                : null,
+            'headerRowCount' => $this->integerAttribute($root, 'headerRowCount'),
+            'totalsRowShown' => $this->booleanAttribute($root, 'totalsRowShown'),
+            'columnCount' => $tableColumns instanceof \DOMElement ? count($this->childElements($tableColumns, 'tableColumn')) : 0,
+        ];
+    }
+
+    private function cachedValueTypeForCell(\DOMElement $cellElement): string
+    {
+        $valueElement = $this->firstChildElement($cellElement, 'v');
+        if (!$valueElement instanceof \DOMElement || trim($valueElement->textContent) === '') {
+            return 'missing';
+        }
+
+        $cellType = trim($cellElement->getAttribute('t'));
+
+        return match ($cellType) {
+            's' => 'shared-string',
+            'inlineStr' => 'inline-string',
+            'b' => 'boolean',
+            'e' => 'error',
+            'str' => 'formula-string',
+            default => is_numeric(trim($valueElement->textContent)) ? 'number' : 'text',
+        };
+    }
+
+    /**
      * @return array<string, array{url:string, title:string}>
      */
     private function parseHyperlinks(\DOMElement $worksheet, OpcRelationships $relationships): array
@@ -947,6 +1243,40 @@ final class XlsxReader
         }
 
         return '';
+    }
+
+    private function booleanAttribute(\DOMElement $element, string $attribute): ?bool
+    {
+        if (!$element->hasAttribute($attribute)) {
+            return null;
+        }
+
+        return in_array(strtolower(trim($element->getAttribute($attribute))), ['1', 'true', 'on'], true);
+    }
+
+    private function integerAttribute(\DOMElement $element, string $attribute): ?int
+    {
+        $value = trim($element->getAttribute($attribute));
+        if (preg_match('/^-?\d+$/', $value) !== 1) {
+            return null;
+        }
+
+        return (int) $value;
+    }
+
+    /**
+     * @param list<string> $ranges
+     */
+    private function appendAutoFilterRange(array &$ranges, string $range): void
+    {
+        $range = trim($range);
+        if ($range === '' || !($this->parseCellRange($range) !== null || $this->parseCellReference($range) !== null)) {
+            return;
+        }
+
+        if (!in_array($range, $ranges, true)) {
+            $ranges[] = $range;
+        }
     }
 
     /**
