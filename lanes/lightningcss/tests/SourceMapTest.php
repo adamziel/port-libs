@@ -2328,6 +2328,27 @@ return [
         $t->same([], $child->getSourcesContent());
         $t->same([1], array_column($parent->getMappings(), 'sourceIndex'));
     },
+    'source map overwrites upstream source content on repeated direct writes' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $first = $map->addSource('blocks/first.css');
+        $second = $map->addSource('blocks/second.css');
+
+        $map->setSourceContent($first, ".first{color:red}\n");
+        $map->setSourceContent($second, ".second{}\n");
+        $map->setSourceContent($first, ".first{color:green}\n");
+        $map->addMapping(0, 0, $first, 0, 0, 'firstRule');
+        $map->addMapping(1, 0, $second, 0, 0, 'secondRule');
+
+        $t->same(".first{color:green}\n", $map->getSourceContent($first));
+        $t->same(
+            [".first{color:green}\n", ".second{}\n"],
+            $map->getSourcesContent()
+        );
+        $t->same(
+            '{"version":3,"mappings":"AAAAA;ACAAC","sources":["blocks/first.css","blocks/second.css"],"sourcesContent":[".first{color:green}\n",".second{}\n"],"names":["firstRule","secondRule"]}',
+            $map->toJson(null, false)
+        );
+    },
     'source map offsets generated columns with upstream overlap semantics' => static function (TestRunner $t): void {
         $map = new SourceMap();
         $sourceIndex = $map->addSource('blocks.css');

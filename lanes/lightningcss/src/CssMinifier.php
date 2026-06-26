@@ -4828,6 +4828,8 @@ final class CssMinifier
                 'pre-line',
             ]),
             'text-transform' => $this->minifyTextTransformValue($value),
+            'line-break' => $this->minifySingleKeywordValue($value, ['auto', 'loose', 'anywhere']),
+            'overflow-wrap', 'word-wrap' => $this->minifySingleKeywordValue($value, ['normal', 'break-word', 'anywhere']),
             default => $value,
         };
     }

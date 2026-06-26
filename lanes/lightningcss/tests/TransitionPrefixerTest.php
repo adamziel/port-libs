@@ -1870,6 +1870,30 @@ CSS;
         $t->same($webkit, $prefixer->prefixForTargets($stalePrefixed, ['safari' => '5.1']));
         $t->same($modern, $prefixer->prefixForTargets($stalePrefixed, ['chrome' => 15, 'firefox' => 15, 'opera' => '12.2', 'safari' => 6]));
     },
+    'transition prefixer maps upstream border-image helper rows' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{-webkit-border-image:url("test.png") 60;-moz-border-image:url("test.png") 60;-o-border-image:url("test.png") 60;border-image:url("test.png") 60}',
+            $prefixer->prefixForTargets('.foo { border-image: url("test.png") 60; }', [
+                'safari' => 4,
+                'firefox' => 4,
+                'opera' => 12,
+            ])
+        );
+        $t->same(
+            '.foo{-webkit-border-image:var(--test) 60;-moz-border-image:var(--test) 60;-o-border-image:var(--test) 60;border-image:var(--test) 60}',
+            $prefixer->prefixForTargets('.foo { border-image: var(--test) 60; }', [
+                'safari' => 4,
+                'firefox' => 4,
+                'opera' => 12,
+            ])
+        );
+        $t->same(
+            '.foo{border-image:url(foo.png) 60}',
+            $prefixer->prefixForTargets('.foo { -webkit-border-image: url(foo.png) 60; -moz-border-image: url(foo.png) 60; -o-border-image: url(foo.png) 60; border-image: url(foo.png) 60; }', ['chrome' => 15])
+        );
+    },
     'transition prefixer maps upstream border-image supports target boundaries' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
         $css = '@supports (border-image: url(border.png) 30 fill / 10px / 4px round) { .foo { border-image: url(border.png) 30 fill / 10px / 4px round; } }';

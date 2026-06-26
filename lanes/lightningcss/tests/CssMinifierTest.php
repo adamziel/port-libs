@@ -3966,6 +3966,25 @@ CSS;
             $t->same($expected, $minifier->minify($input));
         }
     },
+    'css minifier maps upstream line-break and wrap keyword values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $cases = [
+            '.foo { line-break: auto }' => '.foo{line-break:auto}',
+            '.foo { line-break: Loose }' => '.foo{line-break:loose}',
+            '.foo { line-break: anywhere }' => '.foo{line-break:anywhere}',
+            '.foo { overflow-wrap: nOrmal }' => '.foo{overflow-wrap:normal}',
+            '.foo { overflow-wrap: break-Word }' => '.foo{overflow-wrap:break-word}',
+            '.foo { overflow-wrap: Anywhere }' => '.foo{overflow-wrap:anywhere}',
+            '.foo { word-wrap: Normal }' => '.foo{word-wrap:normal}',
+            '.foo { word-wrap: Break-wOrd }' => '.foo{word-wrap:break-word}',
+            '.foo { word-wrap: Anywhere }' => '.foo{word-wrap:anywhere}',
+        ];
+
+        foreach ($cases as $input => $expected) {
+            $t->same($expected, $minifier->minify($input));
+        }
+    },
     'css minifier maps upstream caret values' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

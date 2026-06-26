@@ -1532,6 +1532,24 @@ CSS, [
             'is-within' => $export('EgL3uq_is-within'),
         ], $snakeCase['exports']);
     },
+    'css modules maps upstream pseudo replacement hover row exactly' => static function (TestRunner $t) use ($export): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+.foo:hover {
+  color: red;
+}
+CSS, [
+            'pseudoClasses' => [
+                'hover' => 'is-hovered',
+            ],
+        ]);
+
+        $t->same('.EgL3uq_foo.EgL3uq_is-hovered{color:red}', $result['code']);
+        $t->same([
+            'foo' => $export('EgL3uq_foo'),
+            'is-hovered' => $export('EgL3uq_is-hovered'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+    },
     'css modules scopes escaped local selectors and composes idents' => static function (TestRunner $t) use ($export, $local, $global): void {
         $css = <<<'CSS'
 .sm\:m-1 {
@@ -2655,6 +2673,16 @@ CSS);
         $t->same([
             'foo' => $export('test-EgL3uq-foo'),
         ], $patterned['exports']);
+
+        $cliPattern = (new CssModulesTransformer())->transform('.foo { color: red }', [
+            'filename' => 'test.css',
+            'pattern' => '[name]-[hash]-[local]',
+        ]);
+
+        $t->same('.test-EgL3uq-foo{color:red}', $cliPattern['code']);
+        $t->same([
+            'foo' => $export('test-EgL3uq-foo'),
+        ], $cliPattern['exports']);
 
         $projectRootSameFile = (new CssModulesTransformer())->transform('.foo { color: red }', [
             'filename' => '/foo/bar/test.css',
