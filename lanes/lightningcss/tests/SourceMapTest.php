@@ -2210,6 +2210,43 @@ return [
         );
         $t->same(['.theme{color:green}', '', '.editor{outline:0}'], $map->getSourcesContent());
     },
+    'source map reuses upstream duplicate direct source and name indexes' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $firstSource = $map->addSource('deduped-source.css');
+        $secondSource = $map->addSource('deduped-source.css');
+        $sourceBatch = $map->addSources(['deduped-source.css', 'sibling-source.css', 'deduped-source.css']);
+
+        $t->same(0, $firstSource);
+        $t->same($firstSource, $secondSource);
+        $t->same([$firstSource, 1, $firstSource], $sourceBatch);
+
+        $firstName = $map->addName('dedupedRule');
+        $secondName = $map->addName('dedupedRule');
+        $nameBatch = $map->addNames(['dedupedRule', 'siblingRule', 'dedupedRule']);
+
+        $t->same(0, $firstName);
+        $t->same($firstName, $secondName);
+        $t->same([$firstName, 1, $firstName], $nameBatch);
+
+        $map->setSourceContent($firstSource, ".deduped{}\n");
+        $map->setSourceContent($sourceBatch[1], ".sibling{}\n");
+        $map->addMapping(0, 0, $secondSource, 0, 0, 'dedupedRule');
+
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+
+        $t->same('AAAAA', $map->writeVlq());
+        $t->same(
+            [
+                ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 0, 'originalColumn' => 0, 'nameIndex' => 0],
+            ],
+            $decoded
+        );
+        $t->same(['deduped-source.css', 'sibling-source.css'], $map->getSources());
+        $t->same([".deduped{}\n", ".sibling{}\n"], $map->getSourcesContent());
+        $t->same(['dedupedRule', 'siblingRule'], $map->getNames());
+        $t->same($firstSource, $map->getSourceIndex('deduped-source.css'));
+        $t->same($firstName, $map->getNameIndex('dedupedRule'));
+    },
     'source map accepts upstream direct mappings with dangling source indexes' => static function (TestRunner $t): void {
         $map = new SourceMap();
         $map->addMapping(0, 0, 0, 2, 3);

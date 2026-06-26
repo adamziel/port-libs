@@ -858,6 +858,27 @@ final class TransitionPrefixer
         }
 
         if ($targetOptions['borderRadiusNeedsLogicalFallback'] ?? false) {
+            $ltrTransitionEntries = $entries;
+            $rtlTransitionEntries = $entries;
+            $hasLtrLogicalRadiusTransition = $this->rewriteLogicalBorderRadiusTransitionEntries($ltrTransitionEntries, 'ltr');
+            $hasRtlLogicalRadiusTransition = $this->rewriteLogicalBorderRadiusTransitionEntries($rtlTransitionEntries, 'rtl');
+            if ($hasLtrLogicalRadiusTransition || $hasRtlLogicalRadiusTransition) {
+                $ltrLogicalRadiusFallback = $this->rewriteLogicalBorderRadiusEntries($ltrTransitionEntries);
+                $rtlLogicalRadiusFallback = $this->rewriteLogicalBorderRadiusEntries($rtlTransitionEntries);
+                if ($ltrLogicalRadiusFallback !== null) {
+                    $ltrTransitionEntries = $ltrLogicalRadiusFallback[0];
+                }
+                if ($rtlLogicalRadiusFallback !== null) {
+                    $rtlTransitionEntries = $rtlLogicalRadiusFallback[1];
+                }
+
+                $this->rewritePrefixedTransitionEntries($ltrTransitionEntries, $targetOptions);
+                $this->rewritePrefixedTransitionEntries($rtlTransitionEntries, $targetOptions);
+
+                return $this->selectorVariant($selectors, 'ltr-modern') . '{' . $this->serializeDeclarations($ltrTransitionEntries) . '}'
+                    . $this->selectorVariant($selectors, 'rtl-modern') . '{' . $this->serializeDeclarations($rtlTransitionEntries) . '}';
+            }
+
             $logicalRadiusFallback = $this->rewriteLogicalBorderRadiusEntries($entries);
             if ($logicalRadiusFallback !== null) {
                 return $this->selectorVariant($selectors, 'ltr-modern') . '{' . $this->serializeDeclarations($logicalRadiusFallback[0]) . '}'
@@ -11940,11 +11961,23 @@ final class TransitionPrefixer
      */
     private function rewriteTransitionPropertyListForDirection(string $value, string $direction): array
     {
+        return $this->rewriteTransitionPropertyList(
+            $value,
+            fn (string $property): string => $this->mapInlinePhysicalProperty($property, $direction)
+        );
+    }
+
+    /**
+     * @return array{0:string,1:bool}
+     */
+    private function rewriteTransitionPropertyList(string $value, callable $mapper): array
+    {
         $changed = false;
         $parts = [];
         foreach ($this->splitTopLevel($value, ',') as $part) {
-            $mapped = $this->mapInlinePhysicalProperty($part, $direction);
-            $changed = $changed || $mapped !== trim($part);
+            $trimmed = trim($part);
+            $mapped = $mapper($trimmed);
+            $changed = $changed || $mapped !== $trimmed;
             $parts[] = $mapped;
         }
 
@@ -12054,6 +12087,7 @@ final class TransitionPrefixer
         $trimmed = trim($property);
         $needsMaskWebkit = $targetOptions['maskNeedsWebkit'] ?? false;
         $needsBackdropFilterWebkit = $targetOptions['backdropFilterNeedsWebkit'] ?? false;
+        $needsBorderRadiusWebkit = $targetOptions['borderRadiusNeedsWebkit'] ?? false;
 
         $maskProperties = [
             'mask' => '-webkit-mask',
@@ -12088,6 +12122,13 @@ final class TransitionPrefixer
             return [
                 'properties' => $needsBackdropFilterWebkit ? ['-webkit-backdrop-filter'] : ['backdrop-filter'],
                 'needsPrefixedTransition' => false,
+            ];
+        }
+
+        if ($this->isBorderRadiusTransitionProperty($lower) && $needsBorderRadiusWebkit) {
+            return [
+                'properties' => ['-webkit-' . $lower, $lower],
+                'needsPrefixedTransition' => true,
             ];
         }
 
@@ -12153,6 +12194,46 @@ final class TransitionPrefixer
             'inset-inline-end' => $direction === 'rtl' ? 'left' : 'right',
             default => trim($property),
         };
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     */
+    private function rewriteLogicalBorderRadiusTransitionEntries(array &$entries, string $direction): bool
+    {
+        $changed = false;
+        foreach ($entries as &$entry) {
+            if ($entry['important']) {
+                continue;
+            }
+
+            $mapper = fn (string $property): string => $this->mapLogicalBorderRadiusTransitionProperty($property, $direction);
+            if ($entry['property'] === 'transition-property') {
+                [$value, $entryChanged] = $this->rewriteTransitionPropertyList($entry['value'], $mapper);
+                $entry['value'] = $value;
+                $changed = $changed || $entryChanged;
+                continue;
+            }
+
+            if ($entry['property'] === 'transition') {
+                [$value, $entryChanged] = $this->rewriteTransitionLayerProperty($entry['value'], $mapper);
+                $entry['value'] = $value;
+                $changed = $changed || $entryChanged;
+            }
+        }
+
+        return $changed;
+    }
+
+    private function mapLogicalBorderRadiusTransitionProperty(string $property, string $direction): string
+    {
+        return $this->logicalBorderRadiusPhysicalProperty(strtolower(trim($property)), $direction) ?? trim($property);
+    }
+
+    private function isBorderRadiusTransitionProperty(string $property): bool
+    {
+        return $property === 'border-radius'
+            || preg_match('/^border-(?:top-left|top-right|bottom-right|bottom-left)-radius$/', $property) === 1;
     }
 
     private function selectorVariant(string $selectors, string $variant): string

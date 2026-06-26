@@ -47,6 +47,26 @@ return [
             (new TransitionPrefixer())->prefixLegacySafari('.foo { transition-property: transform; }')
         );
     },
+    'transition prefixer maps upstream logical border-radius transition rows' => static function (TestRunner $t) use ($rtlLangs): void {
+        $prefixer = new TransitionPrefixer();
+        $rtl = ':is(' . $rtlLangs . ')';
+        $css = '.foo { transition: border-start-start-radius; }';
+
+        $t->same(
+            '.foo:not(' . $rtl . '){-webkit-transition:-webkit-border-top-left-radius,border-top-left-radius;transition:-webkit-border-top-left-radius,border-top-left-radius}'
+            . '.foo' . $rtl . '{-webkit-transition:-webkit-border-top-right-radius,border-top-right-radius;transition:-webkit-border-top-right-radius,border-top-right-radius}',
+            $prefixer->prefixForTargets($css, ['safari' => 4])
+        );
+        $t->same(
+            '.foo:not(' . $rtl . '){transition:border-top-left-radius}.foo' . $rtl . '{transition:border-top-right-radius}',
+            $prefixer->prefixForTargets($css, ['safari' => 12])
+        );
+        $t->same(
+            '.foo:not(' . $rtl . '){border-top-left-radius:4px;transition:border-top-left-radius}'
+            . '.foo' . $rtl . '{border-top-right-radius:4px;transition:border-top-right-radius}',
+            $prefixer->prefixForTargets('.foo { border-start-start-radius: 4px; transition: border-start-start-radius; }', ['safari' => 12])
+        );
+    },
     'transition prefixer maps upstream transition declaration target prefixes' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
         $transition = '.foo { transition: opacity 200ms; }';

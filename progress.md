@@ -1,7 +1,7 @@
 | Project | Focus | State | Progress | PHP Tests | Mapped Upstream | Unmapped | Next Gate | Commit |
 | --- | --- | --- | ---: | ---: | --- | ---: | --- | --- |
 | [libsqlite](lanes/libsqlite/lane-status.json) | Primary | PHP green, upstream gap | 99.6% | 6,290,284 pass / 0 fail | [1,589 / 1,589 (100.0%)](lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json) | 0 | No local blocker | 16d8081 |
-| [LightningCSS](lanes/lightningcss/lane-status.json) | Active | PHP green, upstream gap | 99.8% | 9,618 pass / 0 fail | [2,645 / 3,532 (74.9%)](lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json) | 887 | Full upstream runner closure is partial: bounded Rust media test and... | da0c507 |
+| [LightningCSS](lanes/lightningcss/lane-status.json) | Active | PHP green, upstream gap | 99.8% | 9,645 pass / 0 fail | [2,654 / 3,532 (75.1%)](lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json) | 878 | Full upstream runner closure is partial: bounded Rust media test and... | SOURCE_COMMIT_P... |
 | [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 98.8% | 11,183 pass / 0 fail | [1,821 / 2,886 (63.1%)](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | 1,065 | Cargo workspace blocked by sparse target files | 29e9ab4 |
 | [markerPDF](lanes/markerpdf/lane-status.json) | Active | Near complete | 100.0% | 3,662 pass / 0 fail | [765 / 78 (980.8%)](lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json) | 0 | No local blocker | pending markerp... |
 | [Readability/content rewrite engine](lanes/readability/lane-status.json) | Backlog | Active port | 85.0% | 154 pass / 0 fail | [1,578 / 1,984 (79.5%)](lanes/readability/UPSTREAM_TEST_MANIFEST.json) | 406 | No local blocker | cd2e8a0 |

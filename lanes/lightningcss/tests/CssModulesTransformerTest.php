@@ -2666,6 +2666,16 @@ CSS);
             'foo' => $export('EgL3uq_foo'),
         ], $projectRootSameFile['exports']);
 
+        $projectRootSameFileShortRoot = (new CssModulesTransformer())->transform('.foo { background: red }', [
+            'filename' => '/foo/test.css',
+            'projectRoot' => '/foo',
+        ]);
+
+        $t->same('.EgL3uq_foo{background:red}', $projectRootSameFileShortRoot['code']);
+        $t->same([
+            'foo' => $export('EgL3uq_foo'),
+        ], $projectRootSameFileShortRoot['exports']);
+
         $projectRoot = (new CssModulesTransformer())->transform('.foo { color: red }', [
             'filename' => '/foo/bar/baz/test.css',
             'projectRoot' => '/foo/bar',
@@ -2675,6 +2685,16 @@ CSS);
         $t->same([
             'foo' => $export('xLEkNW_foo'),
         ], $projectRoot['exports']);
+
+        $projectRootShortRoot = (new CssModulesTransformer())->transform('.foo { background: red }', [
+            'filename' => '/foo/baz/test.css',
+            'projectRoot' => '/foo',
+        ]);
+
+        $t->same('.xLEkNW_foo{background:red}', $projectRootShortRoot['code']);
+        $t->same([
+            'foo' => $export('xLEkNW_foo'),
+        ], $projectRootShortRoot['exports']);
 
         $snakeCaseProjectRoot = (new CssModulesTransformer())->transform(<<<'CSS'
 .button {

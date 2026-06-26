@@ -415,7 +415,7 @@ final class CssBundler
         $splitItems = $this->splitTopLevelBundleItems($items);
         $licenseComments = $splitItems['licenseComments'];
         $contentItems = $splitItems['contentItems'];
-        $this->applyBundleRuleVisitor($contentItems, $file);
+        $contentItems = $this->applyBundleRuleVisitor($contentItems, $file);
         $dependencies = $this->importDependenciesForItems($contentItems, $rule, $file);
 
         foreach ($this->cssModuleDependencySpecifiersInSourceOrder($cssModuleOriginalSource, $cssModuleExports, $cssModuleReferences) as $specifier) {
@@ -765,26 +765,37 @@ final class CssBundler
 
     /**
      * @param list<array<string, mixed>> $items
+     * @return list<array<string, mixed>>
      */
-    private function applyBundleRuleVisitor(array $items, string $file): void
+    private function applyBundleRuleVisitor(array $items, string $file): array
     {
         $visitor = $this->visitor['Rule'] ?? null;
         if (!is_callable($visitor)) {
-            return;
+            return $items;
         }
 
+        $visitedItems = [];
         foreach ($items as $item) {
             if (($item['type'] ?? null) === 'import') {
+                $visitedItems[] = $item;
                 continue;
             }
 
-            $visitor([
+            $replacement = $visitor([
                 'type' => str_starts_with(ltrim((string) ($item['raw'] ?? '')), '@') ? 'unknown' : 'style',
                 'raw' => (string) ($item['raw'] ?? ''),
                 'file' => $file,
                 'loc' => $item['loc'] ?? ['line' => 1, 'column' => 1],
             ], $this);
+
+            if (is_array($replacement) && $replacement === []) {
+                continue;
+            }
+
+            $visitedItems[] = $item;
         }
+
+        return $visitedItems;
     }
 
     private function applyBundleValueVisitors(string $css): string

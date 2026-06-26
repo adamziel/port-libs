@@ -3927,6 +3927,7 @@ CSS;
             '.foo { visibility: visible }' => '.foo{visibility:visible}',
             '.foo { visibility: hidden }' => '.foo{visibility:hidden}',
             '.foo { visibility: collapse }' => '.foo{visibility:collapse}',
+            '.foo { visibility: Visible }' => '.foo{visibility:visible}',
             '.foo { text-transform: uppercase }' => '.foo{text-transform:uppercase}',
             '.foo { text-transform: lowercase }' => '.foo{text-transform:lowercase}',
             '.foo { text-transform: capitalize }' => '.foo{text-transform:capitalize}',
@@ -3934,13 +3935,16 @@ CSS;
             '.foo { text-transform: full-width }' => '.foo{text-transform:full-width}',
             '.foo { text-transform: full-size-kana }' => '.foo{text-transform:full-size-kana}',
             '.foo { text-transform: uppercase full-width }' => '.foo{text-transform:uppercase full-width}',
+            '.foo { text-transform: full-width uppercase }' => '.foo{text-transform:uppercase full-width}',
             '.foo { text-transform: uppercase full-width full-size-kana }' => '.foo{text-transform:uppercase full-width full-size-kana}',
+            '.foo { text-transform: full-width uppercase full-size-kana }' => '.foo{text-transform:uppercase full-width full-size-kana}',
             '.foo { white-space: normal }' => '.foo{white-space:normal}',
             '.foo { white-space: pre }' => '.foo{white-space:pre}',
             '.foo { white-space: nowrap }' => '.foo{white-space:nowrap}',
             '.foo { white-space: pre-wrap }' => '.foo{white-space:pre-wrap}',
             '.foo { white-space: break-spaces }' => '.foo{white-space:break-spaces}',
             '.foo { white-space: pre-line }' => '.foo{white-space:pre-line}',
+            '.foo { white-space: NoWrAp }' => '.foo{white-space:nowrap}',
         ];
 
         foreach ($cases as $input => $expected) {

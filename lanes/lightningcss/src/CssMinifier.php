@@ -3646,6 +3646,7 @@ final class CssMinifier
         $value = $this->minifyGridValue($property, $value);
         $value = $this->minifyFontValue($property, $value);
         $value = $this->minifyColorSchemeValue($property, $value);
+        $value = $this->minifyTextKeywordValue($property, $value);
         $value = $this->minifyImageSetFunctions($value);
         $value = $this->minifyGradientFunctions($value);
         $value = $this->minifyBoxLengthListValue($property, $value);
@@ -4671,6 +4672,82 @@ final class CssMinifier
         }
 
         return implode(' ', $tokens);
+    }
+
+    private function minifyTextKeywordValue(string $property, string $value): string
+    {
+        return match (strtolower($property)) {
+            'visibility' => $this->minifySingleKeywordValue($value, ['visible', 'hidden', 'collapse']),
+            'white-space' => $this->minifySingleKeywordValue($value, [
+                'normal',
+                'pre',
+                'nowrap',
+                'pre-wrap',
+                'break-spaces',
+                'pre-line',
+            ]),
+            'text-transform' => $this->minifyTextTransformValue($value),
+            default => $value,
+        };
+    }
+
+    /**
+     * @param list<string> $keywords
+     */
+    private function minifySingleKeywordValue(string $value, array $keywords): string
+    {
+        $trimmed = trim($value);
+        $lower = strtolower($trimmed);
+
+        return in_array($lower, $keywords, true) ? $lower : $trimmed;
+    }
+
+    private function minifyTextTransformValue(string $value): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($value));
+        if ($tokens === []) {
+            return trim($value);
+        }
+
+        $case = null;
+        $fullWidth = false;
+        $fullSizeKana = false;
+        foreach ($tokens as $token) {
+            $keyword = strtolower($token);
+            if ($case === null && in_array($keyword, ['none', 'uppercase', 'lowercase', 'capitalize'], true)) {
+                if ($keyword === 'none' && count($tokens) > 1) {
+                    return trim($value);
+                }
+
+                $case = $keyword;
+                continue;
+            }
+
+            if ($keyword === 'full-width') {
+                $fullWidth = true;
+                continue;
+            }
+
+            if ($keyword === 'full-size-kana') {
+                $fullSizeKana = true;
+                continue;
+            }
+
+            return trim($value);
+        }
+
+        $parts = [];
+        if ($case !== null && ($case !== 'none' || (!$fullWidth && !$fullSizeKana))) {
+            $parts[] = $case;
+        }
+        if ($fullWidth) {
+            $parts[] = 'full-width';
+        }
+        if ($fullSizeKana) {
+            $parts[] = 'full-size-kana';
+        }
+
+        return $parts === [] ? 'none' : implode(' ', $parts);
     }
 
     private function minifyBoxLengthListValue(string $property, string $value): string

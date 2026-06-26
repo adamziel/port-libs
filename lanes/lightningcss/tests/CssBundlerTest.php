@@ -3300,6 +3300,47 @@ CSS,
 
         throw new RuntimeException('Expected non-string read callback exception');
     },
+    'css bundler maps upstream visitor function unknown rule removal' => static function (TestRunner $t): void {
+        $dependencies = [];
+        $visited = [];
+
+        $code = (new CssBundler())->bundleWithVisitor('test.css', [
+            'test.css' => <<<'CSS'
+@dep "foo.js";
+
+.foo {
+  width: 32px;
+}
+CSS,
+        ], [
+            'Rule' => static function (array $rule) use (&$dependencies, &$visited): ?array {
+                $visited[] = [$rule['type'], $rule['file'], $rule['loc'], trim($rule['raw'])];
+
+                if ($rule['type'] === 'unknown' && preg_match('/^@dep\s+"([^"]+)";$/', trim($rule['raw']), $matches) === 1) {
+                    $dependencies[] = [
+                        'type' => 'file',
+                        'filePath' => $matches[1],
+                    ];
+
+                    return [];
+                }
+
+                return null;
+            },
+        ]);
+
+        $t->same('.foo{width:32px}', $code);
+        $t->same([
+            [
+                'type' => 'file',
+                'filePath' => 'foo.js',
+            ],
+        ], $dependencies);
+        $t->same([
+            ['unknown', 'test.css', ['line' => 1, 'column' => 1], '@dep "foo.js";'],
+            ['style', 'test.css', ['line' => 3, 'column' => 1], ".foo {\n  width: 32px;\n}"],
+        ], $visited);
+    },
     'css bundler propagates upstream bundle visitor errors' => static function (TestRunner $t): void {
         $visited = [];
 
