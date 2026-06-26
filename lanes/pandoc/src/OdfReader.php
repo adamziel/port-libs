@@ -154,7 +154,7 @@ final class OdfReader
         $packageConfigurations = $this->packageConfigurationMetadata($package, $manifest, $undeclaredEntries);
         $packageObjectReplacements = $this->packageObjectReplacementMetadata($package, $manifest, $undeclaredEntries);
         $packageLayoutCaches = $this->packageLayoutCacheMetadata($package, $manifest, $undeclaredEntries);
-        $packageProvenance = $this->packageProvenance($package, $manifest, $mimetypeEntry, $undeclaredEntries);
+        $packageProvenance = $this->packageProvenance($package, $manifest, $mimetypeEntry, $undeclaredEntries, $styleCatalog);
         $documentPartVersions = $this->documentPartVersionMetadata($package, $manifest);
         if ($packageThumbnails['count'] > 0) {
             $metadata['odfPackageThumbnails'] = $packageThumbnails;
@@ -1288,13 +1288,15 @@ final class OdfReader
     /**
      * @param list<array<string, mixed>> $manifest
      * @param list<array<string, mixed>> $undeclaredEntries
+     * @param array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>, diagnostics:list<array<string, mixed>>} $styleCatalog
      * @return array<string, mixed>
      */
     private function packageProvenance(
         ZipPackage $package,
         array $manifest,
         array $mimetypeEntry,
-        array $undeclaredEntries
+        array $undeclaredEntries,
+        array $styleCatalog
     ): array {
         $manifestRootAttributes = $this->manifestRootAttributeProvenance;
         $localHeaderOrder = $package->localHeaderOrderPreflight();
@@ -1668,6 +1670,7 @@ final class OdfReader
         ksort($packagePartByteExposurePolicyByteLengths, SORT_STRING);
         ksort($packagePartByteExposurePolicyCompressedByteLengths, SORT_STRING);
         $embeddedObjectPackages = $this->embeddedObjectPackageProvenance($package, $manifest, $objectPackageRootParts);
+        $stylePackageProvenance = $this->stylePackageProvenance($styleCatalog, $manifestByPart, $parts);
         sort($manifestCustomAttributeNames, SORT_STRING);
 
         $provenance = [
@@ -1730,6 +1733,7 @@ final class OdfReader
             'rdfMetadataPartCount' => $rdfMetadataPartCount,
             'objectReplacementPartCount' => $objectReplacementPartCount,
             'layoutCachePartCount' => $layoutCachePartCount,
+            'stylePackageProvenance' => $stylePackageProvenance,
             'embeddedObjectPackageCount' => $embeddedObjectPackages['count'],
             'embeddedObjectPackageExistingCount' => $embeddedObjectPackages['existingCount'],
             'embeddedObjectPackageMissingCount' => $embeddedObjectPackages['missingCount'],
@@ -1900,6 +1904,7 @@ final class OdfReader
             'embeddedObjectPackageCount' => $provenance['embeddedObjectPackageCount'] ?? 0,
             'scriptPackagePartCount' => $provenance['scriptPackagePartCount'] ?? 0,
             'configurationPackagePartCount' => $provenance['configurationPackagePartCount'] ?? 0,
+            'stylePackageProvenance' => $provenance['stylePackageProvenance'] ?? [],
             'centralDirectoryOrderMatchesLocalHeaderOrder' => ($provenance['centralDirectoryOrderMatchesLocalHeaderOrder'] ?? false) === true,
         ];
         $identityJson = json_encode(
@@ -1928,11 +1933,159 @@ final class OdfReader
             'packageEntries' => $packageEntries,
             'scriptPackagePartCount' => $provenance['scriptPackagePartCount'] ?? 0,
             'configurationPackagePartCount' => $provenance['configurationPackagePartCount'] ?? 0,
+            'stylePackageProvenance' => $provenance['stylePackageProvenance'] ?? [],
             'undeclaredEntryCount' => $provenance['undeclaredEntryCount'] ?? 0,
             'identitySha256' => hash('sha256', $identityJson),
             'identityPayloadByteLength' => strlen($identityJson),
             'byteExposurePolicy' => 'odf-package-identity-metadata-only',
             'canExposeBytes' => false,
+        ];
+    }
+
+    /**
+     * @param array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>, diagnostics:list<array<string, mixed>>} $styleCatalog
+     * @param array<string, array<string, mixed>> $manifestByPart
+     * @param array<string, array<string, mixed>> $packageParts
+     * @return array<string, mixed>
+     */
+    private function stylePackageProvenance(array $styleCatalog, array $manifestByPart, array $packageParts): array
+    {
+        $collections = [
+            'styles' => ['countKey' => 'styleCount', 'namesKey' => 'styleNames'],
+            'fontFaces' => ['countKey' => 'fontFaceCount', 'namesKey' => 'fontFaceNames'],
+            'listStyles' => ['countKey' => 'listStyleCount', 'namesKey' => 'listStyleNames'],
+            'dataStyles' => ['countKey' => 'dataStyleCount', 'namesKey' => 'dataStyleNames'],
+            'tableTemplates' => ['countKey' => 'tableTemplateCount', 'namesKey' => 'tableTemplateNames'],
+            'pageLayouts' => ['countKey' => 'pageLayoutCount', 'namesKey' => 'pageLayoutNames'],
+            'masterPages' => ['countKey' => 'masterPageCount', 'namesKey' => 'masterPageNames'],
+        ];
+        $itemsByPart = [];
+        $sourceContainerCounts = [];
+        $definitionTypeCounts = [];
+        $definitionCount = 0;
+        $automaticStyleDefinitionCount = 0;
+        $masterStyleDefinitionCount = 0;
+
+        foreach ($collections as $collectionName => $config) {
+            $definitions = $styleCatalog[$collectionName] ?? [];
+            if (!is_array($definitions)) {
+                continue;
+            }
+
+            foreach ($definitions as $name => $definition) {
+                if (!is_array($definition)) {
+                    continue;
+                }
+
+                $part = $definition['sourcePart'] ?? null;
+                if (!is_string($part) || $part === '') {
+                    continue;
+                }
+
+                if (!isset($itemsByPart[$part])) {
+                    $itemsByPart[$part] = [
+                        'part' => $part,
+                        'styleCount' => 0,
+                        'styleNames' => [],
+                        'fontFaceCount' => 0,
+                        'fontFaceNames' => [],
+                        'listStyleCount' => 0,
+                        'listStyleNames' => [],
+                        'dataStyleCount' => 0,
+                        'dataStyleNames' => [],
+                        'tableTemplateCount' => 0,
+                        'tableTemplateNames' => [],
+                        'pageLayoutCount' => 0,
+                        'pageLayoutNames' => [],
+                        'masterPageCount' => 0,
+                        'masterPageNames' => [],
+                        'automaticStyleCount' => 0,
+                        'masterStyleCount' => 0,
+                        'sourceContainerCounts' => [],
+                    ];
+                }
+
+                $countKey = $config['countKey'];
+                $namesKey = $config['namesKey'];
+                $styleName = is_string($definition['name'] ?? null) && $definition['name'] !== ''
+                    ? $definition['name']
+                    : (string) $name;
+                $itemsByPart[$part][$countKey]++;
+                $itemsByPart[$part][$namesKey][] = $styleName;
+                $definitionTypeCounts[$collectionName] = ($definitionTypeCounts[$collectionName] ?? 0) + 1;
+                ++$definitionCount;
+
+                $sourceContainer = $definition['sourceContainer'] ?? null;
+                if (is_string($sourceContainer) && $sourceContainer !== '') {
+                    $sourceContainerCounts[$sourceContainer] = ($sourceContainerCounts[$sourceContainer] ?? 0) + 1;
+                    $itemsByPart[$part]['sourceContainerCounts'][$sourceContainer] = ($itemsByPart[$part]['sourceContainerCounts'][$sourceContainer] ?? 0) + 1;
+                }
+                if (($definition['automaticStyle'] ?? false) === true) {
+                    ++$automaticStyleDefinitionCount;
+                    $itemsByPart[$part]['automaticStyleCount']++;
+                }
+                if (($definition['masterStyle'] ?? false) === true) {
+                    ++$masterStyleDefinitionCount;
+                    $itemsByPart[$part]['masterStyleCount']++;
+                }
+            }
+        }
+
+        foreach ($collections as $collectionName => $_config) {
+            $definitionTypeCounts[$collectionName] = $definitionTypeCounts[$collectionName] ?? 0;
+        }
+        ksort($definitionTypeCounts, SORT_STRING);
+        ksort($sourceContainerCounts, SORT_STRING);
+
+        $items = [];
+        foreach ($itemsByPart as $part => $item) {
+            $manifestItem = $manifestByPart[$part] ?? null;
+            $packagePart = $packageParts[$part] ?? null;
+            foreach ($collections as $config) {
+                $namesKey = $config['namesKey'];
+                $names = $item[$namesKey] ?? [];
+                if (is_array($names)) {
+                    $names = array_values(array_unique(array_map('strval', $names)));
+                    sort($names, SORT_STRING);
+                    $item[$namesKey] = $names;
+                }
+            }
+            if (is_array($item['sourceContainerCounts'])) {
+                ksort($item['sourceContainerCounts'], SORT_STRING);
+            }
+
+            $items[] = self::withoutEmpty($item + [
+                'declaredInManifest' => is_array($manifestItem),
+                'manifestIndex' => is_array($manifestItem) ? ($manifestItem['manifestIndex'] ?? null) : null,
+                'manifestFullPath' => is_array($manifestItem) ? ($manifestItem['fullPath'] ?? null) : null,
+                'manifestMediaType' => is_array($manifestItem) ? ($manifestItem['mediaType'] ?? null) : null,
+                'exists' => is_array($packagePart),
+                'storedByteLength' => is_array($packagePart) ? ($packagePart['byteLength'] ?? null) : null,
+                'compressedByteLength' => is_array($packagePart) ? ($packagePart['compressedByteLength'] ?? null) : null,
+                'compressionMethod' => is_array($packagePart) ? ($packagePart['compressionMethod'] ?? null) : null,
+                'compressionMethodName' => is_array($packagePart) ? ($packagePart['compressionMethodName'] ?? null) : null,
+                'crc32' => is_array($packagePart) ? ($packagePart['crc32'] ?? null) : null,
+                'packageByteExposurePolicy' => is_array($packagePart) ? ($packagePart['byteExposurePolicy'] ?? null) : null,
+                'byteExposurePolicy' => 'odf-style-package-provenance-metadata-only',
+                'canExposeBytes' => false,
+            ]);
+        }
+        usort(
+            $items,
+            static fn (array $left, array $right): int => (string) ($left['part'] ?? '') <=> (string) ($right['part'] ?? '')
+        );
+
+        return [
+            'count' => count($items),
+            'definitionCount' => $definitionCount,
+            'automaticStyleDefinitionCount' => $automaticStyleDefinitionCount,
+            'masterStyleDefinitionCount' => $masterStyleDefinitionCount,
+            'sourceParts' => array_values(array_map(static fn (array $item): string => (string) $item['part'], $items)),
+            'definitionTypeCounts' => $definitionTypeCounts,
+            'sourceContainerCounts' => $sourceContainerCounts,
+            'byteExposurePolicy' => 'odf-style-package-provenance-metadata-only',
+            'canExposeBytes' => false,
+            'items' => $items,
         ];
     }
 
@@ -2455,7 +2608,7 @@ final class OdfReader
             throw new \InvalidArgumentException('ODT styles.xml must use office:document-styles as its root element');
         }
 
-        $this->mergeStyleCollections($catalog, $this->styleCollectionsFromRoot($root));
+        $this->mergeStyleCollections($catalog, $this->styleCollectionsFromRoot($root, [], 'styles.xml'));
 
         return $catalog;
     }
@@ -2477,7 +2630,7 @@ final class OdfReader
             throw new \InvalidArgumentException('ODT content.xml must use office:document-content as its root element');
         }
 
-        $contentStyles = $this->styleCollectionsFromRoot($root, $styleCatalog['fontFaces']);
+        $contentStyles = $this->styleCollectionsFromRoot($root, $styleCatalog['fontFaces'], 'content.xml');
         $this->mergeStyleCollections($styleCatalog, $contentStyles);
         $body = self::firstChildElement($root, 'body', self::OFFICE_NS);
         $text = $body instanceof \DOMElement ? self::firstChildElement($body, 'text', self::OFFICE_NS) : null;
@@ -10770,10 +10923,10 @@ final class OdfReader
      * @param array<string, array<string, mixed>> $inheritedFontFaces
      * @return array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>, diagnostics:list<array<string, mixed>>}
      */
-    private function styleCollectionsFromRoot(\DOMElement $root, array $inheritedFontFaces = []): array
+    private function styleCollectionsFromRoot(\DOMElement $root, array $inheritedFontFaces = [], string $sourcePart = ''): array
     {
         $diagnostics = [];
-        $localFontFaces = $this->fontFaceDeclarations($root, $diagnostics);
+        $localFontFaces = $this->fontFaceDeclarations($root, $diagnostics, $sourcePart);
         $fontFaces = array_replace($inheritedFontFaces, $localFontFaces);
 
         $styles = [];
@@ -10791,7 +10944,10 @@ final class OdfReader
                 'odf-style-duplicate-name',
                 'styleName',
                 $name,
-                $this->styleDefinition($style, $fontFaces)
+                array_merge(
+                    $this->styleDefinition($style, $fontFaces),
+                    $this->styleDefinitionSourceMetadata($style, $sourcePart)
+                )
             );
         }
 
@@ -10810,11 +10966,14 @@ final class OdfReader
                 'odf-list-style-duplicate-name',
                 'listStyleName',
                 $name,
-                $this->listStyleDefinition($listStyle, $fontFaces)
+                array_merge(
+                    $this->listStyleDefinition($listStyle, $fontFaces),
+                    $this->styleDefinitionSourceMetadata($listStyle, $sourcePart)
+                )
             );
         }
 
-        $dataStyles = $this->dataStyleDefinitions($root, $diagnostics);
+        $dataStyles = $this->dataStyleDefinitions($root, $diagnostics, $sourcePart);
 
         $tableTemplates = [];
         foreach ($root->getElementsByTagNameNS(self::TABLE_NS, 'table-template') as $tableTemplate) {
@@ -10831,7 +10990,10 @@ final class OdfReader
                 'odf-table-template-duplicate-name',
                 'tableTemplateName',
                 $name,
-                $this->tableTemplateDefinition($tableTemplate)
+                array_merge(
+                    $this->tableTemplateDefinition($tableTemplate),
+                    $this->styleDefinitionSourceMetadata($tableTemplate, $sourcePart)
+                )
             );
         }
 
@@ -10850,7 +11012,10 @@ final class OdfReader
                 'odf-page-layout-duplicate-name',
                 'pageLayoutName',
                 $name,
-                $this->pageLayoutDefinition($pageLayout)
+                array_merge(
+                    $this->pageLayoutDefinition($pageLayout),
+                    $this->styleDefinitionSourceMetadata($pageLayout, $sourcePart)
+                )
             );
         }
 
@@ -10869,7 +11034,10 @@ final class OdfReader
                 'odf-master-page-duplicate-name',
                 'masterPageName',
                 $name,
-                $this->masterPageDefinition($masterPage)
+                array_merge(
+                    $this->masterPageDefinition($masterPage),
+                    $this->styleDefinitionSourceMetadata($masterPage, $sourcePart)
+                )
             );
         }
 
@@ -10886,10 +11054,45 @@ final class OdfReader
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    private function styleDefinitionSourceMetadata(\DOMElement $element, string $sourcePart): array
+    {
+        $sourceContainer = $this->styleSourceContainerName($element);
+        $metadata = [
+            'sourcePart' => self::nullable($sourcePart),
+            'sourceContainer' => $sourceContainer,
+        ];
+        if ($sourceContainer === 'office:automatic-styles') {
+            $metadata['automaticStyle'] = true;
+        }
+        if ($sourceContainer === 'office:master-styles') {
+            $metadata['masterStyle'] = true;
+        }
+
+        return self::withoutEmpty($metadata);
+    }
+
+    private function styleSourceContainerName(\DOMElement $element): ?string
+    {
+        for ($node = $element->parentNode; $node instanceof \DOMNode; $node = $node->parentNode) {
+            if (!$node instanceof \DOMElement || $node->namespaceURI !== self::OFFICE_NS) {
+                continue;
+            }
+
+            if (in_array($node->localName, ['styles', 'automatic-styles', 'master-styles', 'font-face-decls'], true)) {
+                return 'office:' . $node->localName;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @param list<array<string, mixed>> $diagnostics
      * @return array<string, array<string, mixed>>
      */
-    private function fontFaceDeclarations(\DOMElement $root, array &$diagnostics): array
+    private function fontFaceDeclarations(\DOMElement $root, array &$diagnostics, string $sourcePart = ''): array
     {
         $container = self::firstChildElement($root, 'font-face-decls', self::OFFICE_NS);
         if (!$container instanceof \DOMElement) {
@@ -10915,7 +11118,7 @@ final class OdfReader
                     'fontFamilyGeneric' => self::nullable(self::attr($fontFace, self::STYLE_NS, 'font-family-generic')),
                     'fontPitch' => self::nullable(strtolower(self::attr($fontFace, self::STYLE_NS, 'font-pitch'))),
                     'fontCharset' => self::nullable(self::attr($fontFace, self::STYLE_NS, 'font-charset')),
-                ])
+                ] + $this->styleDefinitionSourceMetadata($fontFace, $sourcePart))
             );
         }
 
@@ -10926,10 +11129,10 @@ final class OdfReader
      * @param list<array<string, mixed>> $diagnostics
      * @return array<string, array<string, mixed>>
      */
-    private function dataStyleDefinitions(\DOMElement $root, array &$diagnostics): array
+    private function dataStyleDefinitions(\DOMElement $root, array &$diagnostics, string $sourcePart = ''): array
     {
         $styles = [];
-        $this->collectDataStyleDefinitions($root, $styles, $diagnostics);
+        $this->collectDataStyleDefinitions($root, $styles, $diagnostics, $sourcePart);
 
         return $styles;
     }
@@ -10938,7 +11141,7 @@ final class OdfReader
      * @param array<string, array<string, mixed>> $styles
      * @param list<array<string, mixed>> $diagnostics
      */
-    private function collectDataStyleDefinitions(\DOMElement $element, array &$styles, array &$diagnostics): void
+    private function collectDataStyleDefinitions(\DOMElement $element, array &$styles, array &$diagnostics, string $sourcePart = ''): void
     {
         foreach (self::childElements($element) as $child) {
             if ($child->namespaceURI === self::NUMBER_NS && $this->isDataStyleElementName($child->localName)) {
@@ -10950,12 +11153,12 @@ final class OdfReader
                         'odf-data-style-duplicate-name',
                         'dataStyleName',
                         $name,
-                        $this->dataStyleDefinition($child)
+                        $this->dataStyleDefinition($child, $sourcePart)
                     );
                 }
             }
 
-            $this->collectDataStyleDefinitions($child, $styles, $diagnostics);
+            $this->collectDataStyleDefinitions($child, $styles, $diagnostics, $sourcePart);
         }
     }
 
@@ -10975,7 +11178,7 @@ final class OdfReader
     /**
      * @return array<string, mixed>
      */
-    private function dataStyleDefinition(\DOMElement $style): array
+    private function dataStyleDefinition(\DOMElement $style, string $sourcePart = ''): array
     {
         $components = [];
         foreach (self::childElements($style) as $child) {
@@ -10997,7 +11200,7 @@ final class OdfReader
             'components' => $components,
             'componentCount' => $components === [] ? null : count($components),
             'formatSignature' => $this->dataStyleFormatSignature($components),
-        ], $this->odfElementMetadataAttributes($style, [self::NUMBER_NS, self::STYLE_NS])));
+        ], $this->odfElementMetadataAttributes($style, [self::NUMBER_NS, self::STYLE_NS]), $this->styleDefinitionSourceMetadata($style, $sourcePart)));
 
         return $definition;
     }

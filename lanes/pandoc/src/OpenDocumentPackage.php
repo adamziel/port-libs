@@ -283,6 +283,7 @@ final class OpenDocumentPackage
      *     packageConfigurations:array<string, mixed>,
      *     packageFonts:array<string, mixed>,
      *     packageLayoutCaches:array<string, mixed>,
+     *     packageStyles:array<string, mixed>,
      *     comments:array<string, mixed>,
      *     rdfMetadata:array<string, mixed>,
      *     metadata:array<string, mixed>,
@@ -307,6 +308,7 @@ final class OpenDocumentPackage
         $packageConfigurations = self::packageConfigurationMetadata($this->package, $this->manifestEntries, $undeclaredPackageEntries);
         $packageFonts = self::packageFontMetadata($this->package, $this->manifestEntries, $undeclaredPackageEntries);
         $packageLayoutCaches = self::packageLayoutCacheMetadata($this->package, $this->manifestEntries, $undeclaredPackageEntries);
+        $packageStyles = $this->packageStyleProvenance($packageInventory);
         foreach ($this->manifestEntries as $entry) {
             if (self::isMediaResourceManifestEntry($entry)) {
                 $mediaParts[] = [
@@ -398,6 +400,7 @@ final class OpenDocumentPackage
             'packageConfigurations' => $packageConfigurations,
             'packageFonts' => $packageFonts,
             'packageLayoutCaches' => $packageLayoutCaches,
+            'packageStyles' => $packageStyles,
             'rdfMetadata' => $this->rdfMetadata,
             'manifestEncryption' => self::manifestEncryptionSummary($this->manifestEntries),
             'manifestReview' => self::manifestReview($this->manifestEntries, $undeclaredPackageEntries, $this->manifestRootAttributes),
@@ -407,6 +410,51 @@ final class OpenDocumentPackage
             'settings' => $this->settings,
             'styleNames' => array_keys($this->stylesByName),
             'contentBlocks' => count($this->readContentDocument()->children),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $packageInventory
+     * @return array<string, mixed>
+     */
+    private function packageStyleProvenance(array $packageInventory): array
+    {
+        $part = is_array($packageInventory['parts']['styles.xml'] ?? null)
+            ? $packageInventory['parts']['styles.xml']
+            : null;
+        $styleNames = array_keys($this->stylesByName);
+        sort($styleNames, SORT_STRING);
+        $items = [];
+
+        if (is_array($part) || $styleNames !== []) {
+            $items[] = self::withoutEmptyValues([
+                'path' => 'styles.xml',
+                'declaredInManifest' => is_array($part) && ($part['declaredInManifest'] ?? false) === true,
+                'exists' => is_array($part),
+                'manifestIndex' => is_array($part) ? ($part['manifestIndex'] ?? null) : null,
+                'manifestPath' => is_array($part) ? ($part['manifestPath'] ?? null) : null,
+                'manifestMediaType' => is_array($part) ? ($part['manifestMediaType'] ?? null) : null,
+                'styleCount' => count($styleNames),
+                'styleNames' => $styleNames,
+                'storedByteLength' => is_array($part) ? ($part['byteLength'] ?? null) : null,
+                'compressedByteLength' => is_array($part) ? ($part['compressedByteLength'] ?? null) : null,
+                'compressionMethod' => is_array($part) ? ($part['compressionMethod'] ?? null) : null,
+                'compressionMethodName' => is_array($part) ? ($part['compressionMethodName'] ?? null) : null,
+                'crc32' => is_array($part) ? ($part['crc32'] ?? null) : null,
+                'packageByteExposurePolicy' => is_array($part) ? ($part['byteExposurePolicy'] ?? null) : null,
+                'byteExposurePolicy' => 'odf-style-package-provenance-metadata-only',
+                'canExposeBytes' => false,
+            ]);
+        }
+
+        return [
+            'count' => count($items),
+            'styleCount' => count($styleNames),
+            'styleNames' => $styleNames,
+            'sourceParts' => $items === [] ? [] : ['styles.xml'],
+            'byteExposurePolicy' => 'odf-style-package-provenance-metadata-only',
+            'canExposeBytes' => false,
+            'items' => $items,
         ];
     }
 
