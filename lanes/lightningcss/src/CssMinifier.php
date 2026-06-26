@@ -18804,41 +18804,44 @@ final class CssMinifier
      */
     private function hslToRgbBytes(float $hue, float $saturation, float $lightness, float $roundingBias = 0.0): array
     {
-        $hue = $this->normalizeMixedHue($hue) / 360;
+        $hue = $this->asF32($this->normalizeMixedHue($hue) / 360);
+        $saturation = $this->asF32($saturation);
+        $lightness = $this->asF32($lightness);
         $m2 = $lightness <= 0.5
-            ? $lightness * ($saturation + 1)
-            : $lightness + $saturation - $lightness * $saturation;
-        $m1 = $lightness * 2 - $m2;
-        $hueTimesThree = $hue * 3;
+            ? $this->asF32($lightness * $this->asF32($saturation + 1))
+            : $this->asF32($this->asF32($lightness + $saturation) - $this->asF32($lightness * $saturation));
+        $m1 = $this->asF32($this->asF32($lightness * 2) - $m2);
+        $hueTimesThree = $this->asF32($hue * 3);
 
-        $red = $this->hslHueToRgb($m1, $m2, $hueTimesThree + 1);
+        $red = $this->hslHueToRgb($m1, $m2, $this->asF32($hueTimesThree + 1));
         $green = $this->hslHueToRgb($m1, $m2, $hueTimesThree);
-        $blue = $this->hslHueToRgb($m1, $m2, $hueTimesThree - 1);
+        $blue = $this->hslHueToRgb($m1, $m2, $this->asF32($hueTimesThree - 1));
 
         return [
-            (int) round($red * 255 + $roundingBias),
-            (int) round($green * 255 + $roundingBias),
-            (int) round($blue * 255 + $roundingBias),
+            (int) round($this->asF32($red * 255) + $roundingBias),
+            (int) round($this->asF32($green * 255) + $roundingBias),
+            (int) round($this->asF32($blue * 255) + $roundingBias),
         ];
     }
 
     private function hslHueToRgb(float $m1, float $m2, float $hueTimesThree): float
     {
+        $hueTimesThree = $this->asF32($hueTimesThree);
         if ($hueTimesThree < 0) {
-            $hueTimesThree += 3;
+            $hueTimesThree = $this->asF32($hueTimesThree + 3);
         }
         if ($hueTimesThree > 3) {
-            $hueTimesThree -= 3;
+            $hueTimesThree = $this->asF32($hueTimesThree - 3);
         }
 
-        if ($hueTimesThree * 2 < 1) {
-            return $m1 + ($m2 - $m1) * $hueTimesThree * 2;
+        if ($this->asF32($hueTimesThree * 2) < 1) {
+            return $this->asF32($m1 + $this->asF32($this->asF32($m2 - $m1) * $this->asF32($hueTimesThree * 2)));
         }
-        if ($hueTimesThree * 2 < 3) {
+        if ($this->asF32($hueTimesThree * 2) < 3) {
             return $m2;
         }
         if ($hueTimesThree < 2) {
-            return $m1 + ($m2 - $m1) * (2 - $hueTimesThree) * 2;
+            return $this->asF32($m1 + $this->asF32($this->asF32($m2 - $m1) * $this->asF32($this->asF32(2 - $hueTimesThree) * 2)));
         }
 
         return $m1;
