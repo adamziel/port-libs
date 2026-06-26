@@ -5951,6 +5951,49 @@ XML;
         $t->same(false, $embeddedGraphs['rIdMissingWorkbook']['expanded']);
         $t->same(false, $embeddedGraphs['rIdMissingWorkbook']['valid']);
         $t->same(['missing-in-package'], $embeddedGraphs['rIdMissingWorkbook']['issues']);
+
+        $summary = $graph->embeddedPackageGraphSummary('/word/document.xml');
+        $t->same('/word/document.xml', $summary['source']);
+        $t->same(false, $summary['valid']);
+        $t->same(4, $summary['embeddedPackageCount']);
+        $t->same(1, $summary['validPackageCount']);
+        $t->same(3, $summary['invalidPackageCount']);
+        $t->same(1, $summary['expandedCount']);
+        $t->same(3, $summary['blockedCount']);
+        $t->same(1, $summary['externalCount']);
+        $t->same(1, $summary['missingTargetCount']);
+        $t->same(1, $summary['parseErrorCount']);
+        $t->same(5, $summary['nestedPackagePartCount']);
+        $t->same(2, $summary['nestedRelationshipSourceCount']);
+        $t->same(1, $summary['nestedRelationshipStopCount']);
+        $t->same(0, $summary['nestedMissingStopCount']);
+        $t->same(0, $summary['nestedExternalStopCount']);
+        $t->same(1, $summary['nestedUnloadedStopCount']);
+        $t->same(['rIdEmbeddedWorkbook'], $summary['expandedIds']);
+        $t->same(['rIdExternalWorkbook', 'rIdMalformedWorkbook', 'rIdMissingWorkbook'], $summary['blockedIds']);
+        $t->same(['rIdExternalWorkbook'], $summary['externalIds']);
+        $t->same(['/word/embeddings/missing-workbook.xlsx'], $summary['missingTargetParts']);
+        $t->same(['rIdMalformedWorkbook'], $summary['parseErrorIds']);
+        $t->same([
+            'embedded-package-parse-error' => 1,
+            'external-embedded-package-not-expanded' => 1,
+            'missing-in-package' => 1,
+        ], $summary['issueCounts']);
+        $t->same([
+            'embedded-package-parse-error',
+            'external-embedded-package-not-expanded',
+            'missing-in-package',
+        ], $summary['issues']);
+
+        $packagesById = [];
+        foreach ($summary['packages'] as $package) {
+            $packagesById[$package['id']] = $package;
+        }
+        $t->same(1, $packagesById['rIdEmbeddedWorkbook']['nestedRelationshipStopCount']);
+        $t->same([], $packagesById['rIdEmbeddedWorkbook']['nestedRelationshipIssues']);
+        $t->same(false, $packagesById['rIdExternalWorkbook']['expanded']);
+        $t->same(false, $packagesById['rIdMalformedWorkbook']['valid']);
+        $t->same(false, $packagesById['rIdMissingWorkbook']['exists']);
     },
     'preflights embedded OPC package relationship closure for importer review' => static function (TestRunner $t): void {
         $nestedWorkbookBytes = ZipPackage::build([

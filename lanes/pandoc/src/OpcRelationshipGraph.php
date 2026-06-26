@@ -5443,6 +5443,147 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @return array{source:string, valid:bool, embeddedPackageCount:int, validPackageCount:int, invalidPackageCount:int, expandedCount:int, blockedCount:int, externalCount:int, missingTargetCount:int, parseErrorCount:int, nestedPackagePartCount:int, nestedRelationshipSourceCount:int, nestedRelationshipStopCount:int, nestedMissingStopCount:int, nestedExternalStopCount:int, nestedUnloadedStopCount:int, nestedInvalidStopCount:int, nestedOfficeDocumentInvalidCount:int, expandedIds:list<string>, blockedIds:list<string>, externalIds:list<string>, missingTargetParts:list<string>, parseErrorIds:list<string>, nestedInvalidOfficeDocumentIds:list<string>, issueCounts:array<string,int>, issues:list<string>, packages:list<array{id:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, expanded:bool, nestedPackagePartCount:?int, nestedRelationshipSourceCount:?int, nestedRelationshipStopCount:?int, nestedRelationshipIssues:list<string>, valid:bool, issues:list<string>}>}
+     */
+    public function embeddedPackageGraphSummary(string $sourcePartName = '/'): array
+    {
+        $sourcePartName = OpcPackagePath::canonicalPartName($sourcePartName, true);
+        $summary = [
+            'source' => $sourcePartName,
+            'valid' => true,
+            'embeddedPackageCount' => 0,
+            'validPackageCount' => 0,
+            'invalidPackageCount' => 0,
+            'expandedCount' => 0,
+            'blockedCount' => 0,
+            'externalCount' => 0,
+            'missingTargetCount' => 0,
+            'parseErrorCount' => 0,
+            'nestedPackagePartCount' => 0,
+            'nestedRelationshipSourceCount' => 0,
+            'nestedRelationshipStopCount' => 0,
+            'nestedMissingStopCount' => 0,
+            'nestedExternalStopCount' => 0,
+            'nestedUnloadedStopCount' => 0,
+            'nestedInvalidStopCount' => 0,
+            'nestedOfficeDocumentInvalidCount' => 0,
+            'expandedIds' => [],
+            'blockedIds' => [],
+            'externalIds' => [],
+            'missingTargetParts' => [],
+            'parseErrorIds' => [],
+            'nestedInvalidOfficeDocumentIds' => [],
+            'issueCounts' => [],
+            'issues' => [],
+            'packages' => [],
+        ];
+
+        foreach ($this->preflightEmbeddedPackageGraphs($sourcePartName) as $embeddedPackage) {
+            $summary['embeddedPackageCount']++;
+            $nestedClosure = is_array($embeddedPackage['nestedRelationshipClosure'] ?? null)
+                ? $embeddedPackage['nestedRelationshipClosure']
+                : null;
+            $nestedRelationshipIssues = $nestedClosure !== null && is_array($nestedClosure['issues'] ?? null)
+                ? $nestedClosure['issues']
+                : [];
+
+            if ($embeddedPackage['valid']) {
+                $summary['validPackageCount']++;
+            } else {
+                $summary['invalidPackageCount']++;
+                $summary['valid'] = false;
+            }
+
+            if ($embeddedPackage['expanded']) {
+                $summary['expandedCount']++;
+                $summary['expandedIds'][] = $embeddedPackage['id'];
+            } else {
+                $summary['blockedCount']++;
+                $summary['blockedIds'][] = $embeddedPackage['id'];
+            }
+
+            if ($embeddedPackage['external']) {
+                $summary['externalCount']++;
+                $summary['externalIds'][] = $embeddedPackage['id'];
+            }
+
+            if ($embeddedPackage['exists'] === false && is_string($embeddedPackage['targetPart'] ?? null)) {
+                $summary['missingTargetCount']++;
+                self::appendUniqueString($summary['missingTargetParts'], $embeddedPackage['targetPart']);
+            }
+
+            if (($embeddedPackage['parseError'] ?? null) !== null) {
+                $summary['parseErrorCount']++;
+                $summary['parseErrorIds'][] = $embeddedPackage['id'];
+            }
+
+            if (is_int($embeddedPackage['nestedPackagePartCount'] ?? null)) {
+                $summary['nestedPackagePartCount'] += $embeddedPackage['nestedPackagePartCount'];
+            }
+
+            if (is_int($embeddedPackage['nestedRelationshipSourceCount'] ?? null)) {
+                $summary['nestedRelationshipSourceCount'] += $embeddedPackage['nestedRelationshipSourceCount'];
+            }
+
+            if ($nestedClosure !== null) {
+                $summary['nestedRelationshipStopCount'] += (int) ($nestedClosure['stopCount'] ?? 0);
+                $summary['nestedMissingStopCount'] += (int) ($nestedClosure['missingStopCount'] ?? 0);
+                $summary['nestedExternalStopCount'] += (int) ($nestedClosure['externalStopCount'] ?? 0);
+                $summary['nestedUnloadedStopCount'] += (int) ($nestedClosure['unloadedStopCount'] ?? 0);
+                $summary['nestedInvalidStopCount'] += (int) ($nestedClosure['invalidStopCount'] ?? 0);
+            }
+
+            if (
+                is_array($embeddedPackage['nestedOfficeDocument'] ?? null)
+                && ($embeddedPackage['nestedOfficeDocument']['valid'] ?? true) !== true
+            ) {
+                $summary['nestedOfficeDocumentInvalidCount']++;
+                $summary['nestedInvalidOfficeDocumentIds'][] = $embeddedPackage['id'];
+            }
+
+            foreach ($embeddedPackage['issues'] as $issue) {
+                $summary['issueCounts'][$issue] = ($summary['issueCounts'][$issue] ?? 0) + 1;
+                self::appendUniqueString($summary['issues'], $issue);
+            }
+
+            $summary['packages'][] = [
+                'id' => $embeddedPackage['id'],
+                'target' => $embeddedPackage['target'],
+                'targetPart' => $embeddedPackage['targetPart'],
+                'contentType' => $embeddedPackage['contentType'],
+                'external' => $embeddedPackage['external'],
+                'exists' => $embeddedPackage['exists'],
+                'expanded' => $embeddedPackage['expanded'],
+                'nestedPackagePartCount' => $embeddedPackage['nestedPackagePartCount'],
+                'nestedRelationshipSourceCount' => $embeddedPackage['nestedRelationshipSourceCount'],
+                'nestedRelationshipStopCount' => $nestedClosure['stopCount'] ?? null,
+                'nestedRelationshipIssues' => $nestedRelationshipIssues,
+                'valid' => $embeddedPackage['valid'],
+                'issues' => $embeddedPackage['issues'],
+            ];
+        }
+
+        foreach ([
+            'expandedIds',
+            'blockedIds',
+            'externalIds',
+            'missingTargetParts',
+            'parseErrorIds',
+            'nestedInvalidOfficeDocumentIds',
+            'issues',
+        ] as $listKey) {
+            sort($summary[$listKey], SORT_STRING);
+        }
+        ksort($summary['issueCounts'], SORT_STRING);
+        usort(
+            $summary['packages'],
+            static fn (array $left, array $right): int => $left['id'] <=> $right['id'],
+        );
+
+        return $summary;
+    }
+
+    /**
      * @param list<string> $sourceIds
      * @param list<string> $sourceTypes
      * @return array{source:string, sourceIds:list<string>, sourceTypes:list<string>, invalidSourceTypes:list<string>, sourceTypeIssues:array<string, list<string>>, unmatchedSourceIds:list<string>, unmatchedSourceTypes:list<string>, selectorOverlappingRelationshipIds:list<string>, selectorOverlapCount:int, valid:bool, issues:list<string>, relationships:list<array{source:string, id:string, type:string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>}
