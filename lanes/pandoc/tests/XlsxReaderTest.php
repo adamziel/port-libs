@@ -109,6 +109,116 @@ XML);
     }
 };
 
+$buildFormattedXlsxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-xlsx-formatted-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary XLSX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary XLSX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('xl/workbook.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+          xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+    <sheet name="Formats" sheetId="1" r:id="rId1"/>
+  </sheets>
+</workbook>
+XML);
+    $zip->addFromString('xl/_rels/workbook.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('xl/styles.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <numFmts count="1">
+    <numFmt numFmtId="164" formatCode="yyyy-mm-dd"/>
+  </numFmts>
+  <fonts count="3">
+    <font><name val="Aptos"/></font>
+    <font><b/><name val="Aptos"/></font>
+    <font><i/><name val="Aptos"/></font>
+  </fonts>
+  <cellXfs count="4">
+    <xf numFmtId="0" fontId="0"/>
+    <xf numFmtId="0" fontId="1" applyFont="1"/>
+    <xf numFmtId="2" fontId="0" applyNumberFormat="1"/>
+    <xf numFmtId="164" fontId="2" applyFont="1" applyNumberFormat="1"/>
+  </cellXfs>
+</styleSheet>
+XML);
+    $zip->addFromString('xl/sharedStrings.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="7" uniqueCount="7">
+  <si><t>Merged Header</t></si>
+  <si><t>Link</t></si>
+  <si><r><t>North</t></r><r><t>wind</t></r></si>
+  <si><t>Amount</t></si>
+  <si><t>Date</t></si>
+  <si><t>Inline</t></si>
+  <si><t>Unused</t></si>
+</sst>
+XML);
+    $zip->addFromString('xl/worksheets/sheet1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+           xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheetData>
+    <row r="1">
+      <c r="A1" s="1" t="s"><v>0</v></c>
+      <c r="D1" s="1" t="s"><v>1</v></c>
+    </row>
+    <row r="2">
+      <c r="A2" t="s"><v>2</v></c>
+      <c r="B2" s="2"><v>12</v></c>
+      <c r="C2" s="3"><v>45306</v></c>
+      <c r="D2" t="inlineStr"><is><r><t>Inline</t></r><r><t xml:space="preserve"> value</t></r></is></c>
+    </row>
+  </sheetData>
+  <mergeCells count="1">
+    <mergeCell ref="A1:C1"/>
+  </mergeCells>
+  <hyperlinks>
+    <hyperlink ref="D1" r:id="rIdHyperlink" tooltip="Open source"/>
+  </hyperlinks>
+</worksheet>
+XML);
+    $zip->addFromString('xl/worksheets/_rels/sheet1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdHyperlink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/report" TargetMode="External"/>
+</Relationships>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary XLSX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 return [
     'matches pinned upstream xlsx reader basic fixture semantics' => static function (TestRunner $t) use ($buildXlsxPackage): void {
         $document = (new XlsxReader())->read($buildXlsxPackage());
@@ -163,6 +273,54 @@ return [
         $t->contains('<!-- wp:heading {"level":2} -->', $blocks);
         $t->contains('<th><strong>Person</strong></th>', $blocks);
         $t->contains('<td>Just a random cell</td>', $blocks);
+    },
+
+    'reads formatted cells hyperlinks rich strings and merged spans from real xlsx style records' => static function (TestRunner $t) use ($buildFormattedXlsxPackage): void {
+        $document = (new XlsxReader())->read($buildFormattedXlsxPackage());
+        $review = $document->attr('xlsx');
+        $native = PandocConverter::write($document, 'native');
+        $html = PandocConverter::write($document, 'html');
+        $table = $document->children[1];
+        $headerCells = $table->children[0]->children[0]->children;
+        $bodyCells = $table->children[1]->children[0]->children;
+        $mergedHeader = $headerCells[0];
+        $linkedHeader = $headerCells[1];
+        $link = $linkedHeader->children[0]->children[0];
+
+        $t->same(1, $review['sheetCount'] ?? null);
+        $t->same(1, $review['tableCount'] ?? null);
+        $t->same(7, $review['sharedStringCount'] ?? null);
+        $t->same(3, $review['styleFontCount'] ?? null);
+        $t->same(4, $review['styleCellFormatCount'] ?? null);
+        $t->same(1, $review['styleCustomNumberFormatCount'] ?? null);
+        $t->same(false, $review['date1904'] ?? null);
+        $t->same(1, $review['sheets'][0]['hyperlinkCount'] ?? null);
+        $t->same(1, $review['sheets'][0]['mergedCellCount'] ?? null);
+
+        $t->same(2, count($headerCells));
+        $t->same('Merged Header', $mergedHeader->attr('text'));
+        $t->same(3, $mergedHeader->attr('colspan'));
+        $t->same('strong', $mergedHeader->children[0]->children[0]->type);
+        $t->same('D1', $linkedHeader->attr('sourceCell'));
+        $t->same('link', $link->type);
+        $t->same('https://example.test/report', $link->attr('url'));
+        $t->same('Open source', $link->attr('title'));
+        $t->same('strong', $link->children[0]->type);
+
+        $t->same('Northwind', $bodyCells[0]->attr('text'));
+        $t->same('12.00', $bodyCells[1]->attr('text'));
+        $t->same('number', $bodyCells[1]->attr('xlsxValueType'));
+        $t->same('2024-01-15', $bodyCells[2]->attr('text'));
+        $t->same('date', $bodyCells[2]->attr('xlsxValueType'));
+        $t->same('emph', $bodyCells[2]->children[0]->children[0]->type);
+        $t->same('Inline value', $bodyCells[3]->attr('text'));
+
+        $t->contains('Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 3)', $native);
+        $t->contains('Link ( "" , [  ] , [  ] ) [ Strong [ Str "Link" ] ] ( "https://example.test/report" , "Open source" )', $native);
+        $t->contains('<th colspan="3"><strong>Merged Header</strong></th>', $html);
+        $t->contains('<a href="https://example.test/report" title="Open source"><strong>Link</strong></a>', $html);
+        $t->contains('<td>12.00</td>', $html);
+        $t->contains('<td><em>2024-01-15</em></td>', $html);
     },
 
     'reads xlsx bytes through the converter input path' => static function (TestRunner $t) use ($buildXlsxPackage): void {
