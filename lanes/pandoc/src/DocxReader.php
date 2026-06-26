@@ -469,11 +469,26 @@ final class DocxReader
         }
 
         $style = $this->runStyle($run);
+        if (($style['superscript'] ?? false) && $nodes !== []) {
+            $nodes = [new AstNode('superscript', [], $nodes)];
+        }
+        if (($style['subscript'] ?? false) && $nodes !== []) {
+            $nodes = [new AstNode('subscript', [], $nodes)];
+        }
         if (($style['strong'] ?? false) && $nodes !== []) {
             $nodes = [new AstNode('strong', [], $nodes)];
         }
         if (($style['emph'] ?? false) && $nodes !== []) {
             $nodes = [new AstNode('emph', [], $nodes)];
+        }
+        if (($style['underline'] ?? false) && $nodes !== []) {
+            $nodes = [new AstNode('underline', [], $nodes)];
+        }
+        if (($style['strikeout'] ?? false) && $nodes !== []) {
+            $nodes = [new AstNode('strikeout', [], $nodes)];
+        }
+        if (($style['smallCaps'] ?? false) && $nodes !== []) {
+            $nodes = [new AstNode('small_caps', [], $nodes)];
         }
         $styleId = (string) ($style['styleId'] ?? '');
         if ($styleId !== '' && $nodes !== []) {
@@ -498,8 +513,16 @@ final class DocxReader
             'date' => $this->attr($change, self::W_NS, 'date'),
         ], static fn (string $value): bool => $value !== '');
 
+        $deletion = in_array($change->localName, ['del', 'moveFrom'], true);
+        $classes = [$deletion ? 'deletion' : 'insertion'];
+        if ($change->localName === 'moveFrom') {
+            $classes[] = 'docx-move-from';
+        } elseif ($change->localName === 'moveTo') {
+            $classes[] = 'docx-move-to';
+        }
+
         return new AstNode('span', [
-            'classes' => [$change->localName === 'del' ? 'deletion' : 'insertion'],
+            'classes' => $classes,
             'attributes' => $attributes,
         ], $children);
     }

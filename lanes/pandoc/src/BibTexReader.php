@@ -63,7 +63,10 @@ final class BibTexReader
     public function read(string $source): AstNode
     {
         $packet = $this->parseBibliography($source);
-        $entries = $packet['entries'];
+        $entries = array_values(array_filter(
+            $packet['entries'],
+            fn (array $entry): bool => !$this->isDataOnlyEntry($entry)
+        ));
         $metadata = [
             'references' => $this->metaList(array_map(fn (array $entry): array => $this->referenceMeta($entry), $entries)),
             'nocite' => [
@@ -85,6 +88,7 @@ final class BibTexReader
             'bibtexStringCount' => count($packet['strings']),
             'bibtexPreambleCount' => count($packet['preambles']),
             'bibtexCommentCount' => $packet['comments'],
+            'bibtexDataEntryCount' => count($packet['entries']) - count($entries),
         ];
 
         if ($packet['preambles'] !== []) {
@@ -214,6 +218,14 @@ final class BibTexReader
         }
 
         return $entries;
+    }
+
+    /**
+     * @param array{type:string,key:string,fields:array<string,string>,rawFields:array<string,string>} $entry
+     */
+    private function isDataOnlyEntry(array $entry): bool
+    {
+        return in_array($entry['type'], ['xdata', 'set'], true);
     }
 
     /**
@@ -548,10 +560,14 @@ final class BibTexReader
             'journaltitle' => 'container-title',
             'booktitle' => 'container-title',
             'publisher' => 'publisher',
+            'organization' => 'publisher',
+            'institution' => 'publisher',
+            'school' => 'publisher',
             'location' => 'publisher-place',
             'address' => 'publisher-place',
             'volume' => 'volume',
             'number' => 'issue',
+            'issue' => 'issue',
             'pages' => 'page',
             'doi' => 'DOI',
             'url' => 'URL',
@@ -559,6 +575,18 @@ final class BibTexReader
             'issn' => 'ISSN',
             'note' => 'note',
             'abstract' => 'abstract',
+            'series' => 'collection-title',
+            'edition' => 'edition',
+            'chapter' => 'chapter-number',
+            'type' => 'genre',
+            'entrysubtype' => 'genre',
+            'howpublished' => 'medium',
+            'language' => 'language',
+            'langid' => 'language',
+            'keywords' => 'keyword',
+            'pagetotal' => 'number-of-pages',
+            'eventtitle' => 'event-title',
+            'venue' => 'event-place',
         ] as $field => $target) {
             if (($fields[$field] ?? '') !== '' && !isset($reference[$target])) {
                 $reference[$target] = $fields[$field];
@@ -575,6 +603,19 @@ final class BibTexReader
             $dateParts = $this->datePartsFromDate($fields['date']);
             if ($dateParts !== []) {
                 $reference['issued'] = $this->datePartsMeta($dateParts);
+            }
+        }
+        foreach ([
+            'urldate' => 'accessed',
+            'origdate' => 'original-date',
+            'eventdate' => 'event-date',
+        ] as $field => $target) {
+            if (($fields[$field] ?? '') === '') {
+                continue;
+            }
+            $dateParts = $this->datePartsFromDate($fields[$field]);
+            if ($dateParts !== []) {
+                $reference[$target] = $this->datePartsMeta($dateParts);
             }
         }
 
@@ -718,7 +759,7 @@ final class BibTexReader
             $nodes[] = new AstNode('text', ['text' => $suffix . '. ']);
         }
 
-        $publisher = $fields['publisher'] ?? '';
+        $publisher = $fields['publisher'] ?? $fields['organization'] ?? $fields['institution'] ?? $fields['school'] ?? '';
         if ($publisher !== '') {
             $place = $fields['location'] ?? $fields['address'] ?? '';
             $nodes[] = new AstNode('text', ['text' => ($place !== '' ? $place . ': ' : '') . $publisher . '. ']);
@@ -765,6 +806,10 @@ final class BibTexReader
             'techreport', 'report' => 'report',
             'online', 'electronic', 'www' => 'webpage',
             'proceedings' => 'paper-conference',
+            'misc' => 'entry',
+            'software' => 'software',
+            'dataset' => 'dataset',
+            'patent' => 'patent',
             default => 'entry',
         };
     }
@@ -991,8 +1036,10 @@ final class BibTexReader
     private function cleanText(string $value): string
     {
         $value = str_replace(["\r\n", "\r"], "\n", $value);
+        $value = $this->replaceLatexArgumentCommands($value);
         $value = strtr($value, self::SIMPLE_LATEX_COMMANDS);
         $value = $this->replaceLatexAccents($value);
+        $value = str_replace(['``', "''"], ['"', '"'], $value);
 
         for ($i = 0; $i < 4; $i++) {
             $next = preg_replace('/\\\\[A-Za-z]+\*?\s*\{([^{}]*)\}/u', '$1', $value);
@@ -1010,6 +1057,14 @@ final class BibTexReader
         return trim($value);
     }
 
+    private function replaceLatexArgumentCommands(string $value): string
+    {
+        $value = preg_replace('/\\\\href\s*\{([^{}]*)\}\s*\{([^{}]*)\}/u', '$2', $value) ?? $value;
+        $value = preg_replace('/\\\\(?:url|path|nolinkurl)\s*\{([^{}]*)\}/u', '$1', $value) ?? $value;
+
+        return $value;
+    }
+
     private function replaceLatexAccents(string $value): string
     {
         return preg_replace_callback(
@@ -1024,18 +1079,18 @@ final class BibTexReader
         $lower = strtolower($letter);
         $upper = ctype_upper($letter);
         $maps = [
-            "'" => ['a' => 'a', 'e' => 'e', 'i' => 'i', 'o' => 'o', 'u' => 'u', 'y' => 'y', 'c' => 'c'],
-            '`' => ['a' => 'a', 'e' => 'e', 'i' => 'i', 'o' => 'o', 'u' => 'u'],
-            '"' => ['a' => 'a', 'e' => 'e', 'i' => 'i', 'o' => 'o', 'u' => 'u', 'y' => 'y'],
-            '^' => ['a' => 'a', 'e' => 'e', 'i' => 'i', 'o' => 'o', 'u' => 'u'],
-            '~' => ['a' => 'a', 'n' => 'n', 'o' => 'o'],
-            '=' => ['a' => 'a', 'e' => 'e', 'i' => 'i', 'o' => 'o', 'u' => 'u'],
-            '.' => ['a' => 'a', 'e' => 'e', 'i' => 'i', 'o' => 'o', 'u' => 'u'],
+            "'" => ['a' => 'á', 'e' => 'é', 'i' => 'í', 'o' => 'ó', 'u' => 'ú', 'y' => 'ý', 'c' => 'ć'],
+            '`' => ['a' => 'à', 'e' => 'è', 'i' => 'ì', 'o' => 'ò', 'u' => 'ù'],
+            '"' => ['a' => 'ä', 'e' => 'ë', 'i' => 'ï', 'o' => 'ö', 'u' => 'ü', 'y' => 'ÿ'],
+            '^' => ['a' => 'â', 'e' => 'ê', 'i' => 'î', 'o' => 'ô', 'u' => 'û'],
+            '~' => ['a' => 'ã', 'n' => 'ñ', 'o' => 'õ'],
+            '=' => ['a' => 'ā', 'e' => 'ē', 'i' => 'ī', 'o' => 'ō', 'u' => 'ū'],
+            '.' => ['a' => 'ȧ', 'e' => 'ė', 'i' => 'ı', 'o' => 'ȯ', 'u' => 'u'],
         ];
 
         $replacement = $maps[$accent][$lower] ?? $letter;
 
-        return $upper ? strtoupper($replacement) : $replacement;
+        return $upper ? mb_strtoupper($replacement, 'UTF-8') : $replacement;
     }
 
     private function stripUnescapedBraces(string $value): string

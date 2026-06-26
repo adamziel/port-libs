@@ -118,11 +118,14 @@ BIB;
 BIB;
 
         $document = (new BibTexReader('biblatex'))->read($source);
-        $reference = $document->attr('meta')['references']['value'][2]['value'];
+        $meta = $document->attr('meta');
+        $reference = $meta['references']['value'][1]['value'];
         $author = $reference['author']['value'][0]['value'];
         $dateParts = $reference['issued']['value']['date-parts']['value'][0]['value'];
         $blocks = (new WordPressBlockWriter())->write($document);
 
+        $t->same(2, $meta['bibtexEntryCount']);
+        $t->same(1, $meta['bibtexDataEntryCount']);
         $t->same('paper2026', $reference['id']);
         $t->same('Migration Conf', $reference['container-title']);
         $t->same('Open Press', $reference['publisher']);
@@ -134,6 +137,50 @@ BIB;
         $t->same('Jr.', $author['suffix']);
         $t->same('de la', $author['non-dropping-particle']);
         $t->contains('Juan de la Cruz, Jr. (2026). Reader Parity. <em>Migration Conf</em>: 1--9. Online: Open Press.', $blocks);
+    },
+    'decodes bibtex tex text and biblatex date and field aliases' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@software{godel2026,
+  author = {G{\"o}del, Kurt and Garc{\'i}a, Mar{\'i}a},
+  title = {A \href{https://example.test/source}{Linked} Tool},
+  date = {2026-06},
+  urldate = {2026-06-26},
+  origdate = {1931},
+  eventdate = {2026-07-01},
+  organization = {Example Lab},
+  series = {Migration Tools},
+  edition = {2},
+  keywords = {tex, migration},
+  langid = {en-US},
+  url = {\url{https://example.test/tool}}
+}
+BIB;
+
+        $document = (new BibTexReader('biblatex'))->read($source);
+        $reference = $document->attr('meta')['references']['value'][0]['value'];
+        $authors = $reference['author']['value'];
+        $accessed = $reference['accessed']['value']['date-parts']['value'][0]['value'];
+        $original = $reference['original-date']['value']['date-parts']['value'][0]['value'];
+        $event = $reference['event-date']['value']['date-parts']['value'][0]['value'];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('software', $reference['type']);
+        $t->same('A Linked Tool', $reference['title']);
+        $t->same('Gödel', $authors[0]['value']['family']);
+        $t->same('García', $authors[1]['value']['family']);
+        $t->same('María', $authors[1]['value']['given']);
+        $t->same('Example Lab', $reference['publisher']);
+        $t->same('Migration Tools', $reference['collection-title']);
+        $t->same('2', $reference['edition']);
+        $t->same('tex, migration', $reference['keyword']);
+        $t->same('en-US', $reference['language']);
+        $t->same('https://example.test/tool', $reference['URL']);
+        $t->same([2026, 6], $reference['issued']['value']['date-parts']['value'][0]['value']);
+        $t->same([2026, 6, 26], $accessed);
+        $t->same([1931], $original);
+        $t->same([2026, 7, 1], $event);
+        $t->contains('Kurt Gödel and María García. (2026). A Linked Tool. Example Lab.', $blocks);
+        $t->contains('<a href="https://example.test/tool">https://example.test/tool</a>', $blocks);
     },
     'returns a visible empty bibliography notice for files without entries' => static function (TestRunner $t): void {
         $document = (new BibTexReader())->read('@comment{no entries}');
