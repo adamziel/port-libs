@@ -80,7 +80,12 @@ final class CssMinifier
         ];
     }
 
-    public function minify(string $css, bool $preserveFontTargetFallbacks = false, bool $allowNamespaceAfterStyleRules = false): string
+    public function minify(
+        string $css,
+        bool $preserveFontTargetFallbacks = false,
+        bool $allowNamespaceAfterStyleRules = false,
+        bool $preserveSingletonIsSelectors = false
+    ): string
     {
         if (!$this->recoverInvalidMediaFeatureValues) {
             $this->validateAuthoredMediaQueryPreludes($css);
@@ -217,7 +222,7 @@ final class CssMinifier
         $css = $this->minifyImportRules($css);
         $css = $this->minifyLayerRules($css);
         $css = $this->minifyNamespaceRules($css, $allowNamespaceAfterStyleRules);
-        $css = $this->normalizeNamespaceAttributeSelectors($css);
+        $css = $this->normalizeNamespaceAttributeSelectors($css, $preserveSingletonIsSelectors);
         $css = $this->normalizeMozDocumentRules($css);
         $css = $this->minifySupportsRules($css);
         $css = $this->minifyFontFeatureValuesRules($css);
@@ -2086,7 +2091,7 @@ final class CssMinifier
         return $token;
     }
 
-    private function normalizeNamespaceAttributeSelectors(string $css): string
+    private function normalizeNamespaceAttributeSelectors(string $css, bool $preserveSingletonIsSelectors): string
     {
         $output = '';
         $cursor = 0;
@@ -2106,6 +2111,9 @@ final class CssMinifier
             if ($this->isStyleRulePrelude($prelude)) {
                 $prelude = $this->normalizeSelectorAttributeSelectors($prelude);
                 $prelude = $this->normalizeSelectorNthPseudoClasses($prelude);
+                if (!$preserveSingletonIsSelectors) {
+                    $prelude = $this->normalizeSelectorIsPseudoClasses($prelude);
+                }
             }
 
             $output .= $prelude . '{';
@@ -2310,6 +2318,214 @@ final class CssMinifier
         }
 
         return [$normalizedFormula, null];
+    }
+
+    private function normalizeSelectorIsPseudoClasses(string $selector): string
+    {
+        if (stripos($selector, ':is(') === false) {
+            return $selector;
+        }
+
+        $output = '';
+        $quote = null;
+        $length = strlen($selector);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $selector[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $selector[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '\\' && $i + 1 < $length) {
+                $end = $this->cssEscapeEndOffset($selector, $i);
+                $output .= substr($selector, $i, $end - $i + 1);
+                $i = $end;
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($char === '[') {
+                $close = $this->findSelectorAttributeClose($selector, $i);
+                if ($close !== null) {
+                    $output .= substr($selector, $i, $close - $i + 1);
+                    $i = $close;
+                    continue;
+                }
+            }
+
+            if ($char === ':' && ($normalized = $this->readNormalizedIsPseudoClass($selector, $i)) !== null) {
+                $output .= $normalized['value'];
+                $i = $normalized['end'];
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
+    }
+
+    /**
+     * @return array{value:string,end:int}|null
+     */
+    private function readNormalizedIsPseudoClass(string $selector, int $offset): ?array
+    {
+        if (($selector[$offset + 1] ?? '') === ':') {
+            return null;
+        }
+
+        $token = $this->readCssIdentifierToken($selector, $offset + 1);
+        if ($token === null || strcasecmp($token['name'], 'is') !== 0 || ($selector[$token['end']] ?? '') !== '(') {
+            return null;
+        }
+
+        [$function, $end] = $this->readFunctionRaw($selector, $offset + 1);
+        if (($selector[$end] ?? '') !== ')') {
+            return null;
+        }
+
+        $argument = substr($function, strlen($token['raw']) + 1, -1);
+        $replacement = $this->normalizeSingleIsPseudoClassArgument($argument);
+        if ($replacement === null) {
+            return null;
+        }
+
+        return [
+            'value' => $replacement,
+            'end' => $end,
+        ];
+    }
+
+    private function normalizeSingleIsPseudoClassArgument(string $argument): ?string
+    {
+        $argument = $this->normalizeSelectorIsPseudoClasses(trim($argument));
+        if (!$this->isCollapsibleIsPseudoClassArgument($argument)) {
+            return null;
+        }
+
+        return $argument;
+    }
+
+    private function isCollapsibleIsPseudoClassArgument(string $argument): bool
+    {
+        if ($argument === '' || $this->selectorArgumentHasTopLevelCombinatorOrComma($argument)) {
+            return false;
+        }
+
+        $first = $argument[0];
+        if ($first === '.' || $first === '#' || $first === '[') {
+            return true;
+        }
+
+        if ($first !== ':' || ($argument[1] ?? '') === ':') {
+            return false;
+        }
+
+        $token = $this->readCssIdentifierToken($argument, 1);
+        if ($token === null) {
+            return false;
+        }
+
+        $name = strtolower($token['name']);
+        if (in_array($name, ['has', 'not'], true)) {
+            return ($argument[$token['end']] ?? '') === '(';
+        }
+
+        $simplePseudoClasses = [
+            'active',
+            'checked',
+            'disabled',
+            'empty',
+            'enabled',
+            'first-child',
+            'first-of-type',
+            'focus',
+            'focus-visible',
+            'focus-within',
+            'hover',
+            'invalid',
+            'last-child',
+            'last-of-type',
+            'link',
+            'only-child',
+            'only-of-type',
+            'optional',
+            'required',
+            'root',
+            'scope',
+            'target',
+            'valid',
+            'visited',
+        ];
+
+        return $token['end'] === strlen($argument) && in_array($name, $simplePseudoClasses, true);
+    }
+
+    private function selectorArgumentHasTopLevelCombinatorOrComma(string $selector): bool
+    {
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($selector);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $selector[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '\\' && $i + 1 < $length) {
+                $i = $this->cssEscapeEndOffset($selector, $i);
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '(') {
+                $parenDepth++;
+                continue;
+            }
+            if ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+                continue;
+            }
+            if ($char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+            if ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+                continue;
+            }
+
+            if ($parenDepth === 0 && $bracketDepth === 0 && ($char === ',' || ctype_space($char) || in_array($char, ['>', '+', '~', '|'], true))) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function normalizeSelectorAttributeSelectors(string $selector): string

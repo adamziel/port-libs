@@ -218,6 +218,31 @@ CSS
             $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_selectors line ' . $line);
         }
     },
+    'css minifier maps upstream singleton is selector simplification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_selectors lines 7225-7241.
+        $cases = [
+            [7225, ':is(.foo) { color: yellow }', '.foo{color:#ff0}'],
+            [7226, ':is(#foo) { color: yellow }', '#foo{color:#ff0}'],
+            [7227, 'a:is(.foo) { color: yellow }', 'a.foo{color:#ff0}'],
+            [7228, 'a:is([data-test]) { color: yellow }', 'a[data-test]{color:#ff0}'],
+            [7229, '.foo:is(a) { color: yellow }', '.foo:is(a){color:#ff0}'],
+            [7230, '.foo:is(*|a) { color: yellow }', '.foo:is(*|a){color:#ff0}'],
+            [7231, '.foo:is(*) { color: yellow }', '.foo:is(*){color:#ff0}'],
+            [7232, '@namespace svg url(http://www.w3.org/2000/svg); .foo:is(svg|a) { color: yellow }', '@namespace svg "http://www.w3.org/2000/svg";.foo:is(svg|a){color:#ff0}'],
+            [7236, 'a:is(.foo .bar) { color: yellow }', 'a:is(.foo .bar){color:#ff0}'],
+            [7237, ':is(.foo, .bar) { color: yellow }', ':is(.foo,.bar){color:#ff0}'],
+            [7238, 'a:is(:not(.foo)) { color: yellow }', 'a:not(.foo){color:#ff0}'],
+            [7239, 'a:is(:first-child) { color: yellow }', 'a:first-child{color:#ff0}'],
+            [7240, 'a:is(:has(.foo)) { color: yellow }', 'a:has(.foo){color:#ff0}'],
+            [7241, 'a:is(:is(.foo)) { color: yellow }', 'a.foo{color:#ff0}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_selectors line ' . $line);
+        }
+    },
     'css minifier preserves upstream unknown pseudo element selector boundaries' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
