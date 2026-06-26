@@ -39,6 +39,51 @@ final class RefSpec
         return self::parse($spec, self::OP_PUSH);
     }
 
+    public static function fetchOnly(string $source): self
+    {
+        return new self(self::OP_FETCH, self::MODE_NORMAL, $source, null);
+    }
+
+    public static function fetchExclude(string $source): self
+    {
+        return new self(self::OP_FETCH, self::MODE_NEGATIVE, $source, null);
+    }
+
+    public static function fetchAndUpdate(string $source, string $destination, bool $allowNonFastForward = false): self
+    {
+        return new self(
+            self::OP_FETCH,
+            $allowNonFastForward ? self::MODE_FORCE : self::MODE_NORMAL,
+            $source,
+            $destination
+        );
+    }
+
+    public static function pushAllMatchingBranches(bool $allowNonFastForward = false): self
+    {
+        return new self(
+            self::OP_PUSH,
+            $allowNonFastForward ? self::MODE_FORCE : self::MODE_NORMAL,
+            null,
+            null
+        );
+    }
+
+    public static function pushDelete(string $destination): self
+    {
+        return new self(self::OP_PUSH, self::MODE_NORMAL, null, $destination);
+    }
+
+    public static function pushMatching(string $source, string $destination, bool $allowNonFastForward = false): self
+    {
+        return new self(
+            self::OP_PUSH,
+            $allowNonFastForward ? self::MODE_FORCE : self::MODE_NORMAL,
+            $source,
+            $destination
+        );
+    }
+
     public static function parse(string $spec, string $operation): self
     {
         if ($operation !== self::OP_FETCH && $operation !== self::OP_PUSH) {

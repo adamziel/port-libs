@@ -42,6 +42,8 @@ final class PathspecPattern
         bool $literalDefault = false,
         string $defaultSearchMode = self::SEARCH_SHELL_GLOB,
         bool $defaultIgnoreCase = false,
+        bool $defaultTop = false,
+        bool $defaultExclude = false,
     ): self {
         if ($input === '') {
             throw new \InvalidArgumentException('An empty string is not a valid pathspec');
@@ -52,6 +54,8 @@ final class PathspecPattern
         if ($literalDefault) {
             return new self(
                 $input,
+                top: $defaultTop,
+                exclude: $defaultExclude,
                 ignoreCase: $defaultIgnoreCase,
                 searchMode: self::SEARCH_LITERAL,
                 sequenceNumber: $sequenceNumber,
@@ -61,8 +65,8 @@ final class PathspecPattern
             return new self('', nil: true, sequenceNumber: $sequenceNumber);
         }
 
-        $top = false;
-        $exclude = false;
+        $top = $defaultTop;
+        $exclude = $defaultExclude;
         $ignoreCase = $defaultIgnoreCase;
         $searchMode = self::SEARCH_SHELL_GLOB;
         $explicitSearchMode = null;
@@ -204,6 +208,154 @@ final class PathspecPattern
     public function prefixDirectory(): string
     {
         return $this->prefixLength === 0 ? '' : substr($this->path, 0, $this->prefixLength);
+    }
+
+    public function normalize(string $prefix = '', string $root = ''): self
+    {
+        $path = $this->path;
+        $prefixComponents = self::pathComponents($prefix);
+        $prefixComponentCount = 0;
+        $wasAbsolute = false;
+
+        if (self::isAbsolutePath($path)) {
+            $wasAbsolute = true;
+            $path = self::pathRelativeToRoot($path, $root);
+        } elseif ($prefixComponents !== [] && !$this->top) {
+            $prefixComponentCount = max(0, count($prefixComponents) - self::prefixComponentsToSubtract($path));
+            $path = implode('/', $prefixComponents) . ($path === '' ? '' : '/' . $path);
+        }
+
+        if ($path === '') {
+            return $this->withPath('', 0, $this->nil);
+        }
+
+        $components = self::normalizePathComponents($path);
+        if ($components === []) {
+            return $this->withPath('.', 0, true);
+        }
+
+        $normalized = implode('/', $components);
+        if ($wasAbsolute) {
+            $prefixComponentCount = max(0, count($components) - ($this->mustBeDirectory ? 0 : 1));
+        }
+
+        return $this->withPath(
+            $normalized,
+            self::prefixLengthFromComponentCount($normalized, $prefixComponentCount, $this->mustBeDirectory),
+            $this->nil,
+        );
+    }
+
+    private static function isAbsolutePath(string $path): bool
+    {
+        return str_starts_with($path, '/');
+    }
+
+    private static function pathRelativeToRoot(string $path, string $root): string
+    {
+        $worktreeRoot = rtrim($root, '/');
+        if ($worktreeRoot === '') {
+            $worktreeRoot = '/';
+        }
+        if ($worktreeRoot === '/') {
+            return ltrim($path, '/');
+        }
+        if ($path !== $worktreeRoot && !str_starts_with($path, $worktreeRoot . '/')) {
+            throw new \InvalidArgumentException("The path '{$path}' is not inside of the worktree '{$root}'");
+        }
+
+        return ltrim(substr($path, strlen($worktreeRoot)), '/');
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function pathComponents(string $path): array
+    {
+        $components = [];
+        foreach (explode('/', trim($path, '/')) as $component) {
+            if ($component === '' || $component === '.') {
+                continue;
+            }
+            if ($component === '..') {
+                throw new \InvalidArgumentException("The path '{$path}' leaves the repository");
+            }
+            $components[] = $component;
+        }
+
+        return $components;
+    }
+
+    private static function prefixComponentsToSubtract(string $path): int
+    {
+        $components = [];
+        foreach (explode('/', $path) as $component) {
+            if ($component === '' || $component === '.') {
+                continue;
+            }
+            $components[] = $component;
+        }
+
+        $parentEnd = null;
+        foreach ($components as $index => $component) {
+            if ($component === '..') {
+                $parentEnd = $index + 1;
+            }
+        }
+        if ($parentEnd === null) {
+            return 0;
+        }
+
+        $count = 0;
+        for ($i = 0; $i < $parentEnd; $i++) {
+            $count += $components[$i] === '..' ? 1 : -1;
+        }
+
+        return max(0, $count);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function normalizePathComponents(string $path): array
+    {
+        $components = [];
+        foreach (explode('/', $path) as $component) {
+            if ($component === '' || $component === '.') {
+                continue;
+            }
+            if ($component === '..') {
+                if ($components === []) {
+                    throw new \InvalidArgumentException("The path '{$path}' leaves the repository");
+                }
+                array_pop($components);
+                continue;
+            }
+            $components[] = $component;
+        }
+
+        return $components;
+    }
+
+    private static function prefixLengthFromComponentCount(string $path, int $componentCount, bool $mustBeDirectory): int
+    {
+        if ($componentCount <= 0 || $path === '') {
+            return 0;
+        }
+
+        $searchPath = $mustBeDirectory ? $path . '/' : $path;
+        $offset = 0;
+        $lastSlash = null;
+        for ($i = 0; $i < $componentCount; $i++) {
+            $slash = strpos($searchPath, '/', $offset);
+            if ($slash === false) {
+                break;
+            }
+            $lastSlash = $slash;
+            $offset = $slash + 1;
+        }
+
+        return $lastSlash ?? 0;
     }
 
     /**
