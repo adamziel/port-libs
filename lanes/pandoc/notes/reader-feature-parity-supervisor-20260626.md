@@ -61,3 +61,25 @@
 - Focused tests pass for all touched reader tests.
 - Full Pandoc lane test pass is attempted and failures are either fixed or documented with exact failing tests.
 - The final audit says what is supported and what remains missing for CSV/TSV, BibTeX/BibLaTeX, XLSX, PPTX, and DOCX.
+
+## Post-Integration Addendum
+- Accepted worker output:
+  - CSV delimiter hardening from `port_libs/polecats/garnet`.
+  - BibLaTeX cleanup from `port_libs/polecats/obsidian`.
+  - PPTX inherited placeholder support from `port_libs/polecats/basalt`.
+  - DOCX comment ranges, move revisions, table vertical merges/style metadata, image metadata/dimensions, and run style deepening from `port_libs/polecats/flint`, transplanted onto the current branch by the supervisor to avoid stale-base regressions.
+  - Regression, integration-review, and missing-feature audit artifacts from `jasper`, `opal`, and `onyx`.
+- Rejected worker output:
+  - XLSX source replacement from `port_libs/polecats/amber`, because it was based on an older reader shape and would remove already-landed XLSX features. The current branch already covers merged cells, hyperlinks, rich text, style indexes, dates, worksheet drawing images, and image metadata.
+- Review findings resolved after the worker audit:
+  - ZIP/OPC now enforces per-entry, aggregate read, and entry-count budgets in `ZipOpcPackage`.
+  - XLSX/PPTX relationship target resolution now uses strict package path normalization for internal relationships.
+  - DOCX media target normalization rejects unresolved above-root traversal.
+  - CSV/TSV metadata now preserves exact ragged row widths before normalization.
+  - DOCX optional XML sidecars now record diagnostics instead of aborting a readable document.
+- Still open after this integration:
+  - Full parse diagnostics/provenance are incomplete across readers.
+  - BibLaTeX still lacks full data-model/citeproc parity.
+  - XLSX still lacks formula evaluation/semantics, comments, pivots, charts, filters, hidden-sheet semantics, and full style inheritance.
+  - PPTX still lacks SmartArt/diagram reconstruction, comments, full geometry/z-order/layout inheritance, and rich media extraction.
+  - DOCX still lacks accept/reject revision modes, section-specific headers/footers, complex fields, content controls, altChunk, text boxes, VML/object images, crop/rotation, and complete table/style inheritance.
