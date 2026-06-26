@@ -230,6 +230,21 @@ $writeCompressedLooseBytes = static function (string $gitDir, string $oid, strin
     }
     file_put_contents($path, $compressed);
 };
+$writeCaseVariantLooseCandidate = static function (string $objectsDirectory, string $oid, string $contents): bool {
+    $caseVariant = strtoupper($oid);
+    $path = $objectsDirectory . '/' . substr($caseVariant, 0, 2) . '/' . substr($caseVariant, 2);
+    if (file_exists($path) || is_link($path)) {
+        return false;
+    }
+    if (!is_dir(dirname($path)) && !mkdir(dirname($path), 0777, true) && !is_dir(dirname($path))) {
+        throw new RuntimeException("Unable to create case-variant loose object candidate directory: " . dirname($path));
+    }
+    if (file_put_contents($path, $contents) === false) {
+        throw new RuntimeException("Unable to create case-variant loose object candidate: {$path}");
+    }
+
+    return true;
+};
 
 return [
     'object database reads packed delta and loose objects' => static function (TestRunner $t) use ($writeWordPressPackFixture): void {
@@ -1112,7 +1127,7 @@ return [
         $t->same([$objectsDir, realpath($alternateObjectsDir)], array_column($integrity, 'path'));
         $t->same([[$canonicalOid], []], array_map(static fn (array $row): array => $row['statistics']['verifiedObjectIds'], $integrity));
     },
-    'object database loose integrity counts duplicate case-normalized candidates in primary and alternates' => static function (TestRunner $t): void {
+    'object database loose integrity counts duplicate case-normalized candidates in primary and alternates' => static function (TestRunner $t) use ($writeCaseVariantLooseCandidate): void {
         $root = sys_get_temp_dir() . '/port-libs-git-odb-case-duplicate-' . bin2hex(random_bytes(4));
         $gitDir = $root . '/site/.git';
         $objectsDir = $gitDir . '/objects';
@@ -1134,28 +1149,21 @@ return [
 
             throw new RuntimeException("Unable to create mixed-case {$label} loose object id fixture");
         };
-        $writeCaseVariantCandidate = static function (string $objectsDirectory, string $oid): void {
-            $caseVariant = strtoupper($oid);
-            $path = $objectsDirectory . '/' . substr($caseVariant, 0, 2) . '/' . substr($caseVariant, 2);
-            if (!is_dir(dirname($path)) && !mkdir(dirname($path), 0777, true) && !is_dir(dirname($path))) {
-                throw new RuntimeException("Unable to create case-variant loose object candidate directory: " . dirname($path));
-            }
-            file_put_contents($path, 'stale case-variant loose object candidate');
-        };
-
         $primaryStore = new LooseObjectStore($gitDir);
         $primaryOid = $primaryStore->write($createMixedCaseObject('primary'));
-        $writeCaseVariantCandidate($objectsDir, $primaryOid);
+        $primaryCaseVariantWritten = $writeCaseVariantLooseCandidate($objectsDir, $primaryOid, 'stale case-variant loose object candidate');
         $alternateStore = LooseObjectStore::fromObjectsDirectory($alternateObjectsDir);
         $alternateOid = $alternateStore->write($createMixedCaseObject('alternate'));
-        $writeCaseVariantCandidate($alternateObjectsDir, $alternateOid);
+        $alternateCaseVariantWritten = $writeCaseVariantLooseCandidate($alternateObjectsDir, $alternateOid, 'stale case-variant loose object candidate');
         file_put_contents($objectsDir . '/info/alternates', "{$alternateObjectsDir}\n");
 
         $integrity = (new ObjectDatabase($gitDir))->verifyLooseIntegrity();
+        $expectedPrimaryCount = $primaryCaseVariantWritten ? 2 : 1;
+        $expectedAlternateCount = $alternateCaseVariantWritten ? 2 : 1;
         $t->same([$objectsDir, realpath($alternateObjectsDir)], array_column($integrity, 'path'));
-        $t->same([2, 2], array_map(static fn (array $row): int => $row['statistics']['numObjects'], $integrity));
-        $t->same([$primaryOid, $primaryOid], $integrity[0]['statistics']['verifiedObjectIds']);
-        $t->same([$alternateOid, $alternateOid], $integrity[1]['statistics']['verifiedObjectIds']);
+        $t->same([$expectedPrimaryCount, $expectedAlternateCount], array_map(static fn (array $row): int => $row['statistics']['numObjects'], $integrity));
+        $t->same(array_fill(0, $expectedPrimaryCount, $primaryOid), $integrity[0]['statistics']['verifiedObjectIds']);
+        $t->same(array_fill(0, $expectedAlternateCount, $alternateOid), $integrity[1]['statistics']['verifiedObjectIds']);
     },
     'object database reads object headers across packed loose and replacement stores' => static function (TestRunner $t) use ($writeWordPressPackFixture): void {
         [$gitDir, $fixture] = $writeWordPressPackFixture();
@@ -1479,29 +1487,31 @@ return [
         $t->same(true, $database->contains($media['oid']));
         $t->contains('Large media attachment metadata', $database->read($media['oid'])->body);
     },
-    'object database preserves loose case-duplicate ambiguity beside MIDX without candidate collection like gix-odb' => static function (TestRunner $t) use ($writeWordPressMultiPackFixture, $looseObjectPath): void {
+    'object database preserves loose case-duplicate ambiguity beside MIDX without candidate collection like gix-odb' => static function (TestRunner $t) use ($writeWordPressMultiPackFixture, $writeCaseVariantLooseCandidate): void {
         [$gitDir, $fixture] = $writeWordPressMultiPackFixture();
         $content = $fixture['objectsByRole']['content'];
         $contentOid = $content['oid'];
 
         $duplicateLooseOid = (new LooseObjectStore($gitDir))->write(new GitObject('blob', $content['body']));
-        $caseVariantPath = dirname($looseObjectPath($gitDir, $contentOid)) . '/' . strtoupper(substr($contentOid, 2));
-        $t->true($caseVariantPath !== $looseObjectPath($gitDir, $contentOid));
-        file_put_contents($caseVariantPath, 'case-variant loose prefix path candidate');
+        $caseVariantWritten = $writeCaseVariantLooseCandidate($gitDir . '/objects', $contentOid, 'case-variant loose prefix path candidate');
 
         $database = new ObjectDatabase($gitDir);
         $withoutCandidates = $database->lookupPrefix(strtoupper($contentOid));
         $withCandidates = $database->lookupPrefix(strtoupper($contentOid), true);
 
         $t->same($contentOid, $duplicateLooseOid);
-        $t->same('ambiguous', $withoutCandidates['status']);
-        $t->same([$contentOid, $contentOid], $withoutCandidates['matches']);
+        if ($caseVariantWritten) {
+            $t->same('ambiguous', $withoutCandidates['status']);
+            $t->same([$contentOid, $contentOid], $withoutCandidates['matches']);
+        } else {
+            $t->same(['status' => 'found', 'oid' => $contentOid], $withoutCandidates);
+        }
         $t->same([
             'status' => 'found',
             'oid' => $contentOid,
             'candidates' => [$contentOid],
         ], $withCandidates);
-        $t->same($contentOid, $database->disambiguatePrefix(strtoupper($contentOid), 4));
+        $t->same($caseVariantWritten ? $contentOid : substr($contentOid, 0, 4), $database->disambiguatePrefix(strtoupper($contentOid), 4));
         $t->same($content['body'], $database->read(strtoupper($contentOid))->body);
     },
     'object database rejects multi-pack-index entries that reference missing packs' => static function (TestRunner $t) use ($writeWordPressMultiPackFixture): void {
@@ -1727,11 +1737,12 @@ return [
         $t->same(true, $summary['looseIntegrityEmptyFileRejected']);
         $t->same(true, $summary['looseIntegrityBrokenSymlinkRejected']);
         $t->same(true, $summary['looseIntegrityTraversalErrorIgnored']);
-        $t->same(2, $summary['looseIntegrityCaseDuplicateCount']);
-        $t->same([
-            $summary['looseIntegrityCaseDuplicateVerifiedIds'][0],
-            $summary['looseIntegrityCaseDuplicateVerifiedIds'][0],
-        ], $summary['looseIntegrityCaseDuplicateVerifiedIds']);
+        $expectedCaseDuplicateCount = $summary['looseIntegrityCaseDuplicateMaterialized'] ? 2 : 1;
+        $t->same($expectedCaseDuplicateCount, $summary['looseIntegrityCaseDuplicateCount']);
+        $t->same(
+            array_fill(0, $expectedCaseDuplicateCount, $summary['looseIntegrityCaseDuplicateVerifiedIds'][0]),
+            $summary['looseIntegrityCaseDuplicateVerifiedIds']
+        );
         $t->same(true, $summary['looseIntegrityCrLfCommitHeaderRejected']);
         $t->same(true, $summary['looseIntegrityCrLfTagHeaderRejected']);
         $t->same(true, $summary['looseIntegrityEmptyTreeModeAccepted']);

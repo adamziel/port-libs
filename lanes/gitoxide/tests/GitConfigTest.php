@@ -1006,17 +1006,14 @@ return [
         $legacyByte = "\xFF";
 
         $root = $tmpDir();
-        $worktree = $root . '/legacy-' . $legacyByte;
-        $gitDir = $worktree . '/.git';
-        mkdir($gitDir, 0777, true);
-        $write($worktree . '/include.config', "[section]\nvalue = raw-gitdir\n");
-        $write($gitDir . '/config', <<<CFG
+        $gitDir = $root . '/legacy-' . $legacyByte . '/.git';
+        $write($root . '/include.config', "[section]\nvalue = raw-gitdir\n");
+        $config = GitConfig::fromString(<<<CFG
         [section]
         value = base
         [includeIf "gitdir:legacy-?/"]
-        path = ../include.config
-        CFG);
-        $config = GitConfig::fromFile($gitDir . '/config', ['gitDir' => $gitDir, 'homeDir' => $root]);
+        path = include.config
+        CFG, $root . '/config', ['gitDir' => $gitDir, 'homeDir' => $root]);
         $t->same('raw-gitdir', $config->value('section', null, 'value'));
 
         $root = $tmpDir();

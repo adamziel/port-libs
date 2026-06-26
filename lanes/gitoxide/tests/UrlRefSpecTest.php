@@ -1303,6 +1303,7 @@ return [
         $localRefs = [
             ['name' => 'refs/remotes/origin/main', 'target' => str_repeat('1', 40)],
             ['name' => 'refs/remotes/origin/feature/topic', 'target' => str_repeat('2', 40)],
+            ['name' => 'refs/remotes/origin/private', 'target' => str_repeat('6', 40)],
             ['name' => 'refs/remotes/upstream/main', 'target' => str_repeat('3', 40)],
             ['name' => 'refs/tags/v1.0', 'target' => str_repeat('4', 40)],
             ['name' => 'refs/heads/f1', 'target' => str_repeat('5', 40)],
@@ -1322,13 +1323,14 @@ return [
             'refs/tags/v1.0',
             'refs/heads/f1',
         ], array_column($reverse, 'remote'));
+        $t->same(false, in_array('refs/heads/private', array_column($reverse, 'remote'), true));
         $t->same([
             'refs/remotes/origin/main',
             'refs/remotes/origin/feature/topic',
             'refs/tags/v1.0',
             'refs/heads/f1',
         ], array_column($reverse, 'local'));
-        $t->same([0, 1, 3, 4], array_column($reverse, 'itemIndex'));
+        $t->same([0, 1, 4, 5], array_column($reverse, 'itemIndex'));
         $t->same([0, 0, 1, 2], array_column($reverse, 'specIndex'));
 
         $objectDestination = RefSpec::matchFetchLocalRefs([

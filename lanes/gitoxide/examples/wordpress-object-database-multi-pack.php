@@ -95,7 +95,16 @@ $shared = $database->read($fixture['objectsByRole']['shared']['oid']);
 $duplicateLooseContentOid = (new LooseObjectStore($gitDir))->write(new GitObject('blob', $fixture['objectsByRole']['content']['body']));
 $contentCaseDuplicatePath = $gitDir . '/objects/' . substr($fixture['objectsByRole']['content']['oid'], 0, 2)
     . '/' . strtoupper(substr($fixture['objectsByRole']['content']['oid'], 2));
-file_put_contents($contentCaseDuplicatePath, 'case-variant loose prefix path candidate');
+$contentCaseDuplicateMaterialized = false;
+if (!file_exists($contentCaseDuplicatePath) && !is_link($contentCaseDuplicatePath)) {
+    if (!is_dir(dirname($contentCaseDuplicatePath)) && !mkdir(dirname($contentCaseDuplicatePath), 0777, true) && !is_dir(dirname($contentCaseDuplicatePath))) {
+        throw new RuntimeException("Unable to create case-variant loose prefix path directory: " . dirname($contentCaseDuplicatePath));
+    }
+    if (file_put_contents($contentCaseDuplicatePath, 'case-variant loose prefix path candidate') === false) {
+        throw new RuntimeException("Unable to create case-variant loose prefix path candidate: {$contentCaseDuplicatePath}");
+    }
+    $contentCaseDuplicateMaterialized = true;
+}
 $contentCaseDuplicatePrefix = $database->lookupPrefix($fixture['objectsByRole']['content']['oid']);
 $contentCaseDuplicatePrefixWithCandidates = $database->lookupPrefix($fixture['objectsByRole']['content']['oid'], true);
 $contentDuplicatePrefix = $database->lookupPrefix(substr($fixture['objectsByRole']['content']['oid'], 0, 8), true);
@@ -160,6 +169,7 @@ return [
     'mediaPrefixStatus' => $database->lookupPrefix(substr($fixture['objectsByRole']['media']['oid'], 0, 8))['status'],
     'mediaShortestPrefix' => $database->disambiguatePrefix($fixture['objectsByRole']['media']['oid'], 4),
     'duplicateLooseContentOid' => $duplicateLooseContentOid,
+    'contentCaseDuplicateMaterialized' => $contentCaseDuplicateMaterialized,
     'contentCaseDuplicatePrefixStatus' => $contentCaseDuplicatePrefix['status'],
     'contentCaseDuplicatePrefixMatches' => $contentCaseDuplicatePrefix['matches'] ?? [],
     'contentCaseDuplicateCandidateStatus' => $contentCaseDuplicatePrefixWithCandidates['status'],

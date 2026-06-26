@@ -671,12 +671,20 @@ final class GitConfig
             $pattern .= '**';
         }
 
-        $gitDirPath = self::normalizePath($gitDir);
-        if (self::wildmatch($pattern, $gitDirPath, $ignoreCase)) {
-            return true;
+        $gitDirPaths = array_unique([
+            self::normalizePath($gitDir),
+            self::realpathLikeGitoxide($gitDir),
+        ]);
+
+        foreach (self::gitDirPatternCandidates($pattern) as $candidatePattern) {
+            foreach ($gitDirPaths as $gitDirPath) {
+                if (self::wildmatch($candidatePattern, $gitDirPath, $ignoreCase)) {
+                    return true;
+                }
+            }
         }
 
-        return self::wildmatch($pattern, self::realpathLikeGitoxide($gitDir), $ignoreCase);
+        return false;
     }
 
     /**
@@ -827,6 +835,92 @@ final class GitConfig
         }
 
         return DIRECTORY_SEPARATOR === '\\' && preg_match('/^[A-Za-z]:\//', $path) === 1;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function gitDirPatternCandidates(string $pattern): array
+    {
+        $patterns = [$pattern => true];
+        $realPattern = self::realpathPatternPrefix($pattern);
+        if ($realPattern !== null) {
+            $patterns[$realPattern] = true;
+        }
+
+        return array_keys($patterns);
+    }
+
+    private static function realpathPatternPrefix(string $pattern): ?string
+    {
+        if (str_starts_with($pattern, '//')) {
+            return null;
+        }
+
+        $metaIndex = self::firstWildmatchMetaIndex($pattern);
+        $literalLength = $metaIndex ?? strlen($pattern);
+        $literalPrefix = substr($pattern, 0, $literalLength);
+        if ($literalPrefix === '' || !self::isAbsolutePath($literalPrefix)) {
+            return null;
+        }
+
+        if ($metaIndex !== null && !str_ends_with($literalPrefix, '/')) {
+            $probe = self::dirnamePath($literalPrefix);
+        } else {
+            $probe = rtrim($literalPrefix, '/');
+            if ($probe === '') {
+                $probe = '/';
+            }
+        }
+
+        if ($probe === '.' || !self::isAbsolutePath($probe)) {
+            return null;
+        }
+
+        $real = realpath($probe);
+        if (!is_string($real)) {
+            return null;
+        }
+
+        return self::normalizePath($real) . substr($pattern, strlen($probe));
+    }
+
+    private static function firstWildmatchMetaIndex(string $pattern): ?int
+    {
+        $length = strlen($pattern);
+        for ($index = 0; $index < $length; $index++) {
+            $byte = $pattern[$index];
+            if ($byte === '\\') {
+                $index++;
+                continue;
+            }
+            if ($byte === '*' || $byte === '?' || $byte === '[') {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    private static function dirnamePath(string $path): string
+    {
+        $path = rtrim($path, '/');
+        if ($path === '') {
+            return '/';
+        }
+
+        $slash = strrpos($path, '/');
+        if ($slash === false) {
+            return '.';
+        }
+        if ($slash === 0) {
+            return '/';
+        }
+        if (DIRECTORY_SEPARATOR === '\\' && $slash === 2 && preg_match('/^[A-Za-z]:/', $path) === 1) {
+            return substr($path, 0, 3);
+        }
+
+        return substr($path, 0, $slash);
     }
 
     private static function realpathLikeGitoxide(string $path): string

@@ -124,6 +124,9 @@ $blockerSummary = static function (string $value) use ($firstSentence, $shorten)
         if (str_contains($normalized, 'not fully green') || str_contains($normalized, 'blocked')) {
             return 'Cargo workspace blocked by sparse target files';
         }
+        if (str_contains($normalized, 'pass') || str_contains($normalized, 'green')) {
+            return 'No local blocker';
+        }
 
         return 'Cargo workspace not run';
     }

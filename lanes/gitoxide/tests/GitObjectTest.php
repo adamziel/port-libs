@@ -938,12 +938,29 @@ return [
         }
 
         $store->write($object);
+        $probeDirectory = $gitDir . '/case-probe-' . bin2hex(random_bytes(4));
+        if (!mkdir($probeDirectory, 0777, true) && !is_dir($probeDirectory)) {
+            throw new RuntimeException('Unable to create loose object case-sensitivity probe directory');
+        }
+        $lowerProbe = $probeDirectory . '/probe';
+        if (file_put_contents($lowerProbe, 'probe') === false) {
+            throw new RuntimeException('Unable to write loose object case-sensitivity probe');
+        }
+        $isCaseInsensitive = file_exists($probeDirectory . '/PROBE');
+        @unlink($lowerProbe);
+        @rmdir($probeDirectory);
+
         $caseVariant = strtoupper($oid);
-        $caseVariantPath = $gitDir . '/objects/' . substr($caseVariant, 0, 2) . '/' . substr($caseVariant, 2);
+        // Case-folding filesystems cannot place this beside the read-only canonical object.
+        $caseVariantPath = $isCaseInsensitive
+            ? $gitDir . '/objects/case-duplicates/' . substr($caseVariant, 0, 2) . '/' . substr($caseVariant, 2)
+            : $gitDir . '/objects/' . substr($caseVariant, 0, 2) . '/' . substr($caseVariant, 2);
         if (!is_dir(dirname($caseVariantPath)) && !mkdir(dirname($caseVariantPath), 0777, true) && !is_dir(dirname($caseVariantPath))) {
             throw new RuntimeException('Unable to create loose object case-variant candidate directory');
         }
-        file_put_contents($caseVariantPath, 'stale case-variant loose object candidate');
+        if (file_put_contents($caseVariantPath, 'stale case-variant loose object candidate') === false) {
+            throw new RuntimeException('Unable to write loose object case-variant candidate');
+        }
 
         $t->same([$oid], $store->objectIds());
         $t->same([

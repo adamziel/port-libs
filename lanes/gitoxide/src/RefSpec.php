@@ -453,6 +453,18 @@ final class RefSpec
             }
         }
 
+        foreach ($specs as $spec) {
+            if ($spec->mode !== self::MODE_NEGATIVE || $spec->source === null) {
+                continue;
+            }
+
+            $source = $spec->source;
+            $out = array_values(array_filter(
+                $out,
+                static fn (array $mapping): bool => self::matchFetchSource($source, $mapping['remote'], true) === null
+            ));
+        }
+
         return $out;
     }
 
