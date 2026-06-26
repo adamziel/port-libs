@@ -18482,6 +18482,14 @@ final class XmlHtmlDom
             $summary['virtualKeyboardPolicyValid'] = $virtualKeyboardPolicy !== null;
         }
 
+        if (
+            array_key_exists('autocorrect', $attributes)
+            || array_key_exists('writingsuggestions', $attributes)
+            || array_key_exists('virtualkeyboardpolicy', $attributes)
+        ) {
+            $summary += self::editAssistanceReviewSummary($element, $attributes);
+        }
+
         if (array_key_exists('anchor', $attributes)) {
             $summary += self::anchorPositioningSummary($element, $attributes['anchor']);
         }
@@ -20540,6 +20548,96 @@ final class XmlHtmlDom
             'manual' => 'manual',
             default => null,
         };
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @return array<string, mixed>
+     */
+    private static function editAssistanceReviewSummary(\DOMElement $element, array $attributes): array
+    {
+        $autocorrect = array_key_exists('autocorrect', $attributes)
+            ? self::autocorrectState($attributes['autocorrect'])
+            : null;
+        $writingSuggestions = array_key_exists('writingsuggestions', $attributes)
+            ? self::writingSuggestionsState($attributes['writingsuggestions'])
+            : null;
+        $virtualKeyboardPolicy = array_key_exists('virtualkeyboardpolicy', $attributes)
+            ? self::virtualKeyboardPolicyState($attributes['virtualkeyboardpolicy'])
+            : null;
+        $issueCodes = [];
+
+        if (array_key_exists('autocorrect', $attributes) && $autocorrect === null) {
+            $issueCodes[] = 'invalid-html-autocorrect-token';
+        }
+        if (array_key_exists('writingsuggestions', $attributes) && $writingSuggestions === null) {
+            $issueCodes[] = 'invalid-html-writingsuggestions-token';
+        }
+        if (array_key_exists('virtualkeyboardpolicy', $attributes) && $virtualKeyboardPolicy === null) {
+            $issueCodes[] = 'invalid-html-virtualkeyboardpolicy-token';
+        }
+
+        $summary = [
+            'editAssistanceReviewPolicy' => 'html-edit-assistance-policy-review',
+            'editAssistanceElement' => self::htmlElementName($element),
+            'editAssistanceHostKind' => self::editAssistanceHostKind($element, $attributes),
+            'editAssistanceAttributes' => array_values(array_filter(
+                ['autocorrect', 'writingsuggestions', 'virtualkeyboardpolicy'],
+                static fn (string $attribute): bool => array_key_exists($attribute, $attributes)
+            )),
+            'editAssistanceIssueCodes' => $issueCodes,
+            'editAssistanceValid' => $issueCodes === [],
+        ];
+
+        if (array_key_exists('autocorrect', $attributes)) {
+            $summary['editAutocorrectState'] = $autocorrect;
+            $summary['editAutocorrectEnabled'] = $autocorrect === null ? null : $autocorrect === 'on';
+        }
+        if (array_key_exists('writingsuggestions', $attributes)) {
+            $summary['editWritingSuggestionsEnabled'] = $writingSuggestions;
+        }
+        if (array_key_exists('virtualkeyboardpolicy', $attributes)) {
+            $summary['editVirtualKeyboardPolicy'] = $virtualKeyboardPolicy;
+            $summary['editVirtualKeyboardControlMode'] = match ($virtualKeyboardPolicy) {
+                'auto' => 'automatic',
+                'manual' => 'manual',
+                default => null,
+            };
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     */
+    private static function editAssistanceHostKind(\DOMElement $element, array $attributes): string
+    {
+        $name = self::htmlElementName($element);
+        if ($name === 'input' || $name === 'textarea') {
+            return 'text-entry-control';
+        }
+
+        if (array_key_exists('contenteditable', $attributes)) {
+            $state = self::contentEditableState($attributes['contenteditable']);
+            if ($state !== null) {
+                return $state === false ? 'explicitly-non-editable' : 'editable-host';
+            }
+        }
+
+        for ($ancestor = $element->parentNode; $ancestor instanceof \DOMElement; $ancestor = $ancestor->parentNode) {
+            $ancestorAttributes = self::htmlAttributes($ancestor);
+            if (!array_key_exists('contenteditable', $ancestorAttributes)) {
+                continue;
+            }
+
+            $state = self::contentEditableState($ancestorAttributes['contenteditable']);
+            if ($state !== null) {
+                return $state === false ? 'inherited-non-editable' : 'editable-descendant';
+            }
+        }
+
+        return 'generic-element';
     }
 
     private static function popoverState(string $value): ?string
