@@ -258,6 +258,16 @@ final class MarkdownReader
                 $blocks[] = $htmlNativeDivsContainer;
                 continue;
             }
+            $rawHtmlDetails = $paragraph === [] && $listStack === [] ? $this->tryReadRawHtmlDetailsBlock($lines, $index) : null;
+            if ($rawHtmlDetails !== null) {
+                array_push($blocks, ...$rawHtmlDetails);
+                continue;
+            }
+            $rawHtmlContainer = $paragraph === [] && $listStack === [] ? $this->tryReadRawHtmlSingleLineContainerBlock($lines, $index) : null;
+            if ($rawHtmlContainer !== null) {
+                array_push($blocks, ...$rawHtmlContainer);
+                continue;
+            }
             $htmlInlineFragment = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlInlineFragmentBlock($lines, $index) : null;
             if ($htmlInlineFragment !== null) {
                 $blocks[] = $htmlInlineFragment;
@@ -271,16 +281,6 @@ final class MarkdownReader
             $htmlHorizontalRule = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlHorizontalRuleBlock($lines, $index) : null;
             if ($htmlHorizontalRule !== null) {
                 $blocks[] = $htmlHorizontalRule;
-                continue;
-            }
-            $rawHtmlDetails = $paragraph === [] && $listStack === [] ? $this->tryReadRawHtmlDetailsBlock($lines, $index) : null;
-            if ($rawHtmlDetails !== null) {
-                array_push($blocks, ...$rawHtmlDetails);
-                continue;
-            }
-            $rawHtmlContainer = $paragraph === [] && $listStack === [] ? $this->tryReadRawHtmlSingleLineContainerBlock($lines, $index) : null;
-            if ($rawHtmlContainer !== null) {
-                array_push($blocks, ...$rawHtmlContainer);
                 continue;
             }
             if (
@@ -1579,8 +1579,7 @@ final class MarkdownReader
     private function tryReadRawHtmlSingleLineContainerBlock(array $lines, int &$index): ?array
     {
         $line = $lines[$index] ?? '';
-        $tags = ($this->options['suppressStandaloneButtonInline'] ?? false) ? 'del|button' : 'del';
-        if (preg_match('/^ {0,3}(<(' . $tags . ')(?:\s+[^>]*)?>)(.*)(<\/\2\s*>)[ \t]*$/iu', $line, $m) !== 1) {
+        if (preg_match('/^ {0,3}(<(del|ins|button)(?:\s+(?:"[^"]*"|\'[^\']*\'|[^\'"<>])*)?>)(.*)(<\/\2\s*>)[ \t]*$/isu', $line, $m) !== 1) {
             return null;
         }
 
