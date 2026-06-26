@@ -210,6 +210,82 @@ BIB;
         $t->same('van der', $editors[1]['value']['non-dropping-particle']);
         $t->contains('Ludwig van Beethoven and François van der Waals (ed.). (2026). <em>Collected Reader Notes and Nested Link</em>. Example Press.', $blocks);
     },
+    'preserves biblatex creator roles seasonal dates relations and diagnostics' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@collection{parent2026,
+  editor = {Smith, Alex},
+  title = {Collected Reader Work},
+  publisher = {Example Press},
+  date = {2025}
+}
+
+@incollection{chapter2026,
+  author = {Doe, Jane},
+  bookauthor = {von Neumann, John},
+  commentator = {Curie, Marie},
+  afterword = {Turing, Alan},
+  title = {Seasonal Chapter},
+  date = {2026-21~},
+  origdate = {1936?},
+  crossref = {parent2026},
+  xdata = {missingxdata},
+  related = {parent2026, missingRelated},
+  relatedtype = {reprintof},
+  eprint = {2606.12345},
+  eprinttype = {arxiv},
+  eprintclass = {cs.DL},
+  version = {2.1},
+  pubstate = {forthcoming}
+}
+
+@article{chapter2026,
+  title = {Duplicate Key},
+  year = {2027}
+}
+BIB;
+
+        $document = (new BibTexReader('biblatex'))->read($source);
+        $meta = $document->attr('meta');
+        $chapter = $meta['references']['value'][1]['value'];
+        $issued = $chapter['issued']['value'];
+        $original = $chapter['original-date']['value'];
+        $containerAuthor = $chapter['container-author']['value'][0]['value'];
+        $commentator = $chapter['commentator']['value'][0]['value'];
+        $afterword = $chapter['afterword-author']['value'][0]['value'];
+        $nameFields = $chapter['biblatex-name-fields']['value'];
+        $relations = $chapter['biblatex-relations']['value'];
+        $diagnostics = implode("\n", $meta['bibtexDiagnostics']['value']);
+
+        $t->same(3, $meta['bibtexEntryCount']);
+        $t->same(2, $meta['bibtexDiagnosticCount']);
+        $t->same('chapter', $chapter['type']);
+        $t->same('Collected Reader Work', $chapter['container-title']);
+        $t->same('Example Press', $chapter['publisher']);
+        $t->same([2026], $issued['date-parts']['value'][0]['value']);
+        $t->same('spring', $issued['season']);
+        $t->same(true, $issued['circa']);
+        $t->same([1936], $original['date-parts']['value'][0]['value']);
+        $t->same(true, $original['biblatex-uncertain']);
+        $t->same('John', $containerAuthor['given']);
+        $t->same('Neumann', $containerAuthor['family']);
+        $t->same('von', $containerAuthor['non-dropping-particle']);
+        $t->same('Marie', $commentator['given']);
+        $t->same('Curie', $commentator['family']);
+        $t->same('Alan', $afterword['given']);
+        $t->same('Turing', $afterword['family']);
+        $t->same('Marie', $nameFields['commentator']['value'][0]['value']['given']);
+        $t->same(['parent2026'], $relations['crossref']['value']);
+        $t->same(['missingxdata'], $relations['xdata']['value']);
+        $t->same(['parent2026', 'missingRelated'], $relations['related']['value']);
+        $t->same('reprintof', $relations['related-type']);
+        $t->same('2606.12345', $chapter['eprint']);
+        $t->same('arxiv', $chapter['eprint-type']);
+        $t->same('cs.DL', $chapter['eprint-class']);
+        $t->same('2.1', $chapter['version']);
+        $t->same('forthcoming', $chapter['status']);
+        $t->contains("Entry 'chapter2026' references missing xdata target 'missingxdata'.", $diagnostics);
+        $t->contains("Duplicate BibTeX key 'chapter2026' also appears as 'chapter2026'.", $diagnostics);
+    },
     'returns a visible empty bibliography notice for files without entries' => static function (TestRunner $t): void {
         $document = (new BibTexReader())->read('@comment{no entries}');
         $blocks = (new WordPressBlockWriter())->write($document);

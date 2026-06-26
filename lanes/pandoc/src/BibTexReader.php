@@ -116,10 +116,14 @@ final class BibTexReader
             'bibtexPreambleCount' => count($packet['preambles']),
             'bibtexCommentCount' => $packet['comments'],
             'bibtexDataEntryCount' => count($packet['entries']) - count($entries),
+            'bibtexDiagnosticCount' => count($packet['diagnostics']),
         ];
 
         if ($packet['preambles'] !== []) {
             $metadata['bibtexPreambles'] = $this->metaList(array_values($packet['preambles']));
+        }
+        if ($packet['diagnostics'] !== []) {
+            $metadata['bibtexDiagnostics'] = $this->metaList($packet['diagnostics']);
         }
 
         return new AstNode('document', ['meta' => $metadata], $this->bibliographyBlocks($entries));
@@ -140,7 +144,8 @@ final class BibTexReader
      *     entries:list<array{type:string,key:string,fields:array<string,string>,rawFields:array<string,string>}>,
      *     strings:array<string,string>,
      *     preambles:list<string>,
-     *     comments:int
+     *     comments:int,
+     *     diagnostics:list<string>
      * }
      */
     private function parseBibliography(string $source): array
@@ -152,6 +157,8 @@ final class BibTexReader
         $entries = [];
         $preambles = [];
         $comments = 0;
+        $diagnostics = [];
+        $seenEntryKeys = [];
 
         while (($at = strpos($source, '@', $offset)) !== false) {
             $offset = $at + 1;
@@ -192,24 +199,31 @@ final class BibTexReader
 
             $entry = $this->readBibliographyEntry($source, $offset, $close, $type, $strings);
             if ($entry !== null) {
+                $entryKey = strtolower($entry['key']);
+                if (isset($seenEntryKeys[$entryKey])) {
+                    $diagnostics[] = "Duplicate BibTeX key '{$entry['key']}' also appears as '{$seenEntryKeys[$entryKey]}'.";
+                }
+                $seenEntryKeys[$entryKey] = $entry['key'];
                 $entries[] = $entry;
             }
         }
-        $entries = $this->resolveEntryInheritance($entries);
+        $entries = $this->resolveEntryInheritance($entries, $diagnostics);
 
         return [
             'entries' => $entries,
             'strings' => $strings,
             'preambles' => $preambles,
             'comments' => $comments,
+            'diagnostics' => $diagnostics,
         ];
     }
 
     /**
      * @param list<array{type:string,key:string,fields:array<string,string>,rawFields:array<string,string>}> $entries
+     * @param list<string> $diagnostics
      * @return list<array{type:string,key:string,fields:array<string,string>,rawFields:array<string,string>}>
      */
-    private function resolveEntryInheritance(array $entries): array
+    private function resolveEntryInheritance(array $entries, array &$diagnostics): array
     {
         $byKey = [];
         foreach ($entries as $entry) {
@@ -222,6 +236,7 @@ final class BibTexReader
                 foreach ($targets as $target) {
                     $parent = $byKey[strtolower($target)] ?? null;
                     if (!is_array($parent)) {
+                        $diagnostics[] = "Entry '{$entry['key']}' references missing {$field} target '{$target}'.";
                         continue;
                     }
                     foreach ($parent['rawFields'] as $name => $value) {
@@ -605,6 +620,8 @@ final class BibTexReader
             'series' => 'collection-title',
             'edition' => 'edition',
             'chapter' => 'chapter-number',
+            'shorttitle' => 'short-title',
+            'origtitle' => 'original-title',
             'type' => 'genre',
             'entrysubtype' => 'genre',
             'howpublished' => 'medium',
@@ -614,6 +631,11 @@ final class BibTexReader
             'pagetotal' => 'number-of-pages',
             'eventtitle' => 'event-title',
             'venue' => 'event-place',
+            'version' => 'version',
+            'pubstate' => 'status',
+            'eprint' => 'eprint',
+            'eprinttype' => 'eprint-type',
+            'eprintclass' => 'eprint-class',
         ] as $field => $target) {
             if (($fields[$field] ?? '') !== '' && !isset($reference[$target])) {
                 $reference[$target] = $fields[$field];
@@ -627,9 +649,9 @@ final class BibTexReader
         }
         if (($fields['date'] ?? '') !== '') {
             $reference['date'] = $fields['date'];
-            $datePartLists = $this->datePartListsFromDate($fields['date']);
-            if ($datePartLists !== []) {
-                $reference['issued'] = $this->datePartsMeta($datePartLists);
+            $dateMeta = $this->dateMetaFromDate($entry['rawFields']['date'] ?? $fields['date']);
+            if ($dateMeta !== null) {
+                $reference['issued'] = $dateMeta;
             }
         }
         foreach ([
@@ -640,20 +662,33 @@ final class BibTexReader
             if (($fields[$field] ?? '') === '') {
                 continue;
             }
-            $datePartLists = $this->datePartListsFromDate($fields[$field]);
-            if ($datePartLists !== []) {
-                $reference[$target] = $this->datePartsMeta($datePartLists);
+            $dateMeta = $this->dateMetaFromDate($entry['rawFields'][$field] ?? $fields[$field]);
+            if ($dateMeta !== null) {
+                $reference[$target] = $dateMeta;
             }
         }
 
-        foreach (['author', 'editor', 'translator'] as $nameField) {
+        $nameFieldMeta = [];
+        foreach ($this->nameFieldRoles() as $nameField => $target) {
             if (($entry['rawFields'][$nameField] ?? '') === '') {
                 continue;
             }
             $names = $this->parseNames($entry['rawFields'][$nameField]);
             if ($names !== []) {
-                $reference[$nameField] = $this->metaList(array_map(fn (array $name): array => $this->personNameMeta($name), $names));
+                $nameList = $this->metaList(array_map(fn (array $name): array => $this->personNameMeta($name), $names));
+                $nameFieldMeta[$nameField] = $nameList;
+                if (!isset($reference[$target])) {
+                    $reference[$target] = $nameList;
+                }
             }
+        }
+        if ($nameFieldMeta !== []) {
+            $reference['biblatex-name-fields'] = $this->metaMap($nameFieldMeta);
+        }
+
+        $relationMeta = $this->relationMeta($fields);
+        if ($relationMeta !== []) {
+            $reference['biblatex-relations'] = $this->metaMap($relationMeta);
         }
 
         $fieldMeta = [];
@@ -696,6 +731,69 @@ final class BibTexReader
         }
 
         return '';
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @return array<string, mixed>
+     */
+    private function relationMeta(array $fields): array
+    {
+        $relations = [];
+        foreach ([
+            'crossref' => 'crossref',
+            'xref' => 'xref',
+            'xdata' => 'xdata',
+            'entryset' => 'entryset',
+            'related' => 'related',
+        ] as $field => $target) {
+            if (($fields[$field] ?? '') === '') {
+                continue;
+            }
+            $targets = $this->inheritanceTargets($fields[$field]);
+            $relations[$target] = $this->metaList($targets === [] ? [$fields[$field]] : $targets);
+        }
+
+        foreach ([
+            'relatedtype' => 'related-type',
+            'relatedstring' => 'related-string',
+        ] as $field => $target) {
+            if (($fields[$field] ?? '') !== '') {
+                $relations[$target] = $fields[$field];
+            }
+        }
+
+        return $relations;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function nameFieldRoles(): array
+    {
+        return [
+            'author' => 'author',
+            'bookauthor' => 'container-author',
+            'editor' => 'editor',
+            'editora' => 'editor',
+            'editorb' => 'editor',
+            'editorc' => 'editor',
+            'translator' => 'translator',
+            'compiler' => 'compiler',
+            'composer' => 'composer',
+            'conductor' => 'conductor',
+            'director' => 'director',
+            'producer' => 'producer',
+            'execproducer' => 'executive-producer',
+            'illustrator' => 'illustrator',
+            'interviewer' => 'interviewer',
+            'holder' => 'authority',
+            'afterword' => 'afterword-author',
+            'annotator' => 'annotator',
+            'commentator' => 'commentator',
+            'foreword' => 'foreword-author',
+            'introduction' => 'introduction-author',
+        ];
     }
 
     /**
@@ -862,6 +960,54 @@ final class BibTexReader
         ]);
     }
 
+    private function dateMetaFromDate(string $date): ?array
+    {
+        $segments = preg_split('/\s*\/\s*/u', trim($date));
+        if ($segments === false) {
+            return null;
+        }
+
+        $datePartLists = [];
+        $seasons = [];
+        $circa = false;
+        $uncertain = false;
+        foreach ($segments as $segment) {
+            if ($segment === '') {
+                continue;
+            }
+
+            $dateParts = $this->datePartsFromDate($segment);
+            if ($dateParts !== []) {
+                $datePartLists[] = $dateParts;
+            }
+
+            $season = $this->seasonFromDate($segment);
+            if ($season !== null) {
+                $seasons[] = $season;
+            }
+
+            $circa = $circa || str_contains($segment, '~') || str_contains($segment, '%');
+            $uncertain = $uncertain || str_contains($segment, '?') || str_contains($segment, '%');
+        }
+
+        if ($datePartLists === []) {
+            return null;
+        }
+
+        $meta = ['date-parts' => $this->metaList(array_map(fn (array $dateParts): array => $this->metaList($dateParts), $datePartLists))];
+        if ($seasons !== []) {
+            $meta['season'] = count($seasons) === 1 ? $seasons[0] : $this->metaList($seasons);
+        }
+        if ($circa) {
+            $meta['circa'] = true;
+        }
+        if ($uncertain) {
+            $meta['biblatex-uncertain'] = true;
+        }
+
+        return $this->metaMap($meta);
+    }
+
     /**
      * @return list<list<int|string>>
      */
@@ -896,14 +1042,33 @@ final class BibTexReader
         }
 
         $parts = [(int) $match[1]];
+        $hasMonth = false;
         if (isset($match[2]) && $match[2] !== '') {
-            $parts[] = max(1, min(12, (int) $match[2]));
+            $month = (int) $match[2];
+            if ($month >= 1 && $month <= 12) {
+                $parts[] = $month;
+                $hasMonth = true;
+            }
         }
-        if (isset($match[3]) && $match[3] !== '') {
+        if ($hasMonth && isset($match[3]) && $match[3] !== '') {
             $parts[] = max(1, min(31, (int) $match[3]));
         }
 
         return $parts;
+    }
+
+    private function seasonFromDate(string $date): ?string
+    {
+        if (preg_match('/^\s*[12][0-9]{3}-(2[1-4])(?:\D|$)/u', $date, $match) !== 1) {
+            return null;
+        }
+
+        return [
+            '21' => 'spring',
+            '22' => 'summer',
+            '23' => 'autumn',
+            '24' => 'winter',
+        ][$match[1]] ?? null;
     }
 
     /**
