@@ -95,6 +95,46 @@ BIB;
         $t->contains('Jane Doe. (2026). Import Notes: WordPress Blocks.', $blocks);
         $t->contains('<a href="https://example.test/import">https://example.test/import</a>', $blocks);
     },
+    'resolves bibtex and biblatex inheritance dates and name particles' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@proceedings{conf2026,
+  title = {Migration Conf},
+  publisher = {Open Press},
+  year = {2026}
+}
+
+@xdata{sharedplace,
+  location = {Online},
+  date = {2026-06-26}
+}
+
+@inproceedings{paper2026,
+  author = {de la Cruz, Jr., Juan},
+  title = {Reader Parity},
+  crossref = {conf2026},
+  xdata = {sharedplace},
+  pages = {1--9}
+}
+BIB;
+
+        $document = (new BibTexReader('biblatex'))->read($source);
+        $reference = $document->attr('meta')['references']['value'][2]['value'];
+        $author = $reference['author']['value'][0]['value'];
+        $dateParts = $reference['issued']['value']['date-parts']['value'][0]['value'];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('paper2026', $reference['id']);
+        $t->same('Migration Conf', $reference['container-title']);
+        $t->same('Open Press', $reference['publisher']);
+        $t->same('Online', $reference['publisher-place']);
+        $t->same('2026-06-26', $reference['date']);
+        $t->same([2026, 6, 26], $dateParts);
+        $t->same('Juan', $author['given']);
+        $t->same('Cruz', $author['family']);
+        $t->same('Jr.', $author['suffix']);
+        $t->same('de la', $author['non-dropping-particle']);
+        $t->contains('Juan de la Cruz, Jr. (2026). Reader Parity. <em>Migration Conf</em>: 1--9. Online: Open Press.', $blocks);
+    },
     'returns a visible empty bibliography notice for files without entries' => static function (TestRunner $t): void {
         $document = (new BibTexReader())->read('@comment{no entries}');
         $blocks = (new WordPressBlockWriter())->write($document);

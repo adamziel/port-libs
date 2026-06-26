@@ -68,12 +68,14 @@ final class XlsxReader
                 if (!is_string($sheetXml)) {
                     continue;
                 }
+                $sheetRels = $this->relationships($package->read($this->relationshipsPath($sheetPath)) ?? '');
                 $sheet = $this->sheet(
                     $sheetXml,
                     $reference['name'],
                     $index + 1,
                     $reference['sheetId'],
                     $sheetPath,
+                    $sheetRels,
                     $sharedStrings,
                     $styles
                 );
@@ -139,12 +141,22 @@ final class XlsxReader
     }
 
     /**
-     * @param list<string> $sharedStrings
+     * @param array<string, array{target:string,type:string,mode:string}> $relationships
+     * @param list<array{text:string,inlines:list<AstNode>}> $sharedStrings
      * @param array{fonts:list<array{bold:bool,italic:bool,underline:bool}>,cellFonts:array<int,int>} $styles
      */
-    private function sheet(string $sheetXml, string $name, int $number, string $sheetId, string $sheetPath, array $sharedStrings, array $styles): AstNode
+    private function sheet(
+        string $sheetXml,
+        string $name,
+        int $number,
+        string $sheetId,
+        string $sheetPath,
+        array $relationships,
+        array $sharedStrings,
+        array $styles
+    ): AstNode
     {
-        $cells = $this->sheetCells($sheetXml, $sharedStrings, $styles);
+        $cells = $this->sheetCells($sheetXml, $relationships, $sheetPath, $sharedStrings, $styles);
         $children = [
             new AstNode('heading', [
                 'id' => 'sheet-' . $number,
@@ -170,13 +182,16 @@ final class XlsxReader
     }
 
     /**
-     * @param list<string> $sharedStrings
+     * @param array<string, array{target:string,type:string,mode:string}> $relationships
+     * @param list<array{text:string,inlines:list<AstNode>}> $sharedStrings
      * @param array{fonts:list<array{bold:bool,italic:bool,underline:bool}>,cellFonts:array<int,int>} $styles
-     * @return array<string, array{col:int,row:int,value:string,bold:bool,italic:bool,underline:bool}>
+     * @return array<string, array<string, mixed>>
      */
-    private function sheetCells(string $sheetXml, array $sharedStrings, array $styles): array
+    private function sheetCells(string $sheetXml, array $relationships, string $sheetPath, array $sharedStrings, array $styles): array
     {
         $dom = $this->loadXml($sheetXml, 'XLSX worksheet');
+        $hyperlinks = $this->worksheetHyperlinks($dom, $relationships, $sheetPath);
+        $merges = $this->worksheetMerges($dom);
         $cells = [];
         foreach ($dom->getElementsByTagNameNS(self::SS_NS, 'c') as $cell) {
             if (!$cell instanceof \DOMElement) {
@@ -188,17 +203,64 @@ final class XlsxReader
             }
             $styleIndex = ctype_digit($cell->getAttribute('s')) ? (int) $cell->getAttribute('s') : null;
             $font = $this->cellFont($styleIndex, $styles);
-            $value = $this->cellValue($cell, $sharedStrings);
-            if ($value === '' && !$font['bold'] && !$font['italic'] && !$font['underline']) {
+            $content = $this->cellContent($cell, $sharedStrings, $font);
+            $merge = $merges['topLeft'][$ref['key']] ?? ['colspan' => 1, 'rowspan' => 1];
+            $link = $hyperlinks[$ref['key']] ?? null;
+            if (
+                $content['text'] === ''
+                && !$font['bold']
+                && !$font['italic']
+                && !$font['underline']
+                && !is_array($link)
+                && $merge['colspan'] === 1
+                && $merge['rowspan'] === 1
+            ) {
                 continue;
             }
             $cells[$ref['key']] = [
                 'col' => $ref['col'],
                 'row' => $ref['row'],
-                'value' => $value,
-                'bold' => $font['bold'],
-                'italic' => $font['italic'],
-                'underline' => $font['underline'],
+                'value' => $content['text'],
+                'inlines' => $content['inlines'],
+                'colspan' => $merge['colspan'],
+                'rowspan' => $merge['rowspan'],
+                'url' => is_array($link) ? (string) ($link['url'] ?? '') : '',
+                'title' => is_array($link) ? (string) ($link['title'] ?? '') : '',
+            ];
+        }
+
+        foreach ($merges['topLeft'] as $key => $merge) {
+            if (!isset($cells[$key])) {
+                $ref = $this->parseCellRef((string) ($merge['ref'] ?? ''));
+                if ($ref !== null) {
+                    $cells[$key] = [
+                        'col' => $ref['col'],
+                        'row' => $ref['row'],
+                        'value' => '',
+                        'inlines' => [],
+                        'colspan' => $merge['colspan'],
+                        'rowspan' => $merge['rowspan'],
+                        'url' => '',
+                        'title' => '',
+                    ];
+                }
+            }
+        }
+        foreach ($merges['covered'] as $key => $covered) {
+            if ($covered !== true) {
+                continue;
+            }
+            if (isset($cells[$key])) {
+                $cells[$key]['covered'] = true;
+                continue;
+            }
+            [$col, $row] = array_map('intval', explode(':', $key, 2));
+            $cells[$key] = [
+                'col' => $col,
+                'row' => $row,
+                'value' => '',
+                'inlines' => [],
+                'covered' => true,
             ];
         }
 
@@ -206,7 +268,7 @@ final class XlsxReader
     }
 
     /**
-     * @param array<string, array{col:int,row:int,value:string,bold:bool,italic:bool,underline:bool}> $cells
+     * @param array<string, array<string, mixed>> $cells
      */
     private function cellsToTable(array $cells): ?AstNode
     {
@@ -225,6 +287,9 @@ final class XlsxReader
             $rowEmpty = true;
             for ($col = $minCol; $col <= $maxCol; $col++) {
                 $cell = $cells[$col . ':' . $row] ?? null;
+                if (is_array($cell) && ($cell['covered'] ?? false) === true) {
+                    continue;
+                }
                 if (is_array($cell) && trim($cell['value']) !== '') {
                     $rowEmpty = false;
                 }
@@ -250,7 +315,7 @@ final class XlsxReader
     }
 
     /**
-     * @param array{col:int,row:int,value:string,bold:bool,italic:bool,underline:bool}|null $cell
+     * @param array<string, mixed>|null $cell
      */
     private function tableCell(?array $cell): AstNode
     {
@@ -259,44 +324,57 @@ final class XlsxReader
         }
 
         $inlines = $this->cellInlines($cell);
+        $attrs = [
+            'text' => (string) $cell['value'],
+            'colspan' => max(1, (int) ($cell['colspan'] ?? 1)),
+            'rowspan' => max(1, (int) ($cell['rowspan'] ?? 1)),
+        ];
+        $url = (string) ($cell['url'] ?? '');
+        if ($url !== '') {
+            $attrs['htmlAttributes'] = [
+                'data-xlsx-hyperlink' => $url,
+            ];
+        }
 
-        return new AstNode('table_cell', ['text' => $cell['value']], [new AstNode('plain', ['text' => $cell['value']], $inlines)]);
+        return new AstNode('table_cell', $attrs, [new AstNode('plain', ['text' => (string) $cell['value']], $inlines)]);
     }
 
     /**
-     * @param array{value:string,bold:bool,italic:bool,underline:bool} $cell
+     * @param array<string, mixed> $cell
      * @return list<AstNode>
      */
     private function cellInlines(array $cell): array
     {
-        if ($cell['value'] === '') {
-            return [];
+        $inlines = is_array($cell['inlines'] ?? null) ? $cell['inlines'] : [];
+        if ($inlines === [] && (string) ($cell['value'] ?? '') !== '') {
+            $inlines = [new AstNode('text', ['text' => (string) $cell['value']])];
         }
 
-        $node = new AstNode('text', ['text' => $cell['value']]);
-        if ($cell['bold']) {
-            $node = new AstNode('strong', [], [$node]);
-        }
-        if ($cell['italic']) {
-            $node = new AstNode('emph', [], [$node]);
-        }
-        if ($cell['underline']) {
-            $node = new AstNode('underline', [], [$node]);
+        $url = (string) ($cell['url'] ?? '');
+        if ($url !== '' && $inlines !== []) {
+            $inlines = [new AstNode('link', [
+                'url' => $url,
+                'title' => (string) ($cell['title'] ?? ''),
+            ], $inlines)];
         }
 
-        return [$node];
+        return $inlines;
     }
 
     /**
-     * @param list<string> $sharedStrings
+     * @param list<array{text:string,inlines:list<AstNode>}> $sharedStrings
+     * @param array{bold:bool,italic:bool,underline:bool} $font
+     * @return array{text:string,inlines:list<AstNode>}
      */
-    private function cellValue(\DOMElement $cell, array $sharedStrings): string
+    private function cellContent(\DOMElement $cell, array $sharedStrings, array $font): array
     {
         $type = $cell->getAttribute('t');
         if ($type === 'inlineStr') {
             $inline = $this->firstChildElementByLocalName($cell, 'is');
 
-            return $inline instanceof \DOMElement ? $this->sharedStringText($inline) : '';
+            return $inline instanceof \DOMElement
+                ? $this->stringItem($inline, $font)
+                : ['text' => '', 'inlines' => []];
         }
 
         $value = $this->firstChildElementByLocalName($cell, 'v');
@@ -304,17 +382,22 @@ final class XlsxReader
         if ($type === 's') {
             $index = ctype_digit($text) ? (int) $text : -1;
 
-            return $sharedStrings[$index] ?? '';
+            $item = $sharedStrings[$index] ?? ['text' => '', 'inlines' => []];
+            $item['inlines'] = $this->applyFontToInlines($item['inlines'], $font);
+
+            return $item;
         }
         if ($type === 'b') {
-            return $text === '1' ? 'TRUE' : 'FALSE';
+            $text = $text === '1' ? 'TRUE' : 'FALSE';
+
+            return ['text' => $text, 'inlines' => $this->applyFontToInlines([new AstNode('text', ['text' => $text])], $font)];
         }
 
-        return $text;
+        return ['text' => $text, 'inlines' => $this->applyFontToInlines($text === '' ? [] : [new AstNode('text', ['text' => $text])], $font)];
     }
 
     /**
-     * @return list<string>
+     * @return list<array{text:string,inlines:list<AstNode>}>
      */
     private function sharedStrings(string $xml): array
     {
@@ -325,23 +408,250 @@ final class XlsxReader
         $strings = [];
         foreach ($dom->getElementsByTagNameNS(self::SS_NS, 'si') as $string) {
             if ($string instanceof \DOMElement) {
-                $strings[] = $this->sharedStringText($string);
+                $strings[] = $this->stringItem($string);
             }
         }
 
         return $strings;
     }
 
-    private function sharedStringText(\DOMElement $string): string
+    /**
+     * @param array{bold:bool,italic:bool,underline:bool}|null $fallbackFont
+     * @return array{text:string,inlines:list<AstNode>}
+     */
+    private function stringItem(\DOMElement $string, ?array $fallbackFont = null): array
     {
-        $parts = [];
-        foreach ($string->getElementsByTagNameNS(self::SS_NS, 't') as $text) {
-            if ($text instanceof \DOMElement) {
-                $parts[] = $text->textContent;
+        $inlines = [];
+        foreach ($string->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+            if ($child->localName === 't') {
+                $text = $child->textContent;
+                if ($text !== '') {
+                    $nodes = [new AstNode('text', ['text' => $text])];
+                    $inlines = array_merge($inlines, $fallbackFont !== null ? $this->applyFontToInlines($nodes, $fallbackFont) : $nodes);
+                }
+                continue;
+            }
+            if ($child->localName === 'r') {
+                $text = '';
+                foreach ($child->getElementsByTagNameNS(self::SS_NS, 't') as $runText) {
+                    if ($runText instanceof \DOMElement) {
+                        $text .= $runText->textContent;
+                    }
+                }
+                if ($text === '') {
+                    continue;
+                }
+                $runFont = $this->richTextRunFont($child, $fallbackFont);
+                $inlines = array_merge($inlines, $this->applyFontToInlines([new AstNode('text', ['text' => $text])], $runFont));
+            }
+        }
+        if ($inlines === []) {
+            foreach ($string->getElementsByTagNameNS(self::SS_NS, 't') as $text) {
+                if ($text instanceof \DOMElement && $text->textContent !== '') {
+                    $inlines[] = new AstNode('text', ['text' => $text->textContent]);
+                }
+            }
+            if ($fallbackFont !== null) {
+                $inlines = $this->applyFontToInlines($inlines, $fallbackFont);
             }
         }
 
-        return implode('', $parts);
+        return ['text' => $this->plainText($inlines), 'inlines' => $inlines];
+    }
+
+    /**
+     * @param array{bold:bool,italic:bool,underline:bool}|null $fallbackFont
+     * @return array{bold:bool,italic:bool,underline:bool}
+     */
+    private function richTextRunFont(\DOMElement $run, ?array $fallbackFont): array
+    {
+        $font = $fallbackFont ?? ['bold' => false, 'italic' => false, 'underline' => false];
+        $properties = $this->firstChildElementByLocalName($run, 'rPr');
+        if (!$properties instanceof \DOMElement) {
+            return $font;
+        }
+
+        return [
+            'bold' => $properties->getElementsByTagNameNS(self::SS_NS, 'b')->length > 0,
+            'italic' => $properties->getElementsByTagNameNS(self::SS_NS, 'i')->length > 0,
+            'underline' => $properties->getElementsByTagNameNS(self::SS_NS, 'u')->length > 0,
+        ];
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     * @param array{bold:bool,italic:bool,underline:bool} $font
+     * @return list<AstNode>
+     */
+    private function applyFontToInlines(array $inlines, array $font): array
+    {
+        if ($inlines === []) {
+            return [];
+        }
+        if (!$font['bold'] && !$font['italic'] && !$font['underline']) {
+            return $inlines;
+        }
+
+        $node = count($inlines) === 1 ? $inlines[0] : new AstNode('span', [], $inlines);
+        if ($font['bold']) {
+            $node = new AstNode('strong', [], [$node]);
+        }
+        if ($font['italic']) {
+            $node = new AstNode('emph', [], [$node]);
+        }
+        if ($font['underline']) {
+            $node = new AstNode('underline', [], [$node]);
+        }
+
+        return [$node];
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     */
+    private function plainText(array $inlines): string
+    {
+        $text = '';
+        foreach ($inlines as $inline) {
+            $text .= match ($inline->type) {
+                'text', 'code' => (string) $inline->attr('text', ''),
+                'linebreak', 'softbreak' => ' ',
+                'image' => (string) $inline->attr('alt', ''),
+                default => $this->plainText($inline->children),
+            };
+        }
+
+        return $text;
+    }
+
+    /**
+     * @param array<string, array{target:string,type:string,mode:string}> $relationships
+     * @return array<string, array{url:string,title:string}>
+     */
+    private function worksheetHyperlinks(\DOMDocument $dom, array $relationships, string $sheetPath): array
+    {
+        $hyperlinks = [];
+        foreach ($dom->getElementsByTagNameNS(self::SS_NS, 'hyperlink') as $link) {
+            if (!$link instanceof \DOMElement) {
+                continue;
+            }
+            $ref = $link->getAttribute('ref');
+            if ($ref === '') {
+                continue;
+            }
+            $url = '';
+            $rid = $this->attr($link, self::R_NS, 'id');
+            if ($rid !== '') {
+                $relationship = $relationships[$rid] ?? null;
+                if (is_array($relationship)) {
+                    $url = (string) ($relationship['target'] ?? '');
+                    if (($relationship['mode'] ?? '') !== 'External' && $url !== '') {
+                        $url = $this->resolveRelationshipTarget($sheetPath, $url);
+                    }
+                }
+            }
+            $location = $link->getAttribute('location');
+            if ($url === '' && $location !== '') {
+                $url = '#' . ltrim($location, '#');
+            } elseif ($url !== '' && $location !== '') {
+                $url .= '#' . ltrim($location, '#');
+            }
+            if ($url === '') {
+                continue;
+            }
+            foreach ($this->cellRangeKeys($ref) as $key) {
+                $hyperlinks[$key] = [
+                    'url' => $url,
+                    'title' => $link->getAttribute('tooltip'),
+                ];
+            }
+        }
+
+        return $hyperlinks;
+    }
+
+    /**
+     * @return array{topLeft: array<string, array{ref:string,colspan:int,rowspan:int}>, covered: array<string, bool>}
+     */
+    private function worksheetMerges(\DOMDocument $dom): array
+    {
+        $topLeft = [];
+        $covered = [];
+        foreach ($dom->getElementsByTagNameNS(self::SS_NS, 'mergeCell') as $mergeCell) {
+            if (!$mergeCell instanceof \DOMElement) {
+                continue;
+            }
+            $ref = $mergeCell->getAttribute('ref');
+            $range = $this->cellRange($ref);
+            if ($range === null) {
+                continue;
+            }
+            $colspan = $range['endCol'] - $range['startCol'] + 1;
+            $rowspan = $range['endRow'] - $range['startRow'] + 1;
+            if ($colspan < 2 && $rowspan < 2) {
+                continue;
+            }
+            $key = $range['startCol'] . ':' . $range['startRow'];
+            $topLeft[$key] = [
+                'ref' => $range['startRef'],
+                'colspan' => $colspan,
+                'rowspan' => $rowspan,
+            ];
+            for ($row = $range['startRow']; $row <= $range['endRow']; $row++) {
+                for ($col = $range['startCol']; $col <= $range['endCol']; $col++) {
+                    $cellKey = $col . ':' . $row;
+                    if ($cellKey !== $key) {
+                        $covered[$cellKey] = true;
+                    }
+                }
+            }
+        }
+
+        return ['topLeft' => $topLeft, 'covered' => $covered];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function cellRangeKeys(string $reference): array
+    {
+        $range = $this->cellRange($reference);
+        if ($range === null) {
+            return [];
+        }
+
+        $keys = [];
+        for ($row = $range['startRow']; $row <= $range['endRow']; $row++) {
+            for ($col = $range['startCol']; $col <= $range['endCol']; $col++) {
+                $keys[] = $col . ':' . $row;
+            }
+        }
+
+        return $keys;
+    }
+
+    /**
+     * @return array{startCol:int,startRow:int,endCol:int,endRow:int,startRef:string}|null
+     */
+    private function cellRange(string $reference): ?array
+    {
+        $parts = explode(':', $reference, 2);
+        $start = $this->parseCellRef($parts[0] ?? '');
+        $end = $this->parseCellRef($parts[1] ?? ($parts[0] ?? ''));
+        if ($start === null || $end === null) {
+            return null;
+        }
+
+        return [
+            'startCol' => min($start['col'], $end['col']),
+            'startRow' => min($start['row'], $end['row']),
+            'endCol' => max($start['col'], $end['col']),
+            'endRow' => max($start['row'], $end['row']),
+            'startRef' => $parts[0],
+        ];
     }
 
     /**

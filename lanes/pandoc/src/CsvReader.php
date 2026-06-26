@@ -6,29 +6,37 @@ namespace PortLibs\Pandoc;
 
 final class CsvReader
 {
-    public function __construct(private readonly string $format = 'csv')
+    /**
+     * @param array{header?: bool|null, delimiter?: string|null} $options
+     */
+    public function __construct(private readonly string $format = 'csv', private readonly array $options = [])
     {
     }
 
     public function read(string $source): AstNode
     {
-        $delimiter = $this->format === 'tsv' ? "\t" : ',';
+        [$source, $delimiter] = $this->sourceAndDelimiter($source);
         $quote = $this->format === 'tsv' ? null : '"';
         $rows = $this->parseRows($source, $delimiter, $quote);
-        $columnCount = isset($rows[0]) ? count($rows[0]) : 0;
+        $columnCount = $this->maxColumnCount($rows);
+        $raggedRows = $this->raggedRowCount($rows, $columnCount);
+        $rows = $this->normalizeRows($rows, $columnCount);
+        $hasHeader = (bool) ($this->options['header'] ?? true);
         $metadata = [
             'csvFormat' => $this->format,
             'csvDelimiter' => $delimiter,
             'csvRowCount' => count($rows),
             'csvColumnCount' => $columnCount,
-            'csvDataRowCount' => max(0, count($rows) - 1),
+            'csvDataRowCount' => $hasHeader ? max(0, count($rows) - 1) : count($rows),
+            'csvHeader' => $hasHeader,
+            'csvRaggedRowCount' => $raggedRows,
         ];
 
         if ($rows === []) {
             return new AstNode('document', ['meta' => $metadata], []);
         }
 
-        $headRow = array_shift($rows);
+        $headRow = $hasHeader ? array_shift($rows) : [];
         $tableChildren = [];
         if ($headRow !== []) {
             $tableChildren[] = new AstNode('table_head', [], [
@@ -52,6 +60,28 @@ final class CsvReader
                 ],
             ], $tableChildren),
         ]);
+    }
+
+    /**
+     * @return array{0:string,1:string}
+     */
+    private function sourceAndDelimiter(string $source): array
+    {
+        if ($this->format === 'tsv') {
+            return [$source, "\t"];
+        }
+
+        $configured = (string) ($this->options['delimiter'] ?? '');
+        if (strlen($configured) === 1) {
+            return [$source, $configured];
+        }
+
+        $normalized = str_replace(["\r\n", "\r"], "\n", $source);
+        if (preg_match('/^sep=(.)\n/i', $normalized, $match) === 1) {
+            return [substr($normalized, strlen($match[0])), $match[1]];
+        }
+
+        return [$source, ','];
     }
 
     public function readCsvFile(string $path): AstNode
@@ -145,6 +175,46 @@ final class CsvReader
         }
 
         return $rows;
+    }
+
+    /**
+     * @param list<list<string>> $rows
+     */
+    private function maxColumnCount(array $rows): int
+    {
+        $max = 0;
+        foreach ($rows as $row) {
+            $max = max($max, count($row));
+        }
+
+        return $max;
+    }
+
+    /**
+     * @param list<list<string>> $rows
+     */
+    private function raggedRowCount(array $rows, int $columnCount): int
+    {
+        $count = 0;
+        foreach ($rows as $row) {
+            if (count($row) !== $columnCount) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param list<list<string>> $rows
+     * @return list<list<string>>
+     */
+    private function normalizeRows(array $rows, int $columnCount): array
+    {
+        return array_map(
+            static fn (array $row): array => array_pad(array_slice($row, 0, $columnCount), $columnCount, ''),
+            $rows
+        );
     }
 
     private function finalizeField(string $field, bool $quoted): string

@@ -16,12 +16,22 @@ final class MediaWikiReader
 
     private int $tableCount = 0;
 
+    private int $referenceCount = 0;
+
+    private int $galleryCount = 0;
+
+    /** @var array<string, list<AstNode>> */
+    private array $namedReferences = [];
+
     public function read(string $source): AstNode
     {
         $this->categories = [];
         $this->behaviorSwitches = [];
         $this->templateCount = 0;
         $this->tableCount = 0;
+        $this->referenceCount = 0;
+        $this->galleryCount = 0;
+        $this->namedReferences = [];
 
         $source = $this->normalize($source);
         $source = $this->extractCategories($source);
@@ -40,6 +50,8 @@ final class MediaWikiReader
             )),
             'mediawikiTemplateCount' => $this->templateCount,
             'mediawikiTableCount' => $this->tableCount,
+            'mediawikiReferenceCount' => $this->referenceCount,
+            'mediawikiGalleryCount' => $this->galleryCount,
             'mediawikiBehaviorSwitchCount' => count($this->behaviorSwitches),
             'mediawikiBehaviorSwitches' => $this->metaList($this->behaviorSwitches),
         ];
@@ -132,6 +144,21 @@ final class MediaWikiReader
                 continue;
             }
 
+            if (preg_match('/^<gallery\b[^>]*>/iu', $trimmed) === 1) {
+                [$galleryLines, $index] = $this->collectHtmlTagBody($lines, $index, 'gallery');
+                $blocks[] = $this->parseGallery($galleryLines);
+                continue;
+            }
+
+            if (preg_match('/^<references\b[^>]*\/?>/iu', $trimmed) === 1) {
+                $blocks[] = new AstNode('div', [
+                    'classes' => ['mediawiki-references'],
+                    'attributes' => ['data-mediawiki-references' => 'placeholder'],
+                ]);
+                $index++;
+                continue;
+            }
+
             if (preg_match('/^(={1,6})\s*(.*?)\s*\1\s*$/u', $line, $match) === 1) {
                 $text = trim($match[2]);
                 $inlines = $this->parseInlines($text);
@@ -175,7 +202,7 @@ final class MediaWikiReader
                 [$templateLines, $index] = $this->collectTemplateBlock($lines, $index);
                 $text = implode("\n", $templateLines);
                 $this->templateCount++;
-                $blocks[] = new AstNode('raw_block', ['format' => 'mediawiki', 'text' => $text]);
+                $blocks[] = $this->templateBlock($text);
                 continue;
             }
 
@@ -374,6 +401,7 @@ final class MediaWikiReader
 
         return str_starts_with($trimmed, '{|')
             || preg_match('/^<(pre|syntaxhighlight|source|haskell|hask|blockquote)\b/iu', $trimmed) === 1
+            || preg_match('/^<(gallery|references)\b/iu', $trimmed) === 1
             || preg_match('/^(={1,6})\s*(.*?)\s*\1\s*$/u', $line) === 1
             || preg_match('/^-{4,}\s*$/u', $trimmed) === 1
             || preg_match('/^[*#]+/u', $line) === 1
@@ -398,6 +426,45 @@ final class MediaWikiReader
         }
 
         return new AstNode('paragraph', ['text' => $this->plainText($inlines)], $inlines);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function parseGallery(array $lines): AstNode
+    {
+        $this->galleryCount++;
+        $figures = [];
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if ($line === '') {
+                continue;
+            }
+            if (preg_match('/^(?:File|Image|Archivo|Media)\s*:\s*(.+)$/iu', $line) === 1) {
+                $nodes = $this->parseInternalLink($line);
+            } else {
+                $nodes = $this->parseInternalLink('File:' . $line);
+            }
+            foreach ($nodes as $node) {
+                if ($node->type !== 'image') {
+                    continue;
+                }
+                $captionInlines = $node->children;
+                $figures[] = new AstNode('figure', [
+                    'caption' => $this->plainText($captionInlines),
+                    'captionInlines' => $captionInlines,
+                    'classes' => ['mediawiki-image', 'mediawiki-gallery-item'],
+                ], [$node]);
+            }
+        }
+
+        return new AstNode('div', [
+            'classes' => ['mediawiki-gallery'],
+            'attributes' => [
+                'data-pandoc-source' => 'mediawiki',
+                'data-mediawiki-gallery-count' => (string) count($figures),
+            ],
+        ], $figures);
     }
 
     /**
@@ -841,10 +908,30 @@ final class MediaWikiReader
                     $this->flushText($nodes, $buffer);
                     $raw = substr($text, $offset, $end - $offset);
                     $this->templateCount++;
-                    $nodes[] = new AstNode('raw_inline', ['format' => 'mediawiki', 'text' => $raw]);
+                    $nodes[] = $this->templateInline($raw);
                     $offset = $end;
                     continue;
                 }
+            }
+
+            if (preg_match('/^<ref\b([^\/>]*)\/>/iu', $remaining, $match) === 1) {
+                $this->flushText($nodes, $buffer);
+                $note = $this->referenceNode($match[1], '');
+                if ($note instanceof AstNode) {
+                    $nodes[] = $note;
+                }
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            if (preg_match('/^<ref\b([^>]*)>(.*?)<\/ref>/isu', $remaining, $match) === 1) {
+                $this->flushText($nodes, $buffer);
+                $note = $this->referenceNode($match[1], $match[2]);
+                if ($note instanceof AstNode) {
+                    $nodes[] = $note;
+                }
+                $offset += strlen($match[0]);
+                continue;
             }
 
             if (preg_match('/^<br\s*\/?>/iu', $remaining, $match) === 1) {
@@ -991,9 +1078,25 @@ final class MediaWikiReader
     {
         $caption = '';
         $attributes = ['data-pandoc-source' => 'mediawiki'];
+        $alt = '';
         foreach ($parts as $part) {
             $part = trim($part);
             if ($part === '' || in_array(strtolower($part), ['thumb', 'thumbnail', 'frame', 'frameless', 'border', 'left', 'right', 'center', 'none'], true)) {
+                if ($part !== '') {
+                    $attributes['data-mediawiki-layout'] = strtolower($part);
+                }
+                continue;
+            }
+            if (preg_match('/^alt\s*=\s*(.*)$/iu', $part, $match) === 1) {
+                $alt = trim($match[1]);
+                continue;
+            }
+            if (preg_match('/^link\s*=\s*(.*)$/iu', $part, $match) === 1) {
+                $attributes['data-mediawiki-link'] = trim($match[1]);
+                continue;
+            }
+            if (preg_match('/^class\s*=\s*(.*)$/iu', $part, $match) === 1) {
+                $attributes['class'] = trim($match[1]);
                 continue;
             }
             if (preg_match('/^page\s*=\s*(\d+)$/iu', $part, $match) === 1) {
@@ -1016,7 +1119,7 @@ final class MediaWikiReader
 
         return new AstNode('image', [
             'url' => $url,
-            'alt' => $this->plainText($captionInlines),
+            'alt' => $alt !== '' ? $alt : $this->plainText($captionInlines),
             'title' => '',
             'attributes' => $attributes,
         ], $captionInlines);
@@ -1066,6 +1169,111 @@ final class MediaWikiReader
         }
 
         return $end + strlen($closing);
+    }
+
+    private function templateBlock(string $raw): AstNode
+    {
+        $template = $this->parseTemplate($raw);
+        $items = [];
+        foreach ($template['fields'] as $name => $value) {
+            $items[] = new AstNode('definition_item', [], [
+                new AstNode('term', ['text' => $name], [new AstNode('text', ['text' => $name])]),
+                new AstNode('definition', [], [
+                    new AstNode('plain', ['text' => $this->plainText($this->parseInlines($value))], $this->parseInlines($value)),
+                ]),
+            ]);
+        }
+
+        return new AstNode('div', [
+            'classes' => ['mediawiki-template'],
+            'attributes' => array_filter([
+                'data-pandoc-source' => 'mediawiki',
+                'data-mediawiki-template' => $template['name'],
+                'data-mediawiki-parser-function' => $template['parserFunction'] ? 'true' : '',
+            ], static fn (string $value): bool => $value !== ''),
+        ], [
+            new AstNode('paragraph', ['text' => $template['name']], [
+                new AstNode('strong', [], [new AstNode('text', ['text' => $template['name']])]),
+            ]),
+            new AstNode('definition_list', [], $items),
+        ]);
+    }
+
+    private function templateInline(string $raw): AstNode
+    {
+        $template = $this->parseTemplate($raw);
+        $label = $template['name'];
+        if ($template['fields'] !== []) {
+            $label .= ': ' . implode('; ', array_map(
+                static fn (string $name, string $value): string => $name . '=' . $value,
+                array_keys($template['fields']),
+                array_values($template['fields'])
+            ));
+        }
+
+        return new AstNode('span', [
+            'classes' => ['mediawiki-template'],
+            'htmlAttributes' => array_filter([
+                'data-mediawiki-template' => $template['name'],
+                'data-mediawiki-parser-function' => $template['parserFunction'] ? 'true' : '',
+            ], static fn (string $value): bool => $value !== ''),
+        ], $this->parseInlines($label));
+    }
+
+    /**
+     * @return array{name:string,parserFunction:bool,fields:array<string,string>}
+     */
+    private function parseTemplate(string $raw): array
+    {
+        $inner = trim($raw);
+        $inner = preg_replace('/^\{\{\{?|\}\}\}?$/u', '', $inner) ?? $inner;
+        $parts = array_map('trim', explode('|', $inner));
+        $name = array_shift($parts) ?? '';
+        $fields = [];
+        $position = 1;
+        foreach ($parts as $part) {
+            if (str_contains($part, '=')) {
+                [$field, $value] = array_map('trim', explode('=', $part, 2));
+                $fields[$field === '' ? (string) $position : $field] = $value;
+            } else {
+                $fields[(string) $position] = $part;
+            }
+            $position++;
+        }
+
+        return [
+            'name' => $name === '' ? 'template' : $name,
+            'parserFunction' => str_starts_with($name, '#'),
+            'fields' => $fields,
+        ];
+    }
+
+    private function referenceNode(string $attrSource, string $body): ?AstNode
+    {
+        $attrs = $this->parseHtmlAttributes($attrSource);
+        $name = trim((string) ($attrs['name'] ?? ''));
+        if (trim($body) === '' && $name !== '' && isset($this->namedReferences[$name])) {
+            return new AstNode('note', [
+                'noteType' => 'mediawiki-reference',
+                'id' => $name,
+            ], $this->namedReferences[$name]);
+        }
+
+        $inlines = $this->parseInlines(trim($body));
+        if ($inlines === []) {
+            return null;
+        }
+
+        $this->referenceCount++;
+        $children = [new AstNode('paragraph', ['text' => $this->plainText($inlines)], $inlines)];
+        if ($name !== '') {
+            $this->namedReferences[$name] = $children;
+        }
+
+        return new AstNode('note', [
+            'noteType' => 'mediawiki-reference',
+            'id' => $name,
+        ], $children);
     }
 
     /**

@@ -63,8 +63,9 @@ XML);
       <p:graphicFrame>
         <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table">
           <a:tbl>
-            <a:tr><a:tc><a:txBody><a:p><a:r><a:t>Head A</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Head B</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
-            <a:tr><a:tc><a:txBody><a:p><a:r><a:t>Cell A</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Cell B</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+            <a:tr><a:tc gridSpan="2"><a:txBody><a:p><a:r><a:t>Head A</a:t></a:r></a:p></a:txBody></a:tc><a:tc hMerge="1"><a:txBody><a:p><a:r><a:t>Hidden</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Head C</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+            <a:tr><a:tc rowSpan="2"><a:txBody><a:p><a:r><a:t>Tall A</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Cell B</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Cell C</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+            <a:tr><a:tc vMerge="1"><a:txBody><a:p><a:r><a:t>Hidden</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Cell D</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Cell E</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
           </a:tbl>
         </a:graphicData></a:graphic>
       </p:graphicFrame>
@@ -112,6 +113,18 @@ XML);
         $t->same(['pptx-slide'], $document->children[0]->attr('classes'));
         $t->same('Slide One', $document->children[0]->children[0]->attr('text'));
         $t->same('Second Slide', $document->children[1]->children[0]->attr('text'));
+        $table = null;
+        foreach ($document->children[0]->children as $child) {
+            if ($child->type === 'table') {
+                $table = $child;
+                break;
+            }
+        }
+        if (!$table instanceof PortLibs\Pandoc\AstNode) {
+            throw new RuntimeException('Expected PPTX table node');
+        }
+        $t->same(2, $table->children[0]->children[0]->children[0]->attr('colspan'));
+        $t->same(2, $table->children[1]->children[0]->children[0]->attr('rowspan'));
         $t->contains('class="pptx-slide"', $blocks);
         $t->contains('<h2 id="slide-1">Slide One</h2>', $blocks);
         $t->contains('<a href="https://example.test/pptx"><strong>linked bold</strong></a>', $blocks);
@@ -119,8 +132,9 @@ XML);
         $t->contains('<ul><li>Bullet one</li><li>Bullet two</li></ul>', $blocks);
         $t->contains('<ol start="3"><li>Step three</li></ol>', $blocks);
         $t->contains('<img src="ppt/media/image1.png" alt="Pixel alt" title="Pixel image"', $blocks);
-        $t->contains('Head A', $blocks);
-        $t->contains('Cell B', $blocks);
+        $t->contains('<th colspan="2"><p>Head A</p></th><th><p>Head C</p></th>', $blocks);
+        $t->contains('<td rowspan="2"><p>Tall A</p></td>', $blocks);
+        $t->contains('Cell E', $blocks);
         $t->contains('class="pptx-notes"', $blocks);
         $t->contains('Speaker note text.', $blocks);
         $t->contains('Second slide body.', $converterBlocks);

@@ -12,7 +12,7 @@ final class DocxReader
     private const M_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
     private const REL_NS = 'http://schemas.openxmlformats.org/package/2006/relationships';
 
-    /** @var array<string, array{headingLevel?: int, strong?: bool, emph?: bool}> */
+    /** @var array<string, array<string, mixed>> */
     private array $styles = [];
 
     /** @var array<string, array<int, array{ordered: bool, style?: string, delimiter?: string, start?: int}>> */
@@ -342,12 +342,14 @@ final class DocxReader
             return null;
         }
 
+        $styleId = $this->paragraphStyleId($paragraph);
+        $attrs = $this->styleNodeAttrs($styleId, 'paragraph');
         $level = $this->headingLevel($paragraph);
         if ($level !== null) {
-            return new AstNode('heading', ['level' => $level, 'text' => $text], $inlines);
+            return new AstNode('heading', array_replace($attrs, ['level' => $level, 'text' => $text]), $inlines);
         }
 
-        return new AstNode('paragraph', ['text' => $text], $inlines);
+        return new AstNode('paragraph', array_replace($attrs, ['text' => $text]), $inlines);
     }
 
     /**
@@ -472,6 +474,13 @@ final class DocxReader
         }
         if (($style['emph'] ?? false) && $nodes !== []) {
             $nodes = [new AstNode('emph', [], $nodes)];
+        }
+        $styleId = (string) ($style['styleId'] ?? '');
+        if ($styleId !== '' && $nodes !== []) {
+            $attrs = $this->styleNodeAttrs($styleId, 'character');
+            if ($attrs !== []) {
+                $nodes = [new AstNode('span', $attrs, $nodes)];
+            }
         }
 
         return $nodes;
@@ -819,15 +828,12 @@ final class DocxReader
 
     private function headingLevel(\DOMElement $paragraph): ?int
     {
-        foreach ($paragraph->getElementsByTagNameNS(self::W_NS, 'pStyle') as $style) {
-            if (!$style instanceof \DOMElement) {
-                continue;
-            }
-            $styleId = $this->attr($style, self::W_NS, 'val');
+        $styleId = $this->paragraphStyleId($paragraph);
+        if ($styleId !== '') {
             if (isset($this->styles[$styleId]['headingLevel'])) {
                 return max(1, min(6, (int) $this->styles[$styleId]['headingLevel']));
             }
-            if (preg_match('/heading\s*([1-6])|Heading([1-6])/i', $styleId, $m)) {
+            if (preg_match('/heading\s*([1-6])|Heading([1-6])/i', $styleId, $m) === 1) {
                 return (int) ($m[1] !== '' ? $m[1] : $m[2]);
             }
         }
@@ -838,6 +844,64 @@ final class DocxReader
         }
 
         return null;
+    }
+
+    private function paragraphStyleId(\DOMElement $paragraph): string
+    {
+        foreach ($paragraph->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->localName !== 'pPr') {
+                continue;
+            }
+            foreach ($child->childNodes as $prop) {
+                if ($prop instanceof \DOMElement && $prop->localName === 'pStyle') {
+                    return $this->attr($prop, self::W_NS, 'val');
+                }
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function styleNodeAttrs(string $styleId, string $type): array
+    {
+        if ($styleId === '') {
+            return [];
+        }
+        $style = $this->styles[$styleId] ?? [];
+        $name = (string) ($style['name'] ?? $styleId);
+        $classes = ['docx-style-' . $this->styleClassToken($styleId)];
+        if ($type !== '') {
+            $classes[] = 'docx-' . $type . '-style';
+        }
+
+        $htmlAttributes = [
+            'class' => implode(' ', $classes),
+            'data-docx-style-id' => $styleId,
+        ];
+        if ($name !== '') {
+            $htmlAttributes['data-docx-style-name'] = $name;
+            $htmlAttributes['custom-style'] = $name;
+        }
+        if (isset($style['type'])) {
+            $htmlAttributes['data-docx-style-type'] = (string) $style['type'];
+        }
+
+        return [
+            'classes' => $classes,
+            'attributes' => ['custom-style' => $name],
+            'htmlAttributes' => $htmlAttributes,
+        ];
+    }
+
+    private function styleClassToken(string $styleId): string
+    {
+        $token = strtolower(preg_replace('/[^a-z0-9]+/i', '-', $styleId) ?? $styleId);
+        $token = trim($token, '-');
+
+        return $token !== '' ? $token : 'style';
     }
 
     /**
@@ -888,7 +952,7 @@ final class DocxReader
     }
 
     /**
-     * @return array{strong?: bool, emph?: bool}
+     * @return array<string, mixed>
      */
     private function runStyle(\DOMElement $run): array
     {
@@ -908,6 +972,9 @@ final class DocxReader
                 } elseif ($prop->localName === 'rStyle') {
                     $styleId = $this->attr($prop, self::W_NS, 'val');
                     $style = array_replace($style, $this->styles[$styleId] ?? []);
+                    if ($styleId !== '') {
+                        $style['styleId'] = $styleId;
+                    }
                 }
             }
         }
@@ -922,11 +989,12 @@ final class DocxReader
     }
 
     /**
-     * @return array<string, array{headingLevel?: int, strong?: bool, emph?: bool}>
+     * @return array<string, array<string, mixed>>
      */
     private function styles(\DOMDocument $dom): array
     {
         $styles = [];
+        $basedOn = [];
         foreach ($dom->getElementsByTagNameNS(self::W_NS, 'style') as $style) {
             if (!$style instanceof \DOMElement) {
                 continue;
@@ -935,12 +1003,22 @@ final class DocxReader
             if ($styleId === '') {
                 continue;
             }
-            $entry = [];
+            $entry = [
+                'styleId' => $styleId,
+                'type' => $this->attr($style, self::W_NS, 'type'),
+            ];
             foreach ($style->childNodes as $child) {
                 if (!$child instanceof \DOMElement) {
                     continue;
                 }
-                if ($child->localName === 'pPr') {
+                if ($child->localName === 'name') {
+                    $entry['name'] = $this->attr($child, self::W_NS, 'val');
+                } elseif ($child->localName === 'basedOn') {
+                    $parent = $this->attr($child, self::W_NS, 'val');
+                    if ($parent !== '') {
+                        $basedOn[$styleId] = $parent;
+                    }
+                } elseif ($child->localName === 'pPr') {
                     foreach ($child->getElementsByTagNameNS(self::W_NS, 'outlineLvl') as $outline) {
                         if ($outline instanceof \DOMElement) {
                             $entry['headingLevel'] = max(1, min(6, (int) ($this->attr($outline, self::W_NS, 'val') ?: '0') + 1));
@@ -959,10 +1037,21 @@ final class DocxReader
                     }
                 }
             }
-            if ($entry === [] && preg_match('/heading\s*([1-6])|Heading([1-6])/i', $styleId, $m)) {
+            if (!isset($entry['name']) || (string) $entry['name'] === '') {
+                $entry['name'] = $styleId;
+            }
+            if (!isset($entry['headingLevel']) && preg_match('/heading\s*([1-6])|Heading([1-6])/i', $styleId, $m) === 1) {
                 $entry['headingLevel'] = (int) ($m[1] !== '' ? $m[1] : $m[2]);
             }
             $styles[$styleId] = $entry;
+        }
+
+        foreach ($basedOn as $styleId => $parentId) {
+            if (!isset($styles[$styleId], $styles[$parentId])) {
+                continue;
+            }
+            $styles[$styleId] = array_replace($styles[$parentId], $styles[$styleId]);
+            $styles[$styleId]['styleId'] = $styleId;
         }
 
         return $styles;

@@ -165,7 +165,7 @@ final class PandocConverter
     {
         return match ($implementation) {
             BibTexReader::class => new BibTexReader($format),
-            CsvReader::class => new CsvReader($format),
+            CsvReader::class => new CsvReader($format, $options),
             DocxReader::class => new DocxReader(),
             EpubReader::class => new EpubReader($options),
             MarkdownReader::class => new MarkdownReader(self::markdownReaderOptions($format, $options)),

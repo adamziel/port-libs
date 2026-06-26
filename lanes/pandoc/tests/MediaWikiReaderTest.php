@@ -49,7 +49,9 @@ return [
         $t->contains('<a href="https://example.test">Example</a>', $blocks);
         $t->contains('<span class="math inline">\\(x^2\\)</span>', $blocks);
         $t->contains('&#039;&#039;literal&#039;&#039;', $blocks);
-        $t->contains('<span class="pandoc-raw-mediawiki" data-pandoc-raw-format="mediawiki">{{Infobox|name=Demo}}</span>', $blocks);
+        $t->contains('data-mediawiki-template="Infobox"', $blocks);
+        $t->contains('class="mediawiki-template"', $blocks);
+        $t->contains('Infobox: name=Demo', $blocks);
         $t->contains('<ul><li>First<ul><li>Nested <a href="Child_Page" class="wikilink">Child Page</a></li></ul></li></ul>', $blocks);
         $t->contains('<ol><li>Step one</li><li>Step two</li></ol>', $blocks);
         $t->contains('<dl><dt>Term</dt><dd>Definition with <code>code</code></dd></dl>', $blocks);
@@ -105,17 +107,57 @@ return [
         $document = PandocConverter::read($source, 'mediawiki');
         $blocks = PandocConverter::convert($source, 'mediawiki', 'blocks');
 
-        $t->same('raw_block', $document->children[0]->type);
-        $t->same('mediawiki', $document->children[0]->attr('format'));
+        $t->same('div', $document->children[0]->type);
+        $t->same(['mediawiki-template'], $document->children[0]->attr('classes'));
+        $t->same('Infobox', $document->children[0]->attr('attributes')['data-mediawiki-template']);
         $t->same('code_block', $document->children[1]->type);
         $t->same(['ruby'], $document->children[1]->attr('classes'));
         $t->same('figure', $document->children[2]->type);
         $t->same('A caption with a link', $document->children[2]->attr('caption'));
-        $t->contains('<pre class="wp-block-code pandoc-raw-mediawiki" data-pandoc-raw-format="mediawiki"><code class="language-mediawiki">{{Infobox', $blocks);
+        $t->contains('<div class="mediawiki-template" data-pandoc-source="mediawiki" data-mediawiki-template="Infobox">', $blocks);
+        $t->contains('<strong>Infobox</strong>', $blocks);
+        $t->contains('<dt>name</dt><dd>Demo</dd>', $blocks);
         $t->contains('<pre class="wp-block-code" data-mediawiki-start="100"><code class="language-ruby">puts &quot;hi&quot;</code></pre>', $blocks);
         $t->contains('<figure class="wp-block-image mediawiki-image"><img src="example.jpg" alt="A caption with a link"', $blocks);
         $t->contains('data-pandoc-width="30px"', $blocks);
         $t->contains('data-pandoc-height="40px"', $blocks);
         $t->contains('<figcaption>A <em>caption</em> with <a href="https://example.test">a link</a></figcaption>', $blocks);
+    },
+    'reads mediawiki references galleries and image options' => static function (TestRunner $t): void {
+        $source = implode("\n", [
+            'Text with <ref name="cite">Reference with [[Target|label]].</ref> and reused <ref name="cite" />.',
+            '',
+            '<references />',
+            '',
+            '<gallery>',
+            'File:one.jpg|First caption',
+            'two.jpg|alt=Second alt|link=Target Page|class=framed|Second caption',
+            '</gallery>',
+        ]);
+
+        $document = PandocConverter::read($source, 'mediawiki');
+        $blocks = PandocConverter::convert($source, 'mediawiki', 'blocks');
+        $meta = $document->attr('meta');
+        $paragraph = $document->children[0];
+        $gallery = $document->children[2];
+        $secondImage = $gallery->children[1]->children[0];
+
+        $t->same(1, $meta['mediawikiReferenceCount']);
+        $t->same(1, $meta['mediawikiGalleryCount']);
+        $t->same('note', $paragraph->children[1]->type);
+        $t->same('mediawiki-reference', $paragraph->children[1]->attr('noteType'));
+        $t->same('note', $paragraph->children[3]->type);
+        $t->same('div', $document->children[1]->type);
+        $t->same(['mediawiki-references'], $document->children[1]->attr('classes'));
+        $t->same('div', $gallery->type);
+        $t->same(['mediawiki-gallery'], $gallery->attr('classes'));
+        $t->same('Second alt', $secondImage->attr('alt'));
+        $t->same('Target Page', $secondImage->attr('attributes')['data-mediawiki-link']);
+        $t->same('framed', $secondImage->attr('attributes')['class']);
+        $t->contains('class="mediawiki-references"', $blocks);
+        $t->contains('class="mediawiki-gallery"', $blocks);
+        $t->contains('<img src="two.jpg" alt="Second alt"', $blocks);
+        $t->contains('data-mediawiki-link="Target Page"', $blocks);
+        $t->contains('Reference with <a href="Target" class="wikilink">label</a>.', $blocks);
     },
 ];

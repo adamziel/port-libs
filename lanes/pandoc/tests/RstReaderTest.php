@@ -127,4 +127,44 @@ return [
         $t->contains('<th>Left</th><th>Right</th>', $gridBlocks);
         $t->contains('<td>A</td><td>B</td>', $gridBlocks);
     },
+    'reads rst substitutions footnotes citations and admonitions' => static function (TestRunner $t): void {
+        $source = implode("\n", [
+            '.. |project| replace:: **Gastown**',
+            '.. |logo| image:: images/logo.png',
+            '.. [#note] Footnote body with *emphasis*.',
+            '.. [RFC] Citation body.',
+            '',
+            'Intro |project| |logo| with a footnote [#note]_ and citation [RFC]_.',
+            '',
+            '.. warning::',
+            '',
+            '   Check imported content.',
+        ]);
+
+        $document = PandocConverter::read($source, 'rst');
+        $blocks = PandocConverter::convert($source, 'rst', 'blocks');
+        $meta = $document->attr('meta');
+        $paragraph = $document->children[0];
+        $warning = $document->children[1];
+
+        $t->same(2, $meta['rstSubstitutionCount']);
+        $t->same(1, $meta['rstFootnoteDefinitionCount']);
+        $t->same(1, $meta['rstCitationDefinitionCount']);
+        $t->same(1, $meta['rstDirectiveCount']);
+        $t->same('strong', $paragraph->children[1]->type);
+        $t->same('image', $paragraph->children[3]->type);
+        $t->same('images/logo.png', $paragraph->children[3]->attr('url'));
+        $t->same('note', $paragraph->children[5]->type);
+        $t->same('rst-footnote', $paragraph->children[5]->attr('noteType'));
+        $t->same('note', $paragraph->children[7]->type);
+        $t->same('rst-citation', $paragraph->children[7]->attr('noteType'));
+        $t->same('div', $warning->type);
+        $t->same(['admonition', 'admonition-warning'], $warning->attr('classes'));
+        $t->contains('<strong>Gastown</strong>', $blocks);
+        $t->contains('<img src="images/logo.png" alt="logo"', $blocks);
+        $t->contains('Footnote body with <em>emphasis</em>.', $blocks);
+        $t->contains('Citation body.', $blocks);
+        $t->contains('class="admonition admonition-warning"', $blocks);
+        $t->contains('<strong>Warning</strong>', $blocks);
+    },
 ];

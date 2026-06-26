@@ -9,6 +9,15 @@ final class RstReader
     /** @var array<string, string> */
     private array $references = [];
 
+    /** @var array<string, list<AstNode>> */
+    private array $substitutions = [];
+
+    /** @var array<string, list<AstNode>> */
+    private array $footnoteDefinitions = [];
+
+    /** @var array<string, list<AstNode>> */
+    private array $citationDefinitions = [];
+
     /** @var array<string, int> */
     private array $headingLevels = [];
 
@@ -25,6 +34,9 @@ final class RstReader
     public function read(string $source): AstNode
     {
         $this->references = [];
+        $this->substitutions = [];
+        $this->footnoteDefinitions = [];
+        $this->citationDefinitions = [];
         $this->headingLevels = [];
         $this->directiveCount = 0;
         $this->fieldListCount = 0;
@@ -33,6 +45,8 @@ final class RstReader
         $this->defaultCodeLanguage = null;
 
         $source = $this->normalize($source);
+        $source = $this->extractSubstitutionDefinitions($source);
+        $source = $this->extractFootnoteAndCitationDefinitions($source);
         $source = $this->extractReferenceDefinitions($source);
         $blocks = $this->parseBlocks(explode("\n", $source));
 
@@ -40,6 +54,9 @@ final class RstReader
             'meta' => [
                 'rstReferenceCount' => count($this->references),
                 'rstReferences' => $this->metaMap($this->references),
+                'rstSubstitutionCount' => count($this->substitutions),
+                'rstFootnoteDefinitionCount' => count($this->footnoteDefinitions),
+                'rstCitationDefinitionCount' => count($this->citationDefinitions),
                 'rstDirectiveCount' => $this->directiveCount,
                 'rstFieldListCount' => $this->fieldListCount,
                 'rstTableCount' => $this->tableCount,
@@ -76,6 +93,62 @@ final class RstReader
             },
             $source
         ) ?? $source;
+    }
+
+    private function extractSubstitutionDefinitions(string $source): string
+    {
+        return preg_replace_callback(
+            '/^\s*\.\.\s+\|([^|]+)\|\s+(replace|image)::\s*(.*?)\s*$/um',
+            function (array $match): string {
+                $key = $this->referenceKey($match[1]);
+                $kind = strtolower($match[2]);
+                $value = trim($match[3]);
+                if ($kind === 'image') {
+                    $this->substitutions[$key] = [new AstNode('image', [
+                        'url' => $value,
+                        'alt' => trim($match[1]),
+                        'attributes' => ['data-pandoc-source' => 'rst-substitution'],
+                    ])];
+                } else {
+                    $this->substitutions[$key] = $this->parseInlines($value);
+                }
+
+                return '';
+            },
+            $source
+        ) ?? $source;
+    }
+
+    private function extractFootnoteAndCitationDefinitions(string $source): string
+    {
+        $lines = explode("\n", $source);
+        $kept = [];
+        $count = count($lines);
+        for ($index = 0; $index < $count; $index++) {
+            $line = $lines[$index];
+            if (preg_match('/^\s*\.\.\s+\[([^\]]+)\]\s+(.*)$/u', $line, $match) !== 1) {
+                $kept[] = $line;
+                continue;
+            }
+
+            $label = trim($match[1]);
+            $body = [trim($match[2])];
+            while ($index + 1 < $count && (trim($lines[$index + 1]) === '' || $this->indentWidth($lines[$index + 1]) > 0)) {
+                $index++;
+                $body[] = trim($lines[$index]);
+            }
+
+            $text = trim(preg_replace('/\s+/u', ' ', implode(' ', array_filter($body, static fn (string $part): bool => $part !== ''))) ?? '');
+            $inlines = $this->parseInlines($text);
+            $blocks = [new AstNode('paragraph', ['text' => $this->plainText($inlines)], $inlines)];
+            if (str_starts_with($label, '#')) {
+                $this->footnoteDefinitions[$this->referenceKey($label)] = $blocks;
+            } else {
+                $this->citationDefinitions[$this->referenceKey($label)] = $blocks;
+            }
+        }
+
+        return implode("\n", $kept);
     }
 
     /**
@@ -297,6 +370,23 @@ final class RstReader
             $table = $this->parseTableFromBody($body, $argument);
 
             return [[$table], $nextIndex];
+        }
+
+        if (in_array($name, ['note', 'warning', 'important', 'tip', 'caution', 'attention', 'danger', 'error', 'hint'], true)) {
+            $content = $body;
+            if ($argument !== '') {
+                array_unshift($content, $argument, '');
+            }
+            $title = ucfirst($name);
+
+            return [[new AstNode('div', [
+                'classes' => ['admonition', 'admonition-' . $this->sanitizeClass($name)],
+                'attributes' => ['data-rst-directive' => $name],
+            ], array_merge([
+                new AstNode('paragraph', ['text' => $title], [
+                    new AstNode('strong', [], [new AstNode('text', ['text' => $title])]),
+                ]),
+            ], $this->parseBlocks($content)))], $nextIndex];
         }
 
         if ($name === 'raw') {
@@ -903,6 +993,32 @@ final class RstReader
                     : new AstNode('span', ['classes' => [$this->sanitizeClass($role)]], [new AstNode('text', ['text' => $inner])]);
                 $offset += strlen($match[0]);
                 continue;
+            }
+
+            if (preg_match('/^\|([^|]+)\|/u', $remaining, $match) === 1) {
+                $key = $this->referenceKey($match[1]);
+                if (isset($this->substitutions[$key])) {
+                    $this->flushText($nodes, $buffer);
+                    array_push($nodes, ...$this->substitutions[$key]);
+                    $offset += strlen($match[0]);
+                    continue;
+                }
+            }
+
+            if (preg_match('/^\[([^\]]+)\]_/u', $remaining, $match) === 1) {
+                $key = $this->referenceKey($match[1]);
+                $definition = str_starts_with($match[1], '#')
+                    ? ($this->footnoteDefinitions[$key] ?? null)
+                    : ($this->citationDefinitions[$key] ?? null);
+                if (is_array($definition)) {
+                    $this->flushText($nodes, $buffer);
+                    $nodes[] = new AstNode('note', [
+                        'id' => $match[1],
+                        'noteType' => str_starts_with($match[1], '#') ? 'rst-footnote' : 'rst-citation',
+                    ], $definition);
+                    $offset += strlen($match[0]);
+                    continue;
+                }
             }
 
             if (str_starts_with($remaining, '``')) {

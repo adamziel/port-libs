@@ -39,6 +39,7 @@ XML);
   <si><t>Age</t></si>
   <si><t>Location</t></si>
   <si><r><t>Ada </t></r><r><t>Lovelace</t></r></si>
+  <si><r><rPr><b/></rPr><t>Rich</t></r><r><rPr><i/></rPr><t> text</t></r></si>
 </sst>
 XML);
         $zip->addFromString('xl/styles.xml', <<<'XML'
@@ -50,15 +51,19 @@ XML);
 XML);
         $zip->addFromString('xl/worksheets/sheet1.xml', <<<'XML'
 <?xml version="1.0"?>
-<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <sheetData>
     <row r="1"><c r="A1" t="s" s="1"><v>0</v></c><c r="B1" t="s" s="1"><v>1</v></c><c r="C1" t="s" s="1"><v>2</v></c></row>
     <row r="2"><c r="A2" t="s"><v>3</v></c><c r="B2"><v>36.5</v></c><c r="C2" t="inlineStr"><is><t>London</t></is></c></row>
-    <row r="3"><c r="A3" t="b"><v>1</v></c><c r="B3" t="inlineStr" s="2"><is><t>Under italic</t></is></c></row>
+    <row r="3"><c r="A3" t="b"><v>1</v></c><c r="B3" t="inlineStr" s="2"><is><t>Under italic</t></is></c><c r="C3" t="s"><v>4</v></c></row>
+    <row r="4"><c r="A4" t="inlineStr"><is><t>Merged Area</t></is></c><c r="C4" t="inlineStr"><is><t>Open link</t></is></c></row>
     <row r="5"><c r="A5" t="inlineStr"><is><t>Tail cell</t></is></c></row>
   </sheetData>
+  <mergeCells count="1"><mergeCell ref="A4:B4"/></mergeCells>
+  <hyperlinks><hyperlink ref="C4" r:id="rIdLink" tooltip="XLSX link"/></hyperlinks>
 </worksheet>
 XML);
+        $zip->addFromString('xl/worksheets/_rels/sheet1.xml.rels', '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/xlsx" TargetMode="External"/></Relationships>');
         $zip->addFromString('xl/worksheets/sheet2.xml', <<<'XML'
 <?xml version="1.0"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
@@ -85,12 +90,20 @@ XML);
         $t->same('sheets,import', $meta['keywords']);
         $t->same('xl/workbook.xml', $meta['xlsxWorkbookPath']);
         $t->same(2, $meta['xlsxSheetCount']);
-        $t->same(4, $meta['xlsxSharedStringCount']);
+        $t->same(5, $meta['xlsxSharedStringCount']);
         $t->same(3, $meta['xlsxStyleFontCount']);
         $t->same('div', $document->children[0]->type);
         $t->same(['xlsx-sheet'], $document->children[0]->attr('classes'));
         $t->same('Main', $document->children[0]->children[0]->attr('text'));
         $t->same('Secondary', $document->children[1]->children[0]->attr('text'));
+        $table = $document->children[0]->children[1];
+        $body = $table->children[1];
+        $mergedCell = $body->children[2]->children[0];
+        $linkedCell = $body->children[2]->children[1];
+        $t->same(2, $mergedCell->attr('colspan'));
+        $t->same('Merged Area', $mergedCell->attr('text'));
+        $t->same('link', $linkedCell->children[0]->children[0]->type);
+        $t->same('https://example.test/xlsx', $linkedCell->children[0]->children[0]->attr('url'));
         $t->contains('class="xlsx-sheet"', $blocks);
         $t->contains('<h2 id="sheet-1">Main</h2>', $blocks);
         $t->contains('<strong>Person</strong>', $blocks);
@@ -98,6 +111,9 @@ XML);
         $t->contains('36.5', $blocks);
         $t->contains('TRUE', $blocks);
         $t->contains('<u><em>Under italic</em></u>', $blocks);
+        $t->contains('<strong>Rich</strong><em> text</em>', $blocks);
+        $t->contains('<td colspan="2">Merged Area</td>', $blocks);
+        $t->contains('<a href="https://example.test/xlsx" title="XLSX link">Open link</a>', $blocks);
         $t->contains('Tail cell', $blocks);
         $t->contains('Imported', $converterBlocks);
     },

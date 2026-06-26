@@ -164,6 +164,7 @@ final class BibTexReader
                 $entries[] = $entry;
             }
         }
+        $entries = $this->resolveEntryInheritance($entries);
 
         return [
             'entries' => $entries,
@@ -171,6 +172,63 @@ final class BibTexReader
             'preambles' => $preambles,
             'comments' => $comments,
         ];
+    }
+
+    /**
+     * @param list<array{type:string,key:string,fields:array<string,string>,rawFields:array<string,string>}> $entries
+     * @return list<array{type:string,key:string,fields:array<string,string>,rawFields:array<string,string>}>
+     */
+    private function resolveEntryInheritance(array $entries): array
+    {
+        $byKey = [];
+        foreach ($entries as $entry) {
+            $byKey[strtolower($entry['key'])] = $entry;
+        }
+
+        foreach ($entries as $index => $entry) {
+            foreach (['crossref', 'xdata'] as $field) {
+                $targets = $this->inheritanceTargets($entry['fields'][$field] ?? '');
+                foreach ($targets as $target) {
+                    $parent = $byKey[strtolower($target)] ?? null;
+                    if (!is_array($parent)) {
+                        continue;
+                    }
+                    foreach ($parent['rawFields'] as $name => $value) {
+                        if (in_array($name, ['crossref', 'xdata'], true) || isset($entries[$index]['rawFields'][$name])) {
+                            continue;
+                        }
+                        $entries[$index]['rawFields'][$name] = $value;
+                        $entries[$index]['fields'][$name] = $parent['fields'][$name] ?? $this->cleanText($value);
+                    }
+                    if (
+                        $field === 'crossref'
+                        && in_array($parent['type'], ['proceedings', 'collection'], true)
+                        && !isset($entries[$index]['rawFields']['booktitle'])
+                        && isset($parent['rawFields']['title'])
+                    ) {
+                        $entries[$index]['rawFields']['booktitle'] = $parent['rawFields']['title'];
+                        $entries[$index]['fields']['booktitle'] = $parent['fields']['title'] ?? $this->cleanText($parent['rawFields']['title']);
+                    }
+                }
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function inheritanceTargets(string $value): array
+    {
+        if (trim($value) === '') {
+            return [];
+        }
+
+        return array_values(array_filter(
+            array_map('trim', preg_split('/\s*,\s*/u', $value) ?: []),
+            static fn (string $target): bool => $target !== ''
+        ));
     }
 
     /**
@@ -514,6 +572,10 @@ final class BibTexReader
         }
         if (($fields['date'] ?? '') !== '') {
             $reference['date'] = $fields['date'];
+            $dateParts = $this->datePartsFromDate($fields['date']);
+            if ($dateParts !== []) {
+                $reference['issued'] = $this->datePartsMeta($dateParts);
+            }
         }
 
         foreach (['author', 'editor', 'translator'] as $nameField) {
@@ -623,7 +685,7 @@ final class BibTexReader
             $authors = $this->displayNames($entry['rawFields']['editor']) . ' (ed.)';
         }
         if ($authors !== '') {
-            $nodes[] = new AstNode('text', ['text' => $authors . '. ']);
+            $nodes[] = new AstNode('text', ['text' => rtrim($authors, '.') . '. ']);
         }
 
         $year = $this->entryYear($fields);
@@ -710,17 +772,43 @@ final class BibTexReader
     /**
      * @return array{type:string,value:array<string, mixed>}
      */
-    private function datePartsMeta(string $year): array
+    /**
+     * @param string|list<int|string> $parts
+     * @return array{type:string,value:array<string, mixed>}
+     */
+    private function datePartsMeta(string|array $parts): array
     {
+        $dateParts = is_array($parts) ? $parts : [$parts];
+
         return $this->metaMap([
             'date-parts' => $this->metaList([
-                $this->metaList([$year]),
+                $this->metaList($dateParts),
             ]),
         ]);
     }
 
     /**
-     * @param array{literal?:string,given?:string,family?:string} $name
+     * @return list<int|string>
+     */
+    private function datePartsFromDate(string $date): array
+    {
+        if (preg_match('/^\s*([12][0-9]{3})(?:-(\d{1,2})(?:-(\d{1,2}))?)?/u', $date, $match) !== 1) {
+            return [];
+        }
+
+        $parts = [(int) $match[1]];
+        if (isset($match[2]) && $match[2] !== '') {
+            $parts[] = max(1, min(12, (int) $match[2]));
+        }
+        if (isset($match[3]) && $match[3] !== '') {
+            $parts[] = max(1, min(31, (int) $match[3]));
+        }
+
+        return $parts;
+    }
+
+    /**
+     * @param array{literal?:string,given?:string,family?:string,suffix?:string,non-dropping-particle?:string} $name
      */
     private function personNameMeta(array $name): array
     {
@@ -735,12 +823,18 @@ final class BibTexReader
         if (($name['family'] ?? '') !== '') {
             $meta['family'] = $name['family'];
         }
+        if (($name['suffix'] ?? '') !== '') {
+            $meta['suffix'] = $name['suffix'];
+        }
+        if (($name['non-dropping-particle'] ?? '') !== '') {
+            $meta['non-dropping-particle'] = $name['non-dropping-particle'];
+        }
 
         return $this->metaMap($meta);
     }
 
     /**
-     * @return list<array{literal?:string,given?:string,family?:string}>
+     * @return list<array{literal?:string,given?:string,family?:string,suffix?:string,non-dropping-particle?:string}>
      */
     private function parseNames(string $raw): array
     {
@@ -766,7 +860,12 @@ final class BibTexReader
             if (($name['literal'] ?? '') !== '') {
                 $names[] = $name['literal'];
             } else {
-                $names[] = trim((string) ($name['given'] ?? '') . ' ' . (string) ($name['family'] ?? ''));
+                $family = trim((string) ($name['non-dropping-particle'] ?? '') . ' ' . (string) ($name['family'] ?? ''));
+                $display = trim((string) ($name['given'] ?? '') . ' ' . $family);
+                if (($name['suffix'] ?? '') !== '') {
+                    $display .= ', ' . $name['suffix'];
+                }
+                $names[] = $display;
             }
         }
 
@@ -815,7 +914,7 @@ final class BibTexReader
     }
 
     /**
-     * @return array{literal?:string,given?:string,family?:string}
+     * @return array{literal?:string,given?:string,family?:string,suffix?:string,non-dropping-particle?:string}
      */
     private function parseName(string $raw): array
     {
@@ -831,10 +930,16 @@ final class BibTexReader
         $parts = array_map(fn (string $part): string => $this->cleanText($part), explode(',', $trimmed));
         $parts = array_values(array_filter($parts, static fn (string $part): bool => $part !== ''));
         if (count($parts) >= 2) {
-            $family = $parts[0];
-            $given = count($parts) >= 3 ? $parts[2] . ' ' . $parts[1] : $parts[1];
+            $familyParts = $this->familyParticles($parts[0]);
+            $given = count($parts) >= 3 ? $parts[2] : $parts[1];
+            $suffix = count($parts) >= 3 ? $parts[1] : '';
 
-            return ['given' => trim($given), 'family' => trim($family)];
+            return array_filter([
+                'given' => trim($given),
+                'family' => $familyParts['family'],
+                'suffix' => trim($suffix),
+                'non-dropping-particle' => $familyParts['particle'],
+            ], static fn (string $value): bool => $value !== '');
         }
 
         $clean = $this->cleanText($trimmed);
@@ -844,8 +949,29 @@ final class BibTexReader
         }
 
         $family = array_pop($words);
+        $familyParts = $this->familyParticles((string) $family);
 
-        return ['given' => implode(' ', $words), 'family' => (string) $family];
+        return array_filter([
+            'given' => implode(' ', $words),
+            'family' => $familyParts['family'],
+            'non-dropping-particle' => $familyParts['particle'],
+        ], static fn (string $value): bool => $value !== '');
+    }
+
+    /**
+     * @return array{family:string,particle:string}
+     */
+    private function familyParticles(string $family): array
+    {
+        $family = trim($family);
+        if (preg_match('/^(de la|van|von|de|da|del|della|di|du|la|le|ter|ten|der|den)\s+(.+)$/iu', $family, $match) === 1) {
+            return [
+                'particle' => $match[1],
+                'family' => $match[2],
+            ];
+        }
+
+        return ['family' => $family, 'particle' => ''];
     }
 
     private function isProtectedLiteralName(string $raw): bool

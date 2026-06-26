@@ -574,6 +574,9 @@ final class PptxReader
                     if (!$cellNode instanceof \DOMElement || $cellNode->localName !== 'tc') {
                         continue;
                     }
+                    if ($this->drawingBoolAttribute($cellNode, 'hMerge') || $this->drawingBoolAttribute($cellNode, 'vMerge')) {
+                        continue;
+                    }
                     $textBody = $this->firstChildElementByLocalName($cellNode, 'txBody');
                     $paragraphs = $textBody instanceof \DOMElement
                         ? $this->paragraphsToBlocks($this->drawingParagraphs($textBody, $relationships, $slidePath))
@@ -582,7 +585,16 @@ final class PptxReader
                     if ($paragraphs === [] && $text !== '') {
                         $paragraphs[] = new AstNode('plain', ['text' => $text], [new AstNode('text', ['text' => $text])]);
                     }
-                    $cells[] = new AstNode('table_cell', ['text' => $text], $paragraphs);
+                    $attrs = ['text' => $text];
+                    $colspan = ctype_digit($cellNode->getAttribute('gridSpan')) ? (int) $cellNode->getAttribute('gridSpan') : 1;
+                    $rowspan = ctype_digit($cellNode->getAttribute('rowSpan')) ? (int) $cellNode->getAttribute('rowSpan') : 1;
+                    if ($colspan > 1) {
+                        $attrs['colspan'] = $colspan;
+                    }
+                    if ($rowspan > 1) {
+                        $attrs['rowspan'] = $rowspan;
+                    }
+                    $cells[] = new AstNode('table_cell', $attrs, $paragraphs);
                 }
                 if ($cells !== []) {
                     $rows[] = new AstNode('table_row', [], $cells);
@@ -601,6 +613,13 @@ final class PptxReader
         }
 
         return null;
+    }
+
+    private function drawingBoolAttribute(\DOMElement $element, string $name): bool
+    {
+        $value = strtolower($element->getAttribute($name));
+
+        return in_array($value, ['1', 'true', 'on'], true);
     }
 
     /**

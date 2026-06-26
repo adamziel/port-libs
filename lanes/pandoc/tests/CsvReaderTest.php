@@ -54,13 +54,37 @@ return [
         $t->same('tsv', $meta['csvFormat']);
         $t->same("\t", $meta['csvDelimiter']);
         $t->same(3, $meta['csvRowCount']);
-        $t->same(2, $meta['csvColumnCount']);
+        $t->same(3, $meta['csvColumnCount']);
+        $t->same(2, $meta['csvRaggedRowCount']);
         $t->same('"literal quote"', $body->children[0]->children[0]->attr('text'));
         $t->same('A', $body->children[0]->children[1]->attr('text'));
         $t->same('B', $body->children[0]->children[2]->attr('text'));
         $t->same('spaced', $body->children[1]->children[1]->attr('text'));
         $t->contains('data-pandoc-source="tsv"', $blocks);
         $t->contains('&quot;literal quote&quot;', $blocks);
+    },
+    'reads csv dialect directives ragged rows and headerless options' => static function (TestRunner $t): void {
+        $source = implode("\n", [
+            'sep=;',
+            'Ada;Lovelace',
+            'Grace;Hopper;COBOL',
+        ]);
+
+        $document = PandocConverter::read($source, 'csv', ['header' => false]);
+        $meta = $document->attr('meta');
+        $table = $document->children[0];
+        $blocks = PandocConverter::convert($source, 'csv', 'blocks', ['readerOptions' => ['header' => false]]);
+
+        $t->same(';', $meta['csvDelimiter']);
+        $t->same(false, $meta['csvHeader']);
+        $t->same(2, $meta['csvRowCount']);
+        $t->same(2, $meta['csvDataRowCount']);
+        $t->same(3, $meta['csvColumnCount']);
+        $t->same(1, $meta['csvRaggedRowCount']);
+        $t->same('table_body', $table->children[0]->type);
+        $t->same('Ada', $table->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('', $table->children[0]->children[0]->children[2]->attr('text'));
+        $t->contains('<tbody><tr><td>Ada</td><td>Lovelace</td><td></td></tr><tr><td>Grace</td><td>Hopper</td><td>COBOL</td></tr></tbody>', $blocks);
     },
     'reads empty csv input as an empty document with table metadata' => static function (TestRunner $t): void {
         $document = PandocConverter::read('', 'csv');
