@@ -14804,6 +14804,7 @@ final class XmlHtmlDom
             }
             if (self::isInputSubmitterType($inputType)) {
                 $summary['submitter'] = self::formSubmitterSummary($node);
+                $summary += self::formSubmitterActionReviewSummary($node);
             }
             if ($inputType === 'reset') {
                 $summary += self::formResetControlSummary($node);
@@ -14836,6 +14837,7 @@ final class XmlHtmlDom
             $summary += self::buttonCommandSummary($node);
             if ($buttonType['buttonSubmitButton']) {
                 $summary['submitter'] = self::formSubmitterSummary($node);
+                $summary += self::formSubmitterActionReviewSummary($node);
             }
             if ($buttonType['buttonType'] === 'reset') {
                 $summary += self::formResetControlSummary($node);
@@ -22794,6 +22796,228 @@ final class XmlHtmlDom
     /**
      * @return array<string, mixed>
      */
+    private static function formSubmitterActionReviewSummary(\DOMElement $submitter): array
+    {
+        $form = self::formOwnerElement($submitter);
+        $name = self::htmlElementName($submitter);
+        $type = $name === 'button' ? self::buttonType($submitter) : self::inputType($submitter);
+
+        $formActionRaw = self::attributeOrNull($submitter, 'formaction');
+        $ownerActionRaw = $form instanceof \DOMElement ? self::attributeOrNull($form, 'action') : null;
+        $actionRaw = $formActionRaw ?? $ownerActionRaw;
+        $actionSource = $formActionRaw !== null
+            ? 'formaction'
+            : ($ownerActionRaw !== null ? 'form-action' : ($form instanceof \DOMElement ? 'document-url-default' : 'missing-form-owner'));
+        $action = self::hyperlinkUrlReviewSummary($actionRaw);
+
+        $method = self::formSubmitterEffectiveMethodSummary($submitter, $form);
+        $enctype = self::formSubmitterEffectiveEnctypeSummary($submitter, $form);
+        $target = self::formSubmitterEffectiveTargetSummary($submitter, $form);
+        $noValidate = self::formSubmitterNoValidateSummary($submitter, $form);
+        $effectiveDisabled = self::isEffectivelyDisabledFormControl($submitter);
+        $issues = [];
+
+        if (!$form instanceof \DOMElement) {
+            $issues[] = ['code' => 'missing-form-owner'];
+        }
+        if ($effectiveDisabled) {
+            $issues[] = ['code' => 'disabled-form-submitter'];
+        }
+        if ($action['unsafe'] === true) {
+            $issues[] = [
+                'code' => 'unsafe-form-submitter-action-url',
+                'action' => $actionRaw,
+                'scheme' => $action['scheme'],
+                'source' => $actionSource,
+            ];
+        } elseif ($action['kind'] === 'absolute' && !in_array($action['scheme'], ['http', 'https'], true)) {
+            $issues[] = [
+                'code' => 'non-http-form-submitter-action-url',
+                'action' => $actionRaw,
+                'scheme' => $action['scheme'],
+                'source' => $actionSource,
+            ];
+        }
+        if ($method['valid'] === false) {
+            $issues[] = [
+                'code' => 'invalid-form-submitter-method',
+                'methodRaw' => $method['raw'],
+                'source' => $method['source'],
+            ];
+        }
+        if ($enctype['valid'] === false) {
+            $issues[] = [
+                'code' => 'invalid-form-submitter-enctype',
+                'enctypeRaw' => $enctype['raw'],
+                'source' => $enctype['source'],
+            ];
+        }
+
+        return [
+            'formSubmitterActionReviewPolicy' => 'form-submitter-action-provenance-review',
+            'formSubmitterElement' => $name,
+            'formSubmitterType' => $type,
+            'formSubmitterId' => self::attributeOrNull($submitter, 'id'),
+            'formSubmitterName' => self::attributeOrNull($submitter, 'name'),
+            'formSubmitterValue' => self::attributeOrNull($submitter, 'value'),
+            'formSubmitterLabel' => $name === 'button' ? self::normalizedText($submitter) : self::attributeOrNull($submitter, 'value'),
+            'formSubmitterOwnerFound' => $form instanceof \DOMElement,
+            'formSubmitterOwnerId' => $form instanceof \DOMElement ? self::attributeOrNull($form, 'id') : null,
+            'formSubmitterOwnerSource' => self::attributeOrNull($submitter, 'form') === null ? 'ancestor' : 'form-attribute',
+            'formSubmitterEffectiveDisabled' => $effectiveDisabled,
+            'formSubmitterWouldSubmit' => $form instanceof \DOMElement && !$effectiveDisabled,
+            'formSubmitterWouldSubmitNetworkRequest' => $form instanceof \DOMElement
+                && !$effectiveDisabled
+                && $method['effective'] !== 'dialog',
+            'formSubmitterReviewOnlyNoNetworkRequest' => true,
+            'formSubmitterActionRaw' => $actionRaw,
+            'formSubmitterActionSource' => $actionSource,
+            'formSubmitterActionKind' => $action['kind'],
+            'formSubmitterActionScheme' => $action['scheme'],
+            'formSubmitterActionUnsafe' => $action['unsafe'],
+            'formSubmitterActionUsesDocumentUrl' => $form instanceof \DOMElement
+                && ($actionRaw === null || trim($actionRaw) === ''),
+            'formSubmitterMethodRaw' => $method['raw'],
+            'formSubmitterMethodSource' => $method['source'],
+            'formSubmitterEffectiveMethod' => $method['effective'],
+            'formSubmitterMethodValid' => $method['valid'],
+            'formSubmitterEnctypeRaw' => $enctype['raw'],
+            'formSubmitterEnctypeSource' => $enctype['source'],
+            'formSubmitterEffectiveEnctype' => $enctype['effective'],
+            'formSubmitterEnctypeValid' => $enctype['valid'],
+            'formSubmitterTargetRaw' => $target['raw'],
+            'formSubmitterTargetSource' => $target['source'],
+            'formSubmitterEffectiveTarget' => $target['effective'],
+            'formSubmitterNoValidate' => $noValidate['effective'],
+            'formSubmitterNoValidateSource' => $noValidate['source'],
+            'formSubmitterActionIssues' => $issues,
+            'formSubmitterActionIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'formSubmitterActionValid' => $issues === [],
+        ];
+    }
+
+    /**
+     * @return array{raw:?string, source:string, effective:string, valid:?bool}
+     */
+    private static function formSubmitterEffectiveMethodSummary(\DOMElement $submitter, ?\DOMElement $form): array
+    {
+        $raw = self::attributeOrNull($submitter, 'formmethod');
+        if ($raw !== null) {
+            return [
+                'raw' => $raw,
+                'source' => 'formmethod',
+                'effective' => self::formMethod($submitter, 'formmethod', 'get') ?? 'get',
+                'valid' => self::formMethodAttributeState($raw) !== null,
+            ];
+        }
+
+        if ($form instanceof \DOMElement) {
+            $ownerRaw = self::attributeOrNull($form, 'method');
+
+            return [
+                'raw' => $ownerRaw,
+                'source' => $ownerRaw === null ? 'default-get' : 'form-method',
+                'effective' => self::formMethod($form, 'method', 'get') ?? 'get',
+                'valid' => $ownerRaw === null ? null : self::formMethodAttributeState($ownerRaw) !== null,
+            ];
+        }
+
+        return [
+            'raw' => null,
+            'source' => 'missing-form-owner',
+            'effective' => 'get',
+            'valid' => null,
+        ];
+    }
+
+    /**
+     * @return array{raw:?string, source:string, effective:string, valid:?bool}
+     */
+    private static function formSubmitterEffectiveEnctypeSummary(\DOMElement $submitter, ?\DOMElement $form): array
+    {
+        $raw = self::attributeOrNull($submitter, 'formenctype');
+        if ($raw !== null) {
+            return [
+                'raw' => $raw,
+                'source' => 'formenctype',
+                'effective' => self::formEnctype($submitter, 'formenctype', 'application/x-www-form-urlencoded')
+                    ?? 'application/x-www-form-urlencoded',
+                'valid' => self::formEnctypeAttributeState($raw) !== null,
+            ];
+        }
+
+        if ($form instanceof \DOMElement) {
+            $ownerRaw = self::attributeOrNull($form, 'enctype');
+
+            return [
+                'raw' => $ownerRaw,
+                'source' => $ownerRaw === null ? 'default-urlencoded' : 'form-enctype',
+                'effective' => self::formEnctype($form, 'enctype', 'application/x-www-form-urlencoded')
+                    ?? 'application/x-www-form-urlencoded',
+                'valid' => $ownerRaw === null ? null : self::formEnctypeAttributeState($ownerRaw) !== null,
+            ];
+        }
+
+        return [
+            'raw' => null,
+            'source' => 'missing-form-owner',
+            'effective' => 'application/x-www-form-urlencoded',
+            'valid' => null,
+        ];
+    }
+
+    /**
+     * @return array{raw:?string, source:string, effective:?string}
+     */
+    private static function formSubmitterEffectiveTargetSummary(\DOMElement $submitter, ?\DOMElement $form): array
+    {
+        $raw = self::attributeOrNull($submitter, 'formtarget');
+        if ($raw !== null) {
+            return [
+                'raw' => $raw,
+                'source' => 'formtarget',
+                'effective' => trim($raw) === '' ? null : trim($raw),
+            ];
+        }
+
+        if ($form instanceof \DOMElement) {
+            $ownerRaw = self::attributeOrNull($form, 'target');
+
+            return [
+                'raw' => $ownerRaw,
+                'source' => $ownerRaw === null ? 'default-self' : 'form-target',
+                'effective' => $ownerRaw === null || trim($ownerRaw) === '' ? null : trim($ownerRaw),
+            ];
+        }
+
+        return [
+            'raw' => null,
+            'source' => 'missing-form-owner',
+            'effective' => null,
+        ];
+    }
+
+    /**
+     * @return array{effective:bool, source:string}
+     */
+    private static function formSubmitterNoValidateSummary(\DOMElement $submitter, ?\DOMElement $form): array
+    {
+        if ($submitter->hasAttribute('formnovalidate')) {
+            return ['effective' => true, 'source' => 'formnovalidate'];
+        }
+        if ($form instanceof \DOMElement && $form->hasAttribute('novalidate')) {
+            return ['effective' => true, 'source' => 'form-novalidate'];
+        }
+
+        return ['effective' => false, 'source' => 'none'];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     private static function formResetControlSummary(\DOMElement $resetter): array
     {
         $form = self::formOwnerElement($resetter);
@@ -22921,9 +23145,7 @@ final class XmlHtmlDom
             return $missing;
         }
 
-        $method = strtolower(trim($element->getAttribute($attribute)));
-
-        return in_array($method, ['dialog', 'get', 'post'], true) ? $method : 'get';
+        return self::formMethodAttributeState($element->getAttribute($attribute)) ?? 'get';
     }
 
     private static function formEnctype(\DOMElement $element, string $attribute, ?string $missing): ?string
@@ -22932,11 +23154,24 @@ final class XmlHtmlDom
             return $missing;
         }
 
-        $enctype = strtolower(trim($element->getAttribute($attribute)));
+        return self::formEnctypeAttributeState($element->getAttribute($attribute))
+            ?? 'application/x-www-form-urlencoded';
+    }
+
+    private static function formMethodAttributeState(string $value): ?string
+    {
+        $method = strtolower(trim($value));
+
+        return in_array($method, ['dialog', 'get', 'post'], true) ? $method : null;
+    }
+
+    private static function formEnctypeAttributeState(string $value): ?string
+    {
+        $enctype = strtolower(trim($value));
 
         return in_array($enctype, ['application/x-www-form-urlencoded', 'multipart/form-data', 'text/plain'], true)
             ? $enctype
-            : 'application/x-www-form-urlencoded';
+            : null;
     }
 
     private static function formAutocomplete(\DOMElement $form): string

@@ -1580,6 +1580,7 @@
         "htmlReaderListOrphanNativeFixtures": 1,
         "mappedHtmlReaderListOrphanCases": 28,
         "mappedHtmlReaderListOrphanWordPressCases": 6,
+        "mappedXmlHtmlDomFormSubmitterActionProvenanceCases": 1,
         "markdownReaderDetailsSummaryCommandFixtureLines": 18,
         "markdownReaderDetailsSummarySourceHits": 17,
         "mappedMarkdownReaderDetailsSummaryCases": 13,
