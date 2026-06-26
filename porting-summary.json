@@ -51,7 +51,7 @@
             "currentWork": "Text spacing/text-indent minifier rows and two residual Chrome 99 background fallback...",
             "nextTarget": "Continue converting the remaining 736 unmapped LightningCSS u...",
             "remainingGate": "Full upstream runner closure is partial: bounded Rust media test and...",
-            "commit": "SOURCE_COMMIT_P..."
+            "commit": "0117387"
         },
         {
             "lane": "gitoxide",
