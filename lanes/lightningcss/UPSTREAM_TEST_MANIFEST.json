@@ -2087,7 +2087,7 @@
         "upstreamEvidence": "Worker evidence cites pinned LightningCSS commit 22bdda3d190f1cd321d98026225cfc964af64ad9 src/lib.rs::test_environment lines 30766-30820, src/lib.rs::test_zindex lines 29982-29987, src/lib.rs::test_important lines 8037-8050, src/lib.rs::test_color lines 18876-18906, src/lib.rs::test_css_modules lines 25991-26069, bundler supports-only import wrapping behavior, and parcel_sourcemap 2.1.1 absolute URL source behavior. Full Rust/Node/WASM runners were not executed."
     },
     "focusedSelectorSupportsSizeBatch20260626": {
-        "sourceCommit": "pending source commit for selector supports size batch",
+        "sourceCommit": "eed65eeee23ca43596d7834e8498eafdff52981e",
         "mappedSliceIncrease": 39,
         "mappedBefore": 2562,
         "mappedAfter": 2601,

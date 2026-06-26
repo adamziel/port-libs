@@ -51,7 +51,7 @@
             "currentWork": "Six-lane PR integration accepted structural selector minification, supports-rule pret...",
             "nextTarget": "Continue converting the remaining 931 unmapped LightningCSS u...",
             "remainingGate": "Full upstream runner closure is partial: bounded Rust media test and...",
-            "commit": "pending source..."
+            "commit": "eed65ee"
         },
         {
             "lane": "gitoxide",
