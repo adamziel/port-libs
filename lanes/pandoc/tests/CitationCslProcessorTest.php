@@ -1667,6 +1667,73 @@ XML);
             'relatedItems' => ['source-a'],
         ]]));
     },
+    'maps hyphenated biblatex related aliases into csl review diagnostics' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{source-packet,
+  options = {dataonly},
+  title   = {Source Packet},
+  date    = {2025-04-01}
+}
+
+@book{alias-manual,
+  author          = {Mapper, Mia},
+  title           = {Alias Manual},
+  date            = {2026},
+  related-keys    = {source-packet, missing-packet},
+  related-type    = {reviewof},
+  related-string  = {Reviews alias packet},
+  related-options = {skipbib=true, dataonly=false}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $item = $items[0];
+        $t->same('alias-manual', $item['id']);
+        $t->same(['source-packet', 'missing-packet'], $item['relatedKeys']);
+        $t->same('reviewof', $item['relatedType']);
+        $t->same('Reviews alias packet', $item['relatedString']);
+        $t->same(['skipbib=true', 'dataonly=false'], $item['related-options']);
+        $t->same('source-packet', $item['relatedItems'][0]['id'] ?? null);
+        $t->same('Source Packet', $item['relatedItems'][0]['title'] ?? null);
+        $t->same(true, $item['relatedItems'][0]['dataOnly'] ?? null);
+        $t->same(['missing-packet'], $item['missingRelatedKeys']);
+        $t->same('source-packet, missing-packet', $item['rawBibtex']['fields']['related-keys'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $manual = $processor->item('alias-manual');
+        $t->same(['source-packet', 'missing-packet'], $manual['relatedKeys'] ?? null);
+        $t->same(['skipbib=true', 'dataonly=false'], $manual['relatedOptions'] ?? null);
+        $t->same(
+            'Mapper, Mia. Alias Manual. 2026. Reviews alias packet (reviewof): Source Packet (2025-04-01); missing: missing-packet. Related options: skipbib=true; dataonly=false.',
+            $processor->renderBibliographyEntry('alias-manual')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="related-type"/>
+        <text variable="related-keys"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="related-summary"/>
+      <text variable="related-options"/>
+      <text variable="missing-related-keys"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('Alias Manual | reviewof | source-packet, missing-packet', $styled->renderCitationCluster([$citation('alias-manual', '[@alias-manual]')]));
+        $t->same('Alias Manual :: Reviews alias packet (reviewof): Source Packet (2025-04-01); missing: missing-packet :: skipbib=true, dataonly=false :: missing-packet', $styled->renderBibliographyEntry('alias-manual'));
+    },
     'maps bounded biblatex related options into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @set{migration-review-set,

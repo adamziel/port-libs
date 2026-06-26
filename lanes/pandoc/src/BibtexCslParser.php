@@ -1270,7 +1270,7 @@ final class BibtexCslParser
             }
         }
 
-        $related = self::biblatexKeyList($fields['related'] ?? '');
+        $related = self::biblatexKeyList(self::firstRawField($fields, ['related', 'related-keys', 'relatedkeys']));
         if ($related !== []) {
             $item['relatedKeys'] = $related;
             $item['relatedItems'] = self::referencedEntrySummaries($related, $entriesByKey);
@@ -1279,17 +1279,17 @@ final class BibtexCslParser
                 $item['missingRelatedKeys'] = $missing;
             }
 
-            $relatedType = self::cleanBibtexText($fields['relatedtype'] ?? '');
+            $relatedType = self::firstField($fields, ['relatedtype', 'related-type']);
             if ($relatedType !== '') {
                 $item['relatedType'] = $relatedType;
             }
 
-            $relatedString = self::cleanBibtexText($fields['relatedstring'] ?? '');
+            $relatedString = self::firstField($fields, ['relatedstring', 'related-string']);
             if ($relatedString !== '') {
                 $item['relatedString'] = $relatedString;
             }
 
-            $relatedOptions = self::biblatexOptionList($fields['relatedoptions'] ?? '');
+            $relatedOptions = self::biblatexOptionList(self::firstRawField($fields, ['relatedoptions', 'related-options']));
             if ($relatedOptions !== []) {
                 $item['related-options'] = $relatedOptions;
             }
