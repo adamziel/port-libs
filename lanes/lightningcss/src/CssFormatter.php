@@ -28,6 +28,8 @@ final class CssFormatter
 
     private const BORDER_COMPONENTS = ['width', 'style', 'color'];
 
+    private const BORDER_STYLES = ['none', 'hidden', 'dotted', 'dashed', 'solid', 'double', 'groove', 'ridge', 'inset', 'outset'];
+
     private const BORDER_IMAGE_REPEAT_KEYWORDS = ['stretch', 'repeat', 'round', 'space'];
 
     public function format(string $css): string
@@ -539,6 +541,7 @@ final class CssFormatter
      */
     private function composeBorderStyleDeclarations(array $declarations): array
     {
+        $declarations = $this->dropBorderDeclarationsResetByLaterShorthand($declarations);
         $declarations = $this->composeEqualPhysicalBorderGroup($declarations, 'border', '');
         foreach (self::BORDER_COMPONENTS as $component) {
             $declarations = $this->composeEqualPhysicalBorderGroup(
@@ -553,7 +556,46 @@ final class CssFormatter
             $declarations = $this->composePhysicalBorderSideComponents($declarations, $side);
         }
 
+        $declarations = $this->composeBorderSideOverridesAgainstShorthand($declarations);
+
         return $declarations;
+    }
+
+    /**
+     * @param list<array{string, string}> $declarations
+     * @return list<array{string, string}>
+     */
+    private function dropBorderDeclarationsResetByLaterShorthand(array $declarations): array
+    {
+        $skip = [];
+        foreach ($declarations as $index => [$property, $value]) {
+            if ($property !== 'border' && !$this->isPhysicalBorderSideShorthand($property)) {
+                continue;
+            }
+
+            $side = $this->physicalBorderSideFromShorthand($property);
+            $important = $this->isImportantDeclarationValue($value);
+            for ($previous = 0; $previous < $index; $previous++) {
+                if (isset($skip[$previous])) {
+                    continue;
+                }
+
+                if ($this->isImportantDeclarationValue($declarations[$previous][1]) && !$important) {
+                    continue;
+                }
+
+                if ($side === null && $this->isPhysicalBorderProperty($declarations[$previous][0])) {
+                    $skip[$previous] = true;
+                    continue;
+                }
+
+                if ($side !== null && $this->isPhysicalBorderSideProperty($declarations[$previous][0], $side)) {
+                    $skip[$previous] = true;
+                }
+            }
+        }
+
+        return $this->replaceDeclarations($declarations, [], $skip);
     }
 
     /**
@@ -657,6 +699,79 @@ final class CssFormatter
 
     /**
      * @param list<array{string, string}> $declarations
+     * @return list<array{string, string}>
+     */
+    private function composeBorderSideOverridesAgainstShorthand(array $declarations): array
+    {
+        $replacements = [];
+        $skip = [];
+        $count = count($declarations);
+
+        for ($i = 0; $i < $count; $i++) {
+            if ($declarations[$i][0] !== 'border') {
+                continue;
+            }
+
+            $base = $this->parseBorderShorthandComponents($declarations[$i][1]);
+            if ($base === null) {
+                continue;
+            }
+
+            $pending = [];
+            for ($j = $i + 1; $j < $count; $j++) {
+                [$property, $value] = $declarations[$j];
+                if ($property === 'border' || $this->isLogicalBorderDeclaration($property)) {
+                    break;
+                }
+
+                if ($this->isPhysicalBorderSideShorthand($property)) {
+                    $side = $this->physicalBorderSideFromShorthand($property);
+                    $components = $side === null ? null : $this->parseBorderShorthandComponents($value);
+                    if ($side === null || $components === null) {
+                        continue;
+                    }
+
+                    $replacement = $this->borderSideOverrideReplacement($side, $base, $components);
+                    if ($replacement !== null) {
+                        $replacements[$j] = $replacement;
+                    }
+                    continue;
+                }
+
+                $longhand = $this->physicalBorderSideLonghand($property);
+                if ($longhand === null || !$this->canComposeBorderValue($value)) {
+                    continue;
+                }
+
+                [$side, $component] = $longhand;
+                $pending[$side]['indexes'][$component] = $j;
+                $pending[$side]['components'][$component] = $this->formatBorderComponentValue($component, $value);
+            }
+
+            foreach ($pending as $side => $data) {
+                if (count($data['components']) < 2) {
+                    continue;
+                }
+
+                $components = array_merge($base, $data['components']);
+                $replacement = $this->borderSideOverrideReplacement($side, $base, $components);
+                if ($replacement === null) {
+                    continue;
+                }
+
+                $replaceAt = min($data['indexes']);
+                $replacements[$replaceAt] = $replacement;
+                foreach ($data['indexes'] as $index) {
+                    $skip[$index] = true;
+                }
+            }
+        }
+
+        return $this->replaceDeclarations($declarations, $replacements, $skip);
+    }
+
+    /**
+     * @param list<array{string, string}> $declarations
      */
     private function containsDeclaration(array $declarations, string $property): bool
     {
@@ -669,13 +784,75 @@ final class CssFormatter
         return false;
     }
 
+    private function isPhysicalBorderProperty(string $property): bool
+    {
+        if ($property === 'border' || in_array($property, ['border-width', 'border-style', 'border-color'], true)) {
+            return true;
+        }
+
+        foreach (self::BORDER_PHYSICAL_SIDES as $side) {
+            if ($this->isPhysicalBorderSideProperty($property, $side)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isPhysicalBorderSideProperty(string $property, string $side): bool
+    {
+        return $property === 'border-' . $side
+            || in_array($property, [
+                'border-' . $side . '-width',
+                'border-' . $side . '-style',
+                'border-' . $side . '-color',
+            ], true);
+    }
+
+    private function isPhysicalBorderSideShorthand(string $property): bool
+    {
+        return $this->physicalBorderSideFromShorthand($property) !== null;
+    }
+
+    private function physicalBorderSideFromShorthand(string $property): ?string
+    {
+        foreach (self::BORDER_PHYSICAL_SIDES as $side) {
+            if ($property === 'border-' . $side) {
+                return $side;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{0:string, 1:string}|null
+     */
+    private function physicalBorderSideLonghand(string $property): ?array
+    {
+        foreach (self::BORDER_PHYSICAL_SIDES as $side) {
+            foreach (self::BORDER_COMPONENTS as $component) {
+                if ($property === 'border-' . $side . '-' . $component) {
+                    return [$side, $component];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function isLogicalBorderDeclaration(string $property): bool
+    {
+        return preg_match('/^border-(?:block|inline)(?:-|$)/', $property) === 1;
+    }
+
     /**
      * @param list<array{string, string}> $declarations
      */
     private function containsLogicalBorderDeclaration(array $declarations): bool
     {
         foreach ($declarations as [$property]) {
-            if (preg_match('/^border-(?:block|inline)(?:-|$)/', $property) === 1) {
+            if ($this->isLogicalBorderDeclaration($property)) {
                 return true;
             }
         }
@@ -700,6 +877,89 @@ final class CssFormatter
         }
 
         return preg_match('/!\s*important\b|\bvar\s*\(/i', $value) !== 1;
+    }
+
+    /**
+     * @return array{width:string, style:string, color:string}|null
+     */
+    private function parseBorderShorthandComponents(string $value): ?array
+    {
+        if (!$this->canComposeBorderValue($value)) {
+            return null;
+        }
+
+        $components = [];
+        foreach ($this->splitWhitespaceTopLevel($value) as $token) {
+            $formatted = $this->formatDeclarationValue($token);
+            $lower = strtolower($formatted);
+            if (!isset($components['style']) && in_array($lower, self::BORDER_STYLES, true)) {
+                $components['style'] = $lower;
+                continue;
+            }
+
+            if (!isset($components['width']) && $this->isBorderWidthToken($formatted)) {
+                $components['width'] = $formatted;
+                continue;
+            }
+
+            if (!isset($components['color'])) {
+                $components['color'] = $this->formatColorDeclarationValue($token);
+                continue;
+            }
+
+            return null;
+        }
+
+        foreach (self::BORDER_COMPONENTS as $component) {
+            if (!isset($components[$component])) {
+                return null;
+            }
+        }
+
+        return [
+            'width' => $components['width'],
+            'style' => $components['style'],
+            'color' => $components['color'],
+        ];
+    }
+
+    private function isBorderWidthToken(string $token): bool
+    {
+        $lower = strtolower($token);
+        if (in_array($lower, ['thin', 'medium', 'thick', '0'], true)) {
+            return true;
+        }
+
+        return preg_match('/^-?(?:\d+|\d*\.\d+)(?:px|em|rem|ch|ex|lh|rlh|vw|vh|vmin|vmax|cm|mm|q|in|pt|pc|%)$/i', $token) === 1;
+    }
+
+    /**
+     * @param array{width:string, style:string, color:string} $base
+     * @param array{width:string, style:string, color:string} $components
+     * @return array{string, string}|null
+     */
+    private function borderSideOverrideReplacement(string $side, array $base, array $components): ?array
+    {
+        $diff = [];
+        foreach (self::BORDER_COMPONENTS as $component) {
+            if (strcasecmp($base[$component], $components[$component]) !== 0) {
+                $diff[] = $component;
+            }
+        }
+
+        if ($diff === []) {
+            return null;
+        }
+
+        if (count($diff) === 1) {
+            $component = $diff[0];
+            return ['border-' . $side . '-' . $component, $components[$component]];
+        }
+
+        return [
+            'border-' . $side,
+            $components['width'] . ' ' . $components['style'] . ' ' . $components['color'],
+        ];
     }
 
     /**

@@ -368,6 +368,70 @@ CSS, $formatter->format(<<<'CSS'
   border-left-color: red;
 }
 CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border-left: thin dotted red;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-left-width: thick;
+  border-left: thin dotted red;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border: thin dotted red;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-left-width: thick;
+  border: thin dotted red;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border: thin dotted red;
+  border-right-width: thick;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border: thin dotted red;
+  border-right-width: thick;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border: thin dotted red;
+  border-right-width: thick;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border: thin dotted red;
+  border-right: thick dotted red;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border: thin dotted red;
+  border-right: thick solid red;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border: thin dotted red;
+  border-right-width: thick;
+  border-right-style: solid;
+}
+CSS));
     },
     'css formatter maps upstream url quoting printer cases' => static function (TestRunner $t): void {
         $formatter = new CssFormatter();
