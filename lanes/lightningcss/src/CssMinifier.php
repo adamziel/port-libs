@@ -3573,6 +3573,7 @@ final class CssMinifier
         $value = $this->minifyAnimationLonghandValue($property, $value);
         $value = $this->minifyTransitionLonghandValue($property, $value);
         $value = $this->minifyFilterValue($property, $value);
+        $value = $this->minifySvgValue($property, $value);
         $value = $this->minifyBoxShadowValue($property, $value);
         $value = $this->minifyTextEmphasisValue($property, $value);
         $value = $this->minifyCaretValue($property, $value);
@@ -7460,6 +7461,40 @@ final class CssMinifier
             '-webkit-backdrop-filter' => $this->minifyFilterFunctionList($value),
             default => $value,
         };
+    }
+
+    private function minifySvgValue(string $property, string $value): string
+    {
+        return match (strtolower($property)) {
+            'stroke-dasharray' => $this->minifyStrokeDasharrayValue($value),
+            default => $value,
+        };
+    }
+
+    private function minifyStrokeDasharrayValue(string $value): string
+    {
+        $tokens = [];
+        foreach ($this->splitTopLevel($value, ',') as $part) {
+            foreach ($this->splitWhitespaceTopLevel($part) as $token) {
+                $tokens[] = $this->minifyStrokeDasharrayToken($token);
+            }
+        }
+
+        return $tokens === [] ? trim($value) : implode(' ', $tokens);
+    }
+
+    private function minifyStrokeDasharrayToken(string $token): string
+    {
+        $token = trim($token);
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))px$/i', $token, $matches) === 1) {
+            return $this->minifyNumber((float) $matches[1]);
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))$/', $token, $matches) === 1) {
+            return $this->minifyNumber((float) $matches[1]);
+        }
+
+        return $token;
     }
 
     private function minifyFilterFunctionList(string $value): string

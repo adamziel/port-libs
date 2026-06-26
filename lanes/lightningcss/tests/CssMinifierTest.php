@@ -3653,6 +3653,29 @@ CSS;
             $minifier->minify('.foo { transition: padding-block 200ms; }')
         );
     },
+    'css minifier maps upstream svg paint and stroke dasharray values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{fill:#ff0}', $minifier->minify('.foo { fill: yellow; }'));
+        $t->same('.foo{fill:url(#foo)}', $minifier->minify('.foo { fill: url(#foo); }'));
+        $t->same('.foo{fill:url(#foo) none}', $minifier->minify('.foo { fill: url(#foo) none; }'));
+        $t->same('.foo{fill:url(#foo) #ff0}', $minifier->minify('.foo { fill: url(#foo) yellow; }'));
+        $t->same('.foo{fill:none}', $minifier->minify('.foo { fill: none; }'));
+        $t->same('.foo{fill:context-fill}', $minifier->minify('.foo { fill: context-fill; }'));
+        $t->same('.foo{fill:context-stroke}', $minifier->minify('.foo { fill: context-stroke; }'));
+        $t->same('.foo{stroke:#ff0}', $minifier->minify('.foo { stroke: yellow; }'));
+        $t->same('.foo{stroke:url(#foo)}', $minifier->minify('.foo { stroke: url(#foo); }'));
+        $t->same('.foo{stroke:url(#foo) none}', $minifier->minify('.foo { stroke: url(#foo) none; }'));
+        $t->same('.foo{stroke:url(#foo) #ff0}', $minifier->minify('.foo { stroke: url(#foo) yellow; }'));
+        $t->same('.foo{stroke:none}', $minifier->minify('.foo { stroke: none; }'));
+        $t->same('.foo{stroke:context-fill}', $minifier->minify('.foo { stroke: context-fill; }'));
+        $t->same('.foo{stroke:context-stroke}', $minifier->minify('.foo { stroke: context-stroke; }'));
+        $t->same('.foo{marker-start:url(#foo)}', $minifier->minify('.foo { marker-start: url(#foo); }'));
+        $t->same('.foo{stroke-dasharray:4 1 2}', $minifier->minify('.foo { stroke-dasharray: 4 1 2; }'));
+        $t->same('.foo{stroke-dasharray:4 1 2}', $minifier->minify('.foo { stroke-dasharray: 4,1,2; }'));
+        $t->same('.foo{stroke-dasharray:4 1 2}', $minifier->minify('.foo { stroke-dasharray: 4, 1, 2; }'));
+        $t->same('.foo{stroke-dasharray:4 1 2}', $minifier->minify('.foo { stroke-dasharray: 4px, 1px, 2px; }'));
+    },
     'css minifier maps upstream filter value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

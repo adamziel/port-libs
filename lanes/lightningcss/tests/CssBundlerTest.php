@@ -622,6 +622,15 @@ CSS,
         $t->same([null, 'external-card.css.map', $inlineDataMap, null], $result['sourceMapUrls']);
         $t->same(['entry.css', 'blocks/external-card.css', 'blocks/plain-card.css'], $data['sources']);
         $t->same(false, in_array('blocks/inline-card.css', $data['sources'], true));
+
+        $repeated = (new CssBundler())->bundleWithSourceMap('/theme/repeated.css', [
+            '/theme/repeated.css' => '@import "blocks/card.css"; @import "blocks/gallery.css"; @import "blocks/card.css"; .entry { color: red }',
+            '/theme/blocks/card.css' => ".card { color: green }\n/*# sourceMappingURL=card.css.map */",
+            '/theme/blocks/gallery.css' => ".gallery { color: blue }\n/*# sourceMappingURL=gallery.css.map */",
+        ], null, '/theme');
+
+        $t->same('.gallery{color:#00f}.card{color:green}.entry{color:red}', $repeated['code']);
+        $t->same([null, 'card.css.map', 'gallery.css.map'], $repeated['sourceMapUrls']);
     },
     'css bundler maps upstream EOF import without semicolon' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
@@ -1681,6 +1690,40 @@ CSS,
         $assertMalformedImportSource('@import "blocks/card.css; .entry { color: red }');
         $assertMalformedImportSource("@import \"blocks/\ncard.css\"; .entry { color: red }");
         $assertMalformedImportSource("@import url(\"blocks/\ncard.css\"); .entry { color: red }");
+
+        $reads = [];
+        $resolved = [];
+        $malformedSecondImportRejected = false;
+        try {
+            (new CssBundler())->bundleWithReader(
+                '/entry.css',
+                static function (string $file) use (&$reads): string {
+                    $reads[] = $file;
+
+                    return $file === '/entry.css'
+                        ? '@import "blocks/valid.css"; @import url(blocks/card hero.css); .entry { color: red }'
+                        : '.valid { color: green }';
+                },
+                static function (string $specifier, string $originatingFile) use (&$resolved): string {
+                    $resolved[] = [$specifier, $originatingFile];
+
+                    return rtrim(dirname($originatingFile), '/') . '/' . $specifier;
+                }
+            );
+        } catch (CssBundleException $exception) {
+            $t->same('parser-error', $exception->kind);
+            $t->same('Unexpected token BadUrl("blocks/card hero.css")', $exception->getMessage());
+            $t->same('/entry.css', $exception->sourceFile);
+            $t->same(1, $exception->sourceLine);
+            $t->same(36, $exception->sourceColumn);
+            $t->same(['/entry.css'], $reads);
+            $t->same([], $resolved);
+            $malformedSecondImportRejected = true;
+        }
+
+        if (!$malformedSecondImportRejected) {
+            throw new RuntimeException('Expected later malformed @import source exception before resolving earlier imports');
+        }
 
         $t->same(
             '.card{color:green}.entry{color:red}',

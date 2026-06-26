@@ -6973,6 +6973,112 @@ CSS;
             $operatorTokens
         ));
     },
+    'custom at-rules compose upstream structural token visitors in universal preludes' => static function (TestRunner $t): void {
+        $seen = [
+            'events' => [],
+            'rule' => null,
+        ];
+        $css = <<<'CSS'
+@wp-block-variant [data-state=draft] (draft/live);
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Token' => [
+                    'square-bracket-block' => static function (array $token) use (&$seen): ?array {
+                        $seen['events'][] = 'token:' . $token['type'] . ':' . ($token['raw'] ?? '');
+
+                        return null;
+                    },
+                    'parenthesis-block' => static function (array $token) use (&$seen): ?array {
+                        $seen['events'][] = 'token:' . $token['type'] . ':' . ($token['raw'] ?? '');
+
+                        return null;
+                    },
+                    'delim' => static function (array $token) use (&$seen): ?array {
+                        $seen['events'][] = 'token:delim:' . ($token['value'] ?? '');
+                        if (($token['value'] ?? '') !== '/') {
+                            return null;
+                        }
+
+                        return [
+                            'type' => 'token',
+                            'value' => [
+                                'type' => 'delim',
+                                'value' => ':',
+                            ],
+                        ];
+                    },
+                ],
+            ],
+            [
+                'Token' => [
+                    'ident' => static function (array $token) use (&$seen): ?string {
+                        if (($token['value'] ?? null) !== 'draft') {
+                            return null;
+                        }
+
+                        $seen['events'][] = 'token:ident:' . $token['value'];
+
+                        return 'live';
+                    },
+                ],
+                'Rule' => [
+                    'custom' => [
+                        'wp-block-variant' => static function (array $rule) use (&$seen): array {
+                            $seen['events'][] = 'rule:' . $rule['prelude'];
+                            $seen['rule'] = [
+                                'prelude' => $rule['prelude'],
+                                'preludeAst' => $rule['preludeAst'],
+                            ];
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'wp-block-variant' => [
+                'prelude' => '*',
+            ],
+        ], $visitor);
+
+        $t->same('.wp-block-card{color:red}', $result);
+        $t->same([
+            'token:square-bracket-block:[',
+            'token:delim:=',
+            'token:ident:draft',
+            'token:parenthesis-block:(',
+            'token:ident:draft',
+            'token:delim:/',
+            'rule:[data-state=live] (live:live)',
+        ], $seen['events']);
+        $t->same('[data-state=live] (live:live)', $seen['rule']['prelude']);
+        $t->same('token-list', $seen['rule']['preludeAst']['type']);
+        $t->same([
+            'square-bracket-block',
+            'ident',
+            'delim:=',
+            'ident',
+            'close-square-bracket',
+            'parenthesis-block',
+            'ident',
+            'delim::',
+            'ident',
+            'close-parenthesis',
+        ], array_map(static function (array $component): string {
+            $token = $component['value'] ?? [];
+            $type = (string) ($token['type'] ?? ($component['type'] ?? ''));
+
+            return $type === 'delim' ? 'delim:' . ($token['value'] ?? '') : $type;
+        }, $seen['rule']['preludeAst']['value']));
+    },
     'custom at-rules visit upstream unknown prelude and block token lists before unknown visitors' => static function (TestRunner $t): void {
         $seen = [
             'events' => [],

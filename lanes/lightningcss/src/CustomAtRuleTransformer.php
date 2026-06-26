@@ -247,6 +247,8 @@ final class CustomAtRuleTransformer
             return $visitors[0];
         }
 
+        $tokenVisitorConfig = self::composeTokenVisitorConfig($visitors);
+
         return [
             'Rule' => [
                 'custom' => static function (array $rule, self $transformer) use ($visitors): mixed {
@@ -734,21 +736,7 @@ final class CustomAtRuleTransformer
 
                 return $changed ? $current : null;
             },
-            'Token' => [
-                'ident' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'ident', $token, $transformer),
-                'at-keyword' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'at-keyword', $token, $transformer),
-                'hash' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'hash', $token, $transformer),
-                'id-hash' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'id-hash', $token, $transformer),
-                'string' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'string', $token, $transformer),
-                'number' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'number', $token, $transformer),
-                'percentage' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'percentage', $token, $transformer),
-                'dimension' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'dimension', $token, $transformer),
-                'include-match' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'include-match', $token, $transformer),
-                'dash-match' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'dash-match', $token, $transformer),
-                'prefix-match' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'prefix-match', $token, $transformer),
-                'suffix-match' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'suffix-match', $token, $transformer),
-                'substring-match' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'substring-match', $token, $transformer),
-            ],
+            'Token' => $tokenVisitorConfig,
             'Selector' => static function (array $selector, self $transformer) use ($visitors): mixed {
                 $current = $selector;
                 $changed = false;
@@ -5929,6 +5917,50 @@ final class CustomAtRuleTransformer
         }
 
         return trim($fallback);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $visitors
+     * @return array<string, callable>|callable
+     */
+    private static function composeTokenVisitorConfig(array $visitors): array|callable
+    {
+        $hasFunction = false;
+        $keys = [];
+        foreach ($visitors as $visitor) {
+            $tokenConfig = $visitor['Token'] ?? null;
+            if (is_callable($tokenConfig)) {
+                $hasFunction = true;
+                continue;
+            }
+            if (!is_array($tokenConfig)) {
+                continue;
+            }
+
+            foreach ($tokenConfig as $key => $callback) {
+                if (is_callable($callback)) {
+                    $keys[strtolower((string) $key)] = true;
+                }
+            }
+        }
+
+        if ($hasFunction) {
+            return static function (array $token, self $transformer) use ($visitors): mixed {
+                $tokenType = (string) ($token['type'] ?? '');
+                if ($tokenType === '') {
+                    return null;
+                }
+
+                return self::callComposedTokenVisitors($visitors, $tokenType, $token, $transformer);
+            };
+        }
+
+        $callbacks = [];
+        foreach (array_keys($keys) as $key) {
+            $callbacks[$key] = static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, $key, $token, $transformer);
+        }
+
+        return $callbacks;
     }
 
     /**

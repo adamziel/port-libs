@@ -113,10 +113,15 @@ final class SourceMap
         $this->setSourceContentValue($sourceIndex, $content, true);
     }
 
-    private function setSourceContentValue(int $sourceIndex, string $content, bool $explicit): void
+    private function setSourceContentValue(
+        int $sourceIndex,
+        string $content,
+        bool $explicit,
+        bool $allowImplicitOverride = false
+    ): void
     {
         $this->assertSourceIndex($sourceIndex);
-        if (!$explicit && isset($this->sourceContentIndexes[$sourceIndex])) {
+        if (!$explicit && isset($this->sourceContentIndexes[$sourceIndex]) && !$allowImplicitOverride) {
             return;
         }
 
@@ -127,6 +132,8 @@ final class SourceMap
         $this->sourcesContent[$sourceIndex] = $content;
         if ($explicit) {
             $this->sourceContentIndexes[$sourceIndex] = true;
+        } else {
+            unset($this->sourceContentIndexes[$sourceIndex]);
         }
     }
 
@@ -727,7 +734,8 @@ final class SourceMap
         array $names = [],
         int $lineOffset = 0,
         int $columnOffset = 0,
-        ?array $explicitSourceContentIndexes = null
+        ?array $explicitSourceContentIndexes = null,
+        bool $implicitSourceContentOverrides = false
     ): void {
         self::assertListArray($sources, 'sources');
         self::assertListArray($sourcesContent, 'sourcesContent');
@@ -754,7 +762,8 @@ final class SourceMap
             $this->setSourceContentValue(
                 $sourceIndexes[$index],
                 $content,
-                $explicitSourceContentIndexes === null || isset($explicitSourceContentIndexes[$index])
+                $explicitSourceContentIndexes === null || isset($explicitSourceContentIndexes[$index]),
+                $implicitSourceContentOverrides
             );
         }
 
@@ -858,7 +867,7 @@ final class SourceMap
         $names = self::listOfStrings($data['names'] ?? null, 'names');
 
         $map = new self($projectRoot);
-        $map->addVlqMap($data['mappings'], $sources, $sourcesContent, $names, 0, 0, $explicitSourceContentIndexes);
+        $map->addVlqMap($data['mappings'], $sources, $sourcesContent, $names, 0, 0, $explicitSourceContentIndexes, true);
 
         return $map;
     }
@@ -896,7 +905,7 @@ final class SourceMap
         $names = self::listOfStrings($data->names ?? null, 'names');
 
         $map = new self($projectRoot);
-        $map->addVlqMap($mappings, $sources, $sourcesContent, $names, 0, 0, $explicitSourceContentIndexes);
+        $map->addVlqMap($mappings, $sources, $sourcesContent, $names, 0, 0, $explicitSourceContentIndexes, true);
 
         return $map;
     }

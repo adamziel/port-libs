@@ -1592,6 +1592,39 @@ return [
             SourceMap::fromDataUrl(str_replace('application/json', 'text/plain', $dataUrl));
         });
     },
+    'source map applies upstream json sourcesContent defaults to duplicate sources in order' => static function (TestRunner $t): void {
+        $laterMissing = SourceMap::fromJson(
+            '{"version":3,"mappings":"AAAA;ACAA","sources":["blocks/card.css","./blocks/card.css"],"sourcesContent":[".card{color:red}"],"names":[]}'
+        );
+        $laterMissingDecoded = SourceMap::decodeVlq($laterMissing->writeVlq());
+
+        $t->same('AAAA;AAAA', $laterMissing->writeVlq());
+        $t->same(['blocks/card.css'], $laterMissing->getSources());
+        $t->same([''], $laterMissing->getSourcesContent());
+        $t->same([0, 0], array_column($laterMissingDecoded, 'sourceIndex'));
+        $t->same([0, 0], array_column($laterMissingDecoded, 'originalLine'));
+
+        $laterExplicit = SourceMap::fromJson(
+            '{"version":3,"mappings":"ACAA","sources":["blocks/card.css","blocks/./card.css"],"sourcesContent":[null,".card{color:green}"],"names":[]}'
+        );
+
+        $t->same('AAAA', $laterExplicit->writeVlq());
+        $t->same(['blocks/card.css'], $laterExplicit->getSources());
+        $t->same(['.card{color:green}'], $laterExplicit->getSourcesContent());
+        $t->same([0], array_column(SourceMap::decodeVlq($laterExplicit->writeVlq()), 'sourceIndex'));
+
+        $arrayImport = SourceMap::fromArray([
+            'version' => 3,
+            'mappings' => 'AAAA;ACAA',
+            'sources' => ['blocks/card.css', './blocks/card.css'],
+            'sourcesContent' => ['.card{color:red}'],
+            'names' => [],
+        ]);
+
+        $t->same('AAAA;AAAA', $arrayImport->writeVlq());
+        $t->same(['blocks/card.css'], $arrayImport->getSources());
+        $t->same([''], $arrayImport->getSourcesContent());
+    },
     'source map imports percent-encoded base64 data URL payloads before vlq import' => static function (TestRunner $t): void {
         $json = '{"version":3,"mappings":";CAAA","sources":["x!"],"sourcesContent":[".x{}"],"names":[]}';
         $encoded = str_replace('=', '%3D', base64_encode($json));
