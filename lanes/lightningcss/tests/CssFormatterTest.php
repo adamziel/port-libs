@@ -431,6 +431,126 @@ CSS, $formatter->format(<<<'CSS'
 }
 CSS));
     },
+    'css formatter maps upstream margin and padding shorthand printer cases' => static function (TestRunner $t): void {
+        $formatter = new CssFormatter();
+
+        $t->same(<<<'CSS'
+.foo {
+  margin: 20px 10px;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  margin-left: 10px;
+  margin-right: 10px;
+  margin-top: 20px;
+  margin-bottom: 20px;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  margin-block: 15px;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  margin-block-start: 15px;
+  margin-block-end: 15px;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  margin-left: 10px;
+  margin-right: 10px;
+  margin-inline: 15px;
+  margin-top: 20px;
+  margin-bottom: 20px;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  margin-left: 10px;
+  margin-right: 10px;
+  margin-inline-start: 15px;
+  margin-inline-end: 15px;
+  margin-top: 20px;
+  margin-bottom: 20px;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  margin: 20px 10px 10px;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  margin: 10px;
+  margin-top: 20px;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  margin: 10px;
+  margin-top: var(--top);
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  margin: 10px;
+  margin-top: var(--top);
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  padding: 20px 10px;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  padding-left: 10px;
+  padding-right: 10px;
+  padding-top: 20px;
+  padding-bottom: 20px;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  padding-block: 15px;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  padding-block-start: 15px;
+  padding-block-end: 15px;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  padding-left: 10px;
+  padding-right: 10px;
+  padding-inline: 15px;
+  padding-top: 20px;
+  padding-bottom: 20px;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  padding-left: 10px;
+  padding-right: 10px;
+  padding-inline-start: 15px;
+  padding-inline-end: 15px;
+  padding-top: 20px;
+  padding-bottom: 20px;
+}
+CSS));
+    },
     'css formatter maps upstream font shorthand printer cases' => static function (TestRunner $t): void {
         $formatter = new CssFormatter();
 

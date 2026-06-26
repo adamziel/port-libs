@@ -358,7 +358,9 @@ final class CssFormatter
         $indent = $this->indent($indentLevel);
         $declarations = $this->orderImportantStyleDeclarations(
             $this->composeGridStyleDeclarations(
-                $this->composeFontStyleDeclarations($this->parseDeclarations($body))
+                $this->composeBoxModelStyleDeclarations(
+                    $this->composeFontStyleDeclarations($this->parseDeclarations($body))
+                )
             )
         );
         if ($declarations === []) {
@@ -496,6 +498,280 @@ final class CssFormatter
     private function isFontLonghand(string $property): bool
     {
         return in_array($property, self::FONT_LONGHANDS, true);
+    }
+
+    /**
+     * @param list<array{string, string}> $declarations
+     * @return list<array{string, string}>
+     */
+    private function composeBoxModelStyleDeclarations(array $declarations): array
+    {
+        foreach (['margin', 'padding'] as $base) {
+            $declarations = $this->composeBoxModelShorthandOverrides($declarations, $base);
+            $declarations = $this->composeBoxModelLogicalPairs($declarations, $base);
+            $declarations = $this->composeBoxModelPhysicalLonghands($declarations, $base);
+        }
+
+        return $declarations;
+    }
+
+    /**
+     * @param list<array{string, string}> $declarations
+     * @return list<array{string, string}>
+     */
+    private function composeBoxModelShorthandOverrides(array $declarations, string $base): array
+    {
+        $count = count($declarations);
+        if ($count < 2) {
+            return $declarations;
+        }
+
+        $skip = [];
+        $replacements = [];
+        for ($i = 0; $i < $count; $i++) {
+            if ($declarations[$i][0] !== $base) {
+                continue;
+            }
+
+            $sides = $this->expandBoxModelShorthand($declarations[$i][1]);
+            if ($sides === null) {
+                continue;
+            }
+
+            $consumed = [];
+            $aborted = false;
+            for ($j = $i + 1; $j < $count; $j++) {
+                $property = $declarations[$j][0];
+                if ($property === $base || $this->isLogicalBoxModelProperty($property, $base)) {
+                    break;
+                }
+
+                $side = $this->physicalBoxModelSide($property, $base);
+                if ($side === null) {
+                    continue;
+                }
+
+                if (!$this->canComposeBoxModelValue($declarations[$j][1])) {
+                    $aborted = true;
+                    break;
+                }
+
+                $sides[$side] = $this->formatDeclarationValue($declarations[$j][1]);
+                $consumed[] = $j;
+            }
+
+            if ($aborted || $consumed === []) {
+                continue;
+            }
+
+            $replacements[$i] = [$base, $this->compressBoxModelSides($sides)];
+            foreach ($consumed as $index) {
+                $skip[$index] = true;
+            }
+        }
+
+        if ($replacements === []) {
+            return $declarations;
+        }
+
+        $output = [];
+        foreach ($declarations as $index => $declaration) {
+            if (isset($skip[$index])) {
+                continue;
+            }
+
+            $output[] = $replacements[$index] ?? $declaration;
+        }
+
+        return $output;
+    }
+
+    /**
+     * @param list<array{string, string}> $declarations
+     * @return list<array{string, string}>
+     */
+    private function composeBoxModelLogicalPairs(array $declarations, string $base): array
+    {
+        $replacements = [];
+        $skip = [];
+        foreach ([
+            $base . '-block' => ['start' => $base . '-block-start', 'end' => $base . '-block-end'],
+            $base . '-inline' => ['start' => $base . '-inline-start', 'end' => $base . '-inline-end'],
+        ] as $shorthand => $properties) {
+            $indexes = [];
+            foreach ($declarations as $index => [$property]) {
+                if ($property === $properties['start']) {
+                    $indexes['start'] = $index;
+                } elseif ($property === $properties['end']) {
+                    $indexes['end'] = $index;
+                }
+            }
+
+            if (!isset($indexes['start'], $indexes['end'])) {
+                continue;
+            }
+
+            $start = $this->formatDeclarationValue($declarations[$indexes['start']][1]);
+            $end = $this->formatDeclarationValue($declarations[$indexes['end']][1]);
+            if (!$this->canComposeBoxModelValue($start) || !$this->canComposeBoxModelValue($end)) {
+                continue;
+            }
+
+            $replaceAt = min($indexes);
+            $skip[max($indexes)] = true;
+            $replacements[$replaceAt] = [
+                $shorthand,
+                strcasecmp($start, $end) === 0 ? $start : $start . ' ' . $end,
+            ];
+        }
+
+        if ($replacements === []) {
+            return $declarations;
+        }
+
+        $output = [];
+        foreach ($declarations as $index => $declaration) {
+            if (isset($skip[$index])) {
+                continue;
+            }
+
+            $output[] = $replacements[$index] ?? $declaration;
+        }
+
+        return $output;
+    }
+
+    /**
+     * @param list<array{string, string}> $declarations
+     * @return list<array{string, string}>
+     */
+    private function composeBoxModelPhysicalLonghands(array $declarations, string $base): array
+    {
+        foreach ($declarations as [$property]) {
+            if ($this->isLogicalBoxModelProperty($property, $base)) {
+                return $declarations;
+            }
+        }
+
+        $indexes = [];
+        foreach ($declarations as $index => [$property]) {
+            $side = $this->physicalBoxModelSide($property, $base);
+            if ($side !== null) {
+                $indexes[$side] = $index;
+            }
+        }
+
+        foreach (['top', 'right', 'bottom', 'left'] as $side) {
+            if (!isset($indexes[$side])) {
+                return $declarations;
+            }
+        }
+
+        $sides = [];
+        foreach ($indexes as $side => $index) {
+            $value = $this->formatDeclarationValue($declarations[$index][1]);
+            if (!$this->canComposeBoxModelValue($value)) {
+                return $declarations;
+            }
+
+            $sides[$side] = $value;
+        }
+
+        $replaceAt = min($indexes);
+        $skip = array_flip(array_values($indexes));
+        $output = [];
+        foreach ($declarations as $index => $declaration) {
+            if ($index === $replaceAt) {
+                $output[] = [$base, $this->compressBoxModelSides($sides)];
+                continue;
+            }
+
+            if (isset($skip[$index])) {
+                continue;
+            }
+
+            $output[] = $declaration;
+        }
+
+        return $output;
+    }
+
+    /**
+     * @return array{top:string,right:string,bottom:string,left:string}|null
+     */
+    private function expandBoxModelShorthand(string $value): ?array
+    {
+        if (!$this->canComposeBoxModelValue($value)) {
+            return null;
+        }
+
+        $tokens = array_map(
+            fn (array $token): string => $this->formatDeclarationValue($token['value']),
+            $this->splitWhitespaceTokensWithOffsets($value),
+        );
+        if ($tokens === [] || count($tokens) > 4) {
+            return null;
+        }
+
+        return match (count($tokens)) {
+            1 => ['top' => $tokens[0], 'right' => $tokens[0], 'bottom' => $tokens[0], 'left' => $tokens[0]],
+            2 => ['top' => $tokens[0], 'right' => $tokens[1], 'bottom' => $tokens[0], 'left' => $tokens[1]],
+            3 => ['top' => $tokens[0], 'right' => $tokens[1], 'bottom' => $tokens[2], 'left' => $tokens[1]],
+            4 => ['top' => $tokens[0], 'right' => $tokens[1], 'bottom' => $tokens[2], 'left' => $tokens[3]],
+        };
+    }
+
+    /**
+     * @param array{top:string,right:string,bottom:string,left:string} $sides
+     */
+    private function compressBoxModelSides(array $sides): string
+    {
+        if (strcasecmp($sides['left'], $sides['right']) !== 0) {
+            return implode(' ', [$sides['top'], $sides['right'], $sides['bottom'], $sides['left']]);
+        }
+
+        if (strcasecmp($sides['bottom'], $sides['top']) !== 0) {
+            return implode(' ', [$sides['top'], $sides['right'], $sides['bottom']]);
+        }
+
+        if (strcasecmp($sides['right'], $sides['top']) !== 0) {
+            return implode(' ', [$sides['top'], $sides['right']]);
+        }
+
+        return $sides['top'];
+    }
+
+    private function physicalBoxModelSide(string $property, string $base): ?string
+    {
+        return match ($property) {
+            $base . '-top' => 'top',
+            $base . '-right' => 'right',
+            $base . '-bottom' => 'bottom',
+            $base . '-left' => 'left',
+            default => null,
+        };
+    }
+
+    private function isLogicalBoxModelProperty(string $property, string $base): bool
+    {
+        return in_array($property, [
+            $base . '-block',
+            $base . '-block-start',
+            $base . '-block-end',
+            $base . '-inline',
+            $base . '-inline-start',
+            $base . '-inline-end',
+        ], true);
+    }
+
+    private function canComposeBoxModelValue(string $value): bool
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return false;
+        }
+
+        return preg_match('/!\s*important\b|\bvar\s*\(/i', $value) !== 1;
     }
 
     /**

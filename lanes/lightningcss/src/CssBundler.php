@@ -800,11 +800,15 @@ final class CssBundler
 
     private function applyBundleValueVisitors(string $css): string
     {
-        if (!is_callable($this->visitor['Length'] ?? null)) {
-            return $css;
+        if (is_callable($this->visitor['Length'] ?? null)) {
+            $css = $this->applyBundleLengthVisitor($css, $this->visitor['Length']);
         }
 
-        return $this->applyBundleLengthVisitor($css, $this->visitor['Length']);
+        if (is_callable($this->visitor['Url'] ?? null)) {
+            $css = $this->applyBundleUrlVisitor($css, $this->visitor['Url']);
+        }
+
+        return $css;
     }
 
     private function applyBundleLengthVisitor(string $css, callable $visitor): string
@@ -853,6 +857,92 @@ final class CssBundler
         }
 
         return $output;
+    }
+
+    private function applyBundleUrlVisitor(string $css, callable $visitor): string
+    {
+        $output = '';
+        $length = strlen($css);
+        $offset = 0;
+
+        while ($offset < $length) {
+            $char = $css[$offset];
+            if ($char === '"' || $char === "'") {
+                $end = $this->consumeQuotedString($css, $offset);
+                $output .= substr($css, $offset, $end - $offset);
+                $offset = $end;
+                continue;
+            }
+
+            if ($char === '/' && ($css[$offset + 1] ?? '') === '*') {
+                $end = strpos($css, '*/', $offset + 2);
+                $end = $end === false ? $length : $end + 2;
+                $output .= substr($css, $offset, $end - $offset);
+                $offset = $end;
+                continue;
+            }
+
+            $open = $this->cssFunctionOpenOffset($css, $offset, 'url');
+            $previous = $offset > 0 ? $css[$offset - 1] : '';
+            if ($open !== null && ($previous === '' || !$this->isIdentifierChar($previous))) {
+                $close = $this->findCssUrlFunctionClose($css, $open);
+                if ($close !== null) {
+                    $url = $this->visitedUrlValue(substr($css, $open + 1, $close - $open - 1));
+                    if ($url !== null) {
+                        $replacement = $visitor(['url' => $url], $this);
+                        if (is_array($replacement) && array_key_exists('url', $replacement)) {
+                            $output .= $this->serializeVisitedUrl((string) $replacement['url']);
+                            $offset = $close + 1;
+                            continue;
+                        }
+                    }
+                }
+            }
+
+            $output .= $char;
+            $offset++;
+        }
+
+        return $output;
+    }
+
+    private function visitedUrlValue(string $raw): ?string
+    {
+        $value = trim($raw);
+        if ($value === '') {
+            return '';
+        }
+
+        $quote = $value[0];
+        if ($quote === '"' || $quote === "'") {
+            return substr($value, -1) === $quote ? $this->cssStringTokenValue($value) : null;
+        }
+
+        if (preg_match('/[\s"\'()]/', $value) === 1) {
+            return null;
+        }
+
+        return $this->decodeCssEscapes($value);
+    }
+
+    private function serializeVisitedUrl(string $url): string
+    {
+        if ($url !== '' && preg_match('/^[^\x00-\x20"\'()\\\\]+$/', $url) === 1) {
+            return 'url(' . $url . ')';
+        }
+
+        return 'url("' . $this->escapeCssString($url) . '")';
+    }
+
+    private function escapeCssString(string $value): string
+    {
+        return strtr($value, [
+            '\\' => '\\\\',
+            '"' => '\\"',
+            "\n" => '\\a ',
+            "\r" => '\\d ',
+            "\f" => '\\c ',
+        ]);
     }
 
     private function consumeQuotedString(string $css, int $offset): int

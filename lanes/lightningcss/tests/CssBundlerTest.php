@@ -3398,6 +3398,35 @@ CSS,
             ['unit' => 'px', 'value' => 32.0],
         ], $seen);
     },
+    'css bundler maps upstream url visitor replacements across imports' => static function (TestRunner $t): void {
+        $seen = [];
+        $code = (new CssBundler())->bundleWithVisitor('/entry.css', [
+            '/entry.css' => <<<'CSS'
+@import "button.css";
+
+.entry {
+  background-image: url("../entry.png");
+  content: "url(skip.png)";
+}
+CSS,
+            '/button.css' => <<<'CSS'
+.button {
+  background: url(foo.png);
+}
+CSS,
+        ], [
+            'Url' => static function (array $url) use (&$seen): array {
+                $seen[] = $url['url'];
+
+                return [
+                    'url' => 'https://mywebsite.com/' . $url['url'],
+                ];
+            },
+        ]);
+
+        $t->same('.button{background:url(https://mywebsite.com/foo.png)}.entry{background-image:url(https://mywebsite.com/../entry.png);content:"url(skip.png)"}', $code);
+        $t->same(['foo.png', '../entry.png'], $seen);
+    },
     'css bundler maps upstream visitor factory dependency collection across imports' => static function (TestRunner $t): void {
         $dependencies = [];
         $code = (new CssBundler())->bundleWithVisitor('tests/testdata/a.css', [

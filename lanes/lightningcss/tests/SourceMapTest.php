@@ -1178,6 +1178,21 @@ return [
         $t->same([2, 10], array_column($lookupParent->getMappings(), 'generatedColumn'));
     },
     'source map preserves unsorted vlq line order through direct line offsets' => static function (TestRunner $t): void {
+        $zeroOffset = new SourceMap();
+        $zeroOffset->addVlqMap(
+            'UAAAA,RACAC',
+            ['zero-line-shift.css'],
+            ['.zero-line-shift{}'],
+            ['later', 'earlier']
+        );
+        $zeroOffset->offsetLines(0, 0);
+
+        $t->same([0, 0], array_column($zeroOffset->getMappings(), 'generatedLine'));
+        $t->same([10, 2], array_column($zeroOffset->getMappings(), 'generatedColumn'));
+        $t->same([0, 1], array_column($zeroOffset->getMappings(), 'nameIndex'));
+        $t->same('EACAC,QADAD', $zeroOffset->writeVlq());
+        $t->same([2, 10], array_column($zeroOffset->getMappings(), 'generatedColumn'));
+
         $lineShift = new SourceMap();
         $lineShift->addVlqMap(
             'UAAAA,RACAC',
@@ -1597,6 +1612,16 @@ return [
         foreach (['D', 'ADAA', 'AADA', 'AAAD', 'AAAAD', 'ggggggI', '//////////////D'] as $mappings) {
             $t->throws(InvalidArgumentException::class, static function () use ($mappings): void {
                 SourceMap::decodeVlq($mappings);
+            });
+        }
+
+        foreach (['!', 'g'] as $mappings) {
+            $t->throws(InvalidArgumentException::class, static function () use ($mappings): void {
+                SourceMap::decodeVlq($mappings);
+            });
+            $t->throws(InvalidArgumentException::class, static function () use ($mappings): void {
+                $map = new SourceMap();
+                $map->addVlqMap($mappings, [], [], []);
             });
         }
 

@@ -4275,6 +4275,98 @@ CSS;
         ], $autoName['exports']);
         $t->same([], $autoName['references']);
     },
+    'css modules maps exact upstream view transition scoping rows' => static function (TestRunner $t) use ($export): void {
+        $cases = [
+            [
+                '.foo { view-transition-name: bar }',
+                '.EgL3uq_foo{view-transition-name:EgL3uq_bar}',
+                [
+                    'foo' => $export('EgL3uq_foo'),
+                    'bar' => $export('EgL3uq_bar'),
+                ],
+            ],
+            [
+                '.foo { view-transition-class: bar baz qux }',
+                '.EgL3uq_foo{view-transition-class:EgL3uq_bar EgL3uq_baz EgL3uq_qux}',
+                [
+                    'foo' => $export('EgL3uq_foo'),
+                    'bar' => $export('EgL3uq_bar'),
+                    'baz' => $export('EgL3uq_baz'),
+                    'qux' => $export('EgL3uq_qux'),
+                ],
+            ],
+            [
+                '.foo { view-transition-group: contain }',
+                '.EgL3uq_foo{view-transition-group:contain}',
+                [
+                    'foo' => $export('EgL3uq_foo'),
+                ],
+            ],
+            [
+                '.foo { view-transition-group: bar }',
+                '.EgL3uq_foo{view-transition-group:EgL3uq_bar}',
+                [
+                    'foo' => $export('EgL3uq_foo'),
+                    'bar' => $export('EgL3uq_bar'),
+                ],
+            ],
+            [
+                '@view-transition { types: foo bar baz }',
+                '@view-transition{types:EgL3uq_foo EgL3uq_bar EgL3uq_baz}',
+                [
+                    'foo' => $export('EgL3uq_foo'),
+                    'bar' => $export('EgL3uq_bar'),
+                    'baz' => $export('EgL3uq_baz'),
+                ],
+            ],
+            [
+                ':root:active-view-transition-type(foo, bar) { color: red }',
+                ':root:active-view-transition-type(EgL3uq_foo,EgL3uq_bar){color:red}',
+                [
+                    'foo' => $export('EgL3uq_foo'),
+                    'bar' => $export('EgL3uq_bar'),
+                ],
+            ],
+            [
+                ':root::view-transition-group(foo.bar.baz) {position: fixed}',
+                ':root::view-transition-group(EgL3uq_foo.EgL3uq_bar.EgL3uq_baz){position:fixed}',
+                [
+                    'foo' => $export('EgL3uq_foo'),
+                    'bar' => $export('EgL3uq_bar'),
+                    'baz' => $export('EgL3uq_baz'),
+                ],
+            ],
+            [
+                ':root::view-transition-image-pair(foo) {position: fixed}',
+                ':root::view-transition-image-pair(EgL3uq_foo){position:fixed}',
+                [
+                    'foo' => $export('EgL3uq_foo'),
+                ],
+            ],
+            [
+                ':root::view-transition-new(.bar) {position: fixed}',
+                ':root::view-transition-new(.EgL3uq_bar){position:fixed}',
+                [
+                    'bar' => $export('EgL3uq_bar'),
+                ],
+            ],
+            [
+                ':root::view-transition-old(.bar) {position: fixed}',
+                ':root::view-transition-old(.EgL3uq_bar){position:fixed}',
+                [
+                    'bar' => $export('EgL3uq_bar'),
+                ],
+            ],
+        ];
+
+        foreach ($cases as [$css, $expectedCode, $expectedExports]) {
+            $result = (new CssModulesTransformer())->transform($css);
+
+            $t->same($expectedCode, $result['code']);
+            $t->same($expectedExports, $result['exports']);
+            $t->same([], $result['references']);
+        }
+    },
     'css modules scopes upstream view transition selector function idents' => static function (TestRunner $t) use ($export): void {
         $css = <<<'CSS'
 :root:active-view-transition-type(page, nav-menu) {

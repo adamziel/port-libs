@@ -2043,6 +2043,7 @@ final class CssMinifier
             $prelude = substr($css, $preludeStart, $open - $preludeStart);
             if ($this->isStyleRulePrelude($prelude)) {
                 $prelude = $this->normalizeSelectorAttributeSelectors($prelude);
+                $prelude = $this->normalizeSelectorNthPseudoClasses($prelude);
             }
 
             $output .= $prelude . '{';
@@ -2107,6 +2108,146 @@ final class CssMinifier
         $trimmed = trim($prelude);
 
         return $trimmed !== '' && $trimmed[0] !== '@';
+    }
+
+    private function normalizeSelectorNthPseudoClasses(string $selector): string
+    {
+        if (stripos($selector, ':nth-') === false) {
+            return $selector;
+        }
+
+        $output = '';
+        $quote = null;
+        $length = strlen($selector);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $selector[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $selector[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '\\' && $i + 1 < $length) {
+                $end = $this->cssEscapeEndOffset($selector, $i);
+                $output .= substr($selector, $i, $end - $i + 1);
+                $i = $end;
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($char === '[') {
+                $close = $this->findSelectorAttributeClose($selector, $i);
+                if ($close !== null) {
+                    $output .= substr($selector, $i, $close - $i + 1);
+                    $i = $close;
+                    continue;
+                }
+            }
+
+            if ($char === ':' && ($normalized = $this->readNormalizedNthPseudoClass($selector, $i)) !== null) {
+                $output .= $normalized['value'];
+                $i = $normalized['end'];
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
+    }
+
+    /**
+     * @return array{value:string,end:int}|null
+     */
+    private function readNormalizedNthPseudoClass(string $selector, int $offset): ?array
+    {
+        if (($selector[$offset + 1] ?? '') === ':') {
+            return null;
+        }
+
+        $token = $this->readCssIdentifierToken($selector, $offset + 1);
+        if ($token === null || ($selector[$token['end']] ?? '') !== '(') {
+            return null;
+        }
+
+        $name = strtolower($token['name']);
+        $firstChildAliases = [
+            'nth-child' => 'first-child',
+            'nth-last-child' => 'last-child',
+            'nth-of-type' => 'first-of-type',
+            'nth-last-of-type' => 'last-of-type',
+        ];
+        $nthNames = array_merge(['nth-col', 'nth-last-col'], array_keys($firstChildAliases));
+        if (!in_array($name, $nthNames, true)) {
+            return null;
+        }
+
+        [$function, $end] = $this->readFunctionRaw($selector, $offset + 1);
+        if (($selector[$end] ?? '') !== ')') {
+            return null;
+        }
+
+        $inner = substr($function, strlen($token['raw']) + 1, -1);
+        [$normalized, $simpleAlias] = $this->normalizeNthPseudoClassArgument(
+            $name,
+            $inner,
+            $firstChildAliases[$name] ?? null
+        );
+
+        if ($simpleAlias !== null) {
+            return [
+                'value' => ':' . $simpleAlias,
+                'end' => $end,
+            ];
+        }
+
+        return [
+            'value' => ':' . $name . '(' . $normalized . ')',
+            'end' => $end,
+        ];
+    }
+
+    /**
+     * @return array{0:string,1:?string}
+     */
+    private function normalizeNthPseudoClassArgument(string $name, string $argument, ?string $firstChildAlias): array
+    {
+        $argument = trim($argument);
+        $formula = $argument;
+        $selector = null;
+
+        if (($name === 'nth-child' || $name === 'nth-last-child') && preg_match('/^(.+?)\s+of\b\s*(.+)$/i', $argument, $matches) === 1) {
+            $formula = trim($matches[1]);
+            $selector = trim($matches[2]);
+        }
+
+        $normalizedFormula = match (strtolower($formula)) {
+            'even' => '2n',
+            '2n+1' => 'odd',
+            default => $formula,
+        };
+
+        if ($selector !== null) {
+            return [$normalizedFormula . ' of ' . $selector, null];
+        }
+
+        if ($normalizedFormula === '1' && $firstChildAlias !== null) {
+            return [$normalizedFormula, $firstChildAlias];
+        }
+
+        return [$normalizedFormula, null];
     }
 
     private function normalizeSelectorAttributeSelectors(string $selector): string

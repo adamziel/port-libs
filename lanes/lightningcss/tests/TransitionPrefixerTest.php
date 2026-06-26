@@ -37,6 +37,48 @@ return [
             (new TransitionPrefixer())->prefixForTargets('.foo { transition: margin-inline-start 2s, padding-inline-start 200ms; }', ['safari' => 8])
         );
     },
+    'transition prefixer maps additional upstream transition prefix rows' => static function (TestRunner $t) use ($variants): void {
+        $prefixer = new TransitionPrefixer();
+        $selector = $variants('.foo');
+
+        $t->same(
+            $selector['ltr-webkit'] . '{transition-property:margin-left}'
+            . $selector['ltr-modern'] . '{transition-property:margin-left}'
+            . $selector['rtl-webkit'] . '{transition-property:margin-right}'
+            . $selector['rtl-modern'] . '{transition-property:margin-right}',
+            $prefixer->prefixForTargets('.foo { transition-property: margin-inline-start; }', ['safari' => 8])
+        );
+        $t->same(
+            $selector['ltr-webkit'] . '{transition-property:margin-left,opacity,padding-left,color}'
+            . $selector['ltr-modern'] . '{transition-property:margin-left,opacity,padding-left,color}'
+            . $selector['rtl-webkit'] . '{transition-property:margin-right,opacity,padding-right,color}'
+            . $selector['rtl-modern'] . '{transition-property:margin-right,opacity,padding-right,color}',
+            $prefixer->prefixForTargets('.foo { transition-property: margin-inline-start, opacity, padding-inline-start, color; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{transition-property:margin-top,margin-bottom}',
+            $prefixer->prefixForTargets('.foo { transition-property: margin-block; }', ['safari' => 8])
+        );
+        $t->same(
+            $selector['ltr-webkit'] . '{transition:margin-left 2s}'
+            . $selector['ltr-modern'] . '{transition:margin-left 2s}'
+            . $selector['rtl-webkit'] . '{transition:margin-right 2s}'
+            . $selector['rtl-modern'] . '{transition:margin-right 2s}',
+            $prefixer->prefixForTargets('.foo { transition: margin-inline-start 2s; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{transition:margin-top 2s}',
+            $prefixer->prefixForTargets('.foo { transition: margin-block-start 2s; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{-webkit-transition:background .2s;-moz-transition:background .2s;transition:background .23s}',
+            $prefixer->prefixForTargets('.foo { -webkit-transition: background 200ms; -moz-transition: background 200ms; transition: background 230ms; }', ['chrome' => 95])
+        );
+        $t->same(
+            '.foo{transition-property:-webkit-border-radius,-moz-border-radius}',
+            $prefixer->prefixForTargets('.foo { transition-property: -webkit-border-radius, -webkit-border-radius, -moz-border-radius; }', ['safari' => 15])
+        );
+    },
     'transition prefixer maps upstream transform transition prefixing' => static function (TestRunner $t): void {
         $t->same(
             '.foo{-webkit-transition:-webkit-transform,transform;transition:-webkit-transform,transform}',
