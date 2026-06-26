@@ -297,6 +297,42 @@ CSS, $formatter->format(<<<'CSS'
 }
 CSS));
     },
+    'css formatter maps upstream url quoting printer cases' => static function (TestRunner $t): void {
+        $formatter = new CssFormatter();
+
+        $t->same(<<<'CSS'
+.foo {
+  background-image: url("0123abcd");
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  background-image: url("0123abcd");
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  background-image: url("0123abcd");
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  background-image: url(0123abcd);
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  background-image: url(var(--asset));
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  background-image: url(var(--asset));
+}
+CSS));
+    },
     'css formatter maps upstream position try printer case' => static function (TestRunner $t): void {
         $formatter = new CssFormatter();
 

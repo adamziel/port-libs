@@ -910,6 +910,7 @@ final class TransitionPrefixer
             : $this->rewriteListStyleFallbackEntries($entries, $selectors, $supportRules, $targetOptions);
         $borderRadiusChanged = $this->rewriteBorderRadiusPrefixEntries($entries, $targetOptions);
         $borderImageChanged = $this->rewriteBorderImagePrefixEntries($entries, $targetOptions);
+        $borderImageFallbackChanged = $this->rewriteBorderImageRepeatSpaceFallbackEntries($entries, $targetOptions);
         $imageSetChanged = $this->rewriteImageSetPrefixEntries($entries, $targetOptions);
         $crossFadeChanged = $this->rewriteCrossFadePrefixEntries($entries, $targetOptions);
         $gradientPrefixChanged = $this->rewriteGradientPrefixEntries($entries, $targetOptions);
@@ -963,7 +964,7 @@ final class TransitionPrefixer
             return $logicalTextAlignFallback . implode('', $supportRules);
         }
         $selectorVariants = $this->selectorPrefixVariants($selectors, $targetOptions);
-        if ($transitionChanged || $displayFlexChanged || $displayGridChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $cursorPrefixChanged || $boxSizingChanged || $objectFitChanged || $shapeChanged || $unicodeBidiChanged || $textCompatibilityPrefixChanged || $scrollSnapPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $crossFadeChanged || $gradientPrefixChanged || $sizingKeywordChanged || $logicalSizeFallbackChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $modernColorChanged || $fontTargetChanged || $fontTypographyPrefixChanged || $imageRenderingPrefixChanged || $lengthTargetChanged || $selectorVariants !== null) {
+        if ($transitionChanged || $displayFlexChanged || $displayGridChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $cursorPrefixChanged || $boxSizingChanged || $objectFitChanged || $shapeChanged || $unicodeBidiChanged || $textCompatibilityPrefixChanged || $scrollSnapPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $borderImageFallbackChanged || $imageSetChanged || $crossFadeChanged || $gradientPrefixChanged || $sizingKeywordChanged || $logicalSizeFallbackChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $modernColorChanged || $fontTargetChanged || $fontTypographyPrefixChanged || $imageRenderingPrefixChanged || $lengthTargetChanged || $selectorVariants !== null) {
             return $this->serializeRulesForSelectors($selectorVariants ?? [$selectors], $entries) . implode('', $supportRules);
         }
 
@@ -2574,6 +2575,17 @@ final class TransitionPrefixer
                 || $this->targetInRange($normalized, 'safari', [3, 1], [5, 1]),
             'borderImageNeedsMoz' => $this->targetInRange($normalized, 'firefox', [3, 5], [14]),
             'borderImageNeedsO' => $this->targetInRange($normalized, 'opera', [11], [12, 1]),
+            'borderImageRepeatSpaceSupported' => $this->targetsAllAtLeast($normalized, [
+                'android' => [56],
+                'chrome' => [56],
+                'edge' => [12],
+                'firefox' => [50],
+                'ie' => [11],
+                'ios_saf' => [9, 3],
+                'opera' => [43],
+                'safari' => [9, 1],
+                'samsung' => [6],
+            ]),
             'clampNeedsMaxMinFallback' => $this->targetInRange($normalized, 'safari', [0], [12]),
             'logicalBorderNeedsFallback' => $logicalPropertiesIncluded || (!$logicalPropertiesExcluded && (
                 $this->targetInRange($normalized, 'android', [0], [68, 255, 255])
@@ -7364,6 +7376,51 @@ final class TransitionPrefixer
             '-moz-' => $targetOptions['borderImageNeedsMoz'] ?? false,
             '-o-' => $targetOptions['borderImageNeedsO'] ?? false,
         ]);
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteBorderImageRepeatSpaceFallbackEntries(array &$entries, array $targetOptions): bool
+    {
+        if (!($targetOptions['borderImageRepeatSpaceSupported'] ?? false)) {
+            return false;
+        }
+
+        $changed = false;
+        $rewritten = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === 'border-image'
+                && !$entry['important']
+                && $this->borderImageValueUsesRepeatSpace($entry['value'])
+                && !$this->containsCustomPropertyReference($entry['value'])
+            ) {
+                $previous = $this->lastSamePropertyEntryIndex($rewritten, 'border-image');
+                if ($previous !== null
+                    && !$rewritten[$previous]['important']
+                    && !$this->containsCustomPropertyReference($rewritten[$previous]['value'])
+                ) {
+                    array_splice($rewritten, $previous, 1);
+                    $changed = true;
+                }
+            }
+
+            $rewritten[] = $entry;
+        }
+
+        if (!$changed) {
+            return false;
+        }
+
+        $entries = $rewritten;
+
+        return true;
+    }
+
+    private function borderImageValueUsesRepeatSpace(string $value): bool
+    {
+        return preg_match('/(?<![a-z0-9_-])space(?![a-z0-9_-])/i', $value) === 1;
     }
 
     /**

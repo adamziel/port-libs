@@ -1780,6 +1780,7 @@ CSS;
         $opera = '.foo{-o-border-image:url(border.png) 30 fill/10px/4px round;border-image:url(border.png) 30 fill/10px/4px round}';
         $allLegacy = '.foo{-webkit-border-image:url(border.png) 30 fill/10px/4px round;-moz-border-image:url(border.png) 30 fill/10px/4px round;-o-border-image:url(border.png) 30 fill/10px/4px round;border-image:url(border.png) 30 fill/10px/4px round}';
         $stalePrefixed = '.foo { -webkit-border-image: url(border.png) 30 fill / 10px / 4px round; -moz-border-image: url(border.png) 30 fill / 10px / 4px round; -o-border-image: url(border.png) 30 fill / 10px / 4px round; border-image: url(border.png) 30 fill / 10px / 4px round; }';
+        $repeatSpaceFallback = '.foo { border-image: url("fallback.png") 10 40 fill / 10px; border-image: url("main.png") 10 40 fill / 10px space; }';
 
         $t->same($allLegacy, $prefixer->prefixForTargets($css, ['chrome' => 14, 'firefox' => 14, 'opera' => '12.1']));
         $t->same($webkit, $prefixer->prefixForTargets($css, ['chrome' => 14]));
@@ -1796,6 +1797,14 @@ CSS;
         $t->same($modern, $prefixer->prefixForTargets($css, ['android' => '4.3']));
         $t->same($opera, $prefixer->prefixForTargets($css, ['opera' => '12.1']));
         $t->same($modern, $prefixer->prefixForTargets($css, ['opera' => '12.2']));
+        $t->same(
+            '.foo{border-image:url("fallback.png") 10 40 fill/10px;border-image:url("main.png") 10 40 fill/10px space}',
+            $prefixer->prefixForTargets($repeatSpaceFallback, ['chrome' => 50])
+        );
+        $t->same(
+            '.foo{border-image:url("main.png") 10 40 fill/10px space}',
+            $prefixer->prefixForTargets($repeatSpaceFallback, ['chrome' => 56])
+        );
         $t->same($webkit, $prefixer->prefixForTargets($stalePrefixed, ['safari' => '5.1']));
         $t->same($modern, $prefixer->prefixForTargets($stalePrefixed, ['chrome' => 15, 'firefox' => 15, 'opera' => '12.2', 'safari' => 6]));
     },

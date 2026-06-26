@@ -3357,6 +3357,46 @@ CSS,
             ['unit' => 'px', 'value' => 32.0],
         ], $seen);
     },
+    'css bundler maps upstream visitor factory dependency collection across imports' => static function (TestRunner $t): void {
+        $dependencies = [];
+        $code = (new CssBundler())->bundleWithVisitor('tests/testdata/a.css', [
+            'tests/testdata/a.css' => <<<'CSS'
+@import "b.css";
+
+.a {
+  width: 32px;
+}
+CSS,
+            'tests/testdata/b.css' => <<<'CSS'
+.b {
+  height: calc(100vh - 64px);
+}
+CSS,
+        ], [
+            'Length' => static function () use (&$dependencies): void {
+                $dependencies[] = [
+                    'type' => 'file',
+                    'filePath' => 'test.json',
+                ];
+            },
+        ]);
+
+        $t->same('.b{height:calc(100vh - 64px)}.a{width:32px}', $code);
+        $t->same([
+            [
+                'type' => 'file',
+                'filePath' => 'test.json',
+            ],
+            [
+                'type' => 'file',
+                'filePath' => 'test.json',
+            ],
+            [
+                'type' => 'file',
+                'filePath' => 'test.json',
+            ],
+        ], $dependencies);
+    },
     'css bundler shares custom media definitions across imported graph' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '@media print{.a{color:green}}.entry{color:red}',

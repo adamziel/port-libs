@@ -3920,6 +3920,33 @@ CSS;
             $minifier->minify('.foo { text-shadow: 1px 1px yellow, 2px 3px red; }')
         );
     },
+    'css minifier maps upstream visibility text-transform and white-space values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $cases = [
+            '.foo { visibility: visible }' => '.foo{visibility:visible}',
+            '.foo { visibility: hidden }' => '.foo{visibility:hidden}',
+            '.foo { visibility: collapse }' => '.foo{visibility:collapse}',
+            '.foo { text-transform: uppercase }' => '.foo{text-transform:uppercase}',
+            '.foo { text-transform: lowercase }' => '.foo{text-transform:lowercase}',
+            '.foo { text-transform: capitalize }' => '.foo{text-transform:capitalize}',
+            '.foo { text-transform: none }' => '.foo{text-transform:none}',
+            '.foo { text-transform: full-width }' => '.foo{text-transform:full-width}',
+            '.foo { text-transform: full-size-kana }' => '.foo{text-transform:full-size-kana}',
+            '.foo { text-transform: uppercase full-width }' => '.foo{text-transform:uppercase full-width}',
+            '.foo { text-transform: uppercase full-width full-size-kana }' => '.foo{text-transform:uppercase full-width full-size-kana}',
+            '.foo { white-space: normal }' => '.foo{white-space:normal}',
+            '.foo { white-space: pre }' => '.foo{white-space:pre}',
+            '.foo { white-space: nowrap }' => '.foo{white-space:nowrap}',
+            '.foo { white-space: pre-wrap }' => '.foo{white-space:pre-wrap}',
+            '.foo { white-space: break-spaces }' => '.foo{white-space:break-spaces}',
+            '.foo { white-space: pre-line }' => '.foo{white-space:pre-line}',
+        ];
+
+        foreach ($cases as $input => $expected) {
+            $t->same($expected, $minifier->minify($input));
+        }
+    },
     'css minifier maps upstream caret values' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

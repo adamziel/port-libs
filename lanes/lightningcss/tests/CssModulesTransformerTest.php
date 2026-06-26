@@ -4295,6 +4295,70 @@ CSS;
         ], $result['exports']);
         $t->same([], $result['references']);
     },
+    'css modules scopes remaining upstream view transition selector function row variants' => static function (TestRunner $t) use ($export): void {
+        $cases = [
+            [
+                ':root::view-transition-group(foo) {position: fixed}',
+                ':root::view-transition-group(EgL3uq_foo){position:fixed}',
+                ['foo' => $export('EgL3uq_foo')],
+            ],
+            [
+                ':root::view-transition-group(.bar) {position: fixed}',
+                ':root::view-transition-group(.EgL3uq_bar){position:fixed}',
+                ['bar' => $export('EgL3uq_bar')],
+            ],
+            [
+                ':root::view-transition-image-pair(.bar) {position: fixed}',
+                ':root::view-transition-image-pair(.EgL3uq_bar){position:fixed}',
+                ['bar' => $export('EgL3uq_bar')],
+            ],
+            [
+                ':root::view-transition-image-pair(foo.bar.baz) {position: fixed}',
+                ':root::view-transition-image-pair(EgL3uq_foo.EgL3uq_bar.EgL3uq_baz){position:fixed}',
+                [
+                    'foo' => $export('EgL3uq_foo'),
+                    'bar' => $export('EgL3uq_bar'),
+                    'baz' => $export('EgL3uq_baz'),
+                ],
+            ],
+            [
+                ':root::view-transition-new(foo) {position: fixed}',
+                ':root::view-transition-new(EgL3uq_foo){position:fixed}',
+                ['foo' => $export('EgL3uq_foo')],
+            ],
+            [
+                ':root::view-transition-new(foo.bar.baz) {position: fixed}',
+                ':root::view-transition-new(EgL3uq_foo.EgL3uq_bar.EgL3uq_baz){position:fixed}',
+                [
+                    'foo' => $export('EgL3uq_foo'),
+                    'bar' => $export('EgL3uq_bar'),
+                    'baz' => $export('EgL3uq_baz'),
+                ],
+            ],
+            [
+                ':root::view-transition-old(foo) {position: fixed}',
+                ':root::view-transition-old(EgL3uq_foo){position:fixed}',
+                ['foo' => $export('EgL3uq_foo')],
+            ],
+            [
+                ':root::view-transition-old(foo.bar.baz) {position: fixed}',
+                ':root::view-transition-old(EgL3uq_foo.EgL3uq_bar.EgL3uq_baz){position:fixed}',
+                [
+                    'foo' => $export('EgL3uq_foo'),
+                    'bar' => $export('EgL3uq_bar'),
+                    'baz' => $export('EgL3uq_baz'),
+                ],
+            ],
+        ];
+
+        foreach ($cases as [$css, $expectedCode, $expectedExports]) {
+            $result = (new CssModulesTransformer())->transform($css);
+
+            $t->same($expectedCode, $result['code']);
+            $t->same($expectedExports, $result['exports']);
+            $t->same([], $result['references']);
+        }
+    },
     'css modules decodes escaped view transition selector function names while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 .card {

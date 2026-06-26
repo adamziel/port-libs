@@ -39,13 +39,49 @@ return [
     },
     'source map encodes upstream cli css module semicolon offsets' => static function (TestRunner $t): void {
         $map = new SourceMap();
+        $source = implode("\n", [
+            '',
+            '      .foo {',
+            '        color: red;',
+            '      }',
+            '',
+            '      #id {',
+            '        animation: 2s test;',
+            '      }',
+            '',
+            '      @keyframes test {',
+            '        from { color: red }',
+            '        to { color: yellow }',
+            '      }',
+            '',
+            '      @counter-style circles {',
+            '        symbols: ' . "\u{24B6} \u{24B7} \u{24B8}" . ';',
+            '      }',
+            '',
+            '      ul {',
+            '        list-style: circles;',
+            '      }',
+            '',
+            '      @keyframes fade {',
+            '        from { opacity: 0 }',
+            '        to { opacity: 1 }',
+            '      }',
+            '    ',
+        ]);
         $sourceIndex = $map->addSource('test.css');
+        $map->setSourceContent($sourceIndex, $source);
 
         foreach ([[0, 1], [4, 5], [8, 9], [18, 14], [22, 18], [26, 22]] as [$generatedLine, $originalLine]) {
             $map->addPrinterMapping($generatedLine, 0, $sourceIndex, $originalLine, 7);
         }
 
+        $data = $map->toArray(null, false);
+
         $t->same('AACM;;;;AAIA;;;;AAIA;;;;;;;;;;AAKA;;;;AAIA;;;;AAIA', $map->writeVlq());
+        $t->same(3, $data['version']);
+        $t->same(['test.css'], $data['sources']);
+        $t->same([$source], $data['sourcesContent']);
+        $t->same([], $data['names']);
         $decoded = SourceMap::decodeVlq('AACM;;;;AAIA;;;;AAIA;;;;;;;;;;AAKA;;;;AAIA;;;;AAIA');
         $t->same(
             [

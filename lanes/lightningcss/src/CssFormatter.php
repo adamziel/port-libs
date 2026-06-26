@@ -1573,8 +1573,107 @@ final class CssFormatter
     private function formatDeclarationValue(string $value): string
     {
         $value = trim(preg_replace('/\s+/', ' ', $value) ?? $value);
+        $value = $this->quoteSimpleUrlFunctions($value);
 
         return preg_replace('/\bcounter\(\s*([_a-zA-Z-][_a-zA-Z0-9-]*)\s*\)/', 'counter($1)', $value) ?? $value;
+    }
+
+    private function quoteSimpleUrlFunctions(string $value): string
+    {
+        $length = strlen($value);
+        $output = '';
+
+        for ($i = 0; $i < $length;) {
+            if (!$this->startsUrlFunctionAt($value, $i)) {
+                $output .= $value[$i];
+                $i++;
+                continue;
+            }
+
+            $open = $i + 3;
+            $close = $this->findMatchingParenthesis($value, $open);
+            if ($close === null) {
+                $output .= $value[$i];
+                $i++;
+                continue;
+            }
+
+            $raw = substr($value, $i, $close - $i + 1);
+            $content = trim(substr($value, $open + 1, $close - $open - 1));
+            if (!$this->isSimpleUnquotedUrlContent($content)) {
+                $output .= $raw;
+                $i = $close + 1;
+                continue;
+            }
+
+            $output .= 'url(' . $this->quoteCssString($content) . ')';
+            $i = $close + 1;
+        }
+
+        return $output;
+    }
+
+    private function startsUrlFunctionAt(string $value, int $offset): bool
+    {
+        if (strncasecmp(substr($value, $offset, 4), 'url(', 4) !== 0) {
+            return false;
+        }
+
+        return $offset === 0 || preg_match('/[a-zA-Z0-9_-]/', $value[$offset - 1]) !== 1;
+    }
+
+    private function findMatchingParenthesis(string $value, int $open): ?int
+    {
+        $quote = null;
+        $depth = 0;
+        $length = strlen($value);
+
+        for ($i = $open; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '\\') {
+                $i++;
+                continue;
+            }
+
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+
+            if ($char === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    return $i;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function isSimpleUnquotedUrlContent(string $content): bool
+    {
+        if ($content === '' || $content[0] === '"' || $content[0] === "'") {
+            return false;
+        }
+
+        return preg_match('/[\s()\\\\]/', $content) !== 1;
     }
 
     private function formatColorDeclarationValue(string $value): string
