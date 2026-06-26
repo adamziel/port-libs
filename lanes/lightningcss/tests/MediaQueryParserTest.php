@@ -883,6 +883,22 @@ return [
         $t->same('@media (width>=240px) and (hover:hover){.foo{color:#7fff00}}', (new CssMinifier())->minify($css));
         // Pinned upstream 22bdda3d src/lib.rs::test_media line 8875.
         $t->same('@media screen,print{.foo{color:#7fff00}}', (new CssMinifier())->minify('@media screen, print { .foo { color: chartreuse }}'));
+        // Pinned upstream 22bdda3d src/lib.rs::test_media lines 8870-8954.
+        $t->same('@media (width>=30em) and (width<=50em){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (min-width: 30em) and (max-width: 50em) { .foo { color: chartreuse }}'));
+        $t->same('@media (hover:hover){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (hover: hover) { .foo { color: chartreuse }}'));
+        $t->same('@media (hover){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (hover) { .foo { color: chartreuse }}'));
+        $t->same('@media (aspect-ratio:11/5){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (aspect-ratio: 11/5) { .foo { color: chartreuse }}'));
+        $t->same('@media (aspect-ratio:2){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (aspect-ratio: 2/1) { .foo { color: chartreuse }}'));
+        $t->same('@media (aspect-ratio:2){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (aspect-ratio: 2) { .foo { color: chartreuse }}'));
+        $t->same('@media not screen and (color){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media not screen and (color) { .foo { color: chartreuse }}'));
+        $t->same('@media only screen and (color){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media only screen and (color) { .foo { color: chartreuse }}'));
+        $t->same('@media (update:slow) or (hover:none){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (update: slow) or (hover: none) { .foo { color: chartreuse }}'));
+        $t->same('@media (width<600px) and (height<600px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (width < 600px) and (height < 600px) { .foo { color: chartreuse }}'));
+        $t->same('@media (not (color)) or (hover){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (not (color)) or (hover) { .foo { color: chartreuse }}'));
+        $t->same('@media (width>=240px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (min-width: calc(200px + 40px)) { .foo { color: chartreuse }}'));
+        $t->same('@media (width>=calc(1em + 5px)){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (min-width: calc(1em + 5px)) { .foo { color: chartreuse }}'));
+        $t->same('@media (grid:1){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (grid: 1) { .foo { color: chartreuse }}'));
+        $t->same('@media (width>=6px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (width >= calc(2px + 4px)) { .foo { color: chartreuse }}'));
         $t->same('.foo{color:#7fff00}', (new CssMinifier())->minify('@media { .foo { color: chartreuse } }'));
         $t->same('.foo{color:#7fff00}', (new CssMinifier())->minify('@media all { .foo { color: chartreuse } }'));
         $t->same('', (new CssMinifier())->minify('@media not all { .foo { color: chartreuse } }'));

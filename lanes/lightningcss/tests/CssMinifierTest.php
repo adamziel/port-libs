@@ -182,6 +182,22 @@ CSS
             $minifier->minify('button:active:not(:state(disabled))::part(control) {border:1px solid}')
         );
     },
+    'css minifier maps upstream cue pseudo element selectors' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_selectors lines 7213, 7214, 7215, 7216, and 7218.
+        $cases = [
+            [7213, '.foo::cue {color: red}', '.foo::cue{color:red}'],
+            [7214, '.foo::cue-region {color: red}', '.foo::cue-region{color:red}'],
+            [7215, '.foo::cue(b) {color: red}', '.foo::cue(b){color:red}'],
+            [7216, '.foo::cue-region(b) {color: red}', '.foo::cue-region(b){color:red}'],
+            [7218, "::cue(v[voice='active']) {color: yellow;}", '::cue(v[voice=active]){color:#ff0}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_selectors line ' . $line);
+        }
+    },
     'css minifier preserves upstream unknown pseudo element selector boundaries' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
