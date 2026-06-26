@@ -96,7 +96,14 @@ final class CssMinifier
                 continue;
             }
 
-            if ($char === ':' && $pendingSpace && $this->startsDescendantPseudoClass($css, $i)) {
+            if (
+                $char === ':'
+                && $pendingSpace
+                && (
+                    $this->startsDescendantPseudoClass($css, $i)
+                    || $this->startsDescendantPseudoElement($css, $i)
+                )
+            ) {
                 if ($this->needsSelectorDescendantSpaceBeforePseudo($output)) {
                     $output .= ' ';
                 }
@@ -128,6 +135,12 @@ final class CssMinifier
                     $output .= ' ';
                 }
                 $output .= $char;
+                $pendingSpace = false;
+                continue;
+            }
+
+            if ($char === '(' && $pendingSpace && $this->needsContainerStyleCustomPropertyTokenSpaceBeforeFunction($output, $css, $i)) {
+                $output .= ' ' . $char;
                 $pendingSpace = false;
                 continue;
             }
@@ -2803,6 +2816,104 @@ final class CssMinifier
         return $this->needsSpaceBefore($output, 'a');
     }
 
+    private function needsContainerStyleCustomPropertyTokenSpaceBeforeFunction(string $output, string $css, int $offset): bool
+    {
+        if (($css[$offset] ?? '') !== '(' || $this->nextNonSpace($css, $offset + 1) !== ')') {
+            return false;
+        }
+
+        if ($output === '' || !$this->isIdentifierChar($output[strlen($output) - 1])) {
+            return false;
+        }
+
+        $containerOffset = strripos($output, '@container');
+        if ($containerOffset === false) {
+            return false;
+        }
+
+        $lastBlockOpen = strrpos($output, '{');
+        $lastBlockClose = strrpos($output, '}');
+        $lastBlockDelimiter = max($lastBlockOpen === false ? -1 : $lastBlockOpen, $lastBlockClose === false ? -1 : $lastBlockClose);
+        if ($containerOffset < $lastBlockDelimiter) {
+            return false;
+        }
+
+        $styleOpen = $this->lastUnclosedContainerStyleFunctionOpen($output, $containerOffset + strlen('@container'));
+        if ($styleOpen === null) {
+            return false;
+        }
+
+        $styleInner = substr($output, $styleOpen + 1);
+        $colon = $this->findTopLevelColon($styleInner);
+        if ($colon === null) {
+            return false;
+        }
+
+        return preg_match('/^--[-_a-zA-Z0-9]+$/', trim(substr($styleInner, 0, $colon))) === 1;
+    }
+
+    private function lastUnclosedContainerStyleFunctionOpen(string $output, int $start): ?int
+    {
+        $styleOpen = null;
+        $cursor = $start;
+
+        while (($styleOffset = stripos($output, 'style', $cursor)) !== false) {
+            $open = $this->cssFunctionOpenOffset($output, $styleOffset, 'style');
+            $previous = $styleOffset === 0 ? '' : $output[$styleOffset - 1];
+            if (
+                $open !== null
+                && ($previous === '' || !$this->isIdentifierChar($previous))
+                && $this->isUnclosedFunctionOpen($output, $open)
+            ) {
+                $styleOpen = $open;
+            }
+
+            $cursor = $styleOffset + strlen('style');
+        }
+
+        return $styleOpen;
+    }
+
+    private function isUnclosedFunctionOpen(string $value, int $open): bool
+    {
+        $quote = null;
+        $depth = 0;
+        $length = strlen($value);
+
+        for ($i = $open; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+
+            if ($char === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    return false;
+                }
+            }
+        }
+
+        return $depth > 0;
+    }
+
     private function needsSelectorDescendantSpaceAfterAttribute(string $output, string $css, int $offset): bool
     {
         if ($output === '' || $output[strlen($output) - 1] !== ']') {
@@ -2819,6 +2930,11 @@ final class CssMinifier
     private function startsDescendantPseudoClass(string $css, int $offset): bool
     {
         return preg_match('/^:(?:(?:is|where|not|has|global|local)\(|scope\b)/i', substr($css, $offset)) === 1;
+    }
+
+    private function startsDescendantPseudoElement(string $css, int $offset): bool
+    {
+        return str_starts_with(substr($css, $offset), '::') && $this->isSelectorContextAhead($css, $offset);
     }
 
     private function needsSelectorDescendantSpaceBeforePseudo(string $output): bool

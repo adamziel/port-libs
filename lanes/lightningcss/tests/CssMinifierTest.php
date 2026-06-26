@@ -182,6 +182,23 @@ CSS
             $minifier->minify('button:active:not(:state(disabled))::part(control) {border:1px solid}')
         );
     },
+    'css minifier preserves upstream unknown pseudo element selector boundaries' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_selectors lines 7398, 7400, 7404, 7408, 7416, and 7420.
+        $cases = [
+            [7398, '.foo ::unknown .bar {width: 20px}', '.foo ::unknown .bar{width:20px}'],
+            [7400, '.foo ::unknown(foo) .bar {width: 20px}', '.foo ::unknown(foo) .bar{width:20px}'],
+            [7404, '.foo ::unknown:only-child {width: 20px}', '.foo ::unknown:only-child{width:20px}'],
+            [7408, '.foo ::unknown(.foo) .bar {width: 20px}', '.foo ::unknown(.foo) .bar{width:20px}'],
+            [7416, '.foo ::unknown(something(foo)) .bar {width: 20px}', '.foo ::unknown(something(foo)) .bar{width:20px}'],
+            [7420, '.foo ::unknown([abc]) .bar {width: 20px}', '.foo ::unknown([abc]) .bar{width:20px}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_selectors line ' . $line);
+        }
+    },
     'css minifier maps upstream quoted and unquoted url tokens' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -3456,6 +3473,11 @@ CSS;
         $t->same(
             '@container style(--foo:){.foo{color:red}}',
             $minifier->minify('@container style(--foo: ) { .foo { color: red; } }')
+        );
+        // Pinned upstream 22bdda3d src/lib.rs::test_container_queries line 30513.
+        $t->same(
+            '@container style(--my-prop:foo - bar ()){.foo{color:red}}',
+            $minifier->minify('@container style(--my-prop: foo - bar ()) { .foo { color: red; } }')
         );
         $t->same(
             '@container style(--test){.foo{color:red}}',
