@@ -51,7 +51,7 @@
             "currentWork": "Six-lane PR integration accepted visibility/text-transform/white-space minification,...",
             "nextTarget": "Continue converting the remaining 887 unmapped LightningCSS u...",
             "remainingGate": "Full upstream runner closure is partial: bounded Rust media test and...",
-            "commit": "SOURCE_COMMIT_P..."
+            "commit": "da0c507"
         },
         {
             "lane": "gitoxide",
