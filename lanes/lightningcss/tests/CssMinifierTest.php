@@ -261,6 +261,23 @@ CSS
             $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_selectors line ' . $line);
         }
     },
+    'css minifier maps upstream host slotted and view transition selector tail' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_selectors lines 7242, 7243, 7246, 7250, 7254, and 7258.
+        $cases = [
+            [7242, ':host(:hover) {color: red}', ':host(:hover){color:red}'],
+            [7243, '::slotted(:hover) {color: red}', '::slotted(:hover){color:red}'],
+            [7246, ':root::view-transition {position: fixed}', ':root::view-transition{position:fixed}'],
+            [7250, ':root:active-view-transition {position: fixed}', ':root:active-view-transition{position:fixed}'],
+            [7254, ':root:active-view-transition-type(slide-in) {position: fixed}', ':root:active-view-transition-type(slide-in){position:fixed}'],
+            [7258, ':root:active-view-transition-type(slide-in, reverse) {position: fixed}', ':root:active-view-transition-type(slide-in,reverse){position:fixed}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_selectors line ' . $line);
+        }
+    },
     'css minifier maps upstream quoted and unquoted url tokens' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -3671,6 +3688,11 @@ CSS;
     },
     'css minifier maps upstream media and container error recovery option' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_import line 15559.
+        $validImport = $minifier->minifyWithErrorRecovery("@import './actual-styles.css';", 'import.css');
+        $t->same('@import "./actual-styles.css";', $validImport['code']);
+        $t->same([], $validImport['warnings']);
 
         $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@container unknown(foo) {}'));
 
