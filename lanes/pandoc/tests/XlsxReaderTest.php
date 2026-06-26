@@ -351,6 +351,157 @@ XML,
     ]);
 };
 
+$buildFeatureMetadataXlsxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-xlsx-feature-metadata-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary XLSX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary XLSX package');
+    }
+
+    $zip->addFromString('[Content_Types].xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>
+  <Override PartName="/xl/charts/chart1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml; profile=quarterly"/>
+  <Override PartName="/xl/charts/bad-chart.xml" ContentType="application/xml"/>
+  <Override PartName="/xl/pivotTables/pivotTable1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.pivotTable+xml"/>
+  <Override PartName="/xl/pivotTables/missingPivot.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.pivotTable+xml"/>
+  <Override PartName="/xl/pivotCache/pivotCacheDefinition1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheDefinition+xml"/>
+  <Override PartName="/xl/pivotCache/pivotCacheRecords1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheRecords+xml"/>
+  <Override PartName="/xl/slicers/slicer1.xml" ContentType="application/vnd.ms-excel.slicer+xml"/>
+  <Override PartName="/xl/slicerCaches/slicerCache1.xml" ContentType="application/vnd.ms-excel.slicerCache+xml"/>
+</Types>
+XML);
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('xl/workbook.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+          xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+    <sheet name="Feature Metadata" sheetId="1" r:id="rSheet"/>
+  </sheets>
+  <pivotCaches>
+    <pivotCache cacheId="1" r:id="rPivotCache"/>
+  </pivotCaches>
+</workbook>
+XML);
+    $zip->addFromString('xl/_rels/workbook.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rSheet" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rPivotCache" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotCacheDefinition" Target="pivotCache/pivotCacheDefinition1.xml"/>
+  <Relationship Id="rSlicerCache" Type="http://schemas.microsoft.com/office/2007/relationships/slicerCache" Target="slicerCaches/slicerCache1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('xl/worksheets/sheet1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>
+    <row r="1"><c r="A1" t="inlineStr"><is><t>Report</t></is></c></row>
+  </sheetData>
+</worksheet>
+XML);
+    $zip->addFromString('xl/worksheets/_rels/sheet1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rDrawing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/>
+  <Relationship Id="rPivotTable" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable" Target="../pivotTables/pivotTable1.xml"/>
+  <Relationship Id="rMissingPivot" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable" Target="../pivotTables/missingPivot.xml"/>
+  <Relationship Id="rSlicer" Type="http://schemas.microsoft.com/office/2007/relationships/slicer" Target="../slicers/slicer1.xml"/>
+  <Relationship Id="rExternalSlicer" Type="http://schemas.microsoft.com/office/2007/relationships/slicer" Target="https://example.test/slicer.xml?view=west#slicer" TargetMode="External"/>
+</Relationships>
+XML);
+    $zip->addFromString('xl/drawings/drawing1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
+          xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+          xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"
+          xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <xdr:twoCellAnchor>
+    <xdr:graphicFrame>
+      <a:graphic>
+        <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart">
+          <c:chart r:id="rChart"/>
+        </a:graphicData>
+      </a:graphic>
+    </xdr:graphicFrame>
+  </xdr:twoCellAnchor>
+</xdr:wsDr>
+XML);
+    $zip->addFromString('xl/drawings/_rels/drawing1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rChart" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="../charts/chart1.xml?series=1#main"/>
+  <Relationship Id="rBadChart" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="../charts/bad-chart.xml"/>
+  <Relationship Id="rMissingChart" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="../charts/missing-chart.xml"/>
+  <Relationship Id="rExternalChart" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="https://example.test/chart.xml?remote=1#chart" TargetMode="External"/>
+</Relationships>
+XML);
+    $zip->addFromString('xl/charts/chart1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart">
+  <c:chart><c:title/><c:plotArea/></c:chart>
+</c:chartSpace>
+XML);
+    $zip->addFromString('xl/charts/bad-chart.xml', '<review-chart/>');
+    $zip->addFromString('xl/pivotTables/pivotTable1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<pivotTableDefinition xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" name="PivotTable1" cacheId="1"/>
+XML);
+    $zip->addFromString('xl/pivotCache/pivotCacheDefinition1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<pivotCacheDefinition xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" recordCount="2"/>
+XML);
+    $zip->addFromString('xl/pivotCache/_rels/pivotCacheDefinition1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rRecords" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotCacheRecords" Target="pivotCacheRecords1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('xl/pivotCache/pivotCacheRecords1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<pivotCacheRecords xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="2"/>
+XML);
+    $zip->addFromString('xl/slicers/slicer1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<x:slicers xmlns:x="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main">
+  <x:slicer name="Region" cache="RegionCache"/>
+</x:slicers>
+XML);
+    $zip->addFromString('xl/slicerCaches/slicerCache1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<x:slicerCaches xmlns:x="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main">
+  <x:slicerCache name="RegionCache"/>
+</x:slicerCaches>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary XLSX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 return [
     'matches pinned upstream xlsx reader basic fixture semantics' => static function (TestRunner $t) use ($buildXlsxPackage): void {
         $document = (new XlsxReader())->read($buildXlsxPackage());
@@ -521,6 +672,110 @@ return [
         $t->same('A1:C3', $visibleSheet['tableParts'][0]['ref'] ?? null);
         $t->same('A1:C3', $visibleSheet['tableParts'][0]['autoFilterRef'] ?? null);
         $t->same(3, $visibleSheet['tableParts'][0]['columnCount'] ?? null);
+    },
+
+    'preserves bounded chart pivot and slicer metadata for review without execution' => static function (TestRunner $t) use ($buildFeatureMetadataXlsxPackage): void {
+        $document = (new XlsxReader())->read($buildFeatureMetadataXlsxPackage());
+        $review = $document->attr('xlsx');
+        $features = $review['featureMetadata'];
+        $findPart = static function (array $items, string $partName): array {
+            foreach ($items as $item) {
+                if (($item['partName'] ?? null) === $partName) {
+                    return $item;
+                }
+            }
+
+            throw new RuntimeException('Missing feature metadata item: ' . $partName);
+        };
+        $findExternal = static function (array $items): array {
+            foreach ($items as $item) {
+                if (($item['external'] ?? false) === true) {
+                    return $item;
+                }
+            }
+
+            throw new RuntimeException('Missing external feature metadata item');
+        };
+
+        $t->same(true, $review['contentTypesAvailable'] ?? null);
+        $t->same(null, $review['contentTypesParseError'] ?? null);
+        $t->same('xlsx-feature-metadata-only', $features['summary']['readerPolicy'] ?? null);
+        $t->same('xlsx-feature-part-bytes-blocked', $features['summary']['byteExposurePolicy'] ?? null);
+        $t->same(['chart-rendering', 'pivot-computation', 'formula-evaluation', 'scripting'], $features['summary']['nonGoals'] ?? null);
+        $t->same(12, $features['summary']['count'] ?? null);
+        $t->same(8, $features['summary']['existingCount'] ?? null);
+        $t->same(2, $features['summary']['missingCount'] ?? null);
+        $t->same(2, $features['summary']['externalCount'] ?? null);
+
+        $t->same(1, $features['byKind']['drawing']['count'] ?? null);
+        $t->same(4, $features['byKind']['chart']['count'] ?? null);
+        $t->same(2, $features['byKind']['chart']['existingCount'] ?? null);
+        $t->same(1, $features['byKind']['chart']['missingCount'] ?? null);
+        $t->same(1, $features['byKind']['chart']['externalCount'] ?? null);
+        $t->same(4, $features['byKind']['chart']['relationshipCount'] ?? null);
+        $t->same(2, $features['byKind']['pivotTable']['count'] ?? null);
+        $t->same(1, $features['byKind']['pivotCacheDefinition']['count'] ?? null);
+        $t->same(1, $features['byKind']['pivotCacheRecords']['count'] ?? null);
+        $t->same(2, $features['byKind']['slicer']['count'] ?? null);
+        $t->same(1, $features['byKind']['slicerCache']['count'] ?? null);
+
+        $drawing = $findPart($features['byKind']['drawing']['items'], 'xl/drawings/drawing1.xml');
+        $t->same('drawing-metadata-only', $drawing['reviewPolicy']);
+        $t->same('drawing-part-bytes-blocked', $drawing['byteExposurePolicy']);
+        $t->same('wsDr', $drawing['rootLocalName']);
+        $t->same(true, $drawing['validRoot']);
+        $t->same('xl/worksheets/sheet1.xml', $drawing['relationshipRefs'][0]['sourcePart']);
+
+        $chart = $findPart($features['byKind']['chart']['items'], 'xl/charts/chart1.xml');
+        $t->same('application/vnd.openxmlformats-officedocument.drawingml.chart+xml; profile=quarterly', $chart['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.drawingml.chart+xml', $chart['contentTypeBase']);
+        $t->same(true, $chart['contentTypeMatchesExpected']);
+        $t->same('chartSpace', $chart['rootLocalName']);
+        $t->same(true, $chart['validRoot']);
+        $t->same('xl/drawings/drawing1.xml', $chart['relationshipRefs'][0]['sourcePart']);
+        $t->same('xl/drawings/_rels/drawing1.xml.rels', $chart['relationshipRefs'][0]['relationshipPart']);
+        $t->same('xl/charts/chart1.xml', $chart['relationshipRefs'][0]['targetPart']);
+        $t->same('series=1', $chart['relationshipRefs'][0]['targetQuery']);
+        $t->same('main', $chart['relationshipRefs'][0]['targetFragment']);
+        $t->same('chart-metadata-only', $chart['reviewPolicy']);
+        $t->same('chart-part-bytes-blocked', $chart['byteExposurePolicy']);
+
+        $badChart = $findPart($features['byKind']['chart']['items'], 'xl/charts/bad-chart.xml');
+        $t->same(false, $badChart['contentTypeMatchesExpected']);
+        $t->same(false, $badChart['validRoot']);
+        $t->same(['unexpected-chart-content-type', 'unexpected-chart-root'], $badChart['issues']);
+        $missingChart = $findPart($features['byKind']['chart']['items'], 'xl/charts/missing-chart.xml');
+        $t->same(false, $missingChart['exists']);
+        $t->contains('missing-chart-part', implode(',', $missingChart['issues']));
+        $externalChart = $findExternal($features['byKind']['chart']['items']);
+        $t->same('https://example.test/chart.xml?remote=1#chart', $externalChart['externalTarget']);
+        $t->same(['external-chart-part'], $externalChart['issues']);
+
+        $pivotTable = $findPart($features['byKind']['pivotTable']['items'], 'xl/pivotTables/pivotTable1.xml');
+        $t->same('pivotTableDefinition', $pivotTable['rootLocalName']);
+        $t->same(true, $pivotTable['validRoot']);
+        $t->same('xl/worksheets/sheet1.xml', $pivotTable['relationshipRefs'][0]['sourcePart']);
+        $missingPivot = $findPart($features['byKind']['pivotTable']['items'], 'xl/pivotTables/missingPivot.xml');
+        $t->same(false, $missingPivot['exists']);
+        $t->same(['missing-pivot-table-part'], $missingPivot['issues']);
+        $pivotCache = $findPart($features['byKind']['pivotCacheDefinition']['items'], 'xl/pivotCache/pivotCacheDefinition1.xml');
+        $t->same('pivotCacheDefinition', $pivotCache['rootLocalName']);
+        $t->same('xl/workbook.xml', $pivotCache['relationshipRefs'][0]['sourcePart']);
+        $pivotRecords = $findPart($features['byKind']['pivotCacheRecords']['items'], 'xl/pivotCache/pivotCacheRecords1.xml');
+        $t->same('pivotCacheRecords', $pivotRecords['rootLocalName']);
+        $t->same('xl/pivotCache/pivotCacheDefinition1.xml', $pivotRecords['relationshipRefs'][0]['sourcePart']);
+
+        $slicer = $findPart($features['byKind']['slicer']['items'], 'xl/slicers/slicer1.xml');
+        $t->same('slicers', $slicer['rootLocalName']);
+        $t->same(true, $slicer['validRoot']);
+        $t->same('xl/worksheets/sheet1.xml', $slicer['relationshipRefs'][0]['sourcePart']);
+        $externalSlicer = $findExternal($features['byKind']['slicer']['items']);
+        $t->same('https://example.test/slicer.xml?view=west#slicer', $externalSlicer['externalTarget']);
+        $t->same('view=west', $externalSlicer['relationshipRefs'][0]['targetQuery']);
+        $t->same('slicer', $externalSlicer['relationshipRefs'][0]['targetFragment']);
+        $slicerCache = $findPart($features['byKind']['slicerCache']['items'], 'xl/slicerCaches/slicerCache1.xml');
+        $t->same('slicerCaches', $slicerCache['rootLocalName']);
+        $t->same('xl/workbook.xml', $slicerCache['relationshipRefs'][0]['sourcePart']);
     },
 
     'reads xlsx bytes through the converter input path' => static function (TestRunner $t) use ($buildXlsxPackage): void {

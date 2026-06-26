@@ -9,6 +9,57 @@ final class XlsxReader
     private const OFFICE_DOCUMENT_RELATIONSHIP = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
     private const RELATIONSHIP_NAMESPACE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
     private const MAX_XML_PART_BYTES = 8_388_608;
+    private const FEATURE_SPECS = [
+        'drawing' => [
+            'relationshipTypes' => ['http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing'],
+            'contentTypes' => ['application/vnd.openxmlformats-officedocument.drawing+xml'],
+            'pathMarkers' => ['/drawings/'],
+            'rootNamespace' => 'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing',
+            'rootLocalName' => 'wsDr',
+        ],
+        'chart' => [
+            'relationshipTypes' => ['http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart'],
+            'contentTypes' => ['application/vnd.openxmlformats-officedocument.drawingml.chart+xml'],
+            'pathMarkers' => ['/charts/'],
+            'rootNamespace' => 'http://schemas.openxmlformats.org/drawingml/2006/chart',
+            'rootLocalName' => 'chartSpace',
+        ],
+        'pivotTable' => [
+            'relationshipTypes' => ['http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable'],
+            'contentTypes' => ['application/vnd.openxmlformats-officedocument.spreadsheetml.pivottable+xml'],
+            'pathMarkers' => ['/pivotTables/'],
+            'rootNamespace' => 'http://schemas.openxmlformats.org/spreadsheetml/2006/main',
+            'rootLocalName' => 'pivotTableDefinition',
+        ],
+        'pivotCacheDefinition' => [
+            'relationshipTypes' => ['http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotCacheDefinition'],
+            'contentTypes' => ['application/vnd.openxmlformats-officedocument.spreadsheetml.pivotcachedefinition+xml'],
+            'pathMarkers' => ['/pivotCache/'],
+            'rootNamespace' => 'http://schemas.openxmlformats.org/spreadsheetml/2006/main',
+            'rootLocalName' => 'pivotCacheDefinition',
+        ],
+        'pivotCacheRecords' => [
+            'relationshipTypes' => ['http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotCacheRecords'],
+            'contentTypes' => ['application/vnd.openxmlformats-officedocument.spreadsheetml.pivotcacherecords+xml'],
+            'pathMarkers' => ['/pivotCache/'],
+            'rootNamespace' => 'http://schemas.openxmlformats.org/spreadsheetml/2006/main',
+            'rootLocalName' => 'pivotCacheRecords',
+        ],
+        'slicer' => [
+            'relationshipTypes' => ['http://schemas.microsoft.com/office/2007/relationships/slicer'],
+            'contentTypes' => ['application/vnd.ms-excel.slicer+xml'],
+            'pathMarkers' => ['/slicers/'],
+            'rootNamespace' => 'http://schemas.microsoft.com/office/spreadsheetml/2009/9/main',
+            'rootLocalName' => 'slicers',
+        ],
+        'slicerCache' => [
+            'relationshipTypes' => ['http://schemas.microsoft.com/office/2007/relationships/slicerCache'],
+            'contentTypes' => ['application/vnd.ms-excel.slicercache+xml'],
+            'pathMarkers' => ['/slicerCaches/'],
+            'rootNamespace' => 'http://schemas.microsoft.com/office/spreadsheetml/2009/9/main',
+            'rootLocalName' => 'slicerCaches',
+        ],
+    ];
 
     public function read(string $bytes): AstNode
     {
@@ -28,6 +79,8 @@ final class XlsxReader
         $workbookRelationships = $this->relationshipsOrEmpty($package, $workbookPart);
         $sharedStrings = $this->readSharedStrings($package, $workbookRelationships);
         $styles = $this->readStyles($package, $workbookRelationships);
+        $contentTypeReview = $this->readContentTypesReview($package);
+        $featureMetadata = $this->readFeatureMetadata($package, $contentTypeReview['types']);
 
         $blocks = [];
         $sheetReviews = [];
@@ -121,6 +174,9 @@ final class XlsxReader
                 'tablePartCount' => $tablePartCount,
                 'autoFilterCount' => $autoFilterCount,
                 'sheets' => $sheetReviews,
+                'featureMetadata' => $featureMetadata,
+                'contentTypesAvailable' => $contentTypeReview['available'],
+                'contentTypesParseError' => $contentTypeReview['parseError'],
                 'payloadExposurePolicy' => 'xml-text-only',
                 'formulaPolicy' => 'cached-values-only-no-formula-evaluation',
                 'upstreamEvidence' => [
@@ -168,6 +224,530 @@ final class XlsxReader
         $xml = $package->read($partName, self::MAX_XML_PART_BYTES);
 
         return XmlHtmlDom::loadXmlDocument($xml, $label, false);
+    }
+
+    /**
+     * @return array{available:bool, parseError:?string, types:?OpcContentTypes}
+     */
+    private function readContentTypesReview(ZipPackage $package): array
+    {
+        if (!$package->has('[Content_Types].xml')) {
+            return [
+                'available' => false,
+                'parseError' => null,
+                'types' => null,
+            ];
+        }
+
+        try {
+            return [
+                'available' => true,
+                'parseError' => null,
+                'types' => OpcContentTypes::fromXml($package->read('[Content_Types].xml', self::MAX_XML_PART_BYTES)),
+            ];
+        } catch (\Throwable $exception) {
+            return [
+                'available' => true,
+                'parseError' => $exception->getMessage(),
+                'types' => null,
+            ];
+        }
+    }
+
+    /**
+     * @return array{
+     *     summary:array<string, mixed>,
+     *     byKind:array<string, array{count:int, existingCount:int, missingCount:int, externalCount:int, relationshipCount:int, issueCount:int, issueCodes:list<string>, items:list<array<string, mixed>>}>,
+     *     items:list<array<string, mixed>>
+     * }
+     */
+    private function readFeatureMetadata(ZipPackage $package, ?OpcContentTypes $contentTypes): array
+    {
+        $itemsByKey = [];
+        foreach ($package->names() as $name) {
+            if (str_ends_with($name, '/')) {
+                continue;
+            }
+
+            try {
+                $partName = OpcPackagePath::canonicalPartName($name);
+            } catch (\InvalidArgumentException) {
+                continue;
+            }
+
+            if ($partName === '/[Content_Types].xml' || OpcRelationships::isRelationshipPartName($partName)) {
+                continue;
+            }
+
+            $contentType = $this->contentTypeInfo($contentTypes, $partName);
+            $kind = $this->featureKindForPart($partName, $contentType['contentTypeBase']);
+            if ($kind === null) {
+                continue;
+            }
+
+            $key = $this->featureItemKey($kind, $partName, null);
+            $itemsByKey[$key] = $this->featureItem($kind, $partName, null, true, false, $contentType);
+        }
+
+        $relationshipInventory = $this->packageRelationshipSets($package);
+        foreach ($relationshipInventory['sets'] as $relationshipSet) {
+            $relationships = $relationshipSet['relationships'];
+            foreach ($relationships->all() as $relationship) {
+                $kind = $this->featureKindForRelationship($relationship);
+                if ($kind === null) {
+                    continue;
+                }
+
+                $targetPart = null;
+                $externalTarget = null;
+                $targetSuffix = [
+                    'targetQuery' => null,
+                    'targetFragment' => null,
+                    'targetSuffix' => '',
+                ];
+
+                if ($relationship->isExternal()) {
+                    $externalTarget = $relationship->target;
+                    $targetSuffix = $this->targetSuffix($relationship->target);
+                    $contentType = $this->emptyContentTypeInfo('external');
+                    $key = $this->featureItemKey($kind, null, $relationshipSet['sourcePart'] . ':' . $relationship->id);
+                    if (!isset($itemsByKey[$key])) {
+                        $itemsByKey[$key] = $this->featureItem($kind, null, $externalTarget, false, true, $contentType);
+                    }
+                } else {
+                    try {
+                        $resolvedTarget = $relationships->resolveTarget($relationship);
+                        $targetSuffix = $this->targetSuffix($resolvedTarget);
+                        $targetPart = OpcPackagePath::stripQueryAndFragment($resolvedTarget);
+                    } catch (\Throwable $exception) {
+                        $externalTarget = $relationship->target;
+                        $contentType = $this->emptyContentTypeInfo('unresolved');
+                        $key = $this->featureItemKey($kind, null, $relationshipSet['sourcePart'] . ':' . $relationship->id);
+                        if (!isset($itemsByKey[$key])) {
+                            $itemsByKey[$key] = $this->featureItem($kind, null, $externalTarget, false, false, $contentType);
+                            $itemsByKey[$key]['issues'][] = $this->featureIssueStem($kind) . '-target-resolution-error';
+                            $itemsByKey[$key]['targetResolutionError'] = $exception->getMessage();
+                        }
+                    }
+
+                    if ($targetPart !== null) {
+                        $contentType = $this->contentTypeInfo($contentTypes, $targetPart);
+                        $key = $this->featureItemKey($kind, $targetPart, null);
+                        if (!isset($itemsByKey[$key])) {
+                            $itemsByKey[$key] = $this->featureItem(
+                                $kind,
+                                $targetPart,
+                                null,
+                                $package->has($targetPart),
+                                false,
+                                $contentType
+                            );
+                        }
+                    }
+                }
+
+                $itemsByKey[$key]['relationshipCount']++;
+                $itemsByKey[$key]['relationshipRefs'][] = [
+                    'sourcePart' => ltrim($relationshipSet['sourcePart'], '/'),
+                    'relationshipPart' => ltrim($relationshipSet['relationshipPart'], '/'),
+                    'id' => $relationship->id,
+                    'type' => $relationship->type,
+                    'target' => $relationship->target,
+                    'targetMode' => $relationship->targetMode,
+                    'targetPart' => $targetPart === null ? null : ltrim($targetPart, '/'),
+                    'targetQuery' => $targetSuffix['targetQuery'],
+                    'targetFragment' => $targetSuffix['targetFragment'],
+                    'targetSuffix' => $targetSuffix['targetSuffix'],
+                ];
+            }
+        }
+
+        $items = array_values($itemsByKey);
+        usort($items, static function (array $left, array $right): int {
+            return [
+                $left['kind'],
+                $left['partName'] ?? '',
+                $left['externalTarget'] ?? '',
+            ] <=> [
+                $right['kind'],
+                $right['partName'] ?? '',
+                $right['externalTarget'] ?? '',
+            ];
+        });
+
+        foreach ($items as $index => $item) {
+            $items[$index] = $this->finalizeFeatureItem($package, $item);
+        }
+
+        return $this->featureMetadataSummary($items, $relationshipInventory['parseErrors']);
+    }
+
+    /**
+     * @return array{sets:list<array{sourcePart:string, relationshipPart:string, relationships:OpcRelationships}>, parseErrors:list<array{relationshipPart:string, sourcePart:?string, error:string}>}
+     */
+    private function packageRelationshipSets(ZipPackage $package): array
+    {
+        $sets = [];
+        $parseErrors = [];
+        foreach ($package->names() as $name) {
+            if (str_ends_with($name, '/')) {
+                continue;
+            }
+
+            try {
+                $relationshipPart = OpcPackagePath::canonicalPartName($name);
+                if (!OpcRelationships::isRelationshipPartName($relationshipPart)) {
+                    continue;
+                }
+
+                $sourcePart = OpcRelationships::sourcePartNameForRelationshipPart($relationshipPart);
+            } catch (\Throwable $exception) {
+                $parseErrors[] = [
+                    'relationshipPart' => $name,
+                    'sourcePart' => null,
+                    'error' => $exception->getMessage(),
+                ];
+                continue;
+            }
+
+            try {
+                $sets[] = [
+                    'sourcePart' => $sourcePart,
+                    'relationshipPart' => $relationshipPart,
+                    'relationships' => OpcRelationships::fromPackage($package, $sourcePart),
+                ];
+            } catch (\Throwable $exception) {
+                $parseErrors[] = [
+                    'relationshipPart' => ltrim($relationshipPart, '/'),
+                    'sourcePart' => ltrim($sourcePart, '/'),
+                    'error' => $exception->getMessage(),
+                ];
+            }
+        }
+
+        return [
+            'sets' => $sets,
+            'parseErrors' => $parseErrors,
+        ];
+    }
+
+    /**
+     * @return array{contentType:?string, contentTypeBase:?string, contentTypeSource:string, contentTypeDefaultExtension:?string, contentTypeOverridePartName:?string}
+     */
+    private function contentTypeInfo(?OpcContentTypes $contentTypes, string $partName): array
+    {
+        if (!$contentTypes instanceof OpcContentTypes) {
+            return $this->emptyContentTypeInfo('unavailable');
+        }
+
+        $resolution = $contentTypes->contentTypeResolutionForPart($partName);
+        $contentType = $resolution['contentType'];
+
+        return [
+            'contentType' => $contentType,
+            'contentTypeBase' => is_string($contentType) ? $this->contentTypeBase($contentType) : null,
+            'contentTypeSource' => $resolution['contentTypeSource'],
+            'contentTypeDefaultExtension' => $resolution['defaultExtension'],
+            'contentTypeOverridePartName' => $resolution['overridePartName'] === null
+                ? null
+                : ltrim((string) $resolution['overridePartName'], '/'),
+        ];
+    }
+
+    /**
+     * @return array{contentType:?string, contentTypeBase:?string, contentTypeSource:string, contentTypeDefaultExtension:?string, contentTypeOverridePartName:?string}
+     */
+    private function emptyContentTypeInfo(string $source): array
+    {
+        return [
+            'contentType' => null,
+            'contentTypeBase' => null,
+            'contentTypeSource' => $source,
+            'contentTypeDefaultExtension' => null,
+            'contentTypeOverridePartName' => null,
+        ];
+    }
+
+    private function contentTypeBase(string $contentType): string
+    {
+        return strtolower(trim(explode(';', $contentType, 2)[0]));
+    }
+
+    private function featureKindForRelationship(OpcRelationship $relationship): ?string
+    {
+        foreach (self::FEATURE_SPECS as $kind => $spec) {
+            if (in_array($relationship->type, $spec['relationshipTypes'], true)) {
+                return $kind;
+            }
+        }
+
+        return null;
+    }
+
+    private function featureKindForPart(string $partName, ?string $contentTypeBase): ?string
+    {
+        foreach (self::FEATURE_SPECS as $kind => $spec) {
+            if ($contentTypeBase !== null && in_array($contentTypeBase, $spec['contentTypes'], true)) {
+                return $kind;
+            }
+        }
+
+        $path = strtolower($partName);
+        if (str_contains($path, '/pivotcache/pivotcachedefinition')) {
+            return 'pivotCacheDefinition';
+        }
+        if (str_contains($path, '/pivotcache/pivotcacherecords')) {
+            return 'pivotCacheRecords';
+        }
+        if (str_contains($path, '/slicercaches/')) {
+            return 'slicerCache';
+        }
+
+        foreach (self::FEATURE_SPECS as $kind => $spec) {
+            foreach ($spec['pathMarkers'] as $marker) {
+                if (str_contains($path, strtolower($marker))) {
+                    return $kind;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function featureItemKey(string $kind, ?string $partName, ?string $externalKey): string
+    {
+        if ($partName !== null) {
+            return $kind . ':part:' . ltrim($partName, '/');
+        }
+
+        return $kind . ':external:' . (string) $externalKey;
+    }
+
+    /**
+     * @param array{contentType:?string, contentTypeBase:?string, contentTypeSource:string, contentTypeDefaultExtension:?string, contentTypeOverridePartName:?string} $contentType
+     * @return array<string, mixed>
+     */
+    private function featureItem(
+        string $kind,
+        ?string $partName,
+        ?string $externalTarget,
+        bool $exists,
+        bool $external,
+        array $contentType
+    ): array {
+        $spec = self::FEATURE_SPECS[$kind];
+        $contentTypeMatchesExpected = $contentType['contentTypeBase'] === null
+            ? null
+            : in_array($contentType['contentTypeBase'], $spec['contentTypes'], true);
+        $issueStem = $this->featureIssueStem($kind);
+        $issues = [];
+        if ($external) {
+            $issues[] = 'external-' . $issueStem . '-part';
+        } elseif (!$exists) {
+            $issues[] = 'missing-' . $issueStem . '-part';
+        }
+        if (!$external && $contentType['contentTypeSource'] !== 'unavailable') {
+            if ($contentType['contentTypeBase'] === null) {
+                $issues[] = 'missing-' . $issueStem . '-content-type';
+            } elseif ($contentTypeMatchesExpected !== true) {
+                $issues[] = 'unexpected-' . $issueStem . '-content-type';
+            }
+        }
+
+        return [
+            'kind' => $kind,
+            'partName' => $partName === null ? null : ltrim($partName, '/'),
+            'externalTarget' => $externalTarget,
+            'exists' => $exists,
+            'external' => $external,
+            'contentType' => $contentType['contentType'],
+            'contentTypeBase' => $contentType['contentTypeBase'],
+            'contentTypeSource' => $contentType['contentTypeSource'],
+            'contentTypeDefaultExtension' => $contentType['contentTypeDefaultExtension'],
+            'contentTypeOverridePartName' => $contentType['contentTypeOverridePartName'],
+            'contentTypeMatchesExpected' => $contentTypeMatchesExpected,
+            'expectedContentTypes' => $spec['contentTypes'],
+            'expectedRootNamespace' => $spec['rootNamespace'],
+            'expectedRootLocalName' => $spec['rootLocalName'],
+            'rootNamespace' => null,
+            'rootLocalName' => null,
+            'validRoot' => null,
+            'xmlParseError' => null,
+            'relationshipCount' => 0,
+            'relationshipRefs' => [],
+            'issues' => $issues,
+            'reviewPolicy' => $issueStem . '-metadata-only',
+            'byteExposurePolicy' => $issueStem . '-part-bytes-blocked',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, mixed>
+     */
+    private function finalizeFeatureItem(ZipPackage $package, array $item): array
+    {
+        if (($item['exists'] ?? false) !== true || ($item['external'] ?? false) === true || !is_string($item['partName'] ?? null)) {
+            $item['issues'] = array_values(array_unique($item['issues']));
+            return $item;
+        }
+
+        $partName = (string) $item['partName'];
+        $kind = (string) $item['kind'];
+        $issueStem = $this->featureIssueStem($kind);
+        try {
+            $document = $this->loadPackageXml($package, $partName, 'XLSX ' . $issueStem . ' metadata ' . $partName);
+            $root = $document->documentElement;
+            if ($root instanceof \DOMElement) {
+                $item['rootNamespace'] = $root->namespaceURI;
+                $item['rootLocalName'] = $root->localName;
+                $item['validRoot'] = $root->namespaceURI === $item['expectedRootNamespace']
+                    && $root->localName === $item['expectedRootLocalName'];
+                if ($item['validRoot'] !== true) {
+                    $item['issues'][] = 'unexpected-' . $issueStem . '-root';
+                }
+            } else {
+                $item['validRoot'] = false;
+                $item['issues'][] = 'missing-' . $issueStem . '-root';
+            }
+        } catch (\Throwable $exception) {
+            $item['validRoot'] = false;
+            $item['xmlParseError'] = $exception->getMessage();
+            $item['issues'][] = 'invalid-' . $issueStem . '-xml';
+        }
+
+        $item['issues'] = array_values(array_unique($item['issues']));
+
+        return $item;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @param list<array{relationshipPart:string, sourcePart:?string, error:string}> $relationshipParseErrors
+     * @return array{
+     *     summary:array<string, mixed>,
+     *     byKind:array<string, array{count:int, existingCount:int, missingCount:int, externalCount:int, relationshipCount:int, issueCount:int, issueCodes:list<string>, items:list<array<string, mixed>>}>,
+     *     items:list<array<string, mixed>>
+     * }
+     */
+    private function featureMetadataSummary(array $items, array $relationshipParseErrors): array
+    {
+        $byKind = [];
+        $summary = [
+            'readerPolicy' => 'xlsx-feature-metadata-only',
+            'byteExposurePolicy' => 'xlsx-feature-part-bytes-blocked',
+            'nonGoals' => [
+                'chart-rendering',
+                'pivot-computation',
+                'formula-evaluation',
+                'scripting',
+            ],
+            'relationshipParseErrorCount' => count($relationshipParseErrors),
+            'relationshipParseErrors' => $relationshipParseErrors,
+            'count' => count($items),
+            'existingCount' => count(array_filter($items, static fn (array $item): bool => ($item['exists'] ?? false) === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-' . self::featureIssueStemStatic((string) $item['kind']) . '-part', $item['issues'] ?? [], true))),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => ($item['external'] ?? false) === true)),
+            'relationshipCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['relationshipCount'] ?? 0), $items)),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => ($item['issues'] ?? []) !== [])),
+            'issueCodes' => $this->featureIssueCodes($items),
+            'countsByKind' => [],
+            'existingCountsByKind' => [],
+            'missingCountsByKind' => [],
+            'externalCountsByKind' => [],
+            'relationshipCountsByKind' => [],
+            'issueCountsByKind' => [],
+            'issueCodesByKind' => [],
+        ];
+
+        foreach (array_keys(self::FEATURE_SPECS) as $kind) {
+            $kindItems = array_values(array_filter($items, static fn (array $item): bool => ($item['kind'] ?? '') === $kind));
+            $issueCodes = $this->featureIssueCodes($kindItems);
+            $byKind[$kind] = [
+                'count' => count($kindItems),
+                'existingCount' => count(array_filter($kindItems, static fn (array $item): bool => ($item['exists'] ?? false) === true)),
+                'missingCount' => count(array_filter($kindItems, static fn (array $item): bool => in_array('missing-' . self::featureIssueStemStatic($kind) . '-part', $item['issues'] ?? [], true))),
+                'externalCount' => count(array_filter($kindItems, static fn (array $item): bool => ($item['external'] ?? false) === true)),
+                'relationshipCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['relationshipCount'] ?? 0), $kindItems)),
+                'issueCount' => count(array_filter($kindItems, static fn (array $item): bool => ($item['issues'] ?? []) !== [])),
+                'issueCodes' => $issueCodes,
+                'items' => $kindItems,
+            ];
+            $summary['countsByKind'][$kind] = $byKind[$kind]['count'];
+            $summary['existingCountsByKind'][$kind] = $byKind[$kind]['existingCount'];
+            $summary['missingCountsByKind'][$kind] = $byKind[$kind]['missingCount'];
+            $summary['externalCountsByKind'][$kind] = $byKind[$kind]['externalCount'];
+            $summary['relationshipCountsByKind'][$kind] = $byKind[$kind]['relationshipCount'];
+            $summary['issueCountsByKind'][$kind] = $byKind[$kind]['issueCount'];
+            $summary['issueCodesByKind'][$kind] = $issueCodes;
+        }
+
+        return [
+            'summary' => $summary,
+            'byKind' => $byKind,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @return list<string>
+     */
+    private function featureIssueCodes(array $items): array
+    {
+        $issueCodes = [];
+        foreach ($items as $item) {
+            foreach (($item['issues'] ?? []) as $issue) {
+                if (is_string($issue) && !in_array($issue, $issueCodes, true)) {
+                    $issueCodes[] = $issue;
+                }
+            }
+        }
+        sort($issueCodes);
+
+        return $issueCodes;
+    }
+
+    private function featureIssueStem(string $kind): string
+    {
+        return self::featureIssueStemStatic($kind);
+    }
+
+    private static function featureIssueStemStatic(string $kind): string
+    {
+        $stem = preg_replace('/(?<!^)[A-Z]/', '-$0', $kind);
+
+        return strtolower(is_string($stem) ? $stem : $kind);
+    }
+
+    /**
+     * @return array{targetQuery:?string, targetFragment:?string, targetSuffix:string}
+     */
+    private function targetSuffix(string $target): array
+    {
+        $offset = strcspn($target, '?#');
+        $suffix = substr($target, $offset);
+        $query = null;
+        $fragment = null;
+        if ($suffix !== '') {
+            if ($suffix[0] === '?') {
+                $fragmentOffset = strpos($suffix, '#');
+                if ($fragmentOffset === false) {
+                    $query = substr($suffix, 1);
+                } else {
+                    $query = substr($suffix, 1, $fragmentOffset - 1);
+                    $fragment = substr($suffix, $fragmentOffset + 1);
+                }
+            } elseif ($suffix[0] === '#') {
+                $fragment = substr($suffix, 1);
+            }
+        }
+
+        return [
+            'targetQuery' => $query,
+            'targetFragment' => $fragment,
+            'targetSuffix' => $suffix,
+        ];
     }
 
     /**
