@@ -15349,7 +15349,9 @@ final class XmlHtmlDom
                 'blockingTokens' => $blockingRaw === null ? [] : self::spaceSeparatedTokens($blockingRaw),
             ];
 
-            return $summary + self::linkResourceReviewSummary($element, $relRaw);
+            return $summary
+                + self::linkResourceReviewSummary($element, $relRaw)
+                + self::srcsetResourceReviewSummary($imageSrcset, 'imageSrcset');
         }
 
         $content = self::attributeOrNull($element, 'content');
@@ -24873,6 +24875,7 @@ final class XmlHtmlDom
             'fetchpriority' => self::attributeOrNull($image, 'fetchpriority'),
         ];
         $summary += self::imageLoadingReviewSummary($image);
+        $summary += self::srcsetResourceReviewSummary($srcset, 'srcset');
 
         if ($image->hasAttribute('usemap')) {
             $useMap = self::useMapAttributeSummary($image->getAttribute('usemap'));
@@ -25551,7 +25554,7 @@ final class XmlHtmlDom
     }
 
     /**
-     * @return array{src:?string, srcset:?string, srcsetCandidates:list<array<string, mixed>>, type:?string, media:?string, sizes:?string}
+     * @return array<string, mixed>
      */
     private static function sourceElementSummary(\DOMElement $source): array
     {
@@ -25564,7 +25567,7 @@ final class XmlHtmlDom
             'type' => self::attributeOrNull($source, 'type'),
             'media' => self::attributeOrNull($source, 'media'),
             'sizes' => self::attributeOrNull($source, 'sizes'),
-        ];
+        ] + self::srcsetResourceReviewSummary($srcset, 'srcset');
     }
 
     /**
@@ -26294,7 +26297,7 @@ final class XmlHtmlDom
         }
 
         $candidates = [];
-        foreach (explode(',', $srcset) as $candidate) {
+        foreach (self::splitSrcsetCandidates($srcset) as $candidate) {
             $raw = trim($candidate);
             if ($raw === '') {
                 continue;
@@ -26316,6 +26319,202 @@ final class XmlHtmlDom
         }
 
         return $candidates;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function srcsetResourceReviewSummary(?string $srcset, string $keyPrefix): array
+    {
+        if ($srcset === null) {
+            return [];
+        }
+
+        $candidates = self::srcsetCandidateSummaries($srcset);
+        $records = [];
+        $issues = [];
+        $unsafeUrls = [];
+        $remoteUrls = [];
+        $descriptorKinds = [];
+        $descriptorCounts = [];
+        $duplicateDescriptors = [];
+        $invalidDescriptors = [];
+
+        foreach ($candidates as $index => $candidate) {
+            $url = $candidate['url'];
+            $urlSummary = self::hyperlinkUrlReviewSummary($url);
+            $descriptor = self::srcsetDescriptorReviewSummary($candidate['descriptors']);
+            $descriptorKind = $descriptor['descriptorKind'];
+            $descriptorNormalized = $descriptor['descriptorNormalized'];
+
+            if ($descriptorKind !== 'implicit') {
+                $descriptorKinds[$descriptorKind] = true;
+            }
+            if ($descriptorNormalized !== null) {
+                $descriptorCounts[$descriptorNormalized] = ($descriptorCounts[$descriptorNormalized] ?? 0) + 1;
+                if ($descriptorCounts[$descriptorNormalized] > 1 && !in_array($descriptorNormalized, $duplicateDescriptors, true)) {
+                    $duplicateDescriptors[] = $descriptorNormalized;
+                }
+            }
+
+            if ($urlSummary['unsafe']) {
+                $unsafeUrls[] = $url;
+                $issues[] = [
+                    'code' => 'unsafe-srcset-url',
+                    'candidateIndex' => $index,
+                    'url' => $url,
+                    'scheme' => $urlSummary['scheme'],
+                ];
+            }
+            if ($urlSummary['kind'] === 'absolute' && in_array($urlSummary['scheme'], ['http', 'https'], true)) {
+                $remoteUrls[] = $url;
+            }
+            if (!$descriptor['descriptorValid']) {
+                $invalidDescriptors[] = $candidate['descriptor'];
+                $issues[] = [
+                    'code' => 'invalid-srcset-descriptor',
+                    'candidateIndex' => $index,
+                    'descriptor' => $candidate['descriptor'],
+                ];
+            }
+
+            $records[] = [
+                'index' => $index,
+                'raw' => $candidate['raw'],
+                'url' => $url,
+                'urlKind' => $urlSummary['kind'],
+                'urlScheme' => $urlSummary['scheme'],
+                'urlUnsafe' => $urlSummary['unsafe'],
+                'descriptorRaw' => $candidate['descriptor'],
+                'descriptors' => $candidate['descriptors'],
+            ] + $descriptor;
+        }
+
+        if (isset($descriptorKinds['width'], $descriptorKinds['pixel-density'])) {
+            $issues[] = ['code' => 'mixed-srcset-descriptor-kinds'];
+        }
+        foreach ($duplicateDescriptors as $descriptor) {
+            $issues[] = [
+                'code' => 'duplicate-srcset-descriptor',
+                'descriptor' => $descriptor,
+                'count' => $descriptorCounts[$descriptor],
+            ];
+        }
+
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+
+        return [
+            $keyPrefix . 'ResourceReviewPolicy' => 'html-srcset-resource-metadata-review',
+            $keyPrefix . 'CandidateCount' => count($candidates),
+            $keyPrefix . 'CandidateUrls' => array_values(array_map(
+                static fn (array $candidate): string => (string) $candidate['url'],
+                $candidates
+            )),
+            $keyPrefix . 'CandidateUrlRecords' => $records,
+            $keyPrefix . 'RemoteUrls' => $remoteUrls,
+            $keyPrefix . 'RemoteUrlCount' => count($remoteUrls),
+            $keyPrefix . 'UnsafeUrls' => $unsafeUrls,
+            $keyPrefix . 'InvalidDescriptors' => $invalidDescriptors,
+            $keyPrefix . 'DuplicateDescriptors' => $duplicateDescriptors,
+            $keyPrefix . 'DescriptorKinds' => array_keys($descriptorKinds),
+            $keyPrefix . 'Issues' => $issues,
+            $keyPrefix . 'IssueCodes' => $issueCodes,
+            $keyPrefix . 'Valid' => $issues === [],
+        ];
+    }
+
+    /**
+     * @param list<string> $descriptors
+     * @return array{descriptorKind:string, descriptorValue:int|float|null, descriptorNormalized:?string, descriptorValid:bool}
+     */
+    private static function srcsetDescriptorReviewSummary(array $descriptors): array
+    {
+        if ($descriptors === []) {
+            return [
+                'descriptorKind' => 'implicit',
+                'descriptorValue' => null,
+                'descriptorNormalized' => null,
+                'descriptorValid' => true,
+            ];
+        }
+
+        if (count($descriptors) !== 1) {
+            return [
+                'descriptorKind' => 'invalid',
+                'descriptorValue' => null,
+                'descriptorNormalized' => implode(' ', $descriptors),
+                'descriptorValid' => false,
+            ];
+        }
+
+        $descriptor = strtolower($descriptors[0]);
+        if (preg_match('/^([0-9]+)w$/', $descriptor, $width) === 1) {
+            $pixels = (int) $width[1];
+
+            return [
+                'descriptorKind' => 'width',
+                'descriptorValue' => $pixels > 0 ? $pixels : null,
+                'descriptorNormalized' => $pixels > 0 ? $pixels . 'w' : $descriptor,
+                'descriptorValid' => $pixels > 0,
+            ];
+        }
+
+        if (preg_match('/^(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)x$/', $descriptor) === 1) {
+            $density = (float) substr($descriptor, 0, -1);
+
+            return [
+                'descriptorKind' => 'pixel-density',
+                'descriptorValue' => $density > 0.0 ? $density : null,
+                'descriptorNormalized' => $descriptor,
+                'descriptorValid' => $density > 0.0,
+            ];
+        }
+
+        return [
+            'descriptorKind' => 'invalid',
+            'descriptorValue' => null,
+            'descriptorNormalized' => $descriptor,
+            'descriptorValid' => false,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function splitSrcsetCandidates(string $value): array
+    {
+        $candidates = [];
+        $start = 0;
+        $offset = 0;
+
+        while (($comma = strpos($value, ',', $offset)) !== false) {
+            $candidatePrefix = substr($value, $start, $comma - $start);
+            if (self::isDataUrlPayloadComma($candidatePrefix)) {
+                $offset = $comma + 1;
+                continue;
+            }
+
+            $candidates[] = $candidatePrefix;
+            $start = $comma + 1;
+            $offset = $start;
+        }
+
+        $candidates[] = substr($value, $start);
+
+        return $candidates;
+    }
+
+    private static function isDataUrlPayloadComma(string $candidatePrefix): bool
+    {
+        $trimmed = trim($candidatePrefix);
+        if ($trimmed === '' || preg_match('/[\x00-\x20]/', $trimmed) === 1) {
+            return false;
+        }
+
+        return preg_match('/^data:[^,]*$/i', $trimmed) === 1;
     }
 
     private static function attributeOrNull(\DOMElement $element, string $name): ?string
