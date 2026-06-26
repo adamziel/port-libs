@@ -940,6 +940,7 @@ final class WordPressBlockWriter
     {
         return in_array($node->type, [
             'text',
+            'space',
             'emph',
             'strong',
             'small_caps',
@@ -1750,6 +1751,11 @@ final class WordPressBlockWriter
                 continue;
             }
 
+            if ($stripFollowingSpace && $node->type === 'space') {
+                $stripFollowingSpace = false;
+                continue;
+            }
+
             $stripGlyph = false;
             $stripFollowingSpace = false;
             $html .= $this->renderInlineNode($node);
@@ -1771,6 +1777,7 @@ final class WordPressBlockWriter
 
         return match ($node->type) {
             'text' => $this->esc((string) $node->attr('text', '')),
+            'space' => ' ',
             'emph' => '<em>' . $this->renderInlines($node) . '</em>',
             'strong' => '<strong>' . $this->renderInlines($node) . '</strong>',
             'small_caps' => '<span style="font-variant:small-caps">' . $this->renderInlines($node) . '</span>',
