@@ -214,6 +214,267 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * Resolve content types for a caller-selected part list without reading the selected part payloads.
+     *
+     * The selection policy is intentionally narrow: callers provide exact OPC part names or URI
+     * references, query and fragment suffixes are ignored for content-type resolution, and package
+     * existence is matched by OPC's case-insensitive part-name equivalence key.
+     *
+     * @param list<string> $selectedPartNames
+     * @return array<string, mixed>
+     */
+    public static function preflightSelectedContentTypes(ZipPackage $package, array $selectedPartNames): array
+    {
+        $contentTypesItemName = self::contentTypesItemNameInPackage($package);
+        $contentTypes = null;
+        $contentTypesParseError = null;
+        if ($contentTypesItemName !== null) {
+            try {
+                $contentTypes = OpcContentTypes::fromXml($package->read($contentTypesItemName));
+            } catch (\Throwable $exception) {
+                $contentTypesParseError = $exception->getMessage();
+            }
+        }
+
+        $packagePartNamesByEquivalenceKey = self::packagePartNamesByEquivalenceKey($package);
+        $firstSelectedIndexByEquivalenceKey = [];
+        $records = [];
+
+        foreach ($selectedPartNames as $selectedIndex => $selectedPartName) {
+            $record = [
+                'selectedIndex' => $selectedIndex,
+                'selectedPartName' => $selectedPartName,
+                'partName' => null,
+                'equivalenceKey' => null,
+                'packagePartName' => null,
+                'exists' => false,
+                'matchKind' => 'invalid',
+                'partNameExactMatch' => false,
+                'partNameEquivalentMatch' => false,
+                'duplicateOfIndex' => null,
+                'contentType' => null,
+                'contentTypeSource' => null,
+                'contentTypeDefaultExtension' => null,
+                'contentTypeOverridePartName' => null,
+                'contentTypeOverridePartNameExactMatch' => null,
+                'contentTypeOverridePartNameEquivalentMatch' => null,
+                'valid' => true,
+                'issues' => [],
+                'parseError' => null,
+            ];
+
+            try {
+                $partName = OpcPackagePath::canonicalPartNameFromUri(
+                    OpcPackagePath::stripQueryAndFragment($selectedPartName)
+                );
+                $equivalenceKey = self::partNameEquivalenceKey($partName);
+                $packagePartName = $packagePartNamesByEquivalenceKey[$equivalenceKey] ?? null;
+
+                $record['partName'] = $partName;
+                $record['equivalenceKey'] = $equivalenceKey;
+                $record['packagePartName'] = $packagePartName;
+                $record['exists'] = $packagePartName !== null;
+                $record['matchKind'] = $packagePartName === null
+                    ? 'missing'
+                    : ($packagePartName === $partName ? 'exact' : 'equivalent');
+                $record['partNameExactMatch'] = $packagePartName === $partName;
+                $record['partNameEquivalentMatch'] = $packagePartName !== null && $packagePartName !== $partName;
+
+                if ($packagePartName === null) {
+                    $record['issues'][] = 'selected-part-missing';
+                }
+
+                if (isset($firstSelectedIndexByEquivalenceKey[$equivalenceKey])) {
+                    $record['duplicateOfIndex'] = $firstSelectedIndexByEquivalenceKey[$equivalenceKey];
+                    $record['issues'][] = 'duplicate-selected-part';
+                } else {
+                    $firstSelectedIndexByEquivalenceKey[$equivalenceKey] = $selectedIndex;
+                }
+
+                if ($contentTypes instanceof OpcContentTypes) {
+                    $resolution = $contentTypes->contentTypeResolutionForPart($selectedPartName);
+                    $record['contentType'] = $resolution['contentType'];
+                    $record['contentTypeSource'] = $resolution['contentTypeSource'];
+                    $record['contentTypeDefaultExtension'] = $resolution['defaultExtension'];
+                    $record['contentTypeOverridePartName'] = $resolution['overridePartName'];
+                    $record['contentTypeOverridePartNameExactMatch'] = $resolution['overridePartNameExactMatch'];
+                    $record['contentTypeOverridePartNameEquivalentMatch'] = $resolution['overridePartNameEquivalentMatch'];
+
+                    if ($resolution['contentType'] === null) {
+                        $record['issues'][] = 'missing-content-type';
+                        if (self::partNameExtension($partName) === '') {
+                            $record['issues'][] = 'missing-content-type-extension';
+                        } else {
+                            $record['issues'][] = 'missing-content-type-default';
+                        }
+                    }
+                }
+            } catch (\InvalidArgumentException $exception) {
+                $record['parseError'] = $exception->getMessage();
+                $record['issues'][] = 'invalid-selected-part-name';
+            }
+
+            $record['issues'] = array_values(array_unique($record['issues']));
+            $record['valid'] = $record['issues'] === [];
+            $records[] = $record;
+        }
+
+        $issueCounts = [];
+        $issues = [];
+        $partNamesByIssue = [];
+        $selectedPartNamesByIssue = [];
+        $contentTypeSourceCounts = [];
+        $partNamesByContentTypeSource = [];
+        $selectedPartNamesByContentTypeSource = [];
+        $selectedPartNamesByMatchKind = [];
+        $selectedPartCount = count($records);
+        $uniqueSelectedPartCount = count($firstSelectedIndexByEquivalenceKey);
+        $duplicateSelectedPartCount = 0;
+        $invalidSelectedPartCount = 0;
+        $existingSelectedPartCount = 0;
+        $missingSelectedPartCount = 0;
+        $exactSelectedPartCount = 0;
+        $equivalentSelectedPartCount = 0;
+        $contentTypeResolvedPartCount = 0;
+        $contentTypeDefaultResolvedPartCount = 0;
+        $contentTypeOverrideResolvedPartCount = 0;
+        $missingContentTypePartCount = 0;
+        $missingContentTypeDefaultCount = 0;
+        $missingContentTypeExtensionlessCount = 0;
+        $missingContentTypeParts = [];
+        $missingSelectedPartNames = [];
+        $duplicateSelectedPartNames = [];
+        $invalidSelectedPartNames = [];
+
+        if ($contentTypesItemName === null) {
+            $issueCounts['missing-content-types-item'] = 1;
+            $issues[] = 'missing-content-types-item';
+            $partNamesByIssue['missing-content-types-item'] = ['/[Content_Types].xml'];
+        } elseif (!$contentTypes instanceof OpcContentTypes) {
+            $issueCounts['content-types-xml-parse-error'] = 1;
+            $issues[] = 'content-types-xml-parse-error';
+            $partNamesByIssue['content-types-xml-parse-error'] = ['/[Content_Types].xml'];
+        }
+
+        foreach ($records as $record) {
+            if ($record['partName'] === null) {
+                $invalidSelectedPartCount++;
+                $invalidSelectedPartNames[] = $record['selectedPartName'];
+            } else {
+                $selectedPartNamesByMatchKind[$record['matchKind']] ??= [];
+                self::appendUniqueString($selectedPartNamesByMatchKind[$record['matchKind']], $record['selectedPartName']);
+            }
+
+            if ($record['exists']) {
+                $existingSelectedPartCount++;
+                if ($record['partNameExactMatch']) {
+                    $exactSelectedPartCount++;
+                } elseif ($record['partNameEquivalentMatch']) {
+                    $equivalentSelectedPartCount++;
+                }
+            } elseif ($record['partName'] !== null) {
+                $missingSelectedPartCount++;
+                self::appendUniqueString($missingSelectedPartNames, $record['partName']);
+            }
+
+            if ($record['duplicateOfIndex'] !== null) {
+                $duplicateSelectedPartCount++;
+                self::appendUniqueString($duplicateSelectedPartNames, $record['selectedPartName']);
+            }
+
+            if (is_string($record['contentTypeSource'])) {
+                $contentTypeSourceCounts[$record['contentTypeSource']] = ($contentTypeSourceCounts[$record['contentTypeSource']] ?? 0) + 1;
+                $partNamesByContentTypeSource[$record['contentTypeSource']] ??= [];
+                $selectedPartNamesByContentTypeSource[$record['contentTypeSource']] ??= [];
+                if ($record['partName'] !== null) {
+                    self::appendUniqueString($partNamesByContentTypeSource[$record['contentTypeSource']], $record['partName']);
+                }
+                self::appendUniqueString($selectedPartNamesByContentTypeSource[$record['contentTypeSource']], $record['selectedPartName']);
+
+                if ($record['contentTypeSource'] === 'default') {
+                    $contentTypeResolvedPartCount++;
+                    $contentTypeDefaultResolvedPartCount++;
+                } elseif ($record['contentTypeSource'] === 'override') {
+                    $contentTypeResolvedPartCount++;
+                    $contentTypeOverrideResolvedPartCount++;
+                } elseif ($record['contentTypeSource'] === 'missing') {
+                    $missingContentTypePartCount++;
+                    if ($record['partName'] !== null) {
+                        self::appendUniqueString($missingContentTypeParts, $record['partName']);
+                        if (self::partNameExtension($record['partName']) === '') {
+                            $missingContentTypeExtensionlessCount++;
+                        } else {
+                            $missingContentTypeDefaultCount++;
+                        }
+                    }
+                }
+            }
+
+            foreach ($record['issues'] as $issue) {
+                $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+                self::appendUniqueString($issues, $issue);
+                $selectedPartNamesByIssue[$issue] ??= [];
+                self::appendUniqueString($selectedPartNamesByIssue[$issue], $record['selectedPartName']);
+                if ($record['partName'] !== null) {
+                    $partNamesByIssue[$issue] ??= [];
+                    self::appendUniqueString($partNamesByIssue[$issue], $record['partName']);
+                }
+            }
+        }
+
+        ksort($issueCounts);
+        sort($issues, SORT_STRING);
+        ksort($contentTypeSourceCounts);
+        sort($missingContentTypeParts, SORT_STRING);
+        sort($missingSelectedPartNames, SORT_STRING);
+        sort($duplicateSelectedPartNames, SORT_STRING);
+        sort($invalidSelectedPartNames, SORT_STRING);
+        self::sortStringListMap($partNamesByIssue);
+        self::sortStringListMap($selectedPartNamesByIssue);
+        self::sortStringListMap($partNamesByContentTypeSource);
+        self::sortStringListMap($selectedPartNamesByContentTypeSource);
+        self::sortStringListMap($selectedPartNamesByMatchKind);
+
+        return [
+            'valid' => $issueCounts === [],
+            'selectionPolicy' => 'caller-provided-part-list',
+            'normalizesQueryAndFragment' => true,
+            'matchesEquivalentPartNames' => true,
+            'readsSelectedPartPayloadBytes' => false,
+            'contentTypesItemPresent' => $contentTypesItemName !== null,
+            'contentTypeDeclarationAvailable' => $contentTypes instanceof OpcContentTypes,
+            'contentTypesParseError' => $contentTypesParseError,
+            'selectedPartCount' => $selectedPartCount,
+            'uniqueSelectedPartCount' => $uniqueSelectedPartCount,
+            'duplicateSelectedPartCount' => $duplicateSelectedPartCount,
+            'invalidSelectedPartCount' => $invalidSelectedPartCount,
+            'existingSelectedPartCount' => $existingSelectedPartCount,
+            'missingSelectedPartCount' => $missingSelectedPartCount,
+            'exactSelectedPartCount' => $exactSelectedPartCount,
+            'equivalentSelectedPartCount' => $equivalentSelectedPartCount,
+            'contentTypeResolvedPartCount' => $contentTypeResolvedPartCount,
+            'contentTypeDefaultResolvedPartCount' => $contentTypeDefaultResolvedPartCount,
+            'contentTypeOverrideResolvedPartCount' => $contentTypeOverrideResolvedPartCount,
+            'missingContentTypePartCount' => $missingContentTypePartCount,
+            'missingContentTypeDefaultCount' => $missingContentTypeDefaultCount,
+            'missingContentTypeExtensionlessCount' => $missingContentTypeExtensionlessCount,
+            'missingContentTypeParts' => $missingContentTypeParts,
+            'missingSelectedPartNames' => $missingSelectedPartNames,
+            'duplicateSelectedPartNames' => $duplicateSelectedPartNames,
+            'invalidSelectedPartNames' => $invalidSelectedPartNames,
+            'issueCounts' => $issueCounts,
+            'issues' => $issues,
+            'partNamesByIssue' => $partNamesByIssue,
+            'selectedPartNamesByIssue' => $selectedPartNamesByIssue,
+            'contentTypeSourceCounts' => $contentTypeSourceCounts,
+            'partNamesByContentTypeSource' => $partNamesByContentTypeSource,
+            'selectedPartNamesByContentTypeSource' => $selectedPartNamesByContentTypeSource,
+            'selectedPartNamesByMatchKind' => $selectedPartNamesByMatchKind,
+            'records' => $records,
+        ];
+    }
+
+    /**
      * @return array{valid:bool, entryCount:int, packagePartCount:int, directoryEntryCount:int, invalidPartCount:int, invalidPartNames:list<string>, issues:list<string>, parts:list<array{entryName:string, partName:?string, isDirectory:bool, isPackagePart:bool, valid:bool, issues:list<string>, parseError:?string}>}
      */
     public static function preflightPackagePartNames(ZipPackage $package): array
