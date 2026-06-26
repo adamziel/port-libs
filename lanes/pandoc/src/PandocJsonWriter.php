@@ -47,6 +47,7 @@ final class PandocJsonWriter
         'mathTypeConstructor',
         'mathTypeNative',
         'native',
+        'nativeInlineConstructors',
         'nativeInlineParts',
         'quoteTypeConstructor',
         'quoteTypeNative',
