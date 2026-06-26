@@ -17,7 +17,7 @@ return [
         if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
             throw new RuntimeException('Unable to create temporary XLSX package');
         }
-        $zip->addFromString('[Content_Types].xml', '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/><Override PartName="/xl/comments1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml"/><Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>');
+        $zip->addFromString('[Content_Types].xml', '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/><Override PartName="/xl/tables/table1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml"/><Override PartName="/xl/comments1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml"/><Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>');
         $zip->addFromString('_rels/.rels', '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdOffice" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>');
         $zip->addFromString('docProps/core.xml', '<?xml version="1.0"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/"><dc:title>XLSX Reader Demo</dc:title><dc:creator>Port Libs</dc:creator><dc:description>Bounded XLSX reader smoke.</dc:description><cp:keywords>sheets,import</cp:keywords><dcterms:created>2026-06-25T00:00:00Z</dcterms:created></cp:coreProperties>');
         $zip->addFromString('xl/workbook.xml', <<<'XML'
@@ -77,11 +77,28 @@ XML);
     <row r="8"><c r="A8" t="inlineStr"><is><t>Formula row</t></is></c><c r="B8"><f>SUM(B2:B7)</f><v>38</v></c><c r="C8" t="e"><f t="array" ref="C8:C9" si="4">1/0</f><v>#DIV/0!</v></c></row>
   </sheetData>
   <mergeCells count="1"><mergeCell ref="A4:B4"/></mergeCells>
+  <autoFilter ref="A1:C8"/>
   <hyperlinks><hyperlink ref="C4" r:id="rIdLink" tooltip="XLSX link"/></hyperlinks>
   <drawing r:id="rIdDrawing"/>
+  <tableParts count="1"><tablePart r:id="rIdTable"/></tableParts>
 </worksheet>
 XML);
-        $zip->addFromString('xl/worksheets/_rels/sheet1.xml.rels', '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/xlsx" TargetMode="External"/><Relationship Id="rIdDrawing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/><Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="../comments1.xml"/></Relationships>');
+        $zip->addFromString('xl/worksheets/_rels/sheet1.xml.rels', '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/xlsx" TargetMode="External"/><Relationship Id="rIdDrawing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/><Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="../comments1.xml"/><Relationship Id="rIdTable" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/table" Target="../tables/table1.xml"/></Relationships>');
+        $zip->addFromString('xl/tables/table1.xml', <<<'XML'
+<?xml version="1.0"?>
+<table
+  xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+  id="1"
+  name="PeopleTable"
+  displayName="People Table"
+  ref="A1:C8"
+  headerRowCount="1"
+  totalsRowCount="0">
+  <autoFilter ref="A1:C8"/>
+  <tableColumns count="3"><tableColumn id="1" name="Person"/><tableColumn id="2" name="Age"/><tableColumn id="3" name="Location"/></tableColumns>
+  <tableStyleInfo name="TableStyleMedium2" showFirstColumn="0" showLastColumn="0" showRowStripes="1" showColumnStripes="0"/>
+</table>
+XML);
         $zip->addFromString('xl/comments1.xml', <<<'XML'
 <?xml version="1.0"?>
 <comments xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
@@ -147,6 +164,15 @@ XML);
         $t->same('Secondary', $document->children[1]->children[0]->attr('text'));
         $t->same('hidden', $document->children[1]->attr('attributes')['data-xlsx-sheet-state']);
         $table = $document->children[0]->children[1];
+        $tableAttrs = $table->attr('htmlAttributes');
+        $t->same('A1:C8', $tableAttrs['data-xlsx-auto-filter-ref']);
+        $t->same('1', $tableAttrs['data-xlsx-table-count']);
+        $t->same('PeopleTable', $tableAttrs['data-xlsx-table-names']);
+        $t->same('People Table', $tableAttrs['data-xlsx-table-display-names']);
+        $t->same('A1:C8', $tableAttrs['data-xlsx-table-refs']);
+        $t->same('TableStyleMedium2', $tableAttrs['data-xlsx-table-style-names']);
+        $t->same('Person,Age,Location', $tableAttrs['data-xlsx-table-columns']);
+        $t->same('true', $tableAttrs['data-xlsx-table-show-row-stripes']);
         $body = $table->children[1];
         $commentedCell = $body->children[0]->children[0];
         $mergedCell = $body->children[2]->children[0];
@@ -202,6 +228,8 @@ XML);
         $t->same('B7', $image->attr('attributes')['data-xlsx-anchor']);
         $t->same('D13', $image->attr('attributes')['data-xlsx-anchor-to']);
         $t->contains('class="xlsx-sheet"', $blocks);
+        $t->contains('data-xlsx-table-count="1"', $blocks);
+        $t->contains('data-xlsx-table-style-names="TableStyleMedium2"', $blocks);
         $t->contains('<h2 id="sheet-1">Main</h2>', $blocks);
         $t->contains('<strong>Person</strong>', $blocks);
         $t->contains('Ada Lovelace', $blocks);

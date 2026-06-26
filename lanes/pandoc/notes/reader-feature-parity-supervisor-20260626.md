@@ -13,9 +13,9 @@
 ## Current Checkpoint
 - CSV/TSV: dialect detection, comments, alternate quote/escape, encoding/BOM handling, ragged/headerless rows, and column type metadata have focused tests.
 - BibTeX/BibLaTeX: string/xdata inheritance, date aliases, name particles, field aliases, TeX accent/URL cleanup, and data-only entry filtering have focused tests.
-- XLSX: merged cells, hyperlinks, rich text, date/number formats, cell style attributes, formula/error metadata, and worksheet drawing images have focused tests.
+- XLSX: merged cells, hyperlinks, rich text, date/number formats, cell style attributes, formula/error metadata, worksheet table/autofilter metadata, and worksheet drawing images have focused tests.
 - PPTX: images with geometry/crop metadata, notes, lists, hyperlinks, merged table cells, layout/master/theme path metadata, theme table colors, side-specific table border metadata, and chart data extraction have focused tests.
-- DOCX: comments, inserted/deleted revisions, style spans, direct run font/color/highlight metadata, headers/footers, notes, numbering, bookmarks, fields, and OMML have focused tests.
+- DOCX: comments, inserted/deleted revisions, style spans, direct run font/color/highlight metadata, headers/footers, notes, numbering, bookmarks, simple and split complex fields, and OMML have focused tests.
 - Polecat control-plane note: `gt polecat list --all --json` and `gt polecat list port_libs --json` timed out during the 2026-06-26 continuation pass, so the supervisor kept implementation moving in the integration worktree instead of waiting on idle-worker discovery.
 
 ## Non-Goals
@@ -81,6 +81,6 @@
 - Still open after this integration:
   - Full parse diagnostics/provenance are incomplete across readers.
   - BibLaTeX still lacks full data-model/citeproc parity.
-  - XLSX now preserves formula/error metadata but still lacks formula evaluation, pivots, charts, filters, hidden-sheet policy controls, and full style/theme inheritance.
+  - XLSX now preserves formula/error metadata plus worksheet table/autofilter metadata but still lacks formula evaluation, pivots, charts, slicers, hidden-sheet policy controls, and full style/theme inheritance.
   - PPTX now preserves more image geometry/crop and table border metadata but still lacks SmartArt/diagram reconstruction, comments, full z-order/layout inheritance, and rich media extraction.
-  - DOCX now preserves direct run font/color/highlight metadata but still lacks accept/reject revision modes, section-specific header/footer application, complex fields, text boxes, VML/object images, and complete table/style inheritance.
+  - DOCX now preserves direct run font/color/highlight metadata and maps simple split complex fields, but still lacks accept/reject revision modes, section-specific header/footer application, TOC/index/bibliography field semantics, text boxes, VML/object images, and complete table/style inheritance.

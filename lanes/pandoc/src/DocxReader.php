@@ -389,12 +389,56 @@ final class DocxReader
     private function inlineChildren(\DOMElement $container): array
     {
         $inlines = [];
+        $fieldDepth = 0;
+        $fieldInstruction = '';
+        $fieldResult = [];
+        $fieldInResult = false;
         foreach ($container->childNodes as $child) {
             if (!$child instanceof \DOMElement) {
                 continue;
             }
             if ($child->localName === 'r') {
+                $fieldCharType = $this->runFieldCharType($child);
+                if ($fieldCharType === 'begin') {
+                    if ($fieldDepth === 0) {
+                        $fieldInstruction = '';
+                        $fieldResult = [];
+                        $fieldInResult = false;
+                    }
+                    $fieldDepth++;
+                    continue;
+                }
+                if ($fieldDepth > 0) {
+                    if ($fieldCharType === 'separate') {
+                        $fieldInResult = true;
+                        continue;
+                    }
+                    if ($fieldCharType === 'end') {
+                        $fieldDepth = max(0, $fieldDepth - 1);
+                        if ($fieldDepth === 0) {
+                            $field = $this->complexField($fieldInstruction, $fieldResult);
+                            if ($field instanceof AstNode) {
+                                $inlines[] = $field;
+                            } else {
+                                array_push($inlines, ...$fieldResult);
+                            }
+                            $fieldInstruction = '';
+                            $fieldResult = [];
+                            $fieldInResult = false;
+                        }
+                        continue;
+                    }
+                    if (!$fieldInResult) {
+                        $fieldInstruction .= $this->runInstructionText($child);
+                        continue;
+                    }
+                    array_push($fieldResult, ...$this->run($child));
+                    continue;
+                }
                 array_push($inlines, ...$this->run($child));
+                continue;
+            }
+            if ($fieldDepth > 0) {
                 continue;
             }
             if ($child->localName === 'hyperlink') {
@@ -448,8 +492,34 @@ final class DocxReader
                 }
             }
         }
+        if ($fieldDepth > 0 && $fieldResult !== []) {
+            array_push($inlines, ...$fieldResult);
+        }
 
         return $this->mergeAdjacentText($inlines);
+    }
+
+    private function runFieldCharType(\DOMElement $run): string
+    {
+        foreach ($run->childNodes as $child) {
+            if ($child instanceof \DOMElement && $child->localName === 'fldChar') {
+                return $this->attr($child, self::W_NS, 'fldCharType');
+            }
+        }
+
+        return '';
+    }
+
+    private function runInstructionText(\DOMElement $run): string
+    {
+        $text = '';
+        foreach ($run->childNodes as $child) {
+            if ($child instanceof \DOMElement && $child->localName === 'instrText') {
+                $text .= $child->textContent;
+            }
+        }
+
+        return $text;
     }
 
     /**
@@ -696,19 +766,53 @@ final class DocxReader
             return null;
         }
 
-        $anchor = $this->fieldAnchor($this->attr($field, self::W_NS, 'instr'));
-        if ($anchor === '') {
+        return $this->fieldNode($this->attr($field, self::W_NS, 'instr'), $inlines);
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     */
+    private function complexField(string $instruction, array $inlines): ?AstNode
+    {
+        if ($inlines === []) {
+            return null;
+        }
+
+        return $this->fieldNode($instruction, $inlines);
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     */
+    private function fieldNode(string $instruction, array $inlines): AstNode
+    {
+        $instruction = trim(preg_replace('/\s+/u', ' ', $instruction) ?? $instruction);
+        $url = $this->fieldUrl($instruction);
+        if ($url === '') {
             return new AstNode('span', [
                 'classes' => ['docx-field'],
-                'attributes' => ['data-docx-field-instruction' => trim($this->attr($field, self::W_NS, 'instr'))],
+                'attributes' => ['data-docx-field-instruction' => $instruction],
             ], $inlines);
         }
 
         return new AstNode('link', [
-            'url' => '#' . $anchor,
+            'url' => $url,
             'title' => '',
-            'attributes' => ['data-docx-field' => trim($this->attr($field, self::W_NS, 'instr'))],
+            'attributes' => ['data-docx-field' => $instruction],
         ], $inlines);
+    }
+
+    private function fieldUrl(string $instruction): string
+    {
+        $anchor = $this->fieldAnchor($instruction);
+        if ($anchor !== '') {
+            return '#' . $anchor;
+        }
+        if (preg_match('/\bHYPERLINK\s+"([^"]+)"/i', $instruction, $match) === 1) {
+            return $match[1];
+        }
+
+        return '';
     }
 
     private function fieldAnchor(string $instruction): string

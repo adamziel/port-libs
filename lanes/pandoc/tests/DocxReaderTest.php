@@ -208,7 +208,7 @@ return [
         if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
             throw new RuntimeException('Unable to create temporary DOCX package');
         }
-        $zip->addFromString('word/document.xml', '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"><w:body><w:p><w:bookmarkStart w:id="7" w:name="_RefEquation"/><w:r><w:t>Equation target</w:t></w:r><w:bookmarkEnd w:id="7"/></w:p><w:p><w:r><w:t>See </w:t></w:r><w:fldSimple w:instr=" REF _RefEquation \h "><w:r><w:t>Equation target</w:t></w:r></w:fldSimple><w:r><w:t>: </w:t></w:r><m:oMath><m:sSup><m:e><m:r><m:t>x</m:t></m:r></m:e><m:sup><m:r><m:t>2</m:t></m:r></m:sup></m:sSup><m:r><m:t>+y</m:t></m:r></m:oMath></w:p><m:oMathPara><m:oMath><m:f><m:num><m:r><m:t>1</m:t></m:r></m:num><m:den><m:r><m:t>n</m:t></m:r></m:den></m:f></m:oMath></m:oMathPara></w:body></w:document>');
+        $zip->addFromString('word/document.xml', '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"><w:body><w:p><w:bookmarkStart w:id="7" w:name="_RefEquation"/><w:r><w:t>Equation target</w:t></w:r><w:bookmarkEnd w:id="7"/></w:p><w:p><w:r><w:t>See </w:t></w:r><w:fldSimple w:instr=" REF _RefEquation \h "><w:r><w:t>Equation target</w:t></w:r></w:fldSimple><w:r><w:t>: </w:t></w:r><m:oMath><m:sSup><m:e><m:r><m:t>x</m:t></m:r></m:e><m:sup><m:r><m:t>2</m:t></m:r></m:sup></m:sSup><m:r><m:t>+y</m:t></m:r></m:oMath></w:p><w:p><w:r><w:t>Complex </w:t></w:r><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l "_RefEquation" </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>jump link</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r><w:r><w:t> and </w:t></w:r><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK "https://example.test/field" </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>external field</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p><m:oMathPara><m:oMath><m:f><m:num><m:r><m:t>1</m:t></m:r></m:num><m:den><m:r><m:t>n</m:t></m:r></m:den></m:f></m:oMath></m:oMathPara></w:body></w:document>');
         $zip->close();
 
         try {
@@ -220,7 +220,8 @@ return [
 
         $target = $document->children[0];
         $reference = $document->children[1];
-        $display = $document->children[2];
+        $complex = $document->children[2];
+        $display = $document->children[3];
 
         $t->same('raw_inline', $target->children[0]->type);
         $t->same('openxml', $target->children[0]->attr('format'));
@@ -230,6 +231,12 @@ return [
         $t->same('#_RefEquation', $reference->children[1]->attr('url'));
         $t->same('math', $reference->children[3]->type);
         $t->same('x^{2}+y', $reference->children[3]->attr('text'));
+        $t->same('link', $complex->children[1]->type);
+        $t->same('#_RefEquation', $complex->children[1]->attr('url'));
+        $t->same('HYPERLINK \l "_RefEquation"', $complex->children[1]->attr('attributes')['data-docx-field']);
+        $t->same('link', $complex->children[3]->type);
+        $t->same('https://example.test/field', $complex->children[3]->attr('url'));
+        $t->same('external field', $complex->children[3]->children[0]->attr('text'));
         $t->same('plain', $display->type);
         $t->same('math', $display->children[0]->type);
         $t->same(true, $display->children[0]->attr('display'));
@@ -238,6 +245,8 @@ return [
         $t->contains('data-pandoc-bookmark-name="_RefEquation"', $blocks);
         $t->contains('<a href="#_RefEquation"', $blocks);
         $t->contains('>Equation target</a>', $blocks);
+        $t->contains('>jump link</a>', $blocks);
+        $t->contains('<a href="https://example.test/field"', $blocks);
         $t->contains('<span class="math inline">\\(x^{2}+y\\)</span>', $blocks);
         $t->contains('<span class="math display">\\[\\frac{1}{n}\\]</span>', $blocks);
     },

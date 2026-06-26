@@ -167,6 +167,8 @@ final class XlsxReader
     ): AstNode
     {
         $cells = $this->sheetCells($sheetXml, $relationships, $sheetPath, $sharedStrings, $styles, $date1904, $package);
+        $tables = $this->worksheetTables($sheetXml, $relationships, $sheetPath, $package);
+        $autoFilter = $this->worksheetAutoFilter($sheetXml);
         $figures = $this->worksheetDrawingFigures($sheetXml, $relationships, $sheetPath, $package);
         $children = [
             new AstNode('heading', [
@@ -175,7 +177,7 @@ final class XlsxReader
                 'text' => $name,
             ], [new AstNode('text', ['text' => $name])]),
         ];
-        $table = $this->cellsToTable($cells);
+        $table = $this->cellsToTable($cells, $tables, $autoFilter);
         if ($table instanceof AstNode) {
             $children[] = $table;
         }
@@ -325,7 +327,7 @@ final class XlsxReader
     /**
      * @param array<string, array<string, mixed>> $cells
      */
-    private function cellsToTable(array $cells): ?AstNode
+    private function cellsToTable(array $cells, array $worksheetTables = [], string $autoFilter = ''): ?AstNode
     {
         if ($cells === []) {
             return null;
@@ -365,10 +367,62 @@ final class XlsxReader
         $head = array_shift($rows)['node'];
         $bodyRows = array_map(static fn (array $row): AstNode => $row['node'], $rows);
 
-        return new AstNode('table', [], [
+        $attributes = $this->worksheetTableHtmlAttributes($worksheetTables, $autoFilter);
+
+        return new AstNode('table', $attributes === [] ? [] : ['htmlAttributes' => $attributes], [
             new AstNode('table_head', [], [$head]),
             new AstNode('table_body', [], $bodyRows),
         ]);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $worksheetTables
+     * @return array<string, string>
+     */
+    private function worksheetTableHtmlAttributes(array $worksheetTables, string $autoFilter): array
+    {
+        $attrs = [];
+        if ($autoFilter !== '') {
+            $attrs['data-xlsx-auto-filter-ref'] = $autoFilter;
+        }
+        if ($worksheetTables === []) {
+            return $attrs;
+        }
+
+        $attrs['data-xlsx-table-count'] = (string) count($worksheetTables);
+        foreach ([
+            'name' => 'data-xlsx-table-names',
+            'displayName' => 'data-xlsx-table-display-names',
+            'ref' => 'data-xlsx-table-refs',
+            'styleName' => 'data-xlsx-table-style-names',
+        ] as $key => $attribute) {
+            $values = array_values(array_filter(
+                array_map(static fn (array $table): string => (string) ($table[$key] ?? ''), $worksheetTables),
+                static fn (string $value): bool => $value !== ''
+            ));
+            if ($values !== []) {
+                $attrs[$attribute] = implode(',', $values);
+            }
+        }
+
+        $first = $worksheetTables[0] ?? [];
+        foreach ([
+            'headerRowCount' => 'data-xlsx-table-header-row-count',
+            'totalsRowCount' => 'data-xlsx-table-totals-row-count',
+            'autoFilterRef' => 'data-xlsx-table-auto-filter-ref',
+            'columns' => 'data-xlsx-table-columns',
+            'showFirstColumn' => 'data-xlsx-table-show-first-column',
+            'showLastColumn' => 'data-xlsx-table-show-last-column',
+            'showRowStripes' => 'data-xlsx-table-show-row-stripes',
+            'showColumnStripes' => 'data-xlsx-table-show-column-stripes',
+        ] as $key => $attribute) {
+            $value = (string) ($first[$key] ?? '');
+            if ($value !== '') {
+                $attrs[$attribute] = $value;
+            }
+        }
+
+        return $attrs;
     }
 
     /**
@@ -768,6 +822,94 @@ final class XlsxReader
         }
 
         return $comments;
+    }
+
+    /**
+     * @param array<string, array{target:string,type:string,mode:string}> $relationships
+     * @return list<array<string, mixed>>
+     */
+    private function worksheetTables(string $sheetXml, array $relationships, string $sheetPath, ZipOpcPackage $package): array
+    {
+        $dom = $this->loadXml($sheetXml, 'XLSX worksheet');
+        $tables = [];
+        foreach ($dom->getElementsByTagNameNS(self::SS_NS, 'tablePart') as $tablePart) {
+            if (!$tablePart instanceof \DOMElement) {
+                continue;
+            }
+            $relationshipId = $this->attr($tablePart, self::R_NS, 'id');
+            $relationship = $relationships[$relationshipId] ?? null;
+            if (!is_array($relationship) || ($relationship['target'] ?? '') === '' || ($relationship['mode'] ?? '') === 'External') {
+                continue;
+            }
+            $tablePath = $this->resolveRelationshipTarget($sheetPath, (string) $relationship['target']);
+            $tableXml = $package->read($tablePath);
+            if (!is_string($tableXml) || $tableXml === '') {
+                continue;
+            }
+            $table = $this->worksheetTable($tableXml, $tablePath, $relationshipId);
+            if ($table !== []) {
+                $tables[] = $table;
+            }
+        }
+
+        return $tables;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function worksheetTable(string $tableXml, string $tablePath, string $relationshipId): array
+    {
+        $dom = $this->loadXml($tableXml, 'XLSX table ' . $tablePath);
+        $table = $dom->documentElement;
+        if (!$table instanceof \DOMElement || $table->localName !== 'table') {
+            return [];
+        }
+
+        $columns = [];
+        foreach ($table->getElementsByTagNameNS(self::SS_NS, 'tableColumn') as $column) {
+            if ($column instanceof \DOMElement && $column->getAttribute('name') !== '') {
+                $columns[] = $column->getAttribute('name');
+            }
+        }
+
+        $autoFilter = $this->firstChildElementByLocalName($table, 'autoFilter');
+        $style = $this->firstChildElementByLocalName($table, 'tableStyleInfo');
+
+        return array_filter([
+            'relationshipId' => $relationshipId,
+            'path' => $tablePath,
+            'id' => $table->getAttribute('id'),
+            'name' => $table->getAttribute('name'),
+            'displayName' => $table->getAttribute('displayName'),
+            'ref' => $table->getAttribute('ref'),
+            'headerRowCount' => $table->getAttribute('headerRowCount'),
+            'totalsRowCount' => $table->getAttribute('totalsRowCount'),
+            'autoFilterRef' => $autoFilter instanceof \DOMElement ? $autoFilter->getAttribute('ref') : '',
+            'columns' => implode(',', $columns),
+            'styleName' => $style instanceof \DOMElement ? $style->getAttribute('name') : '',
+            'showFirstColumn' => $style instanceof \DOMElement && $style->hasAttribute('showFirstColumn') ? $this->xlsxBool($style->getAttribute('showFirstColumn')) : '',
+            'showLastColumn' => $style instanceof \DOMElement && $style->hasAttribute('showLastColumn') ? $this->xlsxBool($style->getAttribute('showLastColumn')) : '',
+            'showRowStripes' => $style instanceof \DOMElement && $style->hasAttribute('showRowStripes') ? $this->xlsxBool($style->getAttribute('showRowStripes')) : '',
+            'showColumnStripes' => $style instanceof \DOMElement && $style->hasAttribute('showColumnStripes') ? $this->xlsxBool($style->getAttribute('showColumnStripes')) : '',
+        ], static fn (mixed $value): bool => $value !== '');
+    }
+
+    private function worksheetAutoFilter(string $sheetXml): string
+    {
+        $dom = $this->loadXml($sheetXml, 'XLSX worksheet');
+        foreach ($dom->getElementsByTagNameNS(self::SS_NS, 'autoFilter') as $filter) {
+            if ($filter instanceof \DOMElement && $filter->parentNode instanceof \DOMElement && $filter->parentNode->localName === 'worksheet') {
+                return $filter->getAttribute('ref');
+            }
+        }
+
+        return '';
+    }
+
+    private function xlsxBool(string $value): string
+    {
+        return in_array(strtolower($value), ['1', 'true', 'on'], true) ? 'true' : 'false';
     }
 
     /**
