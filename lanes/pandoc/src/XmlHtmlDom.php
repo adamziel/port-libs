@@ -23638,6 +23638,7 @@ final class XmlHtmlDom
                 : self::normalizedText($element),
         ];
         $summary += self::hyperlinkNavigationReviewSummary($element, $name, $relRaw, $pingRaw);
+        $summary += self::hyperlinkAttributionSrcReviewSummary($element, $name);
 
         if ($name === 'area') {
             $summary['shape'] = self::attributeOrNull($element, 'shape');
@@ -23767,6 +23768,72 @@ final class XmlHtmlDom
             'nonHttpPingUrls' => $nonHttpPingUrls,
             'navigationIssues' => $issues,
         ] + $fragmentTarget;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function hyperlinkAttributionSrcReviewSummary(\DOMElement $element, string $name): array
+    {
+        if (!$element->hasAttribute('attributionsrc')) {
+            return [];
+        }
+
+        $raw = $element->getAttribute('attributionsrc');
+        $urls = self::spaceSeparatedTokens($raw);
+        $records = [];
+        $unsafeUrls = [];
+        $nonHttpUrls = [];
+        $issues = [];
+
+        foreach ($urls as $url) {
+            $urlSummary = self::hyperlinkUrlReviewSummary($url);
+            $records[] = [
+                'url' => $url,
+                'kind' => $urlSummary['kind'],
+                'scheme' => $urlSummary['scheme'],
+                'unsafe' => $urlSummary['unsafe'],
+            ];
+
+            if ($urlSummary['unsafe'] === true) {
+                $unsafeUrls[] = $url;
+                $issues[] = [
+                    'code' => 'unsafe-attributionsrc-url',
+                    'url' => $url,
+                    'scheme' => $urlSummary['scheme'],
+                ];
+                continue;
+            }
+
+            if ($urlSummary['kind'] === 'absolute' && !in_array($urlSummary['scheme'], ['http', 'https'], true)) {
+                $nonHttpUrls[] = $url;
+                $issues[] = [
+                    'code' => 'non-http-attributionsrc-url',
+                    'url' => $url,
+                    'scheme' => $urlSummary['scheme'],
+                ];
+            }
+        }
+
+        return [
+            'hyperlinkAttributionSrcReviewPolicy' => 'hyperlink-attributionsrc-source-registration-review',
+            'attributionSrcElement' => $name,
+            'attributionSrcRequested' => true,
+            'attributionSrcRaw' => $raw,
+            'attributionSrcEmpty' => trim($raw) === '',
+            'attributionSrcMode' => trim($raw) === '' ? 'navigation-source-origin' : 'navigation-source-urls',
+            'attributionSrcUrls' => $urls,
+            'attributionSrcUrlCount' => count($urls),
+            'attributionSrcUrlRecords' => $records,
+            'unsafeAttributionSrcUrls' => $unsafeUrls,
+            'nonHttpAttributionSrcUrls' => $nonHttpUrls,
+            'attributionSrcIssues' => $issues,
+            'attributionSrcIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'attributionSrcValid' => $issues === [],
+        ];
     }
 
     /**
