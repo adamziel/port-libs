@@ -8,6 +8,13 @@ final class GitPath
 {
     public const RELATIVE_PATH_IS_ABSOLUTE = 'is_absolute';
     public const RELATIVE_PATH_CONTAINS_INVALID_COMPONENT = 'contains_invalid_component';
+    public const REALPATH_EMPTY_PATH = 'empty_path';
+    public const REALPATH_MAX_SYMLINKS_EXCEEDED = 'max_symlinks_exceeded';
+    public const REALPATH_EXCESSIVE_COMPONENT_COUNT = 'excessive_component_count';
+    public const REALPATH_READ_LINK = 'read_link';
+    public const REALPATH_MISSING_PARENT = 'missing_parent';
+    public const REALPATH_MAX_SYMLINK_CHECKS = 2048;
+    public const REALPATH_DEFAULT_MAX_SYMLINKS = 32;
 
     private function __construct()
     {
@@ -35,6 +42,156 @@ final class GitPath
     public static function isAbsolute(string $path): bool
     {
         return str_starts_with($path, '/');
+    }
+
+    public static function exeInvocation(): string
+    {
+        return DIRECTORY_SEPARATOR === '\\' ? 'git.exe' : 'git';
+    }
+
+    public static function shell(): string
+    {
+        return DIRECTORY_SEPARATOR === '\\' ? 'sh.exe' : '/bin/sh';
+    }
+
+    public static function installationConfigFromGitConfigOrigin(string $source): ?string
+    {
+        if (!str_starts_with($source, 'file:')) {
+            return null;
+        }
+
+        $file = substr($source, strlen('file:'));
+        $end = strpos($file, "\0");
+        if ($end === false) {
+            return null;
+        }
+
+        $path = substr($file, 0, $end);
+        return $path === '' ? null : $path;
+    }
+
+    public static function installationConfigPrefix(string $installationConfig): string
+    {
+        return self::dirnamePath($installationConfig);
+    }
+
+    public static function coreDirFromExecPathOutput(string $stdout, bool $success = true): ?string
+    {
+        if (!$success || !str_ends_with($stdout, "\n")) {
+            return null;
+        }
+
+        $path = substr($stdout, 0, -1);
+        return $path === '' ? null : $path;
+    }
+
+    public static function systemPrefix(): ?string
+    {
+        if (DIRECTORY_SEPARATOR !== '\\') {
+            return '/';
+        }
+
+        return null;
+    }
+
+    public static function homeDirFromEnvironment(?string $home, ?string $fallback = null): ?string
+    {
+        return $home ?? $fallback;
+    }
+
+    /**
+     * @param callable(string): ?string $envVar
+     */
+    public static function xdgConfig(string $file, callable $envVar): ?string
+    {
+        $xdgConfigHome = $envVar('XDG_CONFIG_HOME');
+        if ($xdgConfigHome !== null) {
+            return self::joinPath(self::joinPath($xdgConfigHome, 'git'), $file);
+        }
+
+        $home = $envVar('HOME');
+        if ($home === null) {
+            return null;
+        }
+
+        return self::joinPath(self::joinPath(self::joinPath($home, '.config'), 'git'), $file);
+    }
+
+    /**
+     * @return array{ok:true,path:string}|array{ok:false,error:string,maxSymlinks?:int,maxSymlinkChecks?:int}
+     */
+    public static function realpathOpts(
+        string $path,
+        string $cwd,
+        int $maxSymlinks = self::REALPATH_DEFAULT_MAX_SYMLINKS
+    ): array {
+        if ($path === '') {
+            return ['ok' => false, 'error' => self::REALPATH_EMPTY_PATH];
+        }
+
+        $realPath = self::isPlatformAbsolute($path) ? '' : rtrim($cwd, '/');
+        $components = self::realpathComponents($path);
+        $numSymlinks = 0;
+        $symlinkChecks = 0;
+
+        while ($components !== []) {
+            $component = array_shift($components);
+
+            if ($component === '/') {
+                $realPath = '/';
+                continue;
+            }
+
+            if ($component === '..') {
+                $parent = self::popPathComponent($realPath);
+                if ($parent === null) {
+                    return ['ok' => false, 'error' => self::REALPATH_MISSING_PARENT];
+                }
+
+                $realPath = $parent;
+                continue;
+            }
+
+            $realPath = self::joinPath($realPath, $component);
+            $symlinkChecks++;
+
+            if (is_link($realPath)) {
+                $numSymlinks++;
+                if ($numSymlinks > $maxSymlinks) {
+                    return [
+                        'ok' => false,
+                        'error' => self::REALPATH_MAX_SYMLINKS_EXCEEDED,
+                        'maxSymlinks' => $maxSymlinks,
+                    ];
+                }
+
+                $linkDestination = readlink($realPath);
+                if ($linkDestination === false) {
+                    return ['ok' => false, 'error' => self::REALPATH_READ_LINK];
+                }
+
+                if (!self::isPlatformAbsolute($linkDestination)) {
+                    $parent = self::popPathComponent($realPath);
+                    if ($parent === null) {
+                        return ['ok' => false, 'error' => self::REALPATH_MISSING_PARENT];
+                    }
+
+                    $realPath = $parent;
+                }
+
+                $components = array_merge(self::realpathComponents($linkDestination), $components);
+            }
+
+            if ($symlinkChecks > self::REALPATH_MAX_SYMLINK_CHECKS) {
+                return [
+                    'ok' => false,
+                    'error' => self::REALPATH_EXCESSIVE_COMPONENT_COUNT,
+                    'maxSymlinkChecks' => self::REALPATH_MAX_SYMLINK_CHECKS,
+                ];
+            }
+        }
+
+        return ['ok' => true, 'path' => $realPath];
     }
 
     public static function normalize(string $path, string $currentDir): ?string
@@ -257,6 +414,85 @@ final class GitPath
         }
 
         return false;
+    }
+
+    private static function isPlatformAbsolute(string $path): bool
+    {
+        if (str_starts_with($path, '/')) {
+            return true;
+        }
+
+        return DIRECTORY_SEPARATOR === '\\' && preg_match('/^[A-Za-z]:[\\\\\\/]/', $path) === 1;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function realpathComponents(string $path): array
+    {
+        $components = [];
+        if (str_starts_with($path, '/')) {
+            $components[] = '/';
+        }
+
+        foreach (explode('/', $path) as $part) {
+            if ($part === '' || $part === '.') {
+                continue;
+            }
+
+            $components[] = $part;
+        }
+
+        return $components;
+    }
+
+    private static function joinPath(string $base, string $component): string
+    {
+        if ($base === '' || self::isPlatformAbsolute($component)) {
+            return $component;
+        }
+
+        if ($base === '/') {
+            return '/' . ltrim($component, '/');
+        }
+
+        return rtrim($base, '/') . '/' . $component;
+    }
+
+    private static function popPathComponent(string $path): ?string
+    {
+        $path = rtrim($path, '/');
+        if ($path === '' || $path === '/') {
+            return null;
+        }
+
+        $slash = strrpos($path, '/');
+        if ($slash === false) {
+            return '';
+        }
+        if ($slash === 0) {
+            return '/';
+        }
+
+        return substr($path, 0, $slash);
+    }
+
+    private static function dirnamePath(string $path): string
+    {
+        $path = rtrim($path, '/');
+        if ($path === '') {
+            return '.';
+        }
+
+        $slash = strrpos($path, '/');
+        if ($slash === false) {
+            return '.';
+        }
+        if ($slash === 0) {
+            return '/';
+        }
+
+        return substr($path, 0, $slash);
     }
 
     /**

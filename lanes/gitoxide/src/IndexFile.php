@@ -41,13 +41,7 @@ final class IndexFile
      */
     public static function bytesFor(array $entries, ?IndexCacheTree $cacheTree = null): string
     {
-        foreach ($entries as $entry) {
-            if (!$entry instanceof IndexEntry) {
-                throw new \InvalidArgumentException('Index file entries must be IndexEntry instances');
-            }
-        }
-
-        usort($entries, static fn (IndexEntry $left, IndexEntry $right): int => strcmp($left->path, $right->path) ?: $left->stage <=> $right->stage);
+        $entries = self::sortEntries($entries);
         $version = self::requiresVersion3($entries) ? self::VERSION_V3 : self::VERSION_V2;
 
         $bytes = self::SIGNATURE . pack('N2', $version, count($entries));
@@ -154,6 +148,270 @@ final class IndexFile
         }
 
         return bin2hex(substr($bytes, -self::HASH_BYTES));
+    }
+
+    /**
+     * @param list<IndexEntry> $entries
+     * @return list<IndexEntry>
+     */
+    public static function sortEntries(array $entries): array
+    {
+        self::assertEntries($entries);
+        usort($entries, self::compareEntries(...));
+
+        return array_values($entries);
+    }
+
+    /**
+     * @param list<IndexEntry> $entries
+     */
+    public static function entryByPath(array $entries, string $path): ?IndexEntry
+    {
+        $range = self::entryRange($entries, $path);
+        if ($range === null) {
+            return null;
+        }
+
+        for ($index = $range[0]; $index < $range[1]; $index++) {
+            if ($entries[$index]->stage === IndexEntry::STAGE_NORMAL) {
+                return $entries[$index];
+            }
+        }
+        for ($index = $range[0]; $index < $range[1]; $index++) {
+            if ($entries[$index]->stage === IndexEntry::STAGE_OURS) {
+                return $entries[$index];
+            }
+        }
+
+        return $entries[$range[0]];
+    }
+
+    /**
+     * @param list<IndexEntry> $entries
+     */
+    public static function entryByPathAndStage(array $entries, string $path, int $stage): ?IndexEntry
+    {
+        $index = self::entryIndexByPathAndStage($entries, $path, $stage);
+
+        return $index === null ? null : $entries[$index];
+    }
+
+    /**
+     * @param list<IndexEntry> $entries
+     */
+    public static function entryIndexByPathAndStage(array $entries, string $path, int $stage): ?int
+    {
+        return self::entryIndexByPathAndStageBounded($entries, $path, $stage, count($entries));
+    }
+
+    /**
+     * @param list<IndexEntry> $entries
+     */
+    public static function entryIndexByPathAndStageBounded(array $entries, string $path, int $stage, int $entryLimit): ?int
+    {
+        self::assertEntries($entries);
+        self::assertStage($stage);
+        if ($entryLimit < 0 || $entryLimit > count($entries)) {
+            throw new \InvalidArgumentException('Index entry lookup bound is outside the entries list');
+        }
+
+        $low = 0;
+        $high = $entryLimit;
+        while ($low < $high) {
+            $middle = intdiv($low + $high, 2);
+            $comparison = self::compareEntryToKey($entries[$middle], $path, $stage);
+            if ($comparison < 0) {
+                $low = $middle + 1;
+            } elseif ($comparison > 0) {
+                $high = $middle;
+            } else {
+                return $middle;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<IndexEntry> $entries
+     * @return array{0:int,1:int}|null
+     */
+    public static function entryRange(array $entries, string $path): ?array
+    {
+        self::assertEntries($entries);
+        $start = self::lowerBoundPath($entries, $path, count($entries));
+        if (!isset($entries[$start]) || $entries[$start]->path !== $path) {
+            return null;
+        }
+
+        $end = $start + 1;
+        $count = count($entries);
+        while ($end < $count && $entries[$end]->path === $path) {
+            $end++;
+        }
+
+        return [$start, $end];
+    }
+
+    /**
+     * @param list<IndexEntry> $entries
+     * @return list<IndexEntry>|null
+     */
+    public static function prefixedEntries(array $entries, string $prefix): ?array
+    {
+        $range = self::prefixedEntriesRange($entries, $prefix);
+        if ($range === null) {
+            return null;
+        }
+
+        return array_slice($entries, $range[0], $range[1] - $range[0]);
+    }
+
+    /**
+     * @param list<IndexEntry> $entries
+     * @return array{0:int,1:int}|null
+     */
+    public static function prefixedEntriesRange(array $entries, string $prefix): ?array
+    {
+        self::assertEntries($entries);
+        if ($prefix === '') {
+            return [0, count($entries)];
+        }
+
+        $start = self::lowerBoundPath($entries, $prefix, count($entries));
+        if (!isset($entries[$start]) || !str_starts_with($entries[$start]->path, $prefix)) {
+            return null;
+        }
+
+        $end = $start + 1;
+        $count = count($entries);
+        while ($end < $count && str_starts_with($entries[$end]->path, $prefix)) {
+            $end++;
+        }
+
+        return [$start, $end];
+    }
+
+    /**
+     * @param list<IndexEntry> $entries
+     * @param callable(int, IndexEntry): bool $remove
+     * @return list<IndexEntry>
+     */
+    public static function removeEntries(array $entries, callable $remove): array
+    {
+        self::assertEntries($entries);
+        $remaining = [];
+        foreach ($entries as $index => $entry) {
+            if (!$remove($index, $entry)) {
+                $remaining[] = $entry;
+            }
+        }
+
+        return $remaining;
+    }
+
+    /**
+     * @param list<IndexEntry> $entries
+     * @return list<IndexEntry>
+     */
+    public static function removeEntryAtIndex(array $entries, int $index): array
+    {
+        self::assertEntries($entries);
+        if (!isset($entries[$index])) {
+            throw new \OutOfBoundsException("Index entry {$index} does not exist");
+        }
+
+        array_splice($entries, $index, 1);
+
+        return array_values($entries);
+    }
+
+    /**
+     * @param list<IndexEntry> $entries
+     */
+    public static function entryClosestToDirectoryOrDirectory(array $entries, string $path): ?IndexEntry
+    {
+        if ($path === '') {
+            return null;
+        }
+
+        $range = self::entryRange($entries, $path);
+        if ($range !== null) {
+            for ($index = $range[0]; $index < $range[1]; $index++) {
+                if ($entries[$index]->mode === IndexEntry::MODE_COMMIT || $entries[$index]->mode === IndexEntry::MODE_DIR) {
+                    return $entries[$index];
+                }
+            }
+        }
+
+        $directoryPrefix = rtrim($path, '/') . '/';
+        $prefixed = self::prefixedEntriesRange($entries, $directoryPrefix);
+        if ($prefixed === null) {
+            return null;
+        }
+
+        return $entries[$prefixed[0]];
+    }
+
+    /**
+     * @param list<IndexEntry> $entries
+     */
+    public static function pathIsDirectory(array $entries, string $path): bool
+    {
+        return self::entryClosestToDirectoryOrDirectory($entries, $path) !== null;
+    }
+
+    /**
+     * @param list<IndexEntry> $entries
+     */
+    private static function assertEntries(array $entries): void
+    {
+        foreach ($entries as $entry) {
+            if (!$entry instanceof IndexEntry) {
+                throw new \InvalidArgumentException('Index file entries must be IndexEntry instances');
+            }
+        }
+    }
+
+    private static function assertStage(int $stage): void
+    {
+        if (!in_array($stage, [
+            IndexEntry::STAGE_NORMAL,
+            IndexEntry::STAGE_ANCESTOR,
+            IndexEntry::STAGE_OURS,
+            IndexEntry::STAGE_THEIRS,
+        ], true)) {
+            throw new \InvalidArgumentException("Unsupported index stage: {$stage}");
+        }
+    }
+
+    private static function compareEntries(IndexEntry $left, IndexEntry $right): int
+    {
+        return strcmp($left->path, $right->path) ?: $left->stage <=> $right->stage;
+    }
+
+    private static function compareEntryToKey(IndexEntry $entry, string $path, int $stage): int
+    {
+        return strcmp($entry->path, $path) ?: $entry->stage <=> $stage;
+    }
+
+    /**
+     * @param list<IndexEntry> $entries
+     */
+    private static function lowerBoundPath(array $entries, string $path, int $entryLimit): int
+    {
+        $low = 0;
+        $high = $entryLimit;
+        while ($low < $high) {
+            $middle = intdiv($low + $high, 2);
+            if (strcmp($entries[$middle]->path, $path) < 0) {
+                $low = $middle + 1;
+            } else {
+                $high = $middle;
+            }
+        }
+
+        return $low;
     }
 
     /**
@@ -413,6 +671,8 @@ final class IndexFile
             $previousPath = $path;
         }
 
+        self::validateExtensionHeaders($bytes, $offset, $dataEnd);
+
         return ['version' => $version, 'entries' => $entries, 'extensionOffset' => $offset];
     }
 
@@ -439,6 +699,9 @@ final class IndexFile
                 throw new \InvalidArgumentException('Index extension header is truncated');
             }
             $signature = substr($bytes, $offset, 4);
+            if (self::isMandatoryExtensionSignature($signature)) {
+                throw new \InvalidArgumentException("Unsupported mandatory index extension: {$signature}");
+            }
             $size = self::readUInt32At($bytes, $offset + 4);
             $offset += 8;
             if ($offset + $size > $dataEnd) {
@@ -450,6 +713,30 @@ final class IndexFile
         }
 
         return $extensions;
+    }
+
+    private static function validateExtensionHeaders(string $bytes, int $offset, int $dataEnd): void
+    {
+        while ($offset < $dataEnd) {
+            if ($offset + 8 > $dataEnd) {
+                throw new \InvalidArgumentException('Index extension header is truncated');
+            }
+            $signature = substr($bytes, $offset, 4);
+            if (self::isMandatoryExtensionSignature($signature)) {
+                throw new \InvalidArgumentException("Unsupported mandatory index extension: {$signature}");
+            }
+            $size = self::readUInt32At($bytes, $offset + 4);
+            $offset += 8;
+            if ($offset + $size > $dataEnd) {
+                throw new \InvalidArgumentException("Index extension {$signature} is truncated");
+            }
+            $offset += $size;
+        }
+    }
+
+    private static function isMandatoryExtensionSignature(string $signature): bool
+    {
+        return preg_match('/[a-z]/', $signature) === 1;
     }
 
     private static function readUInt32(string $bytes, int &$offset): int

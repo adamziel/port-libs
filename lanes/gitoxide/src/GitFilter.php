@@ -31,6 +31,13 @@ final class GitFilter
     public const ENCODING_WINDOWS_1252 = 'windows-1252';
     public const ENCODING_SHIFT_JIS = 'Shift_JIS';
 
+    public const DRIVER_CLEAN = 'clean';
+    public const DRIVER_SMUDGE = 'smudge';
+
+    public const PIPELINE_UNCHANGED = 'unchanged';
+    public const PIPELINE_BUFFER = 'buffer';
+    public const PIPELINE_STREAM = 'stream';
+
     private function __construct()
     {
     }
@@ -271,6 +278,184 @@ final class GitFilter
     }
 
     /**
+     * @param callable(string, string, string): string|null $driver
+     */
+    public static function applyDriver(
+        string $src,
+        string $operation,
+        ?callable $driver,
+        string $path = '',
+        bool $required = true
+    ): ?string {
+        self::assertDriverOperation($operation);
+        if ($driver === null) {
+            return null;
+        }
+
+        try {
+            $result = $driver($src, $operation, $path);
+        } catch (\Throwable $throwable) {
+            if (!$required) {
+                return '';
+            }
+
+            throw new \RuntimeException("Filter driver {$operation} failed", 0, $throwable);
+        }
+
+        if (!is_string($result)) {
+            throw new \RuntimeException("Filter driver {$operation} must return a string");
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param array{
+     *     ident?: bool,
+     *     digest?: string|null,
+     *     encoding?: string|null,
+     *     path?: string,
+     *     config?: array{autoCrlf?: string, eol?: ?string},
+     *     roundTripCheck?: string|null
+     * } $attributes
+     * @param callable(string, string, string): string|null $cleanDriver
+     * @param callable(?string&): (?bool) $indexObject
+     * @return array{changed: bool, data: string, storage: string}
+     */
+    public static function convertPipelineToGit(
+        string $src,
+        array $attributes = [],
+        ?callable $cleanDriver = null,
+        ?callable $indexObject = null
+    ): array {
+        $path = $attributes['path'] ?? '';
+        $config = $attributes['config'] ?? [];
+        $digest = self::digestFromPipelineAttributes($attributes, $config);
+        $applyIdent = (bool) ($attributes['ident'] ?? false);
+        $encoding = $attributes['encoding'] ?? null;
+
+        $wouldConvertEol = self::wouldConvertCrlfToLf($digest, $config);
+        $needsInMemory = $applyIdent || $encoding !== null || $wouldConvertEol;
+        $inMemory = false;
+        $current = $src;
+
+        $driverOutput = self::applyDriver($current, self::DRIVER_CLEAN, $cleanDriver, $path);
+        if ($driverOutput !== null) {
+            $current = $driverOutput;
+            if (!$needsInMemory) {
+                return [
+                    'changed' => true,
+                    'data' => $current,
+                    'storage' => self::PIPELINE_STREAM,
+                ];
+            }
+            $inMemory = true;
+        }
+
+        if (!$inMemory && $needsInMemory) {
+            $inMemory = true;
+        }
+
+        if ($encoding !== null) {
+            $buffer = '';
+            self::encodeToGit($current, $encoding, $buffer);
+            $current = $buffer;
+        }
+
+        $buffer = '';
+        if (self::convertToGit($current, $digest, $buffer, $indexObject, [
+            'roundTripCheck' => $attributes['roundTripCheck'] ?? self::ROUND_TRIP_SKIP,
+            'path' => $path,
+            'config' => $config,
+        ])) {
+            $current = $buffer;
+        }
+
+        if ($applyIdent && self::identUndo($current, $buffer)) {
+            $current = $buffer;
+        }
+
+        if ($inMemory) {
+            return [
+                'changed' => true,
+                'data' => $current,
+                'storage' => self::PIPELINE_BUFFER,
+            ];
+        }
+
+        return [
+            'changed' => false,
+            'data' => $src,
+            'storage' => self::PIPELINE_STREAM,
+        ];
+    }
+
+    /**
+     * @param array{
+     *     ident?: bool,
+     *     digest?: string|null,
+     *     encoding?: string|null,
+     *     objectHash?: string,
+     *     path?: string,
+     *     config?: array{autoCrlf?: string, eol?: ?string}
+     * } $attributes
+     * @param callable(string, string, string): string|null $smudgeDriver
+     * @return array{changed: bool, data: string, storage: string}
+     */
+    public static function convertPipelineToWorktree(
+        string $src,
+        array $attributes = [],
+        ?callable $smudgeDriver = null
+    ): array {
+        $path = $attributes['path'] ?? '';
+        $config = $attributes['config'] ?? [];
+        $digest = self::digestFromPipelineAttributes($attributes, $config);
+        $current = $src;
+        $changed = false;
+        $buffer = '';
+
+        if (($attributes['ident'] ?? false) && self::identApply($current, $attributes['objectHash'] ?? GitHash::SHA1, $buffer)) {
+            $current = $buffer;
+            $changed = true;
+        }
+
+        if (self::convertToWorktree($current, $digest, $buffer, $config)) {
+            $current = $buffer;
+            $changed = true;
+        }
+
+        $encoding = $attributes['encoding'] ?? null;
+        if ($encoding !== null) {
+            self::encodeToWorktree($current, $encoding, $buffer);
+            $current = $buffer;
+            $changed = true;
+        }
+
+        $driverOutput = self::applyDriver($current, self::DRIVER_SMUDGE, $smudgeDriver, $path);
+        if ($driverOutput !== null) {
+            return [
+                'changed' => true,
+                'data' => $driverOutput,
+                'storage' => self::PIPELINE_STREAM,
+            ];
+        }
+
+        if ($changed) {
+            return [
+                'changed' => true,
+                'data' => $current,
+                'storage' => self::PIPELINE_BUFFER,
+            ];
+        }
+
+        return [
+            'changed' => false,
+            'data' => $src,
+            'storage' => self::PIPELINE_UNCHANGED,
+        ];
+    }
+
+    /**
      * @return ?array{0: int, 1: int}
      */
     private static function identUndoRange(string $src, int $searchOffset): ?array
@@ -458,6 +643,47 @@ final class GitFilter
             self::ATTR_TEXT_AUTO_INPUT => null,
             default => throw new \InvalidArgumentException("Unknown attributes digest: {$digest}"),
         };
+    }
+
+    private static function assertDriverOperation(string $operation): void
+    {
+        match ($operation) {
+            self::DRIVER_CLEAN,
+            self::DRIVER_SMUDGE => null,
+            default => throw new \InvalidArgumentException("Unknown filter driver operation: {$operation}"),
+        };
+    }
+
+    /**
+     * @param array{digest?: string|null} $attributes
+     * @param array{autoCrlf?: string, eol?: ?string} $config
+     */
+    private static function digestFromPipelineAttributes(array $attributes, array $config): string
+    {
+        $digest = $attributes['digest'] ?? null;
+        if ($digest !== null) {
+            self::assertAttributesDigest($digest);
+            return $digest;
+        }
+
+        return match ($config['autoCrlf'] ?? self::AUTO_CRLF_DISABLED) {
+            self::AUTO_CRLF_ENABLED => self::ATTR_TEXT_AUTO_CRLF,
+            self::AUTO_CRLF_INPUT => self::ATTR_TEXT_AUTO_INPUT,
+            self::AUTO_CRLF_DISABLED => self::ATTR_BINARY,
+            default => throw new \InvalidArgumentException("Unknown auto CRLF mode: {$config['autoCrlf']}"),
+        };
+    }
+
+    /**
+     * @param array{autoCrlf?: string, eol?: ?string} $config
+     */
+    private static function wouldConvertCrlfToLf(string $digest, array $config): bool
+    {
+        $probe = '';
+        return self::convertToGit("\r\n", $digest, $probe, static fn (?string &$buf): ?bool => null, [
+            'roundTripCheck' => self::ROUND_TRIP_SKIP,
+            'config' => $config,
+        ]);
     }
 
     private static function normalizeEncodingName(string $encoding): string

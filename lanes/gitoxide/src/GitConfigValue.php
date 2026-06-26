@@ -8,6 +8,7 @@ final class GitConfigValue
 {
     private const INT64_MAX = '9223372036854775807';
     private const INT64_MIN_ABS = '9223372036854775808';
+    private const OPTIONAL_PATH_PREFIX = ':(optional)';
 
     private const COLOR_NAMES = [
         'normal' => 'normal',
@@ -218,6 +219,69 @@ final class GitConfigValue
         return implode(' ', $parts);
     }
 
+    /**
+     * @return array{value:string,isOptional:bool}
+     */
+    public static function parsePath(string $value): array
+    {
+        if (str_starts_with($value, self::OPTIONAL_PATH_PREFIX)) {
+            return [
+                'value' => substr($value, strlen(self::OPTIONAL_PATH_PREFIX)),
+                'isOptional' => true,
+            ];
+        }
+
+        return ['value' => $value, 'isOptional' => false];
+    }
+
+    /**
+     * @param array{
+     *     installPrefix?: ?string,
+     *     homeDir?: ?string,
+     *     userHomeDirs?: array<string,string>
+     * } $context
+     */
+    public static function interpolatePath(string $value, array $context = []): string
+    {
+        $path = self::parsePath($value)['value'];
+        if ($path === '') {
+            throw new \InvalidArgumentException('Git config path interpolation requires a non-empty path');
+        }
+
+        if (str_starts_with($path, '%(prefix)/')) {
+            $installPrefix = $context['installPrefix'] ?? null;
+            if (!is_string($installPrefix) || $installPrefix === '') {
+                throw new \InvalidArgumentException('Git install prefix is required for Git config path interpolation');
+            }
+
+            return self::joinPath($installPrefix, substr($path, strlen('%(prefix)/')));
+        }
+
+        if (str_starts_with($path, '~/')) {
+            $home = $context['homeDir'] ?? null;
+            if (!is_string($home) || $home === '') {
+                throw new \InvalidArgumentException('Home directory is required for Git config path interpolation');
+            }
+
+            return self::joinPath($home, substr($path, strlen('~/')));
+        }
+
+        if ($path !== '~' && str_starts_with($path, '~') && str_contains($path, '/')) {
+            $slash = strpos($path, '/');
+            if ($slash !== false && $slash > 1) {
+                $user = substr($path, 1, $slash - 1);
+                $homeDirs = $context['userHomeDirs'] ?? [];
+                if (is_array($homeDirs) && isset($homeDirs[$user]) && is_string($homeDirs[$user]) && $homeDirs[$user] !== '') {
+                    return self::joinPath($homeDirs[$user], substr($path, $slash + 1));
+                }
+            }
+
+            throw new \InvalidArgumentException('Named-user home interpolation requires a caller-supplied home directory');
+        }
+
+        return $path;
+    }
+
     private static function assertUtf8(string $value, string $kind): void
     {
         if (@preg_match('//u', $value) !== 1) {
@@ -265,6 +329,24 @@ final class GitConfigValue
         }
 
         return strcmp($digits, $limit) > 0;
+    }
+
+    private static function joinPath(string $base, string $suffix): string
+    {
+        $trimmed = rtrim($base, "\\/");
+        if ($trimmed === '') {
+            $trimmed = $base[0] ?? '';
+        }
+
+        if ($suffix === '') {
+            return $trimmed;
+        }
+
+        if ($trimmed === '/' || $trimmed === '\\') {
+            return $trimmed . $suffix;
+        }
+
+        return $trimmed . DIRECTORY_SEPARATOR . $suffix;
     }
 
     private static function colorName(string $value): ?string
