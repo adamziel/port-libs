@@ -14200,6 +14200,180 @@ XML;
         $t->same('modern', $fontTable['byName']['Courier New']['family']);
         $t->same('fixed', $fontTable['byName']['Courier New']['pitch']);
     },
+    'summarizes docx settings part relationships for package review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $templateBytes = 'local template metadata bytes';
+        $untypedBytes = 'settings sidecar without content type';
+        $templateRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate';
+        $mailMergeSourceRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeSource';
+        $mailMergeHeaderRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeHeaderSource';
+        $recipientDataRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/recipientData';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' . "\n" .
+            '  <Override PartName="/word/templates/local-template.dotx" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml?inventory=1#settings"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/settings.xml'] = <<<'XML'
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:attachedTemplate r:id="rSettingsTemplate"/>
+</w:settings>
+XML;
+        $parts['word/_rels/settings.xml.rels'] = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rSettingsTemplate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate" Target="templates/local-template.dotx?slot=review#template"/>
+  <Relationship Id="rSettingsHeaderMissing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeHeaderSource" Target="settings/missing-header.xml?source=header#fields"/>
+  <Relationship Id="rSettingsUntyped" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/recipientData" Target="settings/untyped"/>
+  <Relationship Id="rSettingsExternalSafe" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeSource" Target="https://example.test/review-source.xlsx?review=1#source" TargetMode="External"/>
+  <Relationship Id="rSettingsExternalUnsafe" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeSource" Target="file:///C:/review-source.xlsx" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['word/templates/local-template.dotx'] = $templateBytes;
+        $parts['word/settings/untyped'] = $untypedBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $inventory = $docx['settingsRelationshipInventory'];
+        $packageInventory = $package['parts'];
+
+        $t->same($inventory, $package['settingsRelationships']);
+        $t->same('word/settings.xml', $inventory['sourcePart']);
+        $t->same(true, $inventory['sourcePartExists']);
+        $t->same('word/_rels/settings.xml.rels', $inventory['relationshipsPart']);
+        $t->same(true, $inventory['relationshipsPartExists']);
+        $t->same(5, $inventory['count']);
+        $t->same(5, $inventory['relationshipCount']);
+        $t->same(3, $inventory['internalCount']);
+        $t->same(2, $inventory['externalCount']);
+        $t->same(1, $inventory['allowedExternalTargetCount']);
+        $t->same(1, $inventory['unsafeExternalTargetCount']);
+        $t->same(2, $inventory['existingCount']);
+        $t->same(1, $inventory['missingCount']);
+        $t->same(1, $inventory['missingContentTypeCount']);
+        $t->same(3, $inventory['issueCount']);
+        $t->same([
+            'external-target-unsafe-scheme',
+            'missing-settings-relationship-content-type',
+            'missing-settings-relationship-target',
+        ], $inventory['issueCodes']);
+        $t->same([
+            'rSettingsTemplate',
+            'rSettingsHeaderMissing',
+            'rSettingsUntyped',
+            'rSettingsExternalSafe',
+            'rSettingsExternalUnsafe',
+        ], $inventory['relationshipIds']);
+        $t->same([
+            $templateRel => 1,
+            $mailMergeHeaderRel => 1,
+            $mailMergeSourceRel => 2,
+            $recipientDataRel => 1,
+        ], $inventory['relationshipTypeCounts']);
+        $t->same([
+            'word/templates/local-template.dotx',
+            'word/settings/missing-header.xml',
+            'word/settings/untyped',
+        ], $inventory['targetParts']);
+        $t->same([
+            'https://example.test/review-source.xlsx?review=1#source',
+            'file:///C:/review-source.xlsx',
+        ], $inventory['externalTargets']);
+        $t->same(['file:///C:/review-source.xlsx'], $inventory['unsafeExternalTargets']);
+        $t->same(['absolute-uri' => 2], $inventory['externalTargetKindCounts']);
+        $t->same(['file' => 1, 'https' => 1], $inventory['externalTargetSchemeCounts']);
+        $t->same([
+            '?slot=review#template',
+            '?source=header#fields',
+            '?review=1#source',
+        ], $inventory['targetReferenceSuffixes']);
+        $t->same(['application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml', 'application/xml'], $inventory['contentTypes']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml' => 1,
+            'application/xml' => 1,
+        ], $inventory['contentTypeBaseCounts']);
+        $t->same('settings-relationship-bytes-blocked', $inventory['byteExposurePolicy']);
+        $t->same('settings-relationship-metadata-only', $inventory['reviewPolicy']);
+
+        $template = $inventory['byRelationshipId']['rSettingsTemplate'];
+        $t->same($templateRel, $template['relationshipType']);
+        $t->same('templates/local-template.dotx?slot=review#template', $template['target']);
+        $t->same('word/templates/local-template.dotx?slot=review#template', $template['resolvedTarget']);
+        $t->same('word/templates/local-template.dotx', $template['targetPart']);
+        $t->same('slot=review', $template['targetQuery']);
+        $t->same('template', $template['targetFragment']);
+        $t->same(true, $template['exists']);
+        $t->same(strlen($templateBytes), $template['byteLength']);
+        $t->same(sprintf('%08x', crc32($templateBytes)), $template['crc32']);
+        $t->same(hash('sha256', $templateBytes), $template['sha256']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml', $template['contentType']);
+        $t->same('override', $template['contentTypeSource']);
+        $t->same(false, $template['external']);
+        $t->same([], $template['issues']);
+        $t->same(true, $template['valid']);
+        $t->same('settings-relationship-bytes-blocked', $template['byteExposurePolicy']);
+        $t->same('settings-relationship-metadata-only', $template['reviewPolicy']);
+        $t->true(!isset($template['bytes']), 'settings relationship inventory must not expose target bytes');
+
+        $missing = $inventory['byRelationshipId']['rSettingsHeaderMissing'];
+        $t->same($mailMergeHeaderRel, $missing['relationshipType']);
+        $t->same(false, $missing['exists']);
+        $t->same('word/settings/missing-header.xml', $missing['targetPart']);
+        $t->same(['missing-settings-relationship-target'], $missing['issues']);
+        $t->same('application/xml', $missing['contentType']);
+        $t->same('default', $missing['contentTypeSource']);
+
+        $untyped = $inventory['byRelationshipId']['rSettingsUntyped'];
+        $t->same($recipientDataRel, $untyped['relationshipType']);
+        $t->same(true, $untyped['exists']);
+        $t->same('word/settings/untyped', $untyped['targetPart']);
+        $t->same(strlen($untypedBytes), $untyped['byteLength']);
+        $t->same('missing', $untyped['contentTypeSource']);
+        $t->same(['missing-settings-relationship-content-type'], $untyped['issues']);
+
+        $safe = $inventory['byRelationshipId']['rSettingsExternalSafe'];
+        $t->same($mailMergeSourceRel, $safe['relationshipType']);
+        $t->same(true, $safe['external']);
+        $t->same('absolute-uri', $safe['externalTargetKind']);
+        $t->same('https', $safe['externalTargetScheme']);
+        $t->same(true, $safe['externalTargetAllowed']);
+        $t->same('review=1', $safe['targetQuery']);
+        $t->same('source', $safe['targetFragment']);
+        $t->same(null, $safe['byteLength']);
+        $t->same([], $safe['issues']);
+
+        $unsafe = $inventory['byRelationshipId']['rSettingsExternalUnsafe'];
+        $t->same($mailMergeSourceRel, $unsafe['relationshipType']);
+        $t->same(true, $unsafe['external']);
+        $t->same('file', $unsafe['externalTargetScheme']);
+        $t->same(false, $unsafe['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $unsafe['externalTargetIssues']);
+        $t->same(['external-target-unsafe-scheme'], $unsafe['issues']);
+
+        $t->same(5, $summary['settingsRelationshipCount']);
+        $t->same(3, $summary['settingsRelationshipInternalCount']);
+        $t->same(2, $summary['settingsRelationshipExternalCount']);
+        $t->same(1, $summary['settingsRelationshipAllowedExternalCount']);
+        $t->same(1, $summary['settingsRelationshipUnsafeExternalCount']);
+        $t->same(2, $summary['settingsRelationshipExistingTargetCount']);
+        $t->same(1, $summary['settingsRelationshipMissingTargetCount']);
+        $t->same(1, $summary['settingsRelationshipMissingContentTypeCount']);
+        $t->same(3, $summary['settingsRelationshipIssueCount']);
+        $t->same($inventory['issueCodes'], $summary['settingsRelationshipIssueCodes']);
+        $t->true(in_array('attached-template', $packageInventory['word/templates/local-template.dotx']['roles'], true), 'settings attached template inventory role missing');
+        $t->true(in_array('mail-merge-recipient-data', $packageInventory['word/settings/untyped']['roles'], true), 'settings recipient data inventory role missing');
+        $t->true(!isset($docx['media']['word/templates/local-template.dotx']), 'Settings relationship targets must remain metadata-only');
+    },
     'reports docx mail merge settings package relationships for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

@@ -261,6 +261,14 @@ final class DocxOpenXmlReader
         $settingsPart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::SETTINGS_REL, 'settings.xml');
         $settingsRelationshipsPart = $this->relationshipsPartFor($settingsPart['partName']);
         $settingsRelationships = $this->readRelationshipsPart($parts, $settingsRelationshipsPart);
+        $settingsRelationshipInventory = $this->readSettingsRelationshipInventory(
+            $parts,
+            $settingsPart['partName'],
+            $settingsPart['exists'],
+            $settingsRelationshipsPart,
+            $settingsRelationships,
+            $contentTypes,
+        );
         $settings = $this->readSettings(
             $settingsPart['xml'],
             $settingsPart['partName'],
@@ -820,6 +828,17 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['contentControlDuplicateStoreItemBindingCount'] = $contentControls['duplicateStoreItemBindingCount'];
         $packageProvenance['summary']['contentControlIssueCount'] = $contentControls['issueCount'];
         $packageProvenance['summary']['contentControlIssueCodes'] = $contentControls['issueCodes'];
+        $packageProvenance['settingsRelationships'] = $settingsRelationshipInventory;
+        $packageProvenance['summary']['settingsRelationshipCount'] = $settingsRelationshipInventory['relationshipCount'];
+        $packageProvenance['summary']['settingsRelationshipInternalCount'] = $settingsRelationshipInventory['internalCount'];
+        $packageProvenance['summary']['settingsRelationshipExternalCount'] = $settingsRelationshipInventory['externalCount'];
+        $packageProvenance['summary']['settingsRelationshipAllowedExternalCount'] = $settingsRelationshipInventory['allowedExternalTargetCount'];
+        $packageProvenance['summary']['settingsRelationshipUnsafeExternalCount'] = $settingsRelationshipInventory['unsafeExternalTargetCount'];
+        $packageProvenance['summary']['settingsRelationshipExistingTargetCount'] = $settingsRelationshipInventory['existingCount'];
+        $packageProvenance['summary']['settingsRelationshipMissingTargetCount'] = $settingsRelationshipInventory['missingCount'];
+        $packageProvenance['summary']['settingsRelationshipMissingContentTypeCount'] = $settingsRelationshipInventory['missingContentTypeCount'];
+        $packageProvenance['summary']['settingsRelationshipIssueCount'] = $settingsRelationshipInventory['issueCount'];
+        $packageProvenance['summary']['settingsRelationshipIssueCodes'] = $settingsRelationshipInventory['issueCodes'];
         $packageProvenance['summary']['attachedTemplateCount'] = $attachedTemplates['count'];
         $packageProvenance['summary']['attachedTemplateRelationshipCount'] = $attachedTemplates['relationshipCount'];
         $packageProvenance['summary']['attachedTemplateReferencedCount'] = $attachedTemplates['referencedCount'];
@@ -1120,6 +1139,7 @@ final class DocxOpenXmlReader
                 'settings' => $settings,
                 'settingsRelationshipsPart' => $settingsRelationshipsPart,
                 'settingsRelationships' => $settingsRelationships,
+                'settingsRelationshipInventory' => $settingsRelationshipInventory,
                 'attachedTemplates' => $attachedTemplates,
                 'webSettingsPart' => $webSettingsPart['partName'],
                 'webSettings' => $webSettings,
@@ -8140,6 +8160,185 @@ final class DocxOpenXmlReader
             'valid' => $issues === [],
             'issues' => $issues,
             'relationship' => $summary,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $settingsRelationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function readSettingsRelationshipInventory(
+        array $parts,
+        string $settingsPart,
+        bool $settingsExists,
+        string $settingsRelationshipsPart,
+        array $settingsRelationships,
+        array $contentTypes
+    ): array {
+        $items = [];
+        $byRelationshipId = [];
+        $relationshipIds = [];
+        $relationshipTypeCounts = [];
+        $targetParts = [];
+        $externalTargets = [];
+        $unsafeExternalTargets = [];
+        $externalTargetKindCounts = [];
+        $externalTargetSchemeCounts = [];
+        $targetReferenceSuffixes = [];
+        $contentTypesSeen = [];
+        $contentTypeBaseCounts = [];
+        $issueCodes = [];
+
+        foreach ($settingsRelationships as $relationship) {
+            $summary = $this->relationshipInventorySummary(
+                $parts,
+                $relationship,
+                $settingsPart,
+                $settingsRelationshipsPart,
+                $contentTypes,
+            );
+            $external = (bool) ($summary['external'] ?? false);
+            $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+            $exists = (bool) ($summary['exists'] ?? false);
+            $relationshipType = is_string($summary['type'] ?? null) ? $summary['type'] : '';
+            $relationshipId = is_string($summary['id'] ?? null) ? $summary['id'] : '';
+            $contentType = is_string($summary['contentType'] ?? null) ? $summary['contentType'] : '';
+            $contentTypeBase = is_string($summary['contentTypeBase'] ?? null) ? $summary['contentTypeBase'] : '';
+            $targetReferenceSuffix = is_string($summary['targetReferenceSuffix'] ?? null) ? $summary['targetReferenceSuffix'] : '';
+            $issues = [];
+
+            if ($external) {
+                foreach (($summary['externalTargetIssues'] ?? []) as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $issues[] = $issue;
+                    }
+                }
+            } else {
+                if (!$exists) {
+                    $issues[] = 'missing-settings-relationship-target';
+                }
+                if (($summary['contentTypeSource'] ?? 'missing') === 'missing') {
+                    $issues[] = 'missing-settings-relationship-content-type';
+                }
+            }
+            $issues = array_values(array_unique($issues));
+            sort($issues, SORT_STRING);
+
+            $item = [
+                'index' => count($items),
+                'relationshipId' => $relationshipId,
+                'relationshipKey' => $settingsRelationshipsPart . '#' . $relationshipId,
+                'sourcePart' => $settingsPart,
+                'sourcePartExists' => $settingsExists,
+                'relationshipsPart' => $settingsRelationshipsPart,
+                'relationshipsPartExists' => isset($parts[$settingsRelationshipsPart]),
+                'relationshipType' => $relationshipType,
+                'target' => $summary['target'],
+                'targetMode' => $summary['targetMode'],
+                'external' => $external,
+                'resolvedTarget' => $summary['resolvedTarget'],
+                'partName' => $targetPart,
+                'targetPart' => $targetPart,
+                'targetQuery' => $summary['targetQuery'],
+                'targetFragment' => $summary['targetFragment'],
+                'targetReferenceSuffix' => $targetReferenceSuffix,
+                'targetParentTraversalCount' => $summary['targetParentTraversalCount'],
+                'targetHasParentTraversal' => $summary['targetHasParentTraversal'],
+                'targetStartsAtPackageRoot' => $summary['targetStartsAtPackageRoot'],
+                'sameSourcePart' => $summary['sameSourcePart'],
+                'externalTargetKind' => $summary['externalTargetKind'],
+                'externalTargetScheme' => $summary['externalTargetScheme'],
+                'externalTargetAllowed' => $summary['externalTargetAllowed'],
+                'externalTargetIssues' => $summary['externalTargetIssues'],
+                'exists' => $exists,
+                'byteLength' => !$external && $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null,
+                'crc32' => !$external && $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null,
+                'sha256' => !$external && $targetPart !== null && $exists ? hash('sha256', $parts[$targetPart]) : null,
+                'contentType' => $contentType,
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeHasParameters' => $summary['contentTypeHasParameters'],
+                'contentTypeParameterCount' => $summary['contentTypeParameterCount'],
+                'contentTypeParameters' => $summary['contentTypeParameters'],
+                'contentTypeParameterMap' => $summary['contentTypeParameterMap'],
+                'contentTypeSource' => $summary['contentTypeSource'],
+                'defaultExtension' => $summary['defaultExtension'],
+                'overridePartName' => $summary['overridePartName'],
+                'byteExposurePolicy' => 'settings-relationship-bytes-blocked',
+                'reviewPolicy' => 'settings-relationship-metadata-only',
+                'valid' => $issues === [],
+                'issues' => $issues,
+                'relationship' => $summary,
+            ];
+
+            $items[] = $item;
+            if ($relationshipId !== '' && !isset($byRelationshipId[$relationshipId])) {
+                $byRelationshipId[$relationshipId] = $item;
+            }
+            $this->appendUniqueString($relationshipIds, $relationshipId);
+            $relationshipTypeCounts[$relationshipType] = ($relationshipTypeCounts[$relationshipType] ?? 0) + 1;
+            if ($targetPart !== null) {
+                $this->appendUniqueString($targetParts, $targetPart);
+            }
+            if ($external) {
+                $this->appendUniqueString($externalTargets, is_string($summary['target'] ?? null) ? $summary['target'] : null);
+                if (($summary['externalTargetAllowed'] ?? null) !== true) {
+                    $this->appendUniqueString($unsafeExternalTargets, is_string($summary['target'] ?? null) ? $summary['target'] : null);
+                }
+                $kind = is_string($summary['externalTargetKind'] ?? null) ? $summary['externalTargetKind'] : '(unknown)';
+                $scheme = is_string($summary['externalTargetScheme'] ?? null) ? $summary['externalTargetScheme'] : '(none)';
+                $externalTargetKindCounts[$kind] = ($externalTargetKindCounts[$kind] ?? 0) + 1;
+                $externalTargetSchemeCounts[$scheme] = ($externalTargetSchemeCounts[$scheme] ?? 0) + 1;
+            }
+            $this->appendUniqueString($targetReferenceSuffixes, $targetReferenceSuffix);
+            if ($contentType !== '') {
+                $this->appendUniqueString($contentTypesSeen, $contentType);
+            }
+            if ($contentTypeBase !== '') {
+                $contentTypeBaseCounts[$contentTypeBase] = ($contentTypeBaseCounts[$contentTypeBase] ?? 0) + 1;
+            }
+            foreach ($issues as $issue) {
+                $issueCodes[$issue] = true;
+            }
+        }
+
+        ksort($relationshipTypeCounts, SORT_STRING);
+        ksort($externalTargetKindCounts, SORT_STRING);
+        ksort($externalTargetSchemeCounts, SORT_STRING);
+        ksort($contentTypeBaseCounts, SORT_STRING);
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'sourcePart' => $settingsPart,
+            'sourcePartExists' => $settingsExists,
+            'relationshipsPart' => $settingsRelationshipsPart,
+            'relationshipsPartExists' => isset($parts[$settingsRelationshipsPart]),
+            'count' => count($items),
+            'relationshipCount' => count($settingsRelationships),
+            'internalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === false)),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'allowedExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true && ($item['externalTargetAllowed'] ?? null) === true)),
+            'unsafeExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true && ($item['externalTargetAllowed'] ?? null) !== true)),
+            'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === false && $item['exists'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-settings-relationship-target', $item['issues'], true))),
+            'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-settings-relationship-content-type', $item['issues'], true))),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'relationshipIds' => $relationshipIds,
+            'relationshipTypeCounts' => $relationshipTypeCounts,
+            'targetParts' => $targetParts,
+            'externalTargets' => $externalTargets,
+            'unsafeExternalTargets' => $unsafeExternalTargets,
+            'externalTargetKindCounts' => $externalTargetKindCounts,
+            'externalTargetSchemeCounts' => $externalTargetSchemeCounts,
+            'targetReferenceSuffixes' => $targetReferenceSuffixes,
+            'contentTypes' => $contentTypesSeen,
+            'contentTypeBaseCounts' => $contentTypeBaseCounts,
+            'issueCodes' => array_keys($issueCodes),
+            'byRelationshipId' => $byRelationshipId,
+            'items' => $items,
+            'byteExposurePolicy' => 'settings-relationship-bytes-blocked',
+            'reviewPolicy' => 'settings-relationship-metadata-only',
         ];
     }
 
