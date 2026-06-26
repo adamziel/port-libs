@@ -6,7 +6,7 @@ namespace PortLibs\Pandoc;
 
 final class WordPressBlockWriter
 {
-    /** @var list<AstNode> */
+    /** @var list<array{number:int, anchor:string, label:string, node:AstNode}> */
     private array $footnotes = [];
 
     /**
@@ -2136,22 +2136,121 @@ final class WordPressBlockWriter
 
     private function renderNoteReference(AstNode $node): string
     {
-        $number = count($this->footnotes) + 1;
-        $this->footnotes[] = $node;
+        $entry = $this->registerFootnote($node);
+        $number = $entry['number'];
+        $anchor = $entry['anchor'];
+        $label = $entry['label'];
+        $labelAttr = $label === '' ? '' : ' data-pandoc-note-label="' . $this->esc($label) . '"';
 
-        return '<sup id="fnref-' . $number . '"><a href="#fn-' . $number . '" role="doc-noteref">'
+        return '<sup id="fnref-' . $this->esc($anchor) . '"' . $labelAttr . '><a href="#fn-' . $this->esc($anchor) . '" role="doc-noteref">'
             . $number
             . '</a></sup>';
+    }
+
+    /**
+     * @return array{number:int, anchor:string, label:string, node:AstNode}
+     */
+    private function registerFootnote(AstNode $node): array
+    {
+        $number = count($this->footnotes) + 1;
+        $label = $this->noteSourceLabel($node);
+        $anchor = $this->resolvedFootnoteAnchor($label, $number);
+        $entry = [
+            'number' => $number,
+            'anchor' => $anchor,
+            'label' => $label,
+            'node' => $node,
+        ];
+        $this->footnotes[] = $entry;
+
+        return $entry;
+    }
+
+    private function noteSourceLabel(AstNode $node): string
+    {
+        // Keep legacy Markdown footnotes numeric; note-style CSL output needs source labels for reviewer handoff.
+        if (!$this->containsProcessedCslNoteCitation($node)) {
+            return '';
+        }
+
+        foreach (['label', 'noteLabel'] as $attribute) {
+            $label = $node->attr($attribute);
+            if (!is_scalar($label)) {
+                continue;
+            }
+
+            $label = trim(preg_replace('/\s+/', ' ', (string) $label) ?? (string) $label);
+            if ($this->isSafeFootnoteAnchorLabel($label)) {
+                return $label;
+            }
+        }
+
+        return '';
+    }
+
+    private function containsProcessedCslNoteCitation(AstNode $node): bool
+    {
+        if (
+            $node->type === 'citation'
+            && (string) $node->attr('cslStyleClass', '') === 'note'
+        ) {
+            return true;
+        }
+
+        foreach ($node->children as $child) {
+            if ($this->containsProcessedCslNoteCitation($child)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isSafeFootnoteAnchorLabel(string $label): bool
+    {
+        return $label !== ''
+            && strlen($label) <= 999
+            && preg_match('/^[A-Za-z0-9_.:-]+$/', $label) === 1;
+    }
+
+    private function resolvedFootnoteAnchor(string $label, int $number): string
+    {
+        $base = $label === '' ? (string) $number : $label;
+        $anchor = $base;
+        $suffix = 2;
+        while ($this->footnoteAnchorExists($anchor)) {
+            $anchor = $base . '-' . $suffix;
+            $suffix++;
+        }
+
+        return $anchor;
+    }
+
+    private function footnoteAnchorExists(string $anchor): bool
+    {
+        $key = strtolower($anchor);
+        foreach ($this->footnotes as $footnote) {
+            if (strtolower($footnote['anchor']) === $key) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function renderFootnotesBlock(): string
     {
         $items = [];
-        foreach ($this->footnotes as $index => $note) {
-            $number = $index + 1;
-            $items[] = '<li id="fn-' . $number . '">'
-                . $this->renderBlocksAsHtml($note->children)
-                . ' <a href="#fnref-' . $number . '" aria-label="Back to content">Back</a>'
+        foreach ($this->footnotes as $footnote) {
+            $anchor = $footnote['anchor'];
+            $label = $footnote['label'];
+            $labelAttr = $label === '' ? '' : ' data-pandoc-note-label="' . $this->esc($label) . '"';
+            $backlinkAttrs = $label === ''
+                ? ' href="#fnref-' . $this->esc($anchor) . '" aria-label="Back to content"'
+                : ' href="#fnref-' . $this->esc($anchor) . '" class="footnote-back" role="doc-backlink" aria-label="Back to content"';
+            $items[] = '<li id="fn-' . $this->esc($anchor) . '"' . $labelAttr . '>'
+                . $this->renderBlocksAsHtml($footnote['node']->children)
+                . ' <a' . $backlinkAttrs . '>Back</a>'
                 . '</li>';
         }
 
