@@ -110,6 +110,39 @@ return [
         $t->same('paragraph', $document->children[0]->type);
         $t->same('Byte DOCX', $document->children[0]->attr('text'));
     },
+    'keeps readable docx body when optional xml parts are malformed' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-docx-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary DOCX path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary DOCX package');
+        }
+        $zip->addFromString('word/document.xml', '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Body survives.</w:t></w:r></w:p></w:body></w:document>');
+        $zip->addFromString('word/numbering.xml', '<numbering><bad></numbering>');
+        $zip->addFromString('word/comments.xml', '<comments><bad></comments>');
+        $zip->addFromString('word/header1.xml', '<hdr><bad></hdr>');
+        $zip->close();
+
+        try {
+            $document = (new DocxReader())->readDocxFile($path);
+        } finally {
+            @unlink($path);
+        }
+
+        $meta = $document->attr('meta');
+        $diagnostics = $meta['docxDiagnostics'];
+
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('Body survives.', $document->children[0]->attr('text'));
+        $t->same(3, count($diagnostics));
+        $t->same('DOCX numbering.xml', $diagnostics[0]['part']);
+        $t->same('DOCX comments.xml', $diagnostics[1]['part']);
+        $t->same('DOCX header word/header1.xml', $diagnostics[2]['part']);
+        $t->same('malformed-docx-optional-xml', $diagnostics[0]['code']);
+    },
     'preserves docx numbering levels styles starts and delimiters' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-docx-');
         if ($path === false) {

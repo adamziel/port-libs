@@ -31,6 +31,9 @@ final class DocxReader
     /** @var array<string, array{author: string, date: string, children: list<AstNode>, text: string}> */
     private array $comments = [];
 
+    /** @var list<array{code:string,part:string,message:string}> */
+    private array $diagnostics = [];
+
     public function read(string $bytes): AstNode
     {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-docx-');
@@ -126,12 +129,20 @@ final class DocxReader
         array $entries,
         array $media
     ): AstNode {
-        $this->styles = $styles_xml !== '' ? $this->styles($this->loadXml($styles_xml, 'DOCX styles.xml')) : [];
-        $this->numbering = $numbering_xml !== '' ? $this->numbering($this->loadXml($numbering_xml, 'DOCX numbering.xml')) : [];
-        $this->relationships = $rels_xml !== '' ? $this->relationships($this->loadXml($rels_xml, 'DOCX document relationships')) : [];
-        $this->footnotes = $footnotes_xml !== '' ? $this->notes($this->loadXml($footnotes_xml, 'DOCX footnotes.xml'), 'footnote') : [];
-        $this->endnotes = $endnotes_xml !== '' ? $this->notes($this->loadXml($endnotes_xml, 'DOCX endnotes.xml'), 'endnote') : [];
-        $this->comments = $comments_xml !== '' ? $this->comments($this->loadXml($comments_xml, 'DOCX comments.xml')) : [];
+        $this->diagnostics = [];
+        $stylesDom = $this->loadOptionalXml($styles_xml, 'DOCX styles.xml');
+        $numberingDom = $this->loadOptionalXml($numbering_xml, 'DOCX numbering.xml');
+        $relationshipsDom = $this->loadOptionalXml($rels_xml, 'DOCX document relationships');
+        $footnotesDom = $this->loadOptionalXml($footnotes_xml, 'DOCX footnotes.xml');
+        $endnotesDom = $this->loadOptionalXml($endnotes_xml, 'DOCX endnotes.xml');
+        $commentsDom = $this->loadOptionalXml($comments_xml, 'DOCX comments.xml');
+
+        $this->styles = $stylesDom instanceof \DOMDocument ? $this->styles($stylesDom) : [];
+        $this->numbering = $numberingDom instanceof \DOMDocument ? $this->numbering($numberingDom) : [];
+        $this->relationships = $relationshipsDom instanceof \DOMDocument ? $this->relationships($relationshipsDom) : [];
+        $this->footnotes = $footnotesDom instanceof \DOMDocument ? $this->notes($footnotesDom, 'footnote') : [];
+        $this->endnotes = $endnotesDom instanceof \DOMDocument ? $this->notes($endnotesDom, 'endnote') : [];
+        $this->comments = $commentsDom instanceof \DOMDocument ? $this->comments($commentsDom) : [];
 
         $document = $this->loadXml($document_xml, 'DOCX document.xml');
         $body = $this->firstElementByLocalName($document, 'body');
@@ -149,7 +160,8 @@ final class DocxReader
             ]);
         }
 
-        $metadata = $core_xml !== '' ? $this->coreProperties($this->loadXml($core_xml, 'DOCX core properties')) : [];
+        $coreDom = $this->loadOptionalXml($core_xml, 'DOCX core properties');
+        $metadata = $coreDom instanceof \DOMDocument ? $this->coreProperties($coreDom) : [];
         $metadata['docxPackageEntries'] = count($entries);
         $metadata['docxMediaFiles'] = $media;
         $metadata['docxRelationshipCount'] = count($this->relationships);
@@ -161,6 +173,7 @@ final class DocxReader
         $metadata['docxFooters'] = count($footers);
         $metadata['docxHeaderFiles'] = array_keys($header_xmls);
         $metadata['docxFooterFiles'] = array_keys($footer_xmls);
+        $metadata['docxDiagnostics'] = $this->diagnostics;
 
         return new AstNode('document', ['meta' => $metadata], $children);
     }
@@ -176,7 +189,11 @@ final class DocxReader
             if ($xml === '') {
                 continue;
             }
-            $root = $this->loadXml($xml, $label . ' ' . $name)->documentElement;
+            $document = $this->loadOptionalXml($xml, $label . ' ' . $name);
+            if (!$document instanceof \DOMDocument) {
+                continue;
+            }
+            $root = $document->documentElement;
             if (!$root instanceof \DOMElement) {
                 continue;
             }
@@ -1621,6 +1638,25 @@ final class DocxReader
         }
 
         return $dom;
+    }
+
+    private function loadOptionalXml(string $xml, string $label): ?\DOMDocument
+    {
+        if ($xml === '') {
+            return null;
+        }
+
+        try {
+            return $this->loadXml($xml, $label);
+        } catch (\InvalidArgumentException $exception) {
+            $this->diagnostics[] = [
+                'code' => 'malformed-docx-optional-xml',
+                'part' => $label,
+                'message' => $exception->getMessage(),
+            ];
+
+            return null;
+        }
     }
 
     private function firstElementByLocalName(\DOMDocument $dom, string $localName): ?\DOMElement
