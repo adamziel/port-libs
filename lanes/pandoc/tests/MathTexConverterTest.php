@@ -1547,16 +1547,19 @@ return [
         $t->contains('<mtable columnalign="right left"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub><mo>%</mo></mtd><mtd><mo>=</mo><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr></mtable>', $escapedPercentMathml);
         $t->contains('<annotation encoding="application/x-tex">\\begin{aligned}p_i\\% &amp;= m_i\\end{aligned}</annotation>', $escapedPercentMathml);
     },
-    'converts bounded tex explicit hspace and mspace dimensions to mathml' => static function (TestRunner $t): void {
+    'converts bounded tex explicit dimensioned spacing commands to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $explicitMathml = $converter->texToMathMl('p_i\\hspace{1.5em}m_i\\mspace{-2mu}q_i + a\\hspace*{.25in}b', true);
         $metricMathml = $converter->texToMathMl('x\\hspace{12pt}y\\mspace{0em}z');
+        $kernMathml = $converter->texToMathMl('r\\kern1pt s\\mkern-3mu t + u\\kern .5em v', true);
 
         $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $explicitMathml);
         $t->contains('<msub><mi>p</mi><mi>i</mi></msub><mspace width="1.5em"></mspace><msub><mi>m</mi><mi>i</mi></msub><mspace width="-2mu"></mspace><msub><mi>q</mi><mi>i</mi></msub>', $explicitMathml);
         $t->contains('<mi>a</mi><mspace width=".25in" linebreak="nobreak"></mspace><mi>b</mi>', $explicitMathml);
         $t->contains('<annotation encoding="application/x-tex">p_i\\hspace{1.5em}m_i\\mspace{-2mu}q_i + a\\hspace*{.25in}b</annotation>', $explicitMathml);
         $t->contains('<mi>x</mi><mspace width="12pt"></mspace><mi>y</mi><mspace width="0em"></mspace><mi>z</mi>', $metricMathml);
+        $t->contains('<mi>r</mi><mspace width="1pt"></mspace><mi>s</mi><mspace width="-3mu"></mspace><mi>t</mi><mo>+</mo><mi>u</mi><mspace width=".5em"></mspace><mi>v</mi>', $kernMathml);
+        $t->contains('<annotation encoding="application/x-tex">r\\kern1pt s\\mkern-3mu t + u\\kern .5em v</annotation>', $kernMathml);
     },
     'converts bounded tex modulo commands to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
@@ -2696,6 +2699,11 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\hspace{calc(1em)}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\mspace{bad}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\mspace*{1em}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\kern'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\kern{1pt}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\kern1'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\mkern bad'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\mkern*{1mu}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\tag{}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('x \\tag{A} \\tag{B}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\tag*'));
