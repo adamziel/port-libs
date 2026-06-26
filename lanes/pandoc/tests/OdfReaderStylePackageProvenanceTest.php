@@ -89,6 +89,33 @@ return [
         $t->same(2, $provenance['count']);
         $t->same(8, $provenance['definitionCount']);
         $t->same(4, $provenance['automaticStyleDefinitionCount']);
+        $t->same(['AutoParagraph', 'ContentNumber', 'pmContentAuto', 'pmReview'], $provenance['automaticStyleDefinitionNames']);
+        $t->same([
+            [
+                'name' => 'ContentNumber',
+                'definitionType' => 'dataStyles',
+                'sourcePart' => 'content.xml',
+                'sourceContainer' => 'office:automatic-styles',
+            ],
+            [
+                'name' => 'pmContentAuto',
+                'definitionType' => 'pageLayouts',
+                'sourcePart' => 'content.xml',
+                'sourceContainer' => 'office:automatic-styles',
+            ],
+            [
+                'name' => 'AutoParagraph',
+                'definitionType' => 'styles',
+                'sourcePart' => 'content.xml',
+                'sourceContainer' => 'office:automatic-styles',
+            ],
+            [
+                'name' => 'pmReview',
+                'definitionType' => 'pageLayouts',
+                'sourcePart' => 'styles.xml',
+                'sourceContainer' => 'office:automatic-styles',
+            ],
+        ], $provenance['automaticStyleDefinitions']);
         $t->same(1, $provenance['masterStyleDefinitionCount']);
         $t->same(['content.xml', 'styles.xml'], $provenance['sourceParts']);
         $t->same([
@@ -114,6 +141,27 @@ return [
         $t->same(['ContentNumber'], $content['dataStyleNames']);
         $t->same(['pmContentAuto'], $content['pageLayoutNames']);
         $t->same(3, $content['automaticStyleCount']);
+        $t->same(['AutoParagraph', 'ContentNumber', 'pmContentAuto'], $content['automaticStyleNames']);
+        $t->same([
+            [
+                'name' => 'ContentNumber',
+                'definitionType' => 'dataStyles',
+                'sourcePart' => 'content.xml',
+                'sourceContainer' => 'office:automatic-styles',
+            ],
+            [
+                'name' => 'pmContentAuto',
+                'definitionType' => 'pageLayouts',
+                'sourcePart' => 'content.xml',
+                'sourceContainer' => 'office:automatic-styles',
+            ],
+            [
+                'name' => 'AutoParagraph',
+                'definitionType' => 'styles',
+                'sourcePart' => 'content.xml',
+                'sourceContainer' => 'office:automatic-styles',
+            ],
+        ], $content['automaticStyleDefinitions']);
         $t->same(['office:automatic-styles' => 3], $content['sourceContainerCounts']);
         $t->same('package-bytes-exposable', $content['packageByteExposurePolicy']);
         $t->same('odf-style-package-provenance-metadata-only', $content['byteExposurePolicy']);
@@ -127,6 +175,15 @@ return [
         $t->same(['pmReview'], $styles['pageLayoutNames']);
         $t->same(['ReviewPage'], $styles['masterPageNames']);
         $t->same(1, $styles['automaticStyleCount']);
+        $t->same(['pmReview'], $styles['automaticStyleNames']);
+        $t->same([
+            [
+                'name' => 'pmReview',
+                'definitionType' => 'pageLayouts',
+                'sourcePart' => 'styles.xml',
+                'sourceContainer' => 'office:automatic-styles',
+            ],
+        ], $styles['automaticStyleDefinitions']);
         $t->same(1, $styles['masterStyleCount']);
         $t->same([
             'office:automatic-styles' => 1,

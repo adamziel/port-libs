@@ -1964,6 +1964,8 @@ final class OdfReader
         $definitionTypeCounts = [];
         $definitionCount = 0;
         $automaticStyleDefinitionCount = 0;
+        $automaticStyleDefinitionNames = [];
+        $automaticStyleDefinitions = [];
         $masterStyleDefinitionCount = 0;
 
         foreach ($collections as $collectionName => $config) {
@@ -2000,6 +2002,8 @@ final class OdfReader
                         'masterPageCount' => 0,
                         'masterPageNames' => [],
                         'automaticStyleCount' => 0,
+                        'automaticStyleNames' => [],
+                        'automaticStyleDefinitions' => [],
                         'masterStyleCount' => 0,
                         'sourceContainerCounts' => [],
                     ];
@@ -2021,8 +2025,19 @@ final class OdfReader
                     $itemsByPart[$part]['sourceContainerCounts'][$sourceContainer] = ($itemsByPart[$part]['sourceContainerCounts'][$sourceContainer] ?? 0) + 1;
                 }
                 if (($definition['automaticStyle'] ?? false) === true) {
+                    $automaticDefinition = self::withoutEmpty([
+                        'name' => $styleName,
+                        'definitionType' => $collectionName,
+                        'sourcePart' => $part,
+                        'sourceContainer' => is_string($sourceContainer) ? $sourceContainer : null,
+                    ]);
+
                     ++$automaticStyleDefinitionCount;
+                    $automaticStyleDefinitionNames[] = $styleName;
+                    $automaticStyleDefinitions[] = $automaticDefinition;
                     $itemsByPart[$part]['automaticStyleCount']++;
+                    $itemsByPart[$part]['automaticStyleNames'][] = $styleName;
+                    $itemsByPart[$part]['automaticStyleDefinitions'][] = $automaticDefinition;
                 }
                 if (($definition['masterStyle'] ?? false) === true) {
                     ++$masterStyleDefinitionCount;
@@ -2036,6 +2051,19 @@ final class OdfReader
         }
         ksort($definitionTypeCounts, SORT_STRING);
         ksort($sourceContainerCounts, SORT_STRING);
+        $automaticStyleDefinitionNames = array_values(array_unique(array_map('strval', $automaticStyleDefinitionNames)));
+        sort($automaticStyleDefinitionNames, SORT_STRING);
+        usort($automaticStyleDefinitions, static function (array $left, array $right): int {
+            return [
+                (string) ($left['sourcePart'] ?? ''),
+                (string) ($left['definitionType'] ?? ''),
+                (string) ($left['name'] ?? ''),
+            ] <=> [
+                (string) ($right['sourcePart'] ?? ''),
+                (string) ($right['definitionType'] ?? ''),
+                (string) ($right['name'] ?? ''),
+            ];
+        });
 
         $items = [];
         foreach ($itemsByPart as $part => $item) {
@@ -2052,6 +2080,22 @@ final class OdfReader
             }
             if (is_array($item['sourceContainerCounts'])) {
                 ksort($item['sourceContainerCounts'], SORT_STRING);
+            }
+            if (is_array($item['automaticStyleNames'])) {
+                $automaticStyleNames = array_values(array_unique(array_map('strval', $item['automaticStyleNames'])));
+                sort($automaticStyleNames, SORT_STRING);
+                $item['automaticStyleNames'] = $automaticStyleNames;
+            }
+            if (is_array($item['automaticStyleDefinitions'])) {
+                usort($item['automaticStyleDefinitions'], static function (array $left, array $right): int {
+                    return [
+                        (string) ($left['definitionType'] ?? ''),
+                        (string) ($left['name'] ?? ''),
+                    ] <=> [
+                        (string) ($right['definitionType'] ?? ''),
+                        (string) ($right['name'] ?? ''),
+                    ];
+                });
             }
 
             $items[] = self::withoutEmpty($item + [
@@ -2079,6 +2123,8 @@ final class OdfReader
             'count' => count($items),
             'definitionCount' => $definitionCount,
             'automaticStyleDefinitionCount' => $automaticStyleDefinitionCount,
+            'automaticStyleDefinitionNames' => $automaticStyleDefinitionNames,
+            'automaticStyleDefinitions' => $automaticStyleDefinitions,
             'masterStyleDefinitionCount' => $masterStyleDefinitionCount,
             'sourceParts' => array_values(array_map(static fn (array $item): string => (string) $item['part'], $items)),
             'definitionTypeCounts' => $definitionTypeCounts,
