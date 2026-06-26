@@ -113,10 +113,16 @@ final class GitGlob
 
     public static function wildmatch(string $pattern, string $value, int $mode = 0): bool
     {
+        $noMatchSlash = ($mode & self::WILDMATCH_NO_MATCH_SLASH_LITERAL) !== 0;
+
+        if (!$noMatchSlash) {
+            $pattern = self::normalizeGlobModeDoubleStarSlash($pattern);
+        }
+
         return GitAttributes::globMatches(
             $pattern,
             $value,
-            ($mode & self::WILDMATCH_NO_MATCH_SLASH_LITERAL) !== 0,
+            $noMatchSlash,
             ($mode & self::WILDMATCH_IGNORE_CASE) !== 0,
         );
     }
@@ -288,6 +294,28 @@ final class GitGlob
             self::CASE_FOLD => $mode | self::WILDMATCH_IGNORE_CASE,
             default => throw new \InvalidArgumentException("Unsupported glob case mode: {$case}"),
         };
+    }
+
+    private static function normalizeGlobModeDoubleStarSlash(string $pattern): string
+    {
+        $normalized = '';
+        $length = strlen($pattern);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $pattern[$i];
+            if ($char === '\\' && $i + 1 < $length) {
+                $normalized .= $char . $pattern[++$i];
+                continue;
+            }
+            if ($char === '*' && ($pattern[$i + 1] ?? null) === '*' && ($pattern[$i + 2] ?? null) === '/') {
+                $normalized .= '*';
+                $i++;
+                continue;
+            }
+
+            $normalized .= $char;
+        }
+
+        return $normalized;
     }
 
     private static function asciiEquals(string $left, string $right, bool $ignoreCase): bool

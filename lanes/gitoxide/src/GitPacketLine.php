@@ -191,6 +191,43 @@ final class GitPacketLine
         return self::encodeBandLine(self::band($channel, $data));
     }
 
+    public static function encodeWrite(string $data, bool $textMode = false): string
+    {
+        if ($data === '') {
+            throw new \InvalidArgumentException("empty packet lines are not permitted as '0004' is invalid");
+        }
+
+        $encoded = '';
+        $chunkLength = $textMode ? self::MAX_DATA_LENGTH - 1 : self::MAX_DATA_LENGTH;
+        for ($offset = 0, $length = strlen($data); $offset < $length; $offset += $chunkLength) {
+            $chunk = substr($data, $offset, $chunkLength);
+            $encoded .= $textMode ? self::encodeText($chunk) : self::encodeData($chunk);
+        }
+
+        return $encoded;
+    }
+
+    /**
+     * @param list<string> $chunks
+     */
+    public static function encodeWrites(array $chunks, bool $textMode = false): string
+    {
+        $encoded = '';
+        foreach ($chunks as $chunk) {
+            $encoded .= self::encodeWrite($chunk, $textMode);
+        }
+
+        return $encoded;
+    }
+
+    /**
+     * @param list<string> $stopKinds
+     */
+    public static function reader(string $bytes, array $stopKinds = []): GitPacketLineStreamingReader
+    {
+        return new GitPacketLineStreamingReader($bytes, $stopKinds);
+    }
+
     /**
      * @param array{channel:string,payload:string} $band
      */
@@ -356,5 +393,212 @@ final class GitPacketLine
             self::CHANNEL_ERROR => 3,
             default => throw new \InvalidArgumentException("Unknown side-band channel {$channel}"),
         };
+    }
+}
+
+final class GitPacketLineStreamingReader
+{
+    private int $offset = 0;
+    private bool $done = false;
+    private bool $failOnErrLines = false;
+    /** @var array{kind:string,payload?:string}|null */
+    private ?array $stoppedAt = null;
+    /** @var array{kind:string,payload?:string}|null */
+    private ?array $peekedLine = null;
+    private bool $hasPeekedLine = false;
+    /** @var array<string,true> */
+    private array $stopKinds;
+
+    /**
+     * @param list<string> $stopKinds
+     */
+    public function __construct(private string $bytes, array $stopKinds = [])
+    {
+        $this->stopKinds = $this->normalizeStopKinds($stopKinds);
+    }
+
+    public function failOnErrLines(bool $fail = true): void
+    {
+        $this->failOnErrLines = $fail;
+    }
+
+    /**
+     * @return array{kind:string,payload?:string}|null
+     */
+    public function readLine(): ?array
+    {
+        if ($this->hasPeekedLine) {
+            $line = $this->peekedLine;
+            $this->peekedLine = null;
+            $this->hasPeekedLine = false;
+
+            return $line;
+        }
+
+        return $this->readLineInternal();
+    }
+
+    /**
+     * @return array{kind:string,payload?:string}|null
+     */
+    public function peekLine(): ?array
+    {
+        if ($this->hasPeekedLine) {
+            return $this->peekedLine;
+        }
+
+        $line = $this->readLineInternal();
+        if ($line !== null) {
+            $this->peekedLine = $line;
+            $this->hasPeekedLine = true;
+        }
+
+        return $line;
+    }
+
+    public function readDataLine(): ?string
+    {
+        $line = $this->readLine();
+        if ($line === null || ($line['kind'] ?? null) !== GitPacketLine::KIND_DATA) {
+            return null;
+        }
+
+        return $line['payload'] ?? '';
+    }
+
+    public function peekDataLine(): ?string
+    {
+        $line = $this->peekLine();
+        if ($line === null || ($line['kind'] ?? null) !== GitPacketLine::KIND_DATA) {
+            return null;
+        }
+
+        return $line['payload'] ?? '';
+    }
+
+    public function readAllData(): string
+    {
+        $data = '';
+        while (($line = $this->readLine()) !== null) {
+            if (($line['kind'] ?? null) === GitPacketLine::KIND_DATA) {
+                $data .= $line['payload'] ?? '';
+            }
+        }
+
+        return $data;
+    }
+
+    /**
+     * @param callable(bool,string): (bool|null) $progress
+     */
+    public function readAllDataWithSidebands(callable $progress): string
+    {
+        $data = '';
+        while (($line = $this->readLine()) !== null) {
+            if (($line['kind'] ?? null) !== GitPacketLine::KIND_DATA) {
+                continue;
+            }
+
+            $band = GitPacketLine::decodeBand($line);
+            if ($band['channel'] === GitPacketLine::CHANNEL_DATA) {
+                $data .= $band['payload'];
+                continue;
+            }
+
+            $shouldContinue = $progress($band['channel'] === GitPacketLine::CHANNEL_ERROR, $band['payload']);
+            if ($shouldContinue === false) {
+                break;
+            }
+        }
+
+        return $data;
+    }
+
+    public function reset(): void
+    {
+        $this->done = false;
+        $this->stoppedAt = null;
+        $this->peekedLine = null;
+        $this->hasPeekedLine = false;
+    }
+
+    /**
+     * @param list<string> $stopKinds
+     */
+    public function resetWith(array $stopKinds): void
+    {
+        $this->stopKinds = $this->normalizeStopKinds($stopKinds);
+        $this->reset();
+    }
+
+    public function replace(string $bytes): void
+    {
+        $this->bytes = $bytes;
+        $this->offset = 0;
+        $this->failOnErrLines = false;
+        $this->reset();
+    }
+
+    /**
+     * @return array{kind:string,payload?:string}|null
+     */
+    public function stoppedAt(): ?array
+    {
+        return $this->stoppedAt;
+    }
+
+    public function consumedBytes(): int
+    {
+        return $this->offset;
+    }
+
+    /**
+     * @return array{kind:string,payload?:string}|null
+     */
+    private function readLineInternal(): ?array
+    {
+        if ($this->done) {
+            return null;
+        }
+        if ($this->offset >= strlen($this->bytes)) {
+            throw new \RuntimeException('Unexpected EOF');
+        }
+
+        $result = GitPacketLine::streaming(substr($this->bytes, $this->offset));
+        if ($result['status'] === 'incomplete') {
+            throw new \RuntimeException(
+                "Unexpected EOF: needing {$result['bytesNeeded']} additional bytes to decode the line successfully"
+            );
+        }
+
+        $this->offset += $result['bytesConsumed'];
+        $line = $result['line'];
+        $error = GitPacketLine::checkError($line);
+        if ($this->failOnErrLines && $error !== null) {
+            $this->done = true;
+            throw new \RuntimeException($error);
+        }
+        if (isset($this->stopKinds[$line['kind'] ?? ''])) {
+            $this->stoppedAt = $line;
+            $this->done = true;
+
+            return null;
+        }
+
+        return $line;
+    }
+
+    /**
+     * @param list<string> $stopKinds
+     * @return array<string,true>
+     */
+    private function normalizeStopKinds(array $stopKinds): array
+    {
+        $normalized = [];
+        foreach ($stopKinds as $kind) {
+            $normalized[$kind] = true;
+        }
+
+        return $normalized;
     }
 }

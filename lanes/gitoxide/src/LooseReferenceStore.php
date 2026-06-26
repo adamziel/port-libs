@@ -95,6 +95,38 @@ final class LooseReferenceStore
     /**
      * @return list<LooseReference>
      */
+    public function pseudoReferences(string $algorithm = 'sha1'): array
+    {
+        $gitDirectory = rtrim($this->gitDirectory, '/\\');
+        if (!is_dir($gitDirectory)) {
+            return [];
+        }
+
+        $references = [];
+        foreach (scandir($gitDirectory) ?: [] as $entry) {
+            if ($entry === '.' || $entry === '..' || str_ends_with($entry, '.lock')) {
+                continue;
+            }
+            if (!ReferenceName::isPseudoRef($entry)) {
+                continue;
+            }
+
+            $path = $gitDirectory . '/' . $entry;
+            if (!is_file($path)) {
+                continue;
+            }
+
+            $references[] = LooseReference::parse($entry, (string) file_get_contents($path), $algorithm);
+        }
+
+        usort($references, static fn (LooseReference $a, LooseReference $b): int => strcmp($a->name, $b->name));
+
+        return $references;
+    }
+
+    /**
+     * @return list<LooseReference>
+     */
     public function prefixed(string $prefix, string $algorithm = 'sha1'): array
     {
         ReferenceName::assertValidPartial(rtrim($prefix, '/'));
