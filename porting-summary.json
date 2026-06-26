@@ -51,7 +51,7 @@
             "currentWork": "Six-lane PR integration accepted moz-document and unknown at-rule minification, posit...",
             "nextTarget": "Continue converting the remaining 918 unmapped LightningCSS u...",
             "remainingGate": "Full upstream runner closure is partial: bounded Rust media test and...",
-            "commit": "pending source..."
+            "commit": "5cf53e1"
         },
         {
             "lane": "gitoxide",

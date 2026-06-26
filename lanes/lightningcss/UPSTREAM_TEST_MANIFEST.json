@@ -2104,7 +2104,7 @@
         "upstreamEvidence": "Worker evidence cites pinned LightningCSS commit 22bdda3d190f1cd321d98026225cfc964af64ad9 src/lib.rs::test_selectors lines 6677-6839, src/lib.rs::test_supports_rule lines 15080-15175, src/lib.rs::test_size lines 4016-4104, src/lib.rs::test_css_modules lines 26125-26169 and 26901-26910, node/test/bundle.test.mjs lines 399-415, and parcel_sourcemap 2.1.1 utils.rs::test_make_relative_path lines 86-105 plus SourceMap::add_source lines 220-233. Full Rust/Node/WASM runners were not executed."
     },
     "focusedMozPositionPaddingBatch20260626": {
-        "sourceCommit": "pending source commit for moz position padding batch",
+        "sourceCommit": "5cf53e169387d4e32cf8c85b914ee7c67d9fd4d7",
         "mappedSliceIncrease": 13,
         "mappedBefore": 2601,
         "mappedAfter": 2614,
