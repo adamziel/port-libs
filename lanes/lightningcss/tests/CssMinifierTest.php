@@ -3548,6 +3548,20 @@ CSS;
 
         $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@container unknown(foo) {}'));
 
+        // Pinned upstream 22bdda3d src/lib.rs::test_container_queries line 30659.
+        $standaloneContainer = $minifier->minifyWithErrorRecovery('@container unknown(foo) {}', 'container.css');
+        $t->same('', $standaloneContainer['code']);
+        $t->same(
+            [
+                [
+                    'message' => 'Unexpected token Function("unknown")',
+                    'type' => 'UnexpectedToken',
+                    'loc' => ['filename' => 'container.css', 'line' => 1, 'column' => 11],
+                ],
+            ],
+            $standaloneContainer['warnings']
+        );
+
         $container = $minifier->minifyWithErrorRecovery("\n@container unknown(foo) {}\n.ok { color: yellow; }", 'wp.css');
         $t->same('.ok{color:#ff0}', $container['code']);
         $t->same(
