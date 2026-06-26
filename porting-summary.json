@@ -51,7 +51,7 @@
             "currentWork": "Seven-lane PR integration accepted SVG mask/mask-border/clip-path minifier parity, na...",
             "nextTarget": "Continue converting the remaining 1018 unmapped LightningCSS...",
             "remainingGate": "Full upstream runner closure is partial: bounded Rust media test and...",
-            "commit": "pending source..."
+            "commit": "77c1dad"
         },
         {
             "lane": "gitoxide",
