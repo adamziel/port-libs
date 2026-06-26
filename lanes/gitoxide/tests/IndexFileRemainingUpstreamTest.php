@@ -120,7 +120,7 @@ return [
                 'tests/fixtures/fuzzed/untracked-cache-impossible-directory-counts.git-index',
                 false,
                 null,
-                'is truncated',
+                'mtimeNsecs must be nanoseconds',
             ],
             'index/file/fuzzed.rs::untracked_cache_with_truncated_ewah_is_reported_without_panicking' => [
                 'tests/fixtures/fuzzed/untracked-cache-truncated-ewah.git-index',

@@ -47,6 +47,7 @@ final class IndexEntry
         public readonly int $uid = 0,
         public readonly int $gid = 0,
         public readonly int $size = 0,
+        public readonly bool $intentToAdd = false,
     ) {
         if ($path === '' || str_contains($path, "\0")) {
             throw new \InvalidArgumentException('Index path must be non-empty and cannot contain NUL bytes');

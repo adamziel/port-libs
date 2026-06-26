@@ -17,6 +17,14 @@ $assertThrowsMessage = static function (TestRunner $t, string $expectedMessage, 
 
 $flushStop = [GitPacketLine::KIND_FLUSH];
 $packet = static fn (string $data): string => GitPacketLine::encodeData($data);
+$exhaustReader = static function ($reader): int {
+    $count = 0;
+    while ($reader->readLine() !== null) {
+        $count++;
+    }
+
+    return $count;
+};
 
 return [
     'upstream gix-packetline write each_write_results_in_one_line' => static function (TestRunner $t): void {
@@ -115,6 +123,34 @@ return [
             'The data received claims to be larger than the maximum allowed size: got 65535, exceeds 65516',
             static fn () => $reader->readLine()
         );
+    },
+    'upstream gix-packetline read streaming_peek_iter large fixture peek and advancement accounting' => static function (TestRunner $t) use ($assertThrowsMessage, $exhaustReader, $flushStop): void {
+        $fixture = dirname(__DIR__, 3) . '/.upstream-cache/gitoxide/gix-packetline/tests/fixtures/v1/fetch/01-many-refs.response';
+        $bytes = (string) file_get_contents($fixture);
+        $firstLine = GitPacketLine::dataLine("7814e8a05a59c0cf5fb186661d1551c75d1299b5 HEAD\0multi_ack thin-pack side-band side-band-64k ofs-delta shallow deepen-since deepen-not deepen-relative no-progress include-tag multi_ack_detailed symref=HEAD:refs/heads/master object-format=sha1 agent=git/2.28.0\n");
+
+        $reader = GitPacketLine::reader($bytes, $flushStop);
+        $t->same($firstLine, $reader->peekLine());
+        $t->same($firstLine, $reader->peekLine());
+        $t->same($firstLine, $reader->readLine());
+        $t->same(
+            GitPacketLine::dataLine("7814e8a05a59c0cf5fb186661d1551c75d1299b5 refs/heads/master\n"),
+            $reader->readLine()
+        );
+        $t->same(
+            GitPacketLine::dataLine("7814e8a05a59c0cf5fb186661d1551c75d1299b5 refs/remotes/origin/HEAD\n"),
+            $reader->peekLine()
+        );
+        $t->same(1559, $exhaustReader($reader));
+        $t->same(GitPacketLine::flushLine(), $reader->stoppedAt());
+
+        $reader = GitPacketLine::reader($bytes . $bytes, $flushStop);
+        $t->same($firstLine, $reader->readLine());
+        $t->same(1560, $exhaustReader($reader));
+        $reader->reset();
+        $t->same(1561, $exhaustReader($reader));
+        $reader->reset();
+        $assertThrowsMessage($t, 'Unexpected EOF', static fn () => $reader->readLine());
     },
     'upstream gix-packetline read streaming_peek_iter read_from_file_and_reader_advancement' => static function (TestRunner $t) use ($assertThrowsMessage, $flushStop, $packet): void {
         $part = $packet('first') . GitPacketLine::encodeFlush();

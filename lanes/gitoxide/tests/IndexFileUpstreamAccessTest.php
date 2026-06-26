@@ -8,6 +8,16 @@ use PortLibs\Gitoxide\IndexFile;
 
 $emptyBlob = 'e69de29bb2d1d6434b8b29ae775ad8c2e48c5391';
 $treeOid = '496d6428b9cf92981dc9495211e6e1120fb6f2ba';
+$upstreamIndexRoot = dirname(__DIR__, 3) . '/.upstream-cache/gitoxide/gix-index';
+$fixtureBytes = static function (string $relative) use ($upstreamIndexRoot): string {
+    $path = $upstreamIndexRoot . '/' . $relative;
+    $bytes = file_get_contents($path);
+    if ($bytes === false) {
+        throw new RuntimeException("Unable to read upstream index fixture: {$path}");
+    }
+
+    return $bytes;
+};
 $entry = static function (
     string $path,
     int $stage = IndexEntry::STAGE_NORMAL,
@@ -27,6 +37,16 @@ $withChecksum = static function (string $payload): string {
     }
 
     return $payload . $checksum;
+};
+$archiveIndexBytes = static function (string $name) use ($upstreamIndexRoot): string {
+    $path = $upstreamIndexRoot . '/tests/fixtures/generated-archives/' . $name . '.tar';
+    $archive = new PharData($path);
+    $index = $archive['.git/index'] ?? null;
+    if ($index === null) {
+        throw new RuntimeException("Archive fixture does not contain .git/index: {$path}");
+    }
+
+    return $index->getContent();
 };
 $withExtension = static function (string $indexBytes, string $signature, string $payload) use ($withChecksum): string {
     if (strlen($signature) !== 4) {
@@ -349,6 +369,38 @@ return [
             $t->same(str_starts_with($parsedEntry->path, 'c1/c2') ? false : true, $parsedEntry->skipWorktree);
             $t->same(IndexEntry::MODE_FILE, $parsedEntry->mode);
         }
+    },
+    'upstream read generated fixtures preserve stat metadata intent-to-add and skip-hash' => static function (TestRunner $t) use (
+        $archiveIndexBytes,
+        $fixtureBytes,
+        $pathsOf,
+    ): void {
+        $moreFiles = IndexFile::entriesFromBytes($archiveIndexBytes('v2_more_files'));
+        $t->same(['a', 'b', 'c', 'd/a', 'd/b', 'd/c'], $pathsOf($moreFiles));
+        $t->same(1717397605, $moreFiles[0]->mtimeSecs);
+        $t->same(248416030, $moreFiles[0]->mtimeNsecs);
+        $t->same(1717397605, $moreFiles[3]->mtimeSecs);
+        $t->same(256416095, $moreFiles[3]->mtimeNsecs);
+        $t->same(0, $moreFiles[0]->size);
+        $t->same(false, $moreFiles[0]->intentToAdd);
+        $rewrittenMoreFiles = IndexFile::entriesFromBytes(IndexFile::bytesFor($moreFiles));
+        $t->same($moreFiles[0]->statMetadata(), $rewrittenMoreFiles[0]->statMetadata());
+        $t->same($moreFiles[3]->statMetadata(), $rewrittenMoreFiles[3]->statMetadata());
+
+        $added = IndexFile::entriesFromBytes($archiveIndexBytes('v3_added_files'));
+        $t->same(3, IndexFile::versionFromBytes($archiveIndexBytes('v3_added_files')));
+        $t->same(1, count($added));
+        $t->same('a', $added[0]->path);
+        $t->same(true, $added[0]->intentToAdd);
+        $t->same(false, $added[0]->skipWorktree);
+        $rewrittenAdded = IndexFile::entriesFromBytes(IndexFile::bytesFor($added));
+        $t->same(3, IndexFile::versionFromBytes(IndexFile::bytesFor($added)));
+        $t->same(true, $rewrittenAdded[0]->intentToAdd);
+
+        $skipHash = $fixtureBytes('tests/fixtures/loose_index/skip_hash.git-index');
+        $t->same(2, IndexFile::versionFromBytes($skipHash));
+        $t->same([], IndexFile::entriesFromBytes($skipHash));
+        $t->same(str_repeat('0', 40), IndexFile::checksum($skipHash));
     },
     'upstream write and init roundtrips' => static function (TestRunner $t) use (
         $entry,

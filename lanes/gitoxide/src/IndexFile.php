@@ -420,7 +420,7 @@ final class IndexFile
     private static function requiresVersion3(array $entries): bool
     {
         foreach ($entries as $entry) {
-            if ($entry->skipWorktree) {
+            if ($entry->skipWorktree || $entry->intentToAdd) {
                 return true;
             }
         }
@@ -436,7 +436,7 @@ final class IndexFile
         if ($entry->assumeValid) {
             $flags |= self::FLAG_ASSUME_VALID;
         }
-        if ($entry->skipWorktree) {
+        if ($entry->skipWorktree || $entry->intentToAdd) {
             $flags |= self::FLAG_EXTENDED;
         }
         $oidBytes = hex2bin($entry->oid);
@@ -444,11 +444,30 @@ final class IndexFile
             throw new \RuntimeException('Unable to decode index entry object id');
         }
 
-        $bytes = pack('N10', 0, 0, 0, 0, 0, 0, $mode, 0, 0, 0)
+        $bytes = pack(
+            'N10',
+            $entry->ctimeSecs,
+            $entry->ctimeNsecs,
+            $entry->mtimeSecs,
+            $entry->mtimeNsecs,
+            $entry->dev,
+            $entry->ino,
+            $mode,
+            $entry->uid,
+            $entry->gid,
+            $entry->size,
+        )
             . $oidBytes
             . pack('n', $flags);
-        if ($entry->skipWorktree) {
-            $bytes .= pack('n', self::EXTENDED_SKIP_WORKTREE);
+        if ($entry->skipWorktree || $entry->intentToAdd) {
+            $extendedFlags = 0;
+            if ($entry->skipWorktree) {
+                $extendedFlags |= self::EXTENDED_SKIP_WORKTREE;
+            }
+            if ($entry->intentToAdd) {
+                $extendedFlags |= self::EXTENDED_INTENT_TO_ADD;
+            }
+            $bytes .= pack('n', $extendedFlags);
         }
         $bytes .= $entry->path . "\0";
         $padding = (8 - (strlen($bytes) % 8)) % 8;
@@ -584,7 +603,7 @@ final class IndexFile
 
         $expectedChecksum = substr($bytes, -self::HASH_BYTES);
         $actualChecksum = hex2bin(hash('sha1', substr($bytes, 0, -self::HASH_BYTES)));
-        if ($expectedChecksum !== $actualChecksum) {
+        if ($expectedChecksum !== str_repeat("\0", self::HASH_BYTES) && $expectedChecksum !== $actualChecksum) {
             throw new \RuntimeException('Index checksum mismatch');
         }
 
@@ -604,8 +623,17 @@ final class IndexFile
                 throw new \InvalidArgumentException('Index entry is truncated');
             }
 
+            $ctimeSecs = self::readUInt32At($bytes, $entryStart);
+            $ctimeNsecs = self::readUInt32At($bytes, $entryStart + 4);
+            $mtimeSecs = self::readUInt32At($bytes, $entryStart + 8);
+            $mtimeNsecs = self::readUInt32At($bytes, $entryStart + 12);
+            $dev = self::readUInt32At($bytes, $entryStart + 16);
+            $ino = self::readUInt32At($bytes, $entryStart + 20);
             $modeOffset = $entryStart + 24;
             $mode = decoct(self::readUInt32At($bytes, $modeOffset));
+            $uid = self::readUInt32At($bytes, $entryStart + 28);
+            $gid = self::readUInt32At($bytes, $entryStart + 32);
+            $size = self::readUInt32At($bytes, $entryStart + 36);
             $oid = bin2hex(substr($bytes, $entryStart + 40, self::HASH_BYTES));
             $flags = self::readUInt16At($bytes, $entryStart + 60);
             $stage = ($flags & self::FLAG_STAGE_MASK) >> 12;
@@ -658,12 +686,22 @@ final class IndexFile
             }
 
             $entries[] = new IndexEntry(
-                $path,
-                $stage,
-                $mode,
-                $oid,
-                ($extendedFlags & self::EXTENDED_SKIP_WORKTREE) !== 0,
-                ($flags & self::FLAG_ASSUME_VALID) !== 0,
+                path: $path,
+                stage: $stage,
+                mode: $mode,
+                oid: $oid,
+                skipWorktree: ($extendedFlags & self::EXTENDED_SKIP_WORKTREE) !== 0,
+                assumeValid: ($flags & self::FLAG_ASSUME_VALID) !== 0,
+                mtimeSecs: $mtimeSecs,
+                mtimeNsecs: $mtimeNsecs,
+                ctimeSecs: $ctimeSecs,
+                ctimeNsecs: $ctimeNsecs,
+                dev: $dev,
+                ino: $ino,
+                uid: $uid,
+                gid: $gid,
+                size: $size,
+                intentToAdd: ($extendedFlags & self::EXTENDED_INTENT_TO_ADD) !== 0,
             );
             if ($offset > $dataEnd) {
                 throw new \InvalidArgumentException('Index entry padding exceeds index payload');

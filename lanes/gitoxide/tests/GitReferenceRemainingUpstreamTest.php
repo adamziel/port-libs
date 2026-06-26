@@ -245,4 +245,138 @@ return [
         $t->same('refs/heads/symbolic', $symbolic->name);
         $t->same('refs/tags/foo', $symbolic->target->value, 'reference::strip_namespace symbolic target is stripped');
     },
+    'upstream packed iterator yields per-entry errors and continues after broken entries' => static function (TestRunner $t) use ($c1, $c2): void {
+        $results = PackedReferences::iterResults(
+            "{$c1} refs/tags/TEST-0.0.1\n"
+            . "buggy-hash refs/wrong\n"
+            . "^buggy-hash-too\n"
+            . "{$c2} refs/tags/gix-actor-v0.1.1\n",
+        );
+
+        $summary = array_map(
+            static fn (array $result): array => [
+                $result['line'],
+                $result['reference']?->name,
+                $result['error']?->getMessage(),
+            ],
+            $results,
+        );
+
+        $t->same(
+            [
+                [1, 'refs/tags/TEST-0.0.1', null],
+                [2, null, 'Invalid reference in line 2: "buggy-hash refs/wrong"'],
+                [3, null, 'Invalid reference in line 3: "^buggy-hash-too"'],
+                [4, 'refs/tags/gix-actor-v0.1.1', null],
+            ],
+            $summary,
+            'packed::iter::broken_ref_doesnt_end_the_iteration',
+        );
+    },
+    'upstream loose iterator yields per-entry errors without aborting valid entries' => static function (TestRunner $t) use ($tempGitDir, $writeGitFile, $c1, $c2): void {
+        $dir = $tempGitDir('loose-broken-results');
+        $writeGitFile($dir, 'refs/heads/main', "{$c1}\n");
+        $writeGitFile($dir, 'refs/broken', "not-a-reference\n");
+        $writeGitFile($dir, 'refs/tags/t1', "{$c2}\n");
+
+        $store = new ReferenceStore($dir);
+        $t->throws(InvalidArgumentException::class, static fn () => $store->looseAll());
+
+        $results = $store->looseStore()->prefixedResults('refs/');
+        $summary = array_map(
+            static fn (array $result): array => [
+                $result['name'],
+                $result['reference']?->target->value,
+                $result['error']?->getMessage(),
+            ],
+            $results,
+        );
+
+        $t->same(
+            [
+                ['refs/broken', null, 'Loose reference content could not be parsed'],
+                ['refs/heads/main', $c1, null],
+                ['refs/tags/t1', $c2, null],
+            ],
+            $summary,
+            'file::store::iter::loose_iter_with_broken_refs',
+        );
+    },
+    'upstream packed count fixture enumerates the generated packed reference volume' => static function (TestRunner $t) use ($c1, $c2): void {
+        $content = "# pack-refs with: peeled fully-peeled sorted\n";
+        for ($level = 1; $level <= 1000; $level++) {
+            $levelName = str_pad((string) $level, 4, '0', STR_PAD_LEFT);
+            for ($ref = 1; $ref <= 150; $ref++) {
+                $content .= "{$c1} refs/heads/{$levelName}/{$ref}\n";
+            }
+        }
+        $content .= "{$c1} refs/heads/main\n";
+        $content .= "{$c2} refs/tags/dt1\n";
+        $content .= "{$c1} refs/tags/t1\n";
+
+        $packed = PackedReferences::fromBytes($content);
+
+        $t->same(150003, count($packed->all()), 'packed::iter::performance count from make_repository_with_lots_of_packed_refs.sh');
+        $t->same('refs/heads/0001/1', $packed->all()[0]->name);
+        $t->same('refs/tags/t1', $packed->all()[150002]->name);
+    },
+    'upstream overlay reproduce fixtures 1850 and 1928 keep packed loose ordering deterministic' => static function (TestRunner $t) use ($tempGitDir, $writeGitFile): void {
+        $dir1850 = $tempGitDir('overlay-1850');
+        $writeGitFile(
+            $dir1850,
+            'packed-refs',
+            "# pack-refs with: peeled fully-peeled sorted\n"
+            . "17dad46c0ce3be4d4b6d45def031437ab2e40666 refs/heads/ig-branch-remote\n"
+            . "83a70366fcc1255d35a00102138293bac673b331 refs/heads/ig-inttest\n"
+            . "3333333333333333333333333333333333333333 refs/heads/ig-pr4021\n"
+            . "d773228d0ee0012fcca53fffe581b0fce0b1dc56 refs/heads/ig/aliases\n"
+            . "ba37abe04f91fec76a6b9a817d40ee2daec47207 refs/heads/ig/cifail\n",
+        );
+        $writeGitFile($dir1850, 'refs/heads/ig/push-name', "d22f46f3d7d2504d56c573b5fe54919bd16be48a\n");
+        $writeGitFile($dir1850, 'refs/heads/ig-pr4021', "4dec145966c546402c5a9e28b932e7c8c939e01e\n");
+
+        $pairs1850 = array_map(
+            static fn ($reference): array => [$reference->name, $reference->targetObjectId()],
+            ReferenceStore::at($dir1850)->all(),
+        );
+        $t->same(
+            [
+                ['refs/heads/ig-branch-remote', '17dad46c0ce3be4d4b6d45def031437ab2e40666'],
+                ['refs/heads/ig-inttest', '83a70366fcc1255d35a00102138293bac673b331'],
+                ['refs/heads/ig-pr4021', '4dec145966c546402c5a9e28b932e7c8c939e01e'],
+                ['refs/heads/ig/aliases', 'd773228d0ee0012fcca53fffe581b0fce0b1dc56'],
+                ['refs/heads/ig/cifail', 'ba37abe04f91fec76a6b9a817d40ee2daec47207'],
+                ['refs/heads/ig/push-name', 'd22f46f3d7d2504d56c573b5fe54919bd16be48a'],
+            ],
+            $pairs1850,
+            'file::store::iter::overlay_iter_reproduce_1850',
+        );
+
+        $dir1928 = $tempGitDir('overlay-1928');
+        $writeGitFile(
+            $dir1928,
+            'packed-refs',
+            "# pack-refs with: peeled fully-peeled sorted\n"
+            . "1111111111111111111111111111111111111111 refs/heads/a-\n"
+            . "2222222222222222222222222222222222222222 refs/heads/a/b\n"
+            . "3333333333333333333333333333333333333333 refs/heads/a0\n",
+        );
+        $writeGitFile($dir1928, 'refs/heads/a-', str_repeat('a', 40) . "\n");
+        $writeGitFile($dir1928, 'refs/heads/a/b', str_repeat('b', 40) . "\n");
+        $writeGitFile($dir1928, 'refs/heads/a0', str_repeat('c', 40) . "\n");
+
+        $pairs1928 = array_map(
+            static fn ($reference): array => [$reference->name, $reference->targetObjectId()],
+            ReferenceStore::at($dir1928)->all(),
+        );
+        $t->same(
+            [
+                ['refs/heads/a-', str_repeat('a', 40)],
+                ['refs/heads/a/b', str_repeat('b', 40)],
+                ['refs/heads/a0', str_repeat('c', 40)],
+            ],
+            $pairs1928,
+            'file::store::iter::overlay_iter_reproduce_1928',
+        );
+    },
 ];

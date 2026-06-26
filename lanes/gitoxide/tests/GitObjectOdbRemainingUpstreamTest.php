@@ -6,6 +6,7 @@ use PortLibs\Gitoxide\Commit;
 use PortLibs\Gitoxide\GitObject;
 use PortLibs\Gitoxide\GitTag;
 use PortLibs\Gitoxide\LooseObjectStore;
+use PortLibs\Gitoxide\ObjectDatabase;
 use PortLibs\Gitoxide\Tree;
 
 $repoRoot = dirname(__DIR__, 3);
@@ -45,6 +46,33 @@ $tempObjectsDirectory = static function (string $label) use (&$tempObjectsDirect
 };
 $copyLooseFixture = static function (string $fromObjectsDirectory, string $toObjectsDirectory, string $oid) use ($fixtureBytes, $looseObjectPath, $writeRawFile): void {
     $writeRawFile($looseObjectPath($toObjectsDirectory, $oid), $fixtureBytes($looseObjectPath($fromObjectsDirectory, $oid)));
+};
+$copyDirectory = static function (string $from, string $to) use (&$copyDirectory): void {
+    if (!is_dir($from)) {
+        throw new RuntimeException("Fixture source directory does not exist: {$from}");
+    }
+    if (!is_dir($to) && !mkdir($to, 0777, true) && !is_dir($to)) {
+        throw new RuntimeException("Unable to create fixture target directory: {$to}");
+    }
+
+    $entries = scandir($from);
+    if ($entries === false) {
+        throw new RuntimeException("Unable to read fixture source directory: {$from}");
+    }
+    foreach ($entries as $entry) {
+        if ($entry === '.' || $entry === '..') {
+            continue;
+        }
+        $sourcePath = $from . '/' . $entry;
+        $targetPath = $to . '/' . $entry;
+        if (is_dir($sourcePath)) {
+            $copyDirectory($sourcePath, $targetPath);
+            continue;
+        }
+        if (!copy($sourcePath, $targetPath)) {
+            throw new RuntimeException("Unable to copy fixture file: {$sourcePath}");
+        }
+    }
 };
 
 $upstreamLooseIds = [
@@ -142,6 +170,40 @@ return [
         } catch (RuntimeException $exception) {
             $t->contains('Loose object declared size 56915 exceeds allocation limit 1 bytes', $exception->getMessage());
         }
+    },
+    'gix-odb upstream fixture pack objects are reachable through the compound object database' => static function (TestRunner $t) use ($odbObjects, $copyDirectory, $tempObjectsDirectory): void {
+        $targetObjects = $tempObjectsDirectory('upstream-pack-fixture');
+        $copyDirectory($odbObjects, $targetObjects);
+        $database = new ObjectDatabase(dirname($targetObjects));
+
+        $expectedPackedObjects = [
+            '501b297447a8255d3533c6858bb692575cdefaa0' => ['type' => 'commit', 'size' => 225],
+            '4dac9989f96bc5b5b1263b582c08f0c5f0b58542' => ['type' => 'tree', 'size' => 34],
+            'dd25c539efbb0ab018caa4cda2d133285634e9b5' => ['type' => 'blob', 'size' => 860],
+        ];
+
+        $t->same(139, $database->packedObjectCount());
+        $t->same(146, count($database->objectIds()));
+
+        foreach ($expectedPackedObjects as $oid => $expected) {
+            $t->same(true, $database->contains(strtoupper($oid)), "{$oid} is present");
+            $t->same([
+                'type' => $expected['type'],
+                'size' => $expected['size'],
+                'source' => 'pack',
+            ], $database->readHeader(strtoupper($oid)), "{$oid} header");
+
+            $object = $database->read(strtoupper($oid));
+            $t->same($expected['type'], $object->type, "{$oid} type");
+            $t->same($expected['size'], strlen($object->body), "{$oid} body size");
+            $t->same($oid, $object->oid(), "{$oid} roundtrip id");
+        }
+
+        $commit = Commit::parse($database->read('501b297447a8255d3533c6858bb692575cdefaa0')->body);
+        $t->same('test', $commit->messageSummary());
+        $tree = Tree::fromObject($database->read('4dac9989f96bc5b5b1263b582c08f0c5f0b58542'));
+        $t->same('README', $tree->entries[0]->filename);
+        $t->contains('extern const char *tree_type;', $database->read('dd25c539efbb0ab018caa4cda2d133285634e9b5')->body);
     },
     'gix-odb loose writes roundtrip fixture objects and sink hashing returns fixture ids' => static function (TestRunner $t) use ($odbObjects, $upstreamLooseIds, $looseFixtureObject, $tempObjectsDirectory): void {
         $target = $tempObjectsDirectory('loose-read-write');
