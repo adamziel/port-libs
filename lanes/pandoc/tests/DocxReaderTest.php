@@ -174,4 +174,66 @@ return [
         $t->contains('<span class="math inline">\\(x^{2}+y\\)</span>', $blocks);
         $t->contains('<span class="math display">\\[\\frac{1}{n}\\]</span>', $blocks);
     },
+    'preserves docx comment ranges moves table merges styles and image metadata' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-docx-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary DOCX path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary DOCX package');
+        }
+        $zip->addFromString('word/_rels/document.xml.rels', '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/chart.png"/></Relationships>');
+        $zip->addFromString('word/comments.xml', '<?xml version="1.0"?><w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:comment w:id="5" w:author="Range Reviewer" w:date="2026-06-26T00:00:00Z"><w:p><w:r><w:t>Range body.</w:t></w:r></w:p></w:comment></w:comments>');
+        $zip->addFromString('word/media/chart.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII='));
+        $zip->addFromString('word/document.xml', '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body><w:p><w:commentRangeStart w:id="5"/><w:r><w:t>Ranged comment</w:t></w:r><w:commentRangeEnd w:id="5"/><w:r><w:commentReference w:id="5"/></w:r></w:p><w:p><w:moveFrom w:id="8" w:author="Mover" w:date="2026-06-26T00:00:00Z"><w:r><w:delText>old spot</w:delText></w:r></w:moveFrom><w:r><w:t> to </w:t></w:r><w:moveTo w:id="8" w:author="Mover" w:date="2026-06-26T00:01:00Z"><w:r><w:t>new spot</w:t></w:r></w:moveTo><w:r><w:rPr><w:u w:val="single"/><w:strike/><w:vertAlign w:val="superscript"/></w:rPr><w:t> styled</w:t></w:r></w:p><w:tbl><w:tblPr><w:tblStyle w:val="ReviewTable"/></w:tblPr><w:tr><w:tc><w:tcPr><w:vMerge w:val="restart"/><w:shd w:fill="FFFF00"/><w:vAlign w:val="center"/></w:tcPr><w:p><w:r><w:t>Group</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Top</w:t></w:r></w:p></w:tc></w:tr><w:tr><w:tc><w:tcPr><w:vMerge/></w:tcPr><w:p><w:r><w:t>Skipped continuation</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Bottom</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p><w:r><w:drawing><wp:inline><wp:extent cx="1828800" cy="914400"/><wp:docPr id="9" name="Chart 1" descr="Chart alt" title="Chart title"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdImage"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p></w:body></w:document>');
+        $zip->close();
+
+        try {
+            $document = (new DocxReader())->readDocxFile($path);
+            $blocks = (new WordPressBlockWriter())->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $comment = $document->children[0];
+        $move = $document->children[1];
+        $table = $document->children[2];
+        $image = $document->children[3]->children[0];
+
+        $t->same('span', $comment->children[0]->type);
+        $t->same(['comment-start'], $comment->children[0]->attr('classes'));
+        $t->same('5', $comment->children[0]->attr('attributes')['id']);
+        $t->same('Range Reviewer', $comment->children[0]->attr('attributes')['author']);
+        $t->same(['comment-end'], $comment->children[2]->attr('classes'));
+        $t->same(['deletion', 'move-from'], $move->children[0]->attr('classes'));
+        $t->same(['insertion', 'move-to'], $move->children[2]->attr('classes'));
+        $t->same('superscript', $move->children[3]->type);
+        $t->same('strikeout', $move->children[3]->children[0]->type);
+        $t->same('underline', $move->children[3]->children[0]->children[0]->type);
+        $t->same('ReviewTable', $table->attr('htmlAttributes')['data-docx-table-style']);
+        $firstCell = $table->children[1]->children[0]->children[0];
+        $secondRow = $table->children[1]->children[1];
+        $t->same(2, $firstCell->attr('rowspan'));
+        $t->same('restart', $firstCell->attr('htmlAttributes')['data-docx-vmerge']);
+        $t->same('background-color:#FFFF00; vertical-align:middle', $firstCell->attr('htmlAttributes')['style']);
+        $t->same(1, count($secondRow->children));
+        $t->same('Bottom', $secondRow->children[0]->attr('text'));
+        $t->same('Chart alt', $image->attr('alt'));
+        $t->same('Chart title', $image->attr('title'));
+        $t->same('2in', $image->attr('width'));
+        $t->same('1in', $image->attr('height'));
+        $t->same('Chart 1', $image->attr('attributes')['data-docx-image-name']);
+        $t->same('9', $image->attr('attributes')['data-docx-image-id']);
+        $t->contains('class="comment-start" data-pandoc-comment-id="5" data-pandoc-comment-author="Range Reviewer"', $blocks);
+        $t->contains('<del class="deletion move-from" data-pandoc-change-author="Mover"', $blocks);
+        $t->contains('<ins class="insertion move-to" data-pandoc-change-author="Mover"', $blocks);
+        $t->contains('<sup><del><u> styled</u></del></sup>', $blocks);
+        $t->contains('<table data-docx-table-style="ReviewTable">', $blocks);
+        $t->contains('data-docx-vmerge="restart" rowspan="2" style="background-color:#FFFF00; vertical-align:middle"', $blocks);
+        $t->contains('<td><p>Bottom</p></td>', $blocks);
+        $t->contains('alt="Chart alt" title="Chart title" data-pandoc-width="2in" data-pandoc-height="1in"', $blocks);
+        $t->contains('data-docx-image-name="Chart 1"', $blocks);
+    },
 ];

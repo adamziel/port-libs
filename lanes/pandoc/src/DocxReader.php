@@ -9,10 +9,11 @@ final class DocxReader
     private const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
     private const R_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
     private const A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main';
+    private const WP_NS = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
     private const M_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
     private const REL_NS = 'http://schemas.openxmlformats.org/package/2006/relationships';
 
-    /** @var array<string, array{headingLevel?: int, strong?: bool, emph?: bool}> */
+    /** @var array<string, array{headingLevel?: int, strong?: bool, emph?: bool, underline?: bool, strikeout?: bool, small_caps?: bool, superscript?: bool, subscript?: bool}> */
     private array $styles = [];
 
     /** @var array<string, array<int, array{ordered: bool, style?: string, delimiter?: string, start?: int}>> */
@@ -403,6 +404,13 @@ final class DocxReader
                 }
                 continue;
             }
+            if ($child->localName === 'commentRangeStart' || $child->localName === 'commentRangeEnd') {
+                $commentRange = $this->commentRangeSpan($child);
+                if ($commentRange instanceof AstNode) {
+                    $inlines[] = $commentRange;
+                }
+                continue;
+            }
             if ($child->localName === 'oMath' || $child->localName === 'oMathPara') {
                 $math = $this->ommlMath($child, $child->localName === 'oMathPara');
                 if ($math instanceof AstNode) {
@@ -410,7 +418,7 @@ final class DocxReader
                 }
                 continue;
             }
-            if ($child->localName === 'ins' || $child->localName === 'del') {
+            if (in_array($child->localName, ['ins', 'del', 'moveFrom', 'moveTo'], true)) {
                 $span = $this->trackedChangeSpan($child);
                 if ($span instanceof AstNode) {
                     $inlines[] = $span;
@@ -483,14 +491,7 @@ final class DocxReader
         }
 
         $style = $this->runStyle($run);
-        if (($style['strong'] ?? false) && $nodes !== []) {
-            $nodes = [new AstNode('strong', [], $nodes)];
-        }
-        if (($style['emph'] ?? false) && $nodes !== []) {
-            $nodes = [new AstNode('emph', [], $nodes)];
-        }
-
-        return $nodes;
+        return $this->styledRunNodes($nodes, $style);
     }
 
     private function trackedChangeSpan(\DOMElement $change): ?AstNode
@@ -505,10 +506,41 @@ final class DocxReader
             'date' => $this->attr($change, self::W_NS, 'date'),
         ], static fn (string $value): bool => $value !== '');
 
+        $classes = match ($change->localName) {
+            'del' => ['deletion'],
+            'moveFrom' => ['deletion', 'move-from'],
+            'moveTo' => ['insertion', 'move-to'],
+            default => ['insertion'],
+        };
+
         return new AstNode('span', [
-            'classes' => [$change->localName === 'del' ? 'deletion' : 'insertion'],
+            'classes' => $classes,
             'attributes' => $attributes,
         ], $children);
+    }
+
+    private function commentRangeSpan(\DOMElement $range): ?AstNode
+    {
+        $id = $this->attr($range, self::W_NS, 'id');
+        if ($id === '') {
+            return null;
+        }
+
+        $comment = $this->comments[$id] ?? [];
+        $attributes = ['id' => $id];
+        if (is_array($comment)) {
+            foreach (['author', 'date'] as $key) {
+                $value = (string) ($comment[$key] ?? '');
+                if ($value !== '') {
+                    $attributes[$key] = $value;
+                }
+            }
+        }
+
+        return new AstNode('span', [
+            'classes' => [$range->localName === 'commentRangeStart' ? 'comment-start' : 'comment-end'],
+            'attributes' => $attributes,
+        ]);
     }
 
     private function noteReference(\DOMElement $reference, string $kind): ?AstNode
@@ -766,7 +798,56 @@ final class DocxReader
             }
             $url = $this->relationships[$rid]['mode'] === 'External' ? $target : $this->normalizeWordTarget($target);
 
-            return new AstNode('image', ['url' => $url, 'title' => '', 'alt' => '']);
+            $attrs = ['url' => $url, 'title' => '', 'alt' => ''];
+            $sourceAttributes = [
+                'data-docx-image-relationship-id' => $rid,
+            ];
+
+            foreach ($drawing->getElementsByTagNameNS(self::WP_NS, 'docPr') as $docPr) {
+                if (!$docPr instanceof \DOMElement) {
+                    continue;
+                }
+                $description = $docPr->getAttribute('descr');
+                if ($description !== '') {
+                    $attrs['alt'] = $description;
+                }
+                $title = $docPr->getAttribute('title');
+                if ($title !== '') {
+                    $attrs['title'] = $title;
+                }
+                $name = $docPr->getAttribute('name');
+                if ($name !== '') {
+                    $sourceAttributes['data-docx-image-name'] = $name;
+                }
+                $id = $docPr->getAttribute('id');
+                if ($id !== '') {
+                    $sourceAttributes['data-docx-image-id'] = $id;
+                }
+                break;
+            }
+
+            foreach ($drawing->getElementsByTagNameNS(self::WP_NS, 'extent') as $extent) {
+                if (!$extent instanceof \DOMElement) {
+                    continue;
+                }
+                $width = $this->emuCssDimension($extent->getAttribute('cx'));
+                if ($width !== '') {
+                    $attrs['width'] = $width;
+                    $sourceAttributes['width'] = $width;
+                }
+                $height = $this->emuCssDimension($extent->getAttribute('cy'));
+                if ($height !== '') {
+                    $attrs['height'] = $height;
+                    $sourceAttributes['height'] = $height;
+                }
+                break;
+            }
+
+            if ($sourceAttributes !== []) {
+                $attrs['attributes'] = $sourceAttributes;
+            }
+
+            return new AstNode('image', $attrs);
         }
 
         return null;
@@ -774,14 +855,79 @@ final class DocxReader
 
     private function table(\DOMElement $table): AstNode
     {
-        $rows = [];
+        $rowSpecs = [];
         foreach ($table->childNodes as $child) {
             if ($child instanceof \DOMElement && $child->localName === 'tr') {
-                $rows[] = $this->tableRow($child);
+                $cells = [];
+                $column = 0;
+                foreach ($child->childNodes as $cell) {
+                    if (!$cell instanceof \DOMElement || $cell->localName !== 'tc') {
+                        continue;
+                    }
+                    $colspan = $this->gridSpan($cell);
+                    $cells[] = [
+                        'element' => $cell,
+                        'column' => $column,
+                        'colspan' => $colspan,
+                        'vMerge' => $this->verticalMerge($cell),
+                    ];
+                    $column += $colspan;
+                }
+                $rowSpecs[] = $cells;
             }
         }
 
-        return new AstNode('table', [], [
+        $rowspans = [];
+        $skip = [];
+        $active = [];
+        foreach ($rowSpecs as $rowIndex => $cells) {
+            foreach ($cells as $cellIndex => $cell) {
+                $key = $rowIndex . ':' . $cellIndex;
+                $rowspans[$key] = 1;
+                $coveredColumns = range((int) $cell['column'], (int) $cell['column'] + (int) $cell['colspan'] - 1);
+
+                if ($cell['vMerge'] === 'continue') {
+                    $owners = [];
+                    foreach ($coveredColumns as $column) {
+                        if (isset($active[$column])) {
+                            $owners[$active[$column]] = true;
+                        }
+                    }
+                    if ($owners !== []) {
+                        foreach (array_keys($owners) as $owner) {
+                            $rowspans[$owner] = ($rowspans[$owner] ?? 1) + 1;
+                        }
+                        $skip[$key] = true;
+                        continue;
+                    }
+                }
+
+                foreach ($coveredColumns as $column) {
+                    unset($active[$column]);
+                }
+
+                if ($cell['vMerge'] === 'restart') {
+                    foreach ($coveredColumns as $column) {
+                        $active[$column] = $key;
+                    }
+                }
+            }
+        }
+
+        $rows = [];
+        foreach ($rowSpecs as $rowIndex => $cells) {
+            $rowCells = [];
+            foreach ($cells as $cellIndex => $cell) {
+                $key = $rowIndex . ':' . $cellIndex;
+                if (isset($skip[$key])) {
+                    continue;
+                }
+                $rowCells[] = $this->tableCell($cell['element'], (int) $cell['colspan'], (int) ($rowspans[$key] ?? 1), (string) $cell['vMerge']);
+            }
+            $rows[] = new AstNode('table_row', [], $rowCells);
+        }
+
+        return new AstNode('table', $this->tableAttributes($table), [
             new AstNode('table_head'),
             new AstNode('table_body', [], $rows),
         ]);
@@ -800,7 +946,7 @@ final class DocxReader
         return new AstNode('table_row', [], $cells);
     }
 
-    private function tableCell(\DOMElement $cell): AstNode
+    private function tableCell(\DOMElement $cell, ?int $colspan = null, int $rowspan = 1, string $verticalMerge = ''): AstNode
     {
         $blocks = [];
         foreach ($cell->childNodes as $child) {
@@ -815,11 +961,17 @@ final class DocxReader
         }
         $text = trim(implode(' ', array_map(fn (AstNode $block): string => $this->nodeText($block), $blocks)));
 
-        return new AstNode('table_cell', [
+        $attrs = [
             'text' => $text,
-            'colspan' => $this->gridSpan($cell),
-            'rowspan' => 1,
-        ], $blocks);
+            'colspan' => $colspan ?? $this->gridSpan($cell),
+            'rowspan' => max(1, $rowspan),
+        ];
+        $htmlAttributes = $this->tableCellHtmlAttributes($cell, $verticalMerge);
+        if ($htmlAttributes !== []) {
+            $attrs['htmlAttributes'] = $htmlAttributes;
+        }
+
+        return new AstNode('table_cell', $attrs, $blocks);
     }
 
     private function gridSpan(\DOMElement $cell): int
@@ -831,6 +983,100 @@ final class DocxReader
         }
 
         return 1;
+    }
+
+    private function verticalMerge(\DOMElement $cell): string
+    {
+        $tcPr = $this->directChild($cell, 'tcPr');
+        if (!$tcPr instanceof \DOMElement) {
+            return '';
+        }
+
+        foreach ($tcPr->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->localName !== 'vMerge') {
+                continue;
+            }
+            $value = strtolower($this->attr($child, self::W_NS, 'val'));
+
+            return $value === '' || $value === 'continue' ? 'continue' : 'restart';
+        }
+
+        return '';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function tableAttributes(\DOMElement $table): array
+    {
+        $tblPr = $this->directChild($table, 'tblPr');
+        if (!$tblPr instanceof \DOMElement) {
+            return [];
+        }
+
+        $htmlAttributes = [];
+        foreach ($tblPr->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+            if ($child->localName === 'tblStyle') {
+                $style = $this->attr($child, self::W_NS, 'val');
+                if ($style !== '') {
+                    $htmlAttributes['data-docx-table-style'] = $style;
+                }
+            }
+        }
+
+        return $htmlAttributes === [] ? [] : ['htmlAttributes' => $htmlAttributes];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function tableCellHtmlAttributes(\DOMElement $cell, string $verticalMerge): array
+    {
+        $attrs = [];
+        if ($verticalMerge !== '') {
+            $attrs['data-docx-vmerge'] = $verticalMerge;
+        }
+
+        $tcPr = $this->directChild($cell, 'tcPr');
+        if (!$tcPr instanceof \DOMElement) {
+            return $attrs;
+        }
+
+        $styles = [];
+        foreach ($tcPr->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+            if ($child->localName === 'shd') {
+                $fill = strtoupper($this->attr($child, self::W_NS, 'fill'));
+                if ($fill !== '' && $fill !== 'AUTO') {
+                    $styles[] = 'background-color:#' . ltrim($fill, '#');
+                }
+            } elseif ($child->localName === 'vAlign') {
+                $align = strtolower($this->attr($child, self::W_NS, 'val'));
+                if ($align !== '') {
+                    $styles[] = 'vertical-align:' . ($align === 'center' ? 'middle' : $align);
+                }
+            } elseif ($child->localName === 'tcW') {
+                $width = $this->attr($child, self::W_NS, 'w');
+                if ($width !== '') {
+                    $attrs['data-docx-cell-width'] = $width;
+                }
+                $type = $this->attr($child, self::W_NS, 'type');
+                if ($type !== '') {
+                    $attrs['data-docx-cell-width-type'] = $type;
+                }
+            }
+        }
+
+        if ($styles !== []) {
+            $attrs['style'] = implode('; ', $styles);
+        }
+
+        return $attrs;
     }
 
     private function headingLevel(\DOMElement $paragraph): ?int
@@ -904,7 +1150,7 @@ final class DocxReader
     }
 
     /**
-     * @return array{strong?: bool, emph?: bool}
+     * @return array{strong?: bool, emph?: bool, underline?: bool, strikeout?: bool, small_caps?: bool, superscript?: bool, subscript?: bool}
      */
     private function runStyle(\DOMElement $run): array
     {
@@ -921,6 +1167,19 @@ final class DocxReader
                     $style['strong'] = true;
                 } elseif ($prop->localName === 'i' && $this->truthyOnOff($prop)) {
                     $style['emph'] = true;
+                } elseif ($prop->localName === 'u' && $this->truthyUnderline($prop)) {
+                    $style['underline'] = true;
+                } elseif (($prop->localName === 'strike' || $prop->localName === 'dstrike') && $this->truthyOnOff($prop)) {
+                    $style['strikeout'] = true;
+                } elseif ($prop->localName === 'smallCaps' && $this->truthyOnOff($prop)) {
+                    $style['small_caps'] = true;
+                } elseif ($prop->localName === 'vertAlign') {
+                    $value = strtolower($this->attr($prop, self::W_NS, 'val'));
+                    if ($value === 'superscript') {
+                        $style['superscript'] = true;
+                    } elseif ($value === 'subscript') {
+                        $style['subscript'] = true;
+                    }
                 } elseif ($prop->localName === 'rStyle') {
                     $styleId = $this->attr($prop, self::W_NS, 'val');
                     $style = array_replace($style, $this->styles[$styleId] ?? []);
@@ -931,14 +1190,44 @@ final class DocxReader
         return $style;
     }
 
+    /**
+     * @param list<AstNode> $nodes
+     * @param array{strong?: bool, emph?: bool, underline?: bool, strikeout?: bool, small_caps?: bool, superscript?: bool, subscript?: bool} $style
+     * @return list<AstNode>
+     */
+    private function styledRunNodes(array $nodes, array $style): array
+    {
+        foreach ([
+            'strong' => 'strong',
+            'emph' => 'emph',
+            'underline' => 'underline',
+            'strikeout' => 'strikeout',
+            'small_caps' => 'small_caps',
+            'superscript' => 'superscript',
+            'subscript' => 'subscript',
+        ] as $styleKey => $nodeType) {
+            if (($style[$styleKey] ?? false) && $nodes !== []) {
+                $nodes = [new AstNode($nodeType, [], $nodes)];
+            }
+        }
+
+        return $nodes;
+    }
+
     private function truthyOnOff(\DOMElement $element): bool
     {
         $value = strtolower($this->attr($element, self::W_NS, 'val'));
         return !in_array($value, ['0', 'false', 'off', 'no'], true);
     }
 
+    private function truthyUnderline(\DOMElement $element): bool
+    {
+        return strtolower($this->attr($element, self::W_NS, 'val')) !== 'none'
+            && $this->truthyOnOff($element);
+    }
+
     /**
-     * @return array<string, array{headingLevel?: int, strong?: bool, emph?: bool}>
+     * @return array<string, array{headingLevel?: int, strong?: bool, emph?: bool, underline?: bool, strikeout?: bool, small_caps?: bool, superscript?: bool, subscript?: bool}>
      */
     private function styles(\DOMDocument $dom): array
     {
@@ -971,6 +1260,19 @@ final class DocxReader
                             $entry['strong'] = true;
                         } elseif ($prop->localName === 'i' && $this->truthyOnOff($prop)) {
                             $entry['emph'] = true;
+                        } elseif ($prop->localName === 'u' && $this->truthyUnderline($prop)) {
+                            $entry['underline'] = true;
+                        } elseif (($prop->localName === 'strike' || $prop->localName === 'dstrike') && $this->truthyOnOff($prop)) {
+                            $entry['strikeout'] = true;
+                        } elseif ($prop->localName === 'smallCaps' && $this->truthyOnOff($prop)) {
+                            $entry['small_caps'] = true;
+                        } elseif ($prop->localName === 'vertAlign') {
+                            $value = strtolower($this->attr($prop, self::W_NS, 'val'));
+                            if ($value === 'superscript') {
+                                $entry['superscript'] = true;
+                            } elseif ($value === 'subscript') {
+                                $entry['subscript'] = true;
+                            }
                         }
                     }
                 }
@@ -1259,6 +1561,17 @@ final class DocxReader
         return null;
     }
 
+    private function directChild(\DOMElement $element, string $localName): ?\DOMElement
+    {
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement && $child->localName === $localName) {
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
     private function attr(\DOMElement $element, string $namespace, string $name): string
     {
         $value = $element->getAttributeNS($namespace, $name);
@@ -1337,6 +1650,18 @@ final class DocxReader
         }
 
         return $target;
+    }
+
+    private function emuCssDimension(string $value): string
+    {
+        if ($value === '' || !is_numeric($value) || (float) $value <= 0.0) {
+            return '';
+        }
+
+        $inches = (float) $value / 914400.0;
+        $formatted = rtrim(rtrim(number_format($inches, 4, '.', ''), '0'), '.');
+
+        return ($formatted === '' ? '0' : $formatted) . 'in';
     }
 
     private function xmlAttr(string $value): string
