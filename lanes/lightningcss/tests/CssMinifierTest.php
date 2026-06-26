@@ -870,6 +870,39 @@ CSS
         $t->same('.foo{vertical-align:middle}', $minifier->minify('.foo { vertical-align: middle }'));
         $t->same('.foo{vertical-align:.3em}', $minifier->minify('.foo { vertical-align: 0.3em }'));
     },
+    'css minifier maps upstream env media query value minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '@media (width<=env(--branding-small)){body{padding:env(--branding-padding)}}',
+            $minifier->minify('@media (max-width: env(--branding-small)) { body { padding: env(--branding-padding); } }')
+        );
+        $t->same(
+            '@media (width<=env(--branding-small 1)){body{padding:env(--branding-padding 2)}}',
+            $minifier->minify('@media (max-width: env(--branding-small 1)) { body { padding: env(--branding-padding 2); } }')
+        );
+        $t->same(
+            '@media (width<=env(--branding-small 1,20px)){body{padding:env(--branding-padding 2,20px)}}',
+            $minifier->minify('@media (max-width: env(--branding-small 1, 20px)) { body { padding: env(--branding-padding 2, 20px); } }')
+        );
+        $t->same(
+            '@media (width<=env(safe-area-inset-top)){body{padding:env(safe-area-inset-top)}}',
+            $minifier->minify('@media (max-width: env(safe-area-inset-top)) { body { padding: env(safe-area-inset-top); } }')
+        );
+        $t->same(
+            '@media (width<=env(unknown)){body{padding:env(unknown)}}',
+            $minifier->minify('@media (max-width: env(unknown)) { body { padding: env(unknown); } }')
+        );
+    },
+    'css minifier maps upstream z-index integer serialization' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{z-index:2}', $minifier->minify('.foo { z-index: 2 }'));
+        $t->same('.foo{z-index:-2}', $minifier->minify('.foo { z-index: -2 }'));
+        $t->same('.foo{z-index:999999}', $minifier->minify('.foo { z-index: 999999 }'));
+        $t->same('.foo{z-index:9999999}', $minifier->minify('.foo { z-index: 9999999 }'));
+        $t->same('.foo{z-index:-9999999}', $minifier->minify('.foo { z-index: -9999999 }'));
+    },
     'css minifier maps upstream srgb color-mix value normalization' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

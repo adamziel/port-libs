@@ -3082,6 +3082,28 @@ CSS;
         $t->same('EgL3uq_card EgL3uq_base', CssModulesTransformer::exportClassList($result['exports'], 'card'));
     },
     'css modules scopes upstream animation custom idents while preserving composes exports' => static function (TestRunner $t) use ($export, $dependency): void {
+        $idSelector = (new CssModulesTransformer())->transform(<<<'CSS'
+#id {
+  animation: 2s test;
+}
+
+@keyframes test {
+  from { color: red }
+  to { color: yellow }
+}
+CSS);
+
+        $t->same('#EgL3uq_id{animation:2s EgL3uq_test}@keyframes EgL3uq_test{0%{color:red}to{color:#ff0}}', $idSelector['code']);
+        $t->same([
+            'id' => $export('EgL3uq_id'),
+            'test' => [
+                'name' => 'EgL3uq_test',
+                'composes' => [],
+                'isReferenced' => true,
+            ],
+        ], $idSelector['exports']);
+        $t->same([], $idSelector['references']);
+
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 .test {
   animation: rotate var(--duration) linear infinite;

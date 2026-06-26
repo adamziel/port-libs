@@ -2066,6 +2066,20 @@ return [
         $t->same([0, 1], array_column($decoded, 'generatedLine'));
         $t->same([0, 0], array_column($decoded, 'sourceIndex'));
     },
+    'source map preserves upstream absolute url sources' => static function (TestRunner $t): void {
+        $map = new SourceMap('/test-root');
+        $httpSource = $map->addSource('https://example.com/a.js');
+        $fileSource = $map->addSource('file:///test-root/example.js');
+        $webpackSource = $map->addSource('webpack://weird-things/index.ts');
+
+        $t->same(
+            ['https://example.com/a.js', 'example.js', 'webpack://weird-things/index.ts'],
+            $map->getSources()
+        );
+        $t->same('https://example.com/a.js', $map->getSource($httpSource));
+        $t->same('example.js', $map->getSource($fileSource));
+        $t->same('webpack://weird-things/index.ts', $map->getSource($webpackSource));
+    },
     'source map exposes upstream source name and mapping lookup APIs after offsets' => static function (TestRunner $t): void {
         $map = new SourceMap('/srv/www/site/wp-content/themes/example');
         $style = $map->addSource('style.css');

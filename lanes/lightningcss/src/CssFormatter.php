@@ -335,8 +335,10 @@ final class CssFormatter
         }
 
         $indent = $this->indent($indentLevel);
-        $declarations = $this->composeGridStyleDeclarations(
-            $this->composeFontStyleDeclarations($this->parseDeclarations($body))
+        $declarations = $this->orderImportantStyleDeclarations(
+            $this->composeGridStyleDeclarations(
+                $this->composeFontStyleDeclarations($this->parseDeclarations($body))
+            )
         );
         if ($declarations === []) {
             return $indent . $selector . ' {}';
@@ -350,6 +352,35 @@ final class CssFormatter
         return $indent . $selector . " {\n"
             . implode("\n", $lines) . "\n"
             . $indent . '}';
+    }
+
+    /**
+     * @param list<array{string, string}> $declarations
+     * @return list<array{string, string}>
+     */
+    private function orderImportantStyleDeclarations(array $declarations): array
+    {
+        $normal = [];
+        $important = [];
+        foreach ($declarations as $declaration) {
+            if ($this->isImportantDeclarationValue($declaration[1])) {
+                $important[] = $declaration;
+                continue;
+            }
+
+            $normal[] = $declaration;
+        }
+
+        if ($normal === [] || $important === []) {
+            return $declarations;
+        }
+
+        return array_merge($normal, $important);
+    }
+
+    private function isImportantDeclarationValue(string $value): bool
+    {
+        return preg_match('/!\s*important\s*$/i', trim($value)) === 1;
     }
 
     private function formatStyleDeclaration(string $property, string $value, int $indentLevel): string

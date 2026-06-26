@@ -220,6 +220,19 @@ CSS, $formatter->format(<<<'CSS'
   justify-items: center !important;
 }
 CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  align-items: center;
+  justify-items: center !important;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  justify-items: center !important;
+  align-items: center;
+}
+CSS));
     },
     'css formatter maps upstream property rule printer cases' => static function (TestRunner $t): void {
         $formatter = new CssFormatter();

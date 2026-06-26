@@ -3345,6 +3345,18 @@ CSS;
             )
         );
     },
+    'transition prefixer maps upstream lch display p3 target fallbacks' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{background-color:#ee00be;background-color:color(display-p3 .972962 -.362078 .804206);background-color:lch(50.998% 135.363 338)}',
+            $prefixer->prefixForTargets('.foo { background-color: lch(50.998% 135.363 338) }', ['chrome' => 90, 'safari' => 14])
+        );
+        $t->same(
+            '.foo{color:#ee00be;color:color(display-p3 .972962 -.362078 .804206);color:lch(50.998% 135.363 338)}',
+            $prefixer->prefixForTargets('.foo { color: lch(50.998% 135.363 338) }', ['chrome' => 90, 'safari' => 14])
+        );
+    },
     'transition prefixer maps upstream color function gamut fallbacks by target' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

@@ -1092,6 +1092,14 @@ CSS, 3, 3);
     },
     'css bundler wraps imported files in supports media and layer conditions' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
+            '@supports (color:green){.b{color:green}}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "b.css" supports(color: green); .a { color: red }',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css')
+        );
+
+        $t->same(
             '@supports (color:green){@media print{.b{color:green}}}.a{color:red}',
             $bundle([
                 '/a.css' => '@import "b.css" supports(color: green) print; .a { color: red }',
