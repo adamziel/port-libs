@@ -881,6 +881,20 @@ CSS
         $t->same('.foo{--theme-sizes-1\\/12:2}', $minifier->minify('.foo { --theme-sizes-1\\/12: 2 }'));
         $t->same('.foo{--test:0px}', $minifier->minify('.foo { --test: 0px; }'));
     },
+    'css minifier maps upstream moz-document and unknown at-rule statements' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '@-moz-document url-prefix(){h1{color:#ff0}}',
+            $minifier->minify('@-moz-document url-prefix() { h1 { color: yellow; } }')
+        );
+        $t->same(
+            '@-moz-document url-prefix(){h1{color:#ff0}}',
+            $minifier->minify('@-moz-document url-prefix("") { h1 { color: yellow; } }')
+        );
+        $t->same('@foo;', $minifier->minify('@foo;'));
+        $t->same('@foo bar;', $minifier->minify('@foo bar;'));
+    },
     'css minifier maps upstream custom property substitution fallbacks and cycles' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

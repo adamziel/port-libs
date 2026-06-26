@@ -690,6 +690,20 @@ CSS);
         ], $result['exports']);
         $t->same([], $result['references']);
         $t->same('EgL3uq_button EgL3uq_card', CssModulesTransformer::exportClassList($result['exports'], 'button'));
+
+        $simpleNthChild = (new CssModulesTransformer())->transform(':nth-child(1 of .foo) {width: 20px}');
+        $t->same(':nth-child(1 of .EgL3uq_foo){width:20px}', $simpleNthChild['code']);
+        $t->same([
+            'foo' => $export('EgL3uq_foo'),
+        ], $simpleNthChild['exports']);
+        $t->same([], $simpleNthChild['references']);
+
+        $simpleNthLastChild = (new CssModulesTransformer())->transform(':nth-last-child(1 of .foo) {width: 20px}');
+        $t->same(':nth-last-child(1 of .EgL3uq_foo){width:20px}', $simpleNthLastChild['code']);
+        $t->same([
+            'foo' => $export('EgL3uq_foo'),
+        ], $simpleNthLastChild['exports']);
+        $t->same([], $simpleNthLastChild['references']);
     },
     'css modules minifies upstream nth type and column formulas while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'

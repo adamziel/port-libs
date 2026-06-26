@@ -297,6 +297,22 @@ CSS, $formatter->format(<<<'CSS'
 }
 CSS));
     },
+    'css formatter maps upstream position try printer case' => static function (TestRunner $t): void {
+        $formatter = new CssFormatter();
+
+        $t->same(<<<'CSS'
+@position-try --foo {
+  top: anchor(bottom);
+  left: anchor(right);
+}
+
+CSS, $formatter->format(<<<'CSS'
+@position-try --foo {
+  top: anchor(bottom);
+  left: anchor(right);
+}
+CSS));
+    },
     'css formatter maps upstream property rule printer cases' => static function (TestRunner $t): void {
         $formatter = new CssFormatter();
 

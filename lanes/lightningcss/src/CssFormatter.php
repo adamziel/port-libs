@@ -76,6 +76,13 @@ final class CssFormatter
                 continue;
             }
 
+            if ($this->isPositionTryRulePrelude($prelude)) {
+                $rules[] = $this->formatPositionTryRule($prelude, substr($css, $open + 1, $close - $open - 1), 0);
+                $seenNonNamespaceRule = true;
+                $cursor = $close + 1;
+                continue;
+            }
+
             if ($this->isConditionalGroupPrelude($prelude)) {
                 $rules[] = $this->formatConditionalGroupRule($prelude, substr($css, $open + 1, $close - $open - 1), 0);
                 $seenNonNamespaceRule = true;
@@ -85,7 +92,7 @@ final class CssFormatter
 
             if (!preg_match('/^@page(?:\s|:|$)/i', $prelude)) {
                 if (str_starts_with($prelude, '@')) {
-                    throw new \InvalidArgumentException('CssFormatter currently supports style rules, @page, @counter-style, @property, @media, and @layer rules only');
+                    throw new \InvalidArgumentException('CssFormatter currently supports style rules, @page, @counter-style, @property, @position-try, @media, and @layer rules only');
                 }
 
                 $rules[] = $this->formatStyleRule($prelude, substr($css, $open + 1, $close - $open - 1), 0);
@@ -251,6 +258,20 @@ final class CssFormatter
             . $indent . '}';
     }
 
+    private function formatPositionTryRule(string $prelude, string $body, int $indentLevel): string
+    {
+        $name = $this->positionTryRuleName($prelude);
+        $indent = $this->indent($indentLevel);
+        $body = trim($body);
+        if ($body === '') {
+            return $indent . '@position-try ' . $name . ' {}';
+        }
+
+        return $indent . '@position-try ' . $name . " {\n"
+            . $this->formatDeclarations($body, $indentLevel + 1) . "\n"
+            . $indent . '}';
+    }
+
     private function formatConditionalGroupRule(string $prelude, string $body, int $indentLevel): string
     {
         $items = $this->parseConditionalGroupItems($body, $indentLevel + 1);
@@ -291,6 +312,8 @@ final class CssFormatter
                 $items[] = $this->formatStyleRule($prelude, $nestedBody, $indentLevel);
             } elseif ($this->isPropertyRulePrelude($prelude)) {
                 $items[] = $this->formatPropertyRule($prelude, $nestedBody, $indentLevel);
+            } elseif ($this->isPositionTryRulePrelude($prelude)) {
+                $items[] = $this->formatPositionTryRule($prelude, $nestedBody, $indentLevel);
             } elseif ($this->isConditionalGroupPrelude($prelude)) {
                 $items[] = $this->formatConditionalGroupRule($prelude, $nestedBody, $indentLevel);
             } else {
@@ -1699,6 +1722,11 @@ final class CssFormatter
         return preg_match('/^@property\b/i', trim($prelude)) === 1;
     }
 
+    private function isPositionTryRulePrelude(string $prelude): bool
+    {
+        return preg_match('/^@position-try\b/i', trim($prelude)) === 1;
+    }
+
     private function isConditionalGroupPrelude(string $prelude): bool
     {
         return preg_match('/^@(media|layer|supports)\b/i', trim($prelude)) === 1;
@@ -1713,6 +1741,20 @@ final class CssFormatter
         $name = trim($matches[1]);
         if (preg_match('/^--[-_a-zA-Z0-9]+$/', $name) !== 1) {
             throw new \InvalidArgumentException("Invalid @property name: {$name}");
+        }
+
+        return $name;
+    }
+
+    private function positionTryRuleName(string $prelude): string
+    {
+        if (preg_match('/^@position-try\b(.*)$/i', trim($prelude), $matches) !== 1) {
+            throw new \InvalidArgumentException('Invalid @position-try rule prelude: ' . $prelude);
+        }
+
+        $name = trim($matches[1]);
+        if (preg_match('/^--[-_a-zA-Z0-9]+$/', $name) !== 1) {
+            throw new \InvalidArgumentException("Invalid @position-try name: {$name}");
         }
 
         return $name;

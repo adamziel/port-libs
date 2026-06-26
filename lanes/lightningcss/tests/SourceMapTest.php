@@ -1725,6 +1725,20 @@ return [
         $t->same([], $map->getSources());
         $t->same('', $map->writeVlq());
     },
+    'source map round trips upstream empty buffer snapshots' => static function (TestRunner $t): void {
+        $map = new SourceMap('/theme');
+        $restored = SourceMap::fromBuffer('/theme', $map->toBuffer());
+
+        $t->same('', $restored->writeVlq());
+        $t->same([], $restored->getSources());
+        $t->same([], $restored->getSourcesContent());
+        $t->same([], $restored->getNames());
+        $t->same([], $restored->getMappings());
+        $t->same(
+            '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
+            $restored->toJson(null, false)
+        );
+    },
     'source map round trips upstream buffer snapshots after offsets' => static function (TestRunner $t): void {
         $map = new SourceMap('/srv/www/site/wp-content/themes/example');
         $style = $map->addSource('/srv/www/site/wp-content/themes/example/style.css');

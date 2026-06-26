@@ -3321,6 +3321,42 @@ CSS,
 
         throw new RuntimeException('Expected upstream bundle visitor exception');
     },
+    'css bundler maps upstream length visitor replacements across imports' => static function (TestRunner $t): void {
+        $seen = [];
+        $code = (new CssBundler())->bundleWithVisitor('tests/testdata/a.css', [
+            'tests/testdata/a.css' => <<<'CSS'
+@import "b.css";
+
+.a {
+  width: 32px;
+}
+CSS,
+            'tests/testdata/b.css' => <<<'CSS'
+.b {
+  height: calc(100vh - 64px);
+}
+CSS,
+        ], [
+            'Length' => static function (array $length) use (&$seen): ?array {
+                $seen[] = $length;
+                if ($length['unit'] !== 'px') {
+                    return null;
+                }
+
+                return [
+                    'unit' => 'rem',
+                    'value' => $length['value'] / 16,
+                ];
+            },
+        ]);
+
+        $t->same('.b{height:calc(100vh - 4rem)}.a{width:2rem}', $code);
+        $t->same([
+            ['unit' => 'vh', 'value' => 100.0],
+            ['unit' => 'px', 'value' => 64.0],
+            ['unit' => 'px', 'value' => 32.0],
+        ], $seen);
+    },
     'css bundler shares custom media definitions across imported graph' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '@media print{.a{color:green}}.entry{color:red}',

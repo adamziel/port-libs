@@ -158,6 +158,7 @@ final class CssMinifier
         $css = $this->minifyLayerRules($css);
         $css = $this->minifyNamespaceRules($css, $allowNamespaceAfterStyleRules);
         $css = $this->normalizeNamespaceAttributeSelectors($css);
+        $css = $this->normalizeMozDocumentRules($css);
         $css = $this->minifySupportsRules($css);
         $css = $this->minifyFontFeatureValuesRules($css);
         $css = $this->minifyKeyframesRules($css);
@@ -408,6 +409,37 @@ final class CssMinifier
         $next = $css[$offset + strlen($keyword)] ?? '';
 
         return $next === '' || !$this->isIdentifierChar($next);
+    }
+
+    private function findNextAtKeywordOutsideStrings(string $css, string $keyword, int $start): ?int
+    {
+        $quote = null;
+        $length = strlen($css);
+
+        for ($i = $start; $i < $length; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '@' && $this->startsWithAtKeyword($css, $i, $keyword)) {
+                return $i;
+            }
+        }
+
+        return null;
     }
 
     private function validateAuthoredMediaQueryPreludes(string $css): void
@@ -992,6 +1024,35 @@ final class CssMinifier
 
             $prelude = substr($css, $scope, $open - $scope);
             $prelude = preg_replace('/\bto\s*\(/i', 'to (', $prelude) ?? $prelude;
+            $output .= $prelude . '{';
+            $cursor = $open + 1;
+        }
+
+        return $output;
+    }
+
+    private function normalizeMozDocumentRules(string $css): string
+    {
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $document = $this->findNextAtKeywordOutsideStrings($css, '@-moz-document', $cursor);
+            if ($document === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $output .= substr($css, $cursor, $document - $cursor);
+            $open = $this->findNextTopLevel($css, '{', $document);
+            if ($open === null) {
+                $output .= substr($css, $document);
+                break;
+            }
+
+            $prelude = substr($css, $document, $open - $document);
+            $prelude = preg_replace('/\burl-prefix\(\s*(["\'])\1\s*\)/i', 'url-prefix()', $prelude) ?? $prelude;
             $output .= $prelude . '{';
             $cursor = $open + 1;
         }

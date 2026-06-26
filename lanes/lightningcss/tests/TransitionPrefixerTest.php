@@ -2521,11 +2521,29 @@ CSS;
             $prefixer->prefixForTargets('.foo { margin-block-end: 2px; }', ['safari' => 8])
         );
         $t->same(
+            $selector['ltr-webkit'] . '{padding-left:2px}'
+                . $selector['ltr-modern'] . '{padding-left:2px}'
+                . $selector['rtl-webkit'] . '{padding-right:2px}'
+                . $selector['rtl-modern'] . '{padding-right:2px}',
+            $prefixer->prefixForTargets('.foo { padding-inline-start: 2px; }', ['safari' => 8])
+        );
+        $t->same(
+            $selector['ltr-webkit'] . '{padding-left:2px;padding-right:4px}'
+                . $selector['ltr-modern'] . '{padding-left:2px;padding-right:4px}'
+                . $selector['rtl-webkit'] . '{padding-left:4px;padding-right:2px}'
+                . $selector['rtl-modern'] . '{padding-left:4px;padding-right:2px}',
+            $prefixer->prefixForTargets('.foo { padding-inline-start: 2px; padding-inline-end: 4px; }', ['safari' => 8])
+        );
+        $t->same(
             $selector['ltr-webkit'] . '{padding-left:var(--padding)}'
                 . $selector['ltr-modern'] . '{padding-left:var(--padding)}'
                 . $selector['rtl-webkit'] . '{padding-right:var(--padding)}'
                 . $selector['rtl-modern'] . '{padding-right:var(--padding)}',
             $prefixer->prefixForTargets('.foo { padding-inline-start: var(--padding); }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{padding-left:2px;padding-right:2px}',
+            $prefixer->prefixForTargets('.foo { padding-inline: 2px; }', ['safari' => 8])
         );
         $t->same(
             $selector['ltr-webkit'] . '{padding-left:2px;padding-right:4px}'
@@ -2545,6 +2563,10 @@ CSS;
         $t->same(
             '.foo{margin-inline-start:2px;margin-inline-end:4px;padding-block-start:1rem;padding-block-end:2rem}',
             $prefixer->prefixForTargets('.foo { margin-inline: 2px 4px; padding-block: 1rem 2rem; }', ['safari' => 13])
+        );
+        $t->same(
+            '.foo{padding-inline-start:2px;padding-inline-end:2px}',
+            $prefixer->prefixForTargets('.foo { padding-inline-start: 2px; padding-inline-end: 2px; }', ['safari' => 13])
         );
     },
     'transition prefixer maps upstream logical spacing browser boundaries' => static function (TestRunner $t) use ($variants): void {

@@ -304,6 +304,7 @@ final class CssBundler
 
         $raw = $this->licenseCommentPrefix() . $this->inline(0, []);
         $raw = (new CustomMediaTransformer())->transform($raw);
+        $raw = $this->applyBundleValueVisitors($raw);
 
         $code = (new CssMinifier())->minify($raw, false, true);
         $this->applyPendingInputSourceMaps($code);
@@ -784,6 +785,108 @@ final class CssBundler
                 'loc' => $item['loc'] ?? ['line' => 1, 'column' => 1],
             ], $this);
         }
+    }
+
+    private function applyBundleValueVisitors(string $css): string
+    {
+        if (!is_callable($this->visitor['Length'] ?? null)) {
+            return $css;
+        }
+
+        return $this->applyBundleLengthVisitor($css, $this->visitor['Length']);
+    }
+
+    private function applyBundleLengthVisitor(string $css, callable $visitor): string
+    {
+        $output = '';
+        $length = strlen($css);
+        $offset = 0;
+
+        while ($offset < $length) {
+            $char = $css[$offset];
+            if ($char === '"' || $char === "'") {
+                $end = $this->consumeQuotedString($css, $offset);
+                $output .= substr($css, $offset, $end - $offset);
+                $offset = $end;
+                continue;
+            }
+
+            if ($char === '/' && ($css[$offset + 1] ?? '') === '*') {
+                $end = strpos($css, '*/', $offset + 2);
+                $end = $end === false ? $length : $end + 2;
+                $output .= substr($css, $offset, $end - $offset);
+                $offset = $end;
+                continue;
+            }
+
+            if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)([a-zA-Z%]+)/', substr($css, $offset), $matches) === 1) {
+                $token = $matches[0];
+                $unit = $matches[1];
+                $number = substr($token, 0, strlen($token) - strlen($unit));
+                if (!$this->isIdentifierAdjacentLengthToken($css, $offset, strlen($token))) {
+                    $replacement = $visitor([
+                        'unit' => $unit,
+                        'value' => (float) $number,
+                    ], $this);
+
+                    if (is_array($replacement) && isset($replacement['unit'], $replacement['value'])) {
+                        $output .= $this->serializeVisitedLength((float) $replacement['value'], (string) $replacement['unit']);
+                        $offset += strlen($token);
+                        continue;
+                    }
+                }
+            }
+
+            $output .= $char;
+            $offset++;
+        }
+
+        return $output;
+    }
+
+    private function consumeQuotedString(string $css, int $offset): int
+    {
+        $quote = $css[$offset];
+        $length = strlen($css);
+        $offset++;
+        while ($offset < $length) {
+            if ($css[$offset] === '\\') {
+                $offset += 2;
+                continue;
+            }
+
+            $offset++;
+            if ($css[$offset - 1] === $quote) {
+                break;
+            }
+        }
+
+        return $offset;
+    }
+
+    private function isIdentifierAdjacentLengthToken(string $css, int $offset, int $tokenLength): bool
+    {
+        $before = $offset > 0 ? $css[$offset - 1] : '';
+        $after = $css[$offset + $tokenLength] ?? '';
+
+        return ($before !== '' && preg_match('/[a-zA-Z0-9_-]/', $before) === 1)
+            || ($after !== '' && preg_match('/[a-zA-Z0-9_-]/', $after) === 1);
+    }
+
+    private function serializeVisitedLength(float $value, string $unit): string
+    {
+        if (fmod($value, 1.0) === 0.0) {
+            return (string) (int) $value . $unit;
+        }
+
+        $serialized = rtrim(rtrim(sprintf('%.12F', $value), '0'), '.');
+        if (str_starts_with($serialized, '0.')) {
+            $serialized = substr($serialized, 1);
+        } elseif (str_starts_with($serialized, '-0.')) {
+            $serialized = '-' . substr($serialized, 2);
+        }
+
+        return $serialized . $unit;
     }
 
     /**
