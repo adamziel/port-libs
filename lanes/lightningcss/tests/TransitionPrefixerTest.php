@@ -1835,13 +1835,13 @@ CSS;
     },
     'transition prefixer maps upstream border-image target boundaries' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
-        $css = '.foo { border-image: url(border.png) 30 fill / 10px / 4px round; }';
-        $modern = '.foo{border-image:url(border.png) 30 fill/10px/4px round}';
-        $webkit = '.foo{-webkit-border-image:url(border.png) 30 fill/10px/4px round;border-image:url(border.png) 30 fill/10px/4px round}';
-        $moz = '.foo{-moz-border-image:url(border.png) 30 fill/10px/4px round;border-image:url(border.png) 30 fill/10px/4px round}';
-        $opera = '.foo{-o-border-image:url(border.png) 30 fill/10px/4px round;border-image:url(border.png) 30 fill/10px/4px round}';
-        $allLegacy = '.foo{-webkit-border-image:url(border.png) 30 fill/10px/4px round;-moz-border-image:url(border.png) 30 fill/10px/4px round;-o-border-image:url(border.png) 30 fill/10px/4px round;border-image:url(border.png) 30 fill/10px/4px round}';
-        $stalePrefixed = '.foo { -webkit-border-image: url(border.png) 30 fill / 10px / 4px round; -moz-border-image: url(border.png) 30 fill / 10px / 4px round; -o-border-image: url(border.png) 30 fill / 10px / 4px round; border-image: url(border.png) 30 fill / 10px / 4px round; }';
+        $css = '.foo { border-image: url(border.png) 30 / 10px / 4px round; }';
+        $modern = '.foo{border-image:url(border.png) 30/10px/4px round}';
+        $webkit = '.foo{-webkit-border-image:url(border.png) 30/10px/4px round;border-image:url(border.png) 30/10px/4px round}';
+        $moz = '.foo{-moz-border-image:url(border.png) 30/10px/4px round;border-image:url(border.png) 30/10px/4px round}';
+        $opera = '.foo{-o-border-image:url(border.png) 30/10px/4px round;border-image:url(border.png) 30/10px/4px round}';
+        $allLegacy = '.foo{-webkit-border-image:url(border.png) 30/10px/4px round;-moz-border-image:url(border.png) 30/10px/4px round;-o-border-image:url(border.png) 30/10px/4px round;border-image:url(border.png) 30/10px/4px round}';
+        $stalePrefixed = '.foo { -webkit-border-image: url(border.png) 30 / 10px / 4px round; -moz-border-image: url(border.png) 30 / 10px / 4px round; -o-border-image: url(border.png) 30 / 10px / 4px round; border-image: url(border.png) 30 / 10px / 4px round; }';
         $repeatSpaceFallback = '.foo { border-image: url("fallback.png") 10 40 fill / 10px; border-image: url("main.png") 10 40 fill / 10px space; }';
 
         $t->same($allLegacy, $prefixer->prefixForTargets($css, ['chrome' => 14, 'firefox' => 14, 'opera' => '12.1']));
@@ -1876,6 +1876,14 @@ CSS;
         $t->same(
             '.foo{-webkit-border-image:url("test.png") 60;-moz-border-image:url("test.png") 60;-o-border-image:url("test.png") 60;border-image:url("test.png") 60}',
             $prefixer->prefixForTargets('.foo { border-image: url("test.png") 60; }', [
+                'safari' => 4,
+                'firefox' => 4,
+                'opera' => 12,
+            ])
+        );
+        $t->same(
+            '.foo{border-image:url(foo.png) 10 40 fill/10px round}',
+            $prefixer->prefixForTargets('.foo { border-image: url(foo.png) 10 40 fill / 10px round; }', [
                 'safari' => 4,
                 'firefox' => 4,
                 'opera' => 12,
@@ -1940,13 +1948,13 @@ CSS;
     },
     'transition prefixer maps upstream border-image supports target boundaries' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
-        $css = '@supports (border-image: url(border.png) 30 fill / 10px / 4px round) { .foo { border-image: url(border.png) 30 fill / 10px / 4px round; } }';
-        $modern = '@supports (border-image:url(border.png) 30 fill/10px/4px round){.foo{border-image:url(border.png) 30 fill/10px/4px round}}';
-        $webkit = '@supports ((-webkit-border-image:url(border.png) 30 fill/10px/4px round) or (border-image:url(border.png) 30 fill/10px/4px round)){.foo{-webkit-border-image:url(border.png) 30 fill/10px/4px round;border-image:url(border.png) 30 fill/10px/4px round}}';
-        $moz = '@supports ((-moz-border-image:url(border.png) 30 fill/10px/4px round) or (border-image:url(border.png) 30 fill/10px/4px round)){.foo{-moz-border-image:url(border.png) 30 fill/10px/4px round;border-image:url(border.png) 30 fill/10px/4px round}}';
-        $opera = '@supports ((-o-border-image:url(border.png) 30 fill/10px/4px round) or (border-image:url(border.png) 30 fill/10px/4px round)){.foo{-o-border-image:url(border.png) 30 fill/10px/4px round;border-image:url(border.png) 30 fill/10px/4px round}}';
-        $allLegacy = '@supports ((-webkit-border-image:url(border.png) 30 fill/10px/4px round) or (-moz-border-image:url(border.png) 30 fill/10px/4px round) or (-o-border-image:url(border.png) 30 fill/10px/4px round) or (border-image:url(border.png) 30 fill/10px/4px round)){.foo{-webkit-border-image:url(border.png) 30 fill/10px/4px round;-moz-border-image:url(border.png) 30 fill/10px/4px round;-o-border-image:url(border.png) 30 fill/10px/4px round;border-image:url(border.png) 30 fill/10px/4px round}}';
-        $stalePrefixed = '@supports ((-webkit-border-image: url(border.png) 30 fill / 10px / 4px round) or (-moz-border-image: url(border.png) 30 fill / 10px / 4px round) or (-o-border-image: url(border.png) 30 fill / 10px / 4px round) or (border-image: url(border.png) 30 fill / 10px / 4px round)) { .foo { -webkit-border-image: url(border.png) 30 fill / 10px / 4px round; -moz-border-image: url(border.png) 30 fill / 10px / 4px round; -o-border-image: url(border.png) 30 fill / 10px / 4px round; border-image: url(border.png) 30 fill / 10px / 4px round; } }';
+        $css = '@supports (border-image: url(border.png) 30 / 10px / 4px round) { .foo { border-image: url(border.png) 30 / 10px / 4px round; } }';
+        $modern = '@supports (border-image:url(border.png) 30/10px/4px round){.foo{border-image:url(border.png) 30/10px/4px round}}';
+        $webkit = '@supports ((-webkit-border-image:url(border.png) 30/10px/4px round) or (border-image:url(border.png) 30/10px/4px round)){.foo{-webkit-border-image:url(border.png) 30/10px/4px round;border-image:url(border.png) 30/10px/4px round}}';
+        $moz = '@supports ((-moz-border-image:url(border.png) 30/10px/4px round) or (border-image:url(border.png) 30/10px/4px round)){.foo{-moz-border-image:url(border.png) 30/10px/4px round;border-image:url(border.png) 30/10px/4px round}}';
+        $opera = '@supports ((-o-border-image:url(border.png) 30/10px/4px round) or (border-image:url(border.png) 30/10px/4px round)){.foo{-o-border-image:url(border.png) 30/10px/4px round;border-image:url(border.png) 30/10px/4px round}}';
+        $allLegacy = '@supports ((-webkit-border-image:url(border.png) 30/10px/4px round) or (-moz-border-image:url(border.png) 30/10px/4px round) or (-o-border-image:url(border.png) 30/10px/4px round) or (border-image:url(border.png) 30/10px/4px round)){.foo{-webkit-border-image:url(border.png) 30/10px/4px round;-moz-border-image:url(border.png) 30/10px/4px round;-o-border-image:url(border.png) 30/10px/4px round;border-image:url(border.png) 30/10px/4px round}}';
+        $stalePrefixed = '@supports ((-webkit-border-image: url(border.png) 30 / 10px / 4px round) or (-moz-border-image: url(border.png) 30 / 10px / 4px round) or (-o-border-image: url(border.png) 30 / 10px / 4px round) or (border-image: url(border.png) 30 / 10px / 4px round)) { .foo { -webkit-border-image: url(border.png) 30 / 10px / 4px round; -moz-border-image: url(border.png) 30 / 10px / 4px round; -o-border-image: url(border.png) 30 / 10px / 4px round; border-image: url(border.png) 30 / 10px / 4px round; } }';
 
         $t->same($allLegacy, $prefixer->prefixForTargets($css, ['chrome' => 14, 'firefox' => 14, 'opera' => '12.1']));
         $t->same($webkit, $prefixer->prefixForTargets($css, ['chrome' => 14]));

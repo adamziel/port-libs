@@ -7395,11 +7395,151 @@ final class TransitionPrefixer
      */
     private function rewriteBorderImagePrefixEntries(array &$entries, array $targetOptions): bool
     {
-        return $this->rewriteVendorPrefixedDeclarationGroup($entries, 'border-image', [
+        $neededPrefixes = [
             '-webkit-' => $targetOptions['borderImageNeedsWebkit'] ?? false,
             '-moz-' => $targetOptions['borderImageNeedsMoz'] ?? false,
             '-o-' => $targetOptions['borderImageNeedsO'] ?? false,
-        ]);
+        ];
+        $vendorProperties = [];
+        foreach ($neededPrefixes as $prefix => $_needed) {
+            $vendorProperties[$prefix] = $prefix . 'border-image';
+        }
+
+        $unprefixedValues = [];
+        $prefixedValues = [];
+        $hasRelevantDeclaration = false;
+        foreach ($entries as $entry) {
+            if ($entry['property'] === 'border-image') {
+                $hasRelevantDeclaration = true;
+                if (!$entry['important']) {
+                    $unprefixedValues[$entry['value']] = true;
+                }
+                continue;
+            }
+
+            $prefix = $this->uiPrefixForProperty($entry['property'], $vendorProperties);
+            if ($prefix === null) {
+                continue;
+            }
+
+            $hasRelevantDeclaration = true;
+            $prefixedValues[$prefix][$entry['value']] = true;
+        }
+
+        if (!$hasRelevantDeclaration || $unprefixedValues === []) {
+            return false;
+        }
+
+        $rewritten = [];
+        $changed = false;
+        foreach ($entries as $entry) {
+            $prefix = $this->uiPrefixForProperty($entry['property'], $vendorProperties);
+            if (
+                $prefix !== null
+                && !$entry['important']
+                && !($neededPrefixes[$prefix] ?? false)
+                && isset($unprefixedValues[$entry['value']])
+            ) {
+                $changed = true;
+                continue;
+            }
+
+            if ($entry['property'] === 'border-image'
+                && !$entry['important']
+                && !$this->borderImageValueUsesSliceFill($entry['value'])
+            ) {
+                foreach ($neededPrefixes as $neededPrefix => $needed) {
+                    if (!$needed || isset($prefixedValues[$neededPrefix][$entry['value']])) {
+                        continue;
+                    }
+
+                    $rewritten[] = $this->declarationEntry($vendorProperties[$neededPrefix], $entry['value']);
+                    $prefixedValues[$neededPrefix][$entry['value']] = true;
+                    $changed = true;
+                }
+            }
+
+            $rewritten[] = $entry;
+        }
+
+        if (!$changed) {
+            return false;
+        }
+
+        $entries = $rewritten;
+
+        return true;
+    }
+
+    private function borderImageValueUsesSliceFill(string $value): bool
+    {
+        $length = strlen($value);
+        $quote = null;
+        $escaped = false;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($escaped) {
+                $escaped = false;
+                continue;
+            }
+
+            if ($char === '\\') {
+                $escaped = true;
+                continue;
+            }
+
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $parenDepth++;
+                continue;
+            }
+
+            if ($char === ')' && $parenDepth > 0) {
+                $parenDepth--;
+                continue;
+            }
+
+            if ($char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+
+            if ($char === ']' && $bracketDepth > 0) {
+                $bracketDepth--;
+                continue;
+            }
+
+            if ($parenDepth !== 0 || $bracketDepth !== 0) {
+                continue;
+            }
+
+            if (strncasecmp(substr($value, $i, 4), 'fill', 4) !== 0) {
+                continue;
+            }
+
+            $before = $i === 0 ? '' : $value[$i - 1];
+            $after = $value[$i + 4] ?? '';
+            if (($before === '' || !$this->isIdentifierChar($before))
+                && ($after === '' || !$this->isIdentifierChar($after))
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

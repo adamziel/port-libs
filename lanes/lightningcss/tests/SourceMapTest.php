@@ -1786,6 +1786,11 @@ return [
         $t->same([], $map->getSources());
         $t->same('', $map->writeVlq());
     },
+    'source map rejects upstream undecodable base64 data URL payloads' => static function (TestRunner $t): void {
+        $t->throws(InvalidArgumentException::class, static function (): void {
+            SourceMap::fromDataUrl('data:application/json;charset=utf-8;base64,!!!!');
+        });
+    },
     'source map round trips upstream empty buffer snapshots' => static function (TestRunner $t): void {
         $map = new SourceMap('/theme');
         $restored = SourceMap::fromBuffer('/theme', $map->toBuffer());

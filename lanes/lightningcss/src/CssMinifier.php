@@ -3782,6 +3782,7 @@ final class CssMinifier
         $value = $this->minifyListStyleValue($property, $value);
         $value = $this->minifyContainerDeclarationValue($property, $value);
         $value = $this->minifyBorderRadiusValue($property, $value);
+        $value = $this->minifyBorderShorthandValue($property, $value);
         $value = $this->minifyAspectRatioValue($property, $value);
         $value = $this->minifyBackgroundValue($property, $value);
         $value = $this->minifyGridValue($property, $value);
@@ -4165,6 +4166,55 @@ final class CssMinifier
         }
 
         return $horizontal . '/' . $vertical;
+    }
+
+    private function minifyBorderShorthandValue(string $property, string $value): string
+    {
+        if (!in_array(strtolower($property), ['border', 'border-top', 'border-right', 'border-bottom', 'border-left'], true)) {
+            return $value;
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel(trim($value));
+        if (count($tokens) !== 2) {
+            return trim($value);
+        }
+
+        $first = strtolower(trim($tokens[0]));
+        $second = strtolower(trim($tokens[1]));
+        if ($first === 'none' && $this->isBorderShorthandNonStyleToken($tokens[1])) {
+            return $this->minifyBorderShorthandNonStyleToken($tokens[1]);
+        }
+        if ($second === 'none' && $this->isBorderShorthandNonStyleToken($tokens[0])) {
+            return $this->minifyBorderShorthandNonStyleToken($tokens[0]);
+        }
+
+        return trim($value);
+    }
+
+    private function isBorderShorthandNonStyleToken(string $token): bool
+    {
+        $lower = strtolower(trim($token));
+        if (in_array($lower, ['thin', 'medium', 'thick'], true)) {
+            return true;
+        }
+        if ($this->isTextEmphasisColorToken($token)) {
+            return true;
+        }
+
+        return preg_match('/^(?:0(?:\.0+)?|(?:\d+\.\d+|\.\d+|\d+)(?:[a-z%]+))$/i', $lower) === 1;
+    }
+
+    private function minifyBorderShorthandNonStyleToken(string $token): string
+    {
+        $lower = strtolower(trim($token));
+        if (in_array($lower, ['thin', 'medium', 'thick'], true)) {
+            return $lower;
+        }
+        if (preg_match('/^(?:0(?:\.0+)?|(?:\d+\.\d+|\.\d+|\d+)(?:[a-z%]+))$/i', $lower) === 1) {
+            return $this->minifyLengthToken($token);
+        }
+
+        return trim($token);
     }
 
     private function minifyAspectRatioValue(string $property, string $value): string

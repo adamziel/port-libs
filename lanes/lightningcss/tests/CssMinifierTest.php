@@ -217,6 +217,12 @@ CSS
         $t->same('.foo{border-spacing:6px 8px}', $minifier->minify('.foo { border-spacing: calc(3px * 2) max(0px, 8px); }'));
         $t->same('.foo{border-spacing:-20px}', $minifier->minify('.foo { border-spacing: -20px; }'));
     },
+    'css minifier maps upstream border shorthand none style omission' => static function (TestRunner $t): void {
+        $t->same(
+            '.foo{border:green}',
+            (new CssMinifier())->minify('.foo { border: none green }')
+        );
+    },
     'css minifier maps upstream basic color value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

@@ -8,6 +8,7 @@ return [
     'declaration block get returns the last property and priority' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
+        $t->same(['value' => 'red', 'important' => false], $block->getProperty('color: red', 'color'));
         $t->same(['value' => 'red', 'important' => false], $block->getProperty('color: green; color: red', 'color'));
         $t->same(['value' => 'red', 'important' => true], $block->getProperty('color: red !important', 'color'));
         $t->same(null, $block->getProperty('margin-top: 5px', 'color'));

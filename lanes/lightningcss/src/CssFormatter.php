@@ -24,6 +24,10 @@ final class CssFormatter
         'border-image-repeat',
     ];
 
+    private const BORDER_PHYSICAL_SIDES = ['top', 'right', 'bottom', 'left'];
+
+    private const BORDER_COMPONENTS = ['width', 'style', 'color'];
+
     private const BORDER_IMAGE_REPEAT_KEYWORDS = ['stretch', 'repeat', 'round', 'space'];
 
     public function format(string $css): string
@@ -369,8 +373,10 @@ final class CssFormatter
         $declarations = $this->orderImportantStyleDeclarations(
             $this->composeGridStyleDeclarations(
                 $this->composeBorderImageStyleDeclarations(
-                    $this->composeBoxModelStyleDeclarations(
-                        $this->composeFontStyleDeclarations($this->parseDeclarations($body))
+                    $this->composeBorderStyleDeclarations(
+                        $this->composeBoxModelStyleDeclarations(
+                            $this->composeFontStyleDeclarations($this->parseDeclarations($body))
+                        )
                     )
                 )
             )
@@ -525,6 +531,219 @@ final class CssFormatter
         }
 
         return $declarations;
+    }
+
+    /**
+     * @param list<array{string, string}> $declarations
+     * @return list<array{string, string}>
+     */
+    private function composeBorderStyleDeclarations(array $declarations): array
+    {
+        $declarations = $this->composeEqualPhysicalBorderGroup($declarations, 'border', '');
+        foreach (self::BORDER_COMPONENTS as $component) {
+            $declarations = $this->composeEqualPhysicalBorderGroup(
+                $declarations,
+                'border-' . $component,
+                '-' . $component,
+                $component
+            );
+        }
+
+        foreach (self::BORDER_PHYSICAL_SIDES as $side) {
+            $declarations = $this->composePhysicalBorderSideComponents($declarations, $side);
+        }
+
+        return $declarations;
+    }
+
+    /**
+     * @param list<array{string, string}> $declarations
+     * @return list<array{string, string}>
+     */
+    private function composeEqualPhysicalBorderGroup(
+        array $declarations,
+        string $replacementProperty,
+        string $propertySuffix,
+        ?string $component = null
+    ): array {
+        if ($this->containsLogicalBorderDeclaration($declarations)
+            || $this->containsDeclaration($declarations, $replacementProperty)
+        ) {
+            return $declarations;
+        }
+
+        $indexes = [];
+        foreach ($declarations as $index => [$property]) {
+            foreach (self::BORDER_PHYSICAL_SIDES as $side) {
+                if ($property === 'border-' . $side . $propertySuffix) {
+                    $indexes[$side] = $index;
+                }
+            }
+        }
+
+        foreach (self::BORDER_PHYSICAL_SIDES as $side) {
+            if (!isset($indexes[$side])) {
+                return $declarations;
+            }
+        }
+
+        $values = [];
+        foreach (self::BORDER_PHYSICAL_SIDES as $side) {
+            $value = $this->formatBorderComponentValue($component, $declarations[$indexes[$side]][1]);
+            if (!$this->canComposeBorderValue($value)) {
+                return $declarations;
+            }
+
+            $values[$side] = $value;
+        }
+
+        if (!$this->allValuesEqual($values)) {
+            return $declarations;
+        }
+
+        $replaceAt = min($indexes);
+
+        return $this->replaceDeclarations($declarations, [
+            $replaceAt => [$replacementProperty, $values['top']],
+        ], array_flip(array_values($indexes)));
+    }
+
+    /**
+     * @param list<array{string, string}> $declarations
+     * @return list<array{string, string}>
+     */
+    private function composePhysicalBorderSideComponents(array $declarations, string $side): array
+    {
+        $shorthand = 'border-' . $side;
+        if ($this->containsDeclaration($declarations, $shorthand)) {
+            return $declarations;
+        }
+
+        $skip = [];
+        $replacements = [];
+        $indexes = [];
+        foreach ($declarations as $index => [$property]) {
+            foreach (self::BORDER_COMPONENTS as $component) {
+                if ($property === $shorthand . '-' . $component) {
+                    $indexes[$component] = $index;
+                }
+            }
+        }
+
+        foreach (self::BORDER_COMPONENTS as $component) {
+            if (!isset($indexes[$component])) {
+                return $declarations;
+            }
+        }
+
+        $values = [];
+        foreach (self::BORDER_COMPONENTS as $component) {
+            $value = $this->formatBorderComponentValue($component, $declarations[$indexes[$component]][1]);
+            if (!$this->canComposeBorderValue($value)) {
+                return $declarations;
+            }
+
+            $values[] = $value;
+        }
+
+        $replaceAt = min($indexes);
+        $replacements[$replaceAt] = [$shorthand, implode(' ', $values)];
+        foreach ($indexes as $index) {
+            $skip[$index] = true;
+        }
+
+        return $this->replaceDeclarations($declarations, $replacements, $skip);
+    }
+
+    /**
+     * @param list<array{string, string}> $declarations
+     */
+    private function containsDeclaration(array $declarations, string $property): bool
+    {
+        foreach ($declarations as [$candidate]) {
+            if ($candidate === $property) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array{string, string}> $declarations
+     */
+    private function containsLogicalBorderDeclaration(array $declarations): bool
+    {
+        foreach ($declarations as [$property]) {
+            if (preg_match('/^border-(?:block|inline)(?:-|$)/', $property) === 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function formatBorderComponentValue(?string $component, string $value): string
+    {
+        if ($component === 'color') {
+            return $this->formatColorDeclarationValue($value);
+        }
+
+        return $this->formatDeclarationValue($value);
+    }
+
+    private function canComposeBorderValue(string $value): bool
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return false;
+        }
+
+        return preg_match('/!\s*important\b|\bvar\s*\(/i', $value) !== 1;
+    }
+
+    /**
+     * @param array<string, string> $values
+     */
+    private function allValuesEqual(array $values): bool
+    {
+        $first = null;
+        foreach ($values as $value) {
+            if ($first === null) {
+                $first = $value;
+                continue;
+            }
+
+            if (strcasecmp($first, $value) !== 0) {
+                return false;
+            }
+        }
+
+        return $first !== null;
+    }
+
+    /**
+     * @param list<array{string, string}> $declarations
+     * @param array<int, array{string, string}> $replacements
+     * @param array<int, bool> $skip
+     * @return list<array{string, string}>
+     */
+    private function replaceDeclarations(array $declarations, array $replacements, array $skip): array
+    {
+        if ($replacements === [] && $skip === []) {
+            return $declarations;
+        }
+
+        $output = [];
+        foreach ($declarations as $index => $declaration) {
+            if (isset($skip[$index]) && !isset($replacements[$index])) {
+                continue;
+            }
+
+            $output[] = $replacements[$index] ?? $declaration;
+        }
+
+        return $output;
     }
 
     /**

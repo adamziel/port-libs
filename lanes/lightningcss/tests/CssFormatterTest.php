@@ -297,6 +297,78 @@ CSS, $formatter->format(<<<'CSS'
 }
 CSS));
     },
+    'css formatter maps upstream border printer cases' => static function (TestRunner $t): void {
+        $formatter = new CssFormatter();
+
+        $t->same(<<<'CSS'
+.foo {
+  border: 2px solid red;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-left: 2px solid red;
+  border-right: 2px solid red;
+  border-bottom: 2px solid red;
+  border-top: 2px solid red;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border-color: red;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-left-color: red;
+  border-right-color: red;
+  border-bottom-color: red;
+  border-top-color: red;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border-width: thin;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-left-width: thin;
+  border-right-width: thin;
+  border-bottom-width: thin;
+  border-top-width: thin;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border-style: dotted;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-left-style: dotted;
+  border-right-style: dotted;
+  border-bottom-style: dotted;
+  border-top-style: dotted;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border-left: thin dotted red;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-left-width: thin;
+  border-left-style: dotted;
+  border-left-color: red;
+}
+CSS));
+    },
     'css formatter maps upstream url quoting printer cases' => static function (TestRunner $t): void {
         $formatter = new CssFormatter();
 
