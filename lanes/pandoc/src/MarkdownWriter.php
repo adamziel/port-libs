@@ -6114,6 +6114,14 @@ final class MarkdownWriter
 
     private function renderScript(string $kind, string $delimiter, string $htmlTag, AstNode $node): string
     {
+        if ($node->children === []) {
+            return '';
+        }
+
+        if (!$this->isNullAttrTuple($this->linkAttrTuple($node))) {
+            return $this->renderSpan($this->semanticInlineSpan($node, $kind));
+        }
+
         $previous = $this->escapeInlineSpaces;
         $this->escapeInlineSpaces = true;
         try {
@@ -6262,6 +6270,10 @@ final class MarkdownWriter
             return '';
         }
 
+        if (!$this->isNullAttrTuple($this->linkAttrTuple($node))) {
+            return $this->renderSpan($this->semanticInlineSpan($node, 'strikeout'));
+        }
+
         if ($this->strikeoutEnabled()) {
             return $this->delimitInlineContent('~~', '~~', $content);
         }
@@ -6279,9 +6291,7 @@ final class MarkdownWriter
             return '';
         }
 
-        $span = new AstNode('span', [
-            'classes' => ['underline'],
-        ], $node->children);
+        $span = $this->semanticInlineSpan($node, 'underline');
 
         if ($this->bracketedSpansEnabled() || $this->nativeSpansEnabled()) {
             return $this->renderSpan($span);
@@ -6297,12 +6307,18 @@ final class MarkdownWriter
     private function renderSmallCaps(AstNode $node): string
     {
         if ($this->rawHtmlEnabled() || $this->nativeSpansEnabled()) {
-            return $this->renderSpan(new AstNode('span', [
-                'classes' => ['smallcaps'],
-            ], $node->children));
+            return $this->renderSpan($this->semanticInlineSpan($node, 'smallcaps'));
         }
 
         return $this->renderInlines($this->capitalizeInlineText($node->children));
+    }
+
+    private function semanticInlineSpan(AstNode $node, string $class): AstNode
+    {
+        $attrs = $this->linkAttrTuple($node);
+        $attrs['classes'] = array_values(array_unique(array_merge([$class], $attrs['classes'])));
+
+        return new AstNode('span', $attrs, $node->children);
     }
 
     /**

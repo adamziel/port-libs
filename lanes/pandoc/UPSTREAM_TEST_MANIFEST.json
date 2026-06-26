@@ -1288,6 +1288,8 @@
         "mappedMarkdownWriterInlineQuotedSmartDisabledFallbackCases": 4,
         "markdownWriterInlineUnderlineSmallCapsFallbackCases": 8,
         "mappedMarkdownWriterInlineUnderlineSmallCapsFallbackCases": 8,
+        "markdownWriterSemanticAttributeCompletionCases": 7,
+        "mappedMarkdownWriterSemanticAttributeCompletionCases": 7,
         "markdownWriterInlineStrikeScriptMathRawBranchCases": 8,
         "mappedMarkdownWriterInlineStrikeScriptMathRawBranchCases": 8,
         "markdownWriterInlineStrikeoutFallbackCases": 2,
