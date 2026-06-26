@@ -674,7 +674,7 @@ final class WordPressBlockWriter
 
     private function renderDefinitionListHtml(AstNode $node): string
     {
-        $html = '<dl' . $this->renderBlockHtmlAttrs($node) . '>';
+        $html = '<dl' . $this->renderBlockHtmlAttrs($node) . $this->renderCslBibliographyOptionAttrs($node) . '>';
         foreach ($node->children as $item) {
             if ($item->type !== 'definition_item') {
                 continue;
@@ -697,6 +697,37 @@ final class WordPressBlockWriter
         $html .= '</dl>';
 
         return $html;
+    }
+
+    private function renderCslBibliographyOptionAttrs(AstNode $node): string
+    {
+        $classes = $node->attr('classes', []);
+        if (!is_array($classes) || !in_array('pandoc-csl-bibliography', $classes, true)) {
+            return '';
+        }
+
+        $existingAttrs = array_change_key_case($this->inlineHtmlAttributes($node), CASE_LOWER);
+        $attrs = '';
+        if ($node->attr('hangingIndent') === true && !array_key_exists('data-csl-hanging-indent', $existingAttrs)) {
+            $attrs .= ' data-csl-hanging-indent="true"';
+        }
+
+        $entrySpacing = $node->attr('entrySpacing');
+        if ($entrySpacing !== null && !array_key_exists('data-csl-entry-spacing', $existingAttrs)) {
+            $attrs .= ' data-csl-entry-spacing="' . $this->esc((string) $entrySpacing) . '"';
+        }
+
+        $lineSpacing = $node->attr('lineSpacing');
+        if ($lineSpacing !== null && !array_key_exists('data-csl-line-spacing', $existingAttrs)) {
+            $attrs .= ' data-csl-line-spacing="' . $this->esc((string) $lineSpacing) . '"';
+        }
+
+        $secondFieldAlign = (string) $node->attr('secondFieldAlign', '');
+        if ($secondFieldAlign !== '' && !array_key_exists('data-csl-second-field-align', $existingAttrs)) {
+            $attrs .= ' data-csl-second-field-align="' . $this->esc($secondFieldAlign) . '"';
+        }
+
+        return $attrs;
     }
 
     private function renderTableHtml(AstNode $node): string
