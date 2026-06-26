@@ -286,6 +286,61 @@ return [
         $t->contains('<span class="math inline">\\(x^{2}+y\\)</span>', $blocks);
         $t->contains('<span class="math display">\\[\\frac{1}{n}\\]</span>', $blocks);
     },
+    'preserves docx content controls with block inline and table metadata' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:sdt><w:sdtPr><w:alias w:val="Customer Name"/><w:tag w:val="customer.name"/><w:id w:val="42"/><w:lock w:val="sdtContentLocked"/><w:placeholder><w:docPart w:val="CustomerPlaceholder"/></w:placeholder><w:dataBinding w:xpath="/root/customer/name" w:storeItemID="{11111111-1111-1111-1111-111111111111}" w:prefixMappings="xmlns:c=&apos;urn:customer&apos;"/><w:text w:multiLine="1"/></w:sdtPr><w:sdtContent><w:p><w:r><w:t>Ada Lovelace</w:t></w:r></w:p></w:sdtContent></w:sdt><w:p><w:r><w:t>Status: </w:t></w:r><w:sdt><w:sdtPr><w:alias w:val="Status choice"/><w:tag w:val="status"/><w:id w:val="43"/><w:dropDownList><w:listItem w:displayText="Draft" w:value="draft"/><w:listItem w:displayText="Approved" w:value="approved"/></w:dropDownList></w:sdtPr><w:sdtContent><w:r><w:t>Approved</w:t></w:r></w:sdtContent></w:sdt></w:p><w:tbl><w:tr><w:tc><w:sdt><w:sdtPr><w:alias w:val="Signed date"/><w:tag w:val="signed.date"/><w:id w:val="44"/><w:date w:fullDate="2026-06-26T00:00:00Z"><w:dateFormat w:val="MMMM d, yyyy"/><w:lid w:val="en-US"/></w:date></w:sdtPr><w:sdtContent><w:p><w:r><w:t>June 26, 2026</w:t></w:r></w:p></w:sdtContent></w:sdt></w:tc></w:tr></w:tbl></w:body></w:document>');
+
+        $document = (new DocxReader())->read($bytes);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $blockControl = $document->children[0];
+        $blockAttrs = $blockControl->attr('attributes');
+        $paragraph = $document->children[1];
+        $inlineControl = $paragraph->children[1];
+        $inlineAttrs = $inlineControl->attr('attributes');
+        $table = $document->children[2];
+        $tableCell = $table->children[1]->children[0]->children[0];
+        $dateControl = $tableCell->children[0];
+        $dateAttrs = $dateControl->attr('attributes');
+
+        $t->same('div', $blockControl->type);
+        $t->same(['docx-content-control', 'docx-content-control-block'], $blockControl->attr('classes'));
+        $t->same('block', $blockAttrs['data-docx-content-control-display']);
+        $t->same('text', $blockAttrs['data-docx-content-control-type']);
+        $t->same('Customer Name', $blockAttrs['data-docx-content-control-alias']);
+        $t->same('customer.name', $blockAttrs['data-docx-content-control-tag']);
+        $t->same('42', $blockAttrs['data-docx-content-control-id']);
+        $t->same('sdtContentLocked', $blockAttrs['data-docx-content-control-lock']);
+        $t->same('CustomerPlaceholder', $blockAttrs['data-docx-content-control-placeholder-doc-part']);
+        $t->same('/root/customer/name', $blockAttrs['data-docx-content-control-binding-xpath']);
+        $t->same('{11111111-1111-1111-1111-111111111111}', $blockAttrs['data-docx-content-control-binding-store-item-id']);
+        $t->same("xmlns:c='urn:customer'", $blockAttrs['data-docx-content-control-binding-prefix-mappings']);
+        $t->same('true', $blockAttrs['data-docx-content-control-text-multiline']);
+        $t->same('Ada Lovelace', $blockControl->children[0]->attr('text'));
+
+        $t->same('Status: Approved', $paragraph->attr('text'));
+        $t->same('span', $inlineControl->type);
+        $t->same(['docx-content-control', 'docx-content-control-inline'], $inlineControl->attr('classes'));
+        $t->same('inline', $inlineAttrs['data-docx-content-control-display']);
+        $t->same('dropDownList', $inlineAttrs['data-docx-content-control-type']);
+        $t->same('Status choice', $inlineAttrs['data-docx-content-control-alias']);
+        $t->same('2', $inlineAttrs['data-docx-content-control-list-item-count']);
+        $t->same('Draft Approved', $inlineAttrs['data-docx-content-control-list-display-texts']);
+        $t->same('draft approved', $inlineAttrs['data-docx-content-control-list-values']);
+
+        $t->same('June 26, 2026', $tableCell->attr('text'));
+        $t->same('div', $dateControl->type);
+        $t->same('date', $dateAttrs['data-docx-content-control-type']);
+        $t->same('Signed date', $dateAttrs['data-docx-content-control-alias']);
+        $t->same('2026-06-26T00:00:00Z', $dateAttrs['data-docx-content-control-date-full']);
+        $t->same('MMMM d, yyyy', $dateAttrs['data-docx-content-control-date-format']);
+        $t->same('en-US', $dateAttrs['data-docx-content-control-date-language-id']);
+
+        $t->contains('<div class="docx-content-control docx-content-control-block" data-docx-content-control-display="block"', $blocks);
+        $t->contains('data-docx-content-control-binding-xpath="/root/customer/name"', $blocks);
+        $t->contains('<span class="docx-content-control docx-content-control-inline" data-docx-content-control-display="inline"', $blocks);
+        $t->contains('data-docx-content-control-list-values="draft approved"', $blocks);
+        $t->contains('data-docx-content-control-date-full="2026-06-26T00:00:00Z"', $blocks);
+    },
     'preserves docx comment ranges moves table merges styles and image metadata' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-docx-');
         if ($path === false) {

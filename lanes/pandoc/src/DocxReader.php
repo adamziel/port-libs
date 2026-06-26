@@ -402,6 +402,11 @@ final class DocxReader
                 $blocks[] = $this->table($child);
                 continue;
             }
+            if ($child->localName === 'sdt') {
+                $flushList();
+                array_push($blocks, ...$this->contentControlBlocks($child));
+                continue;
+            }
             if ($child->localName === 'oMathPara') {
                 $flushList();
                 $math = $this->ommlMath($child, true);
@@ -565,6 +570,10 @@ final class DocxReader
                 }
                 continue;
             }
+            if ($child->localName === 'sdt') {
+                array_push($inlines, ...$this->contentControlInlines($child));
+                continue;
+            }
             if ($child->localName === 'bookmarkStart' || $child->localName === 'bookmarkEnd') {
                 $bookmark = $this->bookmarkRawInline($child);
                 if ($bookmark instanceof AstNode) {
@@ -709,6 +718,250 @@ final class DocxReader
         $span = $this->trackedChangeSpan($change);
 
         return $span instanceof AstNode ? [$span] : [];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function contentControlBlocks(\DOMElement $control): array
+    {
+        $content = $this->directChild($control, 'sdtContent');
+        if (!$content instanceof \DOMElement) {
+            return [];
+        }
+
+        $blocks = $this->bodyBlocks($content);
+        if ($blocks === []) {
+            $inlines = $this->inlineChildren($content);
+            if ($inlines !== []) {
+                $blocks[] = new AstNode('paragraph', ['text' => $this->plainText($inlines)], $inlines);
+            }
+        }
+        if ($blocks === []) {
+            return [];
+        }
+
+        return [new AstNode('div', [
+            'classes' => ['docx-content-control', 'docx-content-control-block'],
+            'attributes' => $this->contentControlAttributes($control, 'block'),
+        ], $blocks)];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function contentControlInlines(\DOMElement $control): array
+    {
+        $content = $this->directChild($control, 'sdtContent');
+        if (!$content instanceof \DOMElement) {
+            return [];
+        }
+
+        $inlines = $this->inlineChildren($content);
+        if ($inlines === []) {
+            $inlines = $this->blocksAsInlineNodes($this->bodyBlocks($content));
+        }
+        if ($inlines === []) {
+            return [];
+        }
+
+        return [new AstNode('span', [
+            'classes' => ['docx-content-control', 'docx-content-control-inline'],
+            'attributes' => $this->contentControlAttributes($control, 'inline'),
+        ], $inlines)];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function contentControlAttributes(\DOMElement $control, string $display): array
+    {
+        $attrs = ['data-docx-content-control-display' => $display];
+        $properties = $this->directChild($control, 'sdtPr');
+        if (!$properties instanceof \DOMElement) {
+            $attrs['data-docx-content-control-metadata'] = 'missing';
+
+            return $attrs;
+        }
+
+        foreach ($properties->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            if ($child->localName === 'alias') {
+                $value = $this->attr($child, self::W_NS, 'val');
+                if ($value !== '') {
+                    $attrs['data-docx-content-control-alias'] = $value;
+                }
+                continue;
+            }
+            if ($child->localName === 'tag') {
+                $value = $this->attr($child, self::W_NS, 'val');
+                if ($value !== '') {
+                    $attrs['data-docx-content-control-tag'] = $value;
+                }
+                continue;
+            }
+            if ($child->localName === 'id') {
+                $value = $this->attr($child, self::W_NS, 'val');
+                if ($value !== '') {
+                    $attrs['data-docx-content-control-id'] = $value;
+                }
+                continue;
+            }
+            if ($child->localName === 'lock') {
+                $value = $this->attr($child, self::W_NS, 'val');
+                if ($value !== '') {
+                    $attrs['data-docx-content-control-lock'] = $value;
+                }
+                continue;
+            }
+            if ($child->localName === 'temporary') {
+                $attrs['data-docx-content-control-temporary'] = 'true';
+                continue;
+            }
+            if ($child->localName === 'showingPlcHdr') {
+                $attrs['data-docx-content-control-showing-placeholder'] = 'true';
+                continue;
+            }
+            if ($child->localName === 'placeholder') {
+                foreach ($this->descendantElementsByLocalName($child, 'docPart') as $docPart) {
+                    $value = $this->attr($docPart, self::W_NS, 'val');
+                    if ($value !== '') {
+                        $attrs['data-docx-content-control-placeholder-doc-part'] = $value;
+                    }
+                    break;
+                }
+                continue;
+            }
+            if ($child->localName === 'dataBinding') {
+                foreach ([
+                    'xpath' => 'data-docx-content-control-binding-xpath',
+                    'storeItemID' => 'data-docx-content-control-binding-store-item-id',
+                    'prefixMappings' => 'data-docx-content-control-binding-prefix-mappings',
+                ] as $source => $target) {
+                    $value = $this->attr($child, self::W_NS, $source);
+                    if ($value !== '') {
+                        $attrs[$target] = $value;
+                    }
+                }
+            }
+        }
+
+        $type = $this->contentControlTypeElement($properties);
+        if ($type instanceof \DOMElement) {
+            $attrs['data-docx-content-control-type'] = $type->localName;
+            $attrs = array_replace($attrs, $this->contentControlTypeAttributes($type));
+        }
+
+        return $attrs;
+    }
+
+    private function contentControlTypeElement(\DOMElement $properties): ?\DOMElement
+    {
+        $typeNames = [
+            'bibliography',
+            'citation',
+            'comboBox',
+            'checkBox',
+            'checkbox',
+            'date',
+            'docPartList',
+            'docPartObj',
+            'dropDownList',
+            'equation',
+            'group',
+            'picture',
+            'repeatingSection',
+            'repeatingSectionItem',
+            'richText',
+            'text',
+        ];
+
+        foreach ($properties->childNodes as $child) {
+            if ($child instanceof \DOMElement && in_array($child->localName, $typeNames, true)) {
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function contentControlTypeAttributes(\DOMElement $type): array
+    {
+        $attrs = [];
+        if ($type->localName === 'text') {
+            $multiLine = $this->attr($type, self::W_NS, 'multiLine');
+            if ($multiLine !== '') {
+                $attrs['data-docx-content-control-text-multiline'] = $this->onOffMetadataValue($multiLine);
+            }
+        } elseif ($type->localName === 'date') {
+            foreach ([
+                'fullDate' => 'data-docx-content-control-date-full',
+                'calendar' => 'data-docx-content-control-date-calendar',
+            ] as $source => $target) {
+                $value = $this->attr($type, self::W_NS, $source);
+                if ($value !== '') {
+                    $attrs[$target] = $value;
+                }
+            }
+            foreach ([
+                'dateFormat' => 'data-docx-content-control-date-format',
+                'lid' => 'data-docx-content-control-date-language-id',
+            ] as $localName => $target) {
+                foreach ($this->descendantElementsByLocalName($type, $localName) as $dateProperty) {
+                    $value = $this->attr($dateProperty, self::W_NS, 'val');
+                    if ($value !== '') {
+                        $attrs[$target] = $value;
+                    }
+                    break;
+                }
+            }
+        } elseif ($type->localName === 'dropDownList' || $type->localName === 'comboBox') {
+            $displayTexts = [];
+            $values = [];
+            foreach ($this->descendantElementsByLocalName($type, 'listItem') as $item) {
+                $displayText = $this->attr($item, self::W_NS, 'displayText');
+                $value = $this->attr($item, self::W_NS, 'value');
+                if ($displayText !== '') {
+                    $displayTexts[] = $displayText;
+                }
+                if ($value !== '') {
+                    $values[] = $value;
+                }
+            }
+            $attrs['data-docx-content-control-list-item-count'] = (string) count($this->descendantElementsByLocalName($type, 'listItem'));
+            if ($displayTexts !== []) {
+                $attrs['data-docx-content-control-list-display-texts'] = implode(' ', $displayTexts);
+            }
+            if ($values !== []) {
+                $attrs['data-docx-content-control-list-values'] = implode(' ', $values);
+            }
+        } elseif ($type->localName === 'checkBox' || $type->localName === 'checkbox') {
+            foreach ([
+                'checked' => 'data-docx-content-control-checkbox-checked',
+                'default' => 'data-docx-content-control-checkbox-default',
+            ] as $localName => $target) {
+                foreach ($this->descendantElementsByLocalName($type, $localName) as $checkboxProperty) {
+                    $value = $this->attr($checkboxProperty, self::W_NS, 'val');
+                    if ($value !== '') {
+                        $attrs[$target] = $this->onOffMetadataValue($value);
+                    }
+                    break;
+                }
+            }
+        }
+
+        return $attrs;
+    }
+
+    private function onOffMetadataValue(string $value): string
+    {
+        return in_array(strtolower(trim($value)), ['0', 'false', 'off', 'no'], true) ? 'false' : 'true';
     }
 
     private function trackedChangeSpan(\DOMElement $change): ?AstNode
@@ -1736,6 +1989,8 @@ final class DocxReader
                 }
             } elseif ($child instanceof \DOMElement && $child->localName === 'tbl') {
                 $blocks[] = $this->table($child);
+            } elseif ($child instanceof \DOMElement && $child->localName === 'sdt') {
+                array_push($blocks, ...$this->contentControlBlocks($child));
             }
         }
         $text = trim(implode(' ', array_map(fn (AstNode $block): string => $this->nodeText($block), $blocks)));
