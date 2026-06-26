@@ -5025,6 +5025,24 @@ CSS;
             $prefixer->prefixForTargets('.foo { color-scheme: light; color: light-dark(red, green); }', ['safari' => $encoded(17, 4)])
         );
     },
+    'transition prefixer maps upstream top-level media range target fallbacks' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_media lines 8999, 9020, and 9378.
+        $cases = [
+            [8999, '@media (color > 2) { .foo { color: chartreuse; } }', '@media not (max-color:2){.foo{color:#7fff00}}', ['firefox' => 60]],
+            [9020, '@media (color < 2) { .foo { color: chartreuse; } }', '@media not (min-color:2){.foo{color:#7fff00}}', ['firefox' => 60]],
+            [9378, '@media (width > 0) { .foo { color: yellow; } }', '@media not (max-width:0){.foo{color:#ff0}}', ['chrome' => 85]],
+        ];
+
+        foreach ($cases as [$line, $input, $expected, $targets]) {
+            $t->same(
+                $expected,
+                $prefixer->prefixForTargets($input, $targets),
+                'upstream src/lib.rs::test_media line ' . $line
+            );
+        }
+    },
     'transition prefixer maps upstream media range target fallbacks inside layers' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

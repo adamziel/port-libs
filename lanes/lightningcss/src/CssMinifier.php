@@ -92,6 +92,7 @@ final class CssMinifier
         }
 
         [$css, $licenseComments] = $this->stripComments($css);
+        $this->validateViewTransitionPseudoElementSelectorPreludes($css);
         $output = '';
         $quote = null;
         $pendingSpace = false;
@@ -2127,6 +2128,7 @@ final class CssMinifier
 
             $prelude = substr($css, $preludeStart, $open - $preludeStart);
             if ($this->isStyleRulePrelude($prelude)) {
+                $this->validateViewTransitionPseudoElementSelectors($prelude);
                 $prelude = $this->normalizeSelectorAttributeSelectors($prelude);
                 $prelude = $this->normalizeSelectorNthPseudoClasses($prelude);
                 if (!$preserveSingletonIsSelectors) {
@@ -2196,6 +2198,148 @@ final class CssMinifier
         $trimmed = trim($prelude);
 
         return $trimmed !== '' && $trimmed[0] !== '@';
+    }
+
+    private function validateViewTransitionPseudoElementSelectorPreludes(string $css): void
+    {
+        if (stripos($css, '::view-transition-') === false) {
+            return;
+        }
+
+        $cursor = 0;
+        $length = strlen($css);
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                return;
+            }
+
+            $preludeStart = $this->findPreludeStart($css, $cursor, $open);
+            $prelude = substr($css, $preludeStart, $open - $preludeStart);
+            if ($this->isStyleRulePrelude($prelude)) {
+                $this->validateViewTransitionPseudoElementSelectors($prelude);
+            }
+
+            $cursor = $open + 1;
+        }
+    }
+
+    private function validateViewTransitionPseudoElementSelectors(string $selector): void
+    {
+        if (stripos($selector, '::view-transition-') === false) {
+            return;
+        }
+
+        $pseudoElements = [
+            'view-transition-group' => true,
+            'view-transition-image-pair' => true,
+            'view-transition-new' => true,
+            'view-transition-old' => true,
+        ];
+        $quote = null;
+        $length = strlen($selector);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $selector[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '\\' && $i + 1 < $length) {
+                $i = $this->cssEscapeEndOffset($selector, $i);
+                continue;
+            }
+
+            if ($char === '[') {
+                $close = $this->findSelectorAttributeClose($selector, $i);
+                if ($close !== null) {
+                    $i = $close;
+                    continue;
+                }
+            }
+
+            if ($char !== ':' || ($selector[$i + 1] ?? '') !== ':') {
+                continue;
+            }
+
+            $token = $this->readCssIdentifierToken($selector, $i + 2);
+            if ($token === null || !isset($pseudoElements[strtolower($token['name'])]) || ($selector[$token['end']] ?? '') !== '(') {
+                continue;
+            }
+
+            [$function, $end] = $this->readFunctionRaw($selector, $i + 2);
+            if (($selector[$end] ?? '') !== ')') {
+                continue;
+            }
+
+            $argument = substr($function, strlen($token['raw']) + 1, -1);
+            if (!$this->isValidViewTransitionPseudoElementArgument($argument)) {
+                throw new \InvalidArgumentException('Invalid view-transition pseudo-element selector argument: ' . trim($argument));
+            }
+
+            if (($selector[$end + 1] ?? '') === ':') {
+                if (($selector[$end + 2] ?? '') === ':') {
+                    throw new \InvalidArgumentException('Invalid pseudo-element after view-transition pseudo-element selector');
+                }
+
+                $after = $this->readCssIdentifierToken($selector, $end + 2);
+                if ($after === null || strcasecmp($after['name'], 'only-child') !== 0) {
+                    throw new \InvalidArgumentException('Invalid pseudo-class after view-transition pseudo-element selector');
+                }
+            }
+
+            $i = $end;
+        }
+    }
+
+    private function isValidViewTransitionPseudoElementArgument(string $argument): bool
+    {
+        $argument = trim($argument);
+        if ($argument === '*') {
+            return true;
+        }
+
+        $length = strlen($argument);
+        if ($length === 0) {
+            return false;
+        }
+
+        $cursor = 0;
+        if ($argument[0] === '*') {
+            $cursor = 1;
+        } elseif ($argument[0] !== '.') {
+            $token = $this->readCssIdentifierToken($argument, 0);
+            if ($token === null) {
+                return false;
+            }
+            $cursor = $token['end'];
+        }
+
+        while ($cursor < $length) {
+            if (($argument[$cursor] ?? '') !== '.') {
+                return false;
+            }
+
+            $token = $this->readCssIdentifierToken($argument, $cursor + 1);
+            if ($token === null) {
+                return false;
+            }
+            $cursor = $token['end'];
+        }
+
+        return true;
     }
 
     private function normalizeSelectorNthPseudoClasses(string $selector): string

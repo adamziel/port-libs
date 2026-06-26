@@ -315,6 +315,38 @@ CSS
             }
         }
     },
+    'css minifier rejects upstream invalid view transition pseudo-element function selectors' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_selectors lines 7312-7343.
+        $names = [
+            [7263, 'view-transition-group'],
+            [7264, 'view-transition-image-pair'],
+            [7265, 'view-transition-new'],
+            [7266, 'view-transition-old'],
+        ];
+        $cases = [
+            [7312, 'foo', ':first-child'],
+            [7316, 'foo', '::before'],
+            [7320, '*.*', ''],
+            [7324, '*. cls', ''],
+            [7328, 'foo .bar', ''],
+            [7332, '*.cls. c', ''],
+            [7336, '*.cls>cls', ''],
+            [7340, '*.cls.foo.*', ''],
+        ];
+
+        foreach ($names as [$nameLine, $name]) {
+            foreach ($cases as [$line, $argument, $tail]) {
+                $input = sprintf(':root::%s(%s)%s {position: fixed}', $name, $argument, $tail);
+
+                $t->throws(
+                    InvalidArgumentException::class,
+                    static fn () => $minifier->minify($input)
+                );
+            }
+        }
+    },
     'css minifier maps upstream quoted and unquoted url tokens' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

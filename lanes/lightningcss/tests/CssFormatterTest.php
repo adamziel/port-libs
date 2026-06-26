@@ -1306,6 +1306,21 @@ CSS, $formatter->format(<<<'CSS'
   padding-bottom: 20px;
 }
 CSS));
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_padding lines 3864-3882.
+        $t->same(<<<'CSS'
+.foo {
+  padding: 1px 4px 3px 2px;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  padding-top: 1px;
+  padding-left: 2px;
+  padding-bottom: 3px;
+  padding-right: 4px;
+}
+CSS));
     },
     'css formatter maps upstream font shorthand printer cases' => static function (TestRunner $t): void {
         $formatter = new CssFormatter();
