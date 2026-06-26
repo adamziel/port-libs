@@ -91,6 +91,31 @@ CSS;
             (new NestingTransformer())->lower($css)
         );
     },
+    'nesting transformer maps upstream nested state selector lowering' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+custom-element {
+  color: blue;
+
+  &:state(loading) {
+    opacity: 0.5;
+
+    & .spinner {
+      display: block;
+    }
+  }
+
+  &:state(error) {
+    border: 2px solid red;
+  }
+}
+CSS;
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_selectors nesting_test line 7362.
+        $t->same(
+            'custom-element{color:#00f}custom-element:state(loading){opacity:.5}custom-element:state(loading) .spinner{display:block}custom-element:state(error){border:2px solid red}',
+            (new NestingTransformer())->lower($css)
+        );
+    },
     'nesting transformer maps upstream attached type selector lowering' => static function (TestRunner $t): void {
         $transformer = new NestingTransformer();
 

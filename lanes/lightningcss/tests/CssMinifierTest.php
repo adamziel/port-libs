@@ -173,6 +173,15 @@ CSS
             $t->same($expected, $minifier->minify($input));
         }
     },
+    'css minifier maps upstream state selector with pseudo element part' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_selectors line 7357.
+        $t->same(
+            'button:active:not(:state(disabled))::part(control){border:1px solid}',
+            $minifier->minify('button:active:not(:state(disabled))::part(control) {border:1px solid}')
+        );
+    },
     'css minifier maps upstream quoted and unquoted url tokens' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
