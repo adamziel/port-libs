@@ -514,6 +514,9 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['alternativeFormatExistingCount'] = $alternativeFormats['existingCount'];
         $packageProvenance['summary']['alternativeFormatMissingCount'] = $alternativeFormats['missingCount'];
         $packageProvenance['summary']['alternativeFormatExternalCount'] = $alternativeFormats['externalCount'];
+        $packageProvenance['summary']['alternativeFormatAllowedExternalCount'] = $alternativeFormats['allowedExternalTargetCount'];
+        $packageProvenance['summary']['alternativeFormatUnsafeExternalCount'] = $alternativeFormats['unsafeExternalTargetCount'];
+        $packageProvenance['summary']['alternativeFormatExternalTargetIssueCodes'] = $alternativeFormats['externalTargetIssueCodes'];
         $packageProvenance['summary']['alternativeFormatIssueCount'] = $alternativeFormats['issueCount'];
         $packageProvenance['summary']['alternativeFormatIssueCodes'] = $alternativeFormats['issueCodes'];
         $packageProvenance['embeddedObjects'] = $embeddedObjects;
@@ -2801,6 +2804,10 @@ final class DocxOpenXmlReader
 
         $partNames = [];
         $externalTargets = [];
+        $unsafeExternalTargets = [];
+        $externalTargetKindCounts = [];
+        $externalTargetSchemeCounts = [];
+        $externalTargetIssueCodes = [];
         $contentTypesSeen = [];
         $issueCodes = [];
         foreach ($items as $item) {
@@ -2809,6 +2816,20 @@ final class DocxOpenXmlReader
             $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
             if (($item['external'] ?? false) === true) {
                 $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+                if (($item['externalTargetAllowed'] ?? null) !== true) {
+                    $this->appendUniqueString($unsafeExternalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+                }
+
+                $kind = is_string($item['externalTargetKind'] ?? null) ? $item['externalTargetKind'] : '(unknown)';
+                $externalTargetKindCounts[$kind] = ($externalTargetKindCounts[$kind] ?? 0) + 1;
+                $scheme = is_string($item['externalTargetScheme'] ?? null) ? $item['externalTargetScheme'] : '(none)';
+                $externalTargetSchemeCounts[$scheme] = ($externalTargetSchemeCounts[$scheme] ?? 0) + 1;
+
+                foreach (($item['externalTargetIssues'] ?? []) as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $externalTargetIssueCodes[$issue] = true;
+                    }
+                }
             }
             foreach (($item['issues'] ?? []) as $issue) {
                 if (is_string($issue) && $issue !== '') {
@@ -2817,6 +2838,9 @@ final class DocxOpenXmlReader
             }
         }
         ksort($issueCodes, SORT_STRING);
+        ksort($externalTargetKindCounts, SORT_STRING);
+        ksort($externalTargetSchemeCounts, SORT_STRING);
+        ksort($externalTargetIssueCodes, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -2826,6 +2850,8 @@ final class DocxOpenXmlReader
             'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] === true)),
             'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-in-package', $item['issues'], true))),
             'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'allowedExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true && ($item['externalTargetAllowed'] ?? null) === true)),
+            'unsafeExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true && ($item['externalTargetAllowed'] ?? null) !== true)),
             'unresolvedCount' => count(array_filter(
                 $items,
                 static fn (array $item): bool => in_array('missing-relationship-id', $item['issues'], true) || in_array('unknown-relationship', $item['issues'], true),
@@ -2837,6 +2863,10 @@ final class DocxOpenXmlReader
             'unreferencedRelationshipIds' => $unreferencedRelationshipIds,
             'partNames' => $partNames,
             'externalTargets' => $externalTargets,
+            'unsafeExternalTargets' => $unsafeExternalTargets,
+            'externalTargetKindCounts' => $externalTargetKindCounts,
+            'externalTargetSchemeCounts' => $externalTargetSchemeCounts,
+            'externalTargetIssueCodes' => array_keys($externalTargetIssueCodes),
             'contentTypes' => $contentTypesSeen,
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'issueCodes' => array_keys($issueCodes),
@@ -2877,6 +2907,10 @@ final class DocxOpenXmlReader
             'targetQuery' => null,
             'targetFragment' => null,
             'targetReferenceSuffix' => '',
+            'externalTargetKind' => null,
+            'externalTargetScheme' => null,
+            'externalTargetAllowed' => null,
+            'externalTargetIssues' => [],
             'exists' => false,
             'bytes' => 0,
             'crc32' => null,
@@ -2924,6 +2958,10 @@ final class DocxOpenXmlReader
         $item['targetQuery'] = $summary['targetQuery'];
         $item['targetFragment'] = $summary['targetFragment'];
         $item['targetReferenceSuffix'] = $summary['targetReferenceSuffix'];
+        $item['externalTargetKind'] = $summary['externalTargetKind'];
+        $item['externalTargetScheme'] = $summary['externalTargetScheme'];
+        $item['externalTargetAllowed'] = $summary['externalTargetAllowed'];
+        $item['externalTargetIssues'] = $summary['externalTargetIssues'];
         $item['exists'] = $exists;
         $item['bytes'] = $exists && $targetPart !== null ? strlen($parts[$targetPart]) : 0;
         $item['crc32'] = $exists && $targetPart !== null ? sprintf('%08x', crc32($parts[$targetPart])) : null;
@@ -2948,6 +2986,11 @@ final class DocxOpenXmlReader
 
         if ($item['external'] === true) {
             $item['issues'][] = 'external-altchunk';
+            foreach ($item['externalTargetIssues'] as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $item['issues'][] = $issue;
+                }
+            }
             return $item;
         }
 

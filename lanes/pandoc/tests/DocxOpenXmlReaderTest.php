@@ -19201,6 +19201,73 @@ XML;
         $t->same(1, $relationshipTypes[$altChunkType]['externalCount']);
         $t->true(in_array('word/chunks/review.html', $relationshipTypes[$altChunkType]['existingTargetParts'], true), 'altChunk existing target missing from relationship type provenance');
     },
+    'preflights docx altchunk external target policy metadata' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $altChunkRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk';
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rAltSafeRemote" Type="' . $altChunkRel . '" Target="https://example.test/chunks/review.html?remote=1#body" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rAltUnsafeRemote" Type="' . $altChunkRel . '" Target="javascript:alert(1)" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '  </w:body>',
+            '    <w:altChunk r:id="rAltSafeRemote"/>' . "\n" .
+            '    <w:altChunk r:id="rAltUnsafeRemote"/>' . "\n" .
+            '  </w:body>',
+            $parts['word/document.xml']
+        );
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $alternativeFormats = $docx['alternativeFormats'];
+        $safe = $alternativeFormats['byRelationshipId']['rAltSafeRemote'];
+        $unsafe = $alternativeFormats['byRelationshipId']['rAltUnsafeRemote'];
+        $relationshipType = $package['relationshipTypes'][$altChunkRel];
+
+        $t->same(2, $alternativeFormats['count']);
+        $t->same(2, $alternativeFormats['relationshipCount']);
+        $t->same(2, $alternativeFormats['referencedCount']);
+        $t->same(2, $alternativeFormats['externalCount']);
+        $t->same(1, $alternativeFormats['allowedExternalTargetCount']);
+        $t->same(1, $alternativeFormats['unsafeExternalTargetCount']);
+        $t->same(['https://example.test/chunks/review.html?remote=1#body', 'javascript:alert(1)'], $alternativeFormats['externalTargets']);
+        $t->same(['javascript:alert(1)'], $alternativeFormats['unsafeExternalTargets']);
+        $t->same(['absolute-uri' => 2], $alternativeFormats['externalTargetKindCounts']);
+        $t->same(['https' => 1, 'javascript' => 1], $alternativeFormats['externalTargetSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme'], $alternativeFormats['externalTargetIssueCodes']);
+        $t->same(['external-altchunk', 'external-target-unsafe-scheme'], $alternativeFormats['issueCodes']);
+
+        $t->same('absolute-uri', $safe['externalTargetKind']);
+        $t->same('https', $safe['externalTargetScheme']);
+        $t->same(true, $safe['externalTargetAllowed']);
+        $t->same([], $safe['externalTargetIssues']);
+        $t->same(['external-altchunk'], $safe['issues']);
+        $t->same('remote=1', $safe['targetQuery']);
+        $t->same('body', $safe['targetFragment']);
+        $t->same('?remote=1#body', $safe['targetReferenceSuffix']);
+
+        $t->same('absolute-uri', $unsafe['externalTargetKind']);
+        $t->same('javascript', $unsafe['externalTargetScheme']);
+        $t->same(false, $unsafe['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $unsafe['externalTargetIssues']);
+        $t->same(['external-altchunk', 'external-target-unsafe-scheme'], $unsafe['issues']);
+
+        $t->same(1, $summary['alternativeFormatAllowedExternalCount']);
+        $t->same(1, $summary['alternativeFormatUnsafeExternalCount']);
+        $t->same(['external-target-unsafe-scheme'], $summary['alternativeFormatExternalTargetIssueCodes']);
+        $t->same(['external-altchunk', 'external-target-unsafe-scheme'], $summary['alternativeFormatIssueCodes']);
+
+        $t->same(2, $relationshipType['externalCount']);
+        $t->same(1, $relationshipType['allowedExternalTargetCount']);
+        $t->same(1, $relationshipType['unsafeExternalTargetCount']);
+        $t->same(['https' => 1, 'javascript' => 1], $relationshipType['externalTargetSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme' => 1], $relationshipType['externalTargetIssueCounts']);
+        $t->same('javascript:alert(1)', $relationshipType['unsafeExternalTargets'][0]['target']);
+    },
     'summarizes docx subdocument relationships as unsupported package diagnostics' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
