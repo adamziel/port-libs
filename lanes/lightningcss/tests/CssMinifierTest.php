@@ -4146,6 +4146,23 @@ CSS;
         $t->same('.foo{text-justify:auto}', $minifier->minify('.foo { text-justify: auto }'));
         $t->same('.foo{text-justify:inter-word}', $minifier->minify('.foo { text-justify: inter-word }'));
     },
+    'css minifier maps upstream overflow shorthand values and composition' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_overflow lines 17533-17577.
+        $cases = [
+            [17533, '.foo { overflow: hidden }', '.foo{overflow:hidden}'],
+            [17534, '.foo { overflow: hidden hidden }', '.foo{overflow:hidden}'],
+            [17535, '.foo { overflow: hidden auto }', '.foo{overflow:hidden auto}'],
+            [17537, '.foo { overflow-x: hidden; overflow-y: auto; }', '.foo{overflow:hidden auto}'],
+            [17551, '.foo { overflow: hidden; overflow-y: auto; }', '.foo{overflow:hidden auto}'],
+            [17564, '.foo { overflow: hidden; overflow-y: var(--y); }', '.foo{overflow:hidden;overflow-y:var(--y)}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs line ' . $line);
+        }
+    },
     'css minifier maps upstream text-overflow keyword value' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

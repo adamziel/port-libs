@@ -981,10 +981,11 @@ final class TransitionPrefixer
             $entries,
             $targetOptions,
             $targetOptions['logicalBorderNeedsFallback'] ?? false,
-            $targetOptions['logicalBorderShorthandNeedsFallback'] ?? false
+            $targetOptions['logicalBorderShorthandNeedsFallback'] ?? false,
+            $supportRules
         );
         if ($logicalBorderFallback !== null) {
-            return $logicalBorderFallback . implode('', $supportRules);
+            return $logicalBorderFallback;
         }
         $logicalSpacingFallback = $this->rewriteLogicalSpacingFallbackRule(
             $selectors,
@@ -4555,13 +4556,69 @@ final class TransitionPrefixer
     /**
      * @param list<array{property:string,name:string,value:string,important:bool}> $entries
      * @param array<string, bool> $targetOptions
+     * @param list<string> $supportRules
      */
-    private function rewriteLogicalBorderFallbackRule(string $selectors, array $entries, array $targetOptions, bool $needsFullFallback, bool $needsShorthandFallback): ?string
+    private function rewriteLogicalBorderFallbackRule(
+        string $selectors,
+        array $entries,
+        array $targetOptions,
+        bool $needsFullFallback,
+        bool $needsShorthandFallback,
+        array $supportRules = []
+    ): ?string
     {
         if (!$needsFullFallback && !$needsShorthandFallback) {
             return null;
         }
 
+        $fallback = $this->logicalBorderFallbackEntrySets($entries, $needsFullFallback, $needsShorthandFallback);
+        if (!$fallback['changed']) {
+            return null;
+        }
+
+        $support = $this->logicalBorderFallbackSupportRuleGroups(
+            $selectors,
+            $supportRules,
+            $needsFullFallback,
+            $needsShorthandFallback
+        );
+
+        if (!$fallback['directional']) {
+            $selectorVariants = $this->selectorsWithTargetPrefixVariants($selectors, $targetOptions);
+            $rules = $this->serializeRulesForSelectors($selectorVariants, $fallback['ltr']);
+            foreach ($support['transformed'] as $supportRule) {
+                $rules .= $this->serializeSupportRuleForSelectors($supportRule['prelude'], $selectorVariants, $supportRule['ltr']);
+            }
+
+            return $rules . implode('', $support['passthrough']);
+        }
+
+        $rules = '';
+        foreach ($this->selectorsWithTargetPrefixVariants($selectors, $targetOptions) as $selector) {
+            $ltrModernSelector = $this->selectorVariant($selector, 'ltr-modern');
+            $rtlModernSelector = $this->selectorVariant($selector, 'rtl-modern');
+            $rules .= $this->selectorVariant($selector, 'ltr-webkit') . '{' . $this->serializeDeclarations($fallback['ltr']) . '}'
+                . $ltrModernSelector . '{' . $this->serializeDeclarations($fallback['ltr']) . '}';
+            foreach ($support['transformed'] as $supportRule) {
+                $rules .= $this->serializeSupportRuleForSelectors($supportRule['prelude'], [$ltrModernSelector], $supportRule['ltr']);
+            }
+
+            $rules .= $this->selectorVariant($selector, 'rtl-webkit') . '{' . $this->serializeDeclarations($fallback['rtl']) . '}'
+                . $rtlModernSelector . '{' . $this->serializeDeclarations($fallback['rtl']) . '}';
+            foreach ($support['transformed'] as $supportRule) {
+                $rules .= $this->serializeSupportRuleForSelectors($supportRule['prelude'], [$rtlModernSelector], $supportRule['rtl']);
+            }
+        }
+
+        return $rules . implode('', $support['passthrough']);
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @return array{ltr:list<array{property:string,name:string,value:string,important:bool}>,rtl:list<array{property:string,name:string,value:string,important:bool}>,changed:bool,directional:bool}
+     */
+    private function logicalBorderFallbackEntrySets(array $entries, bool $needsFullFallback, bool $needsShorthandFallback): array
+    {
         $ltrEntries = [];
         $rtlEntries = [];
         $changed = false;
@@ -4581,23 +4638,104 @@ final class TransitionPrefixer
             $needsDirectionSplit = $needsDirectionSplit || $fallback['directional'];
         }
 
-        if (!$changed) {
+        return [
+            'ltr' => $ltrEntries,
+            'rtl' => $rtlEntries,
+            'changed' => $changed,
+            'directional' => $needsDirectionSplit,
+        ];
+    }
+
+    /**
+     * @param list<string> $supportRules
+     * @return array{transformed:list<array{prelude:string,ltr:list<array{property:string,name:string,value:string,important:bool}>,rtl:list<array{property:string,name:string,value:string,important:bool}>,directional:bool}>,passthrough:list<string>}
+     */
+    private function logicalBorderFallbackSupportRuleGroups(
+        string $selectors,
+        array $supportRules,
+        bool $needsFullFallback,
+        bool $needsShorthandFallback
+    ): array
+    {
+        $transformed = [];
+        $passthrough = [];
+
+        foreach ($supportRules as $supportRule) {
+            $parts = $this->parseSingleStyleSupportRule($supportRule);
+            if ($parts === null || $parts['selectors'] !== $selectors) {
+                $passthrough[] = $supportRule;
+                continue;
+            }
+
+            $fallback = $this->logicalBorderFallbackEntrySets($parts['entries'], $needsFullFallback, $needsShorthandFallback);
+            if (!$fallback['changed']) {
+                $passthrough[] = $supportRule;
+                continue;
+            }
+
+            $transformed[] = [
+                'prelude' => $parts['prelude'],
+                'ltr' => $fallback['ltr'],
+                'rtl' => $fallback['rtl'],
+                'directional' => $fallback['directional'],
+            ];
+        }
+
+        return [
+            'transformed' => $transformed,
+            'passthrough' => $passthrough,
+        ];
+    }
+
+    /**
+     * @return array{prelude:string,selectors:string,entries:list<array{property:string,name:string,value:string,important:bool}>}|null
+     */
+    private function parseSingleStyleSupportRule(string $rule): ?array
+    {
+        if (preg_match('/^@supports\b/i', $rule) !== 1) {
             return null;
         }
 
-        if (!$needsDirectionSplit) {
-            return $this->serializeRulesForSelectors($this->selectorsWithTargetPrefixVariants($selectors, $targetOptions), $ltrEntries);
+        $supportOpen = $this->findNextTopLevel($rule, '{', 0);
+        if ($supportOpen === null) {
+            return null;
         }
 
-        $rules = '';
-        foreach ($this->selectorsWithTargetPrefixVariants($selectors, $targetOptions) as $selector) {
-            $rules .= $this->selectorVariant($selector, 'ltr-webkit') . '{' . $this->serializeDeclarations($ltrEntries) . '}'
-                . $this->selectorVariant($selector, 'ltr-modern') . '{' . $this->serializeDeclarations($ltrEntries) . '}'
-                . $this->selectorVariant($selector, 'rtl-webkit') . '{' . $this->serializeDeclarations($rtlEntries) . '}'
-                . $this->selectorVariant($selector, 'rtl-modern') . '{' . $this->serializeDeclarations($rtlEntries) . '}';
+        $supportClose = $this->findMatchingBrace($rule, $supportOpen);
+        if ($supportClose !== strlen($rule) - 1) {
+            return null;
         }
 
-        return $rules;
+        $inner = substr($rule, $supportOpen + 1, $supportClose - $supportOpen - 1);
+        $ruleOpen = $this->findNextTopLevel($inner, '{', 0);
+        if ($ruleOpen === null) {
+            return null;
+        }
+
+        $ruleClose = $this->findMatchingBrace($inner, $ruleOpen);
+        if ($ruleClose !== strlen($inner) - 1) {
+            return null;
+        }
+
+        $entries = $this->parseDeclarations(substr($inner, $ruleOpen + 1, $ruleClose - $ruleOpen - 1));
+        if ($entries === null) {
+            return null;
+        }
+
+        return [
+            'prelude' => substr($rule, 0, $supportOpen),
+            'selectors' => substr($inner, 0, $ruleOpen),
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @param list<string> $selectors
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     */
+    private function serializeSupportRuleForSelectors(string $prelude, array $selectors, array $entries): string
+    {
+        return $prelude . '{' . $this->serializeRulesForSelectors($selectors, $entries) . '}';
     }
 
     /**

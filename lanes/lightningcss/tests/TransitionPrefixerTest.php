@@ -2895,6 +2895,21 @@ CSS;
             );
         }
     },
+    'transition prefixer maps upstream logical border advanced color support ordering row' => static function (TestRunner $t) use ($variants): void {
+        $prefixer = new TransitionPrefixer();
+        $selector = $variants('.foo');
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_border line 1964.
+        $t->same(
+            $selector['ltr-webkit'] . '{border-right:var(--border-width) solid #b32323}'
+                . $selector['ltr-modern'] . '{border-right:var(--border-width) solid #b32323}'
+                . '@supports (color:lab(0% 0 0)){' . $selector['ltr-modern'] . '{border-right:var(--border-width) solid lab(40% 56.6 39)}}'
+                . $selector['rtl-webkit'] . '{border-left:var(--border-width) solid #b32323}'
+                . $selector['rtl-modern'] . '{border-left:var(--border-width) solid #b32323}'
+                . '@supports (color:lab(0% 0 0)){' . $selector['rtl-modern'] . '{border-left:var(--border-width) solid lab(40% 56.6 39)}}',
+            $prefixer->prefixForTargets('.foo { border-inline-end: var(--border-width) solid lab(40% 56.6 39); }', ['safari' => 8])
+        );
+    },
     'transition prefixer maps upstream logical border browser boundaries' => static function (TestRunner $t) use ($variants): void {
         $prefixer = new TransitionPrefixer();
         $selector = $variants('.foo');

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LightningCSS\CustomAtRuleTransformer;
+use PortLibs\LightningCSS\CssModulesTransformer;
 
 $customDefinitions = [
     'theme' => [
@@ -4283,6 +4284,33 @@ CSS;
 
         $t->same('.foo{color:var(--prefix-foo);background:red}', $result);
         $t->same(['--foo'], $seen);
+    },
+    'custom at-rules compose upstream raw Function variables through CSS Modules dashed idents' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::supports returning raw values as variables line 1019.
+        $visited = (new CustomAtRuleTransformer())->transform('.foo { color: theme("foo"); }', [], [
+            'Function' => [
+                'theme' => static fn (): array => ['raw' => 'var(--foo)'],
+            ],
+        ]);
+
+        $result = (new CssModulesTransformer())->transform($visited, [
+            'dashedIdents' => true,
+        ]);
+
+        $t->same('.EgL3uq_foo{color:var(--EgL3uq_foo)}', $result['code']);
+        $t->same([
+            'foo' => [
+                'name' => 'EgL3uq_foo',
+                'composes' => [],
+                'isReferenced' => false,
+            ],
+            '--foo' => [
+                'name' => '--EgL3uq_foo',
+                'composes' => [],
+                'isReferenced' => true,
+            ],
+        ], $result['exports']);
+        $t->same([], $result['references']);
     },
     'custom at-rules compose upstream Declaration custom property visitors' => static function (TestRunner $t): void {
         $seenTokenTypes = [];

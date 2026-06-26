@@ -166,6 +166,7 @@ final class CssMinifier
         $css = $this->rewriteAllResetDeclarationBlocks($css);
         $css = $this->composeContainerDeclarationBlocks($css);
         $css = $this->composePositionDeclarationBlocks($css);
+        $css = $this->composeOverflowDeclarationBlocks($css);
         $css = $this->composeGridDeclarationBlocks($css);
         $css = $this->composeBorderRadiusDeclarationBlocks($css);
         $css = $this->composeFontDeclarationBlocks($css, $preserveFontTargetFallbacks);
@@ -3790,6 +3791,7 @@ final class CssMinifier
         $value = $this->minifyFontValue($property, $value);
         $value = $this->minifyColorSchemeValue($property, $value);
         $value = $this->minifyTextKeywordValue($property, $value);
+        $value = $this->minifyOverflowValue($property, $value);
         $value = $this->minifyImageSetFunctions($value);
         $value = $this->minifyGradientFunctions($value);
         $value = $this->minifyBoxLengthListValue($property, $value);
@@ -4968,6 +4970,53 @@ final class CssMinifier
             'text-indent' => $this->minifyTextIndentValue($value),
             default => $value,
         };
+    }
+
+    private function minifyOverflowValue(string $property, string $value): string
+    {
+        $property = strtolower($property);
+        if ($property === 'overflow') {
+            $components = $this->parseOverflowComponents($value);
+
+            return $components === null
+                ? trim($value)
+                : $this->serializeOverflowComponents($components['overflow-x'], $components['overflow-y']);
+        }
+
+        if ($property === 'overflow-x' || $property === 'overflow-y') {
+            return $this->normalizeOverflowComponent($value);
+        }
+
+        return $value;
+    }
+
+    /**
+     * @return array{overflow-x:string, overflow-y:string}|null
+     */
+    private function parseOverflowComponents(string $value): ?array
+    {
+        $parts = $this->splitWhitespaceTopLevel(trim($value));
+        if (count($parts) < 1 || count($parts) > 2) {
+            return null;
+        }
+
+        return [
+            'overflow-x' => $this->normalizeOverflowComponent($parts[0]),
+            'overflow-y' => $this->normalizeOverflowComponent($parts[1] ?? $parts[0]),
+        ];
+    }
+
+    private function serializeOverflowComponents(string $x, string $y): string
+    {
+        return $x === $y ? $x : $x . ' ' . $y;
+    }
+
+    private function normalizeOverflowComponent(string $value): string
+    {
+        $trimmed = trim($value);
+        $lower = strtolower($trimmed);
+
+        return in_array($lower, ['visible', 'hidden', 'clip', 'scroll', 'auto'], true) ? $lower : $trimmed;
     }
 
     /**
@@ -11320,6 +11369,32 @@ final class CssMinifier
         return $output;
     }
 
+    private function composeOverflowDeclarationBlocks(string $css): string
+    {
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $body = $this->composeOverflowDeclarationBlocks(substr($css, $open + 1, $close - $open - 1));
+            if (!str_contains($body, '{')) {
+                $body = $this->composeOverflowDeclarationList($body);
+            }
+
+            $output .= substr($css, $cursor, $open - $cursor + 1) . $body . '}';
+            $cursor = $close + 1;
+        }
+
+        return $output;
+    }
+
     private function composeGridDeclarationBlocks(string $css): string
     {
         $output = '';
@@ -11734,6 +11809,86 @@ final class CssMinifier
         $this->rewritePositionInsetGroup($entries);
 
         return $this->serializeDeclarationEntriesForComposition($entries);
+    }
+
+    private function composeOverflowDeclarationList(string $body): string
+    {
+        if (stripos($body, 'overflow') === false) {
+            return $body;
+        }
+
+        $entries = $this->parseDeclarationEntriesForComposition($body);
+        if ($entries === null) {
+            return $body;
+        }
+
+        $this->rewriteOverflowGroup($entries);
+
+        return $this->serializeDeclarationEntriesForComposition($entries);
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewriteOverflowGroup(array &$entries): void
+    {
+        $relevant = ['overflow', 'overflow-x', 'overflow-y'];
+        $lastShorthand = null;
+        $latestX = null;
+        $latestY = null;
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop'] || !in_array($entry['property'], $relevant, true)) {
+                continue;
+            }
+            if ($entry['important']) {
+                return;
+            }
+            if ($entry['property'] === 'overflow') {
+                if ($this->parseOverflowComponents($entry['value']) === null) {
+                    return;
+                }
+                $lastShorthand = $index;
+                $latestX = $index;
+                $latestY = $index;
+                continue;
+            }
+            if ($entry['property'] === 'overflow-x') {
+                $latestX = $index;
+            } else {
+                $latestY = $index;
+            }
+        }
+
+        if ($latestX === null || $latestY === null) {
+            return;
+        }
+
+        $x = $latestX === $lastShorthand
+            ? $this->parseOverflowComponents($entries[$latestX]['value'])['overflow-x']
+            : $entries[$latestX]['value'];
+        $y = $latestY === $lastShorthand
+            ? $this->parseOverflowComponents($entries[$latestY]['value'])['overflow-y']
+            : $entries[$latestY]['value'];
+
+        if ($this->containsCustomPropertyReference($x) || $this->containsCustomPropertyReference($y)) {
+            return;
+        }
+
+        $replaceAt = $lastShorthand ?? min($latestX, $latestY);
+        foreach ($entries as $index => $entry) {
+            if (in_array($entry['property'], $relevant, true)) {
+                $entries[$index]['drop'] = true;
+            }
+        }
+
+        $entries[$replaceAt] = [
+            'property' => 'overflow',
+            'name' => 'overflow',
+            'value' => $this->serializeOverflowComponents($x, $y),
+            'important' => false,
+            'drop' => false,
+        ];
     }
 
     private function composeGridDeclarationList(string $body): string
