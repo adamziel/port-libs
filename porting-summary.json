@@ -51,7 +51,7 @@
             "currentWork": "Six-lane PR follow-up accepted border formatter composition rows, border shorthand mi...",
             "nextTarget": "Continue converting the remaining 806 unmapped LightningCSS u...",
             "remainingGate": "Full upstream runner closure is partial: bounded Rust media test and...",
-            "commit": "SOURCE_COMMIT_P..."
+            "commit": "2d877a6"
         },
         {
             "lane": "gitoxide",
