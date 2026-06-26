@@ -369,6 +369,7 @@ final class DocxOpenXmlReader
             $numbering,
             $commentsExtended['byParaId'],
             $commentsIds['byParaId'],
+            $people,
         );
         $corePropertiesPart = $this->corePropertiesPart($parts, $rootRelationships);
         $meta = $this->readCoreProperties($corePropertiesPart['xml'], $corePropertiesPart['partName']);
@@ -759,6 +760,11 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['peopleUserIdCount'] = $people['userIdCount'];
         $packageProvenance['summary']['peopleIssueCount'] = $people['issueCount'];
         $packageProvenance['summary']['peopleIssueCodes'] = $people['issueCodes'];
+        $packageProvenance['summary']['commentAuthorPeopleMatchedCount'] = (int) ($comments['summary']['authorPeopleMatchedCount'] ?? 0);
+        $packageProvenance['summary']['commentAuthorPeopleUnmatchedCount'] = (int) ($comments['summary']['authorPeopleUnmatchedCount'] ?? 0);
+        $packageProvenance['summary']['commentAuthorPeopleMatchedAuthors'] = $comments['summary']['authorPeopleMatchedAuthors'] ?? [];
+        $packageProvenance['summary']['commentAuthorPeopleUnmatchedAuthors'] = $comments['summary']['authorPeopleUnmatchedAuthors'] ?? [];
+        $packageProvenance['summary']['commentAuthorPeopleReviewPolicy'] = $comments['summary']['authorPeopleReviewPolicy'] ?? 'comment-author-people-metadata-only';
         $packageProvenance['summary']['glossaryDocumentPart'] = $glossaryDocumentPart['partName'];
         $packageProvenance['summary']['glossaryDocumentExists'] = $glossaryDocumentPart['exists'];
         $packageProvenance['summary']['glossaryDocumentRelationshipId'] = $glossaryDocumentPart['relationship']['id'] ?? null;
@@ -25835,6 +25841,7 @@ final class DocxOpenXmlReader
     ): array {
         $contentTypeResolution = $this->contentTypeResolutionForPart($partName, $contentTypes);
         $items = [];
+        $byAuthor = [];
         $authors = [];
         $providerIds = [];
         $userIds = [];
@@ -25906,12 +25913,16 @@ final class DocxOpenXmlReader
                             ];
                         }
 
-                        $items[] = [
+                        $item = [
                             'index' => count($items),
                             'author' => $author,
                             'presenceInfoCount' => count($presenceInfo),
                             'presenceInfo' => $presenceInfo,
                         ];
+                        $items[] = $item;
+                        if ($author !== null && !isset($byAuthor[$author])) {
+                            $byAuthor[$author] = $item;
+                        }
                     }
                 }
             }
@@ -25951,6 +25962,7 @@ final class DocxOpenXmlReader
             'providerIds' => $providerIds,
             'userIdCount' => count($userIds),
             'userIds' => $userIds,
+            'byAuthor' => $byAuthor,
             'items' => $items,
             'byteExposurePolicy' => 'people-part-bytes-blocked',
             'reviewPolicy' => 'people-part-metadata-only',
@@ -26214,6 +26226,7 @@ final class DocxOpenXmlReader
      * @param array<string, array{abstractNumId:string, levels:array<int, array{format:string, text:string, start:int}>}> $numbering
      * @param array<string, array{paraId:string, parentParaId:?string, resolved:?bool, partName:string}> $commentsExtended
      * @param array<string, array<string, mixed>> $commentsIds
+     * @param array<string, mixed> $people
      * @return array{summary:array<string, mixed>, nodes:array<string, AstNode>}
      */
     private function readComments(
@@ -26226,7 +26239,8 @@ final class DocxOpenXmlReader
         array $styles,
         array $numbering,
         array $commentsExtended = [],
-        array $commentsIds = []
+        array $commentsIds = [],
+        array $people = []
     ): array {
         $relationshipDiagnostics = $this->relatedPartRelationshipDiagnostics(
             $parts,
@@ -26236,8 +26250,17 @@ final class DocxOpenXmlReader
             $contentTypes,
         );
         if ($xml === '') {
+            $summary = $this->commentAuthorPeopleSummary(
+                $this->noteCollectionSummary([], [], $relationshipDiagnostics),
+                $people,
+                0,
+                0,
+                [],
+                [],
+            );
+
             return [
-                'summary' => $this->noteCollectionSummary([], [], $relationshipDiagnostics),
+                'summary' => $summary,
                 'nodes' => [],
             ];
         }
@@ -26245,8 +26268,17 @@ final class DocxOpenXmlReader
         $dom = $this->loadXml($xml, $partName);
         $root = $dom->documentElement;
         if (!$root instanceof \DOMElement || $root->namespaceURI !== self::NS_W || $root->localName !== 'comments') {
+            $summary = $this->commentAuthorPeopleSummary(
+                $this->noteCollectionSummary([], [], $relationshipDiagnostics),
+                $people,
+                0,
+                0,
+                [],
+                [],
+            );
+
             return [
-                'summary' => $this->noteCollectionSummary([], [], $relationshipDiagnostics),
+                'summary' => $summary,
                 'nodes' => [],
             ];
         }
@@ -26255,6 +26287,10 @@ final class DocxOpenXmlReader
         $items = [];
         $byId = [];
         $nodes = [];
+        $authorPeopleMatchedCount = 0;
+        $authorPeopleUnmatchedCount = 0;
+        $authorPeopleMatchedAuthors = [];
+        $authorPeopleUnmatchedAuthors = [];
         foreach ($root->childNodes as $comment) {
             if (!$comment instanceof \DOMElement || $comment->namespaceURI !== self::NS_W || $comment->localName !== 'comment') {
                 continue;
@@ -26283,6 +26319,18 @@ final class DocxOpenXmlReader
             if ($date !== null) {
                 $attrs['date'] = $date;
             }
+            if ($author !== null) {
+                foreach ($this->commentAuthorPeopleAttrs($author, $people) as $key => $value) {
+                    $attrs[$key] = $value;
+                }
+                if (($attrs['commentAuthorPeopleMatched'] ?? false) === true) {
+                    ++$authorPeopleMatchedCount;
+                    $this->appendUniqueString($authorPeopleMatchedAuthors, $author);
+                } else {
+                    ++$authorPeopleUnmatchedCount;
+                    $this->appendUniqueString($authorPeopleUnmatchedAuthors, $author);
+                }
+            }
             foreach ($this->commentPackageAttrs($comment, $commentsExtended, $commentsIds) as $key => $value) {
                 $attrs[$key] = $value;
             }
@@ -26303,6 +26351,14 @@ final class DocxOpenXmlReader
                 'commentDurableId' => $attrs['commentDurableId'] ?? null,
                 'commentsIdsPart' => $attrs['commentsIdsPart'] ?? null,
                 'commentIdIssues' => $attrs['commentIdIssues'] ?? [],
+                'commentAuthorPeopleMatched' => $attrs['commentAuthorPeopleMatched'] ?? null,
+                'commentAuthorPeoplePart' => $attrs['commentAuthorPeoplePart'] ?? null,
+                'commentAuthorPersonIndex' => $attrs['commentAuthorPersonIndex'] ?? null,
+                'commentAuthorPresenceInfoCount' => $attrs['commentAuthorPresenceInfoCount'] ?? null,
+                'commentAuthorPresenceInfo' => $attrs['commentAuthorPresenceInfo'] ?? [],
+                'commentAuthorProviderIds' => $attrs['commentAuthorProviderIds'] ?? [],
+                'commentAuthorUserIds' => $attrs['commentAuthorUserIds'] ?? [],
+                'commentAuthorPeopleReviewPolicy' => $attrs['commentAuthorPeopleReviewPolicy'] ?? null,
                 'relationshipCount' => count($relationshipIds),
                 'relationshipIds' => $relationshipIds,
                 'missingRelationshipIds' => $this->missingRelationshipIds($relationshipIds, $relationships),
@@ -26312,8 +26368,17 @@ final class DocxOpenXmlReader
             $nodes[$id] = new AstNode('note', $attrs, $blocks);
         }
 
+        $summary = $this->commentAuthorPeopleSummary(
+            $this->noteCollectionSummary($items, $byId, $relationshipDiagnostics),
+            $people,
+            $authorPeopleMatchedCount,
+            $authorPeopleUnmatchedCount,
+            $authorPeopleMatchedAuthors,
+            $authorPeopleUnmatchedAuthors,
+        );
+
         return [
-            'summary' => $this->noteCollectionSummary($items, $byId, $relationshipDiagnostics),
+            'summary' => $summary,
             'nodes' => $nodes,
         ];
     }
@@ -27352,6 +27417,84 @@ final class DocxOpenXmlReader
         $elements = $this->elements($xpath, $query, $context);
 
         return $elements[0] ?? null;
+    }
+
+    /**
+     * @param array<string, mixed> $summary
+     * @param array<string, mixed> $people
+     * @param list<string> $matchedAuthors
+     * @param list<string> $unmatchedAuthors
+     * @return array<string, mixed>
+     */
+    private function commentAuthorPeopleSummary(
+        array $summary,
+        array $people,
+        int $matchedCount,
+        int $unmatchedCount,
+        array $matchedAuthors,
+        array $unmatchedAuthors
+    ): array {
+        $summary['authorPeopleMatchedCount'] = $matchedCount;
+        $summary['authorPeopleUnmatchedCount'] = $unmatchedCount;
+        $summary['authorPeopleMatchedAuthors'] = $matchedAuthors;
+        $summary['authorPeopleUnmatchedAuthors'] = $unmatchedAuthors;
+        $summary['authorPeoplePart'] = is_string($people['partName'] ?? null) ? $people['partName'] : null;
+        $summary['authorPeopleReviewPolicy'] = 'comment-author-people-metadata-only';
+
+        return $summary;
+    }
+
+    /**
+     * @param array<string, mixed> $people
+     * @return array<string, mixed>
+     */
+    private function commentAuthorPeopleAttrs(string $author, array $people): array
+    {
+        $attrs = [
+            'commentAuthorPeopleMatched' => false,
+            'commentAuthorPresenceInfoCount' => 0,
+            'commentAuthorPresenceInfo' => [],
+            'commentAuthorProviderIds' => [],
+            'commentAuthorUserIds' => [],
+            'commentAuthorPeopleReviewPolicy' => 'comment-author-people-metadata-only',
+        ];
+        $byAuthor = is_array($people['byAuthor'] ?? null) ? $people['byAuthor'] : [];
+        $person = $byAuthor[$author] ?? null;
+        if (!is_array($person)) {
+            return $attrs;
+        }
+
+        $presenceInfo = [];
+        $providerIds = [];
+        $userIds = [];
+        foreach (($person['presenceInfo'] ?? []) as $presence) {
+            if (!is_array($presence)) {
+                continue;
+            }
+
+            $providerId = is_string($presence['providerId'] ?? null) ? $presence['providerId'] : null;
+            $userId = is_string($presence['userId'] ?? null) ? $presence['userId'] : null;
+            $presenceInfo[] = [
+                'providerId' => $providerId,
+                'userId' => $userId,
+            ];
+            $this->appendUniqueString($providerIds, $providerId);
+            $this->appendUniqueString($userIds, $userId);
+        }
+
+        $attrs['commentAuthorPeopleMatched'] = true;
+        $attrs['commentAuthorPeoplePart'] = is_string($people['partName'] ?? null) ? $people['partName'] : null;
+        if (is_int($person['index'] ?? null)) {
+            $attrs['commentAuthorPersonIndex'] = $person['index'];
+        }
+        $attrs['commentAuthorPresenceInfoCount'] = is_int($person['presenceInfoCount'] ?? null)
+            ? $person['presenceInfoCount']
+            : count($presenceInfo);
+        $attrs['commentAuthorPresenceInfo'] = $presenceInfo;
+        $attrs['commentAuthorProviderIds'] = $providerIds;
+        $attrs['commentAuthorUserIds'] = $userIds;
+
+        return $attrs;
     }
 
     /**
