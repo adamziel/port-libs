@@ -335,6 +335,25 @@ final class BibtexCslProcessor
         if (($item['DOI'] ?? '') !== '') {
             $parts[] = 'doi:' . (string) $item['DOI'];
         }
+        foreach ([
+            'ISAN' => 'ISAN',
+            'ISMN' => 'ISMN',
+            'ISRN' => 'ISRN',
+            'ISWC' => 'ISWC',
+            'PMID' => 'PMID',
+            'PMCID' => 'PMCID',
+            'MRNumber' => 'MR',
+            'MRClass' => 'MR class',
+            'Zbl' => 'Zbl',
+            'JSTOR' => 'JSTOR',
+            'HDL' => 'HDL',
+            'LCCN' => 'LCCN',
+            'OCLC' => 'OCLC',
+        ] as $field => $label) {
+            if (($item[$field] ?? '') !== '') {
+                $parts[] = $label . ' ' . (string) $item[$field];
+            }
+        }
         if (($item['URL'] ?? '') !== '') {
             $parts[] = (string) $item['URL'];
         }
@@ -639,6 +658,19 @@ final class BibtexCslProcessor
             'medium' => ['howpublished', 'medium'],
             'ISBN' => ['isbn'],
             'ISSN' => ['issn'],
+            'ISAN' => ['isan'],
+            'ISMN' => ['ismn'],
+            'ISRN' => ['isrn'],
+            'ISWC' => ['iswc'],
+            'PMID' => ['pmid', 'pubmed', 'pubmedid', 'pubmed-id'],
+            'PMCID' => ['pmcid', 'pmc', 'pmc-id', 'pmcid-id'],
+            'MRNumber' => ['mrnumber', 'mr-number', 'mr', 'mathscinet'],
+            'MRClass' => ['mrclass', 'mr-class'],
+            'Zbl' => ['zbl', 'zbmath'],
+            'JSTOR' => ['jstor', 'jstorid', 'jstor-id'],
+            'HDL' => ['hdl', 'handle', 'hdlid', 'hdl-id', 'handleid', 'handle-id'],
+            'LCCN' => ['lccn', 'lccnnumber', 'lccn-number'],
+            'OCLC' => ['oclc', 'oclcnumber', 'oclc-number'],
             'archive' => ['archiveprefix', 'eprinttype', 'archive'],
             'archive-collection' => ['archivecollection', 'archive-collection', 'archive_collection'],
             'archive-place' => ['eprintclass', 'archiveplace', 'archive-place'],

@@ -94,6 +94,116 @@ BIB;
         $t->same('Import note attached', $item['note']);
         $t->same('Nia Ng. Obscure Archive Packet: Source Review Appendix. 2026. https://example.test/preprint.', $bibliography);
     },
+    'carries legacy biblatex registry identifiers in bibliography handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@article{legacy-pubmed,
+  author       = {Ng, Nia},
+  title        = {Legacy PubMed Packet},
+  journaltitle = {Legacy Import Medicine},
+  date         = {2026},
+  doi          = {10.5555/legacy-pubmed},
+  pubmed       = {34567890},
+  pmc-id       = {PMC3456789},
+  jstor-id     = {10.2307/legacy}
+}
+
+@music{legacy-score,
+  author = {Curator, Eli},
+  title  = {Legacy Score Packet},
+  date   = {2025},
+  ismn   = {979-0-060-11561-5},
+  iswc   = {T-034.524.680-1}
+}
+
+@report{legacy-report,
+  author      = {Roe, Pat},
+  title       = {Legacy Registry Report},
+  institution = {Migration Desk},
+  date        = {2024},
+  isrn        = {NISTIR 8202},
+  hdl-id      = {20.500/legacy},
+  lccn-number = {2026123987},
+  oclc-number = {99887766}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $pubmed = $items['legacy-pubmed'];
+        $score = $items['legacy-score'];
+        $report = $items['legacy-report'];
+
+        $t->same('34567890', $pubmed['PMID']);
+        $t->same('PMC3456789', $pubmed['PMCID']);
+        $t->same('10.2307/legacy', $pubmed['JSTOR']);
+        $t->same('979-0-060-11561-5', $score['ISMN']);
+        $t->same('T-034.524.680-1', $score['ISWC']);
+        $t->same('NISTIR 8202', $report['ISRN']);
+        $t->same('20.500/legacy', $report['HDL']);
+        $t->same('2026123987', $report['LCCN']);
+        $t->same('99887766', $report['OCLC']);
+        $t->same('34567890', $pubmed['rawBibtex']['fields']['pubmed']);
+        $t->same('PMC3456789', $pubmed['rawBibtex']['fields']['pmc-id']);
+        $t->same('20.500/legacy', $report['rawBibtex']['fields']['hdl-id']);
+        $t->same(
+            'Nia Ng. Legacy PubMed Packet. Legacy Import Medicine. 2026. doi:10.5555/legacy-pubmed. PMID 34567890. PMCID PMC3456789. JSTOR 10.2307/legacy.',
+            $processor->renderBibliographyText($pubmed)
+        );
+        $t->same(
+            'Pat Roe. Legacy Registry Report. Migration Desk. 2024. ISRN NISTIR 8202. HDL 20.500/legacy. LCCN 2026123987. OCLC 99887766.',
+            $processor->renderBibliographyText($report)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="pubmed-id"/>
+        <text variable="pmc-id"/>
+        <text variable="jstor-id"/>
+        <text variable="ISMN"/>
+        <text variable="ISWC"/>
+        <text variable="ISRN"/>
+        <text variable="handle-id"/>
+        <text variable="lccn-number"/>
+        <text variable="oclc-number"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="PMID"/>
+      <text variable="PMCID"/>
+      <text variable="ISRN"/>
+      <text variable="handle"/>
+      <text variable="OCLC"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('[Legacy PubMed Packet | 34567890 | PMC3456789 | 10.2307/legacy; Legacy Score Packet | 979-0-060-11561-5 | T-034.524.680-1; Legacy Registry Report | NISTIR 8202 | 20.500/legacy | 2026123987 | 99887766]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-pubmed', 'text' => '[@legacy-pubmed]']),
+            new AstNode('citation', ['id' => 'legacy-score', 'text' => '[@legacy-score]']),
+            new AstNode('citation', ['id' => 'legacy-report', 'text' => '[@legacy-report]']),
+        ]));
+        $t->same('Legacy PubMed Packet :: 34567890 :: PMC3456789', $styled->renderBibliographyEntry('legacy-pubmed'));
+        $t->same('Legacy Registry Report :: NISTIR 8202 :: 20.500/legacy :: 99887766', $styled->renderBibliographyEntry('legacy-report'));
+
+        $document = (new MarkdownReader())->read('Legacy identifiers cite @legacy-pubmed and [@legacy-report].');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$handoff['bibliography']]));
+
+        $t->same(['legacy-pubmed', 'legacy-report'], $handoff['citedKeys']);
+        $t->same('34567890', $handoff['items'][0]['PMID']);
+        $t->same('20.500/legacy', $handoff['items'][1]['HDL']);
+        $t->contains('PMID 34567890', $blocks);
+        $t->contains('HDL 20.500/legacy', $blocks);
+    },
     'carries biblatex annotations separately from abstracts in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @misc{annotated-source,
