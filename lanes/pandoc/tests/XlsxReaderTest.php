@@ -8,6 +8,15 @@ use PortLibs\Pandoc\WordPressBlockWriter;
 use PortLibs\Pandoc\XlsxReader;
 use PortLibs\Pandoc\ZipPackage;
 
+$tinyPngBytes = static function (): string {
+    $bytes = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', true);
+    if (!is_string($bytes)) {
+        throw new RuntimeException('Unable to decode tiny PNG fixture');
+    }
+
+    return $bytes;
+};
+
 $buildXlsxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-xlsx-');
     if ($path === false) {
@@ -218,6 +227,186 @@ XML);
     } finally {
         @unlink($path);
     }
+};
+
+$buildStyleCommentImageXlsxPackage = static function () use ($tinyPngBytes): string {
+    return ZipPackage::build([
+        [
+            'name' => '[Content_Types].xml',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+  <Override PartName="/xl/comments/comment1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml"/>
+  <Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>
+</Types>
+XML,
+        ],
+        [
+            'name' => '_rels/.rels',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>
+XML,
+        ],
+        [
+            'name' => 'xl/workbook.xml',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+          xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+    <sheet name="Parity" sheetId="1" r:id="rSheet"/>
+  </sheets>
+</workbook>
+XML,
+        ],
+        [
+            'name' => 'xl/_rels/workbook.xml.rels',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rSheet" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rSharedStrings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>
+  <Relationship Id="rStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>
+XML,
+        ],
+        [
+            'name' => 'xl/styles.xml',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <numFmts count="2">
+    <numFmt numFmtId="164" formatCode="$#,##0.00;($#,##0.00)"/>
+    <numFmt numFmtId="165" formatCode="[h]:mm:ss"/>
+  </numFmts>
+  <fonts count="2">
+    <font><u/><color rgb="FF336699"/><sz val="11"/><name val="Aptos"/></font>
+    <font><b/><strike/><name val="Aptos"/></font>
+  </fonts>
+  <fills count="3">
+    <fill><patternFill patternType="none"/></fill>
+    <fill><patternFill patternType="gray125"/></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFFFCC00"/><bgColor indexed="64"/></patternFill></fill>
+  </fills>
+  <cellXfs count="5">
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>
+    <xf numFmtId="164" fontId="0" fillId="2" borderId="1" applyFont="1" applyFill="1" applyNumberFormat="1">
+      <alignment horizontal="right" vertical="center" wrapText="1" textRotation="45"/>
+      <protection locked="0" hidden="1"/>
+    </xf>
+    <xf numFmtId="14" fontId="1" fillId="0" borderId="0" applyFont="1" applyNumberFormat="1"/>
+    <xf numFmtId="165" fontId="0" fillId="0" borderId="0" applyNumberFormat="1"/>
+    <xf numFmtId="9" fontId="0" fillId="0" borderId="0" applyNumberFormat="1"/>
+  </cellXfs>
+</styleSheet>
+XML,
+        ],
+        [
+            'name' => 'xl/sharedStrings.xml',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="6" uniqueCount="6">
+  <si><t>Metric</t></si>
+  <si><t>Revenue</t></si>
+  <si><t>Date</t></si>
+  <si><t>Elapsed</t></si>
+  <si><t>Share</t></si>
+  <si><t>Commented</t></si>
+</sst>
+XML,
+        ],
+        [
+            'name' => 'xl/worksheets/sheet1.xml',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+           xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheetData>
+    <row r="1">
+      <c r="A1" t="s"><v>0</v></c>
+      <c r="B1" t="s"><v>1</v></c>
+      <c r="C1" t="s"><v>2</v></c>
+      <c r="D1" t="s"><v>3</v></c>
+      <c r="E1" t="s"><v>4</v></c>
+      <c r="F1" t="s"><v>5</v></c>
+    </row>
+    <row r="2">
+      <c r="A2" t="s"><v>1</v></c>
+      <c r="B2" s="1"><v>-1234.5</v></c>
+      <c r="C2" s="2"><v>45306</v></c>
+      <c r="D2" s="3"><v>1.5</v></c>
+      <c r="E2" s="4"><v>0.125</v></c>
+      <c r="F2" t="inlineStr"><is><t>Has note</t></is></c>
+    </row>
+  </sheetData>
+  <drawing r:id="rDrawing"/>
+</worksheet>
+XML,
+        ],
+        [
+            'name' => 'xl/worksheets/_rels/sheet1.xml.rels',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="../comments/comment1.xml"/>
+  <Relationship Id="rDrawing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/>
+</Relationships>
+XML,
+        ],
+        [
+            'name' => 'xl/comments/comment1.xml',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<comments xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <authors><author>Reviewer</author></authors>
+  <commentList>
+    <comment ref="B2" authorId="0"><text><r><t>Check revenue</t></r></text></comment>
+  </commentList>
+</comments>
+XML,
+        ],
+        [
+            'name' => 'xl/drawings/drawing1.xml',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
+          xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+          xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <xdr:twoCellAnchor>
+    <xdr:from><xdr:col>1</xdr:col><xdr:colOff>1000</xdr:colOff><xdr:row>1</xdr:row><xdr:rowOff>2000</xdr:rowOff></xdr:from>
+    <xdr:to><xdr:col>3</xdr:col><xdr:colOff>3000</xdr:colOff><xdr:row>4</xdr:row><xdr:rowOff>4000</xdr:rowOff></xdr:to>
+    <xdr:pic>
+      <xdr:nvPicPr><xdr:cNvPr id="2" name="Logo" descr="Quarter logo"/></xdr:nvPicPr>
+      <xdr:blipFill><a:blip r:embed="rImage"/></xdr:blipFill>
+      <xdr:spPr/>
+    </xdr:pic>
+  </xdr:twoCellAnchor>
+</xdr:wsDr>
+XML,
+        ],
+        [
+            'name' => 'xl/drawings/_rels/drawing1.xml.rels',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image1.png"/>
+</Relationships>
+XML,
+        ],
+        [
+            'name' => 'xl/media/image1.png',
+            'data' => $tinyPngBytes(),
+        ],
+    ]);
 };
 
 $buildReviewXlsxPackage = static function (): string {
@@ -604,6 +793,88 @@ return [
         $t->contains('<a href="https://example.test/report" title="Open source"><strong>Link</strong></a>', $html);
         $t->contains('<td>12.00</td>', $html);
         $t->contains('<td><em>2024-01-15</em></td>', $html);
+    },
+
+    'preserves xlsx number styles comments and image media provenance' => static function (TestRunner $t) use ($buildStyleCommentImageXlsxPackage, $tinyPngBytes): void {
+        $document = (new XlsxReader())->read($buildStyleCommentImageXlsxPackage());
+        $review = $document->attr('xlsx');
+        $features = $review['featureMetadata'];
+        $html = PandocConverter::write($document, 'html');
+        $table = $document->children[1];
+        $bodyCells = $table->children[1]->children[0]->children;
+        $moneyCell = $bodyCells[1];
+        $dateCell = $bodyCells[2];
+        $elapsedCell = $bodyCells[3];
+        $percentCell = $bodyCells[4];
+        $findPart = static function (array $items, string $partName): array {
+            foreach ($items as $item) {
+                if (($item['partName'] ?? null) === $partName) {
+                    return $item;
+                }
+            }
+
+            throw new RuntimeException('Missing feature metadata item: ' . $partName);
+        };
+
+        $t->same(2, $review['styleCustomNumberFormatCount'] ?? null);
+        $t->same(1, $review['commentCount'] ?? null);
+        $t->same(1, $review['sheets'][0]['commentCount'] ?? null);
+        $t->same('B2', $review['sheets'][0]['comments'][0]['ref'] ?? null);
+        $t->same('Reviewer', $review['sheets'][0]['comments'][0]['author'] ?? null);
+        $t->same('Check revenue', $review['sheets'][0]['comments'][0]['text'] ?? null);
+        $t->same(hash('sha256', 'Check revenue'), $review['sheets'][0]['comments'][0]['textSha256'] ?? null);
+
+        $t->same('($1,234.50)', $moneyCell->attr('text'));
+        $t->same('right', $moneyCell->attr('align'));
+        $t->same(1, $moneyCell->attr('xlsxStyleIndex'));
+        $t->same('$#,##0.00;($#,##0.00)', $moneyCell->attr('xlsxNumberFormatCode'));
+        $t->same('rgb:FFFFCC00', $moneyCell->attr('xlsxFillForegroundColor'));
+        $t->same(true, $moneyCell->attr('xlsxWrapText'));
+        $t->same(45, $moneyCell->attr('xlsxTextRotation'));
+        $t->same(false, $moneyCell->attr('xlsxLocked'));
+        $t->same(true, $moneyCell->attr('xlsxHidden'));
+        $t->same(1, $moneyCell->attr('xlsxCommentCount'));
+        $t->same('Check revenue', $moneyCell->attr('xlsxComments')[0]['text'] ?? null);
+        $t->same('underline', $moneyCell->children[0]->children[0]->type);
+
+        $t->same('2024-01-15', $dateCell->attr('text'));
+        $t->same('date', $dateCell->attr('xlsxValueType'));
+        $t->same('strikeout', $dateCell->children[0]->children[0]->type);
+        $t->same('strong', $dateCell->children[0]->children[0]->children[0]->type);
+        $t->same('36:00:00', $elapsedCell->attr('text'));
+        $t->same('date', $elapsedCell->attr('xlsxValueType'));
+        $t->same('13%', $percentCell->attr('text'));
+
+        $t->contains('<td style="text-align:right"><u>($1,234.50)</u></td>', $html);
+        $t->contains('<td><del><strong>2024-01-15</strong></del></td>', $html);
+        $t->contains('<td><u>36:00:00</u></td>', $html);
+        $t->contains('<td><u>13%</u></td>', $html);
+
+        $t->same(1, $features['byKind']['comments']['count'] ?? null);
+        $comments = $findPart($features['byKind']['comments']['items'], 'xl/comments/comment1.xml');
+        $t->same('comments', $comments['rootLocalName']);
+        $t->same(true, $comments['validRoot']);
+        $t->same('xl/worksheets/sheet1.xml', $comments['relationshipRefs'][0]['sourcePart']);
+
+        $t->same(1, $features['byKind']['image']['count'] ?? null);
+        $image = $findPart($features['byKind']['image']['items'], 'xl/media/image1.png');
+        $t->same('image/png', $image['contentTypeBase']);
+        $t->same(strlen($tinyPngBytes()), $image['byteSize']);
+        $t->same(hash('sha256', $tinyPngBytes()), $image['sha256']);
+        $t->same(1, $image['imageWidthPixels']);
+        $t->same(1, $image['imageHeightPixels']);
+        $t->same(1, $image['drawingAnchorCount']);
+        $t->same('twoCellAnchor', $image['drawingAnchors'][0]['anchorType'] ?? null);
+        $t->same('xl/drawings/drawing1.xml', $image['drawingAnchors'][0]['sourcePart'] ?? null);
+        $t->same('rImage', $image['drawingAnchors'][0]['relationshipId'] ?? null);
+        $t->same(1, $image['drawingAnchors'][0]['from']['column'] ?? null);
+        $t->same(1, $image['drawingAnchors'][0]['from']['row'] ?? null);
+        $t->same(3, $image['drawingAnchors'][0]['to']['column'] ?? null);
+        $t->same(4, $image['drawingAnchors'][0]['to']['row'] ?? null);
+        $t->same('Logo', $image['drawingAnchors'][0]['name'] ?? null);
+        $t->same('Quarter logo', $image['drawingAnchors'][0]['description'] ?? null);
+        $t->same('xl/drawings/drawing1.xml', $image['relationshipRefs'][0]['sourcePart'] ?? null);
+        $t->same('xl/media/image1.png', $image['relationshipRefs'][0]['targetPart'] ?? null);
     },
 
     'reports hidden sheets workbook metadata formulas errors and table filters without evaluation' => static function (TestRunner $t) use ($buildReviewXlsxPackage): void {

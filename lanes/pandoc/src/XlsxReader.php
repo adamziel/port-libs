@@ -9,6 +9,7 @@ final class XlsxReader
     private const OFFICE_DOCUMENT_RELATIONSHIP = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
     private const RELATIONSHIP_NAMESPACE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
     private const MAX_XML_PART_BYTES = 8_388_608;
+    private const MAX_MEDIA_METADATA_BYTES = 16_777_216;
     private const FEATURE_SPECS = [
         'drawing' => [
             'relationshipTypes' => ['http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing'],
@@ -16,6 +17,14 @@ final class XlsxReader
             'pathMarkers' => ['/drawings/'],
             'rootNamespace' => 'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing',
             'rootLocalName' => 'wsDr',
+        ],
+        'image' => [
+            'relationshipTypes' => ['http://schemas.openxmlformats.org/officeDocument/2006/relationships/image'],
+            'contentTypes' => ['image/png', 'image/jpeg', 'image/gif', 'image/bmp', 'image/tiff', 'image/svg+xml'],
+            'pathMarkers' => ['/media/'],
+            'rootNamespace' => null,
+            'rootLocalName' => null,
+            'xml' => false,
         ],
         'chart' => [
             'relationshipTypes' => ['http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart'],
@@ -59,6 +68,13 @@ final class XlsxReader
             'rootNamespace' => 'http://schemas.microsoft.com/office/spreadsheetml/2009/9/main',
             'rootLocalName' => 'slicerCaches',
         ],
+        'comments' => [
+            'relationshipTypes' => ['http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments'],
+            'contentTypes' => ['application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml'],
+            'pathMarkers' => ['/comments'],
+            'rootNamespace' => 'http://schemas.openxmlformats.org/spreadsheetml/2006/main',
+            'rootLocalName' => 'comments',
+        ],
     ];
 
     public function read(string $bytes): AstNode
@@ -90,6 +106,7 @@ final class XlsxReader
         $errorCellCount = 0;
         $tablePartCount = 0;
         $autoFilterCount = 0;
+        $commentCount = 0;
         foreach ($sheets as $sheet) {
             $relationship = $workbookRelationships->byId($sheet['relationshipId']);
             if (!$relationship instanceof OpcRelationship) {
@@ -102,9 +119,10 @@ final class XlsxReader
             $sheetPart = OpcPackagePath::stripQueryAndFragment($workbookRelationships->resolveTarget($relationship));
             $sheetDocument = $this->loadPackageXml($package, $sheetPart, 'XLSX worksheet ' . $sheet['name']);
             $sheetRelationships = $this->relationshipsOrEmpty($package, $sheetPart);
+            $sheetComments = $this->parseSheetComments($package, $sheetPart, $sheetRelationships);
             $sheetDiagnostics = $this->parseSheetDiagnostics($sheetDocument);
             $sheetTableMetadata = $this->parseSheetTableMetadata($package, $sheetPart, $sheetDocument, $sheetRelationships);
-            $cells = $this->parseSheetCells($sheetDocument, $sharedStrings, $styles, $workbookInfo['date1904'], $sheetRelationships);
+            $cells = $this->parseSheetCells($sheetDocument, $sharedStrings, $styles, $workbookInfo['date1904'], $sheetRelationships, $sheetComments['commentsByCell']);
             $table = $this->cellsToTable($sheet['name'], $cells);
             $blocks[] = new AstNode('heading', [
                 'level' => 2,
@@ -121,6 +139,7 @@ final class XlsxReader
             $errorCellCount += $sheetDiagnostics['errorCellCount'];
             $tablePartCount += count($sheetTableMetadata['tableParts']);
             $autoFilterCount += count($sheetTableMetadata['autoFilterRanges']);
+            $commentCount += $sheetComments['commentCount'];
 
             $sheetReviews[] = [
                 'index' => $sheet['index'],
@@ -138,6 +157,9 @@ final class XlsxReader
                 'formulaDiagnostics' => $sheetDiagnostics['formulaDiagnostics'],
                 'errorCellCount' => $sheetDiagnostics['errorCellCount'],
                 'errorDiagnostics' => $sheetDiagnostics['errorDiagnostics'],
+                'commentCount' => $sheetComments['commentCount'],
+                'comments' => $sheetComments['comments'],
+                'commentDiagnostics' => $sheetComments['commentDiagnostics'],
                 'autoFilterRanges' => $sheetTableMetadata['autoFilterRanges'],
                 'tableParts' => $sheetTableMetadata['tableParts'],
                 'tablePartDiagnostics' => $sheetTableMetadata['tablePartDiagnostics'],
@@ -171,6 +193,7 @@ final class XlsxReader
                 'formulaCellCount' => $formulaCellCount,
                 'formulaCachedValueCount' => $formulaCachedValueCount,
                 'errorCellCount' => $errorCellCount,
+                'commentCount' => $commentCount,
                 'tablePartCount' => $tablePartCount,
                 'autoFilterCount' => $autoFilterCount,
                 'sheets' => $sheetReviews,
@@ -595,6 +618,10 @@ final class XlsxReader
         $partName = (string) $item['partName'];
         $kind = (string) $item['kind'];
         $issueStem = $this->featureIssueStem($kind);
+        if ((self::FEATURE_SPECS[$kind]['xml'] ?? true) === false) {
+            return $this->finalizeBinaryFeatureItem($package, $item, $partName, $issueStem);
+        }
+
         try {
             $document = $this->loadPackageXml($package, $partName, 'XLSX ' . $issueStem . ' metadata ' . $partName);
             $root = $document->documentElement;
@@ -619,6 +646,237 @@ final class XlsxReader
         $item['issues'] = array_values(array_unique($item['issues']));
 
         return $item;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, mixed>
+     */
+    private function finalizeBinaryFeatureItem(ZipPackage $package, array $item, string $partName, string $issueStem): array
+    {
+        try {
+            $entry = $package->entry($partName);
+            $item['byteSize'] = $entry->uncompressedSize;
+            $bytes = $package->read($partName, self::MAX_MEDIA_METADATA_BYTES);
+            $item['sha256'] = hash('sha256', $bytes);
+            $dimensions = $this->imageDimensions($bytes);
+            $item['imageWidthPixels'] = $dimensions['width'] ?? null;
+            $item['imageHeightPixels'] = $dimensions['height'] ?? null;
+            if ($dimensions === null) {
+                $item['issues'][] = 'unknown-' . $issueStem . '-dimensions';
+            }
+        } catch (\Throwable $exception) {
+            $item['byteSize'] ??= null;
+            $item['sha256'] = null;
+            $item['imageWidthPixels'] = null;
+            $item['imageHeightPixels'] = null;
+            $item['issues'][] = $issueStem . '-metadata-read-error';
+            $item['metadataReadError'] = $exception->getMessage();
+        }
+
+        if ((string) ($item['kind'] ?? '') === 'image') {
+            $item['drawingAnchors'] = $this->imageDrawingAnchors($package, $item);
+            $item['drawingAnchorCount'] = count($item['drawingAnchors']);
+        }
+
+        $item['issues'] = array_values(array_unique($item['issues']));
+
+        return $item;
+    }
+
+    /**
+     * @return array{width:int, height:int}|null
+     */
+    private function imageDimensions(string $bytes): ?array
+    {
+        $length = strlen($bytes);
+        if ($length >= 24 && substr($bytes, 0, 8) === "\x89PNG\r\n\x1a\n") {
+            $size = unpack('Nwidth/Nheight', substr($bytes, 16, 8));
+
+            return is_array($size) ? ['width' => (int) $size['width'], 'height' => (int) $size['height']] : null;
+        }
+
+        if ($length >= 10 && (substr($bytes, 0, 6) === 'GIF87a' || substr($bytes, 0, 6) === 'GIF89a')) {
+            $size = unpack('vwidth/vheight', substr($bytes, 6, 4));
+
+            return is_array($size) ? ['width' => (int) $size['width'], 'height' => (int) $size['height']] : null;
+        }
+
+        if ($length >= 4 && substr($bytes, 0, 2) === "\xff\xd8") {
+            return $this->jpegDimensions($bytes);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{width:int, height:int}|null
+     */
+    private function jpegDimensions(string $bytes): ?array
+    {
+        $length = strlen($bytes);
+        $offset = 2;
+        while ($offset + 9 < $length) {
+            if ($bytes[$offset] !== "\xff") {
+                $offset++;
+                continue;
+            }
+            while ($offset < $length && $bytes[$offset] === "\xff") {
+                $offset++;
+            }
+            if ($offset >= $length) {
+                return null;
+            }
+
+            $marker = ord($bytes[$offset]);
+            $offset++;
+            if ($marker === 0xd9 || $marker === 0xda) {
+                return null;
+            }
+            if ($offset + 2 > $length) {
+                return null;
+            }
+
+            $segmentLength = unpack('nlength', substr($bytes, $offset, 2));
+            if (!is_array($segmentLength)) {
+                return null;
+            }
+            $segmentLength = (int) $segmentLength['length'];
+            if ($segmentLength < 2 || $offset + $segmentLength > $length) {
+                return null;
+            }
+
+            if (in_array($marker, [0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf], true)) {
+                $size = unpack('nheight/nwidth', substr($bytes, $offset + 3, 4));
+
+                return is_array($size) ? ['width' => (int) $size['width'], 'height' => (int) $size['height']] : null;
+            }
+
+            $offset += $segmentLength;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return list<array<string, mixed>>
+     */
+    private function imageDrawingAnchors(ZipPackage $package, array $item): array
+    {
+        $anchors = [];
+        foreach (($item['relationshipRefs'] ?? []) as $relationshipRef) {
+            if (!is_array($relationshipRef)) {
+                continue;
+            }
+            $sourcePart = (string) ($relationshipRef['sourcePart'] ?? '');
+            $relationshipId = (string) ($relationshipRef['id'] ?? '');
+            if ($sourcePart === '' || $relationshipId === '' || !str_contains(strtolower($sourcePart), '/drawings/')) {
+                continue;
+            }
+            if (!$package->has($sourcePart)) {
+                continue;
+            }
+
+            try {
+                $document = $this->loadPackageXml($package, $sourcePart, 'XLSX drawing anchors ' . $sourcePart);
+            } catch (\Throwable) {
+                continue;
+            }
+
+            $root = $document->documentElement;
+            if (!$root instanceof \DOMElement) {
+                continue;
+            }
+
+            foreach ($this->descendantElements($root, 'blip') as $blip) {
+                if ($this->relationshipReferenceId($blip) !== $relationshipId) {
+                    continue;
+                }
+                $anchor = $this->ancestorDrawingAnchor($blip);
+                if (!$anchor instanceof \DOMElement) {
+                    continue;
+                }
+
+                $anchors[] = $this->drawingAnchorMetadata($anchor, $sourcePart, $relationshipId);
+            }
+        }
+
+        return $anchors;
+    }
+
+    private function relationshipReferenceId(\DOMElement $element): string
+    {
+        foreach (['embed', 'link', 'id'] as $localName) {
+            $id = $element->getAttributeNS(self::RELATIONSHIP_NAMESPACE, $localName);
+            if ($id !== '') {
+                return $id;
+            }
+            if ($element->hasAttribute('r:' . $localName)) {
+                return $element->getAttribute('r:' . $localName);
+            }
+        }
+
+        foreach ($element->attributes ?? [] as $attribute) {
+            if ($attribute instanceof \DOMAttr && in_array($attribute->localName, ['embed', 'link', 'id'], true)) {
+                return $attribute->value;
+            }
+        }
+
+        return '';
+    }
+
+    private function ancestorDrawingAnchor(\DOMElement $element): ?\DOMElement
+    {
+        $node = $element->parentNode;
+        while ($node instanceof \DOMNode) {
+            if ($node instanceof \DOMElement && in_array($node->localName, ['twoCellAnchor', 'oneCellAnchor', 'absoluteAnchor'], true)) {
+                return $node;
+            }
+            $node = $node->parentNode;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function drawingAnchorMetadata(\DOMElement $anchor, string $sourcePart, string $relationshipId): array
+    {
+        $extent = $this->firstChildElement($anchor, 'ext');
+        $properties = $this->firstDescendantElement($anchor, 'cNvPr');
+
+        return [
+            'sourcePart' => ltrim($sourcePart, '/'),
+            'relationshipId' => $relationshipId,
+            'anchorType' => $anchor->localName,
+            'from' => $this->drawingMarker($this->firstChildElement($anchor, 'from')),
+            'to' => $this->drawingMarker($this->firstChildElement($anchor, 'to')),
+            'extentEmu' => $extent instanceof \DOMElement ? [
+                'cx' => $this->integerAttribute($extent, 'cx'),
+                'cy' => $this->integerAttribute($extent, 'cy'),
+            ] : null,
+            'name' => $properties instanceof \DOMElement && trim($properties->getAttribute('name')) !== '' ? trim($properties->getAttribute('name')) : null,
+            'description' => $properties instanceof \DOMElement && trim($properties->getAttribute('descr')) !== '' ? trim($properties->getAttribute('descr')) : null,
+        ];
+    }
+
+    /**
+     * @return array{column:int|null, row:int|null, columnOffsetEmu:int|null, rowOffsetEmu:int|null}|null
+     */
+    private function drawingMarker(?\DOMElement $marker): ?array
+    {
+        if (!$marker instanceof \DOMElement) {
+            return null;
+        }
+
+        return [
+            'column' => $this->firstChildIntegerText($marker, 'col'),
+            'row' => $this->firstChildIntegerText($marker, 'row'),
+            'columnOffsetEmu' => $this->firstChildIntegerText($marker, 'colOff'),
+            'rowOffsetEmu' => $this->firstChildIntegerText($marker, 'rowOff'),
+        ];
     }
 
     /**
@@ -871,8 +1129,9 @@ final class XlsxReader
 
     /**
      * @return array{
-     *     fonts:list<array{bold:bool, italic:bool}>,
-     *     cellFormats:list<array{bold:bool, italic:bool, numFmtId:int|null, formatCode:string|null}>,
+     *     fonts:list<array<string, mixed>>,
+     *     fills:list<array<string, mixed>>,
+     *     cellFormats:list<array<string, mixed>>,
      *     customNumberFormats:array<int, string>
      * }
      */
@@ -880,6 +1139,7 @@ final class XlsxReader
     {
         $empty = [
             'fonts' => [],
+            'fills' => [],
             'cellFormats' => [],
             'customNumberFormats' => [],
         ];
@@ -910,10 +1170,15 @@ final class XlsxReader
         $fonts = $this->firstChildElement($root, 'fonts');
         if ($fonts instanceof \DOMElement) {
             foreach ($this->childElements($fonts, 'font') as $fontElement) {
-                $fontsList[] = [
-                    'bold' => $this->firstChildElement($fontElement, 'b') instanceof \DOMElement,
-                    'italic' => $this->firstChildElement($fontElement, 'i') instanceof \DOMElement,
-                ];
+                $fontsList[] = $this->parseStyleFont($fontElement);
+            }
+        }
+
+        $fillsList = [];
+        $fills = $this->firstChildElement($root, 'fills');
+        if ($fills instanceof \DOMElement) {
+            foreach ($this->childElements($fills, 'fill') as $fillElement) {
+                $fillsList[] = $this->parseStyleFill($fillElement);
             }
         }
 
@@ -923,22 +1188,158 @@ final class XlsxReader
             foreach ($this->childElements($cellXfs, 'xf') as $xfElement) {
                 $fontId = trim($xfElement->getAttribute('fontId'));
                 $fontId = preg_match('/^\d+$/', $fontId) === 1 ? (int) $fontId : 0;
-                $font = $fontsList[$fontId] ?? ['bold' => false, 'italic' => false];
+                $font = $fontsList[$fontId] ?? $this->defaultStyleFont();
+                $fillId = trim($xfElement->getAttribute('fillId'));
+                $fillId = preg_match('/^\d+$/', $fillId) === 1 ? (int) $fillId : null;
+                $fill = $fillId === null ? $this->defaultStyleFill() : ($fillsList[$fillId] ?? $this->defaultStyleFill());
+                $borderId = trim($xfElement->getAttribute('borderId'));
+                $borderId = preg_match('/^\d+$/', $borderId) === 1 ? (int) $borderId : null;
                 $numFmtId = trim($xfElement->getAttribute('numFmtId'));
                 $numFmtId = preg_match('/^\d+$/', $numFmtId) === 1 ? (int) $numFmtId : null;
+                $alignment = $this->firstChildElement($xfElement, 'alignment');
+                $protection = $this->firstChildElement($xfElement, 'protection');
                 $cellFormats[] = [
+                    'fontId' => $fontId,
+                    'fillId' => $fillId,
+                    'borderId' => $borderId,
                     'bold' => $font['bold'],
                     'italic' => $font['italic'],
+                    'underline' => $font['underline'],
+                    'strike' => $font['strike'],
+                    'fontName' => $font['name'],
+                    'fontSize' => $font['size'],
+                    'fontColor' => $font['color'],
+                    'fillPatternType' => $fill['patternType'],
+                    'fillForegroundColor' => $fill['foregroundColor'],
+                    'fillBackgroundColor' => $fill['backgroundColor'],
                     'numFmtId' => $numFmtId,
                     'formatCode' => $numFmtId === null ? null : ($customNumberFormats[$numFmtId] ?? $this->builtInNumberFormat($numFmtId)),
+                    'horizontalAlign' => $alignment instanceof \DOMElement && trim($alignment->getAttribute('horizontal')) !== '' ? trim($alignment->getAttribute('horizontal')) : null,
+                    'verticalAlign' => $alignment instanceof \DOMElement && trim($alignment->getAttribute('vertical')) !== '' ? trim($alignment->getAttribute('vertical')) : null,
+                    'wrapText' => $alignment instanceof \DOMElement ? $this->booleanAttribute($alignment, 'wrapText') : null,
+                    'textRotation' => $alignment instanceof \DOMElement ? $this->integerAttribute($alignment, 'textRotation') : null,
+                    'locked' => $protection instanceof \DOMElement ? $this->booleanAttribute($protection, 'locked') : null,
+                    'hidden' => $protection instanceof \DOMElement ? $this->booleanAttribute($protection, 'hidden') : null,
                 ];
             }
         }
 
         return [
             'fonts' => $fontsList,
+            'fills' => $fillsList,
             'cellFormats' => $cellFormats,
             'customNumberFormats' => $customNumberFormats,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function parseStyleFont(\DOMElement $fontElement): array
+    {
+        $name = $this->firstChildElement($fontElement, 'name');
+        $size = $this->firstChildElement($fontElement, 'sz');
+        $color = $this->firstChildElement($fontElement, 'color');
+        $underline = $this->firstChildElement($fontElement, 'u');
+
+        return [
+            'bold' => $this->firstChildElement($fontElement, 'b') instanceof \DOMElement,
+            'italic' => $this->firstChildElement($fontElement, 'i') instanceof \DOMElement,
+            'underline' => $underline instanceof \DOMElement && strtolower(trim($underline->getAttribute('val'))) !== 'none',
+            'strike' => $this->firstChildElement($fontElement, 'strike') instanceof \DOMElement,
+            'name' => $name instanceof \DOMElement && trim($name->getAttribute('val')) !== '' ? trim($name->getAttribute('val')) : null,
+            'size' => $size instanceof \DOMElement && is_numeric(trim($size->getAttribute('val'))) ? (float) trim($size->getAttribute('val')) : null,
+            'color' => $color instanceof \DOMElement ? $this->styleColorValue($color) : null,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function defaultStyleFont(): array
+    {
+        return [
+            'bold' => false,
+            'italic' => false,
+            'underline' => false,
+            'strike' => false,
+            'name' => null,
+            'size' => null,
+            'color' => null,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function parseStyleFill(\DOMElement $fillElement): array
+    {
+        $patternFill = $this->firstChildElement($fillElement, 'patternFill');
+        if (!$patternFill instanceof \DOMElement) {
+            return $this->defaultStyleFill();
+        }
+
+        $foreground = $this->firstChildElement($patternFill, 'fgColor');
+        $background = $this->firstChildElement($patternFill, 'bgColor');
+
+        return [
+            'patternType' => trim($patternFill->getAttribute('patternType')) !== '' ? trim($patternFill->getAttribute('patternType')) : null,
+            'foregroundColor' => $foreground instanceof \DOMElement ? $this->styleColorValue($foreground) : null,
+            'backgroundColor' => $background instanceof \DOMElement ? $this->styleColorValue($background) : null,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function defaultStyleFill(): array
+    {
+        return [
+            'patternType' => null,
+            'foregroundColor' => null,
+            'backgroundColor' => null,
+        ];
+    }
+
+    private function styleColorValue(\DOMElement $colorElement): ?string
+    {
+        foreach (['rgb', 'indexed', 'theme', 'auto'] as $attribute) {
+            $value = trim($colorElement->getAttribute($attribute));
+            if ($value !== '') {
+                return $attribute . ':' . $value;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function defaultCellStyle(): array
+    {
+        return [
+            'fontId' => null,
+            'fillId' => null,
+            'borderId' => null,
+            'bold' => false,
+            'italic' => false,
+            'underline' => false,
+            'strike' => false,
+            'fontName' => null,
+            'fontSize' => null,
+            'fontColor' => null,
+            'fillPatternType' => null,
+            'fillForegroundColor' => null,
+            'fillBackgroundColor' => null,
+            'numFmtId' => null,
+            'formatCode' => null,
+            'horizontalAlign' => null,
+            'verticalAlign' => null,
+            'wrapText' => null,
+            'textRotation' => null,
+            'locked' => null,
+            'hidden' => null,
         ];
     }
 
@@ -956,10 +1357,12 @@ final class XlsxReader
     /**
      * @param list<string> $sharedStrings
      * @param array{
-     *     fonts:list<array{bold:bool, italic:bool}>,
-     *     cellFormats:list<array{bold:bool, italic:bool, numFmtId:int|null, formatCode:string|null}>,
+     *     fonts:list<array<string, mixed>>,
+     *     fills:list<array<string, mixed>>,
+     *     cellFormats:list<array<string, mixed>>,
      *     customNumberFormats:array<int, string>
      * } $styles
+     * @param array<string, list<array<string, mixed>>> $commentsByCell
      * @return array<string, array{
      *     row:int,
      *     column:int,
@@ -976,7 +1379,7 @@ final class XlsxReader
      *     covered:bool
      * }>
      */
-    private function parseSheetCells(\DOMDocument $document, array $sharedStrings, array $styles, bool $date1904, OpcRelationships $relationships): array
+    private function parseSheetCells(\DOMDocument $document, array $sharedStrings, array $styles, bool $date1904, OpcRelationships $relationships, array $commentsByCell): array
     {
         $root = XmlHtmlDom::rootElement($document, 'worksheet');
         if (!$root instanceof \DOMElement) {
@@ -993,7 +1396,7 @@ final class XlsxReader
         $cells = [];
         foreach ($this->childElements($sheetData, 'row') as $rowElement) {
             foreach ($this->childElements($rowElement, 'c') as $cellElement) {
-                $cell = $this->parseCell($cellElement, $sharedStrings, $styles, $date1904, $hyperlinks);
+                $cell = $this->parseCell($cellElement, $sharedStrings, $styles, $date1904, $hyperlinks, $commentsByCell);
                 if ($cell !== null) {
                     $cells[$cell['row'] . ':' . $cell['column']] = $cell;
                 }
@@ -1008,11 +1411,13 @@ final class XlsxReader
     /**
      * @param list<string> $sharedStrings
      * @param array{
-     *     fonts:list<array{bold:bool, italic:bool}>,
-     *     cellFormats:list<array{bold:bool, italic:bool, numFmtId:int|null, formatCode:string|null}>,
+     *     fonts:list<array<string, mixed>>,
+     *     fills:list<array<string, mixed>>,
+     *     cellFormats:list<array<string, mixed>>,
      *     customNumberFormats:array<int, string>
      * } $styles
      * @param array<string, array{url:string, title:string}> $hyperlinks
+     * @param array<string, list<array<string, mixed>>> $commentsByCell
      * @return array{
      *     row:int,
      *     column:int,
@@ -1029,7 +1434,7 @@ final class XlsxReader
      *     covered:bool
      * }|null
      */
-    private function parseCell(\DOMElement $cellElement, array $sharedStrings, array $styles, bool $date1904, array $hyperlinks): ?array
+    private function parseCell(\DOMElement $cellElement, array $sharedStrings, array $styles, bool $date1904, array $hyperlinks, array $commentsByCell): ?array
     {
         $ref = trim($cellElement->getAttribute('r'));
         if ($ref === '') {
@@ -1091,18 +1496,24 @@ final class XlsxReader
         }
 
         $hyperlink = $hyperlinks[$ref] ?? ['url' => '', 'title' => ''];
+        $comments = $commentsByCell[$ref] ?? [];
 
         return [
             'row' => $cellRef['row'],
             'column' => $cellRef['column'],
             'ref' => $ref,
+            'styleIndex' => $styleIndex,
             'valueType' => $valueType,
             'text' => $text,
             'bold' => $style['bold'],
             'italic' => $style['italic'],
+            'underline' => $style['underline'],
+            'strike' => $style['strike'],
+            'style' => $style,
             'empty' => $empty,
             'url' => $hyperlink['url'],
             'title' => $hyperlink['title'],
+            'comments' => $comments,
             'colspan' => 1,
             'rowspan' => 1,
             'covered' => false,
@@ -1150,24 +1561,76 @@ final class XlsxReader
             return $this->formatNumber($number);
         }
 
-        $formatSection = explode(';', $formatCode)[0] ?? $formatCode;
+        $formatSection = $this->selectNumberFormatSection($formatCode, $number);
+        if (strcasecmp(trim($formatSection), 'General') === 0 || trim($formatSection) === '') {
+            return $this->formatNumber($number);
+        }
+
+        $normalizedSection = $this->numberFormatCodeForFormatting($formatSection);
         $isPercent = str_contains($formatSection, '%');
         if ($isPercent) {
             $number *= 100;
         }
 
-        $decimals = null;
-        if (preg_match('/\.(0+)/', $formatSection, $matches) === 1) {
-            $decimals = strlen($matches[1]);
-        } elseif (preg_match('/(^|[^0])0([^0]|$)/', $formatSection) === 1) {
-            $decimals = 0;
-        }
+        $decimals = $this->numberFormatDecimalPlaces($normalizedSection);
+        $useGrouping = preg_match('/[0#?],[0#?]{3}/', $normalizedSection) === 1;
+        $currency = $this->numberFormatCurrencySymbol($formatSection);
+        $negative = $number < 0;
+        $displayNumber = $negative ? abs($number) : $number;
 
         $text = $decimals === null
-            ? $this->formatNumber($number)
-            : number_format($number, $decimals, '.', '');
+            ? $this->formatNumber($displayNumber)
+            : number_format($displayNumber, $decimals, '.', $useGrouping ? ',' : '');
+
+        if ($currency !== '') {
+            $text = $currency . $text;
+        }
+
+        if ($negative) {
+            $text = str_contains($formatSection, '(') && str_contains($formatSection, ')')
+                ? '(' . $text . ')'
+                : '-' . $text;
+        }
 
         return $isPercent ? $text . '%' : $text;
+    }
+
+    private function selectNumberFormatSection(string $formatCode, float $number): string
+    {
+        $sections = explode(';', $formatCode);
+        if (count($sections) === 1) {
+            return $sections[0];
+        }
+
+        if ($number < 0) {
+            return trim($sections[1] ?? '') !== '' ? $sections[1] : $sections[0];
+        }
+        if ($number == 0.0 && isset($sections[2]) && trim($sections[2]) !== '') {
+            return $sections[2];
+        }
+
+        return $sections[0];
+    }
+
+    private function numberFormatDecimalPlaces(string $formatSection): ?int
+    {
+        if (preg_match('/\.([0#?]+)/', $formatSection, $matches) === 1) {
+            return strlen($matches[1]);
+        }
+        if (preg_match('/[0#?]/', $formatSection) === 1) {
+            return 0;
+        }
+
+        return null;
+    }
+
+    private function numberFormatCurrencySymbol(string $formatSection): string
+    {
+        if (preg_match('/\[\$([^-\\]]+)/', $formatSection, $matches) === 1) {
+            return $matches[1];
+        }
+
+        return str_contains($formatSection, '$') ? '$' : '';
     }
 
     /**
@@ -1199,6 +1662,11 @@ final class XlsxReader
      */
     private function formatDateSerial(float $serial, array $style, bool $date1904): string
     {
+        $rawFormatCode = (string) ($style['formatCode'] ?? '');
+        if ($this->isElapsedTimeFormat($rawFormatCode)) {
+            return $this->formatElapsedTimeSerial($serial, $rawFormatCode);
+        }
+
         $days = (int) floor($serial);
         $fraction = $serial - $days;
         if ($fraction < 0) {
@@ -1219,10 +1687,43 @@ final class XlsxReader
             $date = $date->modify('+' . $seconds . ' seconds') ?: $date;
         }
 
-        $formatCode = strtolower($this->numberFormatCodeForDetection((string) ($style['formatCode'] ?? '')));
+        $formatCode = strtolower($this->numberFormatCodeForDetection($rawFormatCode));
         $hasTime = preg_match('/[hs]/', $formatCode) === 1;
+        $hasDate = preg_match('/[yd]/', $formatCode) === 1;
+        if ($hasTime && !$hasDate) {
+            return $date->format('H:i:s');
+        }
 
         return $hasTime ? $date->format('Y-m-d H:i:s') : $date->format('Y-m-d');
+    }
+
+    private function isElapsedTimeFormat(string $formatCode): bool
+    {
+        return preg_match('/\[(h|m|s)\]/i', $formatCode) === 1;
+    }
+
+    private function formatElapsedTimeSerial(float $serial, string $formatCode): string
+    {
+        $negative = $serial < 0;
+        $totalSeconds = (int) round(abs($serial) * 86400);
+        $prefix = $negative ? '-' : '';
+        if (preg_match('/\[m\]/i', $formatCode) === 1) {
+            $minutes = intdiv($totalSeconds, 60);
+            $seconds = $totalSeconds % 60;
+
+            return $prefix . sprintf('%d:%02d', $minutes, $seconds);
+        }
+        if (preg_match('/\[s\]/i', $formatCode) === 1) {
+            return $prefix . (string) $totalSeconds;
+        }
+
+        $hours = intdiv($totalSeconds, 3600);
+        $minutes = intdiv($totalSeconds % 3600, 60);
+        $seconds = $totalSeconds % 60;
+
+        return str_contains(strtolower($formatCode), ':ss')
+            ? $prefix . sprintf('%d:%02d:%02d', $hours, $minutes, $seconds)
+            : $prefix . sprintf('%d:%02d', $hours, $minutes);
     }
 
     private function numberFormatCodeForDetection(string $formatCode): string
@@ -1235,36 +1736,75 @@ final class XlsxReader
         return trim($formatCode);
     }
 
+    private function numberFormatCodeForFormatting(string $formatCode): string
+    {
+        $formatCode = preg_replace('/"[^"]*"/', '', $formatCode) ?? $formatCode;
+        $formatCode = preg_replace('/\[[^\]]+\]/', '', $formatCode) ?? $formatCode;
+        $formatCode = preg_replace('/\\\\./', '', $formatCode) ?? $formatCode;
+        $formatCode = str_replace(['_', '*'], '', $formatCode);
+
+        return trim($formatCode);
+    }
+
     private function builtInNumberFormat(int $id): ?string
     {
         return [
             0 => 'General',
             1 => '0',
             2 => '0.00',
+            3 => '#,##0',
+            4 => '#,##0.00',
+            5 => '$#,##0;($#,##0)',
+            6 => '$#,##0;[Red]($#,##0)',
+            7 => '$#,##0.00;($#,##0.00)',
+            8 => '$#,##0.00;[Red]($#,##0.00)',
             9 => '0%',
             10 => '0.00%',
+            11 => '0.00E+00',
+            12 => '# ?/?',
+            13 => '# ??/??',
             14 => 'm/d/yy',
             15 => 'd-mmm-yy',
             16 => 'd-mmm',
             17 => 'mmm-yy',
+            18 => 'h:mm AM/PM',
+            19 => 'h:mm:ss AM/PM',
+            20 => 'h:mm',
+            21 => 'h:mm:ss',
             22 => 'm/d/yy h:mm',
+            27 => '[$-404]e/m/d',
+            30 => 'm/d/yy',
+            36 => '[$-404]e/m/d',
+            37 => '#,##0;(#,##0)',
+            38 => '#,##0;[Red](#,##0)',
+            39 => '#,##0.00;(#,##0.00)',
+            40 => '#,##0.00;[Red](#,##0.00)',
+            41 => '_(* #,##0_);_(* (#,##0);_(* "-"_);_(@_)',
+            42 => '_($* #,##0_);_($* (#,##0);_($* "-"_);_(@_)',
+            43 => '_(* #,##0.00_);_(* (#,##0.00);_(* "-"??_);_(@_)',
+            44 => '_($* #,##0.00_);_($* (#,##0.00);_($* "-"??_);_(@_)',
             45 => 'mm:ss',
             46 => '[h]:mm:ss',
             47 => 'mmss.0',
+            48 => '##0.0E+0',
+            49 => '@',
+            50 => '[$-404]e/m/d',
+            57 => '[$-404]e/m/d',
         ][$id] ?? null;
     }
 
     /**
      * @param array{
-     *     fonts:list<array{bold:bool, italic:bool}>,
-     *     cellFormats:list<array{bold:bool, italic:bool, numFmtId:int|null, formatCode:string|null}>,
+     *     fonts:list<array<string, mixed>>,
+     *     fills:list<array<string, mixed>>,
+     *     cellFormats:list<array<string, mixed>>,
      *     customNumberFormats:array<int, string>
      * } $styles
-     * @return array{bold:bool, italic:bool, numFmtId:int|null, formatCode:string|null}
+     * @return array<string, mixed>
      */
     private function styleForIndex(?int $styleIndex, array $styles): array
     {
-        $default = ['bold' => false, 'italic' => false, 'numFmtId' => null, 'formatCode' => null];
+        $default = $this->defaultCellStyle();
         if ($styleIndex === null) {
             return $default;
         }
@@ -1275,12 +1815,15 @@ final class XlsxReader
 
         $font = $styles['fonts'][$styleIndex] ?? null;
         if (is_array($font)) {
-            return [
+            return array_replace($default, [
                 'bold' => (bool) ($font['bold'] ?? false),
                 'italic' => (bool) ($font['italic'] ?? false),
-                'numFmtId' => null,
-                'formatCode' => null,
-            ];
+                'underline' => (bool) ($font['underline'] ?? false),
+                'strike' => (bool) ($font['strike'] ?? false),
+                'fontName' => $font['name'] ?? null,
+                'fontSize' => $font['size'] ?? null,
+                'fontColor' => $font['color'] ?? null,
+            ]);
         }
 
         return $default;
@@ -1366,6 +1909,17 @@ final class XlsxReader
                 'sourceColumn' => $columnIndex,
                 'xlsxValueType' => is_array($cell) ? (string) $cell['valueType'] : 'empty',
             ];
+            if (is_array($cell)) {
+                $attrs += $this->cellStyleAttributes($cell);
+                $commentAttributes = $this->cellCommentAttributes($cell);
+                if ($commentAttributes !== []) {
+                    $attrs += $commentAttributes;
+                }
+                $horizontalAlign = (string) ($cell['style']['horizontalAlign'] ?? '');
+                if (in_array($horizontalAlign, ['left', 'right', 'center'], true)) {
+                    $attrs['align'] = $horizontalAlign;
+                }
+            }
             if (is_array($cell) && (int) ($cell['colspan'] ?? 1) > 1) {
                 $attrs['colspan'] = (int) $cell['colspan'];
             }
@@ -1398,6 +1952,12 @@ final class XlsxReader
         if (($cell['italic'] ?? false) === true) {
             $inlines = [new AstNode('emph', [], $inlines)];
         }
+        if (($cell['underline'] ?? false) === true) {
+            $inlines = [new AstNode('underline', [], $inlines)];
+        }
+        if (($cell['strike'] ?? false) === true) {
+            $inlines = [new AstNode('strikeout', [], $inlines)];
+        }
         if (($cell['url'] ?? '') !== '') {
             $inlines = [new AstNode('link', [
                 'url' => (string) $cell['url'],
@@ -1406,6 +1966,173 @@ final class XlsxReader
         }
 
         return $inlines;
+    }
+
+    /**
+     * @param array<string, mixed> $cell
+     * @return array<string, mixed>
+     */
+    private function cellStyleAttributes(array $cell): array
+    {
+        $style = $cell['style'] ?? [];
+        if (!is_array($style)) {
+            $style = [];
+        }
+
+        $attrs = [];
+        $map = [
+            'styleIndex' => 'xlsxStyleIndex',
+            'numFmtId' => 'xlsxNumberFormatId',
+            'formatCode' => 'xlsxNumberFormatCode',
+            'fontId' => 'xlsxFontId',
+            'fontName' => 'xlsxFontName',
+            'fontSize' => 'xlsxFontSize',
+            'fontColor' => 'xlsxFontColor',
+            'fillId' => 'xlsxFillId',
+            'fillPatternType' => 'xlsxFillPatternType',
+            'fillForegroundColor' => 'xlsxFillForegroundColor',
+            'fillBackgroundColor' => 'xlsxFillBackgroundColor',
+            'borderId' => 'xlsxBorderId',
+            'horizontalAlign' => 'xlsxHorizontalAlign',
+            'verticalAlign' => 'xlsxVerticalAlign',
+            'wrapText' => 'xlsxWrapText',
+            'textRotation' => 'xlsxTextRotation',
+            'locked' => 'xlsxLocked',
+            'hidden' => 'xlsxHidden',
+        ];
+
+        foreach ($map as $source => $target) {
+            $value = $source === 'styleIndex' ? ($cell['styleIndex'] ?? null) : ($style[$source] ?? null);
+            if ($value === null || $value === '') {
+                continue;
+            }
+            $attrs[$target] = $value;
+        }
+
+        if (($style['underline'] ?? false) === true) {
+            $attrs['xlsxUnderline'] = true;
+        }
+        if (($style['strike'] ?? false) === true) {
+            $attrs['xlsxStrike'] = true;
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @param array<string, mixed> $cell
+     * @return array<string, mixed>
+     */
+    private function cellCommentAttributes(array $cell): array
+    {
+        $comments = $cell['comments'] ?? [];
+        if (!is_array($comments) || $comments === []) {
+            return [];
+        }
+
+        return [
+            'xlsxCommentCount' => count($comments),
+            'xlsxComments' => $comments,
+            'xlsxCommentAuthors' => array_values(array_unique(array_filter(array_map(
+                static fn (mixed $comment): ?string => is_array($comment) && is_string($comment['author'] ?? null) ? $comment['author'] : null,
+                $comments
+            )))),
+        ];
+    }
+
+    /**
+     * @return array{
+     *     commentCount:int,
+     *     comments:list<array<string, mixed>>,
+     *     commentsByCell:array<string, list<array<string, mixed>>>,
+     *     commentDiagnostics:list<string>
+     * }
+     */
+    private function parseSheetComments(ZipPackage $package, string $sheetPart, OpcRelationships $relationships): array
+    {
+        $comments = [];
+        $commentsByCell = [];
+        $diagnostics = [];
+
+        foreach ($relationships->all() as $relationship) {
+            if ($relationship->type !== 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments') {
+                continue;
+            }
+            if ($relationship->isExternal()) {
+                $diagnostics[] = 'comments-external-relationship-skipped:' . $relationship->id;
+                continue;
+            }
+
+            try {
+                $part = OpcPackagePath::stripQueryAndFragment($relationships->resolveTarget($relationship));
+            } catch (\Throwable $exception) {
+                $diagnostics[] = 'comments-target-resolution-error:' . $relationship->id;
+                continue;
+            }
+
+            if (!$package->has($part)) {
+                $diagnostics[] = 'comments-part-missing:' . ltrim($part, '/');
+                continue;
+            }
+
+            try {
+                $document = $this->loadPackageXml($package, $part, 'XLSX comments ' . $relationship->id . ' for ' . ltrim($sheetPart, '/'));
+            } catch (\InvalidArgumentException|\RuntimeException) {
+                $diagnostics[] = 'comments-part-unreadable:' . ltrim($part, '/');
+                continue;
+            }
+
+            $root = XmlHtmlDom::rootElement($document, 'comments');
+            if (!$root instanceof \DOMElement) {
+                $diagnostics[] = 'comments-root-missing:' . ltrim($part, '/');
+                continue;
+            }
+
+            $authors = [];
+            $authorsElement = $this->firstChildElement($root, 'authors');
+            if ($authorsElement instanceof \DOMElement) {
+                foreach ($this->childElements($authorsElement, 'author') as $authorElement) {
+                    $authors[] = $authorElement->textContent;
+                }
+            }
+
+            $commentList = $this->firstChildElement($root, 'commentList');
+            if (!$commentList instanceof \DOMElement) {
+                continue;
+            }
+
+            foreach ($this->childElements($commentList, 'comment') as $commentElement) {
+                $ref = trim($commentElement->getAttribute('ref'));
+                if ($this->parseCellReference($ref) === null) {
+                    $diagnostics[] = 'comments-invalid-ref:' . ($ref === '' ? '<empty>' : $ref);
+                    continue;
+                }
+
+                $authorId = $this->integerAttribute($commentElement, 'authorId');
+                $textElement = $this->firstChildElement($commentElement, 'text');
+                $text = $textElement instanceof \DOMElement ? $this->allDescendantText($textElement) : '';
+                $record = [
+                    'ref' => $ref,
+                    'authorId' => $authorId,
+                    'author' => $authorId !== null ? ($authors[$authorId] ?? null) : null,
+                    'text' => $text,
+                    'textBytes' => strlen($text),
+                    'textSha256' => hash('sha256', $text),
+                    'partName' => ltrim($part, '/'),
+                    'relationshipId' => $relationship->id,
+                ];
+                $comments[] = $record;
+                $commentsByCell[$ref] ??= [];
+                $commentsByCell[$ref][] = $record;
+            }
+        }
+
+        return [
+            'commentCount' => count($comments),
+            'comments' => $comments,
+            'commentsByCell' => $commentsByCell,
+            'commentDiagnostics' => array_values(array_unique($diagnostics)),
+        ];
     }
 
     /**
@@ -1874,6 +2601,21 @@ final class XlsxReader
         return $children;
     }
 
+    /**
+     * @return list<\DOMElement>
+     */
+    private function descendantElements(\DOMElement $parent, string $localName): array
+    {
+        $children = [];
+        foreach ($parent->getElementsByTagName('*') as $child) {
+            if ($child instanceof \DOMElement && $child->localName === $localName) {
+                $children[] = $child;
+            }
+        }
+
+        return $children;
+    }
+
     private function firstChildElement(\DOMElement $parent, string $localName): ?\DOMElement
     {
         foreach ($parent->childNodes as $child) {
@@ -1883,6 +2625,27 @@ final class XlsxReader
         }
 
         return null;
+    }
+
+    private function firstDescendantElement(\DOMElement $parent, string $localName): ?\DOMElement
+    {
+        foreach ($parent->getElementsByTagName('*') as $child) {
+            if ($child instanceof \DOMElement && $child->localName === $localName) {
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
+    private function firstChildIntegerText(\DOMElement $parent, string $localName): ?int
+    {
+        $child = $this->firstChildElement($parent, $localName);
+        if (!$child instanceof \DOMElement || preg_match('/^-?\d+$/', trim($child->textContent)) !== 1) {
+            return null;
+        }
+
+        return (int) trim($child->textContent);
     }
 
     private function allDescendantText(\DOMElement $element): string
