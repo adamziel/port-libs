@@ -693,6 +693,113 @@ CSS, $formatter->format(<<<'CSS'
   border-inline-end-width: 3px;
 }
 CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border: 1px solid #000;
+  border-inline-color: red;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-block-start: 1px solid black;
+  border-block-end: 1px solid black;
+  border-inline-start: 1px solid red;
+  border-inline-end: 1px solid red;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border: 1px solid #000;
+  border-inline-width: 2px;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-block-start: 1px solid black;
+  border-block-end: 1px solid black;
+  border-inline-start: 2px solid black;
+  border-inline-end: 2px solid black;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border: 1px solid #000;
+  border-inline: 2px solid red;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-block-start: 1px solid black;
+  border-block-end: 1px solid black;
+  border-inline-start: 2px solid red;
+  border-inline-end: 2px solid red;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border: 1px solid #000;
+  border-inline-start: 2px solid red;
+  border-inline-end: 3px solid red;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-block-start: 1px solid black;
+  border-block-end: 1px solid black;
+  border-inline-start: 2px solid red;
+  border-inline-end: 3px solid red;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border: 2px solid red;
+  border-block-start-color: #000;
+  border-block-end: 1px solid #000;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-block-start: 2px solid black;
+  border-block-end: 1px solid black;
+  border-inline-start: 2px solid red;
+  border-inline-end: 2px solid red;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border: 2px solid red;
+  border-block-end-width: 1px;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-block-start: 2px solid red;
+  border-block-end: 1px solid red;
+  border-inline-start: 2px solid red;
+  border-inline-end: 2px solid red;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border: 2px solid red;
+  border-inline-end-width: 1px;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-block-start: 2px solid red;
+  border-block-end: 2px solid red;
+  border-inline-start: 2px solid red;
+  border-inline-end: 1px solid red;
+}
+CSS));
     },
     'css formatter maps upstream url quoting printer cases' => static function (TestRunner $t): void {
         $formatter = new CssFormatter();
@@ -727,6 +834,117 @@ CSS));
 CSS, $formatter->format(<<<'CSS'
 .foo {
   background-image: url(var(--asset));
+}
+CSS));
+    },
+    'css formatter maps upstream background printer cases' => static function (TestRunner $t): void {
+        $formatter = new CssFormatter();
+
+        $t->same(<<<'CSS'
+.foo {
+  background: url("img.png") 20px 10px / 50px 100px repeat-x;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  background: url(img.png);
+  background-position-x: 20px;
+  background-position-y: 10px;
+  background-size: 50px 100px;
+  background-repeat: repeat no-repeat;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  background: red;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  background-color: red;
+  background-position: 0% 0%;
+  background-size: auto;
+  background-repeat: repeat;
+  background-clip: border-box;
+  background-origin: padding-box;
+  background-attachment: scroll;
+  background-image: none
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  background: gray url("chess.png") 40% / 10em round fixed border-box;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  background-color: gray;
+  background-position: 40% 50%;
+  background-size: 10em auto;
+  background-repeat: round;
+  background-clip: border-box;
+  background-origin: border-box;
+  background-attachment: fixed;
+  background-image: url('chess.png');
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  background: url("img.png") right 20px top 20px / 50px 50px repeat-x, gray url("test.jpg") 10px 15px no-repeat;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  background: url(img.png), url(test.jpg) gray;
+  background-position-x: right 20px, 10px;
+  background-position-y: top 20px, 15px;
+  background-size: 50px 50px, auto;
+  background-repeat: repeat no-repeat, no-repeat;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  background: gray url("img.png") padding-box content-box;
+  -webkit-background-clip: text;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  background: url(img.png) gray;
+  background-clip: content-box;
+  -webkit-background-clip: text;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  background: gray url("img.png");
+  -webkit-background-clip: text;
+  background-clip: content-box;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  background: url(img.png) gray;
+  -webkit-background-clip: text;
+  background-clip: content-box;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  background: gray url("img.png");
+  background-position: var(--pos);
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  background: url(img.png) gray;
+  background-position: var(--pos);
 }
 CSS));
     },

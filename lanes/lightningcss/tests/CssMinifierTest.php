@@ -2366,6 +2366,15 @@ CSS)
         $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@property --property-name { inherits: false; }'));
         $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify("@property property-name { syntax: '*'; inherits: false; }"));
     },
+    'css minifier maps upstream position declaration override rows' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{position:absolute}', $minifier->minify('.foo { position: relative; position: absolute; }'));
+        $t->same(
+            '.foo{position:-webkit-sticky;position:sticky}',
+            $minifier->minify('.foo { position: -webkit-sticky; position: sticky; }')
+        );
+    },
     'css minifier maps upstream physical and logical inset composition' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

@@ -43,6 +43,19 @@ final class CssFormatter
 
     private const BORDER_IMAGE_REPEAT_KEYWORDS = ['stretch', 'repeat', 'round', 'space'];
 
+    private const BACKGROUND_LONGHANDS = [
+        'background-color',
+        'background-image',
+        'background-position',
+        'background-position-x',
+        'background-position-y',
+        'background-size',
+        'background-repeat',
+        'background-attachment',
+        'background-origin',
+        'background-clip',
+    ];
+
     public function format(string $css): string
     {
         $css = trim($this->stripComments($css));
@@ -389,7 +402,9 @@ final class CssFormatter
                     $this->composeBorderImageStyleDeclarations(
                         $this->composeBorderStyleDeclarations(
                             $this->composeBoxModelStyleDeclarations(
-                                $this->composeFontStyleDeclarations($this->parseDeclarations($body))
+                                $this->composeBackgroundStyleDeclarations(
+                                    $this->composeFontStyleDeclarations($this->parseDeclarations($body))
+                                )
                             )
                         )
                     )
@@ -446,6 +461,9 @@ final class CssFormatter
         $formatted = match ($property) {
             'color' => $this->formatColorDeclarationValue($value),
             'font' => $this->formatFontShorthandValue($value),
+            'background' => $this->formatBackgroundShorthandValue($value),
+            'background-color' => $this->formatColorDeclarationValue($value),
+            'background-image' => $this->formatBackgroundImageDeclarationValue($value),
             'grid', 'grid-template' => $this->formatGridTemplateDeclarationValue($property, $value, strlen($prefix)),
             'outline' => $this->formatOutlineShorthandValue($value),
             'outline-color' => $this->formatColorDeclarationValue($value),
@@ -534,6 +552,780 @@ final class CssFormatter
     private function isFontLonghand(string $property): bool
     {
         return in_array($property, self::FONT_LONGHANDS, true);
+    }
+
+    /**
+     * @param list<array{string, string}> $declarations
+     * @return list<array{string, string}>
+     */
+    private function composeBackgroundStyleDeclarations(array $declarations): array
+    {
+        $output = [];
+        $count = count($declarations);
+
+        for ($index = 0; $index < $count;) {
+            if (!$this->isBackgroundDeclaration($declarations[$index][0])) {
+                $output[] = $declarations[$index];
+                $index++;
+                continue;
+            }
+
+            $run = [];
+            while ($index < $count && $this->isBackgroundDeclaration($declarations[$index][0])) {
+                $run[] = $declarations[$index];
+                $index++;
+            }
+
+            $background = $this->composeBackgroundDeclarationRun($run);
+            if ($background !== null) {
+                $output[] = ['background', $background];
+                continue;
+            }
+
+            foreach ($run as $declaration) {
+                $output[] = $declaration;
+            }
+        }
+
+        return $output;
+    }
+
+    private function isBackgroundDeclaration(string $property): bool
+    {
+        return $property === 'background' || in_array($property, self::BACKGROUND_LONGHANDS, true);
+    }
+
+    /**
+     * @param non-empty-list<array{string, string}> $run
+     */
+    private function composeBackgroundDeclarationRun(array $run): ?string
+    {
+        if (count($run) < 2) {
+            return null;
+        }
+
+        $components = [];
+        $hasShorthand = false;
+        foreach ($run as [$property, $value]) {
+            if ($this->isImportantDeclarationValue($value) || preg_match('/\bvar\s*\(/i', $value) === 1) {
+                return null;
+            }
+
+            if ($property === 'background') {
+                $parsed = $this->backgroundComponentsFromShorthand($value, true);
+                if ($parsed === null) {
+                    return null;
+                }
+
+                $components = $parsed;
+                $hasShorthand = true;
+                continue;
+            }
+
+            $components[$property] = $this->normalizeBackgroundComponentValue($property, $value);
+            if ($property === 'background-position') {
+                [$x, $y] = $this->splitSingleBackgroundPosition($components[$property]);
+                if ($x !== null) {
+                    $components['background-position-x'] = $x;
+                }
+                if ($y !== null) {
+                    $components['background-position-y'] = $y;
+                }
+            }
+        }
+
+        $layerCount = $this->backgroundLayerCountFromComponents($components);
+        if ($layerCount < 1) {
+            return null;
+        }
+
+        if ($hasShorthand) {
+            if (!$this->backgroundComponentLayerCountsFit($components, $layerCount)) {
+                return null;
+            }
+        } elseif (!$this->backgroundLonghandsAreComplete($components)) {
+            return null;
+        }
+
+        return $this->composeBackgroundValue($components, $layerCount);
+    }
+
+    /**
+     * @return array<string, string>|null
+     */
+    private function backgroundComponentsFromShorthand(string $value, bool $includeInitialValues): ?array
+    {
+        $layers = $this->parseBackgroundLayers($value);
+        if ($layers === null) {
+            return null;
+        }
+
+        $components = ['background' => $this->formatDeclarationValue($value)];
+        foreach (self::BACKGROUND_LONGHANDS as $property) {
+            $longhand = $this->backgroundLonghandFromLayers($layers, $property, $includeInitialValues);
+            if ($longhand !== null) {
+                $components[$property] = $longhand;
+            }
+        }
+
+        return $components;
+    }
+
+    private function normalizeBackgroundComponentValue(string $property, string $value): string
+    {
+        return match ($property) {
+            'background-color' => $this->formatColorDeclarationValue($value),
+            'background-image' => $this->formatBackgroundImageDeclarationValue($value),
+            'background-size' => $this->normalizeBackgroundSizeDeclarationValue($value),
+            'background-repeat' => $this->normalizeBackgroundRepeatDeclarationValue($value),
+            'background-attachment' => $this->normalizeBackgroundKeywordList($value, ['scroll', 'fixed', 'local']),
+            'background-origin' => $this->normalizeBackgroundKeywordList($value, ['border-box', 'padding-box', 'content-box']),
+            'background-clip' => $this->normalizeBackgroundKeywordList($value, ['border-box', 'padding-box', 'content-box', 'border', 'text']),
+            default => $this->formatDeclarationValue($value),
+        };
+    }
+
+    /**
+     * @param non-empty-list<array{
+     *     image:?string,
+     *     color:?string,
+     *     position:?string,
+     *     positionX:?string,
+     *     positionY:?string,
+     *     size:?string,
+     *     repeat:?string,
+     *     attachment:?string,
+     *     origin:?string,
+     *     clip:?string
+     * }> $layers
+     */
+    private function backgroundLonghandFromLayers(array $layers, string $property, bool $includeInitialValues): ?string
+    {
+        if ($property === 'background-color') {
+            return $layers[array_key_last($layers)]['color'] ?? ($includeInitialValues ? '#0000' : null);
+        }
+
+        $values = [];
+        foreach ($layers as $layer) {
+            $value = match ($property) {
+                'background-image' => $layer['image'] ?? ($includeInitialValues ? 'none' : null),
+                'background-position' => $layer['position'] ?? ($includeInitialValues ? '0 0' : null),
+                'background-position-x' => $layer['positionX'] ?? ($includeInitialValues ? '0' : null),
+                'background-position-y' => $layer['positionY'] ?? ($includeInitialValues ? '0' : null),
+                'background-size' => $layer['size'] ?? ($includeInitialValues ? 'auto' : null),
+                'background-repeat' => $layer['repeat'] ?? ($includeInitialValues ? 'repeat' : null),
+                'background-attachment' => $layer['attachment'] ?? ($includeInitialValues ? 'scroll' : null),
+                'background-origin' => $layer['origin'] ?? ($includeInitialValues ? 'padding-box' : null),
+                'background-clip' => $layer['clip'] ?? ($includeInitialValues ? 'border-box' : null),
+                default => null,
+            };
+            if ($value === null) {
+                return null;
+            }
+
+            $values[] = $value;
+        }
+
+        return implode(', ', $values);
+    }
+
+    /**
+     * @param array<string, string> $components
+     */
+    private function backgroundLonghandsAreComplete(array $components): bool
+    {
+        foreach ([
+            'background-color',
+            'background-image',
+            'background-size',
+            'background-repeat',
+            'background-attachment',
+            'background-origin',
+            'background-clip',
+        ] as $property) {
+            if (!isset($components[$property])) {
+                return false;
+            }
+        }
+
+        return isset($components['background-position'])
+            || (isset($components['background-position-x']) && isset($components['background-position-y']));
+    }
+
+    /**
+     * @param array<string, string> $components
+     */
+    private function backgroundLayerCountFromComponents(array $components): int
+    {
+        $count = 1;
+        foreach (self::BACKGROUND_LONGHANDS as $property) {
+            if (!isset($components[$property]) || $property === 'background-color') {
+                continue;
+            }
+
+            $count = max($count, count($this->splitTopLevel($components[$property], ',')));
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param array<string, string> $components
+     */
+    private function backgroundComponentLayerCountsFit(array $components, int $layerCount): bool
+    {
+        foreach ([
+            'background-image',
+            'background-position',
+            'background-position-x',
+            'background-position-y',
+            'background-size',
+            'background-repeat',
+            'background-attachment',
+            'background-origin',
+            'background-clip',
+        ] as $property) {
+            if (isset($components[$property]) && count($this->splitTopLevel($components[$property], ',')) > $layerCount) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<string, string> $components
+     */
+    private function composeBackgroundValue(array $components, int $layerCount): ?string
+    {
+        $images = $this->componentList($components['background-image'] ?? null, $layerCount);
+        $positions = $this->componentList($components['background-position'] ?? null, $layerCount);
+        $positionX = $this->componentList($components['background-position-x'] ?? null, $layerCount);
+        $positionY = $this->componentList($components['background-position-y'] ?? null, $layerCount);
+        $sizes = $this->componentList($components['background-size'] ?? null, $layerCount);
+        $repeats = $this->componentList($components['background-repeat'] ?? null, $layerCount);
+        $attachments = $this->componentList($components['background-attachment'] ?? null, $layerCount);
+        $origins = $this->componentList($components['background-origin'] ?? null, $layerCount);
+        $clips = $this->componentList($components['background-clip'] ?? null, $layerCount);
+        $color = $components['background-color'] ?? null;
+        $result = [];
+
+        for ($i = 0; $i < $layerCount; $i++) {
+            $layer = [];
+            $image = $images[$i] ?? null;
+            if ($color !== null && $i === $layerCount - 1 && !$this->isTransparentBackgroundColor($color)) {
+                $layer[] = $color;
+            }
+            if (!$this->isDefaultBackgroundImage($image)) {
+                $layer[] = $image;
+            }
+
+            $position = null;
+            if (($positionX[$i] ?? null) !== null || ($positionY[$i] ?? null) !== null) {
+                $position = trim(($positionX[$i] ?? '0') . ' ' . ($positionY[$i] ?? '0'));
+            } else {
+                $position = $positions[$i] ?? null;
+            }
+            $position = $position === null ? null : $this->serializeBackgroundPosition($position);
+
+            $size = isset($sizes[$i]) ? $this->serializeBackgroundSize($sizes[$i]) : null;
+            if ($position === null && $size !== null && !$this->isDefaultBackgroundSize($size)) {
+                $position = '0 0';
+            }
+            if ($position !== null && (!$this->isDefaultBackgroundPosition($position) || ($size !== null && !$this->isDefaultBackgroundSize($size)))) {
+                $layer[] = $position;
+            }
+            if ($size !== null && !$this->isDefaultBackgroundSize($size)) {
+                $layer[] = '/';
+                $layer[] = $size;
+            }
+            if (($repeats[$i] ?? null) !== null && !$this->isDefaultBackgroundRepeat($repeats[$i])) {
+                $layer[] = $this->compressBackgroundRepeat($repeats[$i]);
+            }
+            if (($attachments[$i] ?? null) !== null && !$this->isDefaultBackgroundAttachment($attachments[$i])) {
+                $layer[] = strtolower($attachments[$i]);
+            }
+
+            $origin = $origins[$i] ?? null;
+            $clip = $clips[$i] ?? null;
+            if ($origin !== null || $clip !== null) {
+                $origin = strtolower($origin ?? 'padding-box');
+                $clip = strtolower($clip ?? 'border-box');
+                if ($origin === $clip && !$this->isDefaultBackgroundOrigin($origin)) {
+                    $layer[] = $origin;
+                } elseif (!$this->isDefaultBackgroundOrigin($origin) || !$this->isDefaultBackgroundClip($clip)) {
+                    $layer[] = $origin;
+                    $layer[] = $clip;
+                }
+            }
+
+            $serialized = implode(' ', array_values(array_filter($layer, static fn (string $part): bool => $part !== '')));
+            $result[] = $serialized === '' ? '0 0' : $serialized;
+        }
+
+        return $result === [] ? null : implode(', ', $result);
+    }
+
+    /**
+     * @return list<string|null>
+     */
+    private function componentList(?string $value, int $count): array
+    {
+        if ($value === null) {
+            return array_fill(0, $count, null);
+        }
+
+        $parts = array_map(
+            static fn (string $part): string => trim($part),
+            $this->splitTopLevel($value, ',')
+        );
+        if ($parts === []) {
+            return array_fill(0, $count, null);
+        }
+        while (count($parts) < $count) {
+            $parts[] = $parts[array_key_last($parts)];
+        }
+
+        return array_slice($parts, 0, $count);
+    }
+
+    /**
+     * @return non-empty-list<array{
+     *     image:?string,
+     *     color:?string,
+     *     position:?string,
+     *     positionX:?string,
+     *     positionY:?string,
+     *     size:?string,
+     *     repeat:?string,
+     *     attachment:?string,
+     *     origin:?string,
+     *     clip:?string
+     * }>|null
+     */
+    private function parseBackgroundLayers(string $value): ?array
+    {
+        $layers = [];
+        foreach ($this->splitTopLevel($value, ',') as $layer) {
+            $parsed = $this->parseBackgroundLayer($layer);
+            if ($parsed === null) {
+                return null;
+            }
+
+            $layers[] = $parsed;
+        }
+
+        return $layers === [] ? null : $layers;
+    }
+
+    /**
+     * @return array{
+     *     image:?string,
+     *     color:?string,
+     *     position:?string,
+     *     positionX:?string,
+     *     positionY:?string,
+     *     size:?string,
+     *     repeat:?string,
+     *     attachment:?string,
+     *     origin:?string,
+     *     clip:?string
+     * }|null
+     */
+    private function parseBackgroundLayer(string $layer): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($layer));
+        $parsed = [
+            'image' => null,
+            'color' => null,
+            'position' => null,
+            'positionX' => null,
+            'positionY' => null,
+            'size' => null,
+            'repeat' => null,
+            'attachment' => null,
+            'origin' => null,
+            'clip' => null,
+        ];
+        $positionTokens = [];
+
+        for ($i = 0; $i < count($tokens); $i++) {
+            $token = $tokens[$i];
+            $lower = strtolower($token);
+            if ($token === '/') {
+                [$size, $nextIndex] = $this->consumeBackgroundSizeAfterSlash($tokens, $i + 1);
+                if ($size === null) {
+                    return null;
+                }
+
+                $parsed['size'] = $size;
+                $i = $nextIndex - 1;
+                continue;
+            }
+
+            if ($this->isBackgroundImageToken($token)) {
+                $parsed['image'] = $this->normalizeCssUrlToken($token);
+                continue;
+            }
+
+            if ($this->isBackgroundRepeatToken($lower)) {
+                $parsed['repeat'] = $this->consumeBackgroundRepeat($tokens, $i);
+                continue;
+            }
+
+            if ($this->isBackgroundAttachmentToken($lower)) {
+                $parsed['attachment'] = $lower;
+                continue;
+            }
+
+            if ($this->isBackgroundBoxToken($lower)) {
+                if ($parsed['origin'] === null) {
+                    $parsed['origin'] = $lower;
+                } elseif ($parsed['clip'] === null) {
+                    $parsed['clip'] = $lower;
+                } else {
+                    return null;
+                }
+                continue;
+            }
+
+            if ($this->isBackgroundColorToken($token)) {
+                $parsed['color'] = $this->formatColorDeclarationValue($token);
+                continue;
+            }
+
+            $positionTokens[] = $this->formatDeclarationValue($token);
+        }
+
+        if ($parsed['clip'] === null && $parsed['origin'] !== null) {
+            $parsed['clip'] = $parsed['origin'];
+        }
+        if ($positionTokens !== []) {
+            $parsed['position'] = implode(' ', $positionTokens);
+            [$parsed['positionX'], $parsed['positionY']] = $this->splitSingleBackgroundPosition($parsed['position']);
+        }
+
+        return $parsed;
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array{0:?string,1:int}
+     */
+    private function consumeBackgroundSizeAfterSlash(array $tokens, int $startIndex): array
+    {
+        if (!isset($tokens[$startIndex])) {
+            return [null, $startIndex];
+        }
+
+        $sizeTokens = [$tokens[$startIndex]];
+        $index = $startIndex + 1;
+        if (
+            isset($tokens[$index])
+            && count($sizeTokens) < 2
+            && $this->isBackgroundSizeComponentToken($tokens[$index])
+        ) {
+            $sizeTokens[] = $tokens[$index];
+            $index++;
+        }
+
+        return [$this->normalizeBackgroundSizeLayer(implode(' ', $sizeTokens)), $index];
+    }
+
+    private function isBackgroundSizeComponentToken(string $token): bool
+    {
+        $lower = strtolower($token);
+        if (in_array($lower, ['cover', 'contain', 'auto'], true)) {
+            return true;
+        }
+        if ($this->isBackgroundRepeatToken($lower)
+            || $this->isBackgroundAttachmentToken($lower)
+            || $this->isBackgroundBoxToken($lower)
+            || $this->isBackgroundColorToken($token)
+            || $this->isBackgroundImageToken($token)
+        ) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function isBackgroundImageToken(string $token): bool
+    {
+        return strcasecmp($token, 'none') === 0
+            || preg_match('/^(?:url|[-_a-zA-Z][-_a-zA-Z0-9]*-gradient|image|cross-fade|image-set)\(/i', $token) === 1;
+    }
+
+    private function isBackgroundColorToken(string $token): bool
+    {
+        $lower = strtolower($token);
+        if (in_array($lower, [
+            'left',
+            'right',
+            'top',
+            'bottom',
+            'center',
+            'scroll',
+            'fixed',
+            'local',
+            'border-box',
+            'padding-box',
+            'content-box',
+            'cover',
+            'contain',
+            'none',
+            'repeat',
+            'no-repeat',
+            'round',
+            'space',
+        ], true)) {
+            return false;
+        }
+
+        return preg_match('/^(?:#[0-9a-fA-F]{3,8}|(?:rgb|rgba|hsl|hsla|color)\(|[a-zA-Z]+)$/', $token) === 1;
+    }
+
+    private function isBackgroundRepeatToken(string $token): bool
+    {
+        return in_array($token, ['repeat', 'no-repeat', 'space', 'round', 'repeat-x', 'repeat-y'], true);
+    }
+
+    private function isBackgroundAttachmentToken(string $token): bool
+    {
+        return in_array($token, ['scroll', 'fixed', 'local'], true);
+    }
+
+    private function isBackgroundBoxToken(string $token): bool
+    {
+        return in_array($token, ['border-box', 'padding-box', 'content-box'], true);
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function consumeBackgroundRepeat(array $tokens, int &$index): string
+    {
+        $first = strtolower($tokens[$index]);
+        if ($first === 'repeat-x' || $first === 'repeat-y') {
+            return $first;
+        }
+
+        $second = strtolower($tokens[$index + 1] ?? '');
+        if (in_array($second, ['repeat', 'no-repeat', 'space', 'round'], true)) {
+            $index++;
+
+            return $first . ' ' . $second;
+        }
+
+        return $first;
+    }
+
+    private function formatBackgroundShorthandValue(string $value): string
+    {
+        if ($this->isImportantDeclarationValue($value) || preg_match('/\bvar\s*\(/i', $value) === 1) {
+            return $this->formatDeclarationValue($value);
+        }
+
+        $components = $this->backgroundComponentsFromShorthand($value, true);
+        if ($components === null) {
+            return $this->formatDeclarationValue($value);
+        }
+
+        return $this->composeBackgroundValue(
+            $components,
+            $this->backgroundLayerCountFromComponents($components)
+        ) ?? $this->formatDeclarationValue($value);
+    }
+
+    private function formatBackgroundImageDeclarationValue(string $value): string
+    {
+        $parts = [];
+        foreach ($this->splitTopLevel($value, ',') as $part) {
+            $part = trim($part);
+            if ($part === '') {
+                return $this->formatDeclarationValue($value);
+            }
+
+            $parts[] = strcasecmp($part, 'none') === 0 ? 'none' : $this->normalizeCssUrlToken($part);
+        }
+
+        return implode(', ', $parts);
+    }
+
+    private function normalizeBackgroundSizeDeclarationValue(string $value): string
+    {
+        $parts = [];
+        foreach ($this->splitTopLevel($value, ',') as $part) {
+            $normalized = $this->normalizeBackgroundSizeLayer($part);
+            if ($normalized === null) {
+                return $this->formatDeclarationValue($value);
+            }
+
+            $parts[] = $normalized;
+        }
+
+        return implode(', ', $parts);
+    }
+
+    private function normalizeBackgroundSizeLayer(string $layer): ?string
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($layer));
+        if ($tokens === [] || count($tokens) > 2) {
+            return null;
+        }
+
+        $tokens = array_map(fn (string $token): string => $this->formatDeclarationValue($token), $tokens);
+        if (count($tokens) === 1) {
+            return strtolower($tokens[0]) === 'auto' ? 'auto' : $tokens[0];
+        }
+
+        return strtolower($tokens[1]) === 'auto' ? $tokens[0] : $tokens[0] . ' ' . $tokens[1];
+    }
+
+    private function normalizeBackgroundRepeatDeclarationValue(string $value): string
+    {
+        $parts = [];
+        foreach ($this->splitTopLevel($value, ',') as $part) {
+            $tokens = $this->splitWhitespaceTopLevel(trim($part));
+            if ($tokens === [] || count($tokens) > 2) {
+                return $this->formatDeclarationValue($value);
+            }
+
+            $tokens = array_map(static fn (string $token): string => strtolower($token), $tokens);
+            foreach ($tokens as $token) {
+                if (!$this->isBackgroundRepeatToken($token)) {
+                    return $this->formatDeclarationValue($value);
+                }
+            }
+
+            $parts[] = $this->compressBackgroundRepeat(implode(' ', $tokens));
+        }
+
+        return implode(', ', $parts);
+    }
+
+    /**
+     * @param list<string> $allowed
+     */
+    private function normalizeBackgroundKeywordList(string $value, array $allowed): string
+    {
+        $parts = [];
+        foreach ($this->splitTopLevel($value, ',') as $part) {
+            $part = strtolower(trim($part));
+            if (!in_array($part, $allowed, true)) {
+                return $this->formatDeclarationValue($value);
+            }
+
+            $parts[] = $part;
+        }
+
+        return implode(', ', $parts);
+    }
+
+    private function compressBackgroundRepeat(string $repeat): string
+    {
+        return match (strtolower(trim($repeat))) {
+            'repeat no-repeat' => 'repeat-x',
+            'no-repeat repeat' => 'repeat-y',
+            'repeat repeat' => 'repeat',
+            default => strtolower(trim($repeat)),
+        };
+    }
+
+    private function serializeBackgroundPosition(string $position): string
+    {
+        $position = $this->formatDeclarationValue($position);
+        $tokens = $this->splitWhitespaceTopLevel($position);
+        if (count($tokens) === 2 && in_array(strtolower($tokens[1]), ['50%', 'center'], true)) {
+            return $tokens[0];
+        }
+
+        return $position;
+    }
+
+    private function serializeBackgroundSize(string $size): string
+    {
+        return $this->normalizeBackgroundSizeLayer($size) ?? $this->formatDeclarationValue($size);
+    }
+
+    /**
+     * @return array{0:?string,1:?string}
+     */
+    private function splitSingleBackgroundPosition(string $value): array
+    {
+        if (count($this->splitTopLevel($value, ',')) !== 1) {
+            return [null, null];
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel(trim($value));
+        if ($tokens === []) {
+            return [null, null];
+        }
+
+        if (count($tokens) === 1) {
+            return [$tokens[0], 'center'];
+        }
+
+        return [$tokens[0], implode(' ', array_slice($tokens, 1))];
+    }
+
+    private function isDefaultBackgroundImage(?string $image): bool
+    {
+        return $image === null || strcasecmp(trim($image), 'none') === 0;
+    }
+
+    private function isDefaultBackgroundPosition(string $position): bool
+    {
+        return in_array(strtolower(trim($position)), ['0', '0 0', '0% 0%', 'left top'], true);
+    }
+
+    private function isDefaultBackgroundSize(string $size): bool
+    {
+        return in_array(strtolower(trim($size)), ['auto', 'auto auto'], true);
+    }
+
+    private function isDefaultBackgroundRepeat(string $repeat): bool
+    {
+        return in_array(strtolower(trim($repeat)), ['repeat', 'repeat repeat'], true);
+    }
+
+    private function isDefaultBackgroundAttachment(string $attachment): bool
+    {
+        return strtolower(trim($attachment)) === 'scroll';
+    }
+
+    private function isDefaultBackgroundOrigin(string $origin): bool
+    {
+        return strtolower(trim($origin)) === 'padding-box';
+    }
+
+    private function isDefaultBackgroundClip(string $clip): bool
+    {
+        return strtolower(trim($clip)) === 'border-box';
+    }
+
+    private function isTransparentBackgroundColor(string $color): bool
+    {
+        return in_array(strtolower(trim($color)), ['transparent', '#0000', 'rgba(0,0,0,0)', 'rgb(0 0 0 / 0)'], true);
+    }
+
+    private function normalizeCssUrlToken(string $token): string
+    {
+        $token = trim($token);
+        if (preg_match('/^url\(\s*(.*?)\s*\)$/is', $token, $matches) !== 1) {
+            return $this->formatDeclarationValue($token);
+        }
+
+        $content = trim($matches[1]);
+        if ($this->isCssStringToken($content)) {
+            $content = substr($content, 1, -1);
+        }
+
+        if ($content === '' || preg_match('/[\s()\\\\]/', $content) === 1) {
+            return 'url(' . $content . ')';
+        }
+
+        return 'url(' . $this->quoteCssString($content) . ')';
     }
 
     /**
@@ -758,6 +1550,7 @@ final class CssFormatter
         }
 
         $declarations = $this->composeLogicalBorderSideComponents($declarations);
+        $declarations = $this->composeLogicalBorderSideShorthandGroup($declarations);
         $declarations = $this->composeEqualLogicalBorderAxisSides($declarations);
         $declarations = $this->composeLogicalBorderWidthPairs($declarations);
         $declarations = $this->composeEqualLogicalBorderWidthAxes($declarations);
@@ -1108,6 +1901,147 @@ final class CssFormatter
         }
 
         return $declarations;
+    }
+
+    /**
+     * @param list<array{string, string}> $declarations
+     * @return list<array{string, string}>
+     */
+    private function composeLogicalBorderSideShorthandGroup(array $declarations): array
+    {
+        if ($this->containsDeclaration($declarations, 'border')) {
+            return $declarations;
+        }
+
+        $indexes = [];
+        foreach ($declarations as $index => [$property]) {
+            foreach (self::BORDER_LOGICAL_SIDES as $side) {
+                if ($property === 'border-' . $side) {
+                    $indexes[$side] = $index;
+                }
+            }
+        }
+
+        foreach (self::BORDER_LOGICAL_SIDES as $side) {
+            if (!isset($indexes[$side])) {
+                return $declarations;
+            }
+        }
+
+        $sideComponents = [];
+        foreach (self::BORDER_LOGICAL_SIDES as $side) {
+            $components = $this->parseBorderShorthandComponents($declarations[$indexes[$side]][1]);
+            if ($components === null) {
+                return $declarations;
+            }
+
+            $sideComponents[$side] = $components;
+        }
+
+        $bestBase = null;
+        $bestOverrides = [];
+        $bestSameSides = -1;
+        $bestOverrideCount = PHP_INT_MAX;
+        foreach (self::BORDER_LOGICAL_SIDES as $side) {
+            $base = $sideComponents[$side];
+            $sameSides = 0;
+            foreach (self::BORDER_LOGICAL_SIDES as $candidateSide) {
+                if ($this->borderComponentsEqual($base, $sideComponents[$candidateSide])) {
+                    $sameSides++;
+                }
+            }
+
+            $overrides = $this->logicalBorderOverridesForBase($sideComponents, $base);
+            $overrideCount = count($overrides);
+            if ($sameSides > $bestSameSides || ($sameSides === $bestSameSides && $overrideCount < $bestOverrideCount)) {
+                $bestBase = $base;
+                $bestOverrides = $overrides;
+                $bestSameSides = $sameSides;
+                $bestOverrideCount = $overrideCount;
+            }
+        }
+
+        if ($bestBase === null || $bestOverrides === []) {
+            return $declarations;
+        }
+
+        $replaceAt = min($indexes);
+        $skip = array_flip(array_values($indexes));
+        $output = [];
+        foreach ($declarations as $index => $declaration) {
+            if ($index === $replaceAt) {
+                $output[] = ['border', $this->serializeBorderComponents($bestBase)];
+                foreach ($bestOverrides as $override) {
+                    $output[] = $override;
+                }
+                continue;
+            }
+
+            if (isset($skip[$index])) {
+                continue;
+            }
+
+            $output[] = $declaration;
+        }
+
+        return $output;
+    }
+
+    /**
+     * @param array<string, array{width:string, style:string, color:string}> $sideComponents
+     * @param array{width:string, style:string, color:string} $base
+     * @return list<array{string, string}>
+     */
+    private function logicalBorderOverridesForBase(array $sideComponents, array $base): array
+    {
+        $overrides = [];
+        foreach (self::BORDER_LOGICAL_AXIS_SIDES as $axis => $sides) {
+            $startSide = $sides['start'];
+            $endSide = $sides['end'];
+            $start = $sideComponents[$startSide];
+            $end = $sideComponents[$endSide];
+            $startMatchesBase = $this->borderComponentsEqual($base, $start);
+            $endMatchesBase = $this->borderComponentsEqual($base, $end);
+            if ($startMatchesBase && $endMatchesBase) {
+                continue;
+            }
+
+            if ($this->borderComponentsEqual($start, $end)) {
+                $overrides[] = $this->logicalBorderOverrideReplacement('border-' . $axis, $base, $start);
+                continue;
+            }
+
+            if (!$startMatchesBase) {
+                $overrides[] = $this->logicalBorderOverrideReplacement('border-' . $startSide, $base, $start);
+            }
+            if (!$endMatchesBase) {
+                $overrides[] = $this->logicalBorderOverrideReplacement('border-' . $endSide, $base, $end);
+            }
+        }
+
+        return $overrides;
+    }
+
+    /**
+     * @param array{width:string, style:string, color:string} $base
+     * @param array{width:string, style:string, color:string} $components
+     * @return array{string, string}
+     */
+    private function logicalBorderOverrideReplacement(string $property, array $base, array $components): array
+    {
+        $diff = [];
+        foreach (self::BORDER_COMPONENTS as $component) {
+            if (strcasecmp($base[$component], $components[$component]) !== 0) {
+                $diff[] = $component;
+            }
+        }
+
+        if (count($diff) === 1) {
+            $component = $diff[0];
+            return [$property . '-' . $component, $components[$component]];
+        }
+
+        return [$property, $this->serializeBorderComponents($components)];
     }
 
     /**

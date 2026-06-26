@@ -11609,6 +11609,7 @@ final class CssMinifier
             return $body;
         }
 
+        $this->rewritePositionPropertyGroup($entries);
         $this->rewritePositionInsetGroup($entries);
 
         return $this->serializeDeclarationEntriesForComposition($entries);
@@ -12568,7 +12569,36 @@ final class CssMinifier
     private function containsPositionInsetDeclarationName(string $body): bool
     {
         return stripos($body, 'inset') !== false
-            || preg_match('/(?:^|;)(?:top|right|bottom|left):/i', $body) === 1;
+            || preg_match('/(?:^|;)(?:position|top|right|bottom|left):/i', $body) === 1;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewritePositionPropertyGroup(array &$entries): void
+    {
+        $latest = null;
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop'] || $entry['property'] !== 'position') {
+                continue;
+            }
+            if ($entry['important']) {
+                return;
+            }
+
+            if ($latest !== null && !$this->isPositionStickyFallbackPair($entries[$latest]['value'], $entry['value'])) {
+                $entries[$latest]['drop'] = true;
+            }
+
+            $latest = $index;
+        }
+    }
+
+    private function isPositionStickyFallbackPair(string $previousValue, string $currentValue): bool
+    {
+        return strtolower(trim($previousValue)) === '-webkit-sticky'
+            && strtolower(trim($currentValue)) === 'sticky';
     }
 
     /**
