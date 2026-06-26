@@ -4988,12 +4988,13 @@ final class MarkdownWriter
         ));
 
         foreach ($items as $itemIndex => $item) {
-            $marker = $ordered ? $this->orderedListMarker($node, $start + $index) : '- ';
+            $marker = $ordered
+                ? $this->orderedListMarker($node, $item, $start + $index, $itemIndex)
+                : $this->bulletListMarker();
             array_push($lines, ...$this->renderListItem($item, $marker, $indent));
             if (
-                $this->opmlNoteMarkdownEnabled()
-                && $itemIndex < count($items) - 1
-                && !$this->listItemIsTight($item)
+                $itemIndex < count($items) - 1
+                && $this->listNeedsBlankBetweenItems($node, $items[$itemIndex + 1])
                 && end($lines) !== ''
             ) {
                 $lines[] = '';
@@ -5004,14 +5005,38 @@ final class MarkdownWriter
         return $lines;
     }
 
-    private function orderedListMarker(AstNode $node, int $number): string
+    private function bulletListMarker(): string
     {
-        $number = max(1, $number);
-        $style = (string) $node->attr('style', 'decimal');
-        $delimiter = (string) $node->attr('delimiter', 'period');
+        $marker = strtolower(str_replace(['_', '-'], '', (string) ($this->options['bulletListMarker'] ?? 'dash')));
+
+        return match ($marker) {
+            'plus', '+' => '+ ',
+            'star', 'asterisk', '*' => '* ',
+            default => '- ',
+        };
+    }
+
+    private function orderedListMarker(AstNode $node, AstNode $item, int $number, int $itemIndex): string
+    {
+        $style = $this->orderedListStyle($node);
+        $delimiter = $this->orderedListDelimiter($node, $style);
+        if ($style === 'default' && $this->readerDefaultOrderedListUsesDecimalMarkers($node, $item)) {
+            $style = 'decimal';
+            $delimiter = 'period';
+        }
+
+        if ($style === 'example') {
+            return '(@' . $this->numberedExampleLabel($node, $item, $itemIndex) . ') ';
+        }
+
+        if ($style === 'default') {
+            return ($delimiter === 'one_paren' ? '#)' : '#.') . '  ';
+        }
+
+        $number = $style === 'decimal' ? max(0, $number) : max(1, $number);
         $label = match ($style) {
-            'lower_alpha' => chr(ord('a') + (($number - 1) % 26)),
-            'upper_alpha' => chr(ord('A') + (($number - 1) % 26)),
+            'lower_alpha' => $this->alphabeticListLabel($number, false),
+            'upper_alpha' => $this->alphabeticListLabel($number, true),
             'lower_roman' => strtolower($this->romanNumeral($number)),
             'upper_roman' => $this->romanNumeral($number),
             default => (string) $number,
@@ -5028,6 +5053,149 @@ final class MarkdownWriter
         }
 
         return $marker . ' ';
+    }
+
+    private function readerDefaultOrderedListUsesDecimalMarkers(AstNode $node, AstNode $item): bool
+    {
+        return $node->attr('sourceFormat') === 'html' || array_key_exists('text', $item->attrs);
+    }
+
+    private function orderedListStyle(AstNode $node): string
+    {
+        $style = preg_replace('/[^a-z0-9]+/', '', strtolower((string) $node->attr('style', 'decimal'))) ?? '';
+        $style = match ($style) {
+            'loweralpha' => 'lower_alpha',
+            'upperalpha' => 'upper_alpha',
+            'lowerroman' => 'lower_roman',
+            'upperroman' => 'upper_roman',
+            'default', 'defaultstyle' => 'default',
+            'example' => 'example',
+            'decimal' => 'decimal',
+            default => 'decimal',
+        };
+
+        if ($style === 'example') {
+            return $this->numberedExampleListsEnabled() ? 'example' : 'decimal';
+        }
+
+        if ($style !== 'decimal' && !$this->fancyOrderedListMarkersEnabled()) {
+            return 'decimal';
+        }
+
+        return $style;
+    }
+
+    private function orderedListDelimiter(AstNode $node, string $style): string
+    {
+        if ($style === 'example') {
+            return 'two_parens';
+        }
+
+        $delimiter = preg_replace('/[^a-z0-9]+/', '', strtolower((string) $node->attr('delimiter', 'period'))) ?? '';
+        $delimiter = match ($delimiter) {
+            'oneparen' => 'one_paren',
+            'twoparens' => 'two_parens',
+            'period', 'default', 'defaultdelim', '' => 'period',
+            default => 'period',
+        };
+
+        if (!$this->fancyOrderedListMarkersEnabled() && $delimiter === 'two_parens') {
+            return 'period';
+        }
+
+        return $delimiter;
+    }
+
+    private function fancyOrderedListMarkersEnabled(): bool
+    {
+        if (array_key_exists('fancyLists', $this->options)) {
+            return (bool) $this->options['fancyLists'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? null;
+        $overrides = MarkdownFormatProfile::markdownExtensionOverrides($format);
+        if (array_key_exists('fancy_lists', $overrides)) {
+            return $overrides['fancy_lists'];
+        }
+
+        return $this->writerVariant() === 'markdown';
+    }
+
+    private function numberedExampleListsEnabled(): bool
+    {
+        if (array_key_exists('exampleLists', $this->options)) {
+            return (bool) $this->options['exampleLists'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? null;
+        $overrides = MarkdownFormatProfile::markdownExtensionOverrides($format);
+        if (array_key_exists('example_lists', $overrides)) {
+            return $overrides['example_lists'];
+        }
+
+        return $this->writerVariant() === 'markdown';
+    }
+
+    private function alphabeticListLabel(int $number, bool $uppercase): string
+    {
+        $number = max(1, $number);
+        $label = '';
+        while ($number > 0) {
+            $number--;
+            $label = chr(ord('a') + ($number % 26)) . $label;
+            $number = intdiv($number, 26);
+        }
+
+        return $uppercase ? strtoupper($label) : $label;
+    }
+
+    private function numberedExampleLabel(AstNode $node, AstNode $item, int $itemIndex): string
+    {
+        foreach ($this->numberedExampleLabelCandidates($node, $item, $itemIndex) as $candidate) {
+            if ($this->isSafeNumberedExampleLabel($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function numberedExampleLabelCandidates(AstNode $node, AstNode $item, int $itemIndex): array
+    {
+        $candidates = [];
+        foreach (['exampleLabel', 'label'] as $name) {
+            $value = $item->attr($name, null);
+            if (is_scalar($value)) {
+                $candidates[] = (string) $value;
+            }
+        }
+
+        $attributes = $item->attr('attributes', []);
+        if (is_array($attributes) && isset($attributes['data-example-label']) && is_scalar($attributes['data-example-label'])) {
+            $candidates[] = (string) $attributes['data-example-label'];
+        }
+
+        $labels = $node->attr('exampleLabels', []);
+        if (is_array($labels) && isset($labels[$itemIndex]) && is_scalar($labels[$itemIndex])) {
+            $candidates[] = (string) $labels[$itemIndex];
+        }
+
+        if ($itemIndex === 0) {
+            $value = $node->attr('exampleLabel', null);
+            if (is_scalar($value)) {
+                $candidates[] = (string) $value;
+            }
+        }
+
+        return $candidates;
+    }
+
+    private function isSafeNumberedExampleLabel(string $label): bool
+    {
+        return preg_match('/^[A-Za-z0-9][A-Za-z0-9_.:-]*$/', $label) === 1;
     }
 
     private function romanNumeral(int $number): string
@@ -5070,6 +5238,15 @@ final class MarkdownWriter
         return true;
     }
 
+    private function listNeedsBlankBetweenItems(AstNode $list, AstNode $nextItem): bool
+    {
+        if ((bool) $list->attr('loose', false) || (bool) $nextItem->attr('loose', false)) {
+            return true;
+        }
+
+        return $this->opmlNoteMarkdownEnabled() && !$this->listItemIsTight($nextItem);
+    }
+
     /**
      * @return list<string>
      */
@@ -5077,7 +5254,7 @@ final class MarkdownWriter
     {
         return $this->prefixLines(
             $this->definitionListsEnabled()
-                ? $this->renderNativeDefinitionList($node)
+                ? $this->renderNativeDefinitionList($node, $indent)
                 : $this->renderDefinitionListWithoutMarkers($node),
             $indent
         );
@@ -5086,7 +5263,7 @@ final class MarkdownWriter
     /**
      * @return list<string>
      */
-    private function renderNativeDefinitionList(AstNode $node): array
+    private function renderNativeDefinitionList(AstNode $node, int $indent): array
     {
         $lines = [];
         $leadingChars = $this->isPlainTextVariant() || $this->opmlNoteMarkdownEnabled()
@@ -5108,7 +5285,7 @@ final class MarkdownWriter
             $lines[] = $this->renderDefinitionTerm($item);
             $definitions = $this->definitionItemDefinitions($item);
             $tight = $this->definitionItemIsTight($definitions) || $this->definitionListIsCompact($node);
-            if (!$tight) {
+            if (!$tight && $indent === 0) {
                 $lines[] = '';
             }
 
@@ -5156,8 +5333,24 @@ final class MarkdownWriter
 
     private function needsAdjacentListBlockSeparator(AstNode $previous, AstNode $current): bool
     {
-        return $previous->type === $current->type
-            && in_array($current->type, ['bullet_list', 'ordered_list', 'definition_list'], true);
+        if ($previous->type !== $current->type) {
+            return false;
+        }
+
+        if ($current->type === 'ordered_list') {
+            $previousStyle = $this->orderedListStyle($previous);
+            $currentStyle = $this->orderedListStyle($current);
+            if (
+                in_array($previousStyle, ['default', 'example'], true)
+                || in_array($currentStyle, ['default', 'example'], true)
+            ) {
+                return $previousStyle === $currentStyle;
+            }
+
+            return true;
+        }
+
+        return in_array($current->type, ['bullet_list', 'definition_list'], true);
     }
 
     private function listSeparatorBlock(): string
@@ -5258,7 +5451,6 @@ final class MarkdownWriter
         $task = $item->attr('taskChecked', null);
         if (is_bool($task)) {
             $prefix .= $task ? '[x] ' : '[ ] ';
-            $continuationIndent += 4;
         }
 
         $inlineChildren = [];
@@ -5279,10 +5471,10 @@ final class MarkdownWriter
                         $lines,
                         $prefix,
                         str_repeat(' ', $continuationIndent),
-                        $this->renderBlockInlines($inlineChildren)
+                        $this->renderListItemInlines($inlineChildren)
                     );
                 } else {
-                    $lines[] = rtrim($prefix . $this->renderBlockInlines($inlineChildren));
+                    $lines[] = rtrim($prefix . $this->renderListItemInlines($inlineChildren));
                 }
                 $inlineChildren = [];
                 $hasFirstLine = true;
@@ -5292,7 +5484,11 @@ final class MarkdownWriter
                 $lines[] = '';
             }
 
-            if ($child->type === 'paragraph' || ($child->type === 'plain' && $this->opmlNoteMarkdownEnabled()) || $blockBeforeFencedDiv) {
+            if (
+                $child->type === 'paragraph'
+                || ($child->type === 'plain' && !$this->plainBeforeDisabledDiv($item->children, $childIndex))
+                || $blockBeforeFencedDiv
+            ) {
                 if (count($lines) === 1 && rtrim($lines[0]) === rtrim($prefix)) {
                     if ($this->opmlNoteMarkdownEnabled() && $this->writerWrapText() === 'auto') {
                         array_pop($lines);
@@ -5300,12 +5496,16 @@ final class MarkdownWriter
                             $lines,
                             $prefix,
                             str_repeat(' ', $continuationIndent),
-                            $this->renderBlockInlines($child->children, true)
+                            $this->renderListItemInlines($child->children, true)
                         );
                     } else {
-                        $lines[0] = rtrim($prefix . $this->renderBlockInlines($child->children, true));
+                        $this->replaceListItemFirstLine($lines, $prefix, $this->renderListItemInlines($child->children, true), $continuationIndent);
                     }
-                    if ($blockBeforeFencedDiv && end($lines) !== '') {
+                    if (
+                        $blockBeforeFencedDiv
+                        && $this->listItemNeedsFencedDivBoundary($item->children, $childIndex)
+                        && end($lines) !== ''
+                    ) {
                         $lines[] = '';
                     }
                     continue;
@@ -5319,22 +5519,38 @@ final class MarkdownWriter
                         $lines,
                         str_repeat(' ', $continuationIndent),
                         str_repeat(' ', $continuationIndent),
-                        $this->renderBlockInlines($child->children, true)
+                        $this->renderListItemInlines($child->children, true)
                     );
                 } else {
-                    foreach (explode("\n", $this->renderBlockInlines($child->children, true)) as $line) {
+                    foreach (explode("\n", $this->renderListItemInlines($child->children, true)) as $line) {
                         $lines[] = str_repeat(' ', $continuationIndent) . $line;
                     }
                 }
-                if ($blockBeforeFencedDiv && end($lines) !== '') {
+                if (
+                    $blockBeforeFencedDiv
+                    && $this->listItemNeedsFencedDivBoundary($item->children, $childIndex)
+                    && end($lines) !== ''
+                ) {
                     $lines[] = '';
                 }
                 continue;
             }
 
+            if (
+                $childIndex === 0
+                && $inlineChildren === []
+                && $child->type === 'code_block'
+                && $this->codeBlockRendersIndented($child)
+                && count($lines) === 1
+                && rtrim($lines[0]) === rtrim($prefix)
+            ) {
+                $lines = $this->renderInitialIndentedCodeListItem($prefix, $child);
+                continue;
+            }
+
             $previous = $item->children[$childIndex - 1] ?? null;
             if (
-                $this->opmlNoteMarkdownEnabled()
+                !is_bool($task)
                 && $this->isListBlock($child)
                 && $previous instanceof AstNode
                 && $previous->type === 'paragraph'
@@ -5344,9 +5560,9 @@ final class MarkdownWriter
                 $lines[] = '';
             }
 
-            $blockIndent = $child->type === 'div' || ($this->opmlNoteMarkdownEnabled() && $this->isListBlock($child))
-                ? $continuationIndent
-                : $indent + 2;
+            $blockIndent = $this->listItemUsesReaderNestedListIndent($item, $child)
+                ? $indent + 2
+                : $continuationIndent;
             foreach ($this->renderBlock($child, $blockIndent) as $nestedLine) {
                 $lines[] = $nestedLine;
             }
@@ -5358,11 +5574,113 @@ final class MarkdownWriter
                     $lines,
                     $prefix,
                     str_repeat(' ', $continuationIndent),
-                    $this->renderBlockInlines($inlineChildren)
+                    $this->renderListItemInlines($inlineChildren)
                 );
             } else {
-                $lines[] = rtrim($prefix . $this->renderBlockInlines($inlineChildren));
+                $this->replaceListItemFirstLine($lines, $prefix, $this->renderListItemInlines($inlineChildren), $continuationIndent);
             }
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @param list<AstNode> $children
+     */
+    private function listItemNeedsFencedDivBoundary(array $children, int $index): bool
+    {
+        $block = $children[$index] ?? null;
+        $next = $children[$index + 1] ?? null;
+        if (!$block instanceof AstNode || !$next instanceof AstNode || $next->type !== 'div') {
+            return false;
+        }
+
+        if ($block->type === 'paragraph') {
+            return true;
+        }
+
+        $attributes = $next->attr('attributes', []);
+
+        return is_array($attributes) && $attributes !== [];
+    }
+
+    private function listItemUsesReaderNestedListIndent(AstNode $item, AstNode $child): bool
+    {
+        return $this->isListBlock($child) && array_key_exists('text', $item->attrs);
+    }
+
+    /**
+     * @param list<AstNode> $children
+     */
+    private function plainBeforeDisabledDiv(array $children, int $index): bool
+    {
+        $child = $children[$index] ?? null;
+        $next = $children[$index + 1] ?? null;
+
+        return $child instanceof AstNode
+            && $child->type === 'plain'
+            && $next instanceof AstNode
+            && $next->type === 'div'
+            && !$this->fencedDivsEnabled()
+            && !$this->nativeDivsEnabled();
+    }
+
+    private function replaceListItemFirstLine(array &$lines, string $prefix, string $content, int $continuationIndent): void
+    {
+        if ($lines !== [] && rtrim((string) end($lines)) === rtrim($prefix)) {
+            array_pop($lines);
+        }
+
+        $contentLines = explode("\n", $content);
+        $first = array_shift($contentLines);
+        $lines[] = rtrim($prefix . (string) $first);
+        foreach ($contentLines as $line) {
+            $lines[] = str_repeat(' ', $continuationIndent) . $line;
+        }
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function renderListItemInlines(array $nodes, bool $escapeInitialPlainMarker = false): string
+    {
+        if ($this->isPlainTextVariant()) {
+            return $this->renderPlainInlines($nodes);
+        }
+
+        $text = '';
+        foreach ($nodes as $index => $node) {
+            $text .= $node->type === 'softbreak'
+                ? $this->renderListItemSoftBreak()
+                : $this->renderInline($node, array_slice($nodes, $index + 1), $escapeInitialPlainMarker && $index === 0);
+            $next = $nodes[$index + 1] ?? null;
+            if ($node->type === 'math' && $next instanceof AstNode && $next->type === 'text') {
+                $nextText = (string) $next->attr('text', '');
+                if ($nextText !== '' && preg_match('/^\d/', $nextText) === 1) {
+                    $text .= '<!-- -->';
+                }
+            }
+        }
+
+        return $text;
+    }
+
+    private function renderListItemSoftBreak(): string
+    {
+        $softBreak = strtolower(str_replace(['_', '-'], '', (string) ($this->options['softBreak'] ?? '')));
+
+        return $softBreak === 'space' ? ' ' : "\n";
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderInitialIndentedCodeListItem(string $prefix, AstNode $node): array
+    {
+        $linePrefix = rtrim($prefix) . str_repeat(' ', 5);
+        $lines = [];
+        foreach (explode("\n", (string) $node->attr('text', '')) as $line) {
+            $lines[] = $linePrefix . $line;
         }
 
         return $lines;
@@ -5566,7 +5884,7 @@ final class MarkdownWriter
     private function renderCodeBlock(AstNode $node, int $indent): array
     {
         if (!$this->codeBlockRendersIndented($node)) {
-            return $this->prefixLines($this->renderFencedCodeBlock($node), $indent);
+            return $this->prefixLines($this->renderFencedCodeBlock($node, $indent), $indent);
         }
 
         $lines = [];
@@ -5590,13 +5908,14 @@ final class MarkdownWriter
     /**
      * @return list<string>
      */
-    private function renderFencedCodeBlock(AstNode $node): array
+    private function renderFencedCodeBlock(AstNode $node, int $indent): array
     {
         $text = (string) $node->attr('text', '');
         $fenceChar = $this->backtickCodeBlocksEnabled() ? '`' : '~';
         $fence = str_repeat($fenceChar, $this->codeFenceLength($text, $fenceChar));
         $attrs = $this->renderCodeBlockInfoString($node);
-        $lines = [$fence . ($attrs === '' ? '' : ' ' . $attrs)];
+        $infoSeparator = $attrs === '' || $indent > 0 ? '' : ' ';
+        $lines = [$fence . $infoSeparator . $attrs];
         array_push($lines, ...explode("\n", $text));
         $lines[] = $fence;
 
@@ -5828,6 +6147,7 @@ final class MarkdownWriter
                 (bool) $node->attr('preserveSmartPunctuation', false)
             ),
             'softbreak' => $this->renderSoftBreak($following),
+            'space' => ' ',
             'linebreak' => $this->renderLineBreak(),
             'code' => $this->renderCode($node),
             'emph' => $this->renderEmph($node),
@@ -5872,6 +6192,7 @@ final class MarkdownWriter
                 (bool) $node->attr('preserveSmartPunctuation', false)
             ),
             'softbreak' => $this->writerWrapText() === 'preserve' ? "\n" : ' ',
+            'space' => ' ',
             'linebreak' => "\n",
             'code' => (string) $node->attr('text', ''),
             'emph' => $this->renderPlainEmph($node),

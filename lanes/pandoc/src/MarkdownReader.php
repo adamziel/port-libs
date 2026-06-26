@@ -4162,7 +4162,7 @@ final class MarkdownReader
     }
 
     /**
-     * @return array{start:int, style:string, delimiter:string}
+     * @return array{start:int, style:string, delimiter:string, sourceFormat:string}
      */
     private function htmlOrderedListAttrs(\DOMElement $list): array
     {
@@ -4176,6 +4176,7 @@ final class MarkdownReader
             'start' => $start,
             'style' => $this->htmlOrderedListStyle($list),
             'delimiter' => 'default',
+            'sourceFormat' => 'html',
         ];
     }
 
