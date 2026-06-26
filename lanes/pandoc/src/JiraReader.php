@@ -412,7 +412,7 @@ final class JiraReader
     /**
      * @return list<AstNode>
      */
-    private function parseInlines(string $text): array
+    private function parseInlines(string $text, bool $allowAutolinks = true): array
     {
         $nodes = [];
         $buffer = '';
@@ -477,6 +477,17 @@ final class JiraReader
                 }
             }
 
+            if ($allowAutolinks) {
+                $autolink = $this->parseAutolink($text, $offset);
+                if ($autolink instanceof AstNode) {
+                    $this->flushText($nodes, $buffer);
+                    $nodes[] = $autolink;
+                    $offset = (int) $autolink->attr('_endOffset');
+                    $nodes[count($nodes) - 1] = new AstNode($autolink->type, $this->withoutPrivateAttrs($autolink->attrs), $autolink->children);
+                    continue;
+                }
+            }
+
             if (str_starts_with($tail, '??')) {
                 $end = strpos($text, '??', $offset + 2);
                 if ($end !== false) {
@@ -538,6 +549,40 @@ final class JiraReader
         }
 
         return null;
+    }
+
+    private function parseAutolink(string $text, int $offset): ?AstNode
+    {
+        $previous = $offset === 0 ? '' : $text[$offset - 1];
+        if ($previous !== '' && !ctype_space($previous) && !in_array($previous, ['(', '[', '{', '<'], true)) {
+            return null;
+        }
+
+        $tail = substr($text, $offset);
+        if (preg_match('/^(?:[A-Za-z][A-Za-z0-9+.-]*:\\/\\/|mailto:)[^\\s<>{}\\[\\]"\']+/u', $tail, $match) !== 1) {
+            return null;
+        }
+
+        $target = $this->trimAutolinkTrailingPunctuation($match[0]);
+        if ($target === '' || strcasecmp($target, 'mailto:') === 0) {
+            return null;
+        }
+
+        return new AstNode('link', [
+            'url' => $target,
+            'classes' => [],
+            '_endOffset' => $offset + strlen($target) - 1,
+        ], $this->textInlines($target));
+    }
+
+    private function trimAutolinkTrailingPunctuation(string $target): string
+    {
+        $target = rtrim($target, ".,;:!?");
+        while (str_ends_with($target, ')') && substr_count($target, '(') < substr_count($target, ')')) {
+            $target = substr($target, 0, -1);
+        }
+
+        return $target;
     }
 
     private function parseDelimitedStyle(string $text, int $offset): ?AstNode
@@ -653,7 +698,7 @@ final class JiraReader
         return new AstNode('link', [
             'url' => $target,
             'classes' => $classes,
-        ], $this->parseInlines($label));
+        ], $this->parseInlines($label, false));
     }
 
     private function parseImage(string $content): ?AstNode

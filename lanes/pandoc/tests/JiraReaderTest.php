@@ -160,6 +160,7 @@ return [
         $t->same(10, count($links));
         $t->same('https://example.org', $links[0]->attr('url'));
         $t->same('Example', $plainText($links[0]));
+        $t->same('See https://example.com', $plainText($links[1]));
         $t->same('mailto:me@example.org', $links[2]->attr('url'));
         $t->same('me@example.org', $plainText($links[2]));
         $t->same(['attachment'], $links[4]->attr('classes'));
@@ -177,6 +178,35 @@ return [
         $t->same('underline', $paragraphs[21]->children[0]->type);
         $t->same('me & you', $plainText($paragraphs[22]));
         $t->same('20.09-15 2-678', $plainText($paragraphs[23]));
+    },
+
+    'maps upstream jira reader bare autolink fixture semantics' => static function (TestRunner $t) use ($nodesOfType, $plainText): void {
+        $source = implode("\n", [
+            'https://pandoc.org by itself should be a link.',
+            'With an ampersand: http://example.com/?foo=1&bar=2.',
+            'An e-mail address: mailto:nobody@nowhere.invalid.',
+            '* In a list?',
+            '* http://example.com/',
+            'bq. Blockquoted: http://example.com/',
+            '{code:java}',
+            'Autolink should not occur here: http://example.com/',
+            '{code}',
+        ]);
+        $document = (new JiraReader())->read($source);
+        $links = $nodesOfType($document, 'link');
+        $codeBlocks = $nodesOfType($document, 'code_block');
+
+        $t->same(5, count($links));
+        $t->same('https://pandoc.org', $links[0]->attr('url'));
+        $t->same('https://pandoc.org', $plainText($links[0]));
+        $t->same('http://example.com/?foo=1&bar=2', $links[1]->attr('url'));
+        $t->same('http://example.com/?foo=1&bar=2', $plainText($links[1]));
+        $t->same('mailto:nobody@nowhere.invalid', $links[2]->attr('url'));
+        $t->same('mailto:nobody@nowhere.invalid', $plainText($links[2]));
+        $t->same('http://example.com/', $links[3]->attr('url'));
+        $t->same('http://example.com/', $links[4]->attr('url'));
+        $t->same(1, count($codeBlocks));
+        $t->same('Autolink should not occur here: http://example.com/', $codeBlocks[0]->attr('text'));
     },
 
     'reads jira through converter and renders shared ast outputs' => static function (TestRunner $t): void {
