@@ -50,15 +50,19 @@ final class PptxReader
             }
 
             $richMedia = $this->collectRichMediaReviews($slideBlocks);
+            $charts = $this->collectChartReviews($slideBlocks);
             $slideReviews[] = [
                 'index' => $slide['index'],
                 'relationshipId' => $slide['relationshipId'],
                 'partName' => ltrim($slidePart, '/'),
                 'blockCount' => count($slideBlocks),
+                'context' => $this->slideContextReview($slideContext),
                 'commentCount' => count($slideComments),
                 'comments' => $slideComments,
                 'richMediaCount' => count($richMedia),
                 'richMedia' => $richMedia,
+                'chartCount' => count($charts),
+                'charts' => $charts,
             ];
         }
 
@@ -229,6 +233,8 @@ final class PptxReader
             'masterPart' => '',
             'layoutTitle' => '',
             'masterTitle' => '',
+            'themePart' => '',
+            'theme' => [],
             'layoutPlaceholders' => [],
             'masterPlaceholders' => [],
         ];
@@ -270,7 +276,171 @@ final class PptxReader
             $context['masterPlaceholders'] = $this->placeholderBlocksByKey($masterRoot);
         }
 
+        $masterRelationships = $this->relationshipsOrEmpty($package, $masterPart);
+        $themeRelationship = $this->firstRelationshipWithTypeSuffix($masterRelationships, '/theme');
+        if (!$themeRelationship instanceof OpcRelationship || $themeRelationship->isExternal()) {
+            return $context;
+        }
+
+        $themePart = OpcPackagePath::stripQueryAndFragment($masterRelationships->resolveTarget($themeRelationship));
+        $context['themePart'] = ltrim($themePart, '/');
+        $themeDocument = $this->optionalPackageXml($package, $themePart, 'PPTX theme');
+        if (!$themeDocument instanceof \DOMDocument) {
+            return $context;
+        }
+
+        $themeRoot = XmlHtmlDom::rootElement($themeDocument, 'theme');
+        if ($themeRoot instanceof \DOMElement) {
+            $context['theme'] = $this->themeSummary($themeRoot);
+        }
+
         return $context;
+    }
+
+    /**
+     * @param array<string, mixed> $slideContext
+     * @return array<string, mixed>
+     */
+    private function slideContextReview(array $slideContext): array
+    {
+        $review = [];
+        foreach (['layoutPart', 'masterPart', 'themePart'] as $key) {
+            $value = (string) ($slideContext[$key] ?? '');
+            if ($value !== '') {
+                $review[$key] = $value;
+            }
+        }
+
+        $layoutPlaceholderKeys = $this->placeholderBucketKeys($slideContext['layoutPlaceholders'] ?? []);
+        if ($layoutPlaceholderKeys !== []) {
+            $review['layoutPlaceholderCount'] = count($layoutPlaceholderKeys);
+            $review['layoutPlaceholderKeys'] = $layoutPlaceholderKeys;
+        }
+
+        $masterPlaceholderKeys = $this->placeholderBucketKeys($slideContext['masterPlaceholders'] ?? []);
+        if ($masterPlaceholderKeys !== []) {
+            $review['masterPlaceholderCount'] = count($masterPlaceholderKeys);
+            $review['masterPlaceholderKeys'] = $masterPlaceholderKeys;
+        }
+
+        $theme = $slideContext['theme'] ?? [];
+        if (is_array($theme) && $theme !== []) {
+            $review['theme'] = $theme;
+        }
+
+        return $review;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function placeholderBucketKeys(mixed $placeholders): array
+    {
+        if (!is_array($placeholders)) {
+            return [];
+        }
+
+        $keys = array_values(array_filter(array_keys($placeholders), static fn (int|string $key): bool => is_string($key) && $key !== ''));
+        sort($keys, SORT_STRING);
+
+        return $keys;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function themeSummary(\DOMElement $themeRoot): array
+    {
+        $theme = [];
+        $name = trim($themeRoot->getAttribute('name'));
+        if ($name !== '') {
+            $theme['name'] = $name;
+        }
+
+        $colorScheme = $this->themeColorScheme($themeRoot);
+        if ($colorScheme !== []) {
+            $theme['colorScheme'] = $colorScheme;
+        }
+
+        $fontScheme = $this->themeFontScheme($themeRoot);
+        if ($fontScheme !== []) {
+            $theme['fontScheme'] = $fontScheme;
+        }
+
+        return $theme;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function themeColorScheme(\DOMElement $themeRoot): array
+    {
+        $colorScheme = $this->firstDescendantElement($themeRoot, 'clrScheme');
+        if (!$colorScheme instanceof \DOMElement) {
+            return [];
+        }
+
+        $colors = [];
+        foreach ($this->childElements($colorScheme, null) as $colorElement) {
+            if (!in_array($colorElement->localName, ['dk1', 'lt1', 'dk2', 'lt2', 'accent1', 'accent2', 'accent3', 'accent4', 'accent5', 'accent6', 'hlink', 'folHlink'], true)) {
+                continue;
+            }
+
+            $value = $this->drawingColorValue($colorElement);
+            if ($value !== '') {
+                $colors[$colorElement->localName] = $value;
+            }
+        }
+
+        if ($colors === []) {
+            return [];
+        }
+
+        $scheme = ['colors' => $colors];
+        $name = trim($colorScheme->getAttribute('name'));
+        if ($name !== '') {
+            $scheme = ['name' => $name] + $scheme;
+        }
+
+        return $scheme;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function themeFontScheme(\DOMElement $themeRoot): array
+    {
+        $fontScheme = $this->firstDescendantElement($themeRoot, 'fontScheme');
+        if (!$fontScheme instanceof \DOMElement) {
+            return [];
+        }
+
+        $fonts = [];
+        $name = trim($fontScheme->getAttribute('name'));
+        if ($name !== '') {
+            $fonts['name'] = $name;
+        }
+
+        foreach (['majorFont' => 'major', 'minorFont' => 'minor'] as $elementName => $prefix) {
+            $fontElement = $this->firstChildElement($fontScheme, $elementName);
+            if (!$fontElement instanceof \DOMElement) {
+                continue;
+            }
+
+            foreach (['latin' => 'Latin', 'ea' => 'EastAsia', 'cs' => 'ComplexScript'] as $source => $target) {
+                $sourceElement = $this->firstChildElement($fontElement, $source);
+                if (!$sourceElement instanceof \DOMElement) {
+                    continue;
+                }
+
+                $typeface = trim($sourceElement->getAttribute('typeface'));
+                if ($typeface !== '') {
+                    $fonts[$prefix . $target] = $typeface;
+                }
+            }
+        }
+
+        return $fonts;
     }
 
     private function optionalPackageXml(ZipPackage $package, string $partName, string $label): ?\DOMDocument
@@ -471,6 +641,45 @@ final class PptxReader
         return $media;
     }
 
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<array<string, mixed>>
+     */
+    private function collectChartReviews(array $blocks): array
+    {
+        $charts = [];
+        $seen = [];
+        foreach ($blocks as $block) {
+            foreach ($this->collectChartReviewsFromNode($block) as $record) {
+                $key = (string) ($record['relationshipId'] ?? '') . "\0" . (string) ($record['partName'] ?? '') . "\0" . (string) ($record['title'] ?? '');
+                if (isset($seen[$key])) {
+                    continue;
+                }
+                $seen[$key] = true;
+                $charts[] = $record;
+            }
+        }
+
+        return $charts;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function collectChartReviewsFromNode(AstNode $node): array
+    {
+        $charts = [];
+        $record = $node->attr('pptxChart');
+        if (is_array($record)) {
+            $charts[] = $record;
+        }
+        foreach ($node->children as $child) {
+            array_push($charts, ...$this->collectChartReviewsFromNode($child));
+        }
+
+        return $charts;
+    }
+
     private function firstRelationshipWithTypeSuffix(OpcRelationships $relationships, string $suffix): ?OpcRelationship
     {
         foreach ($relationships->all() as $relationship) {
@@ -641,6 +850,11 @@ final class PptxReader
 
             return $this->withShapeMetadata($table instanceof \DOMElement ? [$this->tableNode($table)] : [], $shapeElement, $zOrder);
         }
+        if (str_contains($uri, 'chart')) {
+            $chart = $this->chartNode($package, $graphicData, $slideRelationships);
+
+            return $this->withShapeMetadata($chart instanceof AstNode ? [$chart] : [], $shapeElement, $zOrder);
+        }
         if (str_contains($uri, 'diagram')) {
             $diagram = $this->diagramNode($package, $graphicData, $slideRelationships);
 
@@ -794,6 +1008,72 @@ final class PptxReader
         $value = $element->getAttribute($name);
 
         return preg_match('/^-?\d+$/', $value) === 1 ? (int) $value : null;
+    }
+
+    private function xmlBooleanAttribute(\DOMElement $element, string $name): ?bool
+    {
+        if (!$element->hasAttribute($name)) {
+            return null;
+        }
+
+        $value = strtolower(trim($element->getAttribute($name)));
+
+        return in_array($value, ['1', 'true', 'on'], true);
+    }
+
+    private function drawingColorValue(\DOMElement $container): string
+    {
+        $value = $this->drawingColorValueFromElement($container);
+        if ($value !== '') {
+            return $value;
+        }
+
+        foreach ($container->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement) {
+                continue;
+            }
+
+            $value = $this->drawingColorValueFromElement($element);
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return '';
+    }
+
+    private function drawingColorValueFromElement(\DOMElement $element): string
+    {
+        if ($element->localName === 'srgbClr') {
+            $value = strtoupper(trim($element->getAttribute('val')));
+
+            return preg_match('/^[0-9A-F]{6}$/', $value) === 1 ? $value : '';
+        }
+
+        if ($element->localName === 'sysClr') {
+            $value = strtoupper(trim($element->getAttribute('lastClr')));
+            if (preg_match('/^[0-9A-F]{6}$/', $value) === 1) {
+                return $value;
+            }
+
+            $system = trim($element->getAttribute('val'));
+
+            return $system !== '' ? 'system:' . $system : '';
+        }
+
+        if ($element->localName === 'schemeClr') {
+            $value = trim($element->getAttribute('val'));
+
+            return $value !== '' ? 'theme:' . $value : '';
+        }
+
+        if ($element->localName === 'prstClr') {
+            $value = trim($element->getAttribute('val'));
+
+            return $value !== '' ? 'preset:' . $value : '';
+        }
+
+        return '';
     }
 
     /**
@@ -1052,40 +1332,506 @@ final class PptxReader
         return $graphic instanceof \DOMElement ? $this->firstChildElement($graphic, 'graphicData') : null;
     }
 
+    private function chartNode(ZipPackage $package, \DOMElement $graphicData, OpcRelationships $slideRelationships): ?AstNode
+    {
+        $chartElement = $this->firstDescendantElement($graphicData, 'chart');
+        if (!$chartElement instanceof \DOMElement) {
+            return null;
+        }
+
+        $relationshipId = $this->relationshipId($chartElement, 'id');
+        $chart = [
+            'relationshipId' => $relationshipId,
+            'relationshipType' => '',
+            'target' => '',
+            'partName' => '',
+            'external' => false,
+            'title' => '',
+            'chartType' => 'unknown',
+            'series' => [],
+            'externalDataRelationshipIds' => [],
+            'issues' => [],
+            'byteExposurePolicy' => 'chart-part-bytes-blocked',
+            'reviewPolicy' => 'chart-metadata-and-cache-values-only',
+        ];
+        if ($relationshipId === '') {
+            $chart['issues'][] = 'missing-chart-relationship-id';
+
+            return $this->chartReviewNode($chart);
+        }
+
+        $relationship = $slideRelationships->byId($relationshipId);
+        if (!$relationship instanceof OpcRelationship) {
+            $chart['issues'][] = 'unknown-chart-relationship';
+
+            return $this->chartReviewNode($chart);
+        }
+
+        $chart['relationshipType'] = $relationship->type;
+        $chart['target'] = $relationship->target;
+        $chart['external'] = $relationship->isExternal();
+        if ($relationship->isExternal()) {
+            $chart['issues'][] = 'external-chart-part';
+
+            return $this->chartReviewNode($chart);
+        }
+
+        $chartPart = OpcPackagePath::stripQueryAndFragment($slideRelationships->resolveTarget($relationship));
+        $chart['partName'] = ltrim($chartPart, '/');
+        $document = $this->optionalPackageXml($package, $chartPart, 'PPTX chart');
+        if (!$document instanceof \DOMDocument) {
+            $chart['issues'][] = 'missing-or-invalid-chart-part';
+
+            return $this->chartReviewNode($chart);
+        }
+
+        $root = XmlHtmlDom::rootElement($document, 'chartSpace');
+        if (!$root instanceof \DOMElement) {
+            $chart['issues'][] = 'unexpected-chart-root';
+
+            return $this->chartReviewNode($chart);
+        }
+
+        return $this->chartReviewNode(array_replace($chart, $this->chartSummary($root)));
+    }
+
+    /**
+     * @param array<string, mixed> $chart
+     */
+    private function chartReviewNode(array $chart): AstNode
+    {
+        $chartType = (string) ($chart['chartType'] ?? 'unknown');
+        $chartClass = strtolower((string) preg_replace('/[^a-z0-9_-]+/i', '-', $chartType));
+        $chartClass = trim($chartClass, '-') !== '' ? trim($chartClass, '-') : 'unknown';
+        $title = (string) ($chart['title'] ?? '');
+        $label = $title !== '' ? $title : ((string) ($chart['partName'] ?? '') !== '' ? (string) $chart['partName'] : (string) ($chart['relationshipId'] ?? 'unknown'));
+        $attributes = array_filter([
+            'type' => $chartType,
+            'relationship-id' => (string) ($chart['relationshipId'] ?? ''),
+            'src' => (string) ($chart['partName'] ?? ''),
+            'title' => $title,
+            'series-count' => (string) count(is_array($chart['series'] ?? null) ? $chart['series'] : []),
+        ], static fn (string $value): bool => $value !== '');
+
+        $children = [$this->paragraph('[PPTX chart: ' . $label . ']')];
+        foreach ((is_array($chart['series'] ?? null) ? $chart['series'] : []) as $series) {
+            if (!is_array($series)) {
+                continue;
+            }
+            $summary = $this->chartSeriesSummaryText($series);
+            if ($summary !== '') {
+                $children[] = $this->paragraph($summary);
+            }
+        }
+
+        return new AstNode('div', [
+            'classes' => ['pptx-chart', 'pptx-chart-' . $chartClass],
+            'attributes' => $attributes,
+            'pptxChart' => $chart,
+        ], $children);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function chartSummary(\DOMElement $chartSpace): array
+    {
+        $chartElement = $this->firstDescendantElement($chartSpace, 'chart');
+        if (!$chartElement instanceof \DOMElement) {
+            return [];
+        }
+
+        $summary = [];
+        $titleElement = $this->firstDescendantElement($chartElement, 'title');
+        if ($titleElement instanceof \DOMElement) {
+            $title = $this->chartElementText($titleElement);
+            if ($title !== '') {
+                $summary['title'] = $title;
+            }
+        }
+
+        $chartTypeElement = $this->firstChartTypeElement($chartElement);
+        if ($chartTypeElement instanceof \DOMElement) {
+            $summary['chartType'] = $this->chartTypeName($chartTypeElement);
+            $series = [];
+            foreach ($this->childElements($chartTypeElement, 'ser') as $seriesElement) {
+                $series[] = $this->chartSeries($seriesElement);
+            }
+            if ($series !== []) {
+                $summary['series'] = $series;
+            }
+        }
+
+        $externalDataRelationshipIds = [];
+        foreach ($chartSpace->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement || $element->localName !== 'externalData') {
+                continue;
+            }
+
+            $relationshipId = $this->relationshipId($element, 'id');
+            if ($relationshipId !== '') {
+                $externalDataRelationshipIds[] = $relationshipId;
+            }
+        }
+        if ($externalDataRelationshipIds !== []) {
+            $summary['externalDataRelationshipIds'] = array_values(array_unique($externalDataRelationshipIds));
+        }
+
+        return $summary;
+    }
+
+    private function firstChartTypeElement(\DOMElement $chartElement): ?\DOMElement
+    {
+        foreach ($chartElement->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement || !str_ends_with($element->localName, 'Chart')) {
+                continue;
+            }
+            if ($element->localName === 'chart') {
+                continue;
+            }
+
+            return $element;
+        }
+
+        return null;
+    }
+
+    private function chartTypeName(\DOMElement $chartTypeElement): string
+    {
+        $type = preg_replace('/Chart$/', '', $chartTypeElement->localName) ?? $chartTypeElement->localName;
+
+        return strtolower($type);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function chartSeries(\DOMElement $seriesElement): array
+    {
+        $series = [
+            'name' => '',
+            'categories' => $this->chartCacheValuesFor($seriesElement, ['cat', 'xVal']),
+            'values' => $this->chartCacheValuesFor($seriesElement, ['val', 'yVal']),
+        ];
+
+        $index = $this->firstChildElement($seriesElement, 'idx');
+        if ($index instanceof \DOMElement && $index->getAttribute('val') !== '') {
+            $series['index'] = $index->getAttribute('val');
+        }
+
+        $order = $this->firstChildElement($seriesElement, 'order');
+        if ($order instanceof \DOMElement && $order->getAttribute('val') !== '') {
+            $series['order'] = $order->getAttribute('val');
+        }
+
+        $text = $this->firstChildElement($seriesElement, 'tx');
+        if ($text instanceof \DOMElement) {
+            $series['name'] = $this->chartElementText($text);
+        }
+
+        return $series;
+    }
+
+    /**
+     * @param list<string> $containers
+     * @return list<string>
+     */
+    private function chartCacheValuesFor(\DOMElement $seriesElement, array $containers): array
+    {
+        foreach ($this->childElements($seriesElement, null) as $child) {
+            if (in_array($child->localName, $containers, true)) {
+                return $this->chartCacheValues($child);
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function chartCacheValues(\DOMElement $container): array
+    {
+        $values = [];
+        foreach ($container->getElementsByTagName('*') as $point) {
+            if (!$point instanceof \DOMElement || $point->localName !== 'pt') {
+                continue;
+            }
+
+            $value = $this->firstChildElement($point, 'v');
+            if ($value instanceof \DOMElement) {
+                $text = $this->chartElementText($value);
+                if ($text !== '') {
+                    $values[] = $text;
+                }
+            }
+        }
+        if ($values !== []) {
+            return $values;
+        }
+
+        foreach ($container->getElementsByTagName('*') as $value) {
+            if (!$value instanceof \DOMElement || $value->localName !== 'v') {
+                continue;
+            }
+
+            $text = $this->chartElementText($value);
+            if ($text !== '') {
+                $values[] = $text;
+            }
+        }
+
+        return $values;
+    }
+
+    private function chartElementText(\DOMElement $element): string
+    {
+        $texts = [];
+        if (in_array($element->localName, ['t', 'v'], true)) {
+            $text = trim($this->allDescendantText($element));
+            if ($text !== '') {
+                $texts[] = $text;
+            }
+        }
+
+        foreach ($element->getElementsByTagName('*') as $child) {
+            if (!$child instanceof \DOMElement || !in_array($child->localName, ['t', 'v'], true)) {
+                continue;
+            }
+
+            $text = trim($this->allDescendantText($child));
+            if ($text !== '') {
+                $texts[] = $text;
+            }
+        }
+
+        return trim(implode(' ', $texts));
+    }
+
+    /**
+     * @param array<string, mixed> $series
+     */
+    private function chartSeriesSummaryText(array $series): string
+    {
+        $name = (string) ($series['name'] ?? '');
+        $categories = is_array($series['categories'] ?? null) ? $series['categories'] : [];
+        $values = is_array($series['values'] ?? null) ? $series['values'] : [];
+        $pairs = [];
+        $count = max(count($categories), count($values));
+        for ($index = 0; $index < $count; $index++) {
+            $category = is_string($categories[$index] ?? null) ? $categories[$index] : '';
+            $value = is_string($values[$index] ?? null) ? $values[$index] : '';
+            if ($category === '' && $value === '') {
+                continue;
+            }
+            $pairs[] = $category !== '' ? $category . '=' . $value : $value;
+        }
+
+        if ($pairs === []) {
+            return $name;
+        }
+
+        return ($name !== '' ? $name : 'Series') . ': ' . implode('; ', $pairs);
+    }
+
     private function tableNode(\DOMElement $tableElement): AstNode
     {
         $rows = [];
         foreach ($this->childElements($tableElement, 'tr') as $rowElement) {
             $row = [];
             foreach ($this->childElements($rowElement, 'tc') as $cellElement) {
-                $row[] = $this->drawingText($cellElement);
+                $row[] = $this->tableCellData($cellElement);
             }
             $rows[] = $row;
         }
 
         $header = array_shift($rows) ?? [];
-
-        return new AstNode('table', [
+        $attrs = [
             'caption' => '',
             'alignments' => array_fill(0, count($header), 'default'),
             'pptxTable' => true,
-        ], [
+        ];
+        $style = $this->tableStyleMetadata($tableElement);
+        if ($style !== []) {
+            $attrs['pptxTableStyle'] = $style;
+        }
+        $columnWidths = $this->tableColumnWidths($tableElement);
+        if ($columnWidths !== []) {
+            $attrs['columnWidths'] = $columnWidths;
+        }
+
+        return new AstNode('table', $attrs, [
             new AstNode('table_head', [], [$this->tableRow($header, true)]),
             new AstNode('table_body', [], array_map(fn (array $row): AstNode => $this->tableRow($row, false), $rows)),
         ]);
     }
 
     /**
-     * @param list<string> $row
+     * @return array{attrs:array<string, mixed>, text:string}
+     */
+    private function tableCellData(\DOMElement $cellElement): array
+    {
+        $text = $this->drawingText($cellElement);
+        $attrs = ['text' => $text];
+        $pptxCell = [];
+
+        foreach (['gridSpan' => 'colspan', 'rowSpan' => 'rowspan'] as $source => $target) {
+            $value = $this->integerAttribute($cellElement, $source);
+            if ($value !== null && $value > 1) {
+                $attrs[$target] = $value;
+                $pptxCell[$source] = $value;
+            }
+        }
+
+        foreach (['hMerge', 'vMerge'] as $source) {
+            $value = $this->xmlBooleanAttribute($cellElement, $source);
+            if ($value !== null) {
+                $pptxCell[$source] = $value;
+            }
+        }
+
+        if ($pptxCell !== []) {
+            $attrs['pptxCell'] = $pptxCell;
+        }
+
+        $style = $this->tableCellStyleMetadata($cellElement);
+        if ($style !== []) {
+            $attrs['pptxCellStyle'] = $style;
+            if (isset($style['fillColor'])) {
+                $attrs['backgroundColor'] = $style['fillColor'];
+            }
+            if (isset($style['verticalAlign'])) {
+                $attrs['verticalAlign'] = $style['verticalAlign'];
+            }
+        }
+
+        return ['attrs' => $attrs, 'text' => $text];
+    }
+
+    /**
+     * @param list<array{attrs:array<string, mixed>, text:string}> $row
      */
     private function tableRow(array $row, bool $header): AstNode
     {
         return new AstNode('table_row', ['header' => $header], array_map(
-            fn (string $text): AstNode => new AstNode('table_cell', ['header' => $header, 'text' => $text], [
-                new AstNode('plain', [], $this->textInlines($text)),
-            ]),
+            fn (array $cell): AstNode => $this->tableCellNode($cell, $header),
             $row
         ));
+    }
+
+    /**
+     * @param array{attrs:array<string, mixed>, text:string} $cell
+     */
+    private function tableCellNode(array $cell, bool $header): AstNode
+    {
+        $attrs = $cell['attrs'];
+        $attrs['header'] = $header;
+        $text = $cell['text'];
+
+        return new AstNode('table_cell', $attrs, [
+            new AstNode('plain', [], $this->textInlines($text)),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function tableStyleMetadata(\DOMElement $tableElement): array
+    {
+        $properties = $this->firstChildElement($tableElement, 'tblPr');
+        if (!$properties instanceof \DOMElement) {
+            return [];
+        }
+
+        $style = [];
+        foreach (['firstRow', 'firstCol', 'lastRow', 'lastCol', 'bandRow', 'bandCol'] as $attribute) {
+            $value = $this->xmlBooleanAttribute($properties, $attribute);
+            if ($value !== null) {
+                $style[$attribute] = $value;
+            }
+        }
+
+        $styleId = $this->firstChildElement($properties, 'tableStyleId');
+        if ($styleId instanceof \DOMElement) {
+            $id = trim($this->allDescendantText($styleId));
+            if ($id !== '') {
+                $style['id'] = $id;
+            }
+        }
+
+        return $style;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function tableColumnWidths(\DOMElement $tableElement): array
+    {
+        $grid = $this->firstChildElement($tableElement, 'tblGrid');
+        if (!$grid instanceof \DOMElement) {
+            return [];
+        }
+
+        $widths = [];
+        foreach ($this->childElements($grid, 'gridCol') as $column) {
+            $width = $this->integerAttribute($column, 'w');
+            if ($width !== null) {
+                $widths[] = $width;
+            }
+        }
+
+        return $widths;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function tableCellStyleMetadata(\DOMElement $cellElement): array
+    {
+        $properties = $this->firstChildElement($cellElement, 'tcPr');
+        if (!$properties instanceof \DOMElement) {
+            return [];
+        }
+
+        $style = [];
+        foreach (['anchor' => 'verticalAlign', 'vert' => 'textDirection'] as $source => $target) {
+            $value = trim($properties->getAttribute($source));
+            if ($value !== '') {
+                $style[$target] = $value;
+            }
+        }
+        foreach (['marL' => 'marginLeft', 'marR' => 'marginRight', 'marT' => 'marginTop', 'marB' => 'marginBottom'] as $source => $target) {
+            $value = $this->integerAttribute($properties, $source);
+            if ($value !== null) {
+                $style[$target] = $value;
+            }
+        }
+
+        $fill = $this->firstChildElement($properties, 'solidFill');
+        if ($fill instanceof \DOMElement) {
+            $color = $this->drawingColorValue($fill);
+            if ($color !== '') {
+                $style['fillColor'] = $color;
+            }
+        }
+
+        $borders = [];
+        $borderNames = ['lnL' => 'left', 'lnR' => 'right', 'lnT' => 'top', 'lnB' => 'bottom', 'lnTlToBr' => 'diagonalDown', 'lnBlToTr' => 'diagonalUp'];
+        foreach ($this->childElements($properties, null) as $child) {
+            if (!isset($borderNames[$child->localName])) {
+                continue;
+            }
+
+            $color = $this->drawingColorValue($child);
+            if ($color !== '') {
+                $borders[$borderNames[$child->localName]] = $color;
+            }
+        }
+        if ($borders !== []) {
+            $style['borders'] = $borders;
+        }
+
+        return $style;
     }
 
     private function diagramNode(ZipPackage $package, \DOMElement $graphicData, OpcRelationships $slideRelationships): ?AstNode

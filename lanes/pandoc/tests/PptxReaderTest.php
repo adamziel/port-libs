@@ -167,14 +167,43 @@ XML);
   </p:spTree></p:cSld>
 </p:sldMaster>
 XML);
+    $zip->addFromString('ppt/slideMasters/_rels/slideMaster1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdTheme" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="../theme/theme1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/theme/theme1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Office Theme">
+  <a:themeElements>
+    <a:clrScheme name="Office">
+      <a:dk1><a:sysClr val="windowText" lastClr="000000"/></a:dk1>
+      <a:lt1><a:sysClr val="window" lastClr="FFFFFF"/></a:lt1>
+      <a:accent1><a:srgbClr val="4472C4"/></a:accent1>
+    </a:clrScheme>
+    <a:fontScheme name="Aptos">
+      <a:majorFont><a:latin typeface="Aptos Display"/></a:majorFont>
+      <a:minorFont><a:latin typeface="Aptos"/></a:minorFont>
+    </a:fontScheme>
+  </a:themeElements>
+</a:theme>
+XML);
 
     $zip->addFromString('ppt/slides/slide3.xml', $slideOpen . $titleShape('Table') . <<<'XML'
     <p:graphicFrame>
       <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl>
+        <a:tblPr firstRow="1" bandRow="1"><a:tableStyleId>{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}</a:tableStyleId></a:tblPr>
+        <a:tblGrid><a:gridCol w="1828800"/><a:gridCol w="1828800"/><a:gridCol w="1828800"/></a:tblGrid>
         <a:tr><a:tc><a:txBody><a:p><a:r><a:t>Col1</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Col2</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Col3</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
-        <a:tr><a:tc><a:txBody><a:p><a:r><a:t>Name</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Anton</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Antich</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
-        <a:tr><a:tc><a:txBody><a:p><a:r><a:t>Age</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>23</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>years</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+        <a:tr><a:tc gridSpan="2"><a:txBody><a:p><a:r><a:t>Name</a:t></a:r></a:p></a:txBody><a:tcPr anchor="ctr" marL="120"><a:solidFill><a:srgbClr val="D9EAF7"/></a:solidFill><a:lnB><a:solidFill><a:schemeClr val="accent1"/></a:solidFill></a:lnB></a:tcPr></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Anton</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Antich</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+        <a:tr><a:tc rowSpan="2"><a:txBody><a:p><a:r><a:t>Age</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>23</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>years</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
       </a:tbl></a:graphicData></a:graphic>
+    </p:graphicFrame>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="8" name="Revenue Chart"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <p:xfrm><a:off x="7000" y="8000"/><a:ext cx="9000" cy="10000"/></p:xfrm>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" r:id="rIdChart"/></a:graphicData></a:graphic>
     </p:graphicFrame>
     <p:pic>
       <p:nvPicPr><p:cNvPr id="7" name="Picture 6" descr=""/></p:nvPicPr>
@@ -185,9 +214,32 @@ XML . $slideClose);
 <?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image1.png"/>
+  <Relationship Id="rIdChart" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="../charts/chart1.xml"/>
 </Relationships>
 XML);
     $zip->addFromString('ppt/media/image1.png', 'fake-png-bytes');
+    $zip->addFromString('ppt/charts/chart1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"
+              xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+              xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <c:chart>
+    <c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Quarterly Revenue</a:t></a:r></a:p></c:rich></c:tx></c:title>
+    <c:plotArea>
+      <c:barChart>
+        <c:barDir val="col"/>
+        <c:ser>
+          <c:idx val="0"/><c:order val="0"/>
+          <c:tx><c:strRef><c:strCache><c:pt idx="0"><c:v>North</c:v></c:pt></c:strCache></c:strRef></c:tx>
+          <c:cat><c:strRef><c:strCache><c:pt idx="0"><c:v>Q1</c:v></c:pt><c:pt idx="1"><c:v>Q2</c:v></c:pt></c:strCache></c:strRef></c:cat>
+          <c:val><c:numRef><c:numCache><c:pt idx="0"><c:v>12</c:v></c:pt><c:pt idx="1"><c:v>18</c:v></c:pt></c:numCache></c:numRef></c:val>
+        </c:ser>
+      </c:barChart>
+    </c:plotArea>
+  </c:chart>
+  <c:externalData r:id="rIdWorkbook"/>
+</c:chartSpace>
+XML);
 
     $zip->addFromString('ppt/slides/slide4.xml', $slideOpen . $titleShape('Smart Art') . <<<'XML'
     <p:graphicFrame>
@@ -312,6 +364,7 @@ return [
         $divs = $nodesOfType($document, 'div');
         $paragraphs = $nodesOfType($document, 'paragraph');
         $smartArtDivs = $nodesWithClass($divs, 'smartart');
+        $chartDivs = $nodesWithClass($divs, 'pptx-chart');
         $mediaDivs = $nodesWithClass($divs, 'pptx-rich-media');
         $commentDivs = $nodesWithClass($divs, 'pptx-comments');
         $backLayerParagraphs = array_values(array_filter($paragraphs, static fn (AstNode $node): bool => $node->attr('text') === 'Back layer'));
@@ -327,6 +380,14 @@ return [
         $t->same('Review this clip', $review['slides'][4]['comments'][0]['text'] ?? null);
         $t->same(1, $review['slides'][4]['richMediaCount'] ?? null);
         $t->same('ppt/media/video1.mp4', $review['slides'][4]['richMedia'][0]['partName'] ?? null);
+        $t->same('ppt/slideLayouts/slideLayout1.xml', $review['slides'][1]['context']['layoutPart'] ?? null);
+        $t->same('ppt/slideMasters/slideMaster1.xml', $review['slides'][1]['context']['masterPart'] ?? null);
+        $t->same('ppt/theme/theme1.xml', $review['slides'][1]['context']['themePart'] ?? null);
+        $t->same('Office Theme', $review['slides'][1]['context']['theme']['name'] ?? null);
+        $t->same('4472C4', $review['slides'][1]['context']['theme']['colorScheme']['colors']['accent1'] ?? null);
+        $t->same('Aptos', $review['slides'][1]['context']['theme']['fontScheme']['minorLatin'] ?? null);
+        $t->same(1, $review['slides'][2]['chartCount'] ?? null);
+        $t->same('ppt/charts/chart1.xml', $review['slides'][2]['charts'][0]['partName'] ?? null);
 
         $t->same('heading', $document->children[0]->type);
         $t->same('slide-1', $document->children[0]->attr('id'));
@@ -340,12 +401,29 @@ return [
         $t->same('SKILLS', $document->children[3]->attr('text'));
 
         $t->same(1, count($tables));
+        $t->same(['firstRow' => true, 'bandRow' => true, 'id' => '{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}'], $tables[0]->attr('pptxTableStyle'));
+        $t->same([1828800, 1828800, 1828800], $tables[0]->attr('columnWidths'));
         $t->same(['Col1', 'Col2', 'Col3'], array_map(static fn (AstNode $cell): string => (string) $cell->attr('text'), $tables[0]->children[0]->children[0]->children));
         $t->same('Name', $tables[0]->children[1]->children[0]->children[0]->attr('text'));
+        $t->same(2, $tables[0]->children[1]->children[0]->children[0]->attr('colspan'));
+        $t->same('D9EAF7', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['fillColor'] ?? null);
+        $t->same('ctr', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['verticalAlign'] ?? null);
+        $t->same('theme:accent1', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['borders']['bottom'] ?? null);
+        $t->same(2, $tables[0]->children[1]->children[1]->children[0]->attr('rowspan'));
         $t->same('23', $tables[0]->children[1]->children[1]->children[1]->attr('text'));
         $t->same(1, count($images));
         $t->same('ppt/media/image1.png', $images[0]->attr('url'));
         $t->same('Picture 6', $images[0]->attr('title'));
+
+        $t->same(1, count($chartDivs));
+        $t->same(['pptx-chart', 'pptx-chart-bar'], $chartDivs[0]->attr('classes'));
+        $t->same('ppt/charts/chart1.xml', $chartDivs[0]->attr('attributes')['src'] ?? null);
+        $t->same('Quarterly Revenue', $chartDivs[0]->attr('attributes')['title'] ?? null);
+        $t->same('bar', $chartDivs[0]->attr('pptxChart')['chartType'] ?? null);
+        $t->same(['Q1', 'Q2'], $chartDivs[0]->attr('pptxChart')['series'][0]['categories'] ?? null);
+        $t->same(['12', '18'], $chartDivs[0]->attr('pptxChart')['series'][0]['values'] ?? null);
+        $t->same(['rIdWorkbook'], $chartDivs[0]->attr('pptxChart')['externalDataRelationshipIds'] ?? null);
+        $t->same('North: Q1=12; Q2=18', $chartDivs[0]->children[1]->attr('text'));
 
         $t->same(1, count($smartArtDivs));
         $t->same(['smartart', 'chevron2'], $smartArtDivs[0]->attr('classes'));
@@ -379,11 +457,13 @@ return [
         $t->contains('BulletList', $native);
         $t->contains('Table ( "" , [  ] , [  ] )', $native);
         $t->contains('Image ( "" , [  ] , [  ] ) [  ] ( "ppt/media/image1.png" , "Picture 6" )', $native);
+        $t->contains('Div ( "" , [ "pptx-chart" , "pptx-chart-bar" ]', $native);
         $t->contains('Div ( "" , [ "smartart" , "chevron2" ] , [ ( "layout" , "chevron2" ) ] )', $native);
         $t->contains('Div ( "" , [ "pptx-rich-media" , "pptx-video" ]', $native);
         $t->contains('( "src" , "ppt/media/video1.mp4" )', $native);
         $t->contains('<!-- wp:heading {"level":2} -->', $blocks);
         $t->contains('<th>Col1</th>', $blocks);
+        $t->contains('Quarterly Revenue', $blocks);
         $t->contains('ppt/media/image1.png', $blocks);
         $t->contains('data-pandoc-comment-author="Ada Reviewer"', $blocks);
         $t->contains('Inherited Layout Body', $blocks);
