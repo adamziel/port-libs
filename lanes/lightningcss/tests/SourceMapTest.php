@@ -1631,6 +1631,15 @@ return [
         });
     },
     'source map imports upstream json defaults and data URLs' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d Cargo.lock parcel_sourcemap 2.1.1 lines 985-994,
+        // parcel_sourcemap-2.1.1/src/lib.rs::test_to_json lines 785-795.
+        $jsonOnlyMap = new SourceMap();
+        $jsonOnlyMap->addGeneratedMapping(1, 1);
+        $t->same(
+            '{"version":3,"sourceRoot":"/","mappings":";C","sources":[],"sourcesContent":[],"names":[]}',
+            $jsonOnlyMap->toJson('/')
+        );
+
         $jsonWithoutContents = SourceMap::fromJson('{"version":3,"sourceRoot":"/","mappings":";C","sources":["file.js"],"names":[]}');
         $jsonWithNullContents = SourceMap::fromJson('{"version":3,"sourceRoot":"/","mappings":";C","sources":["file.js"],"sourcesContent":[null],"names":[]}');
 

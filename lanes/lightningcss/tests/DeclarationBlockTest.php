@@ -12,6 +12,11 @@ return [
         $t->same(['value' => 'red', 'important' => false], $block->getProperty('color: green; color: red', 'color'));
         $t->same(['value' => 'red', 'important' => true], $block->getProperty('color: red !important', 'color'));
         $t->same(null, $block->getProperty('margin-top: 5px', 'color'));
+        // Pinned upstream 22bdda3d tests/test_cssom.rs::test_get line 29.
+        $t->same(
+            ['value' => '5px', 'important' => false],
+            $block->getProperty('margin-top: 5px; margin-bottom: 5px; margin-left: 5px; margin-right: 5px', 'margin')
+        );
         // Pinned upstream 22bdda3d tests/test_cssom.rs::test_get line 87.
         $t->same(['value' => '5px 6px 7px 8px', 'important' => false], $block->getProperty('margin: 5px 6px 7px 8px', 'margin'));
         $t->same(['value' => '5px', 'important' => false], $block->getProperty('margin: 5px 6px 7px 8px', 'margin-top'));

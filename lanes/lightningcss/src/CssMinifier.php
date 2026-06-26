@@ -3792,6 +3792,7 @@ final class CssMinifier
         $value = $this->minifyColorSchemeValue($property, $value);
         $value = $this->minifyTextKeywordValue($property, $value);
         $value = $this->minifyOverflowValue($property, $value);
+        $value = $this->minifyAlphaValue($property, $value);
         $value = $this->minifyImageSetFunctions($value);
         $value = $this->minifyGradientFunctions($value);
         $value = $this->minifyBoxLengthListValue($property, $value);
@@ -5017,6 +5018,20 @@ final class CssMinifier
         $lower = strtolower($trimmed);
 
         return in_array($lower, ['visible', 'hidden', 'clip', 'scroll', 'auto'], true) ? $lower : $trimmed;
+    }
+
+    private function minifyAlphaValue(string $property, string $value): string
+    {
+        if (!in_array(strtolower($property), ['opacity', 'fill-opacity', 'stroke-opacity'], true)) {
+            return $value;
+        }
+
+        $trimmed = trim($value);
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $trimmed, $matches) === 1) {
+            return $this->minifyNumber((float) $matches[1] / 100);
+        }
+
+        return $this->minifyPlainNumberToken($trimmed);
     }
 
     /**

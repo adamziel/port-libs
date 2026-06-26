@@ -3712,6 +3712,21 @@ CSS;
             $compactNot['warnings']
         );
     },
+    'css minifier maps upstream opacity value minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_opacity lines 11352-11357.
+        foreach ([
+            [11352, '.foo { opacity: 0 }', '.foo{opacity:0}'],
+            [11353, '.foo { opacity: 0% }', '.foo{opacity:0}'],
+            [11354, '.foo { opacity: 0.5 }', '.foo{opacity:.5}'],
+            [11355, '.foo { opacity: 50% }', '.foo{opacity:.5}'],
+            [11356, '.foo { opacity: 1 }', '.foo{opacity:1}'],
+            [11357, '.foo { opacity: 100% }', '.foo{opacity:1}'],
+        ] as [$line, $source, $expected]) {
+            $t->same($expected, $minifier->minify($source), 'src/lib.rs::test_opacity line ' . $line);
+        }
+    },
     'css minifier maps upstream transition longhand value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
