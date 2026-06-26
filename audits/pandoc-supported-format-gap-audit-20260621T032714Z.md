@@ -57,3 +57,49 @@ Scope: current `port-libs` Pandoc lane support registry after the bounded XLSX, 
 - PDF/markerPDF guard: `2` files, `3,051` assertions, `0` failures.
 - Local problematic-PDF transient smoke: `reconstruction=geometry tables=10 geometry=10 cells=114 rects=896 gray_attrs=34 collapsed_guard=clear spaced_guard=hit`.
 - Hardcode guard: repository, Playground assets, and demo worktree scan for the local PDF path and pasted visible sample terms returned `0` hits.
+
+## 2026-06-26 Wave 2 Reader Regression Check
+
+Fresh focused reader evidence on the rebased `plib-46qr1` branch did not find a regression in the direct CSV/TSV, BibTeX/BibLaTeX parser, XLSX, PPTX, or DOCX reader surfaces.
+
+### Exact commands/results
+
+- `php tools/run-tests.php lanes/pandoc/tests/DelimitedTextReaderTest.php`
+  - `1` test file, `446` assertions, `0` failures.
+- `php tools/run-tests.php lanes/pandoc/tests/BibtexCslProcessorTest.php`
+  - `1` test file, `479` assertions, `0` failures.
+- `php tools/run-tests.php lanes/pandoc/tests/XlsxReaderTest.php`
+  - `1` test file, `193` assertions, `0` failures.
+- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php`
+  - `1` test file, `71` assertions, `0` failures.
+- `php tools/run-tests.php lanes/pandoc/tests/DocxReaderTest.php lanes/pandoc/tests/DocxOpenXmlReaderTest.php lanes/pandoc/tests/DocxGeneratedFieldMetadataTest.php`
+  - `3` test files, `9,828` assertions, `0` failures.
+- `php tools/run-tests.php lanes/pandoc/tests/DelimitedTextReaderTest.php lanes/pandoc/tests/BibtexCslProcessorTest.php lanes/pandoc/tests/XlsxReaderTest.php lanes/pandoc/tests/PptxReaderTest.php lanes/pandoc/tests/DocxReaderTest.php lanes/pandoc/tests/DocxOpenXmlReaderTest.php lanes/pandoc/tests/DocxGeneratedFieldMetadataTest.php`
+  - `7` test files, `11,017` assertions, `0` failures.
+- `php tools/run-tests.php lanes/pandoc/tests/CitationCslProcessorTest.php`
+  - `1` test file, `5,666` assertions, `61` failures.
+- `php tools/run-tests.php lanes/pandoc/tests`
+  - Exit `1`; `278` test files, `107,253` assertions, `10,615` failures.
+
+The full lane remains red outside the direct Wave 2 reader group. The largest failure buckets in this run were Markdown reader/writer surge files (`MarkdownReaderBlocksSurgeTest.php`, `MarkdownWriterBlockListCodeSurgeTest.php`, `MarkdownReaderMetadataRawExtensionSurgeTest.php`, and table/link/profile surge files), plus the separate `CitationCslProcessorTest.php` failures listed above. The direct CSV/TSV, BibTeX/BibLaTeX parser, XLSX, PPTX, and DOCX reader tests were green.
+
+### Review findings
+
+- CSV/TSV: no regression found. `DelimitedTextReaderTest.php` covers direct CSV/TSV table import, parser options, BOM/control-character diagnostics, quote/escape handling, ragged row repair, blank rows, and converter registry dispatch. Remaining CSV-table work is still the RST `csv-table` reader gap, not the direct CSV/TSV reader.
+- BibTeX/BibLaTeX: direct parser/handoff evidence is green in `BibtexCslProcessorTest.php`, including entry aliases, creator roles, crossref/xdata inheritance, field aliases, shorthand metadata, and legacy CSL handoff. The red bibliography surface is broader CSL citation rendering in `CitationCslProcessorTest.php` (citation cluster rendering, date rendering, locator/page labels, bibliography layout/sort/display parts, note-style citation state, EndNote XML diagnostics), so bibliography formats remain partial.
+- XLSX: no regression found. `XlsxReader` reads through `ZipPackage`, resolves workbook/sheet relationships through `OpcPackagePath`, rejects external worksheet relationships, bounds XML part reads at `8,388,608` bytes, emits cached formula values without evaluating formulas, and records chart/pivot/slicer metadata for review without execution.
+- PPTX: no regression found. `PptxReader` uses the shared ZIP/OPC/XML path, rejects external slide relationships, bounds XML part reads at `8,388,608` bytes, emits XML text plus media references only, and covers the pinned upstream `basic.pptx` fixture surface. PPTX output remains unsupported.
+- DOCX/OpenXML: no regression found. The DOCX group covers the native package reader, bounded `ZipPackage` ingestion, content type/relationship inventories, malformed relationship and XML diagnostics, relationship target suffix handling, external target policy metadata, selected part digests, generated fields, charts, diagrams, ActiveX/VBA/custom XML, and body/notes/header/footer/revision AST handoff. Full style/layout/media/object edge parity remains open.
+
+### Safety review
+
+- XML safety: package XML readers go through `XmlHtmlDom::loadXmlDocument()`, which preflights source safety, rejects DTD/entity declarations and processing instructions, disables external resolution/entity substitution, and calls libxml with `LIBXML_NONET`.
+- ZIP safety: rich package readers go through `ZipPackage::fromString()` or bounded `ZipPackage` fixtures. The shared package layer rejects split ZIPs, ZIP64, unsupported general-purpose flags, unsupported compression/encryption features, duplicate entries, unsafe names, symlinks, Unix special files, and malformed central/local header accounting before exposing package entries.
+- Path safety: OPC relationship targets go through `OpcPackagePath`, which rejects null bytes, backslashes, control bytes, absolute URI targets for internal relationships, traversal above package root, malformed or unsafe percent escapes, and query/fragment bytes with unsafe escapes. External relationships are either rejected for executable reader pivots such as worksheets/slides or retained as metadata-only review diagnostics.
+
+### Remaining gaps
+
+- The direct Wave 2 reader group is suitable as a green regression guard, but it is not full Pandoc parity.
+- Fix `CitationCslProcessorTest.php` before moving bibliography formats beyond partial: the parser is green, but citation rendering and CSL bibliography behavior are still red.
+- Keep Markdown surge failures out of the Wave 2 reader claim. They dominate the current full-lane red baseline and need a separate Markdown/CommonMark stabilization pass.
+- Keep PPTX writer and richer DOCX/XLSX/PPTX package layout/media semantics in the backlog; the current evidence only supports bounded reader behavior and review metadata.
