@@ -800,6 +800,10 @@ final class CssBundler
 
     private function applyBundleValueVisitors(string $css): string
     {
+        if ($this->hasBundleFunctionVisitor()) {
+            $css = $this->applyBundleFunctionVisitor($css);
+        }
+
         if (is_callable($this->visitor['Length'] ?? null)) {
             $css = $this->applyBundleLengthVisitor($css, $this->visitor['Length']);
         }
@@ -809,6 +813,212 @@ final class CssBundler
         }
 
         return $css;
+    }
+
+    private function hasBundleFunctionVisitor(): bool
+    {
+        $visitor = $this->visitor['Function'] ?? null;
+        if (is_callable($visitor)) {
+            return true;
+        }
+
+        if (!is_array($visitor)) {
+            return false;
+        }
+
+        foreach ($visitor as $handler) {
+            if (is_callable($handler)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function applyBundleFunctionVisitor(string $css): string
+    {
+        $output = '';
+        $length = strlen($css);
+        $offset = 0;
+
+        while ($offset < $length) {
+            $char = $css[$offset];
+            if ($char === '"' || $char === "'") {
+                $end = $this->consumeQuotedString($css, $offset);
+                $output .= substr($css, $offset, $end - $offset);
+                $offset = $end;
+                continue;
+            }
+
+            if ($char === '/' && ($css[$offset + 1] ?? '') === '*') {
+                $end = strpos($css, '*/', $offset + 2);
+                $end = $end === false ? $length : $end + 2;
+                $output .= substr($css, $offset, $end - $offset);
+                $offset = $end;
+                continue;
+            }
+
+            $identifier = $this->readCssIdentifierToken($css, $offset);
+            $previous = $offset > 0 ? $css[$offset - 1] : '';
+            if ($identifier !== null && ($previous === '' || !$this->isIdentifierChar($previous))) {
+                $open = ($css[$identifier['end']] ?? '') === '(' ? $identifier['end'] : null;
+                if ($open !== null) {
+                    $close = $this->findMatchingDelimiter($css, $open, '(', ')');
+                    $handler = $this->bundleFunctionVisitorForName($identifier['name']);
+                    if ($handler !== null) {
+                        $function = [
+                            'name' => $identifier['name'],
+                            'arguments' => $this->bundleFunctionArguments(substr($css, $open + 1, $close - $open - 1)),
+                        ];
+                        $replacement = $handler($function, $this);
+                        $serialized = is_array($replacement) ? $this->serializeVisitedTokenOrValue($replacement) : null;
+                        if ($serialized !== null) {
+                            $output .= $serialized;
+                            $offset = $close + 1;
+                            continue;
+                        }
+                    }
+                }
+            }
+
+            $output .= $char;
+            $offset++;
+        }
+
+        return $output;
+    }
+
+    private function bundleFunctionVisitorForName(string $name): ?callable
+    {
+        $visitor = $this->visitor['Function'] ?? null;
+        if (is_callable($visitor)) {
+            return $visitor;
+        }
+
+        if (!is_array($visitor)) {
+            return null;
+        }
+
+        foreach ($visitor as $key => $handler) {
+            if (is_string($key) && strcasecmp($key, $name) === 0 && is_callable($handler)) {
+                return $handler;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function bundleFunctionArguments(string $raw): array
+    {
+        $arguments = [];
+        $length = strlen($raw);
+        $offset = 0;
+
+        while ($offset < $length) {
+            $offset = $this->skipWhitespaceAndComments($raw, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($raw[$offset] === ',') {
+                $offset++;
+                continue;
+            }
+
+            if ($raw[$offset] === '"' || $raw[$offset] === "'") {
+                $end = $this->consumeQuotedString($raw, $offset);
+                $arguments[] = [
+                    'type' => 'token',
+                    'value' => [
+                        'type' => 'string',
+                        'value' => $this->cssStringTokenValue(substr($raw, $offset, $end - $offset)),
+                    ],
+                ];
+                $offset = $end;
+                continue;
+            }
+
+            $identifier = $this->readCssIdentifierToken($raw, $offset);
+            if ($identifier !== null) {
+                $arguments[] = [
+                    'type' => 'token',
+                    'value' => [
+                        'type' => 'ident',
+                        'value' => $identifier['name'],
+                    ],
+                ];
+                $offset = $identifier['end'];
+                continue;
+            }
+
+            $arguments[] = [
+                'type' => 'token',
+                'value' => [
+                    'type' => 'raw',
+                    'value' => $raw[$offset],
+                ],
+            ];
+            $offset++;
+        }
+
+        return $arguments;
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     */
+    private function serializeVisitedTokenOrValue(array $value): ?string
+    {
+        if (array_key_exists('raw', $value)) {
+            return (string) $value['raw'];
+        }
+
+        $type = (string) ($value['type'] ?? '');
+        if ($type === 'length' && is_array($value['value'] ?? null)) {
+            $length = $value['value'];
+            if (isset($length['unit'], $length['value'])) {
+                return $this->serializeVisitedLength((float) $length['value'], (string) $length['unit']);
+            }
+        }
+
+        if ($type === 'color' && is_array($value['value'] ?? null)) {
+            return $this->serializeVisitedColor($value['value']);
+        }
+
+        if ($type === 'rgb') {
+            return $this->serializeVisitedColor($value);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $color
+     */
+    private function serializeVisitedColor(array $color): ?string
+    {
+        if (($color['type'] ?? null) !== 'rgb') {
+            return null;
+        }
+
+        $red = max(0, min(255, (int) round((float) ($color['r'] ?? 0))));
+        $green = max(0, min(255, (int) round((float) ($color['g'] ?? 0))));
+        $blue = max(0, min(255, (int) round((float) ($color['b'] ?? 0))));
+        $alpha = max(0.0, min(1.0, (float) ($color['alpha'] ?? 1)));
+
+        if ($alpha >= 1.0) {
+            return "rgb({$red}, {$green}, {$blue})";
+        }
+
+        $alphaText = rtrim(rtrim(sprintf('%.12F', $alpha), '0'), '.');
+        if (str_starts_with($alphaText, '0.')) {
+            $alphaText = substr($alphaText, 1);
+        }
+
+        return "rgba({$red}, {$green}, {$blue}, {$alphaText})";
     }
 
     private function applyBundleLengthVisitor(string $css, callable $visitor): string

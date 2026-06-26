@@ -333,6 +333,135 @@ CSS, $formatter->format(<<<'CSS'
 }
 CSS));
     },
+    'css formatter maps upstream border image printer cases' => static function (TestRunner $t): void {
+        $formatter = new CssFormatter();
+
+        $t->same(<<<'CSS'
+.foo {
+  border-image: url("test.png") 60;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-image: url(test.png) 60;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border-image: url("foo.png") 60;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-image: url(test.png) 60;
+  border-image-source: url(foo.png);
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border-image: url("foo.png") 10 40 fill / 10px round;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-image-source: url(foo.png);
+  border-image-slice: 10 40 10 40 fill;
+  border-image-width: 10px;
+  border-image-outset: 0;
+  border-image-repeat: round round;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border-image: url("foo.png") 60;
+  border-image-source: var(--test);
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-image: url(foo.png) 60;
+  border-image-source: var(--test);
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  -webkit-border-image: url("test.png") 60;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  -webkit-border-image: url("test.png") 60;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  -webkit-border-image: url("test.png") 60;
+  border-image: url("test.png") 60;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  -webkit-border-image: url("test.png") 60;
+  border-image: url("test.png") 60;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  -webkit-border-image: url("test.png") 60;
+  border-image-source: url("foo.png");
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  -webkit-border-image: url("test.png") 60;
+  border-image-source: url(foo.png);
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border: 1px solid red;
+  border-image: url("test.png") 60;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border: 1px solid red;
+  border-image: url(test.png) 60;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border: 1px solid red;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-image: url(test.png) 60;
+  border: 1px solid red;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border: 1px solid red;
+  border-image: var(--border-image);
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border: 1px solid red;
+  border-image: var(--border-image);
+}
+CSS));
+    },
     'css formatter maps upstream position try printer case' => static function (TestRunner $t): void {
         $formatter = new CssFormatter();
 

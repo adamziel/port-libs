@@ -3966,6 +3966,30 @@ CSS;
             $t->same($expected, $minifier->minify($input));
         }
     },
+    'css minifier maps upstream tab-size word-break and hyphens values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $cases = [
+            '.foo { tab-size: 8 }' => '.foo{tab-size:8}',
+            '.foo { tab-size: 4px }' => '.foo{tab-size:4px}',
+            '.foo { -moz-tab-size: 4px }' => '.foo{-moz-tab-size:4px}',
+            '.foo { -o-tab-size: 4px }' => '.foo{-o-tab-size:4px}',
+            '.foo { word-break: normal }' => '.foo{word-break:normal}',
+            '.foo { word-break: keep-all }' => '.foo{word-break:keep-all}',
+            '.foo { word-break: break-all }' => '.foo{word-break:break-all}',
+            '.foo { word-break: break-word }' => '.foo{word-break:break-word}',
+            '.foo { hyphens: manual }' => '.foo{hyphens:manual}',
+            '.foo { hyphens: auto }' => '.foo{hyphens:auto}',
+            '.foo { hyphens: none }' => '.foo{hyphens:none}',
+            '.foo { -webkit-hyphens: manual }' => '.foo{-webkit-hyphens:manual}',
+            '.foo { -moz-hyphens: manual }' => '.foo{-moz-hyphens:manual}',
+            '.foo { -ms-hyphens: manual }' => '.foo{-ms-hyphens:manual}',
+        ];
+
+        foreach ($cases as $input => $expected) {
+            $t->same($expected, $minifier->minify($input));
+        }
+    },
     'css minifier maps upstream line-break and wrap keyword values' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

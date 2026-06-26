@@ -1428,6 +1428,10 @@ return [
         );
         $t->same(
             ['value' => 'linear-gradient(red, green), linear-gradient(#fff, #000)', 'important' => false],
+            $block->getProperty('background: linear-gradient(red, green), linear-gradient(#fff, #000)', 'background-image')
+        );
+        $t->same(
+            ['value' => 'linear-gradient(red, green), linear-gradient(#fff, #000)', 'important' => false],
             $block->getProperty(
                 'background: linear-gradient(red, green) repeat-x, linear-gradient(#fff, #000) repeat-y',
                 'background-image'
@@ -3162,6 +3166,7 @@ return [
 
         $t->same('color: green', $block->setProperty('color: red', 'color', 'green'));
         $t->same('color: green', $block->setProperty('color: red !important', 'color', 'green'));
+        $t->same('color: green !important', $block->setProperty('color: red', 'color', 'green', true));
         $t->same('color: green !important', $block->setProperty('color: red !important', 'color', 'green', true));
         $t->same('color: red; background-color: #00f', $block->setProperty('color: red', 'background-color', 'blue'));
         $t->same('margin: 10px', $block->setProperty('margin: 5px', 'margin', '10px'));

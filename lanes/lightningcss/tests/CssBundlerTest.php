@@ -3427,6 +3427,76 @@ CSS,
         $t->same('.button{background:url(https://mywebsite.com/foo.png)}.entry{background-image:url(https://mywebsite.com/../entry.png);content:"url(skip.png)"}', $code);
         $t->same(['foo.png', '../entry.png'], $seen);
     },
+    'css bundler maps upstream function visitor token returns across imports' => static function (TestRunner $t): void {
+        $tokens = [
+            'color.background.primary' => [
+                'type' => 'color',
+                'value' => [
+                    'type' => 'rgb',
+                    'r' => 255,
+                    'g' => 0,
+                    'b' => 0,
+                    'alpha' => 1,
+                ],
+            ],
+            'size.spacing.small' => [
+                'type' => 'length',
+                'value' => [
+                    'unit' => 'px',
+                    'value' => 16,
+                ],
+            ],
+        ];
+        $seen = [];
+
+        $code = (new CssBundler())->bundleWithVisitor('/entry.css', [
+            '/entry.css' => <<<'CSS'
+@import "component.css";
+.entry {
+  color: design-token('color.background.primary');
+}
+CSS,
+            '/component.css' => <<<'CSS'
+.component {
+  padding: design-token("size.spacing.small");
+}
+CSS,
+        ], [
+            'Function' => [
+                'design-token' => static function (array $function) use ($tokens, &$seen): ?array {
+                    $argument = $function['arguments'][0] ?? null;
+                    if (!is_array($argument) || ($argument['type'] ?? null) !== 'token') {
+                        return null;
+                    }
+
+                    $value = $argument['value'] ?? null;
+                    if (!is_array($value) || ($value['type'] ?? null) !== 'string') {
+                        return null;
+                    }
+
+                    $seen[] = [$function['name'], $value['value']];
+
+                    return $tokens[$value['value']] ?? null;
+                },
+            ],
+        ]);
+
+        $t->same('.component{padding:16px}.entry{color:red}', $code);
+        $t->same([
+            ['design-token', 'size.spacing.small'],
+            ['design-token', 'color.background.primary'],
+        ], $seen);
+
+        $raw = (new CssBundler())->bundleWithVisitor('/theme.css', [
+            '/theme.css' => '.theme { color: theme("red"); }',
+        ], [
+            'Function' => [
+                'theme' => static fn (): array => ['raw' => 'rgba(255, 0, 0)'],
+            ],
+        ]);
+
+        $t->same('.theme{color:red}', $raw);
+    },
     'css bundler maps upstream visitor factory dependency collection across imports' => static function (TestRunner $t): void {
         $dependencies = [];
         $code = (new CssBundler())->bundleWithVisitor('tests/testdata/a.css', [

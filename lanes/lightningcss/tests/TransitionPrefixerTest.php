@@ -1894,6 +1894,50 @@ CSS;
             $prefixer->prefixForTargets('.foo { -webkit-border-image: url(foo.png) 60; -moz-border-image: url(foo.png) 60; -o-border-image: url(foo.png) 60; border-image: url(foo.png) 60; }', ['chrome' => 15])
         );
     },
+    'transition prefixer maps upstream border-image advanced color rows' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $lch = 'linear-gradient(lch(56.208% 136.76 46.312), lch(51% 135.366 301.364))';
+        $compactLch = 'linear-gradient(lch(56.208% 136.76 46.312),lch(51% 135.366 301.364))';
+        $srgb = 'linear-gradient(#ff0f0e,#7773ff)';
+        $lab = 'linear-gradient(lab(56.208% 94.4644 98.8928),lab(51% 70.4544 -115.586))';
+
+        $t->same(
+            '.foo{-webkit-border-image:-webkit-gradient(linear,0 0,0 100%,from(#ff0f0e),to(#7773ff)) 60;-webkit-border-image:-webkit-linear-gradient(top,#ff0f0e,#7773ff) 60;border-image:' . $srgb . ' 60;border-image:' . $compactLch . ' 60}',
+            $prefixer->prefixForTargets('.foo { border-image: ' . $lch . ' 60; }', ['chrome' => 8])
+        );
+        $t->same(
+            '.foo{-webkit-border-image:-webkit-gradient(linear,0 0,0 100%,from(#ff0f0e),to(#7773ff)) 60;-webkit-border-image:-webkit-linear-gradient(top,#ff0f0e,#7773ff) 60;-moz-border-image:-moz-linear-gradient(top,#ff0f0e,#7773ff) 60;border-image:' . $srgb . ' 60;border-image:' . $compactLch . ' 60}',
+            $prefixer->prefixForTargets('.foo { border-image: ' . $lch . ' 60; }', ['chrome' => 8, 'firefox' => 4])
+        );
+        $t->same(
+            '.foo{border-image:-webkit-linear-gradient(top,#ff0f0e,#7773ff) 60;border-image:-moz-linear-gradient(top,#ff0f0e,#7773ff) 60;border-image:' . $srgb . ' 60;border-image:' . $compactLch . ' 60}',
+            $prefixer->prefixForTargets('.foo { border-image: ' . $lch . ' 60; }', ['chrome' => 15, 'firefox' => 15])
+        );
+        $t->same(
+            '.foo{border-image-source:-webkit-linear-gradient(top,#ff0f0e,#7773ff);border-image-source:' . $srgb . ';border-image-source:' . $compactLch . '}',
+            $prefixer->prefixForTargets('.foo { border-image-source: ' . $lch . '; }', ['chrome' => 15])
+        );
+        $t->same(
+            '.foo{border-image:' . $srgb . ' var(--foo)}@supports (color:lab(0% 0 0)){.foo{border-image:' . $lab . ' var(--foo)}}',
+            $prefixer->prefixForTargets('.foo { border-image: ' . $lch . ' var(--foo); }', ['chrome' => 90])
+        );
+        $t->same(
+            '.foo{border-image-source:linear-gradient(red,green);border-image-source:' . $compactLch . '}',
+            $prefixer->prefixForTargets('.foo { border-image-source: linear-gradient(red, green); border-image-source: ' . $lch . '; }', ['chrome' => 95])
+        );
+        $t->same(
+            '.foo{border-image-source:' . $compactLch . '}',
+            $prefixer->prefixForTargets('.foo { border-image-source: linear-gradient(red, green); border-image-source: ' . $lch . '; }', ['chrome' => 112])
+        );
+        $t->same(
+            '.foo{border-image:linear-gradient(red,green);border-image:' . $compactLch . '}',
+            $prefixer->prefixForTargets('.foo { border-image: linear-gradient(red, green); border-image: ' . $lch . '; }', ['chrome' => 95])
+        );
+        $t->same(
+            '.foo{border-image:var(--fallback);border-image:' . $compactLch . '}',
+            $prefixer->prefixForTargets('.foo { border-image: var(--fallback); border-image: ' . $lch . '; }', ['chrome' => 95])
+        );
+    },
     'transition prefixer maps upstream border-image supports target boundaries' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
         $css = '@supports (border-image: url(border.png) 30 fill / 10px / 4px round) { .foo { border-image: url(border.png) 30 fill / 10px / 4px round; } }';

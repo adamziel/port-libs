@@ -931,6 +931,9 @@ final class TransitionPrefixer
             : $this->rewriteListStyleFallbackEntries($entries, $selectors, $supportRules, $targetOptions);
         $borderRadiusChanged = $this->rewriteBorderRadiusPrefixEntries($entries, $targetOptions);
         $borderImageChanged = $this->rewriteBorderImagePrefixEntries($entries, $targetOptions);
+        $borderImageAdvancedColorChanged = $insideAdvancedColorSupports
+            ? false
+            : $this->rewriteBorderImageAdvancedColorFallbackEntries($entries, $selectors, $supportRules, $targetOptions);
         $borderImageFallbackChanged = $this->rewriteBorderImageRepeatSpaceFallbackEntries($entries, $targetOptions);
         $imageSetChanged = $this->rewriteImageSetPrefixEntries($entries, $targetOptions);
         $crossFadeChanged = $this->rewriteCrossFadePrefixEntries($entries, $targetOptions);
@@ -985,7 +988,7 @@ final class TransitionPrefixer
             return $logicalTextAlignFallback . implode('', $supportRules);
         }
         $selectorVariants = $this->selectorPrefixVariants($selectors, $targetOptions);
-        if ($transitionChanged || $displayFlexChanged || $displayGridChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $cursorPrefixChanged || $boxSizingChanged || $objectFitChanged || $shapeChanged || $unicodeBidiChanged || $textCompatibilityPrefixChanged || $scrollSnapPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $borderImageFallbackChanged || $imageSetChanged || $crossFadeChanged || $gradientPrefixChanged || $sizingKeywordChanged || $logicalSizeFallbackChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $modernColorChanged || $fontTargetChanged || $fontTypographyPrefixChanged || $imageRenderingPrefixChanged || $lengthTargetChanged || $selectorVariants !== null) {
+        if ($transitionChanged || $displayFlexChanged || $displayGridChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $cursorPrefixChanged || $boxSizingChanged || $objectFitChanged || $shapeChanged || $unicodeBidiChanged || $textCompatibilityPrefixChanged || $scrollSnapPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $borderImageAdvancedColorChanged || $borderImageFallbackChanged || $imageSetChanged || $crossFadeChanged || $gradientPrefixChanged || $sizingKeywordChanged || $logicalSizeFallbackChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $modernColorChanged || $fontTargetChanged || $fontTypographyPrefixChanged || $imageRenderingPrefixChanged || $lengthTargetChanged || $selectorVariants !== null) {
             return $this->serializeRulesForSelectors($selectorVariants ?? [$selectors], $entries) . implode('', $supportRules);
         }
 
@@ -7442,6 +7445,272 @@ final class TransitionPrefixer
     private function borderImageValueUsesRepeatSpace(string $value): bool
     {
         return preg_match('/(?<![a-z0-9_-])space(?![a-z0-9_-])/i', $value) === 1;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param list<string> $supportRules
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteBorderImageAdvancedColorFallbackEntries(array &$entries, string $selectors, array &$supportRules, array $targetOptions): bool
+    {
+        $needsSrgbFallback = $targetOptions['advancedColorNeedsSrgbFallback'] ?? false;
+        $usesP3Fallback = $targetOptions['advancedColorUsesP3Fallback'] ?? false;
+        $supportsNative = $targetOptions['advancedColorSupportsNative'] ?? false;
+        $needsLabFallback = $targetOptions['advancedColorNeedsLabFallback'] ?? false;
+        if (!$needsSrgbFallback && !$usesP3Fallback && !$supportsNative && !$needsLabFallback) {
+            return false;
+        }
+
+        $changed = false;
+        $rewritten = [];
+        $p3SupportEntries = [];
+        $labSupportEntries = [];
+
+        foreach ($entries as $entry) {
+            if ($entry['important'] || !$this->borderImagePropertySupportsAdvancedColorFallback($entry['property'])) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $normalized = $this->normalizeBackgroundFallbackValue($entry['value']);
+            $srgbFallback = $this->advancedColorFallbackValue($normalized);
+            if ($srgbFallback === null) {
+                $entry['value'] = $normalized;
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $supportsCustomPropertyOverride = $this->containsCustomPropertyReference($normalized)
+                || $this->containsEnvironmentReference($normalized);
+            $p3Fallback = $usesP3Fallback
+                ? $this->advancedColorP3FallbackValue($normalized, $supportsCustomPropertyOverride)
+                : null;
+            $labFallback = $this->advancedColorLabFallbackValue($normalized, $supportsCustomPropertyOverride);
+            $labTargetFallback = $needsLabFallback ? $this->advancedColorLabTargetValue($normalized) : null;
+            if ($p3Fallback === null && $supportsCustomPropertyOverride && $needsSrgbFallback && $needsLabFallback) {
+                $p3Fallback = $this->advancedColorP3FallbackValue($normalized, true);
+            }
+
+            if ($this->isVendorPrefixedBorderImageProperty($entry['property'])) {
+                $fallbackEntries = $this->borderImagePrefixedGradientFallbackEntries($entry, $srgbFallback, $targetOptions);
+                if ($fallbackEntries === []) {
+                    $fallbackEntries[] = $this->entryWithValue($entry, $srgbFallback);
+                }
+                array_push($rewritten, ...$fallbackEntries);
+                $changed = true;
+                continue;
+            }
+
+            if ($supportsNative && !$needsSrgbFallback && !$usesP3Fallback && !$needsLabFallback) {
+                [$rewritten, $dropped] = $this->dropPreviousSamePropertyFallbacks($rewritten, $entry['property']);
+                $rewritten[] = $this->entryWithValue($entry, $normalized);
+                $changed = $changed || $dropped || $normalized !== $entry['value'];
+                continue;
+            }
+
+            if (!$needsSrgbFallback) {
+                if ($supportsCustomPropertyOverride && $p3Fallback !== null) {
+                    [$rewritten] = $this->dropPreviousSamePropertyFallbacks($rewritten, $entry['property']);
+                    $rewritten[] = $this->entryWithValue($entry, $p3Fallback);
+                    if ($labFallback !== null && $labFallback !== $p3Fallback) {
+                        $labSupportEntries[] = $this->entryWithValue($entry, $labFallback);
+                    }
+                    $changed = true;
+                    continue;
+                }
+
+                if ($labTargetFallback !== null && $labTargetFallback !== $normalized) {
+                    [$rewritten] = $this->dropPreviousSamePropertyFallbacks($rewritten, $entry['property']);
+                    $rewritten[] = $this->entryWithValue($entry, $labTargetFallback);
+                    $changed = true;
+                    continue;
+                }
+
+                $rewritten[] = $this->entryWithValue($entry, $normalized);
+                continue;
+            }
+
+            if ($supportsCustomPropertyOverride) {
+                $rewritten[] = $this->entryWithValue($entry, $srgbFallback);
+                if ($p3Fallback !== null && $p3Fallback !== $srgbFallback) {
+                    $p3SupportEntries[] = $this->entryWithValue($entry, $p3Fallback);
+                }
+                if ($labFallback !== null && $labFallback !== $srgbFallback) {
+                    $labSupportEntries[] = $this->entryWithValue($entry, $labFallback);
+                }
+                $changed = true;
+                continue;
+            }
+
+            if (!$this->hasPreviousBorderImageAdvancedColorFallback($rewritten, $entry['property'])) {
+                array_push($rewritten, ...$this->borderImageUnprefixedGradientFallbackEntries($entry, $srgbFallback, $targetOptions));
+                $rewritten[] = $this->entryWithValue($entry, $srgbFallback);
+            }
+            if ($p3Fallback !== null && $p3Fallback !== $srgbFallback && $p3Fallback !== $normalized) {
+                $rewritten[] = $this->entryWithValue($entry, $p3Fallback);
+            }
+
+            $rewritten[] = $this->entryWithValue($entry, $this->advancedColorLabTargetValue($normalized) ?? $normalized);
+            $changed = true;
+        }
+
+        if ($p3SupportEntries !== []) {
+            $supportRules[] = $this->supportsP3Rule($selectors, $p3SupportEntries);
+        }
+        if ($labSupportEntries !== []) {
+            $supportRules[] = $this->supportsLabRule($selectors, $labSupportEntries);
+        }
+
+        if (!$changed) {
+            return false;
+        }
+
+        $entries = $rewritten;
+
+        return true;
+    }
+
+    private function borderImagePropertySupportsAdvancedColorFallback(string $property): bool
+    {
+        return in_array($property, [
+            '-moz-border-image',
+            '-o-border-image',
+            '-webkit-border-image',
+            'border-image',
+            'border-image-source',
+        ], true);
+    }
+
+    private function isVendorPrefixedBorderImageProperty(string $property): bool
+    {
+        return in_array($property, ['-moz-border-image', '-o-border-image', '-webkit-border-image'], true);
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     */
+    private function hasPreviousBorderImageAdvancedColorFallback(array $entries, string $property): bool
+    {
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            $entry = $entries[$index];
+            if ($entry['property'] !== $property) {
+                continue;
+            }
+            if ($entry['important']) {
+                return false;
+            }
+
+            return $this->advancedColorFallbackValue($entry['value']) === null;
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{property:string,name:string,value:string,important:bool} $entry
+     * @param array<string, bool> $targetOptions
+     * @return list<array{property:string,name:string,value:string,important:bool}>
+     */
+    private function borderImagePrefixedGradientFallbackEntries(array $entry, string $srgbFallback, array $targetOptions): array
+    {
+        $prefix = match ($entry['property']) {
+            '-webkit-border-image' => '-webkit',
+            '-moz-border-image' => '-moz',
+            '-o-border-image' => '-o',
+            default => null,
+        };
+        if ($prefix === null) {
+            return [];
+        }
+
+        return $this->borderImageGradientFallbackEntries(
+            $entry,
+            $srgbFallback,
+            [
+                '-webkit-gradient' => $prefix === '-webkit' && ($targetOptions['gradientNeedsOldWebkit'] ?? false),
+                '-webkit' => $prefix === '-webkit' && ($targetOptions['gradientNeedsWebkit'] ?? false),
+                '-moz' => $prefix === '-moz' && ($targetOptions['gradientNeedsMoz'] ?? false),
+                '-o' => $prefix === '-o' && ($targetOptions['gradientNeedsO'] ?? false),
+            ]
+        );
+    }
+
+    /**
+     * @param array{property:string,name:string,value:string,important:bool} $entry
+     * @param array<string, bool> $targetOptions
+     * @return list<array{property:string,name:string,value:string,important:bool}>
+     */
+    private function borderImageUnprefixedGradientFallbackEntries(array $entry, string $srgbFallback, array $targetOptions): array
+    {
+        return $this->borderImageGradientFallbackEntries(
+            $entry,
+            $srgbFallback,
+            [
+                '-webkit-gradient' => ($targetOptions['gradientNeedsOldWebkit'] ?? false)
+                    && !($targetOptions['borderImageNeedsWebkit'] ?? false),
+                '-webkit' => ($targetOptions['gradientNeedsWebkit'] ?? false)
+                    && ($entry['property'] === 'border-image-source' || !($targetOptions['borderImageNeedsWebkit'] ?? false)),
+                '-moz' => ($targetOptions['gradientNeedsMoz'] ?? false)
+                    && ($entry['property'] === 'border-image-source' || !($targetOptions['borderImageNeedsMoz'] ?? false)),
+                '-o' => ($targetOptions['gradientNeedsO'] ?? false)
+                    && ($entry['property'] === 'border-image-source' || !($targetOptions['borderImageNeedsO'] ?? false)),
+            ]
+        );
+    }
+
+    /**
+     * @param array{property:string,name:string,value:string,important:bool} $entry
+     * @param array<string, bool> $needed
+     * @return list<array{property:string,name:string,value:string,important:bool}>
+     */
+    private function borderImageGradientFallbackEntries(array $entry, string $srgbFallback, array $needed): array
+    {
+        $gradient = $this->leadingLinearGradientFunction($srgbFallback);
+        if ($gradient === null) {
+            return [];
+        }
+
+        $entries = [];
+        if ($needed['-webkit-gradient']) {
+            $legacy = $this->legacyLinearGradientValue($gradient);
+            if ($legacy !== null) {
+                $entries[] = $this->entryWithValue($entry, $this->replaceLeadingLinearGradientFunction($srgbFallback, $legacy));
+            }
+        }
+
+        foreach ([['-webkit', $needed['-webkit']], ['-moz', $needed['-moz']], ['-o', $needed['-o']]] as [$prefix, $isNeeded]) {
+            if (!$isNeeded) {
+                continue;
+            }
+
+            $prefixed = $this->prefixedLinearGradientValue($gradient, $prefix);
+            if ($prefixed !== null) {
+                $entries[] = $this->entryWithValue($entry, $this->replaceLeadingLinearGradientFunction($srgbFallback, $prefixed));
+            }
+        }
+
+        return $entries;
+    }
+
+    private function leadingLinearGradientFunction(string $value): ?string
+    {
+        if (preg_match('/^\s*linear-gradient\(/i', $value, $matches, PREG_OFFSET_CAPTURE) !== 1) {
+            return null;
+        }
+
+        return $this->readFunctionRaw($value, $matches[0][1])[0];
+    }
+
+    private function replaceLeadingLinearGradientFunction(string $value, string $replacement): string
+    {
+        if (preg_match('/^\s*linear-gradient\(/i', $value, $matches, PREG_OFFSET_CAPTURE) !== 1) {
+            return $value;
+        }
+
+        [, $end] = $this->readFunctionRaw($value, $matches[0][1]);
+
+        return substr($value, 0, $matches[0][1]) . $replacement . substr($value, $end + 1);
     }
 
     /**
