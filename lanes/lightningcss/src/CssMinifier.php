@@ -139,6 +139,12 @@ final class CssMinifier
                 continue;
             }
 
+            if ($char === '/' && $pendingSpace && $this->isInsideUnknownPseudoElementArgument($output)) {
+                $output .= ' /';
+                $pendingSpace = false;
+                continue;
+            }
+
             if ($char === '(' && $pendingSpace && $this->needsContainerStyleCustomPropertyTokenSpaceBeforeFunction($output, $css, $i)) {
                 $output .= ' ' . $char;
                 $pendingSpace = false;
@@ -157,6 +163,8 @@ final class CssMinifier
             } elseif ($pendingSpace && $this->needsComposesMathOperatorSpace($output)) {
                 $output .= ' ';
             } elseif ($pendingSpace && $this->needsSelectorDescendantSpaceAfterAttribute($output, $css, $i)) {
+                $output .= ' ';
+            } elseif ($pendingSpace && $this->needsUnknownPseudoElementArgumentSpaceAfterSlash($output, $css, $i)) {
                 $output .= ' ';
             } elseif ($pendingSpace && $this->needsSpaceBefore($output, $char)) {
                 $output .= ' ';
@@ -2814,6 +2822,37 @@ final class CssMinifier
         }
 
         return $this->needsSpaceBefore($output, 'a');
+    }
+
+    private function needsUnknownPseudoElementArgumentSpaceAfterSlash(string $output, string $css, int $offset): bool
+    {
+        if ($output === '' || $output[strlen($output) - 1] !== '/') {
+            return false;
+        }
+
+        $next = $css[$offset] ?? '';
+        if (!($next === '*' || $next === '.' || $next === '#' || $next === '[' || $next === ':' || $next === '\\' || ctype_alpha($next))) {
+            return false;
+        }
+
+        return $this->isInsideUnknownPseudoElementArgument($output);
+    }
+
+    private function isInsideUnknownPseudoElementArgument(string $output): bool
+    {
+        $open = strripos($output, '::unknown(');
+        if ($open === false) {
+            return false;
+        }
+
+        $lastBlockOpen = strrpos($output, '{');
+        $lastBlockClose = strrpos($output, '}');
+        $lastBlockDelimiter = max($lastBlockOpen === false ? -1 : $lastBlockOpen, $lastBlockClose === false ? -1 : $lastBlockClose);
+        if ($open < $lastBlockDelimiter) {
+            return false;
+        }
+
+        return $this->isUnclosedFunctionOpen($output, $open + strlen('::unknown'));
     }
 
     private function needsContainerStyleCustomPropertyTokenSpaceBeforeFunction(string $output, string $css, int $offset): bool

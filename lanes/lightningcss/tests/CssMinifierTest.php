@@ -185,12 +185,13 @@ CSS
     'css minifier preserves upstream unknown pseudo element selector boundaries' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
-        // Pinned upstream 22bdda3d src/lib.rs::test_selectors lines 7398, 7400, 7404, 7408, 7416, and 7420.
+        // Pinned upstream 22bdda3d src/lib.rs::test_selectors lines 7398, 7400, 7404, 7408, 7412, 7416, and 7420.
         $cases = [
             [7398, '.foo ::unknown .bar {width: 20px}', '.foo ::unknown .bar{width:20px}'],
             [7400, '.foo ::unknown(foo) .bar {width: 20px}', '.foo ::unknown(foo) .bar{width:20px}'],
             [7404, '.foo ::unknown:only-child {width: 20px}', '.foo ::unknown:only-child{width:20px}'],
             [7408, '.foo ::unknown(.foo) .bar {width: 20px}', '.foo ::unknown(.foo) .bar{width:20px}'],
+            [7412, '.foo ::unknown(.foo .bar / .baz) .bar {width: 20px}', '.foo ::unknown(.foo .bar / .baz) .bar{width:20px}'],
             [7416, '.foo ::unknown(something(foo)) .bar {width: 20px}', '.foo ::unknown(something(foo)) .bar{width:20px}'],
             [7420, '.foo ::unknown([abc]) .bar {width: 20px}', '.foo ::unknown([abc]) .bar{width:20px}'],
         ];
