@@ -1594,7 +1594,7 @@
         "focusedLightningCssSourceMapBundleCssModulesTargetCustomCssomMedia20260601T0234Z": "CssBundler, SourceMap, CssModulesTransformer, TransitionPrefixer, CustomAtRuleTransformer, and DeclarationBlock now cover the accepted source-only batch from source commit b701d7878f356e660f545ff27714cddd4c582300. Conservative mapped coverage moves 2297 -> 2303 / 3532; full LightningCSS PHP lane passed 13 files / 5521 assertions / 0 failures."
     },
     "latestFocusedSlice": "2026-06-26 six-lane LightningCSS PR integration: mix-blend-mode minifier parity maps 18 src/lib.rs::test_mix_blend_mode rows; charset pretty-printer parity maps 1 src/lib.rs::test_charset row; env() advanced-color prefixing maps 2 src/lib.rs::test_environment rows; CSS Modules @property, bundle async read, and SourceMap surplus sourcesContent rows add 3 more mapped upstream checks. Full LightningCSS lane passed 14 files / 9449 assertions / 0 failures; mapped coverage moves 2514 -> 2538 / 3532.",
-    "latestCommit": "pending source commit for 2026-06-26 mix-blend charset env batch",
+    "latestCommit": "72afb84dd2729ceccc43159c408962d9caf631eb",
     "audit": "2026-06-01 23:13 UTC supervisor integration: source commit 4e808df7c8d925680896f5e68c359023c513b77f accepted source-map empty generated-line negative column no-op parity with focused LightningCSS PHP gate 1 file / 1100 assertions / 0 failures, wordpress-source-map-vlq-offsets.php --self-test passed, full LightningCSS lane 13 files / 9102 assertions / 0 failures, and parcel_sourcemap 2.1.1 source/probe evidence that empty generated-line negative column underflows no-op while positive overflow rejects. Rust/Node/WASM upstream runners remain unexecuted.\n2026-06-01 23:25 UTC supervisor integration: source commit aa258090076d078082e1c905d881e044d3b3f22e accepted CSS Modules :has(:scope) relative selector elision after :local()/:global() rewriting while preserving composes exports. Changed PHP lint passed; git diff --check passed; focused CssModulesTransformer gate passed 1 file / 696 assertions / 0 failures; wordpress-css-modules-has-scope.php --self-test passed; full LightningCSS PHP lane passed 13 files / 9106 assertions / 0 failures. phpPass moves 9102 -> 9106 (+4); mapped coverage remains 2439 / 3532. Rust/Node/WASM upstream runners were not executed.",
     "focusedGitCssSqliteBacklogBatch20260601T0058Z": {
         "sourceCommit": "dc6ff07aec68e1e84e6a2666ec51a11acc59324c",
@@ -2035,7 +2035,7 @@
         "upstreamEvidence": "Worker and supervisor evidence cite pinned LightningCSS commit 22bdda3d190f1cd321d98026225cfc964af64ad9 src/lib.rs::test_svg lines 27433-27568, src/lib.rs::test_namespace, src/lib.rs::test_scroll_padding, CSS Modules pure nested selector rows, node/test/bundle.test.mjs custom resolver behavior, parcel_sourcemap 2.1.1 JSON import defaults, and tests/test_cssom.rs margin behavior. Full Rust/Node/WASM runners were not executed."
     },
     "focusedMixBlendCharsetEnvBatch20260626": {
-        "sourceCommit": "pending source commit for 2026-06-26 mix-blend charset env batch",
+        "sourceCommit": "72afb84dd2729ceccc43159c408962d9caf631eb",
         "mappedSliceIncrease": 24,
         "mappedBefore": 2514,
         "mappedAfter": 2538,
