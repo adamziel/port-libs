@@ -6,7 +6,12 @@ namespace PortLibs\Pandoc;
 
 final class ZipOpcPackage
 {
+    private const DEFAULT_MAX_ENTRY_BYTES = 16_777_216;
+    private const DEFAULT_MAX_TOTAL_READ_BYTES = 67_108_864;
+    private const DEFAULT_MAX_ENTRY_COUNT = 10_000;
+
     private bool $closed = false;
+    private int $readBytes = 0;
 
     private function __construct(
         private readonly \ZipArchive $zip,
@@ -59,16 +64,43 @@ final class ZipOpcPackage
         return $this->label;
     }
 
-    public function read(string $path): ?string
+    public function read(string $path, ?int $maxBytes = null): ?string
     {
-        $bytes = $this->zip->getFromName(self::normalizePath($path));
+        $path = self::normalizePath($path);
+        if ($path === '') {
+            return null;
+        }
 
-        return is_string($bytes) ? $bytes : null;
+        $limit = $maxBytes ?? self::DEFAULT_MAX_ENTRY_BYTES;
+        $stat = $this->zip->statName($path);
+        if (is_array($stat)) {
+            $size = $stat['size'] ?? null;
+            if (is_int($size) && $size > $limit) {
+                throw new \RuntimeException("{$this->label} package entry '{$path}' exceeds the {$limit} byte read limit.");
+            }
+        }
+
+        $bytes = $this->zip->getFromName($path);
+        if (!is_string($bytes)) {
+            return null;
+        }
+
+        $length = strlen($bytes);
+        if ($length > $limit) {
+            throw new \RuntimeException("{$this->label} package entry '{$path}' exceeds the {$limit} byte read limit.");
+        }
+
+        $this->readBytes += $length;
+        if ($this->readBytes > self::DEFAULT_MAX_TOTAL_READ_BYTES) {
+            throw new \RuntimeException("{$this->label} package exceeded the " . self::DEFAULT_MAX_TOTAL_READ_BYTES . ' byte aggregate read limit.');
+        }
+
+        return $bytes;
     }
 
-    public function requireRead(string $path, string $message): string
+    public function requireRead(string $path, string $message, ?int $maxBytes = null): string
     {
-        $bytes = $this->read($path);
+        $bytes = $this->read($path, $maxBytes);
         if ($bytes === null) {
             throw new \InvalidArgumentException($message);
         }
@@ -97,8 +129,13 @@ final class ZipOpcPackage
     /**
      * @return list<string>
      */
-    public function entryNames(): array
+    public function entryNames(?int $maxEntries = null): array
     {
+        $limit = $maxEntries ?? self::DEFAULT_MAX_ENTRY_COUNT;
+        if ($this->zip->numFiles > $limit) {
+            throw new \RuntimeException("{$this->label} package has {$this->zip->numFiles} entries, exceeding the {$limit} entry limit.");
+        }
+
         $entries = [];
         for ($i = 0; $i < $this->zip->numFiles; $i++) {
             $name = $this->zip->getNameIndex($i);
@@ -185,12 +222,33 @@ final class ZipOpcPackage
 
     public static function normalizePath(string $path): string
     {
+        return self::normalizePathInternal($path, true) ?? '';
+    }
+
+    public static function normalizePathStrict(string $path): string
+    {
+        $normalized = self::normalizePathInternal($path, false);
+        if ($normalized === null) {
+            throw new \InvalidArgumentException("Package path '{$path}' escapes above the package root.");
+        }
+
+        return $normalized;
+    }
+
+    private static function normalizePathInternal(string $path, bool $allowAboveRoot): ?string
+    {
         $parts = [];
         foreach (explode('/', str_replace('\\', '/', $path)) as $part) {
             if ($part === '' || $part === '.') {
                 continue;
             }
             if ($part === '..') {
+                if ($parts === []) {
+                    if (!$allowAboveRoot) {
+                        return null;
+                    }
+                    continue;
+                }
                 array_pop($parts);
                 continue;
             }

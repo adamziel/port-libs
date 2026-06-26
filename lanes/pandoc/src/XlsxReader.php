@@ -113,7 +113,7 @@ final class XlsxReader
             $type = (string) ($relationship['type'] ?? '');
             $target = (string) ($relationship['target'] ?? '');
             if ($target !== '' && str_contains($type, 'officeDocument') && str_contains($target, 'workbook')) {
-                return ltrim(ZipOpcPackage::normalizePath($target), '/');
+                return ZipOpcPackage::normalizePathStrict(ltrim($target, '/'));
             }
         }
 
@@ -1323,10 +1323,10 @@ final class XlsxReader
             return $target;
         }
         if (str_starts_with($target, '/')) {
-            return ZipOpcPackage::normalizePath(ltrim($target, '/'));
+            return ZipOpcPackage::normalizePathStrict(ltrim($target, '/'));
         }
 
-        return ZipOpcPackage::normalizePath(ZipOpcPackage::dirname($sourcePartPath) . '/' . $target);
+        return ZipOpcPackage::normalizePathStrict(ZipOpcPackage::dirname($sourcePartPath) . '/' . $target);
     }
 
     private function loadXml(string $xml, string $label): \DOMDocument

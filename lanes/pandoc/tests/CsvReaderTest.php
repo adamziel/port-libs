@@ -59,6 +59,10 @@ return [
         $t->same(3, $meta['csvRowCount']);
         $t->same(3, $meta['csvColumnCount']);
         $t->same(2, $meta['csvRaggedRowCount']);
+        $t->same([
+            ['row' => 1, 'columns' => 2, 'expectedColumns' => 3],
+            ['row' => 3, 'columns' => 2, 'expectedColumns' => 3],
+        ], $meta['csvRaggedRows']);
         $t->same('"literal quote"', $body->children[0]->children[0]->attr('text'));
         $t->same('A', $body->children[0]->children[1]->attr('text'));
         $t->same('B', $body->children[0]->children[2]->attr('text'));
@@ -84,6 +88,9 @@ return [
         $t->same(2, $meta['csvDataRowCount']);
         $t->same(3, $meta['csvColumnCount']);
         $t->same(1, $meta['csvRaggedRowCount']);
+        $t->same([
+            ['row' => 1, 'columns' => 2, 'expectedColumns' => 3],
+        ], $meta['csvRaggedRows']);
         $t->same(['string', 'string', 'string'], $meta['csvColumnTypes']);
         $t->same('table_body', $table->children[0]->type);
         $t->same('Ada', $table->children[0]->children[0]->children[0]->attr('text'));

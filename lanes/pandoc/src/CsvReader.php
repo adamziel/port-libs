@@ -30,7 +30,7 @@ final class CsvReader
         [$source, $delimiter] = $this->sourceAndDelimiter($source, $quote, $escape, $comment);
         $rows = $this->parseRows($source, $delimiter, $quote, $escape, $comment);
         $columnCount = $this->maxColumnCount($rows);
-        $raggedRows = $this->raggedRowCount($rows, $columnCount);
+        $raggedRows = $this->raggedRows($rows, $columnCount);
         $rows = $this->normalizeRows($rows, $columnCount);
         $hasHeader = (bool) ($this->options['header'] ?? true);
         $dataRows = $hasHeader ? array_slice($rows, 1) : $rows;
@@ -46,7 +46,8 @@ final class CsvReader
             'csvColumnCount' => $columnCount,
             'csvDataRowCount' => $hasHeader ? max(0, count($rows) - 1) : count($rows),
             'csvHeader' => $hasHeader,
-            'csvRaggedRowCount' => $raggedRows,
+            'csvRaggedRowCount' => count($raggedRows),
+            'csvRaggedRows' => $raggedRows,
             'csvColumnTypes' => $columnTypes,
         ];
 
@@ -419,17 +420,23 @@ final class CsvReader
 
     /**
      * @param list<list<string>> $rows
+     * @return list<array{row:int,columns:int,expectedColumns:int}>
      */
-    private function raggedRowCount(array $rows, int $columnCount): int
+    private function raggedRows(array $rows, int $columnCount): array
     {
-        $count = 0;
-        foreach ($rows as $row) {
-            if (count($row) !== $columnCount) {
-                $count++;
+        $raggedRows = [];
+        foreach ($rows as $index => $row) {
+            $columns = count($row);
+            if ($columns !== $columnCount) {
+                $raggedRows[] = [
+                    'row' => $index + 1,
+                    'columns' => $columns,
+                    'expectedColumns' => $columnCount,
+                ];
             }
         }
 
-        return $count;
+        return $raggedRows;
     }
 
     /**

@@ -86,6 +86,8 @@ return [
     'normalizes shared zip opc package paths and directories' => static function (TestRunner $t): void {
         $t->same('OPS/chapter.xhtml', ZipOpcPackage::normalizePath('/OPS\\text/../chapter.xhtml'));
         $t->same('META-INF/container.xml', ZipOpcPackage::normalizePath('../META-INF/./container.xml'));
+        $t->same('OPS/chapter.xhtml', ZipOpcPackage::normalizePathStrict('/OPS\\text/../chapter.xhtml'));
+        $t->throws(InvalidArgumentException::class, static fn (): string => ZipOpcPackage::normalizePathStrict('../META-INF/./container.xml'));
         $t->same('word/_rels', ZipOpcPackage::dirname('word/_rels/document.xml.rels'));
         $t->same('', ZipOpcPackage::dirname('mimetype'));
     },
@@ -147,6 +149,34 @@ return [
                 $packageHeader = $package->firstLocalFileHeader();
                 $t->same('mimetype', $packageHeader['name'] ?? null);
                 $t->same(4, $packageHeader['extraBytes'] ?? null);
+            } finally {
+                $package->close();
+            }
+        } finally {
+            @unlink($path);
+        }
+    },
+    'enforces zip opc entry count and read size budgets' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-zipopc-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary ZIP package path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary ZIP package');
+        }
+        $zip->addFromString('one.xml', str_repeat('a', 8));
+        $zip->addFromString('two.xml', 'bb');
+        $zip->close();
+
+        try {
+            $package = ZipOpcPackage::open($path, 'TEST');
+            try {
+                $t->same('aaaaaaaa', $package->read('one.xml', 8));
+                $t->throws(RuntimeException::class, static fn (): array => $package->entryNames(1));
+                $t->throws(RuntimeException::class, static fn (): ?string => $package->read('one.xml', 4));
+                $t->throws(RuntimeException::class, static fn (): string => $package->requireRead('one.xml', 'missing one', 4));
             } finally {
                 $package->close();
             }
