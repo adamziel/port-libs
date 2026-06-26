@@ -887,6 +887,13 @@ return [
         $t->same('@media (width<=240px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (width <= 240px) { .foo { color: chartreuse }}'));
         $t->same('@media (width>240px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (width > 240px) { .foo { color: chartreuse }}'));
         $t->same('@media (width>=240px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (width >= 240px) { .foo { color: chartreuse }}'));
+        // Pinned upstream 22bdda3d src/lib.rs::test_media lines 8846, 8850, 8854, 8858, 8862, and 8866.
+        $t->same('@media (width>240px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (240px < width) { .foo { color: chartreuse }}'));
+        $t->same('@media (width>=240px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (240px <= width) { .foo { color: chartreuse }}'));
+        $t->same('@media (width<240px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (240px > width) { .foo { color: chartreuse }}'));
+        $t->same('@media (width<=240px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (240px >= width) { .foo { color: chartreuse }}'));
+        $t->same('@media (100px<width<200px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (100px < width < 200px) { .foo { color: chartreuse }}'));
+        $t->same('@media (100px<=width<=200px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (100px <= width <= 200px) { .foo { color: chartreuse }}'));
         // Pinned upstream 22bdda3d src/lib.rs::test_media line 8875.
         $t->same('@media screen,print{.foo{color:#7fff00}}', (new CssMinifier())->minify('@media screen, print { .foo { color: chartreuse }}'));
         // Pinned upstream 22bdda3d src/lib.rs::test_media lines 8870-8954.
