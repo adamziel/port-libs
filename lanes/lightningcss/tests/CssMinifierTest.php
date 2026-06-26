@@ -3779,6 +3779,12 @@ CSS;
             $t->same(".foo{mix-blend-mode:{$mode}}", $minifier->minify(".foo { mix-blend-mode: {$mode} }"));
         }
     },
+    'css minifier maps upstream viewport rule minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('@viewport{width:100vw}', $minifier->minify('@viewport { width: 100vw; }'));
+        $t->same('@-ms-viewport{width:device-width}', $minifier->minify('@-ms-viewport { width: device-width; }'));
+    },
     'css minifier maps upstream box shadow value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

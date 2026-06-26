@@ -2269,6 +2269,18 @@ CSS;
             $prefixer->prefixForTargets('.foo { overflow: hidden auto; }', ['edge' => 79])
         );
     },
+    'transition prefixer preserves upstream container query ranges for prefix targets' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '@container (width>100px){.foo{padding:5px}}',
+            $prefixer->prefixForTargets('@container (width > 100px) { .foo { padding: 5px; } }', ['chrome' => 105])
+        );
+        $t->same(
+            '@container (width>=100px){.foo{padding:5px}}',
+            $prefixer->prefixForTargets('@container (min-width: 100px) { .foo { padding: 5px; } }', ['chrome' => 105])
+        );
+    },
     'transition prefixer maps upstream background clip text browser boundaries' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

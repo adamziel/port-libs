@@ -4178,6 +4178,13 @@ CSS;
             'modal' => $export('EgL3uq_modal'),
         ], $result['exports']);
         $t->same([], $result['references']);
+
+        $noneName = (new CssModulesTransformer())->transform('.foo { view-transition-name: none }');
+        $t->same('.EgL3uq_foo{view-transition-name:none}', $noneName['code']);
+        $t->same([
+            'foo' => $export('EgL3uq_foo'),
+        ], $noneName['exports']);
+        $t->same([], $noneName['references']);
     },
     'css modules scopes upstream view transition selector function idents' => static function (TestRunner $t) use ($export): void {
         $css = <<<'CSS'

@@ -2129,6 +2129,27 @@ return [
         );
         $t->same(['.theme{color:green}', '', '.editor{outline:0}'], $map->getSourcesContent());
     },
+    'source map accepts upstream direct mappings with dangling source indexes' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $map->addMapping(0, 0, 0, 2, 3);
+
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+        $data = $map->toArray(null, false);
+
+        $t->same('AAEG', $map->writeVlq());
+        $t->same([], $data['sources']);
+        $t->same([], $data['sourcesContent']);
+        $t->same([], $data['names']);
+        $t->same([0], array_column($decoded, 'sourceIndex'));
+        $t->same([2], array_column($decoded, 'originalLine'));
+        $t->same([3], array_column($decoded, 'originalColumn'));
+        $t->same(0, $map->findClosestMapping(0, 0)['sourceIndex'] ?? null);
+        $t->same(2, $map->findClosestMapping(0, 0)['originalLine'] ?? null);
+        $t->same(null, $map->getSourceIndex('missing.css'));
+        $t->throws(OutOfBoundsException::class, static function () use ($map): void {
+            $map->getSource(0);
+        });
+    },
     'source map exposes upstream sourcesContent table after sparse writes and remaps' => static function (TestRunner $t): void {
         $sparse = new SourceMap();
         $sparse->addSource('blocks/first.css');

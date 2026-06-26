@@ -1301,7 +1301,6 @@ final class SourceMap
                 throw new InvalidArgumentException('Original line and column are required for source-backed mappings.');
             }
 
-            $this->assertSourceIndex($sourceIndex);
             $this->assertNonNegative($originalLine, 'original line');
             $this->assertNonNegative($originalColumn, 'original column');
             $nameIndex = $name === null ? null : $this->addName($name);
