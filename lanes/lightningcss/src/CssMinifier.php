@@ -4345,6 +4345,10 @@ final class CssMinifier
             return $this->minifyBackgroundPositionList($value);
         }
 
+        if ($property === 'background-image') {
+            return $this->minifyBackgroundImageList($value);
+        }
+
         if ($property !== 'background') {
             return $value;
         }
@@ -4355,6 +4359,16 @@ final class CssMinifier
         }
 
         return implode(',', $layers);
+    }
+
+    private function minifyBackgroundImageList(string $value): string
+    {
+        $images = [];
+        foreach ($this->splitTopLevel($value, ',') as $image) {
+            $images[] = $this->normalizeBackgroundImageToken(trim($image));
+        }
+
+        return implode(',', $images);
     }
 
     private function minifyBackgroundPositionList(string $value): string
@@ -4945,6 +4959,10 @@ final class CssMinifier
             'text-transform' => $this->minifyTextTransformValue($value),
             'line-break' => $this->minifySingleKeywordValue($value, ['auto', 'loose', 'anywhere']),
             'overflow-wrap', 'word-wrap' => $this->minifySingleKeywordValue($value, ['normal', 'break-word', 'anywhere']),
+            'text-align' => $this->minifySingleKeywordValue($value, ['left', 'right', 'center', 'justify', 'start', 'end', 'match-parent', 'justify-all']),
+            'text-align-last' => $this->minifySingleKeywordValue($value, ['auto', 'left', 'right', 'center', 'justify', 'start', 'end', 'match-parent']),
+            'resize' => $this->minifySingleKeywordValue($value, ['none', 'both', 'horizontal', 'vertical', 'block', 'inline']),
+            'appearance', '-webkit-appearance', '-moz-appearance' => $this->minifySingleKeywordValue($value, ['none', 'auto', 'textfield']),
             'word-spacing', 'letter-spacing' => $this->minifySingleKeywordOrLengthValue($value, ['normal']),
             'text-indent' => $this->minifyTextIndentValue($value),
             default => $value,

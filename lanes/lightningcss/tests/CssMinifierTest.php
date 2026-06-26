@@ -171,6 +171,19 @@ CSS
             $t->same($expected, $minifier->minify($input));
         }
     },
+    'css minifier maps upstream quoted and unquoted url tokens' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_quoting_unquoting_urls lines 29954-29977.
+        $cases = [
+            [29954, '.foo { background-image: url("0123abcd"); }', '.foo{background-image:url(0123abcd)}'],
+            [29973, '.foo { background-image: url(0123abcd); }', '.foo{background-image:url(0123abcd)}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs line ' . $line);
+        }
+    },
     'css minifier shortens upstream color keywords in declaration values' => static function (TestRunner $t): void {
         $css = '.foo { color: yellow; background: linear-gradient(blue, white); border-color: black; }';
         $t->same('.foo{color:#ff0;background:linear-gradient(#00f,#fff);border-color:#000}', (new CssMinifier())->minify($css));
@@ -4130,6 +4143,44 @@ CSS;
 
         $t->same('.foo{text-justify:auto}', $minifier->minify('.foo { text-justify: auto }'));
         $t->same('.foo{text-justify:inter-word}', $minifier->minify('.foo { text-justify: inter-word }'));
+    },
+    'css minifier maps upstream text-align keyword values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_text_align lines 15981-15984
+        // and src/lib.rs::test_text_align_last lines 16117-16118.
+        $cases = [
+            [15981, '.foo { text-align: left }', '.foo{text-align:left}'],
+            [15982, '.foo { text-align: Left }', '.foo{text-align:left}'],
+            [15983, '.foo { text-align: END }', '.foo{text-align:end}'],
+            [15984, '.foo { text-align: left }', '.foo{text-align:left}'],
+            [16117, '.foo { text-align-last: left }', '.foo{text-align-last:left}'],
+            [16118, '.foo { text-align-last: justify }', '.foo{text-align-last:justify}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs line ' . $line);
+        }
+    },
+    'css minifier maps upstream UI keyword and URL values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_ui lines 17588-17693.
+        $cases = [
+            [17588, '.foo { resize: both }', '.foo{resize:both}'],
+            [17589, '.foo { resize: Horizontal }', '.foo{resize:horizontal}'],
+            [17590, '.foo { cursor: ew-resize }', '.foo{cursor:ew-resize}'],
+            [17687, '.foo { user-select: none }', '.foo{user-select:none}'],
+            [17688, '.foo { -webkit-user-select: none }', '.foo{-webkit-user-select:none}'],
+            [17689, '.foo { accent-color: auto }', '.foo{accent-color:auto}'],
+            [17690, '.foo { accent-color: yellow }', '.foo{accent-color:#ff0}'],
+            [17691, '.foo { appearance: None }', '.foo{appearance:none}'],
+            [17693, '.foo { -webkit-appearance: textfield }', '.foo{-webkit-appearance:textfield}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs line ' . $line);
+        }
     },
     'css minifier maps upstream word spacing letter spacing and text indent values' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
