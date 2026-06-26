@@ -6790,6 +6790,88 @@ CSS;
         $t->same('theme(1rem --theme-wp-gap live)', $seen['rule']['prelude']);
         $t->same('space', $seen['rule']['preludeAst']['value'][0]['value']['argumentSeparator'] ?? null);
     },
+    'custom at-rules revisit upstream raw Function calc prelude replacements' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::custom units lines 68-119,
+        // ::spacing with env substitution lines 252-311, and ::supports returning raw values for tokens lines 998-1016.
+        $seen = [
+            'events' => [],
+            'rule' => null,
+        ];
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Function' => [
+                    'theme' => static function () use (&$seen): array {
+                        $seen['events'][] = 'function:theme';
+
+                        return ['raw' => 'calc(3--wp-step + env(--wp-gap))'];
+                    },
+                ],
+            ],
+            [
+                'EnvironmentVariable' => [
+                    '--wp-gap' => static function (array $environmentVariable) use (&$seen): array {
+                        $seen['events'][] = 'env:' . ($environmentVariable['name']['ident'] ?? '');
+
+                        return ['raw' => '8px'];
+                    },
+                ],
+                'Token' => [
+                    'dimension' => static function (array $token) use (&$seen): ?array {
+                        if (!str_starts_with((string) ($token['unit'] ?? ''), '--')) {
+                            return null;
+                        }
+
+                        $seen['events'][] = 'token:' . ($token['raw'] ?? '');
+
+                        return [
+                            'type' => 'var',
+                            'value' => [
+                                'name' => ['ident' => $token['unit']],
+                                'fallback' => null,
+                                'raw' => 'var(' . $token['unit'] . ')',
+                            ],
+                        ];
+                    },
+                ],
+            ],
+            [
+                'Variable' => [
+                    '--wp-step' => static function (array $variable) use (&$seen): array {
+                        $seen['events'][] = 'var:' . ($variable['name']['ident'] ?? '');
+
+                        return ['type' => 'length', 'unit' => 'rem', 'value' => 0.25];
+                    },
+                ],
+                'Rule' => [
+                    'custom' => [
+                        'plugin' => static function (array $rule) use (&$seen): array {
+                            $seen['events'][] = 'rule:' . $rule['prelude'];
+                            $seen['rule'] = $rule;
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('@plugin theme("fluid"); .keep { color: red; }', [
+            'plugin' => ['prelude' => '*'],
+        ], $visitor);
+
+        $t->same('.keep{color:red}', $result);
+        $t->same([
+            'function:theme',
+            'env:--wp-gap',
+            'token:3--wp-step',
+            'var:--wp-step',
+            'rule:calc(0.25rem+8px)',
+        ], $seen['events']);
+        $t->same('calc(0.25rem+8px)', $seen['rule']['prelude']);
+        $t->same('function', $seen['rule']['preludeAst']['value'][0]['type'] ?? null);
+        $t->same('calc', $seen['rule']['preludeAst']['value'][0]['value']['name'] ?? null);
+    },
     'custom at-rules visit upstream variable prelude fallbacks before exit visitors' => static function (TestRunner $t): void {
         $seen = [
             'events' => [],

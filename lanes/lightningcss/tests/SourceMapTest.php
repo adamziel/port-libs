@@ -2176,14 +2176,17 @@ return [
         $map = new SourceMap('/test-root');
         $httpSource = $map->addSource('https://example.com/a.js');
         $fileSource = $map->addSource('file:///test-root/example.js');
+        // Upstream: parcel_sourcemap 2.1.1 src/utils.rs::make_relative_path lines 60-62.
+        $mixedCaseFileSource = $map->addSource('FiLe:///test-root/mixed-case.js');
         $webpackSource = $map->addSource('webpack://weird-things/index.ts');
 
         $t->same(
-            ['https://example.com/a.js', 'example.js', 'webpack://weird-things/index.ts'],
+            ['https://example.com/a.js', 'example.js', 'mixed-case.js', 'webpack://weird-things/index.ts'],
             $map->getSources()
         );
         $t->same('https://example.com/a.js', $map->getSource($httpSource));
         $t->same('example.js', $map->getSource($fileSource));
+        $t->same('mixed-case.js', $map->getSource($mixedCaseFileSource));
         $t->same('webpack://weird-things/index.ts', $map->getSource($webpackSource));
     },
     'source map exposes upstream source name and mapping lookup APIs after offsets' => static function (TestRunner $t): void {

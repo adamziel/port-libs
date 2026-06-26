@@ -3537,6 +3537,56 @@ CSS,
             ],
         ], $dependencies);
     },
+    'css bundler returns upstream visitor factory dependencies from result object' => static function (TestRunner $t): void {
+        $seen = [];
+        $result = (new CssBundler())->bundleWithVisitorResult('tests/testdata/a.css', [
+            'tests/testdata/a.css' => <<<'CSS'
+@import "b.css";
+
+.a {
+  width: 32px;
+}
+CSS,
+            'tests/testdata/b.css' => <<<'CSS'
+.b {
+  height: calc(100vh - 64px);
+}
+CSS,
+        ], static function (array $context) use (&$seen): array {
+            $addDependency = $context['addDependency'];
+
+            return [
+                'Length' => static function (array $length) use (&$seen, $addDependency): void {
+                    $seen[] = [$length['unit'], $length['value']];
+                    $addDependency([
+                        'type' => 'file',
+                        'filePath' => 'test.json',
+                    ]);
+                },
+            ];
+        });
+
+        $t->same('.b{height:calc(100vh - 64px)}.a{width:32px}', $result['code']);
+        $t->same([
+            ['vh', 100.0],
+            ['px', 64.0],
+            ['px', 32.0],
+        ], $seen);
+        $t->same([
+            [
+                'type' => 'file',
+                'filePath' => 'test.json',
+            ],
+            [
+                'type' => 'file',
+                'filePath' => 'test.json',
+            ],
+            [
+                'type' => 'file',
+                'filePath' => 'test.json',
+            ],
+        ], $result['dependencies']);
+    },
     'css bundler shares custom media definitions across imported graph' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '@media print{.a{color:green}}.entry{color:red}',

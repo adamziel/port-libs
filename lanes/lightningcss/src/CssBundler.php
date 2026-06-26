@@ -18,6 +18,9 @@ final class CssBundler
     /** @var array<string, mixed>|null */
     private ?array $visitor = null;
 
+    /** @var list<array<string, mixed>> */
+    private array $visitorDependencies = [];
+
     private bool $filesystemReads = false;
 
     private bool $preserveResolverPaths = false;
@@ -86,13 +89,30 @@ final class CssBundler
     }
 
     /**
-     * @param array<string, mixed> $visitor
+     * @param array<string, mixed>|callable(array{addDependency:callable(array<string, mixed>):void}):array<string, mixed> $visitor
      * @param array<string, string> $files
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
      */
-    public function bundleWithVisitor(string $entry, array $files, array $visitor, ?callable $resolver = null): string
+    public function bundleWithVisitor(string $entry, array $files, array|callable $visitor, ?callable $resolver = null): string
     {
         return $this->bundleInternal($entry, $files, $resolver, false, [], null, false, null, $visitor)['code'];
+    }
+
+    /**
+     * @return array{code:string, dependencies:list<array<string, mixed>>}
+     *
+     * @param array<string, mixed>|callable(array{addDependency:callable(array<string, mixed>):void}):array<string, mixed> $visitor
+     * @param array<string, string> $files
+     * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
+     */
+    public function bundleWithVisitorResult(string $entry, array $files, array|callable $visitor, ?callable $resolver = null): array
+    {
+        $result = $this->bundleInternal($entry, $files, $resolver, false, [], null, false, null, $visitor);
+
+        return [
+            'code' => $result['code'],
+            'dependencies' => $this->visitorDependencies,
+        ];
     }
 
     /**
@@ -244,7 +264,7 @@ final class CssBundler
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
      * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,animation?:bool,grid?:bool,container?:bool,customIdents?:bool,custom_idents?:bool,pure?:bool,unusedSymbols?:list<string>,unused_symbols?:list<string>,pseudoClasses?:array<string,string>,pseudo_classes?:array<string,string>,projectRoot?:string,project_root?:string} $cssModuleOptions
      * @param (callable(string): string)|null $reader
-     * @param array<string, mixed>|null $visitor
+     * @param array<string, mixed>|callable(array{addDependency:callable(array<string, mixed>):void}):array<string, mixed>|null $visitor
      */
     private function bundleInternal(
         string $entry,
@@ -255,7 +275,7 @@ final class CssBundler
         ?callable $reader = null,
         bool $filesystemReads = false,
         ?string $sourceMapProjectRoot = null,
-        ?array $visitor = null
+        array|callable|null $visitor = null
     ): array
     {
         $this->files = [];
@@ -273,7 +293,8 @@ final class CssBundler
 
         $this->resolver = $resolver;
         $this->reader = $reader;
-        $this->visitor = $visitor;
+        $this->visitorDependencies = [];
+        $this->visitor = $this->resolveBundleVisitor($visitor);
         $this->filesystemReads = $filesystemReads;
         $this->preserveResolverPaths = $reader !== null || $filesystemReads;
         $this->sourceIndexes = [];
@@ -316,6 +337,29 @@ final class CssBundler
             'sourceMapUrls' => array_values($this->sourceMapUrls),
             ...($this->sourceMap === null ? [] : ['sourceMap' => $this->sourceMap]),
         ];
+    }
+
+    /**
+     * @param array<string, mixed>|callable(array{addDependency:callable(array<string, mixed>):void}):array<string, mixed>|null $visitor
+     * @return array<string, mixed>|null
+     */
+    private function resolveBundleVisitor(array|callable|null $visitor): ?array
+    {
+        if ($visitor === null || !is_callable($visitor)) {
+            return $visitor;
+        }
+
+        $dependencies = &$this->visitorDependencies;
+        $resolved = $visitor([
+            'addDependency' => static function (array $dependency) use (&$dependencies): void {
+                $dependencies[] = $dependency;
+            },
+        ]);
+        if (!is_array($resolved)) {
+            throw new \InvalidArgumentException('Visitor factory must return a visitor array');
+        }
+
+        return $resolved;
     }
 
     /**

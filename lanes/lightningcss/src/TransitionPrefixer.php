@@ -3791,6 +3791,10 @@ final class TransitionPrefixer
      */
     private function selectorPrefixVariants(string $selectors, array $targetOptions): ?array
     {
+        $unwrappedSelectors = $this->rewriteUnsupportedSingletonIsSelectors($selectors, $targetOptions);
+        $unwrapped = $unwrappedSelectors !== $selectors;
+        $selectors = $unwrappedSelectors;
+
         $selectorList = $this->splitTopLevel($selectors, ',');
         if (count($selectorList) !== 1) {
             $grouped = $this->selectorListAutofillGroupVariants($selectorList, $targetOptions);
@@ -3798,7 +3802,7 @@ final class TransitionPrefixer
                 return $grouped;
             }
 
-            $unsupportedPseudoFallback = $this->selectorListUnsupportedPseudoVariants($selectorList, $targetOptions);
+            $unsupportedPseudoFallback = $this->selectorListUnsupportedPseudoVariants($selectorList, $targetOptions, $unwrapped);
             if ($unsupportedPseudoFallback !== null) {
                 return $unsupportedPseudoFallback;
             }
@@ -3826,7 +3830,7 @@ final class TransitionPrefixer
                 array_push($variants, ...$selectorVariants);
             }
             if (!$changed) {
-                return null;
+                return $unwrapped ? [$selectors] : null;
             }
 
             $flushUnchangedGroup();
@@ -3835,7 +3839,7 @@ final class TransitionPrefixer
             return $variants;
         }
 
-        return $this->singleSelectorPrefixVariants($selectors, $targetOptions);
+        return $this->singleSelectorPrefixVariants($selectors, $targetOptions) ?? ($unwrapped ? [$selectors] : null);
     }
 
     /**
@@ -3875,7 +3879,7 @@ final class TransitionPrefixer
      * @param array<string, bool> $targetOptions
      * @return list<string>|null
      */
-    private function selectorListUnsupportedPseudoVariants(array $selectorList, array $targetOptions): ?array
+    private function selectorListUnsupportedPseudoVariants(array $selectorList, array $targetOptions, bool $preferCompatibleFirst = false): ?array
     {
         $hasUnsupportedPseudo = false;
         foreach ($selectorList as $selector) {
@@ -3894,11 +3898,25 @@ final class TransitionPrefixer
         }
 
         $variants = [];
+        $compatible = [];
+        $incompatible = [];
         foreach ($selectorList as $selector) {
-            array_push($variants, ...($this->singleSelectorPrefixVariants($selector, $targetOptions) ?? [$selector]));
+            foreach ($this->singleSelectorPrefixVariants($selector, $targetOptions) ?? [$selector] as $variant) {
+                if (!$preferCompatibleFirst) {
+                    $variants[] = $variant;
+                } elseif ($this->selectorContainsUnsupportedSelectorListPseudo($variant, $targetOptions)) {
+                    $incompatible[] = $variant;
+                } else {
+                    $compatible[] = $variant;
+                }
+            }
         }
 
-        return array_values(array_unique($variants));
+        if (!$preferCompatibleFirst) {
+            return array_values(array_unique($variants));
+        }
+
+        return array_values(array_unique([...$compatible, ...$incompatible]));
     }
 
     /**
@@ -4050,6 +4068,38 @@ final class TransitionPrefixer
         $variants[] = $selector;
 
         return array_values(array_unique($variants));
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteUnsupportedSingletonIsSelectors(string $selector, array $targetOptions): string
+    {
+        if (($targetOptions['isSelectorSupported'] ?? false)
+            || !(($targetOptions['anyPseudoNeedsWebkit'] ?? false) || ($targetOptions['anyPseudoNeedsMoz'] ?? false))
+            || stripos($selector, ':is(') === false
+        ) {
+            return $selector;
+        }
+
+        return preg_replace_callback(
+            '/:is\(([^()]*)\)/i',
+            function (array $matches): string {
+                $argument = $this->normalizeSelectorListArgument($matches[1]);
+                $parts = $this->splitTopLevel($argument, ',');
+                if (count($parts) !== 1) {
+                    return $matches[0];
+                }
+
+                $single = trim($parts[0]);
+                if ($single === '' || $this->selectorHasTopLevelCombinator($single)) {
+                    return $matches[0];
+                }
+
+                return $single;
+            },
+            $selector
+        ) ?? $selector;
     }
 
     /**

@@ -1360,6 +1360,33 @@ CSS, $formatter->format('.foo { font: 12px "Helvetica", "Times New Roman", sans-
 
 CSS, $formatter->format('.foo { font: 12px "Helvetica", "Times New Roman", sans-serif; line-height: var(--lh); }'));
     },
+    'css formatter maps upstream transform printer cases' => static function (TestRunner $t): void {
+        $formatter = new CssFormatter();
+
+        // Pinned upstream 22bdda3d190f1cd321d98026225cfc964af64ad9 src/lib.rs::test_transform line 12882.
+        $t->same(<<<'CSS'
+.foo {
+  transform: perspective(500px) translate3d(10px, 0, 20px) rotateY(30deg);
+}
+
+CSS, $formatter->format('.foo { transform: perspective(500px)translate3d(10px, 0, 20px)rotateY(30deg) }'));
+
+        // Pinned upstream 22bdda3d190f1cd321d98026225cfc964af64ad9 src/lib.rs::test_transform line 12890.
+        $t->same(<<<'CSS'
+.foo {
+  transform: translate3d(12px, 50%, 3em) scale(2, .5);
+}
+
+CSS, $formatter->format('.foo { transform: translate3d(12px,50%,3em)scale(2,.5) }'));
+
+        // Pinned upstream 22bdda3d190f1cd321d98026225cfc964af64ad9 src/lib.rs::test_transform line 12898.
+        $t->same(<<<'CSS'
+.foo {
+  transform: matrix(1, 2, -1, 1, 80, 80);
+}
+
+CSS, $formatter->format('.foo { transform:matrix(1,2,-1,1,80,80) }'));
+    },
     'css formatter maps upstream grid template printer cases' => static function (TestRunner $t): void {
         $formatter = new CssFormatter();
 

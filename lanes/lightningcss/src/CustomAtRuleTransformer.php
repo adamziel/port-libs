@@ -9026,6 +9026,13 @@ final class CustomAtRuleTransformer
             }
         }
 
+        if ($type === 'raw' && is_string($component['value'] ?? null)) {
+            $rewritten = $this->rewriteValueTokens($this->rewriteRawVisitorFunctions($component['value']));
+            if ($rewritten !== $component['value']) {
+                return $this->customPreludeTokenListCssReplacement($rewritten, $originalCss, $depth, $skipTokenType);
+            }
+        }
+
         $visited = $this->applyValueVisitors($component);
         if ($visited !== $component) {
             return $this->customPreludeTokenListReplacement($visited, $originalCss, $depth);

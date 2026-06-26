@@ -6,6 +6,30 @@ namespace PortLibs\LightningCSS;
 
 final class CssFormatter
 {
+    private const TRANSFORM_FUNCTIONS = [
+        'matrix',
+        'matrix3d',
+        'translate',
+        'translateX',
+        'translateY',
+        'translateZ',
+        'translate3d',
+        'scale',
+        'scaleX',
+        'scaleY',
+        'scaleZ',
+        'scale3d',
+        'rotate',
+        'rotateX',
+        'rotateY',
+        'rotateZ',
+        'rotate3d',
+        'skew',
+        'skewX',
+        'skewY',
+        'perspective',
+    ];
+
     private const FONT_LONGHANDS = [
         'font-family',
         'font-size',
@@ -468,6 +492,7 @@ final class CssFormatter
             'outline' => $this->formatOutlineShorthandValue($value),
             'outline-color' => $this->formatColorDeclarationValue($value),
             'border' => $this->formatBorderShorthandValue($value),
+            'transform', '-webkit-transform', '-moz-transform', '-ms-transform', '-o-transform' => $this->formatTransformDeclarationValue($value),
             default => $this->formatDeclarationValue($value),
         };
 
@@ -4273,6 +4298,62 @@ final class CssFormatter
         $value = $this->normalizeCalcNumberLiterals($value);
 
         return preg_replace('/\bcounter\(\s*([_a-zA-Z-][_a-zA-Z0-9-]*)\s*\)/', 'counter($1)', $value) ?? $value;
+    }
+
+    private function formatTransformDeclarationValue(string $value): string
+    {
+        $value = $this->formatDeclarationValue($value);
+        $length = strlen($value);
+        $output = '';
+
+        for ($i = 0; $i < $length;) {
+            $functionName = $this->transformFunctionNameAt($value, $i);
+            if ($functionName === null) {
+                $output .= $value[$i];
+                $i++;
+                continue;
+            }
+
+            $open = $i + strlen($functionName);
+            $close = $this->findMatchingParenthesis($value, $open);
+            if ($close === null) {
+                $output .= $value[$i];
+                $i++;
+                continue;
+            }
+
+            if ($output !== '' && substr($output, -1) === ')') {
+                $output .= ' ';
+            }
+
+            $args = substr($value, $open + 1, $close - $open - 1);
+            $output .= substr($value, $i, strlen($functionName)) . '(' . $this->formatTransformFunctionArguments($args) . ')';
+            $i = $close + 1;
+        }
+
+        return $output;
+    }
+
+    private function transformFunctionNameAt(string $value, int $offset): ?string
+    {
+        foreach (self::TRANSFORM_FUNCTIONS as $name) {
+            if ($this->startsFunctionAt($value, $offset, $name)) {
+                return substr($value, $offset, strlen($name));
+            }
+        }
+
+        return null;
+    }
+
+    private function formatTransformFunctionArguments(string $args): string
+    {
+        return implode(
+            ', ',
+            array_map(
+                fn (string $arg): string => $this->formatDeclarationValue($arg),
+                $this->splitTopLevel($args, ',')
+            )
+        );
     }
 
     private function normalizeCalcNumberLiterals(string $value): string

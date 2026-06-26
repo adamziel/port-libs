@@ -388,6 +388,25 @@ return [
             )
         );
     },
+    'transition prefixer maps upstream singleton is selector merge rows' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_merge_rules line 10982.
+        $t->same(
+            '.foo .bar{color:red}',
+            $prefixer->prefixForTargets('.foo :is(.bar) { color: red; }', ['chrome' => 87])
+        );
+        // Pinned upstream 22bdda3d src/lib.rs::test_merge_rules line 10999.
+        $t->same(
+            '.foo .bar,.bar .baz{color:red}',
+            $prefixer->prefixForTargets('.foo :is(.bar), .bar :is(.baz) { color: red; }', ['chrome' => 87])
+        );
+        // Pinned upstream 22bdda3d src/lib.rs::test_merge_rules line 11016.
+        $t->same(
+            '.bar .baz:hover{color:red}.foo .bar:focus-visible{color:red}',
+            $prefixer->prefixForTargets('.foo :is(.bar:focus-visible), .bar :is(.baz:hover) { color: red; }', ['chrome' => 85])
+        );
+    },
     'transition prefixer maps upstream scroll navigation target pseudo boundaries' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
         $targetPair = 'a:target-before, a:target-after { color: green; }';
