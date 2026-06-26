@@ -3753,6 +3753,32 @@ CSS;
         );
         $t->same('.foo{filter:hue-rotate()}', $minifier->minify('.foo { filter: hue-rotate(0) }'));
     },
+    'css minifier maps upstream mix blend mode values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        foreach ([
+            'normal',
+            'multiply',
+            'screen',
+            'overlay',
+            'darken',
+            'lighten',
+            'color-dodge',
+            'color-burn',
+            'hard-light',
+            'soft-light',
+            'difference',
+            'exclusion',
+            'hue',
+            'saturation',
+            'color',
+            'luminosity',
+            'plus-darker',
+            'plus-lighter',
+        ] as $mode) {
+            $t->same(".foo{mix-blend-mode:{$mode}}", $minifier->minify(".foo { mix-blend-mode: {$mode} }"));
+        }
+    },
     'css minifier maps upstream box shadow value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

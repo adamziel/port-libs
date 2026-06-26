@@ -153,6 +153,32 @@ CSS, $formatter->format(<<<'CSS'
 }
 CSS));
     },
+    'css formatter maps upstream charset printer case' => static function (TestRunner $t): void {
+        $formatter = new CssFormatter();
+
+        $t->same(<<<'CSS'
+.foo {
+  color: red;
+}
+
+.bar {
+  color: #ff0;
+}
+
+CSS, $formatter->format(<<<'CSS'
+@charset "UTF-8";
+
+.foo {
+  color: red;
+}
+
+@charset "UTF-8";
+
+.bar {
+  color: yellow;
+}
+CSS));
+    },
     'css formatter maps upstream counter-style printer case' => static function (TestRunner $t): void {
         $formatter = new CssFormatter();
 

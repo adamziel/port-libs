@@ -3685,6 +3685,26 @@ CSS;
         ], $result['exports']);
         $t->same([], $result['references']);
     },
+    'css modules leaves upstream property dashed idents public by default' => static function (TestRunner $t) use ($export): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+@property --foo {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: yellow;
+}
+
+.foo {
+  --foo: red;
+  color: var(--foo);
+}
+CSS);
+
+        $t->same('@property --foo{syntax:"<color>";inherits:false;initial-value:#ff0}.EgL3uq_foo{--foo:red;color:var(--foo)}', $result['code']);
+        $t->same([
+            'foo' => $export('EgL3uq_foo'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+    },
     'css modules scopes upstream dashed property and font palette idents while preserving composes' => static function (TestRunner $t) use ($export, $dashed, $dependency): void {
         $css = <<<'CSS'
 @property --foo {

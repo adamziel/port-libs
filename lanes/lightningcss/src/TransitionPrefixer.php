@@ -10524,6 +10524,7 @@ final class TransitionPrefixer
             }
 
             $hasCustomPropertyReference = $this->containsCustomPropertyReference($normalized);
+            $hasEnvironmentReference = $this->containsEnvironmentReference($normalized);
             if ($supportsNative && !$needsSrgbFallback && !$usesP3Fallback && !$needsLabFallback) {
                 [$rewritten, $dropped] = $this->dropPreviousSamePropertyFallbacks($rewritten, $entry['property']);
                 $rewritten[] = $entry;
@@ -10531,10 +10532,13 @@ final class TransitionPrefixer
                 continue;
             }
 
-            $supportsCustomPropertyOverride = $isCustomProperty || $hasCustomPropertyReference;
+            $supportsCustomPropertyOverride = $isCustomProperty || $hasCustomPropertyReference || $hasEnvironmentReference;
             $p3Fallback = $usesP3Fallback ? $this->advancedColorP3FallbackValue($normalized, $supportsCustomPropertyOverride) : null;
             $labFallback = $this->advancedColorLabFallbackValue($normalized, $supportsCustomPropertyOverride);
             $labTargetFallback = $needsLabFallback ? $this->advancedColorLabTargetValue($normalized) : null;
+            if ($p3Fallback === null && $supportsCustomPropertyOverride && $needsSrgbFallback && $needsLabFallback) {
+                $p3Fallback = $this->advancedColorP3FallbackValue($normalized, true);
+            }
 
             if (!$needsSrgbFallback) {
                 if ($supportsCustomPropertyOverride && $p3Fallback !== null) {
@@ -10562,7 +10566,7 @@ final class TransitionPrefixer
             $rewritten[] = $this->entryWithValue($entry, $srgbFallback);
             $changed = true;
 
-            if ($isCustomProperty || $hasCustomPropertyReference) {
+            if ($supportsCustomPropertyOverride) {
                 if ($p3Fallback !== null && $p3Fallback !== $srgbFallback) {
                     $p3SupportEntries[] = $this->entryWithValue($entry, $p3Fallback);
                 }
@@ -11211,6 +11215,11 @@ final class TransitionPrefixer
     private function containsCustomPropertyReference(string $value): bool
     {
         return stripos($value, 'var(') !== false;
+    }
+
+    private function containsEnvironmentReference(string $value): bool
+    {
+        return stripos($value, 'env(') !== false;
     }
 
     /**

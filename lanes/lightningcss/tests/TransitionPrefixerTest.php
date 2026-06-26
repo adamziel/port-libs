@@ -3481,6 +3481,18 @@ CSS;
             $prefixer->prefixForTargets('.foo { --custom: oklab(59.686% 0.1009 0.1192); }', ['chrome' => 111, 'safari' => 15])
         );
     },
+    'transition prefixer maps upstream environment advanced color supports' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{color:env(--brand-color,#00f942)}@supports (color:color(display-p3 0 0 0)){.foo{color:env(--brand-color,color(display-p3 0 1 0))}}',
+            $prefixer->prefixForTargets('.foo { color: env(--brand-color, color(display-p3 0 1 0)); }', ['safari' => 15, 'chrome' => 90])
+        );
+        $t->same(
+            '@supports (color:color(display-p3 0 0 0)){.foo{color:env(--brand-color,color(display-p3 0 1 0))}}',
+            $prefixer->prefixForTargets('@supports (color: color(display-p3 0 0 0)) { .foo { color: env(--brand-color, color(display-p3 0 1 0)); } }', ['safari' => 15, 'chrome' => 90])
+        );
+    },
     'transition prefixer maps upstream keyframes custom property advanced color fallbacks' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

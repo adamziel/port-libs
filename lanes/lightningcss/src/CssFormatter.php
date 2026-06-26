@@ -38,6 +38,11 @@ final class CssFormatter
             $semicolon = $this->findNextTopLevel($css, ';', $cursor);
             if ($semicolon !== null && ($open === null || $semicolon < $open)) {
                 $statement = trim(substr($css, $cursor, $semicolon - $cursor));
+                if (preg_match('/^@charset\b/i', $statement) === 1) {
+                    $cursor = $semicolon + 1;
+                    continue;
+                }
+
                 if (preg_match('/^@namespace\b/i', $statement) === 1) {
                     if ($seenNonNamespaceRule) {
                         throw new \InvalidArgumentException('Unexpected @namespace rule');

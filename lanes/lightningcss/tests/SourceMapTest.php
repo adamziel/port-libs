@@ -1644,6 +1644,41 @@ return [
         $t->same(['blocks/card.css'], $arrayImport->getSources());
         $t->same([''], $arrayImport->getSourcesContent());
     },
+    'source map ignores upstream surplus sourcesContent rows beyond sources' => static function (TestRunner $t): void {
+        $json = SourceMap::fromJson(
+            '{"version":3,"mappings":"AAAA","sources":["blocks/used.css"],"sourcesContent":[".used{}",".ignored{}"],"names":[]}'
+        );
+
+        $t->same('AAAA', $json->writeVlq());
+        $t->same(['blocks/used.css'], $json->getSources());
+        $t->same(['.used{}'], $json->getSourcesContent());
+        $t->same(['.used{}'], $json->toArray(null, false)['sourcesContent']);
+
+        $array = SourceMap::fromArray([
+            'version' => 3,
+            'mappings' => 'AAAA',
+            'sources' => ['blocks/array-used.css'],
+            'sourcesContent' => ['.array-used{}', '.array-ignored{}'],
+            'names' => [],
+        ]);
+
+        $t->same('AAAA', $array->writeVlq());
+        $t->same(['blocks/array-used.css'], $array->getSources());
+        $t->same(['.array-used{}'], $array->getSourcesContent());
+
+        $direct = new SourceMap();
+        $direct->addVlqMap(
+            'AAAAA',
+            ['blocks/direct-used.css'],
+            ['.direct-used{}', '.direct-ignored{}'],
+            ['directRule', 'unusedRule']
+        );
+
+        $t->same('AAAAA', $direct->writeVlq());
+        $t->same(['blocks/direct-used.css'], $direct->getSources());
+        $t->same(['.direct-used{}'], $direct->getSourcesContent());
+        $t->same(['directRule', 'unusedRule'], $direct->getNames());
+    },
     'source map imports percent-encoded base64 data URL payloads before vlq import' => static function (TestRunner $t): void {
         $json = '{"version":3,"mappings":";CAAA","sources":["x!"],"sourcesContent":[".x{}"],"names":[]}';
         $encoded = str_replace('=', '%3D', base64_encode($json));

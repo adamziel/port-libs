@@ -710,6 +710,52 @@ CSS,
             ], $resolved);
         });
     },
+    'css bundler maps upstream async read source provider row' => static function (TestRunner $t): void {
+        $root = 'tests/testdata';
+        $readerFiles = [
+            $root . '/foo.css' => <<<'CSS'
+@import 'root:hello/world.css';
+
+.foo { color: red; }
+CSS,
+            $root . '/hello/world.css' => <<<'CSS'
+@import 'root:baz.css';
+
+.bar { color: green; }
+CSS,
+            $root . '/baz.css' => '.baz { color: blue; }',
+        ];
+        $reads = [];
+        $resolved = [];
+
+        $code = (new CssBundler())->bundleWithReader(
+            $root . '/foo.css',
+            static function (string $file) use (&$reads, $readerFiles): string {
+                $reads[] = $file;
+                if (!array_key_exists($file, $readerFiles)) {
+                    throw new RuntimeException("Could not find {$file}.");
+                }
+
+                return $readerFiles[$file];
+            },
+            static function (string $specifier, string $originatingFile) use (&$resolved, $root): string {
+                $resolved[] = [$specifier, $originatingFile];
+
+                return $root . '/' . substr($specifier, strlen('root:'));
+            }
+        );
+
+        $t->same('.baz{color:#00f}.bar{color:green}.foo{color:red}', $code);
+        $t->same([
+            $root . '/foo.css',
+            $root . '/hello/world.css',
+            $root . '/baz.css',
+        ], $reads);
+        $t->same([
+            ['root:hello/world.css', $root . '/foo.css'],
+            ['root:baz.css', $root . '/hello/world.css'],
+        ], $resolved);
+    },
     'css bundler maps upstream custom source provider prefix resolution' => static function (TestRunner $t) use ($bundle): void {
         $resolved = [];
         $resolveFoo = static function (string $specifier, string $originatingFile) use (&$resolved): string {
