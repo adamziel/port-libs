@@ -699,6 +699,7 @@ final class BibtexCslProcessor
             }
             $item[$target] = $target === 'page' ? str_replace('--', '-', $value) : $value;
         }
+        $this->normalizeIdentifierFields($item);
 
         $thesisType = $this->thesisTypeForEntry($type, $fields);
         if ($thesisType !== null && $thesisType !== '') {
@@ -1166,6 +1167,91 @@ final class BibtexCslProcessor
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function normalizeIdentifierFields(array &$item): void
+    {
+        foreach ([
+            'DOI' => [$this, 'normalizeDoiIdentifier'],
+            'URL' => [$this, 'normalizeUrlIdentifier'],
+            'ISBN' => [$this, 'normalizeIsbnIdentifier'],
+            'ISSN' => [$this, 'normalizeIssnIdentifier'],
+            'PMID' => [$this, 'normalizePmidIdentifier'],
+            'PMCID' => [$this, 'normalizePmcidIdentifier'],
+        ] as $field => $normalizer) {
+            $value = $item[$field] ?? null;
+            if (!is_string($value) || $value === '') {
+                continue;
+            }
+
+            $normalized = $normalizer($value);
+            if ($normalized !== '') {
+                $item[$field] = $normalized;
+            }
+        }
+    }
+
+    private function normalizeDoiIdentifier(string $value): string
+    {
+        $value = trim($value);
+        $value = trim($value, "<> \t\r\n");
+        $value = preg_replace('~\A(?:doi:\s*|https?://(?:dx\.)?doi\.org/)~i', '', $value) ?? $value;
+        $value = preg_replace('/\s+/u', '', $value) ?? $value;
+
+        return strtolower(trim($value));
+    }
+
+    private function normalizeUrlIdentifier(string $value): string
+    {
+        return trim(trim($value), '<>');
+    }
+
+    private function normalizeIsbnIdentifier(string $value): string
+    {
+        $value = trim($value);
+        $value = preg_replace('/\A(?:e-?isbn|isbn(?:-1[03])?)\s*:?\s*/i', '', $value) ?? $value;
+        $value = preg_replace('/\s+/u', '', $value) ?? $value;
+
+        return strtoupper(trim($value));
+    }
+
+    private function normalizeIssnIdentifier(string $value): string
+    {
+        $value = trim($value);
+        $value = preg_replace('/\A(?:p-?|e-?|print\s+|online\s+|electronic\s+)?issn\s*:?\s*/i', '', $value) ?? $value;
+        $compact = strtoupper(preg_replace('/[\s-]+/u', '', $value) ?? $value);
+        if (preg_match('/\A\d{4}\d{3}[\dX]\z/', $compact) === 1) {
+            return substr($compact, 0, 4) . '-' . substr($compact, 4);
+        }
+
+        return strtoupper(trim($value));
+    }
+
+    private function normalizePmidIdentifier(string $value): string
+    {
+        $digits = preg_replace('/\D+/', '', $value) ?? '';
+
+        return $digits !== '' ? $digits : trim($value);
+    }
+
+    private function normalizePmcidIdentifier(string $value): string
+    {
+        $value = trim($value);
+        $value = preg_replace('/\Apmc(?:id)?\s*:?\s*/i', '', $value) ?? $value;
+        $value = preg_replace('/\s+/u', '', $value) ?? $value;
+
+        if (preg_match('/\A\d+\z/', $value) === 1) {
+            return 'PMC' . $value;
+        }
+
+        if (preg_match('/\Apmc/i', $value) === 1) {
+            return 'PMC' . substr($value, 3);
+        }
+
+        return strtoupper($value);
     }
 
     /**

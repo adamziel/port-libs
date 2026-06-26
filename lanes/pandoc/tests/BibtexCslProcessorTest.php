@@ -204,6 +204,79 @@ XML);
         $t->contains('PMID 34567890', $blocks);
         $t->contains('HDL 20.500/legacy', $blocks);
     },
+    'normalizes prefixed biblatex identifiers without losing raw fields' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@online{identifier-normalization,
+  author = {Ng, Nia},
+  title  = {Identifier Normalization Packet},
+  date   = {2026-06-05},
+  doi    = {https://doi.org/10.5555/MIGRATION.CAPS},
+  isbn   = {ISBN-13: 978 1 4028 9462 6},
+  issn   = {ISSN 2049 3630},
+  pubmed = {PMID: 34 567 890},
+  pmc-id = {pmcid: pmc3456789},
+  url    = {<https://example.test/identifier-normalization>}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $item = $processor->cslItems($source)['identifier-normalization'];
+        $bibliography = $processor->renderBibliographyText($item);
+
+        $t->same('10.5555/migration.caps', $item['DOI']);
+        $t->same('9781402894626', $item['ISBN']);
+        $t->same('2049-3630', $item['ISSN']);
+        $t->same('34567890', $item['PMID']);
+        $t->same('PMC3456789', $item['PMCID']);
+        $t->same('https://example.test/identifier-normalization', $item['URL']);
+        $t->same('https://doi.org/10.5555/MIGRATION.CAPS', $item['rawBibtex']['fields']['doi']);
+        $t->same('ISBN-13: 978 1 4028 9462 6', $item['rawBibtex']['fields']['isbn']);
+        $t->same('PMID: 34 567 890', $item['rawBibtex']['fields']['pubmed']);
+        $t->same(
+            'Nia Ng. Identifier Normalization Packet. 2026. doi:10.5555/migration.caps. PMID 34567890. PMCID PMC3456789. https://example.test/identifier-normalization.',
+            $bibliography
+        );
+
+        $styled = CitationCslProcessor::fromItems([$item])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="doi"/>
+        <text variable="isbn"/>
+        <text variable="issn"/>
+        <text variable="pubmed-id"/>
+        <text variable="pmc-id"/>
+        <text variable="url"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="DOI"/>
+      <text variable="ISBN"/>
+      <text variable="PMID"/>
+      <text variable="PMCID"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledItem = $styled->item('identifier-normalization');
+        $t->same('10.5555/migration.caps', $styledItem['doi'] ?? null);
+        $t->same('9781402894626', $styledItem['isbn'] ?? null);
+        $t->same('34567890', $styledItem['pmid'] ?? null);
+        $t->same(
+            '[Identifier Normalization Packet | 10.5555/migration.caps | 9781402894626 | 2049-3630 | 34567890 | PMC3456789 | https://example.test/identifier-normalization]',
+            $styled->renderCitationCluster([
+                new AstNode('citation', ['id' => 'identifier-normalization', 'text' => '[@identifier-normalization]']),
+            ])
+        );
+        $t->same('Identifier Normalization Packet :: 10.5555/migration.caps :: 9781402894626 :: 34567890 :: PMC3456789', $styled->renderBibliographyEntry('identifier-normalization'));
+    },
     'carries biblatex annotations separately from abstracts in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @misc{annotated-source,
