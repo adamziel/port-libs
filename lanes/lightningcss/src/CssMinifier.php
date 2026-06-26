@@ -224,6 +224,7 @@ final class CssMinifier
         $css = $this->minifyKeyframesRules($css);
         $css = $this->mergeAdjacentRuleBlocks($css);
         $css = $this->rewriteAllResetDeclarationBlocks($css);
+        $css = $this->rewriteDisplayDeclarationBlocks($css);
         $css = $this->composeContainerDeclarationBlocks($css);
         $css = $this->composePositionDeclarationBlocks($css);
         $css = $this->composeOverflowDeclarationBlocks($css);
@@ -11553,6 +11554,84 @@ final class CssMinifier
     private function isCustomPropertyName(string $property): bool
     {
         return str_starts_with($property, '--');
+    }
+
+    private function rewriteDisplayDeclarationBlocks(string $css): string
+    {
+        if (stripos($css, 'display:') === false) {
+            return $css;
+        }
+
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $body = $this->rewriteDisplayDeclarationBlocks(substr($css, $open + 1, $close - $open - 1));
+            if (!str_contains($body, '{')) {
+                $body = $this->rewriteDisplayDeclarationList($body);
+            }
+
+            $output .= substr($css, $cursor, $open - $cursor + 1) . $body . '}';
+            $cursor = $close + 1;
+        }
+
+        return $output;
+    }
+
+    private function rewriteDisplayDeclarationList(string $body): string
+    {
+        if (stripos($body, 'display:') === false) {
+            return $body;
+        }
+
+        $entries = $this->parseDeclarationEntriesForComposition($body);
+        if ($entries === null) {
+            return $body;
+        }
+
+        $lastPlainByImportance = [];
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop'] || $entry['property'] !== 'display') {
+                continue;
+            }
+            if ($this->isFallbackDisplayValue($entry['value']) || $this->containsCustomPropertyReference($entry['value'])) {
+                continue;
+            }
+            $lastPlainByImportance[$entry['important'] ? 1 : 0] = $index;
+        }
+
+        if ($lastPlainByImportance === []) {
+            return $body;
+        }
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop'] || $entry['property'] !== 'display') {
+                continue;
+            }
+            if ($this->isFallbackDisplayValue($entry['value']) || $this->containsCustomPropertyReference($entry['value'])) {
+                continue;
+            }
+
+            $importance = $entry['important'] ? 1 : 0;
+            if (($lastPlainByImportance[$importance] ?? $index) !== $index) {
+                $entries[$index]['drop'] = true;
+            }
+        }
+
+        return $this->serializeDeclarationEntriesForComposition($entries);
+    }
+
+    private function isFallbackDisplayValue(string $value): bool
+    {
+        return str_starts_with(trim(strtolower($value)), '-');
     }
 
     private function composeTransitionDeclarationBlocks(string $css): string

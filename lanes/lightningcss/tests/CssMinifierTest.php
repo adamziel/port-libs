@@ -176,11 +176,17 @@ CSS
     'css minifier maps upstream state selector with pseudo element part' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
-        // Pinned upstream 22bdda3d src/lib.rs::test_selectors line 7357.
-        $t->same(
-            'button:active:not(:state(disabled))::part(control){border:1px solid}',
-            $minifier->minify('button:active:not(:state(disabled))::part(control) {border:1px solid}')
-        );
+        // Pinned upstream 22bdda3d src/lib.rs::test_selectors lines 7346, 7350, 7353, and 7357.
+        $cases = [
+            [7346, 'wa-checkbox:state(disabled) {color:red}', 'wa-checkbox:state(disabled){color:red}'],
+            [7350, 'button:state(checked) {background:blue}', 'button:state(checked){background:#00f}'],
+            [7353, 'input:state(custom-state) {border:1px solid}', 'input:state(custom-state){border:1px solid}'],
+            [7357, 'button:active:not(:state(disabled))::part(control) {border:1px solid}', 'button:active:not(:state(disabled))::part(control){border:1px solid}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_selectors line ' . $line);
+        }
     },
     'css minifier maps upstream cue pseudo element selectors' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
@@ -3792,7 +3798,7 @@ CSS;
     'css minifier maps upstream display pair value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
-        // Pinned upstream 22bdda3d src/lib.rs::test_display minify_test rows, excluding duplicate declaration pruning line 15650.
+        // Pinned upstream 22bdda3d src/lib.rs::test_display minify_test rows.
         foreach ([
             [15603, '.foo { display: block }', '.foo{display:block}'],
             [15604, '.foo { display: block flow }', '.foo{display:block}'],
@@ -3832,6 +3838,7 @@ CSS;
             [15641, '.foo { display: -moz-box }', '.foo{display:-moz-box}'],
             [15642, '.foo { display: -webkit-flex; display: -moz-box; display: flex }', '.foo{display:-webkit-flex;display:-moz-box;display:flex}'],
             [15646, '.foo { display: -webkit-flex; display: flex; display: -moz-box }', '.foo{display:-webkit-flex;display:flex;display:-moz-box}'],
+            [15650, '.foo { display: flex; display: grid }', '.foo{display:grid}'],
             [15651, '.foo { display: -webkit-inline-flex; display: -moz-inline-box; display: inline-flex }', '.foo{display:-webkit-inline-flex;display:-moz-inline-box;display:inline-flex}'],
             [15655, '.foo { display: flex; display: var(--grid); }', '.foo{display:flex;display:var(--grid)}'],
         ] as [$line, $source, $expected]) {
