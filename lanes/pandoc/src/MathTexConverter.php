@@ -666,8 +666,10 @@ final class MathTexConverter
         '>' => true,
         'enspace' => true,
         'hspace' => true,
+        'kern' => true,
         'mbox' => true,
         'medspace' => true,
+        'mkern' => true,
         'mspace' => true,
         'negmedspace' => true,
         'negthickspace' => true,
@@ -3647,6 +3649,10 @@ final class MathTexConverter
             return $this->parseExplicitSpaceCommand($source, $offset, $command);
         }
 
+        if ($command === 'kern' || $command === 'mkern') {
+            return $this->parseKernCommand($source, $offset, $command);
+        }
+
         if ($command === 'allowbreak') {
             $placementOffset = $offset;
             $placement = $this->readScriptPlacementCommand($source, $placementOffset);
@@ -5233,6 +5239,13 @@ final class MathTexConverter
         return '<mspace width="' . $this->esc($width) . '"' . $attributes . '></mspace>';
     }
 
+    private function parseKernCommand(string $source, int &$offset, string $command): string
+    {
+        $width = $this->readMathSpaceDimensionArgument($source, $offset, $command);
+
+        return '<mspace width="' . $this->esc($width) . '"></mspace>';
+    }
+
     private function parseModuloCommand(string $source, int &$offset, string $command): string
     {
         $argument = $this->parseRequiredScriptedAtomOrGroup($source, $offset, $command . ' argument');
@@ -5778,6 +5791,23 @@ final class MathTexConverter
         return str_starts_with($dimension, '+') ? substr($dimension, 1) : $dimension;
     }
 
+    private function readMathSpaceDimensionArgument(string $source, int &$offset, string $command): string
+    {
+        $this->skipWhitespace($source, $offset);
+        $start = $offset;
+        $tail = substr($source, $offset);
+
+        if (preg_match('/^[+\\-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)\\s*(?:em|ex|px|pt|pc|in|cm|mm|mu)/', $tail, $matches) !== 1) {
+            throw new \InvalidArgumentException('Expected TeX \\' . $command . ' dimension at offset ' . $start);
+        }
+
+        $rawDimension = $matches[0];
+        $offset += strlen($rawDimension);
+        $dimension = preg_replace('/\\s+/', '', $rawDimension);
+
+        return $this->normalizeMathSpaceDimension(is_string($dimension) ? $dimension : $rawDimension, $command);
+    }
+
     private function parseSubstackCommand(string $source, int &$offset): string
     {
         $content = $this->readRequiredGroupText($source, $offset);
@@ -6267,6 +6297,11 @@ final class MathTexConverter
             if ($command === 'hspace' || $command === 'mspace') {
                 $dimension = $this->readRequiredGroupText($source, $offset);
                 $this->normalizeMathSpaceDimension($dimension, $command);
+                continue;
+            }
+
+            if ($command === 'kern' || $command === 'mkern') {
+                $this->readMathSpaceDimensionArgument($source, $offset, $command);
                 continue;
             }
 
