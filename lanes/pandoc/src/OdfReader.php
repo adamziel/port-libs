@@ -1249,6 +1249,7 @@ final class OdfReader
         $mediaResourcePartCount = 0;
         $packageThumbnailPartCount = 0;
         $packageSignaturePartCount = 0;
+        $scriptPackagePartCount = 0;
         $configurationPackagePartCount = 0;
         $packageFontPartCount = 0;
         $rdfMetadataPartCount = 0;
@@ -1269,7 +1270,17 @@ final class OdfReader
                 'part' => $part,
                 'partReference' => $item['partReference'] ?? null,
                 'partSuffix' => $item['partSuffix'] ?? null,
+                'partQuery' => $item['partQuery'] ?? null,
+                'partFragment' => $item['partFragment'] ?? null,
+                'uriEncodedPartReference' => is_string($item['partReference'] ?? null)
+                    && is_string($part)
+                    && $item['partReference'] !== $part,
                 'mediaType' => $item['mediaType'] ?? null,
+                'mediaTypeBase' => $item['mediaTypeBase'] ?? null,
+                'mediaTypeHasParameters' => ($item['mediaTypeHasParameters'] ?? false) === true,
+                'mediaTypeParameterCount' => $item['mediaTypeParameterCount'] ?? 0,
+                'mediaTypeParameters' => $item['mediaTypeParameters'] ?? [],
+                'mediaTypeParameterMap' => $item['mediaTypeParameterMap'] ?? [],
                 'version' => $item['version'] ?? null,
                 'preferredViewMode' => $item['preferredViewMode'] ?? null,
                 'declaredSize' => $item['declaredSize'] ?? null,
@@ -1527,6 +1538,9 @@ final class OdfReader
             if (in_array('package-signature', $roles, true)) {
                 ++$packageSignaturePartCount;
             }
+            if (in_array('script-package', $roles, true)) {
+                ++$scriptPackagePartCount;
+            }
             if (in_array('configuration-package', $roles, true)) {
                 ++$configurationPackagePartCount;
             }
@@ -1570,7 +1584,7 @@ final class OdfReader
         $embeddedObjectPackages = $this->embeddedObjectPackageProvenance($package, $manifest, $objectPackageRootParts);
         sort($manifestCustomAttributeNames, SORT_STRING);
 
-        return [
+        $provenance = [
             'mimetypeEntry' => $mimetypeEntry,
             'entryCount' => count($parts),
             'fileEntryCount' => $fileEntryCount,
@@ -1624,6 +1638,7 @@ final class OdfReader
             'mediaResourcePartCount' => $mediaResourcePartCount,
             'packageThumbnailPartCount' => $packageThumbnailPartCount,
             'packageSignaturePartCount' => $packageSignaturePartCount,
+            'scriptPackagePartCount' => $scriptPackagePartCount,
             'configurationPackagePartCount' => $configurationPackagePartCount,
             'packageFontPartCount' => $packageFontPartCount,
             'rdfMetadataPartCount' => $rdfMetadataPartCount,
@@ -1659,6 +1674,179 @@ final class OdfReader
             'commentedEntryNames' => is_array($comments['commentedEntryNames'] ?? null) ? $comments['commentedEntryNames'] : [],
             'embeddedObjectPackages' => $embeddedObjectPackages,
             'parts' => $parts,
+        ];
+
+        $provenance['packageIdentity'] = $this->packageIdentityProvenance($provenance);
+
+        return $provenance;
+    }
+
+    /**
+     * @param array<string, mixed> $provenance
+     * @return array<string, mixed>
+     */
+    private function packageIdentityProvenance(array $provenance): array
+    {
+        $manifestEntries = [];
+        foreach ($provenance['manifestFileEntryOrder'] ?? [] as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $manifestEntries[] = self::withoutEmpty([
+                'manifestIndex' => $item['manifestIndex'] ?? null,
+                'fullPath' => $item['fullPath'] ?? null,
+                'part' => $item['part'] ?? null,
+                'partReference' => $item['partReference'] ?? null,
+                'partSuffix' => $item['partSuffix'] ?? null,
+                'partQuery' => $item['partQuery'] ?? null,
+                'partFragment' => $item['partFragment'] ?? null,
+                'uriEncodedPartReference' => ($item['uriEncodedPartReference'] ?? false) === true,
+                'mediaType' => $item['mediaType'] ?? null,
+                'mediaTypeBase' => $item['mediaTypeBase'] ?? null,
+                'version' => $item['version'] ?? null,
+                'preferredViewMode' => $item['preferredViewMode'] ?? null,
+                'declaredSize' => $item['declaredSize'] ?? null,
+                'declaredSizeRaw' => $item['declaredSizeRaw'] ?? null,
+                'declaredSizeValid' => ($item['declaredSizeValid'] ?? false) === true,
+                'declaredSizeInvalid' => ($item['declaredSizeInvalid'] ?? false) === true,
+                'customManifestAttributeMap' => $item['customManifestAttributeMap'] ?? [],
+                'manifestNamespaceDeclarationMap' => $item['manifestNamespaceDeclarationMap'] ?? [],
+                'exists' => ($item['exists'] ?? false) === true,
+                'isDirectory' => ($item['isDirectory'] ?? false) === true,
+                'encrypted' => ($item['encrypted'] ?? false) === true,
+                'scriptPackagePart' => ($item['scriptPackagePart'] ?? false) === true,
+                'signaturePackagePart' => ($item['signaturePackagePart'] ?? false) === true,
+                'configurationPackagePart' => ($item['configurationPackagePart'] ?? false) === true,
+                'fontPackagePart' => ($item['fontPackagePart'] ?? false) === true,
+                'rdfMetadataPart' => ($item['rdfMetadataPart'] ?? false) === true,
+                'objectReplacementPackagePart' => ($item['objectReplacementPackagePart'] ?? false) === true,
+                'layoutCachePackagePart' => ($item['layoutCachePackagePart'] ?? false) === true,
+                'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
+                'byteExposurePolicy' => $item['byteExposurePolicy'] ?? null,
+                'diagnostics' => $item['diagnostics'] ?? [],
+            ]);
+        }
+
+        $packageEntries = [];
+        foreach ($provenance['parts'] ?? [] as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $packageEntries[] = self::withoutEmpty([
+                'part' => $item['part'] ?? null,
+                'roles' => $item['roles'] ?? [],
+                'centralDirectoryIndex' => $item['centralDirectoryIndex'] ?? null,
+                'localHeaderOrder' => $item['localHeaderOrder'] ?? null,
+                'compressionMethod' => $item['compressionMethod'] ?? null,
+                'compressionMethodName' => $item['compressionMethodName'] ?? null,
+                'byteLength' => $item['byteLength'] ?? null,
+                'compressedByteLength' => $item['compressedByteLength'] ?? null,
+                'crc32' => $item['crc32'] ?? null,
+                'byteSha256' => $item['byteSha256'] ?? null,
+                'zipEntryComment' => $item['zipEntryComment'] ?? null,
+                'zipEntryCommentLength' => $item['zipEntryCommentLength'] ?? null,
+                'zipEntryCommentEncoding' => $item['zipEntryCommentEncoding'] ?? null,
+                'zipEntryHasComment' => ($item['zipEntryHasComment'] ?? false) === true,
+                'declaredInManifest' => ($item['declaredInManifest'] ?? false) === true,
+                'manifestIndex' => $item['manifestIndex'] ?? null,
+                'manifestFullPath' => $item['manifestFullPath'] ?? null,
+                'manifestPartReference' => $item['manifestPartReference'] ?? null,
+                'manifestPartSuffix' => $item['manifestPartSuffix'] ?? null,
+                'manifestPartQuery' => $item['manifestPartQuery'] ?? null,
+                'manifestPartFragment' => $item['manifestPartFragment'] ?? null,
+                'manifestMediaTypeBase' => $item['manifestMediaTypeBase'] ?? null,
+                'manifestDeclaredSize' => $item['manifestDeclaredSize'] ?? null,
+                'manifestDeclaredSizeRaw' => $item['manifestDeclaredSizeRaw'] ?? null,
+                'manifestDeclaredSizeInvalid' => ($item['manifestDeclaredSizeInvalid'] ?? false) === true,
+                'customManifestAttributeMap' => $item['customManifestAttributeMap'] ?? [],
+                'manifestNamespaceDeclarationMap' => $item['manifestNamespaceDeclarationMap'] ?? [],
+                'manifestDiagnostics' => $item['manifestDiagnostics'] ?? [],
+                'manifestEncryptionIssueCodes' => $item['manifestEncryptionIssueCodes'] ?? [],
+                'scriptPackagePart' => ($item['scriptPackagePart'] ?? false) === true,
+                'signaturePackagePart' => ($item['signaturePackagePart'] ?? false) === true,
+                'configurationPackagePart' => ($item['configurationPackagePart'] ?? false) === true,
+                'fontPackagePart' => ($item['fontPackagePart'] ?? false) === true,
+                'rdfMetadataPart' => ($item['rdfMetadataPart'] ?? false) === true,
+                'objectReplacementPackagePart' => ($item['objectReplacementPackagePart'] ?? false) === true,
+                'layoutCachePackagePart' => ($item['layoutCachePackagePart'] ?? false) === true,
+                'encrypted' => ($item['encrypted'] ?? false) === true,
+                'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
+                'byteExposurePolicy' => $item['byteExposurePolicy'] ?? null,
+                'undeclared' => ($item['undeclared'] ?? false) === true,
+                'rawNameHex' => $item['rawNameHex'] ?? null,
+                'nameEncoding' => $item['nameEncoding'] ?? null,
+                'rawNameMatchesDecodedName' => ($item['rawNameMatchesDecodedName'] ?? false) === true,
+                'usesLegacyNameEncoding' => ($item['usesLegacyNameEncoding'] ?? false) === true,
+                'usesUnicodePathExtraField' => ($item['usesUnicodePathExtraField'] ?? false) === true,
+            ]);
+        }
+
+        $comments = is_array($provenance['comments'] ?? null) ? $provenance['comments'] : [];
+        $payload = [
+            'identityVersion' => 1,
+            'packageType' => 'opendocument-text',
+            'mimetype' => self::MIMETYPE,
+            'manifestVersion' => $this->manifestVersion === '' ? null : $this->manifestVersion,
+            'manifestRootCustomAttributeMap' => $provenance['manifestRootCustomAttributeMap'] ?? [],
+            'manifestRootNamespaceDeclarationMap' => $provenance['manifestRootNamespaceDeclarationMap'] ?? [],
+            'manifestEntries' => $manifestEntries,
+            'packageEntries' => $packageEntries,
+            'roleCounts' => $provenance['roleCounts'] ?? [],
+            'undeclaredRoleCounts' => $provenance['undeclaredRoleCounts'] ?? [],
+            'packagePartByteExposurePolicyCounts' => $provenance['packagePartByteExposurePolicyCounts'] ?? [],
+            'manifestByteExposurePolicyCounts' => $provenance['manifestByteExposurePolicyCounts'] ?? [],
+            'manifestCustomAttributeNames' => $provenance['manifestCustomAttributeNames'] ?? [],
+            'rawNameProvenanceEntries' => $provenance['rawNameProvenanceEntries'] ?? [],
+            'comments' => [
+                'hasPackageComment' => ($comments['hasPackageComment'] ?? false) === true,
+                'packageComment' => $comments['packageComment'] ?? null,
+                'entryCommentCount' => $comments['entryCommentCount'] ?? 0,
+                'commentedEntryNames' => $comments['commentedEntryNames'] ?? [],
+                'entries' => $comments['entries'] ?? [],
+            ],
+            'totalByteLength' => $provenance['totalByteLength'] ?? 0,
+            'totalCompressedByteLength' => $provenance['totalCompressedByteLength'] ?? 0,
+            'fileEntryCount' => $provenance['fileEntryCount'] ?? 0,
+            'directoryEntryCount' => $provenance['directoryEntryCount'] ?? 0,
+            'undeclaredEntryCount' => $provenance['undeclaredEntryCount'] ?? 0,
+            'embeddedObjectPackageCount' => $provenance['embeddedObjectPackageCount'] ?? 0,
+            'scriptPackagePartCount' => $provenance['scriptPackagePartCount'] ?? 0,
+            'configurationPackagePartCount' => $provenance['configurationPackagePartCount'] ?? 0,
+            'centralDirectoryOrderMatchesLocalHeaderOrder' => ($provenance['centralDirectoryOrderMatchesLocalHeaderOrder'] ?? false) === true,
+        ];
+        $identityJson = json_encode(
+            self::canonicalIdentityValue($payload),
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        );
+
+        return [
+            'identityVersion' => 1,
+            'packageType' => 'opendocument-text',
+            'mimetype' => self::MIMETYPE,
+            'manifestVersion' => $this->manifestVersion === '' ? null : $this->manifestVersion,
+            'manifestEntryCount' => count($manifestEntries),
+            'packageEntryCount' => count($packageEntries),
+            'manifestFullPaths' => array_column($manifestEntries, 'fullPath'),
+            'packageParts' => array_column($packageEntries, 'part'),
+            'manifestRootCustomAttributeCount' => $provenance['manifestRootCustomAttributeCount'] ?? 0,
+            'manifestRootCustomAttributeNames' => $provenance['manifestRootCustomAttributeNames'] ?? [],
+            'hasPackageComment' => ($comments['hasPackageComment'] ?? false) === true,
+            'hasEntryComments' => ($comments['hasEntryComments'] ?? false) === true,
+            'entryCommentCount' => is_int($comments['entryCommentCount'] ?? null) ? $comments['entryCommentCount'] : 0,
+            'commentedEntryNames' => is_array($comments['commentedEntryNames'] ?? null) ? $comments['commentedEntryNames'] : [],
+            'roleCounts' => $provenance['roleCounts'] ?? [],
+            'packagePartByteExposurePolicyCounts' => $provenance['packagePartByteExposurePolicyCounts'] ?? [],
+            'manifestEntries' => $manifestEntries,
+            'packageEntries' => $packageEntries,
+            'scriptPackagePartCount' => $provenance['scriptPackagePartCount'] ?? 0,
+            'configurationPackagePartCount' => $provenance['configurationPackagePartCount'] ?? 0,
+            'undeclaredEntryCount' => $provenance['undeclaredEntryCount'] ?? 0,
+            'identitySha256' => hash('sha256', $identityJson),
+            'identityPayloadByteLength' => strlen($identityJson),
+            'byteExposurePolicy' => 'odf-package-identity-metadata-only',
+            'canExposeBytes' => false,
         ];
     }
 
@@ -16275,6 +16463,25 @@ final class OdfReader
             $values,
             static fn (mixed $value): bool => $value !== null && $value !== '' && $value !== []
         );
+    }
+
+    private static function canonicalIdentityValue(mixed $value): mixed
+    {
+        if (!is_array($value)) {
+            return $value;
+        }
+
+        if (array_is_list($value)) {
+            return array_map(static fn (mixed $item): mixed => self::canonicalIdentityValue($item), $value);
+        }
+
+        $canonical = [];
+        foreach ($value as $key => $item) {
+            $canonical[(string) $key] = self::canonicalIdentityValue($item);
+        }
+        ksort($canonical, SORT_STRING);
+
+        return $canonical;
     }
 
     private static function normalizedText(\DOMElement $element): string
