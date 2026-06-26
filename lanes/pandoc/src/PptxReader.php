@@ -26,6 +26,7 @@ final class PptxReader
         $presentation = $this->loadPackageXml($package, $presentationPart, 'PPTX presentation');
         $slides = $this->parsePresentationSlides($presentation);
         $presentationRelationships = $this->relationshipsOrEmpty($package, $presentationPart);
+        $tableStyles = $this->presentationTableStyles($package, $presentationRelationships);
         $commentAuthors = $this->commentAuthors($package);
 
         $blocks = [];
@@ -44,7 +45,7 @@ final class PptxReader
             $slideRelationships = $this->relationshipsOrEmpty($package, $slidePart);
             $slideContext = $this->slideContext($package, $slideRelationships);
             $slideComments = $this->slideComments($package, $slideRelationships, $commentAuthors);
-            $slideBlocks = $this->slideToBlocks($package, $slide['index'], $slideDocument, $slideRelationships, $slideContext, $slideComments);
+            $slideBlocks = $this->slideToBlocks($package, $slide['index'], $slideDocument, $slideRelationships, $slideContext, $slideComments, $tableStyles);
             foreach ($slideBlocks as $block) {
                 $blocks[] = $block;
             }
@@ -78,6 +79,7 @@ final class PptxReader
                 'slideCount' => count($slides),
                 'slides' => $slideReviews,
                 'commentAuthors' => $commentAuthors,
+                'tableStyles' => $tableStyles,
                 'payloadExposurePolicy' => 'xml-text-and-media-reference-only',
                 'upstreamEvidence' => [
                     'denominator' => 1,
@@ -154,9 +156,10 @@ final class PptxReader
     /**
      * @param array<string, mixed> $slideContext
      * @param list<array<string, mixed>> $slideComments
+     * @param array<string, mixed> $tableStyles
      * @return list<AstNode>
      */
-    private function slideToBlocks(ZipPackage $package, int $slideIndex, \DOMDocument $document, OpcRelationships $slideRelationships, array $slideContext, array $slideComments): array
+    private function slideToBlocks(ZipPackage $package, int $slideIndex, \DOMDocument $document, OpcRelationships $slideRelationships, array $slideContext, array $slideComments, array $tableStyles): array
     {
         $root = XmlHtmlDom::rootElement($document, 'sld');
         if (!$root instanceof \DOMElement) {
@@ -188,7 +191,7 @@ final class PptxReader
             if ($this->isTitlePlaceholder($shapeElement)) {
                 continue;
             }
-            foreach ($this->shapeToBlocks($package, $shapeElement, $slideRelationships, $slideContext, $zOrder) as $block) {
+            foreach ($this->shapeToBlocks($package, $shapeElement, $slideRelationships, $slideContext, $tableStyles, $zOrder) as $block) {
                 $blocks[] = $block;
             }
         }
@@ -329,6 +332,86 @@ final class PptxReader
         }
 
         return $review;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function presentationTableStyles(ZipPackage $package, OpcRelationships $presentationRelationships): array
+    {
+        $relationship = $this->firstRelationshipWithTypeSuffix($presentationRelationships, '/tableStyles');
+        if (!$relationship instanceof OpcRelationship) {
+            return [];
+        }
+
+        $summary = [
+            'relationshipId' => $relationship->id,
+            'relationshipType' => $relationship->type,
+            'target' => $relationship->target,
+            'external' => $relationship->isExternal(),
+            'partName' => '',
+            'defaultStyleId' => '',
+            'styleCount' => 0,
+            'styles' => [],
+            'issues' => [],
+        ];
+
+        if ($relationship->isExternal()) {
+            $summary['externalTargetPolicy'] = $relationship->externalTargetPreflight();
+            $summary['issues'][] = 'external-table-styles-part';
+
+            return $summary;
+        }
+
+        $partName = OpcPackagePath::stripQueryAndFragment($presentationRelationships->resolveTarget($relationship));
+        $summary['partName'] = ltrim($partName, '/');
+        $document = $this->optionalPackageXml($package, $partName, 'PPTX table styles');
+        if (!$document instanceof \DOMDocument) {
+            $summary['issues'][] = 'missing-or-invalid-table-styles-part';
+
+            return $summary;
+        }
+
+        $root = XmlHtmlDom::rootElement($document, 'tblStyleLst');
+        if (!$root instanceof \DOMElement) {
+            $summary['issues'][] = 'unexpected-table-styles-root';
+
+            return $summary;
+        }
+
+        $defaultStyleId = trim($root->getAttribute('def'));
+        if ($defaultStyleId !== '') {
+            $summary['defaultStyleId'] = $defaultStyleId;
+        }
+
+        $styles = [];
+        foreach ($this->childElements($root, 'tblStyle') as $styleElement) {
+            $styleId = trim($styleElement->getAttribute('styleId'));
+            if ($styleId === '') {
+                continue;
+            }
+
+            $style = [
+                'id' => $styleId,
+                'sourcePart' => (string) $summary['partName'],
+                'relationshipId' => $relationship->id,
+            ];
+            $name = trim($styleElement->getAttribute('styleName'));
+            if ($name !== '') {
+                $style['name'] = $name;
+            }
+            if ($defaultStyleId !== '' && $styleId === $defaultStyleId) {
+                $style['default'] = true;
+            }
+
+            $styles[$styleId] = $style;
+        }
+        ksort($styles, SORT_STRING);
+
+        $summary['styles'] = $styles;
+        $summary['styleCount'] = count($styles);
+
+        return $summary;
     }
 
     /**
@@ -796,9 +879,10 @@ final class PptxReader
 
     /**
      * @param array<string, mixed> $slideContext
+     * @param array<string, mixed> $tableStyles
      * @return list<AstNode>
      */
-    private function shapeToBlocks(ZipPackage $package, \DOMElement $shapeElement, OpcRelationships $slideRelationships, array $slideContext, int $zOrder): array
+    private function shapeToBlocks(ZipPackage $package, \DOMElement $shapeElement, OpcRelationships $slideRelationships, array $slideContext, array $tableStyles, int $zOrder): array
     {
         if ($shapeElement->localName === 'sp') {
             $textBody = $this->firstChildElement($shapeElement, 'txBody');
@@ -848,7 +932,7 @@ final class PptxReader
         if (str_contains($uri, 'table')) {
             $table = $this->firstDescendantElement($graphicData, 'tbl');
 
-            return $this->withShapeMetadata($table instanceof \DOMElement ? [$this->tableNode($table)] : [], $shapeElement, $zOrder);
+            return $this->withShapeMetadata($table instanceof \DOMElement ? [$this->tableNode($table, $tableStyles)] : [], $shapeElement, $zOrder);
         }
         if (str_contains($uri, 'chart')) {
             $chart = $this->chartNode($package, $graphicData, $slideRelationships);
@@ -1634,7 +1718,10 @@ final class PptxReader
         return ($name !== '' ? $name : 'Series') . ': ' . implode('; ', $pairs);
     }
 
-    private function tableNode(\DOMElement $tableElement): AstNode
+    /**
+     * @param array<string, mixed> $tableStyles
+     */
+    private function tableNode(\DOMElement $tableElement, array $tableStyles): AstNode
     {
         $rows = [];
         foreach ($this->childElements($tableElement, 'tr') as $rowElement) {
@@ -1651,7 +1738,7 @@ final class PptxReader
             'alignments' => array_fill(0, count($header), 'default'),
             'pptxTable' => true,
         ];
-        $style = $this->tableStyleMetadata($tableElement);
+        $style = $this->tableStyleMetadata($tableElement, $tableStyles);
         if ($style !== []) {
             $attrs['pptxTableStyle'] = $style;
         }
@@ -1734,9 +1821,10 @@ final class PptxReader
     }
 
     /**
+     * @param array<string, mixed> $tableStyles
      * @return array<string, mixed>
      */
-    private function tableStyleMetadata(\DOMElement $tableElement): array
+    private function tableStyleMetadata(\DOMElement $tableElement, array $tableStyles): array
     {
         $properties = $this->firstChildElement($tableElement, 'tblPr');
         if (!$properties instanceof \DOMElement) {
@@ -1756,6 +1844,23 @@ final class PptxReader
             $id = trim($this->allDescendantText($styleId));
             if ($id !== '') {
                 $style['id'] = $id;
+            }
+        }
+
+        $styleCatalog = $tableStyles['styles'] ?? [];
+        $styleId = is_string($style['id'] ?? null) ? $style['id'] : '';
+        $resolvedStyle = is_array($styleCatalog) && $styleId !== '' && is_array($styleCatalog[$styleId] ?? null)
+            ? $styleCatalog[$styleId]
+            : [];
+        if ($resolvedStyle !== []) {
+            foreach (['name', 'sourcePart', 'relationshipId'] as $key) {
+                $value = $resolvedStyle[$key] ?? null;
+                if (is_string($value) && $value !== '') {
+                    $style[$key] = $value;
+                }
+            }
+            if (($resolvedStyle['default'] ?? false) === true) {
+                $style['default'] = true;
             }
         }
 

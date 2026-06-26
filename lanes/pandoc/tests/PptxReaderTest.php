@@ -47,6 +47,7 @@ XML);
   <Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide3.xml"/>
   <Relationship Id="rId5" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide4.xml"/>
   <Relationship Id="rId6" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide5.xml"/>
+  <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/tableStyles" Target="tableStyles.xml"/>
 </Relationships>
 XML);
 
@@ -218,6 +219,12 @@ XML . $slideClose);
 </Relationships>
 XML);
     $zip->addFromString('ppt/media/image1.png', 'fake-png-bytes');
+    $zip->addFromString('ppt/tableStyles.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<a:tblStyleLst xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" def="{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}">
+  <a:tblStyle styleId="{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}" styleName="Medium Style 2 - Accent 1"/>
+</a:tblStyleLst>
+XML);
     $zip->addFromString('ppt/charts/chart1.xml', <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
 <c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"
@@ -336,6 +343,68 @@ XML);
     }
 };
 
+$buildExternalTableStylesPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-ext-table-styles-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+  <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/tableStyles" Target="javascript:alert(1)" TargetMode="External"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>External table styles</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $nodesOfType = static function (AstNode $node, string $type) use (&$nodesOfType): array {
     $nodes = $node->type === $type ? [$node] : [];
     foreach ($node->children as $child) {
@@ -388,6 +457,11 @@ return [
         $t->same('Aptos', $review['slides'][1]['context']['theme']['fontScheme']['minorLatin'] ?? null);
         $t->same(1, $review['slides'][2]['chartCount'] ?? null);
         $t->same('ppt/charts/chart1.xml', $review['slides'][2]['charts'][0]['partName'] ?? null);
+        $t->same('ppt/tableStyles.xml', $review['tableStyles']['partName'] ?? null);
+        $t->same('rIdStyles', $review['tableStyles']['relationshipId'] ?? null);
+        $t->same('{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}', $review['tableStyles']['defaultStyleId'] ?? null);
+        $t->same(1, $review['tableStyles']['styleCount'] ?? null);
+        $t->same('Medium Style 2 - Accent 1', $review['tableStyles']['styles']['{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}']['name'] ?? null);
 
         $t->same('heading', $document->children[0]->type);
         $t->same('slide-1', $document->children[0]->attr('id'));
@@ -401,7 +475,15 @@ return [
         $t->same('SKILLS', $document->children[3]->attr('text'));
 
         $t->same(1, count($tables));
-        $t->same(['firstRow' => true, 'bandRow' => true, 'id' => '{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}'], $tables[0]->attr('pptxTableStyle'));
+        $t->same([
+            'firstRow' => true,
+            'bandRow' => true,
+            'id' => '{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}',
+            'name' => 'Medium Style 2 - Accent 1',
+            'sourcePart' => 'ppt/tableStyles.xml',
+            'relationshipId' => 'rIdStyles',
+            'default' => true,
+        ], $tables[0]->attr('pptxTableStyle'));
         $t->same([1828800, 1828800, 1828800], $tables[0]->attr('columnWidths'));
         $t->same(['Col1', 'Col2', 'Col3'], array_map(static fn (AstNode $cell): string => (string) $cell->attr('text'), $tables[0]->children[0]->children[0]->children));
         $t->same('Name', $tables[0]->children[1]->children[0]->children[0]->attr('text'));
@@ -468,6 +550,33 @@ return [
         $t->contains('data-pandoc-comment-author="Ada Reviewer"', $blocks);
         $t->contains('Inherited Layout Body', $blocks);
         $t->contains('Inherited Master Footer', $blocks);
+    },
+
+    'resolves pptx table style relationship provenance' => static function (TestRunner $t) use ($buildPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildPptxPackage());
+        $review = $document->attr('pptx');
+        $tables = $nodesOfType($document, 'table');
+
+        $t->same('ppt/tableStyles.xml', $review['tableStyles']['partName'] ?? null);
+        $t->same([], $review['tableStyles']['issues'] ?? null);
+        $t->same('Medium Style 2 - Accent 1', $review['tableStyles']['styles']['{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}']['name'] ?? null);
+        $t->same(true, $review['tableStyles']['styles']['{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}']['default'] ?? null);
+        $t->same('Medium Style 2 - Accent 1', $tables[0]->attr('pptxTableStyle')['name'] ?? null);
+        $t->same('ppt/tableStyles.xml', $tables[0]->attr('pptxTableStyle')['sourcePart'] ?? null);
+    },
+
+    'records external pptx table style policy without fetching target' => static function (TestRunner $t) use ($buildExternalTableStylesPptxPackage): void {
+        $document = (new PptxReader())->read($buildExternalTableStylesPptxPackage());
+        $tableStyles = $document->attr('pptx')['tableStyles'] ?? [];
+
+        $t->same(true, $tableStyles['external'] ?? null);
+        $t->same('', $tableStyles['partName'] ?? null);
+        $t->same(['external-table-styles-part'], $tableStyles['issues'] ?? null);
+        $t->same('javascript:alert(1)', $tableStyles['target'] ?? null);
+        $t->same('absolute-uri', $tableStyles['externalTargetPolicy']['kind'] ?? null);
+        $t->same('javascript', $tableStyles['externalTargetPolicy']['scheme'] ?? null);
+        $t->same(false, $tableStyles['externalTargetPolicy']['allowed'] ?? null);
+        $t->same(['external-target-unsafe-scheme'], $tableStyles['externalTargetPolicy']['issues'] ?? null);
     },
 
     'reads pptx bytes through the converter input path' => static function (TestRunner $t) use ($buildPptxPackage): void {
