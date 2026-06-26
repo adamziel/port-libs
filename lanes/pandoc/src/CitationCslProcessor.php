@@ -939,11 +939,17 @@ final class CitationCslProcessor
 
             $items[] = new AstNode('definition_item', $attrs, [
                 new AstNode('term', ['text' => $label], [
-                    new AstNode('text', ['text' => $label]),
+                    new AstNode('text', [
+                        'text' => $label,
+                        'preserveSmartPunctuation' => true,
+                    ]),
                 ]),
                 new AstNode('definition', [], [
                     new AstNode('paragraph', [], [
-                        new AstNode('text', ['text' => $entry]),
+                        new AstNode('text', [
+                            'text' => $entry,
+                            'preserveSmartPunctuation' => true,
+                        ]),
                     ]),
                 ]),
             ]);

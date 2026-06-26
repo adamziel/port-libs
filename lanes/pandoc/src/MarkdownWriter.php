@@ -5821,7 +5821,12 @@ final class MarkdownWriter
     private function renderInline(AstNode $node, array $following = [], bool $escapeInitialPlainMarker = false): string
     {
         return match ($node->type) {
-            'text' => $this->escapeText((string) $node->attr('text', ''), $following, $escapeInitialPlainMarker),
+            'text' => $this->escapeText(
+                (string) $node->attr('text', ''),
+                $following,
+                $escapeInitialPlainMarker,
+                (bool) $node->attr('preserveSmartPunctuation', false)
+            ),
             'softbreak' => $this->renderSoftBreak($following),
             'linebreak' => $this->renderLineBreak(),
             'code' => $this->renderCode($node),
@@ -5862,7 +5867,10 @@ final class MarkdownWriter
     private function renderPlainInline(AstNode $node): string
     {
         return match ($node->type) {
-            'text' => $this->renderPlainText((string) $node->attr('text', '')),
+            'text' => $this->renderPlainText(
+                (string) $node->attr('text', ''),
+                (bool) $node->attr('preserveSmartPunctuation', false)
+            ),
             'softbreak' => $this->writerWrapText() === 'preserve' ? "\n" : ' ',
             'linebreak' => "\n",
             'code' => (string) $node->attr('text', ''),
@@ -5908,9 +5916,9 @@ final class MarkdownWriter
         return $this->renderPlainInlines($children);
     }
 
-    private function renderPlainText(string $text): string
+    private function renderPlainText(string $text, bool $preserveSmartPunctuation = false): string
     {
-        if ($this->smartEnabled()) {
+        if ($this->smartEnabled() && !$preserveSmartPunctuation) {
             $text = $this->unsmartifyText($text);
         }
 
@@ -7057,7 +7065,7 @@ final class MarkdownWriter
     /**
      * @param list<AstNode> $following
      */
-    private function escapeText(string $text, array $following = [], bool $escapeInitialPlainMarker = false): string
+    private function escapeText(string $text, array $following = [], bool $escapeInitialPlainMarker = false, bool $preserveSmartPunctuation = false): string
     {
         $escaped = '';
         $length = strlen($text);
@@ -7158,7 +7166,7 @@ final class MarkdownWriter
             };
         }
 
-        if ($this->smartEnabled()) {
+        if ($this->smartEnabled() && !$preserveSmartPunctuation) {
             $escaped = $this->unsmartifyText($escaped);
         }
 
