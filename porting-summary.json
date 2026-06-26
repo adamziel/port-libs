@@ -51,7 +51,7 @@
             "currentWork": "Direct formatter follow-up accepted five src/lib.rs::test_border rows for border shor...",
             "nextTarget": "Continue converting the remaining 801 unmapped LightningCSS u...",
             "remainingGate": "Full upstream runner closure is partial: bounded Rust media test and...",
-            "commit": "SOURCE_COMMIT_P..."
+            "commit": "d01d2b0"
         },
         {
             "lane": "gitoxide",
