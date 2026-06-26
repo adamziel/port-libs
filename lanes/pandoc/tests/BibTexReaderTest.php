@@ -182,6 +182,34 @@ BIB;
         $t->contains('Kurt Gödel and María García. (2026). A Linked Tool. Example Lab.', $blocks);
         $t->contains('<a href="https://example.test/tool">https://example.test/tool</a>', $blocks);
     },
+    'cleans nested biblatex tex commands date ranges and name particles' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@collection{collected2026,
+  editor = {Ludwig van Beethoven and Fran\c{c}ois van der Waals},
+  title = {Collected \textit{Reader {Notes}} and \href{https://example.test}{Nested {Link}}},
+  date = {2026-06-25/2026-06-26},
+  publisher = {Example Press}
+}
+BIB;
+
+        $document = (new BibTexReader('biblatex'))->read($source);
+        $reference = $document->attr('meta')['references']['value'][0]['value'];
+        $editors = $reference['editor']['value'];
+        $dateParts = $reference['issued']['value']['date-parts']['value'];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('book', $reference['type']);
+        $t->same('Collected Reader Notes and Nested Link', $reference['title']);
+        $t->same([2026, 6, 25], $dateParts[0]['value']);
+        $t->same([2026, 6, 26], $dateParts[1]['value']);
+        $t->same('Ludwig', $editors[0]['value']['given']);
+        $t->same('Beethoven', $editors[0]['value']['family']);
+        $t->same('van', $editors[0]['value']['non-dropping-particle']);
+        $t->same('François', $editors[1]['value']['given']);
+        $t->same('Waals', $editors[1]['value']['family']);
+        $t->same('van der', $editors[1]['value']['non-dropping-particle']);
+        $t->contains('Ludwig van Beethoven and François van der Waals (ed.). (2026). <em>Collected Reader Notes and Nested Link</em>. Example Press.', $blocks);
+    },
     'returns a visible empty bibliography notice for files without entries' => static function (TestRunner $t): void {
         $document = (new BibTexReader())->read('@comment{no entries}');
         $blocks = (new WordPressBlockWriter())->write($document);

@@ -56,6 +56,33 @@ final class BibTexReader
         '\\ss' => 'ss',
     ];
 
+    /** @var list<string> */
+    private const LATEX_UNWRAP_COMMANDS = [
+        'emph',
+        'enquote',
+        'lowercase',
+        'MakeLowercase',
+        'MakeUppercase',
+        'mbox',
+        'mkbibbold',
+        'mkbibbrackets',
+        'mkbibemph',
+        'mkbibitalic',
+        'mkbibparens',
+        'mkbibquote',
+        'sout',
+        'textbf',
+        'textit',
+        'textnormal',
+        'textrm',
+        'textsc',
+        'textsf',
+        'textsl',
+        'texttt',
+        'underline',
+        'uppercase',
+    ];
+
     public function __construct(private readonly string $variant = 'bibtex')
     {
     }
@@ -600,9 +627,9 @@ final class BibTexReader
         }
         if (($fields['date'] ?? '') !== '') {
             $reference['date'] = $fields['date'];
-            $dateParts = $this->datePartsFromDate($fields['date']);
-            if ($dateParts !== []) {
-                $reference['issued'] = $this->datePartsMeta($dateParts);
+            $datePartLists = $this->datePartListsFromDate($fields['date']);
+            if ($datePartLists !== []) {
+                $reference['issued'] = $this->datePartsMeta($datePartLists);
             }
         }
         foreach ([
@@ -613,9 +640,9 @@ final class BibTexReader
             if (($fields[$field] ?? '') === '') {
                 continue;
             }
-            $dateParts = $this->datePartsFromDate($fields[$field]);
-            if ($dateParts !== []) {
-                $reference[$target] = $this->datePartsMeta($dateParts);
+            $datePartLists = $this->datePartListsFromDate($fields[$field]);
+            if ($datePartLists !== []) {
+                $reference[$target] = $this->datePartsMeta($datePartLists);
             }
         }
 
@@ -799,8 +826,8 @@ final class BibTexReader
         return match ($type) {
             'article', 'article-journal' => 'article-journal',
             'inproceedings', 'conference' => 'paper-conference',
-            'incollection', 'inbook' => 'chapter',
-            'book' => 'book',
+            'incollection', 'inbook', 'inreference', 'bookinbook' => 'chapter',
+            'book', 'collection', 'reference', 'mvbook', 'mvcollection', 'mvreference' => 'book',
             'booklet', 'manual' => 'pamphlet',
             'mastersthesis', 'phdthesis', 'thesis' => 'thesis',
             'techreport', 'report' => 'report',
@@ -810,26 +837,53 @@ final class BibTexReader
             'software' => 'software',
             'dataset' => 'dataset',
             'patent' => 'patent',
+            'unpublished' => 'manuscript',
             default => 'entry',
         };
     }
 
     /**
-     * @return array{type:string,value:array<string, mixed>}
-     */
-    /**
-     * @param string|list<int|string> $parts
+     * @param string|list<int|string>|list<list<int|string>> $parts
      * @return array{type:string,value:array<string, mixed>}
      */
     private function datePartsMeta(string|array $parts): array
     {
-        $dateParts = is_array($parts) ? $parts : [$parts];
+        $dateParts = [];
+        if (is_array($parts) && isset($parts[0]) && is_array($parts[0])) {
+            foreach ($parts as $partList) {
+                $dateParts[] = $this->metaList($partList);
+            }
+        } else {
+            $dateParts[] = $this->metaList(is_array($parts) ? $parts : [$parts]);
+        }
 
         return $this->metaMap([
-            'date-parts' => $this->metaList([
-                $this->metaList($dateParts),
-            ]),
+            'date-parts' => $this->metaList($dateParts),
         ]);
+    }
+
+    /**
+     * @return list<list<int|string>>
+     */
+    private function datePartListsFromDate(string $date): array
+    {
+        $segments = preg_split('/\s*\/\s*/u', trim($date));
+        if ($segments === false) {
+            return [];
+        }
+
+        $datePartLists = [];
+        foreach ($segments as $segment) {
+            if ($segment === '') {
+                continue;
+            }
+            $dateParts = $this->datePartsFromDate($segment);
+            if ($dateParts !== []) {
+                $datePartLists[] = $dateParts;
+            }
+        }
+
+        return $datePartLists;
     }
 
     /**
@@ -993,14 +1047,42 @@ final class BibTexReader
             return ['literal' => $clean];
         }
 
-        $family = array_pop($words);
+        $particleStart = $this->particleStartIndex($words);
+        if ($particleStart !== null) {
+            $givenWords = array_slice($words, 0, $particleStart);
+            $family = implode(' ', array_slice($words, $particleStart));
+        } else {
+            $givenWords = $words;
+            $family = (string) array_pop($givenWords);
+        }
         $familyParts = $this->familyParticles((string) $family);
 
         return array_filter([
-            'given' => implode(' ', $words),
+            'given' => implode(' ', $givenWords),
             'family' => $familyParts['family'],
             'non-dropping-particle' => $familyParts['particle'],
         ], static fn (string $value): bool => $value !== '');
+    }
+
+    /**
+     * @param list<string> $words
+     */
+    private function particleStartIndex(array $words): ?int
+    {
+        for ($index = 0, $count = count($words) - 1; $index < $count; $index++) {
+            if ($this->startsWithLowercaseLetter($words[$index])) {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    private function startsWithLowercaseLetter(string $word): bool
+    {
+        $word = preg_replace('/^[^\p{L}]+/u', '', $word) ?? $word;
+
+        return preg_match('/^\p{Ll}/u', $word) === 1;
     }
 
     /**
@@ -1009,7 +1091,7 @@ final class BibTexReader
     private function familyParticles(string $family): array
     {
         $family = trim($family);
-        if (preg_match('/^(de la|van|von|de|da|del|della|di|du|la|le|ter|ten|der|den)\s+(.+)$/iu', $family, $match) === 1) {
+        if (preg_match('/^(de la|de las|de los|van der|van den|van de|von der|von den|von dem|van|von|de|da|del|della|di|du|la|le|ter|ten|der|den)\s+(.+)$/iu', $family, $match) === 1) {
             return [
                 'particle' => $match[1],
                 'family' => $match[2],
@@ -1059,16 +1141,127 @@ final class BibTexReader
 
     private function replaceLatexArgumentCommands(string $value): string
     {
-        $value = preg_replace('/\\\\href\s*\{([^{}]*)\}\s*\{([^{}]*)\}/u', '$2', $value) ?? $value;
-        $value = preg_replace('/\\\\(?:url|path|nolinkurl)\s*\{([^{}]*)\}/u', '$1', $value) ?? $value;
+        $value = $this->replaceLatexCommandWithArgument($value, 'href', 2);
+        foreach (['url', 'path', 'nolinkurl'] as $command) {
+            $value = $this->replaceLatexCommandWithArgument($value, $command, 1);
+        }
+
+        for ($i = 0; $i < 4; $i++) {
+            $next = $value;
+            foreach (self::LATEX_UNWRAP_COMMANDS as $command) {
+                $next = $this->replaceLatexCommandWithArgument($next, $command, 1);
+            }
+            if ($next === $value) {
+                break;
+            }
+            $value = $next;
+        }
 
         return $value;
     }
 
+    private function replaceLatexCommandWithArgument(string $value, string $command, int $argumentIndex): string
+    {
+        $result = '';
+        $offset = 0;
+        $needle = '\\' . $command;
+        $length = strlen($value);
+
+        while (($position = strpos($value, $needle, $offset)) !== false) {
+            $afterCommand = $position + strlen($needle);
+            if ($afterCommand < $length && preg_match('/[A-Za-z]/', $value[$afterCommand]) === 1) {
+                $result .= substr($value, $offset, $position + 1 - $offset);
+                $offset = $position + 1;
+                continue;
+            }
+
+            $cursor = $afterCommand;
+            if ($cursor < $length && $value[$cursor] === '*') {
+                $cursor++;
+            }
+
+            $arguments = [];
+            $matched = true;
+            for ($index = 1; $index <= $argumentIndex; $index++) {
+                while ($cursor < $length && preg_match('/\s/', $value[$cursor]) === 1) {
+                    $cursor++;
+                }
+
+                $argument = $this->readLatexBracedArgument($value, $cursor);
+                if ($argument === null) {
+                    $matched = false;
+                    break;
+                }
+
+                $arguments[$index] = $argument['value'];
+                $cursor = $argument['offset'];
+            }
+
+            if (!$matched) {
+                $result .= substr($value, $offset, $position + 1 - $offset);
+                $offset = $position + 1;
+                continue;
+            }
+
+            $result .= substr($value, $offset, $position - $offset) . $arguments[$argumentIndex];
+            $offset = $cursor;
+        }
+
+        return $result . substr($value, $offset);
+    }
+
+    /**
+     * @return array{value:string,offset:int}|null
+     */
+    private function readLatexBracedArgument(string $value, int $offset): ?array
+    {
+        if ($offset >= strlen($value) || $value[$offset] !== '{') {
+            return null;
+        }
+
+        $offset++;
+        $depth = 1;
+        $argument = '';
+        while ($offset < strlen($value)) {
+            $char = $value[$offset];
+            if ($char === '\\' && $offset + 1 < strlen($value) && in_array($value[$offset + 1], ['{', '}'], true)) {
+                $argument .= $char . $value[$offset + 1];
+                $offset += 2;
+                continue;
+            }
+            if ($char === '{') {
+                $depth++;
+                $argument .= $char;
+                $offset++;
+                continue;
+            }
+            if ($char === '}') {
+                $depth--;
+                if ($depth === 0) {
+                    return ['value' => $argument, 'offset' => $offset + 1];
+                }
+                $argument .= $char;
+                $offset++;
+                continue;
+            }
+
+            $argument .= $char;
+            $offset++;
+        }
+
+        return null;
+    }
+
     private function replaceLatexAccents(string $value): string
     {
-        return preg_replace_callback(
+        $value = preg_replace_callback(
             '/\\\\([`\'"^~=.])\s*\{?([A-Za-z])\}?/u',
+            fn (array $match): string => $this->accentedLetter($match[1], $match[2]),
+            $value
+        ) ?? $value;
+
+        return preg_replace_callback(
+            '/\\\\(c|u|v|H|r|k|b|d)\s*\{?([A-Za-z])\}?/u',
             fn (array $match): string => $this->accentedLetter($match[1], $match[2]),
             $value
         ) ?? $value;
@@ -1086,6 +1279,14 @@ final class BibTexReader
             '~' => ['a' => 'ã', 'n' => 'ñ', 'o' => 'õ'],
             '=' => ['a' => 'ā', 'e' => 'ē', 'i' => 'ī', 'o' => 'ō', 'u' => 'ū'],
             '.' => ['a' => 'ȧ', 'e' => 'ė', 'i' => 'ı', 'o' => 'ȯ', 'u' => 'u'],
+            'b' => ['a' => 'a̱', 'e' => 'e̱', 'i' => 'i̱', 'o' => 'o̱', 'u' => 'u̱'],
+            'c' => ['c' => 'ç', 'g' => 'ģ', 'k' => 'ķ', 'l' => 'ļ', 'n' => 'ņ', 'r' => 'ŗ', 's' => 'ş', 't' => 'ţ'],
+            'd' => ['a' => 'ạ', 'e' => 'ẹ', 'i' => 'ị', 'o' => 'ọ', 'u' => 'ụ'],
+            'H' => ['o' => 'ő', 'u' => 'ű'],
+            'k' => ['a' => 'ą', 'e' => 'ę', 'i' => 'į', 'o' => 'ǫ', 'u' => 'ų'],
+            'r' => ['a' => 'å', 'u' => 'ů'],
+            'u' => ['a' => 'ă', 'e' => 'ĕ', 'g' => 'ğ', 'i' => 'ĭ', 'o' => 'ŏ', 'u' => 'ŭ'],
+            'v' => ['c' => 'č', 'd' => 'ď', 'e' => 'ě', 'n' => 'ň', 'r' => 'ř', 's' => 'š', 't' => 'ť', 'z' => 'ž'],
         ];
 
         $replacement = $maps[$accent][$lower] ?? $letter;
