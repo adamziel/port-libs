@@ -13,7 +13,8 @@ final class CsvReader
      *     quote?: string|false|null,
      *     escape?: string|null,
      *     comment?: string|null,
-     *     encoding?: string|null
+     *     encoding?: string|null,
+     *     blankLines?: 'skip'|'keep'|null
      * } $options
      */
     public function __construct(private readonly string $format = 'csv', private readonly array $options = [])
@@ -28,10 +29,14 @@ final class CsvReader
         $escape = $this->escapeChar();
         $comment = $this->commentChar();
         [$source, $delimiter] = $this->sourceAndDelimiter($source, $quote, $escape, $comment);
-        $rows = $this->parseRows($source, $delimiter, $quote, $escape, $comment);
+        $parsed = $this->parseRows($source, $delimiter, $quote, $escape, $comment);
+        $rowRecords = $parsed['rows'];
+        $rows = $this->rowValues($rowRecords);
         $columnCount = $this->maxColumnCount($rows);
         $raggedRows = $this->raggedRows($rows, $columnCount);
-        $rows = $this->normalizeRows($rows, $columnCount);
+        $diagnostics = array_merge($parsed['diagnostics'], $this->raggedDiagnostics($raggedRows));
+        $rowRecords = $this->normalizeRowRecords($rowRecords, $columnCount);
+        $rows = $this->rowValues($rowRecords);
         $hasHeader = (bool) ($this->options['header'] ?? true);
         $dataRows = $hasHeader ? array_slice($rows, 1) : $rows;
         $columnTypes = $this->inferColumnTypes($dataRows, $columnCount);
@@ -49,25 +54,31 @@ final class CsvReader
             'csvRaggedRowCount' => count($raggedRows),
             'csvRaggedRows' => $raggedRows,
             'csvColumnTypes' => $columnTypes,
+            'csvDiagnosticCount' => count($diagnostics),
+            'csvDiagnostics' => $diagnostics,
+            'csvBlankLinePolicy' => $this->blankLinePolicy(),
+            'csvSkippedBlankRows' => $parsed['skippedBlankRows'],
+            'csvSkippedCommentRows' => $parsed['skippedCommentRows'],
+            'csvSourceRows' => $this->rowSourceMetadata($rowRecords),
         ];
 
         if ($rows === []) {
             return new AstNode('document', ['meta' => $metadata], []);
         }
 
-        $headRow = $hasHeader ? array_shift($rows) : [];
+        $headRow = $hasHeader ? array_shift($rowRecords) : null;
         $tableChildren = [];
-        if ($headRow !== []) {
+        if ($headRow !== null) {
             $tableChildren[] = new AstNode('table_head', [], [
                 $this->tableRow($headRow, true),
             ]);
         }
         $tableChildren[] = new AstNode('table_body', [], array_map(
             fn (array $row): AstNode => $this->tableRow($row, false, $columnTypes),
-            $rows
+            $rowRecords
         ));
 
-        $metadata['csvHeaderColumnCount'] = count($headRow);
+        $metadata['csvHeaderColumnCount'] = $headRow === null ? 0 : count($headRow['cells']);
 
         return new AstNode('document', ['meta' => $metadata], [
             new AstNode('table', [
@@ -300,23 +311,44 @@ final class CsvReader
     }
 
     /**
-     * @return list<list<string>>
+     * @return array{
+     *     rows:list<array{sourceRow:int,sourceLineStart:int,sourceLineEnd:int,cells:list<array{value:string,sourceLine:int,sourceColumn:int,sourceColumnIndex:int,missing?:bool}>}>,
+     *     diagnostics:list<array<string,mixed>>,
+     *     skippedBlankRows:int,
+     *     skippedCommentRows:int
+     * }
      */
     private function parseRows(string $source, string $delimiter, ?string $quote, ?string $escape, ?string $comment): array
     {
         $source = str_replace(["\r\n", "\r"], "\n", $source);
         if ($source === '') {
-            return [];
+            return [
+                'rows' => [],
+                'diagnostics' => [],
+                'skippedBlankRows' => 0,
+                'skippedCommentRows' => 0,
+            ];
         }
 
         $rows = [];
+        $diagnostics = [];
         $row = [];
         $field = '';
         $quoted = false;
         $inQuote = false;
         $afterClosingQuote = false;
+        $reportedTextAfterClosingQuote = false;
         $lastWasTerminator = false;
         $lineStart = true;
+        $line = 1;
+        $column = 1;
+        $rowStartLine = 1;
+        $fieldStartLine = 1;
+        $fieldStartColumn = 1;
+        $sourceRow = 1;
+        $skippedBlankRows = 0;
+        $skippedCommentRows = 0;
+        $blankLinePolicy = $this->blankLinePolicy();
         $length = strlen($source);
 
         for ($offset = 0; $offset < $length; $offset++) {
@@ -329,27 +361,52 @@ final class CsvReader
                 $field = '';
                 $quoted = false;
                 $afterClosingQuote = false;
+                $reportedTextAfterClosingQuote = false;
                 $lastWasTerminator = true;
                 $lineStart = true;
+                $skippedCommentRows++;
+                if ($offset < $length && $source[$offset] === "\n") {
+                    $line++;
+                    $column = 1;
+                    $rowStartLine = $line;
+                    $fieldStartLine = $line;
+                    $fieldStartColumn = 1;
+                    continue;
+                }
                 continue;
             }
             if ($quote !== null && $inQuote) {
                 if ($escape !== null && $char === $escape && $offset + 1 < $length) {
                     $field .= $source[$offset + 1];
+                    if ($source[$offset + 1] === "\n") {
+                        $line++;
+                        $column = 1;
+                    } else {
+                        $column++;
+                    }
                     $offset++;
+                    $column++;
                     continue;
                 }
                 if ($char === $quote) {
                     if ($offset + 1 < $length && $source[$offset + 1] === $quote) {
                         $field .= $quote;
                         $offset++;
+                        $column += 2;
                         continue;
                     }
                     $inQuote = false;
                     $afterClosingQuote = true;
+                    $column++;
                     continue;
                 }
                 $field .= $char;
+                if ($char === "\n") {
+                    $line++;
+                    $column = 1;
+                } else {
+                    $column++;
+                }
                 continue;
             }
 
@@ -358,51 +415,120 @@ final class CsvReader
                 $quoted = true;
                 $inQuote = true;
                 $afterClosingQuote = false;
+                $reportedTextAfterClosingQuote = false;
                 $lastWasTerminator = false;
                 $lineStart = false;
+                $column++;
                 continue;
+            }
+
+            if ($quote !== null && $char === $quote) {
+                $diagnostics[] = [
+                    'type' => 'stray-quote',
+                    'row' => $sourceRow,
+                    'line' => $line,
+                    'column' => $column,
+                    'message' => 'Quote character appeared inside an unquoted field.',
+                ];
             }
 
             if ($quote !== null && $quoted && $afterClosingQuote && ($char === ' ' || $char === "\t")) {
+                $column++;
                 continue;
             }
 
+            if ($quote !== null && $quoted && $afterClosingQuote && !$reportedTextAfterClosingQuote && $char !== $delimiter && $char !== "\n") {
+                $diagnostics[] = [
+                    'type' => 'text-after-closing-quote',
+                    'row' => $sourceRow,
+                    'line' => $line,
+                    'column' => $column,
+                    'message' => 'Non-delimiter text appeared after a closing quote.',
+                ];
+                $reportedTextAfterClosingQuote = true;
+            }
+
             if ($char === $delimiter) {
-                $row[] = $this->finalizeField($field, $quoted);
+                $row[] = $this->fieldRecord($field, $quoted, $fieldStartLine, $fieldStartColumn, count($row) + 1);
                 $field = '';
                 $quoted = false;
                 $afterClosingQuote = false;
+                $reportedTextAfterClosingQuote = false;
                 $lastWasTerminator = false;
                 $lineStart = false;
+                $column++;
+                $fieldStartLine = $line;
+                $fieldStartColumn = $column;
                 continue;
             }
 
             if ($char === "\n") {
-                $row[] = $this->finalizeField($field, $quoted);
-                $rows[] = $row;
+                $row[] = $this->fieldRecord($field, $quoted, $fieldStartLine, $fieldStartColumn, count($row) + 1);
+                if ($this->isBlankRow($row) && $blankLinePolicy === 'skip') {
+                    $skippedBlankRows++;
+                } else {
+                    $rows[] = [
+                        'sourceRow' => $sourceRow,
+                        'sourceLineStart' => $rowStartLine,
+                        'sourceLineEnd' => $line,
+                        'cells' => $row,
+                    ];
+                    $sourceRow++;
+                }
                 $row = [];
                 $field = '';
                 $quoted = false;
                 $afterClosingQuote = false;
+                $reportedTextAfterClosingQuote = false;
                 $lastWasTerminator = true;
                 $lineStart = true;
+                $line++;
+                $column = 1;
+                $rowStartLine = $line;
+                $fieldStartLine = $line;
+                $fieldStartColumn = 1;
                 continue;
             }
 
             $field .= $char;
             $afterClosingQuote = false;
             $lastWasTerminator = false;
+            $column++;
             if ($char !== ' ' && $char !== "\t") {
                 $lineStart = false;
             }
         }
 
-        if (!$lastWasTerminator || $row !== [] || $field !== '') {
-            $row[] = $this->finalizeField($field, $quoted);
-            $rows[] = $row;
+        if ($inQuote) {
+            $diagnostics[] = [
+                'type' => 'unclosed-quote',
+                'row' => $sourceRow,
+                'line' => $fieldStartLine,
+                'column' => $fieldStartColumn,
+                'message' => 'Quoted field reached end of input without a closing quote.',
+            ];
         }
 
-        return $rows;
+        if (!$lastWasTerminator || $row !== [] || $field !== '') {
+            $row[] = $this->fieldRecord($field, $quoted, $fieldStartLine, $fieldStartColumn, count($row) + 1);
+            if ($this->isBlankRow($row) && $blankLinePolicy === 'skip') {
+                $skippedBlankRows++;
+            } else {
+                $rows[] = [
+                    'sourceRow' => $sourceRow,
+                    'sourceLineStart' => $rowStartLine,
+                    'sourceLineEnd' => $line,
+                    'cells' => $row,
+                ];
+            }
+        }
+
+        return [
+            'rows' => $rows,
+            'diagnostics' => $diagnostics,
+            'skippedBlankRows' => $skippedBlankRows,
+            'skippedCommentRows' => $skippedCommentRows,
+        ];
     }
 
     /**
@@ -416,6 +542,38 @@ final class CsvReader
         }
 
         return $max;
+    }
+
+    /**
+     * @param list<array{sourceRow:int,sourceLineStart:int,sourceLineEnd:int,cells:list<array{value:string,sourceLine:int,sourceColumn:int,sourceColumnIndex:int,missing?:bool}>}> $rowRecords
+     * @return list<list<string>>
+     */
+    private function rowValues(array $rowRecords): array
+    {
+        return array_map(
+            static fn (array $row): array => array_map(
+                static fn (array $cell): string => (string) $cell['value'],
+                $row['cells']
+            ),
+            $rowRecords
+        );
+    }
+
+    /**
+     * @param list<array{sourceRow:int,sourceLineStart:int,sourceLineEnd:int,cells:list<array{value:string,sourceLine:int,sourceColumn:int,sourceColumnIndex:int,missing?:bool}>}> $rowRecords
+     * @return list<array{row:int,lineStart:int,lineEnd:int,columnCount:int}>
+     */
+    private function rowSourceMetadata(array $rowRecords): array
+    {
+        return array_map(
+            static fn (array $row): array => [
+                'row' => $row['sourceRow'],
+                'lineStart' => $row['sourceLineStart'],
+                'lineEnd' => $row['sourceLineEnd'],
+                'columnCount' => count($row['cells']),
+            ],
+            $rowRecords
+        );
     }
 
     /**
@@ -440,15 +598,44 @@ final class CsvReader
     }
 
     /**
-     * @param list<list<string>> $rows
-     * @return list<list<string>>
+     * @param list<array{row:int,columns:int,expectedColumns:int}> $raggedRows
+     * @return list<array<string,mixed>>
      */
-    private function normalizeRows(array $rows, int $columnCount): array
+    private function raggedDiagnostics(array $raggedRows): array
     {
         return array_map(
-            static fn (array $row): array => array_pad(array_slice($row, 0, $columnCount), $columnCount, ''),
-            $rows
+            static fn (array $row): array => [
+                'type' => 'ragged-row',
+                'row' => $row['row'],
+                'columns' => $row['columns'],
+                'expectedColumns' => $row['expectedColumns'],
+                'message' => 'CSV record has a different field count than the widest record.',
+            ],
+            $raggedRows
         );
+    }
+
+    /**
+     * @param list<array{sourceRow:int,sourceLineStart:int,sourceLineEnd:int,cells:list<array{value:string,sourceLine:int,sourceColumn:int,sourceColumnIndex:int,missing?:bool}>}> $rows
+     * @return list<array{sourceRow:int,sourceLineStart:int,sourceLineEnd:int,cells:list<array{value:string,sourceLine:int,sourceColumn:int,sourceColumnIndex:int,missing?:bool}>}>
+     */
+    private function normalizeRowRecords(array $rows, int $columnCount): array
+    {
+        return array_map(function (array $row) use ($columnCount): array {
+            $cells = array_slice($row['cells'], 0, $columnCount);
+            while (count($cells) < $columnCount) {
+                $cells[] = [
+                    'value' => '',
+                    'sourceLine' => $row['sourceLineEnd'],
+                    'sourceColumn' => count($cells) + 1,
+                    'sourceColumnIndex' => count($cells) + 1,
+                    'missing' => true,
+                ];
+            }
+            $row['cells'] = $cells;
+
+            return $row;
+        }, $rows);
     }
 
     /**
@@ -521,32 +708,85 @@ final class CsvReader
     }
 
     /**
-     * @param list<string> $cells
+     * @return array{value:string,sourceLine:int,sourceColumn:int,sourceColumnIndex:int}
      */
-    private function tableRow(array $cells, bool $header, array $columnTypes = []): AstNode
+    private function fieldRecord(string $field, bool $quoted, int $sourceLine, int $sourceColumn, int $sourceColumnIndex): array
+    {
+        return [
+            'value' => $this->finalizeField($field, $quoted),
+            'sourceLine' => $sourceLine,
+            'sourceColumn' => $sourceColumn,
+            'sourceColumnIndex' => $sourceColumnIndex,
+        ];
+    }
+
+    /**
+     * @param list<array{value:string,sourceLine:int,sourceColumn:int,sourceColumnIndex:int,missing?:bool}> $row
+     */
+    private function isBlankRow(array $row): bool
+    {
+        foreach ($row as $cell) {
+            if ((string) $cell['value'] !== '') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function blankLinePolicy(): string
+    {
+        $policy = (string) ($this->options['blankLines'] ?? 'skip');
+
+        return $policy === 'keep' ? 'keep' : 'skip';
+    }
+
+    /**
+     * @param array{sourceRow:int,sourceLineStart:int,sourceLineEnd:int,cells:list<array{value:string,sourceLine:int,sourceColumn:int,sourceColumnIndex:int,missing?:bool}>} $row
+     */
+    private function tableRow(array $row, bool $header, array $columnTypes = []): AstNode
     {
         $index = 0;
 
-        return new AstNode('table_row', [], array_map(
-            function (string $cell) use ($header, $columnTypes, &$index): AstNode {
+        return new AstNode('table_row', [
+            'htmlAttributes' => [
+                'data-csv-source-row' => (string) $row['sourceRow'],
+                'data-csv-source-line-start' => (string) $row['sourceLineStart'],
+                'data-csv-source-line-end' => (string) $row['sourceLineEnd'],
+            ],
+        ], array_map(
+            function (array $cell) use ($header, $columnTypes, &$index): AstNode {
                 $type = !$header ? (string) ($columnTypes[$index] ?? '') : '';
                 $index++;
 
                 return $this->tableCell($cell, $header, $type);
             },
-            $cells
+            $row['cells']
         ));
     }
 
-    private function tableCell(string $value, bool $header, string $type = ''): AstNode
+    /**
+     * @param array{value:string,sourceLine:int,sourceColumn:int,sourceColumnIndex:int,missing?:bool} $cell
+     */
+    private function tableCell(array $cell, bool $header, string $type = ''): AstNode
     {
+        $value = (string) $cell['value'];
         $attrs = [
             'text' => $value,
             'header' => $header,
         ];
+        $htmlAttributes = [
+            'data-csv-source-line' => (string) $cell['sourceLine'],
+            'data-csv-source-column' => (string) $cell['sourceColumn'],
+            'data-csv-source-field' => (string) $cell['sourceColumnIndex'],
+        ];
         if (!$header && $type !== '') {
-            $attrs['htmlAttributes'] = ['data-csv-type' => $type];
+            $htmlAttributes['data-csv-type'] = $type;
         }
+        if (($cell['missing'] ?? false) === true) {
+            $htmlAttributes['data-csv-missing-cell'] = 'true';
+        }
+        $attrs['htmlAttributes'] = $htmlAttributes;
 
         return new AstNode('table_cell', $attrs, [
             new AstNode('plain', ['text' => $value], $this->cellInlines($value)),

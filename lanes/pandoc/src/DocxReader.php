@@ -148,6 +148,7 @@ final class DocxReader
         $body = $this->firstElementByLocalName($document, 'body');
         $headers = $this->partBlocks($header_xmls, 'DOCX header');
         $footers = $this->partBlocks($footer_xmls, 'DOCX footer');
+        $sections = $body instanceof \DOMElement ? $this->sectionMetadata($body) : [];
         $body_children = $body instanceof \DOMElement ? $this->bodyBlocks($body) : [];
         $children = array_merge(
             $this->partDivs($headers, 'docx-header'),
@@ -173,6 +174,8 @@ final class DocxReader
         $metadata['docxFooters'] = count($footers);
         $metadata['docxHeaderFiles'] = array_keys($header_xmls);
         $metadata['docxFooterFiles'] = array_keys($footer_xmls);
+        $metadata['docxSectionCount'] = count($sections);
+        $metadata['docxSections'] = $sections;
         $metadata['docxDiagnostics'] = $this->diagnostics;
 
         return new AstNode('document', ['meta' => $metadata], $children);
@@ -272,6 +275,16 @@ final class DocxReader
             if ($child->localName === 'tbl') {
                 $flushList();
                 $blocks[] = $this->table($child);
+                continue;
+            }
+            if ($child->localName === 'sdt') {
+                $flushList();
+                $blocks[] = $this->contentControlBlock($child);
+                continue;
+            }
+            if ($child->localName === 'altChunk') {
+                $flushList();
+                $blocks[] = $this->altChunkBlock($child);
                 continue;
             }
             if ($child->localName === 'oMathPara') {
@@ -423,6 +436,13 @@ final class DocxReader
             }
             if (in_array($child->localName, ['ins', 'del', 'moveFrom', 'moveTo'], true)) {
                 $span = $this->trackedChangeSpan($child);
+                if ($span instanceof AstNode) {
+                    $inlines[] = $span;
+                }
+                continue;
+            }
+            if ($child->localName === 'sdt') {
+                $span = $this->contentControlInline($child);
                 if ($span instanceof AstNode) {
                     $inlines[] = $span;
                 }
@@ -879,6 +899,27 @@ final class DocxReader
                 break;
             }
 
+            foreach ($drawing->getElementsByTagNameNS(self::A_NS, 'srcRect') as $crop) {
+                if (!$crop instanceof \DOMElement) {
+                    continue;
+                }
+                foreach (['l' => 'left', 'r' => 'right', 't' => 'top', 'b' => 'bottom'] as $attr => $name) {
+                    if (ctype_digit($crop->getAttribute($attr))) {
+                        $sourceAttributes['data-docx-crop-' . $name] = $crop->getAttribute($attr);
+                    }
+                }
+                break;
+            }
+            foreach ($drawing->getElementsByTagNameNS(self::A_NS, 'xfrm') as $transform) {
+                if (!$transform instanceof \DOMElement) {
+                    continue;
+                }
+                if (preg_match('/^-?\d+$/', $transform->getAttribute('rot')) === 1) {
+                    $sourceAttributes['data-docx-rotation'] = $transform->getAttribute('rot');
+                }
+                break;
+            }
+
             $attrs['attributes'] = $sourceAttributes;
 
             return new AstNode('image', $attrs);
@@ -958,7 +999,7 @@ final class DocxReader
                 }
                 $rowCells[] = $this->tableCell($cell['element'], (int) $cell['colspan'], (int) ($rowspans[$key] ?? 1), (string) $cell['vMerge']);
             }
-            $rows[] = new AstNode('table_row', [], $rowCells);
+            $rows[] = new AstNode('table_row', $this->tableRowAttributes($rowIndex, $table), $rowCells);
         }
 
         return new AstNode('table', $this->tableAttributes($table), [
@@ -977,7 +1018,47 @@ final class DocxReader
             $cells[] = $this->tableCell($cell);
         }
 
-        return new AstNode('table_row', [], $cells);
+        return new AstNode('table_row', $this->tableRowAttributes(0, $row->parentNode instanceof \DOMElement ? $row->parentNode : $row), $cells);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function tableRowAttributes(int $rowIndex, \DOMElement $tableOrRow): array
+    {
+        $row = $tableOrRow->localName === 'tr' ? $tableOrRow : null;
+        if (!$row instanceof \DOMElement && $tableOrRow->localName === 'tbl') {
+            $rows = [];
+            foreach ($tableOrRow->childNodes as $child) {
+                if ($child instanceof \DOMElement && $child->localName === 'tr') {
+                    $rows[] = $child;
+                }
+            }
+            $row = $rows[$rowIndex] ?? null;
+        }
+        if (!$row instanceof \DOMElement) {
+            return [];
+        }
+
+        $attrs = ['data-docx-row-index' => (string) ($rowIndex + 1)];
+        $trPr = $this->directChild($row, 'trPr');
+        if ($trPr instanceof \DOMElement) {
+            foreach ($trPr->childNodes as $child) {
+                if (!$child instanceof \DOMElement) {
+                    continue;
+                }
+                if ($child->localName === 'tblHeader' && $this->truthyOnOff($child)) {
+                    $attrs['data-docx-table-header-row'] = 'true';
+                } elseif ($child->localName === 'trHeight') {
+                    $height = $this->attr($child, self::W_NS, 'val');
+                    if ($height !== '') {
+                        $attrs['data-docx-row-height'] = $height;
+                    }
+                }
+            }
+        }
+
+        return ['htmlAttributes' => $attrs];
     }
 
     private function tableCell(\DOMElement $cell, ?int $colspan = null, int $rowspan = 1, string $verticalMerge = ''): AstNode
@@ -1103,6 +1184,10 @@ final class DocxReader
                 if ($type !== '') {
                     $attrs['data-docx-cell-width-type'] = $type;
                 }
+            } elseif ($child->localName === 'tcBorders') {
+                foreach ($this->docxBorders($child) as $name => $value) {
+                    $attrs[$name] = $value;
+                }
             }
         }
 
@@ -1111,6 +1196,166 @@ final class DocxReader
         }
 
         return $attrs;
+    }
+
+    /**
+     * @return array<string,string>
+     */
+    private function docxBorders(\DOMElement $borders): array
+    {
+        $attrs = [];
+        $styles = [];
+        foreach (['top', 'bottom', 'left', 'right'] as $side) {
+            $edge = $this->directChild($borders, $side);
+            if (!$edge instanceof \DOMElement) {
+                continue;
+            }
+            $value = $this->attr($edge, self::W_NS, 'val');
+            if ($value === '' || $value === 'nil' || $value === 'none') {
+                continue;
+            }
+            $color = strtoupper($this->attr($edge, self::W_NS, 'color'));
+            $color = $color !== '' && $color !== 'AUTO' ? '#' . ltrim($color, '#') : '#000000';
+            $size = $this->attr($edge, self::W_NS, 'sz');
+            $points = ctype_digit($size) ? max(1, (int) round(((int) $size) / 8)) : 1;
+            $attrs['data-docx-border-' . $side] = $value;
+            $styles[] = 'border-' . $side . ':' . $points . 'px solid ' . $color;
+        }
+        if ($styles !== []) {
+            $attrs['data-docx-border-style'] = implode(';', $styles);
+        }
+
+        return $attrs;
+    }
+
+    private function contentControlBlock(\DOMElement $control): AstNode
+    {
+        $content = $this->firstDescendantByLocalName($control, 'sdtContent');
+        $blocks = $content instanceof \DOMElement ? $this->bodyBlocks($content) : [];
+        if ($blocks === []) {
+            $inlines = $content instanceof \DOMElement ? $this->inlineChildren($content) : [];
+            if ($inlines !== []) {
+                $blocks[] = new AstNode('paragraph', ['text' => $this->plainText($inlines)], $inlines);
+            }
+        }
+
+        return new AstNode('div', [
+            'classes' => ['docx-content-control'],
+            'attributes' => $this->contentControlAttributes($control),
+        ], $blocks);
+    }
+
+    private function contentControlInline(\DOMElement $control): ?AstNode
+    {
+        $content = $this->firstDescendantByLocalName($control, 'sdtContent');
+        if (!$content instanceof \DOMElement) {
+            return null;
+        }
+        $inlines = $this->inlineChildren($content);
+        if ($inlines === []) {
+            return null;
+        }
+
+        return new AstNode('span', [
+            'classes' => ['docx-content-control'],
+            'attributes' => $this->contentControlAttributes($control),
+        ], $inlines);
+    }
+
+    /**
+     * @return array<string,string>
+     */
+    private function contentControlAttributes(\DOMElement $control): array
+    {
+        $attrs = ['data-pandoc-source' => 'docx-sdt'];
+        $properties = $this->directChild($control, 'sdtPr');
+        if (!$properties instanceof \DOMElement) {
+            return $attrs;
+        }
+        foreach ($properties->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+            if ($child->localName === 'tag') {
+                $value = $this->attr($child, self::W_NS, 'val');
+                if ($value !== '') {
+                    $attrs['data-docx-sdt-tag'] = $value;
+                }
+            } elseif ($child->localName === 'alias') {
+                $value = $this->attr($child, self::W_NS, 'val');
+                if ($value !== '') {
+                    $attrs['data-docx-sdt-alias'] = $value;
+                }
+            } elseif ($child->localName === 'id') {
+                $value = $this->attr($child, self::W_NS, 'val');
+                if ($value !== '') {
+                    $attrs['data-docx-sdt-id'] = $value;
+                }
+            } elseif (in_array($child->localName, ['checkbox', 'date', 'dropDownList', 'comboBox'], true)) {
+                $attrs['data-docx-sdt-type'] = $child->localName;
+            }
+        }
+
+        return $attrs;
+    }
+
+    private function altChunkBlock(\DOMElement $chunk): AstNode
+    {
+        $rid = $this->attr($chunk, self::R_NS, 'id');
+        $relationship = $rid !== '' ? ($this->relationships[$rid] ?? null) : null;
+        $target = is_array($relationship) ? $this->normalizeWordTarget((string) ($relationship['target'] ?? '')) : '';
+        $type = is_array($relationship) ? (string) ($relationship['type'] ?? '') : '';
+        $this->diagnostics[] = [
+            'code' => 'unsupported-docx-altchunk',
+            'part' => 'word/document.xml',
+            'message' => 'DOCX altChunk is represented as a placeholder instead of importing embedded alternate content.',
+        ];
+
+        return new AstNode('div', [
+            'classes' => ['docx-altchunk'],
+            'attributes' => array_filter([
+                'data-pandoc-source' => 'docx-altchunk',
+                'data-docx-altchunk-id' => $rid,
+                'data-docx-altchunk-target' => $target,
+                'data-docx-altchunk-type' => $type,
+            ], static fn (string $value): bool => $value !== ''),
+        ], [
+            new AstNode('paragraph', ['text' => 'DOCX alternate content: ' . ($target !== '' ? $target : $rid)], [
+                new AstNode('text', ['text' => 'DOCX alternate content: ' . ($target !== '' ? $target : $rid)]),
+            ]),
+        ]);
+    }
+
+    /**
+     * @return list<array<string,string>>
+     */
+    private function sectionMetadata(\DOMElement $body): array
+    {
+        $sections = [];
+        foreach ($body->getElementsByTagNameNS(self::W_NS, 'sectPr') as $section) {
+            if (!$section instanceof \DOMElement) {
+                continue;
+            }
+            $record = ['index' => (string) (count($sections) + 1)];
+            foreach (['headerReference', 'footerReference'] as $localName) {
+                foreach ($section->getElementsByTagNameNS(self::W_NS, $localName) as $reference) {
+                    if (!$reference instanceof \DOMElement) {
+                        continue;
+                    }
+                    $rid = $this->attr($reference, self::R_NS, 'id');
+                    $relationship = $rid !== '' ? ($this->relationships[$rid] ?? null) : null;
+                    $prefix = $localName === 'headerReference' ? 'header' : 'footer';
+                    $type = $this->attr($reference, self::W_NS, 'type') ?: 'default';
+                    $record[$prefix . '-' . $type . '-relationship-id'] = $rid;
+                    if (is_array($relationship)) {
+                        $record[$prefix . '-' . $type . '-target'] = $this->normalizeWordTarget((string) ($relationship['target'] ?? ''));
+                    }
+                }
+            }
+            $sections[] = $record;
+        }
+
+        return $sections;
     }
 
     private function headingLevel(\DOMElement $paragraph): ?int
@@ -1664,6 +1909,17 @@ final class DocxReader
         foreach ($dom->getElementsByTagName('*') as $element) {
             if ($element instanceof \DOMElement && $element->localName === $localName) {
                 return $element;
+            }
+        }
+
+        return null;
+    }
+
+    private function firstDescendantByLocalName(\DOMElement $element, string $localName): ?\DOMElement
+    {
+        foreach ($element->getElementsByTagNameNS(self::W_NS, $localName) as $child) {
+            if ($child instanceof \DOMElement) {
+                return $child;
             }
         }
 

@@ -50,7 +50,7 @@ final class XlsxReader
                 $sharedStrings = $this->sharedStrings($package->read($sharedStringsPath) ?? '');
             }
 
-            $styles = ['fonts' => [], 'fills' => [], 'numFmts' => $this->builtinNumberFormats(), 'cellFonts' => [], 'cellFormats' => []];
+            $styles = ['fonts' => [], 'fills' => [], 'borders' => [], 'numFmts' => $this->builtinNumberFormats(), 'cellFonts' => [], 'cellFormats' => []];
             $stylesPath = $this->relationshipTargetByType($workbookPath, $workbookRels, '/styles');
             if ($stylesPath !== null) {
                 $styles = $this->styles($package->read($stylesPath) ?? '');
@@ -77,6 +77,7 @@ final class XlsxReader
                     $reference['name'],
                     $index + 1,
                     $reference['sheetId'],
+                    $reference['state'],
                     $sheetPath,
                     $sheetRels,
                     $sharedStrings,
@@ -121,7 +122,7 @@ final class XlsxReader
     }
 
     /**
-     * @return list<array{name:string,sheetId:string,relationshipId:string}>
+     * @return list<array{name:string,sheetId:string,state:string,relationshipId:string}>
      */
     private function sheetReferences(string $workbookXml): array
     {
@@ -138,6 +139,7 @@ final class XlsxReader
             $references[] = [
                 'name' => $sheet->getAttribute('name') !== '' ? $sheet->getAttribute('name') : 'Sheet' . ((int) $index + 1),
                 'sheetId' => $sheet->getAttribute('sheetId'),
+                'state' => $sheet->getAttribute('state') !== '' ? $sheet->getAttribute('state') : 'visible',
                 'relationshipId' => $relationshipId,
             ];
         }
@@ -155,6 +157,7 @@ final class XlsxReader
         string $name,
         int $number,
         string $sheetId,
+        string $state,
         string $sheetPath,
         array $relationships,
         array $sharedStrings,
@@ -163,7 +166,7 @@ final class XlsxReader
         ZipOpcPackage $package
     ): AstNode
     {
-        $cells = $this->sheetCells($sheetXml, $relationships, $sheetPath, $sharedStrings, $styles, $date1904);
+        $cells = $this->sheetCells($sheetXml, $relationships, $sheetPath, $sharedStrings, $styles, $date1904, $package);
         $figures = $this->worksheetDrawingFigures($sheetXml, $relationships, $sheetPath, $package);
         $children = [
             new AstNode('heading', [
@@ -187,6 +190,7 @@ final class XlsxReader
                 'data-pandoc-source' => 'xlsx',
                 'data-xlsx-sheet-number' => (string) $number,
                 'data-xlsx-sheet-id' => $sheetId,
+                'data-xlsx-sheet-state' => $state,
                 'data-xlsx-sheet-path' => $sheetPath,
             ],
         ], $children);
@@ -204,12 +208,16 @@ final class XlsxReader
         string $sheetPath,
         array $sharedStrings,
         array $styles,
-        bool $date1904
+        bool $date1904,
+        ZipOpcPackage $package
     ): array
     {
         $dom = $this->loadXml($sheetXml, 'XLSX worksheet');
         $hyperlinks = $this->worksheetHyperlinks($dom, $relationships, $sheetPath);
         $merges = $this->worksheetMerges($dom);
+        $comments = $this->worksheetComments($relationships, $sheetPath, $package);
+        $columns = $this->worksheetColumns($dom);
+        $rows = $this->worksheetRows($dom);
         $cells = [];
         foreach ($dom->getElementsByTagNameNS(self::SS_NS, 'c') as $cell) {
             if (!$cell instanceof \DOMElement) {
@@ -219,11 +227,14 @@ final class XlsxReader
             if ($ref === null) {
                 continue;
             }
-            $styleIndex = ctype_digit($cell->getAttribute('s')) ? (int) $cell->getAttribute('s') : null;
+            $styleIndex = ctype_digit($cell->getAttribute('s'))
+                ? (int) $cell->getAttribute('s')
+                : ($rows[$ref['row']]['styleIndex'] ?? $columns[$ref['col']]['styleIndex'] ?? null);
             $style = $this->cellStyle($styleIndex, $styles);
             $content = $this->cellContent($cell, $sharedStrings, $style, $date1904);
             $merge = $merges['topLeft'][$ref['key']] ?? ['colspan' => 1, 'rowspan' => 1];
             $link = $hyperlinks[$ref['key']] ?? null;
+            $comment = $comments[$ref['key']] ?? null;
             if (
                 $content['text'] === ''
                 && !$style['bold']
@@ -232,6 +243,7 @@ final class XlsxReader
                 && !$style['strike']
                 && $style['fillColor'] === ''
                 && !is_array($link)
+                && !is_array($comment)
                 && $merge['colspan'] === 1
                 && $merge['rowspan'] === 1
             ) {
@@ -240,15 +252,24 @@ final class XlsxReader
             $cells[$ref['key']] = [
                 'col' => $ref['col'],
                 'row' => $ref['row'],
+                'ref' => $cell->getAttribute('r'),
+                'columnName' => $this->columnName($ref['col']),
                 'value' => $content['text'],
                 'rawValue' => $content['raw'],
                 'valueType' => $content['type'],
                 'inlines' => $content['inlines'],
                 'style' => $style,
+                'styleIndex' => $styleIndex,
+                'rowHidden' => (bool) ($rows[$ref['row']]['hidden'] ?? false),
+                'rowHeight' => (string) ($rows[$ref['row']]['height'] ?? ''),
+                'columnHidden' => (bool) ($columns[$ref['col']]['hidden'] ?? false),
+                'columnWidth' => (string) ($columns[$ref['col']]['width'] ?? ''),
                 'colspan' => $merge['colspan'],
                 'rowspan' => $merge['rowspan'],
                 'url' => is_array($link) ? (string) ($link['url'] ?? '') : '',
                 'title' => is_array($link) ? (string) ($link['title'] ?? '') : '',
+                'comment' => is_array($comment) ? (string) ($comment['text'] ?? '') : '',
+                'commentAuthor' => is_array($comment) ? (string) ($comment['author'] ?? '') : '',
             ];
         }
 
@@ -324,7 +345,9 @@ final class XlsxReader
                 }
                 $rowCells[] = $this->tableCell($cell);
             }
-            $rows[] = ['empty' => $rowEmpty, 'node' => new AstNode('table_row', [], $rowCells)];
+            $rows[] = ['empty' => $rowEmpty, 'node' => new AstNode('table_row', [
+                'htmlAttributes' => $this->rowHtmlAttributes($row, $cells),
+            ], $rowCells)];
         }
 
         while ($rows !== [] && (bool) $rows[array_key_last($rows)]['empty']) {
@@ -632,6 +655,105 @@ final class XlsxReader
 
     /**
      * @param array<string, array{target:string,type:string,mode:string}> $relationships
+     * @return array<string, array{text:string,author:string}>
+     */
+    private function worksheetComments(array $relationships, string $sheetPath, ZipOpcPackage $package): array
+    {
+        $commentsPath = $this->relationshipTargetByType($sheetPath, $relationships, '/comments');
+        if ($commentsPath === null) {
+            return [];
+        }
+        $xml = $package->read($commentsPath);
+        if (!is_string($xml) || $xml === '') {
+            return [];
+        }
+
+        $dom = $this->loadXml($xml, 'XLSX comments');
+        $authors = [];
+        $authorsElement = $dom->getElementsByTagNameNS(self::SS_NS, 'authors')->item(0);
+        if ($authorsElement instanceof \DOMElement) {
+            foreach ($authorsElement->getElementsByTagNameNS(self::SS_NS, 'author') as $author) {
+                if ($author instanceof \DOMElement) {
+                    $authors[] = trim($author->textContent);
+                }
+            }
+        }
+
+        $comments = [];
+        foreach ($dom->getElementsByTagNameNS(self::SS_NS, 'comment') as $comment) {
+            if (!$comment instanceof \DOMElement) {
+                continue;
+            }
+            $ref = $this->parseCellRef($comment->getAttribute('ref'));
+            if ($ref === null) {
+                continue;
+            }
+            $text = '';
+            foreach ($comment->getElementsByTagNameNS(self::SS_NS, 't') as $textNode) {
+                if ($textNode instanceof \DOMElement) {
+                    $text .= $textNode->textContent;
+                }
+            }
+            $authorId = ctype_digit($comment->getAttribute('authorId')) ? (int) $comment->getAttribute('authorId') : -1;
+            $comments[$ref['key']] = [
+                'text' => trim(preg_replace('/\s+/u', ' ', $text) ?? $text),
+                'author' => $authors[$authorId] ?? '',
+            ];
+        }
+
+        return $comments;
+    }
+
+    /**
+     * @return array<int, array{hidden:bool,width:string,styleIndex:int|null}>
+     */
+    private function worksheetColumns(\DOMDocument $dom): array
+    {
+        $columns = [];
+        foreach ($dom->getElementsByTagNameNS(self::SS_NS, 'col') as $column) {
+            if (!$column instanceof \DOMElement) {
+                continue;
+            }
+            $min = ctype_digit($column->getAttribute('min')) ? (int) $column->getAttribute('min') : 0;
+            $max = ctype_digit($column->getAttribute('max')) ? (int) $column->getAttribute('max') : $min;
+            if ($min < 1 || $max < $min) {
+                continue;
+            }
+            $meta = [
+                'hidden' => in_array(strtolower($column->getAttribute('hidden')), ['1', 'true'], true),
+                'width' => $column->getAttribute('width'),
+                'styleIndex' => ctype_digit($column->getAttribute('style')) ? (int) $column->getAttribute('style') : null,
+            ];
+            for ($index = $min; $index <= $max; $index++) {
+                $columns[$index] = $meta;
+            }
+        }
+
+        return $columns;
+    }
+
+    /**
+     * @return array<int, array{hidden:bool,height:string,styleIndex:int|null}>
+     */
+    private function worksheetRows(\DOMDocument $dom): array
+    {
+        $rows = [];
+        foreach ($dom->getElementsByTagNameNS(self::SS_NS, 'row') as $row) {
+            if (!$row instanceof \DOMElement || !ctype_digit($row->getAttribute('r'))) {
+                continue;
+            }
+            $rows[(int) $row->getAttribute('r')] = [
+                'hidden' => in_array(strtolower($row->getAttribute('hidden')), ['1', 'true'], true),
+                'height' => $row->getAttribute('ht'),
+                'styleIndex' => ctype_digit($row->getAttribute('s')) ? (int) $row->getAttribute('s') : null,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param array<string, array{target:string,type:string,mode:string}> $relationships
      * @return list<AstNode>
      */
     private function worksheetDrawingFigures(string $sheetXml, array $relationships, string $sheetPath, ZipOpcPackage $package): array
@@ -734,6 +856,9 @@ final class XlsxReader
         }
 
         $attrs = ['data-xlsx-anchor-type' => $anchor->localName];
+        if ($anchor->hasAttribute('editAs')) {
+            $attrs['data-xlsx-anchor-edit-as'] = $anchor->getAttribute('editAs');
+        }
         $from = $this->firstChildElementByLocalName($anchor, 'from');
         if ($from instanceof \DOMElement) {
             $col = $this->integerChildText($from, 'col');
@@ -742,6 +867,25 @@ final class XlsxReader
                 $attrs['data-xlsx-anchor'] = $this->columnName($col + 1) . (string) ($row + 1);
                 $attrs['data-xlsx-anchor-column'] = (string) ($col + 1);
                 $attrs['data-xlsx-anchor-row'] = (string) ($row + 1);
+            }
+        }
+        $to = $this->firstChildElementByLocalName($anchor, 'to');
+        if ($to instanceof \DOMElement) {
+            $col = $this->integerChildText($to, 'col');
+            $row = $this->integerChildText($to, 'row');
+            if ($col !== null && $row !== null) {
+                $attrs['data-xlsx-anchor-to'] = $this->columnName($col + 1) . (string) ($row + 1);
+                $attrs['data-xlsx-anchor-to-column'] = (string) ($col + 1);
+                $attrs['data-xlsx-anchor-to-row'] = (string) ($row + 1);
+            }
+        }
+        $extent = $this->firstChildElementByLocalName($anchor, 'ext');
+        if ($extent instanceof \DOMElement) {
+            if (ctype_digit($extent->getAttribute('cx'))) {
+                $attrs['data-xlsx-extent-cx'] = $extent->getAttribute('cx');
+            }
+            if (ctype_digit($extent->getAttribute('cy'))) {
+                $attrs['data-xlsx-extent-cy'] = $extent->getAttribute('cy');
             }
         }
 
@@ -835,7 +979,7 @@ final class XlsxReader
     private function styles(string $xml): array
     {
         if ($xml === '') {
-            return ['fonts' => [], 'fills' => [], 'numFmts' => $this->builtinNumberFormats(), 'cellFonts' => [], 'cellFormats' => []];
+            return ['fonts' => [], 'fills' => [], 'borders' => [], 'numFmts' => $this->builtinNumberFormats(), 'cellFonts' => [], 'cellFormats' => []];
         }
         $dom = $this->loadXml($xml, 'XLSX styles.xml');
         $numFmts = $this->builtinNumberFormats();
@@ -878,6 +1022,17 @@ final class XlsxReader
             }
         }
 
+        $borders = [];
+        $bordersElement = $dom->getElementsByTagNameNS(self::SS_NS, 'borders')->item(0);
+        if ($bordersElement instanceof \DOMElement) {
+            foreach ($bordersElement->childNodes as $border) {
+                if (!$border instanceof \DOMElement || $border->localName !== 'border') {
+                    continue;
+                }
+                $borders[] = $this->borderStyle($border);
+            }
+        }
+
         $cellFonts = [];
         $cellFormats = [];
         $cellFormatsElement = $dom->getElementsByTagNameNS(self::SS_NS, 'cellXfs')->item(0);
@@ -889,6 +1044,7 @@ final class XlsxReader
                 }
                 $fontId = ctype_digit($format->getAttribute('fontId')) ? (int) $format->getAttribute('fontId') : null;
                 $fillId = ctype_digit($format->getAttribute('fillId')) ? (int) $format->getAttribute('fillId') : null;
+                $borderId = ctype_digit($format->getAttribute('borderId')) ? (int) $format->getAttribute('borderId') : null;
                 $numFmtId = ctype_digit($format->getAttribute('numFmtId')) ? (int) $format->getAttribute('numFmtId') : 0;
                 if (ctype_digit($format->getAttribute('fontId'))) {
                     $cellFonts[$index] = $fontId ?? 0;
@@ -897,6 +1053,7 @@ final class XlsxReader
                 $cellFormats[$index] = [
                     'fontId' => $fontId,
                     'fillId' => $fillId,
+                    'borderId' => $borderId,
                     'numFmtId' => $numFmtId,
                     'numFmtCode' => $numFmts[$numFmtId] ?? '',
                     'horizontal' => $alignment instanceof \DOMElement ? $alignment->getAttribute('horizontal') : '',
@@ -909,6 +1066,7 @@ final class XlsxReader
         return [
             'fonts' => $fonts,
             'fills' => $fills,
+            'borders' => $borders,
             'numFmts' => $numFmts,
             'cellFonts' => $cellFonts,
             'cellFormats' => $cellFormats,
@@ -929,6 +1087,8 @@ final class XlsxReader
         $font = $fontId !== null ? ($styles['fonts'][$fontId] ?? null) : null;
         $fillId = is_array($format) ? ($format['fillId'] ?? null) : null;
         $fill = $fillId !== null ? ($styles['fills'][$fillId] ?? null) : null;
+        $borderId = is_array($format) ? ($format['borderId'] ?? null) : null;
+        $border = $borderId !== null ? ($styles['borders'][$borderId] ?? null) : null;
         $numFmtCode = is_array($format) ? (string) ($format['numFmtCode'] ?? '') : '';
         $style = $this->defaultCellStyle();
         $style['styleIndex'] = $styleIndex;
@@ -940,6 +1100,9 @@ final class XlsxReader
         $style['vertical'] = is_array($format) ? (string) ($format['vertical'] ?? '') : '';
         if (is_array($fill)) {
             $style['fillColor'] = (string) ($fill['color'] ?? '');
+        }
+        if (is_array($border)) {
+            $style['border'] = (string) ($border['css'] ?? '');
         }
         if (!is_array($font)) {
             return $style;
@@ -971,6 +1134,7 @@ final class XlsxReader
             'fontName' => '',
             'fontSize' => '',
             'fillColor' => '',
+            'border' => '',
             'numFmtId' => 0,
             'numFmtCode' => '',
             'isDate' => false,
@@ -1064,19 +1228,83 @@ final class XlsxReader
     private function formatNumberValue(float $value, string $formatCode): string
     {
         $format = $this->stripNumberFormatLiterals($formatCode);
+        $negative = $value < 0;
+        $absolute = abs($value);
+        $currency = $this->currencySymbol($formatCode);
+        $parenthesizedNegative = $negative && str_contains($format, '(') && str_contains($format, ')');
+        if (preg_match('/[0#?]\s+\\?\/\s*[0#?]/', $format) === 1 && $absolute > 0) {
+            return ($negative ? '-' : '') . $this->formatFraction($absolute, str_contains($format, '??') ? 99 : 9);
+        }
         if (str_contains($format, '%')) {
             $decimals = $this->decimalPlaces($format);
 
             return number_format($value * 100, $decimals, '.', '') . '%';
         }
+        if (stripos($format, 'E+') !== false || stripos($format, 'E-') !== false) {
+            $decimals = $this->decimalPlaces($format);
+
+            return sprintf('%.' . $decimals . 'E', $value);
+        }
         if (str_contains($format, '#,##')) {
-            return number_format($value, $this->decimalPlaces($format), '.', ',');
+            $formatted = $currency . number_format($absolute, $this->decimalPlaces($format), '.', ',');
+
+            return $parenthesizedNegative ? '(' . $formatted . ')' : ($negative ? '-' . $formatted : $formatted);
         }
         if (preg_match('/0\.([0]+)/', $format, $match) === 1) {
-            return number_format($value, strlen($match[1]), '.', '');
+            $formatted = $currency . number_format($absolute, strlen($match[1]), '.', '');
+
+            return $parenthesizedNegative ? '(' . $formatted . ')' : ($negative ? '-' . $formatted : $formatted);
         }
 
         return (string) (int) $value === (string) $value ? (string) (int) $value : rtrim(rtrim(sprintf('%.12F', $value), '0'), '.');
+    }
+
+    private function currencySymbol(string $formatCode): string
+    {
+        if (str_contains($formatCode, '$')) {
+            return '$';
+        }
+        if (str_contains($formatCode, '€')) {
+            return '€';
+        }
+        if (str_contains($formatCode, '£')) {
+            return '£';
+        }
+        if (str_contains($formatCode, '¥')) {
+            return '¥';
+        }
+
+        return '';
+    }
+
+    private function formatFraction(float $value, int $maxDenominator): string
+    {
+        $whole = (int) floor($value);
+        $fraction = $value - $whole;
+        if ($fraction <= 0.0000001) {
+            return (string) $whole;
+        }
+
+        $bestNumerator = 0;
+        $bestDenominator = 1;
+        $bestDelta = PHP_FLOAT_MAX;
+        for ($denominator = 1; $denominator <= $maxDenominator; $denominator++) {
+            $numerator = (int) round($fraction * $denominator);
+            $delta = abs($fraction - ($numerator / $denominator));
+            if ($delta < $bestDelta) {
+                $bestDelta = $delta;
+                $bestNumerator = $numerator;
+                $bestDenominator = $denominator;
+            }
+        }
+        if ($bestNumerator === 0) {
+            return (string) $whole;
+        }
+        if ($bestNumerator === $bestDenominator) {
+            return (string) ($whole + 1);
+        }
+
+        return ($whole > 0 ? $whole . ' ' : '') . $bestNumerator . '/' . $bestDenominator;
     }
 
     private function decimalPlaces(string $formatCode): int
@@ -1092,9 +1320,21 @@ final class XlsxReader
     {
         $style = is_array($cell['style'] ?? null) ? $cell['style'] : $this->defaultCellStyle();
         $attrs = array_filter([
+            'data-xlsx-ref' => (string) ($cell['ref'] ?? ''),
+            'data-xlsx-row' => (string) ($cell['row'] ?? ''),
+            'data-xlsx-column' => (string) ($cell['columnName'] ?? ''),
             'data-xlsx-raw-value' => (string) ($cell['rawValue'] ?? ''),
             'data-xlsx-value-type' => (string) ($cell['valueType'] ?? ''),
             'data-xlsx-number-format' => (string) ($style['numFmtCode'] ?? '') !== 'General' ? (string) ($style['numFmtCode'] ?? '') : '',
+            'data-xlsx-style-index' => ($cell['styleIndex'] ?? null) !== null ? (string) $cell['styleIndex'] : '',
+            'data-xlsx-font-name' => (string) ($style['fontName'] ?? ''),
+            'data-xlsx-font-size' => (string) ($style['fontSize'] ?? ''),
+            'data-xlsx-row-hidden' => ($cell['rowHidden'] ?? false) === true ? 'true' : '',
+            'data-xlsx-row-height' => (string) ($cell['rowHeight'] ?? ''),
+            'data-xlsx-column-hidden' => ($cell['columnHidden'] ?? false) === true ? 'true' : '',
+            'data-xlsx-column-width' => (string) ($cell['columnWidth'] ?? ''),
+            'data-xlsx-comment-author' => (string) ($cell['commentAuthor'] ?? ''),
+            'data-xlsx-comment' => (string) ($cell['comment'] ?? ''),
         ], static fn (string $value): bool => $value !== '');
         $css = [];
         if (($style['fillColor'] ?? '') !== '') {
@@ -1106,11 +1346,60 @@ final class XlsxReader
         if (in_array((string) ($style['horizontal'] ?? ''), ['left', 'center', 'right'], true)) {
             $css[] = 'text-align:' . $style['horizontal'];
         }
+        if (in_array((string) ($style['vertical'] ?? ''), ['top', 'center', 'bottom'], true)) {
+            $vertical = (string) $style['vertical'];
+            $css[] = 'vertical-align:' . ($vertical === 'center' ? 'middle' : $vertical);
+        }
+        if (($style['fontName'] ?? '') !== '') {
+            $css[] = 'font-family:' . $this->cssString((string) $style['fontName']);
+        }
+        if (($style['fontSize'] ?? '') !== '') {
+            $css[] = 'font-size:' . $style['fontSize'] . 'pt';
+        }
+        if (($style['border'] ?? '') !== '') {
+            foreach (explode(';', (string) $style['border']) as $borderStyle) {
+                if ($borderStyle !== '') {
+                    $css[] = $borderStyle;
+                }
+            }
+        }
         if ($css !== []) {
             $attrs['style'] = implode(';', $css);
         }
 
         return $attrs;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $cells
+     * @return array<string,string>
+     */
+    private function rowHtmlAttributes(int $rowNumber, array $cells): array
+    {
+        $attrs = ['data-xlsx-row' => (string) $rowNumber];
+        foreach ($cells as $cell) {
+            if (!is_array($cell) || (int) ($cell['row'] ?? 0) !== $rowNumber) {
+                continue;
+            }
+            if (($cell['rowHidden'] ?? false) === true) {
+                $attrs['data-xlsx-row-hidden'] = 'true';
+            }
+            if (($cell['rowHeight'] ?? '') !== '') {
+                $attrs['data-xlsx-row-height'] = (string) $cell['rowHeight'];
+            }
+            break;
+        }
+
+        return $attrs;
+    }
+
+    private function cssString(string $value): string
+    {
+        if (preg_match('/^[A-Za-z0-9 _.-]+$/u', $value) === 1) {
+            return '"' . str_replace('"', '\\"', $value) . '"';
+        }
+
+        return 'sans-serif';
     }
 
     private function firstVal(\DOMElement $element, string $localName): string
@@ -1183,6 +1472,36 @@ final class XlsxReader
         }
 
         return '';
+    }
+
+    /**
+     * @return array{css:string}
+     */
+    private function borderStyle(\DOMElement $border): array
+    {
+        $styles = [];
+        foreach (['left', 'right', 'top', 'bottom'] as $side) {
+            $edge = $this->firstChildElementByLocalName($border, $side);
+            if (!$edge instanceof \DOMElement) {
+                continue;
+            }
+            $style = $edge->getAttribute('style');
+            if ($style === '' || $style === 'none') {
+                continue;
+            }
+            $color = '';
+            foreach ($edge->getElementsByTagNameNS(self::SS_NS, 'color') as $colorNode) {
+                if ($colorNode instanceof \DOMElement) {
+                    $color = $this->colorValue($colorNode);
+                    break;
+                }
+            }
+            $width = in_array($style, ['medium', 'thick', 'double'], true) ? '2px' : '1px';
+            $line = $style === 'dashed' ? 'dashed' : ($style === 'dotted' ? 'dotted' : 'solid');
+            $styles[] = 'border-' . $side . ':' . $width . ' ' . $line . ' ' . ($color !== '' ? $color : '#000000');
+        }
+
+        return ['css' => implode(';', $styles)];
     }
 
     private function colorValue(\DOMElement $color): string

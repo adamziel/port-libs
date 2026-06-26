@@ -294,4 +294,68 @@ return [
         $t->contains('alt="Chart alt" title="Chart title" data-pandoc-width="2in" data-pandoc-height="1in"', $blocks);
         $t->contains('data-docx-image-name="Chart 1"', $blocks);
     },
+    'preserves docx content controls sections altchunks borders and image crop metadata' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-docx-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary DOCX path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary DOCX package');
+        }
+        $zip->addFromString('word/_rels/document.xml.rels', '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/><Relationship Id="rIdFooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/><Relationship Id="rIdAlt" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk" Target="afchunk.html"/><Relationship Id="rIdImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/cropped.png"/></Relationships>');
+        $image = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=', true);
+        if (!is_string($image)) {
+            throw new RuntimeException('Unable to decode PNG fixture');
+        }
+        $zip->addFromString('word/media/cropped.png', $image);
+        $zip->addFromString('word/afchunk.html', '<p>Alternate HTML</p>');
+        $zip->addFromString('word/document.xml', '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body><w:p><w:r><w:t>Before </w:t></w:r><w:sdt><w:sdtPr><w:tag w:val="inline-tag"/><w:alias w:val="Inline Alias"/><w:id w:val="44"/><w:checkbox/></w:sdtPr><w:sdtContent><w:r><w:t>Inline control</w:t></w:r></w:sdtContent></w:sdt></w:p><w:sdt><w:sdtPr><w:tag w:val="block-tag"/><w:alias w:val="Block Alias"/><w:id w:val="45"/><w:date/></w:sdtPr><w:sdtContent><w:p><w:r><w:t>Block control</w:t></w:r></w:p></w:sdtContent></w:sdt><w:altChunk r:id="rIdAlt"/><w:tbl><w:tr><w:trPr><w:tblHeader/><w:trHeight w:val="480"/></w:trPr><w:tc><w:tcPr><w:tcBorders><w:top w:val="single" w:sz="8" w:color="FF0000"/><w:bottom w:val="double" w:sz="16" w:color="00AA00"/></w:tcBorders></w:tcPr><w:p><w:r><w:t>Bordered</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p><w:r><w:drawing><wp:inline><wp:extent cx="914400" cy="914400"/><wp:docPr id="3" name="Cropped image" descr="Cropped alt"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdImage"/><a:srcRect l="10000" r="20000" t="30000" b="40000"/></pic:blipFill><pic:spPr><a:xfrm rot="5400000"/></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p><w:sectPr><w:headerReference w:type="first" r:id="rIdHeader"/><w:footerReference w:type="default" r:id="rIdFooter"/></w:sectPr></w:body></w:document>');
+        $zip->close();
+
+        try {
+            $document = (new DocxReader())->readDocxFile($path);
+            $blocks = (new WordPressBlockWriter())->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $meta = $document->attr('meta');
+        $inlineControl = $document->children[0]->children[1];
+        $blockControl = $document->children[1];
+        $altChunk = $document->children[2];
+        $table = $document->children[3];
+        $image = $document->children[4]->children[0];
+
+        $t->same(1, $meta['docxSectionCount']);
+        $t->same('rIdHeader', $meta['docxSections'][0]['header-first-relationship-id']);
+        $t->same('word/header1.xml', $meta['docxSections'][0]['header-first-target']);
+        $t->same('word/footer1.xml', $meta['docxSections'][0]['footer-default-target']);
+        $t->same('unsupported-docx-altchunk', $meta['docxDiagnostics'][0]['code']);
+        $t->same('span', $inlineControl->type);
+        $t->same(['docx-content-control'], $inlineControl->attr('classes'));
+        $t->same('inline-tag', $inlineControl->attr('attributes')['data-docx-sdt-tag']);
+        $t->same('checkbox', $inlineControl->attr('attributes')['data-docx-sdt-type']);
+        $t->same('div', $blockControl->type);
+        $t->same('block-tag', $blockControl->attr('attributes')['data-docx-sdt-tag']);
+        $t->same('date', $blockControl->attr('attributes')['data-docx-sdt-type']);
+        $t->same(['docx-altchunk'], $altChunk->attr('classes'));
+        $t->same('word/afchunk.html', $altChunk->attr('attributes')['data-docx-altchunk-target']);
+        $t->same('true', $table->children[1]->children[0]->attr('htmlAttributes')['data-docx-table-header-row']);
+        $t->same('480', $table->children[1]->children[0]->attr('htmlAttributes')['data-docx-row-height']);
+        $cellAttrs = $table->children[1]->children[0]->children[0]->attr('htmlAttributes');
+        $t->same('single', $cellAttrs['data-docx-border-top']);
+        $t->same('double', $cellAttrs['data-docx-border-bottom']);
+        $t->contains('border-top:1px solid #FF0000', $cellAttrs['data-docx-border-style']);
+        $t->same('10000', $image->attr('attributes')['data-docx-crop-left']);
+        $t->same('40000', $image->attr('attributes')['data-docx-crop-bottom']);
+        $t->same('5400000', $image->attr('attributes')['data-docx-rotation']);
+        $t->contains('class="docx-content-control" data-pandoc-source="docx-sdt" data-docx-sdt-tag="inline-tag"', $blocks);
+        $t->contains('class="docx-altchunk"', $blocks);
+        $t->contains('data-docx-table-header-row="true" data-docx-row-height="480"', $blocks);
+        $t->contains('data-docx-border-top="single"', $blocks);
+        $t->contains('data-docx-crop-left="10000"', $blocks);
+        $t->contains('data-docx-rotation="5400000"', $blocks);
+    },
 ];

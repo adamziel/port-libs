@@ -204,18 +204,26 @@ final class PptxReader
             $blocks[] = $block;
         }
 
+        $background = $this->backgroundColor($dom, is_array($context['themeColors'] ?? null) ? $context['themeColors'] : [])
+            ?: (string) ($context['layoutBackgroundColor'] ?? $context['masterBackgroundColor'] ?? '');
+        $attributes = [
+            'data-pandoc-source' => 'pptx',
+            'data-pptx-slide-number' => (string) $number,
+            'data-pptx-slide-id' => $slideId,
+            'data-pptx-slide-path' => $slidePath,
+            'data-pptx-layout-path' => (string) ($context['layoutPath'] ?? ''),
+            'data-pptx-master-path' => (string) ($context['masterPath'] ?? ''),
+            'data-pptx-theme-path' => (string) ($context['themePath'] ?? ''),
+        ];
+        if ($background !== '') {
+            $attributes['data-pptx-background-color'] = $background;
+            $attributes['style'] = 'background-color:' . $background;
+        }
+
         return new AstNode('div', [
             'id' => 'slide-' . $number . '-content',
             'classes' => ['pptx-slide'],
-            'attributes' => [
-                'data-pandoc-source' => 'pptx',
-                'data-pptx-slide-number' => (string) $number,
-                'data-pptx-slide-id' => $slideId,
-                'data-pptx-slide-path' => $slidePath,
-                'data-pptx-layout-path' => (string) ($context['layoutPath'] ?? ''),
-                'data-pptx-master-path' => (string) ($context['masterPath'] ?? ''),
-                'data-pptx-theme-path' => (string) ($context['themePath'] ?? ''),
-            ],
+            'attributes' => $attributes,
         ], $blocks);
     }
 
@@ -663,7 +671,11 @@ final class PptxReader
                     $cells[] = new AstNode('table_cell', $attrs, $paragraphs);
                 }
                 if ($cells !== []) {
-                    $rows[] = new AstNode('table_row', [], $cells);
+                    $rowAttrs = [];
+                    if (ctype_digit($rowNode->getAttribute('h'))) {
+                        $rowAttrs['htmlAttributes'] = ['data-pptx-row-height-emu' => $rowNode->getAttribute('h')];
+                    }
+                    $rows[] = new AstNode('table_row', $rowAttrs, $cells);
                 }
             }
             if ($rows === []) {
@@ -672,7 +684,9 @@ final class PptxReader
 
             $head = array_shift($rows);
 
-            return new AstNode('table', [], [
+            $tableAttrs = $this->tableHtmlAttributes($table, $themeColors);
+
+            return new AstNode('table', $tableAttrs !== [] ? ['htmlAttributes' => $tableAttrs] : [], [
                 new AstNode('table_head', [], [$head]),
                 new AstNode('table_body', [], $rows),
             ]);
@@ -708,6 +722,23 @@ final class PptxReader
         if ($alignment !== '') {
             $styles[] = 'text-align:' . $alignment;
         }
+        foreach ([
+            'marL' => 'left',
+            'marR' => 'right',
+            'marT' => 'top',
+            'marB' => 'bottom',
+        ] as $attribute => $side) {
+            if (!ctype_digit($properties->getAttribute($attribute))) {
+                continue;
+            }
+            $emu = (int) $properties->getAttribute($attribute);
+            $attrs['data-pptx-margin-' . $side . '-emu'] = (string) $emu;
+            $styles[] = 'padding-' . $side . ':' . $this->emuToPoints($emu) . 'pt';
+        }
+        $direction = $properties->getAttribute('vert');
+        if ($direction !== '') {
+            $attrs['data-pptx-text-direction'] = $direction;
+        }
         $anchor = $properties->getAttribute('anchor');
         $vertical = match ($anchor) {
             'mid', 'ctr' => 'middle',
@@ -723,6 +754,53 @@ final class PptxReader
         }
 
         return $attrs;
+    }
+
+    /**
+     * @param array<string, string> $themeColors
+     * @return array<string, string>
+     */
+    private function tableHtmlAttributes(\DOMElement $table, array $themeColors): array
+    {
+        $attrs = [];
+        $grid = [];
+        foreach ($table->getElementsByTagNameNS(self::A_NS, 'gridCol') as $column) {
+            if ($column instanceof \DOMElement && ctype_digit($column->getAttribute('w'))) {
+                $grid[] = $column->getAttribute('w');
+            }
+        }
+        if ($grid !== []) {
+            $attrs['data-pptx-grid-columns-emu'] = implode(',', $grid);
+        }
+        $properties = $this->firstChildElementByLocalName($table, 'tblPr');
+        if ($properties instanceof \DOMElement) {
+            foreach (['firstRow', 'lastRow', 'firstCol', 'lastCol', 'bandRow', 'bandCol'] as $flag) {
+                if ($properties->hasAttribute($flag)) {
+                    $attrs['data-pptx-table-' . strtolower($flag)] = $this->drawingBoolAttribute($properties, $flag) ? 'true' : 'false';
+                }
+            }
+            $styleId = '';
+            foreach ($properties->getElementsByTagNameNS(self::A_NS, 'tableStyleId') as $style) {
+                if ($style instanceof \DOMElement) {
+                    $styleId = trim($style->textContent);
+                    break;
+                }
+            }
+            if ($styleId !== '') {
+                $attrs['data-pptx-table-style-id'] = $styleId;
+            }
+            $fill = $this->solidFillColor($properties, $themeColors);
+            if ($fill !== '') {
+                $attrs['data-pptx-table-fill-color'] = $fill;
+            }
+        }
+
+        return $attrs;
+    }
+
+    private function emuToPoints(int $emu): string
+    {
+        return rtrim(rtrim(number_format($emu / 12700, 3, '.', ''), '0'), '.');
     }
 
     /**
@@ -793,6 +871,7 @@ final class PptxReader
         $titleNode = $dom->getElementsByTagNameNS(self::C_NS, 'title')->item(0);
         $title = $titleNode instanceof \DOMElement ? $this->drawingText($titleNode) : '';
         $series = $this->chartSeries($dom);
+        $chartTypes = $this->chartTypes($dom);
         $children = [];
         if ($title !== '') {
             $children[] = new AstNode('heading', ['level' => 3, 'text' => $title], [new AstNode('text', ['text' => $title])]);
@@ -810,8 +889,30 @@ final class PptxReader
                 'data-pandoc-source' => 'pptx-chart',
                 'data-pptx-chart-path' => $chartPath,
                 'data-pptx-relationship-id' => $relationshipId,
+                'data-pptx-chart-types' => implode(',', $chartTypes),
+                'data-pptx-chart-series-count' => (string) count($series),
             ],
         ], $children);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function chartTypes(\DOMDocument $dom): array
+    {
+        $types = [];
+        foreach ($dom->getElementsByTagNameNS(self::C_NS, 'plotArea') as $plotArea) {
+            if (!$plotArea instanceof \DOMElement) {
+                continue;
+            }
+            foreach ($plotArea->childNodes as $child) {
+                if ($child instanceof \DOMElement && str_ends_with($child->localName, 'Chart')) {
+                    $types[] = $child->localName;
+                }
+            }
+        }
+
+        return array_values(array_unique($types));
     }
 
     /**
@@ -861,15 +962,27 @@ final class PptxReader
 
         $headCells = [new AstNode('table_cell', ['text' => 'Category'], [new AstNode('plain', [], [new AstNode('text', ['text' => 'Category'])])])];
         foreach ($series as $item) {
-            $headCells[] = new AstNode('table_cell', ['text' => $item['name']], [new AstNode('plain', [], [new AstNode('text', ['text' => $item['name']])])]);
+            $headCells[] = new AstNode('table_cell', [
+                'text' => $item['name'],
+                'htmlAttributes' => ['data-pptx-chart-series' => $item['name']],
+            ], [new AstNode('plain', [], [new AstNode('text', ['text' => $item['name']])])]);
         }
         $bodyRows = [];
         for ($index = 0; $index < $rowCount; $index++) {
             $category = $series[0]['categories'][$index] ?? (string) ($index + 1);
-            $cells = [new AstNode('table_cell', ['text' => $category], [new AstNode('plain', [], [new AstNode('text', ['text' => $category])])])];
+            $cells = [new AstNode('table_cell', [
+                'text' => $category,
+                'htmlAttributes' => ['data-pptx-chart-category-index' => (string) $index],
+            ], [new AstNode('plain', [], [new AstNode('text', ['text' => $category])])])];
             foreach ($series as $item) {
                 $value = $item['values'][$index] ?? '';
-                $cells[] = new AstNode('table_cell', ['text' => $value], [$value === '' ? new AstNode('plain') : new AstNode('plain', [], [new AstNode('text', ['text' => $value])])]);
+                $cells[] = new AstNode('table_cell', [
+                    'text' => $value,
+                    'htmlAttributes' => [
+                        'data-pptx-chart-series' => $item['name'],
+                        'data-pptx-chart-point-index' => (string) $index,
+                    ],
+                ], [$value === '' ? new AstNode('plain') : new AstNode('plain', [], [new AstNode('text', ['text' => $value])])]);
             }
             $bodyRows[] = new AstNode('table_row', [], $cells);
         }
@@ -993,6 +1106,8 @@ final class PptxReader
             'themeColors' => [],
             'layoutPlaceholders' => [],
             'masterPlaceholders' => [],
+            'layoutBackgroundColor' => '',
+            'masterBackgroundColor' => '',
         ];
 
         $layoutPath = $this->relationshipTargetByType($slidePath, $slideRels, '/slideLayout');
@@ -1031,6 +1146,12 @@ final class PptxReader
             if ($themeXml !== '') {
                 $context['themeColors'] = $this->themeColors($themeXml);
             }
+        }
+        if ($layoutXml !== '') {
+            $context['layoutBackgroundColor'] = $this->backgroundColorFromXml($layoutXml, 'PPTX slide layout ' . $layoutPath, $context['themeColors']);
+        }
+        if (($masterXml ?? '') !== '') {
+            $context['masterBackgroundColor'] = $this->backgroundColorFromXml($masterXml, 'PPTX slide master ' . ($context['masterPath'] ?? ''), $context['themeColors']);
         }
 
         return $context;
@@ -1147,6 +1268,37 @@ final class PptxReader
         }
 
         return $colors;
+    }
+
+    /**
+     * @param array<string, string> $themeColors
+     */
+    private function backgroundColorFromXml(string $xml, string $label, array $themeColors): string
+    {
+        try {
+            $dom = $this->loadXml($xml, $label);
+        } catch (\InvalidArgumentException) {
+            return '';
+        }
+
+        return $this->backgroundColor($dom, $themeColors);
+    }
+
+    /**
+     * @param array<string, string> $themeColors
+     */
+    private function backgroundColor(\DOMDocument $dom, array $themeColors): string
+    {
+        foreach ($dom->getElementsByTagNameNS(self::P_NS, 'bg') as $background) {
+            if ($background instanceof \DOMElement) {
+                $color = $this->solidFillColor($background, $themeColors);
+                if ($color !== '') {
+                    return $color;
+                }
+            }
+        }
+
+        return '';
     }
 
     /**

@@ -63,7 +63,9 @@ XML);
       <p:graphicFrame>
         <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table">
           <a:tbl>
-            <a:tr><a:tc gridSpan="2"><a:txBody><a:p><a:pPr algn="ctr"/><a:r><a:t>Head A</a:t></a:r></a:p></a:txBody><a:tcPr anchor="mid"><a:solidFill><a:schemeClr val="accent1"/></a:solidFill><a:lnL><a:solidFill><a:srgbClr val="111111"/></a:solidFill></a:lnL></a:tcPr></a:tc><a:tc hMerge="1"><a:txBody><a:p><a:r><a:t>Hidden</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Head C</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+            <a:tblPr firstRow="1" bandRow="1"><a:tableStyleId>style-guid</a:tableStyleId></a:tblPr>
+            <a:tblGrid><a:gridCol w="1000000"/><a:gridCol w="1200000"/><a:gridCol w="1400000"/></a:tblGrid>
+            <a:tr h="360000"><a:tc gridSpan="2"><a:txBody><a:p><a:pPr algn="ctr"/><a:r><a:t>Head A</a:t></a:r></a:p></a:txBody><a:tcPr anchor="mid" marL="91440" marR="91440"><a:solidFill><a:schemeClr val="accent1"/></a:solidFill><a:lnL><a:solidFill><a:srgbClr val="111111"/></a:solidFill></a:lnL></a:tcPr></a:tc><a:tc hMerge="1"><a:txBody><a:p><a:r><a:t>Hidden</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Head C</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
             <a:tr><a:tc rowSpan="2"><a:txBody><a:p><a:r><a:t>Tall A</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Cell B</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Cell C</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
             <a:tr><a:tc vMerge="1"><a:txBody><a:p><a:r><a:t>Hidden</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Cell D</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Cell E</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
           </a:tbl>
@@ -106,7 +108,7 @@ XML);
 <p:sldLayout
   xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
   xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
-  <p:cSld><p:spTree>
+  <p:cSld><p:bg><p:bgPr><a:solidFill><a:schemeClr val="accent1"/></a:solidFill></p:bgPr></p:bg><p:spTree>
     <p:sp><p:nvSpPr><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr><p:txBody><a:p><a:r><a:t>Inherited Layout Title</a:t></a:r></a:p></p:txBody></p:sp>
     <p:sp><p:nvSpPr><p:nvPr><p:ph type="body" idx="2"/></p:nvPr></p:nvSpPr><p:txBody><a:p><a:r><a:t>Inherited Layout Body</a:t></a:r></a:p></p:txBody></p:sp>
   </p:spTree></p:cSld>
@@ -175,6 +177,7 @@ XML);
         $t->same('ppt/slideLayouts/slideLayout1.xml', $document->children[0]->attr('attributes')['data-pptx-layout-path']);
         $t->same('ppt/slideMasters/slideMaster1.xml', $document->children[0]->attr('attributes')['data-pptx-master-path']);
         $t->same('ppt/theme/theme1.xml', $document->children[0]->attr('attributes')['data-pptx-theme-path']);
+        $t->same('#4472C4', $document->children[0]->attr('attributes')['data-pptx-background-color']);
         $table = null;
         $chart = null;
         foreach ($document->children[0]->children as $child) {
@@ -192,9 +195,16 @@ XML);
             throw new RuntimeException('Expected PPTX chart node');
         }
         $t->same(2, $table->children[0]->children[0]->children[0]->attr('colspan'));
+        $t->same('1000000,1200000,1400000', $table->attr('htmlAttributes')['data-pptx-grid-columns-emu']);
+        $t->same('true', $table->attr('htmlAttributes')['data-pptx-table-firstrow']);
+        $t->same('style-guid', $table->attr('htmlAttributes')['data-pptx-table-style-id']);
+        $t->same('360000', $table->children[0]->children[0]->attr('htmlAttributes')['data-pptx-row-height-emu']);
         $t->same('#4472C4', $table->children[0]->children[0]->children[0]->attr('htmlAttributes')['data-pptx-fill-color']);
+        $t->same('91440', $table->children[0]->children[0]->children[0]->attr('htmlAttributes')['data-pptx-margin-left-emu']);
         $t->same(2, $table->children[1]->children[0]->children[0]->attr('rowspan'));
         $t->same('Revenue chart', $chart->children[0]->attr('text'));
+        $t->same('barChart', $chart->attr('attributes')['data-pptx-chart-types']);
+        $t->same('1', $chart->attr('attributes')['data-pptx-chart-series-count']);
         $t->same('Q2', $chart->children[1]->children[1]->children[1]->children[0]->attr('text'));
         $t->same('18', $chart->children[1]->children[1]->children[1]->children[1]->attr('text'));
         $t->contains('class="pptx-slide"', $blocks);
@@ -204,12 +214,16 @@ XML);
         $t->contains('<ul><li>Bullet one</li><li>Bullet two</li></ul>', $blocks);
         $t->contains('<ol start="3"><li>Step three</li></ol>', $blocks);
         $t->contains('<img src="ppt/media/image1.png" alt="Pixel alt" title="Pixel image"', $blocks);
-        $t->contains('<th data-pptx-fill-color="#4472C4" data-pptx-border-color="#111111" colspan="2" style="background-color:#4472C4;border-color:#111111;text-align:center;vertical-align:middle"><p>Head A</p></th><th><p>Head C</p></th>', $blocks);
+        $t->contains('data-pptx-grid-columns-emu="1000000,1200000,1400000"', $blocks);
+        $t->contains('data-pptx-table-firstrow="true"', $blocks);
+        $t->contains('data-pptx-fill-color="#4472C4" data-pptx-border-color="#111111" data-pptx-margin-left-emu="91440"', $blocks);
+        $t->contains('padding-left:7.2pt', $blocks);
         $t->contains('<td rowspan="2"><p>Tall A</p></td>', $blocks);
         $t->contains('Cell E', $blocks);
         $t->contains('class="pptx-chart"', $blocks);
         $t->contains('<h3>Revenue chart</h3>', $blocks);
-        $t->contains('<td>Q2</td><td>18</td>', $blocks);
+        $t->contains('data-pptx-chart-category-index="1">Q2</td>', $blocks);
+        $t->contains('data-pptx-chart-point-index="1">18</td>', $blocks);
         $t->contains('Inherited Layout Title', $blocks);
         $t->contains('Inherited Layout Body', $blocks);
         $t->contains('Inherited Master Footer', $blocks);
