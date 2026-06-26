@@ -687,6 +687,15 @@ final class WordPressBlockWriter
             }
             $html .= '<dt>' . $this->renderInlines($term) . '</dt>';
 
+            $displayParts = $item->attr('cslDisplayParts', []);
+            if (is_array($displayParts)) {
+                $displayHtml = $this->renderCslDisplayParts($displayParts);
+                if ($displayHtml !== '') {
+                    $html .= '<dd>' . $displayHtml . '</dd>';
+                    continue;
+                }
+            }
+
             foreach ($children as $definition) {
                 if ($definition->type !== 'definition') {
                     continue;
@@ -1803,6 +1812,14 @@ final class WordPressBlockWriter
             && is_scalar($rendered)
             && (string) $rendered !== ''
         ) {
+            $inlineParts = $node->attr('cslInlineParts', []);
+            if (is_array($inlineParts)) {
+                $inlineHtml = $this->renderCslInlineParts($inlineParts);
+                if ($inlineHtml !== '') {
+                    return $inlineHtml;
+                }
+            }
+
             return $this->esc((string) $rendered);
         }
 
@@ -1862,6 +1879,121 @@ final class WordPressBlockWriter
         }
 
         return '<span' . $attrs . '>' . $display . '</span>';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $parts
+     */
+    private function renderCslDisplayParts(array $parts): string
+    {
+        $html = '';
+        foreach ($parts as $part) {
+            if (!is_array($part)) {
+                continue;
+            }
+
+            $display = strtolower(trim((string) ($part['display'] ?? '')));
+            if (!in_array($display, ['left-margin', 'right-inline', 'indent', 'block'], true)) {
+                continue;
+            }
+
+            $text = (string) ($part['text'] ?? '');
+            if ($text === '') {
+                continue;
+            }
+
+            $formatting = $part['formatting'] ?? [];
+            $html .= '<div'
+                . $this->renderCslFormattingAttrs('csl-' . $display, is_array($formatting) ? $formatting : [])
+                . '>'
+                . $this->esc($text)
+                . '</div>';
+        }
+
+        return $html === '' ? '' : '<div class="csl-entry">' . $html . '</div>';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $parts
+     */
+    private function renderCslInlineParts(array $parts): string
+    {
+        $html = '';
+        foreach ($parts as $part) {
+            if (!is_array($part)) {
+                continue;
+            }
+
+            $text = (string) ($part['text'] ?? '');
+            if ($text === '') {
+                continue;
+            }
+
+            $formatting = $part['formatting'] ?? [];
+            if (!is_array($formatting) || $formatting === []) {
+                $html .= $this->esc($text);
+                continue;
+            }
+
+            $html .= '<span' . $this->renderCslFormattingAttrs('', $formatting) . '>' . $this->esc($text) . '</span>';
+        }
+
+        return $html;
+    }
+
+    /**
+     * @param array<string, mixed> $formatting
+     */
+    private function renderCslFormattingAttrs(string $baseClass, array $formatting): string
+    {
+        $classes = $baseClass === '' ? [] : [$baseClass];
+        $styles = [];
+        foreach ($formatting as $name => $value) {
+            if (!is_scalar($value)) {
+                continue;
+            }
+
+            $value = strtolower(trim((string) $value));
+            if ($value === '') {
+                continue;
+            }
+
+            if ($name === 'fontStyle' && in_array($value, ['normal', 'italic', 'oblique'], true)) {
+                $classes[] = 'csl-font-style-' . $value;
+                $styles[] = 'font-style:' . $value;
+                continue;
+            }
+
+            if ($name === 'fontVariant' && in_array($value, ['normal', 'small-caps'], true)) {
+                $classes[] = 'csl-font-variant-' . $value;
+                $styles[] = 'font-variant:' . $value;
+                continue;
+            }
+
+            if ($name === 'fontWeight' && in_array($value, ['normal', 'bold', 'light'], true)) {
+                $classes[] = 'csl-font-weight-' . $value;
+                $styles[] = 'font-weight:' . ($value === 'light' ? '300' : $value);
+                continue;
+            }
+
+            if ($name === 'textDecoration' && in_array($value, ['none', 'underline'], true)) {
+                $classes[] = 'csl-text-decoration-' . $value;
+                $styles[] = 'text-decoration:' . $value;
+                continue;
+            }
+
+            if ($name === 'verticalAlign' && in_array($value, ['baseline', 'sup', 'sub'], true)) {
+                $classes[] = 'csl-vertical-align-' . $value;
+                $styles[] = 'vertical-align:' . ($value === 'sup' ? 'super' : $value);
+            }
+        }
+
+        $attrs = $classes === [] ? '' : ' class="' . $this->esc(implode(' ', array_values(array_unique($classes)))) . '"';
+        if ($styles !== []) {
+            $attrs .= ' style="' . $this->esc(implode(';', $styles)) . '"';
+        }
+
+        return $attrs;
     }
 
     private function renderLinkInline(AstNode $node): string
