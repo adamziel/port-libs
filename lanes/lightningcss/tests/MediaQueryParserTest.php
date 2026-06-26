@@ -881,6 +881,8 @@ return [
         $css = '@media (min-width: 240px) and (hover: hover) { .foo { color: chartreuse; } }';
 
         $t->same('@media (width>=240px) and (hover:hover){.foo{color:#7fff00}}', (new CssMinifier())->minify($css));
+        // Pinned upstream 22bdda3d src/lib.rs::test_media line 8875.
+        $t->same('@media screen,print{.foo{color:#7fff00}}', (new CssMinifier())->minify('@media screen, print { .foo { color: chartreuse }}'));
         $t->same('.foo{color:#7fff00}', (new CssMinifier())->minify('@media { .foo { color: chartreuse } }'));
         $t->same('.foo{color:#7fff00}', (new CssMinifier())->minify('@media all { .foo { color: chartreuse } }'));
         $t->same('', (new CssMinifier())->minify('@media not all { .foo { color: chartreuse } }'));
