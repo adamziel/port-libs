@@ -198,6 +198,20 @@ CSS
             $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_selectors line ' . $line);
         }
     },
+    'css minifier maps upstream unknown functional pseudo selectors' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_selectors lines 7221, 7222, and 7223.
+        $cases = [
+            [7221, ':foo(bar) { color: yellow }', ':foo(bar){color:#ff0}'],
+            [7222, '::foo(bar) { color: yellow }', '::foo(bar){color:#ff0}'],
+            [7223, '::foo(*) { color: yellow }', '::foo(*){color:#ff0}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_selectors line ' . $line);
+        }
+    },
     'css minifier preserves upstream unknown pseudo element selector boundaries' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -3773,6 +3787,55 @@ CSS;
             [11357, '.foo { opacity: 100% }', '.foo{opacity:1}'],
         ] as [$line, $source, $expected]) {
             $t->same($expected, $minifier->minify($source), 'src/lib.rs::test_opacity line ' . $line);
+        }
+    },
+    'css minifier maps upstream display pair value minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_display minify_test rows, excluding duplicate declaration pruning line 15650.
+        foreach ([
+            [15603, '.foo { display: block }', '.foo{display:block}'],
+            [15604, '.foo { display: block flow }', '.foo{display:block}'],
+            [15605, '.foo { display: flow-root }', '.foo{display:flow-root}'],
+            [15606, '.foo { display: block flow-root }', '.foo{display:flow-root}'],
+            [15607, '.foo { display: inline }', '.foo{display:inline}'],
+            [15608, '.foo { display: inline flow }', '.foo{display:inline}'],
+            [15609, '.foo { display: inline-block }', '.foo{display:inline-block}'],
+            [15610, '.foo { display: inline flow-root }', '.foo{display:inline-block}'],
+            [15611, '.foo { display: run-in }', '.foo{display:run-in}'],
+            [15612, '.foo { display: run-in flow }', '.foo{display:run-in}'],
+            [15613, '.foo { display: list-item }', '.foo{display:list-item}'],
+            [15614, '.foo { display: block flow list-item }', '.foo{display:list-item}'],
+            [15615, '.foo { display: inline list-item }', '.foo{display:inline list-item}'],
+            [15617, '.foo { display: inline flow list-item }', '.foo{display:inline list-item}'],
+            [15620, '.foo { display: flex }', '.foo{display:flex}'],
+            [15621, '.foo { display: block flex }', '.foo{display:flex}'],
+            [15622, '.foo { display: inline-flex }', '.foo{display:inline-flex}'],
+            [15623, '.foo { display: inline flex }', '.foo{display:inline-flex}'],
+            [15624, '.foo { display: grid }', '.foo{display:grid}'],
+            [15625, '.foo { display: block grid }', '.foo{display:grid}'],
+            [15626, '.foo { display: inline-grid }', '.foo{display:inline-grid}'],
+            [15627, '.foo { display: inline grid }', '.foo{display:inline-grid}'],
+            [15628, '.foo { display: ruby }', '.foo{display:ruby}'],
+            [15629, '.foo { display: inline ruby }', '.foo{display:ruby}'],
+            [15630, '.foo { display: block ruby }', '.foo{display:block ruby}'],
+            [15631, '.foo { display: table }', '.foo{display:table}'],
+            [15632, '.foo { display: block table }', '.foo{display:table}'],
+            [15633, '.foo { display: inline-table }', '.foo{display:inline-table}'],
+            [15634, '.foo { display: inline table }', '.foo{display:inline-table}'],
+            [15635, '.foo { display: table-row-group }', '.foo{display:table-row-group}'],
+            [15636, '.foo { display: contents }', '.foo{display:contents}'],
+            [15637, '.foo { display: none }', '.foo{display:none}'],
+            [15638, '.foo { display: -webkit-flex }', '.foo{display:-webkit-flex}'],
+            [15639, '.foo { display: -ms-flexbox }', '.foo{display:-ms-flexbox}'],
+            [15640, '.foo { display: -webkit-box }', '.foo{display:-webkit-box}'],
+            [15641, '.foo { display: -moz-box }', '.foo{display:-moz-box}'],
+            [15642, '.foo { display: -webkit-flex; display: -moz-box; display: flex }', '.foo{display:-webkit-flex;display:-moz-box;display:flex}'],
+            [15646, '.foo { display: -webkit-flex; display: flex; display: -moz-box }', '.foo{display:-webkit-flex;display:flex;display:-moz-box}'],
+            [15651, '.foo { display: -webkit-inline-flex; display: -moz-inline-box; display: inline-flex }', '.foo{display:-webkit-inline-flex;display:-moz-inline-box;display:inline-flex}'],
+            [15655, '.foo { display: flex; display: var(--grid); }', '.foo{display:flex;display:var(--grid)}'],
+        ] as [$line, $source, $expected]) {
+            $t->same($expected, $minifier->minify($source), 'src/lib.rs::test_display line ' . $line);
         }
     },
     'css minifier maps upstream transition longhand value minification' => static function (TestRunner $t): void {

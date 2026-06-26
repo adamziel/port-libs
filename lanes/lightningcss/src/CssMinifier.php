@@ -7,6 +7,45 @@ namespace PortLibs\LightningCSS;
 final class CssMinifier
 {
     private const CSS_MODULES_COMPOSES_MATH_PLACEHOLDER_PREFIX = "\x1fLIGHTNINGCSS_COMPOSES_MATH_";
+    private const DISPLAY_KEYWORDS = [
+        'none',
+        'contents',
+        'table-row-group',
+        'table-header-group',
+        'table-footer-group',
+        'table-row',
+        'table-cell',
+        'table-column-group',
+        'table-column',
+        'table-caption',
+        'ruby-base',
+        'ruby-text',
+        'ruby-base-container',
+        'ruby-text-container',
+    ];
+    private const DISPLAY_INLINE_ALIAS_KEYWORDS = [
+        'inline-block',
+        'inline-table',
+        'inline-flex',
+        '-webkit-inline-flex',
+        '-ms-inline-flexbox',
+        '-webkit-inline-box',
+        '-moz-inline-box',
+        'inline-grid',
+    ];
+    private const DISPLAY_OUTSIDE_KEYWORDS = ['block', 'inline', 'run-in'];
+    private const DISPLAY_INSIDE_KEYWORDS = [
+        'flow',
+        'flow-root',
+        'table',
+        'flex',
+        '-webkit-flex',
+        '-ms-flexbox',
+        '-webkit-box',
+        '-moz-box',
+        'grid',
+        'ruby',
+    ];
 
     private bool $recoverInvalidMediaFeatureValues = false;
 
@@ -3945,6 +3984,7 @@ final class CssMinifier
         $value = $this->minifyGridValue($property, $value);
         $value = $this->minifyFontValue($property, $value);
         $value = $this->minifyColorSchemeValue($property, $value);
+        $value = $this->minifyDisplayValue($property, $value);
         $value = $this->minifyTextKeywordValue($property, $value);
         $value = $this->minifyOverflowValue($property, $value);
         $value = $this->minifyAlphaValue($property, $value);
@@ -5101,6 +5141,93 @@ final class CssMinifier
         }
 
         return implode(' ', $tokens);
+    }
+
+    private function minifyDisplayValue(string $property, string $value): string
+    {
+        if (strtolower($property) !== 'display') {
+            return $value;
+        }
+
+        $trimmed = trim($value);
+        $single = strtolower(preg_replace('/\s+/', ' ', $trimmed) ?? $trimmed);
+        if (in_array($single, self::DISPLAY_KEYWORDS, true) || in_array($single, self::DISPLAY_INLINE_ALIAS_KEYWORDS, true)) {
+            return $single;
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel($trimmed);
+        if ($tokens === [] || count($tokens) > 3) {
+            return $trimmed;
+        }
+
+        $outside = null;
+        $inside = null;
+        $isListItem = false;
+        foreach ($tokens as $token) {
+            $keyword = strtolower($token);
+            if ($keyword === 'list-item' && !$isListItem) {
+                $isListItem = true;
+                continue;
+            }
+
+            if ($outside === null && in_array($keyword, self::DISPLAY_OUTSIDE_KEYWORDS, true)) {
+                $outside = $keyword;
+                continue;
+            }
+
+            if ($inside === null && in_array($keyword, self::DISPLAY_INSIDE_KEYWORDS, true)) {
+                $inside = $keyword;
+                continue;
+            }
+
+            return $trimmed;
+        }
+
+        if ($outside === null && $inside === null && !$isListItem) {
+            return $trimmed;
+        }
+
+        $inside ??= 'flow';
+        $outside ??= $inside === 'ruby' ? 'inline' : 'block';
+        if ($isListItem && !in_array($inside, ['flow', 'flow-root'], true)) {
+            return $trimmed;
+        }
+
+        return $this->serializeDisplayValue($outside, $inside, $isListItem);
+    }
+
+    private function serializeDisplayValue(string $outside, string $inside, bool $isListItem): string
+    {
+        if ($outside === 'inline' && !$isListItem) {
+            $inlineAlias = match ($inside) {
+                'flow-root' => 'inline-block',
+                'table' => 'inline-table',
+                'flex' => 'inline-flex',
+                '-webkit-flex' => '-webkit-inline-flex',
+                '-ms-flexbox' => '-ms-inline-flexbox',
+                '-webkit-box' => '-webkit-inline-box',
+                '-moz-box' => '-moz-inline-box',
+                'grid' => 'inline-grid',
+                default => null,
+            };
+            if ($inlineAlias !== null) {
+                return $inlineAlias;
+            }
+        }
+
+        $defaultOutside = $inside === 'ruby' ? 'inline' : 'block';
+        $parts = [];
+        if ($outside !== $defaultOutside || ($inside === 'flow' && !$isListItem)) {
+            $parts[] = $outside;
+        }
+        if ($inside !== 'flow') {
+            $parts[] = $inside;
+        }
+        if ($isListItem) {
+            $parts[] = 'list-item';
+        }
+
+        return implode(' ', $parts);
     }
 
     private function minifyTextKeywordValue(string $property, string $value): string
