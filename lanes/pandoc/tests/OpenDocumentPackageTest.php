@@ -2114,6 +2114,10 @@ XML;
         foreach ($review['items'] as $item) {
             $reviewByPath[$item['path']] = $item;
         }
+        $orderByPath = [];
+        foreach ($review['manifestFileEntryOrder'] as $item) {
+            $orderByPath[$item['path']] = $item;
+        }
         $familyByPath = [];
         foreach ($review['manifestMediaFamilyItems'] as $item) {
             $familyByPath[$item['path']] = $item['manifestMediaFamily'];
@@ -2175,6 +2179,10 @@ XML;
         $t->same('object-replacement', $reviewByPath['ObjectReplacements/preview.png']['manifestMediaFamily']);
         $t->same('opendocument-object-package', $reviewByPath['Object%20Chart/']['manifestMediaFamily']);
         $t->same('binary', $reviewByPath['Payloads/review.bin']['manifestMediaFamily']);
+        $t->same(true, $orderByPath['Basic/Standard/Review.xml']['scriptPackagePart']);
+        $t->same(false, $orderByPath['Basic/Standard/Review.xml']['configurationPackagePart']);
+        $t->same(false, $orderByPath['Configurations2/accelerator/current.xml']['scriptPackagePart']);
+        $t->same(true, $orderByPath['Configurations2/accelerator/current.xml']['configurationPackagePart']);
 
         $t->same(15, $inventory['manifestDeclaredPartCount']);
         $t->same([

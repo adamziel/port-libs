@@ -4410,6 +4410,8 @@ final class OpenDocumentPackage
             'embeddedObjectRoot' => ($entry['embeddedObjectRoot'] ?? false) === true,
             'embeddedObjectContainedPart' => ($entry['embeddedObjectContainedPart'] ?? false) === true,
             'objectReplacementPackagePart' => ($entry['objectReplacementPackagePart'] ?? false) === true,
+            'scriptPackagePart' => ($entry['scriptPackagePart'] ?? false) === true,
+            'configurationPackagePart' => ($entry['configurationPackagePart'] ?? false) === true,
             'fontPackagePart' => ($entry['fontPackagePart'] ?? false) === true,
             'rdfMetadataPart' => ($entry['rdfMetadataPart'] ?? false) === true,
             'layoutCachePackagePart' => ($entry['layoutCachePackagePart'] ?? false) === true,

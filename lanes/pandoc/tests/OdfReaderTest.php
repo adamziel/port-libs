@@ -9882,6 +9882,12 @@ XML;
         $provenance = $manifestReport['packageProvenance'];
         $packageParts = $provenance['parts'];
         $manifestOrder = $provenance['manifestFileEntryOrder'];
+        $manifestOrderByPart = [];
+        foreach ($manifestOrder as $item) {
+            if (is_string($item['part'] ?? null)) {
+                $manifestOrderByPart[$item['part']] = $item;
+            }
+        }
         $localOrder = $provenance['localHeaderOrder'];
         $compression = $provenance['compressionMethods'];
 
@@ -9934,9 +9940,13 @@ XML;
 
         $t->same('missing-package-part', $manifestByPart['Pictures/missing.png']['byteExposurePolicy']);
         $t->same('unsupported-compression-bytes-blocked', $manifestByPart['Pictures/unsupported.bin']['byteExposurePolicy']);
+        $t->same(true, $manifestByPart['Basic/Standard/Module1.xml']['scriptPackagePart']);
         $t->same('script-package-bytes-blocked', $manifestByPart['Basic/Standard/Module1.xml']['byteExposurePolicy']);
         $t->same('rdf-metadata-bytes-blocked', $manifestByPart['manifest.rdf']['byteExposurePolicy']);
         $t->same('unsupported-compression-bytes-blocked', $packageParts['Pictures/unsupported.bin']['byteExposurePolicy']);
+        $t->same(true, $manifestOrderByPart['Basic/Standard/Module1.xml']['scriptPackagePart']);
+        $t->same(false, $manifestOrderByPart['Basic/Standard/Module1.xml']['configurationPackagePart']);
+        $t->same(true, $packageParts['Basic/Standard/Module1.xml']['scriptPackagePart']);
         $t->same('script-package-bytes-blocked', $packageParts['Basic/Standard/Module1.xml']['byteExposurePolicy']);
         $t->same('rdf-metadata-bytes-blocked', $packageParts['manifest.rdf']['byteExposurePolicy']);
         $t->same(['Pictures/missing.png'], array_column($manifestReport['missingItems'], 'part'));
@@ -11769,6 +11779,12 @@ XML;
         }
         $provenance = $result['importReport']['manifest']['packageProvenance'];
         $parts = $provenance['parts'];
+        $manifestOrderByPart = [];
+        foreach ($provenance['manifestFileEntryOrder'] as $item) {
+            if (is_string($item['part'] ?? null)) {
+                $manifestOrderByPart[$item['part']] = $item;
+            }
+        }
         $configurations = $result['packageConfigurations'];
         $configurationsByPart = [];
         foreach ($configurations['items'] as $item) {
@@ -11779,6 +11795,8 @@ XML;
         $t->same(6, $provenance['configurationPackagePartCount']);
         $t->same(6, $provenance['roleCounts']['configuration-package']);
         $t->same(1, $provenance['undeclaredRoleCounts']['configuration-package']);
+        $t->same(true, $manifestOrderByPart['Configurations2/accelerator/current.xml']['configurationPackagePart']);
+        $t->same(false, $manifestOrderByPart['Configurations2/accelerator/current.xml']['scriptPackagePart']);
         $t->same(['configuration-package', 'zip-directory', 'manifest-declared'], $parts['Configurations2/']['roles']);
         $t->same(['configuration-package', 'manifest-declared'], $parts['Configurations2/accelerator/current.xml']['roles']);
         $t->same(['configuration-package', 'manifest-declared'], $parts['Configurations2/images/Bitmaps/review.png']['roles']);
