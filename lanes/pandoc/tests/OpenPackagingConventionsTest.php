@@ -3972,6 +3972,100 @@ XML;
         $t->same([], $closureById['rIdExternalRemoteRelative']['issues']);
         $t->same(false, $graph->preflightPackageConsistency()['relationshipTargetsValid']);
     },
+    'summarizes OPC relationship TargetMode declarations for importer gates' => static function (TestRunner $t) use ($contentTypesXml): void {
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdImplicitImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review.png"/>
+  <Relationship Id="rIdExplicitInternalStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml" TargetMode="Internal"/>
+  <Relationship Id="rIdExternalReview" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/review" TargetMode="External"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/styles.xml', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/media/review.png', 'data' => 'PNG'],
+        ]));
+
+        $documentRelationships = $graph->requireRelationshipsForSource('/word/document.xml');
+        $t->same(false, $documentRelationships->byId('rIdImplicitImage')?->targetModeExplicit);
+        $t->same(true, $documentRelationships->byId('rIdExplicitInternalStyles')?->targetModeExplicit);
+        $t->same(true, $documentRelationships->byId('rIdExternalReview')?->targetModeExplicit);
+
+        $summary = $graph->relationshipTargetModeSummary();
+        $t->same(null, $summary['source']);
+        $t->same(null, $summary['relationshipType']);
+        $t->same(true, $summary['valid']);
+        $t->same(4, $summary['relationshipCount']);
+        $t->same(2, $summary['sourceCount']);
+        $t->same(3, $summary['internalCount']);
+        $t->same(1, $summary['externalCount']);
+        $t->same(2, $summary['implicitTargetModeCount']);
+        $t->same(2, $summary['explicitTargetModeCount']);
+        $t->same([
+            '(implicit-internal)' => 2,
+            'External' => 1,
+            'Internal' => 1,
+        ], $summary['relationshipRecordTargetModeCounts']);
+        $t->same(2, $summary['relationshipRecordImplicitInternalTargetModeCount']);
+        $t->same(1, $summary['relationshipRecordExplicitInternalTargetModeCount']);
+        $t->same(1, $summary['relationshipRecordExplicitExternalTargetModeCount']);
+        $t->same(0, $summary['relationshipRecordUnexpectedTargetModeCount']);
+        $t->same(['External' => 1, 'Internal' => 3], $summary['targetModeCounts']);
+        $t->same(['explicit' => 2, 'implicit' => 2], $summary['targetModeDeclarationCounts']);
+        $t->same(['/', '/word/document.xml'], $summary['sources']);
+        $t->same(['/word/document.xml'], $summary['sourcesWithExplicitInternalTargetMode']);
+        $t->same(['/word/_rels/document.xml.rels'], $summary['relationshipPartsWithExplicitInternalTargetMode']);
+        $t->same([
+            [
+                'source' => '/word/document.xml',
+                'relationshipPartName' => '/word/_rels/document.xml.rels',
+                'id' => 'rIdExplicitInternalStyles',
+                'type' => 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles',
+                'target' => 'styles.xml',
+                'targetMode' => 'Internal',
+                'targetModeExplicit' => true,
+                'targetModeDeclaration' => 'explicit',
+                'external' => false,
+            ],
+        ], $summary['relationshipsWithExplicitInternalTargetMode']);
+
+        $relationshipsByKey = [];
+        foreach ($summary['relationships'] as $relationship) {
+            $relationshipsByKey[$relationship['source'] . ':' . $relationship['id']] = $relationship;
+        }
+        $t->same(false, $relationshipsByKey['/:rIdDocument']['targetModeExplicit']);
+        $t->same('implicit', $relationshipsByKey['/word/document.xml:rIdImplicitImage']['targetModeDeclaration']);
+        $t->same('explicit', $relationshipsByKey['/word/document.xml:rIdExplicitInternalStyles']['targetModeDeclaration']);
+        $t->same('External', $relationshipsByKey['/word/document.xml:rIdExternalReview']['targetMode']);
+
+        $documentSummary = $graph->relationshipTargetModeSummary('word/./document.xml');
+        $t->same('/word/document.xml', $documentSummary['source']);
+        $t->same(3, $documentSummary['relationshipCount']);
+        $t->same(1, $documentSummary['sourceCount']);
+        $t->same(2, $documentSummary['internalCount']);
+        $t->same(1, $documentSummary['externalCount']);
+        $t->same(1, $documentSummary['relationshipRecordImplicitInternalTargetModeCount']);
+        $t->same(1, $documentSummary['relationshipRecordExplicitInternalTargetModeCount']);
+        $t->same(1, $documentSummary['relationshipRecordExplicitExternalTargetModeCount']);
+
+        $hyperlinkSummary = $graph->relationshipTargetModeSummary(null, OpcRelationshipGraph::WORDPROCESSING_HYPERLINK_RELATIONSHIP_TYPE);
+        $t->same(OpcRelationshipGraph::WORDPROCESSING_HYPERLINK_RELATIONSHIP_TYPE, $hyperlinkSummary['relationshipType']);
+        $t->same(1, $hyperlinkSummary['relationshipCount']);
+        $t->same(0, $hyperlinkSummary['internalCount']);
+        $t->same(1, $hyperlinkSummary['externalCount']);
+        $t->same(['External' => 1], $hyperlinkSummary['targetModeCounts']);
+        $t->same(['/word/document.xml'], $hyperlinkSummary['sources']);
+    },
     'preflights package root external relative targets without implicit source part' => static function (TestRunner $t) use ($contentTypesXml): void {
         $packageRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">

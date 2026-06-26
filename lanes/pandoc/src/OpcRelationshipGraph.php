@@ -2551,6 +2551,139 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @return array{source:?string, relationshipType:?string, valid:bool, relationshipCount:int, sourceCount:int, internalCount:int, externalCount:int, explicitTargetModeCount:int, implicitTargetModeCount:int, relationshipRecordTargetModeCounts:array<string, int>, relationshipRecordImplicitInternalTargetModeCount:int, relationshipRecordExplicitInternalTargetModeCount:int, relationshipRecordExplicitExternalTargetModeCount:int, relationshipRecordUnexpectedTargetModeCount:int, targetModeCounts:array<string, int>, targetModeDeclarationCounts:array<string, int>, sources:list<string>, sourcesWithExplicitInternalTargetMode:list<string>, relationshipPartsWithExplicitInternalTargetMode:list<string>, relationshipsWithExplicitInternalTargetMode:list<array{source:string, relationshipPartName:string, id:string, type:string, target:string, targetMode:string, targetModeExplicit:bool, targetModeDeclaration:string, external:bool}>, relationships:list<array{source:string, relationshipPartName:string, id:string, type:string, target:string, targetMode:string, targetModeExplicit:bool, targetModeDeclaration:string, external:bool}>}
+     */
+    public function relationshipTargetModeSummary(?string $sourcePartName = null, ?string $relationshipType = null): array
+    {
+        $summary = [
+            'source' => $sourcePartName === null ? null : $this->relationshipSourceNameForEquivalent($sourcePartName),
+            'relationshipType' => $relationshipType,
+            'valid' => true,
+            'relationshipCount' => 0,
+            'sourceCount' => 0,
+            'internalCount' => 0,
+            'externalCount' => 0,
+            'explicitTargetModeCount' => 0,
+            'implicitTargetModeCount' => 0,
+            'relationshipRecordTargetModeCounts' => [],
+            'relationshipRecordImplicitInternalTargetModeCount' => 0,
+            'relationshipRecordExplicitInternalTargetModeCount' => 0,
+            'relationshipRecordExplicitExternalTargetModeCount' => 0,
+            'relationshipRecordUnexpectedTargetModeCount' => 0,
+            'targetModeCounts' => [],
+            'targetModeDeclarationCounts' => [],
+            'sources' => [],
+            'sourcesWithExplicitInternalTargetMode' => [],
+            'relationshipPartsWithExplicitInternalTargetMode' => [],
+            'relationshipsWithExplicitInternalTargetMode' => [],
+            'relationships' => [],
+        ];
+
+        $sourcePartNames = $sourcePartName === null
+            ? $this->sourcePartNames()
+            : [$summary['source']];
+
+        foreach ($sourcePartNames as $source) {
+            if (!is_string($source)) {
+                continue;
+            }
+
+            $relationships = $this->relationshipsForSource($source);
+            if (!$relationships instanceof OpcRelationships) {
+                continue;
+            }
+
+            $items = $relationshipType === null
+                ? $relationships->all()
+                : $relationships->ofType($relationshipType);
+            if ($items === []) {
+                continue;
+            }
+
+            self::appendUniqueString($summary['sources'], $source);
+            $relationshipPartName = OpcRelationships::relationshipPartNameForSource($source);
+            foreach ($items as $relationship) {
+                $summary['relationshipCount']++;
+                $targetMode = $relationship->targetMode;
+                $targetModeDeclaration = $relationship->targetModeExplicit ? 'explicit' : 'implicit';
+                $recordTargetMode = $relationship->targetModeExplicit ? $targetMode : '(implicit-internal)';
+
+                $summary['targetModeCounts'][$targetMode] = ($summary['targetModeCounts'][$targetMode] ?? 0) + 1;
+                $summary['targetModeDeclarationCounts'][$targetModeDeclaration] = ($summary['targetModeDeclarationCounts'][$targetModeDeclaration] ?? 0) + 1;
+                $summary['relationshipRecordTargetModeCounts'][$recordTargetMode] = ($summary['relationshipRecordTargetModeCounts'][$recordTargetMode] ?? 0) + 1;
+
+                if ($relationship->targetModeExplicit) {
+                    $summary['explicitTargetModeCount']++;
+                } else {
+                    $summary['implicitTargetModeCount']++;
+                }
+
+                if ($relationship->isExternal()) {
+                    $summary['externalCount']++;
+                    if ($relationship->targetModeExplicit) {
+                        $summary['relationshipRecordExplicitExternalTargetModeCount']++;
+                    } else {
+                        $summary['relationshipRecordUnexpectedTargetModeCount']++;
+                        $summary['valid'] = false;
+                    }
+                } else {
+                    $summary['internalCount']++;
+                    if ($relationship->targetModeExplicit) {
+                        $summary['relationshipRecordExplicitInternalTargetModeCount']++;
+                    } else {
+                        $summary['relationshipRecordImplicitInternalTargetModeCount']++;
+                    }
+                }
+
+                $row = [
+                    'source' => $source,
+                    'relationshipPartName' => $relationshipPartName,
+                    'id' => $relationship->id,
+                    'type' => $relationship->type,
+                    'target' => $relationship->target,
+                    'targetMode' => $targetMode,
+                    'targetModeExplicit' => $relationship->targetModeExplicit,
+                    'targetModeDeclaration' => $targetModeDeclaration,
+                    'external' => $relationship->isExternal(),
+                ];
+                $summary['relationships'][] = $row;
+
+                if ($relationship->isExternal() || !$relationship->targetModeExplicit) {
+                    continue;
+                }
+
+                self::appendUniqueString($summary['sourcesWithExplicitInternalTargetMode'], $source);
+                self::appendUniqueString($summary['relationshipPartsWithExplicitInternalTargetMode'], $relationshipPartName);
+                $summary['relationshipsWithExplicitInternalTargetMode'][] = $row;
+            }
+        }
+
+        $summary['sourceCount'] = count($summary['sources']);
+        foreach ([
+            'sources',
+            'sourcesWithExplicitInternalTargetMode',
+            'relationshipPartsWithExplicitInternalTargetMode',
+        ] as $listKey) {
+            sort($summary[$listKey], SORT_STRING);
+        }
+        ksort($summary['relationshipRecordTargetModeCounts'], SORT_STRING);
+        ksort($summary['targetModeCounts'], SORT_STRING);
+        ksort($summary['targetModeDeclarationCounts'], SORT_STRING);
+        usort(
+            $summary['relationships'],
+            static fn (array $left, array $right): int => [$left['source'], $left['id']]
+                <=> [$right['source'], $right['id']],
+        );
+        usort(
+            $summary['relationshipsWithExplicitInternalTargetMode'],
+            static fn (array $left, array $right): int => [$left['source'], $left['id']]
+                <=> [$right['source'], $right['id']],
+        );
+
+        return $summary;
+    }
+
+    /**
      * @return list<array{source:string, sourceExists:bool, sourceContentType:?string, relationshipPartName:string, relationshipPartExists:bool, relationshipPartContentType:?string, relationshipPartLoaded:bool, relationshipPartLoadAction:?string, relationshipPartLoadReason:?string, relationshipPartIssues:list<string>, relationshipCount:int, internalCount:int, externalCount:int, validTargetCount:int, invalidTargetCount:int, relationshipTypes:list<string>, targetParts:list<string>, contentTypes:list<string>, externalTargets:list<string>, missingTargetParts:list<string>, issues:list<string>, valid:bool}>
      */
     public function relationshipSourceInventory(): array

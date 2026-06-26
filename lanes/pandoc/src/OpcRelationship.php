@@ -12,11 +12,14 @@ final class OpcRelationship
     /** @var list<string> */
     private const UNSAFE_EXTERNAL_SCHEMES = ['data', 'file', 'javascript', 'vbscript'];
 
+    public readonly bool $targetModeExplicit;
+
     public function __construct(
         public readonly string $id,
         public readonly string $type,
         public readonly string $target,
         public readonly string $targetMode = self::TARGET_MODE_INTERNAL,
+        ?bool $targetModeExplicit = null,
     ) {
         if ($id === '' || $type === '' || $target === '') {
             throw new \InvalidArgumentException('OPC relationship Id, Type, and Target must be non-empty');
@@ -27,6 +30,8 @@ final class OpcRelationship
         if ($targetMode !== self::TARGET_MODE_INTERNAL && $targetMode !== self::TARGET_MODE_EXTERNAL) {
             throw new \InvalidArgumentException('Unsupported OPC relationship TargetMode: ' . $targetMode);
         }
+
+        $this->targetModeExplicit = $targetModeExplicit ?? $targetMode !== self::TARGET_MODE_INTERNAL;
     }
 
     public function isExternal(): bool

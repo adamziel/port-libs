@@ -57,6 +57,7 @@ final class OpcRelationships
                 $child->getAttribute('Type'),
                 $child->getAttribute('Target'),
                 $child->hasAttribute('TargetMode') ? $child->getAttribute('TargetMode') : OpcRelationship::TARGET_MODE_INTERNAL,
+                $child->hasAttribute('TargetMode'),
             ));
         }
 
