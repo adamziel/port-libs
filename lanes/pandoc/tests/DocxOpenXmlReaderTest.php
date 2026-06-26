@@ -19319,6 +19319,110 @@ XML;
         $t->true(in_array('document-relationship-target', $inventory['roles'], true), 'people document relationship target role missing');
         $t->same(1, $package['summary']['roleCounts']['people']);
     },
+    'links docx comment authors to people part provenance metadata' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $commentsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
+        $peopleRel = 'http://schemas.microsoft.com/office/2011/relationships/people';
+        $peopleContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.people+xml';
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/comments/review-comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>' . "\n" .
+            '  <Override PartName="/word/people.xml" ContentType="' . $peopleContentType . '; profile=comment-authors"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rComments" Type="' . $commentsRel . '" Target="comments/review-comments.xml"/>' . "\n" .
+            '  <Relationship Id="rPeople" Type="' . $peopleRel . '" Target="people.xml?presence=comment-authors#people"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '<w:hyperlink r:id="rLink"><w:r><w:t>source link</w:t></w:r></w:hyperlink>',
+            '<w:hyperlink r:id="rLink"><w:r><w:t>source link</w:t></w:r></w:hyperlink>' . "\n" .
+            '      <w:r><w:t xml:space="preserve"> with reviewer identity provenance </w:t></w:r>' . "\n" .
+            '      <w:r><w:commentReference w:id="12"/></w:r>' . "\n" .
+            '      <w:r><w:commentReference w:id="13"/></w:r>',
+            $parts['word/document.xml']
+        );
+        $parts['word/comments/review-comments.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:comment w:id="12" w:author="Review Lead" w:initials="RL" w:date="2026-06-18T10:00:00Z">
+    <w:p><w:r><w:t>Matched comment author packet.</w:t></w:r></w:p>
+  </w:comment>
+  <w:comment w:id="13" w:author="Outside Reviewer" w:initials="OR" w:date="2026-06-18T10:05:00Z">
+    <w:p><w:r><w:t>Unmatched comment author packet.</w:t></w:r></w:p>
+  </w:comment>
+</w:comments>
+XML;
+        $parts['word/people.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w15:people xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+  <w15:person w15:author="Review Lead">
+    <w15:presenceInfo w15:providerId="sip" w15:userId="review.lead@example.test"/>
+    <w15:presenceInfo w15:providerId="aad" w15:userId="review.lead@tenant.example"/>
+  </w15:person>
+  <w15:person w15:author="Revision Owner">
+    <w15:presenceInfo w15:providerId="aad" w15:userId="owner@example.test"/>
+  </w15:person>
+</w15:people>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $comments = $docx['comments'];
+        $people = $docx['people'];
+        $summary = $docx['packageProvenance']['summary'];
+        $paragraph = $document->children[1];
+        $notes = array_values(array_filter($paragraph->children, static fn (AstNode $node): bool => $node->type === 'note'));
+        $matchedNote = $notes[0];
+        $unmatchedNote = $notes[1];
+
+        $t->same('people-part-metadata-only', $people['reviewPolicy']);
+        $t->same('people-part-bytes-blocked', $people['byteExposurePolicy']);
+        $t->same(0, $people['byAuthor']['Review Lead']['index']);
+        $t->same(2, $people['byAuthor']['Review Lead']['presenceInfoCount']);
+        $t->same('review.lead@example.test', $people['byAuthor']['Review Lead']['presenceInfo'][0]['userId']);
+
+        $t->same(1, $comments['authorPeopleMatchedCount']);
+        $t->same(1, $comments['authorPeopleUnmatchedCount']);
+        $t->same(['Review Lead'], $comments['authorPeopleMatchedAuthors']);
+        $t->same(['Outside Reviewer'], $comments['authorPeopleUnmatchedAuthors']);
+        $t->same('word/people.xml', $comments['authorPeoplePart']);
+        $t->same('comment-author-people-metadata-only', $comments['authorPeopleReviewPolicy']);
+
+        $t->same(1, $summary['commentAuthorPeopleMatchedCount']);
+        $t->same(1, $summary['commentAuthorPeopleUnmatchedCount']);
+        $t->same(['Review Lead'], $summary['commentAuthorPeopleMatchedAuthors']);
+        $t->same(['Outside Reviewer'], $summary['commentAuthorPeopleUnmatchedAuthors']);
+        $t->same('comment-author-people-metadata-only', $summary['commentAuthorPeopleReviewPolicy']);
+
+        $matched = $comments['byId']['12'];
+        $unmatched = $comments['byId']['13'];
+        $t->same(true, $matched['commentAuthorPeopleMatched']);
+        $t->same('word/people.xml', $matched['commentAuthorPeoplePart']);
+        $t->same(0, $matched['commentAuthorPersonIndex']);
+        $t->same(2, $matched['commentAuthorPresenceInfoCount']);
+        $t->same(['sip', 'aad'], $matched['commentAuthorProviderIds']);
+        $t->same(['review.lead@example.test', 'review.lead@tenant.example'], $matched['commentAuthorUserIds']);
+        $t->same('review.lead@tenant.example', $matched['commentAuthorPresenceInfo'][1]['userId']);
+        $t->same('comment-author-people-metadata-only', $matched['commentAuthorPeopleReviewPolicy']);
+        $t->same(false, $unmatched['commentAuthorPeopleMatched']);
+        $t->same([], $unmatched['commentAuthorProviderIds']);
+        $t->same([], $unmatched['commentAuthorUserIds']);
+        $t->same('comment-author-people-metadata-only', $unmatched['commentAuthorPeopleReviewPolicy']);
+
+        $t->same('12', $matchedNote->attr('id'));
+        $t->same(true, $matchedNote->attr('commentAuthorPeopleMatched'));
+        $t->same(0, $matchedNote->attr('commentAuthorPersonIndex'));
+        $t->same(['sip', 'aad'], $matchedNote->attr('commentAuthorProviderIds'));
+        $t->same(['review.lead@example.test', 'review.lead@tenant.example'], $matchedNote->attr('commentAuthorUserIds'));
+        $t->same('13', $unmatchedNote->attr('id'));
+        $t->same(false, $unmatchedNote->attr('commentAuthorPeopleMatched'));
+        $t->same([], $unmatchedNote->attr('commentAuthorUserIds'));
+    },
     'classifies docx note package inventory roles from document relationships' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
