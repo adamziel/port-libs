@@ -100,8 +100,8 @@ return [
         $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $greekMathml);
         $t->contains('<mi>Γ</mi><mo>+</mo><mi>Δ</mi><mo>+</mo><mi>ε</mi><mo>+</mo><mi>φ</mi><mo>+</mo><mi>ϑ</mi><mo>+</mo><mi>ξ</mi><mo>+</mo><mi>ζ</mi>', $greekMathml);
         $t->contains('<annotation encoding="application/x-tex">\\Gamma + \\Delta + \\varepsilon + \\varphi + \\vartheta + \\xi + \\zeta</annotation>', $greekMathml);
-        $t->contains('<msub><mi>limsup</mi><mi>n</mi></msub><msub><mi>a</mi><mi>n</mi></msub><mo>+</mo><msub><mi>liminf</mi><mi>m</mi></msub><msub><mi>b</mi><mi>m</mi></msub>', $operatorMathml);
-        $t->contains('<mi>min</mi><mi>x</mi><mo>+</mo><mi>max</mi><mi>y</mi><mo>+</mo><mi>det</mi><mi>A</mi><mo>+</mo><mi>gcd</mi><mo>(</mo><mi>m</mi><mo>,</mo><mi>n</mi><mo>)</mo>', $operatorMathml);
+        $t->contains('<msub><mi>limsup</mi><mi>n</mi></msub><mo>⁡</mo><msub><mi>a</mi><mi>n</mi></msub><mo>+</mo><msub><mi>liminf</mi><mi>m</mi></msub><mo>⁡</mo><msub><mi>b</mi><mi>m</mi></msub>', $operatorMathml);
+        $t->contains('<mi>min</mi><mo>⁡</mo><mi>x</mi><mo>+</mo><mi>max</mi><mo>⁡</mo><mi>y</mi><mo>+</mo><mi>det</mi><mo>⁡</mo><mi>A</mi><mo>+</mo><mi>gcd</mi><mo>⁡</mo><mo>(</mo><mi>m</mi><mo>,</mo><mi>n</mi><mo>)</mo>', $operatorMathml);
         $t->contains('<mi>A</mi><mo>≼</mo><mi>B</mi><mo>+</mo><mi>C</mi><mo>≽</mo><mi>D</mi><mo>+</mo><mi>x</mi><mo>∼</mo><mi>y</mi><mo>+</mo><mi>p</mi><mo>⊨</mo><mi>q</mi><mo>+</mo><mi>u</mi><mo>∣</mo><mi>v</mi>', $relationMathml);
         $t->contains('<mi>x</mi><mo>→</mo><mi>y</mi><mo>+</mo><mi>a</mi><mo>⇔</mo><mi>b</mi><mo>+</mo><mo>…</mo><mo>+</mo><mo>⋯</mo><mo>+</mo><mo>⋮</mo><mo>+</mo><mo>∴</mo><mi>q</mi>', $arrowDotMathml);
         $t->contains('alttext="gamma plus x precedes or equal y plus therefore z"', $accessibleMathml);
@@ -544,10 +544,10 @@ return [
             'stageop' => ['arity' => 0, 'template' => '\\operatorname{stage score}'],
         ], $markdownMacros);
         $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $mathml);
-        $t->contains('<msub><mi>review score</mi><mi>i</mi></msub><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo>', $mathml);
-        $t->contains('<munderover><mi>arg review</mi><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>∈</mo><mi>P</mi></mrow><mtext>draft</mtext></munderover><mi>f</mi><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo>', $mathml);
+        $t->contains('<msub><mi>review score</mi><mi>i</mi></msub><mo>⁡</mo><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo>', $mathml);
+        $t->contains('<munderover><mi>arg review</mi><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>∈</mo><mi>P</mi></mrow><mtext>draft</mtext></munderover><mo>⁡</mo><mi>f</mi><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo>', $mathml);
         $t->contains('<annotation encoding="application/x-tex">\\reviewop_i(p_i) + \\argreview_{p_i \\in P}^{\\text{draft}} f(p_i)</annotation>', $mathml);
-        $t->contains('<msub><mi>arg max</mi><msub><mi>p</mi><mi>i</mi></msub></msub><mi>f</mi><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo>', $directOperatorMathml);
+        $t->contains('<msub><mi>arg max</mi><msub><mi>p</mi><mi>i</mi></msub></msub><mo>⁡</mo><mi>f</mi><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo>', $directOperatorMathml);
         $t->true(!str_contains($mathml, '<mi>\\reviewop</mi>'));
         $t->true(!str_contains($mathml, '<mi>\\argreview</mi>'));
         $t->throws(\InvalidArgumentException::class, static fn (): array => $converter->macroDefinitionsFromDocument(new AstNode('document', [], [
@@ -905,10 +905,10 @@ return [
 
         $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $operatorMathml);
         $t->contains('<msubsup><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></msubsup>', $operatorMathml);
-        $t->contains('<mi>migrate</mi><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo>', $operatorMathml);
+        $t->contains('<mi>migrate</mi><mo>⁡</mo><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo>', $operatorMathml);
         $t->contains('<msubsup><mo>∫</mo><mn>0</mn><mn>1</mn></msubsup><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo><mi>d</mi><mi>x</mi>', $operatorMathml);
-        $t->contains('<msup><mi>sin</mi><mn>2</mn></msup><mi>θ</mi>', $functionMathml);
-        $t->contains('<msub><mi>log</mi><mn>10</mn></msub><mi>x</mi><mo>+</mo><msubsup><mo>∏</mo><mrow><mi>k</mi><mo>=</mo><mn>1</mn></mrow><mn>3</mn></msubsup><mi>k</mi>', $functionMathml);
+        $t->contains('<msup><mi>sin</mi><mn>2</mn></msup><mo>⁡</mo><mi>θ</mi>', $functionMathml);
+        $t->contains('<msub><mi>log</mi><mn>10</mn></msub><mo>⁡</mo><mi>x</mi><mo>+</mo><msubsup><mo>∏</mo><mrow><mi>k</mi><mo>=</mo><mn>1</mn></mrow><mn>3</mn></msubsup><mi>k</mi>', $functionMathml);
     },
     'converts bounded tex large operator aliases to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
@@ -1029,7 +1029,7 @@ return [
         $combinedMathml = $identifierMathml . $binaryMathml . $relationMathml . $shapeMathml;
 
         $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $identifierMathml);
-        $t->contains('<mi>arg</mi><mi>z</mi><mo>+</mo><mi>ℏ</mi><mi>ω</mi><mo>+</mo><mi>ϝ</mi><mo>+</mo><mo>⌀</mo>', $identifierMathml);
+        $t->contains('<mi>arg</mi><mo>⁡</mo><mi>z</mi><mo>+</mo><mi>ℏ</mi><mi>ω</mi><mo>+</mo><mi>ϝ</mi><mo>+</mo><mo>⌀</mo>', $identifierMathml);
         $t->contains('<annotation encoding="application/x-tex">\\arg z + \\hbar\\omega + \\digamma + \\varnothing</annotation>', $identifierMathml);
         $t->contains('<mi>a</mi><mo>†</mo><mi>b</mi><mo>+</mo><mi>c</mi><mo>‡</mo><mi>d</mi><mo>+</mo><mi>e</mi><mo>⌅</mo><mi>f</mi><mo>+</mo><mi>g</mi><mo>≀</mo><mi>h</mi>', $binaryMathml);
         $t->contains('<mi>A</mi><mo>⊲</mo><mi>B</mi><mo>+</mo><mi>C</mi><mo>⊳</mo><mi>D</mi><mo>+</mo><mi>E</mi><mo>⊴</mo><mi>F</mi><mo>+</mo><mi>G</mi><mo>⊵</mo><mi>H</mi><mo>+</mo><mi>I</mi><mo>⋈</mo><mi>J</mi><mo>+</mo><mi>K</mi><mo>≕</mo><mi>L</mi><mo>+</mo><mi>M</mi><mo>⟼</mo><mi>N</mi>', $relationMathml);
@@ -1180,14 +1180,14 @@ return [
         $plainStarredMathml = $converter->texToMathMl('\\operatorname*{review} + x');
 
         $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $starredMathml);
-        $t->contains('<munderover><mi>argmax</mi><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>∈</mo><mi>P</mi></mrow><mtext>draft</mtext></munderover><mi>f</mi><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo>', $starredMathml);
-        $t->contains('<mover><mi>limsup</mi><mi>n</mi></mover><msub><mi>a</mi><mi>n</mi></msub>', $starredMathml);
+        $t->contains('<munderover><mi>argmax</mi><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>∈</mo><mi>P</mi></mrow><mtext>draft</mtext></munderover><mo>⁡</mo><mi>f</mi><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo>', $starredMathml);
+        $t->contains('<mover><mi>limsup</mi><mi>n</mi></mover><mo>⁡</mo><msub><mi>a</mi><mi>n</mi></msub>', $starredMathml);
         $t->contains('<annotation encoding="application/x-tex">\\operatorname*{argmax}_{p_i \\in P}^{\\text{draft}} f(p_i) + \\operatorname*{limsup}^{n} a_n</annotation>', $starredMathml);
-        $t->contains('<munderover><mi>median</mi><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover><msub><mi>p</mi><mi>i</mi></msub>', $displayLimitsMathml);
-        $t->contains('<msub><mi>rank</mi><mi>j</mi></msub><msub><mi>q</mi><mi>j</mi></msub>', $displayLimitsMathml);
+        $t->contains('<munderover><mi>median</mi><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover><mo>⁡</mo><msub><mi>p</mi><mi>i</mi></msub>', $displayLimitsMathml);
+        $t->contains('<msub><mi>rank</mi><mi>j</mi></msub><mo>⁡</mo><msub><mi>q</mi><mi>j</mi></msub>', $displayLimitsMathml);
         $t->contains('<annotation encoding="application/x-tex">\\operatorname{median}\\displaylimits_{i=1}^{n} p_i + \\operatorname*{rank}\\nolimits_{j} q_j</annotation>', $displayLimitsMathml);
-        $t->contains('<munderover><mi>argmin</mi><mrow><mi>x</mi><mo>∈</mo><mi>S</mi></mrow><mtext>draft</mtext></munderover><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo>', $operatorWithLimitsMathml);
-        $t->contains('<munder><mi>max</mi><mi>j</mi></munder><msub><mi>q</mi><mi>j</mi></msub>', $operatorWithLimitsMathml);
+        $t->contains('<munderover><mi>argmin</mi><mrow><mi>x</mi><mo>∈</mo><mi>S</mi></mrow><mtext>draft</mtext></munderover><mo>⁡</mo><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo>', $operatorWithLimitsMathml);
+        $t->contains('<munder><mi>max</mi><mi>j</mi></munder><mo>⁡</mo><msub><mi>q</mi><mi>j</mi></msub>', $operatorWithLimitsMathml);
         $t->contains('<annotation encoding="application/x-tex">\\operatornamewithlimits{argmin}_{x \\in S}^{\\text{draft}} f(x) + \\operatornamewithlimits\\max_{j} q_j</annotation>', $operatorWithLimitsMathml);
         $t->true(!str_contains($operatorWithLimitsMathml, '<mi>\\operatornamewithlimits</mi>'));
         $t->contains('<mi>review</mi><mo>+</mo><mi>x</mi>', $plainStarredMathml);
@@ -1204,10 +1204,10 @@ return [
         $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $commandMathml);
         $t->contains('<msub><mi>α</mi><mi>i</mi></msub><mo>+</mo><mi>≤</mi><mi>p</mi>', $commandMathml);
         $t->contains('<annotation encoding="application/x-tex">\\operatorname\\alpha_i + \\operatorname\\leq p</annotation>', $commandMathml);
-        $t->contains('<munderover><mi>max</mi><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover><msub><mi>p</mi><mi>i</mi></msub>', $starredMathml);
+        $t->contains('<munderover><mi>max</mi><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover><mo>⁡</mo><msub><mi>p</mi><mi>i</mi></msub>', $starredMathml);
         $t->contains('<annotation encoding="application/x-tex">\\operatorname*\\max_{i=1}^{n} p_i</annotation>', $starredMathml);
-        $t->contains('alttext="alpha sub i plus max under j over n p sub j"', $accessibleMathml);
-        $t->contains('intent="row(subscript(alpha,i),plus,underover(max,j,n),subscript(p,j))"', $accessibleMathml);
+        $t->contains('alttext="alpha sub i plus max under j over n of p sub j"', $accessibleMathml);
+        $t->contains('intent="row(subscript(alpha,i),plus,underover(max,j,n),of,subscript(p,j))"', $accessibleMathml);
         $t->contains('<annotation encoding="application/x-tex">\\operatorname\\alpha_i + \\operatorname*\\max_{j}^{n} p_j</annotation>', $accessibleMathml);
         $t->true(!str_contains($commandMathml, '<mi>\\operatorname</mi>'));
         $t->true(!str_contains($starredMathml, '<mi>\\operatorname</mi>'));
@@ -1423,7 +1423,7 @@ return [
         $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $equationMathml);
         $t->contains('<mtable><mlabeledtr><mtd><mtext>(WP-3)</mtext></mtd><mtd id="eq:wrapped"><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub></mrow></mtd></mlabeledtr></mtable>', $equationMathml);
         $t->contains('<annotation encoding="application/x-tex">\\begin{equation}p_i + m_i \\label{eq:wrapped} \\tag{WP-3}\\end{equation}</annotation>', $equationMathml);
-        $t->contains('<mi>review</mi><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo><mo>+</mo><mrow><mo>(</mo><mtext href="#eq:wrapped">WP-3</mtext><mo>)</mo></mrow>', $starredMathml);
+        $t->contains('<mi>review</mi><mo>⁡</mo><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo><mo>+</mo><mrow><mo>(</mo><mtext href="#eq:wrapped">WP-3</mtext><mo>)</mo></mrow>', $starredMathml);
         $t->same([
             'eq:wrapped-auto' => [
                 'label' => 'eq:wrapped-auto',
@@ -1944,7 +1944,7 @@ return [
         $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $fencedMathml);
         $t->contains('<mo fence="true" stretchy="true">(</mo><mtable><mtr><mtd><msub><mi>p</mi><mn>1</mn></msub></mtd><mtd><msub><mi>m</mi><mn>1</mn></msub></mtd></mtr><mtr><mtd><msub><mi>p</mi><mn>2</mn></msub></mtd><mtd><msub><mi>m</mi><mn>2</mn></msub></mtd></mtr></mtable><mo fence="true" stretchy="true">)</mo>', $fencedMathml);
         $t->contains('<mo fence="true" stretchy="true">[</mo><mtable><mtr><mtd><mfrac><mi>a</mi><mi>b</mi></mfrac></mtd><mtd><msqrt><mi>x</mi></msqrt></mtd></mtr><mtr><mtd><mi>α</mi></mtd><mtd><mi>ω</mi></mtd></mtr></mtable><mo fence="true" stretchy="true">]</mo>', $bracketMathml);
-        $t->contains('<mtable columnalign="right left"><mtr><mtd><msub><mi>x</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><mi>score</mi><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo></mtd></mtr>', $alignedMathml);
+        $t->contains('<mtable columnalign="right left"><mtr><mtd><msub><mi>x</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><mi>score</mi><mo>⁡</mo><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo></mtd></mtr>', $alignedMathml);
         $t->contains('<mtr><mtd><msub><mi>y</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><mfrac><msub><mi>a</mi><mi>i</mi></msub><msub><mi>b</mi><mi>i</mi></msub></mfrac></mtd></mtr></mtable>', $alignedMathml);
     },
     'converts bounded plain tex matrix commands to mathml' => static function (TestRunner $t): void {
