@@ -30,6 +30,10 @@ final class CssFormatter
 
     private const BORDER_STYLES = ['none', 'hidden', 'dotted', 'dashed', 'solid', 'double', 'groove', 'ridge', 'inset', 'outset'];
 
+    private const OUTLINE_COMPONENTS = ['width', 'style', 'color'];
+
+    private const OUTLINE_STYLES = ['auto', 'none', 'hidden', 'dotted', 'dashed', 'solid', 'double', 'groove', 'ridge', 'inset', 'outset'];
+
     private const BORDER_IMAGE_REPEAT_KEYWORDS = ['stretch', 'repeat', 'round', 'space'];
 
     public function format(string $css): string
@@ -374,10 +378,12 @@ final class CssFormatter
         $indent = $this->indent($indentLevel);
         $declarations = $this->orderImportantStyleDeclarations(
             $this->composeGridStyleDeclarations(
-                $this->composeBorderImageStyleDeclarations(
-                    $this->composeBorderStyleDeclarations(
-                        $this->composeBoxModelStyleDeclarations(
-                            $this->composeFontStyleDeclarations($this->parseDeclarations($body))
+                $this->composeOutlineStyleDeclarations(
+                    $this->composeBorderImageStyleDeclarations(
+                        $this->composeBorderStyleDeclarations(
+                            $this->composeBoxModelStyleDeclarations(
+                                $this->composeFontStyleDeclarations($this->parseDeclarations($body))
+                            )
                         )
                     )
                 )
@@ -434,6 +440,8 @@ final class CssFormatter
             'color' => $this->formatColorDeclarationValue($value),
             'font' => $this->formatFontShorthandValue($value),
             'grid', 'grid-template' => $this->formatGridTemplateDeclarationValue($property, $value, strlen($prefix)),
+            'outline' => $this->formatOutlineShorthandValue($value),
+            'outline-color' => $this->formatColorDeclarationValue($value),
             default => $this->formatDeclarationValue($value),
         };
 
@@ -533,6 +541,190 @@ final class CssFormatter
         }
 
         return $declarations;
+    }
+
+    /**
+     * @param list<array{string, string}> $declarations
+     * @return list<array{string, string}>
+     */
+    private function composeOutlineStyleDeclarations(array $declarations): array
+    {
+        $declarations = $this->composeOutlineLonghands($declarations);
+        $declarations = $this->composeOutlineColorOverrides($declarations);
+
+        return $declarations;
+    }
+
+    /**
+     * @param list<array{string, string}> $declarations
+     * @return list<array{string, string}>
+     */
+    private function composeOutlineLonghands(array $declarations): array
+    {
+        if ($this->containsDeclaration($declarations, 'outline')) {
+            return $declarations;
+        }
+
+        $indexes = [];
+        foreach ($declarations as $index => [$property]) {
+            foreach (self::OUTLINE_COMPONENTS as $component) {
+                if ($property === 'outline-' . $component) {
+                    $indexes[$component] = $index;
+                }
+            }
+        }
+
+        foreach (self::OUTLINE_COMPONENTS as $component) {
+            if (!isset($indexes[$component])) {
+                return $declarations;
+            }
+        }
+
+        $components = [];
+        foreach (self::OUTLINE_COMPONENTS as $component) {
+            $value = $this->formatOutlineComponentValue($component, $declarations[$indexes[$component]][1]);
+            if (!$this->canComposeOutlineValue($value)) {
+                return $declarations;
+            }
+
+            $components[$component] = $value;
+        }
+
+        $replaceAt = min($indexes);
+
+        return $this->replaceDeclarations($declarations, [
+            $replaceAt => ['outline', $this->serializeOutlineComponents($components)],
+        ], array_flip(array_values($indexes)));
+    }
+
+    /**
+     * @param list<array{string, string}> $declarations
+     * @return list<array{string, string}>
+     */
+    private function composeOutlineColorOverrides(array $declarations): array
+    {
+        $replacements = [];
+        $skip = [];
+        $count = count($declarations);
+
+        for ($i = 0; $i < $count; $i++) {
+            if ($declarations[$i][0] !== 'outline') {
+                continue;
+            }
+
+            $components = $this->parseOutlineShorthandComponents($declarations[$i][1]);
+            if ($components === null) {
+                continue;
+            }
+
+            for ($j = $i + 1; $j < $count; $j++) {
+                [$property, $value] = $declarations[$j];
+                if ($property === 'outline') {
+                    break;
+                }
+
+                if (!str_starts_with($property, 'outline-')) {
+                    continue;
+                }
+
+                if ($property !== 'outline-color') {
+                    break;
+                }
+
+                $formattedColor = $this->formatColorDeclarationValue($value);
+                if (!$this->canComposeOutlineValue($formattedColor)) {
+                    continue;
+                }
+
+                $components['color'] = $formattedColor;
+                $replacements[$i] = ['outline', $this->serializeOutlineComponents($components)];
+                $skip[$j] = true;
+                break;
+            }
+        }
+
+        return $this->replaceDeclarations($declarations, $replacements, $skip);
+    }
+
+    private function formatOutlineComponentValue(string $component, string $value): string
+    {
+        if ($component === 'color') {
+            return $this->formatColorDeclarationValue($value);
+        }
+
+        return $this->formatDeclarationValue($value);
+    }
+
+    private function formatOutlineShorthandValue(string $value): string
+    {
+        $components = $this->parseOutlineShorthandComponents($value);
+        if ($components === null) {
+            return $this->formatDeclarationValue($value);
+        }
+
+        return $this->serializeOutlineComponents($components);
+    }
+
+    /**
+     * @return array{width:string, style:string, color:string}|null
+     */
+    private function parseOutlineShorthandComponents(string $value): ?array
+    {
+        if (!$this->canComposeOutlineValue($value)) {
+            return null;
+        }
+
+        $components = [];
+        foreach ($this->splitWhitespaceTopLevel($value) as $token) {
+            $formatted = $this->formatDeclarationValue($token);
+            $lower = strtolower($formatted);
+            if (!isset($components['style']) && in_array($lower, self::OUTLINE_STYLES, true)) {
+                $components['style'] = $lower;
+                continue;
+            }
+
+            if (!isset($components['width']) && $this->isBorderWidthToken($formatted)) {
+                $components['width'] = $formatted;
+                continue;
+            }
+
+            if (!isset($components['color'])) {
+                $components['color'] = $this->formatColorDeclarationValue($token);
+                continue;
+            }
+
+            return null;
+        }
+
+        foreach (self::OUTLINE_COMPONENTS as $component) {
+            if (!isset($components[$component])) {
+                return null;
+            }
+        }
+
+        return [
+            'width' => $components['width'],
+            'style' => $components['style'],
+            'color' => $components['color'],
+        ];
+    }
+
+    /**
+     * @param array{width:string, style:string, color:string} $components
+     */
+    private function serializeOutlineComponents(array $components): string
+    {
+        return $components['width'] . ' ' . $components['style'] . ' ' . $components['color'];
+    }
+
+    private function canComposeOutlineValue(string $value): bool
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return false;
+        }
+
+        return preg_match('/!\s*important\b|\bvar\s*\(/i', $value) !== 1;
     }
 
     /**

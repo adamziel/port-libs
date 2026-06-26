@@ -2793,6 +2793,18 @@ CSS;
                 . $selector['rtl-modern'] . '{border-right:2px solid red;border-left:5px solid green}',
             $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; border-inline-end: 5px solid green; }', ['safari' => 8])
         );
+        $barSelector = $variants('.bar');
+        $t->same(
+            $selector['ltr-webkit'] . '{border-left:2px solid red;border-right:5px solid green}'
+                . $selector['ltr-modern'] . '{border-left:2px solid red;border-right:5px solid green}'
+                . $selector['rtl-webkit'] . '{border-right:2px solid red;border-left:5px solid green}'
+                . $selector['rtl-modern'] . '{border-right:2px solid red;border-left:5px solid green}'
+                . $barSelector['ltr-webkit'] . '{border-left:1px dotted gray;border-right:1px solid #000}'
+                . $barSelector['ltr-modern'] . '{border-left:1px dotted gray;border-right:1px solid #000}'
+                . $barSelector['rtl-webkit'] . '{border-right:1px dotted gray;border-left:1px solid #000}'
+                . $barSelector['rtl-modern'] . '{border-right:1px dotted gray;border-left:1px solid #000}',
+            $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; border-inline-end: 5px solid green; } .bar { border-inline-start: 1px dotted gray; border-inline-end: 1px solid black; }', ['safari' => 8])
+        );
         $t->same(
             '.foo{border-left-width:2px;border-right-width:2px}',
             $prefixer->prefixForTargets('.foo { border-inline-width: 2px; }', ['safari' => 8])
@@ -2811,6 +2823,13 @@ CSS;
                 . $selector['rtl-webkit'] . '{border-left:var(--test)}'
                 . $selector['rtl-modern'] . '{border-left:var(--test)}',
             $prefixer->prefixForTargets('.foo { border-inline-end: var(--test); }', ['safari' => 8])
+        );
+        $t->same(
+            $selector['ltr-webkit'] . '{border-left:var(--start);border-right:var(--end)}'
+                . $selector['ltr-modern'] . '{border-left:var(--start);border-right:var(--end)}'
+                . $selector['rtl-webkit'] . '{border-right:var(--start);border-left:var(--end)}'
+                . $selector['rtl-modern'] . '{border-right:var(--start);border-left:var(--end)}',
+            $prefixer->prefixForTargets('.foo { border-inline-start: var(--start); border-inline-end: var(--end); }', ['safari' => 8])
         );
     },
     'transition prefixer maps upstream logical border browser boundaries' => static function (TestRunner $t) use ($variants): void {

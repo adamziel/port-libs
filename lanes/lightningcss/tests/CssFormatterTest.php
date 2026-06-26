@@ -297,6 +297,58 @@ CSS, $formatter->format(<<<'CSS'
 }
 CSS));
     },
+    'css formatter maps upstream outline printer cases' => static function (TestRunner $t): void {
+        $formatter = new CssFormatter();
+
+        $t->same(<<<'CSS'
+.foo {
+  outline: 2px solid #00f;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  outline-width: 2px;
+  outline-style: solid;
+  outline-color: blue;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  outline: 2px solid #00f;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  outline: 2px solid blue;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  outline: 2px solid #00f;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  outline: 2px solid red;
+  outline-color: blue;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  outline: 2px solid #ff0;
+  outline-color: var(--color);
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  outline: 2px solid yellow;
+  outline-color: var(--color);
+}
+CSS));
+    },
     'css formatter maps upstream border printer cases' => static function (TestRunner $t): void {
         $formatter = new CssFormatter();
 
@@ -430,6 +482,19 @@ CSS, $formatter->format(<<<'CSS'
   border: thin dotted red;
   border-right-width: thick;
   border-right-style: solid;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border-width: 0;
+  border-bottom: var(--test, 1px) solid;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-width: 0;
+  border-bottom: var(--test, 1px) solid;
 }
 CSS));
     },
