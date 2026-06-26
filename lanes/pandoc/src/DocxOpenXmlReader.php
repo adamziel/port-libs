@@ -753,6 +753,12 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['glossaryDocumentRelationshipId'] = $glossaryDocumentPart['relationship']['id'] ?? null;
         $packageProvenance['glossaryDocument'] = $glossaryDocument;
         $packageProvenance['summary']['glossaryDocumentRelationshipCount'] = $glossaryDocument['relationshipCount'];
+        $packageProvenance['summary']['glossaryDocumentInternalRelationshipCount'] = $glossaryDocument['internalRelationshipCount'];
+        $packageProvenance['summary']['glossaryDocumentExternalRelationshipCount'] = $glossaryDocument['externalRelationshipCount'];
+        $packageProvenance['summary']['glossaryDocumentExistingRelationshipTargetCount'] = $glossaryDocument['existingRelationshipTargetCount'];
+        $packageProvenance['summary']['glossaryDocumentMissingRelationshipTargetCount'] = $glossaryDocument['missingRelationshipTargetCount'];
+        $packageProvenance['summary']['glossaryDocumentMissingRelationshipContentTypeCount'] = $glossaryDocument['missingRelationshipContentTypeCount'];
+        $packageProvenance['summary']['glossaryDocumentRelationshipTargetReferenceSuffixCount'] = $glossaryDocument['relationshipTargetReferenceSuffixCount'];
         $packageProvenance['summary']['glossaryDocumentReferencedRelationshipCount'] = $glossaryDocument['referencedRelationshipCount'];
         $packageProvenance['summary']['glossaryDocumentKnownReferencedRelationshipCount'] = $glossaryDocument['knownReferencedRelationshipCount'];
         $packageProvenance['summary']['glossaryDocumentUnreferencedRelationshipCount'] = $glossaryDocument['unreferencedRelationshipCount'];
@@ -21557,6 +21563,7 @@ final class DocxOpenXmlReader
             }
             $isNumberingRelationshipPart = $relationshipSourceContentTypeBase === self::CT_WORD_NUMBERING;
             $isThemeRelationshipPart = $relationshipSourceContentTypeBase === self::CT_THEME;
+            $isGlossaryRelationshipPart = $relationshipSourceContentTypeBase === self::CT_WORD_GLOSSARY_DOCUMENT;
             $isHeaderFooterRelationshipPart = isset($headerFooterSourceParts[$relationshipSourcePart])
                 || in_array($relationshipSourceContentTypeBase, [self::CT_WORD_HEADER, self::CT_WORD_FOOTER], true);
             $isHeaderRelationshipPart = isset($headerFooterSourceTypes[$relationshipSourcePart]['header'])
@@ -21588,6 +21595,12 @@ final class DocxOpenXmlReader
                 }
                 if ($isThemeRelationshipPart && $relationship['type'] === self::IMAGE_REL) {
                     $this->addPartRole($rolesByPart, $targetPart, 'theme-media');
+                }
+                if ($isGlossaryRelationshipPart && $relationship['type'] === self::IMAGE_REL) {
+                    $this->addPartRole($rolesByPart, $targetPart, 'glossary-document-media');
+                }
+                if ($isGlossaryRelationshipPart && $relationship['type'] === self::HYPERLINK_REL) {
+                    $this->addPartRole($rolesByPart, $targetPart, 'glossary-document-hyperlink-target');
                 }
                 if ($isHeaderFooterRelationshipPart && $relationship['type'] === self::IMAGE_REL) {
                     $this->addPartRole($rolesByPart, $targetPart, 'header-footer-media');

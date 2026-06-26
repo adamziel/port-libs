@@ -16632,6 +16632,90 @@ XML;
         $t->same($glossary['relationshipIssueCount'], $summary['glossaryDocumentRelationshipIssueCount']);
         $t->same($glossary['missingReferencedRelationshipCount'], $summary['glossaryDocumentMissingReferencedRelationshipCount']);
     },
+    'summarizes docx glossary relationship target inventory roles for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/glossary/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rGlossary" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument" Target="glossary/document.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/glossary/document.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:glossaryDocument xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+  <w:docParts>
+    <w:docPart>
+      <w:docPartPr><w:name w:val="Glossary Target Audit"/></w:docPartPr>
+      <w:docPartBody>
+        <w:p>
+          <w:hyperlink r:id="rGlossaryLink"><w:r><w:t>local source</w:t></w:r></w:hyperlink>
+          <w:hyperlink r:id="rGlossaryExternal"><w:r><w:t>external source</w:t></w:r></w:hyperlink>
+          <w:r><w:drawing><wp:inline><wp:docPr id="31" name="Glossary logo" descr="Glossary logo"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rGlossaryImage"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>
+          <w:r><w:drawing r:id="rGlossaryMissing"/></w:r>
+        </w:p>
+      </w:docPartBody>
+    </w:docPart>
+  </w:docParts>
+</w:glossaryDocument>
+XML;
+        $parts['word/glossary/_rels/document.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rGlossaryImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/glossary-logo.png?asset=logo#img"/>
+  <Relationship Id="rGlossaryLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="links/glossary-target.xml?from=glossary#target"/>
+  <Relationship Id="rGlossaryMissing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-logo.bin?missing=1#asset"/>
+  <Relationship Id="rGlossaryExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/glossary?remote=1#source" TargetMode="External"/>
+  <Relationship Id="rGlossaryOrphan" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/orphan" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['word/glossary/media/glossary-logo.png'] = 'GLOSSARYPNG';
+        $parts['word/glossary/links/glossary-target.xml'] = '<target source="glossary"/>';
+
+        $docx = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx');
+        $package = $docx['packageProvenance'];
+        $glossary = $docx['glossaryDocument'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $relationshipTypes = $package['relationshipTypes'];
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $hyperlinkRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+
+        $t->same(5, $glossary['relationshipCount']);
+        $t->same(3, $glossary['internalRelationshipCount']);
+        $t->same(2, $glossary['externalRelationshipCount']);
+        $t->same(2, $glossary['existingRelationshipTargetCount']);
+        $t->same(1, $glossary['missingRelationshipTargetCount']);
+        $t->same(1, $glossary['missingRelationshipContentTypeCount']);
+        $t->same(4, $glossary['relationshipTargetReferenceSuffixCount']);
+        $t->same(4, $glossary['referencedRelationshipCount']);
+        $t->same(1, $glossary['unreferencedRelationshipCount']);
+        $t->same(['missing-target-content-type', 'missing-target-part'], $glossary['relationshipIssueCodes']);
+
+        $t->same($glossary['relationshipCount'], $summary['glossaryDocumentRelationshipCount']);
+        $t->same($glossary['internalRelationshipCount'], $summary['glossaryDocumentInternalRelationshipCount']);
+        $t->same($glossary['externalRelationshipCount'], $summary['glossaryDocumentExternalRelationshipCount']);
+        $t->same($glossary['existingRelationshipTargetCount'], $summary['glossaryDocumentExistingRelationshipTargetCount']);
+        $t->same($glossary['missingRelationshipTargetCount'], $summary['glossaryDocumentMissingRelationshipTargetCount']);
+        $t->same($glossary['missingRelationshipContentTypeCount'], $summary['glossaryDocumentMissingRelationshipContentTypeCount']);
+        $t->same($glossary['relationshipTargetReferenceSuffixCount'], $summary['glossaryDocumentRelationshipTargetReferenceSuffixCount']);
+        $t->same($glossary['referencedRelationshipCount'], $summary['glossaryDocumentReferencedRelationshipCount']);
+        $t->same($glossary['unreferencedRelationshipCount'], $summary['glossaryDocumentUnreferencedRelationshipCount']);
+        $t->same($glossary['relationshipIssueCodes'], $summary['glossaryDocumentRelationshipIssueCodes']);
+
+        $t->true(in_array('glossary-document-media', $inventory['word/glossary/media/glossary-logo.png']['roles'], true), 'glossary media inventory role missing');
+        $t->true(in_array('glossary-document-hyperlink-target', $inventory['word/glossary/links/glossary-target.xml']['roles'], true), 'glossary hyperlink inventory role missing');
+        $t->same(1, $summary['roleCounts']['glossary-document-media']);
+        $t->same(1, $summary['roleCounts']['glossary-document-hyperlink-target']);
+        $t->same(1, $relationshipTypes[$imageRel]['targetRoleCounts']['glossary-document-media']);
+        $t->same(1, $relationshipTypes[$hyperlinkRel]['targetRoleCounts']['glossary-document-hyperlink-target']);
+        $t->true(!isset($docx['media']['word/glossary/links/glossary-target.xml']), 'Glossary hyperlink target should not be exposed as media');
+    },
     'reports malformed docx selected xml sidecars without aborting package ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
