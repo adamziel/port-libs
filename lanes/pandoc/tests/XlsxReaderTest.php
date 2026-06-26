@@ -297,6 +297,16 @@ XML,
     <fill><patternFill patternType="gray125"/></fill>
     <fill><patternFill patternType="solid"><fgColor rgb="FFFFCC00"/><bgColor indexed="64"/></patternFill></fill>
   </fills>
+  <borders count="2">
+    <border><left/><right/><top/><bottom/><diagonal/></border>
+    <border diagonalUp="1" outline="0">
+      <left style="thin"><color rgb="FF112233"/></left>
+      <right style="double"><color indexed="64"/></right>
+      <top style="dashed"><color theme="4"/></top>
+      <bottom style="medium"><color auto="1"/></bottom>
+      <diagonal style="hair"><color rgb="FFABCDEF"/></diagonal>
+    </border>
+  </borders>
   <cellXfs count="5">
     <xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>
     <xf numFmtId="164" fontId="0" fillId="2" borderId="1" applyFont="1" applyFill="1" applyNumberFormat="1">
@@ -875,6 +885,29 @@ return [
         $t->same('Quarter logo', $image['drawingAnchors'][0]['description'] ?? null);
         $t->same('xl/drawings/drawing1.xml', $image['relationshipRefs'][0]['sourcePart'] ?? null);
         $t->same('xl/media/image1.png', $image['relationshipRefs'][0]['targetPart'] ?? null);
+    },
+
+    'preserves xlsx border style records as bounded cell metadata' => static function (TestRunner $t) use ($buildStyleCommentImageXlsxPackage): void {
+        $document = (new XlsxReader())->read($buildStyleCommentImageXlsxPackage());
+        $review = $document->attr('xlsx');
+        $table = $document->children[1];
+        $bodyCells = $table->children[1]->children[0]->children;
+        $moneyCell = $bodyCells[1];
+
+        $t->same(2, $review['styleBorderCount'] ?? null);
+        $t->same(1, $moneyCell->attr('xlsxBorderId'));
+        $t->same('thin', $moneyCell->attr('xlsxBorderLeftStyle'));
+        $t->same('rgb:FF112233', $moneyCell->attr('xlsxBorderLeftColor'));
+        $t->same('double', $moneyCell->attr('xlsxBorderRightStyle'));
+        $t->same('indexed:64', $moneyCell->attr('xlsxBorderRightColor'));
+        $t->same('dashed', $moneyCell->attr('xlsxBorderTopStyle'));
+        $t->same('theme:4', $moneyCell->attr('xlsxBorderTopColor'));
+        $t->same('medium', $moneyCell->attr('xlsxBorderBottomStyle'));
+        $t->same('auto:1', $moneyCell->attr('xlsxBorderBottomColor'));
+        $t->same('hair', $moneyCell->attr('xlsxBorderDiagonalStyle'));
+        $t->same('rgb:FFABCDEF', $moneyCell->attr('xlsxBorderDiagonalColor'));
+        $t->same(true, $moneyCell->attr('xlsxBorderDiagonalUp'));
+        $t->same(false, $moneyCell->attr('xlsxBorderOutline'));
     },
 
     'reports hidden sheets workbook metadata formulas errors and table filters without evaluation' => static function (TestRunner $t) use ($buildReviewXlsxPackage): void {

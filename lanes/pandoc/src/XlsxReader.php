@@ -188,6 +188,7 @@ final class XlsxReader
                 'sharedStringCount' => count($sharedStrings),
                 'styleFontCount' => count($styles['fonts']),
                 'styleCellFormatCount' => count($styles['cellFormats']),
+                'styleBorderCount' => count($styles['borders']),
                 'styleCustomNumberFormatCount' => count($styles['customNumberFormats']),
                 'date1904' => $workbookInfo['date1904'],
                 'formulaCellCount' => $formulaCellCount,
@@ -1131,6 +1132,7 @@ final class XlsxReader
      * @return array{
      *     fonts:list<array<string, mixed>>,
      *     fills:list<array<string, mixed>>,
+     *     borders:list<array<string, mixed>>,
      *     cellFormats:list<array<string, mixed>>,
      *     customNumberFormats:array<int, string>
      * }
@@ -1140,6 +1142,7 @@ final class XlsxReader
         $empty = [
             'fonts' => [],
             'fills' => [],
+            'borders' => [],
             'cellFormats' => [],
             'customNumberFormats' => [],
         ];
@@ -1182,6 +1185,14 @@ final class XlsxReader
             }
         }
 
+        $bordersList = [];
+        $borders = $this->firstChildElement($root, 'borders');
+        if ($borders instanceof \DOMElement) {
+            foreach ($this->childElements($borders, 'border') as $borderElement) {
+                $bordersList[] = $this->parseStyleBorder($borderElement);
+            }
+        }
+
         $cellFormats = [];
         $cellXfs = $this->firstChildElement($root, 'cellXfs');
         if ($cellXfs instanceof \DOMElement) {
@@ -1194,6 +1205,7 @@ final class XlsxReader
                 $fill = $fillId === null ? $this->defaultStyleFill() : ($fillsList[$fillId] ?? $this->defaultStyleFill());
                 $borderId = trim($xfElement->getAttribute('borderId'));
                 $borderId = preg_match('/^\d+$/', $borderId) === 1 ? (int) $borderId : null;
+                $border = $borderId === null ? $this->defaultStyleBorder() : ($bordersList[$borderId] ?? $this->defaultStyleBorder());
                 $numFmtId = trim($xfElement->getAttribute('numFmtId'));
                 $numFmtId = preg_match('/^\d+$/', $numFmtId) === 1 ? (int) $numFmtId : null;
                 $alignment = $this->firstChildElement($xfElement, 'alignment');
@@ -1220,6 +1232,19 @@ final class XlsxReader
                     'textRotation' => $alignment instanceof \DOMElement ? $this->integerAttribute($alignment, 'textRotation') : null,
                     'locked' => $protection instanceof \DOMElement ? $this->booleanAttribute($protection, 'locked') : null,
                     'hidden' => $protection instanceof \DOMElement ? $this->booleanAttribute($protection, 'hidden') : null,
+                    'borderLeftStyle' => $border['leftStyle'],
+                    'borderLeftColor' => $border['leftColor'],
+                    'borderRightStyle' => $border['rightStyle'],
+                    'borderRightColor' => $border['rightColor'],
+                    'borderTopStyle' => $border['topStyle'],
+                    'borderTopColor' => $border['topColor'],
+                    'borderBottomStyle' => $border['bottomStyle'],
+                    'borderBottomColor' => $border['bottomColor'],
+                    'borderDiagonalStyle' => $border['diagonalStyle'],
+                    'borderDiagonalColor' => $border['diagonalColor'],
+                    'borderDiagonalUp' => $border['diagonalUp'],
+                    'borderDiagonalDown' => $border['diagonalDown'],
+                    'borderOutline' => $border['outline'],
                 ];
             }
         }
@@ -1227,6 +1252,7 @@ final class XlsxReader
         return [
             'fonts' => $fontsList,
             'fills' => $fillsList,
+            'borders' => $bordersList,
             'cellFormats' => $cellFormats,
             'customNumberFormats' => $customNumberFormats,
         ];
@@ -1301,6 +1327,76 @@ final class XlsxReader
         ];
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    private function parseStyleBorder(\DOMElement $borderElement): array
+    {
+        $left = $this->parseStyleBorderSide($this->firstChildElement($borderElement, 'left'));
+        $right = $this->parseStyleBorderSide($this->firstChildElement($borderElement, 'right'));
+        $top = $this->parseStyleBorderSide($this->firstChildElement($borderElement, 'top'));
+        $bottom = $this->parseStyleBorderSide($this->firstChildElement($borderElement, 'bottom'));
+        $diagonal = $this->parseStyleBorderSide($this->firstChildElement($borderElement, 'diagonal'));
+
+        return [
+            'leftStyle' => $left['style'],
+            'leftColor' => $left['color'],
+            'rightStyle' => $right['style'],
+            'rightColor' => $right['color'],
+            'topStyle' => $top['style'],
+            'topColor' => $top['color'],
+            'bottomStyle' => $bottom['style'],
+            'bottomColor' => $bottom['color'],
+            'diagonalStyle' => $diagonal['style'],
+            'diagonalColor' => $diagonal['color'],
+            'diagonalUp' => $this->booleanAttribute($borderElement, 'diagonalUp'),
+            'diagonalDown' => $this->booleanAttribute($borderElement, 'diagonalDown'),
+            'outline' => $this->booleanAttribute($borderElement, 'outline'),
+        ];
+    }
+
+    /**
+     * @return array{style:?string, color:?string}
+     */
+    private function parseStyleBorderSide(?\DOMElement $sideElement): array
+    {
+        if (!$sideElement instanceof \DOMElement) {
+            return [
+                'style' => null,
+                'color' => null,
+            ];
+        }
+
+        $color = $this->firstChildElement($sideElement, 'color');
+
+        return [
+            'style' => trim($sideElement->getAttribute('style')) !== '' ? trim($sideElement->getAttribute('style')) : null,
+            'color' => $color instanceof \DOMElement ? $this->styleColorValue($color) : null,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function defaultStyleBorder(): array
+    {
+        return [
+            'leftStyle' => null,
+            'leftColor' => null,
+            'rightStyle' => null,
+            'rightColor' => null,
+            'topStyle' => null,
+            'topColor' => null,
+            'bottomStyle' => null,
+            'bottomColor' => null,
+            'diagonalStyle' => null,
+            'diagonalColor' => null,
+            'diagonalUp' => null,
+            'diagonalDown' => null,
+            'outline' => null,
+        ];
+    }
+
     private function styleColorValue(\DOMElement $colorElement): ?string
     {
         foreach (['rgb', 'indexed', 'theme', 'auto'] as $attribute) {
@@ -1340,6 +1436,19 @@ final class XlsxReader
             'textRotation' => null,
             'locked' => null,
             'hidden' => null,
+            'borderLeftStyle' => null,
+            'borderLeftColor' => null,
+            'borderRightStyle' => null,
+            'borderRightColor' => null,
+            'borderTopStyle' => null,
+            'borderTopColor' => null,
+            'borderBottomStyle' => null,
+            'borderBottomColor' => null,
+            'borderDiagonalStyle' => null,
+            'borderDiagonalColor' => null,
+            'borderDiagonalUp' => null,
+            'borderDiagonalDown' => null,
+            'borderOutline' => null,
         ];
     }
 
@@ -1359,6 +1468,7 @@ final class XlsxReader
      * @param array{
      *     fonts:list<array<string, mixed>>,
      *     fills:list<array<string, mixed>>,
+     *     borders:list<array<string, mixed>>,
      *     cellFormats:list<array<string, mixed>>,
      *     customNumberFormats:array<int, string>
      * } $styles
@@ -1993,6 +2103,19 @@ final class XlsxReader
             'fillForegroundColor' => 'xlsxFillForegroundColor',
             'fillBackgroundColor' => 'xlsxFillBackgroundColor',
             'borderId' => 'xlsxBorderId',
+            'borderLeftStyle' => 'xlsxBorderLeftStyle',
+            'borderLeftColor' => 'xlsxBorderLeftColor',
+            'borderRightStyle' => 'xlsxBorderRightStyle',
+            'borderRightColor' => 'xlsxBorderRightColor',
+            'borderTopStyle' => 'xlsxBorderTopStyle',
+            'borderTopColor' => 'xlsxBorderTopColor',
+            'borderBottomStyle' => 'xlsxBorderBottomStyle',
+            'borderBottomColor' => 'xlsxBorderBottomColor',
+            'borderDiagonalStyle' => 'xlsxBorderDiagonalStyle',
+            'borderDiagonalColor' => 'xlsxBorderDiagonalColor',
+            'borderDiagonalUp' => 'xlsxBorderDiagonalUp',
+            'borderDiagonalDown' => 'xlsxBorderDiagonalDown',
+            'borderOutline' => 'xlsxBorderOutline',
             'horizontalAlign' => 'xlsxHorizontalAlign',
             'verticalAlign' => 'xlsxVerticalAlign',
             'wrapText' => 'xlsxWrapText',
