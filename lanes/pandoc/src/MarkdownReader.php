@@ -2602,13 +2602,20 @@ final class MarkdownReader
             return $this->parseHtmlInlineFragmentParagraph(trim($line));
         }
 
-        if (preg_match('/^ {0,3}<(abbr|applet|audio|b|bdo|button|cite|code|del|dfn|em|i|ins|kbd|map|mark|noscript|object|progress|q|s|samp|small|source|span|strike|strong|sub|sup|svg|time|track|tt|u|var|video|embed)\b/i', $line, $match) !== 1) {
+        if (preg_match('/^ {0,3}<(abbr|applet|area|audio|b|bdo|button|cite|code|del|dfn|em|i|ins|kbd|map|mark|noscript|object|progress|q|s|samp|small|source|span|strike|strong|sub|sup|svg|time|track|tt|u|var|video|embed)\b/i', $line, $match) !== 1) {
             return null;
         }
 
         $tag = strtolower($match[1]);
         if ($tag === 'button' && ($this->options['suppressStandaloneButtonInline'] ?? false)) {
             return null;
+        }
+
+        if (
+            $this->isHtmlVoidInlineFragmentTag($tag)
+            && preg_match('/^ {0,3}<' . preg_quote($tag, '/') . '\b[^>]*>/i', $line) === 1
+        ) {
+            return $this->parseHtmlInlineFragmentParagraph(trim($line));
         }
 
         $collected = $this->collectBalancedHtmlElementBlock($lines, $index, $tag);
@@ -2625,6 +2632,11 @@ final class MarkdownReader
         $index = $endIndex;
 
         return $paragraph;
+    }
+
+    private function isHtmlVoidInlineFragmentTag(string $tag): bool
+    {
+        return in_array($tag, ['area', 'embed', 'source', 'track'], true);
     }
 
     private function parseHtmlInlineFragmentParagraph(string $html): ?AstNode
