@@ -74,6 +74,7 @@ XML);
     <row r="5"><c r="A5" t="inlineStr"><is><t>Tail cell</t></is></c><c r="B5" s="3"><v>46199</v></c><c r="C5" s="4"><v>0.125</v></c></row>
     <row r="6" hidden="1" ht="24" customHeight="1"><c r="A6" t="inlineStr" s="5"><is><t>Styled cell</t></is></c><c r="B6" s="6"><v>46199.5</v></c></row>
     <row r="7"><c r="A7" t="inlineStr"><is><t>Formats</t></is></c><c r="B7" s="7"><v>-1234.5</v></c><c r="C7" s="8"><v>2.25</v></c></row>
+    <row r="8"><c r="A8" t="inlineStr"><is><t>Formula row</t></is></c><c r="B8"><f>SUM(B2:B7)</f><v>38</v></c><c r="C8" t="e"><f t="array" ref="C8:C9" si="4">1/0</f><v>#DIV/0!</v></c></row>
   </sheetData>
   <mergeCells count="1"><mergeCell ref="A4:B4"/></mergeCells>
   <hyperlinks><hyperlink ref="C4" r:id="rIdLink" tooltip="XLSX link"/></hyperlinks>
@@ -156,6 +157,8 @@ XML);
         $dateTimeCell = $body->children[4]->children[1];
         $currencyCell = $body->children[5]->children[1];
         $fractionCell = $body->children[5]->children[2];
+        $formulaCell = $body->children[6]->children[1];
+        $errorCell = $body->children[6]->children[2];
         $image = $document->children[0]->children[2]->children[0];
         $t->same('A2', $commentedCell->attr('htmlAttributes')['data-xlsx-ref']);
         $t->same('Reviewer', $commentedCell->attr('htmlAttributes')['data-xlsx-comment-author']);
@@ -183,6 +186,15 @@ XML);
         $t->same('2 1/4', $fractionCell->attr('text'));
         $t->same('true', $fractionCell->attr('htmlAttributes')['data-xlsx-column-hidden']);
         $t->same('22', $fractionCell->attr('htmlAttributes')['data-xlsx-column-width']);
+        $t->same('38', $formulaCell->attr('text'));
+        $t->same('SUM(B2:B7)', $formulaCell->attr('htmlAttributes')['data-xlsx-formula']);
+        $t->same('number', $formulaCell->attr('htmlAttributes')['data-xlsx-value-type']);
+        $t->same('#DIV/0!', $errorCell->attr('text'));
+        $t->same('error', $errorCell->attr('htmlAttributes')['data-xlsx-value-type']);
+        $t->same('1/0', $errorCell->attr('htmlAttributes')['data-xlsx-formula']);
+        $t->same('array', $errorCell->attr('htmlAttributes')['data-xlsx-formula-type']);
+        $t->same('C8:C9', $errorCell->attr('htmlAttributes')['data-xlsx-formula-ref']);
+        $t->same('4', $errorCell->attr('htmlAttributes')['data-xlsx-formula-shared-index']);
         $t->same('figure', $document->children[0]->children[2]->type);
         $t->same('image', $image->type);
         $t->same('xl/media/image1.png', $image->attr('url'));
@@ -206,6 +218,9 @@ XML);
         $t->contains('data-xlsx-raw-value="46199.5" data-xlsx-value-type="datetime" data-xlsx-number-format="yyyy-mm-dd h:mm" data-xlsx-style-index="6"', $blocks);
         $t->contains('data-xlsx-raw-value="-1234.5" data-xlsx-value-type="number" data-xlsx-number-format="&quot;$&quot;#,##0.00;[Red](&quot;$&quot;#,##0.00)" data-xlsx-style-index="7" data-xlsx-font-name="Aptos" data-xlsx-font-size="11"', $blocks);
         $t->contains('data-xlsx-column-hidden="true" data-xlsx-column-width="22"', $blocks);
+        $t->contains('data-xlsx-formula="SUM(B2:B7)">38</td>', $blocks);
+        $t->contains('data-xlsx-value-type="error"', $blocks);
+        $t->contains('data-xlsx-formula="1/0" data-xlsx-formula-type="array" data-xlsx-formula-ref="C8:C9" data-xlsx-formula-shared-index="4">#DIV/0!</td>', $blocks);
         $t->contains('data-xlsx-anchor-to="D13"', $blocks);
         $t->contains('Imported', $converterBlocks);
     },

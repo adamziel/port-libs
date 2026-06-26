@@ -616,12 +616,83 @@ final class PptxReader
             }
         }
 
+        $attributes = array_merge(
+            ['data-pptx-relationship-id' => $embedId],
+            $this->shapeGeometryAttributes($picture, 'data-pptx-picture'),
+            $this->pictureCropAttributes($picture)
+        );
+
         return new AstNode('image', [
             'url' => $url,
             'title' => $name,
             'alt' => $alt !== '' ? $alt : $name,
-            'attributes' => ['data-pptx-relationship-id' => $embedId],
+            'attributes' => $attributes,
         ]);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function shapeGeometryAttributes(\DOMElement $shape, string $prefix): array
+    {
+        $properties = $this->firstChildElementByLocalName($shape, 'spPr');
+        if (!$properties instanceof \DOMElement) {
+            return [];
+        }
+        $transform = $this->firstChildElementByLocalName($properties, 'xfrm');
+        if (!$transform instanceof \DOMElement) {
+            return [];
+        }
+
+        $attrs = [];
+        if ($transform->hasAttribute('rot')) {
+            $attrs[$prefix . '-rotation'] = $transform->getAttribute('rot');
+        }
+        $offset = $this->firstChildElementByLocalName($transform, 'off');
+        if ($offset instanceof \DOMElement) {
+            foreach (['x', 'y'] as $axis) {
+                if ($offset->hasAttribute($axis)) {
+                    $attrs[$prefix . '-offset-' . $axis . '-emu'] = $offset->getAttribute($axis);
+                }
+            }
+        }
+        $extent = $this->firstChildElementByLocalName($transform, 'ext');
+        if ($extent instanceof \DOMElement) {
+            foreach (['cx', 'cy'] as $axis) {
+                if ($extent->hasAttribute($axis)) {
+                    $attrs[$prefix . '-extent-' . $axis . '-emu'] = $extent->getAttribute($axis);
+                }
+            }
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function pictureCropAttributes(\DOMElement $picture): array
+    {
+        foreach ($picture->getElementsByTagNameNS(self::A_NS, 'srcRect') as $crop) {
+            if (!$crop instanceof \DOMElement) {
+                continue;
+            }
+            $attrs = [];
+            foreach ([
+                'l' => 'left',
+                'r' => 'right',
+                't' => 'top',
+                'b' => 'bottom',
+            ] as $attribute => $side) {
+                if ($crop->hasAttribute($attribute)) {
+                    $attrs['data-pptx-crop-' . $side] = $crop->getAttribute($attribute);
+                }
+            }
+
+            return $attrs;
+        }
+
+        return [];
     }
 
     /**
@@ -749,6 +820,23 @@ final class PptxReader
         if ($vertical !== '') {
             $styles[] = 'vertical-align:' . $vertical;
         }
+        foreach ($this->tableCellBorderDetails($properties, $themeColors) as $side => $details) {
+            $color = (string) ($details['color'] ?? '');
+            $width = (string) ($details['width'] ?? '');
+            $dash = (string) ($details['dash'] ?? '');
+            if ($color !== '') {
+                $attrs['data-pptx-border-' . $side . '-color'] = $color;
+            }
+            if ($width !== '') {
+                $attrs['data-pptx-border-' . $side . '-width-emu'] = $width;
+            }
+            if ($dash !== '') {
+                $attrs['data-pptx-border-' . $side . '-dash'] = $dash;
+            }
+            if ($color !== '' || $width !== '') {
+                $styles[] = 'border-' . $side . ':' . ($width !== '' ? $this->emuToPoints((int) $width) : '1') . 'pt solid ' . ($color !== '' ? $color : 'currentColor');
+            }
+        }
         if ($styles !== []) {
             $attrs['style'] = implode(';', $styles);
         }
@@ -819,6 +907,40 @@ final class PptxReader
         }
 
         return '';
+    }
+
+    /**
+     * @param array<string, string> $themeColors
+     * @return array<string, array{color:string,width:string,dash:string}>
+     */
+    private function tableCellBorderDetails(\DOMElement $properties, array $themeColors): array
+    {
+        $details = [];
+        foreach ([
+            'lnL' => 'left',
+            'lnR' => 'right',
+            'lnT' => 'top',
+            'lnB' => 'bottom',
+        ] as $localName => $side) {
+            $line = $this->firstChildElementByLocalName($properties, $localName);
+            if (!$line instanceof \DOMElement) {
+                continue;
+            }
+            $dash = '';
+            foreach ($line->getElementsByTagNameNS(self::A_NS, 'prstDash') as $dashNode) {
+                if ($dashNode instanceof \DOMElement) {
+                    $dash = $dashNode->getAttribute('val');
+                    break;
+                }
+            }
+            $details[$side] = [
+                'color' => $this->solidFillColor($line, $themeColors),
+                'width' => ctype_digit($line->getAttribute('w')) ? $line->getAttribute('w') : '',
+                'dash' => $dash,
+            ];
+        }
+
+        return $details;
     }
 
     private function paragraphAlignment(\DOMElement $textBody): string

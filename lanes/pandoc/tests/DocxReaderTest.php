@@ -28,7 +28,7 @@ return [
         $zip->addFromString('word/header1.xml', '<?xml version="1.0"?><w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Header text.</w:t></w:r></w:p></w:hdr>');
         $zip->addFromString('word/footer1.xml', '<?xml version="1.0"?><w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Footer text.</w:t></w:r></w:p></w:ftr>');
         $zip->addFromString('word/media/image1.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII='));
-        $zip->addFromString('word/document.xml', '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body><w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>DOCX Reader Demo</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="BodyText"/></w:pPr><w:r><w:t>A </w:t></w:r><w:r><w:rPr><w:b/></w:rPr><w:t>bold</w:t></w:r><w:r><w:t> and </w:t></w:r><w:r><w:rPr><w:i/></w:rPr><w:t>italic</w:t></w:r><w:r><w:t> run with </w:t></w:r><w:hyperlink r:id="rId1"><w:r><w:t>a link</w:t></w:r></w:hyperlink><w:r><w:t>, a footnote</w:t></w:r><w:r><w:footnoteReference w:id="1"/></w:r><w:r><w:t>, an endnote</w:t></w:r><w:r><w:endnoteReference w:id="2"/></w:r><w:r><w:t>, and a comment</w:t></w:r><w:r><w:commentReference w:id="3"/></w:r><w:r><w:t>, plus </w:t></w:r><w:r><w:rPr><w:rStyle w:val="EmphasisStyle"/></w:rPr><w:t>styled text</w:t></w:r><w:r><w:t>.</w:t></w:r><w:ins w:author="Editor" w:date="2026-06-18T00:00:00Z"><w:r><w:t> inserted text</w:t></w:r></w:ins><w:del w:author="Editor" w:date="2026-06-18T00:00:00Z"><w:r><w:delText> removed text</w:delText></w:r></w:del></w:p><w:p><w:pPr><w:numPr><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>First list item</w:t></w:r></w:p><w:p><w:pPr><w:numPr><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>Second list item</w:t></w:r></w:p><w:tbl><w:tr><w:tc><w:p><w:r><w:t>Cell A</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Cell B</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p><w:r><w:drawing><wp:inline><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rId2"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p></w:body></w:document>');
+        $zip->addFromString('word/document.xml', '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body><w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>DOCX Reader Demo</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="BodyText"/></w:pPr><w:r><w:t>A </w:t></w:r><w:r><w:rPr><w:b/></w:rPr><w:t>bold</w:t></w:r><w:r><w:t> and </w:t></w:r><w:r><w:rPr><w:i/></w:rPr><w:t>italic</w:t></w:r><w:r><w:t> run with </w:t></w:r><w:hyperlink r:id="rId1"><w:r><w:t>a link</w:t></w:r></w:hyperlink><w:r><w:t>, a footnote</w:t></w:r><w:r><w:footnoteReference w:id="1"/></w:r><w:r><w:t>, an endnote</w:t></w:r><w:r><w:endnoteReference w:id="2"/></w:r><w:r><w:t>, and a comment</w:t></w:r><w:r><w:commentReference w:id="3"/></w:r><w:r><w:t>, plus </w:t></w:r><w:r><w:rPr><w:rStyle w:val="EmphasisStyle"/></w:rPr><w:t>styled text</w:t></w:r><w:r><w:t> and </w:t></w:r><w:r><w:rPr><w:color w:val="336699"/><w:highlight w:val="yellow"/><w:sz w:val="28"/><w:rFonts w:ascii="Aptos"/></w:rPr><w:t>colored text</w:t></w:r><w:r><w:t>.</w:t></w:r><w:ins w:author="Editor" w:date="2026-06-18T00:00:00Z"><w:r><w:t> inserted text</w:t></w:r></w:ins><w:del w:author="Editor" w:date="2026-06-18T00:00:00Z"><w:r><w:delText> removed text</w:delText></w:r></w:del></w:p><w:p><w:pPr><w:numPr><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>First list item</w:t></w:r></w:p><w:p><w:pPr><w:numPr><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>Second list item</w:t></w:r></w:p><w:tbl><w:tr><w:tc><w:p><w:r><w:t>Cell A</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Cell B</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p><w:r><w:drawing><wp:inline><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rId2"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p></w:body></w:document>');
         $zip->close();
 
         try {
@@ -50,21 +50,32 @@ return [
         $t->same(1, $meta['docxFooters']);
         $bodyParagraph = $document->children[2];
         $styledRun = null;
+        $coloredRun = null;
         foreach ($bodyParagraph->children as $inline) {
             $htmlAttributes = $inline->attr('htmlAttributes', []);
             if ($inline->type === 'span' && is_array($htmlAttributes) && ($htmlAttributes['data-docx-style-id'] ?? '') === 'EmphasisStyle') {
                 $styledRun = $inline;
-                break;
+            }
+            if ($inline->type === 'span' && is_array($htmlAttributes) && ($htmlAttributes['data-docx-run-color'] ?? '') === '336699') {
+                $coloredRun = $inline;
             }
         }
         if (!$styledRun instanceof PortLibs\Pandoc\AstNode) {
             throw new RuntimeException('Expected DOCX styled run span');
+        }
+        if (!$coloredRun instanceof PortLibs\Pandoc\AstNode) {
+            throw new RuntimeException('Expected DOCX colored run span');
         }
         $t->same(['docx-style-bodytext', 'docx-paragraph-style'], $bodyParagraph->attr('classes'));
         $t->same('BodyText', $bodyParagraph->attr('htmlAttributes')['data-docx-style-id']);
         $t->same('Body Text', $bodyParagraph->attr('htmlAttributes')['data-docx-style-name']);
         $t->same(['docx-style-emphasisstyle', 'docx-character-style'], $styledRun->attr('classes'));
         $t->same('EmphasisStyle', $styledRun->attr('htmlAttributes')['data-docx-style-id']);
+        $t->same('14', $coloredRun->attr('htmlAttributes')['data-docx-run-font-size']);
+        $t->same('Aptos', $coloredRun->attr('htmlAttributes')['data-docx-run-font-family']);
+        $t->same('yellow', $coloredRun->attr('htmlAttributes')['data-docx-run-highlight']);
+        $t->contains('color:#336699', $coloredRun->attr('htmlAttributes')['style']);
+        $t->contains('background-color:#FFFF00', $coloredRun->attr('htmlAttributes')['style']);
         $t->contains('class="docx-header"', $blocks);
         $t->contains('Header text.', $blocks);
         $t->contains('Footer text.', $blocks);
@@ -72,6 +83,8 @@ return [
         $t->contains('<span class="docx-style-emphasisstyle docx-character-style" data-docx-style-id="EmphasisStyle" data-docx-style-name="Emphasis Style"', $blocks);
         $t->contains('data-pandoc-custom-style="Emphasis Style"', $blocks);
         $t->contains('<em><strong>styled text</strong></em>', $blocks);
+        $t->contains('data-docx-run-color="336699"', $blocks);
+        $t->contains('data-docx-run-font-size="14"', $blocks);
         $t->contains('<strong>bold</strong>', $blocks);
         $t->contains('<em>italic</em>', $blocks);
         $t->contains('<a href="https://example.test">a link</a>', $blocks);

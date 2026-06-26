@@ -542,8 +542,47 @@ final class DocxReader
                 $nodes = [new AstNode('span', $attrs, $nodes)];
             }
         }
+        $runAttrs = $this->runStyleNodeAttrs($style);
+        if ($runAttrs !== [] && $nodes !== []) {
+            $nodes = [new AstNode('span', $runAttrs, $nodes)];
+        }
 
         return $nodes;
+    }
+
+    /**
+     * @param array<string, mixed> $style
+     * @return array<string, mixed>
+     */
+    private function runStyleNodeAttrs(array $style): array
+    {
+        $htmlAttributes = array_filter([
+            'data-docx-run-color' => (string) ($style['color'] ?? ''),
+            'data-docx-run-font-size' => (string) ($style['fontSize'] ?? ''),
+            'data-docx-run-font-family' => (string) ($style['fontFamily'] ?? ''),
+            'data-docx-run-highlight' => (string) ($style['highlight'] ?? ''),
+        ], static fn (string $value): bool => $value !== '');
+        $css = [];
+        if (($style['color'] ?? '') !== '') {
+            $css[] = 'color:#' . $style['color'];
+        }
+        if (($style['fontSize'] ?? '') !== '') {
+            $css[] = 'font-size:' . $style['fontSize'] . 'pt';
+        }
+        if (($style['fontFamily'] ?? '') !== '') {
+            $css[] = 'font-family:' . $this->cssString((string) $style['fontFamily']);
+        }
+        if (($style['highlight'] ?? '') !== '') {
+            $highlight = $this->highlightColor((string) $style['highlight']);
+            if ($highlight !== '') {
+                $css[] = 'background-color:' . $highlight;
+            }
+        }
+        if ($css !== []) {
+            $htmlAttributes['style'] = implode(';', $css);
+        }
+
+        return $htmlAttributes === [] ? [] : ['htmlAttributes' => $htmlAttributes];
     }
 
     private function trackedChangeSpan(\DOMElement $change): ?AstNode
@@ -1520,11 +1559,85 @@ final class DocxReader
                     if ($styleId !== '') {
                         $style['styleId'] = $styleId;
                     }
+                } elseif ($prop->localName === 'color') {
+                    $color = strtoupper($this->attr($prop, self::W_NS, 'val'));
+                    if (preg_match('/^[0-9A-F]{6}$/', $color) === 1) {
+                        $style['color'] = $color;
+                    }
+                } elseif ($prop->localName === 'highlight') {
+                    $highlight = $this->attr($prop, self::W_NS, 'val');
+                    if ($highlight !== '') {
+                        $style['highlight'] = $highlight;
+                    }
+                } elseif ($prop->localName === 'sz') {
+                    $size = $this->halfPointSize($this->attr($prop, self::W_NS, 'val'));
+                    if ($size !== '') {
+                        $style['fontSize'] = $size;
+                    }
+                } elseif ($prop->localName === 'rFonts') {
+                    $font = $this->runFontName($prop);
+                    if ($font !== '') {
+                        $style['fontFamily'] = $font;
+                    }
                 }
             }
         }
 
         return $style;
+    }
+
+    private function halfPointSize(string $value): string
+    {
+        if (!ctype_digit($value)) {
+            return '';
+        }
+        $points = ((int) $value) / 2;
+
+        return rtrim(rtrim(number_format($points, 2, '.', ''), '0'), '.');
+    }
+
+    private function runFontName(\DOMElement $fonts): string
+    {
+        foreach (['ascii', 'hAnsi', 'cs', 'eastAsia'] as $name) {
+            $value = $this->attr($fonts, self::W_NS, $name);
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return '';
+    }
+
+    private function cssString(string $value): string
+    {
+        if (preg_match('/^[A-Za-z0-9 _.-]+$/u', $value) === 1) {
+            return '"' . str_replace('"', '\\"', $value) . '"';
+        }
+
+        return 'sans-serif';
+    }
+
+    private function highlightColor(string $value): string
+    {
+        return match (strtolower($value)) {
+            'black' => '#000000',
+            'blue' => '#0000FF',
+            'cyan' => '#00FFFF',
+            'green' => '#008000',
+            'magenta' => '#FF00FF',
+            'red' => '#FF0000',
+            'yellow' => '#FFFF00',
+            'white' => '#FFFFFF',
+            'darkblue' => '#00008B',
+            'darkcyan' => '#008B8B',
+            'darkgreen' => '#006400',
+            'darkmagenta' => '#8B008B',
+            'darkred' => '#8B0000',
+            'darkyellow' => '#808000',
+            'darkgray', 'darkgrey' => '#A9A9A9',
+            'lightgray', 'lightgrey' => '#D3D3D3',
+            default => '',
+        };
     }
 
     private function truthyOnOff(\DOMElement $element): bool

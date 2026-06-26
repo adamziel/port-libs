@@ -237,6 +237,7 @@ final class XlsxReader
             $comment = $comments[$ref['key']] ?? null;
             if (
                 $content['text'] === ''
+                && $content['formula'] === ''
                 && !$style['bold']
                 && !$style['italic']
                 && !$style['underline']
@@ -258,6 +259,10 @@ final class XlsxReader
                 'rawValue' => $content['raw'],
                 'valueType' => $content['type'],
                 'inlines' => $content['inlines'],
+                'formula' => $content['formula'],
+                'formulaType' => $content['formulaType'],
+                'formulaRef' => $content['formulaRef'],
+                'formulaSharedIndex' => $content['formulaSharedIndex'],
                 'style' => $style,
                 'styleIndex' => $styleIndex,
                 'rowHidden' => (bool) ($rows[$ref['row']]['hidden'] ?? false),
@@ -418,11 +423,12 @@ final class XlsxReader
     /**
      * @param list<array{text:string,inlines:list<AstNode>}> $sharedStrings
      * @param array<string, mixed> $style
-     * @return array{text:string,raw:string,type:string,inlines:list<AstNode>}
+     * @return array{text:string,raw:string,type:string,inlines:list<AstNode>,formula:string,formulaType:string,formulaRef:string,formulaSharedIndex:string}
      */
     private function cellContent(\DOMElement $cell, array $sharedStrings, array $style, bool $date1904): array
     {
         $type = $cell->getAttribute('t');
+        $formula = $this->cellFormula($cell);
         if ($type === 'inlineStr') {
             $inline = $this->firstChildElementByLocalName($cell, 'is');
 
@@ -430,7 +436,13 @@ final class XlsxReader
                 ? $this->stringItem($inline, $style)
                 : ['text' => '', 'inlines' => []];
 
-            return ['text' => $item['text'], 'raw' => $item['text'], 'type' => 'string', 'inlines' => $item['inlines']];
+            return [
+                'text' => $item['text'],
+                'raw' => $item['text'],
+                'type' => 'string',
+                'inlines' => $item['inlines'],
+                ...$formula,
+            ];
         }
 
         $value = $this->firstChildElementByLocalName($cell, 'v');
@@ -441,12 +453,42 @@ final class XlsxReader
             $item = $sharedStrings[$index] ?? ['text' => '', 'inlines' => []];
             $item['inlines'] = $this->applyFontToInlines($item['inlines'], $style);
 
-            return ['text' => $item['text'], 'raw' => $text, 'type' => 'string', 'inlines' => $item['inlines']];
+            return [
+                'text' => $item['text'],
+                'raw' => $text,
+                'type' => 'string',
+                'inlines' => $item['inlines'],
+                ...$formula,
+            ];
         }
         if ($type === 'b') {
             $text = $text === '1' ? 'TRUE' : 'FALSE';
 
-            return ['text' => $text, 'raw' => $text, 'type' => 'boolean', 'inlines' => $this->applyFontToInlines([new AstNode('text', ['text' => $text])], $style)];
+            return [
+                'text' => $text,
+                'raw' => $text,
+                'type' => 'boolean',
+                'inlines' => $this->applyFontToInlines([new AstNode('text', ['text' => $text])], $style),
+                ...$formula,
+            ];
+        }
+        if ($type === 'e') {
+            return [
+                'text' => $text,
+                'raw' => $text,
+                'type' => 'error',
+                'inlines' => $this->applyFontToInlines($text === '' ? [] : [new AstNode('text', ['text' => $text])], $style),
+                ...$formula,
+            ];
+        }
+        if ($type === 'str' || $type === 'd') {
+            return [
+                'text' => $text,
+                'raw' => $text,
+                'type' => $type === 'd' ? 'date' : 'string',
+                'inlines' => $this->applyFontToInlines($text === '' ? [] : [new AstNode('text', ['text' => $text])], $style),
+                ...$formula,
+            ];
         }
 
         $display = $text;
@@ -465,6 +507,30 @@ final class XlsxReader
             'raw' => $text,
             'type' => $valueType,
             'inlines' => $this->applyFontToInlines($display === '' ? [] : [new AstNode('text', ['text' => $display])], $style),
+            ...$formula,
+        ];
+    }
+
+    /**
+     * @return array{formula:string,formulaType:string,formulaRef:string,formulaSharedIndex:string}
+     */
+    private function cellFormula(\DOMElement $cell): array
+    {
+        $formula = $this->firstChildElementByLocalName($cell, 'f');
+        if (!$formula instanceof \DOMElement) {
+            return [
+                'formula' => '',
+                'formulaType' => '',
+                'formulaRef' => '',
+                'formulaSharedIndex' => '',
+            ];
+        }
+
+        return [
+            'formula' => trim($formula->textContent),
+            'formulaType' => $formula->getAttribute('t'),
+            'formulaRef' => $formula->getAttribute('ref'),
+            'formulaSharedIndex' => $formula->getAttribute('si'),
         ];
     }
 
@@ -1335,6 +1401,10 @@ final class XlsxReader
             'data-xlsx-column-width' => (string) ($cell['columnWidth'] ?? ''),
             'data-xlsx-comment-author' => (string) ($cell['commentAuthor'] ?? ''),
             'data-xlsx-comment' => (string) ($cell['comment'] ?? ''),
+            'data-xlsx-formula' => (string) ($cell['formula'] ?? ''),
+            'data-xlsx-formula-type' => (string) ($cell['formulaType'] ?? ''),
+            'data-xlsx-formula-ref' => (string) ($cell['formulaRef'] ?? ''),
+            'data-xlsx-formula-shared-index' => (string) ($cell['formulaSharedIndex'] ?? ''),
         ], static fn (string $value): bool => $value !== '');
         $css = [];
         if (($style['fillColor'] ?? '') !== '') {

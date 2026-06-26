@@ -58,14 +58,15 @@ XML);
       </p:sp>
       <p:pic>
         <p:nvPicPr><p:cNvPr id="3" name="Pixel image" descr="Pixel alt"/></p:nvPicPr>
-        <p:blipFill><a:blip r:embed="rIdImage"/></p:blipFill>
+        <p:blipFill><a:blip r:embed="rIdImage"/><a:srcRect l="1000" t="2000" r="3000" b="4000"/></p:blipFill>
+        <p:spPr><a:xfrm rot="5400000"><a:off x="914400" y="457200"/><a:ext cx="1828800" cy="914400"/></a:xfrm></p:spPr>
       </p:pic>
       <p:graphicFrame>
         <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table">
           <a:tbl>
             <a:tblPr firstRow="1" bandRow="1"><a:tableStyleId>style-guid</a:tableStyleId></a:tblPr>
             <a:tblGrid><a:gridCol w="1000000"/><a:gridCol w="1200000"/><a:gridCol w="1400000"/></a:tblGrid>
-            <a:tr h="360000"><a:tc gridSpan="2"><a:txBody><a:p><a:pPr algn="ctr"/><a:r><a:t>Head A</a:t></a:r></a:p></a:txBody><a:tcPr anchor="mid" marL="91440" marR="91440"><a:solidFill><a:schemeClr val="accent1"/></a:solidFill><a:lnL><a:solidFill><a:srgbClr val="111111"/></a:solidFill></a:lnL></a:tcPr></a:tc><a:tc hMerge="1"><a:txBody><a:p><a:r><a:t>Hidden</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Head C</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+            <a:tr h="360000"><a:tc gridSpan="2"><a:txBody><a:p><a:pPr algn="ctr"/><a:r><a:t>Head A</a:t></a:r></a:p></a:txBody><a:tcPr anchor="mid" marL="91440" marR="91440"><a:solidFill><a:schemeClr val="accent1"/></a:solidFill><a:lnL w="25400"><a:solidFill><a:srgbClr val="111111"/></a:solidFill><a:prstDash val="dash"/></a:lnL></a:tcPr></a:tc><a:tc hMerge="1"><a:txBody><a:p><a:r><a:t>Hidden</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Head C</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
             <a:tr><a:tc rowSpan="2"><a:txBody><a:p><a:r><a:t>Tall A</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Cell B</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Cell C</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
             <a:tr><a:tc vMerge="1"><a:txBody><a:p><a:r><a:t>Hidden</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Cell D</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Cell E</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
           </a:tbl>
@@ -178,6 +179,13 @@ XML);
         $t->same('ppt/slideMasters/slideMaster1.xml', $document->children[0]->attr('attributes')['data-pptx-master-path']);
         $t->same('ppt/theme/theme1.xml', $document->children[0]->attr('attributes')['data-pptx-theme-path']);
         $t->same('#4472C4', $document->children[0]->attr('attributes')['data-pptx-background-color']);
+        $image = $document->children[0]->children[4]->children[0];
+        $t->same('image', $image->type);
+        $t->same('5400000', $image->attr('attributes')['data-pptx-picture-rotation']);
+        $t->same('914400', $image->attr('attributes')['data-pptx-picture-offset-x-emu']);
+        $t->same('1828800', $image->attr('attributes')['data-pptx-picture-extent-cx-emu']);
+        $t->same('1000', $image->attr('attributes')['data-pptx-crop-left']);
+        $t->same('4000', $image->attr('attributes')['data-pptx-crop-bottom']);
         $table = null;
         $chart = null;
         foreach ($document->children[0]->children as $child) {
@@ -201,6 +209,9 @@ XML);
         $t->same('360000', $table->children[0]->children[0]->attr('htmlAttributes')['data-pptx-row-height-emu']);
         $t->same('#4472C4', $table->children[0]->children[0]->children[0]->attr('htmlAttributes')['data-pptx-fill-color']);
         $t->same('91440', $table->children[0]->children[0]->children[0]->attr('htmlAttributes')['data-pptx-margin-left-emu']);
+        $t->same('#111111', $table->children[0]->children[0]->children[0]->attr('htmlAttributes')['data-pptx-border-left-color']);
+        $t->same('25400', $table->children[0]->children[0]->children[0]->attr('htmlAttributes')['data-pptx-border-left-width-emu']);
+        $t->same('dash', $table->children[0]->children[0]->children[0]->attr('htmlAttributes')['data-pptx-border-left-dash']);
         $t->same(2, $table->children[1]->children[0]->children[0]->attr('rowspan'));
         $t->same('Revenue chart', $chart->children[0]->attr('text'));
         $t->same('barChart', $chart->attr('attributes')['data-pptx-chart-types']);
@@ -214,9 +225,12 @@ XML);
         $t->contains('<ul><li>Bullet one</li><li>Bullet two</li></ul>', $blocks);
         $t->contains('<ol start="3"><li>Step three</li></ol>', $blocks);
         $t->contains('<img src="ppt/media/image1.png" alt="Pixel alt" title="Pixel image"', $blocks);
+        $t->contains('data-pptx-picture-rotation="5400000"', $blocks);
+        $t->contains('data-pptx-crop-bottom="4000"', $blocks);
         $t->contains('data-pptx-grid-columns-emu="1000000,1200000,1400000"', $blocks);
         $t->contains('data-pptx-table-firstrow="true"', $blocks);
         $t->contains('data-pptx-fill-color="#4472C4" data-pptx-border-color="#111111" data-pptx-margin-left-emu="91440"', $blocks);
+        $t->contains('data-pptx-border-left-width-emu="25400"', $blocks);
         $t->contains('padding-left:7.2pt', $blocks);
         $t->contains('<td rowspan="2"><p>Tall A</p></td>', $blocks);
         $t->contains('Cell E', $blocks);
