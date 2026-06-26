@@ -219,7 +219,7 @@ final class CssMinifier
 
         $css = $this->minifyContainerQueries($this->minifyMediaQueries($this->minifyDeclarationValues(str_replace(';}', '}', trim($output)))));
         $css = $this->canonicalizeImplicitNestedSelectors($css);
-        $css = $this->minifyImportRules($css);
+        $css = $this->minifyImportRules($css, $allowNamespaceAfterStyleRules);
         $css = $this->minifyLayerRules($css);
         $css = $this->minifyNamespaceRules($css, $allowNamespaceAfterStyleRules);
         $css = $this->normalizeNamespaceAttributeSelectors($css, $preserveSingletonIsSelectors);
@@ -1269,13 +1269,15 @@ final class CssMinifier
         return true;
     }
 
-    private function minifyImportRules(string $css): string
+    private function minifyImportRules(string $css, bool $allowLateImportRules = false): string
     {
         $output = '';
         $quote = null;
         $braceDepth = 0;
         $parenDepth = 0;
         $bracketDepth = 0;
+        $seenImportRule = false;
+        $rejectFutureImportRules = false;
         $length = strlen($css);
 
         for ($i = 0; $i < $length; $i++) {
@@ -1299,6 +1301,9 @@ final class CssMinifier
             }
 
             if ($char === '{') {
+                if ($braceDepth === 0 && $parenDepth === 0 && $bracketDepth === 0) {
+                    $rejectFutureImportRules = true;
+                }
                 $braceDepth++;
                 $output .= $char;
                 continue;
@@ -1329,6 +1334,14 @@ final class CssMinifier
                 continue;
             }
 
+            if ($braceDepth === 0 && $parenDepth === 0 && $bracketDepth === 0 && $this->startsAtKeyword($css, $i, '@namespace')) {
+                $rejectFutureImportRules = true;
+            }
+
+            if ($braceDepth === 0 && $parenDepth === 0 && $bracketDepth === 0 && $seenImportRule && $this->startsAtKeyword($css, $i, '@layer')) {
+                $rejectFutureImportRules = true;
+            }
+
             if ($braceDepth === 0 && $parenDepth === 0 && $bracketDepth === 0 && $this->startsAtKeyword($css, $i, '@charset')) {
                 $keywordEnd = $this->atKeywordEndOffset($css, $i, '@charset') ?? $i + strlen('@charset');
                 $end = $this->findNextTopLevel($css, ';', $keywordEnd);
@@ -1340,6 +1353,10 @@ final class CssMinifier
             }
 
             if ($braceDepth === 0 && $parenDepth === 0 && $bracketDepth === 0 && $this->startsAtKeyword($css, $i, '@import')) {
+                if ($rejectFutureImportRules && !$allowLateImportRules) {
+                    throw new \InvalidArgumentException('Unexpected @import rule');
+                }
+
                 $keywordEnd = $this->atKeywordEndOffset($css, $i, '@import') ?? $i + strlen('@import');
                 $end = $this->findNextTopLevel($css, ';', $keywordEnd);
                 if ($end === null) {
@@ -1347,6 +1364,7 @@ final class CssMinifier
                     break;
                 }
                 $output .= $this->minifyImportStatement(substr($css, $i, $end - $i)) . ';';
+                $seenImportRule = true;
                 $i = $end;
                 continue;
             }

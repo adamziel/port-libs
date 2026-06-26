@@ -1630,6 +1630,20 @@ return [
             $map->addVlqMap('//////////////D', [], [], []);
         });
     },
+    'source map imports upstream plain json generated-only mappings' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d Cargo.lock parcel_sourcemap 2.1.1 lines 985-994,
+        // parcel_sourcemap-2.1.1/src/lib.rs::test_from_json lines 797-810.
+        $map = SourceMap::fromJson('{"version":3,"sourceRoot":"/","mappings":";C","sources":[],"sourcesContent":[],"names":[]}');
+
+        $t->same(';C', $map->writeVlq());
+        $t->same(
+            [['generatedLine' => 1, 'generatedColumn' => 1, 'sourceIndex' => null, 'originalLine' => null, 'originalColumn' => null, 'nameIndex' => null]],
+            $map->getMappings()
+        );
+        $t->same([], $map->getSources());
+        $t->same([], $map->getSourcesContent());
+        $t->same([], $map->getNames());
+    },
     'source map imports upstream json defaults and data URLs' => static function (TestRunner $t): void {
         // Pinned upstream 22bdda3d Cargo.lock parcel_sourcemap 2.1.1 lines 985-994,
         // parcel_sourcemap-2.1.1/src/lib.rs::test_to_json lines 785-795.

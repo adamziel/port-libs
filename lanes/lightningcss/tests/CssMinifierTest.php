@@ -1061,6 +1061,19 @@ CSS)
         $t->same('.foo{aspect-ratio:auto 2/3}', $minifier->minify('.foo { aspect-ratio: auto 2 / 3 }'));
         $t->same('.foo{aspect-ratio:auto 2/3}', $minifier->minify('.foo { aspect-ratio: 2 / 3 auto }'));
     },
+    'css minifier preserves upstream concrete and variable size override order' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_size lines 4266 and 4270.
+        $cases = [
+            [4266, '.foo { width: 200px; width: var(--foo); }', '.foo{width:200px;width:var(--foo)}'],
+            [4270, '.foo { width: var(--foo); width: 200px; }', '.foo{width:var(--foo);width:200px}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_size line ' . $line);
+        }
+    },
     'css minifier maps upstream vertical-align value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -2691,6 +2704,11 @@ CSS)
         $t->same('@import "test.css" layer(foo\\ bar);', $minifier->minify("@import 'test.css' layer(foo\\20 bar);"));
         $t->same('@import "test.css" layer(foo\\.bar);', $minifier->minify("@import 'test.css' layer(foo\\2e bar);"));
         $t->same('@import "test.css" layer(foo\\,bar);', $minifier->minify("@import 'test.css' layer(foo\\2c bar);"));
+        // Pinned upstream 22bdda3d src/lib.rs::test_import lines 15543-15557.
+        $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('.foo { color: red } @import url(bar.css);'));
+        $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@namespace "http://example.com/foo"; @import url(bar.css);'));
+        $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@media print { .foo { color: red }} @import url(bar.css);'));
+        $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@layer foo; @import url(foo.css); @layer bar; @import url(bar.css)'));
         $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify("@import 'test.css' layer(foo, bar) {};"));
         $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@import "foo.css" supports(display:grid) layer(theme.blocks) (width >= 240px);'));
         $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@import "foo.css" layer(theme.blocks) layer(other.blocks);'));

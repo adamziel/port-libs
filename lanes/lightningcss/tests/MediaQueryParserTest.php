@@ -915,6 +915,8 @@ return [
         $t->same('.foo{color:#7fff00}', (new CssMinifier())->minify('@media { .foo { color: chartreuse } }'));
         $t->same('.foo{color:#7fff00}', (new CssMinifier())->minify('@media all { .foo { color: chartreuse } }'));
         $t->same('', (new CssMinifier())->minify('@media not all { .foo { color: chartreuse } }'));
+        // Pinned upstream 22bdda3d src/lib.rs::test_media line 9146.
+        $t->same('@media (width>=240px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media not (width < 240px) { .foo { color: chartreuse } }'));
         $t->same('@media not ((color) or (hover)){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media not (((color) or (hover))) { .foo { color: chartreuse } }'));
         $t->same('@media (hover) and (color) and (test){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (hover) and ((color) and (test)) { .foo { color: chartreuse } }'));
         $t->same('.foo{color:#7fff00}', (new CssMinifier())->minify('@media all, all { .foo { color: chartreuse } }'));
