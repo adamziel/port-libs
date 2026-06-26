@@ -105,7 +105,46 @@ final class NativeWriter
             return true;
         }
 
-        return is_array($document->attr('documentNative'));
+        return is_array($document->attr('documentNative')) || $this->hasJsonNativeProvenance($document);
+    }
+
+    private function hasJsonNativeProvenance(AstNode $node): bool
+    {
+        foreach ($node->attrs as $attr => $value) {
+            if (in_array($attr, self::NATIVE_COMPARISON_PROVENANCE_ATTRS, true) && $value !== null) {
+                return true;
+            }
+            if ($this->valueHasJsonNativeProvenance($value)) {
+                return true;
+            }
+        }
+
+        foreach ($node->children as $child) {
+            if ($this->hasJsonNativeProvenance($child)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function valueHasJsonNativeProvenance(mixed $value): bool
+    {
+        if ($value instanceof AstNode) {
+            return $this->hasJsonNativeProvenance($value);
+        }
+
+        if (!is_array($value)) {
+            return false;
+        }
+
+        foreach ($value as $item) {
+            if ($this->valueHasJsonNativeProvenance($item)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function nativeJsonDocument(AstNode $document): AstNode
