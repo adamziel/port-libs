@@ -12192,6 +12192,136 @@ XML;
         $t->true(in_array('vba-data', $inventory['word/vbaData.xml']['roles'], true), 'VBA data inventory role missing');
         $t->true(!isset($docx['media']['word/vbaProject.bin']), 'VBA project bytes should not be exposed as document media');
     },
+    'preflights docx vba external target policy metadata' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $projectRel = 'http://schemas.microsoft.com/office/2006/relationships/vbaProject';
+        $signatureRel = 'http://schemas.microsoft.com/office/2006/relationships/vbaProjectSignature';
+        $dataRel = 'http://schemas.microsoft.com/office/2006/relationships/wordVbaData';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/vbaProject.bin" ContentType="application/vnd.ms-office.vbaProject"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rPolicyVbaProject" Type="' . $projectRel . '" Target="vbaProject.bin"/>' . "\n" .
+            '  <Relationship Id="rSafeRemoteVbaProject" Type="' . $projectRel . '" Target="https://example.test/macros/vbaProject.bin?download=1#project" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rUnsafeRemoteVbaProject" Type="' . $projectRel . '" Target="javascript:alert(1)" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/vbaProject.bin'] = 'policy macro project bytes';
+        $parts['word/_rels/vbaProject.bin.rels'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rSafeVbaSignature" Type="{$signatureRel}" Target="https://example.test/macros/vbaProjectSignature.bin?download=1#signature" TargetMode="External"/>
+  <Relationship Id="rUnsafeVbaSignature" Type="{$signatureRel}" Target="javascript:signature()" TargetMode="External"/>
+  <Relationship Id="rSafeVbaData" Type="{$dataRel}" Target="https://example.test/macros/vbaData.xml?download=1#data" TargetMode="External"/>
+  <Relationship Id="rUnsafeVbaData" Type="{$dataRel}" Target="javascript:data()" TargetMode="External"/>
+</Relationships>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $vba = $package['vbaProjects'];
+        $summary = $package['summary'];
+        $project = $vba['byRelationshipId']['rPolicyVbaProject'];
+        $safeProject = $vba['byRelationshipId']['rSafeRemoteVbaProject'];
+        $unsafeProject = $vba['byRelationshipId']['rUnsafeRemoteVbaProject'];
+        $signatureParts = $project['signatureParts'];
+        $dataParts = $project['dataParts'];
+        $safeSignature = $signatureParts['byRelationshipId']['rSafeVbaSignature'];
+        $unsafeSignature = $signatureParts['byRelationshipId']['rUnsafeVbaSignature'];
+        $safeData = $dataParts['byRelationshipId']['rSafeVbaData'];
+        $unsafeData = $dataParts['byRelationshipId']['rUnsafeVbaData'];
+        $projectType = $package['relationshipTypes'][$projectRel];
+        $signatureType = $package['relationshipTypes'][$signatureRel];
+        $dataType = $package['relationshipTypes'][$dataRel];
+
+        $t->same(3, $vba['count']);
+        $t->same(2, $vba['externalCount']);
+        $t->same(1, $vba['allowedExternalProjectCount']);
+        $t->same(1, $vba['unsafeExternalProjectCount']);
+        $t->same(1, $vba['allowedExternalSignatureCount']);
+        $t->same(1, $vba['unsafeExternalSignatureCount']);
+        $t->same(1, $vba['allowedExternalDataPartCount']);
+        $t->same(1, $vba['unsafeExternalDataPartCount']);
+        $t->same(['javascript:signature()', 'javascript:data()', 'javascript:alert(1)'], $vba['unsafeExternalTargets']);
+        $t->same(['external-target-unsafe-scheme'], $vba['projectExternalTargetIssueCodes']);
+        $t->same(['external-target-unsafe-scheme'], $vba['signatureExternalTargetIssueCodes']);
+        $t->same(['external-target-unsafe-scheme'], $vba['dataPartExternalTargetIssueCodes']);
+
+        $t->same(false, $project['external']);
+        $t->same(null, $project['externalTargetAllowed']);
+        $t->same([], $project['externalTargetIssues']);
+        $t->same('https://example.test/macros/vbaProject.bin?download=1#project', $safeProject['target']);
+        $t->same('absolute-uri', $safeProject['externalTargetKind']);
+        $t->same('https', $safeProject['externalTargetScheme']);
+        $t->same(true, $safeProject['externalTargetAllowed']);
+        $t->same([], $safeProject['externalTargetIssues']);
+        $t->same(['external-vba-project'], $safeProject['issues']);
+        $t->same('javascript:alert(1)', $unsafeProject['target']);
+        $t->same('javascript', $unsafeProject['externalTargetScheme']);
+        $t->same(false, $unsafeProject['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $unsafeProject['externalTargetIssues']);
+        $t->same(['external-vba-project'], $unsafeProject['issues']);
+
+        $t->same(2, $signatureParts['externalCount']);
+        $t->same(1, $signatureParts['allowedExternalTargetCount']);
+        $t->same(1, $signatureParts['unsafeExternalTargetCount']);
+        $t->same(['javascript:signature()'], $signatureParts['unsafeExternalTargets']);
+        $t->same(['external-target-unsafe-scheme'], $signatureParts['externalTargetIssueCodes']);
+        $t->same('https', $safeSignature['externalTargetScheme']);
+        $t->same(true, $safeSignature['externalTargetAllowed']);
+        $t->same([], $safeSignature['externalTargetIssues']);
+        $t->same(['external-vba-project-signature'], $safeSignature['issues']);
+        $t->same('javascript', $unsafeSignature['externalTargetScheme']);
+        $t->same(false, $unsafeSignature['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $unsafeSignature['externalTargetIssues']);
+        $t->same(['external-vba-project-signature'], $unsafeSignature['issues']);
+
+        $t->same(2, $dataParts['externalCount']);
+        $t->same(1, $dataParts['allowedExternalTargetCount']);
+        $t->same(1, $dataParts['unsafeExternalTargetCount']);
+        $t->same(['javascript:data()'], $dataParts['unsafeExternalTargets']);
+        $t->same(['external-target-unsafe-scheme'], $dataParts['externalTargetIssueCodes']);
+        $t->same('https', $safeData['externalTargetScheme']);
+        $t->same(true, $safeData['externalTargetAllowed']);
+        $t->same([], $safeData['externalTargetIssues']);
+        $t->same(['external-vba-data'], $safeData['issues']);
+        $t->same('javascript', $unsafeData['externalTargetScheme']);
+        $t->same(false, $unsafeData['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $unsafeData['externalTargetIssues']);
+        $t->same(['external-vba-data'], $unsafeData['issues']);
+
+        $t->same(2, $summary['vbaProjectExternalCount']);
+        $t->same(1, $summary['vbaProjectAllowedExternalCount']);
+        $t->same(1, $summary['vbaProjectUnsafeExternalCount']);
+        $t->same(['external-target-unsafe-scheme'], $summary['vbaProjectExternalTargetIssueCodes']);
+        $t->same(2, $summary['vbaProjectExternalSignatureCount']);
+        $t->same(1, $summary['vbaProjectSignatureAllowedExternalCount']);
+        $t->same(1, $summary['vbaProjectSignatureUnsafeExternalCount']);
+        $t->same(['external-target-unsafe-scheme'], $summary['vbaProjectSignatureExternalTargetIssueCodes']);
+        $t->same(2, $summary['vbaDataExternalCount']);
+        $t->same(1, $summary['vbaDataAllowedExternalCount']);
+        $t->same(1, $summary['vbaDataUnsafeExternalCount']);
+        $t->same(['external-target-unsafe-scheme'], $summary['vbaDataExternalTargetIssueCodes']);
+
+        $t->same(2, $projectType['externalCount']);
+        $t->same(1, $projectType['allowedExternalTargetCount']);
+        $t->same(1, $projectType['unsafeExternalTargetCount']);
+        $t->same(['https' => 1, 'javascript' => 1], $projectType['externalTargetSchemeCounts']);
+        $t->same(2, $signatureType['externalCount']);
+        $t->same(1, $signatureType['allowedExternalTargetCount']);
+        $t->same(1, $signatureType['unsafeExternalTargetCount']);
+        $t->same(['https' => 1, 'javascript' => 1], $signatureType['externalTargetSchemeCounts']);
+        $t->same(2, $dataType['externalCount']);
+        $t->same(1, $dataType['allowedExternalTargetCount']);
+        $t->same(1, $dataType['unsafeExternalTargetCount']);
+        $t->same(['https' => 1, 'javascript' => 1], $dataType['externalTargetSchemeCounts']);
+    },
     'preflights docx vba data xml roots for package review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $projectRel = 'http://schemas.microsoft.com/office/2006/relationships/vbaProject';
