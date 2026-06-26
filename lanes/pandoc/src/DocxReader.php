@@ -60,6 +60,54 @@ final class DocxReader
         }
     }
 
+    public function readDocument(ZipPackage $package): AstNode
+    {
+        $parts = [];
+        $entries = [];
+        $media = [];
+        $header_xmls = [];
+        $footer_xmls = [];
+
+        foreach ($package->entries() as $entry) {
+            if ($entry->isDirectory()) {
+                continue;
+            }
+
+            $name = $entry->name;
+            $entries[] = $name;
+            $contents = $package->read($name);
+            $parts[$name] = $contents;
+
+            if (str_starts_with($name, 'word/media/')) {
+                $media[] = $name;
+            }
+            if (preg_match('#^word/header\d*\.xml$#', $name) === 1) {
+                $header_xmls[$name] = $contents;
+            }
+            if (preg_match('#^word/footer\d*\.xml$#', $name) === 1) {
+                $footer_xmls[$name] = $contents;
+            }
+        }
+
+        ksort($header_xmls);
+        ksort($footer_xmls);
+
+        return $this->readPackage(
+            $parts['word/document.xml'] ?? throw new \InvalidArgumentException('DOCX package is missing word/document.xml.'),
+            $parts['word/styles.xml'] ?? '',
+            $parts['word/numbering.xml'] ?? '',
+            $parts['word/_rels/document.xml.rels'] ?? '',
+            $parts['docProps/core.xml'] ?? '',
+            $parts['word/footnotes.xml'] ?? '',
+            $parts['word/endnotes.xml'] ?? '',
+            $parts['word/comments.xml'] ?? '',
+            $header_xmls,
+            $footer_xmls,
+            $entries,
+            $media,
+        );
+    }
+
     public function readDocxFile(string $path): AstNode
     {
         if (!class_exists(\ZipArchive::class)) {
@@ -164,11 +212,18 @@ final class DocxReader
         $body = $this->firstElementByLocalName($document, 'body');
         $headers = $this->partBlocks($header_xmls, 'DOCX header');
         $footers = $this->partBlocks($footer_xmls, 'DOCX footer');
+        $sectionReferences = $body instanceof \DOMElement ? $this->sectionReferences($body) : [];
+        $headerDivs = $sectionReferences === []
+            ? $this->partDivs($headers, 'docx-header')
+            : $this->sectionReferenceDivs($sectionReferences, 'headers', $headers, 'docx-header');
+        $footerDivs = $sectionReferences === []
+            ? $this->partDivs($footers, 'docx-footer')
+            : $this->sectionReferenceDivs($sectionReferences, 'footers', $footers, 'docx-footer');
         $body_children = $body instanceof \DOMElement ? $this->bodyBlocks($body) : [];
         $children = array_merge(
-            $this->partDivs($headers, 'docx-header'),
+            $headerDivs,
             $body_children,
-            $this->partDivs($footers, 'docx-footer')
+            $footerDivs
         );
         if ($children === []) {
             $children[] = new AstNode('paragraph', ['text' => 'No readable DOCX body content was found.'], [
@@ -184,10 +239,19 @@ final class DocxReader
         $metadata['docxFootnotes'] = count($this->footnotes);
         $metadata['docxEndnotes'] = count($this->endnotes);
         $metadata['docxComments'] = count($this->comments);
-        $metadata['docxHeaders'] = count($headers);
-        $metadata['docxFooters'] = count($footers);
+        $metadata['docxHeaders'] = count($headerDivs);
+        $metadata['docxFooters'] = count($footerDivs);
         $metadata['docxHeaderFiles'] = array_keys($header_xmls);
         $metadata['docxFooterFiles'] = array_keys($footer_xmls);
+        $metadata['docxHeaderPartCount'] = count($headers);
+        $metadata['docxFooterPartCount'] = count($footers);
+        $metadata['docxSectionReferences'] = $sectionReferences;
+        $metadata['docxSectionReferenceCount'] = array_sum(array_map(
+            static fn (array $section): int => count($section['headers']) + count($section['footers']),
+            $sectionReferences
+        ));
+        $metadata['docxAppliedHeaderFiles'] = $this->appliedSectionReferenceFiles($sectionReferences, 'headers', $headers);
+        $metadata['docxAppliedFooterFiles'] = $this->appliedSectionReferenceFiles($sectionReferences, 'footers', $footers);
 
         return new AstNode('document', ['meta' => $metadata], $children);
     }
@@ -237,6 +301,60 @@ final class DocxReader
         }
 
         return $divs;
+    }
+
+    /**
+     * @param list<array{section: int, headers: list<array{type: string, relationshipId: string, target: string, part: string}>, footers: list<array{type: string, relationshipId: string, target: string, part: string}>}> $sectionReferences
+     * @param array<string, list<AstNode>> $parts
+     * @return list<AstNode>
+     */
+    private function sectionReferenceDivs(array $sectionReferences, string $kind, array $parts, string $class): array
+    {
+        $divs = [];
+        $index = 1;
+        foreach ($sectionReferences as $section) {
+            foreach ($section[$kind] as $reference) {
+                $part = $reference['part'];
+                if (!isset($parts[$part])) {
+                    continue;
+                }
+
+                $divs[] = new AstNode('div', [
+                    'id' => $class . '-' . $index,
+                    'classes' => [$class],
+                    'attributes' => [
+                        'data-docx-part' => $part,
+                        'data-docx-section-index' => (string) $section['section'],
+                        'data-docx-section-reference-type' => $reference['type'],
+                        'data-docx-relationship-id' => $reference['relationshipId'],
+                        'data-pandoc-source' => 'docx',
+                    ],
+                ], $parts[$part]);
+                $index++;
+            }
+        }
+
+        return $divs;
+    }
+
+    /**
+     * @param list<array{section: int, headers: list<array{type: string, relationshipId: string, target: string, part: string}>, footers: list<array{type: string, relationshipId: string, target: string, part: string}>}> $sectionReferences
+     * @param array<string, list<AstNode>> $availableParts
+     * @return list<string>
+     */
+    private function appliedSectionReferenceFiles(array $sectionReferences, string $kind, array $availableParts): array
+    {
+        $files = [];
+        foreach ($sectionReferences as $section) {
+            foreach ($section[$kind] as $reference) {
+                $part = $reference['part'];
+                if (isset($availableParts[$part])) {
+                    $files[] = $part;
+                }
+            }
+        }
+
+        return array_values(array_unique($files));
     }
 
     /**
@@ -384,11 +502,50 @@ final class DocxReader
     private function inlineChildren(\DOMElement $container): array
     {
         $inlines = [];
+        $complexField = null;
         foreach ($container->childNodes as $child) {
             if (!$child instanceof \DOMElement) {
                 continue;
             }
             if ($child->localName === 'r') {
+                $events = $this->runFieldEvents($child);
+                if ($events !== []) {
+                    foreach ($events as $event) {
+                        if ($event['type'] === 'begin') {
+                            $complexField = [
+                                'instruction' => '',
+                                'result' => [],
+                                'separated' => false,
+                            ];
+                            continue;
+                        }
+                        if ($complexField === null) {
+                            continue;
+                        }
+                        if ($event['type'] === 'instr' && !$complexField['separated']) {
+                            $complexField['instruction'] .= $event['value'];
+                            continue;
+                        }
+                        if ($event['type'] === 'separate') {
+                            $complexField['separated'] = true;
+                            continue;
+                        }
+                        if ($event['type'] === 'end') {
+                            $field = $this->fieldNode($complexField['instruction'], $complexField['result']);
+                            if ($field instanceof AstNode) {
+                                $inlines[] = $field;
+                            }
+                            $complexField = null;
+                        }
+                    }
+                    continue;
+                }
+                if ($complexField !== null) {
+                    if ($complexField['separated']) {
+                        array_push($complexField['result'], ...$this->run($child));
+                    }
+                    continue;
+                }
                 array_push($inlines, ...$this->run($child));
                 continue;
             }
@@ -437,6 +594,31 @@ final class DocxReader
         }
 
         return $this->mergeAdjacentText($inlines);
+    }
+
+    /**
+     * @return list<array{type: string, value: string}>
+     */
+    private function runFieldEvents(\DOMElement $run): array
+    {
+        $events = [];
+        foreach ($run->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+            if ($child->localName === 'fldChar') {
+                $type = strtolower($this->attr($child, self::W_NS, 'fldCharType'));
+                if (in_array($type, ['begin', 'separate', 'end'], true)) {
+                    $events[] = ['type' => $type, 'value' => ''];
+                }
+                continue;
+            }
+            if ($child->localName === 'instrText') {
+                $events[] = ['type' => 'instr', 'value' => $child->textContent];
+            }
+        }
+
+        return $events;
     }
 
     /**
@@ -635,23 +817,402 @@ final class DocxReader
     private function simpleField(\DOMElement $field): ?AstNode
     {
         $inlines = $this->inlineChildren($field);
-        if ($inlines === []) {
-            return null;
+
+        return $this->fieldNode($this->attr($field, self::W_NS, 'instr'), $inlines);
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     */
+    private function fieldNode(string $instruction, array $inlines): ?AstNode
+    {
+        $instruction = $this->normalizeFieldInstruction($instruction);
+        if ($instruction === '') {
+            return $inlines === [] ? null : new AstNode('span', ['classes' => ['docx-field']], $inlines);
         }
 
-        $anchor = $this->fieldAnchor($this->attr($field, self::W_NS, 'instr'));
+        $anchor = $this->fieldAnchor($instruction);
         if ($anchor === '') {
-            return new AstNode('span', [
-                'classes' => ['docx-field'],
-                'attributes' => ['data-docx-field-instruction' => trim($this->attr($field, self::W_NS, 'instr'))],
-            ], $inlines);
+            return $this->metadataFieldNode($instruction, $inlines);
+        }
+        if ($inlines === []) {
+            return null;
         }
 
         return new AstNode('link', [
             'url' => '#' . $anchor,
             'title' => '',
-            'attributes' => ['data-docx-field' => trim($this->attr($field, self::W_NS, 'instr'))],
+            'attributes' => ['data-docx-field' => $instruction],
         ], $inlines);
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     */
+    private function metadataFieldNode(string $instruction, array $inlines): ?AstNode
+    {
+        $tokens = $this->fieldInstructionTokens($instruction);
+        $command = strtoupper($tokens[0] ?? '');
+        if ($command === '') {
+            return $inlines === [] ? null : $this->genericFieldSpan($instruction, $inlines);
+        }
+
+        return match ($command) {
+            'TOC' => $this->tocFieldSpan($instruction, $tokens, $inlines),
+            'INDEX' => $this->generatedFieldSpan($instruction, $tokens, $inlines, 'index', 'document-index'),
+            'CITATION' => $this->generatedFieldSpan($instruction, $tokens, $inlines, 'citation', 'citation'),
+            'BIBLIOGRAPHY' => $this->generatedFieldSpan($instruction, $tokens, $inlines, 'bibliography', 'bibliography'),
+            'XE' => $this->indexEntryFieldSpan($instruction, $tokens),
+            'ADDIN' => $this->addinFieldSpan($instruction, $tokens, $inlines),
+            'TOA' => $this->toaFieldSpan($instruction, $tokens, $inlines),
+            default => $inlines === [] ? null : $this->genericFieldSpan($instruction, $inlines),
+        };
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     */
+    private function genericFieldSpan(string $instruction, array $inlines): AstNode
+    {
+        return new AstNode('span', [
+            'classes' => ['docx-field'],
+            'attributes' => ['data-docx-field-instruction' => $instruction],
+        ], $inlines);
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @param list<AstNode> $inlines
+     */
+    private function tocFieldSpan(string $instruction, array $tokens, array $inlines): AstNode
+    {
+        $switches = $this->fieldSwitches($tokens);
+        $classes = [
+            'docx-field',
+            'docx-field-toc',
+            'docx-generated-field',
+            'docx-generated-field-toc',
+        ];
+        $attrs = [
+            'data-docx-field' => 'toc',
+            'data-docx-field-instruction' => $instruction,
+            'data-docx-generated-field-type' => 'table-of-contents',
+        ];
+
+        if (isset($switches['n'])) {
+            $classes[] = 'docx-field-omit-page-numbers';
+            $attrs['data-docx-field-omit-page-numbers'] = 'true';
+            if ($switches['n'] !== '') {
+                $attrs['data-docx-field-omit-page-number-levels'] = $switches['n'];
+            }
+        }
+        if (isset($switches['h'])) {
+            $classes[] = 'docx-field-hyperlink';
+            $attrs['data-docx-field-hyperlink'] = 'true';
+        }
+        if (isset($switches['o'])) {
+            $classes[] = 'docx-field-outline-levels';
+            $attrs['data-docx-field-outline-levels'] = $switches['o'];
+        }
+        if (isset($switches['z'])) {
+            $classes[] = 'docx-field-hide-web-layout';
+            $attrs['data-docx-field-hide-web-layout'] = 'true';
+        }
+        if (isset($switches['u'])) {
+            $attrs['data-docx-field-use-outline-levels'] = 'true';
+        }
+        if (isset($switches['t'])) {
+            $attrs['data-docx-field-style-levels'] = $switches['t'];
+        }
+        if (isset($switches['c'])) {
+            $attrs['data-docx-field-sequence'] = $switches['c'];
+        }
+        if (isset($switches['p'])) {
+            $attrs['data-docx-field-page-number-separator'] = $switches['p'];
+        }
+
+        return new AstNode('span', [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attrs,
+        ], $inlines);
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @param list<AstNode> $inlines
+     */
+    private function generatedFieldSpan(string $instruction, array $tokens, array $inlines, string $field, string $generatedType): AstNode
+    {
+        $switches = $this->fieldSwitches($tokens);
+        $attrs = [
+            'data-docx-field' => $field,
+            'data-docx-field-instruction' => $instruction,
+            'data-docx-generated-field-type' => $generatedType,
+        ];
+
+        $target = $this->fieldTarget($tokens);
+        if ($target !== '' && in_array($field, ['citation'], true)) {
+            $attrs['data-docx-field-target'] = $target;
+        }
+        if (isset($switches['b'])) {
+            $attrs['data-docx-field-bookmark'] = $switches['b'];
+        }
+        if (isset($switches['c'])) {
+            $attrs[$field === 'index' ? 'data-docx-field-columns' : 'data-docx-field-category'] = $switches['c'];
+        }
+        if (isset($switches['e'])) {
+            $attrs['data-docx-field-entry-separator'] = $switches['e'];
+        }
+        if (isset($switches['l'])) {
+            $attrs['data-docx-field-locale-id'] = $switches['l'];
+        }
+        if (isset($switches['f'])) {
+            $attrs[$field === 'bibliography' ? 'data-docx-field-entry-type' : 'data-docx-field-entry-type'] = $switches['f'];
+        }
+        if (isset($switches['v'])) {
+            $attrs['data-docx-field-citation-volume'] = $switches['v'];
+        }
+        if (isset($switches['*'])) {
+            $attrs['data-docx-field-format'] = $switches['*'];
+        }
+
+        return new AstNode('span', [
+            'classes' => [
+                'docx-field',
+                'docx-field-' . $field,
+                'docx-generated-field',
+                'docx-generated-field-' . $field,
+            ],
+            'attributes' => $attrs,
+        ], $inlines);
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function indexEntryFieldSpan(string $instruction, array $tokens): AstNode
+    {
+        $switches = $this->fieldSwitches($tokens);
+        $entry = $this->fieldTarget($tokens);
+        $classes = [
+            'indexref',
+            'docx-field',
+            'docx-field-xe',
+            'docx-index-entry',
+        ];
+        $attrs = [
+            'data-docx-field' => 'xe',
+            'data-docx-field-instruction' => $instruction,
+            'entry' => $entry,
+            'data-docx-index-entry' => $entry,
+            'data-docx-field-entry' => $entry,
+        ];
+        if (isset($switches['t'])) {
+            $classes[] = 'docx-index-entry-cross-reference';
+            $attrs['crossref'] = $switches['t'];
+            $attrs['data-docx-field-cross-reference'] = $switches['t'];
+        }
+        if (isset($switches['y'])) {
+            $classes[] = 'docx-index-entry-yomi';
+            $attrs['yomi'] = $switches['y'];
+            $attrs['data-docx-field-yomi'] = $switches['y'];
+        }
+        if (isset($switches['b'])) {
+            $classes[] = 'docx-index-entry-bold';
+            $attrs['bold'] = 'true';
+            $attrs['data-docx-field-bold'] = 'true';
+        }
+        if (isset($switches['i'])) {
+            $classes[] = 'docx-index-entry-italic';
+            $attrs['italic'] = 'true';
+            $attrs['data-docx-field-italic'] = 'true';
+        }
+        if (isset($switches['f'])) {
+            $attrs['data-docx-field-entry-type'] = $switches['f'];
+        }
+        if (isset($switches['r'])) {
+            $attrs['data-docx-field-bookmark'] = $switches['r'];
+        }
+
+        return new AstNode('span', [
+            'classes' => $classes,
+            'attributes' => $attrs,
+        ]);
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @param list<AstNode> $inlines
+     */
+    private function addinFieldSpan(string $instruction, array $tokens, array $inlines): AstNode
+    {
+        $rawTail = trim(substr($instruction, 5));
+        $upperTail = strtoupper($rawTail);
+        $provider = 'unknown';
+        $type = 'addin';
+        $payload = '';
+
+        if (str_starts_with($upperTail, 'ZOTERO_ITEM CSL_CITATION')) {
+            $provider = 'zotero';
+            $type = 'csl-citation';
+            $payload = trim(substr($rawTail, strlen('ZOTERO_ITEM CSL_CITATION')));
+        } elseif (str_starts_with($upperTail, 'ZOTERO_BIBL')) {
+            $provider = 'zotero';
+            $type = 'csl-bibliography';
+        } elseif (str_contains($upperTail, 'MENDELEY') && str_contains($upperTail, 'BIBLIOGRAPHY')) {
+            $provider = 'mendeley';
+            $type = 'csl-bibliography';
+        } elseif (str_starts_with($upperTail, 'EN.CITE')) {
+            $provider = 'endnote';
+            $type = 'endnote-citation';
+            $payload = trim(substr($rawTail, strlen('EN.CITE')));
+        } elseif (str_starts_with($upperTail, 'EN.REFLIST')) {
+            $provider = 'endnote';
+            $type = 'endnote-reference-list';
+        }
+
+        $attrs = [
+            'data-docx-field' => 'addin',
+            'data-docx-field-instruction' => $instruction,
+            'data-docx-addin-type' => $type,
+            'data-docx-addin-provider' => $provider,
+        ];
+
+        if ($payload !== '') {
+            $payloadKind = str_starts_with($payload, '{') ? 'json' : (str_starts_with($payload, '<') ? 'xml' : 'text');
+            $attrs['data-docx-addin-payload-kind'] = $payloadKind;
+            $attrs['data-docx-addin-payload-bytes'] = (string) strlen($payload);
+            $attrs['data-docx-addin-payload-sha256'] = hash('sha256', $payload);
+            if ($payloadKind === 'json') {
+                $decoded = json_decode($payload, true);
+                $attrs['data-docx-addin-csl-json-valid'] = is_array($decoded) ? 'true' : 'false';
+                if (is_array($decoded)) {
+                    $citationId = (string) ($decoded['citationID'] ?? '');
+                    if ($citationId !== '') {
+                        $attrs['data-docx-addin-citation-id'] = $citationId;
+                    }
+                    $items = is_array($decoded['citationItems'] ?? null) ? $decoded['citationItems'] : [];
+                    $ids = [];
+                    foreach ($items as $item) {
+                        if (is_array($item) && isset($item['id'])) {
+                            $ids[] = (string) $item['id'];
+                        }
+                    }
+                    $attrs['data-docx-addin-citation-item-count'] = (string) count($items);
+                    if ($ids !== []) {
+                        $attrs['data-docx-addin-citation-item-ids'] = implode(',', $ids);
+                    }
+                }
+            }
+        }
+
+        return new AstNode('span', [
+            'classes' => [
+                'docx-field',
+                'docx-field-addin',
+                'docx-addin-field',
+                'docx-addin-' . $type,
+                'docx-addin-provider-' . $provider,
+            ],
+            'attributes' => $attrs,
+        ], $inlines);
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @param list<AstNode> $inlines
+     */
+    private function toaFieldSpan(string $instruction, array $tokens, array $inlines): AstNode
+    {
+        $switches = $this->fieldSwitches($tokens);
+        $attrs = [
+            'data-docx-field' => 'toa',
+            'data-docx-field-instruction' => $instruction,
+            'data-docx-generated-field-type' => 'table-of-authorities',
+        ];
+        if (isset($switches['c'])) {
+            $attrs['data-docx-field-category'] = $switches['c'];
+        }
+        if (isset($switches['b'])) {
+            $attrs['data-docx-field-bookmark'] = $switches['b'];
+        }
+        if (isset($switches['e'])) {
+            $attrs['data-docx-field-entry-separator'] = $switches['e'];
+        }
+        if (isset($switches['p'])) {
+            $attrs['data-docx-field-page-number-separator'] = $switches['p'];
+        }
+        if (isset($switches['h'])) {
+            $attrs['data-docx-field-hyperlink'] = 'true';
+        }
+
+        return new AstNode('span', [
+            'classes' => [
+                'docx-field',
+                'docx-field-toa',
+                'docx-generated-field',
+                'docx-generated-field-toa',
+                ...(isset($switches['h']) ? ['docx-field-hyperlink'] : []),
+            ],
+            'attributes' => $attrs,
+        ], $inlines);
+    }
+
+    private function normalizeFieldInstruction(string $instruction): string
+    {
+        return trim(preg_replace('/\s+/u', ' ', $instruction) ?? $instruction);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function fieldInstructionTokens(string $instruction): array
+    {
+        preg_match_all('/"([^"]*)"|(\\S+)/u', $instruction, $matches, PREG_SET_ORDER);
+        $tokens = [];
+        foreach ($matches as $match) {
+            $tokens[] = array_key_exists(1, $match) && $match[1] !== '' ? $match[1] : (string) ($match[2] ?? '');
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array<string, string>
+     */
+    private function fieldSwitches(array $tokens): array
+    {
+        $switches = [];
+        $count = count($tokens);
+        for ($i = 1; $i < $count; $i++) {
+            $token = $tokens[$i];
+            if (!str_starts_with($token, '\\')) {
+                continue;
+            }
+            $key = strtolower(ltrim($token, '\\'));
+            $value = '';
+            if ($i + 1 < $count && !str_starts_with($tokens[$i + 1], '\\')) {
+                $value = $tokens[++$i];
+            }
+            $switches[$key] = $value;
+        }
+
+        return $switches;
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function fieldTarget(array $tokens): string
+    {
+        for ($i = 1, $count = count($tokens); $i < $count; $i++) {
+            if (!str_starts_with($tokens[$i], '\\')) {
+                return $tokens[$i];
+            }
+        }
+
+        return '';
     }
 
     private function fieldAnchor(string $instruction): string
@@ -1731,6 +2292,78 @@ final class DocxReader
         }
 
         return 'default';
+    }
+
+    /**
+     * @return list<array{section: int, headers: list<array{type: string, relationshipId: string, target: string, part: string}>, footers: list<array{type: string, relationshipId: string, target: string, part: string}>}>
+     */
+    private function sectionReferences(\DOMElement $body): array
+    {
+        $sections = [];
+        foreach ($body->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $sectPr = null;
+            if ($child->localName === 'sectPr') {
+                $sectPr = $child;
+            } elseif ($child->localName === 'p') {
+                $pPr = $this->directChild($child, 'pPr');
+                if ($pPr instanceof \DOMElement) {
+                    $sectPr = $this->directChild($pPr, 'sectPr');
+                }
+            }
+
+            if (!$sectPr instanceof \DOMElement) {
+                continue;
+            }
+
+            $section = [
+                'section' => count($sections) + 1,
+                'headers' => [],
+                'footers' => [],
+            ];
+            foreach ($sectPr->childNodes as $reference) {
+                if (!$reference instanceof \DOMElement) {
+                    continue;
+                }
+                if ($reference->localName !== 'headerReference' && $reference->localName !== 'footerReference') {
+                    continue;
+                }
+
+                $rid = $this->attr($reference, self::R_NS, 'id');
+                if ($rid === '') {
+                    continue;
+                }
+                $relationship = $this->relationships[$rid] ?? null;
+                if (!is_array($relationship)) {
+                    continue;
+                }
+                $target = (string) ($relationship['target'] ?? '');
+                if ($target === '') {
+                    continue;
+                }
+
+                $record = [
+                    'type' => $this->attr($reference, self::W_NS, 'type') ?: 'default',
+                    'relationshipId' => $rid,
+                    'target' => $target,
+                    'part' => $this->normalizeWordTarget($target),
+                ];
+                if ($reference->localName === 'headerReference') {
+                    $section['headers'][] = $record;
+                } else {
+                    $section['footers'][] = $record;
+                }
+            }
+
+            if ($section['headers'] !== [] || $section['footers'] !== []) {
+                $sections[] = $section;
+            }
+        }
+
+        return $sections;
     }
 
     /**

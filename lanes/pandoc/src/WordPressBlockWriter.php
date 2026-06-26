@@ -2233,6 +2233,20 @@ final class WordPressBlockWriter
     {
         $attrs = $this->renderClassAttr($this->spanClasses($node));
         $sourceAttrs = $this->inlineHtmlAttributes($node);
+        foreach ($sourceAttrs as $name => $value) {
+            $name = strtolower((string) $name);
+            if (in_array($name, ['class', 'entry', 'crossref', 'yomi', 'bold', 'italic'], true)) {
+                continue;
+            }
+            if (!str_starts_with($name, 'data-docx-')) {
+                continue;
+            }
+            if (!$this->isAllowedInlineHtmlAttr($name)) {
+                continue;
+            }
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+
         $entry = trim((string) ($sourceAttrs['entry'] ?? ''));
         if ($entry !== '') {
             $attrs .= ' data-pandoc-index-entry="' . $this->esc($entry) . '"';

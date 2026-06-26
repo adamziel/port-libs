@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\Pandoc\DocxReader;
 use PortLibs\Pandoc\PandocConverter;
 use PortLibs\Pandoc\WordPressBlockWriter;
+use PortLibs\Pandoc\ZipPackage;
 
 $buildDocxReaderPackageBytes = static function (string $documentXml): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-docx-');
@@ -129,6 +130,50 @@ return [
         $t->contains('<!-- wp:table -->', $blocks);
         $t->contains('word/media/image1.png', $blocks);
         $t->contains('<!-- wp:list -->', $converterBlocks);
+    },
+    'selects section-specific docx header and footer references' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            ['name' => 'word/_rels/document.xml.rels', 'data' => '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdHeader1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/><Relationship Id="rIdFooter1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/><Relationship Id="rIdHeader2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header2.xml"/><Relationship Id="rIdFooter2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer2.xml"/><Relationship Id="rIdHeaderUnused" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header3.xml"/><Relationship Id="rIdFooterUnused" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer3.xml"/></Relationships>'],
+            ['name' => 'word/header1.xml', 'data' => '<?xml version="1.0"?><w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Section one header</w:t></w:r></w:p></w:hdr>'],
+            ['name' => 'word/header2.xml', 'data' => '<?xml version="1.0"?><w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Section two even header</w:t></w:r></w:p></w:hdr>'],
+            ['name' => 'word/header3.xml', 'data' => '<?xml version="1.0"?><w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Unreferenced header</w:t></w:r></w:p></w:hdr>'],
+            ['name' => 'word/footer1.xml', 'data' => '<?xml version="1.0"?><w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Section one first footer</w:t></w:r></w:p></w:ftr>'],
+            ['name' => 'word/footer2.xml', 'data' => '<?xml version="1.0"?><w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Section two footer</w:t></w:r></w:p></w:ftr>'],
+            ['name' => 'word/footer3.xml', 'data' => '<?xml version="1.0"?><w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Unreferenced footer</w:t></w:r></w:p></w:ftr>'],
+            ['name' => 'word/document.xml', 'data' => '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body><w:p><w:r><w:t>Section one body</w:t></w:r><w:pPr><w:sectPr><w:headerReference w:type="default" r:id="rIdHeader1"/><w:footerReference w:type="first" r:id="rIdFooter1"/></w:sectPr></w:pPr></w:p><w:p><w:r><w:t>Section two body</w:t></w:r></w:p><w:sectPr><w:headerReference w:type="even" r:id="rIdHeader2"/><w:footerReference w:type="default" r:id="rIdFooter2"/></w:sectPr></w:body></w:document>'],
+        ]);
+
+        $document = (new DocxReader())->readDocument($package);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $meta = $document->attr('meta');
+
+        $t->same(2, $meta['docxHeaders']);
+        $t->same(2, $meta['docxFooters']);
+        $t->same(3, $meta['docxHeaderPartCount']);
+        $t->same(3, $meta['docxFooterPartCount']);
+        $t->same(4, $meta['docxSectionReferenceCount']);
+        $t->same(['word/header1.xml', 'word/header2.xml'], $meta['docxAppliedHeaderFiles']);
+        $t->same(['word/footer1.xml', 'word/footer2.xml'], $meta['docxAppliedFooterFiles']);
+        $t->same('default', $meta['docxSectionReferences'][0]['headers'][0]['type']);
+        $t->same('first', $meta['docxSectionReferences'][0]['footers'][0]['type']);
+        $t->same('even', $meta['docxSectionReferences'][1]['headers'][0]['type']);
+
+        $t->same('div', $document->children[0]->type);
+        $t->same('word/header1.xml', $document->children[0]->attr('attributes')['data-docx-part']);
+        $t->same('1', $document->children[0]->attr('attributes')['data-docx-section-index']);
+        $t->same('word/header2.xml', $document->children[1]->attr('attributes')['data-docx-part']);
+        $t->same('2', $document->children[1]->attr('attributes')['data-docx-section-index']);
+        $t->same('Section one body', $document->children[2]->attr('text'));
+        $t->same('Section two body', $document->children[3]->attr('text'));
+        $t->same('word/footer1.xml', $document->children[4]->attr('attributes')['data-docx-part']);
+        $t->same('word/footer2.xml', $document->children[5]->attr('attributes')['data-docx-part']);
+
+        $t->contains('Section one header', $blocks);
+        $t->contains('data-docx-section-index="2"', $blocks);
+        $t->contains('data-docx-section-reference-type="even"', $blocks);
+        $t->contains('Section two footer', $blocks);
+        $t->true(!str_contains($blocks, 'Unreferenced header'), 'Unreferenced header parts should not be emitted when section references are available');
+        $t->true(!str_contains($blocks, 'Unreferenced footer'), 'Unreferenced footer parts should not be emitted when section references are available');
     },
     'reads docx bytes through the converter input path' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-docx-');
