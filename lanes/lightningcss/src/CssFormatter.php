@@ -876,7 +876,9 @@ final class CssFormatter
             if ($origin !== null || $clip !== null) {
                 $origin = strtolower($origin ?? 'padding-box');
                 $clip = strtolower($clip ?? 'border-box');
-                if ($origin === $clip && !$this->isDefaultBackgroundOrigin($origin)) {
+                if ($this->isDefaultBackgroundOrigin($origin) && $clip === 'text') {
+                    $layer[] = $clip;
+                } elseif ($origin === $clip && !$this->isDefaultBackgroundOrigin($origin)) {
                     $layer[] = $origin;
                 } elseif (!$this->isDefaultBackgroundOrigin($origin) || !$this->isDefaultBackgroundClip($clip)) {
                     $layer[] = $origin;
@@ -1000,6 +1002,15 @@ final class CssFormatter
 
             if ($this->isBackgroundAttachmentToken($lower)) {
                 $parsed['attachment'] = $lower;
+                continue;
+            }
+
+            if ($lower === 'text') {
+                if ($parsed['clip'] !== null) {
+                    return null;
+                }
+
+                $parsed['clip'] = $lower;
                 continue;
             }
 

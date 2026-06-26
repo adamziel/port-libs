@@ -93,6 +93,7 @@ final class CssMinifier
 
         [$css, $licenseComments] = $this->stripComments($css);
         $this->validateViewTransitionPseudoElementSelectorPreludes($css);
+        $this->validateTerminalPseudoElementSelectorPreludes($css);
         $output = '';
         $quote = null;
         $pendingSpace = false;
@@ -2129,6 +2130,7 @@ final class CssMinifier
             $prelude = substr($css, $preludeStart, $open - $preludeStart);
             if ($this->isStyleRulePrelude($prelude)) {
                 $this->validateViewTransitionPseudoElementSelectors($prelude);
+                $this->validateTerminalPseudoElementSelectors($prelude);
                 $prelude = $this->normalizeSelectorAttributeSelectors($prelude);
                 $prelude = $this->normalizeSelectorNthPseudoClasses($prelude);
                 if (!$preserveSingletonIsSelectors) {
@@ -2222,6 +2224,222 @@ final class CssMinifier
 
             $cursor = $open + 1;
         }
+    }
+
+    private function validateTerminalPseudoElementSelectorPreludes(string $css): void
+    {
+        if (!$this->containsTerminalPseudoElementSelector($css)) {
+            return;
+        }
+
+        $cursor = 0;
+        $length = strlen($css);
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                return;
+            }
+
+            $preludeStart = $this->findPreludeStart($css, $cursor, $open);
+            $prelude = substr($css, $preludeStart, $open - $preludeStart);
+            if ($this->isStyleRulePrelude($prelude)) {
+                $this->validateTerminalPseudoElementSelectors($prelude);
+            }
+
+            $cursor = $open + 1;
+        }
+    }
+
+    private function containsTerminalPseudoElementSelector(string $selector): bool
+    {
+        return preg_match('/:(?::)?(?:before|after|first-line|first-letter)\b/i', $selector) === 1;
+    }
+
+    private function validateTerminalPseudoElementSelectors(string $selector): void
+    {
+        if (!$this->containsTerminalPseudoElementSelector($selector)) {
+            return;
+        }
+
+        $quote = null;
+        $length = strlen($selector);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $selector[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '\\' && $i + 1 < $length) {
+                $i = $this->cssEscapeEndOffset($selector, $i);
+                continue;
+            }
+
+            if ($char === '[') {
+                $close = $this->findSelectorAttributeClose($selector, $i);
+                if ($close !== null) {
+                    $i = $close;
+                    continue;
+                }
+            }
+
+            if ($char !== ':') {
+                continue;
+            }
+
+            $colonLength = ($selector[$i + 1] ?? '') === ':' ? 2 : 1;
+            $token = $this->readCssIdentifierToken($selector, $i + $colonLength);
+            if ($token === null) {
+                continue;
+            }
+
+            $name = strtolower($token['name']);
+            if (!in_array($name, ['before', 'after', 'first-line', 'first-letter'], true)) {
+                continue;
+            }
+
+            $i = $this->validateTerminalPseudoElementSelectorTail($selector, $token['end']);
+        }
+    }
+
+    private function validateTerminalPseudoElementSelectorTail(string $selector, int $offset): int
+    {
+        $cursor = $offset;
+        $length = strlen($selector);
+
+        while ($cursor < $length) {
+            $char = $selector[$cursor];
+            if (ctype_space($char)) {
+                while ($cursor < $length && ctype_space($selector[$cursor])) {
+                    $cursor++;
+                }
+
+                if ($cursor >= $length || in_array($selector[$cursor], [',', ')'], true)) {
+                    return $cursor;
+                }
+
+                throw new \InvalidArgumentException('CSS pseudo-elements cannot be followed by selectors');
+            }
+
+            if ($char === ',' || $char === ')') {
+                return $cursor;
+            }
+
+            if ($char !== ':' || ($selector[$cursor + 1] ?? '') === ':') {
+                throw new \InvalidArgumentException('CSS pseudo-elements cannot be followed by selectors');
+            }
+
+            $token = $this->readCssIdentifierToken($selector, $cursor + 1);
+            if ($token === null) {
+                throw new \InvalidArgumentException('CSS pseudo-elements cannot be followed by selectors');
+            }
+
+            $name = strtolower($token['name']);
+            $cursor = $token['end'];
+            if (($selector[$cursor] ?? '') === '(') {
+                if (!$this->selectorFunctionCanFollowTerminalPseudoElement($name)) {
+                    throw new \InvalidArgumentException('Invalid pseudo class after pseudo element, only user action pseudo classes (e.g. :hover, :active) are allowed');
+                }
+
+                [, $end] = $this->readFunctionRaw($selector, $token['end']);
+                if (($selector[$end] ?? '') !== ')') {
+                    throw new \InvalidArgumentException('Invalid pseudo class after pseudo element');
+                }
+
+                $inner = substr($selector, $token['end'] + 1, $end - $token['end'] - 1);
+                foreach ($this->splitTopLevel($inner, ',') as $innerSelector) {
+                    if (!$this->selectorCanFollowTerminalPseudoElement($innerSelector)) {
+                        throw new \InvalidArgumentException('Invalid pseudo class after pseudo element, only user action pseudo classes (e.g. :hover, :active) are allowed');
+                    }
+                }
+
+                $cursor = $end + 1;
+                continue;
+            }
+
+            if (!$this->pseudoClassCanFollowTerminalPseudoElement($name)) {
+                throw new \InvalidArgumentException('Invalid pseudo class after pseudo element, only user action pseudo classes (e.g. :hover, :active) are allowed');
+            }
+        }
+
+        return $cursor;
+    }
+
+    private function selectorCanFollowTerminalPseudoElement(string $selector): bool
+    {
+        $selector = trim($selector);
+        if ($selector === '') {
+            return false;
+        }
+
+        $cursor = 0;
+        $length = strlen($selector);
+        while ($cursor < $length) {
+            if (ctype_space($selector[$cursor])) {
+                return trim(substr($selector, $cursor)) === '';
+            }
+
+            if ($selector[$cursor] !== ':' || ($selector[$cursor + 1] ?? '') === ':') {
+                return false;
+            }
+
+            $token = $this->readCssIdentifierToken($selector, $cursor + 1);
+            if ($token === null) {
+                return false;
+            }
+
+            $name = strtolower($token['name']);
+            $cursor = $token['end'];
+            if (($selector[$cursor] ?? '') !== '(') {
+                if (!$this->pseudoClassCanFollowTerminalPseudoElement($name)) {
+                    return false;
+                }
+
+                continue;
+            }
+
+            if (!$this->selectorFunctionCanFollowTerminalPseudoElement($name)) {
+                return false;
+            }
+
+            [, $end] = $this->readFunctionRaw($selector, $cursor);
+            if (($selector[$end] ?? '') !== ')') {
+                return false;
+            }
+
+            $inner = substr($selector, $cursor + 1, $end - $cursor - 1);
+            foreach ($this->splitTopLevel($inner, ',') as $innerSelector) {
+                if (!$this->selectorCanFollowTerminalPseudoElement($innerSelector)) {
+                    return false;
+                }
+            }
+
+            $cursor = $end + 1;
+        }
+
+        return true;
+    }
+
+    private function selectorFunctionCanFollowTerminalPseudoElement(string $name): bool
+    {
+        return in_array($name, ['-moz-any', '-webkit-any', 'has', 'is', 'not', 'where'], true);
+    }
+
+    private function pseudoClassCanFollowTerminalPseudoElement(string $name): bool
+    {
+        return in_array($name, ['active', 'focus', 'focus-visible', 'focus-within', 'hover'], true);
     }
 
     private function validateViewTransitionPseudoElementSelectors(string $selector): void

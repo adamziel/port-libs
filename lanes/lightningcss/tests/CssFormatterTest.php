@@ -948,6 +948,19 @@ CSS, $formatter->format(<<<'CSS'
 }
 CSS));
 
+        // Pinned upstream 22bdda3d src/lib.rs::test_background lines 4490-4503.
+        $t->same(<<<'CSS'
+.foo {
+  background: url("img.png") text;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  background: url(img.png);
+  background-clip: text;
+}
+CSS));
+
         // Pinned upstream 22bdda3d src/lib.rs::test_background lines 4731-4738.
         $t->same(<<<'CSS'
 .foo {

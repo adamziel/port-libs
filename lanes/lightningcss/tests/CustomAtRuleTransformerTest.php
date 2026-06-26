@@ -3781,6 +3781,39 @@ CSS;
         $t->same([['unit' => 'px', 'value' => 16.0]], $seenLengths);
         $t->same([['type' => 'rgb', 'r' => 255, 'g' => 0, 'b' => 0, 'alpha' => 1]], $seenColors);
     },
+    'custom at-rules compose upstream matching Length visitors sequentially' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/composeVisitors.test.mjs::simple matching types lines 61-93.
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Length' => static function (array $length) use (&$seen): array {
+                    $seen[] = ['double', $length['unit'], $length['value']];
+
+                    return [
+                        'unit' => $length['unit'],
+                        'value' => $length['value'] * 2,
+                    ];
+                },
+            ],
+            [
+                'Length' => static function (array $length) use (&$seen): ?array {
+                    $seen[] = ['rem', $length['unit'], $length['value']];
+
+                    return $length['unit'] === 'px'
+                        ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                        : null;
+                },
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('.foo { width: 16px; }', [], $visitor);
+
+        $t->same('.foo{width:2rem}', $result);
+        $t->same([
+            ['double', 'px', 16.0],
+            ['rem', 'px', 32.0],
+        ], $seen);
+    },
     'custom at-rules compose upstream sequential Color visitors' => static function (TestRunner $t): void {
         $seen = [];
         $visitor = CustomAtRuleTransformer::composeVisitors([

@@ -5043,6 +5043,34 @@ CSS;
             );
         }
     },
+    'transition prefixer maps upstream residual top-level media range target fallbacks' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_media prefix_test rows.
+        $cases = [
+            [9041, '@media (width > 240px) { .foo { color: chartreuse; } }', '@media not (max-width:240px){.foo{color:#7fff00}}', ['firefox' => 60]],
+            [9062, '@media (width <= 240px) { .foo { color: chartreuse; } }', '@media (max-width:240px){.foo{color:#7fff00}}', ['firefox' => 60]],
+            [9083, '@media (width <= 240px) { .foo { color: chartreuse; } }', '@media (width<=240px){.foo{color:#7fff00}}', ['firefox' => 64]],
+            [9104, '@media (width < 240px) { .foo { color: chartreuse; } }', '@media not (min-width:240px){.foo{color:#7fff00}}', ['firefox' => 60]],
+            [9125, '@media not (width < 240px) { .foo { color: chartreuse; } }', '@media (min-width:240px){.foo{color:#7fff00}}', ['firefox' => 60]],
+            [9163, '@media (width < 240px) and (hover) { .foo { color: chartreuse; } }', '@media (not (min-width:240px)) and (hover){.foo{color:#7fff00}}', ['firefox' => 60]],
+            [9184, '@media (100px <= width <= 200px) { .foo { color: chartreuse; } }', '@media (min-width:100px) and (max-width:200px){.foo{color:#7fff00}}', ['firefox' => 85]],
+            [9205, '@media not (100px <= width <= 200px) { .foo { color: chartreuse; } }', '@media not ((min-width:100px) and (max-width:200px)){.foo{color:#7fff00}}', ['firefox' => 85]],
+            [9226, '@media (hover) and (100px <= width <= 200px) { .foo { color: chartreuse; } }', '@media (hover) and (min-width:100px) and (max-width:200px){.foo{color:#7fff00}}', ['firefox' => 85]],
+            [9247, '@media (hover) or (100px <= width <= 200px) { .foo { color: chartreuse; } }', '@media (hover) or ((min-width:100px) and (max-width:200px)){.foo{color:#7fff00}}', ['firefox' => 85]],
+            [9268, '@media (100px < width < 200px) { .foo { color: chartreuse; } }', '@media (not (max-width:100px)) and (not (min-width:200px)){.foo{color:#7fff00}}', ['firefox' => 85]],
+            [9289, '@media not (100px < width < 200px) { .foo { color: chartreuse; } }', '@media not ((not (max-width:100px)) and (not (min-width:200px))){.foo{color:#7fff00}}', ['firefox' => 85]],
+            [9310, '@media (200px >= width >= 100px) { .foo { color: chartreuse; } }', '@media (max-width:200px) and (min-width:100px){.foo{color:#7fff00}}', ['firefox' => 85]],
+        ];
+
+        foreach ($cases as [$line, $input, $expected, $targets]) {
+            $t->same(
+                $expected,
+                $prefixer->prefixForTargets($input, $targets),
+                'upstream src/lib.rs::test_media line ' . $line
+            );
+        }
+    },
     'transition prefixer maps upstream media range target fallbacks inside layers' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

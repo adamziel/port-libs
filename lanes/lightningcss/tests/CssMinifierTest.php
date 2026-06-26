@@ -261,6 +261,24 @@ CSS
             $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_selectors line ' . $line);
         }
     },
+    'css minifier rejects upstream selectors after terminal pseudo-elements' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_selectors lines 7562, 7568, 7573, 7577, 7583, 7589, and 7595.
+        $cases = [
+            [7562, 'input.defaultCheckbox::before h1 {width: 20px}'],
+            [7568, 'input.defaultCheckbox::before .my-class {width: 20px}'],
+            [7573, 'input.defaultCheckbox::before.my-class {width: 20px}'],
+            [7577, 'input.defaultCheckbox::before #id {width: 20px}'],
+            [7583, 'input.defaultCheckbox::before#id {width: 20px}'],
+            [7589, 'input.defaultCheckbox::before [attr] {width: 20px}'],
+            [7595, 'input.defaultCheckbox::before[attr] {width: 20px}'],
+        ];
+
+        foreach ($cases as [$line, $input]) {
+            $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify($input), 'upstream src/lib.rs::test_selectors line ' . $line);
+        }
+    },
     'css minifier maps upstream host slotted and view transition selector tail' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -2868,9 +2886,18 @@ CSS)
             '@supports not (foo:bar){.test{foo:bar}}',
             $minifier->minify('@supports not (foo: bar) { .test { foo: bar; } }')
         );
+        // Pinned upstream 22bdda3d src/lib.rs::test_supports_rule lines 15113 and 15145.
+        $t->same(
+            '@supports (foo:bar) or (bar:baz){.test{foo:bar}}',
+            $minifier->minify('@supports (foo: bar) or (bar: baz) { .test { foo: bar; } }')
+        );
         $t->same(
             '@supports (foo:bar) or (bar:baz){.test{foo:bar}}',
             $minifier->minify('@supports (((foo: bar) or (bar: baz))) { .test { foo: bar; } }')
+        );
+        $t->same(
+            '@supports (foo:bar) and (bar:baz){.test{foo:bar}}',
+            $minifier->minify('@supports (foo: bar) and (bar: baz) { .test { foo: bar; } }')
         );
         $t->same(
             '@supports (foo:bar) and (bar:baz){.test{foo:bar}}',
