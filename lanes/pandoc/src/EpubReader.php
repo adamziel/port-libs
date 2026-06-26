@@ -111,8 +111,12 @@ final class EpubReader
         $metadata['epubImageResources'] = $image_resources;
         $metadata['epubTocResources'] = $toc['resources'];
         $metadata['epubTocEntryCount'] = count($toc['entries']);
+        $metadata['epubLandmarkEntryCount'] = count($toc['landmarks']);
         if ($toc['entries'] !== []) {
             $metadata['epubTocEntries'] = $toc['entries'];
+        }
+        if ($toc['landmarks'] !== []) {
+            $metadata['epubLandmarkEntries'] = $toc['landmarks'];
         }
 
         return new AstNode('document', ['meta' => $metadata], $children);
@@ -275,13 +279,14 @@ final class EpubReader
 
     /**
      * @param array<string, array{href: string, media-type: string, properties: list<string>}> $manifest
-     * @return array{resources: list<string>, entries: list<array{text: string, href: string, level: int}>}
+     * @return array{resources: list<string>, entries: list<array{text: string, href: string, level: int}>, landmarks: list<array{text: string, href: string, level: int, epubTypes: list<string>}>}
      */
     private function toc(\ZipArchive $zip, string $base_path, array $manifest, string $spine_toc_id): array
     {
         $resources = [];
         $nav_entries = [];
         $ncx_entries = [];
+        $landmark_entries = [];
         foreach ($manifest as $id => $item) {
             $href = $this->normalizeZipPath($base_path . '/' . $item['href']);
             $media_type = strtolower($item['media-type']);
@@ -298,20 +303,22 @@ final class EpubReader
             }
             $resources[] = $href;
             try {
-                $parsed = $is_ncx ? $this->ncxTocEntries($xml, $this->dirname($href)) : $this->xhtmlTocEntries($xml, $this->dirname($href));
+                if ($is_nav) {
+                    array_push($nav_entries, ...$this->xhtmlTocEntries($xml, $this->dirname($href)));
+                    array_push($landmark_entries, ...$this->xhtmlLandmarkEntries($xml, $this->dirname($href)));
+                }
+                if ($is_ncx) {
+                    array_push($ncx_entries, ...$this->ncxTocEntries($xml, $this->dirname($href)));
+                }
             } catch (\InvalidArgumentException) {
                 continue;
-            }
-            if ($is_ncx) {
-                array_push($ncx_entries, ...$parsed);
-            } else {
-                array_push($nav_entries, ...$parsed);
             }
         }
 
         return [
             'resources' => array_values(array_unique($resources)),
             'entries' => $nav_entries !== [] ? $nav_entries : $ncx_entries,
+            'landmarks' => $landmark_entries,
         ];
     }
 
@@ -326,7 +333,7 @@ final class EpubReader
             if (!$element instanceof \DOMElement || $element->localName !== 'nav') {
                 continue;
             }
-            $type = strtolower($this->attributeByLocalName($element, 'type'));
+            $type = strtolower($this->epubTypeAttribute($element));
             if (preg_match('/(?:^|\s)toc(?:\s|$)/', $type) === 1) {
                 $navs = [$element];
                 break;
@@ -337,6 +344,30 @@ final class EpubReader
         $entries = [];
         foreach ($navs as $nav) {
             array_push($entries, ...$this->xhtmlNavListEntries($nav, $base_path, 1));
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @return list<array{text: string, href: string, level: int, epubTypes: list<string>}>
+     */
+    private function xhtmlLandmarkEntries(string $xml, string $base_path): array
+    {
+        $dom = $this->loadXml($xml, 'EPUB nav document');
+        $navs = [];
+        foreach ($dom->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement || $element->localName !== 'nav') {
+                continue;
+            }
+            if ($this->hasToken($this->epubTypeAttribute($element), 'landmarks')) {
+                $navs[] = $element;
+            }
+        }
+
+        $entries = [];
+        foreach ($navs as $nav) {
+            array_push($entries, ...$this->xhtmlLandmarkListEntries($nav, $base_path, 1));
         }
 
         return $entries;
@@ -393,6 +424,73 @@ final class EpubReader
                 'text' => $text,
                 'href' => $this->rewriteRelativeResourceUrl($href, $base_path),
                 'level' => $level,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<array{text: string, href: string, level: int, epubTypes: list<string>}>
+     */
+    private function xhtmlLandmarkListEntries(\DOMNode $parent, string $base_path, int $level): array
+    {
+        $entries = [];
+        foreach ($parent->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+            if ($child->localName === 'li') {
+                $entry = $this->xhtmlLandmarkListItemEntry($child, $base_path, $level);
+                if ($entry !== null) {
+                    $entries[] = $entry;
+                }
+                foreach ($child->childNodes as $nested) {
+                    if ($nested instanceof \DOMElement && in_array($nested->localName, ['ol', 'ul'], true)) {
+                        array_push($entries, ...$this->xhtmlLandmarkListEntries($nested, $base_path, $level + 1));
+                    }
+                }
+                continue;
+            }
+            if (in_array($child->localName, ['ol', 'ul'], true)) {
+                array_push($entries, ...$this->xhtmlLandmarkListEntries($child, $base_path, $level));
+                continue;
+            }
+            array_push($entries, ...$this->xhtmlLandmarkListEntries($child, $base_path, $level));
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @return array{text: string, href: string, level: int, epubTypes: list<string>}|null
+     */
+    private function xhtmlLandmarkListItemEntry(\DOMElement $item, string $base_path, int $level): ?array
+    {
+        foreach ($item->childNodes as $element) {
+            if (!$element instanceof \DOMElement) {
+                continue;
+            }
+            if (!in_array($element->localName, ['a', 'span'], true)) {
+                continue;
+            }
+            $text = trim(preg_replace('/\s+/u', ' ', $element->textContent) ?? $element->textContent);
+            if ($text === '') {
+                return null;
+            }
+            $href = $element->localName === 'a'
+                ? html_entity_decode($element->getAttribute('href'), ENT_QUOTES | ENT_XML1, 'UTF-8')
+                : '';
+            $epub_types = $this->tokenList($this->epubTypeAttribute($element));
+            if ($epub_types === []) {
+                $epub_types = $this->tokenList($this->epubTypeAttribute($item));
+            }
+
+            return [
+                'text' => $text,
+                'href' => $href === '' ? '' : $this->rewriteRelativeResourceUrl($href, $base_path),
+                'level' => $level,
+                'epubTypes' => $epub_types,
             ];
         }
 
@@ -547,6 +645,36 @@ final class EpubReader
         }
 
         return '';
+    }
+
+    private function epubTypeAttribute(\DOMElement $element): string
+    {
+        foreach ($element->attributes ?? [] as $attribute) {
+            if (!$attribute instanceof \DOMAttr || $attribute->localName !== 'type') {
+                continue;
+            }
+            if ($attribute->prefix === 'epub' || $attribute->namespaceURI === 'http://www.idpf.org/2007/ops') {
+                return $attribute->value;
+            }
+        }
+
+        return $this->attributeByLocalName($element, 'type');
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function tokenList(string $value): array
+    {
+        return array_values(array_filter(
+            preg_split('/\s+/', strtolower(trim($value))) ?: [],
+            static fn (string $token): bool => $token !== ''
+        ));
+    }
+
+    private function hasToken(string $value, string $token): bool
+    {
+        return in_array(strtolower($token), $this->tokenList($value), true);
     }
 
     private function firstDescendantText(\DOMElement $element, string $localName): string
