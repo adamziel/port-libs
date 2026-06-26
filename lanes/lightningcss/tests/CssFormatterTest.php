@@ -205,6 +205,69 @@ CSS));
 }
 CSS));
     },
+    'css formatter maps upstream supports rule printer cases' => static function (TestRunner $t): void {
+        $formatter = new CssFormatter();
+
+        $t->same(<<<'CSS'
+@supports (foo: bar) {
+  .test {
+    foo: bar;
+  }
+}
+
+CSS, $formatter->format(<<<'CSS'
+@supports (foo: bar) {
+  .test {
+    foo: bar;
+  }
+}
+CSS));
+
+        $t->same(<<<'CSS'
+@supports (foo: bar) or (bar: baz) {
+  .test {
+    foo: bar;
+  }
+}
+
+CSS, $formatter->format(<<<'CSS'
+@supports (foo: bar) or (bar: baz) {
+  .test {
+    foo: bar;
+  }
+}
+CSS));
+
+        $t->same(<<<'CSS'
+@supports (foo: bar) or (bar: baz) {
+  .test {
+    foo: bar;
+  }
+}
+
+CSS, $formatter->format(<<<'CSS'
+@supports (((foo: bar) or (bar: baz))) {
+  .test {
+    foo: bar;
+  }
+}
+CSS));
+
+        $t->same(<<<'CSS'
+@supports (foo: bar) and (bar: baz) {
+  .test {
+    foo: bar;
+  }
+}
+
+CSS, $formatter->format(<<<'CSS'
+@supports (((foo: bar) and (bar: baz))) {
+  .test {
+    foo: bar;
+  }
+}
+CSS));
+    },
     'css formatter maps upstream important declaration printer case' => static function (TestRunner $t): void {
         $formatter = new CssFormatter();
 

@@ -2066,6 +2066,23 @@ return [
         $t->same([0, 1], array_column($decoded, 'generatedLine'));
         $t->same([0, 0], array_column($decoded, 'sourceIndex'));
     },
+    'source map matches upstream make-relative-path fixture rows' => static function (TestRunner $t): void {
+        $sameDir = new SourceMap('/foo/bar');
+        $t->same('baz.map', $sameDir->getSource($sameDir->addSource('/foo/bar/baz.map')));
+        $t->same('../baz.map', $sameDir->getSource($sameDir->addSource('/foo/baz.map')));
+
+        $dotBase = new SourceMap('/foo/bar/.');
+        $t->same('baz.map', $dotBase->getSource($dotBase->addSource('/foo/bar/baz.map')));
+
+        $relative = new SourceMap('/some/abs/path');
+        $t->same('foo.js', $relative->getSource($relative->addSource('foo.js')));
+
+        $windows = new SourceMap('C:\\blah\\sub');
+        $t->same('../foo.js', $windows->getSource($windows->addSource('C:\\blah\\foo.js')));
+
+        $root = new SourceMap('/');
+        $t->same('test.js', $root->getSource($root->addSource('./test.js')));
+    },
     'source map preserves upstream absolute url sources' => static function (TestRunner $t): void {
         $map = new SourceMap('/test-root');
         $httpSource = $map->addSource('https://example.com/a.js');

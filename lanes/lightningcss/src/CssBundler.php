@@ -15,6 +15,9 @@ final class CssBundler
     /** @var (callable(string): string)|null */
     private $reader = null;
 
+    /** @var array<string, mixed>|null */
+    private ?array $visitor = null;
+
     private bool $filesystemReads = false;
 
     private bool $preserveResolverPaths = false;
@@ -80,6 +83,16 @@ final class CssBundler
     public function bundleWithReader(string $entry, callable $reader, ?callable $resolver = null): string
     {
         return $this->bundleInternal($entry, [], $resolver, false, [], $reader)['code'];
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
+     * @param array<string, string> $files
+     * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
+     */
+    public function bundleWithVisitor(string $entry, array $files, array $visitor, ?callable $resolver = null): string
+    {
+        return $this->bundleInternal($entry, $files, $resolver, false, [], null, false, null, $visitor)['code'];
     }
 
     /**
@@ -231,6 +244,7 @@ final class CssBundler
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
      * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,animation?:bool,grid?:bool,container?:bool,customIdents?:bool,custom_idents?:bool,pure?:bool,unusedSymbols?:list<string>,unused_symbols?:list<string>,pseudoClasses?:array<string,string>,pseudo_classes?:array<string,string>,projectRoot?:string,project_root?:string} $cssModuleOptions
      * @param (callable(string): string)|null $reader
+     * @param array<string, mixed>|null $visitor
      */
     private function bundleInternal(
         string $entry,
@@ -240,7 +254,8 @@ final class CssBundler
         array $cssModuleOptions = [],
         ?callable $reader = null,
         bool $filesystemReads = false,
-        ?string $sourceMapProjectRoot = null
+        ?string $sourceMapProjectRoot = null,
+        ?array $visitor = null
     ): array
     {
         $this->files = [];
@@ -258,6 +273,7 @@ final class CssBundler
 
         $this->resolver = $resolver;
         $this->reader = $reader;
+        $this->visitor = $visitor;
         $this->filesystemReads = $filesystemReads;
         $this->preserveResolverPaths = $reader !== null || $filesystemReads;
         $this->sourceIndexes = [];
@@ -398,6 +414,7 @@ final class CssBundler
         $splitItems = $this->splitTopLevelBundleItems($items);
         $licenseComments = $splitItems['licenseComments'];
         $contentItems = $splitItems['contentItems'];
+        $this->applyBundleRuleVisitor($contentItems, $file);
         $dependencies = $this->importDependenciesForItems($contentItems, $rule, $file);
 
         foreach ($this->cssModuleDependencySpecifiersInSourceOrder($cssModuleOriginalSource, $cssModuleExports, $cssModuleReferences) as $specifier) {
@@ -743,6 +760,30 @@ final class CssBundler
             'array' => 'Object',
             default => is_object($value) ? 'Object' : get_debug_type($value),
         };
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     */
+    private function applyBundleRuleVisitor(array $items, string $file): void
+    {
+        $visitor = $this->visitor['Rule'] ?? null;
+        if (!is_callable($visitor)) {
+            return;
+        }
+
+        foreach ($items as $item) {
+            if (($item['type'] ?? null) === 'import') {
+                continue;
+            }
+
+            $visitor([
+                'type' => str_starts_with(ltrim((string) ($item['raw'] ?? '')), '@') ? 'unknown' : 'style',
+                'raw' => (string) ($item['raw'] ?? ''),
+                'file' => $file,
+                'loc' => $item['loc'] ?? ['line' => 1, 'column' => 1],
+            ], $this);
+        }
     }
 
     /**
@@ -1336,6 +1377,7 @@ final class CssBundler
                     $items[] = [
                         'type' => 'layer-statement',
                         'raw' => $raw,
+                        'loc' => $this->sourceLocation($css, $cursor),
                     ];
                 } elseif ($this->startsAtKeyword($css, $cursor, '@namespace')) {
                     if (!$namespacesAllowed) {
@@ -1353,6 +1395,7 @@ final class CssBundler
                     $items[] = [
                         'type' => 'other',
                         'raw' => $raw,
+                        'loc' => $this->sourceLocation($css, $cursor),
                     ];
                 } elseif ($this->startsAtKeyword($css, $cursor, '@charset')) {
                     $this->validateCharsetStatement($raw, $file, $this->sourceLocation($css, $cursor));
@@ -1365,6 +1408,7 @@ final class CssBundler
                     $items[] = [
                         'type' => 'other',
                         'raw' => $raw,
+                        'loc' => $this->sourceLocation($css, $cursor),
                     ];
                 }
                 $cursor = $statementEnd + 1;
@@ -1415,6 +1459,7 @@ final class CssBundler
                         $items[] = [
                             'type' => 'other',
                             'raw' => substr($css, $cursor),
+                            'loc' => $this->sourceLocation($css, $cursor),
                         ];
                         break;
                     }
@@ -1463,6 +1508,7 @@ final class CssBundler
             $items[] = [
                 'type' => 'other',
                 'raw' => substr($css, $cursor, $close - $cursor + 1),
+                'loc' => $this->sourceLocation($css, $cursor),
             ];
             $cursor = $close + 1;
         }

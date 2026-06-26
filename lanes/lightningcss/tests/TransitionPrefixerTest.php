@@ -636,6 +636,10 @@ return [
         $t->same('.foo{height:stretch}', $prefixer->prefixForTargets('.foo { height: stretch; }', ['edge' => 138]));
         $t->same('.foo{block-size:-moz-available;block-size:stretch}', $prefixer->prefixForTargets('.foo { block-size: stretch; }', ['firefox' => 120]));
         $t->same('.foo{block-size:-webkit-fill-available;block-size:stretch}', $prefixer->prefixForTargets('.foo { block-size: stretch; }', ['safari' => 16]));
+        $t->same('.foo{max-height:-webkit-fill-available;max-height:-moz-available;max-height:stretch}', $prefixer->prefixForTargets('.foo { max-block-size: stretch; }', ['safari' => 8, 'firefox' => 4]));
+        $t->same('.foo{max-width:-webkit-fill-available;max-width:-moz-available;max-width:stretch}', $prefixer->prefixForTargets('.foo { max-inline-size: stretch; }', ['safari' => 8, 'firefox' => 4]));
+        $t->same('.foo{max-height:-webkit-fill-available}', $prefixer->prefixForTargets('.foo { max-block-size: -webkit-fill-available; }', ['safari' => 8, 'firefox' => 4]));
+        $t->same('.foo{max-width:100vw;max-width:-webkit-fill-available}', $prefixer->prefixForTargets('.foo { max-inline-size: 100vw; max-inline-size: -webkit-fill-available; }', ['safari' => 8, 'firefox' => 4]));
     },
     'transition prefixer maps upstream logical size browser boundaries' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();

@@ -279,24 +279,22 @@ final class CssFormatter
                 break;
             }
 
-            if ($body[$cursor] !== '@') {
-                throw new \InvalidArgumentException('@media and @layer formatter groups only support nested at-rules');
-            }
-
             $open = $this->findNextTopLevel($body, '{', $cursor);
             if ($open === null) {
-                throw new \InvalidArgumentException('Invalid nested at-rule in formatter group');
+                throw new \InvalidArgumentException('Invalid nested rule in formatter group');
             }
 
             $prelude = trim(substr($body, $cursor, $open - $cursor));
             $close = $this->findMatchingBrace($body, $open);
             $nestedBody = substr($body, $open + 1, $close - $open - 1);
-            if ($this->isPropertyRulePrelude($prelude)) {
+            if ($prelude !== '' && $prelude[0] !== '@') {
+                $items[] = $this->formatStyleRule($prelude, $nestedBody, $indentLevel);
+            } elseif ($this->isPropertyRulePrelude($prelude)) {
                 $items[] = $this->formatPropertyRule($prelude, $nestedBody, $indentLevel);
             } elseif ($this->isConditionalGroupPrelude($prelude)) {
                 $items[] = $this->formatConditionalGroupRule($prelude, $nestedBody, $indentLevel);
             } else {
-                throw new \InvalidArgumentException('Unsupported nested at-rule in formatter group: ' . $prelude);
+                throw new \InvalidArgumentException('Unsupported nested rule in formatter group: ' . $prelude);
             }
 
             $cursor = $close + 1;
@@ -1389,7 +1387,164 @@ final class CssFormatter
 
     private function normalizeConditionalGroupPrelude(string $prelude): string
     {
-        return trim(preg_replace('/\s+/', ' ', $prelude) ?? $prelude);
+        $prelude = trim(preg_replace('/\s+/', ' ', $prelude) ?? $prelude);
+        if (preg_match('/^@supports\s+(.+)$/i', $prelude, $matches) === 1) {
+            return '@supports ' . $this->normalizeSupportsCondition($matches[1]);
+        }
+
+        return $prelude;
+    }
+
+    private function normalizeSupportsCondition(string $condition): string
+    {
+        $condition = trim($condition);
+        if (preg_match('/^not\s+(.+)$/i', $condition, $matches) === 1) {
+            return 'not ' . $this->stripOneRedundantSupportsWrapper($matches[1]);
+        }
+
+        while (($unwrapped = $this->stripOneRedundantSupportsWrapper($condition)) !== $condition) {
+            $condition = $unwrapped;
+        }
+
+        return $condition;
+    }
+
+    private function stripOneRedundantSupportsWrapper(string $condition): string
+    {
+        $condition = trim($condition);
+        if (!str_starts_with($condition, '(') || !str_ends_with($condition, ')')) {
+            return $condition;
+        }
+
+        $depth = 0;
+        $quote = null;
+        $length = strlen($condition);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $condition[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+
+            if ($char !== ')') {
+                continue;
+            }
+
+            $depth--;
+            if ($depth === 0 && $i < $length - 1) {
+                return $condition;
+            }
+        }
+
+        $candidate = trim(substr($condition, 1, -1));
+        if ($this->supportsConditionIsFullyWrapped($candidate) || $this->hasTopLevelSupportsLogicalOperator($candidate)) {
+            return $candidate;
+        }
+
+        return $condition;
+    }
+
+    private function supportsConditionIsFullyWrapped(string $condition): bool
+    {
+        $condition = trim($condition);
+        if (!str_starts_with($condition, '(') || !str_ends_with($condition, ')')) {
+            return false;
+        }
+
+        $depth = 0;
+        $quote = null;
+        $length = strlen($condition);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $condition[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+
+            if ($char !== ')') {
+                continue;
+            }
+
+            $depth--;
+            if ($depth === 0 && $i < $length - 1) {
+                return false;
+            }
+        }
+
+        return $depth === 0;
+    }
+
+    private function hasTopLevelSupportsLogicalOperator(string $condition): bool
+    {
+        $quote = null;
+        $depth = 0;
+        $length = strlen($condition);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $condition[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+
+            if ($char === ')') {
+                $depth = max(0, $depth - 1);
+                continue;
+            }
+
+            if ($depth === 0 && preg_match('/\G\s+(?:and|or)\s+/Ai', $condition, $matches, 0, $i) === 1) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function formatDeclarationValue(string $value): string
@@ -1546,7 +1701,7 @@ final class CssFormatter
 
     private function isConditionalGroupPrelude(string $prelude): bool
     {
-        return preg_match('/^@(media|layer)\b/i', trim($prelude)) === 1;
+        return preg_match('/^@(media|layer|supports)\b/i', trim($prelude)) === 1;
     }
 
     private function propertyRuleName(string $prelude): string

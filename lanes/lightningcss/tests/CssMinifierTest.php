@@ -120,6 +120,42 @@ CSS
         $t->same('[foo=""]{color:red}', $minifier->minify('[foo=""] { color: red }'));
         $t->same('.test:not([foo=bar]){color:red}', $minifier->minify('.test:not([foo="bar"]) { color: red }'));
     },
+    'css minifier maps upstream selector structural compaction' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $cases = [
+            ':nth-col(2n) {width: 20px}' => ':nth-col(2n){width:20px}',
+            ':nth-col(10n-1) {width: 20px}' => ':nth-col(10n-1){width:20px}',
+            ':nth-col(-n+2) {width: 20px}' => ':nth-col(-n+2){width:20px}',
+            ':nth-col(odd) {width: 20px}' => ':nth-col(odd){width:20px}',
+            ':nth-last-col(2n) {width: 20px}' => ':nth-last-col(2n){width:20px}',
+            ':nth-last-col(10n-1) {width: 20px}' => ':nth-last-col(10n-1){width:20px}',
+            ':nth-last-col(-n+2) {width: 20px}' => ':nth-last-col(-n+2){width:20px}',
+            ':nth-last-col(odd) {width: 20px}' => ':nth-last-col(odd){width:20px}',
+            '.test + .foo {color:red}' => '.test+.foo{color:red}',
+            '.test ~ .foo {color:red}' => '.test~.foo{color:red}',
+            '.test .foo {color:red}' => '.test .foo{color:red}',
+            '.test:not(.foo, .bar) {color:red}' => '.test:not(.foo,.bar){color:red}',
+            '.test:is(.foo, .bar) {color:red}' => '.test:is(.foo,.bar){color:red}',
+            '.test:where(.foo, .bar) {color:red}' => '.test:where(.foo,.bar){color:red}',
+            ':host {color:red}' => ':host{color:red}',
+            ':host(.foo) {color:red}' => ':host(.foo){color:red}',
+            'custom-element::part(foo) {color:red}' => 'custom-element::part(foo){color:red}',
+            '.sm\\:text-5xl { font-size: 3rem }' => '.sm\\:text-5xl{font-size:3rem}',
+            'a:has(> img) {color:red}' => 'a:has(>img){color:red}',
+            'dt:has(+ dt) {color:red}' => 'dt:has(+dt){color:red}',
+            'section:not(:has(h1, h2, h3, h4, h5, h6)) {color:red}' => 'section:not(:has(h1,h2,h3,h4,h5,h6)){color:red}',
+            ':has(.sibling ~ .target) {color:red}' => ':has(.sibling~.target){color:red}',
+            '.x:has(> .a > .b) {color:red}' => '.x:has(>.a>.b){color:red}',
+            '.x:has(.bar, #foo) {color:red}' => '.x:has(.bar,#foo){color:red}',
+            '.x:has(span + span) {color:red}' => '.x:has(span+span){color:red}',
+            'a:has(:visited) {color:red}' => 'a:has(:visited){color:red}',
+        ];
+
+        foreach ($cases as $input => $expected) {
+            $t->same($expected, $minifier->minify($input));
+        }
+    },
     'css minifier shortens upstream color keywords in declaration values' => static function (TestRunner $t): void {
         $css = '.foo { color: yellow; background: linear-gradient(blue, white); border-color: black; }';
         $t->same('.foo{color:#ff0;background:linear-gradient(#00f,#fff);border-color:#000}', (new CssMinifier())->minify($css));

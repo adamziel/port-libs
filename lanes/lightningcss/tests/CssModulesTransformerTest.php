@@ -3348,6 +3348,32 @@ CSS, [
             'circles' => $referenced('EgL3uq_circles'),
         ], $customIdentsDisabled['exports']);
 
+        $customIdentsDisabledListStyles = (new CssModulesTransformer())->transform(<<<'CSS'
+@counter-style circles {
+  symbols: A B C;
+}
+
+ul {
+  list-style: circles;
+}
+
+ol {
+  list-style-type: none;
+}
+
+li {
+  list-style-type: disc;
+}
+CSS, [
+            'customIdents' => false,
+        ]);
+
+        $t->same('@counter-style circles{symbols:A B C}ul{list-style:circles}ol{list-style-type:none}li{list-style-type:disc}', $customIdentsDisabledListStyles['code']);
+        $t->same([
+            'circles' => $referenced('EgL3uq_circles'),
+        ], $customIdentsDisabledListStyles['exports']);
+        $t->same([], $customIdentsDisabledListStyles['references']);
+
         $builtInTypeWins = (new CssModulesTransformer())->transform(<<<'CSS'
 @counter-style circles {
   symbols: A B C;
@@ -4207,6 +4233,13 @@ CSS;
             'foo' => $export('EgL3uq_foo'),
         ], $noneName['exports']);
         $t->same([], $noneName['references']);
+
+        $autoName = (new CssModulesTransformer())->transform('.foo { view-transition-name: auto }');
+        $t->same('.EgL3uq_foo{view-transition-name:auto}', $autoName['code']);
+        $t->same([
+            'foo' => $export('EgL3uq_foo'),
+        ], $autoName['exports']);
+        $t->same([], $autoName['references']);
     },
     'css modules scopes upstream view transition selector function idents' => static function (TestRunner $t) use ($export): void {
         $css = <<<'CSS'

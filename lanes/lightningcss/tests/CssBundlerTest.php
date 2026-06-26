@@ -3300,6 +3300,27 @@ CSS,
 
         throw new RuntimeException('Expected non-string read callback exception');
     },
+    'css bundler propagates upstream bundle visitor errors' => static function (TestRunner $t): void {
+        $visited = [];
+
+        try {
+            (new CssBundler())->bundleWithVisitor('tests/testdata/a.css', [
+                'tests/testdata/a.css' => '.a { color: red }',
+            ], [
+                'Rule' => static function (array $rule) use (&$visited): void {
+                    $visited[] = [$rule['type'], $rule['file'], $rule['loc']];
+                    throw new RuntimeException('Some error');
+                },
+            ]);
+        } catch (RuntimeException $exception) {
+            $t->same('Some error', $exception->getMessage());
+            $t->same([['style', 'tests/testdata/a.css', ['line' => 1, 'column' => 1]]], $visited);
+
+            return;
+        }
+
+        throw new RuntimeException('Expected upstream bundle visitor exception');
+    },
     'css bundler shares custom media definitions across imported graph' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '@media print{.a{color:green}}.entry{color:red}',
