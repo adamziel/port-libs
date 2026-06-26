@@ -51,7 +51,7 @@
             "currentWork": "Border advanced-color fallback rows, background authored-fallback cleanup rows, and t...",
             "nextTarget": "Continue converting the remaining 750 unmapped LightningCSS u...",
             "remainingGate": "Full upstream runner closure is partial: bounded Rust media test and...",
-            "commit": "SOURCE_COMMIT_P..."
+            "commit": "6317794"
         },
         {
             "lane": "gitoxide",
