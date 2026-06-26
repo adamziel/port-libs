@@ -51,7 +51,7 @@
             "currentWork": "Logical border formatter rows, physical border side shorthand folding rows, and curre...",
             "nextTarget": "Continue converting the remaining 776 unmapped LightningCSS u...",
             "remainingGate": "Full upstream runner closure is partial: bounded Rust media test and...",
-            "commit": "SOURCE_COMMIT_P..."
+            "commit": "ad3e0b7"
         },
         {
             "lane": "gitoxide",
