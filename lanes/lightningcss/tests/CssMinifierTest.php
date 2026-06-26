@@ -3366,6 +3366,10 @@ CSS;
             $minifier->minify('@container my-layout ( not (width > 500px) ) { .foo { color: red; } }')
         );
         $t->same(
+            '@container my-layout not (width>500px){.foo{color:red}}',
+            $minifier->minify('@container my-layout not (width > 500px) { .foo { color: red; } }')
+        );
+        $t->same(
             '@container not (width>500px){.foo{color:red}}',
             $minifier->minify('@container not (width > 500px) { .foo { color: red; } }')
         );
@@ -3374,16 +3378,44 @@ CSS;
             $minifier->minify('@container my-layout ((width: 100px) and (not (height: 100px))) { .foo { color: red; } }')
         );
         $t->same(
+            '@container my-layout (width=max(10px,10em)){.foo{color:red}}',
+            $minifier->minify('@container my-layout (width = max(10px, 10em)) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container (inline-size>45em){.foo{color:red}}',
+            $minifier->minify('@container (inline-size > 45em) { .foo { color: red; } }')
+        );
+        $t->same(
             '@container (inline-size>45em) and (inline-size<100em){.foo{color:red}}',
             $minifier->minify('@container (inline-size > 45em) and (inline-size < 100em) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container (width>calc(100vw - 50px)){.foo{color:red}}',
+            $minifier->minify('@container (width > calc(100vw - 50px)) { .foo { color: red; } }')
         );
         $t->same(
             '@container (height>=calc(100vh - 50px)){.foo{color:red}}',
             $minifier->minify('@container (calc(100vh - 50px) <= height) { .foo { color: red; } }')
         );
         $t->same(
+            '@container style(--responsive:true){.foo{color:red}}',
+            $minifier->minify('@container style(--responsive: true) { .foo { color: red; } }')
+        );
+        $t->same(
             '@container style(--responsive:true) and style(color:#ff0){.foo{color:red}}',
             $minifier->minify('@container style(--responsive: true) and style(color: yellow) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container not style(--responsive:true){.foo{color:red}}',
+            $minifier->minify('@container not style(--responsive: true) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container (inline-size>45em) and style(--responsive:true){.foo{color:red}}',
+            $minifier->minify('@container (inline-size > 45em) and style(--responsive: true) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container style((accent-color:#ff0) or (--bar:10px)){.foo{color:red}}',
+            $minifier->minify('@container style((accent-color: yellow) or (--bar: 10px)) { .foo { color: red; } }')
         );
         $t->same(
             '@container style(color:yellow){.foo{color:red}}',
@@ -3394,8 +3426,40 @@ CSS;
             $minifier->minify('@container style(not ((width: calc(10px + 20px)) and ((--bar: url(x))))) { .foo { color: red; } }')
         );
         $t->same(
+            '@container style(--foo:){.foo{color:red}}',
+            $minifier->minify('@container style(--foo:) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container style(--foo:){.foo{color:red}}',
+            $minifier->minify('@container style(--foo: ) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container style(--test){.foo{color:red}}',
+            $minifier->minify('@container style(--test) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container style(width){.foo{color:red}}',
+            $minifier->minify('@container style(width) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container scroll-state(scrollable:top){.foo{color:red}}',
+            $minifier->minify('@container scroll-state(scrollable: top) { .foo { color: red; } }')
+        );
+        $t->same(
             '@container scroll-state((stuck:top) and (stuck:left)){.foo{color:red}}',
             $minifier->minify('@container scroll-state((stuck: top) and (stuck: left)) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container scroll-state(not ((scrollable:bottom) and (scrollable:right))){.foo{color:red}}',
+            $minifier->minify('@container scroll-state(not ((scrollable: bottom) and (scrollable: right))) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container scroll-state(scrollable:inline-end){.foo{color:red}}',
+            $minifier->minify('@container (scroll-state(scrollable: inline-end)) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container not scroll-state(scrollable:top){.foo{color:red}}',
+            $minifier->minify('@container not scroll-state(scrollable: top) { .foo { color: red; } }')
         );
     },
     'css minifier maps upstream container declaration composition' => static function (TestRunner $t): void {
