@@ -228,6 +228,14 @@ CSS
 }
 CSS)
         );
+        $t->same(
+            '.foo{border:1px solid}',
+            $minifier->minify(<<<'CSS'
+.foo {
+  border: 1px solid currentColor;
+}
+CSS)
+        );
         $t->same('.foo{border-width:0 0 1px}', $minifier->minify('.foo { border-width: 0 0 1px; }'));
         $t->same(
             '.foo{border-bottom:1px solid var(--spectrum-global-color-gray-200)}',

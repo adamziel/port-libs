@@ -354,6 +354,17 @@ CSS));
 
         $t->same(<<<'CSS'
 .foo {
+  border: 1px solid;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border: 1px solid currentColor;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
   border: 2px solid red;
 }
 
@@ -495,6 +506,191 @@ CSS, $formatter->format(<<<'CSS'
 .foo {
   border-width: 0;
   border-bottom: var(--test, 1px) solid;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border: 1px solid #000;
+  border-width: 1px 1px 0 0;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border: 1px solid black;
+  border-width: 1px 1px 0 0;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border: 1px solid #000;
+  border-width: 1px 2px;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-top: 1px solid black;
+  border-bottom: 1px solid black;
+  border-left: 2px solid black;
+  border-right: 2px solid black;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border: 1px solid #000;
+  border-left-width: 2px;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-top: 1px solid black;
+  border-bottom: 1px solid black;
+  border-left: 2px solid black;
+  border-right: 1px solid black;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border: 1px solid #000;
+  border-color: #000 red;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-top: 1px solid black;
+  border-bottom: 1px solid black;
+  border-left: 1px solid red;
+  border-right: 1px solid red;
+}
+CSS));
+    },
+    'css formatter maps upstream logical border printer cases' => static function (TestRunner $t): void {
+        $formatter = new CssFormatter();
+
+        $t->same(<<<'CSS'
+.foo {
+  border-top: thin dotted red;
+  border-block-start: thick solid green;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-top: thin dotted red;
+  border-block-start: thick solid green;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border: thin dotted red;
+  border-block-start-width: thick;
+  border-left-width: medium;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border: thin dotted red;
+  border-block-start-width: thick;
+  border-left-width: medium;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border-block-start: thin dotted red;
+  border-inline-end: thin dotted red;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-block-start: thin dotted red;
+  border-inline-end: thin dotted red;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border-block-start: thin dotted red;
+  border-inline-end: thin dotted red;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-block-start-width: thin;
+  border-block-start-style: dotted;
+  border-block-start-color: red;
+  border-inline-end: thin dotted red;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border-block: thin dotted red;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-block-start: thin dotted red;
+  border-block-end: thin dotted red;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border-width: 1px;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-block-width: 1px;
+  border-inline-width: 1px;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border-width: 1px;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-block-start-width: 1px;
+  border-block-end-width: 1px;
+  border-inline-start-width: 1px;
+  border-inline-end-width: 1px;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border-block-width: 1px;
+  border-inline-width: 2px;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-block-start-width: 1px;
+  border-block-end-width: 1px;
+  border-inline-start-width: 2px;
+  border-inline-end-width: 2px;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  border-block-width: 1px;
+  border-inline-width: 2px 3px;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  border-block-start-width: 1px;
+  border-block-end-width: 1px;
+  border-inline-start-width: 2px;
+  border-inline-end-width: 3px;
 }
 CSS));
     },

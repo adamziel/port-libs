@@ -4175,6 +4175,32 @@ final class CssMinifier
         }
 
         $tokens = $this->splitWhitespaceTopLevel(trim($value));
+        if (count($tokens) === 3) {
+            $withoutDefaultColor = [];
+            $hasWidth = false;
+            $hasStyle = false;
+            $omittedDefaultColor = false;
+
+            foreach ($tokens as $token) {
+                if (strcasecmp($token, 'currentColor') === 0) {
+                    $omittedDefaultColor = true;
+                    continue;
+                }
+
+                if ($this->isBorderShorthandStyleToken($token)) {
+                    $hasStyle = true;
+                } elseif ($this->isBorderShorthandWidthToken($token)) {
+                    $hasWidth = true;
+                }
+
+                $withoutDefaultColor[] = $this->minifyBorderShorthandToken($token);
+            }
+
+            if ($omittedDefaultColor && $hasWidth && $hasStyle && count($withoutDefaultColor) === 2) {
+                return implode(' ', $withoutDefaultColor);
+            }
+        }
+
         if (count($tokens) !== 2) {
             return trim($value);
         }
@@ -4189,6 +4215,45 @@ final class CssMinifier
         }
 
         return trim($value);
+    }
+
+    private function isBorderShorthandStyleToken(string $token): bool
+    {
+        return in_array(strtolower(trim($token)), [
+            'none',
+            'hidden',
+            'dotted',
+            'dashed',
+            'solid',
+            'double',
+            'groove',
+            'ridge',
+            'inset',
+            'outset',
+        ], true);
+    }
+
+    private function isBorderShorthandWidthToken(string $token): bool
+    {
+        $lower = strtolower(trim($token));
+        if (in_array($lower, ['thin', 'medium', 'thick'], true)) {
+            return true;
+        }
+
+        return preg_match('/^(?:0(?:\.0+)?|(?:\d+\.\d+|\.\d+|\d+)(?:[a-z%]+))$/i', $lower) === 1;
+    }
+
+    private function minifyBorderShorthandToken(string $token): string
+    {
+        if ($this->isBorderShorthandStyleToken($token)) {
+            return strtolower(trim($token));
+        }
+
+        if ($this->isBorderShorthandWidthToken($token)) {
+            return $this->minifyBorderShorthandNonStyleToken($token);
+        }
+
+        return trim($token);
     }
 
     private function isBorderShorthandNonStyleToken(string $token): bool
