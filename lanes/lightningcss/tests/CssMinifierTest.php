@@ -4053,6 +4053,28 @@ CSS;
         $t->same('.foo{text-justify:auto}', $minifier->minify('.foo { text-justify: auto }'));
         $t->same('.foo{text-justify:inter-word}', $minifier->minify('.foo { text-justify: inter-word }'));
     },
+    'css minifier maps upstream word spacing letter spacing and text indent values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $cases = [
+            '.foo { word-spacing: normal }' => '.foo{word-spacing:normal}',
+            '.foo { word-spacing: 3px }' => '.foo{word-spacing:3px}',
+            '.foo { letter-spacing: normal }' => '.foo{letter-spacing:normal}',
+            '.foo { letter-spacing: 3px }' => '.foo{letter-spacing:3px}',
+            '.foo { text-indent: 20px }' => '.foo{text-indent:20px}',
+            '.foo { text-indent: 10% }' => '.foo{text-indent:10%}',
+            '.foo { text-indent: 3em hanging }' => '.foo{text-indent:3em hanging}',
+            '.foo { text-indent: 3em each-line }' => '.foo{text-indent:3em each-line}',
+            '.foo { text-indent: 3em hanging each-line }' => '.foo{text-indent:3em hanging each-line}',
+            '.foo { text-indent: 3em each-line hanging }' => '.foo{text-indent:3em hanging each-line}',
+            '.foo { text-indent: each-line 3em hanging }' => '.foo{text-indent:3em hanging each-line}',
+            '.foo { text-indent: each-line hanging 3em }' => '.foo{text-indent:3em hanging each-line}',
+        ];
+
+        foreach ($cases as $input => $expected) {
+            $t->same($expected, $minifier->minify($input));
+        }
+    },
     'css minifier maps upstream caret values' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

@@ -3664,8 +3664,16 @@ CSS;
             $prefixer->prefixForTargets('.foo { background: #4263eb; background: color(display-p3 0 .5 1); }', ['chrome' => 99])
         );
         $t->same(
+            '.foo{background:red;background:linear-gradient(lch(50% 132 50),lch(50% 130 150))}',
+            $prefixer->prefixForTargets('.foo { background: red; background: linear-gradient(lch(50% 132 50), lch(50% 130 150)); }', ['chrome' => 99])
+        );
+        $t->same(
             '.foo{background:linear-gradient(lch(50% 132 50),lch(50% 130 150))}',
             $prefixer->prefixForTargets('.foo { background: linear-gradient(red, green); background: linear-gradient(lch(50% 132 50), lch(50% 130 150)); }', ['safari' => 16])
+        );
+        $t->same(
+            '.foo{background:var(--fallback);background:linear-gradient(lch(50% 132 50),lch(50% 130 150))}',
+            $prefixer->prefixForTargets('.foo { background: var(--fallback); background: linear-gradient(lch(50% 132 50), lch(50% 130 150)); }', ['chrome' => 99])
         );
         $t->same(
             '.foo{border-color:#4263eb;border-color:color(display-p3 0 .5 1)}',

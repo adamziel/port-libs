@@ -4945,6 +4945,8 @@ final class CssMinifier
             'text-transform' => $this->minifyTextTransformValue($value),
             'line-break' => $this->minifySingleKeywordValue($value, ['auto', 'loose', 'anywhere']),
             'overflow-wrap', 'word-wrap' => $this->minifySingleKeywordValue($value, ['normal', 'break-word', 'anywhere']),
+            'word-spacing', 'letter-spacing' => $this->minifySingleKeywordOrLengthValue($value, ['normal']),
+            'text-indent' => $this->minifyTextIndentValue($value),
             default => $value,
         };
     }
@@ -4958,6 +4960,79 @@ final class CssMinifier
         $lower = strtolower($trimmed);
 
         return in_array($lower, $keywords, true) ? $lower : $trimmed;
+    }
+
+    /**
+     * @param list<string> $keywords
+     */
+    private function minifySingleKeywordOrLengthValue(string $value, array $keywords): string
+    {
+        $trimmed = trim($value);
+        $lower = strtolower($trimmed);
+        if (in_array($lower, $keywords, true)) {
+            return $lower;
+        }
+
+        return $this->isLengthPercentageToken($trimmed) ? $this->minifyLengthToken($trimmed) : $trimmed;
+    }
+
+    private function minifyTextIndentValue(string $value): string
+    {
+        $trimmed = trim($value);
+        $tokens = $this->splitWhitespaceTopLevel($trimmed);
+        if ($tokens === []) {
+            return $trimmed;
+        }
+
+        $length = null;
+        $hanging = false;
+        $eachLine = false;
+        foreach ($tokens as $token) {
+            $lower = strtolower($token);
+            if ($lower === 'hanging') {
+                if ($hanging) {
+                    return $trimmed;
+                }
+
+                $hanging = true;
+                continue;
+            }
+
+            if ($lower === 'each-line') {
+                if ($eachLine) {
+                    return $trimmed;
+                }
+
+                $eachLine = true;
+                continue;
+            }
+
+            if ($length === null && $this->isLengthPercentageToken($token)) {
+                $length = $this->minifyLengthToken($token);
+                continue;
+            }
+
+            return $trimmed;
+        }
+
+        if ($length === null) {
+            return $trimmed;
+        }
+
+        $parts = [$length];
+        if ($hanging) {
+            $parts[] = 'hanging';
+        }
+        if ($eachLine) {
+            $parts[] = 'each-line';
+        }
+
+        return implode(' ', $parts);
+    }
+
+    private function isLengthPercentageToken(string $token): bool
+    {
+        return preg_match('/^[+-]?(?:0(?:\.0+)?|\d+\.\d+|\.\d+|\d+)(?:[a-z%]+)?$/i', trim($token)) === 1;
     }
 
     private function minifyTextTransformValue(string $value): string
