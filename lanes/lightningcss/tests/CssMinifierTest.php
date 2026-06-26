@@ -4075,6 +4075,13 @@ CSS;
             $t->same($expected, $minifier->minify($input));
         }
     },
+    'css minifier maps upstream text-size-adjust values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{text-size-adjust:none}', $minifier->minify('.foo { text-size-adjust: none }'));
+        $t->same('.foo{text-size-adjust:auto}', $minifier->minify('.foo { text-size-adjust: auto }'));
+        $t->same('.foo{text-size-adjust:80%}', $minifier->minify('.foo { text-size-adjust: 80% }'));
+    },
     'css minifier maps upstream caret values' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

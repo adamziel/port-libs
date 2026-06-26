@@ -11009,18 +11009,24 @@ final class TransitionPrefixer
                 continue;
             }
 
+            if (!$isCustomProperty && $entry['property'] === 'background') {
+                [$rewritten, $normalizedPrevious] = $this->normalizePreviousBackgroundAuthoredFallback($rewritten, $entry['property']);
+                $changed = $changed || $normalizedPrevious;
+            }
+
             $hasCustomPropertyReference = $this->containsCustomPropertyReference($normalized);
             $hasEnvironmentReference = $this->containsEnvironmentReference($normalized);
             if ($supportsNative && !$needsSrgbFallback && !$usesP3Fallback && !$needsLabFallback) {
                 [$rewritten, $dropped] = $this->dropPreviousSamePropertyFallbacks($rewritten, $entry['property']);
-                $rewritten[] = $entry;
-                $changed = $changed || $dropped;
+                $rewritten[] = $this->entryWithValue($entry, $normalized);
+                $changed = $changed || $dropped || $normalized !== $entry['value'];
                 continue;
             }
 
             $srgbFallback = $this->advancedColorFallbackValue($normalized);
             if ($srgbFallback === null) {
-                $rewritten[] = $entry;
+                $rewritten[] = $this->entryWithValue($entry, $normalized);
+                $changed = $changed || $normalized !== $entry['value'];
                 continue;
             }
 
@@ -11129,6 +11135,35 @@ final class TransitionPrefixer
         }
 
         return false;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @return array{0:list<array{property:string,name:string,value:string,important:bool}>,1:bool}
+     */
+    private function normalizePreviousBackgroundAuthoredFallback(array $entries, string $property): array
+    {
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            $entry = $entries[$index];
+            if ($entry['property'] !== $property) {
+                continue;
+            }
+
+            if ($entry['important'] || $this->advancedColorFallbackValue($entry['value']) !== null) {
+                return [$entries, false];
+            }
+
+            $normalized = $this->normalizeBackgroundFallbackValue($entry['value']);
+            if ($normalized === $entry['value']) {
+                return [$entries, false];
+            }
+
+            $entries[$index]['value'] = $normalized;
+
+            return [$entries, true];
+        }
+
+        return [$entries, false];
     }
 
     private function propertySupportsAdvancedColorFallback(string $property, string $value): bool

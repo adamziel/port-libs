@@ -3676,6 +3676,10 @@ CSS;
             $prefixer->prefixForTargets('.foo { background: var(--fallback); background: linear-gradient(lch(50% 132 50), lch(50% 130 150)); }', ['chrome' => 99])
         );
         $t->same(
+            '.foo{background:red url("foo.png");background:lch(50% 132 50) url("foo.png")}',
+            $prefixer->prefixForTargets('.foo { background: red url(foo.png); background: lch(50% 132 50) url(foo.png); }', ['chrome' => 99])
+        );
+        $t->same(
             '.foo{border-color:#4263eb;border-color:color(display-p3 0 .5 1)}',
             $prefixer->prefixForTargets('.foo { border-color: #4263eb; border-color: color(display-p3 0 .5 1); }', ['chrome' => 99])
         );
