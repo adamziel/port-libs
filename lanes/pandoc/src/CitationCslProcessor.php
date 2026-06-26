@@ -1081,7 +1081,7 @@ final class CitationCslProcessor
         }
 
         $issuedDate = self::dateVariable(self::firstPresentField($item, ['issued', 'issuedDate', 'issued-date', 'issueddate', 'date']), $id, 'issued');
-        $sourceFilePolicy = self::sourceFilesWithDiagnostics($item['sourceFiles'] ?? [], $id);
+        $sourceFilePolicy = self::sourceFilePolicy($item, $id);
         $sourceFileDiagnostics = [
             ...$sourceFilePolicy['diagnostics'],
             ...self::sourceFileDiagnostics($item['sourceFileDiagnostics'] ?? [], $id),
@@ -3727,6 +3727,109 @@ final class CitationCslProcessor
         }
 
         return ['files' => $files, 'diagnostics' => $diagnostics];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array{files:list<array{label:string, path:string, mediaType:string}>, diagnostics:list<array{label:string, path:string, mediaType:string, reason:string, importable:bool}>}
+     */
+    private static function sourceFilePolicy(array $item, string $id): array
+    {
+        if (array_key_exists('sourceFiles', $item)) {
+            return self::sourceFilesWithDiagnostics($item['sourceFiles'], $id);
+        }
+
+        $value = self::firstPresentField($item, [
+            'source-files',
+            'sourcefiles',
+            'sourceFile',
+            'source-file',
+            'sourcefile',
+            'source-attachments',
+            'sourceAttachments',
+            'sourceattachments',
+            'attachments',
+            'attachment',
+            'file',
+            'pdf',
+        ]);
+
+        if (is_scalar($value)) {
+            return self::compactSourceFilesWithDiagnostics((string) $value);
+        }
+
+        return self::sourceFilesWithDiagnostics($value, $id);
+    }
+
+    /**
+     * @return array{files:list<array{label:string, path:string, mediaType:string}>, diagnostics:list<array{label:string, path:string, mediaType:string, reason:string, importable:bool}>}
+     */
+    private static function compactSourceFilesWithDiagnostics(string $value): array
+    {
+        $files = [];
+        $diagnostics = [];
+
+        foreach (explode(';', $value) as $entry) {
+            $entry = trim($entry);
+            if ($entry === '') {
+                continue;
+            }
+
+            $parsed = self::compactSourceFileEntry($entry);
+            $policy = self::sourceFilePathPolicy($parsed['path']);
+            if ($policy['reason'] === '') {
+                $files[] = [
+                    'label' => $parsed['label'],
+                    'path' => $policy['path'],
+                    'mediaType' => $parsed['mediaType'],
+                ];
+            } else {
+                $diagnostics[] = self::sourceFilePolicyDiagnostic(
+                    $parsed['label'],
+                    $parsed['path'],
+                    $parsed['mediaType'],
+                    $policy['reason']
+                );
+            }
+        }
+
+        return ['files' => $files, 'diagnostics' => $diagnostics];
+    }
+
+    /**
+     * @return array{label:string, path:string, mediaType:string}
+     */
+    private static function compactSourceFileEntry(string $entry): array
+    {
+        $parts = array_map('trim', explode(':', $entry));
+        if (count($parts) >= 3) {
+            $mediaType = array_pop($parts) ?? '';
+            if (preg_match('/^[A-Za-z][A-Za-z0-9+.-]*$/', $parts[0]) === 1 && str_starts_with($parts[1] ?? '', '//')) {
+                $label = '';
+                $path = implode(':', $parts);
+            } else {
+                $label = array_shift($parts) ?? '';
+                $path = implode(':', $parts);
+            }
+        } elseif (count($parts) === 2) {
+            $label = '';
+            if (preg_match('/^[A-Za-z][A-Za-z0-9+.-]*$/', $parts[0]) === 1 && str_starts_with($parts[1], '//')) {
+                $path = $parts[0] . ':' . $parts[1];
+                $mediaType = '';
+            } else {
+                [$path, $mediaType] = $parts;
+            }
+        } else {
+            $label = '';
+            $path = $entry;
+            $mediaType = '';
+        }
+
+        return [
+            'label' => $label,
+            'path' => trim($path),
+            'mediaType' => $mediaType,
+        ];
     }
 
     private static function sourceFileString(mixed $value, string $id, int $index, string $field): string

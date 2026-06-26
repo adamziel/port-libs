@@ -1372,6 +1372,99 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Attachment Review Packet :: attachments/source-audit.pdf; attachments/reviewer notes.html :: application/pdf; text/html :: remote-uri; absolute-path</dd>', $blocks);
         $t->contains('<dt>Manual Attachment Packet 2025</dt><dd>Manual Attachment Packet :: attachments/manual.pdf</dd>', $blocks);
     },
+    'normalizes bounded direct csl json compact source file aliases' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-attachment-compact',
+                'type' => 'webpage',
+                'title' => 'Direct Attachment Compact Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026, 6, 26]]],
+                'attachments' => 'Review PDF:attachments/direct%20audit.pdf:application/pdf; Remote PDF:https://example.test/direct-audit.pdf:application/pdf; https://example.test/unlabeled.pdf:application/pdf; Encoded Traversal:attachments/%2e%2e/private.pdf:application/pdf',
+            ],
+            [
+                'id' => 'direct-pdf-alias',
+                'type' => 'report',
+                'title' => 'Direct PDF Alias Packet',
+                'issued' => ['date-parts' => [[2025]]],
+                'pdf' => 'Audit PDF:attachments/audit-alias.pdf:application/pdf',
+            ],
+            [
+                'id' => 'direct-source-file-list',
+                'type' => 'document',
+                'title' => 'Direct Source File List Packet',
+                'issued' => ['date-parts' => [[2024]]],
+                'source-file' => [
+                    ['label' => 'Source HTML', 'path' => 'attachments/source-list.html', 'mediaType' => 'text/html'],
+                    'https://example.test/source-list.html',
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $compact = $processor->item('direct-attachment-compact');
+        $pdf = $processor->item('direct-pdf-alias');
+        $list = $processor->item('direct-source-file-list');
+        $t->same([['label' => 'Review PDF', 'path' => 'attachments/direct audit.pdf', 'mediaType' => 'application/pdf']], $compact['sourceFiles'] ?? null);
+        $t->same(['remote-uri', 'remote-uri', 'path-traversal'], array_column($compact['sourceFileDiagnostics'] ?? [], 'reason'));
+        $t->same('Remote PDF', $compact['sourceFileDiagnostics'][0]['label'] ?? null);
+        $t->same('https://example.test/direct-audit.pdf', $compact['sourceFileDiagnostics'][0]['path'] ?? null);
+        $t->same('https://example.test/unlabeled.pdf', $compact['sourceFileDiagnostics'][1]['path'] ?? null);
+        $t->same('attachments/audit-alias.pdf', $pdf['sourceFiles'][0]['path'] ?? null);
+        $t->same('attachments/source-list.html', $list['sourceFiles'][0]['path'] ?? null);
+        $t->same('remote-uri', $list['sourceFileDiagnostics'][0]['reason'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Source File Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-source-file-alias-review</id>
+    <updated>2026-06-26T18:18:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="source-file-summary"/>
+        <text variable="source-file-diagnostic-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="source-file-labels"/>
+      <text variable="source-file-paths"/>
+      <text variable="source-file-diagnostic-reasons"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Source File Alias Review', $summary['title'] ?? null);
+        $t->same('source-file-summary', $citationChildren[1]['variable'] ?? null);
+        $t->same('source-file-diagnostic-summary', $citationChildren[2]['variable'] ?? null);
+        $t->same('[Direct Attachment Compact Packet | Review PDF: attachments/direct audit.pdf (application/pdf) | Remote PDF: remote-uri (https://example.test/direct-audit.pdf); remote-uri (https://example.test/unlabeled.pdf); Encoded Traversal: path-traversal (attachments/%2e%2e/private.pdf); Direct PDF Alias Packet | Audit PDF: attachments/audit-alias.pdf (application/pdf); Direct Source File List Packet | Source HTML: attachments/source-list.html (text/html) | remote-uri (https://example.test/source-list.html)]', $styled->renderCitationCluster([
+            $citation('direct-attachment-compact', '[@direct-attachment-compact]'),
+            $citation('direct-pdf-alias', '[@direct-pdf-alias]'),
+            $citation('direct-source-file-list', '[@direct-source-file-list]'),
+        ]));
+        $t->same('Direct Attachment Compact Packet :: Review PDF :: attachments/direct audit.pdf :: remote-uri; path-traversal', $styled->renderBibliographyEntry('direct-attachment-compact'));
+        $t->same('Direct PDF Alias Packet :: Audit PDF :: attachments/audit-alias.pdf', $styled->renderBibliographyEntry('direct-pdf-alias'));
+        $t->same('Direct Source File List Packet :: Source HTML :: attachments/source-list.html :: remote-uri', $styled->renderBibliographyEntry('direct-source-file-list'));
+
+        $document = (new MarkdownReader())->read('Direct attachments [@direct-attachment-compact; @direct-pdf-alias; @direct-source-file-list] keep review file policy visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct attachments [Direct Attachment Compact Packet | Review PDF: attachments/direct audit.pdf (application/pdf) | Remote PDF: remote-uri (https://example.test/direct-audit.pdf); remote-uri (https://example.test/unlabeled.pdf); Encoded Traversal: path-traversal (attachments/%2e%2e/private.pdf); Direct PDF Alias Packet | Audit PDF: attachments/audit-alias.pdf (application/pdf); Direct Source File List Packet | Source HTML: attachments/source-list.html (text/html) | remote-uri (https://example.test/source-list.html)] keep review file policy visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Direct Attachment Compact Packet :: Review PDF :: attachments/direct audit.pdf :: remote-uri; path-traversal</dd>', $blocks);
+        $t->contains('<dt>Direct PDF Alias Packet 2025</dt><dd>Direct PDF Alias Packet :: Audit PDF :: attachments/audit-alias.pdf</dd>', $blocks);
+        $t->contains('<dt>Direct Source File List Packet 2024</dt><dd>Direct Source File List Packet :: Source HTML :: attachments/source-list.html :: remote-uri</dd>', $blocks);
+    },
     'maps bounded biblatex pdf aliases into source file attachment metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @online{pdf-alias-source,
