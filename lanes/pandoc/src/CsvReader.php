@@ -24,10 +24,10 @@ final class CsvReader
     {
         $decoded = $this->decodeSource($source);
         $source = $decoded['source'];
-        [$source, $delimiter] = $this->sourceAndDelimiter($source);
         $quote = $this->quoteChar();
         $escape = $this->escapeChar();
         $comment = $this->commentChar();
+        [$source, $delimiter] = $this->sourceAndDelimiter($source, $quote, $escape, $comment);
         $rows = $this->parseRows($source, $delimiter, $quote, $escape, $comment);
         $columnCount = $this->maxColumnCount($rows);
         $raggedRows = $this->raggedRowCount($rows, $columnCount);
@@ -83,7 +83,7 @@ final class CsvReader
     /**
      * @return array{0:string,1:string}
      */
-    private function sourceAndDelimiter(string $source): array
+    private function sourceAndDelimiter(string $source, ?string $quote, ?string $escape, ?string $comment): array
     {
         if ($this->format === 'tsv') {
             return [$source, "\t"];
@@ -99,7 +99,7 @@ final class CsvReader
             return [substr($normalized, strlen($match[0])), $match[1]];
         }
 
-        return [$source, $this->detectDelimiter($normalized)];
+        return [$source, $this->detectDelimiter($normalized, $quote, $escape, $comment)];
     }
 
     private function quoteChar(): ?string
@@ -162,29 +162,33 @@ final class CsvReader
         return ['source' => $source, 'encoding' => 'UTF-8'];
     }
 
-    private function detectDelimiter(string $source): string
+    private function detectDelimiter(string $source, ?string $quote, ?string $escape, ?string $comment): string
     {
         $candidates = [',', ';', "\t", '|'];
         $best = ',';
         $bestScore = -1;
-        $lines = array_values(array_filter(
-            array_slice(explode("\n", $source), 0, 12),
-            static fn (string $line): bool => trim($line) !== '' && stripos(trim($line), 'sep=') !== 0
-        ));
+        $lines = $this->delimiterSampleLines($source, $comment);
         foreach ($candidates as $candidate) {
             $counts = [];
+            $strayQuotes = 0;
             foreach ($lines as $line) {
-                $counts[] = substr_count($line, $candidate) + 1;
+                $shape = $this->delimiterLineShape($line, $candidate, $quote, $escape);
+                $counts[] = $shape['fields'];
+                $strayQuotes += $shape['strayQuotes'];
             }
             $positive = array_values(array_filter($counts, static fn (int $count): bool => $count > 1));
             if ($positive === []) {
                 continue;
             }
-            $frequency = array_count_values($positive);
+            $frequency = array_count_values($counts);
             arsort($frequency);
             $commonColumns = (int) array_key_first($frequency);
             $commonRows = (int) reset($frequency);
-            $score = ($commonColumns * 100) + ($commonRows * 10) - (max($positive) - min($positive));
+            $score = ($commonRows * 1000)
+                + ($commonColumns * 100)
+                + (count($positive) * 10)
+                - ((max($counts) - min($counts)) * 100)
+                - ($strayQuotes * 1000);
             if ($score > $bestScore) {
                 $bestScore = $score;
                 $best = $candidate;
@@ -192,6 +196,96 @@ final class CsvReader
         }
 
         return $best;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function delimiterSampleLines(string $source, ?string $comment): array
+    {
+        $lines = [];
+        foreach (explode("\n", $source) as $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '' || stripos($trimmed, 'sep=') === 0) {
+                continue;
+            }
+            if ($comment !== null && str_starts_with(ltrim($line, " \t"), $comment)) {
+                continue;
+            }
+
+            $lines[] = $line;
+            if (count($lines) >= 12) {
+                break;
+            }
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @return array{fields:int,strayQuotes:int}
+     */
+    private function delimiterLineShape(string $line, string $delimiter, ?string $quote, ?string $escape): array
+    {
+        $field = '';
+        $quoted = false;
+        $inQuote = false;
+        $afterClosingQuote = false;
+        $count = 1;
+        $strayQuotes = 0;
+        $length = strlen($line);
+
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $line[$offset];
+            if ($quote !== null && $inQuote) {
+                if ($escape !== null && $char === $escape && $offset + 1 < $length) {
+                    $offset++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    if ($offset + 1 < $length && $line[$offset + 1] === $quote) {
+                        $offset++;
+                        continue;
+                    }
+                    $inQuote = false;
+                    $afterClosingQuote = true;
+                    continue;
+                }
+                continue;
+            }
+
+            if ($quote !== null && $char === $quote && trim($field) === '') {
+                $field = '';
+                $quoted = true;
+                $inQuote = true;
+                $afterClosingQuote = false;
+                continue;
+            }
+            if ($quote !== null && $char === $quote) {
+                $strayQuotes++;
+            }
+
+            if ($quote !== null && $quoted && $afterClosingQuote && ($char === ' ' || $char === "\t")) {
+                continue;
+            }
+
+            if ($char === $delimiter) {
+                $count++;
+                $field = '';
+                $quoted = false;
+                $afterClosingQuote = false;
+                continue;
+            }
+
+            $field .= $char;
+            $afterClosingQuote = false;
+        }
+
+        if ($inQuote) {
+            $strayQuotes++;
+        }
+
+        return ['fields' => $count, 'strayQuotes' => $strayQuotes];
     }
 
     public function readCsvFile(string $path): AstNode

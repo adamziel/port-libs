@@ -90,6 +90,36 @@ return [
         $t->same('', $table->children[0]->children[0]->children[2]->attr('text'));
         $t->contains('<tbody><tr><td data-csv-type="string">Ada</td><td data-csv-type="string">Lovelace</td><td data-csv-type="string"></td></tr><tr><td data-csv-type="string">Grace</td><td data-csv-type="string">Hopper</td><td data-csv-type="string">COBOL</td></tr></tbody>', $blocks);
     },
+    'detects semicolon csv without counting quoted commas as delimiters' => static function (TestRunner $t): void {
+        $source = implode("\n", [
+            'Name;Note;Count',
+            'Ada;"one, two, three, four, five, six";1',
+            'Grace;"alpha, beta, gamma, delta, epsilon, zeta";2',
+        ]);
+
+        $document = PandocConverter::read($source, 'csv');
+        $meta = $document->attr('meta');
+        $table = $document->children[0];
+        $body = $table->children[1];
+        $blocks = PandocConverter::convert($source, 'csv', 'blocks');
+        $headerless = PandocConverter::read(implode("\n", array_slice(explode("\n", $source), 1)), 'csv', [
+            'header' => false,
+        ]);
+        $headerlessMeta = $headerless->attr('meta');
+
+        $t->same(';', $meta['csvDelimiter']);
+        $t->same(3, $meta['csvColumnCount']);
+        $t->same(0, $meta['csvRaggedRowCount']);
+        $t->same(['string', 'string', 'integer'], $meta['csvColumnTypes']);
+        $t->same('one, two, three, four, five, six', $body->children[0]->children[1]->attr('text'));
+        $t->same('2', $body->children[1]->children[2]->attr('text'));
+        $t->contains('<table data-pandoc-source="csv" data-csv-row-count="3" data-csv-column-count="3">', $blocks);
+        $t->contains('<td data-csv-type="string">alpha, beta, gamma, delta, epsilon, zeta</td><td data-csv-type="integer">2</td>', $blocks);
+        $t->same(';', $headerlessMeta['csvDelimiter']);
+        $t->same(false, $headerlessMeta['csvHeader']);
+        $t->same(3, $headerlessMeta['csvColumnCount']);
+        $t->same(0, $headerlessMeta['csvRaggedRowCount']);
+    },
     'reads csv comments alternate quote escape encoding and inferred types' => static function (TestRunner $t): void {
         $source = implode("\n", [
             '# generated export',
