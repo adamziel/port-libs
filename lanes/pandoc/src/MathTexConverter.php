@@ -6,6 +6,8 @@ namespace PortLibs\Pandoc;
 
 final class MathTexConverter
 {
+    private const TEX_FUNCTION_OPERATOR_ATTRIBUTE = 'data-tex-function-operator="true"';
+
     /** @var array<string, string> */
     private const IDENTIFIER_COMMANDS = [
         'aleph' => 'ℵ',
@@ -1065,6 +1067,7 @@ final class MathTexConverter
         'ℏ' => 'h bar',
         '⏦' => 'AC current',
         '∞' => 'infinity',
+        '⁡' => 'of',
         '≈' => 'approximately equals',
         '≊' => 'approximately equal or equal to',
         '϶' => 'reversed epsilon',
@@ -1871,7 +1874,7 @@ final class MathTexConverter
      */
     private function renderEquationBody(array $children, array $equation): string
     {
-        $body = $this->row($children);
+        $body = $this->stripTransientMathMlMetadata($this->row($children));
         if ($equation['tag'] !== null) {
             $tagText = $equation['tagStarred'] ? $equation['tag'] : '(' . $equation['tag'] . ')';
             $labelAttribute = $equation['labelId'] !== null ? ' id="' . $this->esc($equation['labelId']) . '"' : '';
@@ -1887,6 +1890,11 @@ final class MathTexConverter
         }
 
         return $body;
+    }
+
+    private function stripTransientMathMlMetadata(string $mathml): string
+    {
+        return str_replace(' ' . self::TEX_FUNCTION_OPERATOR_ATTRIBUTE, '', $mathml);
     }
 
     private function withMathMlId(string $mathml, string $id): string
@@ -3246,10 +3254,82 @@ final class MathTexConverter
             ) {
                 $scriptPlacement = $defaultScriptPlacement;
             }
-            $nodes[] = $this->applyScripts($source, $offset, $base, $scriptPlacement);
+            $this->appendExpressionNode($nodes, $this->applyScripts($source, $offset, $base, $scriptPlacement));
         }
 
         return $nodes;
+    }
+
+    /**
+     * @param list<string> $nodes
+     */
+    private function appendExpressionNode(array &$nodes, string $node): void
+    {
+        if ($node === '') {
+            $nodes[] = $node;
+
+            return;
+        }
+
+        $previousIndex = $this->previousNonSpacingExpressionNodeIndex($nodes);
+        if (
+            $previousIndex !== null
+            && $this->mathMlNodeHasFunctionOperatorHead($nodes[$previousIndex])
+            && $this->mathMlNodeCanStartFunctionArgument($node)
+        ) {
+            $nodes[] = '<mo>⁡</mo>';
+        }
+
+        $nodes[] = $node;
+    }
+
+    /**
+     * @param list<string> $nodes
+     */
+    private function previousNonSpacingExpressionNodeIndex(array $nodes): ?int
+    {
+        for ($index = count($nodes) - 1; $index >= 0; $index--) {
+            if ($nodes[$index] === '' || $this->mathMlNodeIsSpacing($nodes[$index])) {
+                continue;
+            }
+
+            return $index;
+        }
+
+        return null;
+    }
+
+    private function mathMlNodeHasFunctionOperatorHead(string $node): bool
+    {
+        $attribute = preg_quote(self::TEX_FUNCTION_OPERATOR_ATTRIBUTE, '/');
+
+        if (preg_match('/^<mi\b[^>]*' . $attribute . '[^>]*>/', $node) === 1) {
+            return true;
+        }
+
+        return preg_match('/^<m(?:sub|sup|subsup|under|over|underover)\b[^>]*><mi\b[^>]*' . $attribute . '[^>]*>/', $node) === 1;
+    }
+
+    private function mathMlNodeCanStartFunctionArgument(string $node): bool
+    {
+        if ($node === '' || $this->mathMlNodeIsSpacing($node)) {
+            return false;
+        }
+
+        if ($this->mathMlNodeHasFunctionOperatorHead($node)) {
+            return false;
+        }
+
+        if (preg_match('/^<(?:mi|mn|mtext|mfrac|msqrt|mroot|mrow|msub|msup|msubsup|munder|mover|munderover|mmultiscripts|menclose|mtable)\b/', $node) === 1) {
+            return true;
+        }
+
+        return preg_match('/^<mo\b[^>]*>(?:\(|\[|\{)<\/mo>$/u', $node) === 1;
+    }
+
+    private function mathMlNodeIsSpacing(string $node): bool
+    {
+        return preg_match('/^<mspace\b[^>]*><\/mspace>$/', $node) === 1;
     }
 
     private function parseAtom(string $source, int &$offset, ?string &$defaultScriptPlacement = null): string
@@ -3369,7 +3449,7 @@ final class MathTexConverter
 
             $operatorName = $this->readMathOperatorNameArgument($source, $offset);
 
-            return '<mi>' . $this->esc($operatorName) . '</mi>';
+            return $this->functionOperatorIdentifier($operatorName, $this->operatorNameCanApply($operatorName));
         }
 
         if ($command === 'ref' || $command === 'eqref') {
@@ -3643,7 +3723,7 @@ final class MathTexConverter
         }
 
         if (isset(self::FUNCTION_COMMANDS[$command])) {
-            return '<mi>' . self::FUNCTION_COMMANDS[$command] . '</mi>';
+            return $this->functionOperatorIdentifier(self::FUNCTION_COMMANDS[$command]);
         }
 
         if (isset(self::OPERATOR_COMMANDS[$command])) {
@@ -3671,6 +3751,18 @@ final class MathTexConverter
         }
 
         return $operatorName;
+    }
+
+    private function functionOperatorIdentifier(string $operatorName, bool $canApply = true): string
+    {
+        $attribute = $canApply ? ' ' . self::TEX_FUNCTION_OPERATOR_ATTRIBUTE : '';
+
+        return '<mi' . $attribute . '>' . $this->esc($operatorName) . '</mi>';
+    }
+
+    private function operatorNameCanApply(string $operatorName): bool
+    {
+        return preg_match('/[\p{L}\p{N}]/u', $operatorName) === 1;
     }
 
     private function readMathOperatorNameTokenText(string $source, int &$offset): string
