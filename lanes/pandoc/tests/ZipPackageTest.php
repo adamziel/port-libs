@@ -10494,15 +10494,18 @@ return [
         $t->same(2, $summary['missingEntryCount']);
         $t->same(1, $summary['missingRequiredEntryCount']);
         $t->same(1, $summary['missingOptionalEntryCount']);
-        $t->same(3, $summary['handoffEntryCount']);
-        $t->same(3, $summary['readableEntryCount']);
-        $t->same(4, $summary['failedEntryCount']);
+        $t->same(2, $summary['handoffEntryCount']);
+        $t->same(2, $summary['readableEntryCount']);
+        $t->same(5, $summary['failedEntryCount']);
         $t->same(1, $summary['directoryMismatchEntryCount']);
         $t->same(1, $summary['oversizedEntryCount']);
         $t->same(1, $summary['unreadableEntryCount']);
+        $t->same(2, $summary['duplicateRequestedEntryCount']);
+        $t->same(1, $summary['duplicateRequestedEntryGroupCount']);
         $t->same(128, $summary['maxEntryUncompressedBytes']);
         $t->same(false, $summary['isSupportedByBoundedReader']);
         $t->same([
+            'duplicate-selected-entry-request',
             'missing-required-entry',
             'directory-entry-not-file',
             'entry-uncompressed-size-exceeds-limit',
@@ -10547,9 +10550,10 @@ return [
         $t->same('stored', $directoryEntry['compressionMethodName']);
         $t->same($directoryEntry['compressedDataOffset'], $directoryEntry['compressedDataEnd']);
         $t->same(0.0, $directoryEntry['expansionRatio']);
-        $t->same(0, $directoryEntry['bytesRead']);
-        $t->same(hash('sha256', ''), $directoryEntry['contentSha256']);
-        $t->same('ready', $directoryEntry['status']);
+        $t->same(null, $directoryEntry['bytesRead']);
+        $t->same(null, $directoryEntry['contentSha256']);
+        $t->same('blocked', $directoryEntry['status']);
+        $t->same(['duplicate-selected-entry-request'], $directoryEntry['issues']);
 
         $missingRequired = $summary['entries'][3];
         $t->same('word/missing.xml', $missingRequired['name']);
@@ -10563,7 +10567,7 @@ return [
         $directoryMismatch = $summary['entries'][4];
         $t->same('word/media/', $directoryMismatch['name']);
         $t->same('file', $directoryMismatch['expectedKind']);
-        $t->same(['directory-entry-not-file'], $directoryMismatch['issues']);
+        $t->same(['duplicate-selected-entry-request', 'directory-entry-not-file'], $directoryMismatch['issues']);
         $t->same('blocked', $directoryMismatch['status']);
 
         $oversizedEntry = $summary['entries'][5];
@@ -10591,8 +10595,8 @@ return [
         $t->same('missing-optional', $optionalMissing['status']);
         $t->same([], $optionalMissing['issues']);
 
-        $t->same([$missingRequired, $directoryMismatch, $oversizedEntry, $unsupportedEntry], $summary['failedEntries']);
-        $t->same([$documentEntry, $summary['entries'][1], $directoryEntry], $summary['handoffEntries']);
+        $t->same([$directoryEntry, $missingRequired, $directoryMismatch, $oversizedEntry, $unsupportedEntry], $summary['failedEntries']);
+        $t->same([$documentEntry, $summary['entries'][1]], $summary['handoffEntries']);
 
         $safeSummary = $package->entryHandoffPreflight([
             'word/document.xml',
@@ -11879,11 +11883,13 @@ return [
         $t->same(2, $summary['duplicateRequestedEntryCount']);
         $t->same(1, $summary['duplicateRequestedEntryGroupCount']);
         $t->same(false, $summary['isSupportedByBoundedReader']);
-        $t->same(['total-uncompressed-size-exceeds-limit'], $summary['issues']);
+        $t->same(['duplicate-selected-entry-request', 'total-uncompressed-size-exceeds-limit'], $summary['issues']);
         $t->same([], $summary['handoffEntries']);
 
+        $t->same(['duplicate-selected-entry-request', 'total-uncompressed-size-exceeds-limit'], $summary['entries'][0]['issues']);
+        $t->same(['duplicate-selected-entry-request', 'total-uncompressed-size-exceeds-limit'], $summary['entries'][1]['issues']);
+        $t->same(['total-uncompressed-size-exceeds-limit'], $summary['entries'][2]['issues']);
         foreach ($summary['entries'] as $entry) {
-            $t->same(['total-uncompressed-size-exceeds-limit'], $entry['issues']);
             $t->same('blocked', $entry['status']);
             $t->same(false, $entry['isReadable']);
             $t->same(null, $entry['bytesRead']);
@@ -11892,19 +11898,22 @@ return [
 
         $safeSummary = $package->entryHandoffPreflight($requests, 1024, $totalSelectedBytes);
 
-        $t->same(true, $safeSummary['isSupportedByBoundedReader']);
-        $t->same([], $safeSummary['issues']);
+        $t->same(false, $safeSummary['isSupportedByBoundedReader']);
+        $t->same(['duplicate-selected-entry-request'], $safeSummary['issues']);
         $t->same(2, $safeSummary['selectedUniqueEntryCount']);
         $t->same($totalSelectedBytes, $safeSummary['selectedUncompressedBytes']);
         $t->same(1.0, $safeSummary['selectedExpansionRatio']);
         $t->same(0, $safeSummary['selectedUnknownExpansionRatioEntryCount']);
         $t->same(false, $safeSummary['selectedHasUnknownExpansionRatioEntries']);
         $t->same([], $safeSummary['selectedUnknownExpansionRatioEntries']);
-        $t->same(3, $safeSummary['handoffEntryCount']);
-        $t->same(3, $safeSummary['readableEntryCount']);
+        $t->same(1, $safeSummary['handoffEntryCount']);
+        $t->same(1, $safeSummary['readableEntryCount']);
+        $t->same(2, $safeSummary['failedEntryCount']);
         $t->same(0, $safeSummary['totalUncompressedSizeExceedsLimitEntryCount']);
-        $t->same(strlen($documentXml), $safeSummary['entries'][0]['bytesRead']);
-        $t->same(hash('sha256', $documentXml), $safeSummary['entries'][1]['contentSha256']);
+        $t->same(null, $safeSummary['entries'][0]['bytesRead']);
+        $t->same(null, $safeSummary['entries'][0]['contentSha256']);
+        $t->same(null, $safeSummary['entries'][1]['bytesRead']);
+        $t->same(null, $safeSummary['entries'][1]['contentSha256']);
         $t->same(strlen($mediaBytes), $safeSummary['entries'][2]['bytesRead']);
     },
 
@@ -12116,11 +12125,11 @@ return [
         $t->same(2, $summary['presentEntryCount']);
         $t->same(2, $summary['duplicateRequestedEntryCount']);
         $t->same(1, $summary['duplicateRequestedEntryGroupCount']);
-        $t->same(3, $summary['handoffEntryCount']);
-        $t->same(3, $summary['readableEntryCount']);
-        $t->same(0, $summary['failedEntryCount']);
-        $t->same(true, $summary['isSupportedByBoundedReader']);
-        $t->same([], $summary['issues']);
+        $t->same(1, $summary['handoffEntryCount']);
+        $t->same(1, $summary['readableEntryCount']);
+        $t->same(2, $summary['failedEntryCount']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(['duplicate-selected-entry-request'], $summary['issues']);
         $t->same([
             [
                 'name' => 'word/document.xml',
@@ -12137,21 +12146,21 @@ return [
         $safeAttachment = $summary['entries'][2];
         $t->same(true, $firstDuplicate['isDuplicateRequest']);
         $t->same(true, $secondDuplicate['isDuplicateRequest']);
-        $t->same('ready', $firstDuplicate['status']);
-        $t->same('ready', $secondDuplicate['status']);
-        $t->same([], $firstDuplicate['issues']);
-        $t->same([], $secondDuplicate['issues']);
-        $t->same(true, $firstDuplicate['isReadable']);
-        $t->same(true, $secondDuplicate['isReadable']);
-        $t->same(strlen($documentXml), $firstDuplicate['bytesRead']);
-        $t->same(strlen($documentXml), $secondDuplicate['bytesRead']);
-        $t->same(hash('sha256', $documentXml), $firstDuplicate['contentSha256']);
-        $t->same(hash('sha256', $documentXml), $secondDuplicate['contentSha256']);
+        $t->same('blocked', $firstDuplicate['status']);
+        $t->same('blocked', $secondDuplicate['status']);
+        $t->same(['duplicate-selected-entry-request'], $firstDuplicate['issues']);
+        $t->same(['duplicate-selected-entry-request'], $secondDuplicate['issues']);
+        $t->same(false, $firstDuplicate['isReadable']);
+        $t->same(false, $secondDuplicate['isReadable']);
+        $t->same(null, $firstDuplicate['bytesRead']);
+        $t->same(null, $secondDuplicate['bytesRead']);
+        $t->same(null, $firstDuplicate['contentSha256']);
+        $t->same(null, $secondDuplicate['contentSha256']);
         $t->same(false, $safeAttachment['isDuplicateRequest']);
         $t->same('ready', $safeAttachment['status']);
         $t->same(hash('sha256', $imageBytes), $safeAttachment['contentSha256']);
-        $t->same([], $summary['failedEntries']);
-        $t->same([$firstDuplicate, $secondDuplicate, $safeAttachment], $summary['handoffEntries']);
+        $t->same([$firstDuplicate, $secondDuplicate], $summary['failedEntries']);
+        $t->same([$safeAttachment], $summary['handoffEntries']);
     },
 
     'summarizes selected zip handoff roles for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
@@ -12206,20 +12215,23 @@ return [
         $t->same(3, $byRole['attachment']['optionalCount']);
         $t->same(3, $byRole['attachment']['presentEntryCount']);
         $t->same(0, $byRole['attachment']['missingEntryCount']);
-        $t->same(2, $byRole['attachment']['handoffEntryCount']);
-        $t->same(1, $byRole['attachment']['handoffUniqueEntryCount']);
-        $t->same(1, $byRole['attachment']['failedEntryCount']);
+        $t->same(0, $byRole['attachment']['handoffEntryCount']);
+        $t->same(0, $byRole['attachment']['handoffUniqueEntryCount']);
+        $t->same(3, $byRole['attachment']['failedEntryCount']);
         $t->same(2, $byRole['attachment']['duplicateRequestCount']);
         $t->same(2, $byRole['attachment']['selectedUniqueEntryCount']);
         $t->same(strlen($imageBytes) + strlen($largeBytes), $byRole['attachment']['selectedCompressedBytes']);
         $t->same(strlen($imageBytes) + strlen($largeBytes), $byRole['attachment']['selectedUncompressedBytes']);
-        $t->same(strlen($imageBytes), $byRole['attachment']['handoffCompressedBytes']);
-        $t->same(strlen($imageBytes), $byRole['attachment']['handoffUncompressedBytes']);
+        $t->same(0, $byRole['attachment']['handoffCompressedBytes']);
+        $t->same(0, $byRole['attachment']['handoffUncompressedBytes']);
         $t->same(['word/media/image.png', 'word/media/large.bin'], $byRole['attachment']['selectedEntryNames']);
-        $t->same(['word/media/image.png'], $byRole['attachment']['handoffEntryNames']);
-        $t->same(['word/media/large.bin'], $byRole['attachment']['failedEntryNames']);
-        $t->same(['entry-uncompressed-size-exceeds-limit'], $byRole['attachment']['issues']);
-        $t->same(['entry-uncompressed-size-exceeds-limit' => 1], $byRole['attachment']['issueCounts']);
+        $t->same([], $byRole['attachment']['handoffEntryNames']);
+        $t->same(['word/media/image.png', 'word/media/image.png', 'word/media/large.bin'], $byRole['attachment']['failedEntryNames']);
+        $t->same(['duplicate-selected-entry-request', 'entry-uncompressed-size-exceeds-limit'], $byRole['attachment']['issues']);
+        $t->same([
+            'duplicate-selected-entry-request' => 2,
+            'entry-uncompressed-size-exceeds-limit' => 1,
+        ], $byRole['attachment']['issueCounts']);
 
         $t->same(1, $byRole['main-document']['requestCount']);
         $t->same(1, $byRole['main-document']['requiredCount']);

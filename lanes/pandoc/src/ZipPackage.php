@@ -5172,6 +5172,9 @@ final class ZipPackage
             ];
         }
         $duplicateRequestedEntryCount = count($duplicateRequestIndexes);
+        if ($duplicateRequestedEntryCount > 0) {
+            self::appendUniqueIssue($issues, 'duplicate-selected-entry-request');
+        }
 
         $selectedEntriesByName = [];
         foreach ($normalizedRequests as $normalizedRequest) {
@@ -5478,6 +5481,9 @@ final class ZipPackage
             $status = 'ready';
             $isDirectory = null;
             $isDuplicateRequest = isset($duplicateRequestIndexes[$requestIndex]);
+            if ($isDuplicateRequest) {
+                $entryIssues[] = 'duplicate-selected-entry-request';
+            }
 
             $summary = [
                 'requestIndex' => $requestIndex,
