@@ -2832,6 +2832,57 @@ CSS;
             $prefixer->prefixForTargets('.foo { border-inline-start: var(--start); border-inline-end: var(--end); }', ['safari' => 8])
         );
     },
+    'transition prefixer maps upstream border advanced color fallback rows' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $colorProperties = [
+            'border-inline-start-color',
+            'border-inline-end-color',
+            'border-block-start-color',
+            'border-block-end-color',
+            'border-top-color',
+            'border-bottom-color',
+            'border-left-color',
+            'border-right-color',
+            'border-color',
+            'border-block-color',
+            'border-inline-color',
+        ];
+        $shorthandProperties = [
+            'border',
+            'border-inline',
+            'border-block',
+            'border-left',
+            'border-right',
+            'border-top',
+            'border-bottom',
+            'border-block-start',
+            'border-block-end',
+            'border-inline-start',
+            'border-inline-end',
+        ];
+
+        foreach ($colorProperties as $property) {
+            $t->same(
+                ".foo{{$property}:#b32323;{$property}:lab(40% 56.6 39)}",
+                $prefixer->prefixForTargets(".foo { {$property}: lab(40% 56.6 39); }", ['chrome' => 90])
+            );
+        }
+
+        foreach ($shorthandProperties as $property) {
+            $t->same(
+                ".foo{{$property}:2px solid #b32323;{$property}:2px solid lab(40% 56.6 39)}",
+                $prefixer->prefixForTargets(".foo { {$property}: 2px solid lab(40% 56.6 39); }", ['chrome' => 90])
+            );
+            $t->same(
+                ".foo{{$property}:var(--border-width) solid #b32323}@supports (color:lab(0% 0 0)){.foo{{$property}:var(--border-width) solid lab(40% 56.6 39)}}",
+                $prefixer->prefixForTargets(".foo { {$property}: var(--border-width) solid lab(40% 56.6 39); }", ['chrome' => 90])
+            );
+            $t->same(
+                "@supports (color:lab(0% 0 0)){.foo{{$property}:var(--border-width) solid lab(40% 56.6 39)}}",
+                $prefixer->prefixForTargets("@supports (color: lab(0% 0 0)) { .foo { {$property}: var(--border-width) solid lab(40% 56.6 39); } }", ['chrome' => 90])
+            );
+        }
+    },
     'transition prefixer maps upstream logical border browser boundaries' => static function (TestRunner $t) use ($variants): void {
         $prefixer = new TransitionPrefixer();
         $selector = $variants('.foo');
@@ -3599,6 +3650,26 @@ CSS;
         $t->same(
             '.foo{color:lab(40% 56.6 39)}',
             $prefixer->prefixForTargets('.foo { color: var(--fallback); color: lab(40% 56.6 39); }', ['safari' => 16])
+        );
+        $t->same(
+            '.foo{background-color:#4263eb;background-color:color(display-p3 0 .5 1)}',
+            $prefixer->prefixForTargets('.foo { background-color: #4263eb; background-color: color(display-p3 0 .5 1); }', ['chrome' => 99])
+        );
+        $t->same(
+            '.foo{background-image:linear-gradient(lch(50% 132 50),lch(50% 130 150))}',
+            $prefixer->prefixForTargets('.foo { background-image: linear-gradient(red, green); background-image: linear-gradient(lch(50% 132 50), lch(50% 130 150)); }', ['safari' => 16])
+        );
+        $t->same(
+            '.foo{background:#4263eb;background:color(display-p3 0 .5 1)}',
+            $prefixer->prefixForTargets('.foo { background: #4263eb; background: color(display-p3 0 .5 1); }', ['chrome' => 99])
+        );
+        $t->same(
+            '.foo{background:linear-gradient(lch(50% 132 50),lch(50% 130 150))}',
+            $prefixer->prefixForTargets('.foo { background: linear-gradient(red, green); background: linear-gradient(lch(50% 132 50), lch(50% 130 150)); }', ['safari' => 16])
+        );
+        $t->same(
+            '.foo{border-color:#4263eb;border-color:color(display-p3 0 .5 1)}',
+            $prefixer->prefixForTargets('.foo { border-color: #4263eb; border-color: color(display-p3 0 .5 1); }', ['chrome' => 99])
         );
         $t->same(
             '.foo{color:var(--foo,color(display-p3 .643308 .192455 .167712))}@supports (color:lab(0% 0 0)){.foo{color:var(--foo,lab(40% 56.6 39))}}',

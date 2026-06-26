@@ -4047,6 +4047,12 @@ CSS;
             $t->same($expected, $minifier->minify($input));
         }
     },
+    'css minifier maps upstream text-justify keyword values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{text-justify:auto}', $minifier->minify('.foo { text-justify: auto }'));
+        $t->same('.foo{text-justify:inter-word}', $minifier->minify('.foo { text-justify: inter-word }'));
+    },
     'css minifier maps upstream caret values' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

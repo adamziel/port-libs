@@ -11004,8 +11004,7 @@ final class TransitionPrefixer
                 continue;
             }
 
-            $srgbFallback = $this->advancedColorFallbackValue($normalized);
-            if ($srgbFallback === null) {
+            if (!$this->containsAdvancedColorFunction($normalized)) {
                 $rewritten[] = $entry;
                 continue;
             }
@@ -11016,6 +11015,12 @@ final class TransitionPrefixer
                 [$rewritten, $dropped] = $this->dropPreviousSamePropertyFallbacks($rewritten, $entry['property']);
                 $rewritten[] = $entry;
                 $changed = $changed || $dropped;
+                continue;
+            }
+
+            $srgbFallback = $this->advancedColorFallbackValue($normalized);
+            if ($srgbFallback === null) {
+                $rewritten[] = $entry;
                 continue;
             }
 
@@ -11050,7 +11055,9 @@ final class TransitionPrefixer
                 continue;
             }
 
-            $rewritten[] = $this->entryWithValue($entry, $srgbFallback);
+            if (!$this->hasPreviousSamePropertyAuthoredFallback($rewritten, $entry['property'])) {
+                $rewritten[] = $this->entryWithValue($entry, $srgbFallback);
+            }
             $changed = true;
 
             if ($supportsCustomPropertyOverride) {
@@ -11103,10 +11110,35 @@ final class TransitionPrefixer
         return [$rewritten, $dropped];
     }
 
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     */
+    private function hasPreviousSamePropertyAuthoredFallback(array $entries, string $property): bool
+    {
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            $entry = $entries[$index];
+            if ($entry['property'] !== $property) {
+                continue;
+            }
+
+            if ($entry['important']) {
+                return false;
+            }
+
+            return $this->advancedColorFallbackValue($entry['value']) === null;
+        }
+
+        return false;
+    }
+
     private function propertySupportsAdvancedColorFallback(string $property, string $value): bool
     {
         if ($property === 'color') {
             return stripos($value, 'light-dark(') === false;
+        }
+
+        if ($this->isBorderAdvancedColorFallbackProperty($property)) {
+            return true;
         }
 
         return in_array($property, [
@@ -11118,6 +11150,19 @@ final class TransitionPrefixer
             'outline-color',
             'stroke',
         ], true);
+    }
+
+    private function isBorderAdvancedColorFallbackProperty(string $property): bool
+    {
+        if (in_array($property, ['border', 'border-color'], true)) {
+            return true;
+        }
+
+        if (preg_match('/^border-(?:top|right|bottom|left)(?:-color)?$/', $property) === 1) {
+            return true;
+        }
+
+        return preg_match('/^border-(?:block|inline)(?:-(?:start|end))?(?:-color)?$/', $property) === 1;
     }
 
     /**
@@ -11697,6 +11742,11 @@ final class TransitionPrefixer
         }
 
         return $this->advancedColorLabFallbackValue($value);
+    }
+
+    private function containsAdvancedColorFunction(string $value): bool
+    {
+        return preg_match('/\b(?:color|lab|lch|oklab|oklch)\(/i', $value) === 1;
     }
 
     private function containsCustomPropertyReference(string $value): bool
