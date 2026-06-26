@@ -238,10 +238,15 @@ final class PptxReader
             }
             $textBody = $this->firstChildElementByLocalName($shape, 'txBody');
             if (!$textBody instanceof \DOMElement) {
-                return [];
+                return $this->inheritedPlaceholderBlocks($shape, $context);
             }
 
-            return $this->paragraphsToBlocks($this->drawingParagraphs($textBody, $relationships, $slidePath));
+            $paragraphs = $this->drawingParagraphs($textBody, $relationships, $slidePath);
+            if ($paragraphs === []) {
+                return $this->inheritedPlaceholderBlocks($shape, $context);
+            }
+
+            return $this->paragraphsToBlocks($paragraphs);
         }
 
         if ($shape->localName === 'pic') {
@@ -270,6 +275,32 @@ final class PptxReader
             }
 
             return $blocks;
+        }
+
+        return [];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function inheritedPlaceholderBlocks(\DOMElement $shape, array $context): array
+    {
+        $keys = $this->placeholderLookupKeys($shape);
+        if ($keys === []) {
+            return [];
+        }
+
+        foreach (['layoutPlaceholders', 'masterPlaceholders'] as $bucket) {
+            $placeholders = $context[$bucket] ?? [];
+            if (!is_array($placeholders)) {
+                continue;
+            }
+            foreach ($keys as $key) {
+                $blocks = $placeholders[$key] ?? null;
+                if (is_array($blocks) && $blocks !== []) {
+                    return $blocks;
+                }
+            }
         }
 
         return [];
@@ -960,6 +991,8 @@ final class PptxReader
             'layoutTitle' => '',
             'masterTitle' => '',
             'themeColors' => [],
+            'layoutPlaceholders' => [],
+            'masterPlaceholders' => [],
         ];
 
         $layoutPath = $this->relationshipTargetByType($slidePath, $slideRels, '/slideLayout');
@@ -968,18 +1001,20 @@ final class PptxReader
         }
         $context['layoutPath'] = $layoutPath;
         $layoutXml = $package->read($layoutPath) ?? '';
+        $layoutRels = $this->relationships($package->read($this->relationshipsPath($layoutPath)) ?? '');
         if ($layoutXml !== '') {
             $context['layoutTitle'] = $this->placeholderTitle($layoutXml, 'PPTX slide layout ' . $layoutPath);
+            $context['layoutPlaceholders'] = $this->placeholderBlocksByKey($layoutXml, 'PPTX slide layout ' . $layoutPath, $layoutRels, $layoutPath);
         }
-        $layoutRels = $this->relationships($package->read($this->relationshipsPath($layoutPath)) ?? '');
         $masterPath = $this->relationshipTargetByType($layoutPath, $layoutRels, '/slideMaster');
         if ($masterPath !== null) {
             $context['masterPath'] = $masterPath;
             $masterXml = $package->read($masterPath) ?? '';
+            $masterRels = $this->relationships($package->read($this->relationshipsPath($masterPath)) ?? '');
             if ($masterXml !== '') {
                 $context['masterTitle'] = $this->placeholderTitle($masterXml, 'PPTX slide master ' . $masterPath);
+                $context['masterPlaceholders'] = $this->placeholderBlocksByKey($masterXml, 'PPTX slide master ' . $masterPath, $masterRels, $masterPath);
             }
-            $masterRels = $this->relationships($package->read($this->relationshipsPath($masterPath)) ?? '');
             $themePath = $this->relationshipTargetByType($masterPath, $masterRels, '/theme');
             if ($themePath !== null) {
                 $context['themePath'] = $themePath;
@@ -1014,6 +1049,75 @@ final class PptxReader
         }
 
         return $this->slideTitle($shapeTree);
+    }
+
+    /**
+     * @param array<string, array{target:string,type:string,mode:string}> $relationships
+     * @return array<string, list<AstNode>>
+     */
+    private function placeholderBlocksByKey(string $xml, string $label, array $relationships, string $partPath): array
+    {
+        try {
+            $dom = $this->loadXml($xml, $label);
+        } catch (\InvalidArgumentException) {
+            return [];
+        }
+        $shapeTree = $this->firstElementByLocalName($dom, 'spTree');
+        if (!$shapeTree instanceof \DOMElement) {
+            return [];
+        }
+
+        $placeholders = [];
+        foreach ($shapeTree->childNodes as $shape) {
+            if (!$shape instanceof \DOMElement || $shape->localName !== 'sp') {
+                continue;
+            }
+            $keys = $this->placeholderLookupKeys($shape);
+            if ($keys === []) {
+                continue;
+            }
+            $textBody = $this->firstChildElementByLocalName($shape, 'txBody');
+            if (!$textBody instanceof \DOMElement) {
+                continue;
+            }
+            $blocks = $this->paragraphsToBlocks($this->drawingParagraphs($textBody, $relationships, $partPath));
+            if ($blocks === []) {
+                continue;
+            }
+            foreach ($keys as $key) {
+                $placeholders[$key] ??= $blocks;
+            }
+        }
+
+        return $placeholders;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function placeholderLookupKeys(\DOMElement $shape): array
+    {
+        foreach ($shape->getElementsByTagNameNS(self::P_NS, 'ph') as $placeholder) {
+            if (!$placeholder instanceof \DOMElement) {
+                continue;
+            }
+            $type = $placeholder->getAttribute('type') !== '' ? $placeholder->getAttribute('type') : 'obj';
+            $index = $placeholder->getAttribute('idx');
+            $keys = [];
+            if ($type !== '' && $index !== '') {
+                $keys[] = 'type:' . $type . ';idx:' . $index;
+            }
+            if ($index !== '') {
+                $keys[] = 'idx:' . $index;
+            }
+            if ($type !== '') {
+                $keys[] = 'type:' . $type;
+            }
+
+            return array_values(array_unique($keys));
+        }
+
+        return [];
     }
 
     /**

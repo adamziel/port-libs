@@ -92,7 +92,12 @@ XML);
 <p:sld
   xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
   xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
-  <p:cSld><p:spTree><p:sp><p:nvSpPr><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr></p:sp><p:sp><p:txBody><a:p><a:r><a:t>Second slide body.</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld>
+  <p:cSld><p:spTree>
+    <p:sp><p:nvSpPr><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr></p:sp>
+    <p:sp><p:nvSpPr><p:nvPr><p:ph type="body" idx="2"/></p:nvPr></p:nvSpPr></p:sp>
+    <p:sp><p:txBody><a:p><a:r><a:t>Second slide body.</a:t></a:r></a:p></p:txBody></p:sp>
+    <p:sp><p:nvSpPr><p:nvPr><p:ph type="ftr" idx="3"/></p:nvPr></p:nvSpPr></p:sp>
+  </p:spTree></p:cSld>
 </p:sld>
 XML);
         $zip->addFromString('ppt/slideLayouts/_rels/slideLayout1.xml.rels', '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdMaster" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="../slideMasters/slideMaster1.xml"/></Relationships>');
@@ -101,7 +106,10 @@ XML);
 <p:sldLayout
   xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
   xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
-  <p:cSld><p:spTree><p:sp><p:nvSpPr><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr><p:txBody><a:p><a:r><a:t>Inherited Layout Title</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld>
+  <p:cSld><p:spTree>
+    <p:sp><p:nvSpPr><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr><p:txBody><a:p><a:r><a:t>Inherited Layout Title</a:t></a:r></a:p></p:txBody></p:sp>
+    <p:sp><p:nvSpPr><p:nvPr><p:ph type="body" idx="2"/></p:nvPr></p:nvSpPr><p:txBody><a:p><a:r><a:t>Inherited Layout Body</a:t></a:r></a:p></p:txBody></p:sp>
+  </p:spTree></p:cSld>
 </p:sldLayout>
 XML);
         $zip->addFromString('ppt/slideMasters/_rels/slideMaster1.xml.rels', '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdTheme" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="../theme/theme1.xml"/></Relationships>');
@@ -110,7 +118,10 @@ XML);
 <p:sldMaster
   xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
   xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
-  <p:cSld><p:spTree><p:sp><p:nvSpPr><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr><p:txBody><a:p><a:r><a:t>Inherited Master Title</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld>
+  <p:cSld><p:spTree>
+    <p:sp><p:nvSpPr><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr><p:txBody><a:p><a:r><a:t>Inherited Master Title</a:t></a:r></a:p></p:txBody></p:sp>
+    <p:sp><p:nvSpPr><p:nvPr><p:ph type="ftr" idx="3"/></p:nvPr></p:nvSpPr><p:txBody><a:p><a:r><a:t>Inherited Master Footer</a:t></a:r></a:p></p:txBody></p:sp>
+  </p:spTree></p:cSld>
 </p:sldMaster>
 XML);
         $zip->addFromString('ppt/theme/theme1.xml', <<<'XML'
@@ -158,6 +169,9 @@ XML);
         $t->same(['pptx-slide'], $document->children[0]->attr('classes'));
         $t->same('Slide One', $document->children[0]->children[0]->attr('text'));
         $t->same('Inherited Layout Title', $document->children[1]->children[0]->attr('text'));
+        $t->same('Inherited Layout Body', $document->children[1]->children[1]->attr('text'));
+        $t->same('Second slide body.', $document->children[1]->children[2]->attr('text'));
+        $t->same('Inherited Master Footer', $document->children[1]->children[3]->attr('text'));
         $t->same('ppt/slideLayouts/slideLayout1.xml', $document->children[0]->attr('attributes')['data-pptx-layout-path']);
         $t->same('ppt/slideMasters/slideMaster1.xml', $document->children[0]->attr('attributes')['data-pptx-master-path']);
         $t->same('ppt/theme/theme1.xml', $document->children[0]->attr('attributes')['data-pptx-theme-path']);
@@ -197,6 +211,8 @@ XML);
         $t->contains('<h3>Revenue chart</h3>', $blocks);
         $t->contains('<td>Q2</td><td>18</td>', $blocks);
         $t->contains('Inherited Layout Title', $blocks);
+        $t->contains('Inherited Layout Body', $blocks);
+        $t->contains('Inherited Master Footer', $blocks);
         $t->contains('class="pptx-notes"', $blocks);
         $t->contains('Speaker note text.', $blocks);
         $t->contains('Second slide body.', $converterBlocks);
