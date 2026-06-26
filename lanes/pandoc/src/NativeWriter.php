@@ -6,6 +6,62 @@ namespace PortLibs\Pandoc;
 
 final class NativeWriter
 {
+    private const NATIVE_COMPARISON_PROVENANCE_ATTRS = [
+        'alignmentConstructor',
+        'alignmentConstructors',
+        'alignmentNative',
+        'alignmentNatives',
+        'attrConstructor',
+        'attrNative',
+        'captionConstructor',
+        'captionNative',
+        'citationConstructor',
+        'citationModeConstructor',
+        'citationModeNative',
+        'citationNative',
+        'citationPrefixNative',
+        'citationRecordsNative',
+        'citationSuffixNative',
+        'colSpanConstructor',
+        'colSpanNative',
+        'columnSpecNatives',
+        'columnWidthConstructors',
+        'columnWidthNatives',
+        'constructor',
+        'definitionDefinitionsNative',
+        'definitionItemNative',
+        'definitionNative',
+        'definitionTermNative',
+        'formatConstructor',
+        'formatNative',
+        'legacyTableCellBlocksNative',
+        'lineNative',
+        'listAttributesConstructor',
+        'listAttributesNative',
+        'listDelimiterConstructor',
+        'listDelimiterNative',
+        'listItemNative',
+        'listStyleConstructor',
+        'listStyleNative',
+        'mathTypeConstructor',
+        'mathTypeNative',
+        'native',
+        'nativeInlineConstructors',
+        'nativeInlineParts',
+        'quoteTypeConstructor',
+        'quoteTypeNative',
+        'rowHeadColumnsConstructor',
+        'rowHeadColumnsNative',
+        'rowSpanConstructor',
+        'rowSpanNative',
+        'shortCaptionConstructor',
+        'shortCaptionMaybeConstructor',
+        'shortCaptionMaybeNative',
+        'shortCaptionNative',
+        'targetConstructor',
+        'targetNative',
+    ];
+
     /**
      * @param array{standalone?: bool, blocksOnly?: bool} $options
      */
@@ -19,9 +75,13 @@ final class NativeWriter
             throw new \InvalidArgumentException('Native writer expects a document node');
         }
 
-        $meta = $document->attr('meta', []);
         $blocksOnly = (bool) ($this->options['blocksOnly'] ?? false);
         $standalone = (bool) ($this->options['standalone'] ?? false);
+        if (!$blocksOnly && !$standalone) {
+            return (new PandocJsonWriter())->write($this->nativeJsonDocument($document));
+        }
+
+        $meta = $document->attr('meta', []);
         if ($blocksOnly || (!$standalone && (!is_array($meta) || $meta === []))) {
             return $this->renderBlockList($document->children, 0);
         }
@@ -29,6 +89,565 @@ final class NativeWriter
         return 'Pandoc' . "\n"
             . '  ' . $this->renderMeta(is_array($meta) ? $meta : []) . "\n"
             . '  ' . $this->renderBlockList($document->children, 2);
+    }
+
+    private function nativeJsonDocument(AstNode $document): AstNode
+    {
+        return $this->nativeJsonNode($document);
+    }
+
+    private function nativeJsonNode(AstNode $node): AstNode
+    {
+        $currentNativeBlock = $this->preservedCurrentNativeBlock($node);
+        if ($currentNativeBlock instanceof AstNode) {
+            return $currentNativeBlock;
+        }
+
+        $nativeBlock = $this->preservedLegacyNativeBlock($node);
+        if ($nativeBlock instanceof AstNode) {
+            return $nativeBlock;
+        }
+
+        $children = [];
+        foreach ($node->children as $child) {
+            if ($this->hasJsonNativeInlineChildren($node->type)) {
+                array_push($children, ...$this->nativeJsonInlineNodes($child));
+            } else {
+                $children[] = $this->nativeJsonNode($child);
+            }
+        }
+
+        return new AstNode($node->type, $this->nativeJsonAttrs($node->attrs), $children);
+    }
+
+    private function preservedCurrentNativeBlock(AstNode $node): ?AstNode
+    {
+        $native = $node->attr('native');
+        if (!is_array($native) || array_is_list($native) || !is_string($native['t'] ?? null)) {
+            return null;
+        }
+
+        if ($this->hasNonCurrentNativePayload($native)) {
+            return null;
+        }
+
+        foreach ($this->nativeBlockPayloadReaders($native) as $fresh) {
+            if ($fresh instanceof AstNode && $this->comparisonNode($node) === $this->comparisonNode($fresh)) {
+                return new AstNode('native_block', ['native' => $native]);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $native
+     * @return list<AstNode|null>
+     */
+    private function nativeBlockPayloadReaders(array $native): array
+    {
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$native],
+        ];
+
+        $nodes = [];
+        try {
+            $nodes[] = (new PandocJsonReader())->readPacket($packet)->children[0] ?? null;
+        } catch (\Throwable) {
+        }
+
+        try {
+            $nodes[] = (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR))->children[0] ?? null;
+        } catch (\Throwable) {
+        }
+
+        return $nodes;
+    }
+
+    private function preservedLegacyNativeBlock(AstNode $node): ?AstNode
+    {
+        $native = $node->attr('native');
+        if (
+            $node->type !== 'table'
+            || !is_array($native)
+            || array_is_list($native)
+            || ($native['t'] ?? null) !== 'Table'
+        ) {
+            return null;
+        }
+
+        $content = $this->singleWrappedNativeTuple($native['c'] ?? null);
+        if (!is_array($content) || !array_is_list($content) || count($content) !== 5) {
+            return null;
+        }
+
+        try {
+            $fresh = (new NativeReader())->read(json_encode([
+                'pandoc-api-version' => [1, 23, 1],
+                'meta' => [],
+                'blocks' => [$native],
+            ], JSON_THROW_ON_ERROR))->children[0] ?? null;
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if (!$fresh instanceof AstNode || $this->comparisonNode($node) !== $this->comparisonNode($fresh)) {
+            return null;
+        }
+
+        return new AstNode('native_block', ['native' => $native]);
+    }
+
+    private function singleWrappedNativeTuple(mixed $content): mixed
+    {
+        if (
+            is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+            && array_is_list($content[0])
+        ) {
+            return $content[0];
+        }
+
+        return $content;
+    }
+
+    /**
+     * @return array{type:string, attrs:array<string, mixed>, children:list<array<string, mixed>>}
+     */
+    private function comparisonNode(AstNode $node): array
+    {
+        $attrs = [];
+        foreach ($node->attrs as $key => $value) {
+            if (in_array($key, self::NATIVE_COMPARISON_PROVENANCE_ATTRS, true)) {
+                continue;
+            }
+            if ($key === 'text' && in_array($node->type, ['plain', 'paragraph', 'heading'], true)) {
+                continue;
+            }
+            $attrs[$key] = $this->comparisonValue($value);
+        }
+        ksort($attrs);
+
+        return [
+            'type' => $node->type,
+            'attrs' => $attrs,
+            'children' => array_map(fn (AstNode $child): array => $this->comparisonNode($child), $node->children),
+        ];
+    }
+
+    private function comparisonValue(mixed $value): mixed
+    {
+        if ($value instanceof AstNode) {
+            return $this->comparisonNode($value);
+        }
+
+        if (!is_array($value)) {
+            return $value;
+        }
+
+        if (array_is_list($value)) {
+            return array_map(fn (mixed $item): mixed => $this->comparisonValue($item), $value);
+        }
+
+        $normalized = [];
+        foreach ($value as $key => $item) {
+            $normalized[(string) $key] = $this->comparisonValue($item);
+        }
+        ksort($normalized);
+
+        return $normalized;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function nativeJsonInlineNodes(AstNode $node): array
+    {
+        $currentNativeInline = $this->preservedCurrentNativeInline($node);
+        if ($currentNativeInline instanceof AstNode) {
+            return [$currentNativeInline];
+        }
+
+        $nativeInline = $this->preservedLegacyNativeInline($node);
+        if ($nativeInline instanceof AstNode) {
+            return [$nativeInline];
+        }
+
+        if (
+            $node->type === 'text'
+            && !$this->hasDirectNativePayload($node)
+            && !$this->nativeInlinePartsMatchText($node)
+        ) {
+            return $this->jsonNativeTextInlines((string) $node->attr('text', ''));
+        }
+
+        return [$this->nativeJsonNode($node)];
+    }
+
+    private function preservedCurrentNativeInline(AstNode $node): ?AstNode
+    {
+        $native = $node->attr('native');
+        if (
+            !in_array($node->type, ['citation', 'citation_group', 'note'], true)
+            || !is_array($native)
+            || array_is_list($native)
+            || !in_array($native['t'] ?? null, ['Cite', 'Note'], true)
+        ) {
+            return null;
+        }
+
+        if ($this->hasNonCurrentNativePayload($native)) {
+            return null;
+        }
+
+        $content = $this->singleWrappedNativeTuple($native['c'] ?? null);
+        if (!is_array($content) || !array_is_list($content)) {
+            return null;
+        }
+        if (($native['t'] ?? null) === 'Cite' && count($content) !== 2) {
+            return null;
+        }
+
+        foreach ($this->nativeInlinePayloadReaders($native) as $fresh) {
+            if ($fresh instanceof AstNode && $this->comparisonNode($node) === $this->comparisonNode($fresh)) {
+                return new AstNode('native_inline', ['native' => $native]);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $native
+     * @return list<AstNode|null>
+     */
+    private function nativeInlinePayloadReaders(array $native): array
+    {
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Plain', 'c' => [$native]],
+            ],
+        ];
+
+        $nodes = [];
+        try {
+            $nodes[] = (new PandocJsonReader())->readPacket($packet)->children[0]->children[0] ?? null;
+        } catch (\Throwable) {
+        }
+
+        try {
+            $nodes[] = (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR))->children[0]->children[0] ?? null;
+        } catch (\Throwable) {
+        }
+
+        return $nodes;
+    }
+
+    private function hasNonCurrentNativePayload(mixed $value): bool
+    {
+        if (!is_array($value)) {
+            return false;
+        }
+
+        if (
+            !array_is_list($value)
+            && is_string($value['t'] ?? null)
+            && $this->isNullaryNativeBlockConstructor($value['t'])
+            && array_key_exists('c', $value)
+        ) {
+            return true;
+        }
+
+        if (
+            !array_is_list($value)
+            && is_string($value['t'] ?? null)
+            && in_array($value['t'], ['Space', 'SoftBreak', 'LineBreak'], true)
+            && array_key_exists('c', $value)
+        ) {
+            return true;
+        }
+
+        if (
+            !array_is_list($value)
+            && is_string($value['t'] ?? null)
+            && $this->isNullaryNativeHelperConstructor($value['t'])
+            && array_key_exists('c', $value)
+            && $value['c'] !== []
+        ) {
+            return true;
+        }
+
+        if ($this->hasLegacyTargetInlinePayload($value)) {
+            return true;
+        }
+
+        foreach ($value as $item) {
+            if ($this->hasNonCurrentNativePayload($item)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function hasLegacyTargetInlinePayload(mixed $value): bool
+    {
+        if (!is_array($value)) {
+            return false;
+        }
+
+        if (!array_is_list($value) && in_array($value['t'] ?? null, ['Link', 'Image'], true)) {
+            $content = $this->singleWrappedNativeTuple($value['c'] ?? null);
+
+            return is_array($content) && array_is_list($content) && count($content) === 2;
+        }
+
+        foreach ($value as $item) {
+            if ($this->hasLegacyTargetInlinePayload($item)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isNullaryNativeBlockConstructor(string $constructor): bool
+    {
+        return in_array($constructor, ['HorizontalRule', 'Null'], true);
+    }
+
+    private function isNullaryNativeHelperConstructor(string $constructor): bool
+    {
+        return in_array($constructor, [
+            'SingleQuote',
+            'DoubleQuote',
+            'InlineMath',
+            'DisplayMath',
+            'NormalCitation',
+            'AuthorInText',
+            'SuppressAuthor',
+            'DefaultStyle',
+            'Decimal',
+            'Example',
+            'LowerRoman',
+            'UpperRoman',
+            'LowerAlpha',
+            'UpperAlpha',
+            'DefaultDelim',
+            'Period',
+            'OneParen',
+            'TwoParens',
+            'AlignLeft',
+            'AlignRight',
+            'AlignCenter',
+            'AlignDefault',
+            'ColWidthDefault',
+            'Nothing',
+        ], true);
+    }
+
+    private function preservedLegacyNativeInline(AstNode $node): ?AstNode
+    {
+        $native = $node->attr('native');
+        if (
+            !in_array($node->type, ['link', 'image'], true)
+            || !is_array($native)
+            || array_is_list($native)
+            || count(array_diff(array_keys($native), ['t', 'c'])) !== 0
+            || !in_array($native['t'] ?? null, ['Link', 'Image'], true)
+        ) {
+            return null;
+        }
+
+        $content = $this->singleWrappedNativeTuple($native['c'] ?? null);
+        if (!is_array($content) || !array_is_list($content) || count($content) !== 2) {
+            return null;
+        }
+
+        try {
+            $fresh = (new NativeReader())->read(json_encode([
+                'pandoc-api-version' => [1, 23, 1],
+                'meta' => [],
+                'blocks' => [
+                    ['t' => 'Plain', 'c' => [$native]],
+                ],
+            ], JSON_THROW_ON_ERROR))->children[0]->children[0] ?? null;
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if (!$fresh instanceof AstNode || $this->comparisonNode($node) !== $this->comparisonNode($fresh)) {
+            return null;
+        }
+
+        return new AstNode('native_inline', ['native' => $native]);
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @return array<string, mixed>
+     */
+    private function nativeJsonAttrs(array $attrs): array
+    {
+        foreach (['prefix', 'suffix', 'citationSourceInlines', 'captionInlines', 'shortCaptionInlines'] as $key) {
+            if (isset($attrs[$key]) && is_array($attrs[$key]) && array_is_list($attrs[$key]) && $this->allAstNodes($attrs[$key])) {
+                $expanded = [];
+                foreach ($attrs[$key] as $child) {
+                    array_push($expanded, ...$this->nativeJsonInlineNodes($child));
+                }
+                $attrs[$key] = $expanded;
+            }
+        }
+
+        foreach (['captionBlocks', 'shortCaptionBlocks'] as $key) {
+            if (isset($attrs[$key]) && is_array($attrs[$key]) && array_is_list($attrs[$key]) && $this->allAstNodes($attrs[$key])) {
+                $attrs[$key] = array_map(fn (AstNode $child): AstNode => $this->nativeJsonNode($child), $attrs[$key]);
+            }
+        }
+
+        return $attrs;
+    }
+
+    private function hasNativeInlineParts(AstNode $node): bool
+    {
+        $parts = $node->attr('nativeInlineParts', []);
+
+        return is_array($parts) && array_is_list($parts) && $parts !== [];
+    }
+
+    private function hasDirectNativePayload(AstNode $node): bool
+    {
+        $native = $node->attr('native');
+
+        return is_array($native) && !array_is_list($native);
+    }
+
+    private function nativeInlinePartsMatchText(AstNode $node): bool
+    {
+        $parts = $node->attr('nativeInlineParts', []);
+        if (!is_array($parts) || !array_is_list($parts) || $parts === []) {
+            return false;
+        }
+
+        $text = '';
+        foreach ($parts as $part) {
+            if (!is_array($part) || array_is_list($part) || !is_string($part['t'] ?? null)) {
+                return false;
+            }
+
+            if ($part['t'] === 'Str') {
+                $content = $this->nativeStringContent($part['c'] ?? null);
+                if ($content === null) {
+                    return false;
+                }
+                $text .= $content;
+                continue;
+            }
+
+            if ($part['t'] === 'Space') {
+                if (array_key_exists('c', $part)) {
+                    return false;
+                }
+                $text .= ' ';
+                continue;
+            }
+
+            if ($part['t'] === 'SoftBreak' || $part['t'] === 'LineBreak') {
+                if (array_key_exists('c', $part)) {
+                    return false;
+                }
+                $text .= ' ';
+                continue;
+            }
+
+            return false;
+        }
+
+        return $text === (string) $node->attr('text', '');
+    }
+
+    private function nativeStringContent(mixed $content): ?string
+    {
+        while (is_array($content) && array_is_list($content) && count($content) === 1) {
+            $content = $content[0];
+        }
+
+        return is_string($content) ? $content : null;
+    }
+
+    private function hasJsonNativeInlineChildren(string $type): bool
+    {
+        return in_array($type, [
+            'plain',
+            'paragraph',
+            'heading',
+            'term',
+            'line',
+            'emph',
+            'strong',
+            'underline',
+            'strikeout',
+            'superscript',
+            'subscript',
+            'small_caps',
+            'quoted',
+            'link',
+            'image',
+            'span',
+            'citation',
+        ], true);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function jsonNativeTextInlines(string $text): array
+    {
+        if ($text === '') {
+            return [new AstNode('text', ['text' => ''])];
+        }
+
+        $parts = preg_split('/([ \t]+|\n)/u', $text, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
+        if ($parts === false) {
+            return [new AstNode('text', ['text' => $text])];
+        }
+
+        $inlines = [];
+        foreach ($parts as $part) {
+            if ($part === "\n") {
+                $inlines[] = new AstNode('softbreak');
+                continue;
+            }
+            if (preg_match('/^[ \t]+$/u', $part) === 1) {
+                foreach (str_split($part) as $_) {
+                    $inlines[] = new AstNode('space');
+                }
+                continue;
+            }
+            $inlines[] = new AstNode('text', ['text' => $part]);
+        }
+
+        return $inlines;
+    }
+
+    /**
+     * @param array<mixed> $values
+     */
+    private function allAstNodes(array $values): bool
+    {
+        foreach ($values as $value) {
+            if (!$value instanceof AstNode) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

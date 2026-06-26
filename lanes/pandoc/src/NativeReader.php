@@ -6,6 +6,15 @@ namespace PortLibs\Pandoc;
 
 final class NativeReader
 {
+    private const META_CONSTRUCTORS = [
+        'MetaString',
+        'MetaBool',
+        'MetaInlines',
+        'MetaBlocks',
+        'MetaList',
+        'MetaMap',
+    ];
+
     /**
      * @var array<string, int>
      */
@@ -53,6 +62,11 @@ final class NativeReader
 
     public function read(string $native): AstNode
     {
+        $jsonDocument = $this->readJsonNativeAst($native);
+        if ($jsonDocument instanceof AstNode) {
+            return $jsonDocument;
+        }
+
         $this->tokens = $this->tokenize($native);
         $this->position = 0;
 
@@ -72,6 +86,461 @@ final class NativeReader
         $this->expectEnd();
 
         return new AstNode('document', [], $blocks);
+    }
+
+    private function readJsonNativeAst(string $native): ?AstNode
+    {
+        $trimmed = ltrim($native);
+        if ($trimmed === '' || !in_array($trimmed[0], ['{', '['], true)) {
+            return null;
+        }
+        if ($trimmed[0] === '[' && !$this->looksLikeJsonNativeArrayPacket($trimmed)) {
+            return null;
+        }
+
+        try {
+            $packet = json_decode($native, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            throw new \InvalidArgumentException('Invalid Pandoc native JSON packet: ' . $exception->getMessage(), 0, $exception);
+        }
+
+        if (!is_array($packet)) {
+            throw new \InvalidArgumentException('Pandoc native JSON packet must be an object or legacy tuple');
+        }
+
+        $rawMeta = $this->jsonPacketMeta($packet);
+        $this->validateNativeJsonMetadataConstructors($rawMeta);
+
+        $document = $this->normalizeJsonNativeNode((new PandocJsonReader())->readPacket($packet));
+        $attrs = $document->attrs;
+        $attrs['nativeFormat'] = 'pandoc-json';
+
+        $normalizedMeta = $document->attr('meta', []);
+        if (!is_array($normalizedMeta) || array_is_list($normalizedMeta)) {
+            $normalizedMeta = [];
+        }
+
+        $nativeMeta = $this->nativeJsonMetadata($rawMeta, $normalizedMeta);
+        if ($nativeMeta !== []) {
+            $attrs['meta'] = $nativeMeta;
+        } else {
+            unset($attrs['meta']);
+        }
+
+        return new AstNode('document', $attrs, $document->children);
+    }
+
+    private function looksLikeJsonNativeArrayPacket(string $trimmed): bool
+    {
+        $length = strlen($trimmed);
+        $offset = 1;
+        while ($offset < $length && ctype_space($trimmed[$offset])) {
+            $offset++;
+        }
+
+        return $offset < $length && in_array($trimmed[$offset], ['{', '['], true);
+    }
+
+    private function normalizeJsonNativeNode(AstNode $node): AstNode
+    {
+        $children = array_map(fn (AstNode $child): AstNode => $this->normalizeJsonNativeNode($child), $node->children);
+        if ($this->hasJsonNativeInlineChildren($node->type)) {
+            $children = $this->coalesceJsonNativeInlineText($children);
+        }
+
+        return new AstNode($node->type, $this->normalizeJsonNativeAttrs($node->attrs), $children);
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @return array<string, mixed>
+     */
+    private function normalizeJsonNativeAttrs(array $attrs): array
+    {
+        foreach (['prefix', 'suffix', 'citationSourceInlines', 'captionInlines', 'shortCaptionInlines'] as $key) {
+            if (isset($attrs[$key]) && is_array($attrs[$key]) && array_is_list($attrs[$key]) && $this->allAstNodes($attrs[$key])) {
+                $attrs[$key] = $this->coalesceJsonNativeInlineText(array_map(
+                    fn (AstNode $child): AstNode => $this->normalizeJsonNativeNode($child),
+                    $attrs[$key]
+                ));
+            }
+        }
+
+        foreach (['captionBlocks', 'shortCaptionBlocks'] as $key) {
+            if (isset($attrs[$key]) && is_array($attrs[$key]) && array_is_list($attrs[$key]) && $this->allAstNodes($attrs[$key])) {
+                $attrs[$key] = array_map(fn (AstNode $child): AstNode => $this->normalizeJsonNativeNode($child), $attrs[$key]);
+            }
+        }
+
+        return $attrs;
+    }
+
+    private function hasJsonNativeInlineChildren(string $type): bool
+    {
+        return in_array($type, [
+            'plain',
+            'paragraph',
+            'heading',
+            'term',
+            'line',
+            'emph',
+            'strong',
+            'underline',
+            'strikeout',
+            'superscript',
+            'subscript',
+            'small_caps',
+            'quoted',
+            'link',
+            'image',
+            'span',
+            'citation',
+        ], true);
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<AstNode>
+     */
+    private function coalesceJsonNativeInlineText(array $children): array
+    {
+        $coalesced = [];
+        $text = '';
+        $parts = [];
+        $constructors = [];
+        $hasTextRun = false;
+
+        $flush = function () use (&$coalesced, &$text, &$parts, &$constructors, &$hasTextRun): void {
+            if (!$hasTextRun) {
+                return;
+            }
+
+            $attrs = ['text' => $text];
+            if ($constructors !== []) {
+                $attrs['nativeInlineConstructors'] = $constructors;
+            }
+            if ($parts !== []) {
+                $attrs['nativeInlineParts'] = $parts;
+                if (count($parts) === 1 && is_array($parts[0]) && !array_is_list($parts[0]) && ($parts[0]['t'] ?? null) === 'Str') {
+                    $attrs['constructor'] = 'Str';
+                    $attrs['native'] = $parts[0];
+                }
+            }
+            $coalesced[] = new AstNode('text', $attrs);
+            $text = '';
+            $parts = [];
+            $constructors = [];
+            $hasTextRun = false;
+        };
+
+        foreach ($children as $child) {
+            if (in_array($child->type, ['text', 'space'], true)) {
+                $hasTextRun = true;
+                $text .= $child->type === 'space' ? ' ' : (string) $child->attr('text', '');
+                $constructor = $child->attr('constructor', $child->type === 'space' ? 'Space' : 'Str');
+                if (is_string($constructor) && $constructor !== '') {
+                    $constructors[] = $constructor;
+                }
+                $native = $child->attr('native');
+                if (is_array($native)) {
+                    $parts[] = $native;
+                }
+                continue;
+            }
+
+            $flush();
+            $coalesced[] = $child;
+        }
+
+        $flush();
+
+        return $coalesced;
+    }
+
+    /**
+     * @param array<mixed> $values
+     */
+    private function allAstNodes(array $values): bool
+    {
+        foreach ($values as $value) {
+            if (!$value instanceof AstNode) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function jsonPacketMeta(array $packet): mixed
+    {
+        if ($this->isJsonTaggedConstructor($packet, 'Pandoc')) {
+            $content = $this->singleWrappedJsonTuple($packet['c'] ?? null, 2, 'Pandoc');
+
+            return $content[0];
+        }
+
+        if (array_is_list($packet)) {
+            if (count($packet) !== 2) {
+                throw new \InvalidArgumentException('Pandoc native JSON packet must be an object or legacy [meta, blocks] tuple');
+            }
+
+            return $packet[0];
+        }
+
+        return $packet['meta'] ?? [];
+    }
+
+    /**
+     * @param array<string, mixed> $normalizedMeta
+     * @return array<string, mixed>
+     */
+    private function nativeJsonMetadata(mixed $rawMeta, array $normalizedMeta): array
+    {
+        $rawMap = $this->nativeJsonMetadataMap($rawMeta);
+        if ($rawMap === null || !$this->containsMetaConstructor($rawMap)) {
+            return $normalizedMeta;
+        }
+
+        foreach (['titleInlines', 'authorInlines', 'dateInlines'] as $helper) {
+            if (array_key_exists($helper, $normalizedMeta)) {
+                $rawMap[$helper] = $this->normalizeJsonNativeMetaHelper($helper, $normalizedMeta[$helper]);
+            }
+        }
+
+        return $rawMap;
+    }
+
+    private function normalizeJsonNativeMetaHelper(string $helper, mixed $value): mixed
+    {
+        if ($helper === 'authorInlines' && is_array($value) && array_is_list($value)) {
+            return array_map(function (mixed $author): mixed {
+                if (!is_array($author) || !array_is_list($author) || !$this->allAstNodes($author)) {
+                    return $author;
+                }
+
+                return $this->coalesceJsonNativeInlineText(array_map(
+                    fn (AstNode $child): AstNode => $this->normalizeJsonNativeNode($child),
+                    $author
+                ));
+            }, $value);
+        }
+
+        if (is_array($value) && array_is_list($value) && $this->allAstNodes($value)) {
+            return $this->coalesceJsonNativeInlineText(array_map(
+                fn (AstNode $child): AstNode => $this->normalizeJsonNativeNode($child),
+                $value
+            ));
+        }
+
+        return $value;
+    }
+
+    private function validateNativeJsonMetadataConstructors(mixed $rawMeta): void
+    {
+        $this->validateNativeJsonMetaValue($rawMeta, true);
+    }
+
+    private function validateNativeJsonMetaValue(mixed $value, bool $topLevel = false): void
+    {
+        if ($topLevel && $this->isJsonTaggedConstructor($value, 'Meta')) {
+            $this->validateNativeJsonMetaValue($this->singleWrappedJsonValue($value['c'] ?? null), true);
+
+            return;
+        }
+
+        if ($this->looksLikeNativeJsonMetaConstructor($value)) {
+            $constructor = $value['t'];
+            if (!in_array($constructor, self::META_CONSTRUCTORS, true)) {
+                throw new \InvalidArgumentException("Unsupported Pandoc native metadata constructor: {$constructor}");
+            }
+
+            if ($constructor === 'MetaList') {
+                $content = $this->nativeJsonMetaListContent($value['c'] ?? []);
+                if (!is_array($content) || ($content !== [] && !array_is_list($content))) {
+                    throw new \InvalidArgumentException('Pandoc native JSON MetaList content must be a list');
+                }
+                foreach ($content as $item) {
+                    $this->validateNativeJsonMetaValue($item);
+                }
+            }
+
+            if ($constructor === 'MetaMap') {
+                foreach ($this->nativeJsonMetaMapContent($value['c'] ?? []) as $item) {
+                    $this->validateNativeJsonMetaValue($item);
+                }
+            }
+
+            return;
+        }
+
+        if (!is_array($value)) {
+            return;
+        }
+
+        if (
+            $topLevel
+            && count($value) === 1
+            && array_key_exists('unMeta', $value)
+            && is_array($value['unMeta'])
+            && !array_is_list($value['unMeta'])
+        ) {
+            $this->validateNativeJsonMetaValue($value['unMeta'], true);
+
+            return;
+        }
+
+        foreach ($value as $item) {
+            $this->validateNativeJsonMetaValue($item);
+        }
+    }
+
+    private function looksLikeNativeJsonMetaConstructor(mixed $value): bool
+    {
+        return $this->isJsonTaggedConstructor($value) && array_key_exists('c', $value);
+    }
+
+    private function nativeJsonMetaListContent(mixed $content): mixed
+    {
+        if (
+            is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+            && array_is_list($content[0])
+        ) {
+            return $content[0];
+        }
+
+        return $content;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function nativeJsonMetadataMap(mixed $rawMeta): ?array
+    {
+        if ($this->isJsonTaggedMetaConstructor($rawMeta, 'MetaMap')) {
+            return $this->nativeJsonMetaMapContent($rawMeta['c'] ?? []);
+        }
+
+        if ($this->isJsonTaggedConstructor($rawMeta, 'Meta')) {
+            $content = $this->singleWrappedJsonValue($rawMeta['c'] ?? null);
+            if ($this->isJsonTaggedMetaConstructor($content, 'MetaMap')) {
+                return $this->nativeJsonMetaMapContent($content['c'] ?? []);
+            }
+
+            if (is_array($content) && !array_is_list($content) && count($content) === 1 && array_key_exists('unMeta', $content)) {
+                $unMeta = $content['unMeta'];
+                if ($this->isJsonTaggedMetaConstructor($unMeta, 'MetaMap')) {
+                    return $this->nativeJsonMetaMapContent($unMeta['c'] ?? []);
+                }
+                if (is_array($unMeta) && !array_is_list($unMeta) && !$this->isJsonTaggedConstructor($unMeta)) {
+                    return $unMeta;
+                }
+            }
+
+            return null;
+        }
+
+        if (!is_array($rawMeta) || ($rawMeta !== [] && array_is_list($rawMeta))) {
+            return null;
+        }
+
+        if (count($rawMeta) === 1 && array_key_exists('unMeta', $rawMeta) && !$this->isJsonTaggedConstructor($rawMeta['unMeta'])) {
+            $unMeta = $rawMeta['unMeta'];
+            if (!is_array($unMeta) || ($unMeta !== [] && array_is_list($unMeta))) {
+                throw new \InvalidArgumentException('Pandoc native JSON meta.unMeta must be an object');
+            }
+
+            return $unMeta;
+        }
+
+        if (count($rawMeta) === 1 && array_key_exists('unMeta', $rawMeta) && $this->isJsonTaggedMetaConstructor($rawMeta['unMeta'], 'MetaMap')) {
+            return $this->nativeJsonMetaMapContent($rawMeta['unMeta']['c'] ?? []);
+        }
+
+        return $rawMeta;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function nativeJsonMetaMapContent(mixed $content): array
+    {
+        $content = $this->singleWrappedJsonValue($content);
+        if (!is_array($content) || ($content !== [] && array_is_list($content))) {
+            throw new \InvalidArgumentException('Pandoc native JSON MetaMap content must be an object');
+        }
+
+        if (count($content) === 1 && array_key_exists('unMeta', $content) && !$this->isJsonTaggedConstructor($content['unMeta'])) {
+            $unMeta = $content['unMeta'];
+            if (!is_array($unMeta) || ($unMeta !== [] && array_is_list($unMeta))) {
+                throw new \InvalidArgumentException('Pandoc native JSON MetaMap unMeta content must be an object');
+            }
+
+            return $unMeta;
+        }
+
+        return $content;
+    }
+
+    private function containsMetaConstructor(mixed $value): bool
+    {
+        if ($this->isJsonTaggedConstructor($value) && in_array($value['t'], self::META_CONSTRUCTORS, true)) {
+            return true;
+        }
+
+        if (!is_array($value)) {
+            return false;
+        }
+
+        foreach ($value as $item) {
+            if ($this->containsMetaConstructor($item)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isJsonTaggedMetaConstructor(mixed $value, ?string $constructor = null): bool
+    {
+        if (!$this->isJsonTaggedConstructor($value, $constructor)) {
+            return false;
+        }
+
+        return in_array($value['t'], self::META_CONSTRUCTORS, true);
+    }
+
+    private function isJsonTaggedConstructor(mixed $value, ?string $constructor = null): bool
+    {
+        return is_array($value)
+            && !array_is_list($value)
+            && isset($value['t'])
+            && is_string($value['t'])
+            && ($constructor === null || $value['t'] === $constructor);
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function singleWrappedJsonTuple(mixed $content, int $size, string $context): array
+    {
+        $content = $this->singleWrappedJsonValue($content);
+        if (!is_array($content) || !array_is_list($content) || count($content) !== $size) {
+            throw new \InvalidArgumentException("Pandoc native JSON {$context} content must be a {$size}-item tuple");
+        }
+
+        return $content;
+    }
+
+    private function singleWrappedJsonValue(mixed $content): mixed
+    {
+        while (is_array($content) && array_is_list($content) && count($content) === 1) {
+            $content = $content[0];
+        }
+
+        return $content;
     }
 
     /**
