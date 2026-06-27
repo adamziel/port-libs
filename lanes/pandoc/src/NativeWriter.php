@@ -857,6 +857,7 @@ final class NativeWriter
             'paragraph' => 'Para ' . $this->renderInlineList($node->children),
             'heading' => 'Header ' . max(1, min(6, (int) $node->attr('level', 1))) . ' ' . $this->renderAttrTuple($node) . ' ' . $this->renderInlineList($node->children === [] ? $this->textInlines((string) $node->attr('text', '')) : $node->children),
             'horizontal_rule' => 'HorizontalRule',
+            'null_block' => 'Null',
             'code_block' => 'CodeBlock ' . $this->renderAttrTuple($node) . ' ' . $this->quote((string) $node->attr('text', '')),
             'blockquote' => 'BlockQuote ' . $this->renderBlockList($node->children, $indent),
             'bullet_list' => 'BulletList ' . $this->renderListItems($node->children, $indent),

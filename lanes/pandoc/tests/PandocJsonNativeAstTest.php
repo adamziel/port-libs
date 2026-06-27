@@ -2397,7 +2397,7 @@ return [
         $t->same('null_block', $roundTrip->children[8]->type);
     },
     'round trips native writer core block constructors through both readers' => static function (TestRunner $t): void {
-        $document = new AstNode('document', [], [
+        $document = new AstNode('document', ['pandocApiVersion' => [1, 23, 1], 'meta' => []], [
             new AstNode('blockquote', [], [
                 new AstNode('paragraph', [], [new AstNode('text', ['text' => 'Quoted source'])]),
             ]),
