@@ -1031,6 +1031,8 @@ final class OdfReader
         $rootCustomAttributeCount = 0;
         $rootCustomAttributeNames = [];
         $rootCustomAttributeItems = [];
+        $manifestPartReferenceSuffixItems = [];
+        $byteExposurePolicyCounts = [];
 
         foreach ($expectedRoots as $part => $expectedRoot) {
             $manifestItem = $manifestByPart[$part] ?? null;
@@ -1091,6 +1093,23 @@ final class OdfReader
             if (!is_array($manifestItem)) {
                 $diagnostics[] = 'odf-xml-part-undeclared-package-part';
             }
+            if (is_array($manifestItem) && is_string($manifestItem['partSuffix'] ?? null)) {
+                $manifestPartReferenceSuffixItems[] = [
+                    'part' => $part,
+                    'manifestFullPath' => $manifestItem['fullPath'] ?? null,
+                    'manifestPartReference' => $manifestItem['partReference'] ?? null,
+                    'manifestPartSuffix' => $manifestItem['partSuffix'] ?? null,
+                    'manifestPartQuery' => $manifestItem['partQuery'] ?? null,
+                    'manifestPartFragment' => $manifestItem['partFragment'] ?? null,
+                    'manifestUriEncodedPartReference' => is_string($manifestItem['partReference'] ?? null)
+                        && is_string($manifestItem['part'] ?? null)
+                        && $manifestItem['partReference'] !== $manifestItem['part'],
+                ];
+            }
+            if (is_array($manifestItem) && is_string($manifestItem['byteExposurePolicy'] ?? null) && $manifestItem['byteExposurePolicy'] !== '') {
+                $policy = $manifestItem['byteExposurePolicy'];
+                $byteExposurePolicyCounts[$policy] = ($byteExposurePolicyCounts[$policy] ?? 0) + 1;
+            }
 
             $partCustomAttributeCount = (int) ($rootAttributeProvenance['customAttributeCount'] ?? 0);
             if ($partCustomAttributeCount > 0) {
@@ -1134,9 +1153,31 @@ final class OdfReader
                 'rootNamespaceDeclarationMap' => $rootAttributeProvenance['namespaceDeclarationMap'] ?? [],
                 'manifestVersion' => $manifestVersion,
                 'declaredInManifest' => is_array($manifestItem),
+                'manifestIndex' => is_array($manifestItem) ? $manifestItem['manifestIndex'] : null,
                 'manifestFullPath' => is_array($manifestItem) ? $manifestItem['fullPath'] : null,
+                'manifestPartReference' => is_array($manifestItem) ? $manifestItem['partReference'] : null,
+                'manifestPartSuffix' => is_array($manifestItem) ? $manifestItem['partSuffix'] : null,
+                'manifestPartQuery' => is_array($manifestItem) ? $manifestItem['partQuery'] : null,
+                'manifestPartFragment' => is_array($manifestItem) ? $manifestItem['partFragment'] : null,
+                'manifestUriEncodedPartReference' => is_array($manifestItem)
+                    && is_string($manifestItem['partReference'] ?? null)
+                    && is_string($manifestItem['part'] ?? null)
+                    && $manifestItem['partReference'] !== $manifestItem['part'],
                 'manifestMediaType' => is_array($manifestItem) ? $manifestItem['mediaType'] : null,
+                'manifestMediaTypeBase' => is_array($manifestItem) ? $manifestItem['mediaTypeBase'] : null,
+                'manifestMediaTypeHasParameters' => is_array($manifestItem) && ($manifestItem['mediaTypeHasParameters'] ?? false) === true,
+                'manifestMediaTypeParameterCount' => is_array($manifestItem) ? ($manifestItem['mediaTypeParameterCount'] ?? 0) : 0,
+                'manifestMediaTypeParameters' => is_array($manifestItem) ? ($manifestItem['mediaTypeParameters'] ?? []) : [],
+                'manifestMediaTypeParameterMap' => is_array($manifestItem) ? ($manifestItem['mediaTypeParameterMap'] ?? []) : [],
+                'manifestDeclaredSize' => is_array($manifestItem) ? ($manifestItem['declaredSize'] ?? null) : null,
+                'manifestDeclaredSizeRaw' => is_array($manifestItem) ? ($manifestItem['declaredSizeRaw'] ?? null) : null,
+                'manifestDeclaredSizeValid' => is_array($manifestItem) && ($manifestItem['declaredSizeValid'] ?? false) === true,
+                'manifestDeclaredSizeInvalid' => is_array($manifestItem) && ($manifestItem['declaredSizeInvalid'] ?? false) === true,
+                'manifestDeclaredSizeMismatch' => is_array($manifestItem) && ($manifestItem['declaredSizeMismatch'] ?? false) === true,
+                'manifestDiagnostics' => is_array($manifestItem) ? ($manifestItem['diagnostics'] ?? []) : [],
                 'exists' => $entry instanceof ZipPackageEntry,
+                'canExposeBytes' => is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
+                'byteExposurePolicy' => is_array($manifestItem) ? ($manifestItem['byteExposurePolicy'] ?? null) : null,
                 'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
                 'compressedByteLength' => $entry instanceof ZipPackageEntry ? $entry->compressedSize : null,
                 'compressionMethod' => $entry instanceof ZipPackageEntry ? $entry->compressionMethod : null,
@@ -1148,6 +1189,7 @@ final class OdfReader
 
         ksort($versionCounts, SORT_STRING);
         sort($rootCustomAttributeNames, SORT_STRING);
+        ksort($byteExposurePolicyCounts, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -1162,6 +1204,21 @@ final class OdfReader
             'rootCustomAttributeCount' => $rootCustomAttributeCount,
             'rootCustomAttributeNames' => $rootCustomAttributeNames,
             'rootCustomAttributeItems' => $rootCustomAttributeItems,
+            'manifestPartReferenceSuffixCount' => count($manifestPartReferenceSuffixItems),
+            'manifestPartReferenceQueryCount' => count(array_filter(
+                $manifestPartReferenceSuffixItems,
+                static fn (array $item): bool => is_string($item['manifestPartQuery'] ?? null)
+            )),
+            'manifestPartReferenceFragmentCount' => count(array_filter(
+                $manifestPartReferenceSuffixItems,
+                static fn (array $item): bool => is_string($item['manifestPartFragment'] ?? null)
+            )),
+            'manifestUriEncodedPartReferenceCount' => count(array_filter(
+                $manifestPartReferenceSuffixItems,
+                static fn (array $item): bool => ($item['manifestUriEncodedPartReference'] ?? false) === true
+            )),
+            'manifestPartReferenceSuffixItems' => $manifestPartReferenceSuffixItems,
+            'byteExposurePolicyCounts' => $byteExposurePolicyCounts,
             'items' => $items,
         ];
     }
