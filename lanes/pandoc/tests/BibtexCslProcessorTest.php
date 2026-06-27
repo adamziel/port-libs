@@ -1726,6 +1726,98 @@ BIB;
             new AstNode('citation', ['id' => 'alt-source', 'text' => '[@alt-source]']),
         ]));
     },
+    'carries biblatex custom fields lists and names in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@misc{legacy-custom-review,
+  author = {Curator, Eli},
+  title  = {Legacy Custom Packet},
+  date   = {2026},
+  usera  = {migration batch 42},
+  userf  = {reviewer escalation},
+  verba  = {wp shortcode [gallery]},
+  lista  = {migration batch and review desk},
+  listc  = {archive queue and internal QA},
+  namea  = {Roe, Pat and Ng, Nia},
+  namec  = {Archive, Desk}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $item = $items['legacy-custom-review'];
+
+        $t->same([
+            'usera' => 'migration batch 42',
+            'userf' => 'reviewer escalation',
+            'verba' => 'wp shortcode [gallery]',
+        ], $item['biblatex-custom-fields']);
+        $t->same([
+            'lista' => ['migration batch', 'review desk'],
+            'listc' => ['archive queue', 'internal QA'],
+        ], $item['biblatex-custom-lists']);
+        $t->same('Roe', $item['biblatex-custom-names']['namea'][0]['family'] ?? null);
+        $t->same('Pat', $item['biblatex-custom-names']['namea'][0]['given'] ?? null);
+        $t->same('Ng', $item['biblatex-custom-names']['namea'][1]['family'] ?? null);
+        $t->same('Archive, Desk', $item['rawBibtex']['fields']['namec']);
+        $t->same(
+            'Eli Curator. Legacy Custom Packet. 2026. BibLaTeX custom fields: usera: migration batch 42; userf: reviewer escalation; verba: wp shortcode [gallery]. BibLaTeX custom lists: lista: migration batch; review desk; listc: archive queue; internal QA. BibLaTeX custom names: namea: Roe, Pat; Ng, Nia; namec: Archive, Desk.',
+            $processor->renderBibliographyText($item)
+        );
+
+        $document = (new MarkdownReader())->read('Legacy custom fields [@legacy-custom-review] stay visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$handoff['bibliography']]));
+
+        $t->same(['legacy-custom-review'], $handoff['citedKeys']);
+        $t->same('migration batch 42', $handoff['items'][0]['biblatex-custom-fields']['usera'] ?? null);
+        $t->same(['archive queue', 'internal QA'], $handoff['bibliography']->children[0]->attr('cslItem')['biblatex-custom-lists']['listc'] ?? null);
+        $t->contains('BibLaTeX custom fields: usera: migration batch 42', $blocks);
+        $t->contains('BibLaTeX custom names: namea: Roe, Pat; Ng, Nia; namec: Archive, Desk', $blocks);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Custom Field Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-custom-field-review</id>
+    <updated>2026-06-27T00:30:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="usera"/>
+        <text variable="lista"/>
+        <names variable="namea"/>
+        <names variable="namec"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="biblatex-custom-field-summary"/>
+      <text variable="biblatex-custom-list-summary"/>
+      <text variable="biblatex-custom-name-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded Legacy BibLaTeX Custom Field Review', $summary['title'] ?? null);
+        $t->same('[Curator | migration batch 42 | migration batch; review desk | Roe and Ng | Archive]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-custom-review', 'text' => '[@legacy-custom-review]']),
+        ]));
+        $t->same(
+            'Legacy Custom Packet :: usera: migration batch 42; userf: reviewer escalation; verba: wp shortcode [gallery] :: lista: migration batch; review desk; listc: archive queue; internal QA :: namea: Roe, Pat; Ng, Nia; namec: Archive, Desk',
+            $styled->renderBibliographyEntry('legacy-custom-review')
+        );
+
+        $styledBlocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Legacy custom fields [Curator | migration batch 42 | migration batch; review desk | Roe and Ng | Archive] stay visible.</p>', $styledBlocks);
+        $t->contains('<dt>Curator 2026</dt><dd>Legacy Custom Packet :: usera: migration batch 42; userf: reviewer escalation; verba: wp shortcode [gallery] :: lista: migration batch; review desk; listc: archive queue; internal QA :: namea: Roe, Pat; Ng, Nia; namec: Archive, Desk</dd>', $styledBlocks);
+    },
     'carries biblatex issue title aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @article{legacy-issue-title,

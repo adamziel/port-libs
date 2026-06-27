@@ -6,6 +6,15 @@ namespace PortLibs\Pandoc;
 
 final class BibtexCslProcessor
 {
+    /** @var list<string> */
+    private const BIBLATEX_CUSTOM_FIELDS = ['usera', 'userb', 'userc', 'userd', 'usere', 'userf', 'verba', 'verbb', 'verbc'];
+
+    /** @var list<string> */
+    private const BIBLATEX_CUSTOM_LIST_FIELDS = ['lista', 'listb', 'listc', 'listd', 'liste', 'listf'];
+
+    /** @var list<string> */
+    private const BIBLATEX_CUSTOM_NAME_FIELDS = ['namea', 'nameb', 'namec'];
+
     /** @var array<string, string> */
     private const MONTH_MACROS = [
         'jan' => '1',
@@ -325,6 +334,18 @@ final class BibtexCslProcessor
         }
         if (($item['rights'] ?? '') !== '') {
             $parts[] = 'Rights: ' . (string) $item['rights'];
+        }
+        $customFieldSummary = $this->biblatexCustomFieldSummary($item['biblatex-custom-fields'] ?? []);
+        if ($customFieldSummary !== '') {
+            $parts[] = 'BibLaTeX custom fields: ' . $customFieldSummary;
+        }
+        $customListSummary = $this->biblatexCustomListSummary($item['biblatex-custom-lists'] ?? []);
+        if ($customListSummary !== '') {
+            $parts[] = 'BibLaTeX custom lists: ' . $customListSummary;
+        }
+        $customNameSummary = $this->biblatexCustomNameSummary($item['biblatex-custom-names'] ?? []);
+        if ($customNameSummary !== '') {
+            $parts[] = 'BibLaTeX custom names: ' . $customNameSummary;
         }
         if (($item['annotation'] ?? '') !== '') {
             $parts[] = 'Annotation: ' . rtrim((string) $item['annotation'], '.');
@@ -823,6 +844,21 @@ final class BibtexCslProcessor
         $sourceFileDiagnostics = $this->sourceFileDiagnosticsFromField($sourceFileField);
         if ($sourceFileDiagnostics !== []) {
             $item['sourceFileDiagnostics'] = $sourceFileDiagnostics;
+        }
+
+        $customFields = $this->biblatexCustomFieldsFromFields($fields);
+        if ($customFields !== []) {
+            $item['biblatex-custom-fields'] = $customFields;
+        }
+
+        $customLists = $this->biblatexCustomListsFromFields($fields);
+        if ($customLists !== []) {
+            $item['biblatex-custom-lists'] = $customLists;
+        }
+
+        $customNames = $this->biblatexCustomNamesFromFields($fields);
+        if ($customNames !== []) {
+            $item['biblatex-custom-names'] = $customNames;
         }
 
         if (($item['archive'] ?? '') !== '' || ($item['archive-collection'] ?? '') !== '' || ($item['archive_location'] ?? '') !== '') {
@@ -1518,6 +1554,179 @@ final class BibtexCslProcessor
             array_map(static fn (string $alias): string => trim($alias), preg_split('/[,;]+/', $value) ?: []),
             static fn (string $alias): bool => $alias !== ''
         ));
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @return array<string, string>
+     */
+    private function biblatexCustomFieldsFromFields(array $fields): array
+    {
+        $custom = [];
+        foreach (self::BIBLATEX_CUSTOM_FIELDS as $field) {
+            $value = trim($fields[$field] ?? '');
+            if ($value !== '') {
+                $custom[$field] = $value;
+            }
+        }
+
+        return $custom;
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @return array<string, list<string>>
+     */
+    private function biblatexCustomListsFromFields(array $fields): array
+    {
+        $custom = [];
+        foreach (self::BIBLATEX_CUSTOM_LIST_FIELDS as $field) {
+            $value = trim($fields[$field] ?? '');
+            if ($value === '') {
+                continue;
+            }
+
+            $values = $this->literalList($value);
+            if ($values !== []) {
+                $custom[$field] = $values;
+            }
+        }
+
+        return $custom;
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @return array<string, list<array<string, string>>>
+     */
+    private function biblatexCustomNamesFromFields(array $fields): array
+    {
+        $custom = [];
+        foreach (self::BIBLATEX_CUSTOM_NAME_FIELDS as $field) {
+            $value = trim($fields[$field] ?? '');
+            if ($value === '') {
+                continue;
+            }
+
+            $names = $this->parseNames($value);
+            if ($names !== []) {
+                $custom[$field] = $names;
+            }
+        }
+
+        return $custom;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function literalList(string $value): array
+    {
+        $values = [];
+        foreach ($this->splitNames($value) as $part) {
+            $part = trim($part);
+            if ($part !== '') {
+                $values[] = $part;
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param mixed $fields
+     */
+    private function biblatexCustomFieldSummary(mixed $fields): string
+    {
+        if (!is_array($fields)) {
+            return '';
+        }
+
+        $parts = [];
+        foreach (self::BIBLATEX_CUSTOM_FIELDS as $field) {
+            $value = trim((string) ($fields[$field] ?? ''));
+            if ($value !== '') {
+                $parts[] = $field . ': ' . $value;
+            }
+        }
+
+        return implode('; ', $parts);
+    }
+
+    /**
+     * @param mixed $lists
+     */
+    private function biblatexCustomListSummary(mixed $lists): string
+    {
+        if (!is_array($lists)) {
+            return '';
+        }
+
+        $parts = [];
+        foreach (self::BIBLATEX_CUSTOM_LIST_FIELDS as $field) {
+            $values = $lists[$field] ?? [];
+            if (!is_array($values)) {
+                continue;
+            }
+
+            $values = array_values(array_filter(
+                array_map(static fn (mixed $value): string => trim((string) $value), $values),
+                static fn (string $value): bool => $value !== ''
+            ));
+            if ($values !== []) {
+                $parts[] = $field . ': ' . implode('; ', $values);
+            }
+        }
+
+        return implode('; ', $parts);
+    }
+
+    /**
+     * @param mixed $namesByField
+     */
+    private function biblatexCustomNameSummary(mixed $namesByField): string
+    {
+        if (!is_array($namesByField)) {
+            return '';
+        }
+
+        $parts = [];
+        foreach (self::BIBLATEX_CUSTOM_NAME_FIELDS as $field) {
+            $names = $namesByField[$field] ?? [];
+            if (!is_array($names)) {
+                continue;
+            }
+
+            $values = array_values(array_filter(
+                array_map(fn (mixed $name): string => $this->biblatexCustomNameDisplay($name), $names),
+                static fn (string $value): bool => $value !== ''
+            ));
+            if ($values !== []) {
+                $parts[] = $field . ': ' . implode('; ', $values);
+            }
+        }
+
+        return implode('; ', $parts);
+    }
+
+    private function biblatexCustomNameDisplay(mixed $name): string
+    {
+        if (!is_array($name)) {
+            return '';
+        }
+
+        $literal = trim((string) ($name['literal'] ?? ''));
+        if ($literal !== '') {
+            return $literal;
+        }
+
+        $family = trim((string) ($name['family'] ?? ''));
+        $given = trim((string) ($name['given'] ?? ''));
+        if ($family !== '' && $given !== '') {
+            return $family . ', ' . $given;
+        }
+
+        return $family !== '' ? $family : $given;
     }
 
     /**
