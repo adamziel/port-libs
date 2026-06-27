@@ -4988,6 +4988,8 @@ final class ZipPackage
      *     presentEntryCount:int,
      *     selectedUniqueEntryCount:int,
      *     selectedDirectoryRootCount:int,
+     *     selectedExtensionBucketCount:int,
+     *     selectedExtensionlessFileEntryCount:int,
      *     selectedFileEntryCount:int,
      *     selectedDirectoryEntryCount:int,
      *     selectedZeroByteEntryCount:int,
@@ -5008,6 +5010,8 @@ final class ZipPackage
      *     missingOptionalEntryCount:int,
      *     handoffEntryCount:int,
      *     handoffDirectoryRootCount:int,
+     *     handoffExtensionBucketCount:int,
+     *     handoffExtensionlessFileEntryCount:int,
      *     readableEntryCount:int,
      *     handoffZeroByteEntryCount:int,
      *     handoffZeroByteFileCount:int,
@@ -5053,6 +5057,8 @@ final class ZipPackage
      *     duplicateRequestedEntryGroups:list<array{name:string,count:int,requestIndexes:list<int>,requestedNames:list<string>,requiredCount:int,optionalCount:int}>,
      *     selectedDirectoryRootSummaries:list<array<string, mixed>>,
      *     handoffDirectoryRootSummaries:list<array<string, mixed>>,
+     *     selectedExtensionSummaries:list<array<string, mixed>>,
+     *     handoffExtensionSummaries:list<array<string, mixed>>,
      *     selectedCompressionMethodBuckets:list<array{compressionMethod:int,compressionMethodName:string,entryCount:int,compressedBytes:int,uncompressedBytes:int,isSupported:bool}>,
      *     selectedUnsupportedCompressionMethodEntries:list<array{name:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int}>,
      *     selectedZeroByteEntries:list<array{name:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int,expansionRatio:?float}>,
@@ -5878,6 +5884,8 @@ final class ZipPackage
 
         $selectedDirectoryRootSummaries = self::entryHandoffDirectoryRootSummaries($selectedDirectoryRootSummaryEntries);
         $handoffDirectoryRootSummaries = self::entryHandoffDirectoryRootSummaries($handoffEntries);
+        $selectedExtensionSummaries = self::entryHandoffExtensionSummaries($selectedDirectoryRootSummaryEntries);
+        $handoffExtensionSummaries = self::entryHandoffExtensionSummaries($handoffEntries);
         $roleSummaries = self::entryHandoffRoleSummaries($entries);
 
         return [
@@ -5887,6 +5895,8 @@ final class ZipPackage
             'presentEntryCount' => count($presentNames),
             'selectedUniqueEntryCount' => count($selectedEntriesByName),
             'selectedDirectoryRootCount' => count($selectedDirectoryRootSummaries),
+            'selectedExtensionBucketCount' => count($selectedExtensionSummaries),
+            'selectedExtensionlessFileEntryCount' => self::entryHandoffExtensionlessFileEntryCount($selectedExtensionSummaries),
             'selectedFileEntryCount' => $selectedFileEntryCount,
             'selectedDirectoryEntryCount' => $selectedDirectoryEntryCount,
             'selectedZeroByteEntryCount' => count($selectedZeroByteEntries),
@@ -5907,6 +5917,8 @@ final class ZipPackage
             'missingOptionalEntryCount' => $missingOptionalEntryCount,
             'handoffEntryCount' => count($handoffEntries),
             'handoffDirectoryRootCount' => count($handoffDirectoryRootSummaries),
+            'handoffExtensionBucketCount' => count($handoffExtensionSummaries),
+            'handoffExtensionlessFileEntryCount' => self::entryHandoffExtensionlessFileEntryCount($handoffExtensionSummaries),
             'readableEntryCount' => count($handoffEntries),
             'handoffZeroByteEntryCount' => count($handoffZeroByteEntries),
             'handoffZeroByteFileCount' => $handoffZeroByteFileCount,
@@ -5984,6 +5996,8 @@ final class ZipPackage
             'roleSummaries' => $roleSummaries,
             'selectedDirectoryRootSummaries' => $selectedDirectoryRootSummaries,
             'handoffDirectoryRootSummaries' => $handoffDirectoryRootSummaries,
+            'selectedExtensionSummaries' => $selectedExtensionSummaries,
+            'handoffExtensionSummaries' => $handoffExtensionSummaries,
             'selectedCompressionMethodBuckets' => self::compressionMethodBuckets($selectedCompressionMethodBuckets),
             'selectedUnsupportedCompressionMethodEntries' => $selectedUnsupportedCompressionMethodEntries,
             'selectedZeroByteEntries' => $selectedZeroByteEntries,
@@ -6472,6 +6486,90 @@ final class ZipPackage
         $separator = strpos($name, '/');
 
         return $separator === false ? '/' : substr($name, 0, $separator + 1);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffExtensionSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '' || ($entry['isDirectory'] ?? false) === true) {
+                continue;
+            }
+
+            $extension = self::entryHandoffFileExtension($name);
+            $key = $extension ?? '';
+            if (!isset($summaries[$key])) {
+                $summaries[$key] = [
+                    'extension' => $extension,
+                    'entryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'roles' => [],
+                    'entryNames' => [],
+                ];
+            }
+
+            ++$summaries[$key]['entryCount'];
+            $summaries[$key]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$key]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$key]['entryNames'][] = $name;
+
+            $roles = [];
+            if (is_array($entry['roles'] ?? null)) {
+                $roles = array_values(array_filter($entry['roles'], static fn (mixed $role): bool => is_string($role) && $role !== ''));
+            } elseif (is_string($entry['role'] ?? null) && $entry['role'] !== '') {
+                $roles = [$entry['role']];
+            }
+
+            foreach ($roles as $role) {
+                if (!in_array($role, $summaries[$key]['roles'], true)) {
+                    $summaries[$key]['roles'][] = $role;
+                }
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['roles'], SORT_STRING);
+        }
+        unset($summary);
+
+        ksort($summaries, SORT_STRING);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $extensionSummaries
+     */
+    private static function entryHandoffExtensionlessFileEntryCount(array $extensionSummaries): int
+    {
+        foreach ($extensionSummaries as $summary) {
+            if (($summary['extension'] ?? null) === null) {
+                return (int) ($summary['entryCount'] ?? 0);
+            }
+        }
+
+        return 0;
+    }
+
+    private static function entryHandoffFileExtension(string $name): ?string
+    {
+        $leaf = basename($name);
+        if ($leaf === '' || $leaf === '.' || $leaf === '..') {
+            return null;
+        }
+
+        $dot = strrpos($leaf, '.');
+        if ($dot === false || $dot === strlen($leaf) - 1) {
+            return null;
+        }
+
+        return strtolower(substr($leaf, $dot + 1));
     }
 
     /**

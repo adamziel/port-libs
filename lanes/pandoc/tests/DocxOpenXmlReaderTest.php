@@ -9666,6 +9666,8 @@ XML;
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rSidecarPreview" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="sidecar-preview.png"/>
   <Relationship Id="rSidecarExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/sidecar-resource?review=1#external" TargetMode="External"/>
+  <Relationship Id="rSidecarMissing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="missing-sidecar.bin?review=missing#asset"/>
+  <Relationship Id="rSidecarUnsafeExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="javascript:sidecar()" TargetMode="External"/>
 </Relationships>
 XML;
         $parts['docProps/sidecar-preview.png'] = 'sidecar preview bytes';
@@ -9693,13 +9695,21 @@ XML;
         $t->same([$resourceType], $resources['relationshipTypes']);
         $t->same(['docProps/review-audit.xml', 'docProps/sidecar-audit.xml', 'docProps/missing-audit.xml'], $resources['targetParts']);
         $t->same(['file:///C:/review/root-audit.xml?remote=1#payload'], $resources['externalTargets']);
-        $t->same(2, $resources['targetRelationshipRecordCount']);
+        $t->same(4, $resources['targetRelationshipRecordCount']);
+        $t->same(1, $resources['targetRelationshipExistingCount']);
+        $t->same(1, $resources['targetRelationshipMissingCount']);
+        $t->same(2, $resources['targetRelationshipExternalCount']);
+        $t->same(1, $resources['targetRelationshipAllowedExternalCount']);
+        $t->same(1, $resources['targetRelationshipUnsafeExternalCount']);
+        $t->same(1, $resources['targetRelationshipMissingContentTypeCount']);
         $t->same([
             'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image',
             'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
         ], $resources['targetRelationshipTypes']);
-        $t->same(['docProps/sidecar-preview.png'], $resources['targetRelationshipTargetParts']);
-        $t->same(['https://example.test/sidecar-resource?review=1#external'], $resources['targetRelationshipExternalTargets']);
+        $t->same(['docProps/sidecar-preview.png', 'docProps/missing-sidecar.bin'], $resources['targetRelationshipTargetParts']);
+        $t->same(['https://example.test/sidecar-resource?review=1#external', 'javascript:sidecar()'], $resources['targetRelationshipExternalTargets']);
+        $t->same(['image/png'], $resources['targetRelationshipContentTypes']);
+        $t->same(['external-target-unsafe-scheme'], $resources['targetRelationshipExternalIssueCodes']);
         $t->same('package-root-relationship-bytes-blocked', $resources['byteExposurePolicy']);
         $t->same('package-root-relationship-metadata-only', $resources['reviewPolicy']);
         $t->same(false, $resources['canExposeBytes']);
@@ -9721,14 +9731,31 @@ XML;
 
         $t->same('docProps/_rels/sidecar-audit.xml.rels', $sidecar['targetRelationshipsPart']);
         $t->same(true, $sidecar['targetHasRelationships']);
-        $t->same(2, $sidecar['targetRelationshipRecordCount']);
-        $t->same(['rSidecarPreview', 'rSidecarExternal'], $sidecar['targetRelationshipIds']);
+        $t->same(4, $sidecar['targetRelationshipRecordCount']);
+        $t->same(1, $sidecar['targetRelationshipExistingCount']);
+        $t->same(1, $sidecar['targetRelationshipMissingCount']);
+        $t->same(2, $sidecar['targetRelationshipExternalCount']);
+        $t->same(1, $sidecar['targetRelationshipAllowedExternalCount']);
+        $t->same(1, $sidecar['targetRelationshipUnsafeExternalCount']);
+        $t->same(1, $sidecar['targetRelationshipMissingContentTypeCount']);
+        $t->same(['rSidecarPreview', 'rSidecarExternal', 'rSidecarMissing', 'rSidecarUnsafeExternal'], $sidecar['targetRelationshipIds']);
         $t->same([
             'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image',
             'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
         ], $sidecar['targetRelationshipTypes']);
-        $t->same(['docProps/sidecar-preview.png'], $sidecar['targetRelationshipTargetParts']);
-        $t->same(['https://example.test/sidecar-resource?review=1#external'], $sidecar['targetRelationshipExternalTargets']);
+        $t->same(['docProps/sidecar-preview.png', 'docProps/missing-sidecar.bin'], $sidecar['targetRelationshipTargetParts']);
+        $t->same(['https://example.test/sidecar-resource?review=1#external', 'javascript:sidecar()'], $sidecar['targetRelationshipExternalTargets']);
+        $t->same(['image/png'], $sidecar['targetRelationshipContentTypes']);
+        $t->same(['external-target-unsafe-scheme'], $sidecar['targetRelationshipExternalIssueCodes']);
+        $t->same('rSidecarMissing', $sidecar['targetRelationships'][2]['id']);
+        $t->same('docProps/missing-sidecar.bin', $sidecar['targetRelationships'][2]['targetPart']);
+        $t->same('review=missing', $sidecar['targetRelationships'][2]['targetQuery']);
+        $t->same('asset', $sidecar['targetRelationships'][2]['targetFragment']);
+        $t->same(false, $sidecar['targetRelationships'][2]['exists']);
+        $t->same('missing', $sidecar['targetRelationships'][2]['contentTypeSource']);
+        $t->same('rSidecarUnsafeExternal', $sidecar['targetRelationships'][3]['id']);
+        $t->same(false, $sidecar['targetRelationships'][3]['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $sidecar['targetRelationships'][3]['externalTargetIssues']);
         $t->same(strlen($sidecarXml), $sidecar['byteLength']);
         $t->same('application/vnd.example.review+xml; profile=sidecar', $sidecar['contentType']);
         $t->same([], $sidecar['issues']);
@@ -9758,7 +9785,14 @@ XML;
         $t->same(1, $summary['packageRootRelationshipResourceMissingCount']);
         $t->same(1, $summary['packageRootRelationshipResourceExternalCount']);
         $t->same(1, $summary['packageRootRelationshipResourceTargetRelationshipCount']);
-        $t->same(2, $summary['packageRootRelationshipResourceTargetRelationshipRecordCount']);
+        $t->same(4, $summary['packageRootRelationshipResourceTargetRelationshipRecordCount']);
+        $t->same(1, $summary['packageRootRelationshipResourceTargetRelationshipExistingCount']);
+        $t->same(1, $summary['packageRootRelationshipResourceTargetRelationshipMissingCount']);
+        $t->same(2, $summary['packageRootRelationshipResourceTargetRelationshipExternalCount']);
+        $t->same(1, $summary['packageRootRelationshipResourceTargetRelationshipAllowedExternalCount']);
+        $t->same(1, $summary['packageRootRelationshipResourceTargetRelationshipUnsafeExternalCount']);
+        $t->same(1, $summary['packageRootRelationshipResourceTargetRelationshipMissingContentTypeCount']);
+        $t->same(['external-target-unsafe-scheme'], $summary['packageRootRelationshipResourceTargetRelationshipExternalIssueCodes']);
         $t->same(2, $summary['packageRootRelationshipResourceIssueCount']);
         $t->same($resources['issueCodes'], $summary['packageRootRelationshipResourceIssueCodes']);
         $t->same(4, $relationshipType['count']);
@@ -9768,6 +9802,79 @@ XML;
         $t->same(['docProps/missing-audit.xml'], $relationshipType['missingTargetParts']);
         $t->true(in_array('root-relationship-target', $package['parts']['docProps/review-audit.xml']['roles'], true), 'package root resource target role missing');
         $t->true(!isset($docx['media']['docProps/review-audit.xml']), 'package root resource bytes should not be exposed as document media');
+    },
+    'summarizes nested docx package root resource relationship targets for review handoff' => static function (TestRunner $t): void {
+        $resourceType = 'http://example.test/openxml/relationships/rootResource';
+        $imageType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $hyperlinkType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/docProps/root-resource.xml" ContentType="application/vnd.example.root-resource+xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rRootResource" Type="' . $resourceType . '" Target="docProps/root-resource.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['docProps/root-resource.xml'] = '<root-resource/>';
+        $parts['docProps/_rels/root-resource.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rPreview" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="root-preview.png?asset=preview#img"/>
+  <Relationship Id="rMissing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="missing-root-resource.bin"/>
+  <Relationship Id="rSafeExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/root-resource?slot=safe#review" TargetMode="External"/>
+  <Relationship Id="rUnsafeExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="file:///C:/root-resource.bin" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['docProps/root-preview.png'] = 'root preview bytes';
+
+        $docx = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx');
+        $resources = $docx['packageProvenance']['packageRootRelationshipResources'];
+        $summary = $docx['packageProvenance']['summary'];
+        $resource = $resources['byRelationshipId']['rRootResource'];
+        $preview = $resource['targetRelationships'][0];
+        $missing = $resource['targetRelationships'][1];
+        $unsafe = $resource['targetRelationships'][3];
+
+        $t->same(1, $resources['targetRelationshipCount']);
+        $t->same(4, $resources['targetRelationshipRecordCount']);
+        $t->same(1, $resources['targetRelationshipExistingCount']);
+        $t->same(1, $resources['targetRelationshipMissingCount']);
+        $t->same(2, $resources['targetRelationshipExternalCount']);
+        $t->same(1, $resources['targetRelationshipAllowedExternalCount']);
+        $t->same(1, $resources['targetRelationshipUnsafeExternalCount']);
+        $t->same(1, $resources['targetRelationshipMissingContentTypeCount']);
+        $t->same([$imageType, $hyperlinkType], $resources['targetRelationshipTypes']);
+        $t->same(['docProps/root-preview.png', 'docProps/missing-root-resource.bin'], $resources['targetRelationshipTargetParts']);
+        $t->same([
+            'https://example.test/root-resource?slot=safe#review',
+            'file:///C:/root-resource.bin',
+        ], $resources['targetRelationshipExternalTargets']);
+        $t->same(['image/png'], $resources['targetRelationshipContentTypes']);
+        $t->same(['external-target-unsafe-scheme'], $resources['targetRelationshipExternalIssueCodes']);
+
+        $t->same($resources['targetRelationshipRecordCount'], $summary['packageRootRelationshipResourceTargetRelationshipRecordCount']);
+        $t->same($resources['targetRelationshipUnsafeExternalCount'], $summary['packageRootRelationshipResourceTargetRelationshipUnsafeExternalCount']);
+        $t->same($resources['targetRelationshipExternalIssueCodes'], $summary['packageRootRelationshipResourceTargetRelationshipExternalIssueCodes']);
+
+        $t->same('root-preview.png?asset=preview#img', $preview['target']);
+        $t->same('docProps/root-preview.png', $preview['targetPart']);
+        $t->same('asset=preview', $preview['targetQuery']);
+        $t->same('img', $preview['targetFragment']);
+        $t->same(true, $preview['exists']);
+        $t->same('image/png', $preview['contentType']);
+
+        $t->same('docProps/missing-root-resource.bin', $missing['targetPart']);
+        $t->same(false, $missing['exists']);
+        $t->same('missing', $missing['contentTypeSource']);
+
+        $t->same('file', $unsafe['externalTargetScheme']);
+        $t->same(false, $unsafe['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $unsafe['externalTargetIssues']);
     },
     'reports docx package thumbnail provenance as metadata only' => static function (TestRunner $t): void {
         $thumbnailType = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail';
@@ -11414,6 +11521,7 @@ XML;
             '  <Relationship Id="rEmbeddedWorkbook" Type="' . $packageRel . '" Target="embeddings/review.xlsx?sheet=1#ole"/>' . "\n" .
             '  <Relationship Id="rMissingOle" Type="' . $oleRel . '" Target="embeddings/missing.bin"/>' . "\n" .
             '  <Relationship Id="rRemoteOle" Type="' . $oleRel . '" Target="https://example.test/ole.bin?remote=1#object" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rUnsafeOle" Type="' . $oleRel . '" Target="javascript:alert(1)" TargetMode="External"/>' . "\n" .
             '</Relationships>',
             $parts['word/_rels/document.xml.rels']
         );
@@ -11439,21 +11547,30 @@ XML;
         $missing = $embedded['byRelationshipId']['rMissingOle'];
         $unknown = $embedded['byRelationshipId']['rUnknownOle'];
         $remote = $embedded['byRelationshipId']['rRemoteOle'];
+        $unsafe = $embedded['byRelationshipId']['rUnsafeOle'];
+        $summary = $docx['packageProvenance']['summary'];
         $relationshipTypes = $docx['packageProvenance']['relationshipTypes'];
 
-        $t->same(4, $embedded['count']);
-        $t->same(3, $embedded['relationshipCount']);
+        $t->same(5, $embedded['count']);
+        $t->same(4, $embedded['relationshipCount']);
         $t->same(3, $embedded['referencedCount']);
-        $t->same(1, $embedded['unreferencedRelationshipCount']);
+        $t->same(2, $embedded['unreferencedRelationshipCount']);
         $t->same(1, $embedded['existingCount']);
         $t->same(1, $embedded['missingCount']);
-        $t->same(1, $embedded['externalCount']);
+        $t->same(2, $embedded['externalCount']);
+        $t->same(1, $embedded['allowedExternalTargetCount']);
+        $t->same(1, $embedded['unsafeExternalTargetCount']);
         $t->same(1, $embedded['unresolvedCount']);
         $t->same(1, $embedded['missingContentTypeCount']);
-        $t->same(['rEmbeddedWorkbook', 'rMissingOle', 'rUnknownOle', 'rRemoteOle'], $embedded['relationshipIds']);
+        $t->same(['rEmbeddedWorkbook', 'rMissingOle', 'rUnknownOle', 'rRemoteOle', 'rUnsafeOle'], $embedded['relationshipIds']);
         $t->same(['rEmbeddedWorkbook', 'rMissingOle', 'rUnknownOle'], $embedded['referencedRelationshipIds']);
-        $t->same(['rRemoteOle'], $embedded['unreferencedRelationshipIds']);
+        $t->same(['rRemoteOle', 'rUnsafeOle'], $embedded['unreferencedRelationshipIds']);
         $t->same(['word/embeddings/review.xlsx', 'word/embeddings/missing.bin'], $embedded['partNames']);
+        $t->same(['https://example.test/ole.bin?remote=1#object', 'javascript:alert(1)'], $embedded['externalTargets']);
+        $t->same(['javascript:alert(1)'], $embedded['unsafeExternalTargets']);
+        $t->same(['absolute-uri' => 2], $embedded['externalTargetKindCounts']);
+        $t->same(['https' => 1, 'javascript' => 1], $embedded['externalTargetSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme'], $embedded['externalTargetIssueCodes']);
 
         $t->same('Excel.Sheet.12', $workbook['progId']);
         $t->same('_x0000_i1025', $workbook['shapeId']);
@@ -11493,12 +11610,34 @@ XML;
         $t->same(true, $remote['external']);
         $t->same('https://example.test/ole.bin?remote=1#object', $remote['target']);
         $t->same(null, $remote['targetPart']);
+        $t->same('absolute-uri', $remote['externalTargetKind']);
+        $t->same('https', $remote['externalTargetScheme']);
+        $t->same(true, $remote['externalTargetAllowed']);
+        $t->same([], $remote['externalTargetIssues']);
+        $t->same('remote=1', $remote['targetQuery']);
+        $t->same('object', $remote['targetFragment']);
         $t->same(['external-embedded-object'], $remote['issues']);
+
+        $t->same(false, $unsafe['referenced']);
+        $t->same(true, $unsafe['external']);
+        $t->same('javascript:alert(1)', $unsafe['target']);
+        $t->same(null, $unsafe['targetPart']);
+        $t->same('absolute-uri', $unsafe['externalTargetKind']);
+        $t->same('javascript', $unsafe['externalTargetScheme']);
+        $t->same(false, $unsafe['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $unsafe['externalTargetIssues']);
+        $t->same(['external-embedded-object', 'external-target-unsafe-scheme'], $unsafe['issues']);
+
+        $t->same(2, $summary['embeddedObjectExternalCount']);
+        $t->same(1, $summary['embeddedObjectAllowedExternalCount']);
+        $t->same(1, $summary['embeddedObjectUnsafeExternalCount']);
+        $t->same(['external-target-unsafe-scheme'], $summary['embeddedObjectExternalTargetIssueCodes']);
+        $t->same(['external-embedded-object', 'external-target-unsafe-scheme', 'missing-content-type', 'missing-in-package', 'unknown-relationship'], $summary['embeddedObjectIssueCodes']);
 
         $t->same(1, $relationshipTypes[$packageRel]['existingTargetCount']);
         $t->same(['word/embeddings/review.xlsx'], $relationshipTypes[$packageRel]['existingTargetParts']);
-        $t->same(2, $relationshipTypes[$oleRel]['count']);
-        $t->same(1, $relationshipTypes[$oleRel]['externalCount']);
+        $t->same(3, $relationshipTypes[$oleRel]['count']);
+        $t->same(2, $relationshipTypes[$oleRel]['externalCount']);
         $t->same(['word/embeddings/missing.bin'], $relationshipTypes[$oleRel]['missingTargetParts']);
     },
     'summarizes docx embedded object sidecar relationships for package review' => static function (TestRunner $t): void {
@@ -21027,6 +21166,150 @@ XML;
         $t->true(in_array('embedded-package', $inventory['word/embeddings/loose-workbook.xlsx']['roles'], true), 'loose chart workbook inventory role missing');
         $t->true(!isset($docx['media']['word/embeddings/loose-workbook.xlsx']), 'Loose chart workbook package should not be exposed as document media');
     },
+    'summarizes docx header chart embedded package relationships for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $chartRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart';
+        $packageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+        $headerContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml';
+        $chartContentType = 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml';
+        $workbookContentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        $workbookBytes = 'header chart workbook bytes';
+        $chartXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <c:chart>
+    <c:externalData r:id="rHeaderWorkbook"/>
+  </c:chart>
+</c:chartSpace>
+XML;
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/header1.xml" ContentType="' . $headerContentType . '"/>' . "\n" .
+            '  <Override PartName="/word/charts/header-chart.xml" ContentType="' . $chartContentType . '; profile=header-chart"/>' . "\n" .
+            '  <Override PartName="/word/embeddings/header-workbook.xlsx" ContentType="' . $workbookContentType . '; profile=header-data"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rHeaderDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml?slot=default#hdr"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '</w:body>',
+            '    <w:sectPr><w:headerReference w:type="default" r:id="rHeaderDefault"/></w:sectPr>' . "\n" .
+            '  </w:body>',
+            $parts['word/document.xml']
+        );
+        $parts['word/header1.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart">
+  <w:p>
+    <w:r><w:drawing><wp:inline><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart r:id="rHeaderChart"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>
+  </w:p>
+</w:hdr>
+XML;
+        $parts['word/_rels/header1.xml.rels'] = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderChart" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="charts/header-chart.xml?slot=header#chart"/>
+</Relationships>
+XML;
+        $parts['word/charts/header-chart.xml'] = $chartXml;
+        $parts['word/charts/_rels/header-chart.xml.rels'] = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="../embeddings/header-workbook.xlsx?sheet=Header#data"/>
+</Relationships>
+XML;
+        $parts['word/embeddings/header-workbook.xlsx'] = $workbookBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $charts = $docx['chartParts'];
+        $summary = $package['summary'];
+        $chart = $charts['byRelationshipKey']['word/_rels/header1.xml.rels#rHeaderChart'];
+        $embeddedPackages = $chart['embeddedPackages'];
+        $workbook = $embeddedPackages['byRelationshipId']['rHeaderWorkbook'];
+        $chartRelationshipsPart = $package['relationshipParts']['word/charts/_rels/header-chart.xml.rels'];
+        $relationshipTypes = $package['relationshipTypes'];
+        $inventory = $package['parts'];
+
+        $t->same($charts, $package['chartParts']);
+        $t->same(1, $charts['count']);
+        $t->same(1, $charts['relationshipCount']);
+        $t->same(0, $charts['documentCount']);
+        $t->same(1, $charts['headerCount']);
+        $t->same(0, $charts['footerCount']);
+        $t->same(2, $charts['sourcePartCount']);
+        $t->same(['document', 'header'], $charts['sourceTypes']);
+        $t->same(['word/document.xml', 'word/header1.xml'], $charts['sourceParts']);
+        $t->same(['word/_rels/document.xml.rels', 'word/_rels/header1.xml.rels'], $charts['relationshipsParts']);
+        $t->same(['word/_rels/header1.xml.rels#rHeaderChart'], $charts['relationshipKeys']);
+        $t->same(['word/_rels/header1.xml.rels#rHeaderChart'], $charts['referencedRelationshipKeys']);
+        $t->same([], $charts['unreferencedRelationshipKeys']);
+        $t->same(['word/charts/header-chart.xml'], $charts['partNames']);
+        $t->same(1, $charts['embeddedPackageCount']);
+        $t->same(1, $charts['embeddedPackageExistingCount']);
+        $t->same(0, $charts['embeddedPackageMissingCount']);
+        $t->same(0, $charts['embeddedPackageExternalCount']);
+        $t->same(0, $charts['embeddedPackageIssueCount']);
+
+        $t->same('word/_rels/header1.xml.rels#rHeaderChart', $chart['relationshipKey']);
+        $t->same('header', $chart['sourceType']);
+        $t->same('word/header1.xml', $chart['sourcePart']);
+        $t->same('word/_rels/header1.xml.rels', $chart['relationshipsPart']);
+        $t->same(true, $chart['referenced']);
+        $t->same($chartRel, $chart['relationshipType']);
+        $t->same('charts/header-chart.xml?slot=header#chart', $chart['target']);
+        $t->same('word/charts/header-chart.xml?slot=header#chart', $chart['resolvedTarget']);
+        $t->same('word/charts/header-chart.xml', $chart['targetPart']);
+        $t->same('slot=header', $chart['targetQuery']);
+        $t->same('chart', $chart['targetFragment']);
+        $t->same('?slot=header#chart', $chart['targetReferenceSuffix']);
+        $t->same('word/charts/_rels/header-chart.xml.rels', $chart['chartRelationshipsPart']);
+        $t->same(1, $chart['chartRelationshipCount']);
+        $t->same(['rHeaderWorkbook'], $chart['externalDataRelationshipIds']);
+        $t->same([], $chart['issues']);
+        $t->same(true, $chart['valid']);
+
+        $t->same(1, $embeddedPackages['count']);
+        $t->same(1, $embeddedPackages['referencedCount']);
+        $t->same(['rHeaderWorkbook'], $embeddedPackages['relationshipIds']);
+        $t->same(['rHeaderWorkbook'], $embeddedPackages['referencedRelationshipIds']);
+        $t->same('chart-embedded-package-bytes-blocked', $embeddedPackages['byteExposurePolicy']);
+        $t->same('chart-embedded-package-metadata-only', $embeddedPackages['reviewPolicy']);
+        $t->same(true, $workbook['referenced']);
+        $t->same($packageRel, $workbook['type']);
+        $t->same('../embeddings/header-workbook.xlsx?sheet=Header#data', $workbook['target']);
+        $t->same('word/embeddings/header-workbook.xlsx?sheet=Header#data', $workbook['resolvedTarget']);
+        $t->same('word/embeddings/header-workbook.xlsx', $workbook['targetPart']);
+        $t->same('sheet=Header', $workbook['targetQuery']);
+        $t->same('data', $workbook['targetFragment']);
+        $t->same($workbookContentType . '; profile=header-data', $workbook['contentType']);
+        $t->same($workbookContentType, $workbook['contentTypeBase']);
+        $t->same(['profile' => 'header-data'], $workbook['contentTypeParameterMap']);
+        $t->same(strlen($workbookBytes), $workbook['byteLength']);
+        $t->same(sprintf('%08x', crc32($workbookBytes)), $workbook['crc32']);
+        $t->same(hash('sha256', $workbookBytes), $workbook['sha256']);
+        $t->same([], $workbook['issues']);
+        $t->same(true, $workbook['valid']);
+
+        $t->same(1, $summary['chartPartCount']);
+        $t->same(1, $summary['chartPartRelationshipCount']);
+        $t->same(1, $summary['chartEmbeddedPackageCount']);
+        $t->same(1, $summary['chartEmbeddedPackageExistingCount']);
+        $t->same(0, $summary['chartEmbeddedPackageIssueCount']);
+        $t->same(1, $chartRelationshipsPart['relationshipCount']);
+        $t->same('word/charts/header-chart.xml', $chartRelationshipsPart['sourcePart']);
+        $t->same($workbookContentType, $chartRelationshipsPart['relationships']['rHeaderWorkbook']['contentTypeBase']);
+        $t->same(1, $relationshipTypes[$chartRel]['count']);
+        $t->same(1, $relationshipTypes[$packageRel]['count']);
+        $t->true(in_array('chart-part', $inventory['word/charts/header-chart.xml']['roles'], true), 'header chart inventory role missing');
+        $t->true(in_array('embedded-package', $inventory['word/embeddings/header-workbook.xlsx']['roles'], true), 'header chart workbook inventory role missing');
+        $t->true(!isset($docx['media']['word/embeddings/header-workbook.xlsx']), 'Header chart workbook package should not be exposed as document media');
+    },
     'summarizes docx diagram embedded package relationships for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $dataRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData';
@@ -21280,6 +21563,73 @@ XML;
         $t->true(in_array('embedded-package', $inventory['word/embeddings/loose-diagram-model.xlsx']['roles'], true), 'loose diagram workbook inventory role missing');
         $t->true(!isset($docx['media']['word/embeddings/loose-diagram-model.xlsx']), 'Loose diagram workbook package should not be exposed as document media');
     },
+    'summarizes docx source zip raw name provenance for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $cp437RawName = "word/media/caf\x82.png";
+        $cp437Name = "word/media/caf\u{00e9}.png";
+        $unicodeRawName = 'word/media/review-image.bin';
+        $unicodeName = "word/media/review-\u{2603}.png";
+        $unicodePathExtra = docx_openxml_reader_unicode_extra(0x7075, $unicodeRawName, $unicodeName);
+
+        $document = (new DocxOpenXmlReader())->readZipPackage(
+            docx_openxml_reader_zip_package_with_raw_name_entries($parts, [
+                [
+                    'name' => $cp437RawName,
+                    'data' => 'legacy encoded image placeholder',
+                    'method' => 0,
+                    'flags' => 0,
+                ],
+                [
+                    'name' => $unicodeRawName,
+                    'localName' => $unicodeRawName,
+                    'data' => 'unicode path image placeholder',
+                    'method' => 0,
+                    'flags' => 0,
+                    'localExtra' => $unicodePathExtra,
+                    'centralExtra' => $unicodePathExtra,
+                ],
+            ])
+        );
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $namePolicy = $package['zipPackage']['namePolicy'];
+        $provenanceEntries = $summary['zipRawNameProvenanceEntries'];
+
+        $t->same('Imported DOCX Heading', $document->children[0]->attr('text'));
+        $t->same(2, $summary['zipRawNameProvenanceEntryCount']);
+        $t->same(1, $summary['zipRawNameLegacyEncodedEntryCount']);
+        $t->same(1, $summary['zipRawNameUnicodePathExtraEntryCount']);
+        $t->same(2, $summary['zipRawNameDecodedDiffersEntryCount']);
+        $t->same(0, $summary['zipRawNameCollisionGroupCount']);
+        $t->same(0, $summary['zipRawNameCollisionEntryCount']);
+        $t->same([], $summary['zipRawNameCollisionGroups']);
+        $t->same([], $summary['zipRawNameCollisionEntries']);
+        $t->same(['raw-name-provenance-review-entries'], $summary['zipNamePolicyIssueCodes']);
+        $t->same($namePolicy['rawNameProvenanceEntries'], $provenanceEntries);
+
+        $t->same($cp437Name, $provenanceEntries[0]['name']);
+        $t->same(bin2hex($cp437RawName), $provenanceEntries[0]['rawNameHex']);
+        $t->same('cp437', $provenanceEntries[0]['nameEncoding']);
+        $t->same(false, $provenanceEntries[0]['rawNameMatchesDecodedName']);
+        $t->same(true, $provenanceEntries[0]['usesLegacyNameEncoding']);
+        $t->same(false, $provenanceEntries[0]['usesUnicodePathExtraField']);
+        $t->same(['raw-name-decoded-value-differs', 'raw-name-legacy-encoding'], $provenanceEntries[0]['issues']);
+
+        $t->same($unicodeName, $provenanceEntries[1]['name']);
+        $t->same(bin2hex($unicodeRawName), $provenanceEntries[1]['rawNameHex']);
+        $t->same('info-zip-unicode-path', $provenanceEntries[1]['nameEncoding']);
+        $t->same(false, $provenanceEntries[1]['rawNameMatchesDecodedName']);
+        $t->same(false, $provenanceEntries[1]['usesLegacyNameEncoding']);
+        $t->same(true, $provenanceEntries[1]['usesUnicodePathExtraField']);
+        $t->same(['raw-name-decoded-value-differs', 'raw-name-info-zip-unicode-path'], $provenanceEntries[1]['issues']);
+
+        $t->same(true, $package['parts'][$cp437Name]['zipEntryPresent']);
+        $t->same(true, $package['parts'][$unicodeName]['zipEntryPresent']);
+        $t->same('image/png', $package['parts'][$cp437Name]['contentTypeBase']);
+        $t->same('image/png', $package['parts'][$unicodeName]['contentTypeBase']);
+        $t->true(in_array($cp437Name, $package['zipPackage']['loadedPartNames'], true), 'CP437 decoded package part should load by decoded name');
+        $t->true(in_array($unicodeName, $package['zipPackage']['loadedPartNames'], true), 'Info-ZIP Unicode package part should load by decoded name');
+    },
     'reads a native zip docx package without shelling out' => static function (TestRunner $t): void {
         $path = docx_openxml_reader_temp_docx(docx_openxml_reader_fixture_parts());
         try {
@@ -21523,6 +21873,109 @@ function docx_openxml_reader_zip_package_with_compression_methods(array $parts, 
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, $entryCount, $entryCount, strlen($central), strlen($body), 0)
     );
+}
+
+/**
+ * @param array<string, string> $parts
+ * @param list<array{name:string, localName?:string, data:string, method?:int, flags?:int, localExtra?:string, centralExtra?:string, comment?:string}> $rawNameEntries
+ */
+function docx_openxml_reader_zip_package_with_raw_name_entries(array $parts, array $rawNameEntries): ZipPackage
+{
+    $entries = [];
+    foreach ($parts as $name => $contents) {
+        $entries[] = [
+            'name' => $name,
+            'data' => $contents,
+            'method' => 8,
+            'flags' => 0x0800,
+        ];
+    }
+    foreach ($rawNameEntries as $entry) {
+        $entries[] = $entry;
+    }
+
+    return ZipPackage::fromString(docx_openxml_reader_raw_zip_bytes($entries));
+}
+
+/**
+ * @param list<array{name:string, localName?:string, data:string, method?:int, flags?:int, localExtra?:string, centralExtra?:string, comment?:string}> $entries
+ */
+function docx_openxml_reader_raw_zip_bytes(array $entries): string
+{
+    $body = '';
+    $central = '';
+    $entryCount = 0;
+
+    foreach ($entries as $entry) {
+        $name = $entry['name'];
+        $localName = $entry['localName'] ?? $name;
+        $contents = $entry['data'];
+        $method = $entry['method'] ?? 8;
+        $flags = $entry['flags'] ?? 0x0800;
+        $localExtra = $entry['localExtra'] ?? '';
+        $centralExtra = $entry['centralExtra'] ?? $localExtra;
+        $comment = $entry['comment'] ?? '';
+        $compressed = match ($method) {
+            0 => $contents,
+            8 => gzdeflate($contents),
+            default => $contents,
+        };
+        if (!is_string($compressed)) {
+            throw new RuntimeException("Unable to deflate DOCX fixture entry {$name}");
+        }
+
+        $crc32 = (int) sprintf('%u', crc32($contents));
+        $offset = strlen($body);
+        $body .= pack(
+            'VvvvvvVVVvv',
+            0x04034b50,
+            20,
+            $flags,
+            $method,
+            0,
+            0,
+            $crc32,
+            strlen($compressed),
+            strlen($contents),
+            strlen($localName),
+            strlen($localExtra),
+        );
+        $body .= $localName . $localExtra . $compressed;
+
+        $central .= pack(
+            'VvvvvvvVVVvvvvvVV',
+            0x02014b50,
+            0x0314,
+            20,
+            $flags,
+            $method,
+            0,
+            0,
+            $crc32,
+            strlen($compressed),
+            strlen($contents),
+            strlen($name),
+            strlen($centralExtra),
+            strlen($comment),
+            0,
+            0,
+            0,
+            $offset,
+        );
+        $central .= $name . $centralExtra . $comment;
+        ++$entryCount;
+    }
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, $entryCount, $entryCount, strlen($central), strlen($body), 0);
+}
+
+function docx_openxml_reader_unicode_extra(int $id, string $rawName, string $unicodeName): string
+{
+    $payload = "\x01" . pack('V', (int) sprintf('%u', crc32($rawName))) . $unicodeName;
+
+    return pack('vv', $id, strlen($payload)) . $payload;
 }
 
 /**

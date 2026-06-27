@@ -231,6 +231,13 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['packageRootRelationshipResourceExternalCount'] = $packageRootResources['externalCount'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipCount'] = $packageRootResources['targetRelationshipCount'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipRecordCount'] = $packageRootResources['targetRelationshipRecordCount'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipExistingCount'] = $packageRootResources['targetRelationshipExistingCount'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipMissingCount'] = $packageRootResources['targetRelationshipMissingCount'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipExternalCount'] = $packageRootResources['targetRelationshipExternalCount'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipAllowedExternalCount'] = $packageRootResources['targetRelationshipAllowedExternalCount'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipUnsafeExternalCount'] = $packageRootResources['targetRelationshipUnsafeExternalCount'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipMissingContentTypeCount'] = $packageRootResources['targetRelationshipMissingContentTypeCount'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipExternalIssueCodes'] = $packageRootResources['targetRelationshipExternalIssueCodes'];
         $packageProvenance['summary']['packageRootRelationshipResourceIssueCount'] = $packageRootResources['issueCount'];
         $packageProvenance['summary']['packageRootRelationshipResourceIssueCodes'] = $packageRootResources['issueCodes'];
         $stylesPart = $this->stylesPart($parts, $documentRelationships, $documentPart);
@@ -535,6 +542,9 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['embeddedObjectExistingCount'] = $embeddedObjects['existingCount'];
         $packageProvenance['summary']['embeddedObjectMissingCount'] = $embeddedObjects['missingCount'];
         $packageProvenance['summary']['embeddedObjectExternalCount'] = $embeddedObjects['externalCount'];
+        $packageProvenance['summary']['embeddedObjectAllowedExternalCount'] = $embeddedObjects['allowedExternalTargetCount'];
+        $packageProvenance['summary']['embeddedObjectUnsafeExternalCount'] = $embeddedObjects['unsafeExternalTargetCount'];
+        $packageProvenance['summary']['embeddedObjectExternalTargetIssueCodes'] = $embeddedObjects['externalTargetIssueCodes'];
         $packageProvenance['summary']['embeddedObjectIssueCount'] = $embeddedObjects['issueCount'];
         $packageProvenance['summary']['embeddedObjectIssueCodes'] = $embeddedObjects['issueCodes'];
         $packageProvenance['subdocuments'] = $subdocuments;
@@ -653,6 +663,8 @@ final class DocxOpenXmlReader
             $documentPart,
             $documentRelationships,
             $contentTypes,
+            $headers,
+            $footers,
         );
         $diagramParts = $this->readDiagramParts(
             $parts,
@@ -3385,6 +3397,10 @@ final class DocxOpenXmlReader
 
         $partNames = [];
         $externalTargets = [];
+        $unsafeExternalTargets = [];
+        $externalTargetKindCounts = [];
+        $externalTargetSchemeCounts = [];
+        $externalTargetIssueCodes = [];
         $contentTypesSeen = [];
         $issueCodes = [];
         foreach ($items as $item) {
@@ -3393,6 +3409,20 @@ final class DocxOpenXmlReader
             $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
             if (($item['external'] ?? false) === true) {
                 $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+                if (($item['externalTargetAllowed'] ?? null) !== true) {
+                    $this->appendUniqueString($unsafeExternalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+                }
+
+                $kind = is_string($item['externalTargetKind'] ?? null) ? $item['externalTargetKind'] : '(unknown)';
+                $externalTargetKindCounts[$kind] = ($externalTargetKindCounts[$kind] ?? 0) + 1;
+                $scheme = is_string($item['externalTargetScheme'] ?? null) ? $item['externalTargetScheme'] : '(none)';
+                $externalTargetSchemeCounts[$scheme] = ($externalTargetSchemeCounts[$scheme] ?? 0) + 1;
+
+                foreach (($item['externalTargetIssues'] ?? []) as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $externalTargetIssueCodes[$issue] = true;
+                    }
+                }
             }
             foreach (($item['issues'] ?? []) as $issue) {
                 if (is_string($issue) && $issue !== '') {
@@ -3401,6 +3431,9 @@ final class DocxOpenXmlReader
             }
         }
         ksort($issueCodes, SORT_STRING);
+        ksort($externalTargetKindCounts, SORT_STRING);
+        ksort($externalTargetSchemeCounts, SORT_STRING);
+        ksort($externalTargetIssueCodes, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -3410,6 +3443,8 @@ final class DocxOpenXmlReader
             'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] === true)),
             'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-in-package', $item['issues'], true))),
             'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'allowedExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true && ($item['externalTargetAllowed'] ?? null) === true)),
+            'unsafeExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true && ($item['externalTargetAllowed'] ?? null) !== true)),
             'unresolvedCount' => count(array_filter(
                 $items,
                 static fn (array $item): bool => in_array('missing-relationship-id', $item['issues'], true) || in_array('unknown-relationship', $item['issues'], true),
@@ -3421,6 +3456,10 @@ final class DocxOpenXmlReader
             'unreferencedRelationshipIds' => $unreferencedRelationshipIds,
             'partNames' => $partNames,
             'externalTargets' => $externalTargets,
+            'unsafeExternalTargets' => $unsafeExternalTargets,
+            'externalTargetKindCounts' => $externalTargetKindCounts,
+            'externalTargetSchemeCounts' => $externalTargetSchemeCounts,
+            'externalTargetIssueCodes' => array_keys($externalTargetIssueCodes),
             'contentTypes' => $contentTypesSeen,
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'issueCodes' => array_keys($issueCodes),
@@ -3482,6 +3521,10 @@ final class DocxOpenXmlReader
             'targetQuery' => null,
             'targetFragment' => null,
             'targetReferenceSuffix' => '',
+            'externalTargetKind' => null,
+            'externalTargetScheme' => null,
+            'externalTargetAllowed' => null,
+            'externalTargetIssues' => [],
             'exists' => false,
             'bytes' => 0,
             'crc32' => null,
@@ -3545,6 +3588,10 @@ final class DocxOpenXmlReader
         $item['targetQuery'] = $summary['targetQuery'];
         $item['targetFragment'] = $summary['targetFragment'];
         $item['targetReferenceSuffix'] = $summary['targetReferenceSuffix'];
+        $item['externalTargetKind'] = $summary['externalTargetKind'];
+        $item['externalTargetScheme'] = $summary['externalTargetScheme'];
+        $item['externalTargetAllowed'] = $summary['externalTargetAllowed'];
+        $item['externalTargetIssues'] = $summary['externalTargetIssues'];
         $item['exists'] = $exists;
         $item['bytes'] = $exists && $targetPart !== null ? strlen($parts[$targetPart]) : 0;
         $item['crc32'] = $exists && $targetPart !== null ? sprintf('%08x', crc32($parts[$targetPart])) : null;
@@ -3584,6 +3631,11 @@ final class DocxOpenXmlReader
 
         if ($item['external'] === true) {
             $item['issues'][] = 'external-embedded-object';
+            foreach ($item['externalTargetIssues'] as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $item['issues'][] = $issue;
+                }
+            }
             return $item;
         }
 
@@ -6027,6 +6079,8 @@ final class DocxOpenXmlReader
      * @param array<string, string> $parts
      * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array<string, mixed> $headers
+     * @param array<string, mixed> $footers
      * @return array<string, mixed>
      */
     private function readChartParts(
@@ -6034,70 +6088,142 @@ final class DocxOpenXmlReader
         string $xml,
         string $documentPart,
         array $relationships,
-        array $contentTypes
+        array $contentTypes,
+        array $headers = [],
+        array $footers = []
     ): array {
         $items = [];
         $byRelationshipId = [];
+        $byRelationshipKey = [];
         $relationshipIds = [];
+        $relationshipKeys = [];
         $referencedRelationshipIds = [];
-        $referencedChartRelationshipIds = [];
+        $referencedRelationshipKeys = [];
+        $referencedChartRelationshipKeys = [];
+        $sourceTypes = [];
+        $sourceParts = [];
+        $relationshipsParts = [];
         $relationshipsPart = $this->relationshipsPartFor($documentPart);
+        $sources = [[
+            'sourceType' => 'document',
+            'sourcePart' => $documentPart,
+            'relationshipsPart' => $relationshipsPart,
+            'relationships' => $relationships,
+            'xml' => $xml,
+        ]];
 
-        if ($xml !== '') {
-            $dom = $this->loadXml($xml, $documentPart);
-            $xpath = $this->xpath($dom);
-            foreach ($this->elements($xpath, '//c:chart') as $chart) {
-                $relationshipId = $chart->getAttributeNS(self::NS_R, 'id');
+        foreach (['header' => $headers['items'] ?? [], 'footer' => $footers['items'] ?? []] as $sourceType => $sourceItems) {
+            if (!is_array($sourceItems)) {
+                continue;
+            }
+
+            foreach ($sourceItems as $sourceItem) {
+                if (!is_array($sourceItem)) {
+                    continue;
+                }
+                if (($sourceItem['exists'] ?? false) !== true || ($sourceItem['validRoot'] ?? false) !== true) {
+                    continue;
+                }
+
+                $sourcePart = is_string($sourceItem['partName'] ?? null) ? $sourceItem['partName'] : '';
+                $sourceRelationshipsPart = is_string($sourceItem['relationshipsPart'] ?? null) ? $sourceItem['relationshipsPart'] : '';
+                if ($sourcePart === '' || $sourceRelationshipsPart === '' || !isset($parts[$sourcePart])) {
+                    continue;
+                }
+
+                $sources[] = [
+                    'sourceType' => $sourceType,
+                    'sourcePart' => $sourcePart,
+                    'relationshipsPart' => $sourceRelationshipsPart,
+                    'relationships' => $this->readRelationshipsPart($parts, $sourceRelationshipsPart),
+                    'xml' => $parts[$sourcePart],
+                ];
+            }
+        }
+
+        $chartRelationshipCount = 0;
+        $unreferencedRelationshipIds = [];
+        $unreferencedRelationshipKeys = [];
+        foreach ($sources as $source) {
+            $sourceType = (string) $source['sourceType'];
+            $sourcePart = (string) $source['sourcePart'];
+            $sourceRelationshipsPart = (string) $source['relationshipsPart'];
+            $sourceRelationships = is_array($source['relationships']) ? $source['relationships'] : [];
+            $sourceXml = (string) $source['xml'];
+            $this->appendUniqueString($sourceTypes, $sourceType);
+            $this->appendUniqueString($sourceParts, $sourcePart);
+            $this->appendUniqueString($relationshipsParts, $sourceRelationshipsPart);
+            $chartRelationshipCount += count(array_filter($sourceRelationships, static fn (array $relationship): bool => $relationship['type'] === self::CHART_REL));
+
+            if ($sourceXml !== '') {
+                $dom = $this->loadXml($sourceXml, $sourcePart);
+                $xpath = $this->xpath($dom);
+                foreach ($this->elements($xpath, '//c:chart') as $chart) {
+                    $relationshipId = $chart->getAttributeNS(self::NS_R, 'id');
+                    $relationshipKey = $relationshipId === '' ? '' : $sourceRelationshipsPart . '#' . $relationshipId;
+                    $item = $this->chartPartItem(
+                        $parts,
+                        $sourceRelationships[$relationshipId] ?? null,
+                        $sourcePart,
+                        $sourceRelationshipsPart,
+                        $contentTypes,
+                        $relationshipId,
+                        $relationshipKey,
+                        $sourceType,
+                        count($items),
+                        true,
+                    );
+                    $items[] = $item;
+
+                    $this->appendUniqueString($relationshipIds, $relationshipId);
+                    $this->appendUniqueString($relationshipKeys, $relationshipKey);
+                    $this->appendUniqueString($referencedRelationshipIds, $relationshipId);
+                    $this->appendUniqueString($referencedRelationshipKeys, $relationshipKey);
+                    if ($item['relationshipType'] === self::CHART_REL) {
+                        $this->appendUniqueString($referencedChartRelationshipKeys, $relationshipKey);
+                    }
+                    if ($relationshipId !== '' && !isset($byRelationshipId[$relationshipId])) {
+                        $byRelationshipId[$relationshipId] = $item;
+                    }
+                    if ($relationshipKey !== '') {
+                        $byRelationshipKey[$relationshipKey] = $item;
+                    }
+                }
+            }
+
+            foreach ($sourceRelationships as $relationship) {
+                if ($relationship['type'] !== self::CHART_REL) {
+                    continue;
+                }
+
+                $relationshipId = $relationship['id'];
+                $relationshipKey = $sourceRelationshipsPart . '#' . $relationshipId;
+                if (in_array($relationshipKey, $referencedChartRelationshipKeys, true)) {
+                    continue;
+                }
+
                 $item = $this->chartPartItem(
                     $parts,
-                    $relationships[$relationshipId] ?? null,
-                    $documentPart,
-                    $relationshipsPart,
+                    $relationship,
+                    $sourcePart,
+                    $sourceRelationshipsPart,
                     $contentTypes,
                     $relationshipId,
+                    $relationshipKey,
+                    $sourceType,
                     count($items),
-                    true,
+                    false,
                 );
                 $items[] = $item;
 
                 $this->appendUniqueString($relationshipIds, $relationshipId);
-                $this->appendUniqueString($referencedRelationshipIds, $relationshipId);
-                if ($item['relationshipType'] === self::CHART_REL) {
-                    $this->appendUniqueString($referencedChartRelationshipIds, $relationshipId);
-                }
-                if ($relationshipId !== '' && !isset($byRelationshipId[$relationshipId])) {
+                $this->appendUniqueString($relationshipKeys, $relationshipKey);
+                $this->appendUniqueString($unreferencedRelationshipIds, $relationshipId);
+                $this->appendUniqueString($unreferencedRelationshipKeys, $relationshipKey);
+                if (!isset($byRelationshipId[$relationshipId])) {
                     $byRelationshipId[$relationshipId] = $item;
                 }
-            }
-        }
-
-        $unreferencedRelationshipIds = [];
-        foreach ($relationships as $relationship) {
-            if ($relationship['type'] !== self::CHART_REL) {
-                continue;
-            }
-
-            $relationshipId = $relationship['id'];
-            if (in_array($relationshipId, $referencedChartRelationshipIds, true)) {
-                continue;
-            }
-
-            $item = $this->chartPartItem(
-                $parts,
-                $relationship,
-                $documentPart,
-                $relationshipsPart,
-                $contentTypes,
-                $relationshipId,
-                count($items),
-                false,
-            );
-            $items[] = $item;
-
-            $this->appendUniqueString($relationshipIds, $relationshipId);
-            $this->appendUniqueString($unreferencedRelationshipIds, $relationshipId);
-            if (!isset($byRelationshipId[$relationshipId])) {
-                $byRelationshipId[$relationshipId] = $item;
+                $byRelationshipKey[$relationshipKey] = $item;
             }
         }
 
@@ -6153,7 +6279,11 @@ final class DocxOpenXmlReader
 
         return [
             'count' => count($items),
-            'relationshipCount' => count(array_filter($relationships, static fn (array $relationship): bool => $relationship['type'] === self::CHART_REL)),
+            'relationshipCount' => $chartRelationshipCount,
+            'documentCount' => count(array_filter($items, static fn (array $item): bool => $item['sourceType'] === 'document')),
+            'headerCount' => count(array_filter($items, static fn (array $item): bool => $item['sourceType'] === 'header')),
+            'footerCount' => count(array_filter($items, static fn (array $item): bool => $item['sourceType'] === 'footer')),
+            'sourcePartCount' => count($sourceParts),
             'referencedCount' => count(array_filter($items, static fn (array $item): bool => $item['referenced'] === true)),
             'unreferencedRelationshipCount' => count($unreferencedRelationshipIds),
             'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::CHART_REL && $item['external'] === false && $item['exists'] === true)),
@@ -6169,9 +6299,15 @@ final class DocxOpenXmlReader
             'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-chart-content-type', $item['issues'], true))),
             'unexpectedContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-chart-content-type', $item['issues'], true))),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'sourceTypes' => $sourceTypes,
+            'sourceParts' => $sourceParts,
+            'relationshipsParts' => $relationshipsParts,
             'relationshipIds' => $relationshipIds,
+            'relationshipKeys' => $relationshipKeys,
             'referencedRelationshipIds' => $referencedRelationshipIds,
+            'referencedRelationshipKeys' => $referencedRelationshipKeys,
             'unreferencedRelationshipIds' => $unreferencedRelationshipIds,
+            'unreferencedRelationshipKeys' => $unreferencedRelationshipKeys,
             'partNames' => $partNames,
             'externalTargets' => $externalTargets,
             'contentTypes' => $contentTypesSeen,
@@ -6186,6 +6322,7 @@ final class DocxOpenXmlReader
             'embeddedPackageIssueCodes' => array_keys($embeddedPackageIssueCodes),
             'issueCodes' => array_keys($issueCodes),
             'byRelationshipId' => $byRelationshipId,
+            'byRelationshipKey' => $byRelationshipKey,
             'items' => $items,
             'byteExposurePolicy' => 'chart-part-bytes-blocked',
             'reviewPolicy' => 'chart-part-metadata-only',
@@ -6205,12 +6342,17 @@ final class DocxOpenXmlReader
         string $relationshipsPart,
         array $contentTypes,
         string $relationshipId,
+        string $relationshipKey,
+        string $sourceType,
         int $index,
         bool $referenced
     ): array {
         $item = [
             'index' => $index,
+            'relationshipKey' => $relationshipKey,
             'relationshipId' => $relationshipId,
+            'sourceType' => $sourceType,
+            'sourcePart' => $documentPart,
             'referenced' => $referenced,
             'relationshipType' => null,
             'target' => null,
@@ -10561,6 +10703,12 @@ final class DocxOpenXmlReader
         $summary['zipRawNameCollisionGroupCount'] = $zipNamePolicy['rawNameCollisionGroupCount'];
         $summary['zipRawNameCollisionEntryCount'] = $zipNamePolicy['rawNameCollisionEntryCount'];
         $summary['zipRawNameProvenanceEntryCount'] = $zipNamePolicy['rawNameProvenanceEntryCount'];
+        $summary['zipRawNameLegacyEncodedEntryCount'] = $zipNamePolicy['rawNameLegacyEncodedEntryCount'];
+        $summary['zipRawNameUnicodePathExtraEntryCount'] = $zipNamePolicy['rawNameUnicodePathExtraEntryCount'];
+        $summary['zipRawNameDecodedDiffersEntryCount'] = $zipNamePolicy['rawNameDecodedDiffersEntryCount'];
+        $summary['zipRawNameCollisionGroups'] = $zipNamePolicy['rawNameCollisionGroups'];
+        $summary['zipRawNameCollisionEntries'] = $zipNamePolicy['rawNameCollisionEntries'];
+        $summary['zipRawNameProvenanceEntries'] = $zipNamePolicy['rawNameProvenanceEntries'];
         $summary['zipNameHygieneReviewEntryCount'] = $zipNamePolicy['nameHygieneReviewEntryCount'];
         $summary['zipNameHygieneLeadingOrTrailingWhitespaceEntryCount'] = $zipNamePolicy['nameHygieneLeadingOrTrailingWhitespaceEntryCount'];
         $summary['zipNameHygieneTrailingDotSegmentEntryCount'] = $zipNamePolicy['nameHygieneTrailingDotSegmentEntryCount'];
@@ -19360,6 +19508,8 @@ final class DocxOpenXmlReader
         $targetRelationshipTypes = [];
         $targetRelationshipTargetParts = [];
         $targetRelationshipExternalTargets = [];
+        $targetRelationshipContentTypes = [];
+        $targetRelationshipExternalIssueCodes = [];
         $issueCodes = [];
 
         foreach ($rootRelationships as $relationship) {
@@ -19380,20 +19530,53 @@ final class DocxOpenXmlReader
             $itemTargetRelationshipTypes = [];
             $itemTargetRelationshipTargetParts = [];
             $itemTargetRelationshipExternalTargets = [];
+            $itemTargetRelationshipContentTypes = [];
+            $itemTargetRelationshipSummaries = [];
+            $itemTargetRelationshipExistingCount = 0;
+            $itemTargetRelationshipMissingCount = 0;
+            $itemTargetRelationshipExternalCount = 0;
+            $itemTargetRelationshipAllowedExternalCount = 0;
+            $itemTargetRelationshipUnsafeExternalCount = 0;
+            $itemTargetRelationshipMissingContentTypeCount = 0;
+            $itemTargetRelationshipExternalIssueCodes = [];
             foreach ($targetRelationships as $targetRelationship) {
-                $this->appendUniqueString($targetRelationshipIds, is_string($targetRelationship['id'] ?? null) ? $targetRelationship['id'] : null);
-                $this->appendUniqueString($itemTargetRelationshipTypes, is_string($targetRelationship['type'] ?? null) ? $targetRelationship['type'] : null);
-                if (($targetRelationship['targetMode'] ?? '') === 'External') {
-                    $this->appendUniqueString($itemTargetRelationshipExternalTargets, is_string($targetRelationship['target'] ?? null) ? $targetRelationship['target'] : null);
+                $targetRelationshipSummary = $this->relationshipInventorySummary(
+                    $parts,
+                    $targetRelationship,
+                    (string) $targetPart,
+                    (string) $relationshipsPart,
+                    $contentTypes,
+                );
+                $itemTargetRelationshipSummaries[] = $this->relationshipProvenanceSummaryItem($targetRelationshipSummary);
+                $this->appendUniqueString($targetRelationshipIds, is_string($targetRelationshipSummary['id'] ?? null) ? $targetRelationshipSummary['id'] : null);
+                $this->appendUniqueString($itemTargetRelationshipTypes, is_string($targetRelationshipSummary['type'] ?? null) ? $targetRelationshipSummary['type'] : null);
+                if (($targetRelationshipSummary['external'] ?? false) === true) {
+                    ++$itemTargetRelationshipExternalCount;
+                    $this->appendUniqueString($itemTargetRelationshipExternalTargets, is_string($targetRelationshipSummary['target'] ?? null) ? $targetRelationshipSummary['target'] : null);
+                    if (($targetRelationshipSummary['externalTargetAllowed'] ?? null) === true) {
+                        ++$itemTargetRelationshipAllowedExternalCount;
+                    } else {
+                        ++$itemTargetRelationshipUnsafeExternalCount;
+                    }
+                    foreach (($targetRelationshipSummary['externalTargetIssues'] ?? []) as $issue) {
+                        if (is_string($issue) && $issue !== '') {
+                            $itemTargetRelationshipExternalIssueCodes[$issue] = true;
+                        }
+                    }
                 } else {
-                    $this->appendUniqueString(
-                        $itemTargetRelationshipTargetParts,
-                        is_string($targetRelationship['resolvedTarget'] ?? null)
-                            ? $this->stripQueryAndFragment($targetRelationship['resolvedTarget'])
-                            : null,
-                    );
+                    if (($targetRelationshipSummary['exists'] ?? false) === true) {
+                        ++$itemTargetRelationshipExistingCount;
+                    } else {
+                        ++$itemTargetRelationshipMissingCount;
+                    }
+                    if (($targetRelationshipSummary['contentTypeSource'] ?? '') === 'missing') {
+                        ++$itemTargetRelationshipMissingContentTypeCount;
+                    }
+                    $this->appendUniqueString($itemTargetRelationshipTargetParts, is_string($targetRelationshipSummary['targetPart'] ?? null) ? $targetRelationshipSummary['targetPart'] : null);
                 }
+                $this->appendUniqueString($itemTargetRelationshipContentTypes, is_string($targetRelationshipSummary['contentType'] ?? null) ? $targetRelationshipSummary['contentType'] : null);
             }
+            ksort($itemTargetRelationshipExternalIssueCodes, SORT_STRING);
             $externalTargetIssues = is_array($summary['externalTargetIssues'] ?? null)
                 ? array_values(array_map('strval', $summary['externalTargetIssues']))
                 : [];
@@ -19448,10 +19631,19 @@ final class DocxOpenXmlReader
                 'targetRelationshipsPart' => $relationshipsPart,
                 'targetHasRelationships' => $targetHasRelationships,
                 'targetRelationshipRecordCount' => count($targetRelationships),
+                'targetRelationshipExistingCount' => $itemTargetRelationshipExistingCount,
+                'targetRelationshipMissingCount' => $itemTargetRelationshipMissingCount,
+                'targetRelationshipExternalCount' => $itemTargetRelationshipExternalCount,
+                'targetRelationshipAllowedExternalCount' => $itemTargetRelationshipAllowedExternalCount,
+                'targetRelationshipUnsafeExternalCount' => $itemTargetRelationshipUnsafeExternalCount,
+                'targetRelationshipMissingContentTypeCount' => $itemTargetRelationshipMissingContentTypeCount,
                 'targetRelationshipIds' => $targetRelationshipIds,
                 'targetRelationshipTypes' => $itemTargetRelationshipTypes,
                 'targetRelationshipTargetParts' => $itemTargetRelationshipTargetParts,
                 'targetRelationshipExternalTargets' => $itemTargetRelationshipExternalTargets,
+                'targetRelationshipContentTypes' => $itemTargetRelationshipContentTypes,
+                'targetRelationshipExternalIssueCodes' => array_keys($itemTargetRelationshipExternalIssueCodes),
+                'targetRelationships' => $itemTargetRelationshipSummaries,
                 'byteLength' => $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null,
                 'crc32' => $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null,
                 'sha256' => $targetPart !== null && $exists ? hash('sha256', $parts[$targetPart]) : null,
@@ -19480,9 +19672,16 @@ final class DocxOpenXmlReader
             foreach ($itemTargetRelationshipExternalTargets as $targetRelationshipExternalTarget) {
                 $this->appendUniqueString($targetRelationshipExternalTargets, is_string($targetRelationshipExternalTarget) ? $targetRelationshipExternalTarget : null);
             }
+            foreach ($itemTargetRelationshipContentTypes as $targetRelationshipContentType) {
+                $this->appendUniqueString($targetRelationshipContentTypes, is_string($targetRelationshipContentType) ? $targetRelationshipContentType : null);
+            }
+            foreach (array_keys($itemTargetRelationshipExternalIssueCodes) as $targetRelationshipIssueCode) {
+                $targetRelationshipExternalIssueCodes[$targetRelationshipIssueCode] = true;
+            }
         }
 
         ksort($issueCodes, SORT_STRING);
+        ksort($targetRelationshipExternalIssueCodes, SORT_STRING);
 
         return [
             'present' => $items !== [],
@@ -19498,6 +19697,12 @@ final class DocxOpenXmlReader
             'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
             'targetRelationshipCount' => count(array_filter($items, static fn (array $item): bool => $item['targetHasRelationships'] === true)),
             'targetRelationshipRecordCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['targetRelationshipRecordCount'] ?? 0), $items)),
+            'targetRelationshipExistingCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['targetRelationshipExistingCount'] ?? 0), $items)),
+            'targetRelationshipMissingCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['targetRelationshipMissingCount'] ?? 0), $items)),
+            'targetRelationshipExternalCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['targetRelationshipExternalCount'] ?? 0), $items)),
+            'targetRelationshipAllowedExternalCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['targetRelationshipAllowedExternalCount'] ?? 0), $items)),
+            'targetRelationshipUnsafeExternalCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['targetRelationshipUnsafeExternalCount'] ?? 0), $items)),
+            'targetRelationshipMissingContentTypeCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['targetRelationshipMissingContentTypeCount'] ?? 0), $items)),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'relationshipIds' => $relationshipIds,
             'relationshipTypes' => $relationshipTypes,
@@ -19507,6 +19712,8 @@ final class DocxOpenXmlReader
             'targetRelationshipTypes' => $targetRelationshipTypes,
             'targetRelationshipTargetParts' => $targetRelationshipTargetParts,
             'targetRelationshipExternalTargets' => $targetRelationshipExternalTargets,
+            'targetRelationshipContentTypes' => $targetRelationshipContentTypes,
+            'targetRelationshipExternalIssueCodes' => array_keys($targetRelationshipExternalIssueCodes),
             'byteExposurePolicy' => 'package-root-relationship-bytes-blocked',
             'reviewPolicy' => 'package-root-relationship-metadata-only',
             'canExposeBytes' => false,
