@@ -11522,6 +11522,62 @@ XML;
         $t->same(['wp:review-hint'], $identityByPath['content.xml']['customManifestChildElementNames']);
         $t->same(['loext:media-policy'], $identityByPath['Pictures/hero.png']['customManifestChildElementNames']);
     },
+    'preserves ODT manifest root extension child provenance in package review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifestWithRootExtensions = str_replace(
+            [
+                '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">',
+                '<manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text" manifest:preferred-view-mode="edit"/>',
+            ],
+            [
+                '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" xmlns:loext="urn:libreoffice:manifest" xmlns:wp="urn:wordpress:review" manifest:version="1.3">',
+                '<loext:package-policy loext:state="manual"><wp:handoff/></loext:package-policy>'
+                . '<manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text" manifest:preferred-view-mode="edit"/>',
+            ],
+            $manifestXml
+        );
+        $manifestWithRootExtensions = str_replace(
+            '</manifest:manifest>',
+            '<wp:queue wp:priority="high"/></manifest:manifest>',
+            $manifestWithRootExtensions
+        );
+
+        $package = $buildOdtPackage(null, $manifestWithRootExtensions);
+        $result = (new OdfReader())->readPackage($package);
+        $manifestReport = $result['importReport']['manifest'];
+        $documentManifest = $result['document']->attr('manifest');
+        $provenance = $manifestReport['packageProvenance'];
+        $identity = $provenance['packageIdentity'];
+        $compactReview = OpenDocumentPackage::fromPackage($package)->summarize()['manifestReview'];
+
+        $t->same(2, $manifestReport['rootExtensionElementCount']);
+        $t->same(['loext:package-policy', 'wp:queue'], $manifestReport['rootExtensionElementNames']);
+        $t->same('urn:libreoffice:manifest', $manifestReport['rootExtensionElements'][0]['namespaceUri']);
+        $t->same('loext', $manifestReport['rootExtensionElements'][0]['prefix']);
+        $t->same(1, $manifestReport['rootExtensionElements'][0]['attributeCount']);
+        $t->same(1, $manifestReport['rootExtensionElements'][0]['childElementCount']);
+        $t->same('urn:wordpress:review', $manifestReport['rootExtensionElements'][1]['namespaceUri']);
+        $t->same('wp', $manifestReport['rootExtensionElements'][1]['prefix']);
+
+        $t->same($manifestReport['rootExtensionElements'], $documentManifest['rootExtensionElements']);
+        $t->same(2, $provenance['manifestRootExtensionElementCount']);
+        $t->same($manifestReport['rootExtensionElementNames'], $provenance['manifestRootExtensionElementNames']);
+        $t->same($manifestReport['rootExtensionElements'], $provenance['manifestRootExtensionElements']);
+        $t->same(5, $provenance['manifestFileEntryCount']);
+        $t->same(['/', 'content.xml', 'styles.xml', 'meta.xml', 'Pictures/hero.png'], array_column($provenance['manifestFileEntryOrder'], 'fullPath'));
+
+        $t->same(2, $identity['manifestRootExtensionElementCount']);
+        $t->same(['loext:package-policy', 'wp:queue'], $identity['manifestRootExtensionElementNames']);
+        $t->same($manifestReport['rootExtensionElements'], $identity['manifestRootExtensionElements']);
+        $t->same($compactReview['manifestRootExtensionElementNames'], $provenance['manifestRootExtensionElementNames']);
+        $t->same($compactReview['manifestRootExtensionElements'], $provenance['manifestRootExtensionElements']);
+
+        $invalidManifestNamespaceChild = str_replace(
+            '<manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>',
+            '<manifest:package-policy/><manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>',
+            $manifestXml
+        );
+        $t->throws(\InvalidArgumentException::class, static fn (): array => (new OdfReader())->readPackage($buildOdtPackage(null, $invalidManifestNamespaceChild)));
+    },
     'summarizes ODT XML package part office versions for provenance review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifestWithSettings = str_replace(
             '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>',

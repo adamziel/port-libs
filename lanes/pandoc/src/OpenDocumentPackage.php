@@ -49,11 +49,13 @@ final class OpenDocumentPackage
      * @param array<string, mixed> $metadata
      * @param array<string, mixed> $settings
      * @param array<string, mixed> $rdfMetadata
+     * @param array<string, mixed> $manifestRootExtensionElements
      */
     private function __construct(
         private readonly ZipPackage $package,
         private readonly ?string $manifestVersion,
         private readonly array $manifestRootAttributes,
+        private readonly array $manifestRootExtensionElements,
         private readonly array $manifestEntries,
         array $manifestEntriesByPath,
         private readonly array $stylesByName,
@@ -127,6 +129,7 @@ final class OpenDocumentPackage
             $package,
             $manifest['version'],
             $manifest['rootAttributes'],
+            $manifest['rootExtensionElements'],
             $manifestEntries,
             $manifestEntriesByPath,
             $styles,
@@ -383,6 +386,7 @@ final class OpenDocumentPackage
             'mimetypeEntry' => self::mimetypeEntryReview($this->package),
             'manifestVersion' => $this->manifestVersion,
             'manifestRootAttributes' => $this->manifestRootAttributes,
+            'manifestRootExtensionElements' => $this->manifestRootExtensionElements,
             'contentXml' => isset($this->manifestEntriesByPath['content.xml']),
             'stylesXml' => isset($this->manifestEntriesByPath['styles.xml']),
             'metaXml' => isset($this->manifestEntriesByPath['meta.xml']),
@@ -406,7 +410,12 @@ final class OpenDocumentPackage
             'packageStyles' => $packageStyles,
             'rdfMetadata' => $this->rdfMetadata,
             'manifestEncryption' => self::manifestEncryptionSummary($this->manifestEntries),
-            'manifestReview' => self::manifestReview($this->manifestEntries, $undeclaredPackageEntries, $this->manifestRootAttributes),
+            'manifestReview' => self::manifestReview(
+                $this->manifestEntries,
+                $undeclaredPackageEntries,
+                $this->manifestRootAttributes,
+                $this->manifestRootExtensionElements
+            ),
             'packageInventory' => $packageInventory,
             'packageIdentity' => $this->packageIdentity($packageInventory),
             'metadata' => $this->metadata,
@@ -997,6 +1006,9 @@ final class OpenDocumentPackage
             'manifestVersion' => $this->manifestVersion,
             'manifestEntryCount' => count($manifestEntries),
             'packageEntryCount' => count($packageEntries),
+            'manifestRootExtensionElementCount' => $this->manifestRootExtensionElements['extensionElementCount'] ?? 0,
+            'manifestRootExtensionElementNames' => $this->manifestRootExtensionElements['extensionElementNames'] ?? [],
+            'manifestRootExtensionElements' => $this->manifestRootExtensionElements['extensionElements'] ?? [],
             'manifestPaths' => array_column($manifestEntries, 'path'),
             'packagePaths' => array_column($packageEntries, 'path'),
             'manifestEntries' => $manifestEntries,
@@ -3935,9 +3947,16 @@ final class OpenDocumentPackage
     /**
      * @param list<array<string, mixed>> $entries
      * @param list<array<string, mixed>> $undeclaredPackageEntries
+     * @param array<string, mixed> $manifestRootAttributes
+     * @param array<string, mixed> $manifestRootExtensionElements
      * @return array<string, mixed>
      */
-    private static function manifestReview(array $entries, array $undeclaredPackageEntries = [], array $manifestRootAttributes = []): array
+    private static function manifestReview(
+        array $entries,
+        array $undeclaredPackageEntries = [],
+        array $manifestRootAttributes = [],
+        array $manifestRootExtensionElements = []
+    ): array
     {
         $summary = [
             'count' => count($entries),
@@ -3979,6 +3998,9 @@ final class OpenDocumentPackage
             'manifestRootNamespaceDeclarationNames' => $manifestRootAttributes['namespaceDeclarationNames'] ?? [],
             'manifestRootNamespaceDeclarations' => $manifestRootAttributes['namespaceDeclarations'] ?? [],
             'manifestRootNamespaceDeclarationMap' => $manifestRootAttributes['namespaceDeclarationMap'] ?? [],
+            'manifestRootExtensionElementCount' => $manifestRootExtensionElements['extensionElementCount'] ?? 0,
+            'manifestRootExtensionElementNames' => $manifestRootExtensionElements['extensionElementNames'] ?? [],
+            'manifestRootExtensionElements' => $manifestRootExtensionElements['extensionElements'] ?? [],
             'manifestCustomAttributeEntryCount' => 0,
             'manifestCustomAttributeCount' => 0,
             'manifestCustomAttributeNames' => [],
@@ -4891,6 +4913,7 @@ final class OpenDocumentPackage
      * @return array{
      *     version:string|null,
      *     rootAttributes:array<string, mixed>,
+     *     rootExtensionElements:array<string, mixed>,
      *     entries:list<array{manifestIndex:int, path:string, packagePath:string|null, pathReference:string|null, pathSuffix:string|null, pathQuery:string|null, pathFragment:string|null, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null}>
      * }
      */
@@ -4906,12 +4929,13 @@ final class OpenDocumentPackage
         $manifestIndex = 0;
         $manifestVersion = self::optionalString(self::namespacedAttribute($root, self::MANIFEST_NAMESPACE, 'version'));
         $rootAttributes = self::manifestRootAttributeProvenance($root);
+        $rootExtensionElements = self::manifestRootExtensionElementProvenance($root);
         foreach ($root->childNodes as $child) {
             if (!$child instanceof \DOMElement) {
                 continue;
             }
             if ($child->namespaceURI !== self::MANIFEST_NAMESPACE || $child->localName !== 'file-entry') {
-                throw new \InvalidArgumentException('ODF manifest may only contain manifest:file-entry children');
+                continue;
             }
 
             $path = self::normalizeManifestPath(self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'full-path') ?? '');
@@ -4977,6 +5001,7 @@ final class OpenDocumentPackage
         return [
             'version' => $manifestVersion,
             'rootAttributes' => $rootAttributes,
+            'rootExtensionElements' => $rootExtensionElements,
             'entries' => $entries,
         ];
     }
@@ -5023,6 +5048,35 @@ final class OpenDocumentPackage
 
     /**
      * @return array{
+     *     extensionElementCount:int,
+     *     extensionElementNames:list<string>,
+     *     extensionElements:list<array<string, mixed>>
+     * }
+     */
+    private static function manifestRootExtensionElementProvenance(\DOMElement $element): array
+    {
+        $extensionElements = [];
+
+        foreach (self::childElements($element) as $child) {
+            if ($child->namespaceURI === self::MANIFEST_NAMESPACE && $child->localName === 'file-entry') {
+                continue;
+            }
+            if ($child->namespaceURI === self::MANIFEST_NAMESPACE) {
+                throw new \InvalidArgumentException('ODF manifest may only contain manifest:file-entry children in the manifest namespace');
+            }
+
+            $extensionElements[] = self::manifestChildElementRecord($child, false);
+        }
+
+        return [
+            'extensionElementCount' => count($extensionElements),
+            'extensionElementNames' => array_values(array_map(static fn (array $item): string => $item['name'], $extensionElements)),
+            'extensionElements' => $extensionElements,
+        ];
+    }
+
+    /**
+     * @return array{
      *     childElementCount:int,
      *     childElementNames:list<string>,
      *     childElements:list<array<string, mixed>>,
@@ -5040,19 +5094,7 @@ final class OpenDocumentPackage
             $namespaceUri = (string) $child->namespaceURI;
             $structural = $namespaceUri === self::MANIFEST_NAMESPACE
                 && isset(self::MANIFEST_FILE_ENTRY_STRUCTURAL_CHILD_ELEMENTS[$child->localName]);
-            $record = [
-                'name' => self::qualifiedElementName($child),
-                'localName' => $child->localName,
-                'structural' => $structural,
-                'attributeCount' => $child->hasAttributes() ? $child->attributes->length : 0,
-                'childElementCount' => count(self::childElements($child)),
-            ];
-            if ($namespaceUri !== '') {
-                $record['namespaceUri'] = $namespaceUri;
-            }
-            if ($child->prefix !== '') {
-                $record['prefix'] = $child->prefix;
-            }
+            $record = self::manifestChildElementRecord($child, $structural);
 
             $childElements[] = $record;
             if (!$structural) {
@@ -5068,6 +5110,29 @@ final class OpenDocumentPackage
             'customChildElementNames' => array_values(array_map(static fn (array $item): string => $item['name'], $customChildElements)),
             'customChildElements' => $customChildElements,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function manifestChildElementRecord(\DOMElement $child, bool $structural): array
+    {
+        $record = [
+            'name' => self::qualifiedElementName($child),
+            'localName' => $child->localName,
+            'structural' => $structural,
+            'attributeCount' => $child->hasAttributes() ? $child->attributes->length : 0,
+            'childElementCount' => count(self::childElements($child)),
+        ];
+        $namespaceUri = (string) $child->namespaceURI;
+        if ($namespaceUri !== '') {
+            $record['namespaceUri'] = $namespaceUri;
+        }
+        if ($child->prefix !== '') {
+            $record['prefix'] = $child->prefix;
+        }
+
+        return $record;
     }
 
     /**
