@@ -15520,6 +15520,7 @@ final class XmlHtmlDom
         $issues = [];
         $loadingIssues = [];
         $fetchPolicyIssues = [];
+        $blockingIssues = [];
 
         foreach ($invalid as $token) {
             $issues[] = ['code' => 'invalid-link-rel-token', 'relToken' => $token];
@@ -15547,19 +15548,20 @@ final class XmlHtmlDom
         array_push($fetchPolicyIssues, ...$integrityReview['issues']);
         array_push($issues, ...$fetchPolicyIssues);
         foreach ($invalidBlockingTokens as $token) {
-            $issues[] = [
+            $blockingIssues[] = [
                 'code' => 'invalid-link-blocking-token',
                 'blockingToken' => $token,
                 'count' => $blockingTokenCounts[$token],
             ];
         }
         foreach ($duplicateBlockingTokens as $token) {
-            $issues[] = [
+            $blockingIssues[] = [
                 'code' => 'duplicate-link-blocking-token',
                 'blockingToken' => $token,
                 'count' => $blockingTokenCounts[$token],
             ];
         }
+        array_push($issues, ...$blockingIssues);
         if ($crossoriginRaw !== null && $crossorigin === null) {
             $loadingIssues[] = ['code' => 'invalid-link-crossorigin', 'value' => $crossoriginRaw];
         }
@@ -15632,6 +15634,13 @@ final class XmlHtmlDom
             'linkRenderBlockingTokenPresent' => $renderBlockingTokenPresent,
             'linkRenderBlockingResourceCandidate' => $renderBlockingResourceCandidate,
             'linkBlockingReviewKind' => $blockingReviewKind,
+            'linkBlockingIssues' => $blockingIssues,
+            'linkBlockingIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) $issue['code'],
+                $blockingIssues
+            ))),
+            'linkBlockingIssueCount' => count($blockingIssues),
+            'linkBlockingValid' => $blockingRaw === null ? null : $blockingIssues === [],
             'linkIssues' => $issues,
             'linkLoadingPolicyReview' => 'link-loading-policy-metadata-review',
             'linkBlockingAllTokensValid' => $blocking['invalid'] === [],
