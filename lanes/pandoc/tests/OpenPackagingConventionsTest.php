@@ -1461,6 +1461,57 @@ XML;
         ], $summary['selectedPartNamesByMatchKind']['equivalent']);
         $t->same(['/word/missing.xml'], $summary['partNamesByIssue']['selected-part-missing']);
         $t->same(['word/media/source'], $summary['selectedPartNamesByIssue']['missing-content-type-extension']);
+        $t->same(4, $summary['contentTypeSummaryCount']);
+
+        $contentTypeSummaries = [];
+        foreach ($summary['contentTypeSummaries'] as $contentTypeSummary) {
+            $contentTypeSummaries[$contentTypeSummary['contentType']] = $contentTypeSummary;
+        }
+
+        $documentContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
+        $relationshipContentType = 'application/vnd.openxmlformats-package.relationships+xml';
+        $t->same([
+            'contentType' => $documentContentType,
+            'selectedPartCount' => 2,
+            'existingSelectedPartCount' => 2,
+            'missingSelectedPartCount' => 0,
+            'exactSelectedPartCount' => 1,
+            'equivalentSelectedPartCount' => 1,
+            'duplicateSelectedPartCount' => 1,
+            'validSelectedPartCount' => 1,
+            'invalidSelectedPartCount' => 1,
+            'contentTypeSourceCounts' => ['override' => 2],
+            'matchKindCounts' => ['equivalent' => 1, 'exact' => 1],
+            'partNames' => ['/WORD/DOCUMENT.XML', '/word/document.xml'],
+            'packagePartNames' => ['/word/document.xml'],
+            'selectedPartNames' => ['/WORD/DOCUMENT.XML', 'word/document.xml?review=ready#source'],
+            'issues' => ['duplicate-selected-part'],
+            'issueCounts' => ['duplicate-selected-part' => 1],
+        ], $contentTypeSummaries[$documentContentType]);
+        $t->same([
+            'contentType' => $relationshipContentType,
+            'selectedPartCount' => 1,
+            'existingSelectedPartCount' => 1,
+            'missingSelectedPartCount' => 0,
+            'exactSelectedPartCount' => 0,
+            'equivalentSelectedPartCount' => 1,
+            'duplicateSelectedPartCount' => 0,
+            'validSelectedPartCount' => 1,
+            'invalidSelectedPartCount' => 0,
+            'contentTypeSourceCounts' => ['override' => 1],
+            'matchKindCounts' => ['equivalent' => 1],
+            'partNames' => ['/WORD/_rels/CASE.xml.rels'],
+            'packagePartNames' => ['/Word/_rels/CasE.xml.rels'],
+            'selectedPartNames' => ['/WORD/_rels/CASE.xml.rels'],
+            'issues' => [],
+            'issueCounts' => [],
+        ], $contentTypeSummaries[$relationshipContentType]);
+        $t->same(0, $contentTypeSummaries['application/xml']['existingSelectedPartCount']);
+        $t->same(1, $contentTypeSummaries['application/xml']['missingSelectedPartCount']);
+        $t->same(['missing' => 1], $contentTypeSummaries['application/xml']['matchKindCounts']);
+        $t->same(['selected-part-missing'], $contentTypeSummaries['application/xml']['issues']);
+        $t->same(1, $contentTypeSummaries['image/png']['existingSelectedPartCount']);
+        $t->same(['default' => 1], $contentTypeSummaries['image/png']['contentTypeSourceCounts']);
 
         $document = $records['word/document.xml?review=ready#source'];
         $t->same('/word/document.xml', $document['partName']);
@@ -1502,6 +1553,60 @@ XML;
         $t->same('equivalent', $duplicate['matchKind']);
         $t->same('override', $duplicate['contentTypeSource']);
         $t->same(['duplicate-selected-part'], $duplicate['issues']);
+    },
+    'summarizes selected OPC content type buckets before reader handoff' => static function (TestRunner $t): void {
+        $documentContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
+        $contentTypesXml = <<<XML
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="{$documentContentType}"/>
+</Types>
+XML;
+
+        $summary = OpcRelationshipGraph::preflightSelectedContentTypes(
+            ZipPackage::fromParts([
+                ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+                ['name' => 'word/document.xml', 'data' => '<w:document/>'],
+                ['name' => 'word/styles.xml', 'data' => '<w:styles/>'],
+                ['name' => 'word/media/image.png', 'data' => 'PNG'],
+                ['name' => 'word/media/raw', 'data' => 'RAW'],
+            ]),
+            [
+                '/word/document.xml',
+                '/WORD/DOCUMENT.XML',
+                '/word/styles.xml',
+                '/word/media/image.png',
+                '/word/missing.xml',
+                '/word/media/raw',
+            ]
+        );
+
+        $contentTypeSummaries = [];
+        foreach ($summary['contentTypeSummaries'] as $contentTypeSummary) {
+            $contentTypeSummaries[$contentTypeSummary['contentType']] = $contentTypeSummary;
+        }
+
+        $t->same(false, $summary['valid']);
+        $t->same(3, $summary['contentTypeSummaryCount']);
+        $t->same([
+            'override' => 2,
+        ], $contentTypeSummaries[$documentContentType]['contentTypeSourceCounts']);
+        $t->same(2, $contentTypeSummaries[$documentContentType]['selectedPartCount']);
+        $t->same(1, $contentTypeSummaries[$documentContentType]['duplicateSelectedPartCount']);
+        $t->same(['duplicate-selected-part'], $contentTypeSummaries[$documentContentType]['issues']);
+        $t->same([
+            'default' => 2,
+        ], $contentTypeSummaries['application/xml']['contentTypeSourceCounts']);
+        $t->same(1, $contentTypeSummaries['application/xml']['existingSelectedPartCount']);
+        $t->same(1, $contentTypeSummaries['application/xml']['missingSelectedPartCount']);
+        $t->same(['exact' => 1, 'missing' => 1], $contentTypeSummaries['application/xml']['matchKindCounts']);
+        $t->same(['/word/missing.xml', '/word/styles.xml'], $contentTypeSummaries['application/xml']['partNames']);
+        $t->same(['/word/styles.xml'], $contentTypeSummaries['application/xml']['packagePartNames']);
+        $t->same(['selected-part-missing'], $contentTypeSummaries['application/xml']['issues']);
+        $t->same(1, $contentTypeSummaries['image/png']['validSelectedPartCount']);
+        $t->same(['/word/media/image.png'], $contentTypeSummaries['image/png']['selectedPartNames']);
+        $t->same(false, isset($contentTypeSummaries['']));
     },
     'summarizes OPC ZIP entry manifest content type byte buckets before graph construction' => static function (TestRunner $t): void {
         $documentContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';

@@ -327,6 +327,7 @@ final class OpcRelationshipGraph
         $partNamesByContentTypeSource = [];
         $selectedPartNamesByContentTypeSource = [];
         $selectedPartNamesByMatchKind = [];
+        $contentTypeSummariesByType = [];
         $selectedPartCount = count($records);
         $uniqueSelectedPartCount = count($firstSelectedIndexByEquivalenceKey);
         $duplicateSelectedPartCount = 0;
@@ -408,6 +409,10 @@ final class OpcRelationshipGraph
                         }
                     }
                 }
+
+                if (is_string($record['contentType'])) {
+                    self::recordSelectedContentTypeSummary($contentTypeSummariesByType, $record);
+                }
             }
 
             foreach ($record['issues'] as $issue) {
@@ -434,6 +439,7 @@ final class OpcRelationshipGraph
         self::sortStringListMap($partNamesByContentTypeSource);
         self::sortStringListMap($selectedPartNamesByContentTypeSource);
         self::sortStringListMap($selectedPartNamesByMatchKind);
+        $contentTypeSummaries = self::selectedContentTypeSummaries($contentTypeSummariesByType);
 
         return [
             'valid' => $issueCounts === [],
@@ -455,6 +461,7 @@ final class OpcRelationshipGraph
             'contentTypeResolvedPartCount' => $contentTypeResolvedPartCount,
             'contentTypeDefaultResolvedPartCount' => $contentTypeDefaultResolvedPartCount,
             'contentTypeOverrideResolvedPartCount' => $contentTypeOverrideResolvedPartCount,
+            'contentTypeSummaryCount' => count($contentTypeSummaries),
             'missingContentTypePartCount' => $missingContentTypePartCount,
             'missingContentTypeDefaultCount' => $missingContentTypeDefaultCount,
             'missingContentTypeExtensionlessCount' => $missingContentTypeExtensionlessCount,
@@ -470,8 +477,106 @@ final class OpcRelationshipGraph
             'partNamesByContentTypeSource' => $partNamesByContentTypeSource,
             'selectedPartNamesByContentTypeSource' => $selectedPartNamesByContentTypeSource,
             'selectedPartNamesByMatchKind' => $selectedPartNamesByMatchKind,
+            'contentTypeSummaries' => $contentTypeSummaries,
             'records' => $records,
         ];
+    }
+
+    private static function recordSelectedContentTypeSummary(array &$summaries, array $record): void
+    {
+        $contentType = $record['contentType'] ?? null;
+        if (!is_string($contentType) || $contentType === '') {
+            return;
+        }
+
+        $summaries[$contentType] ??= [
+            'contentType' => $contentType,
+            'selectedPartCount' => 0,
+            'existingSelectedPartCount' => 0,
+            'missingSelectedPartCount' => 0,
+            'exactSelectedPartCount' => 0,
+            'equivalentSelectedPartCount' => 0,
+            'duplicateSelectedPartCount' => 0,
+            'validSelectedPartCount' => 0,
+            'invalidSelectedPartCount' => 0,
+            'contentTypeSourceCounts' => [],
+            'matchKindCounts' => [],
+            'partNames' => [],
+            'packagePartNames' => [],
+            'selectedPartNames' => [],
+            'issues' => [],
+            'issueCounts' => [],
+        ];
+
+        $summary = &$summaries[$contentType];
+        $summary['selectedPartCount']++;
+        if (($record['exists'] ?? false) === true) {
+            $summary['existingSelectedPartCount']++;
+        } else {
+            $summary['missingSelectedPartCount']++;
+        }
+
+        if (($record['partNameExactMatch'] ?? false) === true) {
+            $summary['exactSelectedPartCount']++;
+        }
+        if (($record['partNameEquivalentMatch'] ?? false) === true) {
+            $summary['equivalentSelectedPartCount']++;
+        }
+        if (($record['duplicateOfIndex'] ?? null) !== null) {
+            $summary['duplicateSelectedPartCount']++;
+        }
+        if (($record['valid'] ?? false) === true) {
+            $summary['validSelectedPartCount']++;
+        } else {
+            $summary['invalidSelectedPartCount']++;
+        }
+
+        $contentTypeSource = $record['contentTypeSource'] ?? null;
+        if (is_string($contentTypeSource) && $contentTypeSource !== '') {
+            $summary['contentTypeSourceCounts'][$contentTypeSource] =
+                ($summary['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+        }
+
+        $matchKind = $record['matchKind'] ?? null;
+        if (is_string($matchKind) && $matchKind !== '') {
+            $summary['matchKindCounts'][$matchKind] = ($summary['matchKindCounts'][$matchKind] ?? 0) + 1;
+        }
+
+        if (is_string($record['partName'] ?? null)) {
+            self::appendUniqueString($summary['partNames'], $record['partName']);
+        }
+        if (is_string($record['packagePartName'] ?? null)) {
+            self::appendUniqueString($summary['packagePartNames'], $record['packagePartName']);
+        }
+        if (is_string($record['selectedPartName'] ?? null)) {
+            self::appendUniqueString($summary['selectedPartNames'], $record['selectedPartName']);
+        }
+
+        foreach ($record['issues'] ?? [] as $issue) {
+            if (!is_string($issue) || $issue === '') {
+                continue;
+            }
+            self::appendUniqueString($summary['issues'], $issue);
+            $summary['issueCounts'][$issue] = ($summary['issueCounts'][$issue] ?? 0) + 1;
+        }
+        unset($summary);
+    }
+
+    private static function selectedContentTypeSummaries(array $summaries): array
+    {
+        ksort($summaries, SORT_STRING);
+        foreach ($summaries as &$summary) {
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['matchKindCounts'], SORT_STRING);
+            ksort($summary['issueCounts'], SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+            sort($summary['packagePartNames'], SORT_STRING);
+            sort($summary['selectedPartNames'], SORT_STRING);
+            sort($summary['issues'], SORT_STRING);
+        }
+        unset($summary);
+
+        return array_values($summaries);
     }
 
     /**
