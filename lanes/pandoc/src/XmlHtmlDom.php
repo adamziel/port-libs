@@ -16526,6 +16526,17 @@ final class XmlHtmlDom
         $referrerPolicyRaw = self::attributeOrNull($script, 'referrerpolicy');
         $referrerPolicy = $referrerPolicyRaw === null ? null : self::referrerPolicyState($referrerPolicyRaw);
         $blocking = self::htmlBlockingTokenSummary($script);
+        $issues = [];
+        foreach ($blocking['invalid'] as $token) {
+            $issues[] = ['code' => 'invalid-script-blocking-token', 'token' => $token];
+        }
+        foreach ($blocking['duplicates'] as $token) {
+            $issues[] = [
+                'code' => 'duplicate-script-blocking-token',
+                'token' => $token,
+                'count' => $blocking['tokenCounts'][$token] ?? 0,
+            ];
+        }
 
         $sourceKind = $script->hasAttribute('src') ? 'external' : 'inline';
         $loadingMode = match (true) {
@@ -16548,7 +16559,14 @@ final class XmlHtmlDom
             'scriptFetchPriority' => $fetchPriority,
             'scriptFetchPriorityValid' => $fetchPriorityRaw === null ? null : $fetchPriority !== null,
             'scriptBlockingTokenCounts' => $blocking['tokenCounts'],
+            'duplicateScriptBlockingTokens' => $blocking['duplicates'],
             'invalidScriptBlockingTokens' => $blocking['invalid'],
+            'scriptBlockingAllTokensValid' => $blocking['invalid'] === [],
+            'scriptLoadingIssues' => $issues,
+            'scriptLoadingIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
         ];
     }
 
