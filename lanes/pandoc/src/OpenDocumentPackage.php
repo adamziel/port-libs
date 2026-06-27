@@ -1446,6 +1446,7 @@ final class OpenDocumentPackage
         $normalized = strtolower(ltrim($path, '/'));
 
         return str_starts_with($normalized, 'basic/')
+            || str_starts_with($normalized, 'dialogs/')
             || str_starts_with($normalized, 'scripts/');
     }
 
@@ -3875,7 +3876,7 @@ final class OpenDocumentPackage
             'jar' => 'application/java-archive',
             'js', 'mjs' => 'application/javascript',
             'py' => 'text/x-python',
-            'xba', 'xml' => 'text/xml',
+            'xba', 'xdl', 'xml' => 'text/xml',
             default => null,
         };
     }
@@ -3917,10 +3918,11 @@ final class OpenDocumentPackage
         $scriptPath = count($segments) > 1 ? implode('/', array_slice($segments, 1)) : null;
         $module = $extension === '' ? basename($path) : basename($path, '.' . $extension);
         $library = null;
-        if ($container === 'basic' && isset($segments[1]) && $segments[1] !== '') {
+        if (in_array($container, ['basic', 'dialogs'], true) && isset($segments[1]) && $segments[1] !== '') {
             $library = $segments[1];
         }
 
+        $basename = strtolower(basename($path));
         $kind = match ($extension) {
             'bsh' => 'beanshell',
             'class' => 'java-class',
@@ -3928,7 +3930,14 @@ final class OpenDocumentPackage
             'js', 'mjs' => 'javascript',
             'py' => 'python',
             'xba' => 'basic-module',
-            'xml' => $container === 'basic' ? 'basic-module' : 'script-xml',
+            'xdl' => $container === 'dialogs' ? 'basic-dialog' : 'script-xml',
+            'xml' => in_array($basename, ['dialog-lb.xml', 'dialog-lc.xml'], true)
+                ? 'basic-library-index'
+                : match ($container) {
+                    'basic' => 'basic-module',
+                    'dialogs' => 'basic-dialog',
+                    default => 'script-xml',
+                },
             default => match ($mediaTypeBase) {
                 'application/javascript', 'text/javascript' => 'javascript',
                 'application/java-archive' => 'java-archive',
