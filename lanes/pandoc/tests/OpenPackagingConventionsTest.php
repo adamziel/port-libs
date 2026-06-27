@@ -49,7 +49,7 @@ $footnotesRelationshipsXml = <<<'XML'
 XML;
 
 /**
- * @param list<array{name:string, data:string, centralIndex?:int}> $entries
+ * @param list<array{name:string, data:string, flags?:int, localFlags?:int, centralFlags?:int, localName?:string, localExtra?:string, centralExtra?:string, comment?:string, centralIndex?:int}> $entries
  */
 $buildOpcZipPackage = static function (array $entries): string {
     $body = '';
@@ -57,7 +57,14 @@ $buildOpcZipPackage = static function (array $entries): string {
 
     foreach ($entries as $entryIndex => $entry) {
         $name = $entry['name'];
+        $localName = $entry['localName'] ?? $name;
         $data = $entry['data'];
+        $flags = $entry['flags'] ?? 0x0800;
+        $localFlags = $entry['localFlags'] ?? $flags;
+        $centralFlags = $entry['centralFlags'] ?? $flags;
+        $localExtra = $entry['localExtra'] ?? '';
+        $centralExtra = $entry['centralExtra'] ?? $localExtra;
+        $comment = $entry['comment'] ?? '';
         $crc32 = (int) sprintf('%u', crc32($data));
         $offset = strlen($body);
 
@@ -65,24 +72,24 @@ $buildOpcZipPackage = static function (array $entries): string {
             'VvvvvvVVVvv',
             0x04034b50,
             20,
-            0x0800,
+            $localFlags,
             0,
             0,
             0,
             $crc32,
             strlen($data),
             strlen($data),
-            strlen($name),
-            0
+            strlen($localName),
+            strlen($localExtra)
         );
-        $body .= $name . $data;
+        $body .= $localName . $localExtra . $data;
 
         $centralRecord = pack(
             'VvvvvvvVVVvvvvvVV',
             0x02014b50,
             0x0314,
             20,
-            0x0800,
+            $centralFlags,
             0,
             0,
             0,
@@ -90,14 +97,14 @@ $buildOpcZipPackage = static function (array $entries): string {
             strlen($data),
             strlen($data),
             strlen($name),
-            0,
-            0,
+            strlen($centralExtra),
+            strlen($comment),
             0,
             0,
             0,
             $offset
         );
-        $centralRecord .= $name;
+        $centralRecord .= $name . $centralExtra . $comment;
         $centralRecords[] = [
             'order' => $entry['centralIndex'] ?? $entryIndex,
             'index' => $entryIndex,
@@ -116,6 +123,10 @@ $buildOpcZipPackage = static function (array $entries): string {
     return $body
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, count($entries), count($entries), strlen($central), $centralOffset, 0);
+};
+
+$buildUnicodeExtra = static function (int $id, string $rawBytes, string $unicodeText): string {
+    return pack('vvCV', $id, 5 + strlen($unicodeText), 1, (int) sprintf('%u', crc32($rawBytes))) . $unicodeText;
 };
 
 return [
@@ -434,6 +445,89 @@ XML;
             $documentEntry['centralDirectoryRecordSha256']
         );
         $t->same($documentEntry['centralDirectoryRecordSha256'], $rawDocumentEntry['centralDirectoryRecordSha256']);
+    },
+    'carries OPC ZIP raw entry-name provenance through manifest preflights' => static function (TestRunner $t) use ($buildOpcZipPackage, $buildUnicodeExtra): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+</Types>
+XML;
+        $cp437RawName = "word/media/caf\x82.png";
+        $cp437Name = "word/media/caf\u{00e9}.png";
+        $unicodeRawName = 'word/media/review-image.bin';
+        $unicodeName = "word/media/review-\u{2603}.png";
+        $unicodePathExtra = $buildUnicodeExtra(0x7075, $unicodeRawName, $unicodeName);
+        $zip = $buildOpcZipPackage([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => '<Relationships/>'],
+            ['name' => 'word/document.xml', 'data' => '<w:document/>'],
+            [
+                'name' => $cp437RawName,
+                'data' => 'cp437 media placeholder',
+                'flags' => 0,
+            ],
+            [
+                'name' => $unicodeRawName,
+                'localName' => $unicodeRawName,
+                'data' => 'unicode path media placeholder',
+                'flags' => 0,
+                'localExtra' => $unicodePathExtra,
+                'centralExtra' => $unicodePathExtra,
+            ],
+        ]);
+
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest(ZipPackage::fromString($zip));
+        $rawSummary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest($zip);
+        $entries = [];
+        foreach ($summary['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+        $rawEntries = [];
+        foreach ($rawSummary['entries'] as $entry) {
+            $rawEntries[$entry['entryName']] = $entry;
+        }
+
+        $t->same(true, $summary['valid']);
+        $t->same(true, $rawSummary['valid']);
+        $t->same(0, $summary['rawNameCollisionGroupCount']);
+        $t->same(2, $summary['rawNameProvenanceEntryCount']);
+        $t->same(1, $summary['rawNameLegacyEncodedEntryCount']);
+        $t->same(1, $summary['rawNameUnicodePathExtraEntryCount']);
+        $t->same(2, $summary['rawNameDecodedDiffersEntryCount']);
+        $t->same($summary['rawNameProvenanceEntryCount'], $rawSummary['rawNameProvenanceEntryCount']);
+        $t->same($summary['rawNameLegacyEncodedEntryCount'], $rawSummary['rawNameLegacyEncodedEntryCount']);
+        $t->same($summary['rawNameUnicodePathExtraEntryCount'], $rawSummary['rawNameUnicodePathExtraEntryCount']);
+        $t->same($summary['rawNameDecodedDiffersEntryCount'], $rawSummary['rawNameDecodedDiffersEntryCount']);
+
+        $t->same($cp437Name, $summary['rawNameProvenanceEntries'][0]['entryName']);
+        $t->same($cp437RawName, $summary['rawNameProvenanceEntries'][0]['rawName']);
+        $t->same('cp437', $summary['rawNameProvenanceEntries'][0]['nameEncoding']);
+        $t->same(['raw-name-decoded-value-differs', 'raw-name-legacy-encoding'], $summary['rawNameProvenanceEntries'][0]['issues']);
+        $t->same($unicodeName, $summary['rawNameProvenanceEntries'][1]['entryName']);
+        $t->same($unicodeRawName, $summary['rawNameProvenanceEntries'][1]['rawName']);
+        $t->same('info-zip-unicode-path', $summary['rawNameProvenanceEntries'][1]['nameEncoding']);
+        $t->same(['raw-name-decoded-value-differs', 'raw-name-info-zip-unicode-path'], $summary['rawNameProvenanceEntries'][1]['issues']);
+
+        $t->same($cp437RawName, $entries[$cp437Name]['rawName']);
+        $t->same(bin2hex($cp437RawName), $entries[$cp437Name]['rawNameHex']);
+        $t->same(false, $entries[$cp437Name]['rawNameMatchesDecodedName']);
+        $t->same(true, $entries[$cp437Name]['usesLegacyNameEncoding']);
+        $t->same(false, $entries[$cp437Name]['usesUnicodePathExtraField']);
+        $t->same(true, $entries[$cp437Name]['hasRawNameProvenance']);
+        $t->same(['raw-name-decoded-value-differs', 'raw-name-legacy-encoding'], $entries[$cp437Name]['rawNameIssues']);
+        $t->same('image/png', $entries[$cp437Name]['contentType']);
+
+        $t->same($unicodeRawName, $entries[$unicodeName]['rawName']);
+        $t->same('info-zip-unicode-path', $entries[$unicodeName]['nameEncoding']);
+        $t->same(true, $entries[$unicodeName]['usesUnicodePathExtraField']);
+        $t->same(['raw-name-decoded-value-differs', 'raw-name-info-zip-unicode-path'], $entries[$unicodeName]['rawNameIssues']);
+        $t->same($entries[$unicodeName]['rawNameIssues'], $rawEntries[$unicodeName]['rawNameIssues']);
+        $t->same('info-zip-unicode-path', $rawEntries[$unicodeName]['centralNameEncoding']);
+        $t->same('info-zip-unicode-path', $rawEntries[$unicodeName]['localHeaderNameEncoding']);
+        $t->same([$cp437Name, $unicodeName], $summary['entryNamesByPackagePartExtension']['png']);
+        $t->same([$cp437Name, $unicodeName], $rawSummary['entryNamesByPackagePartExtension']['png']);
     },
     'preflights raw ZIP central directory OPC manifest before package construction' => static function (TestRunner $t): void {
         $contentTypesXml = '<Types/>';
