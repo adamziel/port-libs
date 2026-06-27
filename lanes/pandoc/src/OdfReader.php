@@ -13435,6 +13435,16 @@ final class OdfReader
         $transformCount = 0;
         $xpathTransformCount = 0;
         $xpathExpressionCount = 0;
+        $keyInfoCount = 0;
+        $keyNameCount = 0;
+        $keyInfoRetrievalMethodCount = 0;
+        $x509DataCount = 0;
+        $x509CertificateCount = 0;
+        $x509CertificateBase64CharLength = 0;
+        $x509IssuerSerialCount = 0;
+        $x509SubjectNameCount = 0;
+        $keyInfoKeyNames = [];
+        $x509SubjectNames = [];
         $signedParts = [];
 
         foreach ($candidatesByPart as $part => $item) {
@@ -13498,6 +13508,24 @@ final class OdfReader
             $transformCount += (int) ($parsed['transformCount'] ?? 0);
             $xpathTransformCount += (int) ($parsed['xpathTransformCount'] ?? 0);
             $xpathExpressionCount += (int) ($parsed['xpathExpressionCount'] ?? 0);
+            $keyInfoCount += (int) ($parsed['keyInfoCount'] ?? 0);
+            $keyNameCount += (int) ($parsed['keyNameCount'] ?? 0);
+            $keyInfoRetrievalMethodCount += (int) ($parsed['keyInfoRetrievalMethodCount'] ?? 0);
+            $x509DataCount += (int) ($parsed['x509DataCount'] ?? 0);
+            $x509CertificateCount += (int) ($parsed['x509CertificateCount'] ?? 0);
+            $x509CertificateBase64CharLength += (int) ($parsed['x509CertificateBase64CharLength'] ?? 0);
+            $x509IssuerSerialCount += (int) ($parsed['x509IssuerSerialCount'] ?? 0);
+            $x509SubjectNameCount += (int) ($parsed['x509SubjectNameCount'] ?? 0);
+            foreach ($parsed['keyInfoKeyNames'] ?? [] as $keyInfoKeyName) {
+                if (is_string($keyInfoKeyName) && $keyInfoKeyName !== '') {
+                    $keyInfoKeyNames[] = $keyInfoKeyName;
+                }
+            }
+            foreach ($parsed['x509SubjectNames'] ?? [] as $x509SubjectName) {
+                if (is_string($x509SubjectName) && $x509SubjectName !== '') {
+                    $x509SubjectNames[] = $x509SubjectName;
+                }
+            }
             foreach ($parsed['signedParts'] ?? [] as $signedPart) {
                 if (is_string($signedPart) && $signedPart !== '') {
                     $signedParts[] = $signedPart;
@@ -13512,7 +13540,11 @@ final class OdfReader
         }
 
         $signedParts = array_values(array_unique($signedParts));
+        $keyInfoKeyNames = array_values(array_unique($keyInfoKeyNames));
+        $x509SubjectNames = array_values(array_unique($x509SubjectNames));
         sort($signedParts);
+        sort($keyInfoKeyNames, SORT_STRING);
+        sort($x509SubjectNames, SORT_STRING);
 
         return [
             'count' => count($parts),
@@ -13534,6 +13566,16 @@ final class OdfReader
             'transformCount' => $transformCount,
             'xpathTransformCount' => $xpathTransformCount,
             'xpathExpressionCount' => $xpathExpressionCount,
+            'keyInfoCount' => $keyInfoCount,
+            'keyNameCount' => $keyNameCount,
+            'keyInfoRetrievalMethodCount' => $keyInfoRetrievalMethodCount,
+            'x509DataCount' => $x509DataCount,
+            'x509CertificateCount' => $x509CertificateCount,
+            'x509CertificateBase64CharLength' => $x509CertificateBase64CharLength,
+            'x509IssuerSerialCount' => $x509IssuerSerialCount,
+            'x509SubjectNameCount' => $x509SubjectNameCount,
+            'keyInfoKeyNames' => $keyInfoKeyNames,
+            'x509SubjectNames' => $x509SubjectNames,
             'signedPartCount' => count($signedParts),
             'signedParts' => $signedParts,
             'parts' => $parts,
@@ -13589,8 +13631,9 @@ final class OdfReader
         $signedParts = array_values(array_unique($signedParts));
         sort($signedParts);
         $referenceSummary = $this->signatureReferenceSummary($signatures);
+        $keyInfoSummary = $this->signatureKeyInfoSummary($signatures);
 
-        return $referenceSummary + [
+        return $referenceSummary + $keyInfoSummary + [
             'signatureCount' => count($signatures),
             'referenceCount' => $referenceCount,
             'signedPartCount' => count($signedParts),
@@ -13621,6 +13664,7 @@ final class OdfReader
                 $references[] = $this->signatureReferenceMetadata($reference, $package, $manifestByPart);
             }
         }
+        $keyInfoMetadata = $keyInfo instanceof \DOMElement ? $this->signatureKeyInfoMetadata($keyInfo) : [];
 
         return self::withoutEmpty([
             'id' => self::domAttribute($signature, 'Id') ?: self::domAttribute($signature, 'ID'),
@@ -13628,8 +13672,115 @@ final class OdfReader
             'canonicalizationMethod' => $canonicalizationMethod instanceof \DOMElement ? self::nullable(self::domAttribute($canonicalizationMethod, 'Algorithm')) : null,
             'signatureValueLength' => $signatureValue instanceof \DOMElement ? strlen(trim($signatureValue->textContent)) : null,
             'hasKeyInfo' => $keyInfo instanceof \DOMElement,
+            'keyInfo' => $keyInfoMetadata,
+            'keyInfoCount' => $keyInfo instanceof \DOMElement ? 1 : 0,
+            'keyNameCount' => $keyInfoMetadata['keyNameCount'] ?? 0,
+            'keyInfoRetrievalMethodCount' => $keyInfoMetadata['retrievalMethodCount'] ?? 0,
+            'x509DataCount' => $keyInfoMetadata['x509DataCount'] ?? 0,
+            'x509CertificateCount' => $keyInfoMetadata['x509CertificateCount'] ?? 0,
+            'x509CertificateBase64CharLength' => $keyInfoMetadata['x509CertificateBase64CharLength'] ?? 0,
+            'x509IssuerSerialCount' => $keyInfoMetadata['x509IssuerSerialCount'] ?? 0,
+            'x509SubjectNameCount' => $keyInfoMetadata['x509SubjectNameCount'] ?? 0,
             'referenceCount' => count($references),
             'references' => $references,
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function signatureKeyInfoMetadata(\DOMElement $keyInfo): array
+    {
+        $keyNames = [];
+        foreach (self::childElements($keyInfo, 'KeyName', self::DSIG_NS) as $keyName) {
+            $value = self::normalizedText($keyName);
+            if ($value !== '') {
+                $keyNames[] = $value;
+            }
+        }
+
+        $retrievalMethods = [];
+        foreach (self::childElements($keyInfo, 'RetrievalMethod', self::DSIG_NS) as $retrievalMethod) {
+            $retrievalMethods[] = self::withoutEmpty([
+                'uri' => self::nullable(self::domAttribute($retrievalMethod, 'URI')),
+                'type' => self::nullable(self::domAttribute($retrievalMethod, 'Type')),
+            ]);
+        }
+
+        $x509DataItems = [];
+        $x509CertificateCount = 0;
+        $x509CertificateBase64CharLength = 0;
+        $x509IssuerSerialCount = 0;
+        $x509SubjectNames = [];
+        foreach (self::childElements($keyInfo, 'X509Data', self::DSIG_NS) as $x509Data) {
+            $certificates = [];
+            foreach (self::childElements($x509Data, 'X509Certificate', self::DSIG_NS) as $certificate) {
+                $base64 = preg_replace('/\s+/u', '', $certificate->textContent) ?? '';
+                if ($base64 === '') {
+                    continue;
+                }
+
+                $certificates[] = [
+                    'base64CharLength' => strlen($base64),
+                    'base64Sha256' => hash('sha256', $base64),
+                ];
+                ++$x509CertificateCount;
+                $x509CertificateBase64CharLength += strlen($base64);
+            }
+
+            $subjectNames = [];
+            foreach (self::childElements($x509Data, 'X509SubjectName', self::DSIG_NS) as $subjectName) {
+                $value = self::normalizedText($subjectName);
+                if ($value !== '') {
+                    $subjectNames[] = $value;
+                    $x509SubjectNames[] = $value;
+                }
+            }
+
+            $issuerSerials = [];
+            foreach (self::childElements($x509Data, 'X509IssuerSerial', self::DSIG_NS) as $issuerSerial) {
+                $issuerName = self::firstChildElement($issuerSerial, 'X509IssuerName', self::DSIG_NS);
+                $serialNumber = self::firstChildElement($issuerSerial, 'X509SerialNumber', self::DSIG_NS);
+                $item = self::withoutEmpty([
+                    'issuerName' => $issuerName instanceof \DOMElement ? self::normalizedText($issuerName) : null,
+                    'serialNumber' => $serialNumber instanceof \DOMElement ? self::normalizedText($serialNumber) : null,
+                ]);
+                if ($item !== []) {
+                    $issuerSerials[] = $item;
+                    ++$x509IssuerSerialCount;
+                }
+            }
+
+            $x509DataItems[] = self::withoutEmpty([
+                'certificateCount' => count($certificates),
+                'certificateBase64CharLength' => array_sum(array_column($certificates, 'base64CharLength')),
+                'certificates' => $certificates,
+                'subjectNameCount' => count($subjectNames),
+                'subjectNames' => $subjectNames,
+                'issuerSerialCount' => count($issuerSerials),
+                'issuerSerials' => $issuerSerials,
+            ]);
+        }
+
+        $keyNames = array_values(array_unique($keyNames));
+        $x509SubjectNames = array_values(array_unique($x509SubjectNames));
+        sort($keyNames, SORT_STRING);
+        sort($x509SubjectNames, SORT_STRING);
+
+        return self::withoutEmpty([
+            'keyNameCount' => count($keyNames),
+            'keyNames' => $keyNames,
+            'retrievalMethodCount' => count($retrievalMethods),
+            'retrievalMethods' => $retrievalMethods,
+            'x509DataCount' => count($x509DataItems),
+            'x509Data' => $x509DataItems,
+            'x509CertificateCount' => $x509CertificateCount,
+            'x509CertificateBase64CharLength' => $x509CertificateBase64CharLength,
+            'x509IssuerSerialCount' => $x509IssuerSerialCount,
+            'x509SubjectNameCount' => count($x509SubjectNames),
+            'x509SubjectNames' => $x509SubjectNames,
+            'byteExposurePolicy' => 'odf-signature-key-info-metadata-only',
+            'canExposeBytes' => false,
         ]);
     }
 
@@ -13854,6 +14005,62 @@ final class OdfReader
         }
 
         return $summary;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $signatures
+     * @return array<string, mixed>
+     */
+    private function signatureKeyInfoSummary(array $signatures): array
+    {
+        $summary = [
+            'keyInfoCount' => 0,
+            'keyNameCount' => 0,
+            'keyInfoRetrievalMethodCount' => 0,
+            'x509DataCount' => 0,
+            'x509CertificateCount' => 0,
+            'x509CertificateBase64CharLength' => 0,
+            'x509IssuerSerialCount' => 0,
+            'x509SubjectNameCount' => 0,
+        ];
+        $keyNames = [];
+        $x509SubjectNames = [];
+
+        foreach ($signatures as $signature) {
+            $keyInfo = $signature['keyInfo'] ?? null;
+            if (!is_array($keyInfo)) {
+                continue;
+            }
+
+            ++$summary['keyInfoCount'];
+            $summary['keyNameCount'] += (int) ($keyInfo['keyNameCount'] ?? 0);
+            $summary['keyInfoRetrievalMethodCount'] += (int) ($keyInfo['retrievalMethodCount'] ?? 0);
+            $summary['x509DataCount'] += (int) ($keyInfo['x509DataCount'] ?? 0);
+            $summary['x509CertificateCount'] += (int) ($keyInfo['x509CertificateCount'] ?? 0);
+            $summary['x509CertificateBase64CharLength'] += (int) ($keyInfo['x509CertificateBase64CharLength'] ?? 0);
+            $summary['x509IssuerSerialCount'] += (int) ($keyInfo['x509IssuerSerialCount'] ?? 0);
+            $summary['x509SubjectNameCount'] += (int) ($keyInfo['x509SubjectNameCount'] ?? 0);
+            foreach ($keyInfo['keyNames'] ?? [] as $keyName) {
+                if (is_string($keyName) && $keyName !== '') {
+                    $keyNames[] = $keyName;
+                }
+            }
+            foreach ($keyInfo['x509SubjectNames'] ?? [] as $subjectName) {
+                if (is_string($subjectName) && $subjectName !== '') {
+                    $x509SubjectNames[] = $subjectName;
+                }
+            }
+        }
+
+        $keyNames = array_values(array_unique($keyNames));
+        $x509SubjectNames = array_values(array_unique($x509SubjectNames));
+        sort($keyNames, SORT_STRING);
+        sort($x509SubjectNames, SORT_STRING);
+
+        return $summary + [
+            'keyInfoKeyNames' => $keyNames,
+            'x509SubjectNames' => $x509SubjectNames,
+        ];
     }
 
     /**
