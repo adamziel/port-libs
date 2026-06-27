@@ -5104,6 +5104,30 @@ final class ZipPackage
      *     selectedPlatformAttributeIssues:list<string>,
      *     selectedCentralDirectoryFixedFieldEntryCount:int,
      *     selectedCentralDirectoryFixedFieldIssueEntryCount:int,
+     *     selectedTimestampProvenanceEntryCount:int,
+     *     selectedTimestampEntryCount:int,
+     *     selectedDosTimestampEntryCount:int,
+     *     selectedExtendedTimestampEntryCount:int,
+     *     selectedNtfsTimestampEntryCount:int,
+     *     selectedLocalTimestampEntryCount:int,
+     *     selectedLocalExtendedTimestampEntryCount:int,
+     *     selectedLocalNtfsTimestampEntryCount:int,
+     *     selectedInvalidDosTimestampEntryCount:int,
+     *     selectedTimestampIssueEntryCount:int,
+     *     selectedTimestampIssueCount:int,
+     *     selectedTimestampSourceSummaryCount:int,
+     *     handoffTimestampProvenanceEntryCount:int,
+     *     handoffTimestampEntryCount:int,
+     *     handoffDosTimestampEntryCount:int,
+     *     handoffExtendedTimestampEntryCount:int,
+     *     handoffNtfsTimestampEntryCount:int,
+     *     handoffLocalTimestampEntryCount:int,
+     *     handoffLocalExtendedTimestampEntryCount:int,
+     *     handoffLocalNtfsTimestampEntryCount:int,
+     *     handoffInvalidDosTimestampEntryCount:int,
+     *     handoffTimestampIssueEntryCount:int,
+     *     handoffTimestampIssueCount:int,
+     *     handoffTimestampSourceSummaryCount:int,
      *     maxEntryUncompressedBytes:?int,
      *     maxTotalUncompressedBytes:?int,
      *     isSupportedByBoundedReader:bool,
@@ -5139,6 +5163,14 @@ final class ZipPackage
      *     selectedPlatformAttributeIssueEntries:list<array<string, mixed>>,
      *     selectedCentralDirectoryFixedFieldEntries:list<array<string, mixed>>,
      *     selectedCentralDirectoryFixedFieldIssueEntries:list<array<string, mixed>>,
+     *     selectedTimestampIssues:list<string>,
+     *     handoffTimestampIssues:list<string>,
+     *     selectedTimestampSourceSummaries:list<array<string, mixed>>,
+     *     handoffTimestampSourceSummaries:list<array<string, mixed>>,
+     *     selectedTimestampProvenanceEntries:list<array<string, mixed>>,
+     *     handoffTimestampProvenanceEntries:list<array<string, mixed>>,
+     *     selectedTimestampIssueEntries:list<array<string, mixed>>,
+     *     handoffTimestampIssueEntries:list<array<string, mixed>>,
      *     selectedDataDescriptorProvenanceEntries:list<array<string, mixed>>,
      *     selectedDataDescriptorIssueEntries:list<array<string, mixed>>,
      *     missingEntries:list<array<string, mixed>>,
@@ -5320,6 +5352,7 @@ final class ZipPackage
         $selectedLocalHeaderFixedFieldIssueEntries = [];
         $selectedCentralDirectoryFixedFieldEntries = [];
         $selectedCentralDirectoryFixedFieldIssueEntries = [];
+        $selectedTimestampSummaryEntries = [];
         $selectedDataDescriptorProvenanceEntries = [];
         $selectedDataDescriptorEntryCount = 0;
         $selectedSignedDataDescriptorEntryCount = 0;
@@ -5517,6 +5550,18 @@ final class ZipPackage
                 $selectedCentralDirectoryFixedFieldIssueEntries[] = [
                     'name' => $entry->name,
                 ] + $centralDirectoryFixedFieldProvenance;
+            }
+            $timestampProvenance = self::entryTimestampHandoffProvenance($entry, $localHeader);
+            if ($timestampProvenance['hasTimestampProvenance'] || $timestampProvenance['timestampIssues'] !== []) {
+                $selectedTimestampSummaryEntries[] = [
+                    'name' => $entry->name,
+                    'roles' => array_keys($selectedRolesByName[$entry->name] ?? []),
+                    'isDirectory' => $isDirectory,
+                    'compressedSize' => $entry->compressedSize,
+                    'uncompressedSize' => $entry->uncompressedSize,
+                    'status' => 'selected',
+                    'isReadable' => false,
+                ] + $timestampProvenance;
             }
             $dataDescriptorProvenance = $this->entryDataDescriptorHandoffProvenance($entry, $localHeader);
             if ($dataDescriptorProvenance['usesDataDescriptor']) {
@@ -5798,6 +5843,37 @@ final class ZipPackage
                 'centralDirectoryLocalHeaderOffset' => null,
                 'centralDirectoryFixedFieldsMatchEntryMetadata' => null,
                 'centralDirectoryFixedFieldIssues' => [],
+                'hasDosTimestamp' => false,
+                'isDosTimestampValid' => true,
+                'dosModifiedAt' => null,
+                'extendedModifiedAt' => null,
+                'extendedAccessedAt' => null,
+                'extendedCreatedAt' => null,
+                'ntfsModifiedAt' => null,
+                'ntfsAccessedAt' => null,
+                'ntfsCreatedAt' => null,
+                'modifiedAt' => null,
+                'timestampSource' => null,
+                'centralExtendedModifiedAt' => null,
+                'centralExtendedAccessedAt' => null,
+                'centralExtendedCreatedAt' => null,
+                'centralNtfsModifiedAt' => null,
+                'centralNtfsAccessedAt' => null,
+                'centralNtfsCreatedAt' => null,
+                'centralModifiedAt' => null,
+                'centralTimestampSource' => null,
+                'localExtendedModifiedAt' => null,
+                'localExtendedAccessedAt' => null,
+                'localExtendedCreatedAt' => null,
+                'localNtfsModifiedAt' => null,
+                'localNtfsAccessedAt' => null,
+                'localNtfsCreatedAt' => null,
+                'localModifiedAt' => null,
+                'localTimestampSource' => null,
+                'hasCentralTimestampProvenance' => false,
+                'hasLocalTimestampProvenance' => false,
+                'hasTimestampProvenance' => false,
+                'timestampIssues' => [],
                 'hasSourceByteSpanProvenance' => false,
                 'localRecordOffset' => null,
                 'localRecordBytes' => null,
@@ -5894,6 +5970,7 @@ final class ZipPackage
             $summary = array_merge($summary, self::entryPlatformAttributeHandoffProvenance($entry));
             $summary = array_merge($summary, self::entryLocalHeaderFixedFieldHandoffProvenance($entry, $localHeader));
             $summary = array_merge($summary, $this->entryCentralDirectoryFixedFieldHandoffProvenance($entry));
+            $summary = array_merge($summary, self::entryTimestampHandoffProvenance($entry, $localHeader));
             $dataDescriptorProvenance = $this->entryDataDescriptorHandoffProvenance($entry, $localHeader);
             $summary = array_merge($summary, $dataDescriptorProvenance);
             $summary = array_merge(
@@ -6035,6 +6112,8 @@ final class ZipPackage
         $handoffNameHygieneIssueSummaries = self::entryHandoffNameHygieneIssueSummaries($handoffEntries);
         $handoffNameHygieneReviewEntries = self::entryHandoffNameHygieneReviewEntries($handoffEntries);
         $handoffNameHygieneIssues = self::entryHandoffNameHygieneIssues($handoffNameHygieneIssueSummaries);
+        $selectedTimestampSummary = self::entryHandoffTimestampSummary($selectedTimestampSummaryEntries);
+        $handoffTimestampSummary = self::entryHandoffTimestampSummary($handoffEntries);
         $roleSummaries = self::entryHandoffRoleSummaries($entries);
         $handoffSourceByteSpanSummary = self::entryHandoffSourceByteSpanSummary($handoffEntries);
         $handoffContentDigestSummary = self::entryHandoffContentDigestSummary($handoffEntries);
@@ -6143,6 +6222,30 @@ final class ZipPackage
             'selectedLocalHeaderFixedFieldIssueEntryCount' => count($selectedLocalHeaderFixedFieldIssueEntries),
             'selectedCentralDirectoryFixedFieldEntryCount' => count($selectedCentralDirectoryFixedFieldEntries),
             'selectedCentralDirectoryFixedFieldIssueEntryCount' => count($selectedCentralDirectoryFixedFieldIssueEntries),
+            'selectedTimestampProvenanceEntryCount' => $selectedTimestampSummary['provenanceEntryCount'],
+            'selectedTimestampEntryCount' => $selectedTimestampSummary['timestampEntryCount'],
+            'selectedDosTimestampEntryCount' => $selectedTimestampSummary['dosTimestampEntryCount'],
+            'selectedExtendedTimestampEntryCount' => $selectedTimestampSummary['extendedTimestampEntryCount'],
+            'selectedNtfsTimestampEntryCount' => $selectedTimestampSummary['ntfsTimestampEntryCount'],
+            'selectedLocalTimestampEntryCount' => $selectedTimestampSummary['localTimestampEntryCount'],
+            'selectedLocalExtendedTimestampEntryCount' => $selectedTimestampSummary['localExtendedTimestampEntryCount'],
+            'selectedLocalNtfsTimestampEntryCount' => $selectedTimestampSummary['localNtfsTimestampEntryCount'],
+            'selectedInvalidDosTimestampEntryCount' => $selectedTimestampSummary['invalidDosTimestampEntryCount'],
+            'selectedTimestampIssueEntryCount' => $selectedTimestampSummary['issueEntryCount'],
+            'selectedTimestampIssueCount' => count($selectedTimestampSummary['issues']),
+            'selectedTimestampSourceSummaryCount' => count($selectedTimestampSummary['sourceSummaries']),
+            'handoffTimestampProvenanceEntryCount' => $handoffTimestampSummary['provenanceEntryCount'],
+            'handoffTimestampEntryCount' => $handoffTimestampSummary['timestampEntryCount'],
+            'handoffDosTimestampEntryCount' => $handoffTimestampSummary['dosTimestampEntryCount'],
+            'handoffExtendedTimestampEntryCount' => $handoffTimestampSummary['extendedTimestampEntryCount'],
+            'handoffNtfsTimestampEntryCount' => $handoffTimestampSummary['ntfsTimestampEntryCount'],
+            'handoffLocalTimestampEntryCount' => $handoffTimestampSummary['localTimestampEntryCount'],
+            'handoffLocalExtendedTimestampEntryCount' => $handoffTimestampSummary['localExtendedTimestampEntryCount'],
+            'handoffLocalNtfsTimestampEntryCount' => $handoffTimestampSummary['localNtfsTimestampEntryCount'],
+            'handoffInvalidDosTimestampEntryCount' => $handoffTimestampSummary['invalidDosTimestampEntryCount'],
+            'handoffTimestampIssueEntryCount' => $handoffTimestampSummary['issueEntryCount'],
+            'handoffTimestampIssueCount' => count($handoffTimestampSummary['issues']),
+            'handoffTimestampSourceSummaryCount' => count($handoffTimestampSummary['sourceSummaries']),
             'selectedDataDescriptorEntryCount' => $selectedDataDescriptorEntryCount,
             'selectedSignedDataDescriptorEntryCount' => $selectedSignedDataDescriptorEntryCount,
             'selectedUnsignedDataDescriptorEntryCount' => $selectedUnsignedDataDescriptorEntryCount,
@@ -6236,6 +6339,14 @@ final class ZipPackage
             'selectedLocalHeaderFixedFieldIssueEntries' => $selectedLocalHeaderFixedFieldIssueEntries,
             'selectedCentralDirectoryFixedFieldEntries' => $selectedCentralDirectoryFixedFieldEntries,
             'selectedCentralDirectoryFixedFieldIssueEntries' => $selectedCentralDirectoryFixedFieldIssueEntries,
+            'selectedTimestampIssues' => $selectedTimestampSummary['issues'],
+            'handoffTimestampIssues' => $handoffTimestampSummary['issues'],
+            'selectedTimestampSourceSummaries' => $selectedTimestampSummary['sourceSummaries'],
+            'handoffTimestampSourceSummaries' => $handoffTimestampSummary['sourceSummaries'],
+            'selectedTimestampProvenanceEntries' => $selectedTimestampSummary['provenanceEntries'],
+            'handoffTimestampProvenanceEntries' => $handoffTimestampSummary['provenanceEntries'],
+            'selectedTimestampIssueEntries' => $selectedTimestampSummary['issueEntries'],
+            'handoffTimestampIssueEntries' => $handoffTimestampSummary['issueEntries'],
             'selectedDataDescriptorProvenanceEntries' => $selectedDataDescriptorProvenanceEntries,
             'selectedDataDescriptorIssueEntries' => $selectedDataDescriptorIssueEntries,
             'selectedSourceByteSpanEntries' => $selectedSourceByteSpanEntries,
@@ -6301,6 +6412,196 @@ final class ZipPackage
             'manifestSha256' => hash('sha256', $manifestJson),
             'entries' => $digestEntries,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array{provenanceEntryCount:int, timestampEntryCount:int, dosTimestampEntryCount:int, extendedTimestampEntryCount:int, ntfsTimestampEntryCount:int, localTimestampEntryCount:int, localExtendedTimestampEntryCount:int, localNtfsTimestampEntryCount:int, invalidDosTimestampEntryCount:int, issueEntryCount:int, issues:list<string>, sourceSummaries:list<array<string, mixed>>, provenanceEntries:list<array<string, mixed>>, issueEntries:list<array<string, mixed>>}
+     */
+    private static function entryHandoffTimestampSummary(array $entries): array
+    {
+        $timestampEntryCount = 0;
+        $dosTimestampEntryCount = 0;
+        $extendedTimestampEntryCount = 0;
+        $ntfsTimestampEntryCount = 0;
+        $localTimestampEntryCount = 0;
+        $localExtendedTimestampEntryCount = 0;
+        $localNtfsTimestampEntryCount = 0;
+        $invalidDosTimestampEntryCount = 0;
+        $issues = [];
+        $sourceSummaries = [];
+        $provenanceEntries = [];
+        $issueEntries = [];
+
+        foreach ($entries as $entry) {
+            if (($entry['hasTimestampProvenance'] ?? false) !== true && !is_array($entry['timestampIssues'] ?? null)) {
+                continue;
+            }
+
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $entryIssues = array_values(array_filter(
+                is_array($entry['timestampIssues'] ?? null) ? $entry['timestampIssues'] : [],
+                'is_string'
+            ));
+            $hasTimestampProvenance = ($entry['hasTimestampProvenance'] ?? false) === true || $entryIssues !== [];
+            if (!$hasTimestampProvenance) {
+                continue;
+            }
+
+            $reviewEntry = self::entryHandoffTimestampReviewEntry($entry, $entryIssues);
+            $provenanceEntries[] = $reviewEntry;
+            if ($entryIssues !== []) {
+                $issueEntries[] = $reviewEntry;
+                foreach ($entryIssues as $issue) {
+                    self::appendUniqueIssue($issues, $issue);
+                }
+            }
+
+            if (is_int($entry['modifiedAt'] ?? null)) {
+                ++$timestampEntryCount;
+                $source = is_string($entry['timestampSource'] ?? null) ? $entry['timestampSource'] : null;
+                if ($source !== null) {
+                    self::addTimestampSourceSummary($sourceSummaries, $entry, $source, $name);
+                }
+            }
+            if (($entry['hasDosTimestamp'] ?? false) === true) {
+                ++$dosTimestampEntryCount;
+            }
+            if (self::entryHasAnyTimestampField($entry, 'centralExtended')) {
+                ++$extendedTimestampEntryCount;
+            }
+            if (self::entryHasAnyTimestampField($entry, 'centralNtfs')) {
+                ++$ntfsTimestampEntryCount;
+            }
+            if (is_int($entry['localModifiedAt'] ?? null)) {
+                ++$localTimestampEntryCount;
+            }
+            if (self::entryHasAnyTimestampField($entry, 'localExtended')) {
+                ++$localExtendedTimestampEntryCount;
+            }
+            if (self::entryHasAnyTimestampField($entry, 'localNtfs')) {
+                ++$localNtfsTimestampEntryCount;
+            }
+            if (($entry['isDosTimestampValid'] ?? true) !== true) {
+                ++$invalidDosTimestampEntryCount;
+            }
+        }
+
+        foreach ($sourceSummaries as &$summary) {
+            sort($summary['roles'], SORT_STRING);
+        }
+        unset($summary);
+        ksort($sourceSummaries, SORT_STRING);
+
+        return [
+            'provenanceEntryCount' => count($provenanceEntries),
+            'timestampEntryCount' => $timestampEntryCount,
+            'dosTimestampEntryCount' => $dosTimestampEntryCount,
+            'extendedTimestampEntryCount' => $extendedTimestampEntryCount,
+            'ntfsTimestampEntryCount' => $ntfsTimestampEntryCount,
+            'localTimestampEntryCount' => $localTimestampEntryCount,
+            'localExtendedTimestampEntryCount' => $localExtendedTimestampEntryCount,
+            'localNtfsTimestampEntryCount' => $localNtfsTimestampEntryCount,
+            'invalidDosTimestampEntryCount' => $invalidDosTimestampEntryCount,
+            'issueEntryCount' => count($issueEntries),
+            'issues' => $issues,
+            'sourceSummaries' => array_values($sourceSummaries),
+            'provenanceEntries' => $provenanceEntries,
+            'issueEntries' => $issueEntries,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @param list<string> $issues
+     * @return array<string, mixed>
+     */
+    private static function entryHandoffTimestampReviewEntry(array $entry, array $issues): array
+    {
+        return [
+            'name' => is_string($entry['name'] ?? null) ? $entry['name'] : '',
+            'roles' => self::entryHandoffRolesForSummary($entry),
+            'isDirectory' => ($entry['isDirectory'] ?? false) === true,
+            'status' => is_string($entry['status'] ?? null) ? $entry['status'] : null,
+            'isReadable' => ($entry['isReadable'] ?? false) === true,
+            'compressedSize' => (int) ($entry['compressedSize'] ?? 0),
+            'uncompressedSize' => (int) ($entry['uncompressedSize'] ?? 0),
+            'modifiedDosTime' => is_int($entry['centralModifiedDosTime'] ?? null) ? $entry['centralModifiedDosTime'] : null,
+            'modifiedDosDate' => is_int($entry['centralModifiedDosDate'] ?? null) ? $entry['centralModifiedDosDate'] : null,
+            'hasDosTimestamp' => ($entry['hasDosTimestamp'] ?? false) === true,
+            'isDosTimestampValid' => ($entry['isDosTimestampValid'] ?? true) === true,
+            'dosModifiedAt' => is_int($entry['dosModifiedAt'] ?? null) ? $entry['dosModifiedAt'] : null,
+            'extendedModifiedAt' => is_int($entry['extendedModifiedAt'] ?? null) ? $entry['extendedModifiedAt'] : null,
+            'extendedAccessedAt' => is_int($entry['extendedAccessedAt'] ?? null) ? $entry['extendedAccessedAt'] : null,
+            'extendedCreatedAt' => is_int($entry['extendedCreatedAt'] ?? null) ? $entry['extendedCreatedAt'] : null,
+            'ntfsModifiedAt' => is_int($entry['ntfsModifiedAt'] ?? null) ? $entry['ntfsModifiedAt'] : null,
+            'ntfsAccessedAt' => is_int($entry['ntfsAccessedAt'] ?? null) ? $entry['ntfsAccessedAt'] : null,
+            'ntfsCreatedAt' => is_int($entry['ntfsCreatedAt'] ?? null) ? $entry['ntfsCreatedAt'] : null,
+            'modifiedAt' => is_int($entry['modifiedAt'] ?? null) ? $entry['modifiedAt'] : null,
+            'timestampSource' => is_string($entry['timestampSource'] ?? null) ? $entry['timestampSource'] : null,
+            'localExtendedModifiedAt' => is_int($entry['localExtendedModifiedAt'] ?? null) ? $entry['localExtendedModifiedAt'] : null,
+            'localExtendedAccessedAt' => is_int($entry['localExtendedAccessedAt'] ?? null) ? $entry['localExtendedAccessedAt'] : null,
+            'localExtendedCreatedAt' => is_int($entry['localExtendedCreatedAt'] ?? null) ? $entry['localExtendedCreatedAt'] : null,
+            'localNtfsModifiedAt' => is_int($entry['localNtfsModifiedAt'] ?? null) ? $entry['localNtfsModifiedAt'] : null,
+            'localNtfsAccessedAt' => is_int($entry['localNtfsAccessedAt'] ?? null) ? $entry['localNtfsAccessedAt'] : null,
+            'localNtfsCreatedAt' => is_int($entry['localNtfsCreatedAt'] ?? null) ? $entry['localNtfsCreatedAt'] : null,
+            'localModifiedAt' => is_int($entry['localModifiedAt'] ?? null) ? $entry['localModifiedAt'] : null,
+            'localTimestampSource' => is_string($entry['localTimestampSource'] ?? null) ? $entry['localTimestampSource'] : null,
+            'hasCentralTimestampProvenance' => ($entry['hasCentralTimestampProvenance'] ?? false) === true,
+            'hasLocalTimestampProvenance' => ($entry['hasLocalTimestampProvenance'] ?? false) === true,
+            'hasTimestampProvenance' => ($entry['hasTimestampProvenance'] ?? false) === true,
+            'timestampIssues' => $issues,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $summaries
+     * @param array<string, mixed> $entry
+     */
+    private static function addTimestampSourceSummary(array &$summaries, array $entry, string $source, string $name): void
+    {
+        if (!isset($summaries[$source])) {
+            $summaries[$source] = [
+                'timestampSource' => $source,
+                'entryCount' => 0,
+                'fileEntryCount' => 0,
+                'directoryEntryCount' => 0,
+                'compressedBytes' => 0,
+                'uncompressedBytes' => 0,
+                'roles' => [],
+                'entryNames' => [],
+            ];
+        }
+
+        ++$summaries[$source]['entryCount'];
+        if (($entry['isDirectory'] ?? false) === true) {
+            ++$summaries[$source]['directoryEntryCount'];
+        } else {
+            ++$summaries[$source]['fileEntryCount'];
+        }
+        $summaries[$source]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+        $summaries[$source]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+        $summaries[$source]['entryNames'][] = $name;
+
+        foreach (self::entryHandoffRolesForSummary($entry) as $role) {
+            if (!in_array($role, $summaries[$source]['roles'], true)) {
+                $summaries[$source]['roles'][] = $role;
+            }
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     */
+    private static function entryHasAnyTimestampField(array $entry, string $prefix): bool
+    {
+        return is_int($entry[$prefix . 'ModifiedAt'] ?? null)
+            || is_int($entry[$prefix . 'AccessedAt'] ?? null)
+            || is_int($entry[$prefix . 'CreatedAt'] ?? null);
     }
 
     /**
@@ -8005,6 +8306,149 @@ final class ZipPackage
             'centralDirectoryFixedFieldsMatchEntryMetadata' => $issues === [],
             'centralDirectoryFixedFieldIssues' => $issues,
         ]);
+    }
+
+    /**
+     * @param array<string, mixed> $localHeader
+     * @return array{
+     *     hasDosTimestamp:bool,
+     *     isDosTimestampValid:bool,
+     *     dosModifiedAt:?int,
+     *     extendedModifiedAt:?int,
+     *     extendedAccessedAt:?int,
+     *     extendedCreatedAt:?int,
+     *     ntfsModifiedAt:?int,
+     *     ntfsAccessedAt:?int,
+     *     ntfsCreatedAt:?int,
+     *     modifiedAt:?int,
+     *     timestampSource:?string,
+     *     centralExtendedModifiedAt:?int,
+     *     centralExtendedAccessedAt:?int,
+     *     centralExtendedCreatedAt:?int,
+     *     centralNtfsModifiedAt:?int,
+     *     centralNtfsAccessedAt:?int,
+     *     centralNtfsCreatedAt:?int,
+     *     centralModifiedAt:?int,
+     *     centralTimestampSource:?string,
+     *     localExtendedModifiedAt:?int,
+     *     localExtendedAccessedAt:?int,
+     *     localExtendedCreatedAt:?int,
+     *     localNtfsModifiedAt:?int,
+     *     localNtfsAccessedAt:?int,
+     *     localNtfsCreatedAt:?int,
+     *     localModifiedAt:?int,
+     *     localTimestampSource:?string,
+     *     hasCentralTimestampProvenance:bool,
+     *     hasLocalTimestampProvenance:bool,
+     *     hasTimestampProvenance:bool,
+     *     timestampIssues:list<string>
+     * }
+     */
+    private static function entryTimestampHandoffProvenance(ZipPackageEntry $entry, array $localHeader): array
+    {
+        $hasDosTimestamp = $entry->hasDosLastModifiedTimestamp();
+        $dosModifiedAt = $entry->dosLastModifiedTimestamp();
+        $centralExtendedTimestamps = $entry->extendedTimestamps();
+        $centralNtfsTimestamps = $entry->ntfsTimestamps();
+        $centralExtendedModifiedAt = $centralExtendedTimestamps['modifiedAt'] ?? null;
+        $centralExtendedAccessedAt = $centralExtendedTimestamps['accessedAt'] ?? null;
+        $centralExtendedCreatedAt = $centralExtendedTimestamps['createdAt'] ?? null;
+        $centralNtfsModifiedAt = $centralNtfsTimestamps['modifiedAt'] ?? null;
+        $centralNtfsAccessedAt = $centralNtfsTimestamps['accessedAt'] ?? null;
+        $centralNtfsCreatedAt = $centralNtfsTimestamps['createdAt'] ?? null;
+        $modifiedAt = $centralExtendedModifiedAt ?? $centralNtfsModifiedAt ?? $dosModifiedAt;
+        $timestampSource = self::timestampSourceForModifiedAt(
+            $centralExtendedModifiedAt,
+            $centralNtfsModifiedAt,
+            $dosModifiedAt
+        );
+
+        $localExtraFieldData = is_string($localHeader['extraFieldData'] ?? null)
+            ? $localHeader['extraFieldData']
+            : '';
+        $localExtendedTimestamps = self::extendedTimestampsFromExtraFieldData(
+            $localExtraFieldData,
+            "local extra fields for {$entry->name}"
+        );
+        $localNtfsTimestamps = self::ntfsTimestampsFromExtraFieldData(
+            $localExtraFieldData,
+            "local extra fields for {$entry->name}"
+        );
+        $localExtendedModifiedAt = $localExtendedTimestamps['modifiedAt'] ?? null;
+        $localExtendedAccessedAt = $localExtendedTimestamps['accessedAt'] ?? null;
+        $localExtendedCreatedAt = $localExtendedTimestamps['createdAt'] ?? null;
+        $localNtfsModifiedAt = $localNtfsTimestamps['modifiedAt'] ?? null;
+        $localNtfsAccessedAt = $localNtfsTimestamps['accessedAt'] ?? null;
+        $localNtfsCreatedAt = $localNtfsTimestamps['createdAt'] ?? null;
+        $localModifiedAt = $localExtendedModifiedAt ?? $localNtfsModifiedAt ?? $dosModifiedAt;
+        $localTimestampSource = self::timestampSourceForModifiedAt(
+            $localExtendedModifiedAt,
+            $localNtfsModifiedAt,
+            $dosModifiedAt
+        );
+
+        $timestampIssues = [];
+        $isDosTimestampValid = !$hasDosTimestamp || $dosModifiedAt !== null;
+        if (!$isDosTimestampValid) {
+            $timestampIssues[] = 'invalid-dos-modified-timestamp';
+        }
+
+        $hasCentralTimestampProvenance = $hasDosTimestamp
+            || $centralExtendedTimestamps !== null
+            || $centralNtfsTimestamps !== null;
+        $hasLocalTimestampProvenance = $localExtendedTimestamps !== null
+            || $localNtfsTimestamps !== null;
+
+        return [
+            'hasDosTimestamp' => $hasDosTimestamp,
+            'isDosTimestampValid' => $isDosTimestampValid,
+            'dosModifiedAt' => $dosModifiedAt,
+            'extendedModifiedAt' => $centralExtendedModifiedAt,
+            'extendedAccessedAt' => $centralExtendedAccessedAt,
+            'extendedCreatedAt' => $centralExtendedCreatedAt,
+            'ntfsModifiedAt' => $centralNtfsModifiedAt,
+            'ntfsAccessedAt' => $centralNtfsAccessedAt,
+            'ntfsCreatedAt' => $centralNtfsCreatedAt,
+            'modifiedAt' => $modifiedAt,
+            'timestampSource' => $timestampSource,
+            'centralExtendedModifiedAt' => $centralExtendedModifiedAt,
+            'centralExtendedAccessedAt' => $centralExtendedAccessedAt,
+            'centralExtendedCreatedAt' => $centralExtendedCreatedAt,
+            'centralNtfsModifiedAt' => $centralNtfsModifiedAt,
+            'centralNtfsAccessedAt' => $centralNtfsAccessedAt,
+            'centralNtfsCreatedAt' => $centralNtfsCreatedAt,
+            'centralModifiedAt' => $modifiedAt,
+            'centralTimestampSource' => $timestampSource,
+            'localExtendedModifiedAt' => $localExtendedModifiedAt,
+            'localExtendedAccessedAt' => $localExtendedAccessedAt,
+            'localExtendedCreatedAt' => $localExtendedCreatedAt,
+            'localNtfsModifiedAt' => $localNtfsModifiedAt,
+            'localNtfsAccessedAt' => $localNtfsAccessedAt,
+            'localNtfsCreatedAt' => $localNtfsCreatedAt,
+            'localModifiedAt' => $localModifiedAt,
+            'localTimestampSource' => $localTimestampSource,
+            'hasCentralTimestampProvenance' => $hasCentralTimestampProvenance,
+            'hasLocalTimestampProvenance' => $hasLocalTimestampProvenance,
+            'hasTimestampProvenance' => $hasCentralTimestampProvenance || $hasLocalTimestampProvenance,
+            'timestampIssues' => $timestampIssues,
+        ];
+    }
+
+    private static function timestampSourceForModifiedAt(?int $extendedModifiedAt, ?int $ntfsModifiedAt, ?int $dosModifiedAt): ?string
+    {
+        if ($extendedModifiedAt !== null) {
+            return 'extended-timestamp';
+        }
+
+        if ($ntfsModifiedAt !== null) {
+            return 'ntfs';
+        }
+
+        if ($dosModifiedAt !== null) {
+            return 'dos';
+        }
+
+        return null;
     }
 
     /**

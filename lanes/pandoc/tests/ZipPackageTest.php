@@ -13243,6 +13243,149 @@ return [
         $t->same([$summary['entries'][0], $bidiEntry, $adsEntry, $reservedEntry], $summary['handoffEntries']);
     },
 
+    'summarizes selected zip handoff timestamp provenance before reader byte exposure' => static function (TestRunner $t) use ($buildZipPackage, $buildNtfsExtra): void {
+        $documentModifiedAt = 1780479017;
+        $mediaModifiedAt = 1780479027;
+        $mediaAccessedAt = 1780479028;
+        $mediaCreatedAt = 1780479029;
+        $documentXml = '<w:document><w:body><w:p>timestamp handoff</w:p></w:body></w:document>';
+        $relsXml = '<Relationships><Relationship Id="rIdMedia" Target="media/review.bin"/></Relationships>';
+        $mediaBytes = "blocked timestamped media bytes\n";
+        $documentTimestampExtra = pack('vvCV', 0x5455, 5, 0x01, $documentModifiedAt);
+        $mediaNtfsExtra = $buildNtfsExtra($mediaModifiedAt, $mediaAccessedAt, $mediaCreatedAt);
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 0,
+                'modifiedTime' => 19400,
+                'modifiedDate' => 23747,
+                'localExtra' => $documentTimestampExtra,
+                'centralExtra' => $documentTimestampExtra,
+            ],
+            [
+                'name' => 'word/_rels/document.xml.rels',
+                'data' => $relsXml,
+                'method' => 0,
+                'modifiedTime' => 19400,
+                'modifiedDate' => 23747,
+            ],
+            [
+                'name' => 'word/media/review.bin',
+                'data' => $mediaBytes,
+                'method' => 0,
+                'modifiedTime' => 19400,
+                'modifiedDate' => 23747,
+                'localExtra' => $mediaNtfsExtra,
+                'centralExtra' => $mediaNtfsExtra,
+            ],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/_rels/document.xml.rels', 'required' => false, 'kind' => 'file', 'role' => 'document-relationships'],
+            ['name' => 'word/media/review.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 8],
+            ['name' => 'word/missing.xml', 'required' => false, 'kind' => 'file', 'role' => 'optional-sidecar'],
+        ], 1024);
+
+        $selectedBySource = [];
+        foreach ($summary['selectedTimestampSourceSummaries'] as $sourceSummary) {
+            $selectedBySource[$sourceSummary['timestampSource']] = $sourceSummary;
+        }
+        $handoffBySource = [];
+        foreach ($summary['handoffTimestampSourceSummaries'] as $sourceSummary) {
+            $handoffBySource[$sourceSummary['timestampSource']] = $sourceSummary;
+        }
+
+        $t->same(3, $summary['selectedUniqueEntryCount']);
+        $t->same(2, $summary['handoffEntryCount']);
+        $t->same(1, $summary['failedEntryCount']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
+        $t->same(3, $summary['selectedTimestampProvenanceEntryCount']);
+        $t->same(3, $summary['selectedTimestampEntryCount']);
+        $t->same(3, $summary['selectedDosTimestampEntryCount']);
+        $t->same(1, $summary['selectedExtendedTimestampEntryCount']);
+        $t->same(1, $summary['selectedNtfsTimestampEntryCount']);
+        $t->same(3, $summary['selectedLocalTimestampEntryCount']);
+        $t->same(1, $summary['selectedLocalExtendedTimestampEntryCount']);
+        $t->same(1, $summary['selectedLocalNtfsTimestampEntryCount']);
+        $t->same(0, $summary['selectedInvalidDosTimestampEntryCount']);
+        $t->same(0, $summary['selectedTimestampIssueCount']);
+        $t->same([], $summary['selectedTimestampIssues']);
+        $t->same(3, $summary['selectedTimestampSourceSummaryCount']);
+        $t->same(2, $summary['handoffTimestampProvenanceEntryCount']);
+        $t->same(2, $summary['handoffTimestampEntryCount']);
+        $t->same(2, $summary['handoffDosTimestampEntryCount']);
+        $t->same(1, $summary['handoffExtendedTimestampEntryCount']);
+        $t->same(0, $summary['handoffNtfsTimestampEntryCount']);
+        $t->same(2, $summary['handoffLocalTimestampEntryCount']);
+        $t->same(1, $summary['handoffLocalExtendedTimestampEntryCount']);
+        $t->same(0, $summary['handoffLocalNtfsTimestampEntryCount']);
+        $t->same(2, $summary['handoffTimestampSourceSummaryCount']);
+        $t->same([], $summary['handoffTimestampIssues']);
+
+        $t->same(['dos', 'extended-timestamp', 'ntfs'], array_keys($selectedBySource));
+        $t->same(['dos', 'extended-timestamp'], array_keys($handoffBySource));
+        $t->same([
+            'timestampSource' => 'extended-timestamp',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($documentXml),
+            'uncompressedBytes' => strlen($documentXml),
+            'roles' => ['main-document'],
+            'entryNames' => ['word/document.xml'],
+        ], $selectedBySource['extended-timestamp']);
+        $t->same([
+            'timestampSource' => 'dos',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($relsXml),
+            'uncompressedBytes' => strlen($relsXml),
+            'roles' => ['document-relationships'],
+            'entryNames' => ['word/_rels/document.xml.rels'],
+        ], $handoffBySource['dos']);
+        $t->same([
+            'timestampSource' => 'ntfs',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($mediaBytes),
+            'uncompressedBytes' => strlen($mediaBytes),
+            'roles' => ['media'],
+            'entryNames' => ['word/media/review.bin'],
+        ], $selectedBySource['ntfs']);
+        $t->same(false, isset($handoffBySource['ntfs']));
+
+        $documentEntry = $summary['entries'][0];
+        $mediaEntry = $summary['entries'][2];
+        $t->same($documentModifiedAt, $documentEntry['modifiedAt']);
+        $t->same('extended-timestamp', $documentEntry['timestampSource']);
+        $t->same($documentModifiedAt, $documentEntry['localExtendedModifiedAt']);
+        $t->same('extended-timestamp', $documentEntry['localTimestampSource']);
+        $t->same(true, $documentEntry['hasTimestampProvenance']);
+        $t->same('ready', $documentEntry['status']);
+        $t->same($mediaModifiedAt, $mediaEntry['modifiedAt']);
+        $t->same('ntfs', $mediaEntry['timestampSource']);
+        $t->same($mediaAccessedAt, $mediaEntry['localNtfsAccessedAt']);
+        $t->same($mediaCreatedAt, $mediaEntry['localNtfsCreatedAt']);
+        $t->same('ntfs', $mediaEntry['localTimestampSource']);
+        $t->same('blocked', $mediaEntry['status']);
+        $t->same(false, $mediaEntry['isReadable']);
+        $t->same(null, $mediaEntry['contentSha256']);
+
+        $t->same(
+            ['word/document.xml', 'word/_rels/document.xml.rels', 'word/media/review.bin'],
+            array_map(static fn (array $entry): string => $entry['name'], $summary['selectedTimestampProvenanceEntries'])
+        );
+        $t->same(
+            ['word/document.xml', 'word/_rels/document.xml.rels'],
+            array_map(static fn (array $entry): string => $entry['name'], $summary['handoffTimestampProvenanceEntries'])
+        );
+    },
+
     'summarizes selected zip handoff package part kinds for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
         $mimetype = 'application/epub+zip';
         $contentTypesXml = '<Types/>';
