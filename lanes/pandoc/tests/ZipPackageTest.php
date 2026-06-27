@@ -12438,6 +12438,356 @@ return [
         $t->same('ready', $summary['entries'][7]['status']);
     },
 
+    'summarizes selected zip handoff order provenance for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $mimetype = 'application/epub+zip';
+        $contentTypesXml = '<Types/>';
+        $documentXml = '<w:document><w:body><w:p>handoff order provenance</w:p></w:body></w:document>';
+        $imageBytes = "image order bytes\n";
+        $largeBytes = "large order bytes\n";
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => 'mimetype', 'data' => $mimetype, 'method' => 0, 'centralIndex' => 3],
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'method' => 0, 'centralIndex' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0, 'centralIndex' => 1],
+            ['name' => 'word/media/image.png', 'data' => $imageBytes, 'method' => 0, 'centralIndex' => 2],
+            ['name' => 'word/media/large.bin', 'data' => $largeBytes, 'method' => 0, 'centralIndex' => 4],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/media/image.png', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => '[Content_Types].xml', 'required' => true, 'kind' => 'file', 'role' => 'content-types'],
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'mimetype', 'required' => false, 'kind' => 'file', 'role' => 'epub-mimetype'],
+            ['name' => 'word/media/large.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 4],
+        ], 1024);
+
+        $selectedOrder = $summary['selectedOrderSummary'];
+        $handoffOrder = $summary['handoffOrderSummary'];
+        $selectedByName = [];
+        foreach ($selectedOrder['entries'] as $entry) {
+            $selectedByName[$entry['name']] = $entry;
+        }
+        $handoffByName = [];
+        foreach ($handoffOrder['entries'] as $entry) {
+            $handoffByName[$entry['name']] = $entry;
+        }
+
+        $t->same(5, $summary['selectedUniqueEntryCount']);
+        $t->same(4, $summary['handoffEntryCount']);
+        $t->same(4, $summary['selectedOrderMismatchEntryCount']);
+        $t->same(4, $summary['handoffOrderMismatchEntryCount']);
+        $t->same(false, $summary['selectedCentralDirectoryOrderMatchesLocalHeaderOrder']);
+        $t->same(false, $summary['handoffCentralDirectoryOrderMatchesLocalHeaderOrder']);
+        $t->same(false, $summary['selectedRequestOrderMatchesCentralDirectoryOrder']);
+        $t->same(false, $summary['selectedRequestOrderMatchesLocalHeaderOrder']);
+
+        $t->same([
+            'word/media/image.png',
+            '[Content_Types].xml',
+            'word/document.xml',
+            'mimetype',
+            'word/media/large.bin',
+        ], $selectedOrder['requestOrderNames']);
+        $t->same([
+            '[Content_Types].xml',
+            'word/document.xml',
+            'word/media/image.png',
+            'mimetype',
+            'word/media/large.bin',
+        ], $selectedOrder['centralDirectoryOrderNames']);
+        $t->same([
+            'mimetype',
+            '[Content_Types].xml',
+            'word/document.xml',
+            'word/media/image.png',
+            'word/media/large.bin',
+        ], $selectedOrder['localHeaderOrderNames']);
+
+        $t->same(2, $summary['entries'][0]['centralDirectoryIndex']);
+        $t->same(3, $summary['entries'][0]['localHeaderOrder']);
+        $t->same(4, $summary['entries'][4]['centralDirectoryIndex']);
+        $t->same(4, $summary['entries'][4]['localHeaderOrder']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['entries'][4]['issues']);
+
+        $t->same(2, $selectedByName['word/media/image.png']['centralDirectoryIndex']);
+        $t->same(3, $selectedByName['word/media/image.png']['localHeaderOrder']);
+        $t->same(0, $selectedByName['word/media/image.png']['requestOrder']);
+        $t->same(2, $selectedByName['word/media/image.png']['centralDirectorySubsetOrder']);
+        $t->same(3, $selectedByName['word/media/image.png']['localHeaderSubsetOrder']);
+        $t->same(false, $selectedByName['word/media/image.png']['matchesCentralDirectoryOrder']);
+        $t->same(['media'], $selectedByName['word/media/image.png']['roles']);
+
+        $t->same(4, $selectedByName['word/media/large.bin']['centralDirectorySubsetOrder']);
+        $t->same(4, $selectedByName['word/media/large.bin']['localHeaderSubsetOrder']);
+        $t->same(true, $selectedByName['word/media/large.bin']['matchesCentralDirectoryOrder']);
+        $t->same(false, isset($handoffByName['word/media/large.bin']));
+
+        $t->same([
+            'word/media/image.png',
+            '[Content_Types].xml',
+            'word/document.xml',
+            'mimetype',
+        ], $handoffOrder['requestOrderNames']);
+        $t->same([
+            '[Content_Types].xml',
+            'word/document.xml',
+            'word/media/image.png',
+            'mimetype',
+        ], $handoffOrder['centralDirectoryOrderNames']);
+        $t->same([
+            'mimetype',
+            '[Content_Types].xml',
+            'word/document.xml',
+            'word/media/image.png',
+        ], $handoffOrder['localHeaderOrderNames']);
+        $t->same(0, $handoffByName['mimetype']['localHeaderOrder']);
+        $t->same(3, $handoffByName['mimetype']['centralDirectoryIndex']);
+        $t->same(4, count($handoffOrder['mismatchedEntries']));
+    },
+
+    'summarizes selected zip handoff path depth buckets for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $mimetype = 'application/epub+zip';
+        $containerXml = '<container/>';
+        $opfXml = '<package/>';
+        $chapterXhtml = '<html><body>chapter</body></html>';
+        $coverImageBytes = "cover image bytes\n";
+        $largeImageBytes = "large nested image payload\n";
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => 'mimetype', 'data' => $mimetype, 'method' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $containerXml, 'method' => 0],
+            ['name' => 'OEBPS/content.opf', 'data' => $opfXml, 'method' => 0],
+            ['name' => 'OEBPS/Images/', 'data' => '', 'method' => 0],
+            ['name' => 'OEBPS/Text/chapter1.xhtml', 'data' => $chapterXhtml, 'method' => 0],
+            ['name' => 'OEBPS/Images/cover.png', 'data' => $coverImageBytes, 'method' => 0],
+            ['name' => 'OEBPS/Images/raw.bin', 'data' => $largeImageBytes, 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'mimetype', 'required' => true, 'kind' => 'file', 'role' => 'epub-mimetype'],
+            ['name' => 'META-INF/container.xml', 'required' => true, 'kind' => 'file', 'role' => 'container'],
+            ['name' => 'OEBPS/content.opf', 'required' => true, 'kind' => 'file', 'role' => 'package-document'],
+            ['name' => 'OEBPS/Images/', 'required' => false, 'kind' => 'directory', 'role' => 'image-directory'],
+            ['name' => 'OEBPS/Text/chapter1.xhtml', 'required' => false, 'kind' => 'file', 'role' => 'spine-item'],
+            ['name' => 'OEBPS/Images/cover.png', 'required' => false, 'kind' => 'file', 'role' => 'image'],
+            ['name' => 'OEBPS/Images/raw.bin', 'required' => false, 'kind' => 'file', 'role' => 'image', 'maxUncompressedBytes' => 8],
+            ['name' => 'OEBPS/Missing/deep.xhtml', 'required' => false, 'kind' => 'file', 'role' => 'spine-item'],
+        ], 1024);
+
+        $selectedByDepth = [];
+        foreach ($summary['selectedPathDepthSummaries'] as $depthSummary) {
+            $selectedByDepth[$depthSummary['pathDepth']] = $depthSummary;
+        }
+        $handoffByDepth = [];
+        foreach ($summary['handoffPathDepthSummaries'] as $depthSummary) {
+            $handoffByDepth[$depthSummary['pathDepth']] = $depthSummary;
+        }
+
+        $t->same(3, $summary['selectedPathDepthBucketCount']);
+        $t->same(3, $summary['selectedMaxPathDepth']);
+        $t->same(3, $summary['handoffPathDepthBucketCount']);
+        $t->same(3, $summary['handoffMaxPathDepth']);
+        $t->same([1, 2, 3], array_keys($selectedByDepth));
+        $t->same([1, 2, 3], array_keys($handoffByDepth));
+
+        $t->same([
+            'pathDepth' => 1,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($mimetype),
+            'uncompressedBytes' => strlen($mimetype),
+            'roles' => ['epub-mimetype'],
+            'entryNames' => ['mimetype'],
+        ], $selectedByDepth[1]);
+
+        $depthTwoBytes = strlen($containerXml) + strlen($opfXml);
+        $t->same([
+            'pathDepth' => 2,
+            'entryCount' => 3,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 1,
+            'compressedBytes' => $depthTwoBytes,
+            'uncompressedBytes' => $depthTwoBytes,
+            'roles' => ['container', 'image-directory', 'package-document'],
+            'entryNames' => ['META-INF/container.xml', 'OEBPS/content.opf', 'OEBPS/Images/'],
+        ], $selectedByDepth[2]);
+        $t->same($selectedByDepth[2], $handoffByDepth[2]);
+
+        $selectedDepthThreeBytes = strlen($chapterXhtml) + strlen($coverImageBytes) + strlen($largeImageBytes);
+        $handoffDepthThreeBytes = strlen($chapterXhtml) + strlen($coverImageBytes);
+        $t->same([
+            'pathDepth' => 3,
+            'entryCount' => 3,
+            'fileEntryCount' => 3,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => $selectedDepthThreeBytes,
+            'uncompressedBytes' => $selectedDepthThreeBytes,
+            'roles' => ['image', 'spine-item'],
+            'entryNames' => ['OEBPS/Text/chapter1.xhtml', 'OEBPS/Images/cover.png', 'OEBPS/Images/raw.bin'],
+        ], $selectedByDepth[3]);
+        $t->same([
+            'pathDepth' => 3,
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => $handoffDepthThreeBytes,
+            'uncompressedBytes' => $handoffDepthThreeBytes,
+            'roles' => ['image', 'spine-item'],
+            'entryNames' => ['OEBPS/Text/chapter1.xhtml', 'OEBPS/Images/cover.png'],
+        ], $handoffByDepth[3]);
+
+        $t->same(1, $summary['entries'][0]['pathDepth']);
+        $t->same(2, $summary['entries'][3]['pathDepth']);
+        $t->same(3, $summary['entries'][6]['pathDepth']);
+        $t->same(null, $summary['entries'][7]['pathDepth']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
+        $t->same('blocked', $summary['entries'][6]['status']);
+        $t->same('missing-optional', $summary['entries'][7]['status']);
+    },
+
+    'summarizes selected zip handoff package part kinds for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $mimetype = 'application/epub+zip';
+        $contentTypesXml = '<Types/>';
+        $packageRelsXml = '<Relationships/>';
+        $coreXml = '<cp:coreProperties/>';
+        $documentXml = '<w:document><w:body><w:p>package kind handoff</w:p></w:body></w:document>';
+        $documentRelsXml = '<Relationships><Relationship Id="rIdImage" Target="media/image.png"/></Relationships>';
+        $imageBytes = "package kind image bytes\n";
+        $largeBytes = "blocked package kind media bytes\n";
+        $workbookBytes = "embedded workbook package placeholder\n";
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => 'mimetype', 'data' => $mimetype, 'method' => 0],
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'method' => 0],
+            ['name' => '_rels/.rels', 'data' => $packageRelsXml, 'method' => 0],
+            ['name' => 'docProps/core.xml', 'data' => $coreXml, 'method' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelsXml, 'method' => 0],
+            ['name' => 'word/media/', 'data' => '', 'method' => 0],
+            ['name' => 'word/media/image.png', 'data' => $imageBytes, 'method' => 0],
+            ['name' => 'word/media/large.bin', 'data' => $largeBytes, 'method' => 0],
+            ['name' => 'word/embeddings/book.xlsx', 'data' => $workbookBytes, 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'mimetype', 'required' => false, 'kind' => 'file', 'role' => 'epub-mimetype'],
+            ['name' => '[Content_Types].xml', 'required' => true, 'kind' => 'file', 'role' => 'content-types'],
+            ['name' => '_rels/.rels', 'required' => true, 'kind' => 'file', 'role' => 'root-relationships'],
+            ['name' => 'docProps/core.xml', 'required' => false, 'kind' => 'file', 'role' => 'metadata'],
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/_rels/document.xml.rels', 'required' => false, 'kind' => 'file', 'role' => 'document-relationships'],
+            ['name' => 'word/media/', 'required' => false, 'kind' => 'directory', 'role' => 'media-directory'],
+            ['name' => 'word/media/image.png', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'word/media/large.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 8],
+            ['name' => 'word/embeddings/book.xlsx', 'required' => false, 'kind' => 'file', 'role' => 'embedded-package'],
+            ['name' => 'word/missing.xml', 'required' => false, 'kind' => 'file', 'role' => 'optional-sidecar'],
+        ], 1024);
+
+        $selectedByKind = [];
+        foreach ($summary['selectedPackagePartKindSummaries'] as $kindSummary) {
+            $selectedByKind[$kindSummary['packagePartKind']] = $kindSummary;
+        }
+        $handoffByKind = [];
+        foreach ($summary['handoffPackagePartKindSummaries'] as $kindSummary) {
+            $handoffByKind[$kindSummary['packagePartKind']] = $kindSummary;
+        }
+
+        $t->same(10, $summary['selectedUniqueEntryCount']);
+        $t->same(9, $summary['handoffEntryCount']);
+        $t->same(9, $summary['selectedPackagePartKindCount']);
+        $t->same(9, $summary['handoffPackagePartKindCount']);
+        $t->same(2, $summary['selectedMediaPartEntryCount']);
+        $t->same(1, $summary['handoffMediaPartEntryCount']);
+        $t->same(1, $summary['selectedRelationshipPartEntryCount']);
+        $t->same(1, $summary['handoffRelationshipPartEntryCount']);
+        $t->same([
+            'content-types',
+            'directory',
+            'markup-part',
+            'media',
+            'metadata',
+            'mimetype',
+            'package-part',
+            'relationship-part',
+            'root-relationships',
+        ], array_keys($selectedByKind));
+        $t->same(array_keys($selectedByKind), array_keys($handoffByKind));
+
+        $t->same([
+            'packagePartKind' => 'content-types',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($contentTypesXml),
+            'uncompressedBytes' => strlen($contentTypesXml),
+            'roles' => ['content-types'],
+            'entryNames' => ['[Content_Types].xml'],
+        ], $selectedByKind['content-types']);
+        $t->same([
+            'packagePartKind' => 'relationship-part',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($documentRelsXml),
+            'uncompressedBytes' => strlen($documentRelsXml),
+            'roles' => ['document-relationships'],
+            'entryNames' => ['word/_rels/document.xml.rels'],
+        ], $selectedByKind['relationship-part']);
+        $t->same([
+            'packagePartKind' => 'media',
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($imageBytes) + strlen($largeBytes),
+            'uncompressedBytes' => strlen($imageBytes) + strlen($largeBytes),
+            'roles' => ['media'],
+            'entryNames' => ['word/media/image.png', 'word/media/large.bin'],
+        ], $selectedByKind['media']);
+        $t->same([
+            'packagePartKind' => 'media',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($imageBytes),
+            'uncompressedBytes' => strlen($imageBytes),
+            'roles' => ['media'],
+            'entryNames' => ['word/media/image.png'],
+        ], $handoffByKind['media']);
+        $t->same([
+            'packagePartKind' => 'directory',
+            'entryCount' => 1,
+            'fileEntryCount' => 0,
+            'directoryEntryCount' => 1,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+            'roles' => ['media-directory'],
+            'entryNames' => ['word/media/'],
+        ], $selectedByKind['directory']);
+        $t->same([
+            'packagePartKind' => 'package-part',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($workbookBytes),
+            'uncompressedBytes' => strlen($workbookBytes),
+            'roles' => ['embedded-package'],
+            'entryNames' => ['word/embeddings/book.xlsx'],
+        ], $selectedByKind['package-part']);
+        $t->same('mimetype', $summary['entries'][0]['packagePartKind']);
+        $t->same('content-types', $summary['entries'][1]['packagePartKind']);
+        $t->same('root-relationships', $summary['entries'][2]['packagePartKind']);
+        $t->same('metadata', $summary['entries'][3]['packagePartKind']);
+        $t->same('markup-part', $summary['entries'][4]['packagePartKind']);
+        $t->same('relationship-part', $summary['entries'][5]['packagePartKind']);
+        $t->same('directory', $summary['entries'][6]['packagePartKind']);
+        $t->same('media', $summary['entries'][8]['packagePartKind']);
+        $t->same('blocked', $summary['entries'][8]['status']);
+        $t->same('package-part', $summary['entries'][9]['packagePartKind']);
+        $t->same(null, $summary['entries'][10]['packagePartKind']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
+    },
+
     'preflights aggregate zip package expansion before exposing media bytes' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>aggregate package preflight</w:p></w:body></w:document>';
         $mediaBytes = str_repeat("review media bytes\n", 24);
