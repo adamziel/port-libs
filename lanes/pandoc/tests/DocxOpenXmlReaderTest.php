@@ -21134,6 +21134,150 @@ XML;
         $t->true(in_array('embedded-package', $inventory['word/embeddings/loose-workbook.xlsx']['roles'], true), 'loose chart workbook inventory role missing');
         $t->true(!isset($docx['media']['word/embeddings/loose-workbook.xlsx']), 'Loose chart workbook package should not be exposed as document media');
     },
+    'summarizes docx header chart embedded package relationships for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $chartRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart';
+        $packageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+        $headerContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml';
+        $chartContentType = 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml';
+        $workbookContentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        $workbookBytes = 'header chart workbook bytes';
+        $chartXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <c:chart>
+    <c:externalData r:id="rHeaderWorkbook"/>
+  </c:chart>
+</c:chartSpace>
+XML;
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/header1.xml" ContentType="' . $headerContentType . '"/>' . "\n" .
+            '  <Override PartName="/word/charts/header-chart.xml" ContentType="' . $chartContentType . '; profile=header-chart"/>' . "\n" .
+            '  <Override PartName="/word/embeddings/header-workbook.xlsx" ContentType="' . $workbookContentType . '; profile=header-data"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rHeaderDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml?slot=default#hdr"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '</w:body>',
+            '    <w:sectPr><w:headerReference w:type="default" r:id="rHeaderDefault"/></w:sectPr>' . "\n" .
+            '  </w:body>',
+            $parts['word/document.xml']
+        );
+        $parts['word/header1.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart">
+  <w:p>
+    <w:r><w:drawing><wp:inline><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart r:id="rHeaderChart"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>
+  </w:p>
+</w:hdr>
+XML;
+        $parts['word/_rels/header1.xml.rels'] = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderChart" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="charts/header-chart.xml?slot=header#chart"/>
+</Relationships>
+XML;
+        $parts['word/charts/header-chart.xml'] = $chartXml;
+        $parts['word/charts/_rels/header-chart.xml.rels'] = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="../embeddings/header-workbook.xlsx?sheet=Header#data"/>
+</Relationships>
+XML;
+        $parts['word/embeddings/header-workbook.xlsx'] = $workbookBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $charts = $docx['chartParts'];
+        $summary = $package['summary'];
+        $chart = $charts['byRelationshipKey']['word/_rels/header1.xml.rels#rHeaderChart'];
+        $embeddedPackages = $chart['embeddedPackages'];
+        $workbook = $embeddedPackages['byRelationshipId']['rHeaderWorkbook'];
+        $chartRelationshipsPart = $package['relationshipParts']['word/charts/_rels/header-chart.xml.rels'];
+        $relationshipTypes = $package['relationshipTypes'];
+        $inventory = $package['parts'];
+
+        $t->same($charts, $package['chartParts']);
+        $t->same(1, $charts['count']);
+        $t->same(1, $charts['relationshipCount']);
+        $t->same(0, $charts['documentCount']);
+        $t->same(1, $charts['headerCount']);
+        $t->same(0, $charts['footerCount']);
+        $t->same(2, $charts['sourcePartCount']);
+        $t->same(['document', 'header'], $charts['sourceTypes']);
+        $t->same(['word/document.xml', 'word/header1.xml'], $charts['sourceParts']);
+        $t->same(['word/_rels/document.xml.rels', 'word/_rels/header1.xml.rels'], $charts['relationshipsParts']);
+        $t->same(['word/_rels/header1.xml.rels#rHeaderChart'], $charts['relationshipKeys']);
+        $t->same(['word/_rels/header1.xml.rels#rHeaderChart'], $charts['referencedRelationshipKeys']);
+        $t->same([], $charts['unreferencedRelationshipKeys']);
+        $t->same(['word/charts/header-chart.xml'], $charts['partNames']);
+        $t->same(1, $charts['embeddedPackageCount']);
+        $t->same(1, $charts['embeddedPackageExistingCount']);
+        $t->same(0, $charts['embeddedPackageMissingCount']);
+        $t->same(0, $charts['embeddedPackageExternalCount']);
+        $t->same(0, $charts['embeddedPackageIssueCount']);
+
+        $t->same('word/_rels/header1.xml.rels#rHeaderChart', $chart['relationshipKey']);
+        $t->same('header', $chart['sourceType']);
+        $t->same('word/header1.xml', $chart['sourcePart']);
+        $t->same('word/_rels/header1.xml.rels', $chart['relationshipsPart']);
+        $t->same(true, $chart['referenced']);
+        $t->same($chartRel, $chart['relationshipType']);
+        $t->same('charts/header-chart.xml?slot=header#chart', $chart['target']);
+        $t->same('word/charts/header-chart.xml?slot=header#chart', $chart['resolvedTarget']);
+        $t->same('word/charts/header-chart.xml', $chart['targetPart']);
+        $t->same('slot=header', $chart['targetQuery']);
+        $t->same('chart', $chart['targetFragment']);
+        $t->same('?slot=header#chart', $chart['targetReferenceSuffix']);
+        $t->same('word/charts/_rels/header-chart.xml.rels', $chart['chartRelationshipsPart']);
+        $t->same(1, $chart['chartRelationshipCount']);
+        $t->same(['rHeaderWorkbook'], $chart['externalDataRelationshipIds']);
+        $t->same([], $chart['issues']);
+        $t->same(true, $chart['valid']);
+
+        $t->same(1, $embeddedPackages['count']);
+        $t->same(1, $embeddedPackages['referencedCount']);
+        $t->same(['rHeaderWorkbook'], $embeddedPackages['relationshipIds']);
+        $t->same(['rHeaderWorkbook'], $embeddedPackages['referencedRelationshipIds']);
+        $t->same('chart-embedded-package-bytes-blocked', $embeddedPackages['byteExposurePolicy']);
+        $t->same('chart-embedded-package-metadata-only', $embeddedPackages['reviewPolicy']);
+        $t->same(true, $workbook['referenced']);
+        $t->same($packageRel, $workbook['type']);
+        $t->same('../embeddings/header-workbook.xlsx?sheet=Header#data', $workbook['target']);
+        $t->same('word/embeddings/header-workbook.xlsx?sheet=Header#data', $workbook['resolvedTarget']);
+        $t->same('word/embeddings/header-workbook.xlsx', $workbook['targetPart']);
+        $t->same('sheet=Header', $workbook['targetQuery']);
+        $t->same('data', $workbook['targetFragment']);
+        $t->same($workbookContentType . '; profile=header-data', $workbook['contentType']);
+        $t->same($workbookContentType, $workbook['contentTypeBase']);
+        $t->same(['profile' => 'header-data'], $workbook['contentTypeParameterMap']);
+        $t->same(strlen($workbookBytes), $workbook['byteLength']);
+        $t->same(sprintf('%08x', crc32($workbookBytes)), $workbook['crc32']);
+        $t->same(hash('sha256', $workbookBytes), $workbook['sha256']);
+        $t->same([], $workbook['issues']);
+        $t->same(true, $workbook['valid']);
+
+        $t->same(1, $summary['chartPartCount']);
+        $t->same(1, $summary['chartPartRelationshipCount']);
+        $t->same(1, $summary['chartEmbeddedPackageCount']);
+        $t->same(1, $summary['chartEmbeddedPackageExistingCount']);
+        $t->same(0, $summary['chartEmbeddedPackageIssueCount']);
+        $t->same(1, $chartRelationshipsPart['relationshipCount']);
+        $t->same('word/charts/header-chart.xml', $chartRelationshipsPart['sourcePart']);
+        $t->same($workbookContentType, $chartRelationshipsPart['relationships']['rHeaderWorkbook']['contentTypeBase']);
+        $t->same(1, $relationshipTypes[$chartRel]['count']);
+        $t->same(1, $relationshipTypes[$packageRel]['count']);
+        $t->true(in_array('chart-part', $inventory['word/charts/header-chart.xml']['roles'], true), 'header chart inventory role missing');
+        $t->true(in_array('embedded-package', $inventory['word/embeddings/header-workbook.xlsx']['roles'], true), 'header chart workbook inventory role missing');
+        $t->true(!isset($docx['media']['word/embeddings/header-workbook.xlsx']), 'Header chart workbook package should not be exposed as document media');
+    },
     'summarizes docx diagram embedded package relationships for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $dataRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData';

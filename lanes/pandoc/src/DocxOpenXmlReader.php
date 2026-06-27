@@ -660,6 +660,8 @@ final class DocxOpenXmlReader
             $documentPart,
             $documentRelationships,
             $contentTypes,
+            $headers,
+            $footers,
         );
         $diagramParts = $this->readDiagramParts(
             $parts,
@@ -6034,6 +6036,8 @@ final class DocxOpenXmlReader
      * @param array<string, string> $parts
      * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array<string, mixed> $headers
+     * @param array<string, mixed> $footers
      * @return array<string, mixed>
      */
     private function readChartParts(
@@ -6041,70 +6045,142 @@ final class DocxOpenXmlReader
         string $xml,
         string $documentPart,
         array $relationships,
-        array $contentTypes
+        array $contentTypes,
+        array $headers = [],
+        array $footers = []
     ): array {
         $items = [];
         $byRelationshipId = [];
+        $byRelationshipKey = [];
         $relationshipIds = [];
+        $relationshipKeys = [];
         $referencedRelationshipIds = [];
-        $referencedChartRelationshipIds = [];
+        $referencedRelationshipKeys = [];
+        $referencedChartRelationshipKeys = [];
+        $sourceTypes = [];
+        $sourceParts = [];
+        $relationshipsParts = [];
         $relationshipsPart = $this->relationshipsPartFor($documentPart);
+        $sources = [[
+            'sourceType' => 'document',
+            'sourcePart' => $documentPart,
+            'relationshipsPart' => $relationshipsPart,
+            'relationships' => $relationships,
+            'xml' => $xml,
+        ]];
 
-        if ($xml !== '') {
-            $dom = $this->loadXml($xml, $documentPart);
-            $xpath = $this->xpath($dom);
-            foreach ($this->elements($xpath, '//c:chart') as $chart) {
-                $relationshipId = $chart->getAttributeNS(self::NS_R, 'id');
+        foreach (['header' => $headers['items'] ?? [], 'footer' => $footers['items'] ?? []] as $sourceType => $sourceItems) {
+            if (!is_array($sourceItems)) {
+                continue;
+            }
+
+            foreach ($sourceItems as $sourceItem) {
+                if (!is_array($sourceItem)) {
+                    continue;
+                }
+                if (($sourceItem['exists'] ?? false) !== true || ($sourceItem['validRoot'] ?? false) !== true) {
+                    continue;
+                }
+
+                $sourcePart = is_string($sourceItem['partName'] ?? null) ? $sourceItem['partName'] : '';
+                $sourceRelationshipsPart = is_string($sourceItem['relationshipsPart'] ?? null) ? $sourceItem['relationshipsPart'] : '';
+                if ($sourcePart === '' || $sourceRelationshipsPart === '' || !isset($parts[$sourcePart])) {
+                    continue;
+                }
+
+                $sources[] = [
+                    'sourceType' => $sourceType,
+                    'sourcePart' => $sourcePart,
+                    'relationshipsPart' => $sourceRelationshipsPart,
+                    'relationships' => $this->readRelationshipsPart($parts, $sourceRelationshipsPart),
+                    'xml' => $parts[$sourcePart],
+                ];
+            }
+        }
+
+        $chartRelationshipCount = 0;
+        $unreferencedRelationshipIds = [];
+        $unreferencedRelationshipKeys = [];
+        foreach ($sources as $source) {
+            $sourceType = (string) $source['sourceType'];
+            $sourcePart = (string) $source['sourcePart'];
+            $sourceRelationshipsPart = (string) $source['relationshipsPart'];
+            $sourceRelationships = is_array($source['relationships']) ? $source['relationships'] : [];
+            $sourceXml = (string) $source['xml'];
+            $this->appendUniqueString($sourceTypes, $sourceType);
+            $this->appendUniqueString($sourceParts, $sourcePart);
+            $this->appendUniqueString($relationshipsParts, $sourceRelationshipsPart);
+            $chartRelationshipCount += count(array_filter($sourceRelationships, static fn (array $relationship): bool => $relationship['type'] === self::CHART_REL));
+
+            if ($sourceXml !== '') {
+                $dom = $this->loadXml($sourceXml, $sourcePart);
+                $xpath = $this->xpath($dom);
+                foreach ($this->elements($xpath, '//c:chart') as $chart) {
+                    $relationshipId = $chart->getAttributeNS(self::NS_R, 'id');
+                    $relationshipKey = $relationshipId === '' ? '' : $sourceRelationshipsPart . '#' . $relationshipId;
+                    $item = $this->chartPartItem(
+                        $parts,
+                        $sourceRelationships[$relationshipId] ?? null,
+                        $sourcePart,
+                        $sourceRelationshipsPart,
+                        $contentTypes,
+                        $relationshipId,
+                        $relationshipKey,
+                        $sourceType,
+                        count($items),
+                        true,
+                    );
+                    $items[] = $item;
+
+                    $this->appendUniqueString($relationshipIds, $relationshipId);
+                    $this->appendUniqueString($relationshipKeys, $relationshipKey);
+                    $this->appendUniqueString($referencedRelationshipIds, $relationshipId);
+                    $this->appendUniqueString($referencedRelationshipKeys, $relationshipKey);
+                    if ($item['relationshipType'] === self::CHART_REL) {
+                        $this->appendUniqueString($referencedChartRelationshipKeys, $relationshipKey);
+                    }
+                    if ($relationshipId !== '' && !isset($byRelationshipId[$relationshipId])) {
+                        $byRelationshipId[$relationshipId] = $item;
+                    }
+                    if ($relationshipKey !== '') {
+                        $byRelationshipKey[$relationshipKey] = $item;
+                    }
+                }
+            }
+
+            foreach ($sourceRelationships as $relationship) {
+                if ($relationship['type'] !== self::CHART_REL) {
+                    continue;
+                }
+
+                $relationshipId = $relationship['id'];
+                $relationshipKey = $sourceRelationshipsPart . '#' . $relationshipId;
+                if (in_array($relationshipKey, $referencedChartRelationshipKeys, true)) {
+                    continue;
+                }
+
                 $item = $this->chartPartItem(
                     $parts,
-                    $relationships[$relationshipId] ?? null,
-                    $documentPart,
-                    $relationshipsPart,
+                    $relationship,
+                    $sourcePart,
+                    $sourceRelationshipsPart,
                     $contentTypes,
                     $relationshipId,
+                    $relationshipKey,
+                    $sourceType,
                     count($items),
-                    true,
+                    false,
                 );
                 $items[] = $item;
 
                 $this->appendUniqueString($relationshipIds, $relationshipId);
-                $this->appendUniqueString($referencedRelationshipIds, $relationshipId);
-                if ($item['relationshipType'] === self::CHART_REL) {
-                    $this->appendUniqueString($referencedChartRelationshipIds, $relationshipId);
-                }
-                if ($relationshipId !== '' && !isset($byRelationshipId[$relationshipId])) {
+                $this->appendUniqueString($relationshipKeys, $relationshipKey);
+                $this->appendUniqueString($unreferencedRelationshipIds, $relationshipId);
+                $this->appendUniqueString($unreferencedRelationshipKeys, $relationshipKey);
+                if (!isset($byRelationshipId[$relationshipId])) {
                     $byRelationshipId[$relationshipId] = $item;
                 }
-            }
-        }
-
-        $unreferencedRelationshipIds = [];
-        foreach ($relationships as $relationship) {
-            if ($relationship['type'] !== self::CHART_REL) {
-                continue;
-            }
-
-            $relationshipId = $relationship['id'];
-            if (in_array($relationshipId, $referencedChartRelationshipIds, true)) {
-                continue;
-            }
-
-            $item = $this->chartPartItem(
-                $parts,
-                $relationship,
-                $documentPart,
-                $relationshipsPart,
-                $contentTypes,
-                $relationshipId,
-                count($items),
-                false,
-            );
-            $items[] = $item;
-
-            $this->appendUniqueString($relationshipIds, $relationshipId);
-            $this->appendUniqueString($unreferencedRelationshipIds, $relationshipId);
-            if (!isset($byRelationshipId[$relationshipId])) {
-                $byRelationshipId[$relationshipId] = $item;
+                $byRelationshipKey[$relationshipKey] = $item;
             }
         }
 
@@ -6160,7 +6236,11 @@ final class DocxOpenXmlReader
 
         return [
             'count' => count($items),
-            'relationshipCount' => count(array_filter($relationships, static fn (array $relationship): bool => $relationship['type'] === self::CHART_REL)),
+            'relationshipCount' => $chartRelationshipCount,
+            'documentCount' => count(array_filter($items, static fn (array $item): bool => $item['sourceType'] === 'document')),
+            'headerCount' => count(array_filter($items, static fn (array $item): bool => $item['sourceType'] === 'header')),
+            'footerCount' => count(array_filter($items, static fn (array $item): bool => $item['sourceType'] === 'footer')),
+            'sourcePartCount' => count($sourceParts),
             'referencedCount' => count(array_filter($items, static fn (array $item): bool => $item['referenced'] === true)),
             'unreferencedRelationshipCount' => count($unreferencedRelationshipIds),
             'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::CHART_REL && $item['external'] === false && $item['exists'] === true)),
@@ -6176,9 +6256,15 @@ final class DocxOpenXmlReader
             'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-chart-content-type', $item['issues'], true))),
             'unexpectedContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-chart-content-type', $item['issues'], true))),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'sourceTypes' => $sourceTypes,
+            'sourceParts' => $sourceParts,
+            'relationshipsParts' => $relationshipsParts,
             'relationshipIds' => $relationshipIds,
+            'relationshipKeys' => $relationshipKeys,
             'referencedRelationshipIds' => $referencedRelationshipIds,
+            'referencedRelationshipKeys' => $referencedRelationshipKeys,
             'unreferencedRelationshipIds' => $unreferencedRelationshipIds,
+            'unreferencedRelationshipKeys' => $unreferencedRelationshipKeys,
             'partNames' => $partNames,
             'externalTargets' => $externalTargets,
             'contentTypes' => $contentTypesSeen,
@@ -6193,6 +6279,7 @@ final class DocxOpenXmlReader
             'embeddedPackageIssueCodes' => array_keys($embeddedPackageIssueCodes),
             'issueCodes' => array_keys($issueCodes),
             'byRelationshipId' => $byRelationshipId,
+            'byRelationshipKey' => $byRelationshipKey,
             'items' => $items,
             'byteExposurePolicy' => 'chart-part-bytes-blocked',
             'reviewPolicy' => 'chart-part-metadata-only',
@@ -6212,12 +6299,17 @@ final class DocxOpenXmlReader
         string $relationshipsPart,
         array $contentTypes,
         string $relationshipId,
+        string $relationshipKey,
+        string $sourceType,
         int $index,
         bool $referenced
     ): array {
         $item = [
             'index' => $index,
+            'relationshipKey' => $relationshipKey,
             'relationshipId' => $relationshipId,
+            'sourceType' => $sourceType,
+            'sourcePart' => $documentPart,
             'referenced' => $referenced,
             'relationshipType' => null,
             'target' => null,
