@@ -343,6 +343,12 @@ final class BibtexCslProcessor
         if (($item['page'] ?? '') !== '') {
             $parts[] = (string) $item['page'];
         }
+        if (($item['pagination'] ?? '') !== '') {
+            $parts[] = 'Pagination: ' . (string) $item['pagination'];
+        }
+        if (($item['book-pagination'] ?? '') !== '') {
+            $parts[] = 'Book pagination: ' . (string) $item['book-pagination'];
+        }
         $containerTitleShort = (string) ($item['container-title-short'] ?? $item['journal-abbreviation'] ?? '');
         if ($containerTitleShort !== '') {
             $parts[] = 'Journal abbreviation: ' . rtrim($containerTitleShort, '.');
@@ -747,6 +753,8 @@ final class BibtexCslProcessor
             'number-of-volumes' => ['volumes'],
             'issue' => ['number', 'issue'],
             'page' => ['pages', 'page'],
+            'pagination' => ['pagination', 'page-label'],
+            'book-pagination' => ['bookpagination', 'book-pagination'],
             'article-number' => ['eid', 'article-number', 'articlenumber'],
             'number-of-pages' => ['pagetotal', 'numpages', 'numberofpages', 'number-of-pages'],
             'chapter-number' => ['chapter'],
