@@ -5022,6 +5022,7 @@ final class ZipPackage
      *     presentEntryCount:int,
      *     selectedUniqueEntryCount:int,
      *     selectedDirectoryRootCount:int,
+     *     selectedDirectoryPathCount:int,
      *     selectedExtensionBucketCount:int,
      *     selectedExtensionlessFileEntryCount:int,
      *     selectedFileEntryCount:int,
@@ -5044,6 +5045,7 @@ final class ZipPackage
      *     missingOptionalEntryCount:int,
      *     handoffEntryCount:int,
      *     handoffDirectoryRootCount:int,
+     *     handoffDirectoryPathCount:int,
      *     handoffExtensionBucketCount:int,
      *     handoffExtensionlessFileEntryCount:int,
      *     readableEntryCount:int,
@@ -5091,6 +5093,8 @@ final class ZipPackage
      *     duplicateRequestedEntryGroups:list<array{name:string,count:int,requestIndexes:list<int>,requestedNames:list<string>,requiredCount:int,optionalCount:int}>,
      *     selectedDirectoryRootSummaries:list<array<string, mixed>>,
      *     handoffDirectoryRootSummaries:list<array<string, mixed>>,
+     *     selectedDirectoryPathSummaries:list<array<string, mixed>>,
+     *     handoffDirectoryPathSummaries:list<array<string, mixed>>,
      *     selectedExtensionSummaries:list<array<string, mixed>>,
      *     handoffExtensionSummaries:list<array<string, mixed>>,
      *     selectedCompressionMethodBuckets:list<array{compressionMethod:int,compressionMethodName:string,entryCount:int,compressedBytes:int,uncompressedBytes:int,isSupported:bool}>,
@@ -5324,6 +5328,7 @@ final class ZipPackage
                 'name' => $entry->name,
                 'roles' => array_keys($selectedRolesByName[$entry->name] ?? []),
                 'isDirectory' => $isDirectory,
+                'directoryPath' => self::entryHandoffDirectoryPath($entry->name),
                 'centralDirectoryIndex' => $centralDirectoryIndexByName[$entry->name] ?? null,
                 'localHeaderOrder' => $localHeaderOrderByName[$entry->name] ?? null,
                 'pathDepth' => self::entryHandoffPathDepth($entry->name),
@@ -5567,6 +5572,7 @@ final class ZipPackage
                 'exists' => $entry !== null,
                 'isDirectory' => null,
                 'directoryRoot' => null,
+                'directoryPath' => null,
                 'packagePartKind' => null,
                 'centralDirectoryIndex' => null,
                 'localHeaderOrder' => null,
@@ -5824,6 +5830,7 @@ final class ZipPackage
             $compressedDataEnd = $compressedDataOffset + $entry->compressedSize;
             $summary['isDirectory'] = $isDirectory;
             $summary['directoryRoot'] = self::entryHandoffDirectoryRoot($entry->name);
+            $summary['directoryPath'] = self::entryHandoffDirectoryPath($entry->name);
             $summary['packagePartKind'] = self::entryHandoffPackagePartKind($entry->name, $isDirectory);
             $summary['centralDirectoryIndex'] = $centralDirectoryIndexByName[$entry->name] ?? null;
             $summary['localHeaderOrder'] = $localHeaderOrderByName[$entry->name] ?? null;
@@ -5942,6 +5949,8 @@ final class ZipPackage
         $handoffDirectoryRootSummaries = self::entryHandoffDirectoryRootSummaries($handoffEntries);
         $selectedPackagePartKindSummaries = self::entryHandoffPackagePartKindSummaries($selectedDirectoryRootSummaryEntries);
         $handoffPackagePartKindSummaries = self::entryHandoffPackagePartKindSummaries($handoffEntries);
+        $selectedDirectoryPathSummaries = self::entryHandoffDirectoryPathSummaries($selectedDirectoryRootSummaryEntries);
+        $handoffDirectoryPathSummaries = self::entryHandoffDirectoryPathSummaries($handoffEntries);
         $selectedExtensionSummaries = self::entryHandoffExtensionSummaries($selectedDirectoryRootSummaryEntries);
         $handoffExtensionSummaries = self::entryHandoffExtensionSummaries($handoffEntries);
         $selectedOrderSummary = self::entryHandoffOrderSummary($selectedDirectoryRootSummaryEntries);
@@ -5957,6 +5966,7 @@ final class ZipPackage
             'presentEntryCount' => count($presentNames),
             'selectedUniqueEntryCount' => count($selectedEntriesByName),
             'selectedDirectoryRootCount' => count($selectedDirectoryRootSummaries),
+            'selectedDirectoryPathCount' => count($selectedDirectoryPathSummaries),
             'selectedPackagePartKindCount' => count($selectedPackagePartKindSummaries),
             'selectedMediaPartEntryCount' => self::entryHandoffKindEntryCount($selectedPackagePartKindSummaries, 'media'),
             'selectedRelationshipPartEntryCount' => self::entryHandoffKindEntryCount($selectedPackagePartKindSummaries, 'relationship-part'),
@@ -5988,6 +5998,7 @@ final class ZipPackage
             'missingOptionalEntryCount' => $missingOptionalEntryCount,
             'handoffEntryCount' => count($handoffEntries),
             'handoffDirectoryRootCount' => count($handoffDirectoryRootSummaries),
+            'handoffDirectoryPathCount' => count($handoffDirectoryPathSummaries),
             'handoffPackagePartKindCount' => count($handoffPackagePartKindSummaries),
             'handoffMediaPartEntryCount' => self::entryHandoffKindEntryCount($handoffPackagePartKindSummaries, 'media'),
             'handoffRelationshipPartEntryCount' => self::entryHandoffKindEntryCount($handoffPackagePartKindSummaries, 'relationship-part'),
@@ -6076,6 +6087,8 @@ final class ZipPackage
             'roleSummaries' => $roleSummaries,
             'selectedDirectoryRootSummaries' => $selectedDirectoryRootSummaries,
             'handoffDirectoryRootSummaries' => $handoffDirectoryRootSummaries,
+            'selectedDirectoryPathSummaries' => $selectedDirectoryPathSummaries,
+            'handoffDirectoryPathSummaries' => $handoffDirectoryPathSummaries,
             'selectedPackagePartKindSummaries' => $selectedPackagePartKindSummaries,
             'handoffPackagePartKindSummaries' => $handoffPackagePartKindSummaries,
             'selectedExtensionSummaries' => $selectedExtensionSummaries,
@@ -6702,6 +6715,100 @@ final class ZipPackage
         }
 
         return str_starts_with($name, '_rels/') || str_contains($name, '/_rels/');
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffDirectoryPathSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $directoryPath = is_string($entry['directoryPath'] ?? null)
+                ? $entry['directoryPath']
+                : self::entryHandoffDirectoryPath($name);
+            if (!isset($summaries[$directoryPath])) {
+                $summaries[$directoryPath] = [
+                    'directoryPath' => $directoryPath,
+                    'directoryRoot' => self::entryHandoffDirectoryRoot($directoryPath),
+                    'pathDepth' => self::entryHandoffDirectoryPathDepth($directoryPath),
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'roles' => [],
+                    'entryNames' => [],
+                ];
+            }
+
+            ++$summaries[$directoryPath]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$summaries[$directoryPath]['directoryEntryCount'];
+            } else {
+                ++$summaries[$directoryPath]['fileEntryCount'];
+            }
+
+            $summaries[$directoryPath]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$directoryPath]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$directoryPath]['entryNames'][] = $name;
+
+            $roles = [];
+            if (is_array($entry['roles'] ?? null)) {
+                $roles = array_values(array_filter(
+                    $entry['roles'],
+                    static fn (mixed $role): bool => is_string($role) && $role !== ''
+                ));
+            } elseif (is_string($entry['role'] ?? null) && $entry['role'] !== '') {
+                $roles = [$entry['role']];
+            }
+
+            foreach ($roles as $role) {
+                if (!in_array($role, $summaries[$directoryPath]['roles'], true)) {
+                    $summaries[$directoryPath]['roles'][] = $role;
+                }
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['roles'], SORT_STRING);
+        }
+        unset($summary);
+
+        ksort($summaries, SORT_STRING);
+
+        return array_values($summaries);
+    }
+
+    private static function entryHandoffDirectoryPath(string $name): string
+    {
+        if (str_ends_with($name, '/')) {
+            return $name;
+        }
+
+        $separator = strrpos($name, '/');
+
+        return $separator === false ? '/' : substr($name, 0, $separator + 1);
+    }
+
+    private static function entryHandoffDirectoryPathDepth(string $directoryPath): int
+    {
+        if ($directoryPath === '/') {
+            return 1;
+        }
+
+        $segments = array_values(array_filter(
+            explode('/', $directoryPath),
+            static fn (string $segment): bool => $segment !== ''
+        ));
+
+        return max(1, count($segments));
     }
 
     /**

@@ -12788,6 +12788,99 @@ return [
         $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
     },
 
+    'summarizes selected zip handoff directory paths for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $contentTypesXml = '<Types/>';
+        $documentXml = '<w:document><w:body><w:p>directory path handoff</w:p></w:body></w:document>';
+        $documentRelsXml = '<Relationships><Relationship Id="rIdImage" Target="media/image.png"/></Relationships>';
+        $imageBytes = "image directory path bytes\n";
+        $largeBytes = "large embedded package bytes\n";
+        $customXml = '<custom>metadata</custom>';
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'method' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelsXml, 'method' => 0],
+            ['name' => 'word/media/', 'data' => '', 'method' => 0],
+            ['name' => 'word/media/image.png', 'data' => $imageBytes, 'method' => 0],
+            ['name' => 'word/embeddings/package.bin', 'data' => $largeBytes, 'method' => 0],
+            ['name' => 'customXml/item1.xml', 'data' => $customXml, 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => '[Content_Types].xml', 'required' => true, 'kind' => 'file', 'role' => 'content-types'],
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/_rels/document.xml.rels', 'required' => false, 'kind' => 'file', 'role' => 'document-relationships'],
+            ['name' => 'word/media/', 'required' => false, 'kind' => 'directory', 'role' => 'media-directory'],
+            ['name' => 'word/media/image.png', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'word/embeddings/package.bin', 'required' => false, 'kind' => 'file', 'role' => 'embedded-package', 'maxUncompressedBytes' => 8],
+            ['name' => 'customXml/item1.xml', 'required' => false, 'kind' => 'file', 'role' => 'custom-xml'],
+            ['name' => 'word/missing.xml', 'required' => false, 'kind' => 'file', 'role' => 'optional-sidecar'],
+        ], 1024);
+
+        $selectedByPath = [];
+        foreach ($summary['selectedDirectoryPathSummaries'] as $pathSummary) {
+            $selectedByPath[$pathSummary['directoryPath']] = $pathSummary;
+        }
+        $handoffByPath = [];
+        foreach ($summary['handoffDirectoryPathSummaries'] as $pathSummary) {
+            $handoffByPath[$pathSummary['directoryPath']] = $pathSummary;
+        }
+
+        $t->same(6, $summary['selectedDirectoryPathCount']);
+        $t->same(5, $summary['handoffDirectoryPathCount']);
+        $t->same(['/', 'customXml/', 'word/', 'word/_rels/', 'word/embeddings/', 'word/media/'], array_keys($selectedByPath));
+        $t->same(['/', 'customXml/', 'word/', 'word/_rels/', 'word/media/'], array_keys($handoffByPath));
+
+        $t->same([
+            'directoryPath' => '/',
+            'directoryRoot' => '/',
+            'pathDepth' => 1,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($contentTypesXml),
+            'uncompressedBytes' => strlen($contentTypesXml),
+            'roles' => ['content-types'],
+            'entryNames' => ['[Content_Types].xml'],
+        ], $selectedByPath['/']);
+
+        $wordMediaBytes = strlen($imageBytes);
+        $t->same([
+            'directoryPath' => 'word/media/',
+            'directoryRoot' => 'word/',
+            'pathDepth' => 2,
+            'entryCount' => 2,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 1,
+            'compressedBytes' => $wordMediaBytes,
+            'uncompressedBytes' => $wordMediaBytes,
+            'roles' => ['media', 'media-directory'],
+            'entryNames' => ['word/media/', 'word/media/image.png'],
+        ], $selectedByPath['word/media/']);
+        $t->same($selectedByPath['word/media/'], $handoffByPath['word/media/']);
+
+        $t->same([
+            'directoryPath' => 'word/embeddings/',
+            'directoryRoot' => 'word/',
+            'pathDepth' => 2,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($largeBytes),
+            'uncompressedBytes' => strlen($largeBytes),
+            'roles' => ['embedded-package'],
+            'entryNames' => ['word/embeddings/package.bin'],
+        ], $selectedByPath['word/embeddings/']);
+        $t->same(false, isset($handoffByPath['word/embeddings/']));
+
+        $t->same('word/media/', $summary['entries'][3]['directoryPath']);
+        $t->same('word/media/', $summary['entries'][4]['directoryPath']);
+        $t->same('word/embeddings/', $summary['entries'][5]['directoryPath']);
+        $t->same(null, $summary['entries'][7]['directoryPath']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
+        $t->same('blocked', $summary['entries'][5]['status']);
+    },
+
     'preflights aggregate zip package expansion before exposing media bytes' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>aggregate package preflight</w:p></w:body></w:document>';
         $mediaBytes = str_repeat("review media bytes\n", 24);
