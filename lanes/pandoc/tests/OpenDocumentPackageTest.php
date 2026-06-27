@@ -1966,6 +1966,7 @@ XML;
         $secretBytes = 'SECRET-PNG-BYTES';
         $audioBytes = 'AUDIO-REVIEW-BYTES';
         $basicModuleXml = '<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Review">Sub Main' . "\n" . 'End Sub</script:module>';
+        $signatureXml = '<dsig:document-signatures xmlns:dsig="http://www.w3.org/2000/09/xmldsig#"/>';
         $configurationXml = '<config:config-item-set xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0" config:name="Review"/>';
         $fontBytes = 'WOFF2-FONT-BYTES';
         $rdfXml = '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dc="http://purl.org/dc/elements/1.1/"><rdf:Description rdf:about="content.xml"><dc:title>Review body</dc:title></rdf:Description></rdf:RDF>';
@@ -1979,6 +1980,7 @@ XML;
 XML;
         $matrixEntries .= '  <manifest:file-entry manifest:media-type="audio/ogg" manifest:full-path="Media/theme.ogg" manifest:size="' . strlen($audioBytes) . '"/>' . "\n"
             . '  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Basic/Standard/Module1.xml" manifest:size="' . strlen($basicModuleXml) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="META-INF/documentsignatures.xml" manifest:size="' . strlen($signatureXml) . '"/>' . "\n"
             . '  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Configurations2/accelerator/current.xml" manifest:size="' . strlen($configurationXml) . '"/>' . "\n"
             . '  <manifest:file-entry manifest:media-type="font/woff2" manifest:full-path="Fonts/ReviewSans.woff2" manifest:size="' . strlen($fontBytes) . '"/>' . "\n"
             . '  <manifest:file-entry manifest:media-type="application/rdf+xml" manifest:full-path="manifest.rdf" manifest:size="' . strlen($rdfXml) . '"/>' . "\n"
@@ -1999,6 +2001,7 @@ XML;
             ['name' => 'Pictures/secret.png', 'data' => $secretBytes, 'compressionMethod' => 0],
             ['name' => 'Media/theme.ogg', 'data' => $audioBytes, 'compressionMethod' => 12],
             ['name' => 'Basic/Standard/Module1.xml', 'data' => $basicModuleXml, 'compressionMethod' => 0],
+            ['name' => 'META-INF/documentsignatures.xml', 'data' => $signatureXml, 'compressionMethod' => 0],
             ['name' => 'Configurations2/accelerator/current.xml', 'data' => $configurationXml, 'compressionMethod' => 0],
             ['name' => 'Fonts/ReviewSans.woff2', 'data' => $fontBytes, 'compressionMethod' => 0],
             ['name' => 'manifest.rdf', 'data' => $rdfXml, 'compressionMethod' => 0],
@@ -2014,6 +2017,7 @@ XML;
             'Pictures/secret.png',
             'Media/theme.ogg',
             'Basic/Standard/Module1.xml',
+            'META-INF/documentsignatures.xml',
             'Configurations2/accelerator/current.xml',
             'Fonts/ReviewSans.woff2',
             'manifest.rdf',
@@ -2043,6 +2047,7 @@ XML;
             'package-bytes-exposable' => $packageBytesExposableBytes,
             'rdf-metadata-bytes-blocked' => strlen($rdfXml),
             'script-package-bytes-blocked' => strlen($basicModuleXml),
+            'signature-package-bytes-blocked' => strlen($signatureXml),
             'undeclared-package-entry-no-bytes' => strlen($noteBytes),
             'unsupported-compression-bytes-blocked' => strlen($audioBytes),
         ];
@@ -2057,10 +2062,11 @@ XML;
             'package-bytes-exposable' => 4,
             'rdf-metadata-bytes-blocked' => 1,
             'script-package-bytes-blocked' => 1,
+            'signature-package-bytes-blocked' => 1,
             'undeclared-package-entry-no-bytes' => 1,
             'unsupported-compression-bytes-blocked' => 1,
         ], $inventory['byteExposurePolicyCounts']);
-        $t->same(12, $inventory['byteExposurePolicyItemCount']);
+        $t->same(13, $inventory['byteExposurePolicyItemCount']);
         $t->same($expectedPolicyByteLengths, $inventory['byteExposurePolicyByteLengths']);
         $t->same($expectedPolicyCompressedByteLengths, $inventory['byteExposurePolicyCompressedByteLengths']);
         $t->same([
@@ -2071,6 +2077,7 @@ XML;
             'Pictures/secret.png',
             'Media/theme.ogg',
             'Basic/Standard/Module1.xml',
+            'META-INF/documentsignatures.xml',
             'Configurations2/accelerator/current.xml',
             'Fonts/ReviewSans.woff2',
             'manifest.rdf',
@@ -2085,6 +2092,7 @@ XML;
             'Pictures/secret.png' => ['encrypted-resource-bytes-blocked', ['manifest-declared', 'media-resource'], false, true, false],
             'Media/theme.ogg' => ['unsupported-compression-bytes-blocked', ['manifest-declared', 'media-resource'], false, true, false],
             'Basic/Standard/Module1.xml' => ['script-package-bytes-blocked', ['script-package', 'manifest-declared'], false, true, false],
+            'META-INF/documentsignatures.xml' => ['signature-package-bytes-blocked', ['package-signature', 'manifest-declared'], false, true, false],
             'Configurations2/accelerator/current.xml' => ['configuration-package-bytes-blocked', ['configuration-package', 'manifest-declared'], false, true, false],
             'Fonts/ReviewSans.woff2' => ['font-package-bytes-blocked', ['font-package', 'manifest-declared'], false, true, false],
             'manifest.rdf' => ['rdf-metadata-bytes-blocked', ['rdf-metadata', 'manifest-declared'], false, true, false],
@@ -2110,6 +2118,8 @@ XML;
         $t->same(sprintf('%08x', crc32($audioBytes)), $parts['Media/theme.ogg']['crc32']);
         $t->same(sprintf('%08x', crc32($noteBytes)), $parts['Notes/private.txt']['crc32']);
         $t->same(1, $inventory['roleCounts']['script-package']);
+        $t->same(1, $inventory['roleCounts']['package-signature']);
+        $t->same(1, $inventory['packageSignaturePartCount']);
         $t->same(1, $inventory['roleCounts']['configuration-package']);
         $t->same(1, $inventory['roleCounts']['font-package']);
         $t->same(1, $inventory['roleCounts']['rdf-metadata']);
@@ -3514,10 +3524,49 @@ XML;
         $t->same(['odf-signature-undeclared-package-part'], $orphan['issues']);
 
         $t->same(['package-signature', 'manifest-declared'], $inventory['META-INF/documentsignatures.xml']['roles']);
+        $t->same(false, $inventory['META-INF/documentsignatures.xml']['canExposeBytes']);
+        $t->same('signature-package-bytes-blocked', $inventory['META-INF/documentsignatures.xml']['byteExposurePolicy']);
+        $t->same(null, $inventory['META-INF/documentsignatures.xml']['byteSha256']);
         $t->same(['package-signature', 'manifest-declared'], $inventory['META-INF/packagesignatures.xml']['roles']);
+        $t->same('signature-package-bytes-blocked', $inventory['META-INF/packagesignatures.xml']['byteExposurePolicy']);
         $t->same(['package-signature', 'undeclared-package-entry'], $inventory['META-INF/orphan-signatures.xml']['roles']);
         $t->same(1, $summary['undeclaredPackageEntryCount']);
         $t->same('META-INF/orphan-signatures.xml', $summary['undeclaredPackageEntries'][0]['path']);
+    },
+    'blocks compact ODT signature sidecar bytes in package exposure policy' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $signatureXml = '<dsig:document-signatures xmlns:dsig="http://www.w3.org/2000/09/xmldsig#"><dsig:Signature Id="review-signature"/></dsig:document-signatures>';
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="META-INF/documentsignatures.xml" manifest:size="' . strlen($signatureXml) . '"/>',
+            $manifestXml
+        );
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'META-INF/documentsignatures.xml', 'data' => $signatureXml, 'compressionMethod' => 0],
+            ]
+        ))->summarize();
+        $manifestItems = [];
+        foreach ($summary['manifestReview']['items'] as $item) {
+            $manifestItems[$item['path']] = $item;
+        }
+        $inventory = $summary['packageInventory'];
+        $signaturePart = $inventory['parts']['META-INF/documentsignatures.xml'];
+
+        $t->same('signature-package-bytes-blocked', $manifestItems['META-INF/documentsignatures.xml']['byteExposurePolicy']);
+        $t->same(false, $manifestItems['META-INF/documentsignatures.xml']['canExposeBytes']);
+        $t->same(null, $manifestItems['META-INF/documentsignatures.xml']['byteSha256']);
+        $t->same(['package-signature', 'manifest-declared'], $signaturePart['roles']);
+        $t->same('signature-package-bytes-blocked', $signaturePart['byteExposurePolicy']);
+        $t->same(false, $signaturePart['canExposeBytes']);
+        $t->same(null, $signaturePart['byteSha256']);
+        $t->same(1, $inventory['packageSignaturePartCount']);
+        $t->same(1, $inventory['byteExposurePolicyCounts']['signature-package-bytes-blocked']);
+        $t->same(strlen($signatureXml), $inventory['byteExposurePolicyByteLengths']['signature-package-bytes-blocked']);
+        $t->same('package-signature-metadata-only', $summary['packageSignatures']['items'][0]['reviewPolicy']);
+        $t->same(false, $summary['packageSignatures']['items'][0]['canExposeAsDocumentMedia']);
     },
     'reports compact ODT object replacement sidecars as metadata-only package review items' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $previewBytes = 'PREVIEWPNG';
