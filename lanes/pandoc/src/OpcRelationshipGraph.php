@@ -601,6 +601,8 @@ final class OpcRelationshipGraph
                 'centralDirectoryRecordSha256' => $manifestEntry['centralDirectoryRecordSha256'] ?? null,
                 'localHeaderOrder' => $orderEntry['localHeaderOrder'] ?? $entryIndex,
                 'localHeaderOffset' => $orderEntry['localHeaderOffset'] ?? $entry->localHeaderOffset,
+                'rawName' => $entry->rawName,
+                'nameEncoding' => $entry->nameEncoding,
                 'localHeaderNameAtCentralDirectoryIndex' => $orderEntry['localHeaderNameAtCentralDirectoryIndex'] ?? $entry->name,
                 'centralDirectoryNameAtLocalHeaderOrder' => $orderEntry['centralDirectoryNameAtLocalHeaderOrder'] ?? $entry->name,
                 'matchesCentralDirectoryOrder' => $orderEntry['matchesCentralDirectoryOrder'] ?? true,
@@ -854,6 +856,7 @@ final class OpcRelationshipGraph
         }
         unset($entry);
 
+        $rawNameManifest = self::zipRawNameManifestSummary($entries);
         $issues = [];
         $issueCounts = [];
         $entryNamesByIssue = [];
@@ -1262,6 +1265,12 @@ final class OpcRelationshipGraph
             'contentTypeOverrideDeclarationIssueCounts' => $contentTypeOverrideDeclarationIssueCounts,
             'equivalentPackagePartNameGroupCount' => count($equivalentPackagePartNameGroups),
             'equivalentPackagePartNameEntryCount' => $equivalentPackagePartNameEntryCount,
+            'rawNameCollisionGroupCount' => $rawNameManifest['rawNameCollisionGroupCount'],
+            'rawNameCollisionEntryCount' => $rawNameManifest['rawNameCollisionEntryCount'],
+            'rawNameProvenanceEntryCount' => $rawNameManifest['rawNameProvenanceEntryCount'],
+            'rawNameLegacyEncodedEntryCount' => $rawNameManifest['rawNameLegacyEncodedEntryCount'],
+            'rawNameUnicodePathExtraEntryCount' => $rawNameManifest['rawNameUnicodePathExtraEntryCount'],
+            'rawNameDecodedDiffersEntryCount' => $rawNameManifest['rawNameDecodedDiffersEntryCount'],
             'relationshipPartCount' => $relationshipPartCount,
             'rootRelationshipPartCount' => $rootRelationshipPartCount,
             'partRelationshipPartCount' => $partRelationshipPartCount,
@@ -1300,6 +1309,9 @@ final class OpcRelationshipGraph
             'localHeaderOrder' => $localHeaderOrder,
             'contentTypesItems' => $contentTypesItems,
             'equivalentPackagePartNameGroups' => $equivalentPackagePartNameGroups,
+            'rawNameCollisionGroups' => $rawNameManifest['rawNameCollisionGroups'],
+            'rawNameCollisionEntries' => $rawNameManifest['rawNameCollisionEntries'],
+            'rawNameProvenanceEntries' => $rawNameManifest['rawNameProvenanceEntries'],
             'relationshipParts' => $relationshipParts,
             'contentTypeOverrideDeclarations' => $contentTypeOverrideDeclarations,
             'entries' => $entries,
@@ -1382,6 +1394,9 @@ final class OpcRelationshipGraph
                 'localHeaderNameAtCentralDirectoryIndex' => $orderEntry['localHeaderNameAtCentralDirectoryIndex'] ?? $centralEntry['name'],
                 'centralDirectoryNameAtLocalHeaderOrder' => $orderEntry['centralDirectoryNameAtLocalHeaderOrder'] ?? $centralEntry['name'],
                 'matchesCentralDirectoryOrder' => $orderEntry['matchesCentralDirectoryOrder'] ?? true,
+                'rawName' => $centralEntry['rawName'],
+                'nameEncoding' => $centralEntry['nameEncoding'],
+                'centralNameEncoding' => $centralEntry['nameEncoding'],
                 'centralName' => $localHeaderNameEntry['centralName'] ?? $centralEntry['name'],
                 'localHeaderName' => $localHeaderNameEntry['localName'] ?? null,
                 'localHeaderRawName' => $localHeaderNameEntry['localRawName'] ?? null,
@@ -1528,6 +1543,7 @@ final class OpcRelationshipGraph
         }
         unset($entry);
 
+        $rawNameManifest = self::zipRawNameManifestSummary($entries);
         $issues = $centralDirectory['issues'];
         $issueCounts = [];
         $entryNamesByIssue = [];
@@ -1812,6 +1828,12 @@ final class OpcRelationshipGraph
             'packagePartExtensionSummaries' => $packagePartExtensionSummaries,
             'equivalentPackagePartNameGroupCount' => count($equivalentPackagePartNameGroups),
             'equivalentPackagePartNameEntryCount' => $equivalentPackagePartNameEntryCount,
+            'rawNameCollisionGroupCount' => $rawNameManifest['rawNameCollisionGroupCount'],
+            'rawNameCollisionEntryCount' => $rawNameManifest['rawNameCollisionEntryCount'],
+            'rawNameProvenanceEntryCount' => $rawNameManifest['rawNameProvenanceEntryCount'],
+            'rawNameLegacyEncodedEntryCount' => $rawNameManifest['rawNameLegacyEncodedEntryCount'],
+            'rawNameUnicodePathExtraEntryCount' => $rawNameManifest['rawNameUnicodePathExtraEntryCount'],
+            'rawNameDecodedDiffersEntryCount' => $rawNameManifest['rawNameDecodedDiffersEntryCount'],
             'relationshipPartCount' => $relationshipPartCount,
             'rootRelationshipPartCount' => $rootRelationshipPartCount,
             'partRelationshipPartCount' => $partRelationshipPartCount,
@@ -1846,6 +1868,9 @@ final class OpcRelationshipGraph
             'localHeaderNames' => $localHeaderNames,
             'contentTypesItems' => $contentTypesItems,
             'equivalentPackagePartNameGroups' => $equivalentPackagePartNameGroups,
+            'rawNameCollisionGroups' => $rawNameManifest['rawNameCollisionGroups'],
+            'rawNameCollisionEntries' => $rawNameManifest['rawNameCollisionEntries'],
+            'rawNameProvenanceEntries' => $rawNameManifest['rawNameProvenanceEntries'],
             'relationshipParts' => $relationshipParts,
             'entries' => $entries,
             'centralDirectory' => $centralDirectory,
@@ -8757,6 +8782,140 @@ final class OpcRelationshipGraph
         unset($summary);
 
         return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array{
+     *     rawNameCollisionGroupCount:int,
+     *     rawNameCollisionEntryCount:int,
+     *     rawNameProvenanceEntryCount:int,
+     *     rawNameLegacyEncodedEntryCount:int,
+     *     rawNameUnicodePathExtraEntryCount:int,
+     *     rawNameDecodedDiffersEntryCount:int,
+     *     rawNameCollisionGroups:list<array{rawName:string, rawNameHex:string, entryNames:list<string>}>,
+     *     rawNameCollisionEntries:list<array<string, mixed>>,
+     *     rawNameProvenanceEntries:list<array<string, mixed>>
+     * }
+     */
+    private static function zipRawNameManifestSummary(array &$entries): array
+    {
+        $entryNamesByRawNameHex = [];
+        $rawNamesByHex = [];
+        foreach ($entries as $entry) {
+            $rawName = $entry['rawName'] ?? null;
+            if (!is_string($rawName)) {
+                continue;
+            }
+
+            $rawNameHex = bin2hex($rawName);
+            $entryNamesByRawNameHex[$rawNameHex][] = (string) $entry['entryName'];
+            $rawNamesByHex[$rawNameHex] = $rawName;
+        }
+
+        $rawNameCollisionGroups = [];
+        foreach ($entryNamesByRawNameHex as $rawNameHex => $entryNames) {
+            if (count($entryNames) < 2) {
+                continue;
+            }
+
+            $rawNameCollisionGroups[] = [
+                'rawName' => $rawNamesByHex[$rawNameHex],
+                'rawNameHex' => $rawNameHex,
+                'entryNames' => $entryNames,
+            ];
+        }
+
+        $rawNameCollisionEntries = [];
+        $rawNameProvenanceEntries = [];
+        $rawNameLegacyEncodedEntryCount = 0;
+        $rawNameUnicodePathExtraEntryCount = 0;
+        $rawNameDecodedDiffersEntryCount = 0;
+
+        foreach ($entries as &$entry) {
+            $rawName = is_string($entry['rawName'] ?? null) ? $entry['rawName'] : (string) $entry['entryName'];
+            $rawNameHex = bin2hex($rawName);
+            $entryName = (string) $entry['entryName'];
+            $nameEncoding = is_string($entry['nameEncoding'] ?? null) ? $entry['nameEncoding'] : 'utf-8';
+            $equivalentEntryNames = $entryNamesByRawNameHex[$rawNameHex] ?? [$entryName];
+            $hasRawNameCollision = count($equivalentEntryNames) > 1;
+            $rawNameMatchesDecodedName = $rawName === $entryName;
+            $usesLegacyNameEncoding = $nameEncoding === 'cp437';
+            $usesUnicodePathExtraField = $nameEncoding === 'info-zip-unicode-path';
+            $rawNameIssues = [];
+
+            if ($hasRawNameCollision) {
+                $rawNameIssues[] = 'raw-name-collision';
+            }
+            if (!$rawNameMatchesDecodedName) {
+                $rawNameIssues[] = 'raw-name-decoded-value-differs';
+            }
+            if ($usesLegacyNameEncoding) {
+                $rawNameIssues[] = 'raw-name-legacy-encoding';
+            }
+            if ($usesUnicodePathExtraField) {
+                $rawNameIssues[] = 'raw-name-info-zip-unicode-path';
+            }
+
+            $hasRawNameProvenance = !$rawNameMatchesDecodedName
+                || $usesLegacyNameEncoding
+                || $usesUnicodePathExtraField;
+
+            $entry['rawName'] = $rawName;
+            $entry['rawNameHex'] = $rawNameHex;
+            $entry['nameEncoding'] = $nameEncoding;
+            $entry['rawNameEquivalentEntryNames'] = $equivalentEntryNames;
+            $entry['hasRawNameCollision'] = $hasRawNameCollision;
+            $entry['rawNameMatchesDecodedName'] = $rawNameMatchesDecodedName;
+            $entry['usesLegacyNameEncoding'] = $usesLegacyNameEncoding;
+            $entry['usesUnicodePathExtraField'] = $usesUnicodePathExtraField;
+            $entry['hasRawNameProvenance'] = $hasRawNameProvenance;
+            $entry['rawNameIssues'] = $rawNameIssues;
+
+            $summaryEntry = [
+                'entryName' => $entryName,
+                'partName' => $entry['partName'] ?? null,
+                'rawName' => $rawName,
+                'rawNameHex' => $rawNameHex,
+                'nameEncoding' => $nameEncoding,
+                'equivalentEntryNames' => $equivalentEntryNames,
+                'hasRawNameCollision' => $hasRawNameCollision,
+                'rawNameMatchesDecodedName' => $rawNameMatchesDecodedName,
+                'usesLegacyNameEncoding' => $usesLegacyNameEncoding,
+                'usesUnicodePathExtraField' => $usesUnicodePathExtraField,
+                'hasRawNameProvenance' => $hasRawNameProvenance,
+                'issues' => $rawNameIssues,
+            ];
+
+            if ($hasRawNameCollision) {
+                $rawNameCollisionEntries[] = $summaryEntry;
+            }
+            if ($hasRawNameProvenance) {
+                $rawNameProvenanceEntries[] = $summaryEntry;
+            }
+            if ($usesLegacyNameEncoding) {
+                $rawNameLegacyEncodedEntryCount++;
+            }
+            if ($usesUnicodePathExtraField) {
+                $rawNameUnicodePathExtraEntryCount++;
+            }
+            if (!$rawNameMatchesDecodedName) {
+                $rawNameDecodedDiffersEntryCount++;
+            }
+        }
+        unset($entry);
+
+        return [
+            'rawNameCollisionGroupCount' => count($rawNameCollisionGroups),
+            'rawNameCollisionEntryCount' => count($rawNameCollisionEntries),
+            'rawNameProvenanceEntryCount' => count($rawNameProvenanceEntries),
+            'rawNameLegacyEncodedEntryCount' => $rawNameLegacyEncodedEntryCount,
+            'rawNameUnicodePathExtraEntryCount' => $rawNameUnicodePathExtraEntryCount,
+            'rawNameDecodedDiffersEntryCount' => $rawNameDecodedDiffersEntryCount,
+            'rawNameCollisionGroups' => $rawNameCollisionGroups,
+            'rawNameCollisionEntries' => $rawNameCollisionEntries,
+            'rawNameProvenanceEntries' => $rawNameProvenanceEntries,
+        ];
     }
 
     /**
