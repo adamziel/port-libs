@@ -9738,6 +9738,8 @@ XML;
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rSidecarPreview" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="sidecar-preview.png"/>
   <Relationship Id="rSidecarExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/sidecar-resource?review=1#external" TargetMode="External"/>
+  <Relationship Id="rSidecarMissing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="missing-sidecar.bin?review=missing#asset"/>
+  <Relationship Id="rSidecarUnsafeExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="javascript:sidecar()" TargetMode="External"/>
 </Relationships>
 XML;
         $parts['docProps/sidecar-preview.png'] = 'sidecar preview bytes';
@@ -9765,13 +9767,21 @@ XML;
         $t->same([$resourceType], $resources['relationshipTypes']);
         $t->same(['docProps/review-audit.xml', 'docProps/sidecar-audit.xml', 'docProps/missing-audit.xml'], $resources['targetParts']);
         $t->same(['file:///C:/review/root-audit.xml?remote=1#payload'], $resources['externalTargets']);
-        $t->same(2, $resources['targetRelationshipRecordCount']);
+        $t->same(4, $resources['targetRelationshipRecordCount']);
+        $t->same(1, $resources['targetRelationshipExistingCount']);
+        $t->same(1, $resources['targetRelationshipMissingCount']);
+        $t->same(2, $resources['targetRelationshipExternalCount']);
+        $t->same(1, $resources['targetRelationshipAllowedExternalCount']);
+        $t->same(1, $resources['targetRelationshipUnsafeExternalCount']);
+        $t->same(1, $resources['targetRelationshipMissingContentTypeCount']);
         $t->same([
             'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image',
             'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
         ], $resources['targetRelationshipTypes']);
-        $t->same(['docProps/sidecar-preview.png'], $resources['targetRelationshipTargetParts']);
-        $t->same(['https://example.test/sidecar-resource?review=1#external'], $resources['targetRelationshipExternalTargets']);
+        $t->same(['docProps/sidecar-preview.png', 'docProps/missing-sidecar.bin'], $resources['targetRelationshipTargetParts']);
+        $t->same(['https://example.test/sidecar-resource?review=1#external', 'javascript:sidecar()'], $resources['targetRelationshipExternalTargets']);
+        $t->same(['image/png'], $resources['targetRelationshipContentTypes']);
+        $t->same(['external-target-unsafe-scheme'], $resources['targetRelationshipExternalIssueCodes']);
         $t->same('package-root-relationship-bytes-blocked', $resources['byteExposurePolicy']);
         $t->same('package-root-relationship-metadata-only', $resources['reviewPolicy']);
         $t->same(false, $resources['canExposeBytes']);
@@ -9793,14 +9803,31 @@ XML;
 
         $t->same('docProps/_rels/sidecar-audit.xml.rels', $sidecar['targetRelationshipsPart']);
         $t->same(true, $sidecar['targetHasRelationships']);
-        $t->same(2, $sidecar['targetRelationshipRecordCount']);
-        $t->same(['rSidecarPreview', 'rSidecarExternal'], $sidecar['targetRelationshipIds']);
+        $t->same(4, $sidecar['targetRelationshipRecordCount']);
+        $t->same(1, $sidecar['targetRelationshipExistingCount']);
+        $t->same(1, $sidecar['targetRelationshipMissingCount']);
+        $t->same(2, $sidecar['targetRelationshipExternalCount']);
+        $t->same(1, $sidecar['targetRelationshipAllowedExternalCount']);
+        $t->same(1, $sidecar['targetRelationshipUnsafeExternalCount']);
+        $t->same(1, $sidecar['targetRelationshipMissingContentTypeCount']);
+        $t->same(['rSidecarPreview', 'rSidecarExternal', 'rSidecarMissing', 'rSidecarUnsafeExternal'], $sidecar['targetRelationshipIds']);
         $t->same([
             'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image',
             'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
         ], $sidecar['targetRelationshipTypes']);
-        $t->same(['docProps/sidecar-preview.png'], $sidecar['targetRelationshipTargetParts']);
-        $t->same(['https://example.test/sidecar-resource?review=1#external'], $sidecar['targetRelationshipExternalTargets']);
+        $t->same(['docProps/sidecar-preview.png', 'docProps/missing-sidecar.bin'], $sidecar['targetRelationshipTargetParts']);
+        $t->same(['https://example.test/sidecar-resource?review=1#external', 'javascript:sidecar()'], $sidecar['targetRelationshipExternalTargets']);
+        $t->same(['image/png'], $sidecar['targetRelationshipContentTypes']);
+        $t->same(['external-target-unsafe-scheme'], $sidecar['targetRelationshipExternalIssueCodes']);
+        $t->same('rSidecarMissing', $sidecar['targetRelationships'][2]['id']);
+        $t->same('docProps/missing-sidecar.bin', $sidecar['targetRelationships'][2]['targetPart']);
+        $t->same('review=missing', $sidecar['targetRelationships'][2]['targetQuery']);
+        $t->same('asset', $sidecar['targetRelationships'][2]['targetFragment']);
+        $t->same(false, $sidecar['targetRelationships'][2]['exists']);
+        $t->same('missing', $sidecar['targetRelationships'][2]['contentTypeSource']);
+        $t->same('rSidecarUnsafeExternal', $sidecar['targetRelationships'][3]['id']);
+        $t->same(false, $sidecar['targetRelationships'][3]['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $sidecar['targetRelationships'][3]['externalTargetIssues']);
         $t->same(strlen($sidecarXml), $sidecar['byteLength']);
         $t->same('application/vnd.example.review+xml; profile=sidecar', $sidecar['contentType']);
         $t->same([], $sidecar['issues']);
@@ -9830,7 +9857,14 @@ XML;
         $t->same(1, $summary['packageRootRelationshipResourceMissingCount']);
         $t->same(1, $summary['packageRootRelationshipResourceExternalCount']);
         $t->same(1, $summary['packageRootRelationshipResourceTargetRelationshipCount']);
-        $t->same(2, $summary['packageRootRelationshipResourceTargetRelationshipRecordCount']);
+        $t->same(4, $summary['packageRootRelationshipResourceTargetRelationshipRecordCount']);
+        $t->same(1, $summary['packageRootRelationshipResourceTargetRelationshipExistingCount']);
+        $t->same(1, $summary['packageRootRelationshipResourceTargetRelationshipMissingCount']);
+        $t->same(2, $summary['packageRootRelationshipResourceTargetRelationshipExternalCount']);
+        $t->same(1, $summary['packageRootRelationshipResourceTargetRelationshipAllowedExternalCount']);
+        $t->same(1, $summary['packageRootRelationshipResourceTargetRelationshipUnsafeExternalCount']);
+        $t->same(1, $summary['packageRootRelationshipResourceTargetRelationshipMissingContentTypeCount']);
+        $t->same(['external-target-unsafe-scheme'], $summary['packageRootRelationshipResourceTargetRelationshipExternalIssueCodes']);
         $t->same(2, $summary['packageRootRelationshipResourceIssueCount']);
         $t->same($resources['issueCodes'], $summary['packageRootRelationshipResourceIssueCodes']);
         $t->same(4, $relationshipType['count']);
@@ -9840,6 +9874,79 @@ XML;
         $t->same(['docProps/missing-audit.xml'], $relationshipType['missingTargetParts']);
         $t->true(in_array('root-relationship-target', $package['parts']['docProps/review-audit.xml']['roles'], true), 'package root resource target role missing');
         $t->true(!isset($docx['media']['docProps/review-audit.xml']), 'package root resource bytes should not be exposed as document media');
+    },
+    'summarizes nested docx package root resource relationship targets for review handoff' => static function (TestRunner $t): void {
+        $resourceType = 'http://example.test/openxml/relationships/rootResource';
+        $imageType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $hyperlinkType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/docProps/root-resource.xml" ContentType="application/vnd.example.root-resource+xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rRootResource" Type="' . $resourceType . '" Target="docProps/root-resource.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['docProps/root-resource.xml'] = '<root-resource/>';
+        $parts['docProps/_rels/root-resource.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rPreview" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="root-preview.png?asset=preview#img"/>
+  <Relationship Id="rMissing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="missing-root-resource.bin"/>
+  <Relationship Id="rSafeExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/root-resource?slot=safe#review" TargetMode="External"/>
+  <Relationship Id="rUnsafeExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="file:///C:/root-resource.bin" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['docProps/root-preview.png'] = 'root preview bytes';
+
+        $docx = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx');
+        $resources = $docx['packageProvenance']['packageRootRelationshipResources'];
+        $summary = $docx['packageProvenance']['summary'];
+        $resource = $resources['byRelationshipId']['rRootResource'];
+        $preview = $resource['targetRelationships'][0];
+        $missing = $resource['targetRelationships'][1];
+        $unsafe = $resource['targetRelationships'][3];
+
+        $t->same(1, $resources['targetRelationshipCount']);
+        $t->same(4, $resources['targetRelationshipRecordCount']);
+        $t->same(1, $resources['targetRelationshipExistingCount']);
+        $t->same(1, $resources['targetRelationshipMissingCount']);
+        $t->same(2, $resources['targetRelationshipExternalCount']);
+        $t->same(1, $resources['targetRelationshipAllowedExternalCount']);
+        $t->same(1, $resources['targetRelationshipUnsafeExternalCount']);
+        $t->same(1, $resources['targetRelationshipMissingContentTypeCount']);
+        $t->same([$imageType, $hyperlinkType], $resources['targetRelationshipTypes']);
+        $t->same(['docProps/root-preview.png', 'docProps/missing-root-resource.bin'], $resources['targetRelationshipTargetParts']);
+        $t->same([
+            'https://example.test/root-resource?slot=safe#review',
+            'file:///C:/root-resource.bin',
+        ], $resources['targetRelationshipExternalTargets']);
+        $t->same(['image/png'], $resources['targetRelationshipContentTypes']);
+        $t->same(['external-target-unsafe-scheme'], $resources['targetRelationshipExternalIssueCodes']);
+
+        $t->same($resources['targetRelationshipRecordCount'], $summary['packageRootRelationshipResourceTargetRelationshipRecordCount']);
+        $t->same($resources['targetRelationshipUnsafeExternalCount'], $summary['packageRootRelationshipResourceTargetRelationshipUnsafeExternalCount']);
+        $t->same($resources['targetRelationshipExternalIssueCodes'], $summary['packageRootRelationshipResourceTargetRelationshipExternalIssueCodes']);
+
+        $t->same('root-preview.png?asset=preview#img', $preview['target']);
+        $t->same('docProps/root-preview.png', $preview['targetPart']);
+        $t->same('asset=preview', $preview['targetQuery']);
+        $t->same('img', $preview['targetFragment']);
+        $t->same(true, $preview['exists']);
+        $t->same('image/png', $preview['contentType']);
+
+        $t->same('docProps/missing-root-resource.bin', $missing['targetPart']);
+        $t->same(false, $missing['exists']);
+        $t->same('missing', $missing['contentTypeSource']);
+
+        $t->same('file', $unsafe['externalTargetScheme']);
+        $t->same(false, $unsafe['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $unsafe['externalTargetIssues']);
     },
     'reports docx package thumbnail provenance as metadata only' => static function (TestRunner $t): void {
         $thumbnailType = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail';
