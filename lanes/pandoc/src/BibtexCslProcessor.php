@@ -15,6 +15,57 @@ final class BibtexCslProcessor
     /** @var list<string> */
     private const BIBLATEX_CUSTOM_NAME_FIELDS = ['namea', 'nameb', 'namec'];
 
+    /** @var list<string> */
+    private const BIBLATEX_NAME_ANNOTATION_FIELDS = [
+        'author',
+        'bookauthor',
+        'chair',
+        'collaborator',
+        'collection-editor',
+        'collectioneditor',
+        'commentator',
+        'compiler',
+        'composer',
+        'continuator',
+        'contributor',
+        'curator',
+        'director',
+        'editor',
+        'editorial-director',
+        'editorialdirector',
+        'eventorganizer',
+        'executive-producer',
+        'executiveproducer',
+        'foreword',
+        'founder',
+        'guest',
+        'holder',
+        'host',
+        'illustrator',
+        'introduction',
+        'namea',
+        'nameb',
+        'namec',
+        'narrator',
+        'origauthor',
+        'original-author',
+        'originalauthor',
+        'performer',
+        'producer',
+        'recipient',
+        'redactor',
+        'reviewed-author',
+        'reviewedauthor',
+        'reviser',
+        'script-writer',
+        'scriptwriter',
+        'series-editor',
+        'serieseditor',
+        'shortauthor',
+        'shorteditor',
+        'translator',
+    ];
+
     /** @var array<string, string> */
     private const MONTH_MACROS = [
         'jan' => '1',
@@ -346,6 +397,28 @@ final class BibtexCslProcessor
         $customNameSummary = $this->biblatexCustomNameSummary($item['biblatex-custom-names'] ?? []);
         if ($customNameSummary !== '') {
             $parts[] = 'BibLaTeX custom names: ' . $customNameSummary;
+        }
+        $fieldAnnotationSummary = $this->biblatexFieldAnnotationSummary($item['biblatex-field-annotations'] ?? []);
+        if ($fieldAnnotationSummary !== '') {
+            $parts[] = 'BibLaTeX field annotations: ' . $fieldAnnotationSummary;
+        }
+        $optionSummary = $this->biblatexOptionSummary($item['biblatex-options'] ?? []);
+        if ($optionSummary !== '') {
+            $parts[] = 'BibLaTeX options: ' . $optionSummary;
+        }
+        $languageOptionSummary = $this->biblatexOptionSummary($item['biblatex-language-options'] ?? []);
+        if ($languageOptionSummary !== '') {
+            $parts[] = 'BibLaTeX language options: ' . $languageOptionSummary;
+        }
+        $referenceContextSummary = $this->biblatexReferenceContextSummary(
+            (string) ($item['biblatex-refsection'] ?? ''),
+            (string) ($item['biblatex-refsegment'] ?? '')
+        );
+        if ($referenceContextSummary !== '') {
+            $parts[] = 'BibLaTeX reference context: ' . $referenceContextSummary;
+        }
+        if (($item['gender'] ?? '') !== '') {
+            $parts[] = 'BibLaTeX gender: ' . (string) $item['gender'];
         }
         if (($item['annotation'] ?? '') !== '') {
             $parts[] = 'Annotation: ' . rtrim((string) $item['annotation'], '.');
@@ -721,6 +794,7 @@ final class BibtexCslProcessor
             'related-string' => ['relatedstring', 'related-string'],
             'related-options' => ['relatedoptions', 'related-options'],
             'xref' => ['xref', 'crossref'],
+            'gender' => ['gender'],
         ];
 
         foreach ($stringFields as $target => $names) {
@@ -859,6 +933,31 @@ final class BibtexCslProcessor
         $customNames = $this->biblatexCustomNamesFromFields($fields);
         if ($customNames !== []) {
             $item['biblatex-custom-names'] = $customNames;
+        }
+
+        $fieldAnnotations = $this->biblatexFieldAnnotationsFromFields($fields);
+        if ($fieldAnnotations !== []) {
+            $item['biblatex-field-annotations'] = $fieldAnnotations;
+        }
+
+        $options = $this->biblatexOptionList($fields['options'] ?? '');
+        if ($options !== []) {
+            $item['biblatex-options'] = $options;
+        }
+
+        $languageOptions = $this->biblatexOptionList($fields['langidopts'] ?? '');
+        if ($languageOptions !== []) {
+            $item['biblatex-language-options'] = $languageOptions;
+        }
+
+        $refsection = $this->firstField($fields, ['refsection', 'ref-section']);
+        if ($refsection !== null && $refsection !== '') {
+            $item['biblatex-refsection'] = $refsection;
+        }
+
+        $refsegment = $this->firstField($fields, ['refsegment', 'ref-segment']);
+        if ($refsegment !== null && $refsegment !== '') {
+            $item['biblatex-refsegment'] = $refsegment;
         }
 
         if (($item['archive'] ?? '') !== '' || ($item['archive-collection'] ?? '') !== '' || ($item['archive_location'] ?? '') !== '') {
@@ -1620,6 +1719,126 @@ final class BibtexCslProcessor
     /**
      * @return list<string>
      */
+    private function biblatexOptionList(string $value): array
+    {
+        if (trim($value) === '') {
+            return [];
+        }
+
+        return array_values(array_filter(
+            array_map(
+                static fn (string $option): string => trim($option),
+                $this->splitTopLevel($value, ',')
+            ),
+            static fn (string $option): bool => $option !== ''
+        ));
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @return array<string, list<array{name:string, value:string}>>
+     */
+    private function biblatexFieldAnnotationsFromFields(array $fields): array
+    {
+        $annotations = [];
+        foreach ($fields as $field => $value) {
+            if (preg_match('/^([A-Za-z0-9_.-]+)\+an(?::([A-Za-z][A-Za-z0-9_-]*))?$/u', $field, $matches) !== 1) {
+                continue;
+            }
+
+            $baseField = strtolower($matches[1]);
+            if (in_array($baseField, self::BIBLATEX_NAME_ANNOTATION_FIELDS, true)) {
+                continue;
+            }
+
+            $defaultName = $this->normalizedBiblatexFieldAnnotationName((string) ($matches[2] ?? ''));
+            foreach ($this->biblatexFieldAnnotationEntries($value, $defaultName) as $annotation) {
+                $annotations[$baseField][] = $annotation;
+            }
+        }
+
+        return $annotations;
+    }
+
+    /**
+     * @return list<array{name:string, value:string}>
+     */
+    private function biblatexFieldAnnotationEntries(string $value, string $defaultName): array
+    {
+        if (trim($value) === '') {
+            return [];
+        }
+
+        $separator = str_contains($value, ';') ? ';' : ',';
+        $entries = [];
+        foreach ($this->splitTopLevel($value, $separator) as $entry) {
+            $entry = trim($entry);
+            if ($entry === '') {
+                continue;
+            }
+
+            $name = $defaultName;
+            $text = $entry;
+            if (preg_match('/^([A-Za-z][A-Za-z0-9_-]*)?\s*=\s*(.+)$/u', $entry, $matches) === 1) {
+                if (($matches[1] ?? '') !== '') {
+                    $name = $this->normalizedBiblatexFieldAnnotationName($matches[1]);
+                }
+                $text = $matches[2];
+            }
+
+            $text = trim($text);
+            if ($text === '') {
+                continue;
+            }
+
+            $entries[] = [
+                'name' => $name === '' ? 'default' : $name,
+                'value' => $text,
+            ];
+        }
+
+        return $entries;
+    }
+
+    private function normalizedBiblatexFieldAnnotationName(string $name): string
+    {
+        return strtolower(str_replace('_', '-', trim($name)));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitTopLevel(string $value, string $separator): array
+    {
+        $parts = [];
+        $buffer = '';
+        $depth = 0;
+        $length = strlen($value);
+        for ($cursor = 0; $cursor < $length; $cursor++) {
+            $char = $value[$cursor];
+            if ($char === '{' || $char === '(' || $char === '[') {
+                $depth++;
+            } elseif (($char === '}' || $char === ')' || $char === ']') && $depth > 0) {
+                $depth--;
+            }
+
+            if ($char === $separator && $depth === 0) {
+                $parts[] = $buffer;
+                $buffer = '';
+                continue;
+            }
+
+            $buffer .= $char;
+        }
+
+        $parts[] = $buffer;
+
+        return $parts;
+    }
+
+    /**
+     * @return list<string>
+     */
     private function literalList(string $value): array
     {
         $values = [];
@@ -1704,6 +1923,69 @@ final class BibtexCslProcessor
             if ($values !== []) {
                 $parts[] = $field . ': ' . implode('; ', $values);
             }
+        }
+
+        return implode('; ', $parts);
+    }
+
+    /**
+     * @param mixed $annotations
+     */
+    private function biblatexFieldAnnotationSummary(mixed $annotations): string
+    {
+        if (!is_array($annotations)) {
+            return '';
+        }
+
+        $parts = [];
+        foreach ($annotations as $field => $fieldAnnotations) {
+            if (!is_array($fieldAnnotations)) {
+                continue;
+            }
+
+            foreach ($fieldAnnotations as $annotation) {
+                if (!is_array($annotation)) {
+                    continue;
+                }
+
+                $value = trim((string) ($annotation['value'] ?? ''));
+                if ($value === '') {
+                    continue;
+                }
+
+                $name = trim((string) ($annotation['name'] ?? 'default'));
+                $parts[] = (string) $field . ' ' . ($name === '' ? 'default' : $name) . ': ' . $value;
+            }
+        }
+
+        return implode('; ', $parts);
+    }
+
+    /**
+     * @param mixed $options
+     */
+    private function biblatexOptionSummary(mixed $options): string
+    {
+        if (!is_array($options)) {
+            return '';
+        }
+
+        $values = array_values(array_filter(
+            array_map(static fn (mixed $value): string => trim((string) $value), $options),
+            static fn (string $value): bool => $value !== ''
+        ));
+
+        return implode('; ', $values);
+    }
+
+    private function biblatexReferenceContextSummary(string $refsection, string $refsegment): string
+    {
+        $parts = [];
+        if ($refsection !== '') {
+            $parts[] = 'refsection ' . $refsection;
+        }
+        if ($refsegment !== '') {
+            $parts[] = 'refsegment ' . $refsegment;
         }
 
         return implode('; ', $parts);
@@ -1880,7 +2162,7 @@ final class BibtexCslProcessor
     {
         $start = $cursor;
         $length = strlen($source);
-        while ($cursor < $length && preg_match('/[A-Za-z0-9_-]/', $source[$cursor]) === 1) {
+        while ($cursor < $length && preg_match('/[A-Za-z0-9_.:+-]/', $source[$cursor]) === 1) {
             $cursor++;
         }
 

@@ -1818,6 +1818,115 @@ XML);
         $t->contains('<p>Legacy custom fields [Curator | migration batch 42 | migration batch; review desk | Roe and Ng | Archive] stay visible.</p>', $styledBlocks);
         $t->contains('<dt>Curator 2026</dt><dd>Legacy Custom Packet :: usera: migration batch 42; userf: reviewer escalation; verba: wp shortcode [gallery] :: lista: migration batch; review desk; listc: archive queue; internal QA :: namea: Roe, Pat; Ng, Nia; namec: Archive, Desk</dd>', $styledBlocks);
     },
+    'carries biblatex entry options reference context and field annotations in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{legacy-review-context,
+  author     = {Smith, Ada},
+  title      = {Legacy Review Context},
+  title+an   = {=title verified; source=OCR headline normalized},
+  publisher  = {Review Press},
+  date       = {2026},
+  url        = {https://example.test/legacy-review-context},
+  url+an:source = {=archived before WordPress import},
+  langid     = {spanish},
+  langidopts = {variant=mexican, hyphenation=traditional},
+  options    = {skipbib=false, useprefix=true, maxnames=3},
+  refsection = {2},
+  refsegment = {migration-import},
+  gender     = {feminine}
+}
+
+@online{legacy-suppressed-context,
+  author     = {{Archive Desk}},
+  title      = {Suppressed Context Snapshot},
+  date       = {2025},
+  url        = {https://example.test/suppressed-context},
+  options    = {skipbib=true, dashed=false},
+  refsegment = {media-audit}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $context = $items['legacy-review-context'];
+        $suppressed = $items['legacy-suppressed-context'];
+
+        $t->same(['skipbib=false', 'useprefix=true', 'maxnames=3'], $context['biblatex-options']);
+        $t->same(['variant=mexican', 'hyphenation=traditional'], $context['biblatex-language-options']);
+        $t->same('2', $context['biblatex-refsection']);
+        $t->same('migration-import', $context['biblatex-refsegment']);
+        $t->same('feminine', $context['gender']);
+        $t->same([
+            'title' => [
+                ['name' => 'default', 'value' => 'title verified'],
+                ['name' => 'source', 'value' => 'OCR headline normalized'],
+            ],
+            'url' => [
+                ['name' => 'source', 'value' => 'archived before WordPress import'],
+            ],
+        ], $context['biblatex-field-annotations']);
+        $t->same('=title verified; source=OCR headline normalized', $context['rawBibtex']['fields']['title+an']);
+        $t->same('=archived before WordPress import', $context['rawBibtex']['fields']['url+an:source']);
+        $t->same(['skipbib=true', 'dashed=false'], $suppressed['biblatex-options']);
+        $t->same('media-audit', $suppressed['biblatex-refsegment']);
+        $t->contains('BibLaTeX field annotations: title default: title verified; title source: OCR headline normalized; url source: archived before WordPress import', $processor->renderBibliographyText($context));
+        $t->contains('BibLaTeX options: skipbib=false; useprefix=true; maxnames=3', $processor->renderBibliographyText($context));
+        $t->contains('BibLaTeX language options: variant=mexican; hyphenation=traditional', $processor->renderBibliographyText($context));
+        $t->contains('BibLaTeX reference context: refsection 2; refsegment migration-import', $processor->renderBibliographyText($context));
+        $t->contains('BibLaTeX gender: feminine', $processor->renderBibliographyText($context));
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Context Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-context-review</id>
+    <updated>2026-06-27T01:08:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="biblatex-options"/>
+        <text variable="biblatex-language-options"/>
+        <text variable="refsection"/>
+        <text variable="refsegment"/>
+        <text variable="biblatex-field-annotation-summary"/>
+        <text variable="gender"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="biblatex-options"/>
+      <text variable="biblatex-language-option-summary"/>
+      <text variable="reference-context"/>
+      <text variable="biblatex-field-annotations"/>
+      <text variable="biblatex-gender"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $normalized = $styled->item('legacy-review-context');
+        $t->same(['skipbib=false', 'useprefix=true', 'maxnames=3'], $normalized['biblatexOptions'] ?? null);
+        $t->same('variant=mexican; hyphenation=traditional', $normalized['biblatexLanguageOptionSummary'] ?? null);
+        $t->same('refsection 2; refsegment migration-import', $normalized['biblatexReferenceContextSummary'] ?? null);
+        $t->same('title default: title verified; title source: OCR headline normalized; url source: archived before WordPress import', $normalized['biblatexFieldAnnotationSummary'] ?? null);
+        $t->same('feminine', $normalized['biblatexGender'] ?? null);
+        $t->same('[Smith | skipbib=false, useprefix=true, maxnames=3 | variant=mexican, hyphenation=traditional | 2 | migration-import | title default: title verified; title source: OCR headline normalized; url source: archived before WordPress import | feminine]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-review-context', 'text' => '[@legacy-review-context]']),
+        ]));
+        $t->same('Legacy Review Context :: skipbib=false, useprefix=true, maxnames=3 :: variant=mexican; hyphenation=traditional :: refsection 2; refsegment migration-import :: title default: title verified; title source: OCR headline normalized; url source: archived before WordPress import :: feminine', $styled->renderBibliographyEntry('legacy-review-context'));
+
+        $document = (new MarkdownReader())->read('Legacy context [@legacy-review-context; @legacy-suppressed-context] keeps review metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->contains('<p>Legacy context [Smith | skipbib=false, useprefix=true, maxnames=3 | variant=mexican, hyphenation=traditional | 2 | migration-import | title default: title verified; title source: OCR headline normalized; url source: archived before WordPress import | feminine; Desk | skipbib=true, dashed=false | media-audit] keeps review metadata visible.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Legacy Review Context :: skipbib=false, useprefix=true, maxnames=3 :: variant=mexican; hyphenation=traditional :: refsection 2; refsegment migration-import :: title default: title verified; title source: OCR headline normalized; url source: archived before WordPress import :: feminine</dd>', $blocks);
+        $t->true(!str_contains($blocks, '<dt>Desk 2025</dt>'), 'skipbib=true legacy BibLaTeX entries must stay out of appended bibliographies');
+    },
     'carries biblatex issue title aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @article{legacy-issue-title,
