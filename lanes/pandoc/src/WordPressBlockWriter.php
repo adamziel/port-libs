@@ -257,7 +257,7 @@ final class WordPressBlockWriter
     {
         return match ($node->type) {
             'text', 'code' => (string) $node->attr('text', ''),
-            'softbreak', 'linebreak' => ' ',
+            'space', 'softbreak', 'linebreak' => ' ',
             'math' => (string) $node->attr('text', ''),
             'raw_html_inline' => (string) $node->attr('html', ''),
             'raw_tex', 'raw_tex_inline' => (string) $node->attr('tex', $node->attr('text', '')),

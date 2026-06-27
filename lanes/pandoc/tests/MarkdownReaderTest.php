@@ -15302,7 +15302,10 @@ NATIVE;
         $inlineText = static function (AstNode $node): string {
             $text = '';
             foreach ($node->children as $child) {
-                $text .= (string) $child->attr('text', '');
+                $text .= match ($child->type) {
+                    'space', 'softbreak', 'linebreak' => ' ',
+                    default => (string) $child->attr('text', ''),
+                };
             }
 
             return $text;
@@ -15330,7 +15333,10 @@ NATIVE;
         $inlineText = static function (AstNode $node): string {
             $text = '';
             foreach ($node->children as $child) {
-                $text .= (string) $child->attr('text', '');
+                $text .= match ($child->type) {
+                    'space', 'softbreak', 'linebreak' => ' ',
+                    default => (string) $child->attr('text', ''),
+                };
             }
 
             return $text;
@@ -15433,7 +15439,7 @@ NATIVE;
             $t->same(1, count($document->children));
             $t->same('paragraph', $paragraph->type);
             $t->same($case['text'], $paragraph->attr('text'));
-            $t->same([], array_values(array_filter($inlineTypes, static fn (string $type): bool => $type !== 'text')));
+            $t->same([], array_values(array_filter($inlineTypes, static fn (string $type): bool => !in_array($type, ['text', 'space'], true))));
             $t->contains($case['roundTrip'], $roundTrip);
             $t->contains('<p>' . $case['text'] . '</p>', $blocks);
             $t->true(!str_contains($roundTrip, 'Span ('), $label . ' fixture should collapse to a plain Native paragraph');
@@ -15538,7 +15544,10 @@ NATIVE;
         $inlineText = static function (AstNode $node): string {
             $text = '';
             foreach ($node->children as $child) {
-                $text .= (string) $child->attr('text', '');
+                $text .= match ($child->type) {
+                    'space', 'softbreak', 'linebreak' => ' ',
+                    default => (string) $child->attr('text', ''),
+                };
             }
 
             return $text;

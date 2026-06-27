@@ -7179,7 +7179,7 @@ final class MarkdownWriter
         }
 
         foreach ($node->children as $child) {
-            if (!in_array($child->type, ['text', 'code', 'softbreak', 'linebreak'], true)) {
+            if (!in_array($child->type, ['text', 'code', 'space', 'softbreak', 'linebreak'], true)) {
                 return false;
             }
         }
@@ -7888,7 +7888,7 @@ final class MarkdownWriter
         foreach ($nodes as $node) {
             $text .= match ($node->type) {
                 'text', 'code' => (string) $node->attr('text', ''),
-                'softbreak', 'linebreak' => ' ',
+                'space', 'softbreak', 'linebreak' => ' ',
                 default => $this->plainInlineText($node->children),
             };
         }

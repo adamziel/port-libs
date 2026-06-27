@@ -41,8 +41,7 @@ return [
         $t->true(!str_contains($native, 'Fallback term'), 'definition_term children must win over item fallback text');
         $t->same('term', $term->type);
         $t->same('Review term', $term->attr('text'));
-        $t->same(['text', 'text', 'code'], array_map(static fn (AstNode $node): string => $node->type, $term->children));
-        $t->same(' ', $term->children[1]->attr('text'));
+        $t->same(['text', 'space', 'code'], array_map(static fn (AstNode $node): string => $node->type, $term->children));
         $t->same('term-code', $code->attr('id'));
         $t->same(['native'], $code->attr('classes'));
         $t->same(['data-kind' => 'definition'], $code->attr('attributes'));

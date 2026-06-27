@@ -919,7 +919,7 @@ final class NativeReader
 
         return match ($type) {
             'Str' => new AstNode('text', ['text' => $this->expectString()]),
-            'Space' => new AstNode('text', ['text' => ' ']),
+            'Space' => new AstNode('space'),
             'SoftBreak' => new AstNode('softbreak'),
             'LineBreak' => new AstNode('linebreak'),
             'Emph' => new AstNode('emph', [], $this->parseInlineList()),
@@ -1477,7 +1477,7 @@ final class NativeReader
         foreach ($inlines as $inline) {
             $text .= match ($inline->type) {
                 'text', 'code' => (string) $inline->attr('text', ''),
-                'softbreak', 'linebreak' => ' ',
+                'space', 'softbreak', 'linebreak' => ' ',
                 default => $this->plainInlineText($inline->children),
             };
         }
