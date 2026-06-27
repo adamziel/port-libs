@@ -349,6 +349,11 @@ final class BibtexCslProcessor
             'HDL' => 'HDL',
             'LCCN' => 'LCCN',
             'OCLC' => 'OCLC',
+            'ORCID' => 'ORCID',
+            'ISNI' => 'ISNI',
+            'VIAF' => 'VIAF',
+            'ROR' => 'ROR',
+            'Wikidata' => 'Wikidata',
         ] as $field => $label) {
             if (($item[$field] ?? '') !== '') {
                 $parts[] = $label . ' ' . (string) $item[$field];
@@ -671,6 +676,11 @@ final class BibtexCslProcessor
             'HDL' => ['hdl', 'handle', 'hdlid', 'hdl-id', 'handleid', 'handle-id'],
             'LCCN' => ['lccn', 'lccnnumber', 'lccn-number'],
             'OCLC' => ['oclc', 'oclcnumber', 'oclc-number'],
+            'ORCID' => ['orcid', 'orcidid', 'orcid-id'],
+            'ISNI' => ['isni'],
+            'VIAF' => ['viaf'],
+            'ROR' => ['ror'],
+            'Wikidata' => ['wikidata', 'wikidataid', 'wikidata-id', 'wd'],
             'archive' => ['archiveprefix', 'eprinttype', 'archive'],
             'archive-collection' => ['archivecollection', 'archive-collection', 'archive_collection'],
             'archive-place' => ['eprintclass', 'archiveplace', 'archive-place'],

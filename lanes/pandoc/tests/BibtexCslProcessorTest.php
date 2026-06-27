@@ -277,7 +277,96 @@ XML);
         );
         $t->same('Identifier Normalization Packet :: 10.5555/migration.caps :: 9781402894626 :: 34567890 :: PMC3456789', $styled->renderBibliographyEntry('identifier-normalization'));
     },
-    'carries biblatex annotations separately from abstracts in legacy csl handoff' => static function (TestRunner $t): void {
+    'carries legacy biblatex authority identifiers in bibliography handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@article{legacy-authority-person,
+  author   = {Smith, Ada},
+  title    = {Legacy Authority Identifier Packet},
+  date     = {2026},
+  orcid    = {0000-0002-1825-0097},
+  isni     = {0000000121032683},
+  viaf     = {12345678},
+  wikidata = {Q42}
+}
+
+@report{legacy-authority-organization,
+  author      = {{Migration Review Institute}},
+  title       = {Legacy Organization Identifier Packet},
+  institution = {Migration Desk},
+  date        = {2025},
+  ror         = {https://ror.org/01abcde23}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $person = $items['legacy-authority-person'];
+        $organization = $items['legacy-authority-organization'];
+
+        $t->same('0000-0002-1825-0097', $person['ORCID']);
+        $t->same('0000000121032683', $person['ISNI']);
+        $t->same('12345678', $person['VIAF']);
+        $t->same('Q42', $person['Wikidata']);
+        $t->same('https://ror.org/01abcde23', $organization['ROR']);
+        $t->same('0000-0002-1825-0097', $person['rawBibtex']['fields']['orcid']);
+        $t->same('https://ror.org/01abcde23', $organization['rawBibtex']['fields']['ror']);
+        $t->same(
+            'Ada Smith. Legacy Authority Identifier Packet. 2026. ORCID 0000-0002-1825-0097. ISNI 0000000121032683. VIAF 12345678. Wikidata Q42.',
+            $processor->renderBibliographyText($person)
+        );
+        $t->same(
+            'Migration Review Institute. Legacy Organization Identifier Packet. Migration Desk. 2025. ROR https://ror.org/01abcde23.',
+            $processor->renderBibliographyText($organization)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Authority Identifier Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-authority-identifier-review</id>
+    <updated>2026-06-27T00:24:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="authority-identifiers"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="ORCID"/>
+      <text variable="ISNI"/>
+      <text variable="VIAF"/>
+      <text variable="ROR"/>
+      <text variable="Wikidata"/>
+      <text variable="authority-identifier-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('Bounded Legacy BibLaTeX Authority Identifier Review', $styled->cslStyleSummary()['title'] ?? null);
+        $t->same('[Smith | ORCID 0000-0002-1825-0097; ISNI 0000000121032683; VIAF 12345678; Wikidata Q42; Institute | ROR https://ror.org/01abcde23]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-authority-person', 'text' => '[@legacy-authority-person]']),
+            new AstNode('citation', ['id' => 'legacy-authority-organization', 'text' => '[@legacy-authority-organization]']),
+        ]));
+        $t->same('Legacy Authority Identifier Packet :: 0000-0002-1825-0097 :: 0000000121032683 :: 12345678 :: Q42 :: ORCID 0000-0002-1825-0097; ISNI 0000000121032683; VIAF 12345678; Wikidata Q42', $styled->renderBibliographyEntry('legacy-authority-person'));
+        $t->same('Legacy Organization Identifier Packet :: https://ror.org/01abcde23 :: ROR https://ror.org/01abcde23', $styled->renderBibliographyEntry('legacy-authority-organization'));
+
+        $document = (new MarkdownReader())->read('Legacy authority identifiers cite @legacy-authority-person and [@legacy-authority-organization].');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$handoff['bibliography']]));
+
+        $t->same(['legacy-authority-person', 'legacy-authority-organization'], $handoff['citedKeys']);
+        $t->same('0000-0002-1825-0097', $handoff['items'][0]['ORCID']);
+        $t->same('https://ror.org/01abcde23', $handoff['items'][1]['ROR']);
+        $t->contains('ORCID 0000-0002-1825-0097', $blocks);
+        $t->contains('ROR https://ror.org/01abcde23', $blocks);
+    },    'carries biblatex annotations separately from abstracts in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @misc{annotated-source,
   author     = {Roe, Pat},
