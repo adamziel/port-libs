@@ -549,6 +549,10 @@ final class OpcRelationshipGraph
         foreach ($localHeaderOrder['entries'] as $orderEntry) {
             $localHeaderOrderByCentralDirectoryIndex[$orderEntry['centralDirectoryIndex']] = $orderEntry;
         }
+        $packageManifestEntriesByCentralDirectoryIndex = [];
+        foreach ($package->packageManifestPreflight()['entries'] as $manifestEntry) {
+            $packageManifestEntriesByCentralDirectoryIndex[$manifestEntry['centralDirectoryIndex']] = $manifestEntry;
+        }
 
         foreach ($package->entries() as $entryIndex => $entry) {
             $isDirectory = $entry->isDirectory();
@@ -558,6 +562,14 @@ final class OpcRelationshipGraph
             $issues = [];
             $contentTypesItem = false;
             $orderEntry = $localHeaderOrderByCentralDirectoryIndex[$entryIndex] ?? null;
+            $manifestEntry = $packageManifestEntriesByCentralDirectoryIndex[$entryIndex] ?? [];
+            $centralDirectoryRecordOffset = $manifestEntry['centralDirectoryRecordOffset']
+                ?? $entry->centralDirectoryRecordOffset;
+            $centralDirectoryRecordEnd = $manifestEntry['centralDirectoryRecordEnd']
+                ?? $entry->centralDirectoryRecordEnd;
+            $centralDirectoryRecordBytes = is_int($centralDirectoryRecordOffset) && is_int($centralDirectoryRecordEnd)
+                ? max(0, $centralDirectoryRecordEnd - $centralDirectoryRecordOffset)
+                : null;
 
             if (!$isDirectory) {
                 try {
@@ -582,6 +594,11 @@ final class OpcRelationshipGraph
                 'partName' => $partName,
                 'equivalenceKey' => $equivalenceKey,
                 'equivalentPartNames' => [],
+                'centralDirectoryIndex' => $entryIndex,
+                'centralDirectoryRecordOffset' => $centralDirectoryRecordOffset,
+                'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
+                'centralDirectoryRecordEnd' => $centralDirectoryRecordEnd,
+                'centralDirectoryRecordSha256' => $manifestEntry['centralDirectoryRecordSha256'] ?? null,
                 'localHeaderOrder' => $orderEntry['localHeaderOrder'] ?? $entryIndex,
                 'localHeaderOffset' => $orderEntry['localHeaderOffset'] ?? $entry->localHeaderOffset,
                 'localHeaderNameAtCentralDirectoryIndex' => $orderEntry['localHeaderNameAtCentralDirectoryIndex'] ?? $entry->name,
@@ -1353,6 +1370,7 @@ final class OpcRelationshipGraph
                     )));
                 }
             }
+            $centralDirectoryRecordBytes = max(0, $centralEntry['recordEnd'] - $centralEntry['centralDirectoryOffset']);
 
             $entries[] = [
                 'entryIndex' => $entryIndex,
@@ -1376,7 +1394,13 @@ final class OpcRelationshipGraph
                 'isPackagePart' => !$isDirectory,
                 'centralDirectoryIndex' => $centralEntry['centralDirectoryIndex'],
                 'centralDirectoryOffset' => $centralEntry['centralDirectoryOffset'],
+                'centralDirectoryRecordOffset' => $centralEntry['centralDirectoryOffset'],
+                'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
                 'centralDirectoryRecordEnd' => $centralEntry['recordEnd'],
+                'centralDirectoryRecordSha256' => hash(
+                    'sha256',
+                    substr($bytes, $centralEntry['centralDirectoryOffset'], $centralDirectoryRecordBytes)
+                ),
                 'localHeaderOffset' => $centralEntry['localHeaderOffset'],
                 'compressionMethod' => $centralEntry['compressionMethod'],
                 'compressionMethodName' => $centralEntry['compressionMethodName'],

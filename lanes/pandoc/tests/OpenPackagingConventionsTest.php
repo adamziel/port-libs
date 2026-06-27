@@ -367,6 +367,74 @@ return [
         $t->same([], $missingContentTypes['entryNamesByIssue']);
         $t->same(['missing-content-types-item' => ['/[Content_Types].xml']], $missingContentTypes['partNamesByIssue']);
     },
+    'carries OPC ZIP central directory source record provenance through manifest preflights' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+</Types>
+XML;
+        $documentExtra = pack('vv', 0x5455, 0);
+        $documentComment = 'central record review';
+        $parts = [
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'compressionMethod' => 0],
+            ['name' => '_rels/.rels', 'data' => '<Relationships/>', 'compressionMethod' => 0],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>source record</w:p></w:body></w:document>',
+                'compressionMethod' => 0,
+                'extraFieldData' => $documentExtra,
+                'comment' => $documentComment,
+            ],
+            ['name' => 'word/media/review.png', 'data' => 'PNG', 'compressionMethod' => 0],
+        ];
+        $zip = ZipPackage::build($parts);
+
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest(ZipPackage::fromString($zip));
+        $rawSummary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest($zip);
+        $entries = [];
+        foreach ($summary['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+        $rawEntries = [];
+        foreach ($rawSummary['entries'] as $entry) {
+            $rawEntries[$entry['entryName']] = $entry;
+        }
+
+        $documentEntry = $entries['word/document.xml'];
+        $rawDocumentEntry = $rawEntries['word/document.xml'];
+        $expectedCentralRecordBytes = 46
+            + strlen('word/document.xml')
+            + strlen($documentExtra)
+            + strlen($documentComment);
+
+        $t->same(true, $summary['valid']);
+        $t->same(true, $rawSummary['valid']);
+        $t->same($documentEntry['entryIndex'], $documentEntry['centralDirectoryIndex']);
+        $t->same(2, $documentEntry['centralDirectoryIndex']);
+        $t->same($rawDocumentEntry['centralDirectoryOffset'], $rawDocumentEntry['centralDirectoryRecordOffset']);
+        $t->same($rawDocumentEntry['centralDirectoryRecordOffset'], $documentEntry['centralDirectoryRecordOffset']);
+        $t->same($rawDocumentEntry['centralDirectoryRecordEnd'], $documentEntry['centralDirectoryRecordEnd']);
+        $t->same($rawDocumentEntry['centralDirectoryRecordBytes'], $documentEntry['centralDirectoryRecordBytes']);
+        $t->same($expectedCentralRecordBytes, $documentEntry['centralDirectoryRecordBytes']);
+        $t->same(
+            $documentEntry['centralDirectoryRecordOffset'] + $documentEntry['centralDirectoryRecordBytes'],
+            $documentEntry['centralDirectoryRecordEnd']
+        );
+        $t->same(
+            hash(
+                'sha256',
+                substr(
+                    $zip,
+                    $documentEntry['centralDirectoryRecordOffset'],
+                    $documentEntry['centralDirectoryRecordBytes']
+                )
+            ),
+            $documentEntry['centralDirectoryRecordSha256']
+        );
+        $t->same($documentEntry['centralDirectoryRecordSha256'], $rawDocumentEntry['centralDirectoryRecordSha256']);
+    },
     'preflights raw ZIP central directory OPC manifest before package construction' => static function (TestRunner $t): void {
         $contentTypesXml = '<Types/>';
         $rootRelationshipsXml = '<Relationships/>';
