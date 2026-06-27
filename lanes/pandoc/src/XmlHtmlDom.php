@@ -16241,6 +16241,7 @@ final class XmlHtmlDom
                 'activeReviewPolicy' => $element->hasAttribute('src') ? 'external-script-source' : 'inline-script-source',
             ] + $scriptType
                 + $loading
+                + self::scriptIntegrityReviewSummary($element, $scriptType['scriptPayloadKind'])
                 + self::scriptAttributionSrcReviewSummary($element)
                 + self::activeContentNonceSummary($element);
 
@@ -16293,6 +16294,109 @@ final class XmlHtmlDom
     /**
      * @return array<string, mixed>
      */
+    private static function scriptIntegrityReviewSummary(\DOMElement $script, string $payloadKind): array
+    {
+        if (!$script->hasAttribute('integrity')) {
+            return [];
+        }
+
+        $raw = $script->getAttribute('integrity');
+        $tokens = self::spaceSeparatedTokens($raw);
+        $appliesToResource = $script->hasAttribute('src') && in_array($payloadKind, ['classic', 'module'], true);
+        $tokenCounts = [];
+        $duplicateTokens = [];
+        $records = [];
+        $algorithms = [];
+        $unsupportedAlgorithms = [];
+        $issues = [];
+
+        if ($tokens === []) {
+            $issues[] = ['code' => 'empty-script-integrity'];
+        }
+        if (!$appliesToResource) {
+            $issues[] = [
+                'code' => 'script-integrity-without-external-executable-source',
+                'sourceKind' => $script->hasAttribute('src') ? 'external' : 'inline',
+                'payloadKind' => $payloadKind,
+            ];
+        }
+
+        foreach ($tokens as $index => $token) {
+            $algorithm = null;
+            $hashPresent = false;
+            $algorithmSupported = false;
+            if (preg_match('/^([A-Za-z][A-Za-z0-9+.-]*)-(.+)$/', $token, $matches) === 1) {
+                $algorithm = strtolower($matches[1]);
+                $hashPresent = $matches[2] !== '';
+                $algorithmSupported = in_array($algorithm, ['sha256', 'sha384', 'sha512'], true);
+            }
+
+            if ($algorithm !== null && !in_array($algorithm, $algorithms, true)) {
+                $algorithms[] = $algorithm;
+            }
+            if ($algorithm !== null && !$algorithmSupported && !in_array($algorithm, $unsupportedAlgorithms, true)) {
+                $unsupportedAlgorithms[] = $algorithm;
+            }
+
+            $tokenCounts[$token] = ($tokenCounts[$token] ?? 0) + 1;
+            if ($tokenCounts[$token] > 1 && !in_array($token, $duplicateTokens, true)) {
+                $duplicateTokens[] = $token;
+                $issues[] = [
+                    'code' => 'duplicate-script-integrity-token',
+                    'token' => $token,
+                    'count' => $tokenCounts[$token],
+                ];
+            }
+
+            if ($algorithm === null || !$hashPresent) {
+                $issues[] = [
+                    'code' => 'malformed-script-integrity-token',
+                    'token' => $token,
+                    'index' => $index,
+                ];
+            } elseif (!$algorithmSupported) {
+                $issues[] = [
+                    'code' => 'unsupported-script-integrity-algorithm',
+                    'token' => $token,
+                    'algorithm' => $algorithm,
+                    'index' => $index,
+                ];
+            }
+
+            $records[] = [
+                'index' => $index,
+                'token' => $token,
+                'algorithm' => $algorithm,
+                'hashPresent' => $hashPresent,
+                'algorithmSupported' => $algorithmSupported,
+                'valid' => $algorithm !== null && $hashPresent && $algorithmSupported,
+            ];
+        }
+
+        return [
+            'scriptIntegrityReviewPolicy' => 'script-subresource-integrity-review',
+            'scriptIntegrityRaw' => $raw,
+            'scriptIntegrityTokens' => $tokens,
+            'scriptIntegrityTokenCount' => count($tokens),
+            'scriptIntegrityPresent' => true,
+            'scriptIntegrityEmpty' => $tokens === [],
+            'scriptIntegrityAppliesToResource' => $appliesToResource,
+            'scriptIntegrityHashAlgorithms' => $algorithms,
+            'unsupportedScriptIntegrityAlgorithms' => $unsupportedAlgorithms,
+            'duplicateScriptIntegrityTokens' => $duplicateTokens,
+            'scriptIntegrityTokenRecords' => $records,
+            'scriptIntegrityIssues' => $issues,
+            'scriptIntegrityIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'scriptIntegrityValid' => $issues === [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     private static function scriptAttributionSrcReviewSummary(\DOMElement $script): array
     {
         if (!$script->hasAttribute('attributionsrc')) {
@@ -16339,6 +16443,11 @@ final class XmlHtmlDom
             }
         }
 
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+
         return [
             'scriptAttributionSrcReviewPolicy' => 'script-attributionsrc-provenance-review',
             'scriptAttributionSrcRequested' => true,
@@ -16350,6 +16459,9 @@ final class XmlHtmlDom
             'unsafeScriptAttributionSrcUrls' => $unsafeUrls,
             'nonHttpScriptAttributionSrcUrls' => $nonHttpUrls,
             'scriptAttributionSrcIssues' => $issues,
+            'scriptAttributionSrcIssueCodes' => $issueCodes,
+            'scriptAttributionSrcIssueCount' => count($issues),
+            'scriptAttributionSrcValid' => $issues === [],
         ];
     }
 
