@@ -1146,6 +1146,7 @@ final class NativeWriter
     {
         return match ($node->type) {
             'text' => $this->renderTextInline((string) $node->attr('text', '')),
+            'space' => ['Space'],
             'softbreak' => ['SoftBreak'],
             'linebreak' => ['LineBreak'],
             'emph' => ['Emph ' . $this->renderInlineList($node->children)],
@@ -1674,6 +1675,7 @@ final class NativeWriter
     {
         return in_array($node->type, [
             'text',
+            'space',
             'softbreak',
             'linebreak',
             'emph',

@@ -15588,6 +15588,41 @@ NATIVE;
         $t->same('raw_tex', $roundTrip->children[0]->children[2]->type);
         $t->same('\\alpha', $roundTrip->children[0]->children[2]->attr('tex'));
     },
+    'serializes shared space inline nodes through native text constructors' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Native']),
+                new AstNode('space'),
+                new AstNode('emph', [], [
+                    new AstNode('text', ['text' => 'shared']),
+                    new AstNode('space'),
+                    new AstNode('text', ['text' => 'space']),
+                ]),
+                new AstNode('space'),
+                new AstNode('link', ['url' => 'https://example.test/source', 'title' => 'Source'], [
+                    new AstNode('text', ['text' => 'source']),
+                    new AstNode('space'),
+                    new AstNode('text', ['text' => 'link']),
+                ]),
+            ]),
+        ]);
+
+        $nativeText = (new NativeWriter(['blocksOnly' => true]))->write($document);
+        $parsed = (new NativeReader())->read($nativeText);
+        $paragraph = $parsed->children[0];
+        $emph = $paragraph->children[2];
+        $link = $paragraph->children[4];
+        $jsonPacket = (new PandocJsonWriter())->toArray($parsed);
+        $jsonInlines = $jsonPacket['blocks'][0]['c'];
+
+        $t->contains('Str "Native" , Space , Emph [ Str "shared" , Space , Str "space" ] , Space , Link', $nativeText);
+        $t->same(['text', 'space', 'emph', 'space', 'link'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same(['text', 'space', 'text'], array_map(static fn (AstNode $node): string => $node->type, $emph->children));
+        $t->same(['text', 'space', 'text'], array_map(static fn (AstNode $node): string => $node->type, $link->children));
+        $t->same(['Str', 'Space', 'Emph', 'Space', 'Link'], array_map(static fn (array $inline): string => $inline['t'], $jsonInlines));
+        $t->same(['Str', 'Space', 'Str'], array_map(static fn (array $inline): string => $inline['t'], $jsonInlines[2]['c']));
+        $t->same(['Str', 'Space', 'Str'], array_map(static fn (array $inline): string => $inline['t'], $jsonInlines[4]['c'][1]));
+    },
     'preserves single wrapped raw format constructors through json and native stacks' => static function (TestRunner $t): void {
         $blockFormat = ['t' => 'Format', 'c' => [['html']], 'reviewQueue' => 'raw-block-format-source'];
         $inlineFormat = ['t' => 'Format', 'c' => [['latex']], 'reviewQueue' => 'raw-inline-format-source'];
