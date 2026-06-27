@@ -13883,6 +13883,16 @@ final class DocxOpenXmlReader
             'partXmlRootQualifiedNameCounts' => $partXmlRoots['rootQualifiedNameCounts'],
             'partXmlRootPrefixCount' => count($partXmlRoots['rootPrefixCounts']),
             'partXmlRootPrefixCounts' => $partXmlRoots['rootPrefixCounts'],
+            'partXmlRootAttributeCount' => $partXmlRoots['rootAttributeCount'],
+            'partXmlRootAttributePartNames' => $partXmlRoots['rootAttributePartNames'],
+            'partXmlRootAttributeNameCount' => count($partXmlRoots['rootAttributeNameCounts']),
+            'partXmlRootAttributeNameCounts' => $partXmlRoots['rootAttributeNameCounts'],
+            'partXmlRootAttributeLocalNameCount' => count($partXmlRoots['rootAttributeLocalNameCounts']),
+            'partXmlRootAttributeLocalNameCounts' => $partXmlRoots['rootAttributeLocalNameCounts'],
+            'partXmlRootAttributePrefixCount' => count($partXmlRoots['rootAttributePrefixCounts']),
+            'partXmlRootAttributePrefixCounts' => $partXmlRoots['rootAttributePrefixCounts'],
+            'partXmlRootAttributeNamespaceCount' => count($partXmlRoots['rootAttributeNamespaceCounts']),
+            'partXmlRootAttributeNamespaceCounts' => $partXmlRoots['rootAttributeNamespaceCounts'],
             'partXmlRootNamespaceDeclarationCount' => $partXmlRoots['rootNamespaceDeclarationCount'],
             'partXmlRootNamespacePrefixCount' => count($partXmlRoots['rootNamespacePrefixCounts']),
             'partXmlRootNamespacePrefixCounts' => $partXmlRoots['rootNamespacePrefixCounts'],
@@ -19585,7 +19595,7 @@ final class DocxOpenXmlReader
 
     /**
      * @param array<string, array<string, mixed>> $partInventory
-     * @return array{count:int, validCount:int, invalidCount:int, inspectionReasonCounts:array<string, int>, rootNamespaceCounts:array<string, int>, rootLocalNameCounts:array<string, int>, rootQualifiedNameCounts:array<string, int>, rootPrefixCounts:array<string, int>, rootNamespaceDeclarationCount:int, rootNamespacePrefixCounts:array<string, int>, rootNamespacePrefixes:list<string>, invalidPartNames:list<string>, xmlDeclarationCount:int, xmlDeclarationPartNames:list<string>, xmlDeclarationVersionCounts:array<string, int>, xmlDeclarationEncodingCounts:array<string, int>, xmlStandaloneDeclarationCount:int, xmlStandaloneYesCount:int, xmlStandaloneNoCount:int, items:list<array<string, mixed>>}
+     * @return array{count:int, validCount:int, invalidCount:int, inspectionReasonCounts:array<string, int>, rootNamespaceCounts:array<string, int>, rootLocalNameCounts:array<string, int>, rootQualifiedNameCounts:array<string, int>, rootPrefixCounts:array<string, int>, rootAttributeCount:int, rootAttributePartNames:list<string>, rootAttributeNameCounts:array<string, int>, rootAttributeLocalNameCounts:array<string, int>, rootAttributePrefixCounts:array<string, int>, rootAttributeNamespaceCounts:array<string, int>, rootNamespaceDeclarationCount:int, rootNamespacePrefixCounts:array<string, int>, rootNamespacePrefixes:list<string>, invalidPartNames:list<string>, xmlDeclarationCount:int, xmlDeclarationPartNames:list<string>, xmlDeclarationVersionCounts:array<string, int>, xmlDeclarationEncodingCounts:array<string, int>, xmlStandaloneDeclarationCount:int, xmlStandaloneYesCount:int, xmlStandaloneNoCount:int, items:list<array<string, mixed>>}
      */
     private function packagePartXmlRootSummary(array $partInventory): array
     {
@@ -19595,6 +19605,12 @@ final class DocxOpenXmlReader
         $rootLocalNameCounts = [];
         $rootQualifiedNameCounts = [];
         $rootPrefixCounts = [];
+        $rootAttributeCount = 0;
+        $rootAttributePartNames = [];
+        $rootAttributeNameCounts = [];
+        $rootAttributeLocalNameCounts = [];
+        $rootAttributePrefixCounts = [];
+        $rootAttributeNamespaceCounts = [];
         $rootNamespaceDeclarationCount = 0;
         $rootNamespacePrefixCounts = [];
         $rootNamespacePrefixes = [];
@@ -19648,6 +19664,38 @@ final class DocxOpenXmlReader
             if ($validXml === true) {
                 $rootPrefixKey = $rootPrefix === null || $rootPrefix === '' ? '(none)' : $rootPrefix;
                 $rootPrefixCounts[$rootPrefixKey] = ($rootPrefixCounts[$rootPrefixKey] ?? 0) + 1;
+            }
+
+            $partRootAttributeCount = (int) ($part['rootAttributeCount'] ?? 0);
+            $rootAttributeCount += $partRootAttributeCount;
+            if ($partRootAttributeCount > 0) {
+                $rootAttributePartNames[] = $partName;
+            }
+            $rootAttributes = is_array($part['rootAttributes'] ?? null) ? $part['rootAttributes'] : [];
+            foreach ($rootAttributes as $rootAttribute) {
+                if (!is_array($rootAttribute)) {
+                    continue;
+                }
+
+                $attributeName = is_string($rootAttribute['name'] ?? null) ? $rootAttribute['name'] : '';
+                if ($attributeName !== '') {
+                    $rootAttributeNameCounts[$attributeName] = ($rootAttributeNameCounts[$attributeName] ?? 0) + 1;
+                }
+
+                $localName = is_string($rootAttribute['localName'] ?? null) ? $rootAttribute['localName'] : '';
+                if ($localName !== '') {
+                    $rootAttributeLocalNameCounts[$localName] = ($rootAttributeLocalNameCounts[$localName] ?? 0) + 1;
+                }
+
+                $prefix = is_string($rootAttribute['prefix'] ?? null) && $rootAttribute['prefix'] !== ''
+                    ? $rootAttribute['prefix']
+                    : '(none)';
+                $rootAttributePrefixCounts[$prefix] = ($rootAttributePrefixCounts[$prefix] ?? 0) + 1;
+
+                $namespace = is_string($rootAttribute['namespace'] ?? null) && $rootAttribute['namespace'] !== ''
+                    ? $rootAttribute['namespace']
+                    : '(none)';
+                $rootAttributeNamespaceCounts[$namespace] = ($rootAttributeNamespaceCounts[$namespace] ?? 0) + 1;
             }
 
             $rootNamespaceDeclarationCount += (int) ($part['rootNamespaceDeclarationCount'] ?? 0);
@@ -19708,6 +19756,11 @@ final class DocxOpenXmlReader
                 'rootQualifiedName' => $rootQualifiedName,
                 'rootPrefix' => $rootPrefix,
                 'rootAttributeCount' => (int) ($part['rootAttributeCount'] ?? 0),
+                'rootAttributes' => array_values(array_filter($rootAttributes, 'is_array')),
+                'rootAttributeNames' => array_values(array_map('strval', $part['rootAttributeNames'] ?? [])),
+                'rootAttributeLocalNames' => array_values(array_map('strval', $part['rootAttributeLocalNames'] ?? [])),
+                'rootAttributePrefixes' => array_values(array_map('strval', $part['rootAttributePrefixes'] ?? [])),
+                'rootAttributeNamespaces' => array_values(array_map('strval', $part['rootAttributeNamespaces'] ?? [])),
                 'rootNamespaceDeclarationCount' => (int) ($part['rootNamespaceDeclarationCount'] ?? 0),
                 'rootNamespacePrefixes' => array_values(array_map('strval', $part['rootNamespacePrefixes'] ?? [])),
                 'xmlDeclarationPresent' => (bool) ($part['xmlDeclarationPresent'] ?? false),
@@ -19724,8 +19777,13 @@ final class DocxOpenXmlReader
         ksort($rootLocalNameCounts, SORT_STRING);
         ksort($rootQualifiedNameCounts, SORT_STRING);
         ksort($rootPrefixCounts, SORT_STRING);
+        ksort($rootAttributeNameCounts, SORT_STRING);
+        ksort($rootAttributeLocalNameCounts, SORT_STRING);
+        ksort($rootAttributePrefixCounts, SORT_STRING);
+        ksort($rootAttributeNamespaceCounts, SORT_STRING);
         ksort($rootNamespacePrefixCounts, SORT_STRING);
         sort($rootNamespacePrefixes, SORT_STRING);
+        sort($rootAttributePartNames, SORT_STRING);
         ksort($xmlDeclarationVersionCounts, SORT_STRING);
         ksort($xmlDeclarationEncodingCounts, SORT_STRING);
         sort($invalidPartNames, SORT_STRING);
@@ -19744,6 +19802,12 @@ final class DocxOpenXmlReader
             'rootLocalNameCounts' => $rootLocalNameCounts,
             'rootQualifiedNameCounts' => $rootQualifiedNameCounts,
             'rootPrefixCounts' => $rootPrefixCounts,
+            'rootAttributeCount' => $rootAttributeCount,
+            'rootAttributePartNames' => $rootAttributePartNames,
+            'rootAttributeNameCounts' => $rootAttributeNameCounts,
+            'rootAttributeLocalNameCounts' => $rootAttributeLocalNameCounts,
+            'rootAttributePrefixCounts' => $rootAttributePrefixCounts,
+            'rootAttributeNamespaceCounts' => $rootAttributeNamespaceCounts,
             'rootNamespaceDeclarationCount' => $rootNamespaceDeclarationCount,
             'rootNamespacePrefixCounts' => $rootNamespacePrefixCounts,
             'rootNamespacePrefixes' => $rootNamespacePrefixes,
@@ -21332,7 +21396,7 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{validXml:bool, xmlParseError:?string, namespace:?string, localName:?string, qualifiedName:?string, prefix:?string, attributeCount:int, namespaceDeclarationCount:int, namespacePrefixes:list<string>}
+     * @return array{validXml:bool, xmlParseError:?string, namespace:?string, localName:?string, qualifiedName:?string, prefix:?string, attributeCount:int, attributes:list<array{name:string, prefix:?string, namespace:?string, localName:string}>, attributeNames:list<string>, attributeLocalNames:list<string>, attributePrefixes:list<string>, attributeNamespaces:list<string>, namespaceDeclarationCount:int, namespacePrefixes:list<string>}
      */
     private function xmlRootProvenance(string $xml, string $partName): array
     {
@@ -21346,6 +21410,11 @@ final class DocxOpenXmlReader
                 'qualifiedName' => null,
                 'prefix' => null,
                 'attributeCount' => 0,
+                'attributes' => [],
+                'attributeNames' => [],
+                'attributeLocalNames' => [],
+                'attributePrefixes' => [],
+                'attributeNamespaces' => [],
                 'namespaceDeclarationCount' => 0,
                 'namespacePrefixes' => [],
             ];
@@ -21361,12 +21430,22 @@ final class DocxOpenXmlReader
                 'qualifiedName' => null,
                 'prefix' => null,
                 'attributeCount' => 0,
+                'attributes' => [],
+                'attributeNames' => [],
+                'attributeLocalNames' => [],
+                'attributePrefixes' => [],
+                'attributeNamespaces' => [],
                 'namespaceDeclarationCount' => 0,
                 'namespacePrefixes' => [],
             ];
         }
 
         $attributeCount = 0;
+        $attributes = [];
+        $attributeNames = [];
+        $attributeLocalNames = [];
+        $attributePrefixes = [];
+        $attributeNamespaces = [];
         foreach ($root->attributes ?? [] as $attribute) {
             if (!$attribute instanceof \DOMAttr) {
                 continue;
@@ -21376,6 +21455,19 @@ final class DocxOpenXmlReader
             }
 
             ++$attributeCount;
+            $prefix = $attribute->prefix === '' ? null : $attribute->prefix;
+            $namespace = $attribute->namespaceURI === '' ? null : $attribute->namespaceURI;
+            $record = [
+                'name' => $attribute->nodeName,
+                'prefix' => $prefix,
+                'namespace' => $namespace,
+                'localName' => $attribute->localName,
+            ];
+            $attributes[] = $record;
+            $this->appendUniqueString($attributeNames, $record['name']);
+            $this->appendUniqueString($attributeLocalNames, $record['localName']);
+            $this->appendUniqueString($attributePrefixes, $prefix);
+            $this->appendUniqueString($attributeNamespaces, $namespace);
         }
         $namespaceDeclarations = $this->rootNamespaceDeclarations($xml);
 
@@ -21387,6 +21479,11 @@ final class DocxOpenXmlReader
             'qualifiedName' => $root->tagName,
             'prefix' => $root->prefix === '' ? null : $root->prefix,
             'attributeCount' => $attributeCount,
+            'attributes' => $attributes,
+            'attributeNames' => $attributeNames,
+            'attributeLocalNames' => $attributeLocalNames,
+            'attributePrefixes' => $attributePrefixes,
+            'attributeNamespaces' => $attributeNamespaces,
             'namespaceDeclarationCount' => $namespaceDeclarations['count'],
             'namespacePrefixes' => $namespaceDeclarations['prefixes'],
         ];
@@ -22990,6 +23087,11 @@ final class DocxOpenXmlReader
                 'rootQualifiedName' => null,
                 'rootPrefix' => null,
                 'rootAttributeCount' => 0,
+                'rootAttributes' => [],
+                'rootAttributeNames' => [],
+                'rootAttributeLocalNames' => [],
+                'rootAttributePrefixes' => [],
+                'rootAttributeNamespaces' => [],
                 'rootNamespaceDeclarationCount' => 0,
                 'rootNamespacePrefixes' => [],
                 'xmlDeclarationPresent' => false,
@@ -23013,6 +23115,11 @@ final class DocxOpenXmlReader
             'rootQualifiedName' => $root['qualifiedName'],
             'rootPrefix' => $root['prefix'],
             'rootAttributeCount' => $root['attributeCount'],
+            'rootAttributes' => $root['attributes'],
+            'rootAttributeNames' => $root['attributeNames'],
+            'rootAttributeLocalNames' => $root['attributeLocalNames'],
+            'rootAttributePrefixes' => $root['attributePrefixes'],
+            'rootAttributeNamespaces' => $root['attributeNamespaces'],
             'rootNamespaceDeclarationCount' => $root['namespaceDeclarationCount'],
             'rootNamespacePrefixes' => $root['namespacePrefixes'],
             'xmlDeclarationPresent' => $xmlDeclaration['present'],

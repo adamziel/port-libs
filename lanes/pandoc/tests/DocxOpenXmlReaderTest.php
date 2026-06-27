@@ -17461,6 +17461,78 @@ XML;
         $t->same('urn:package-default', $defaultPart['rootNamespace']);
         $t->same('packet', $defaultPart['rootQualifiedName']);
     },
+    'summarizes docx package xml root attributes for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['customXml/root-attributes.xml'] = <<<'XML'
+<review:packet xmlns:review="urn:review" xmlns:dc="http://purl.org/dc/elements/1.1/" status="ready" xml:lang="en" dc:source="editorial"><review:item/></review:packet>
+XML;
+        $parts['word/metadata/settings-attrs.xml'] = <<<'XML'
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" w:rsidR="00AA00AA" mc:Ignorable="w15"><w:updateFields w:val="true"/></w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $customPart = $package['parts']['customXml/root-attributes.xml'];
+        $settingsPart = $package['parts']['word/metadata/settings-attrs.xml'];
+        $xmlRootItems = [];
+        foreach ($summary['partXmlRoots'] as $item) {
+            $xmlRootItems[$item['partName']] = $item;
+        }
+
+        $t->same(9, $summary['partXmlInspectableCount']);
+        $t->same(5, $summary['partXmlRootAttributeCount']);
+        $t->same(['customXml/root-attributes.xml', 'word/metadata/settings-attrs.xml'], $summary['partXmlRootAttributePartNames']);
+        $t->same(5, $summary['partXmlRootAttributeNameCount']);
+        $t->same([
+            'dc:source' => 1,
+            'mc:Ignorable' => 1,
+            'status' => 1,
+            'w:rsidR' => 1,
+            'xml:lang' => 1,
+        ], $summary['partXmlRootAttributeNameCounts']);
+        $t->same([
+            'Ignorable' => 1,
+            'lang' => 1,
+            'rsidR' => 1,
+            'source' => 1,
+            'status' => 1,
+        ], $summary['partXmlRootAttributeLocalNameCounts']);
+        $t->same([
+            '(none)' => 1,
+            'dc' => 1,
+            'mc' => 1,
+            'w' => 1,
+            'xml' => 1,
+        ], $summary['partXmlRootAttributePrefixCounts']);
+        $t->same([
+            '(none)' => 1,
+            'http://purl.org/dc/elements/1.1/' => 1,
+            'http://schemas.openxmlformats.org/markup-compatibility/2006' => 1,
+            'http://schemas.openxmlformats.org/wordprocessingml/2006/main' => 1,
+            'http://www.w3.org/XML/1998/namespace' => 1,
+        ], $summary['partXmlRootAttributeNamespaceCounts']);
+
+        $t->same(3, $customPart['rootAttributeCount']);
+        $t->same(['status', 'xml:lang', 'dc:source'], $customPart['rootAttributeNames']);
+        $t->same(['status', 'lang', 'source'], $customPart['rootAttributeLocalNames']);
+        $t->same(['xml', 'dc'], $customPart['rootAttributePrefixes']);
+        $t->same(['http://www.w3.org/XML/1998/namespace', 'http://purl.org/dc/elements/1.1/'], $customPart['rootAttributeNamespaces']);
+        $t->same('status', $customPart['rootAttributes'][0]['name']);
+        $t->same(null, $customPart['rootAttributes'][0]['prefix']);
+        $t->same(null, $customPart['rootAttributes'][0]['namespace']);
+        $t->same('xml:lang', $customPart['rootAttributes'][1]['name']);
+        $t->same('http://www.w3.org/XML/1998/namespace', $customPart['rootAttributes'][1]['namespace']);
+
+        $t->same(2, $settingsPart['rootAttributeCount']);
+        $t->same(['w:rsidR', 'mc:Ignorable'], $settingsPart['rootAttributeNames']);
+        $t->same(['rsidR', 'Ignorable'], $settingsPart['rootAttributeLocalNames']);
+        $t->same(['w', 'mc'], $settingsPart['rootAttributePrefixes']);
+        $t->same(3, $xmlRootItems['customXml/root-attributes.xml']['rootAttributeCount']);
+        $t->same(['status', 'xml:lang', 'dc:source'], $xmlRootItems['customXml/root-attributes.xml']['rootAttributeNames']);
+        $t->same(2, $xmlRootItems['word/metadata/settings-attrs.xml']['rootAttributeCount']);
+        $t->same(['w:rsidR', 'mc:Ignorable'], $xmlRootItems['word/metadata/settings-attrs.xml']['rootAttributeNames']);
+    },
     'accepts docx main document template and macro-enabled content types' => static function (TestRunner $t): void {
         $acceptedDocumentContentTypes = [
             ['application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'],
