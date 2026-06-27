@@ -1499,7 +1499,7 @@ final class PandocJsonWriter
                 $this->enumFromNative($node, 'mathTypeNative', $node->attr('display') === true ? 'DisplayMath' : 'InlineMath'),
                 (string) $node->attr('text', ''),
             ]],
-            'raw_html_inline', 'raw_tex', 'raw_markdown', 'raw_inline' => ['t' => 'RawInline', 'c' => [$this->rawFormatPayload($node), $this->rawText($node)]],
+            'raw_html_inline', 'raw_tex', 'raw_tex_inline', 'raw_markdown', 'raw_inline' => ['t' => 'RawInline', 'c' => [$this->rawFormatPayload($node), $this->rawText($node)]],
             'citation' => $this->writeCiteInline([$node], $this->citationSourceInlines($node), $node->attr('citationRecordsNative')),
             'citation_group' => $this->writeCiteInline($this->citationGroupChildren($node), $this->citationSourceInlines($node), $node->attr('citationRecordsNative')),
             'link' => ['t' => 'Link', 'c' => [$this->attrTuple($node), $this->writeInlines($node->children), $this->targetTuple($node)]],
@@ -2724,7 +2724,7 @@ final class PandocJsonWriter
 
         return match ($node->type) {
             'raw_html', 'raw_html_inline' => 'html',
-            'raw_tex' => 'latex',
+            'raw_tex', 'raw_tex_inline' => 'latex',
             'raw_markdown' => 'markdown',
             default => 'plain',
         };
@@ -2756,7 +2756,7 @@ final class PandocJsonWriter
     {
         return match ($node->type) {
             'raw_html', 'raw_html_inline' => (string) $node->attr('text', $node->attr('html', '')),
-            'raw_tex' => (string) $node->attr('text', $node->attr('tex', '')),
+            'raw_tex', 'raw_tex_inline' => (string) $node->attr('text', $node->attr('tex', '')),
             'raw_markdown' => (string) $node->attr('text', $node->attr('markdown', '')),
             default => (string) $node->attr('text', ''),
         };
@@ -2809,6 +2809,7 @@ final class PandocJsonWriter
             'math',
             'raw_html_inline',
             'raw_tex',
+            'raw_tex_inline',
             'raw_markdown',
             'raw_inline',
             'citation',

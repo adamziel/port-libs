@@ -15445,6 +15445,40 @@ return [
             }
         }
     },
+    'serializes native text raw tex inline nodes through pandoc json writers' => static function (TestRunner $t): void {
+        $nativeText = <<<'NATIVE'
+Pandoc Meta {unMeta = fromList []} [ Para [ Str "Before", Space, RawInline (Format "tex") "\\alpha", Space, Str "after" ] ]
+NATIVE;
+
+        $nativeDocument = (new NativeReader())->read($nativeText);
+        $document = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
+        ], $nativeDocument->children);
+        $manualDocument = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
+        ], [
+            new AstNode('paragraph', [], [
+                new AstNode('raw_tex_inline', ['tex' => '\\beta']),
+            ]),
+        ]);
+
+        $inline = $nativeDocument->children[0]->children[2];
+        $jsonPacket = (new PandocJsonWriter())->toArray($document);
+        $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $manualPacket = (new PandocJsonWriter())->toArray($manualDocument);
+        $roundTrip = (new PandocJsonReader())->readPacket($jsonPacket);
+
+        $t->same('raw_tex_inline', $inline->type);
+        $t->same('tex', $inline->attr('format'));
+        $t->same('\\alpha', $inline->attr('tex'));
+        $t->same(['t' => 'RawInline', 'c' => ['tex', '\\alpha']], $jsonPacket['blocks'][0]['c'][2]);
+        $t->same($jsonPacket['blocks'][0]['c'][2], $nativePacket['blocks'][0]['c'][2]);
+        $t->same(['t' => 'RawInline', 'c' => ['latex', '\\beta']], $manualPacket['blocks'][0]['c'][0]);
+        $t->same('raw_tex', $roundTrip->children[0]->children[2]->type);
+        $t->same('\\alpha', $roundTrip->children[0]->children[2]->attr('tex'));
+    },
     'preserves single wrapped raw format constructors through json and native stacks' => static function (TestRunner $t): void {
         $blockFormat = ['t' => 'Format', 'c' => [['html']], 'reviewQueue' => 'raw-block-format-source'];
         $inlineFormat = ['t' => 'Format', 'c' => [['latex']], 'reviewQueue' => 'raw-inline-format-source'];
