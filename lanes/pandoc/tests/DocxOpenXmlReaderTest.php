@@ -17637,6 +17637,71 @@ XML;
         $t->true(is_string($encodedComments), 'XML comment metadata should encode for review');
         $t->true(!str_contains((string) $encodedComments, 'hidden-contents'), 'raw XML comment text should not be exposed in summary metadata');
     },
+    'summarizes docx package xml cdata sections without exposing text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $rootCdata = 'package-cdata-review:hidden-payload-alpha';
+        $itemCdata = 'item-cdata-review:hidden-payload-beta';
+        $settingsCdata = 'settings-cdata-review:hidden-payload-gamma';
+        $parts['customXml/cdata-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:review-cdata">
+  <review:raw><![CDATA[{$rootCdata}]]></review:raw>
+  <review:item><![CDATA[{$itemCdata}]]></review:item>
+</review:packet>
+XML;
+        $parts['word/settings-cdata.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docVars>
+    <w:docVar w:name="Review"><![CDATA[{$settingsCdata}]]></w:docVar>
+  </w:docVars>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/cdata-review.xml'];
+        $settingsPart = $package['parts']['word/settings-cdata.xml'];
+        $sections = $summary['partXmlCdataSections'];
+        $sectionByteLength = strlen($rootCdata) + strlen($itemCdata) + strlen($settingsCdata);
+
+        $t->same(9, $summary['partXmlInspectableCount']);
+        $t->same(2, $summary['partXmlCdataSectionPartCount']);
+        $t->same(3, $summary['partXmlCdataSectionCount']);
+        $t->same($sectionByteLength, $summary['partXmlCdataSectionByteLength']);
+        $t->same(['customXml/cdata-review.xml', 'word/settings-cdata.xml'], $summary['partXmlCdataSectionPartNames']);
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(2, $reviewPart['xmlCdataSectionCount']);
+        $t->same(strlen($rootCdata) + strlen($itemCdata), $reviewPart['xmlCdataSectionByteLength']);
+        $t->same('/review:packet/review:raw', $reviewPart['xmlCdataSections'][0]['parentPath']);
+        $t->same(2, $reviewPart['xmlCdataSections'][0]['parentDepth']);
+        $t->same(strlen($rootCdata), $reviewPart['xmlCdataSections'][0]['byteLength']);
+        $t->same(sprintf('%08x', crc32($rootCdata)), $reviewPart['xmlCdataSections'][0]['crc32']);
+        $t->same(hash('sha256', $rootCdata), $reviewPart['xmlCdataSections'][0]['sha256']);
+        $t->same('/review:packet/review:item', $reviewPart['xmlCdataSections'][1]['parentPath']);
+        $t->same(strlen($itemCdata), $reviewPart['xmlCdataSections'][1]['byteLength']);
+        $t->same(hash('sha256', $itemCdata), $reviewPart['xmlCdataSections'][1]['sha256']);
+
+        $t->same(1, $settingsPart['xmlCdataSectionCount']);
+        $t->same(strlen($settingsCdata), $settingsPart['xmlCdataSectionByteLength']);
+        $t->same('/w:settings/w:docVars/w:docVar', $settingsPart['xmlCdataSections'][0]['parentPath']);
+        $t->same(3, $settingsPart['xmlCdataSections'][0]['parentDepth']);
+        $t->same(sprintf('%08x', crc32($settingsCdata)), $settingsPart['xmlCdataSections'][0]['crc32']);
+        $t->same(hash('sha256', $settingsCdata), $settingsPart['xmlCdataSections'][0]['sha256']);
+
+        $t->same('customXml/cdata-review.xml', $sections[0]['partName']);
+        $t->same('/review:packet/review:raw', $sections[0]['parentPath']);
+        $t->same('customXml/cdata-review.xml', $sections[1]['partName']);
+        $t->same('/review:packet/review:item', $sections[1]['parentPath']);
+        $t->same('word/settings-cdata.xml', $sections[2]['partName']);
+        $t->same('/w:settings/w:docVars/w:docVar', $sections[2]['parentPath']);
+        $t->true(!isset($reviewPart['xmlCdataSections'][0]['data']), 'raw XML CDATA text should not be exposed on part metadata');
+        $encodedSections = json_encode([$reviewPart['xmlCdataSections'], $settingsPart['xmlCdataSections'], $sections]);
+        $t->true(is_string($encodedSections), 'XML CDATA metadata should encode for review');
+        $t->true(!str_contains((string) $encodedSections, 'hidden-payload'), 'raw XML CDATA text should not be exposed in summary metadata');
+    },
     'accepts docx main document template and macro-enabled content types' => static function (TestRunner $t): void {
         $acceptedDocumentContentTypes = [
             ['application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'],
