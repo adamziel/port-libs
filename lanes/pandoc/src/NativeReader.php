@@ -761,6 +761,7 @@ final class NativeReader
             'Para' => new AstNode('paragraph', ['text' => $this->plainInlineText($inlines = $this->parseInlineList())], $inlines),
             'Header' => $this->parseHeader(),
             'HorizontalRule' => new AstNode('horizontal_rule'),
+            'Null' => new AstNode('null_block'),
             'CodeBlock' => $this->parseCodeBlock(),
             'BlockQuote' => new AstNode('blockquote', [], $this->parseBlockList()),
             'BulletList' => $this->parseBulletList(),

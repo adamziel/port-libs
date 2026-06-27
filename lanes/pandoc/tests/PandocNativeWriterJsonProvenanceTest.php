@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
+use PortLibs\Pandoc\NativeReader;
 use PortLibs\Pandoc\NativeWriter;
 
 return [
@@ -72,5 +73,17 @@ return [
 
         $t->contains('Para [ Str "Plain" , Space , Str "native" , Space , Str "output" ]', $native);
         $t->throws(JsonException::class, static fn (): mixed => json_decode($native, true, 512, JSON_THROW_ON_ERROR));
+    },
+    'round trips null block through textual native output' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('horizontal_rule'),
+            new AstNode('null_block'),
+        ]);
+
+        $native = (new NativeWriter())->write($document);
+        $roundTrip = (new NativeReader())->read($native);
+
+        $t->same("[ HorizontalRule\n, Null\n]", $native);
+        $t->same(['horizontal_rule', 'null_block'], array_map(static fn (AstNode $node): string => $node->type, $roundTrip->children));
     },
 ];
