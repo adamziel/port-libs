@@ -972,6 +972,18 @@ CSS, $formatter->format(<<<'CSS'
   background: calc(var(--v) / 0.3);
 }
 CSS));
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_background lines 4418-4479.
+        $positionCases = [
+            '.foo { background-position: bottom left }' => "background-position: 0 100%;",
+            '.foo { background-position: left 10px center }' => "background-position: 10px;",
+            '.foo { background-position: center top 10px }' => "background-position: 50% 10px;",
+            '.foo { background-position: left 10px top 20px }' => "background-position: 10px 20px;",
+            '.foo { background-position: right center, center 10px }' => "background-position: 100%, 50% 10px;",
+        ];
+        foreach ($positionCases as $input => $expectedDeclaration) {
+            $t->same(".foo {\n  " . $expectedDeclaration . "\n}\n", $formatter->format($input));
+        }
     },
     'css formatter maps upstream border image printer cases' => static function (TestRunner $t): void {
         $formatter = new CssFormatter();

@@ -120,6 +120,42 @@ final class UpstreamRunnerEvidence
      *     command:string,
      *     status:string,
      *     exitCode:int,
+     *     artifact:string,
+     *     blocker:string,
+     *     output:string
+     * }
+     */
+    public static function generatedArtifactBlocker(
+        string $runner,
+        string $label,
+        string $command,
+        int $exitCode,
+        string $output
+    ): array {
+        $artifact = self::missingGeneratedArtifact($output);
+        if ($exitCode === 0 || $artifact === null) {
+            throw new InvalidArgumentException('Output does not contain a missing generated artifact diagnostic.');
+        }
+
+        return [
+            'runner' => $runner,
+            'label' => $label,
+            'command' => $command,
+            'status' => 'blocked',
+            'exitCode' => $exitCode,
+            'artifact' => $artifact,
+            'blocker' => "missing generated artifact {$artifact}",
+            'output' => self::compactOutput($output),
+        ];
+    }
+
+    /**
+     * @return array{
+     *     runner:string,
+     *     label:string,
+     *     command:string,
+     *     status:string,
+     *     exitCode:int,
      *     tool:string,
      *     blocker:string,
      *     output:string
@@ -132,7 +168,11 @@ final class UpstreamRunnerEvidence
         int $exitCode,
         string $output
     ): array {
-        if (!preg_match('/(?:^|\\s)([A-Za-z0-9_.-]+):\\s+command not found\\b/', $output, $matches)) {
+        if (preg_match('/(?:^|\\s)([A-Za-z0-9_.-]+):\\s+command not found\\b/', $output, $matches)) {
+            $tool = $matches[1];
+        } elseif (preg_match('/\\bcommand not found:\\s*([A-Za-z0-9_.-]+)/', $output, $matches)) {
+            $tool = $matches[1];
+        } else {
             throw new InvalidArgumentException('Output does not contain a shell command-not-found diagnostic.');
         }
 
@@ -142,8 +182,8 @@ final class UpstreamRunnerEvidence
             'command' => $command,
             'status' => 'blocked',
             'exitCode' => $exitCode,
-            'tool' => $matches[1],
-            'blocker' => "missing command {$matches[1]}",
+            'tool' => $tool,
+            'blocker' => "missing command {$tool}",
             'output' => self::compactOutput($output),
         ];
     }
@@ -206,6 +246,7 @@ final class UpstreamRunnerEvidence
      *     status:string,
      *     nodePackages:list<array{name:string,section:string,version:string,blocker:string}>,
      *     externalTools:list<array{name:string,package:string,scripts:list<string>,blocker:string}>,
+     *     generatedArtifacts:list<array{name:string,blocker:string}>,
      *     undeclared:list<string>,
      *     activationGate:string
      * }
@@ -219,6 +260,7 @@ final class UpstreamRunnerEvidence
         $scripts = self::packageScripts($packageJson);
         $nodePackagesByName = [];
         $externalToolsByName = [];
+        $generatedArtifactsByName = [];
         $undeclared = [];
 
         foreach ($records as $record) {
@@ -255,17 +297,27 @@ final class UpstreamRunnerEvidence
                     'blocker' => (string) ($record['blocker'] ?? ''),
                 ];
             }
+
+            $artifact = (string) ($record['artifact'] ?? '');
+            if ($artifact !== '' && !isset($generatedArtifactsByName[$artifact])) {
+                $generatedArtifactsByName[$artifact] = [
+                    'name' => $artifact,
+                    'blocker' => (string) ($record['blocker'] ?? ''),
+                ];
+            }
         }
 
         $nodePackages = array_values($nodePackagesByName);
         $externalTools = array_values($externalToolsByName);
+        $generatedArtifacts = array_values($generatedArtifactsByName);
 
         return [
-            'status' => $nodePackages === [] && $externalTools === [] ? 'complete' : 'blocked',
+            'status' => $nodePackages === [] && $externalTools === [] && $generatedArtifacts === [] ? 'complete' : 'blocked',
             'nodePackages' => $nodePackages,
             'externalTools' => $externalTools,
+            'generatedArtifacts' => $generatedArtifacts,
             'undeclared' => array_keys($undeclared),
-            'activationGate' => self::activationGateText($nodePackages, $externalTools),
+            'activationGate' => self::activationGateText($nodePackages, $externalTools, $generatedArtifacts),
         ];
     }
 
@@ -296,6 +348,21 @@ final class UpstreamRunnerEvidence
         }
 
         return null;
+    }
+
+    private static function missingGeneratedArtifact(string $output): ?string
+    {
+        $module = self::missingModuleName($output);
+        if ($module === null) {
+            return null;
+        }
+
+        $artifact = basename($module);
+        if (preg_match('/\\.(?:node|cjs|mjs|wasm)$/', $artifact) !== 1) {
+            return null;
+        }
+
+        return $artifact;
     }
 
     private static function compactOutput(string $output): string
@@ -405,10 +472,11 @@ final class UpstreamRunnerEvidence
     /**
      * @param list<array{name:string,section:string,version:string,blocker:string}> $nodePackages
      * @param list<array{name:string,package:string,scripts:list<string>,blocker:string}> $externalTools
+     * @param list<array{name:string,blocker:string}> $generatedArtifacts
      */
-    private static function activationGateText(array $nodePackages, array $externalTools): string
+    private static function activationGateText(array $nodePackages, array $externalTools, array $generatedArtifacts): string
     {
-        if ($nodePackages === [] && $externalTools === []) {
+        if ($nodePackages === [] && $externalTools === [] && $generatedArtifacts === []) {
             return 'No upstream runner dependencies are missing.';
         }
 
@@ -434,6 +502,14 @@ final class UpstreamRunnerEvidence
                 $tools[] = "{$tool['name']} via {$package}{$scripts}";
             }
             $parts[] = 'install external tools: ' . implode('; ', $tools);
+        }
+
+        if ($generatedArtifacts !== []) {
+            $artifacts = [];
+            foreach ($generatedArtifacts as $artifact) {
+                $artifacts[] = $artifact['name'];
+            }
+            $parts[] = 'generate artifacts: ' . implode('; ', $artifacts);
         }
 
         return ucfirst(implode('. Then ', $parts)) . '.';

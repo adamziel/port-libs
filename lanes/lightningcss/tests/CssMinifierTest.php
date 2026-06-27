@@ -453,6 +453,21 @@ CSS)
             $minifier->minify('.foo { border: none green }')
         );
     },
+    'css minifier maps upstream outline shorthand composition' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_outline lines 3143-3199.
+        $cases = [
+            [3143, '.foo { outline-width: 2px; outline-style: solid; outline-color: blue; }', '.foo{outline:2px solid #00f}'],
+            [3160, '.foo { outline: 2px solid blue; }', '.foo{outline:2px solid #00f}'],
+            [3174, '.foo { outline: 2px solid red; outline-color: blue; }', '.foo{outline:2px solid #00f}'],
+            [3189, '.foo { outline: 2px solid yellow; outline-color: var(--color); }', '.foo{outline:2px solid #ff0;outline-color:var(--color)}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_outline line ' . $line);
+        }
+    },
     'css minifier maps upstream basic color value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

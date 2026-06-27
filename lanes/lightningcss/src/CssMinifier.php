@@ -232,6 +232,7 @@ final class CssMinifier
         $css = $this->mergeAdjacentRuleBlocks($css);
         $css = $this->rewriteAllResetDeclarationBlocks($css);
         $css = $this->rewriteDisplayDeclarationBlocks($css);
+        $css = $this->composeOutlineDeclarationBlocks($css);
         $css = $this->composeContainerDeclarationBlocks($css);
         $css = $this->composePositionDeclarationBlocks($css);
         $css = $this->composeOverflowDeclarationBlocks($css);
@@ -12313,6 +12314,206 @@ final class CssMinifier
         }
 
         return $output;
+    }
+
+    private function composeOutlineDeclarationBlocks(string $css): string
+    {
+        if (stripos($css, 'outline') === false) {
+            return $css;
+        }
+
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $body = $this->composeOutlineDeclarationBlocks(substr($css, $open + 1, $close - $open - 1));
+            if (!str_contains($body, '{')) {
+                $body = $this->composeOutlineDeclarationList($body);
+            }
+
+            $output .= substr($css, $cursor, $open - $cursor + 1) . $body . '}';
+            $cursor = $close + 1;
+        }
+
+        return $output;
+    }
+
+    private function composeOutlineDeclarationList(string $body): string
+    {
+        if (stripos($body, 'outline') === false) {
+            return $body;
+        }
+
+        $entries = $this->parseDeclarationEntriesForComposition($body);
+        if ($entries === null) {
+            return $body;
+        }
+
+        $this->rewriteOutlineGroup($entries);
+
+        return $this->serializeDeclarationEntriesForComposition($entries);
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewriteOutlineGroup(array &$entries): void
+    {
+        $components = [
+            'width' => 'outline-width',
+            'style' => 'outline-style',
+            'color' => 'outline-color',
+        ];
+        $relevant = array_flip(array_merge(['outline'], array_values($components)));
+        $latest = [];
+        $lastShorthand = null;
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop'] || !isset($relevant[$entry['property']])) {
+                continue;
+            }
+            if ($entry['important'] || $this->containsCustomPropertyReference($entry['value'])) {
+                return;
+            }
+            if ($entry['property'] === 'outline') {
+                if ($this->parseOutlineComponents($entry['value']) === null) {
+                    return;
+                }
+                foreach ($latest as $previousIndex) {
+                    $entries[$previousIndex]['drop'] = true;
+                }
+                if ($lastShorthand !== null) {
+                    $entries[$lastShorthand]['drop'] = true;
+                }
+                $lastShorthand = $index;
+                $latest = [];
+                continue;
+            }
+            $latest[$entry['property']] = $index;
+        }
+
+        if ($lastShorthand !== null) {
+            $state = $this->parseOutlineComponents($entries[$lastShorthand]['value']);
+            if ($state === null) {
+                return;
+            }
+
+            foreach ($latest as $property => $index) {
+                if ($index < $lastShorthand) {
+                    continue;
+                }
+                $component = array_search($property, $components, true);
+                if ($component === false) {
+                    return;
+                }
+                $value = $this->normalizeOutlineComponentValue($component, $entries[$index]['value']);
+                if ($value === null) {
+                    return;
+                }
+                $state[$component] = $value;
+                $entries[$index]['drop'] = true;
+            }
+
+            $entries[$lastShorthand]['value'] = $this->serializeOutlineComponents($state);
+
+            return;
+        }
+
+        foreach ($components as $property) {
+            if (!isset($latest[$property])) {
+                return;
+            }
+        }
+
+        $replaceAt = min(array_values($latest));
+        $state = [];
+        foreach ($components as $component => $property) {
+            $value = $this->normalizeOutlineComponentValue($component, $entries[$latest[$property]]['value']);
+            if ($value === null) {
+                return;
+            }
+            $state[$component] = $value;
+            $entries[$latest[$property]]['drop'] = true;
+        }
+
+        $entries[$replaceAt] = [
+            'property' => 'outline',
+            'name' => 'outline',
+            'value' => $this->serializeOutlineComponents($state),
+            'important' => false,
+            'drop' => false,
+        ];
+    }
+
+    /**
+     * @return array{width:string,style:string,color:string}|null
+     */
+    private function parseOutlineComponents(string $value): ?array
+    {
+        $state = [];
+        foreach ($this->splitWhitespaceTopLevel(trim($value)) as $token) {
+            if (!isset($state['style']) && $this->isOutlineStyleToken($token)) {
+                $state['style'] = strtolower(trim($token));
+                continue;
+            }
+            if (!isset($state['width']) && $this->isBorderShorthandWidthToken($token)) {
+                $state['width'] = $this->minifyLengthToken($token);
+                continue;
+            }
+            if (!isset($state['color'])) {
+                $state['color'] = $this->minifyColorKeywords($token);
+                continue;
+            }
+
+            return null;
+        }
+
+        return isset($state['width'], $state['style'], $state['color'])
+            ? ['width' => $state['width'], 'style' => $state['style'], 'color' => $state['color']]
+            : null;
+    }
+
+    private function normalizeOutlineComponentValue(string $component, string $value): ?string
+    {
+        return match ($component) {
+            'width' => $this->isBorderShorthandWidthToken($value) ? $this->minifyLengthToken($value) : null,
+            'style' => $this->isOutlineStyleToken($value) ? strtolower(trim($value)) : null,
+            'color' => $this->minifyColorKeywords($value),
+            default => null,
+        };
+    }
+
+    private function isOutlineStyleToken(string $token): bool
+    {
+        return in_array(strtolower(trim($token)), [
+            'auto',
+            'none',
+            'hidden',
+            'dotted',
+            'dashed',
+            'solid',
+            'double',
+            'groove',
+            'ridge',
+            'inset',
+            'outset',
+        ], true);
+    }
+
+    /**
+     * @param array{width:string,style:string,color:string} $components
+     */
+    private function serializeOutlineComponents(array $components): string
+    {
+        return $components['width'] . ' ' . $components['style'] . ' ' . $components['color'];
     }
 
     private function composePositionDeclarationBlocks(string $css): string

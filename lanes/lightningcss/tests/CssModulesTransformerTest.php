@@ -1826,6 +1826,14 @@ CSS, [
             'base' => $export('EgL3uq_base'),
         ], $licenseNoCheck['exports']);
 
+        // Pinned upstream 22bdda3d src/lib.rs::test_selectors pure CSS Modules no-check license row.
+        $upstreamLicenseNoCheck = $transformer->transform(
+            '/*! some license */ /* cssmodules-pure-no-check */ :global(.foo) { color: red }',
+            ['pure' => true]
+        );
+        $t->same("/*! some license */\n.foo{color:red}", $upstreamLicenseNoCheck['code']);
+        $t->same([], $upstreamLicenseNoCheck['exports']);
+
         $localResult = $transformer->transform('div:has(.my-class) { color: red }', ['pure' => true]);
         $t->same([
             'my-class' => $export('EgL3uq_my-class'),

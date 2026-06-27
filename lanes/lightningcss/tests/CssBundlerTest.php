@@ -2678,6 +2678,7 @@ CSS,
         throw new RuntimeException('Expected external import order exception');
     },
     'css bundler preserves resolver marked external imports before bundled imports' => static function (TestRunner $t) use ($bundle): void {
+        $resolved = [];
         $resolver = static function (string $specifier, string $originatingFile): array {
             if ($specifier === './does_not_exist.css' || str_starts_with($specifier, 'https:')) {
                 return ['external' => $specifier];
@@ -2685,17 +2686,30 @@ CSS,
 
             return ['file' => rtrim(dirname($originatingFile), '/') . '/' . ltrim($specifier, './')];
         };
+        $recordingResolver = static function (string $specifier, string $originatingFile) use ($resolver, &$resolved): array {
+            $resolved[] = [$specifier, $originatingFile];
+
+            return $resolver($specifier, $originatingFile);
+        };
 
         $t->same(
             '@import "https://fonts.googleapis.com/css2?family=Roboto&display=swap";@import "./does_not_exist.css";.b{height:calc(100vh - 64px)}',
             $bundle([
                 '/a.css' => <<<'CSS'
-@import url("https://fonts.googleapis.com/css2?family=Roboto&display=swap");
+@import url('https://fonts.googleapis.com/css2?family=Roboto&display=swap');
 @import "./does_not_exist.css";
 @import "./b.css";
 CSS,
                 '/b.css' => '.b { height: calc(100vh - 64px); }',
-            ], '/a.css', $resolver)
+            ], '/a.css', $recordingResolver)
+        );
+        $t->same(
+            [
+                ['https://fonts.googleapis.com/css2?family=Roboto&display=swap', '/a.css'],
+                ['./does_not_exist.css', '/a.css'],
+                ['./b.css', '/a.css'],
+            ],
+            $resolved
         );
     },
     'css bundler serializes resolver marked external url quotes and backslashes like upstream strings' => static function (TestRunner $t) use ($bundle): void {
