@@ -2732,7 +2732,12 @@ final class PandocJsonWriter
      */
     private function validAttrTuple(mixed $value): ?array
     {
-        if (!is_array($value) || !array_is_list($value) || count($value) !== 3 || !is_string($value[0])) {
+        if (!is_array($value) || !array_is_list($value) || count($value) !== 3) {
+            return null;
+        }
+
+        $id = $this->validAttrString($value[0]);
+        if ($id === null) {
             return null;
         }
 
@@ -2742,7 +2747,8 @@ final class PandocJsonWriter
 
         $classes = [];
         foreach ($value[1] as $class) {
-            if (!is_string($class)) {
+            $class = $this->validAttrString($class);
+            if ($class === null) {
                 return null;
             }
             $classes[] = $class;
@@ -2754,13 +2760,27 @@ final class PandocJsonWriter
 
         $attributes = [];
         foreach ($value[2] as $pair) {
-            if (!is_array($pair) || !array_is_list($pair) || count($pair) !== 2 || !is_string($pair[0]) || !is_string($pair[1])) {
+            if (!is_array($pair) || !array_is_list($pair) || count($pair) !== 2) {
                 return null;
             }
-            $attributes[] = [$pair[0], $pair[1]];
+            $key = $this->validAttrString($pair[0]);
+            $attributeValue = $this->validAttrString($pair[1]);
+            if ($key === null || $attributeValue === null) {
+                return null;
+            }
+            $attributes[] = [$key, $attributeValue];
         }
 
-        return [$value[0], $classes, $attributes];
+        return [$id, $classes, $attributes];
+    }
+
+    private function validAttrString(mixed $value): ?string
+    {
+        while (is_array($value) && array_is_list($value) && count($value) === 1) {
+            $value = $value[0];
+        }
+
+        return is_string($value) ? $value : null;
     }
 
     /**

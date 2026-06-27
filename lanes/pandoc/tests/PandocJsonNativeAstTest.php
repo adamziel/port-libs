@@ -8987,6 +8987,69 @@ return [
             $t->same(['t' => 'Attr', 'c' => ['edited-heading', ['review'], [['data-source', 'json']]]], $editedNative['blocks'][0]['c'][1], "{$source} native writer regenerates edited Attr constructor");
         }
     },
+    'preserves single wrapped attr tuple strings through json and native writers' => static function (TestRunner $t): void {
+        $headingAttr = ['t' => 'Attr', 'c' => [[['wrapped-heading'], [['review'], ['source']], [[['data-source'], ['json']], [['data-state'], ['draft']]]]], 'reviewQueue' => 'wrapped-heading-attr'];
+        $linkAttr = [['wrapped-link'], [['external']], [[['data-link'], ['source']]]];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Header', 'c' => [
+                    2,
+                    $headingAttr,
+                    [['t' => 'Str', 'c' => 'Wrapped attr']],
+                ]],
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Link', 'c' => [
+                        $linkAttr,
+                        [['t' => 'Str', 'c' => 'source']],
+                        ['https://example.test/source', 'Source'],
+                    ]],
+                ]],
+            ],
+        ];
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $heading = $document->children[0];
+            $link = $document->children[1]->children[0];
+
+            $t->same('wrapped-heading', $heading->attr('id'), "{$source} unwraps attr id string");
+            $t->same(['review', 'source'], $heading->attr('classes'), "{$source} unwraps attr classes");
+            $t->same(['data-source' => 'json', 'data-state' => 'draft'], $heading->attr('attributes'), "{$source} unwraps attr key-values");
+            $t->same($headingAttr, $heading->attr('attrNative'), "{$source} keeps tagged wrapped attr payload");
+            $t->same($linkAttr, $link->attr('attrNative'), "{$source} keeps untagged wrapped attr payload");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($document),
+                'native' => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same($headingAttr, $encoded['blocks'][0]['c'][1], "{$source} {$writer} preserves wrapped heading Attr constructor");
+                $t->same($linkAttr, $encoded['blocks'][1]['c'][0]['c'][0], "{$source} {$writer} preserves wrapped link attr tuple");
+            }
+
+            $edited = new AstNode('document', $document->attrs, [
+                new AstNode('heading', array_replace($heading->attrs, [
+                    'id' => 'edited-heading',
+                ]), $heading->children),
+                new AstNode('paragraph', [], [
+                    new AstNode('link', array_replace($link->attrs, [
+                        'attributes' => ['data-link' => 'edited'],
+                    ]), $link->children),
+                ]),
+            ]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($edited),
+                'native' => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same(['t' => 'Attr', 'c' => [['edited-heading', ['review', 'source'], [['data-source', 'json'], ['data-state', 'draft']]]], 'reviewQueue' => 'wrapped-heading-attr'], $encoded['blocks'][0]['c'][1], "{$source} {$writer} regenerates edited wrapped heading Attr constructor");
+                $t->same(['wrapped-link', ['external'], [['data-link', 'edited']]], $encoded['blocks'][1]['c'][0]['c'][0], "{$source} {$writer} regenerates edited wrapped link attr tuple");
+            }
+        }
+    },
     'preserves native-reader tagged attr sidecars when regenerating edited constructors' => static function (TestRunner $t): void {
         $codeBlockAttr = ['t' => 'Attr', 'c' => [
             'native-code',
