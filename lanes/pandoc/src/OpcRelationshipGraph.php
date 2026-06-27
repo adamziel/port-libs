@@ -861,6 +861,7 @@ final class OpcRelationshipGraph
         $fileEntryCount = 0;
         $directoryEntryCount = 0;
         $packagePartCount = 0;
+        $extensionlessPackagePartCount = 0;
         $fileCompressedBytes = 0;
         $fileUncompressedBytes = 0;
         $directoryCompressedBytes = 0;
@@ -879,7 +880,6 @@ final class OpcRelationshipGraph
         $missingContentTypePartCount = 0;
         $missingContentTypeDefaultCount = 0;
         $missingContentTypeExtensionlessCount = 0;
-        $extensionlessPackagePartCount = 0;
         $missingContentTypeParts = [];
         $missingContentTypeExtensions = [];
         $documentPropertyPartCount = 0;
@@ -1522,10 +1522,14 @@ final class OpcRelationshipGraph
         $entryNamesByCompressionMethod = [];
         $compressionMethodNamesByRole = [];
         $compressionMethodNamesByHandoffKind = [];
+        $packagePartExtensionCounts = [];
+        $entryNamesByPackagePartExtension = [];
+        $packagePartExtensionSummariesByExtension = [];
         $relationshipParts = [];
         $fileEntryCount = 0;
         $directoryEntryCount = 0;
         $packagePartCount = 0;
+        $extensionlessPackagePartCount = 0;
         $fileCompressedBytes = 0;
         $fileUncompressedBytes = 0;
         $directoryCompressedBytes = 0;
@@ -1578,6 +1582,26 @@ final class OpcRelationshipGraph
             }
             if ($entry['isPackagePart']) {
                 $packagePartCount++;
+            }
+            if ($entry['isPackagePart'] && is_string($entry['partName'])) {
+                $extension = self::partNameExtension($entry['partName']);
+                $extensionKey = $extension === '' ? '(none)' : $extension;
+                if ($extension === '') {
+                    $extensionlessPackagePartCount++;
+                }
+                $packagePartExtensionCounts[$extensionKey] = ($packagePartExtensionCounts[$extensionKey] ?? 0) + 1;
+                $entryNamesByPackagePartExtension[$extensionKey] ??= [];
+                self::appendUniqueString($entryNamesByPackagePartExtension[$extensionKey], $entry['entryName']);
+
+                $extensionSummaryEntry = $entry;
+                $extensionSummaryEntry['compressedSize'] = $entry['byteCountsAreExact'] ? (int) $exactCompressedSize : 0;
+                $extensionSummaryEntry['uncompressedSize'] = $entry['byteCountsAreExact'] ? (int) $exactUncompressedSize : 0;
+                self::recordZipEntryManifestExtensionSummary(
+                    $packagePartExtensionSummariesByExtension,
+                    $extensionKey,
+                    $extension === '' ? null : $extension,
+                    $extensionSummaryEntry,
+                );
             }
 
             $roleCounts[$entry['role']] = ($roleCounts[$entry['role']] ?? 0) + 1;
@@ -1712,6 +1736,9 @@ final class OpcRelationshipGraph
         ksort($roleCounts);
         ksort($byteCountsByRole);
         ksort($byteCountsByHandoffKind);
+        ksort($packagePartExtensionCounts, SORT_STRING);
+        self::sortStringListMap($entryNamesByPackagePartExtension);
+        $packagePartExtensionSummaries = self::zipEntryManifestContentSummaries($packagePartExtensionSummariesByExtension);
         self::sortZipManifestCompressionMethodProvenance(
             $compressionMethodCounts,
             $entryNamesByCompressionMethod,
@@ -1755,6 +1782,10 @@ final class OpcRelationshipGraph
             'directoryCompressedBytes' => $directoryCompressedBytes,
             'directoryUncompressedBytes' => $directoryUncompressedBytes,
             'contentTypesItemCount' => count($contentTypesItems),
+            'extensionlessPackagePartCount' => $extensionlessPackagePartCount,
+            'packagePartExtensionCounts' => $packagePartExtensionCounts,
+            'entryNamesByPackagePartExtension' => $entryNamesByPackagePartExtension,
+            'packagePartExtensionSummaries' => $packagePartExtensionSummaries,
             'equivalentPackagePartNameGroupCount' => count($equivalentPackagePartNameGroups),
             'equivalentPackagePartNameEntryCount' => $equivalentPackagePartNameEntryCount,
             'relationshipPartCount' => $relationshipPartCount,

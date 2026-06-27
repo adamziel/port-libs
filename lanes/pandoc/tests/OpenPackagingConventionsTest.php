@@ -927,7 +927,7 @@ XML;
   <Override PartName="/customXml/item1" ContentType="application/xml"/>
 </Types>
 XML;
-        $package = ZipPackage::fromParts([
+        $parts = [
             ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'compressionMethod' => 0],
             ['name' => '_rels/.rels', 'data' => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"/>', 'compressionMethod' => 0],
             ['name' => 'word/document.xml', 'data' => '<w:document/>', 'compressionMethod' => 0],
@@ -937,16 +937,24 @@ XML;
             ['name' => 'word/embeddings/source.DOCX', 'data' => 'DOCXDATA', 'compressionMethod' => 0],
             ['name' => 'customXml/item1', 'data' => '<audit/>', 'compressionMethod' => 0],
             ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>', 'compressionMethod' => 0],
-        ]);
+        ];
 
+        $package = ZipPackage::fromParts($parts);
         $summary = OpcRelationshipGraph::preflightZipEntryManifest($package);
+        $rawSummary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest(ZipPackage::build($parts));
         $extensionSummaries = [];
         foreach ($summary['packagePartExtensionSummaries'] as $extensionSummary) {
             $extensionSummaries[$extensionSummary['extensionKey']] = $extensionSummary;
         }
+        $rawExtensionSummaries = [];
+        foreach ($rawSummary['packagePartExtensionSummaries'] as $extensionSummary) {
+            $rawExtensionSummaries[$extensionSummary['extensionKey']] = $extensionSummary;
+        }
 
         $t->same(true, $summary['valid']);
+        $t->same(true, $rawSummary['valid']);
         $t->same(1, $summary['extensionlessPackagePartCount']);
+        $t->same(1, $rawSummary['extensionlessPackagePartCount']);
         $t->same([
             '(none)' => 1,
             'docx' => 1,
@@ -955,9 +963,11 @@ XML;
             'svg' => 1,
             'xml' => 3,
         ], $summary['packagePartExtensionCounts']);
+        $t->same($summary['packagePartExtensionCounts'], $rawSummary['packagePartExtensionCounts']);
         $t->same([
             'customXml/item1',
         ], $summary['entryNamesByPackagePartExtension']['(none)']);
+        $t->same($summary['entryNamesByPackagePartExtension'], $rawSummary['entryNamesByPackagePartExtension']);
         $t->same([
             '[Content_Types].xml',
             'docProps/core.xml',
@@ -970,6 +980,13 @@ XML;
         $t->same([
             'xml' => 1,
         ], $extensionSummaries['(none)']['handoffKindCounts']);
+        $t->same(null, $rawExtensionSummaries['(none)']['extension']);
+        $t->same([
+            'binary-part' => 1,
+        ], $rawExtensionSummaries['(none)']['roleCounts']);
+        $t->same([
+            'binary' => 1,
+        ], $rawExtensionSummaries['(none)']['handoffKindCounts']);
         $t->same([
             'content-types' => 1,
             'document-properties' => 1,
@@ -979,10 +996,13 @@ XML;
             'content-types+xml' => 1,
             'xml' => 2,
         ], $extensionSummaries['xml']['handoffKindCounts']);
+        $t->same($extensionSummaries['xml'], $rawExtensionSummaries['xml']);
         $t->same([
             'embedded-package-candidate' => 1,
         ], $extensionSummaries['docx']['roleCounts']);
+        $t->same($extensionSummaries['docx'], $rawExtensionSummaries['docx']);
         $t->same(2, $summary['roleCounts']['media']);
+        $t->same(2, $rawSummary['roleCounts']['media']);
     },
     'summarizes OPC ZIP manifest compression provenance before XML package handoff' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
