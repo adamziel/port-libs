@@ -1995,6 +1995,111 @@ XML);
             'biblatex-options' => ['skipbib=true', ['nested']],
         ]]));
     },
+    'maps standalone biblatex entry option fields into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{field-option-manual,
+  author         = {Rao, Mira},
+  title          = {Field Option Manual},
+  date           = {2026},
+  publisher      = {Review Press},
+  options        = {skipbib=false, useauthor=true, maxnames=3},
+  labeldateparts = {year},
+  skipbib        = {true},
+  sortlocale     = {de-DE},
+  useauthor      = {false},
+  useeditor      = {true},
+  uniquelist     = {minyear},
+  uniquename     = {init}
+}
+
+@book{field-option-visible,
+  author    = {Kim, Lin},
+  title     = {Visible Field Options},
+  date      = {2025},
+  publisher = {Review Press},
+  dataonly  = {false},
+  skiplab   = {true},
+  useprefix = {true}
+}
+
+@misc{field-option-data,
+  title    = {Standalone Data Only Options},
+  date     = {2024},
+  dataonly = {true}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('field-option-manual', $items[0]['id']);
+        $t->same([
+            'maxnames=3',
+            'labeldateparts=year',
+            'skipbib=true',
+            'sortlocale=de-DE',
+            'useauthor=false',
+            'useeditor=true',
+            'uniquelist=minyear',
+            'uniquename=init',
+        ], $items[0]['biblatex-options'] ?? null);
+        $t->same([
+            'dataonly=false',
+            'skiplab=true',
+            'useprefix=true',
+        ], $items[1]['biblatex-options'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $manual = $processor->item('field-option-manual');
+        $t->same(true, $manual['biblatexSkipBibliography'] ?? null);
+        $t->same('omit', $manual['biblatexBibliographyVisibility'] ?? null);
+        $t->same(
+            'maxnames=3; labeldateparts=year; skipbib=true; sortlocale=de-DE; useauthor=false; useeditor=true; uniquelist=minyear; uniquename=init',
+            $manual['biblatexOptionSummary'] ?? null
+        );
+        $t->same(
+            'Rao, Mira. Field Option Manual. Review Press, 2026. BibLaTeX options: maxnames=3; labeldateparts=year; skipbib=true; sortlocale=de-DE; useauthor=false; useeditor=true; uniquelist=minyear; uniquename=init.',
+            $processor->renderBibliographyEntry('field-option-manual')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="biblatex-option-summary"/>
+        <text variable="skipbib"/>
+        <text variable="biblatex-bibliography-visibility"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout>
+      <group delimiter=" :: ">
+        <text variable="title"/>
+        <text variable="biblatex-option-summary"/>
+        <text variable="biblatex-bibliography-visibility"/>
+      </group>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same(
+            'Field Option Manual | maxnames=3; labeldateparts=year; skipbib=true; sortlocale=de-DE; useauthor=false; useeditor=true; uniquelist=minyear; uniquename=init | true | omit',
+            $styled->renderCitationCluster([$citation('field-option-manual', '[@field-option-manual]')])
+        );
+        $t->same(
+            'Visible Field Options :: dataonly=false; skiplab=true; useprefix=true :: include',
+            $styled->renderBibliographyEntry('field-option-visible')
+        );
+
+        $document = (new MarkdownReader())->read('Standalone field options @field-option-manual and @field-option-visible preserve entry switches.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<dt>Kim 2025</dt><dd>Kim, Lin. Visible Field Options. Review Press, 2025. BibLaTeX options: dataonly=false; skiplab=true; useprefix=true.</dd>', $blocks);
+        $t->true(!str_contains($blocks, '<dt>Rao 2026</dt>'), 'standalone skipbib=true entries must not be appended to the bibliography');
+        $t->true(!str_contains($blocks, 'Standalone Data Only Options'), 'standalone dataonly=true entries must not become CSL items');
+    },
     'omits bounded biblatex skipbib entries from appended bibliographies' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{visible-manual,
@@ -7188,6 +7293,16 @@ XML);
   date       = {2026}
 }
 
+@unpublished{hyphen-event-talk,
+  author      = {Roe, Pat},
+  title       = {Hyphen Event Review},
+  type        = {Keynote},
+  event-title = {CSL Alias Forum},
+  event-date  = {2025-05-02},
+  venue       = {Remote Hall},
+  date        = {2025}
+}
+
 @unpublished{field-note,
   author = {Ng, Nia},
   title  = {Unpublished Field Notes},
@@ -7196,31 +7311,50 @@ XML);
 BIB;
 
         $items = CitationCslProcessor::bibtexItems($bibtex);
-        $t->same(2, count($items));
+        $t->same(3, count($items));
         $t->same('speech', $items[0]['type'] ?? null);
         $t->same('Paper', $items[0]['genre'] ?? null);
         $t->same('WordPress Import Summit', $items[0]['event'] ?? null);
         $t->same('Portland', $items[0]['event-place'] ?? null);
         $t->same(['date-parts' => [[2026, 6, 4]]], $items[0]['event-date'] ?? null);
-        $t->same('manuscript', $items[1]['type'] ?? null);
-        $t->same('', $items[1]['event'] ?? null);
+        $t->same('speech', $items[1]['type'] ?? null);
+        $t->same('Keynote', $items[1]['genre'] ?? null);
+        $t->same('CSL Alias Forum', $items[1]['event'] ?? null);
+        $t->same('Remote Hall', $items[1]['event-place'] ?? null);
+        $t->same('', $items[1]['publisher-place'] ?? null);
+        $t->same(['date-parts' => [[2025, 5, 2]]], $items[1]['event-date'] ?? null);
+        $t->same('CSL Alias Forum', $items[1]['rawBibtex']['fields']['event-title'] ?? null);
+        $t->same('manuscript', $items[2]['type'] ?? null);
+        $t->same('', $items[2]['event'] ?? null);
 
         $processor = CitationCslProcessor::fromBibtex($bibtex);
         $talk = $processor->item('migration-talk');
+        $hyphenTalk = $processor->item('hyphen-event-talk');
         $note = $processor->item('field-note');
         $t->same('speech', $talk['type'] ?? null);
         $t->same('Paper', $talk['genre'] ?? null);
         $t->same('WordPress Import Summit', $talk['eventTitle'] ?? null);
         $t->same('Portland', $talk['eventPlace'] ?? null);
         $t->same('2026-06-04', $talk['eventDate']['display'] ?? null);
+        $t->same('speech', $hyphenTalk['type'] ?? null);
+        $t->same('Keynote', $hyphenTalk['genre'] ?? null);
+        $t->same('CSL Alias Forum', $hyphenTalk['eventTitle'] ?? null);
+        $t->same('Remote Hall', $hyphenTalk['eventPlace'] ?? null);
+        $t->same('', $hyphenTalk['publisherPlace'] ?? null);
+        $t->same('2025-05-02', $hyphenTalk['eventDate']['display'] ?? null);
         $t->same('manuscript', $note['type'] ?? null);
-        $t->same('(Curator 2026; Ng 2025)', $processor->renderCitationCluster([
+        $t->same('(Curator 2026; Roe 2025; Ng 2025)', $processor->renderCitationCluster([
             $citation('migration-talk', '[@migration-talk]'),
+            $citation('hyphen-event-talk', '[@hyphen-event-talk]'),
             $citation('field-note', '[@field-note]'),
         ]));
         $t->same(
             'Curator, Eli. Migration Review Talk. Event: WordPress Import Summit. Event place: Portland. Event date 2026-06-04. 2026.',
             $processor->renderBibliographyEntry('migration-talk')
+        );
+        $t->same(
+            'Roe, Pat. Hyphen Event Review. Event: CSL Alias Forum. Event place: Remote Hall. Event date 2025-05-02. 2025.',
+            $processor->renderBibliographyEntry('hyphen-event-talk')
         );
         $t->same('Ng, Nia. Unpublished Field Notes. 2025.', $processor->renderBibliographyEntry('field-note'));
 
@@ -7260,17 +7394,20 @@ BIB;
   </bibliography>
 </style>
 XML);
-        $t->same('[speech | Migration Review Talk | WordPress Import Summit | Paper | Portland | 2026-06-04; manuscript | Unpublished Field Notes]', $styled->renderCitationCluster([
+        $t->same('[speech | Migration Review Talk | WordPress Import Summit | Paper | Portland | 2026-06-04; speech | Hyphen Event Review | CSL Alias Forum | Keynote | Remote Hall | 2025-05-02; manuscript | Unpublished Field Notes]', $styled->renderCitationCluster([
             $citation('migration-talk', '[@migration-talk]'),
+            $citation('hyphen-event-talk', '[@hyphen-event-talk]'),
             $citation('field-note', '[@field-note]'),
         ]));
         $t->same('speech :: Migration Review Talk :: WordPress Import Summit :: Paper :: 2026-06-04', $styled->renderBibliographyEntry('migration-talk'));
+        $t->same('speech :: Hyphen Event Review :: CSL Alias Forum :: Keynote :: 2025-05-02', $styled->renderBibliographyEntry('hyphen-event-talk'));
         $t->same('manuscript :: Unpublished Field Notes', $styled->renderBibliographyEntry('field-note'));
 
-        $document = (new MarkdownReader())->read('Presentation source @migration-talk and field note [@field-note] keep unpublished entry intent.');
+        $document = (new MarkdownReader())->read('Presentation source @migration-talk, alias source @hyphen-event-talk, and field note [@field-note] keep unpublished entry intent.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
-        $t->contains('<p>Presentation source Curator (2026) and field note (Ng 2025) keep unpublished entry intent.</p>', $blocks);
+        $t->contains('<p>Presentation source Curator (2026), alias source Roe (2025), and field note (Ng 2025) keep unpublished entry intent.</p>', $blocks);
         $t->contains('<dt>Curator 2026</dt><dd>Curator, Eli. Migration Review Talk. Event: WordPress Import Summit. Event place: Portland. Event date 2026-06-04. 2026.</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Roe, Pat. Hyphen Event Review. Event: CSL Alias Forum. Event place: Remote Hall. Event date 2025-05-02. 2025.</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Unpublished Field Notes. 2025.</dd>', $blocks);
     },
     'maps bounded biblatex presentation aliases into csl speech conditionals' => static function (TestRunner $t) use ($citation): void {

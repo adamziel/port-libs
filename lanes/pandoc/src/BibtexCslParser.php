@@ -9,6 +9,38 @@ final class BibtexCslParser
     private const BIBLATEX_CUSTOM_FIELDS = ['usera', 'userb', 'userc', 'userd', 'usere', 'userf', 'verba', 'verbb', 'verbc'];
     private const BIBLATEX_CUSTOM_LIST_FIELDS = ['lista', 'listb', 'listc', 'listd', 'liste', 'listf'];
     private const BIBLATEX_CUSTOM_NAME_FIELDS = ['namea', 'nameb', 'namec'];
+
+    /** @var array<string, string> */
+    private const BIBLATEX_ENTRY_OPTION_FIELDS = [
+        'dashed' => 'dashed',
+        'data-only' => 'dataonly',
+        'dataonly' => 'dataonly',
+        'label-date-parts' => 'labeldateparts',
+        'labeldateparts' => 'labeldateparts',
+        'maxitems' => 'maxitems',
+        'maxnames' => 'maxnames',
+        'minitems' => 'minitems',
+        'minnames' => 'minnames',
+        'skip-bib' => 'skipbib',
+        'skip-lab' => 'skiplab',
+        'skipbib' => 'skipbib',
+        'skiplab' => 'skiplab',
+        'sort-locale' => 'sortlocale',
+        'sortlocale' => 'sortlocale',
+        'use-author' => 'useauthor',
+        'use-editor' => 'useeditor',
+        'use-prefix' => 'useprefix',
+        'use-translator' => 'usetranslator',
+        'useauthor' => 'useauthor',
+        'useeditor' => 'useeditor',
+        'useprefix' => 'useprefix',
+        'usetranslator' => 'usetranslator',
+        'unique-list' => 'uniquelist',
+        'unique-name' => 'uniquename',
+        'uniquelist' => 'uniquelist',
+        'uniquename' => 'uniquename',
+    ];
+
     private const BIBLATEX_NAME_ANNOTATION_FIELDS = [
         'author',
         'editor',
@@ -494,7 +526,8 @@ final class BibtexCslParser
      */
     private static function isDataOnlyEntry(array $entry): bool
     {
-        return self::hasDataOnlyOption($entry['fields']['options'] ?? '');
+        return self::hasDataOnlyOption($entry['fields']['options'] ?? '')
+            || self::truthyBiblatexOptionField($entry['fields'], ['dataonly', 'data-only']);
     }
 
     private static function hasDataOnlyOption(string $options): bool
@@ -932,7 +965,7 @@ final class BibtexCslParser
             $item['biblatex-field-annotations'] = $biblatexFieldAnnotations;
         }
 
-        $biblatexOptions = self::biblatexOptionList($fields['options'] ?? '');
+        $biblatexOptions = self::biblatexEntryOptions($fields);
         if ($biblatexOptions !== []) {
             $item['biblatex-options'] = $biblatexOptions;
         }
@@ -1420,7 +1453,7 @@ final class BibtexCslParser
     private static function cslTypeForEntry(string $type, array $fields): string
     {
         $entryType = strtolower($type);
-        if ($entryType === 'unpublished' && self::firstField($fields, ['eventtitle']) !== '') {
+        if ($entryType === 'unpublished' && self::firstField($fields, ['eventtitle', 'event-title', 'event']) !== '') {
             return 'speech';
         }
 
@@ -1450,7 +1483,7 @@ final class BibtexCslParser
             return true;
         }
 
-        return $entryType === 'unpublished' && self::firstField($fields, ['eventtitle']) !== '';
+        return $entryType === 'unpublished' && self::firstField($fields, ['eventtitle', 'event-title', 'event']) !== '';
     }
 
     /**
@@ -1651,6 +1684,60 @@ final class BibtexCslParser
             ),
             static fn (string $option): bool => $option !== ''
         ));
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @return list<string>
+     */
+    private static function biblatexEntryOptions(array $fields): array
+    {
+        $options = self::biblatexOptionList($fields['options'] ?? '');
+
+        foreach (self::BIBLATEX_ENTRY_OPTION_FIELDS as $field => $optionName) {
+            if (!isset($fields[$field])) {
+                continue;
+            }
+
+            $value = self::cleanBibtexText($fields[$field]);
+            if ($value === '') {
+                continue;
+            }
+
+            self::appendOrReplaceBiblatexOption($options, $optionName, $value);
+        }
+
+        return $options;
+    }
+
+    /**
+     * @param list<string> $options
+     */
+    private static function appendOrReplaceBiblatexOption(array &$options, string $name, string $value): void
+    {
+        $normalizedName = self::normalizedBiblatexOptionName($name);
+        $options = array_values(array_filter(
+            $options,
+            static fn (string $option): bool => self::normalizedBiblatexOptionName(explode('=', $option, 2)[0]) !== $normalizedName
+        ));
+
+        $options[] = $name . '=' . $value;
+    }
+
+    private static function normalizedBiblatexOptionName(string $name): string
+    {
+        return strtolower(str_replace('_', '-', trim($name)));
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @param list<string> $names
+     */
+    private static function truthyBiblatexOptionField(array $fields, array $names): bool
+    {
+        $value = strtolower(str_replace('_', '-', self::firstField($fields, $names)));
+
+        return in_array($value, ['1', 'true', 'yes', 'on'], true);
     }
 
     /**
