@@ -5221,8 +5221,117 @@ return [
                     ]),
                 ])), true, 512, JSON_THROW_ON_ERROR),
             ] as $writer => $encoded) {
-                $t->same(['https://example.test/edited', 'Tagged source'], $encoded['blocks'][0]['c'][0]['c'][2], "{$source} {$writer} edited link target drops tagged sidecar");
-                $t->same(['media/tagged-cover.png', 'Edited tagged cover'], $encoded['blocks'][0]['c'][2]['c'][2], "{$source} {$writer} edited image target drops tagged sidecar");
+                $t->same([
+                    't' => 'Target',
+                    'c' => ['https://example.test/edited', 'Tagged source'],
+                    'reviewQueue' => 'target-link-constructor',
+                ], $encoded['blocks'][0]['c'][0]['c'][2], "{$source} {$writer} edited link target preserves tagged constructor");
+                $t->same([
+                    't' => 'Target',
+                    'c' => [['media/tagged-cover.png', 'Edited tagged cover']],
+                    'reviewQueue' => 'target-image-constructor',
+                ], $encoded['blocks'][0]['c'][2]['c'][2], "{$source} {$writer} edited image target preserves tagged constructor");
+            }
+        }
+    },
+    'regenerates edited tagged target constructors without stale tuple sidecars' => static function (TestRunner $t): void {
+        $directTarget = [
+            't' => 'Target',
+            'c' => [
+                'https://example.test/direct',
+                'Direct title',
+                ['sourceOrdinal' => 41, 'reviewQueue' => 'direct-target-tuple'],
+            ],
+            'reviewQueue' => 'direct-target-constructor',
+        ];
+        $singleWrappedTarget = [
+            't' => 'Target',
+            'c' => [[
+                'media/single.png',
+                'Single title',
+                ['sourceOrdinal' => 42, 'reviewQueue' => 'single-target-tuple'],
+            ]],
+            'reviewQueue' => 'single-target-constructor',
+        ];
+        $listWrappedTarget = [[
+            't' => 'Target',
+            'c' => [
+                'media/list.png',
+                'List title',
+                ['sourceOrdinal' => 43, 'reviewQueue' => 'list-target-tuple'],
+            ],
+            'reviewQueue' => 'list-target-constructor',
+        ]];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Link', 'c' => [
+                        ['', [], []],
+                        [['t' => 'Str', 'c' => 'direct']],
+                        $directTarget,
+                    ]],
+                    ['t' => 'Space'],
+                    ['t' => 'Image', 'c' => [
+                        ['', [], []],
+                        [['t' => 'Str', 'c' => 'single']],
+                        $singleWrappedTarget,
+                    ]],
+                    ['t' => 'Space'],
+                    ['t' => 'Image', 'c' => [
+                        ['', [], []],
+                        [['t' => 'Str', 'c' => 'list']],
+                        $listWrappedTarget,
+                    ]],
+                ]],
+            ],
+        ];
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $paragraph = $document->children[0];
+            $direct = $paragraph->children[0];
+            $single = $paragraph->children[2];
+            $list = $paragraph->children[4];
+            $edited = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', [], [
+                    new AstNode('link', array_replace($direct->attrs, ['url' => 'https://example.test/direct-edited']), $direct->children),
+                    new AstNode('space'),
+                    new AstNode('image', array_replace($single->attrs, ['title' => 'Single edited']), $single->children),
+                    new AstNode('space'),
+                    new AstNode('image', array_replace($list->attrs, [
+                        'url' => 'media/list-edited.png',
+                        'title' => 'List edited',
+                    ]), $list->children),
+                ]),
+            ]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($edited),
+                'native' => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedDirect = $encoded['blocks'][0]['c'][0]['c'][2];
+                $encodedSingle = $encoded['blocks'][0]['c'][2]['c'][2];
+                $encodedList = $encoded['blocks'][0]['c'][4]['c'][2];
+
+                $t->same([
+                    't' => 'Target',
+                    'c' => ['https://example.test/direct-edited', 'Direct title'],
+                    'reviewQueue' => 'direct-target-constructor',
+                ], $encodedDirect, "{$source} {$writer} regenerates direct Target content");
+                $t->same([
+                    't' => 'Target',
+                    'c' => [['media/single.png', 'Single edited']],
+                    'reviewQueue' => 'single-target-constructor',
+                ], $encodedSingle, "{$source} {$writer} regenerates single-wrapped Target content");
+                $t->same([[
+                    't' => 'Target',
+                    'c' => ['media/list-edited.png', 'List edited'],
+                    'reviewQueue' => 'list-target-constructor',
+                ]], $encodedList, "{$source} {$writer} regenerates list-wrapped Target content");
             }
         }
     },
