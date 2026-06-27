@@ -1198,7 +1198,7 @@ return [
         );
         $parts['customXml/root-review.xml'] = <<<'XML'
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<pkg:packet xmlns:pkg="urn:example:package-root" xmlns:meta="urn:example:package-meta" review="ready">
+<pkg:packet xmlns:pkg="urn:example:package-root" xmlns:meta="urn:example:package-meta" review="ready" meta:scope="package" xml:lang="en">
   <meta:title>Package root review</meta:title>
 </pkg:packet>
 XML;
@@ -1251,6 +1251,17 @@ XML;
             'packet' => 1,
             'styles' => 1,
         ], $summary['partXmlRootLocalNameCounts']);
+        $t->same(3, $summary['partXmlRootAttributeCount']);
+        $t->same(1, $summary['partXmlRootAttributePartCount']);
+        $t->same(3, $summary['partXmlRootAttributeNameCount']);
+        $t->same([
+            'meta:scope' => 1,
+            'review' => 1,
+            'xml:lang' => 1,
+        ], $summary['partXmlRootAttributeNameCounts']);
+        $t->same(['meta:scope', 'review', 'xml:lang'], $summary['partXmlRootAttributeNames']);
+        $t->same(strlen('package') + strlen('ready') + strlen('en'), $summary['partXmlRootAttributeValueByteLength']);
+        $t->same(['customXml/root-review.xml'], $summary['partXmlRootAttributePartNames']);
 
         $contentTypes = $byPartName['[Content_Types].xml'];
         $t->same(true, $contentTypes['validXml']);
@@ -1279,7 +1290,14 @@ XML;
         $t->same('packet', $custom['rootLocalName']);
         $t->same('pkg:packet', $custom['rootQualifiedName']);
         $t->same('pkg', $custom['rootPrefix']);
-        $t->same(1, $custom['rootAttributeCount']);
+        $t->same(3, $custom['rootAttributeCount']);
+        $t->same(['meta:scope', 'review', 'xml:lang'], $custom['rootAttributeNames']);
+        $t->same([
+            'meta:scope' => 1,
+            'review' => 1,
+            'xml:lang' => 1,
+        ], $custom['rootAttributeNameCounts']);
+        $t->same(strlen('package') + strlen('ready') + strlen('en'), $custom['rootAttributeValueByteLength']);
         $t->same(2, $custom['rootNamespaceDeclarationCount']);
         $t->same(['pkg', 'meta'], $custom['rootNamespacePrefixes']);
         $t->same(true, $custom['xmlDeclarationPresent']);
@@ -1289,7 +1307,29 @@ XML;
         $t->same(3, $custom['xmlDeclarationAttributeCount']);
         $t->same(hash('sha256', $parts['customXml/root-review.xml']), $inventory['customXml/root-review.xml']['sha256']);
         $t->same('pkg:packet', $inventory['customXml/root-review.xml']['rootQualifiedName']);
+        $t->same(['meta:scope', 'review', 'xml:lang'], $inventory['customXml/root-review.xml']['rootAttributeNames']);
+        $t->same(strlen('package') + strlen('ready') + strlen('en'), $inventory['customXml/root-review.xml']['rootAttributeValueByteLength']);
         $t->same(false, $inventory['customXml/root-review.xml']['xmlDeclarationStandalone']);
+
+        $attributesByName = [];
+        foreach ($summary['partXmlRootAttributes'] as $attribute) {
+            $attributesByName[$attribute['name']] = $attribute;
+        }
+        $t->same('customXml/root-review.xml', $attributesByName['review']['partName']);
+        $t->same(null, $attributesByName['review']['prefix']);
+        $t->same(null, $attributesByName['review']['namespace']);
+        $t->same('review', $attributesByName['review']['localName']);
+        $t->same(strlen('ready'), $attributesByName['review']['valueByteLength']);
+        $t->same(sprintf('%08x', crc32('ready')), $attributesByName['review']['valueCrc32']);
+        $t->same(hash('sha256', 'ready'), $attributesByName['review']['valueSha256']);
+        $t->same('meta', $attributesByName['meta:scope']['prefix']);
+        $t->same('urn:example:package-meta', $attributesByName['meta:scope']['namespace']);
+        $t->same('scope', $attributesByName['meta:scope']['localName']);
+        $t->same(strlen('package'), $attributesByName['meta:scope']['valueByteLength']);
+        $t->same('xml', $attributesByName['xml:lang']['prefix']);
+        $t->same('http://www.w3.org/XML/1998/namespace', $attributesByName['xml:lang']['namespace']);
+        $t->same('lang', $attributesByName['xml:lang']['localName']);
+        $t->same(strlen('en'), $attributesByName['xml:lang']['valueByteLength']);
 
         $broken = $byPartName['customXml/broken-root.xml'];
         $t->same(false, $broken['validXml']);
