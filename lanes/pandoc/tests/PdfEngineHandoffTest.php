@@ -9,15 +9,15 @@ use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\PdfEngineHandoff;
 
 $document = static function (): AstNode {
-    return (new MarkdownReader())->read(<<<'MARKDOWN'
----
-title: PDF Handoff Packet
-author: [Migration Desk, Content Reviewer]
-date: 2026-06-04
----
+    $parsed = (new MarkdownReader())->read('Reviewer formula $E = mc^2$ keeps raw source \cite{packet}.');
 
-Reviewer formula $E = mc^2$ keeps raw source \cite{packet}.
-MARKDOWN);
+    return new AstNode('document', [
+        'meta' => [
+            'title' => 'PDF Handoff Packet',
+            'author' => ['Migration Desk', 'Content Reviewer'],
+            'date' => '2026-06-04',
+        ],
+    ], $parsed->children);
 };
 
 return [
@@ -38,7 +38,7 @@ return [
         $t->same('build/review-packet.tex', $plan['sourceFile']);
         $t->same('build/review-packet.pdf', $plan['outputFile']);
         $t->same(['xelatex', '-halt-on-error', '-interaction=nonstopmode', '-file-line-error', 'build/review-packet.tex'], $plan['argv']);
-        $t->contains('Reviewer formula $E = mc^2$ keeps raw source \\cite{packet}.', (string) $plan['sourceBytes']);
+        $t->contains('Reviewer formula \\(E = mc^2\\) keeps raw source \\cite{packet}.', (string) $plan['sourceBytes']);
         $t->same(hash('sha256', (string) $plan['sourceBytes']), $plan['sourceSha256']);
         $t->same('PDF Handoff Packet', $plan['metadata']['title']);
         $t->same(['Migration Desk', 'Content Reviewer'], $plan['metadata']['author']);
@@ -4953,6 +4953,29 @@ return [
                     'issue' => 'input-variable-boundary-overridden',
                 ],
             ],
+            'inputVariablePolicy' => [
+                'reviewStatus' => 'review',
+                'inputVariableCount' => 3,
+                'safeInputVariableCount' => 3,
+                'unsafeInputVariableCount' => 0,
+                'distinctInputNameCount' => 2,
+                'duplicateInputNameCount' => 1,
+                'duplicateAssignmentCount' => 1,
+                'inputNames' => ['audience', 'mode'],
+                'overriddenInputNames' => ['audience'],
+                'valuesByName' => [
+                    'audience' => ['reviewer', 'public'],
+                    'mode' => ['draft'],
+                ],
+                'selectedByName' => [
+                    'audience' => 'public',
+                    'mode' => 'draft',
+                ],
+                'issues' => [
+                    'input-variable-boundary-overridden',
+                    'input-variable-boundary-overridden:audience',
+                ],
+            ],
             'overrides' => [
                 [
                     'option' => 'input:audience',
@@ -4979,6 +5002,8 @@ return [
         $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-inputs:3', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-input-overrides:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-input-variable-policy:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-input-variable-overridden:1', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-overrides:1', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-issues:2', implode(',', $plan['diagnostics']));
         $t->same(true, $result['ok']);
@@ -5050,6 +5075,20 @@ return [
                 'deterministic' => false,
                 'safe' => false,
                 'issues' => ['creation-timestamp-empty-boundary'],
+            ],
+            'inputVariablePolicy' => [
+                'reviewStatus' => 'review',
+                'inputVariableCount' => 1,
+                'safeInputVariableCount' => 0,
+                'unsafeInputVariableCount' => 1,
+                'distinctInputNameCount' => 0,
+                'duplicateInputNameCount' => 0,
+                'duplicateAssignmentCount' => 0,
+                'inputNames' => [],
+                'overriddenInputNames' => [],
+                'valuesByName' => [],
+                'selectedByName' => [],
+                'issues' => ['input-variable-invalid-boundary'],
             ],
         ];
 
@@ -8597,6 +8636,7 @@ return [
         $t->same(1, $cases['font-path-policy']['details']['unsafeFontPathCount']);
         $t->same(2, $cases['input-variables']['observed']);
         $t->same(['audience'], $cases['input-variables']['details']['overriddenInputNames']);
+        $t->same(['audience' => 'auditor'], $cases['input-variables']['details']['selectedByName']);
         $t->same(3, $cases['boundary-overrides']['observed']);
         $t->same(['features', 'input:audience', 'outputFormat'], $cases['boundary-overrides']['details']['overriddenOptions']);
         $t->same(3, $cases['feature-gates']['observed']);
