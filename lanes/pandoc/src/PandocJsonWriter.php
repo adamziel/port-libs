@@ -660,7 +660,9 @@ final class PandocJsonWriter
             return $native;
         }
 
-        $native['c'] = $payload;
+        $native['c'] = $this->hasSingleWrappedListAttributesContent($native['c'] ?? null)
+            ? [$payload]
+            : $payload;
 
         return $native;
     }
@@ -681,6 +683,16 @@ final class PandocJsonWriter
         }
 
         return is_array($content) && array_is_list($content) && count($content) === 3 ? $content : null;
+    }
+
+    private function hasSingleWrappedListAttributesContent(mixed $content): bool
+    {
+        return is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+            && array_is_list($content[0])
+            && $this->listAttributesNativeContent($content) !== null;
     }
 
     /**
@@ -2047,7 +2059,9 @@ final class PandocJsonWriter
             return null;
         }
 
-        return abs((float) $content - (float) $width) < 0.000000000001 ? $native : null;
+        return abs((float) $content - (float) $width) < 0.000000000001
+            ? $native
+            : $this->regeneratedScalarConstructorNative($native, (float) $width);
     }
 
     /**
@@ -2094,7 +2108,31 @@ final class PandocJsonWriter
 
         $content = $this->singleWrappedScalarContent($tagged['c'] ?? null);
 
-        return is_int($content) && $content === $integer ? $tagged : null;
+        if (!is_int($content)) {
+            return null;
+        }
+
+        return $content === $integer ? $tagged : $this->regeneratedScalarConstructorNative($tagged, $integer);
+    }
+
+    private function regeneratedScalarConstructorNative(array $native, int|float $value): array
+    {
+        $native['c'] = $this->regeneratedScalarConstructorContent($native['c'] ?? null, $value);
+
+        return $native;
+    }
+
+    private function regeneratedScalarConstructorContent(mixed $content, int|float $value): mixed
+    {
+        if (
+            is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+        ) {
+            return [$this->regeneratedScalarConstructorContent($content[0], $value)];
+        }
+
+        return $value;
     }
 
     /**
