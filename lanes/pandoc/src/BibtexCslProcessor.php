@@ -404,6 +404,15 @@ final class BibtexCslProcessor
                 $parts[] = $label . ': ' . $value;
             }
         }
+        foreach ([
+            'available-date' => 'Available date',
+            'submitted' => 'Submitted date',
+        ] as $field => $label) {
+            $dateLabel = $this->bibliographyDateLabel($item[$field] ?? null);
+            if ($dateLabel !== '') {
+                $parts[] = $label . ': ' . $dateLabel;
+            }
+        }
         if (($item['rights'] ?? '') !== '') {
             $parts[] = 'Rights: ' . (string) $item['rights'];
         }
@@ -944,6 +953,11 @@ final class BibtexCslProcessor
             $item['accessed'] = ['date-parts' => [$accessed]];
         }
 
+        $availableDate = $this->datePartsFromFields($fields, ['availabledate', 'available-date'], ['availableyear', 'availablemonth', 'availableday']);
+        if ($availableDate !== null) {
+            $item['available-date'] = ['date-parts' => [$availableDate]];
+        }
+
         $originalDate = $this->datePartsFromFields($fields, ['origdate', 'original-date'], ['origyear', 'origmonth', 'origday']);
         if ($originalDate !== null) {
             $item['original-date'] = ['date-parts' => [$originalDate]];
@@ -957,6 +971,11 @@ final class BibtexCslProcessor
         $eventDate = $this->datePartsFromFields($fields, ['eventdate', 'event-date'], ['eventyear', 'eventmonth', 'eventday']);
         if ($eventDate !== null) {
             $item['event-date'] = ['date-parts' => [$eventDate]];
+        }
+
+        $submittedDate = $this->datePartsFromFields($fields, ['submitteddate', 'submitted-date', 'submitted'], ['submittedyear', 'submittedmonth', 'submittedday']);
+        if ($submittedDate !== null) {
+            $item['submitted'] = ['date-parts' => [$submittedDate]];
         }
 
         $keywords = $this->keywordList($this->firstField($fields, ['keywords', 'keyword', 'keyword-list', 'keywordlist']));
@@ -2586,6 +2605,30 @@ final class BibtexCslProcessor
         }
 
         return (string) $parts[0];
+    }
+
+    private function bibliographyDateLabel(mixed $date): string
+    {
+        if (!is_array($date)) {
+            return '';
+        }
+
+        $parts = $date['date-parts'][0] ?? null;
+        if (!is_array($parts) || $parts === []) {
+            return '';
+        }
+
+        $formatted = [];
+        foreach (array_values($parts) as $index => $part) {
+            if (!is_int($part) && !is_numeric($part)) {
+                continue;
+            }
+            $formatted[] = $index === 0
+                ? sprintf('%04d', (int) $part)
+                : str_pad((string) (int) $part, 2, '0', STR_PAD_LEFT);
+        }
+
+        return implode('-', $formatted);
     }
 
     private function cleanValue(string $value, bool $trim = true): string

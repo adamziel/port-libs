@@ -2633,6 +2633,104 @@ XML);
         $t->contains('Date addendum: first source capture', $blocks);
         $t->contains('Event date addendum: hybrid review window', $blocks);
     },
+    'carries biblatex available and submitted dates in direct legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@online{availability-review,
+  author         = {Ng, Nia},
+  title          = {Availability Review Packet},
+  date           = {2026-06-20},
+  available-date = {2026-06-18},
+  submittedyear  = {2026},
+  submittedmonth = {5},
+  submittedday   = {31},
+  url            = {https://example.test/availability-review}
+}
+
+@report{split-availability-review,
+  author         = {Roe, Pat},
+  title          = {Split Availability Packet},
+  availableyear  = {2025},
+  availablemonth = {12},
+  submitted      = {2025-11},
+  institution    = {Migration Desk}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $availability = $items['availability-review'];
+        $split = $items['split-availability-review'];
+
+        $t->same([2026, 6, 18], $availability['available-date']['date-parts'][0]);
+        $t->same([2026, 5, 31], $availability['submitted']['date-parts'][0]);
+        $t->same('2026-06-18', $availability['rawBibtex']['fields']['available-date']);
+        $t->same('2026', $availability['rawBibtex']['fields']['submittedyear']);
+        $t->same([2025, 12], $split['available-date']['date-parts'][0]);
+        $t->same([2025, 11], $split['submitted']['date-parts'][0]);
+        $t->same('2025', $split['rawBibtex']['fields']['availableyear']);
+        $t->same('2025-11', $split['rawBibtex']['fields']['submitted']);
+        $t->same(
+            'Nia Ng. Availability Review Packet. 2026. Available date: 2026-06-18. Submitted date: 2026-05-31. https://example.test/availability-review.',
+            $processor->renderBibliographyText($availability)
+        );
+        $t->same(
+            'Pat Roe. Split Availability Packet. Migration Desk. Available date: 2025-12. Submitted date: 2025-11.',
+            $processor->renderBibliographyText($split)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Available Submitted Date Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-available-submitted-date-review</id>
+    <updated>2026-06-27T18:35:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <date variable="available-date"/>
+        <date variable="submitted"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="available-date"/>
+      <date variable="submitted"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledAvailability = $styled->item('availability-review');
+        $styledSplit = $styled->item('split-availability-review');
+        $t->same([2026, 6, 18], $styledAvailability['availableDate']['parts'] ?? null);
+        $t->same([2026, 5, 31], $styledAvailability['submittedDate']['parts'] ?? null);
+        $t->same([2025, 12], $styledSplit['availableDate']['parts'] ?? null);
+        $t->same([2025, 11], $styledSplit['submittedDate']['parts'] ?? null);
+        $t->same('[Ng | 2026-06-18 | 2026-05-31; Roe | 2025-12 | 2025-11]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'availability-review', 'text' => '[@availability-review]']),
+            new AstNode('citation', ['id' => 'split-availability-review', 'text' => '[@split-availability-review]']),
+        ]));
+        $t->same('Availability Review Packet :: 2026-06-18 :: 2026-05-31', $styled->renderBibliographyEntry('availability-review'));
+        $t->same('Split Availability Packet :: 2025-12 :: 2025-11', $styled->renderBibliographyEntry('split-availability-review'));
+
+        $document = (new MarkdownReader())->read('Availability dates [@availability-review; @split-availability-review] stay visible.');
+        $styledBlocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $handoff = $processor->citationHandoff($document, $source);
+        $handoffBlocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$handoff['bibliography']]));
+
+        $t->contains('<p>Availability dates [Ng | 2026-06-18 | 2026-05-31; Roe | 2025-12 | 2025-11] stay visible.</p>', $styledBlocks);
+        $t->contains('Availability Review Packet :: 2026-06-18 :: 2026-05-31', $styledBlocks);
+        $t->same(['availability-review', 'split-availability-review'], $handoff['citedKeys']);
+        $t->same([2026, 6, 18], $handoff['items'][0]['available-date']['date-parts'][0] ?? null);
+        $t->same([2025, 11], $handoff['items'][1]['submitted']['date-parts'][0] ?? null);
+        $t->contains('Available date: 2026-06-18', $handoffBlocks);
+        $t->contains('Submitted date: 2025-11', $handoffBlocks);
+    },
     'carries legacy biblatex source file attachment policy metadata' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @online{legacy-file-source,
