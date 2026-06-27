@@ -1710,6 +1710,87 @@ XML;
             'image/png',
         ], array_column($summary['contentTypeSummaries'], 'contentType'));
     },
+    'carries OPC ZIP entry manifest content type parameter provenance before graph construction' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml; charset=UTF-8"/>
+  <Default Extension="xml" ContentType="application/xml; charset=UTF-8"/>
+  <Default Extension="png" ContentType="image/png; profile=media-default"/>
+  <Default Extension="bin" ContentType="application/octet-stream"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml; charset=&quot;utf-8&quot;; profile=&quot;main;doc&quot;"/>
+</Types>
+XML;
+
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'compressionMethod' => 0],
+            ['name' => '_rels/.rels', 'data' => '<Relationships/>', 'compressionMethod' => 0],
+            ['name' => 'word/document.xml', 'data' => '<w:document/>', 'compressionMethod' => 0],
+            ['name' => 'word/styles.xml', 'data' => '<w:styles/>', 'compressionMethod' => 0],
+            ['name' => 'customXml/item1.xml', 'data' => '<audit/>', 'compressionMethod' => 0],
+            ['name' => 'word/media/review.png', 'data' => 'PNG', 'compressionMethod' => 0],
+            ['name' => 'word/payload.bin', 'data' => 'BIN', 'compressionMethod' => 0],
+        ]));
+        $entries = [];
+        foreach ($summary['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+        $declarations = [];
+        foreach ($summary['contentTypeOverrideDeclarations'] as $declaration) {
+            $declarations[$declaration['partName']] = $declaration;
+        }
+
+        $t->same(true, $summary['valid']);
+        $t->same(5, $summary['contentTypeParameterizedPartCount']);
+        $t->same(4, $summary['contentTypeParameterizedDefaultPartCount']);
+        $t->same(1, $summary['contentTypeParameterizedOverridePartCount']);
+        $t->same([
+            '/_rels/.rels',
+            '/customXml/item1.xml',
+            '/word/document.xml',
+            '/word/media/review.png',
+            '/word/styles.xml',
+        ], $summary['contentTypeParameterizedPartNames']);
+        $t->same(2, $summary['contentTypeParameterNameCount']);
+        $t->same(['charset' => 4, 'profile' => 2], $summary['contentTypeParameterNameCounts']);
+        $t->same([
+            '_rels/.rels',
+            'customXml/item1.xml',
+            'word/document.xml',
+            'word/styles.xml',
+        ], $summary['entryNamesByContentTypeParameterName']['charset']);
+        $t->same([
+            'word/document.xml',
+            'word/media/review.png',
+        ], $summary['entryNamesByContentTypeParameterName']['profile']);
+        $t->same([
+            '/_rels/.rels',
+            '/customXml/item1.xml',
+            '/word/document.xml',
+            '/word/styles.xml',
+        ], $summary['partNamesByContentTypeParameterName']['charset']);
+        $t->same([
+            '/word/document.xml',
+            '/word/media/review.png',
+        ], $summary['partNamesByContentTypeParameterName']['profile']);
+
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $entries['word/document.xml']['contentTypeBase']);
+        $t->same(true, $entries['word/document.xml']['contentTypeHasParameters']);
+        $t->same(2, $entries['word/document.xml']['contentTypeParameterCount']);
+        $t->same(['charset' => 'utf-8', 'profile' => 'main;doc'], $entries['word/document.xml']['contentTypeParameterMap']);
+        $t->same('charset="utf-8"', $entries['word/document.xml']['contentTypeParameters'][0]['raw']);
+        $t->same('profile="main;doc"', $entries['word/document.xml']['contentTypeParameters'][1]['raw']);
+        $t->same('image/png', $entries['word/media/review.png']['contentTypeBase']);
+        $t->same(['profile' => 'media-default'], $entries['word/media/review.png']['contentTypeParameterMap']);
+        $t->same('application/octet-stream', $entries['word/payload.bin']['contentTypeBase']);
+        $t->same(false, $entries['word/payload.bin']['contentTypeHasParameters']);
+        $t->same([], $entries['word/payload.bin']['contentTypeParameterMap']);
+
+        $t->same(1, $summary['contentTypeParameterizedOverrideDeclarationCount']);
+        $t->same(['/word/document.xml'], $summary['contentTypeParameterizedOverridePartNames']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $declarations['/word/document.xml']['contentTypeBase']);
+        $t->same(true, $declarations['/word/document.xml']['contentTypeHasParameters']);
+        $t->same(['charset' => 'utf-8', 'profile' => 'main;doc'], $declarations['/word/document.xml']['contentTypeParameterMap']);
+    },
     'summarizes OPC ZIP entry manifest content type entry name provenance before graph construction' => static function (TestRunner $t): void {
         $documentContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
         $relationshipsContentType = 'application/vnd.openxmlformats-package.relationships+xml';

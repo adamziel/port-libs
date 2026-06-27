@@ -617,6 +617,11 @@ final class OpcRelationshipGraph
                 'handoffKind' => $isDirectory ? 'directory' : 'binary',
                 'contentTypesItem' => $contentTypesItem,
                 'contentType' => null,
+                'contentTypeBase' => null,
+                'contentTypeHasParameters' => false,
+                'contentTypeParameterCount' => 0,
+                'contentTypeParameters' => [],
+                'contentTypeParameterMap' => [],
                 'contentTypeSource' => null,
                 'contentTypeDefaultExtension' => null,
                 'contentTypeOverridePartName' => null,
@@ -694,6 +699,7 @@ final class OpcRelationshipGraph
         $contentTypeNonRelationshipRelationshipContentTypePartNames = [];
         $contentTypeContentTypesItemOverridePartNames = [];
         $contentTypeReservedRelationshipDirectoryOverridePartNames = [];
+        $contentTypeParameterizedOverridePartNames = [];
         $contentTypeOverrideDeclarationIssueCounts = [];
         if ($contentTypes instanceof OpcContentTypes) {
             foreach ($contentTypes->overrides() as $overridePartName => $contentType) {
@@ -756,6 +762,7 @@ final class OpcRelationshipGraph
                 $contentTypeOverrideDeclarations[] = [
                     'partName' => $overridePartName,
                     'contentType' => $contentType,
+                    ...OpcContentTypes::contentTypeReport($contentType),
                     'exists' => $exists,
                     'packagePartName' => $packagePartName,
                     'matchKind' => $packagePartName === null ? 'missing' : ($packagePartName === $overridePartName ? 'exact' : 'equivalent'),
@@ -786,6 +793,11 @@ final class OpcRelationshipGraph
             if (!$entry['contentTypesItem'] && $contentTypes instanceof OpcContentTypes) {
                 $contentTypeResolution = $contentTypes->contentTypeResolutionForPart($partName);
                 $entry['contentType'] = $contentTypeResolution['contentType'];
+                $entry['contentTypeBase'] = $contentTypeResolution['contentTypeBase'];
+                $entry['contentTypeHasParameters'] = $contentTypeResolution['contentTypeHasParameters'];
+                $entry['contentTypeParameterCount'] = $contentTypeResolution['contentTypeParameterCount'];
+                $entry['contentTypeParameters'] = $contentTypeResolution['contentTypeParameters'];
+                $entry['contentTypeParameterMap'] = $contentTypeResolution['contentTypeParameterMap'];
                 $entry['contentTypeSource'] = $contentTypeResolution['contentTypeSource'];
                 $entry['contentTypeDefaultExtension'] = $contentTypeResolution['defaultExtension'];
                 $entry['contentTypeOverridePartName'] = $contentTypeResolution['overridePartName'];
@@ -870,6 +882,13 @@ final class OpcRelationshipGraph
         $entryNamesByContentTypeSource = [];
         $contentTypeSummariesByType = [];
         $contentTypeSourceSummariesBySource = [];
+        $contentTypeParameterizedPartCount = 0;
+        $contentTypeParameterizedDefaultPartCount = 0;
+        $contentTypeParameterizedOverridePartCount = 0;
+        $contentTypeParameterizedPartNames = [];
+        $contentTypeParameterNameCounts = [];
+        $entryNamesByContentTypeParameterName = [];
+        $partNamesByContentTypeParameterName = [];
         $packagePartExtensionCounts = [];
         $entryNamesByPackagePartExtension = [];
         $packagePartExtensionSummariesByExtension = [];
@@ -1000,6 +1019,31 @@ final class OpcRelationshipGraph
                         $contentTypeSource,
                         $entry,
                     );
+                }
+                if ($entry['contentTypeHasParameters']) {
+                    $contentTypeParameterizedPartCount++;
+                    if ($contentTypeSource === 'default') {
+                        $contentTypeParameterizedDefaultPartCount++;
+                    } elseif ($contentTypeSource === 'override') {
+                        $contentTypeParameterizedOverridePartCount++;
+                    }
+
+                    self::appendUniqueString($contentTypeParameterizedPartNames, $entry['partName']);
+                    foreach ($entry['contentTypeParameters'] as $parameter) {
+                        $parameterName = $parameter['name'];
+                        $contentTypeParameterNameCounts[$parameterName] =
+                            ($contentTypeParameterNameCounts[$parameterName] ?? 0) + 1;
+                        $entryNamesByContentTypeParameterName[$parameterName] ??= [];
+                        self::appendUniqueString(
+                            $entryNamesByContentTypeParameterName[$parameterName],
+                            $entry['entryName']
+                        );
+                        $partNamesByContentTypeParameterName[$parameterName] ??= [];
+                        self::appendUniqueString(
+                            $partNamesByContentTypeParameterName[$parameterName],
+                            $entry['partName']
+                        );
+                    }
                 }
             }
             if ($entry['isPackagePart'] && is_string($entry['partName'])) {
@@ -1151,6 +1195,10 @@ final class OpcRelationshipGraph
                 self::appendUniqueString($contentTypeReservedRelationshipDirectoryOverridePartNames, $declaration['partName']);
             }
 
+            if ($declaration['contentTypeHasParameters']) {
+                self::appendUniqueString($contentTypeParameterizedOverridePartNames, $declaration['partName']);
+            }
+
             foreach ($declaration['issues'] as $issue) {
                 $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
                 self::appendUniqueString($issues, $issue);
@@ -1177,6 +1225,10 @@ final class OpcRelationshipGraph
         self::sortStringListMap($entryNamesByContentTypeSource);
         $contentTypeSummaries = self::zipEntryManifestContentSummaries($contentTypeSummariesByType);
         $contentTypeSourceSummaries = self::zipEntryManifestContentSummaries($contentTypeSourceSummariesBySource);
+        sort($contentTypeParameterizedPartNames, SORT_STRING);
+        ksort($contentTypeParameterNameCounts, SORT_STRING);
+        self::sortStringListMap($entryNamesByContentTypeParameterName);
+        self::sortStringListMap($partNamesByContentTypeParameterName);
         ksort($packagePartExtensionCounts, SORT_STRING);
         self::sortStringListMap($entryNamesByPackagePartExtension);
         $packagePartExtensionSummaries = self::zipEntryManifestContentSummaries($packagePartExtensionSummariesByExtension);
@@ -1196,6 +1248,7 @@ final class OpcRelationshipGraph
         sort($contentTypeNonRelationshipRelationshipContentTypePartNames, SORT_STRING);
         sort($contentTypeContentTypesItemOverridePartNames, SORT_STRING);
         sort($contentTypeReservedRelationshipDirectoryOverridePartNames, SORT_STRING);
+        sort($contentTypeParameterizedOverridePartNames, SORT_STRING);
         sort($missingContentTypeParts, SORT_STRING);
         sort($missingContentTypeExtensions, SORT_STRING);
         usort(
@@ -1253,6 +1306,7 @@ final class OpcRelationshipGraph
             'contentTypeNonRelationshipRelationshipContentTypeDeclarationCount' => count($contentTypeNonRelationshipRelationshipContentTypePartNames),
             'contentTypeContentTypesItemOverrideDeclarationCount' => count($contentTypeContentTypesItemOverridePartNames),
             'contentTypeReservedRelationshipDirectoryOverrideDeclarationCount' => count($contentTypeReservedRelationshipDirectoryOverridePartNames),
+            'contentTypeParameterizedOverrideDeclarationCount' => count($contentTypeParameterizedOverridePartNames),
             'contentTypeUnusedOverridePartNames' => $contentTypeUnusedOverridePartNames,
             'contentTypeExactOverridePartNames' => $contentTypeExactOverridePartNames,
             'contentTypeEquivalentOverridePartNames' => $contentTypeEquivalentOverridePartNames,
@@ -1262,6 +1316,7 @@ final class OpcRelationshipGraph
             'contentTypeNonRelationshipRelationshipContentTypePartNames' => $contentTypeNonRelationshipRelationshipContentTypePartNames,
             'contentTypeContentTypesItemOverridePartNames' => $contentTypeContentTypesItemOverridePartNames,
             'contentTypeReservedRelationshipDirectoryOverridePartNames' => $contentTypeReservedRelationshipDirectoryOverridePartNames,
+            'contentTypeParameterizedOverridePartNames' => $contentTypeParameterizedOverridePartNames,
             'contentTypeOverrideDeclarationIssueCounts' => $contentTypeOverrideDeclarationIssueCounts,
             'equivalentPackagePartNameGroupCount' => count($equivalentPackagePartNameGroups),
             'equivalentPackagePartNameEntryCount' => $equivalentPackagePartNameEntryCount,
@@ -1298,6 +1353,14 @@ final class OpcRelationshipGraph
             'entryNamesByContentTypeSource' => $entryNamesByContentTypeSource,
             'contentTypeSummaries' => $contentTypeSummaries,
             'contentTypeSourceSummaries' => $contentTypeSourceSummaries,
+            'contentTypeParameterizedPartCount' => $contentTypeParameterizedPartCount,
+            'contentTypeParameterizedDefaultPartCount' => $contentTypeParameterizedDefaultPartCount,
+            'contentTypeParameterizedOverridePartCount' => $contentTypeParameterizedOverridePartCount,
+            'contentTypeParameterizedPartNames' => $contentTypeParameterizedPartNames,
+            'contentTypeParameterNameCount' => count($contentTypeParameterNameCounts),
+            'contentTypeParameterNameCounts' => $contentTypeParameterNameCounts,
+            'entryNamesByContentTypeParameterName' => $entryNamesByContentTypeParameterName,
+            'partNamesByContentTypeParameterName' => $partNamesByContentTypeParameterName,
             'compressionMethodCounts' => $compressionMethodCounts,
             'entryNamesByCompressionMethod' => $entryNamesByCompressionMethod,
             'compressionMethodNamesByRole' => $compressionMethodNamesByRole,
