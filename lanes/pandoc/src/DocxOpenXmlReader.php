@@ -13869,6 +13869,12 @@ final class DocxOpenXmlReader
             'partXmlRootLocalNameCounts' => $partXmlRoots['rootLocalNameCounts'],
             'partXmlRootQualifiedNameCount' => count($partXmlRoots['rootQualifiedNameCounts']),
             'partXmlRootQualifiedNameCounts' => $partXmlRoots['rootQualifiedNameCounts'],
+            'partXmlRootPrefixCount' => count($partXmlRoots['rootPrefixCounts']),
+            'partXmlRootPrefixCounts' => $partXmlRoots['rootPrefixCounts'],
+            'partXmlRootNamespaceDeclarationCount' => $partXmlRoots['rootNamespaceDeclarationCount'],
+            'partXmlRootNamespacePrefixCount' => count($partXmlRoots['rootNamespacePrefixCounts']),
+            'partXmlRootNamespacePrefixCounts' => $partXmlRoots['rootNamespacePrefixCounts'],
+            'partXmlRootNamespacePrefixes' => $partXmlRoots['rootNamespacePrefixes'],
             'partXmlInvalidPartNames' => $partXmlRoots['invalidPartNames'],
             'partXmlDeclarationCount' => $partXmlRoots['xmlDeclarationCount'],
             'partXmlDeclarationPartNames' => $partXmlRoots['xmlDeclarationPartNames'],
@@ -19407,7 +19413,7 @@ final class DocxOpenXmlReader
 
     /**
      * @param array<string, array<string, mixed>> $partInventory
-     * @return array{count:int, validCount:int, invalidCount:int, inspectionReasonCounts:array<string, int>, rootNamespaceCounts:array<string, int>, rootLocalNameCounts:array<string, int>, rootQualifiedNameCounts:array<string, int>, invalidPartNames:list<string>, xmlDeclarationCount:int, xmlDeclarationPartNames:list<string>, xmlDeclarationVersionCounts:array<string, int>, xmlDeclarationEncodingCounts:array<string, int>, xmlStandaloneDeclarationCount:int, xmlStandaloneYesCount:int, xmlStandaloneNoCount:int, items:list<array<string, mixed>>}
+     * @return array{count:int, validCount:int, invalidCount:int, inspectionReasonCounts:array<string, int>, rootNamespaceCounts:array<string, int>, rootLocalNameCounts:array<string, int>, rootQualifiedNameCounts:array<string, int>, rootPrefixCounts:array<string, int>, rootNamespaceDeclarationCount:int, rootNamespacePrefixCounts:array<string, int>, rootNamespacePrefixes:list<string>, invalidPartNames:list<string>, xmlDeclarationCount:int, xmlDeclarationPartNames:list<string>, xmlDeclarationVersionCounts:array<string, int>, xmlDeclarationEncodingCounts:array<string, int>, xmlStandaloneDeclarationCount:int, xmlStandaloneYesCount:int, xmlStandaloneNoCount:int, items:list<array<string, mixed>>}
      */
     private function packagePartXmlRootSummary(array $partInventory): array
     {
@@ -19416,6 +19422,10 @@ final class DocxOpenXmlReader
         $rootNamespaceCounts = [];
         $rootLocalNameCounts = [];
         $rootQualifiedNameCounts = [];
+        $rootPrefixCounts = [];
+        $rootNamespaceDeclarationCount = 0;
+        $rootNamespacePrefixCounts = [];
+        $rootNamespacePrefixes = [];
         $invalidPartNames = [];
         $xmlDeclarationPartNames = [];
         $xmlDeclarationVersionCounts = [];
@@ -19460,6 +19470,22 @@ final class DocxOpenXmlReader
             $rootQualifiedName = is_string($part['rootQualifiedName'] ?? null) ? $part['rootQualifiedName'] : null;
             if ($validXml === true && $rootQualifiedName !== null && $rootQualifiedName !== '') {
                 $rootQualifiedNameCounts[$rootQualifiedName] = ($rootQualifiedNameCounts[$rootQualifiedName] ?? 0) + 1;
+            }
+
+            $rootPrefix = is_string($part['rootPrefix'] ?? null) ? $part['rootPrefix'] : null;
+            if ($validXml === true) {
+                $rootPrefixKey = $rootPrefix === null || $rootPrefix === '' ? '(none)' : $rootPrefix;
+                $rootPrefixCounts[$rootPrefixKey] = ($rootPrefixCounts[$rootPrefixKey] ?? 0) + 1;
+            }
+
+            $rootNamespaceDeclarationCount += (int) ($part['rootNamespaceDeclarationCount'] ?? 0);
+            foreach (($part['rootNamespacePrefixes'] ?? []) as $rootNamespacePrefix) {
+                $rootNamespacePrefix = (string) $rootNamespacePrefix;
+                if ($rootNamespacePrefix === '') {
+                    continue;
+                }
+                $rootNamespacePrefixCounts[$rootNamespacePrefix] = ($rootNamespacePrefixCounts[$rootNamespacePrefix] ?? 0) + 1;
+                $this->appendUniqueString($rootNamespacePrefixes, $rootNamespacePrefix);
             }
 
             if (($part['xmlDeclarationPresent'] ?? false) === true) {
@@ -19508,7 +19534,7 @@ final class DocxOpenXmlReader
                 'rootNamespace' => $rootNamespace,
                 'rootLocalName' => $rootLocalName,
                 'rootQualifiedName' => $rootQualifiedName,
-                'rootPrefix' => is_string($part['rootPrefix'] ?? null) ? $part['rootPrefix'] : null,
+                'rootPrefix' => $rootPrefix,
                 'rootAttributeCount' => (int) ($part['rootAttributeCount'] ?? 0),
                 'rootNamespaceDeclarationCount' => (int) ($part['rootNamespaceDeclarationCount'] ?? 0),
                 'rootNamespacePrefixes' => array_values(array_map('strval', $part['rootNamespacePrefixes'] ?? [])),
@@ -19525,6 +19551,9 @@ final class DocxOpenXmlReader
         ksort($rootNamespaceCounts, SORT_STRING);
         ksort($rootLocalNameCounts, SORT_STRING);
         ksort($rootQualifiedNameCounts, SORT_STRING);
+        ksort($rootPrefixCounts, SORT_STRING);
+        ksort($rootNamespacePrefixCounts, SORT_STRING);
+        sort($rootNamespacePrefixes, SORT_STRING);
         ksort($xmlDeclarationVersionCounts, SORT_STRING);
         ksort($xmlDeclarationEncodingCounts, SORT_STRING);
         sort($invalidPartNames, SORT_STRING);
@@ -19542,6 +19571,10 @@ final class DocxOpenXmlReader
             'rootNamespaceCounts' => $rootNamespaceCounts,
             'rootLocalNameCounts' => $rootLocalNameCounts,
             'rootQualifiedNameCounts' => $rootQualifiedNameCounts,
+            'rootPrefixCounts' => $rootPrefixCounts,
+            'rootNamespaceDeclarationCount' => $rootNamespaceDeclarationCount,
+            'rootNamespacePrefixCounts' => $rootNamespacePrefixCounts,
+            'rootNamespacePrefixes' => $rootNamespacePrefixes,
             'invalidPartNames' => $invalidPartNames,
             'xmlDeclarationCount' => $xmlDeclarationCount,
             'xmlDeclarationPartNames' => $xmlDeclarationPartNames,
