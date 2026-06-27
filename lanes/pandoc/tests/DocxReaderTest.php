@@ -34,6 +34,73 @@ $buildDocxReaderPackageBytes = static function (string $documentXml): string {
     }
 };
 
+/**
+ * @param array<string, string> $parts
+ * @param array<string, int> $compressionMethodsByName
+ */
+$buildDocxReaderNativeZipPackageBytes = static function (array $parts, array $compressionMethodsByName = []): string {
+    $body = '';
+    $central = '';
+    $entryCount = 0;
+
+    foreach ($parts as $name => $contents) {
+        $method = $compressionMethodsByName[$name] ?? 8;
+        $compressed = match ($method) {
+            0 => $contents,
+            8 => gzdeflate($contents),
+            default => $contents,
+        };
+        if (!is_string($compressed)) {
+            throw new RuntimeException("Unable to deflate DOCX fixture entry {$name}");
+        }
+
+        $crc32 = (int) sprintf('%u', crc32($contents));
+        $offset = strlen($body);
+        $body .= pack(
+            'VvvvvvVVVvv',
+            0x04034b50,
+            20,
+            0x0800,
+            $method,
+            0,
+            0,
+            $crc32,
+            strlen($compressed),
+            strlen($contents),
+            strlen($name),
+            0,
+        );
+        $body .= $name . $compressed;
+
+        $central .= pack(
+            'VvvvvvvVVVvvvvvVV',
+            0x02014b50,
+            0x0314,
+            20,
+            0x0800,
+            $method,
+            0,
+            0,
+            $crc32,
+            strlen($compressed),
+            strlen($contents),
+            strlen($name),
+            0,
+            0,
+            0,
+            0,
+            0,
+            $offset,
+        );
+        $central .= $name;
+        ++$entryCount;
+    }
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, $entryCount, $entryCount, strlen($central), strlen($body), 0);
+};
+
 return [
     'resolves docx tracked revisions by configured revision mode' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
         $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t xml:space="preserve">Base </w:t></w:r><w:ins w:author="Insert Reviewer" w:date="2026-06-26T12:00:00Z"><w:r><w:t xml:space="preserve">inserted </w:t></w:r></w:ins><w:del w:author="Delete Reviewer" w:date="2026-06-26T12:01:00Z"><w:r><w:delText xml:space="preserve">deleted </w:delText></w:r></w:del><w:moveFrom w:id="9" w:author="Move Reviewer" w:date="2026-06-26T12:02:00Z"><w:r><w:delText xml:space="preserve">moved-from </w:delText></w:r></w:moveFrom><w:moveTo w:id="9" w:author="Move Reviewer" w:date="2026-06-26T12:03:00Z"><w:r><w:t xml:space="preserve">moved-to </w:t></w:r></w:moveTo><w:r><w:t>tail</w:t></w:r></w:p></w:body></w:document>');
@@ -200,6 +267,73 @@ return [
 
         $t->same('paragraph', $document->children[0]->type);
         $t->same('Byte DOCX', $document->children[0]->attr('text'));
+    },
+    'reads native zip docx bytes while leaving unsupported media entries metadata-only' => static function (TestRunner $t) use ($buildDocxReaderNativeZipPackageBytes): void {
+        $documentXml = <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+  xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+  xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+  xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Native ZIP DOCX </w:t></w:r>
+      <w:r>
+        <w:drawing>
+          <wp:inline>
+            <wp:docPr id="7" name="Unsupported media" title="Unsupported media title" descr="Unsupported media alt"/>
+            <a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rImage"/></pic:blipFill></pic:pic></a:graphicData></a:graphic>
+          </wp:inline>
+        </w:drawing>
+      </w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+        $relationshipsXml = <<<'XML'
+<?xml version="1.0"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/unsupported.bin"/>
+</Relationships>
+XML;
+        $contentTypesXml = <<<'XML'
+<?xml version="1.0"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="bin" ContentType="application/octet-stream"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>
+XML;
+        $bytes = $buildDocxReaderNativeZipPackageBytes(
+            [
+                '[Content_Types].xml' => $contentTypesXml,
+                'word/document.xml' => $documentXml,
+                'word/_rels/document.xml.rels' => $relationshipsXml,
+                'word/media/unsupported.bin' => 'metadata-only unsupported compression payload',
+            ],
+            [
+                '[Content_Types].xml' => 0,
+                'word/media/unsupported.bin' => 12,
+            ]
+        );
+
+        $packageDocument = (new DocxReader())->readDocument(ZipPackage::fromString($bytes));
+        $converterDocument = PandocConverter::read($bytes, 'docx');
+        $blocks = (new WordPressBlockWriter())->write($converterDocument);
+        $meta = $converterDocument->attr('meta');
+        $image = $converterDocument->children[0]->children[1];
+
+        $t->same('Native ZIP DOCX', $packageDocument->children[0]->attr('text'));
+        $t->same('Native ZIP DOCX', $converterDocument->children[0]->attr('text'));
+        $t->same(4, $meta['docxPackageEntries']);
+        $t->same(['word/media/unsupported.bin'], $meta['docxMediaFiles']);
+        $t->same(1, $meta['docxRelationshipCount']);
+        $t->same('image', $image->type);
+        $t->same('word/media/unsupported.bin', $image->attr('url'));
+        $t->same('Unsupported media alt', $image->attr('alt'));
+        $t->contains('word/media/unsupported.bin', $blocks);
     },
     'preserves docx numbering levels styles starts and delimiters' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-docx-');
