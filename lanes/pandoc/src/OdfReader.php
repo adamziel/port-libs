@@ -115,6 +115,7 @@ final class OdfReader
      *     packageConfigurations:array<string, mixed>,
      *     packageObjectReplacements:array<string, mixed>,
      *     packageLayoutCaches:array<string, mixed>,
+     *     packageMetaInfSidecars:array<string, mixed>,
      *     packageDatabases:array<string, mixed>,
      *     documentPartVersions:array<string, mixed>,
      *     rdfMetadata:array<string, mixed>,
@@ -158,6 +159,7 @@ final class OdfReader
         $packageConfigurations = $this->packageConfigurationMetadata($package, $manifest, $undeclaredEntries);
         $packageObjectReplacements = $this->packageObjectReplacementMetadata($package, $manifest, $undeclaredEntries);
         $packageLayoutCaches = $this->packageLayoutCacheMetadata($package, $manifest, $undeclaredEntries);
+        $packageMetaInfSidecars = $this->packageMetaInfSidecarMetadata($package, $manifest, $undeclaredEntries);
         $packageDatabases = $this->packageDatabaseMetadata($package, $manifest, $undeclaredEntries);
         $packageProvenance = $this->packageProvenance($package, $manifest, $mimetypeEntry, $undeclaredEntries, $styleCatalog);
         $documentPartVersions = $this->documentPartVersionMetadata($package, $manifest);
@@ -178,6 +180,9 @@ final class OdfReader
         }
         if ($packageLayoutCaches['count'] > 0) {
             $metadata['odfPackageLayoutCaches'] = $packageLayoutCaches;
+        }
+        if ($packageMetaInfSidecars['count'] > 0) {
+            $metadata['odfPackageMetaInfSidecars'] = $packageMetaInfSidecars;
         }
         if ($packageDatabases['count'] > 0) {
             $metadata['odfPackageDatabases'] = $packageDatabases;
@@ -250,6 +255,7 @@ final class OdfReader
             'packageConfigurations' => $packageConfigurations,
             'packageObjectReplacements' => $packageObjectReplacements,
             'packageLayoutCaches' => $packageLayoutCaches,
+            'packageMetaInfSidecars' => $packageMetaInfSidecars,
             'packageDatabases' => $packageDatabases,
             'trackedChanges' => [
                 'count' => count($content['trackedChanges']),
@@ -277,6 +283,7 @@ final class OdfReader
             'packageConfigurations' => $packageConfigurations,
             'packageObjectReplacements' => $packageObjectReplacements,
             'packageLayoutCaches' => $packageLayoutCaches,
+            'packageMetaInfSidecars' => $packageMetaInfSidecars,
             'packageDatabases' => $packageDatabases,
             'documentPartVersions' => $documentPartVersions,
             'rdfMetadata' => $rdfMetadata,
@@ -362,6 +369,7 @@ final class OdfReader
                 'packageConfigurations' => $packageConfigurations,
                 'packageObjectReplacements' => $packageObjectReplacements,
                 'packageLayoutCaches' => $packageLayoutCaches,
+                'packageMetaInfSidecars' => $packageMetaInfSidecars,
                 'packageDatabases' => $packageDatabases,
                 'rdfMetadata' => $rdfMetadata,
                 'signatureMetadata' => $signatureMetadata,
@@ -644,6 +652,7 @@ final class OdfReader
             $rdfMetadataPart = is_string($part) && $this->isRdfPackagePart($part, $mediaType);
             $objectReplacementPackagePart = is_string($part) && $this->isObjectReplacementPackagePartName($part);
             $layoutCachePackagePart = is_string($part) && $this->isLayoutCachePackagePartName($part);
+            $metaInfSidecarPackagePart = is_string($part) && $this->isMetaInfSidecarPackagePartName($part);
             $databasePackagePart = is_string($part) && $this->isDatabasePackagePartName($part);
             $canExposeBytes = !$encrypted
                 && !$isDirectory
@@ -655,6 +664,7 @@ final class OdfReader
                 && !$rdfMetadataPart
                 && !$objectReplacementPackagePart
                 && !$layoutCachePackagePart
+                && !$metaInfSidecarPackagePart
                 && !$databasePackagePart
                 && !$missingFileMediaType
                 && $zipEntry instanceof ZipPackageEntry
@@ -672,6 +682,7 @@ final class OdfReader
                 $rdfMetadataPart,
                 $objectReplacementPackagePart,
                 $layoutCachePackagePart,
+                $metaInfSidecarPackagePart,
                 $databasePackagePart,
                 $missingFileMediaType,
                 $hasSupportedCompression
@@ -702,6 +713,7 @@ final class OdfReader
                 'rdfMetadataPart' => $rdfMetadataPart,
                 'objectReplacementPackagePart' => $objectReplacementPackagePart,
                 'layoutCachePackagePart' => $layoutCachePackagePart,
+                'metaInfSidecarPackagePart' => $metaInfSidecarPackagePart,
                 'databasePackagePart' => $databasePackagePart,
                 'canExposeBytes' => $canExposeBytes,
                 'byteExposurePolicy' => $byteExposurePolicy,
@@ -1367,6 +1379,7 @@ final class OdfReader
         bool $rdfMetadataPart,
         bool $objectReplacementPackagePart,
         bool $layoutCachePackagePart,
+        bool $metaInfSidecarPackagePart,
         bool $databasePackagePart,
         bool $missingFileMediaType,
         bool $hasSupportedCompression
@@ -1403,6 +1416,9 @@ final class OdfReader
         }
         if ($layoutCachePackagePart) {
             return 'layout-cache-package-bytes-blocked';
+        }
+        if ($metaInfSidecarPackagePart) {
+            return 'meta-inf-sidecar-package-bytes-blocked';
         }
         if ($databasePackagePart) {
             return 'database-package-bytes-blocked';
@@ -1484,6 +1500,7 @@ final class OdfReader
         $rdfMetadataPartCount = 0;
         $objectReplacementPartCount = 0;
         $layoutCachePartCount = 0;
+        $metaInfSidecarPartCount = 0;
         $databasePackagePartCount = 0;
         $rawNameProvenanceEntryCount = 0;
         $legacyEncodedNameEntryCount = 0;
@@ -1543,6 +1560,7 @@ final class OdfReader
                 'rdfMetadataPart' => ($item['rdfMetadataPart'] ?? false) === true,
                 'objectReplacementPackagePart' => ($item['objectReplacementPackagePart'] ?? false) === true,
                 'layoutCachePackagePart' => ($item['layoutCachePackagePart'] ?? false) === true,
+                'metaInfSidecarPackagePart' => ($item['metaInfSidecarPackagePart'] ?? false) === true,
                 'databasePackagePart' => ($item['databasePackagePart'] ?? false) === true,
                 'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $item['byteExposurePolicy'] ?? null,
@@ -1775,6 +1793,7 @@ final class OdfReader
                 'rdfMetadataPart' => $this->isRdfPackagePart($entry->name, is_array($manifestItem) ? (string) ($manifestItem['mediaType'] ?? '') : null),
                 'objectReplacementPackagePart' => $this->isObjectReplacementPackagePartName($entry->name),
                 'layoutCachePackagePart' => $this->isLayoutCachePackagePartName($entry->name),
+                'metaInfSidecarPackagePart' => $this->isMetaInfSidecarPackagePartName($entry->name),
                 'databasePackagePart' => $this->isDatabasePackagePartName($entry->name),
                 'encrypted' => is_array($manifestItem) && ($manifestItem['encrypted'] ?? false) === true,
                 'canExposeBytes' => is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
@@ -1835,6 +1854,9 @@ final class OdfReader
             }
             if (in_array('layout-cache', $roles, true)) {
                 ++$layoutCachePartCount;
+            }
+            if (in_array('meta-inf-sidecar', $roles, true)) {
+                ++$metaInfSidecarPartCount;
             }
             if (in_array('database-package', $roles, true)) {
                 ++$databasePackagePartCount;
@@ -1933,6 +1955,7 @@ final class OdfReader
             'rdfMetadataPartCount' => $rdfMetadataPartCount,
             'objectReplacementPartCount' => $objectReplacementPartCount,
             'layoutCachePartCount' => $layoutCachePartCount,
+            'metaInfSidecarPartCount' => $metaInfSidecarPartCount,
             'databasePackagePartCount' => $databasePackagePartCount,
             'stylePackageProvenance' => $stylePackageProvenance,
             'embeddedObjectPackageCount' => $embeddedObjectPackages['count'],
@@ -2031,6 +2054,7 @@ final class OdfReader
                 'rdfMetadataPart' => ($item['rdfMetadataPart'] ?? false) === true,
                 'objectReplacementPackagePart' => ($item['objectReplacementPackagePart'] ?? false) === true,
                 'layoutCachePackagePart' => ($item['layoutCachePackagePart'] ?? false) === true,
+                'metaInfSidecarPackagePart' => ($item['metaInfSidecarPackagePart'] ?? false) === true,
                 'databasePackagePart' => ($item['databasePackagePart'] ?? false) === true,
                 'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $item['byteExposurePolicy'] ?? null,
@@ -2126,6 +2150,7 @@ final class OdfReader
                 'rdfMetadataPart' => ($item['rdfMetadataPart'] ?? false) === true,
                 'objectReplacementPackagePart' => ($item['objectReplacementPackagePart'] ?? false) === true,
                 'layoutCachePackagePart' => ($item['layoutCachePackagePart'] ?? false) === true,
+                'metaInfSidecarPackagePart' => ($item['metaInfSidecarPackagePart'] ?? false) === true,
                 'databasePackagePart' => ($item['databasePackagePart'] ?? false) === true,
                 'encrypted' => ($item['encrypted'] ?? false) === true,
                 'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
@@ -3098,6 +3123,9 @@ final class OdfReader
         }
         if ($this->isLayoutCachePackagePartName($entry->name)) {
             $roles[] = 'layout-cache';
+        }
+        if ($this->isMetaInfSidecarPackagePartName($entry->name)) {
+            $roles[] = 'meta-inf-sidecar';
         }
         if ($this->isDatabasePackagePartName($entry->name)) {
             $roles[] = 'database-package';
@@ -14605,6 +14633,9 @@ final class OdfReader
             if ($this->isLayoutCachePackagePartName($part)) {
                 continue;
             }
+            if ($this->isMetaInfSidecarPackagePartName($part)) {
+                continue;
+            }
             if ($this->isDatabasePackagePartName($part)) {
                 continue;
             }
@@ -15169,6 +15200,9 @@ final class OdfReader
         }
         if ($this->isLayoutCachePackagePartName($part)) {
             $roles[] = 'layout-cache';
+        }
+        if ($this->isMetaInfSidecarPackagePartName($part)) {
+            $roles[] = 'meta-inf-sidecar';
         }
         if ($this->isDatabasePackagePartName($part)) {
             $roles[] = 'database-package';
@@ -16284,6 +16318,133 @@ final class OdfReader
      * @param list<array<string, mixed>> $undeclaredEntries
      * @return array<string, mixed>
      */
+    private function packageMetaInfSidecarMetadata(ZipPackage $package, array $manifest, array $undeclaredEntries): array
+    {
+        $candidatesByPart = [];
+        foreach ($manifest as $item) {
+            $part = $item['part'] ?? null;
+            if (!is_string($part) || $part === '' || !$this->isMetaInfSidecarPackagePartName($part)) {
+                continue;
+            }
+
+            $item['declared'] = true;
+            $candidatesByPart[$part] = $item;
+        }
+
+        foreach ($undeclaredEntries as $entry) {
+            $part = $entry['part'] ?? null;
+            if (!is_string($part) || $part === '' || !$this->isMetaInfSidecarPackagePartName($part)) {
+                continue;
+            }
+
+            $candidatesByPart[$part] = [
+                'fullPath' => $part,
+                'part' => $part,
+                'partReference' => $part,
+                'partSuffix' => null,
+                'partQuery' => null,
+                'partFragment' => null,
+                'mediaType' => null,
+                'mediaTypeBase' => '',
+                'mediaTypeHasParameters' => false,
+                'mediaTypeParameterCount' => 0,
+                'mediaTypeParameters' => [],
+                'mediaTypeParameterMap' => [],
+                'exists' => true,
+                'encrypted' => false,
+                'declared' => false,
+                'declaredSize' => null,
+                'declaredSizeMismatch' => false,
+                'byteExposurePolicy' => 'meta-inf-sidecar-package-bytes-blocked',
+            ];
+        }
+
+        ksort($candidatesByPart, SORT_STRING);
+
+        $items = [];
+        $issueCodes = [];
+        foreach ($candidatesByPart as $part => $item) {
+            $entry = $package->has($part) ? $package->entry($part) : null;
+            $encrypted = ($item['encrypted'] ?? false) === true;
+            $declared = ($item['declared'] ?? false) === true;
+            $mediaType = is_string($item['mediaType'] ?? null) && (string) $item['mediaType'] !== ''
+                ? (string) $item['mediaType']
+                : null;
+            $mediaTypeReport = self::mediaTypeReport($mediaType ?? '');
+            $issues = [];
+            if (!$entry instanceof ZipPackageEntry) {
+                $issues[] = 'odf-meta-inf-sidecar-missing-package-part';
+            }
+            if (!$declared) {
+                $issues[] = 'odf-meta-inf-sidecar-undeclared-package-part';
+            }
+            if ($encrypted) {
+                $issues[] = 'odf-meta-inf-sidecar-encrypted-package-part';
+            }
+            foreach ($issues as $issue) {
+                $issueCodes[$issue] = true;
+            }
+
+            $items[] = [
+                'fullPath' => $item['fullPath'] ?? $part,
+                'part' => $part,
+                'partReference' => $item['partReference'] ?? null,
+                'partSuffix' => $item['partSuffix'] ?? null,
+                'partQuery' => $item['partQuery'] ?? null,
+                'partFragment' => $item['partFragment'] ?? null,
+                'mediaType' => $mediaType,
+                'mediaTypeBase' => $mediaTypeReport['mediaTypeBase'],
+                'mediaTypeHasParameters' => $mediaTypeReport['mediaTypeHasParameters'],
+                'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
+                'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
+                'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
+                'exists' => $entry instanceof ZipPackageEntry,
+                'declared' => $declared,
+                'undeclared' => !$declared,
+                'encrypted' => $encrypted,
+                'valid' => $entry instanceof ZipPackageEntry && !$encrypted,
+                'byteLength' => !$encrypted && $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+                'compressedByteLength' => $entry instanceof ZipPackageEntry ? $entry->compressedSize : null,
+                'compressionMethod' => $entry instanceof ZipPackageEntry ? $entry->compressionMethod : null,
+                'compressionMethodName' => $entry instanceof ZipPackageEntry ? self::compressionMethodName($entry->compressionMethod) : null,
+                'crc32' => !$encrypted && $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+                'storedByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+                'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+                'declaredSize' => $item['declaredSize'] ?? null,
+                'declaredSizeMismatch' => ($item['declaredSizeMismatch'] ?? false) === true,
+                'canExposeAsDocumentMedia' => false,
+                'byteExposurePolicy' => $item['byteExposurePolicy'] ?? 'meta-inf-sidecar-package-bytes-blocked',
+                'reviewPolicy' => 'meta-inf-sidecar-metadata-only',
+                'issues' => $issues,
+            ];
+        }
+
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'readableCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['exists'] === true && ($item['byteLength'] ?? null) !== null,
+            )),
+            'declaredCount' => count(array_filter($items, static fn (array $item): bool => $item['declared'] === true)),
+            'undeclaredCount' => count(array_filter($items, static fn (array $item): bool => $item['undeclared'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] !== true)),
+            'encryptedCount' => count(array_filter($items, static fn (array $item): bool => $item['encrypted'] === true)),
+            'invalidMediaTypeCount' => 0,
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'issueCodes' => array_keys($issueCodes),
+            'byteExposurePolicy' => 'meta-inf-sidecar-package-bytes-blocked',
+            'reviewPolicy' => 'meta-inf-sidecar-metadata-only',
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @param list<array<string, mixed>> $undeclaredEntries
+     * @return array<string, mixed>
+     */
     private function packageDatabaseMetadata(ZipPackage $package, array $manifest, array $undeclaredEntries): array
     {
         $candidatesByPart = [];
@@ -16530,6 +16691,16 @@ final class OdfReader
     private function isLayoutCachePackagePartName(string $part): bool
     {
         return strtolower(ltrim($part, '/')) === 'layout-cache';
+    }
+
+    private function isMetaInfSidecarPackagePartName(string $part): bool
+    {
+        $normalized = strtolower(ltrim($part, '/'));
+
+        return str_starts_with($normalized, 'meta-inf/')
+            && $normalized !== 'meta-inf/manifest.xml'
+            && !$this->isSignaturePartName($part)
+            && !str_ends_with($normalized, '/');
     }
 
     private function layoutCacheMediaTypeFromPart(string $part): string
@@ -17072,6 +17243,7 @@ final class OdfReader
                 'compressionMethod' => $entry->compressionMethod,
                 'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
                 'crc32' => $entry->crc32Hex(),
+                'metaInfSidecarPackagePart' => $this->isMetaInfSidecarPackagePartName($entry->name),
                 'canExposeBytes' => false,
                 'byteExposurePolicy' => 'undeclared-package-entry-no-bytes',
                 'diagnostics' => ['odf-manifest-undeclared-package-entry'],
