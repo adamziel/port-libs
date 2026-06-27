@@ -86,22 +86,34 @@ return [
         }
         $inventory = $summary['packageInventory'];
 
-        $t->same(3, $scripts['count']);
+        $t->same(4, $scripts['count']);
+        $t->same(3, $scripts['fileCount']);
+        $t->same(1, $scripts['directoryCount']);
+        $t->same(4, $scripts['storedPartCount']);
         $t->same(3, $scripts['readableCount']);
-        $t->same(2, $scripts['declaredCount']);
+        $t->same(3, $scripts['declaredCount']);
         $t->same(1, $scripts['undeclaredCount']);
         $t->same(0, $scripts['missingCount']);
         $t->same(0, $scripts['encryptedCount']);
         $t->same(1, $scripts['issueCount']);
         $t->same(['odf-script-undeclared-package-part'], $scripts['issueCodes']);
         $t->same(['dialogs'], $scripts['scriptContainers']);
-        $t->same(['basic-dialog', 'basic-library-index'], $scripts['scriptKinds']);
+        $t->same(['basic-dialog', 'basic-library-index', 'script-directory'], $scripts['scriptKinds']);
         $t->same('script-package-bytes-blocked', $scripts['byteExposurePolicy']);
         $t->same('package-script-metadata-only', $scripts['reviewPolicy']);
 
+        $directory = $scriptByPath['Dialogs/'];
         $index = $scriptByPath['Dialogs/Standard/dialog-lb.xml'];
         $dialog = $scriptByPath['Dialogs/Standard/ReviewDialog.xdl'];
         $orphan = $scriptByPath['Dialogs/Standard/OrphanDialog.xdl'];
+
+        $t->same(true, $directory['isDirectory']);
+        $t->same('script-directory', $directory['scriptKind']);
+        $t->same(true, $directory['valid']);
+        $t->same(null, $directory['byteLength']);
+        $t->same(0, $directory['storedByteLength']);
+        $t->same('directory-entry-no-bytes', $directory['byteExposurePolicy']);
+        $t->same([], $directory['issues']);
 
         $t->same('dialogs', $index['scriptContainer']);
         $t->same('basic-library-index', $index['scriptKind']);

@@ -2998,9 +2998,12 @@ XML;
         }
         $inventory = $summary['packageInventory'];
 
-        $t->same(6, $scripts['count']);
+        $t->same(8, $scripts['count']);
+        $t->same(6, $scripts['fileCount']);
+        $t->same(2, $scripts['directoryCount']);
+        $t->same(7, $scripts['storedPartCount']);
         $t->same(4, $scripts['readableCount']);
-        $t->same(5, $scripts['declaredCount']);
+        $t->same(7, $scripts['declaredCount']);
         $t->same(1, $scripts['undeclaredCount']);
         $t->same(1, $scripts['missingCount']);
         $t->same(1, $scripts['encryptedCount']);
@@ -3011,7 +3014,7 @@ XML;
             'odf-script-undeclared-package-part',
         ], $scripts['issueCodes']);
         $t->same(['basic', 'scripts'], $scripts['scriptContainers']);
-        $t->same(['basic-module', 'javascript', 'script-package-part'], $scripts['scriptKinds']);
+        $t->same(['basic-module', 'javascript', 'script-directory', 'script-package-part'], $scripts['scriptKinds']);
         $t->same('script-package-bytes-blocked', $scripts['byteExposurePolicy']);
         $t->same('package-script-metadata-only', $scripts['reviewPolicy']);
 
@@ -3032,6 +3035,25 @@ XML;
         $t->same(['script-package', 'manifest-declared'], $inventory['parts']['Scripts/icon.png']['roles']);
         $t->same(['script-package', 'undeclared-package-entry'], $inventory['parts']['Scripts/orphan.js']['roles']);
         $t->same(1, $inventory['undeclaredRoleCounts']['script-package']);
+
+        $basicDirectory = $scriptByPath['Basic/'];
+        $t->same(true, $basicDirectory['isDirectory']);
+        $t->same('basic', $basicDirectory['scriptContainer']);
+        $t->same('script-directory', $basicDirectory['scriptKind']);
+        $t->same(null, $basicDirectory['scriptPath']);
+        $t->same(null, $basicDirectory['scriptModule']);
+        $t->same(true, $basicDirectory['declared']);
+        $t->same(true, $basicDirectory['valid']);
+        $t->same(null, $basicDirectory['byteLength']);
+        $t->same(0, $basicDirectory['storedByteLength']);
+        $t->same('directory-entry-no-bytes', $basicDirectory['byteExposurePolicy']);
+        $t->same([], $basicDirectory['issues']);
+
+        $scriptsDirectory = $scriptByPath['Scripts/'];
+        $t->same(true, $scriptsDirectory['isDirectory']);
+        $t->same('scripts', $scriptsDirectory['scriptContainer']);
+        $t->same('script-directory', $scriptsDirectory['scriptKind']);
+        $t->same('directory-entry-no-bytes', $scriptsDirectory['byteExposurePolicy']);
 
         $basicScript = $scriptByPath['Basic/Standard/Review.xml'];
         $t->same('basic', $basicScript['scriptContainer']);
