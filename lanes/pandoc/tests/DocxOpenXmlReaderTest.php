@@ -11593,6 +11593,7 @@ XML;
             '  <Relationship Id="rEmbeddedWorkbook" Type="' . $packageRel . '" Target="embeddings/review.xlsx?sheet=1#ole"/>' . "\n" .
             '  <Relationship Id="rMissingOle" Type="' . $oleRel . '" Target="embeddings/missing.bin"/>' . "\n" .
             '  <Relationship Id="rRemoteOle" Type="' . $oleRel . '" Target="https://example.test/ole.bin?remote=1#object" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rUnsafeOle" Type="' . $oleRel . '" Target="javascript:alert(1)" TargetMode="External"/>' . "\n" .
             '</Relationships>',
             $parts['word/_rels/document.xml.rels']
         );
@@ -11618,21 +11619,30 @@ XML;
         $missing = $embedded['byRelationshipId']['rMissingOle'];
         $unknown = $embedded['byRelationshipId']['rUnknownOle'];
         $remote = $embedded['byRelationshipId']['rRemoteOle'];
+        $unsafe = $embedded['byRelationshipId']['rUnsafeOle'];
+        $summary = $docx['packageProvenance']['summary'];
         $relationshipTypes = $docx['packageProvenance']['relationshipTypes'];
 
-        $t->same(4, $embedded['count']);
-        $t->same(3, $embedded['relationshipCount']);
+        $t->same(5, $embedded['count']);
+        $t->same(4, $embedded['relationshipCount']);
         $t->same(3, $embedded['referencedCount']);
-        $t->same(1, $embedded['unreferencedRelationshipCount']);
+        $t->same(2, $embedded['unreferencedRelationshipCount']);
         $t->same(1, $embedded['existingCount']);
         $t->same(1, $embedded['missingCount']);
-        $t->same(1, $embedded['externalCount']);
+        $t->same(2, $embedded['externalCount']);
+        $t->same(1, $embedded['allowedExternalTargetCount']);
+        $t->same(1, $embedded['unsafeExternalTargetCount']);
         $t->same(1, $embedded['unresolvedCount']);
         $t->same(1, $embedded['missingContentTypeCount']);
-        $t->same(['rEmbeddedWorkbook', 'rMissingOle', 'rUnknownOle', 'rRemoteOle'], $embedded['relationshipIds']);
+        $t->same(['rEmbeddedWorkbook', 'rMissingOle', 'rUnknownOle', 'rRemoteOle', 'rUnsafeOle'], $embedded['relationshipIds']);
         $t->same(['rEmbeddedWorkbook', 'rMissingOle', 'rUnknownOle'], $embedded['referencedRelationshipIds']);
-        $t->same(['rRemoteOle'], $embedded['unreferencedRelationshipIds']);
+        $t->same(['rRemoteOle', 'rUnsafeOle'], $embedded['unreferencedRelationshipIds']);
         $t->same(['word/embeddings/review.xlsx', 'word/embeddings/missing.bin'], $embedded['partNames']);
+        $t->same(['https://example.test/ole.bin?remote=1#object', 'javascript:alert(1)'], $embedded['externalTargets']);
+        $t->same(['javascript:alert(1)'], $embedded['unsafeExternalTargets']);
+        $t->same(['absolute-uri' => 2], $embedded['externalTargetKindCounts']);
+        $t->same(['https' => 1, 'javascript' => 1], $embedded['externalTargetSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme'], $embedded['externalTargetIssueCodes']);
 
         $t->same('Excel.Sheet.12', $workbook['progId']);
         $t->same('_x0000_i1025', $workbook['shapeId']);
@@ -11672,12 +11682,34 @@ XML;
         $t->same(true, $remote['external']);
         $t->same('https://example.test/ole.bin?remote=1#object', $remote['target']);
         $t->same(null, $remote['targetPart']);
+        $t->same('absolute-uri', $remote['externalTargetKind']);
+        $t->same('https', $remote['externalTargetScheme']);
+        $t->same(true, $remote['externalTargetAllowed']);
+        $t->same([], $remote['externalTargetIssues']);
+        $t->same('remote=1', $remote['targetQuery']);
+        $t->same('object', $remote['targetFragment']);
         $t->same(['external-embedded-object'], $remote['issues']);
+
+        $t->same(false, $unsafe['referenced']);
+        $t->same(true, $unsafe['external']);
+        $t->same('javascript:alert(1)', $unsafe['target']);
+        $t->same(null, $unsafe['targetPart']);
+        $t->same('absolute-uri', $unsafe['externalTargetKind']);
+        $t->same('javascript', $unsafe['externalTargetScheme']);
+        $t->same(false, $unsafe['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $unsafe['externalTargetIssues']);
+        $t->same(['external-embedded-object', 'external-target-unsafe-scheme'], $unsafe['issues']);
+
+        $t->same(2, $summary['embeddedObjectExternalCount']);
+        $t->same(1, $summary['embeddedObjectAllowedExternalCount']);
+        $t->same(1, $summary['embeddedObjectUnsafeExternalCount']);
+        $t->same(['external-target-unsafe-scheme'], $summary['embeddedObjectExternalTargetIssueCodes']);
+        $t->same(['external-embedded-object', 'external-target-unsafe-scheme', 'missing-content-type', 'missing-in-package', 'unknown-relationship'], $summary['embeddedObjectIssueCodes']);
 
         $t->same(1, $relationshipTypes[$packageRel]['existingTargetCount']);
         $t->same(['word/embeddings/review.xlsx'], $relationshipTypes[$packageRel]['existingTargetParts']);
-        $t->same(2, $relationshipTypes[$oleRel]['count']);
-        $t->same(1, $relationshipTypes[$oleRel]['externalCount']);
+        $t->same(3, $relationshipTypes[$oleRel]['count']);
+        $t->same(2, $relationshipTypes[$oleRel]['externalCount']);
         $t->same(['word/embeddings/missing.bin'], $relationshipTypes[$oleRel]['missingTargetParts']);
     },
     'summarizes docx embedded object sidecar relationships for package review' => static function (TestRunner $t): void {
