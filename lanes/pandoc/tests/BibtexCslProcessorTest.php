@@ -2364,6 +2364,104 @@ BIB;
         $t->same('005 explicit relation list', $handoff['bibliography']->children[0]->attr('cslItem')['shorthand-list-sort-key'] ?? null);
         $t->same('source-proceedings', $handoff['bibliography']->children[0]->attr('cslItem')['xref'] ?? null);
     },
+    'carries biblatex literal publisher language and event lists in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{literal-list-review,
+  author        = {Ng, Nia},
+  title         = {Literal List Review Manual},
+  date          = {2026},
+  publisher     = {Review Press and Archive Desk},
+  location      = {New York and London},
+  origpublisher = {Archivo Press and Migration Desk},
+  origlocation  = {Madrid and Barcelona},
+  origlanguage  = {spanish and basque},
+  language      = {english and french},
+  url           = {https://example.test/literal-list}
+}
+
+@proceedings{event-list-review,
+  author     = {Curator, Eli},
+  title      = {Event List Proceedings},
+  eventtitle = {Import Review Summit},
+  venue      = {Portland Convention Center and Remote Stream},
+  date       = {2025},
+  publisher  = {Migration Desk}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $literal = $items['literal-list-review'];
+        $event = $items['event-list-review'];
+
+        $t->same(['Review Press', 'Archive Desk'], $literal['publisher-list']);
+        $t->same(['New York', 'London'], $literal['publisher-place-list']);
+        $t->same(['Archivo Press', 'Migration Desk'], $literal['original-publisher-list']);
+        $t->same(['Madrid', 'Barcelona'], $literal['original-publisher-place-list']);
+        $t->same(['spanish', 'basque'], $literal['original-language-list']);
+        $t->same(['english', 'french'], $literal['language-list']);
+        $t->same(['Portland Convention Center', 'Remote Stream'], $event['event-place-list']);
+        $t->same('New York and London', $literal['rawBibtex']['fields']['location']);
+        $t->same('Portland Convention Center and Remote Stream', $event['rawBibtex']['fields']['venue']);
+        $t->contains('Publisher list: Review Press; Archive Desk', $processor->renderBibliographyText($literal));
+        $t->contains('Original languages: spanish; basque', $processor->renderBibliographyText($literal));
+
+        $document = (new MarkdownReader())->read('Literal list review [@literal-list-review; @event-list-review] keeps literal lists visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+
+        $t->same(['literal-list-review', 'event-list-review'], $handoff['citedKeys']);
+        $t->same(['Review Press', 'Archive Desk'], $handoff['bibliography']->children[0]->attr('cslItem')['publisher-list'] ?? null);
+        $t->same(['Portland Convention Center', 'Remote Stream'], $handoff['bibliography']->children[1]->attr('cslItem')['event-place-list'] ?? null);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="publisher-list"/>
+        <text variable="publisher-place-list"/>
+        <text variable="original-publisher-list"/>
+        <text variable="original-publisher-place-list"/>
+        <text variable="original-language-list"/>
+        <text variable="language-list"/>
+        <text variable="event-place-list"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="publisher-list"/>
+      <text variable="publisher-place-list"/>
+      <text variable="original-publisher-list"/>
+      <text variable="original-publisher-place-list"/>
+      <text variable="original-language-list"/>
+      <text variable="language-list"/>
+      <text variable="event-place-list"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledLiteral = $styled->item('literal-list-review');
+        $styledEvent = $styled->item('event-list-review');
+        $t->same(['Review Press', 'Archive Desk'], $styledLiteral['publisherList'] ?? null);
+        $t->same(['Madrid', 'Barcelona'], $styledLiteral['originalPublisherPlaceList'] ?? null);
+        $t->same(['Portland Convention Center', 'Remote Stream'], $styledEvent['eventPlaceList'] ?? null);
+        $t->same('[Ng | Review Press; Archive Desk | New York; London | Archivo Press; Migration Desk | Madrid; Barcelona | spanish; basque | english; french; Curator | Migration Desk | Portland Convention Center; Remote Stream]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'literal-list-review', 'text' => '[@literal-list-review]']),
+            new AstNode('citation', ['id' => 'event-list-review', 'text' => '[@event-list-review]']),
+        ]));
+        $t->same('Literal List Review Manual :: Review Press; Archive Desk :: New York; London :: Archivo Press; Migration Desk :: Madrid; Barcelona :: spanish; basque :: english; french', $styled->renderBibliographyEntry('literal-list-review'));
+        $t->same('Event List Proceedings :: Migration Desk :: Portland Convention Center; Remote Stream', $styled->renderBibliographyEntry('event-list-review'));
+
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Literal list review [Ng | Review Press; Archive Desk | New York; London | Archivo Press; Migration Desk | Madrid; Barcelona | spanish; basque | english; french; Curator | Migration Desk | Portland Convention Center; Remote Stream] keeps literal lists visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Literal List Review Manual :: Review Press; Archive Desk :: New York; London :: Archivo Press; Migration Desk :: Madrid; Barcelona :: spanish; basque :: english; french</dd>', $blocks);
+        $t->contains('<dt>Curator 2025</dt><dd>Event List Proceedings :: Migration Desk :: Portland Convention Center; Remote Stream</dd>', $blocks);
+    },
     'carries biblatex date addendum aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @online{legacy-date-addendum,
