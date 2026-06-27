@@ -5119,6 +5119,7 @@ final class ZipPackage
      *     missingEntries:list<array<string, mixed>>,
      *     failedEntries:list<array<string, mixed>>,
      *     handoffEntries:list<array<string, mixed>>,
+     *     requirementSummaries:list<array<string, mixed>>,
      *     entries:list<array<string, mixed>>
      * }
      */
@@ -5983,6 +5984,7 @@ final class ZipPackage
         $handoffPathDepthSummaries = self::entryHandoffPathDepthSummaries($handoffEntries);
         $roleSummaries = self::entryHandoffRoleSummaries($entries);
         $handoffSourceByteSpanSummary = self::entryHandoffSourceByteSpanSummary($handoffEntries);
+        $requirementSummaries = self::entryHandoffRequirementSummaries($entries);
 
         return [
             'requestedEntryCount' => count($requests),
@@ -6052,6 +6054,7 @@ final class ZipPackage
             'duplicateRequestedEntryCount' => $duplicateRequestedEntryCount,
             'duplicateRequestedEntryGroupCount' => count($duplicateRequestedEntryGroups),
             'requestedRoleCount' => count($roleSummaries),
+            'requestRequirementSummaryCount' => count($requirementSummaries),
             'selectedRawNameProvenanceEntryCount' => count($selectedRawNameProvenanceEntries),
             'selectedLegacyEncodedNameEntryCount' => $selectedLegacyEncodedNameEntryCount,
             'selectedUnicodePathExtraEntryCount' => $selectedUnicodePathExtraEntryCount,
@@ -6134,6 +6137,7 @@ final class ZipPackage
             'issues' => $issues,
             'duplicateRequestedEntryGroups' => $duplicateRequestedEntryGroups,
             'roleSummaries' => $roleSummaries,
+            'requirementSummaries' => $requirementSummaries,
             'selectedDirectoryRootSummaries' => $selectedDirectoryRootSummaries,
             'handoffDirectoryRootSummaries' => $handoffDirectoryRootSummaries,
             'selectedPackagePartKindSummaries' => $selectedPackagePartKindSummaries,
@@ -6298,6 +6302,107 @@ final class ZipPackage
         }
 
         return $summary;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffRequirementSummaries(array $entries): array
+    {
+        $summaries = [];
+        $seenNamesByRequirement = [];
+        $seenHandoffNamesByRequirement = [];
+        foreach ($entries as $entry) {
+            $required = ($entry['required'] ?? false) === true;
+            $key = $required ? 'required' : 'optional';
+            if (!isset($summaries[$key])) {
+                $summaries[$key] = [
+                    'requirement' => $key,
+                    'required' => $required,
+                    'requestCount' => 0,
+                    'presentEntryCount' => 0,
+                    'missingEntryCount' => 0,
+                    'handoffEntryCount' => 0,
+                    'handoffUniqueEntryCount' => 0,
+                    'failedEntryCount' => 0,
+                    'duplicateRequestCount' => 0,
+                    'selectedUniqueEntryCount' => 0,
+                    'selectedCompressedBytes' => 0,
+                    'selectedUncompressedBytes' => 0,
+                    'handoffCompressedBytes' => 0,
+                    'handoffUncompressedBytes' => 0,
+                    'selectedEntryNames' => [],
+                    'handoffEntryNames' => [],
+                    'missingEntryNames' => [],
+                    'failedEntryNames' => [],
+                    'issues' => [],
+                    'issueCounts' => [],
+                ];
+                $seenNamesByRequirement[$key] = [];
+                $seenHandoffNamesByRequirement[$key] = [];
+            }
+
+            ++$summaries[$key]['requestCount'];
+
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if (($entry['exists'] ?? false) === true) {
+                ++$summaries[$key]['presentEntryCount'];
+                if ($name !== '' && !isset($seenNamesByRequirement[$key][$name])) {
+                    $seenNamesByRequirement[$key][$name] = true;
+                    ++$summaries[$key]['selectedUniqueEntryCount'];
+                    $summaries[$key]['selectedEntryNames'][] = $name;
+                    $summaries[$key]['selectedCompressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+                    $summaries[$key]['selectedUncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+                }
+            } else {
+                ++$summaries[$key]['missingEntryCount'];
+                if ($name !== '') {
+                    $summaries[$key]['missingEntryNames'][] = $name;
+                }
+            }
+
+            if (($entry['isDuplicateRequest'] ?? false) === true) {
+                ++$summaries[$key]['duplicateRequestCount'];
+            }
+
+            $issues = array_values(array_filter($entry['issues'] ?? [], 'is_string'));
+            if (($entry['status'] ?? null) === 'ready' && ($entry['exists'] ?? false) === true) {
+                ++$summaries[$key]['handoffEntryCount'];
+                if ($name !== '' && !isset($seenHandoffNamesByRequirement[$key][$name])) {
+                    $seenHandoffNamesByRequirement[$key][$name] = true;
+                    ++$summaries[$key]['handoffUniqueEntryCount'];
+                    $summaries[$key]['handoffEntryNames'][] = $name;
+                    $summaries[$key]['handoffCompressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+                    $summaries[$key]['handoffUncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+                }
+            } elseif ($issues !== []) {
+                ++$summaries[$key]['failedEntryCount'];
+                if ($name !== '') {
+                    $summaries[$key]['failedEntryNames'][] = $name;
+                }
+                foreach ($issues as $issue) {
+                    if (!in_array($issue, $summaries[$key]['issues'], true)) {
+                        $summaries[$key]['issues'][] = $issue;
+                    }
+                    $summaries[$key]['issueCounts'][$issue] = ($summaries[$key]['issueCounts'][$issue] ?? 0) + 1;
+                }
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            ksort($summary['issueCounts'], SORT_STRING);
+        }
+        unset($summary);
+
+        $ordered = [];
+        foreach (['required', 'optional'] as $key) {
+            if (isset($summaries[$key])) {
+                $ordered[] = $summaries[$key];
+            }
+        }
+
+        return $ordered;
     }
 
     /**

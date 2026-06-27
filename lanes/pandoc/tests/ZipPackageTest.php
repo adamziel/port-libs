@@ -12506,6 +12506,83 @@ return [
         $t->same(['missing-required-entry' => 1], $byRole['required-sidecar']['issueCounts']);
     },
 
+    'summarizes selected zip handoff requirement policy for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>requirement policy</w:p></w:body></w:document>';
+        $documentRelsXml = '<Relationships><Relationship Id="rIdImage" Target="media/image.png"/></Relationships>';
+        $imageBytes = "optional image bytes\n";
+        $largeBytes = "oversized optional package bytes\n";
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelsXml, 'method' => 0],
+            ['name' => 'word/media/image.png', 'data' => $imageBytes, 'method' => 0],
+            ['name' => 'word/media/large.bin', 'data' => $largeBytes, 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/_rels/document.xml.rels', 'required' => true, 'kind' => 'file', 'role' => 'document-relationships'],
+            ['name' => 'word/missing.xml', 'required' => true, 'kind' => 'file', 'role' => 'required-sidecar'],
+            ['name' => 'word/media/image.png', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => '/word/media/image.png', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'word/media/large.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 8],
+            ['name' => 'word/optional.xml', 'required' => false, 'kind' => 'file', 'role' => 'optional-sidecar'],
+        ], 1024);
+        $byRequirement = [];
+        foreach ($summary['requirementSummaries'] as $requirementSummary) {
+            $byRequirement[$requirementSummary['requirement']] = $requirementSummary;
+        }
+
+        $t->same(2, $summary['requestRequirementSummaryCount']);
+        $t->same(['required', 'optional'], array_keys($byRequirement));
+
+        $requiredBytes = strlen($documentXml) + strlen($documentRelsXml);
+        $t->same(true, $byRequirement['required']['required']);
+        $t->same(3, $byRequirement['required']['requestCount']);
+        $t->same(2, $byRequirement['required']['presentEntryCount']);
+        $t->same(1, $byRequirement['required']['missingEntryCount']);
+        $t->same(2, $byRequirement['required']['handoffEntryCount']);
+        $t->same(2, $byRequirement['required']['handoffUniqueEntryCount']);
+        $t->same(1, $byRequirement['required']['failedEntryCount']);
+        $t->same(0, $byRequirement['required']['duplicateRequestCount']);
+        $t->same(2, $byRequirement['required']['selectedUniqueEntryCount']);
+        $t->same($requiredBytes, $byRequirement['required']['selectedUncompressedBytes']);
+        $t->same($requiredBytes, $byRequirement['required']['handoffUncompressedBytes']);
+        $t->same(['word/document.xml', 'word/_rels/document.xml.rels'], $byRequirement['required']['selectedEntryNames']);
+        $t->same(['word/document.xml', 'word/_rels/document.xml.rels'], $byRequirement['required']['handoffEntryNames']);
+        $t->same(['word/missing.xml'], $byRequirement['required']['missingEntryNames']);
+        $t->same(['word/missing.xml'], $byRequirement['required']['failedEntryNames']);
+        $t->same(['missing-required-entry'], $byRequirement['required']['issues']);
+        $t->same(['missing-required-entry' => 1], $byRequirement['required']['issueCounts']);
+
+        $optionalBytes = strlen($imageBytes) + strlen($largeBytes);
+        $t->same(false, $byRequirement['optional']['required']);
+        $t->same(4, $byRequirement['optional']['requestCount']);
+        $t->same(3, $byRequirement['optional']['presentEntryCount']);
+        $t->same(1, $byRequirement['optional']['missingEntryCount']);
+        $t->same(0, $byRequirement['optional']['handoffEntryCount']);
+        $t->same(0, $byRequirement['optional']['handoffUniqueEntryCount']);
+        $t->same(3, $byRequirement['optional']['failedEntryCount']);
+        $t->same(2, $byRequirement['optional']['duplicateRequestCount']);
+        $t->same(2, $byRequirement['optional']['selectedUniqueEntryCount']);
+        $t->same($optionalBytes, $byRequirement['optional']['selectedUncompressedBytes']);
+        $t->same(0, $byRequirement['optional']['handoffUncompressedBytes']);
+        $t->same(['word/media/image.png', 'word/media/large.bin'], $byRequirement['optional']['selectedEntryNames']);
+        $t->same([], $byRequirement['optional']['handoffEntryNames']);
+        $t->same(['word/optional.xml'], $byRequirement['optional']['missingEntryNames']);
+        $t->same(['word/media/image.png', 'word/media/image.png', 'word/media/large.bin'], $byRequirement['optional']['failedEntryNames']);
+        $t->same(['duplicate-selected-entry-request', 'entry-uncompressed-size-exceeds-limit'], $byRequirement['optional']['issues']);
+        $t->same([
+            'duplicate-selected-entry-request' => 2,
+            'entry-uncompressed-size-exceeds-limit' => 1,
+        ], $byRequirement['optional']['issueCounts']);
+
+        $t->same([
+            'duplicate-selected-entry-request',
+            'missing-required-entry',
+            'entry-uncompressed-size-exceeds-limit',
+        ], $summary['issues']);
+    },
+
     'summarizes selected zip handoff directory roots for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
         $contentTypesXml = '<Types/>';
         $packageRelsXml = '<Relationships/>';
