@@ -13901,6 +13901,10 @@ final class DocxOpenXmlReader
             'partXmlProcessingInstructionTargetCounts' => $partXmlRoots['xmlProcessingInstructionTargetCounts'],
             'partXmlProcessingInstructionTargets' => $partXmlRoots['xmlProcessingInstructionTargets'],
             'partXmlProcessingInstructionPartNames' => $partXmlRoots['xmlProcessingInstructionPartNames'],
+            'partXmlCommentPartCount' => $partXmlRoots['xmlCommentPartCount'],
+            'partXmlCommentCount' => $partXmlRoots['xmlCommentCount'],
+            'partXmlCommentByteLength' => $partXmlRoots['xmlCommentByteLength'],
+            'partXmlCommentPartNames' => $partXmlRoots['xmlCommentPartNames'],
             'partContentTypeSyntaxSuffixCount' => count($partContentTypeSyntaxSuffixes),
             'partContentTypeSyntaxSuffixCounts' => $partContentTypeSyntaxSuffixCounts,
             'partContentTypeStructuredSyntaxPartCount' => $partContentTypeStructuredSyntaxPartCount,
@@ -14210,6 +14214,7 @@ final class DocxOpenXmlReader
             'partNameCharacterReviewParts' => $partNameCharacters['parts'],
             'partXmlRoots' => $partXmlRoots['items'],
             'partXmlProcessingInstructions' => $partXmlRoots['xmlProcessingInstructions'],
+            'partXmlComments' => $partXmlRoots['xmlComments'],
             'partContentTypeSyntaxSuffixes' => $partContentTypeSyntaxSuffixes,
             'partContentTypeSources' => $partContentTypeSources,
             'partContentTypes' => $partContentTypes,
@@ -19592,7 +19597,7 @@ final class DocxOpenXmlReader
 
     /**
      * @param array<string, array<string, mixed>> $partInventory
-     * @return array{count:int, validCount:int, invalidCount:int, inspectionReasonCounts:array<string, int>, rootNamespaceCounts:array<string, int>, rootLocalNameCounts:array<string, int>, rootQualifiedNameCounts:array<string, int>, rootPrefixCounts:array<string, int>, rootNamespaceDeclarationCount:int, rootNamespacePrefixCounts:array<string, int>, rootNamespacePrefixes:list<string>, invalidPartNames:list<string>, xmlDeclarationCount:int, xmlDeclarationPartNames:list<string>, xmlDeclarationVersionCounts:array<string, int>, xmlDeclarationEncodingCounts:array<string, int>, xmlStandaloneDeclarationCount:int, xmlStandaloneYesCount:int, xmlStandaloneNoCount:int, xmlProcessingInstructionPartCount:int, xmlProcessingInstructionCount:int, xmlProcessingInstructionTargetCounts:array<string, int>, xmlProcessingInstructionTargets:list<string>, xmlProcessingInstructionPartNames:list<string>, xmlProcessingInstructions:list<array<string, mixed>>, items:list<array<string, mixed>>}
+     * @return array{count:int, validCount:int, invalidCount:int, inspectionReasonCounts:array<string, int>, rootNamespaceCounts:array<string, int>, rootLocalNameCounts:array<string, int>, rootQualifiedNameCounts:array<string, int>, rootPrefixCounts:array<string, int>, rootNamespaceDeclarationCount:int, rootNamespacePrefixCounts:array<string, int>, rootNamespacePrefixes:list<string>, invalidPartNames:list<string>, xmlDeclarationCount:int, xmlDeclarationPartNames:list<string>, xmlDeclarationVersionCounts:array<string, int>, xmlDeclarationEncodingCounts:array<string, int>, xmlStandaloneDeclarationCount:int, xmlStandaloneYesCount:int, xmlStandaloneNoCount:int, xmlProcessingInstructionPartCount:int, xmlProcessingInstructionCount:int, xmlProcessingInstructionTargetCounts:array<string, int>, xmlProcessingInstructionTargets:list<string>, xmlProcessingInstructionPartNames:list<string>, xmlProcessingInstructions:list<array<string, mixed>>, xmlCommentPartCount:int, xmlCommentCount:int, xmlCommentByteLength:int, xmlCommentPartNames:list<string>, xmlComments:list<array<string, mixed>>, items:list<array<string, mixed>>}
      */
     private function packagePartXmlRootSummary(array $partInventory): array
     {
@@ -19613,6 +19618,8 @@ final class DocxOpenXmlReader
         $xmlProcessingInstructionTargets = [];
         $xmlProcessingInstructionPartNames = [];
         $xmlProcessingInstructions = [];
+        $xmlCommentPartNames = [];
+        $xmlComments = [];
         $validCount = 0;
         $invalidCount = 0;
         $xmlDeclarationCount = 0;
@@ -19621,6 +19628,9 @@ final class DocxOpenXmlReader
         $xmlStandaloneNoCount = 0;
         $xmlProcessingInstructionPartCount = 0;
         $xmlProcessingInstructionCount = 0;
+        $xmlCommentPartCount = 0;
+        $xmlCommentCount = 0;
+        $xmlCommentByteLength = 0;
 
         foreach ($partInventory as $partName => $part) {
             if (($part['xmlInspectable'] ?? false) !== true) {
@@ -19740,6 +19750,37 @@ final class DocxOpenXmlReader
                     'dataAttributes' => is_array($instruction['dataAttributes'] ?? null) ? $instruction['dataAttributes'] : [],
                 ];
             }
+            $partCommentCount = (int) ($part['xmlCommentCount'] ?? 0);
+            if ($partCommentCount > 0) {
+                ++$xmlCommentPartCount;
+                $xmlCommentCount += $partCommentCount;
+                $xmlCommentByteLength += (int) ($part['xmlCommentByteLength'] ?? 0);
+                $xmlCommentPartNames[] = $partName;
+            }
+            foreach (($part['xmlComments'] ?? []) as $comment) {
+                if (!is_array($comment)) {
+                    continue;
+                }
+
+                $xmlComments[] = [
+                    'partName' => $partName,
+                    'directory' => is_string($part['directory'] ?? null)
+                        ? $part['directory']
+                        : $this->packagePartDirectory($partName),
+                    'baseName' => is_string($part['baseName'] ?? null)
+                        ? $part['baseName']
+                        : $this->packagePartBaseName($partName),
+                    'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                    'contentTypeBase' => is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '',
+                    'contentTypeSource' => is_string($part['contentTypeSource'] ?? null) ? $part['contentTypeSource'] : 'missing',
+                    'ordinal' => is_int($comment['ordinal'] ?? null) ? (int) $comment['ordinal'] : 0,
+                    'parentPath' => is_string($comment['parentPath'] ?? null) ? $comment['parentPath'] : '/',
+                    'parentDepth' => (int) ($comment['parentDepth'] ?? 0),
+                    'byteLength' => (int) ($comment['byteLength'] ?? 0),
+                    'crc32' => is_string($comment['crc32'] ?? null) ? $comment['crc32'] : null,
+                    'sha256' => is_string($comment['sha256'] ?? null) ? $comment['sha256'] : null,
+                ];
+            }
 
             $items[] = [
                 'partName' => $partName,
@@ -19778,6 +19819,11 @@ final class DocxOpenXmlReader
                 'xmlProcessingInstructions' => is_array($part['xmlProcessingInstructions'] ?? null)
                     ? $part['xmlProcessingInstructions']
                     : [],
+                'xmlCommentCount' => $partCommentCount,
+                'xmlCommentByteLength' => (int) ($part['xmlCommentByteLength'] ?? 0),
+                'xmlComments' => is_array($part['xmlComments'] ?? null)
+                    ? $part['xmlComments']
+                    : [],
                 'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
             ];
         }
@@ -19796,8 +19842,14 @@ final class DocxOpenXmlReader
         sort($invalidPartNames, SORT_STRING);
         sort($xmlDeclarationPartNames, SORT_STRING);
         sort($xmlProcessingInstructionPartNames, SORT_STRING);
+        sort($xmlCommentPartNames, SORT_STRING);
         usort(
             $xmlProcessingInstructions,
+            static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName'])
+                ?: ((int) ($left['ordinal'] ?? 0) <=> (int) ($right['ordinal'] ?? 0)),
+        );
+        usort(
+            $xmlComments,
             static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName'])
                 ?: ((int) ($left['ordinal'] ?? 0) <=> (int) ($right['ordinal'] ?? 0)),
         );
@@ -19832,6 +19884,11 @@ final class DocxOpenXmlReader
             'xmlProcessingInstructionTargets' => $xmlProcessingInstructionTargets,
             'xmlProcessingInstructionPartNames' => $xmlProcessingInstructionPartNames,
             'xmlProcessingInstructions' => $xmlProcessingInstructions,
+            'xmlCommentPartCount' => $xmlCommentPartCount,
+            'xmlCommentCount' => $xmlCommentCount,
+            'xmlCommentByteLength' => $xmlCommentByteLength,
+            'xmlCommentPartNames' => $xmlCommentPartNames,
+            'xmlComments' => $xmlComments,
             'items' => $items,
         ];
     }
@@ -21464,6 +21521,74 @@ final class DocxOpenXmlReader
             'count' => count($items),
             'targetCounts' => $targetCounts,
             'targets' => $targets,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @return array{count:int, byteLength:int, items:list<array<string, mixed>>}
+     */
+    private function xmlCommentProvenance(string $xml, string $partName): array
+    {
+        $dom = $this->loadXmlForProvenance($xml, $partName);
+        if (!$dom instanceof \DOMDocument) {
+            return [
+                'count' => 0,
+                'byteLength' => 0,
+                'items' => [],
+            ];
+        }
+
+        $parentPath = static function (?\DOMNode $node): string {
+            if (!$node instanceof \DOMNode || $node instanceof \DOMDocument) {
+                return '/';
+            }
+
+            $segments = [];
+            while ($node instanceof \DOMNode && !$node instanceof \DOMDocument) {
+                if ($node instanceof \DOMElement) {
+                    $segments[] = $node->tagName;
+                }
+                $node = $node->parentNode;
+            }
+
+            return $segments === [] ? '/' : '/' . implode('/', array_reverse($segments));
+        };
+
+        $items = [];
+        $ordinal = 0;
+        $byteLength = 0;
+        $walk = function (\DOMNode $node) use (&$walk, &$items, &$ordinal, &$byteLength, $parentPath): void {
+            foreach ($node->childNodes as $child) {
+                if ($child instanceof \DOMComment) {
+                    $data = $child->data;
+                    $commentParentPath = $parentPath($child->parentNode);
+                    $parentDepth = $commentParentPath === '/'
+                        ? 0
+                        : substr_count(trim($commentParentPath, '/'), '/') + 1;
+                    ++$ordinal;
+                    $commentByteLength = strlen($data);
+                    $byteLength += $commentByteLength;
+                    $items[] = [
+                        'ordinal' => $ordinal,
+                        'parentPath' => $commentParentPath,
+                        'parentDepth' => $parentDepth,
+                        'byteLength' => $commentByteLength,
+                        'crc32' => $data === '' ? null : sprintf('%08x', crc32($data)),
+                        'sha256' => $data === '' ? null : hash('sha256', $data),
+                    ];
+                }
+
+                if ($child->hasChildNodes()) {
+                    $walk($child);
+                }
+            }
+        };
+        $walk($dom);
+
+        return [
+            'count' => count($items),
+            'byteLength' => $byteLength,
             'items' => $items,
         ];
     }
@@ -23178,11 +23303,15 @@ final class DocxOpenXmlReader
                 'xmlProcessingInstructionTargets' => [],
                 'xmlProcessingInstructionTargetCounts' => [],
                 'xmlProcessingInstructions' => [],
+                'xmlCommentCount' => 0,
+                'xmlCommentByteLength' => 0,
+                'xmlComments' => [],
             ];
         }
 
         $xmlDeclaration = $this->xmlDeclarationProvenance($contents);
         $processingInstructions = $this->xmlProcessingInstructionProvenance($contents, $partName);
+        $comments = $this->xmlCommentProvenance($contents, $partName);
         $root = $this->xmlRootProvenance($contents, $partName);
 
         return [
@@ -23206,6 +23335,9 @@ final class DocxOpenXmlReader
             'xmlProcessingInstructionTargets' => $processingInstructions['targets'],
             'xmlProcessingInstructionTargetCounts' => $processingInstructions['targetCounts'],
             'xmlProcessingInstructions' => $processingInstructions['items'],
+            'xmlCommentCount' => $comments['count'],
+            'xmlCommentByteLength' => $comments['byteLength'],
+            'xmlComments' => $comments['items'],
         ];
     }
 
