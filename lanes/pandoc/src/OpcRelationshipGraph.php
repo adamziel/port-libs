@@ -850,6 +850,9 @@ final class OpcRelationshipGraph
         $entryNamesByContentTypeSource = [];
         $contentTypeSummariesByType = [];
         $contentTypeSourceSummariesBySource = [];
+        $packagePartExtensionCounts = [];
+        $entryNamesByPackagePartExtension = [];
+        $packagePartExtensionSummariesByExtension = [];
         $compressionMethodCounts = [];
         $entryNamesByCompressionMethod = [];
         $compressionMethodNamesByRole = [];
@@ -876,6 +879,7 @@ final class OpcRelationshipGraph
         $missingContentTypePartCount = 0;
         $missingContentTypeDefaultCount = 0;
         $missingContentTypeExtensionlessCount = 0;
+        $extensionlessPackagePartCount = 0;
         $missingContentTypeParts = [];
         $missingContentTypeExtensions = [];
         $documentPropertyPartCount = 0;
@@ -977,6 +981,22 @@ final class OpcRelationshipGraph
                         $entry,
                     );
                 }
+            }
+            if ($entry['isPackagePart'] && is_string($entry['partName'])) {
+                $extension = self::partNameExtension($entry['partName']);
+                $extensionKey = $extension === '' ? '(none)' : $extension;
+                if ($extension === '') {
+                    $extensionlessPackagePartCount++;
+                }
+                $packagePartExtensionCounts[$extensionKey] = ($packagePartExtensionCounts[$extensionKey] ?? 0) + 1;
+                $entryNamesByPackagePartExtension[$extensionKey] ??= [];
+                self::appendUniqueString($entryNamesByPackagePartExtension[$extensionKey], $entry['entryName']);
+                self::recordZipEntryManifestExtensionSummary(
+                    $packagePartExtensionSummariesByExtension,
+                    $extensionKey,
+                    $extension === '' ? null : $extension,
+                    $entry,
+                );
             }
             self::recordZipEntryManifestCompressionMethodProvenance(
                 $compressionMethodCounts,
@@ -1137,6 +1157,9 @@ final class OpcRelationshipGraph
         self::sortStringListMap($entryNamesByContentTypeSource);
         $contentTypeSummaries = self::zipEntryManifestContentSummaries($contentTypeSummariesByType);
         $contentTypeSourceSummaries = self::zipEntryManifestContentSummaries($contentTypeSourceSummariesBySource);
+        ksort($packagePartExtensionCounts, SORT_STRING);
+        self::sortStringListMap($entryNamesByPackagePartExtension);
+        $packagePartExtensionSummaries = self::zipEntryManifestContentSummaries($packagePartExtensionSummariesByExtension);
         self::sortZipManifestCompressionMethodProvenance(
             $compressionMethodCounts,
             $entryNamesByCompressionMethod,
@@ -1192,6 +1215,10 @@ final class OpcRelationshipGraph
             'missingContentTypeExtensionlessCount' => $missingContentTypeExtensionlessCount,
             'missingContentTypeParts' => $missingContentTypeParts,
             'missingContentTypeExtensions' => $missingContentTypeExtensions,
+            'extensionlessPackagePartCount' => $extensionlessPackagePartCount,
+            'packagePartExtensionCounts' => $packagePartExtensionCounts,
+            'entryNamesByPackagePartExtension' => $entryNamesByPackagePartExtension,
+            'packagePartExtensionSummaries' => $packagePartExtensionSummaries,
             'contentTypeOverrideDeclarationCount' => count($contentTypeOverrideDeclarations),
             'contentTypeUsedOverrideDeclarationCount' => count($contentTypeOverrideDeclarations) - count($contentTypeUnusedOverridePartNames),
             'contentTypeUnusedOverrideDeclarationCount' => count($contentTypeUnusedOverridePartNames),
@@ -8569,6 +8596,30 @@ final class OpcRelationshipGraph
         $summaries[$contentType]['contentTypeSourceCounts'][$contentTypeSource] =
             ($summaries[$contentType]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
         self::recordZipEntryManifestContentSummaryEntry($summaries[$contentType], $entry);
+    }
+
+    private static function recordZipEntryManifestExtensionSummary(
+        array &$summaries,
+        string $extensionKey,
+        ?string $extension,
+        array $entry
+    ): void {
+        $summaries[$extensionKey] ??= [
+            'extensionKey' => $extensionKey,
+            'extension' => $extension,
+            'entryCount' => 0,
+            'fileEntryCount' => 0,
+            'directoryEntryCount' => 0,
+            'packagePartCount' => 0,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+            'roleCounts' => [],
+            'handoffKindCounts' => [],
+            'entryNames' => [],
+            'partNames' => [],
+        ];
+
+        self::recordZipEntryManifestContentSummaryEntry($summaries[$extensionKey], $entry);
     }
 
     private static function recordZipEntryManifestContentSummaryEntry(array &$summary, array $entry): void

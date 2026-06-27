@@ -916,6 +916,74 @@ XML;
         $t->same(['invalid-relationship-part-name'], $entries['word/_rels/media/document.xml.rels']['issues']);
         $t->same('directory', $entries['word/media/']['handoffKind']);
     },
+    'summarizes OPC ZIP manifest package part extensions before XML package handoff' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Default Extension="svg" ContentType="image/svg+xml"/>
+  <Override PartName="/word/embeddings/source.DOCX" ContentType="application/vnd.openxmlformats-officedocument.package"/>
+  <Override PartName="/customXml/item1" ContentType="application/xml"/>
+</Types>
+XML;
+        $package = ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'compressionMethod' => 0],
+            ['name' => '_rels/.rels', 'data' => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"/>', 'compressionMethod' => 0],
+            ['name' => 'word/document.xml', 'data' => '<w:document/>', 'compressionMethod' => 0],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"/>', 'compressionMethod' => 0],
+            ['name' => 'word/media/image.PNG', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+            ['name' => 'word/media/vector.svg', 'data' => '<svg/>', 'compressionMethod' => 0],
+            ['name' => 'word/embeddings/source.DOCX', 'data' => 'DOCXDATA', 'compressionMethod' => 0],
+            ['name' => 'customXml/item1', 'data' => '<audit/>', 'compressionMethod' => 0],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>', 'compressionMethod' => 0],
+        ]);
+
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest($package);
+        $extensionSummaries = [];
+        foreach ($summary['packagePartExtensionSummaries'] as $extensionSummary) {
+            $extensionSummaries[$extensionSummary['extensionKey']] = $extensionSummary;
+        }
+
+        $t->same(true, $summary['valid']);
+        $t->same(1, $summary['extensionlessPackagePartCount']);
+        $t->same([
+            '(none)' => 1,
+            'docx' => 1,
+            'png' => 1,
+            'rels' => 2,
+            'svg' => 1,
+            'xml' => 3,
+        ], $summary['packagePartExtensionCounts']);
+        $t->same([
+            'customXml/item1',
+        ], $summary['entryNamesByPackagePartExtension']['(none)']);
+        $t->same([
+            '[Content_Types].xml',
+            'docProps/core.xml',
+            'word/document.xml',
+        ], $summary['entryNamesByPackagePartExtension']['xml']);
+        $t->same(null, $extensionSummaries['(none)']['extension']);
+        $t->same([
+            'xml-part' => 1,
+        ], $extensionSummaries['(none)']['roleCounts']);
+        $t->same([
+            'xml' => 1,
+        ], $extensionSummaries['(none)']['handoffKindCounts']);
+        $t->same([
+            'content-types' => 1,
+            'document-properties' => 1,
+            'xml-part' => 1,
+        ], $extensionSummaries['xml']['roleCounts']);
+        $t->same([
+            'content-types+xml' => 1,
+            'xml' => 2,
+        ], $extensionSummaries['xml']['handoffKindCounts']);
+        $t->same([
+            'embedded-package-candidate' => 1,
+        ], $extensionSummaries['docx']['roleCounts']);
+        $t->same(2, $summary['roleCounts']['media']);
+    },
     'summarizes OPC ZIP manifest compression provenance before XML package handoff' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
