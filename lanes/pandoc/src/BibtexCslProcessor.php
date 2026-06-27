@@ -493,9 +493,11 @@ final class BibtexCslProcessor
         foreach ([
             'reviewed-title' => 'Reviewed title',
             'reviewed-genre' => 'Reviewed genre',
+            'original-genre' => 'Original genre',
             'references' => 'References',
             'dimensions' => 'Dimensions',
             'scale' => 'Scale',
+            'entry-subtype' => 'Entry subtype',
             'main-title' => 'Main title',
             'main-title-addon' => 'Main title addendum',
             'volume-title' => 'Volume title',
@@ -743,6 +745,7 @@ final class BibtexCslProcessor
             'container-title-addon' => ['journaltitleaddon', 'booktitleaddon'],
             'main-title-addon' => ['maintitleaddon', 'main-title-addon'],
             'reviewed-genre' => ['reviewedgenre', 'reviewed-genre', 'reviewgenre', 'review-genre'],
+            'original-genre' => ['origtype', 'origgenre', 'originaltype', 'original-type', 'originalgenre', 'original-genre'],
             'volume-title-short' => ['shortvolumetitle', 'short-volume-title', 'volumetitleshort', 'volume-title-short'],
             'issue-title-addon' => ['issuetitleaddon', 'issue-title-addon', 'issuetitle-addon'],
             'container-title-short' => [
@@ -832,6 +835,7 @@ final class BibtexCslProcessor
             'note' => ['note', 'addendum'],
             'name-addon' => ['nameaddon', 'name-addon'],
             'genre' => ['type', 'entrysubtype'],
+            'entry-subtype' => ['entrysubtype', 'entry-subtype'],
             'related' => ['related'],
             'related-type' => ['relatedtype', 'related-type'],
             'related-string' => ['relatedstring', 'related-string'],

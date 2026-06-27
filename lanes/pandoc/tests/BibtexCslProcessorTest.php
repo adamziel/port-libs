@@ -902,6 +902,89 @@ BIB;
         $t->same('print-on-demand packet', $item['medium']);
         $t->same('Gia Garcia. Migration Manual. Review Press. 2026.', $bibliography);
     },
+    'carries biblatex original genre and entry subtype metadata in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{legacy-original-kind,
+  author     = {Smith, Ada},
+  title      = {Legacy Source Manual},
+  origtitle  = {Manual Fuente},
+  origtype   = {source facsimile},
+  publisher  = {Review Press},
+  date       = {2026}
+}
+
+@report{legacy-entry-subtype,
+  author       = {Ng, Nia},
+  title        = {Legacy Audit Report},
+  type         = {white paper},
+  entrysubtype = {migration source audit},
+  institution  = {Migration Desk},
+  date         = {2025}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $originalKind = $items['legacy-original-kind'];
+        $entrySubtype = $items['legacy-entry-subtype'];
+
+        $t->same('Manual Fuente', $originalKind['original-title']);
+        $t->same('source facsimile', $originalKind['original-genre']);
+        $t->same('source facsimile', $originalKind['rawBibtex']['fields']['origtype']);
+        $t->same('white paper', $entrySubtype['genre']);
+        $t->same('migration source audit', $entrySubtype['entry-subtype']);
+        $t->same('migration source audit', $entrySubtype['rawBibtex']['fields']['entrysubtype']);
+        $t->same('Ada Smith. Legacy Source Manual. Review Press. 2026. Original genre: source facsimile.', $processor->renderBibliographyText($originalKind));
+        $t->same('Nia Ng. Legacy Audit Report. Migration Desk. 2025. Entry subtype: migration source audit.', $processor->renderBibliographyText($entrySubtype));
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Source Kind Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-source-kind-review</id>
+    <updated>2026-06-27T21:05:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="original-genre"/>
+        <text variable="genre"/>
+        <text variable="entry-subtype"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="original-genre"/>
+      <text variable="genre"/>
+      <text variable="entry-subtype"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded Legacy BibLaTeX Source Kind Review', $summary['title'] ?? null);
+        $t->same('[Smith | source facsimile; Ng | white paper | migration source audit]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-original-kind', 'text' => '[@legacy-original-kind]']),
+            new AstNode('citation', ['id' => 'legacy-entry-subtype', 'text' => '[@legacy-entry-subtype]']),
+        ]));
+        $t->same('Legacy Source Manual :: source facsimile', $styled->renderBibliographyEntry('legacy-original-kind'));
+        $t->same('Legacy Audit Report :: white paper :: migration source audit', $styled->renderBibliographyEntry('legacy-entry-subtype'));
+
+        $document = (new MarkdownReader())->read('Source kind @legacy-original-kind and subtype [@legacy-entry-subtype] stay reviewable.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$handoff['bibliography']]));
+
+        $t->same(['legacy-original-kind', 'legacy-entry-subtype'], $handoff['citedKeys']);
+        $t->same('source facsimile', $handoff['items'][0]['original-genre']);
+        $t->same('migration source audit', $handoff['items'][1]['entry-subtype']);
+        $t->contains('Original genre: source facsimile', $blocks);
+        $t->contains('Entry subtype: migration source audit', $blocks);
+    },
     'carries biblatex translated title aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @book{translated-title-source,
