@@ -14795,6 +14795,9 @@ final class XmlHtmlDom
             if ($inputType === 'file' || $node->hasAttribute('accept') || $node->hasAttribute('capture')) {
                 $summary += self::fileInputReviewSummary($node, $inputType);
             }
+            if ($inputType === 'image') {
+                $summary += self::inputImageSubmitterReviewSummary($node);
+            }
             if ($node->hasAttribute('placeholder')) {
                 $summary['placeholder'] = $node->getAttribute('placeholder');
             }
@@ -15494,6 +15497,12 @@ final class XmlHtmlDom
             && (in_array('preload', $resourceKinds, true)
                 || in_array('modulepreload', $resourceKinds, true)
                 || in_array('stylesheet', $resourceKinds, true));
+        $integrityReview = self::linkIntegrityReviewSummary(
+            $integrityRaw,
+            $integrityTokens,
+            $integrityAppliesToResource,
+            $resourceRelTokens
+        );
         $blockingRaw = self::attributeOrNull($link, 'blocking');
         $blockingTokens = $blockingRaw === null ? [] : self::spaceSeparatedTokens($blockingRaw);
         $blocking = self::htmlBlockingTokenSummary($link);
@@ -15538,15 +15547,7 @@ final class XmlHtmlDom
         if ($referrerPolicyRaw !== null && $referrerPolicy === null) {
             $fetchPolicyIssues[] = ['code' => 'invalid-link-referrerpolicy', 'referrerpolicyRaw' => $referrerPolicyRaw];
         }
-        if ($integrityRaw !== null && $integrityTokens === []) {
-            $fetchPolicyIssues[] = ['code' => 'empty-link-integrity'];
-        }
-        if ($integrityRaw !== null && !$integrityAppliesToResource) {
-            $fetchPolicyIssues[] = [
-                'code' => 'link-integrity-without-fetch-resource',
-                'relTokens' => $resourceRelTokens,
-            ];
-        }
+        array_push($fetchPolicyIssues, ...$integrityReview['issues']);
         array_push($issues, ...$fetchPolicyIssues);
         foreach ($invalidBlockingTokens as $token) {
             $issues[] = [
@@ -15615,6 +15616,16 @@ final class XmlHtmlDom
             'linkIntegrityPresent' => $integrityRaw !== null,
             'linkIntegrityEmpty' => $integrityRaw !== null && $integrityTokens === [],
             'linkIntegrityAppliesToResource' => $integrityAppliesToResource,
+            'linkIntegrityHashAlgorithms' => $integrityReview['algorithms'],
+            'unsupportedLinkIntegrityAlgorithms' => $integrityReview['unsupportedAlgorithms'],
+            'duplicateLinkIntegrityTokens' => $integrityReview['duplicateTokens'],
+            'linkIntegrityTokenRecords' => $integrityReview['records'],
+            'linkIntegrityIssues' => $integrityReview['issues'],
+            'linkIntegrityIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $integrityReview['issues']
+            ))),
+            'linkIntegrityValid' => $integrityRaw === null ? null : $integrityReview['issues'] === [],
             'linkBlockingReviewPolicy' => 'link-render-blocking-token-review',
             'linkBlockingAttributePresent' => $blockingRaw !== null,
             'linkBlockingTokens' => $blockingTokens,
@@ -15637,6 +15648,111 @@ final class XmlHtmlDom
                 $fetchPolicyIssues
             ))),
             'linkFetchPolicyValid' => $fetchPolicyIssues === [],
+        ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @param list<string> $resourceRelTokens
+     * @return array{
+     *     algorithms:list<string>,
+     *     unsupportedAlgorithms:list<string>,
+     *     duplicateTokens:list<string>,
+     *     records:list<array{index:int, token:string, algorithm:?string, hashPresent:bool, algorithmSupported:bool, valid:bool}>,
+     *     issues:list<array<string, mixed>>
+     * }
+     */
+    private static function linkIntegrityReviewSummary(
+        ?string $raw,
+        array $tokens,
+        bool $appliesToResource,
+        array $resourceRelTokens
+    ): array {
+        $tokenCounts = [];
+        $duplicateTokens = [];
+        $records = [];
+        $algorithms = [];
+        $unsupportedAlgorithms = [];
+        $issues = [];
+
+        if ($raw === null) {
+            return [
+                'algorithms' => [],
+                'unsupportedAlgorithms' => [],
+                'duplicateTokens' => [],
+                'records' => [],
+                'issues' => [],
+            ];
+        }
+
+        if ($tokens === []) {
+            $issues[] = ['code' => 'empty-link-integrity'];
+        }
+        if (!$appliesToResource) {
+            $issues[] = [
+                'code' => 'link-integrity-without-fetch-resource',
+                'relTokens' => $resourceRelTokens,
+            ];
+        }
+
+        foreach ($tokens as $index => $token) {
+            $algorithm = null;
+            $hashPresent = false;
+            $algorithmSupported = false;
+            if (preg_match('/^([A-Za-z][A-Za-z0-9+.-]*)-(.+)$/', $token, $matches) === 1) {
+                $algorithm = strtolower($matches[1]);
+                $hashPresent = $matches[2] !== '';
+                $algorithmSupported = in_array($algorithm, ['sha256', 'sha384', 'sha512'], true);
+            }
+
+            if ($algorithm !== null && !in_array($algorithm, $algorithms, true)) {
+                $algorithms[] = $algorithm;
+            }
+            if ($algorithm !== null && !$algorithmSupported && !in_array($algorithm, $unsupportedAlgorithms, true)) {
+                $unsupportedAlgorithms[] = $algorithm;
+            }
+
+            $tokenCounts[$token] = ($tokenCounts[$token] ?? 0) + 1;
+            if ($tokenCounts[$token] > 1 && !in_array($token, $duplicateTokens, true)) {
+                $duplicateTokens[] = $token;
+                $issues[] = [
+                    'code' => 'duplicate-link-integrity-token',
+                    'token' => $token,
+                    'count' => $tokenCounts[$token],
+                ];
+            }
+
+            if ($algorithm === null || !$hashPresent) {
+                $issues[] = [
+                    'code' => 'malformed-link-integrity-token',
+                    'token' => $token,
+                    'index' => $index,
+                ];
+            } elseif (!$algorithmSupported) {
+                $issues[] = [
+                    'code' => 'unsupported-link-integrity-algorithm',
+                    'token' => $token,
+                    'algorithm' => $algorithm,
+                    'index' => $index,
+                ];
+            }
+
+            $records[] = [
+                'index' => $index,
+                'token' => $token,
+                'algorithm' => $algorithm,
+                'hashPresent' => $hashPresent,
+                'algorithmSupported' => $algorithmSupported,
+                'valid' => $algorithm !== null && $hashPresent && $algorithmSupported,
+            ];
+        }
+
+        return [
+            'algorithms' => $algorithms,
+            'unsupportedAlgorithms' => $unsupportedAlgorithms,
+            'duplicateTokens' => $duplicateTokens,
+            'records' => $records,
+            'issues' => $issues,
         ];
     }
 
@@ -16241,6 +16357,7 @@ final class XmlHtmlDom
                 'activeReviewPolicy' => $element->hasAttribute('src') ? 'external-script-source' : 'inline-script-source',
             ] + $scriptType
                 + $loading
+                + self::scriptIntegrityReviewSummary($element, $scriptType['scriptPayloadKind'])
                 + self::scriptAttributionSrcReviewSummary($element)
                 + self::activeContentNonceSummary($element);
 
@@ -16293,6 +16410,109 @@ final class XmlHtmlDom
     /**
      * @return array<string, mixed>
      */
+    private static function scriptIntegrityReviewSummary(\DOMElement $script, string $payloadKind): array
+    {
+        if (!$script->hasAttribute('integrity')) {
+            return [];
+        }
+
+        $raw = $script->getAttribute('integrity');
+        $tokens = self::spaceSeparatedTokens($raw);
+        $appliesToResource = $script->hasAttribute('src') && in_array($payloadKind, ['classic', 'module'], true);
+        $tokenCounts = [];
+        $duplicateTokens = [];
+        $records = [];
+        $algorithms = [];
+        $unsupportedAlgorithms = [];
+        $issues = [];
+
+        if ($tokens === []) {
+            $issues[] = ['code' => 'empty-script-integrity'];
+        }
+        if (!$appliesToResource) {
+            $issues[] = [
+                'code' => 'script-integrity-without-external-executable-source',
+                'sourceKind' => $script->hasAttribute('src') ? 'external' : 'inline',
+                'payloadKind' => $payloadKind,
+            ];
+        }
+
+        foreach ($tokens as $index => $token) {
+            $algorithm = null;
+            $hashPresent = false;
+            $algorithmSupported = false;
+            if (preg_match('/^([A-Za-z][A-Za-z0-9+.-]*)-(.+)$/', $token, $matches) === 1) {
+                $algorithm = strtolower($matches[1]);
+                $hashPresent = $matches[2] !== '';
+                $algorithmSupported = in_array($algorithm, ['sha256', 'sha384', 'sha512'], true);
+            }
+
+            if ($algorithm !== null && !in_array($algorithm, $algorithms, true)) {
+                $algorithms[] = $algorithm;
+            }
+            if ($algorithm !== null && !$algorithmSupported && !in_array($algorithm, $unsupportedAlgorithms, true)) {
+                $unsupportedAlgorithms[] = $algorithm;
+            }
+
+            $tokenCounts[$token] = ($tokenCounts[$token] ?? 0) + 1;
+            if ($tokenCounts[$token] > 1 && !in_array($token, $duplicateTokens, true)) {
+                $duplicateTokens[] = $token;
+                $issues[] = [
+                    'code' => 'duplicate-script-integrity-token',
+                    'token' => $token,
+                    'count' => $tokenCounts[$token],
+                ];
+            }
+
+            if ($algorithm === null || !$hashPresent) {
+                $issues[] = [
+                    'code' => 'malformed-script-integrity-token',
+                    'token' => $token,
+                    'index' => $index,
+                ];
+            } elseif (!$algorithmSupported) {
+                $issues[] = [
+                    'code' => 'unsupported-script-integrity-algorithm',
+                    'token' => $token,
+                    'algorithm' => $algorithm,
+                    'index' => $index,
+                ];
+            }
+
+            $records[] = [
+                'index' => $index,
+                'token' => $token,
+                'algorithm' => $algorithm,
+                'hashPresent' => $hashPresent,
+                'algorithmSupported' => $algorithmSupported,
+                'valid' => $algorithm !== null && $hashPresent && $algorithmSupported,
+            ];
+        }
+
+        return [
+            'scriptIntegrityReviewPolicy' => 'script-subresource-integrity-review',
+            'scriptIntegrityRaw' => $raw,
+            'scriptIntegrityTokens' => $tokens,
+            'scriptIntegrityTokenCount' => count($tokens),
+            'scriptIntegrityPresent' => true,
+            'scriptIntegrityEmpty' => $tokens === [],
+            'scriptIntegrityAppliesToResource' => $appliesToResource,
+            'scriptIntegrityHashAlgorithms' => $algorithms,
+            'unsupportedScriptIntegrityAlgorithms' => $unsupportedAlgorithms,
+            'duplicateScriptIntegrityTokens' => $duplicateTokens,
+            'scriptIntegrityTokenRecords' => $records,
+            'scriptIntegrityIssues' => $issues,
+            'scriptIntegrityIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'scriptIntegrityValid' => $issues === [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     private static function scriptAttributionSrcReviewSummary(\DOMElement $script): array
     {
         if (!$script->hasAttribute('attributionsrc')) {
@@ -16339,6 +16559,11 @@ final class XmlHtmlDom
             }
         }
 
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+
         return [
             'scriptAttributionSrcReviewPolicy' => 'script-attributionsrc-provenance-review',
             'scriptAttributionSrcRequested' => true,
@@ -16350,6 +16575,9 @@ final class XmlHtmlDom
             'unsafeScriptAttributionSrcUrls' => $unsafeUrls,
             'nonHttpScriptAttributionSrcUrls' => $nonHttpUrls,
             'scriptAttributionSrcIssues' => $issues,
+            'scriptAttributionSrcIssueCodes' => $issueCodes,
+            'scriptAttributionSrcIssueCount' => count($issues),
+            'scriptAttributionSrcValid' => $issues === [],
         ];
     }
 
@@ -16414,6 +16642,17 @@ final class XmlHtmlDom
         $referrerPolicyRaw = self::attributeOrNull($script, 'referrerpolicy');
         $referrerPolicy = $referrerPolicyRaw === null ? null : self::referrerPolicyState($referrerPolicyRaw);
         $blocking = self::htmlBlockingTokenSummary($script);
+        $issues = [];
+        foreach ($blocking['invalid'] as $token) {
+            $issues[] = ['code' => 'invalid-script-blocking-token', 'token' => $token];
+        }
+        foreach ($blocking['duplicates'] as $token) {
+            $issues[] = [
+                'code' => 'duplicate-script-blocking-token',
+                'token' => $token,
+                'count' => $blocking['tokenCounts'][$token] ?? 0,
+            ];
+        }
 
         $sourceKind = $script->hasAttribute('src') ? 'external' : 'inline';
         $loadingMode = match (true) {
@@ -16436,7 +16675,14 @@ final class XmlHtmlDom
             'scriptFetchPriority' => $fetchPriority,
             'scriptFetchPriorityValid' => $fetchPriorityRaw === null ? null : $fetchPriority !== null,
             'scriptBlockingTokenCounts' => $blocking['tokenCounts'],
+            'duplicateScriptBlockingTokens' => $blocking['duplicates'],
             'invalidScriptBlockingTokens' => $blocking['invalid'],
+            'scriptBlockingAllTokensValid' => $blocking['invalid'] === [],
+            'scriptLoadingIssues' => $issues,
+            'scriptLoadingIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
         ];
     }
 
@@ -16565,6 +16811,9 @@ final class XmlHtmlDom
                 $summary['importMapIntegrityCount'] = isset($json['integrity']) && is_array($json['integrity']) && !self::isJsonList($json['integrity'])
                     ? count($json['integrity'])
                     : 0;
+                $importMapReview = self::importMapReviewSummary($json);
+                $summary += $importMapReview['summary'];
+                array_push($diagnostics, ...$importMapReview['diagnostics']);
             }
         }
 
@@ -16592,6 +16841,213 @@ final class XmlHtmlDom
         $summary['scriptJsonDiagnostics'] = $diagnostics;
 
         return $summary;
+    }
+
+    /**
+     * @param array<string, mixed> $json
+     * @return array{
+     *     summary:array<string, mixed>,
+     *     diagnostics:list<string>
+     * }
+     */
+    private static function importMapReviewSummary(array $json): array
+    {
+        $diagnostics = [];
+        $topLevelIssues = [];
+        foreach (['imports', 'scopes', 'integrity'] as $key) {
+            if (array_key_exists($key, $json) && (!is_array($json[$key]) || self::isJsonList($json[$key]))) {
+                $topLevelIssues[] = [
+                    'code' => 'invalid-import-map-' . $key,
+                    'valueType' => self::jsonValueKind($json[$key]),
+                ];
+            }
+        }
+
+        $imports = isset($json['imports']) && is_array($json['imports']) && !self::isJsonList($json['imports'])
+            ? self::importMapBindingRecords($json['imports'])
+            : [];
+        $scopeRecords = [];
+        $scopeIssues = [];
+
+        if (isset($json['scopes']) && is_array($json['scopes']) && !self::isJsonList($json['scopes'])) {
+            foreach ($json['scopes'] as $scopePrefix => $scopeImports) {
+                $scopePrefix = (string) $scopePrefix;
+                $scopeUrl = self::hyperlinkUrlReviewSummary($scopePrefix);
+                $issues = [];
+                if ($scopeUrl['unsafe'] === true) {
+                    $issues[] = [
+                        'code' => 'unsafe-import-map-scope-prefix',
+                        'scopePrefix' => $scopePrefix,
+                        'scheme' => $scopeUrl['scheme'],
+                    ];
+                }
+
+                if (!is_array($scopeImports) || self::isJsonList($scopeImports)) {
+                    $diagnostics[] = 'importmap-scope-imports-not-object';
+                    $issues[] = [
+                        'code' => 'invalid-import-map-scope-imports',
+                        'scopePrefix' => $scopePrefix,
+                        'valueType' => self::jsonValueKind($scopeImports),
+                    ];
+                    $scopeImportRecords = [];
+                } else {
+                    $scopeImportRecords = self::importMapBindingRecords($scopeImports);
+                }
+
+                foreach ($scopeImportRecords as $record) {
+                    foreach ($record['issues'] as $issue) {
+                        $scopeIssues[] = $issue + ['scopePrefix' => $scopePrefix];
+                    }
+                }
+                array_push($scopeIssues, ...$issues);
+
+                $scopeRecords[] = [
+                    'scopePrefix' => $scopePrefix,
+                    'scopePrefixKind' => $scopeUrl['kind'],
+                    'scopePrefixScheme' => $scopeUrl['scheme'],
+                    'scopePrefixUnsafe' => $scopeUrl['unsafe'],
+                    'importCount' => is_array($scopeImports) && !self::isJsonList($scopeImports) ? count($scopeImports) : null,
+                    'importSpecifiers' => array_values(array_map(
+                        static fn (array $record): string => (string) $record['specifier'],
+                        $scopeImportRecords
+                    )),
+                    'importRecords' => $scopeImportRecords,
+                    'issues' => $issues,
+                    'issueCodes' => self::importMapIssueCodes($issues),
+                    'valid' => $issues === [] && self::importMapBindingRecordsAreValid($scopeImportRecords),
+                ];
+            }
+        }
+
+        $importIssues = self::importMapBindingIssues($imports);
+        $issues = array_merge($topLevelIssues, $importIssues, $scopeIssues);
+
+        return [
+            'summary' => [
+                'importMapReviewPolicy' => 'import-map-module-target-provenance-review',
+                'importMapImportSpecifiers' => array_values(array_map(
+                    static fn (array $record): string => (string) $record['specifier'],
+                    $imports
+                )),
+                'importMapImportRecords' => $imports,
+                'importMapInvalidImportSpecifiers' => array_values(array_map(
+                    static fn (array $record): string => (string) $record['specifier'],
+                    array_values(array_filter($imports, static fn (array $record): bool => $record['valid'] === false))
+                )),
+                'importMapScopePrefixes' => array_values(array_map(
+                    static fn (array $record): string => (string) $record['scopePrefix'],
+                    $scopeRecords
+                )),
+                'importMapScopeRecords' => $scopeRecords,
+                'importMapIssueCodes' => self::importMapIssueCodes($issues),
+                'importMapIssues' => $issues,
+                'importMapValid' => $issues === [],
+            ],
+            'diagnostics' => array_values(array_unique($diagnostics)),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $bindings
+     * @return list<array<string, mixed>>
+     */
+    private static function importMapBindingRecords(array $bindings): array
+    {
+        $records = [];
+        foreach ($bindings as $specifier => $address) {
+            $specifier = (string) $specifier;
+            $addressString = is_string($address) ? $address : null;
+            $addressUrl = $addressString === null ? null : self::hyperlinkUrlReviewSummary($addressString);
+            $specifierPrefix = str_ends_with($specifier, '/');
+            $addressPrefix = $addressString !== null && str_ends_with(trim($addressString), '/');
+            $issues = [];
+
+            if (!is_string($address)) {
+                $issues[] = [
+                    'code' => 'non-string-import-map-address',
+                    'specifier' => $specifier,
+                    'valueType' => self::jsonValueKind($address),
+                ];
+            } elseif (trim($address) === '') {
+                $issues[] = [
+                    'code' => 'empty-import-map-address',
+                    'specifier' => $specifier,
+                ];
+            } elseif (($addressUrl['unsafe'] ?? false) === true) {
+                $issues[] = [
+                    'code' => 'unsafe-import-map-address',
+                    'specifier' => $specifier,
+                    'address' => $addressString,
+                    'scheme' => $addressUrl['scheme'],
+                ];
+            }
+
+            if ($addressString !== null && $specifierPrefix !== $addressPrefix) {
+                $issues[] = [
+                    'code' => 'import-map-prefix-address-mismatch',
+                    'specifier' => $specifier,
+                    'address' => $addressString,
+                    'specifierPrefix' => $specifierPrefix,
+                    'addressPrefix' => $addressPrefix,
+                ];
+            }
+
+            $records[] = [
+                'specifier' => $specifier,
+                'specifierPrefix' => $specifierPrefix,
+                'address' => $addressString,
+                'addressType' => self::jsonValueKind($address),
+                'addressKind' => $addressUrl['kind'] ?? null,
+                'addressScheme' => $addressUrl['scheme'] ?? null,
+                'addressUnsafe' => $addressUrl['unsafe'] ?? null,
+                'addressPrefix' => $addressPrefix,
+                'issues' => $issues,
+                'issueCodes' => self::importMapIssueCodes($issues),
+                'valid' => $issues === [],
+            ];
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @return list<array<string, mixed>>
+     */
+    private static function importMapBindingIssues(array $records): array
+    {
+        $issues = [];
+        foreach ($records as $record) {
+            array_push($issues, ...$record['issues']);
+        }
+
+        return $issues;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     */
+    private static function importMapBindingRecordsAreValid(array $records): bool
+    {
+        foreach ($records as $record) {
+            if ($record['valid'] === false) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $issues
+     * @return list<string>
+     */
+    private static function importMapIssueCodes(array $issues): array
+    {
+        return array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
     }
 
     private static function jsonValueKind(mixed $value): string
@@ -22212,6 +22668,98 @@ final class XmlHtmlDom
             'fileInputCaptureValid' => $captureRaw === null ? null : $capture !== null,
             'fileInputIssueCodes' => $issues,
             'fileInputValid' => $issues === [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function inputImageSubmitterReviewSummary(\DOMElement $input): array
+    {
+        $srcRaw = self::attributeOrNull($input, 'src');
+        $src = self::hyperlinkUrlReviewSummary($srcRaw);
+        $altRaw = self::attributeOrNull($input, 'alt');
+        $altText = $altRaw === null ? null : self::normalizedAttributeText($altRaw);
+        $width = self::inputImageDimensionSummary($input, 'width');
+        $height = self::inputImageDimensionSummary($input, 'height');
+        $nameRaw = self::attributeOrNull($input, 'name');
+        $coordinateParameters = $nameRaw === null || $nameRaw === ''
+            ? ['x', 'y']
+            : [$nameRaw . '.x', $nameRaw . '.y'];
+        $issues = [];
+
+        if ($srcRaw === null) {
+            $issues[] = ['code' => 'missing-input-image-src'];
+        } elseif (trim($srcRaw) === '') {
+            $issues[] = ['code' => 'empty-input-image-src'];
+        } elseif ($src['unsafe']) {
+            $issues[] = [
+                'code' => 'unsafe-input-image-src',
+                'src' => $srcRaw,
+                'scheme' => $src['scheme'],
+            ];
+        }
+        if ($altRaw === null) {
+            $issues[] = ['code' => 'missing-input-image-alt'];
+        } elseif ($altText === '') {
+            $issues[] = ['code' => 'empty-input-image-alt'];
+        }
+        foreach (['width' => $width, 'height' => $height] as $attribute => $dimension) {
+            if (($dimension['raw'] ?? null) !== null && ($dimension['valid'] ?? false) === false) {
+                $issues[] = [
+                    'code' => 'invalid-input-image-' . $attribute,
+                    $attribute . 'Raw' => $dimension['raw'],
+                ];
+            }
+        }
+
+        return [
+            'inputImageSubmitterReviewPolicy' => 'html-input-image-submitter-review',
+            'inputImageSubmitter' => true,
+            'inputImageSrcRaw' => $srcRaw,
+            'inputImageSrcPresent' => $srcRaw !== null && trim($srcRaw) !== '',
+            'inputImageSrcKind' => $src['kind'],
+            'inputImageSrcScheme' => $src['scheme'],
+            'inputImageSrcUnsafe' => $src['unsafe'],
+            'inputImageAltRaw' => $altRaw,
+            'inputImageAltText' => $altText,
+            'inputImageAltPresent' => $altRaw !== null,
+            'inputImageAltEmpty' => $altRaw !== null && $altText === '',
+            'inputImageWidthRaw' => $width['raw'],
+            'inputImageWidth' => $width['value'],
+            'inputImageWidthValid' => $width['valid'],
+            'inputImageHeightRaw' => $height['raw'],
+            'inputImageHeight' => $height['value'],
+            'inputImageHeightValid' => $height['valid'],
+            'inputImageNameRaw' => $nameRaw,
+            'inputImageCoordinateNamePrefix' => $nameRaw === null || $nameRaw === '' ? null : $nameRaw,
+            'inputImageCoordinateParameterNames' => $coordinateParameters,
+            'inputImageValueRaw' => self::attributeOrNull($input, 'value'),
+            'inputImageIssues' => $issues,
+            'inputImageIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'inputImageValid' => $issues === [],
+        ];
+    }
+
+    /**
+     * @return array{raw:?string, value:?int, valid:?bool}
+     */
+    private static function inputImageDimensionSummary(\DOMElement $input, string $attribute): array
+    {
+        $raw = self::attributeOrNull($input, $attribute);
+        if ($raw === null) {
+            return ['raw' => null, 'value' => null, 'valid' => null];
+        }
+
+        $value = self::nonNegativeIntegerToken($raw, 100000);
+
+        return [
+            'raw' => $raw,
+            'value' => $value,
+            'valid' => $value !== null,
         ];
     }
 
