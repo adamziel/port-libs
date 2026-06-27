@@ -12545,6 +12545,107 @@ return [
         $t->same(4, count($handoffOrder['mismatchedEntries']));
     },
 
+    'summarizes selected zip handoff path depth buckets for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $mimetype = 'application/epub+zip';
+        $containerXml = '<container/>';
+        $opfXml = '<package/>';
+        $chapterXhtml = '<html><body>chapter</body></html>';
+        $coverImageBytes = "cover image bytes\n";
+        $largeImageBytes = "large nested image payload\n";
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => 'mimetype', 'data' => $mimetype, 'method' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $containerXml, 'method' => 0],
+            ['name' => 'OEBPS/content.opf', 'data' => $opfXml, 'method' => 0],
+            ['name' => 'OEBPS/Images/', 'data' => '', 'method' => 0],
+            ['name' => 'OEBPS/Text/chapter1.xhtml', 'data' => $chapterXhtml, 'method' => 0],
+            ['name' => 'OEBPS/Images/cover.png', 'data' => $coverImageBytes, 'method' => 0],
+            ['name' => 'OEBPS/Images/raw.bin', 'data' => $largeImageBytes, 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'mimetype', 'required' => true, 'kind' => 'file', 'role' => 'epub-mimetype'],
+            ['name' => 'META-INF/container.xml', 'required' => true, 'kind' => 'file', 'role' => 'container'],
+            ['name' => 'OEBPS/content.opf', 'required' => true, 'kind' => 'file', 'role' => 'package-document'],
+            ['name' => 'OEBPS/Images/', 'required' => false, 'kind' => 'directory', 'role' => 'image-directory'],
+            ['name' => 'OEBPS/Text/chapter1.xhtml', 'required' => false, 'kind' => 'file', 'role' => 'spine-item'],
+            ['name' => 'OEBPS/Images/cover.png', 'required' => false, 'kind' => 'file', 'role' => 'image'],
+            ['name' => 'OEBPS/Images/raw.bin', 'required' => false, 'kind' => 'file', 'role' => 'image', 'maxUncompressedBytes' => 8],
+            ['name' => 'OEBPS/Missing/deep.xhtml', 'required' => false, 'kind' => 'file', 'role' => 'spine-item'],
+        ], 1024);
+
+        $selectedByDepth = [];
+        foreach ($summary['selectedPathDepthSummaries'] as $depthSummary) {
+            $selectedByDepth[$depthSummary['pathDepth']] = $depthSummary;
+        }
+        $handoffByDepth = [];
+        foreach ($summary['handoffPathDepthSummaries'] as $depthSummary) {
+            $handoffByDepth[$depthSummary['pathDepth']] = $depthSummary;
+        }
+
+        $t->same(3, $summary['selectedPathDepthBucketCount']);
+        $t->same(3, $summary['selectedMaxPathDepth']);
+        $t->same(3, $summary['handoffPathDepthBucketCount']);
+        $t->same(3, $summary['handoffMaxPathDepth']);
+        $t->same([1, 2, 3], array_keys($selectedByDepth));
+        $t->same([1, 2, 3], array_keys($handoffByDepth));
+
+        $t->same([
+            'pathDepth' => 1,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($mimetype),
+            'uncompressedBytes' => strlen($mimetype),
+            'roles' => ['epub-mimetype'],
+            'entryNames' => ['mimetype'],
+        ], $selectedByDepth[1]);
+
+        $depthTwoBytes = strlen($containerXml) + strlen($opfXml);
+        $t->same([
+            'pathDepth' => 2,
+            'entryCount' => 3,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 1,
+            'compressedBytes' => $depthTwoBytes,
+            'uncompressedBytes' => $depthTwoBytes,
+            'roles' => ['container', 'image-directory', 'package-document'],
+            'entryNames' => ['META-INF/container.xml', 'OEBPS/content.opf', 'OEBPS/Images/'],
+        ], $selectedByDepth[2]);
+        $t->same($selectedByDepth[2], $handoffByDepth[2]);
+
+        $selectedDepthThreeBytes = strlen($chapterXhtml) + strlen($coverImageBytes) + strlen($largeImageBytes);
+        $handoffDepthThreeBytes = strlen($chapterXhtml) + strlen($coverImageBytes);
+        $t->same([
+            'pathDepth' => 3,
+            'entryCount' => 3,
+            'fileEntryCount' => 3,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => $selectedDepthThreeBytes,
+            'uncompressedBytes' => $selectedDepthThreeBytes,
+            'roles' => ['image', 'spine-item'],
+            'entryNames' => ['OEBPS/Text/chapter1.xhtml', 'OEBPS/Images/cover.png', 'OEBPS/Images/raw.bin'],
+        ], $selectedByDepth[3]);
+        $t->same([
+            'pathDepth' => 3,
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => $handoffDepthThreeBytes,
+            'uncompressedBytes' => $handoffDepthThreeBytes,
+            'roles' => ['image', 'spine-item'],
+            'entryNames' => ['OEBPS/Text/chapter1.xhtml', 'OEBPS/Images/cover.png'],
+        ], $handoffByDepth[3]);
+
+        $t->same(1, $summary['entries'][0]['pathDepth']);
+        $t->same(2, $summary['entries'][3]['pathDepth']);
+        $t->same(3, $summary['entries'][6]['pathDepth']);
+        $t->same(null, $summary['entries'][7]['pathDepth']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
+        $t->same('blocked', $summary['entries'][6]['status']);
+        $t->same('missing-optional', $summary['entries'][7]['status']);
+    },
+
     'preflights aggregate zip package expansion before exposing media bytes' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>aggregate package preflight</w:p></w:body></w:document>';
         $mediaBytes = str_repeat("review media bytes\n", 24);
