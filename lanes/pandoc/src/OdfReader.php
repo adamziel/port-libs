@@ -15828,6 +15828,7 @@ final class OdfReader
             foreach ($issues as $issue) {
                 $issueCodes[$issue] = true;
             }
+            $imageHeader = $this->packageThumbnailImageHeader($package, $part, $entry, $encrypted, $mediaTypeValid);
 
             $items[] = [
                 'fullPath' => $item['fullPath'] ?? $part,
@@ -15857,6 +15858,13 @@ final class OdfReader
                 'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
                 'declaredSize' => $item['declaredSize'] ?? null,
                 'declaredSizeMismatch' => ($item['declaredSizeMismatch'] ?? false) === true,
+                'imageHeader' => $imageHeader,
+                'imageHeaderDetected' => is_array($imageHeader),
+                'imageHeaderFormat' => is_array($imageHeader) ? $imageHeader['format'] : null,
+                'imageWidth' => is_array($imageHeader) ? $imageHeader['width'] : null,
+                'imageHeight' => is_array($imageHeader) ? $imageHeader['height'] : null,
+                'imagePixelCount' => is_array($imageHeader) ? $imageHeader['pixelCount'] : null,
+                'imageHeaderByteExposurePolicy' => is_array($imageHeader) ? $imageHeader['byteExposurePolicy'] : null,
                 'canExposeAsDocumentMedia' => false,
                 'reviewPolicy' => 'package-thumbnail-metadata-only',
                 'issues' => $issues,
@@ -15864,6 +15872,7 @@ final class OdfReader
         }
 
         ksort($issueCodes, SORT_STRING);
+        $imageHeaderSummary = self::packageThumbnailImageHeaderSummary($items);
 
         return [
             'count' => count($items),
@@ -15882,7 +15891,75 @@ final class OdfReader
             )),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'issueCodes' => array_keys($issueCodes),
+            'imageHeaderCount' => $imageHeaderSummary['count'],
+            'imageHeaderFormatCounts' => $imageHeaderSummary['formatCounts'],
+            'imageHeaderItems' => $imageHeaderSummary['items'],
             'items' => $items,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function packageThumbnailImageHeader(
+        ZipPackage $package,
+        string $part,
+        ?ZipPackageEntry $entry,
+        bool $encrypted,
+        bool $mediaTypeValid
+    ): ?array {
+        if ($encrypted || !$mediaTypeValid || !($entry instanceof ZipPackageEntry)) {
+            return null;
+        }
+        if ($entry->compressionMethod !== 0 && $entry->compressionMethod !== 8) {
+            return null;
+        }
+
+        try {
+            return OdfPackageImageMetadata::headerFromBytes($package->read($part));
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @return array{count:int, formatCounts:array<string, int>, items:list<array<string, mixed>>}
+     */
+    private static function packageThumbnailImageHeaderSummary(array $items): array
+    {
+        $summaryItems = [];
+        $formatCounts = [];
+        foreach ($items as $item) {
+            $imageHeader = $item['imageHeader'] ?? null;
+            if (!is_array($imageHeader)) {
+                continue;
+            }
+
+            $format = (string) ($imageHeader['format'] ?? '');
+            if ($format !== '') {
+                $formatCounts[$format] = ($formatCounts[$format] ?? 0) + 1;
+            }
+
+            $summaryItems[] = [
+                'part' => $item['part'],
+                'mediaType' => $item['mediaType'],
+                'format' => $format,
+                'width' => $imageHeader['width'],
+                'height' => $imageHeader['height'],
+                'pixelCount' => $imageHeader['pixelCount'],
+                'source' => $imageHeader['source'],
+                'byteExposurePolicy' => $imageHeader['byteExposurePolicy'],
+                'canExposeBytes' => false,
+            ];
+        }
+
+        ksort($formatCounts, SORT_STRING);
+
+        return [
+            'count' => count($summaryItems),
+            'formatCounts' => $formatCounts,
+            'items' => $summaryItems,
         ];
     }
 
