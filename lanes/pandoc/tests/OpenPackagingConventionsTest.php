@@ -280,6 +280,10 @@ return [
         foreach ($summary['relationshipParts'] as $relationshipPart) {
             $relationshipSources[$relationshipPart['partName']] = $relationshipPart;
         }
+        $relationshipSourceDirectories = [];
+        foreach ($summary['relationshipSourceDirectorySummaries'] as $sourceDirectory) {
+            $relationshipSourceDirectories[$sourceDirectory['sourceDirectory']] = $sourceDirectory;
+        }
 
         $t->same(false, $summary['valid']);
         $t->same(false, $summary['isSupportedByBoundedReader']);
@@ -291,6 +295,17 @@ return [
         $t->same(5, $summary['relationshipPartCount']);
         $t->same(1, $summary['rootRelationshipPartCount']);
         $t->same(4, $summary['partRelationshipPartCount']);
+        $t->same(3, $summary['relationshipSourceDirectoryCount']);
+        $t->same([
+            '/' => 2,
+            '/word' => 2,
+            '/word/_rels' => 1,
+        ], $summary['relationshipPartCountsBySourceDirectory']);
+        $t->same([
+            '/' => ['_rels/.rels', '_rels/[Content_Types].xml.rels'],
+            '/word' => ['word/_rels/document.xml.rels', 'word/_rels/orphan.xml.rels'],
+            '/word/_rels' => ['word/_rels/_rels/document.xml.rels.rels'],
+        ], $summary['entryNamesByRelationshipSourceDirectory']);
         $t->same(1, $summary['invalidRelationshipPartCount']);
         $t->same(1, $summary['orphanRelationshipPartCount']);
         $t->same(1, $summary['relationshipPartSourceCount']);
@@ -366,6 +381,35 @@ return [
         $t->same('/word/orphan.xml', $relationshipSources['/word/_rels/orphan.xml.rels']['relationshipSource']);
         $t->same(false, $relationshipSources['/word/_rels/orphan.xml.rels']['relationshipSourceExists']);
         $t->same('/[Content_Types].xml', $relationshipSources['/_rels/[Content_Types].xml.rels']['relationshipSource']);
+
+        $rootRelationshipSources = $relationshipSourceDirectories['/'];
+        $t->same(2, $rootRelationshipSources['relationshipPartCount']);
+        $t->same(2, $rootRelationshipSources['sourceCount']);
+        $t->same(2, $rootRelationshipSources['existingSourceCount']);
+        $t->same(0, $rootRelationshipSources['missingSourceCount']);
+        $t->same(1, $rootRelationshipSources['validRelationshipPartCount']);
+        $t->same(1, $rootRelationshipSources['invalidRelationshipPartCount']);
+        $t->same(1, $rootRelationshipSources['contentTypesItemSourceCount']);
+        $t->same(['/', '/[Content_Types].xml'], $rootRelationshipSources['relationshipSources']);
+        $t->same(['content-types-item-source'], $rootRelationshipSources['issues']);
+
+        $wordRelationshipSources = $relationshipSourceDirectories['/word'];
+        $t->same(2, $wordRelationshipSources['relationshipPartCount']);
+        $t->same(1, $wordRelationshipSources['existingSourceCount']);
+        $t->same(1, $wordRelationshipSources['missingSourceCount']);
+        $t->same(1, $wordRelationshipSources['validRelationshipPartCount']);
+        $t->same(1, $wordRelationshipSources['invalidRelationshipPartCount']);
+        $t->same(['/word/document.xml', '/word/orphan.xml'], $wordRelationshipSources['relationshipSources']);
+        $t->same(['/word/orphan.xml'], $wordRelationshipSources['missingSources']);
+        $t->same(['orphan-relationship-part'], $wordRelationshipSources['issues']);
+
+        $nestedRelationshipSources = $relationshipSourceDirectories['/word/_rels'];
+        $t->same(1, $nestedRelationshipSources['relationshipPartCount']);
+        $t->same(1, $nestedRelationshipSources['relationshipPartSourceCount']);
+        $t->same(0, $nestedRelationshipSources['validRelationshipPartCount']);
+        $t->same(1, $nestedRelationshipSources['invalidRelationshipPartCount']);
+        $t->same(['/word/_rels/document.xml.rels'], $nestedRelationshipSources['relationshipSources']);
+        $t->same(['relationship-part-source'], $nestedRelationshipSources['issues']);
 
         $missingContentTypes = OpcRelationshipGraph::preflightZipEntryManifest(ZipPackage::fromParts([
             ['name' => '_rels/.rels', 'data' => '<Relationships/>'],
@@ -574,6 +618,10 @@ XML;
         foreach ($summary['relationshipParts'] as $relationshipPart) {
             $relationshipParts[$relationshipPart['partName']] = $relationshipPart;
         }
+        $relationshipSourceDirectories = [];
+        foreach ($summary['relationshipSourceDirectorySummaries'] as $sourceDirectory) {
+            $relationshipSourceDirectories[$sourceDirectory['sourceDirectory']] = $sourceDirectory;
+        }
 
         $totalBytes = strlen($contentTypesXml)
             + strlen($rootRelationshipsXml)
@@ -604,6 +652,15 @@ XML;
         $t->same(3, $summary['relationshipPartCount']);
         $t->same(1, $summary['rootRelationshipPartCount']);
         $t->same(2, $summary['partRelationshipPartCount']);
+        $t->same(2, $summary['relationshipSourceDirectoryCount']);
+        $t->same([
+            '/' => 1,
+            '/word' => 2,
+        ], $summary['relationshipPartCountsBySourceDirectory']);
+        $t->same([
+            '/' => ['_rels/.rels'],
+            '/word' => ['word/_rels/document.xml.rels', 'word/_rels/orphan.xml.rels'],
+        ], $summary['entryNamesByRelationshipSourceDirectory']);
         $t->same(1, $summary['orphanRelationshipPartCount']);
         $t->same(1, $summary['embeddedPackageCandidateCount']);
         $t->same(1, $summary['mediaPartCandidateCount']);
@@ -689,6 +746,26 @@ XML;
         $t->same(['orphan-relationship-part'], $entries['word/_rels/orphan.xml.rels']['issues']);
         $t->same('/word/orphan.xml', $relationshipParts['/word/_rels/orphan.xml.rels']['relationshipSource']);
         $t->same(false, $relationshipParts['/word/_rels/orphan.xml.rels']['relationshipSourceExists']);
+
+        $rootRelationshipSources = $relationshipSourceDirectories['/'];
+        $t->same(1, $rootRelationshipSources['relationshipPartCount']);
+        $t->same(1, $rootRelationshipSources['sourceCount']);
+        $t->same(1, $rootRelationshipSources['existingSourceCount']);
+        $t->same(0, $rootRelationshipSources['missingSourceCount']);
+        $t->same(1, $rootRelationshipSources['validRelationshipPartCount']);
+        $t->same(0, $rootRelationshipSources['invalidRelationshipPartCount']);
+        $t->same(['/'], $rootRelationshipSources['relationshipSources']);
+
+        $wordRelationshipSources = $relationshipSourceDirectories['/word'];
+        $t->same(2, $wordRelationshipSources['relationshipPartCount']);
+        $t->same(2, $wordRelationshipSources['sourceCount']);
+        $t->same(1, $wordRelationshipSources['existingSourceCount']);
+        $t->same(1, $wordRelationshipSources['missingSourceCount']);
+        $t->same(1, $wordRelationshipSources['validRelationshipPartCount']);
+        $t->same(1, $wordRelationshipSources['invalidRelationshipPartCount']);
+        $t->same(['/word/document.xml', '/word/orphan.xml'], $wordRelationshipSources['relationshipSources']);
+        $t->same(['/word/orphan.xml'], $wordRelationshipSources['missingSources']);
+        $t->same(['orphan-relationship-part'], $wordRelationshipSources['issues']);
     },
     'preflights raw OPC central directory local header name mismatches before package construction' => static function (TestRunner $t): void {
         $zip = ZipPackage::build([
