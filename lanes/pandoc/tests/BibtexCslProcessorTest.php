@@ -1227,6 +1227,69 @@ BIB;
         $t->same('320', $item['number-of-pages']);
         $t->same('Casey Chapter. Extent Review Chapter. Migration Extent Handbook 2. 2026. 101-120.', $bibliography);
     },
+    'carries biblatex pagination unit metadata in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@article{legacy-pagination-review,
+  author         = {Ng, Nia},
+  title          = {Column Pagination Review},
+  journaltitle   = {Source Unit Ledger},
+  date           = {2026},
+  pages          = {12--14},
+  pagination     = {column},
+  bookpagination = {section}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $item = $items['legacy-pagination-review'];
+
+        $t->same('12-14', $item['page']);
+        $t->same('column', $item['pagination']);
+        $t->same('section', $item['book-pagination']);
+        $t->same('column', $item['rawBibtex']['fields']['pagination']);
+        $t->same('section', $item['rawBibtex']['fields']['bookpagination']);
+        $t->same(
+            'Nia Ng. Column Pagination Review. Source Unit Ledger. 2026. 12-14. Pagination: column. Book pagination: section.',
+            $processor->renderBibliographyText($item)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <group delimiter=" ">
+        <label variable="page" form="long"/>
+        <text variable="page"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" | ">
+      <text variable="title"/>
+      <label variable="page" form="short"/>
+      <text variable="page"/>
+      <text variable="book-pagination"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledItem = $styled->item('legacy-pagination-review');
+        $t->same('column', $styledItem['pagination'] ?? null);
+        $t->same('section', $styledItem['bookPagination'] ?? null);
+        $t->same('columns 12-14', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-pagination-review', 'text' => '[@legacy-pagination-review]']),
+        ]));
+        $t->same('Column Pagination Review | cols. | 12-14 | section', $styled->renderBibliographyEntry('legacy-pagination-review'));
+
+        $document = (new MarkdownReader())->read('Pagination review [@legacy-pagination-review] keeps page-unit labels visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->contains('<p>Pagination review columns 12-14 keeps page-unit labels visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Column Pagination Review | cols. | 12-14 | section</dd>', $blocks);
+    },
     'carries legacy biblatex journal abbreviation and article number metadata' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @article{legacy-journal-id,
@@ -1755,6 +1818,8 @@ BIB;
         $t->same(['source packet', 'inheritance'], $paper['keyword']);
         $t->same([2026], $paper['issued']['date-parts'][0]);
         $t->same('12-18', $paper['page']);
+        $t->same(['shared-review-source'], $paper['xdataKeys']);
+        $t->same('shared-review-source', $paper['xdataSummary']);
         $t->same('review-proceedings', $paper['rawBibtex']['fields']['crossref']);
         $t->same('Source Review Proceedings', $paper['rawBibtex']['fields']['booktitle']);
         $t->same('Package Track', $paper['rawBibtex']['fields']['booksubtitle']);
@@ -1763,13 +1828,16 @@ BIB;
         $t->same('Review Press', $xdataChild['publisher']);
         $t->same('Portland', $xdataChild['publisher-place']);
         $t->same('Internal review only', $xdataChild['rights']);
+        $t->same(['shared-review-source'], $xdataChild['xdataKeys']);
+        $t->same(true, $xdataChild['xdataItems'][0]['dataOnly'] ?? null);
+        $t->same('shared-review-source', $xdataChild['xdataSummary']);
         $t->same('shared-review-source', $xdataChild['rawBibtex']['fields']['xdata']);
         $t->same(
-            'Nia Ng. Packet Audit Trails. Source Review Proceedings: Package Track. 2026. 12-18. Rights: Internal review only.',
+            'Nia Ng. Packet Audit Trails. Source Review Proceedings: Package Track. 2026. 12-18. Rights: Internal review only. BibLaTeX xdata packets: shared-review-source.',
             $processor->renderBibliographyText($paper)
         );
         $t->same(
-            'Archive Desk. Inherited Source Packet. Review Press. Rights: Internal review only. https://example.test/source-packet.',
+            'Archive Desk. Inherited Source Packet. Review Press. Rights: Internal review only. BibLaTeX xdata packets: shared-review-source. https://example.test/source-packet.',
             $processor->renderBibliographyText($xdataChild)
         );
 
@@ -1782,8 +1850,84 @@ BIB;
         $t->same([], $handoff['missingKeys']);
         $t->same('Source Review Proceedings: Package Track', $handoff['items'][0]['container-title']);
         $t->same('Review Press', $handoff['items'][1]['publisher']);
-        $t->contains('<dt>crossref-paper</dt><dd>Nia Ng. Packet Audit Trails. Source Review Proceedings: Package Track. 2026. 12-18. Rights: Internal review only.</dd>', $blocks);
-        $t->contains('<dt>xdata-child</dt><dd>Archive Desk. Inherited Source Packet. Review Press. Rights: Internal review only. https://example.test/source-packet.</dd>', $blocks);
+        $t->contains('<dt>crossref-paper</dt><dd>Nia Ng. Packet Audit Trails. Source Review Proceedings: Package Track. 2026. 12-18. Rights: Internal review only. BibLaTeX xdata packets: shared-review-source.</dd>', $blocks);
+        $t->contains('<dt>xdata-child</dt><dd>Archive Desk. Inherited Source Packet. Review Press. Rights: Internal review only. BibLaTeX xdata packets: shared-review-source. https://example.test/source-packet.</dd>', $blocks);
+    },
+    'carries biblatex xdata and entryset provenance in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@xdata{review-policy,
+  title = {Shared Review Policy},
+  date  = {2026-06-05},
+  note  = {metadata only}
+}
+
+@inproceedings{audit-paper,
+  author    = {Ng, Nia},
+  title     = {Packet Audit Trails},
+  booktitle = {Migration Futures Conference},
+  date      = {2026},
+  options   = {dataonly}
+}
+
+@online{archived-site,
+  author = {{Archive Team}},
+  title  = {Archive Site},
+  date   = {2026-05-31},
+  url    = {https://example.test/archive}
+}
+
+@set{review-set,
+  title    = {Review Source Set},
+  date     = {2026},
+  entryset = {audit-paper, archived-site, missing-source}
+}
+
+@online{xdata-provenance,
+  author = {Roe, Pat},
+  title  = {Xdata Source Packet},
+  date   = {2026-06-07},
+  url    = {https://example.test/xdata},
+  xdata  = {review-policy, missing-policy}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $set = $items['review-set'];
+        $xdata = $items['xdata-provenance'];
+
+        $t->same('entry', $set['type']);
+        $t->same(['audit-paper', 'archived-site', 'missing-source'], $set['entrySet']);
+        $t->same('audit-paper', $set['entrySetItems'][0]['id'] ?? null);
+        $t->same(true, $set['entrySetItems'][0]['dataOnly'] ?? null);
+        $t->same('Archive', $set['entrySetItems'][1]['author'][0]['given'] ?? null);
+        $t->same('Team', $set['entrySetItems'][1]['author'][0]['family'] ?? null);
+        $t->same(['missing-source'], $set['missingEntrySetKeys']);
+        $t->same('Packet Audit Trails (2026); Archive Site (2026-05-31); missing: missing-source', $set['entrySetSummary']);
+        $t->same(['review-policy', 'missing-policy'], $xdata['xdataKeys']);
+        $t->same('Shared Review Policy', $xdata['xdataItems'][0]['title'] ?? null);
+        $t->same(true, $xdata['xdataItems'][0]['dataOnly'] ?? null);
+        $t->same(['missing-policy'], $xdata['missingXdataKeys']);
+        $t->same('Shared Review Policy (2026-06-05); missing: missing-policy', $xdata['xdataSummary']);
+        $t->same('review-policy, missing-policy', $xdata['rawBibtex']['fields']['xdata']);
+        $t->same(
+            'Review Source Set. 2026. BibLaTeX entry set: Packet Audit Trails (2026); Archive Site (2026-05-31); missing: missing-source.',
+            $processor->renderBibliographyText($set)
+        );
+        $t->same(
+            'Pat Roe. Xdata Source Packet. 2026. BibLaTeX xdata packets: Shared Review Policy (2026-06-05); missing: missing-policy. https://example.test/xdata.',
+            $processor->renderBibliographyText($xdata)
+        );
+
+        $document = (new MarkdownReader())->read('Set review cites @review-set and [@xdata-provenance].');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$handoff['bibliography']]));
+
+        $t->same(['review-set', 'xdata-provenance'], $handoff['citedKeys']);
+        $t->same('Packet Audit Trails (2026); Archive Site (2026-05-31); missing: missing-source', $handoff['items'][0]['entrySetSummary'] ?? null);
+        $t->same('Shared Review Policy (2026-06-05); missing: missing-policy', $handoff['items'][1]['xdataSummary'] ?? null);
+        $t->contains('BibLaTeX entry set: Packet Audit Trails (2026); Archive Site (2026-05-31); missing: missing-source', $blocks);
+        $t->contains('BibLaTeX xdata packets: Shared Review Policy (2026-06-05); missing: missing-policy', $blocks);
     },
     'carries biblatex citation aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -1914,6 +2058,76 @@ XML);
         $styledBlocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Legacy custom fields [Curator | migration batch 42 | migration batch; review desk | Roe and Ng | Archive] stay visible.</p>', $styledBlocks);
         $t->contains('<dt>Curator 2026</dt><dd>Legacy Custom Packet :: usera: migration batch 42; userf: reviewer escalation; verba: wp shortcode [gallery] :: lista: migration batch; review desk; listc: archive queue; internal QA :: namea: Roe, Pat; Ng, Nia; namec: Archive, Desk</dd>', $styledBlocks);
+    },
+    'carries biblatex name annotations and name addendum in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{legacy-name-annotations,
+  author     = {Smith, Ada and Ng, Nia},
+  author+an  = {1=primary source author; 2:family=family name verified},
+  editor     = {Curator, Eli},
+  editor+an:role = {1=review editor},
+  title      = {Name Annotation Packet},
+  date       = {2026},
+  publisher  = {Review Press},
+  nameaddon  = {Imported source names verified}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $item = $items['legacy-name-annotations'];
+
+        $t->same('Imported source names verified', $item['name-addon']);
+        $t->same([['part' => 'name', 'value' => 'primary source author']], $item['author'][0]['annotations'] ?? null);
+        $t->same([['part' => 'family', 'value' => 'family name verified']], $item['author'][1]['annotations'] ?? null);
+        $t->same([['part' => 'role', 'value' => 'review editor']], $item['editor'][0]['annotations'] ?? null);
+        $t->same('1=primary source author; 2:family=family name verified', $item['rawBibtex']['fields']['author+an']);
+        $t->same('1=review editor', $item['rawBibtex']['fields']['editor+an:role']);
+        $t->same(
+            'Ada Smith and Nia Ng. Name Annotation Packet. Review Press. 2026. Name addendum: Imported source names verified. Name annotations: Author 1: primary source author; Author 2 family: family name verified; Editor 1 role: review editor.',
+            $processor->renderBibliographyText($item)
+        );
+
+        $document = (new MarkdownReader())->read('Name metadata source @legacy-name-annotations stays reviewable.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$handoff['bibliography']]));
+
+        $t->same(['legacy-name-annotations'], $handoff['citedKeys']);
+        $t->same('primary source author', $handoff['items'][0]['author'][0]['annotations'][0]['value'] ?? null);
+        $t->same('family', $handoff['bibliography']->children[0]->attr('cslItem')['author'][1]['annotations'][0]['part'] ?? null);
+        $t->contains('Name addendum: Imported source names verified', $blocks);
+        $t->contains('Name annotations: Author 1: primary source author; Author 2 family: family name verified; Editor 1 role: review editor', $blocks);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="name-addon"/>
+        <text variable="name-annotation-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="name-addon"/>
+      <text variable="name-annotation-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledItem = $styled->item('legacy-name-annotations');
+        $t->same('Imported source names verified', $styledItem['nameAddon'] ?? null);
+        $t->same('primary source author', $styledItem['authors'][0]['annotations'][0]['value'] ?? null);
+        $t->same('review editor', $styledItem['editors'][0]['annotations'][0]['value'] ?? null);
+        $t->same('[Smith and Ng | Imported source names verified | Author 1: primary source author; Author 2 family: family name verified; Editor 1 role: review editor]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-name-annotations', 'text' => '[@legacy-name-annotations]']),
+        ]));
+        $t->same('Name Annotation Packet :: Imported source names verified :: Author 1: primary source author; Author 2 family: family name verified; Editor 1 role: review editor', $styled->renderBibliographyEntry('legacy-name-annotations'));
     },
     'carries biblatex entry options reference context and field annotations in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -2219,6 +2433,104 @@ BIB;
         $t->same('relation-manual', $handoff['bibliography']->children[0]->attr('cslItem')['id'] ?? null);
         $t->same('005 explicit relation list', $handoff['bibliography']->children[0]->attr('cslItem')['shorthand-list-sort-key'] ?? null);
         $t->same('source-proceedings', $handoff['bibliography']->children[0]->attr('cslItem')['xref'] ?? null);
+    },
+    'carries biblatex literal publisher language and event lists in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{literal-list-review,
+  author        = {Ng, Nia},
+  title         = {Literal List Review Manual},
+  date          = {2026},
+  publisher     = {Review Press and Archive Desk},
+  location      = {New York and London},
+  origpublisher = {Archivo Press and Migration Desk},
+  origlocation  = {Madrid and Barcelona},
+  origlanguage  = {spanish and basque},
+  language      = {english and french},
+  url           = {https://example.test/literal-list}
+}
+
+@proceedings{event-list-review,
+  author     = {Curator, Eli},
+  title      = {Event List Proceedings},
+  eventtitle = {Import Review Summit},
+  venue      = {Portland Convention Center and Remote Stream},
+  date       = {2025},
+  publisher  = {Migration Desk}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $literal = $items['literal-list-review'];
+        $event = $items['event-list-review'];
+
+        $t->same(['Review Press', 'Archive Desk'], $literal['publisher-list']);
+        $t->same(['New York', 'London'], $literal['publisher-place-list']);
+        $t->same(['Archivo Press', 'Migration Desk'], $literal['original-publisher-list']);
+        $t->same(['Madrid', 'Barcelona'], $literal['original-publisher-place-list']);
+        $t->same(['spanish', 'basque'], $literal['original-language-list']);
+        $t->same(['english', 'french'], $literal['language-list']);
+        $t->same(['Portland Convention Center', 'Remote Stream'], $event['event-place-list']);
+        $t->same('New York and London', $literal['rawBibtex']['fields']['location']);
+        $t->same('Portland Convention Center and Remote Stream', $event['rawBibtex']['fields']['venue']);
+        $t->contains('Publisher list: Review Press; Archive Desk', $processor->renderBibliographyText($literal));
+        $t->contains('Original languages: spanish; basque', $processor->renderBibliographyText($literal));
+
+        $document = (new MarkdownReader())->read('Literal list review [@literal-list-review; @event-list-review] keeps literal lists visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+
+        $t->same(['literal-list-review', 'event-list-review'], $handoff['citedKeys']);
+        $t->same(['Review Press', 'Archive Desk'], $handoff['bibliography']->children[0]->attr('cslItem')['publisher-list'] ?? null);
+        $t->same(['Portland Convention Center', 'Remote Stream'], $handoff['bibliography']->children[1]->attr('cslItem')['event-place-list'] ?? null);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="publisher-list"/>
+        <text variable="publisher-place-list"/>
+        <text variable="original-publisher-list"/>
+        <text variable="original-publisher-place-list"/>
+        <text variable="original-language-list"/>
+        <text variable="language-list"/>
+        <text variable="event-place-list"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="publisher-list"/>
+      <text variable="publisher-place-list"/>
+      <text variable="original-publisher-list"/>
+      <text variable="original-publisher-place-list"/>
+      <text variable="original-language-list"/>
+      <text variable="language-list"/>
+      <text variable="event-place-list"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledLiteral = $styled->item('literal-list-review');
+        $styledEvent = $styled->item('event-list-review');
+        $t->same(['Review Press', 'Archive Desk'], $styledLiteral['publisherList'] ?? null);
+        $t->same(['Madrid', 'Barcelona'], $styledLiteral['originalPublisherPlaceList'] ?? null);
+        $t->same(['Portland Convention Center', 'Remote Stream'], $styledEvent['eventPlaceList'] ?? null);
+        $t->same('[Ng | Review Press; Archive Desk | New York; London | Archivo Press; Migration Desk | Madrid; Barcelona | spanish; basque | english; french; Curator | Migration Desk | Portland Convention Center; Remote Stream]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'literal-list-review', 'text' => '[@literal-list-review]']),
+            new AstNode('citation', ['id' => 'event-list-review', 'text' => '[@event-list-review]']),
+        ]));
+        $t->same('Literal List Review Manual :: Review Press; Archive Desk :: New York; London :: Archivo Press; Migration Desk :: Madrid; Barcelona :: spanish; basque :: english; french', $styled->renderBibliographyEntry('literal-list-review'));
+        $t->same('Event List Proceedings :: Migration Desk :: Portland Convention Center; Remote Stream', $styled->renderBibliographyEntry('event-list-review'));
+
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Literal list review [Ng | Review Press; Archive Desk | New York; London | Archivo Press; Migration Desk | Madrid; Barcelona | spanish; basque | english; french; Curator | Migration Desk | Portland Convention Center; Remote Stream] keeps literal lists visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Literal List Review Manual :: Review Press; Archive Desk :: New York; London :: Archivo Press; Migration Desk :: Madrid; Barcelona :: spanish; basque :: english; french</dd>', $blocks);
+        $t->contains('<dt>Curator 2025</dt><dd>Event List Proceedings :: Migration Desk :: Portland Convention Center; Remote Stream</dd>', $blocks);
     },
     'carries biblatex date addendum aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
