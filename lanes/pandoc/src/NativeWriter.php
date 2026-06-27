@@ -6,6 +6,15 @@ namespace PortLibs\Pandoc;
 
 final class NativeWriter
 {
+    private const META_CONSTRUCTORS = [
+        'MetaString',
+        'MetaBool',
+        'MetaInlines',
+        'MetaBlocks',
+        'MetaList',
+        'MetaMap',
+    ];
+
     private const NATIVE_COMPARISON_PROVENANCE_ATTRS = [
         'alignmentConstructor',
         'alignmentConstructors',
@@ -105,9 +114,85 @@ final class NativeWriter
             return true;
         }
 
+        $meta = $document->attr('meta', []);
+
         return is_array($document->attr('documentNative'))
+            || (is_array($meta) && $this->valueHasTaggedNativeMeta($meta))
+            || $this->hasGeneratedNoteLabel($document)
             || $this->hasJsonNativeProvenance($document)
             || $this->hasMixedBlockContainerContent($document);
+    }
+
+    private function valueHasTaggedNativeMeta(mixed $value): bool
+    {
+        if (!is_array($value)) {
+            return false;
+        }
+
+        if (
+            !array_is_list($value)
+            && isset($value['t'])
+            && is_string($value['t'])
+            && in_array($value['t'], self::META_CONSTRUCTORS, true)
+        ) {
+            return true;
+        }
+
+        foreach ($value as $item) {
+            if ($this->valueHasTaggedNativeMeta($item)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function hasGeneratedNoteLabel(AstNode $node): bool
+    {
+        if ($node->type === 'note' && $this->isValidGeneratedNoteLabel($node->attr('label', null))) {
+            return true;
+        }
+
+        foreach ($node->attrs as $value) {
+            if ($this->valueHasGeneratedNoteLabel($value)) {
+                return true;
+            }
+        }
+
+        foreach ($node->children as $child) {
+            if ($this->hasGeneratedNoteLabel($child)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function valueHasGeneratedNoteLabel(mixed $value): bool
+    {
+        if ($value instanceof AstNode) {
+            return $this->hasGeneratedNoteLabel($value);
+        }
+
+        if (!is_array($value)) {
+            return false;
+        }
+
+        foreach ($value as $item) {
+            if ($this->valueHasGeneratedNoteLabel($item)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isValidGeneratedNoteLabel(mixed $label): bool
+    {
+        return is_string($label)
+            && trim($label) === $label
+            && $label !== ''
+            && preg_match('/[\]\s]/u', $label) !== 1;
     }
 
     private function hasJsonNativeProvenance(AstNode $node): bool
