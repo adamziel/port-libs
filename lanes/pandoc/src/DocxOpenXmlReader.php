@@ -10568,6 +10568,12 @@ final class DocxOpenXmlReader
         $summary['zipRawNameCollisionGroupCount'] = $zipNamePolicy['rawNameCollisionGroupCount'];
         $summary['zipRawNameCollisionEntryCount'] = $zipNamePolicy['rawNameCollisionEntryCount'];
         $summary['zipRawNameProvenanceEntryCount'] = $zipNamePolicy['rawNameProvenanceEntryCount'];
+        $summary['zipRawNameLegacyEncodedEntryCount'] = $zipNamePolicy['rawNameLegacyEncodedEntryCount'];
+        $summary['zipRawNameUnicodePathExtraEntryCount'] = $zipNamePolicy['rawNameUnicodePathExtraEntryCount'];
+        $summary['zipRawNameDecodedDiffersEntryCount'] = $zipNamePolicy['rawNameDecodedDiffersEntryCount'];
+        $summary['zipRawNameCollisionGroups'] = $zipNamePolicy['rawNameCollisionGroups'];
+        $summary['zipRawNameCollisionEntries'] = $zipNamePolicy['rawNameCollisionEntries'];
+        $summary['zipRawNameProvenanceEntries'] = $zipNamePolicy['rawNameProvenanceEntries'];
         $summary['zipNameHygieneReviewEntryCount'] = $zipNamePolicy['nameHygieneReviewEntryCount'];
         $summary['zipNameHygieneLeadingOrTrailingWhitespaceEntryCount'] = $zipNamePolicy['nameHygieneLeadingOrTrailingWhitespaceEntryCount'];
         $summary['zipNameHygieneTrailingDotSegmentEntryCount'] = $zipNamePolicy['nameHygieneTrailingDotSegmentEntryCount'];
