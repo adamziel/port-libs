@@ -5058,6 +5058,7 @@ final class ZipPackage
      *     handoffUnsupportedCompressionMethodCount:int,
      *     handoffSupportedCompressionMethodEntryCount:int,
      *     failedEntryCount:int,
+     *     failedIssueBucketCount:int,
      *     directoryMismatchEntryCount:int,
      *     oversizedEntryCount:int,
      *     totalUncompressedSizeExceedsLimitEntryCount:int,
@@ -5116,6 +5117,7 @@ final class ZipPackage
      *     selectedCentralDirectoryFixedFieldIssueEntries:list<array<string, mixed>>,
      *     selectedDataDescriptorProvenanceEntries:list<array<string, mixed>>,
      *     selectedDataDescriptorIssueEntries:list<array<string, mixed>>,
+     *     failedIssueSummaries:list<array<string, mixed>>,
      *     missingEntries:list<array<string, mixed>>,
      *     failedEntries:list<array<string, mixed>>,
      *     handoffEntries:list<array<string, mixed>>,
@@ -5982,6 +5984,7 @@ final class ZipPackage
         $selectedPathDepthSummaries = self::entryHandoffPathDepthSummaries($selectedDirectoryRootSummaryEntries);
         $handoffPathDepthSummaries = self::entryHandoffPathDepthSummaries($handoffEntries);
         $roleSummaries = self::entryHandoffRoleSummaries($entries);
+        $failedIssueSummaries = self::entryHandoffFailedIssueSummaries($failedEntries);
         $handoffSourceByteSpanSummary = self::entryHandoffSourceByteSpanSummary($handoffEntries);
 
         return [
@@ -6045,6 +6048,7 @@ final class ZipPackage
             'handoffUnsupportedCompressionMethodCount' => count($handoffUnsupportedCompressionMethodEntries),
             'handoffSupportedCompressionMethodEntryCount' => count($handoffEntries) - count($handoffUnsupportedCompressionMethodEntries),
             'failedEntryCount' => count($failedEntries),
+            'failedIssueBucketCount' => count($failedIssueSummaries),
             'directoryMismatchEntryCount' => $directoryMismatchEntryCount,
             'oversizedEntryCount' => $oversizedEntryCount,
             'totalUncompressedSizeExceedsLimitEntryCount' => $totalUncompressedSizeExceedsLimitEntryCount,
@@ -6165,6 +6169,7 @@ final class ZipPackage
             'selectedDataDescriptorIssueEntries' => $selectedDataDescriptorIssueEntries,
             'selectedSourceByteSpanEntries' => $selectedSourceByteSpanEntries,
             'handoffSourceByteSpanEntries' => $handoffSourceByteSpanSummary['entries'],
+            'failedIssueSummaries' => $failedIssueSummaries,
             'missingEntries' => $missingEntries,
             'failedEntries' => $failedEntries,
             'handoffEntries' => $handoffEntries,
@@ -6298,6 +6303,89 @@ final class ZipPackage
         }
 
         return $summary;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffFailedIssueSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $issues = array_values(array_filter($entry['issues'] ?? [], 'is_string'));
+            if ($issues === []) {
+                continue;
+            }
+
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            $requestedName = is_string($entry['requestedName'] ?? null) ? $entry['requestedName'] : $name;
+            $role = is_string($entry['role'] ?? null) && $entry['role'] !== '' ? $entry['role'] : null;
+            $status = is_string($entry['status'] ?? null) ? $entry['status'] : null;
+            $exists = ($entry['exists'] ?? false) === true;
+            $required = ($entry['required'] ?? false) === true;
+            $compressedBytes = is_int($entry['compressedSize'] ?? null) ? (int) $entry['compressedSize'] : 0;
+            $uncompressedBytes = is_int($entry['uncompressedSize'] ?? null) ? (int) $entry['uncompressedSize'] : 0;
+
+            foreach ($issues as $issue) {
+                if (!isset($summaries[$issue])) {
+                    $summaries[$issue] = [
+                        'issue' => $issue,
+                        'entryCount' => 0,
+                        'requiredEntryCount' => 0,
+                        'optionalEntryCount' => 0,
+                        'presentEntryCount' => 0,
+                        'missingEntryCount' => 0,
+                        'blockedEntryCount' => 0,
+                        'unreadableEntryCount' => 0,
+                        'compressedBytes' => 0,
+                        'uncompressedBytes' => 0,
+                        'roles' => [],
+                        'entryNames' => [],
+                        'requestedNames' => [],
+                    ];
+                }
+
+                ++$summaries[$issue]['entryCount'];
+                if ($required) {
+                    ++$summaries[$issue]['requiredEntryCount'];
+                } else {
+                    ++$summaries[$issue]['optionalEntryCount'];
+                }
+                if ($exists) {
+                    ++$summaries[$issue]['presentEntryCount'];
+                } else {
+                    ++$summaries[$issue]['missingEntryCount'];
+                }
+                if ($status === 'blocked') {
+                    ++$summaries[$issue]['blockedEntryCount'];
+                }
+                if ($issue === 'unreadable-entry') {
+                    ++$summaries[$issue]['unreadableEntryCount'];
+                }
+
+                $summaries[$issue]['compressedBytes'] += $compressedBytes;
+                $summaries[$issue]['uncompressedBytes'] += $uncompressedBytes;
+                if ($role !== null && !in_array($role, $summaries[$issue]['roles'], true)) {
+                    $summaries[$issue]['roles'][] = $role;
+                }
+                if ($name !== '') {
+                    $summaries[$issue]['entryNames'][] = $name;
+                }
+                if ($requestedName !== '') {
+                    $summaries[$issue]['requestedNames'][] = $requestedName;
+                }
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['roles'], SORT_STRING);
+        }
+        unset($summary);
+
+        ksort($summaries, SORT_STRING);
+
+        return array_values($summaries);
     }
 
     /**

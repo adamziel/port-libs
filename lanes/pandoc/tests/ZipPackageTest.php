@@ -12410,6 +12410,104 @@ return [
         $t->same([$safeAttachment], $summary['handoffEntries']);
     },
 
+    'summarizes failed zip handoff issue buckets for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>failed issue buckets</w:p></w:body></w:document>';
+        $duplicateBytes = "duplicate media review\n";
+        $largeBytes = "oversized package handoff media bytes\n";
+        $unsupportedBytes = "unsupported method handoff media bytes\n";
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => 'word/media/dup.bin', 'data' => $duplicateBytes, 'method' => 0],
+            ['name' => 'word/media/large.bin', 'data' => $largeBytes, 'method' => 0],
+            [
+                'name' => 'word/media/unsupported.bin',
+                'data' => $unsupportedBytes,
+                'method' => 12,
+                'centralCompressedSize' => strlen($unsupportedBytes),
+                'centralUncompressedSize' => strlen($unsupportedBytes),
+                'localCompressedSize' => strlen($unsupportedBytes),
+                'localUncompressedSize' => strlen($unsupportedBytes),
+            ],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => '/word/media/dup.bin', 'required' => true, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'word/media/dup.bin', 'required' => false, 'kind' => 'file', 'role' => 'media-preview'],
+            ['name' => 'word/media/large.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 8],
+            ['name' => 'word/media/unsupported.bin', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'word/missing-required.xml', 'required' => true, 'kind' => 'file', 'role' => 'required-sidecar'],
+        ], 1024);
+
+        $t->same(5, $summary['failedEntryCount']);
+        $t->same(4, $summary['failedIssueBucketCount']);
+        $t->same([
+            [
+                'issue' => 'duplicate-selected-entry-request',
+                'entryCount' => 2,
+                'requiredEntryCount' => 1,
+                'optionalEntryCount' => 1,
+                'presentEntryCount' => 2,
+                'missingEntryCount' => 0,
+                'blockedEntryCount' => 2,
+                'unreadableEntryCount' => 0,
+                'compressedBytes' => strlen($duplicateBytes) * 2,
+                'uncompressedBytes' => strlen($duplicateBytes) * 2,
+                'roles' => ['media', 'media-preview'],
+                'entryNames' => ['word/media/dup.bin', 'word/media/dup.bin'],
+                'requestedNames' => ['/word/media/dup.bin', 'word/media/dup.bin'],
+            ],
+            [
+                'issue' => 'entry-uncompressed-size-exceeds-limit',
+                'entryCount' => 1,
+                'requiredEntryCount' => 0,
+                'optionalEntryCount' => 1,
+                'presentEntryCount' => 1,
+                'missingEntryCount' => 0,
+                'blockedEntryCount' => 1,
+                'unreadableEntryCount' => 0,
+                'compressedBytes' => strlen($largeBytes),
+                'uncompressedBytes' => strlen($largeBytes),
+                'roles' => ['media'],
+                'entryNames' => ['word/media/large.bin'],
+                'requestedNames' => ['word/media/large.bin'],
+            ],
+            [
+                'issue' => 'missing-required-entry',
+                'entryCount' => 1,
+                'requiredEntryCount' => 1,
+                'optionalEntryCount' => 0,
+                'presentEntryCount' => 0,
+                'missingEntryCount' => 1,
+                'blockedEntryCount' => 0,
+                'unreadableEntryCount' => 0,
+                'compressedBytes' => 0,
+                'uncompressedBytes' => 0,
+                'roles' => ['required-sidecar'],
+                'entryNames' => ['word/missing-required.xml'],
+                'requestedNames' => ['word/missing-required.xml'],
+            ],
+            [
+                'issue' => 'unreadable-entry',
+                'entryCount' => 1,
+                'requiredEntryCount' => 0,
+                'optionalEntryCount' => 1,
+                'presentEntryCount' => 1,
+                'missingEntryCount' => 0,
+                'blockedEntryCount' => 1,
+                'unreadableEntryCount' => 1,
+                'compressedBytes' => strlen($unsupportedBytes),
+                'uncompressedBytes' => strlen($unsupportedBytes),
+                'roles' => ['media'],
+                'entryNames' => ['word/media/unsupported.bin'],
+                'requestedNames' => ['word/media/unsupported.bin'],
+            ],
+        ], $summary['failedIssueSummaries']);
+        $t->same(['duplicate-selected-entry-request', 'entry-uncompressed-size-exceeds-limit', 'unreadable-entry', 'missing-required-entry'], $summary['issues']);
+        $t->same(['word/document.xml'], array_column($summary['handoffEntries'], 'name'));
+    },
+
     'summarizes selected zip handoff roles for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>role handoff</w:p></w:body></w:document>';
         $imageBytes = "review image bytes\n";
