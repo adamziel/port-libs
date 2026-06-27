@@ -11704,6 +11704,87 @@ return [
         $t->same(hash('sha256', substr($zip, $largeSpan['localRecordOffset'], $largeSpan['localRecordBytes'])), $largeSpan['localRecordSha256']);
     },
 
+    'summarizes readable zip content digests before reader handoff' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
+        $documentName = 'word/document.xml';
+        $commentsName = 'word/comments.xml';
+        $mediaName = 'word/media/raw.bin';
+        $documentXml = '<w:document><w:body><w:p>content digest manifest</w:p></w:body></w:document>';
+        $commentsXml = '<w:comments><w:comment>digest sidecar</w:comment></w:comments>';
+        $largeMediaBytes = "blocked digest media bytes\n";
+        $zip = $buildZipPackage([
+            [
+                'name' => $documentName,
+                'data' => $documentXml,
+                'method' => 0,
+            ],
+            [
+                'name' => $commentsName,
+                'data' => $commentsXml,
+                'method' => 8,
+            ],
+            [
+                'name' => $mediaName,
+                'data' => $largeMediaBytes,
+                'method' => 0,
+            ],
+        ]);
+        $commentsCompressed = gzdeflate($commentsXml);
+        if ($commentsCompressed === false) {
+            throw new RuntimeException('Unable to deflate digest comments fixture');
+        }
+        $package = ZipPackage::fromString($zip);
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => $documentName, 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => $commentsName, 'required' => false, 'kind' => 'file', 'role' => 'comments'],
+            ['name' => $mediaName, 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 8],
+        ], 2048);
+
+        $expectedDigestEntries = [
+            [
+                'name' => $documentName,
+                'requestIndexes' => [0],
+                'roles' => ['main-document'],
+                'compressionMethod' => 0,
+                'compressionMethodName' => 'stored',
+                'crc32Hex' => sprintf('%08x', $crc32($documentXml)),
+                'compressedSize' => strlen($documentXml),
+                'uncompressedSize' => strlen($documentXml),
+                'contentBytes' => strlen($documentXml),
+                'contentSha256' => hash('sha256', $documentXml),
+            ],
+            [
+                'name' => $commentsName,
+                'requestIndexes' => [1],
+                'roles' => ['comments'],
+                'compressionMethod' => 8,
+                'compressionMethodName' => 'deflated',
+                'crc32Hex' => sprintf('%08x', $crc32($commentsXml)),
+                'compressedSize' => strlen($commentsCompressed),
+                'uncompressedSize' => strlen($commentsXml),
+                'contentBytes' => strlen($commentsXml),
+                'contentSha256' => hash('sha256', $commentsXml),
+            ],
+        ];
+        $expectedManifestHash = hash('sha256', json_encode([
+            'manifestVersion' => 'zip-entry-handoff-content-digest-v1',
+            'entries' => $expectedDigestEntries,
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+
+        $t->same(3, $summary['requestedEntryCount']);
+        $t->same(2, $summary['handoffEntryCount']);
+        $t->same(2, $summary['handoffContentDigestEntryCount']);
+        $t->same(strlen($documentXml) + strlen($commentsXml), $summary['handoffContentDigestBytes']);
+        $t->same('zip-entry-handoff-content-digest-v1', $summary['handoffContentDigestManifestVersion']);
+        $t->same($expectedManifestHash, $summary['handoffContentDigestManifestSha256']);
+        $t->same($expectedDigestEntries, $summary['handoffContentDigestEntries']);
+        $t->same('blocked', $summary['entries'][2]['status']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['entries'][2]['issues']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
+        $t->same($expectedDigestEntries[0]['contentSha256'], $summary['entries'][0]['contentSha256']);
+        $t->same($expectedDigestEntries[1]['contentSha256'], $summary['entries'][1]['contentSha256']);
+    },
+
     'preflights selected zip central directory fixed fields before reader handoff' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
         $documentName = 'word/document.xml';
         $mediaName = 'word/media/review.bin';

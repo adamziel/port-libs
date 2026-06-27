@@ -5949,6 +5949,7 @@ final class ZipPackage
         $selectedPathDepthSummaries = self::entryHandoffPathDepthSummaries($selectedDirectoryRootSummaryEntries);
         $handoffPathDepthSummaries = self::entryHandoffPathDepthSummaries($handoffEntries);
         $roleSummaries = self::entryHandoffRoleSummaries($entries);
+        $handoffContentDigestSummary = self::entryHandoffContentDigestSummary($handoffEntries);
         $handoffSourceByteSpanSummary = self::entryHandoffSourceByteSpanSummary($handoffEntries);
 
         return [
@@ -6089,6 +6090,10 @@ final class ZipPackage
             'handoffSourceTotalRecordBytes' => $handoffSourceByteSpanSummary['sourceRecordBytes'],
             'handoffSourceByteSpanIssueCount' => count($handoffSourceByteSpanSummary['issues']),
             'handoffSourceByteSpanIssues' => $handoffSourceByteSpanSummary['issues'],
+            'handoffContentDigestEntryCount' => $handoffContentDigestSummary['entryCount'],
+            'handoffContentDigestBytes' => $handoffContentDigestSummary['contentBytes'],
+            'handoffContentDigestManifestVersion' => $handoffContentDigestSummary['manifestVersion'],
+            'handoffContentDigestManifestSha256' => $handoffContentDigestSummary['manifestSha256'],
             'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
             'maxTotalUncompressedBytes' => $maxTotalUncompressedBytes,
             'isSupportedByBoundedReader' => $issues === [],
@@ -6124,6 +6129,7 @@ final class ZipPackage
             'selectedDataDescriptorIssueEntries' => $selectedDataDescriptorIssueEntries,
             'selectedSourceByteSpanEntries' => $selectedSourceByteSpanEntries,
             'handoffSourceByteSpanEntries' => $handoffSourceByteSpanSummary['entries'],
+            'handoffContentDigestEntries' => $handoffContentDigestSummary['entries'],
             'missingEntries' => $missingEntries,
             'failedEntries' => $failedEntries,
             'handoffEntries' => $handoffEntries,
@@ -6257,6 +6263,80 @@ final class ZipPackage
         }
 
         return $summary;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array{entryCount:int, contentBytes:int, manifestVersion:string, manifestSha256:string, entries:list<array<string, mixed>>}
+     */
+    private static function entryHandoffContentDigestSummary(array $entries): array
+    {
+        $digestEntriesByName = [];
+        foreach ($entries as $entry) {
+            if (($entry['exists'] ?? false) !== true || ($entry['status'] ?? null) !== 'ready') {
+                continue;
+            }
+
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            $contentSha256 = is_string($entry['contentSha256'] ?? null) ? $entry['contentSha256'] : null;
+            $bytesRead = is_int($entry['bytesRead'] ?? null) ? $entry['bytesRead'] : null;
+            if ($name === '' || $contentSha256 === null || $bytesRead === null) {
+                continue;
+            }
+
+            if (!isset($digestEntriesByName[$name])) {
+                $digestEntriesByName[$name] = [
+                    'name' => $name,
+                    'requestIndexes' => [],
+                    'roles' => [],
+                    'compressionMethod' => is_int($entry['compressionMethod'] ?? null) ? $entry['compressionMethod'] : null,
+                    'compressionMethodName' => is_string($entry['compressionMethodName'] ?? null) ? $entry['compressionMethodName'] : null,
+                    'crc32Hex' => is_string($entry['crc32Hex'] ?? null) ? $entry['crc32Hex'] : null,
+                    'compressedSize' => is_int($entry['compressedSize'] ?? null) ? $entry['compressedSize'] : null,
+                    'uncompressedSize' => is_int($entry['uncompressedSize'] ?? null) ? $entry['uncompressedSize'] : null,
+                    'contentBytes' => $bytesRead,
+                    'contentSha256' => $contentSha256,
+                ];
+            }
+
+            if (is_int($entry['requestIndex'] ?? null)) {
+                $digestEntriesByName[$name]['requestIndexes'][] = $entry['requestIndex'];
+            }
+
+            $role = is_string($entry['role'] ?? null) && $entry['role'] !== '' ? $entry['role'] : null;
+            if ($role !== null && !in_array($role, $digestEntriesByName[$name]['roles'], true)) {
+                $digestEntriesByName[$name]['roles'][] = $role;
+            }
+        }
+
+        foreach ($digestEntriesByName as &$digestEntry) {
+            $digestEntry['requestIndexes'] = array_values(array_unique($digestEntry['requestIndexes']));
+            sort($digestEntry['requestIndexes'], SORT_NUMERIC);
+            sort($digestEntry['roles'], SORT_STRING);
+        }
+        unset($digestEntry);
+
+        $digestEntries = array_values($digestEntriesByName);
+        $contentBytes = array_sum(array_map(
+            static fn (array $entry): int => (int) ($entry['contentBytes'] ?? 0),
+            $digestEntries
+        ));
+        $manifestVersion = 'zip-entry-handoff-content-digest-v1';
+        $manifestJson = json_encode(
+            [
+                'manifestVersion' => $manifestVersion,
+                'entries' => $digestEntries,
+            ],
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        );
+
+        return [
+            'entryCount' => count($digestEntries),
+            'contentBytes' => $contentBytes,
+            'manifestVersion' => $manifestVersion,
+            'manifestSha256' => hash('sha256', $manifestJson),
+            'entries' => $digestEntries,
+        ];
     }
 
     /**
