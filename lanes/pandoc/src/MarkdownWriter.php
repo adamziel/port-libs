@@ -6901,6 +6901,10 @@ final class MarkdownWriter
             return $text;
         }
 
+        if ($node->type === 'raw_inline' && $node->attr('constructor') === 'RawInline' && MarkdownFormatProfile::rawFamily($format) === null) {
+            return '';
+        }
+
         if ($this->isCommonMarkVariant()) {
             if ($this->isRawMarkdownFormat($format)) {
                 return $text;
