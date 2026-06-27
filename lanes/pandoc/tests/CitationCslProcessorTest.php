@@ -1995,6 +1995,111 @@ XML);
             'biblatex-options' => ['skipbib=true', ['nested']],
         ]]));
     },
+    'maps standalone biblatex entry option fields into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{field-option-manual,
+  author         = {Rao, Mira},
+  title          = {Field Option Manual},
+  date           = {2026},
+  publisher      = {Review Press},
+  options        = {skipbib=false, useauthor=true, maxnames=3},
+  labeldateparts = {year},
+  skipbib        = {true},
+  sortlocale     = {de-DE},
+  useauthor      = {false},
+  useeditor      = {true},
+  uniquelist     = {minyear},
+  uniquename     = {init}
+}
+
+@book{field-option-visible,
+  author    = {Kim, Lin},
+  title     = {Visible Field Options},
+  date      = {2025},
+  publisher = {Review Press},
+  dataonly  = {false},
+  skiplab   = {true},
+  useprefix = {true}
+}
+
+@misc{field-option-data,
+  title    = {Standalone Data Only Options},
+  date     = {2024},
+  dataonly = {true}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('field-option-manual', $items[0]['id']);
+        $t->same([
+            'maxnames=3',
+            'labeldateparts=year',
+            'skipbib=true',
+            'sortlocale=de-DE',
+            'useauthor=false',
+            'useeditor=true',
+            'uniquelist=minyear',
+            'uniquename=init',
+        ], $items[0]['biblatex-options'] ?? null);
+        $t->same([
+            'dataonly=false',
+            'skiplab=true',
+            'useprefix=true',
+        ], $items[1]['biblatex-options'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $manual = $processor->item('field-option-manual');
+        $t->same(true, $manual['biblatexSkipBibliography'] ?? null);
+        $t->same('omit', $manual['biblatexBibliographyVisibility'] ?? null);
+        $t->same(
+            'maxnames=3; labeldateparts=year; skipbib=true; sortlocale=de-DE; useauthor=false; useeditor=true; uniquelist=minyear; uniquename=init',
+            $manual['biblatexOptionSummary'] ?? null
+        );
+        $t->same(
+            'Rao, Mira. Field Option Manual. Review Press, 2026. BibLaTeX options: maxnames=3; labeldateparts=year; skipbib=true; sortlocale=de-DE; useauthor=false; useeditor=true; uniquelist=minyear; uniquename=init.',
+            $processor->renderBibliographyEntry('field-option-manual')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="biblatex-option-summary"/>
+        <text variable="skipbib"/>
+        <text variable="biblatex-bibliography-visibility"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout>
+      <group delimiter=" :: ">
+        <text variable="title"/>
+        <text variable="biblatex-option-summary"/>
+        <text variable="biblatex-bibliography-visibility"/>
+      </group>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same(
+            'Field Option Manual | maxnames=3; labeldateparts=year; skipbib=true; sortlocale=de-DE; useauthor=false; useeditor=true; uniquelist=minyear; uniquename=init | true | omit',
+            $styled->renderCitationCluster([$citation('field-option-manual', '[@field-option-manual]')])
+        );
+        $t->same(
+            'Visible Field Options :: dataonly=false; skiplab=true; useprefix=true :: include',
+            $styled->renderBibliographyEntry('field-option-visible')
+        );
+
+        $document = (new MarkdownReader())->read('Standalone field options @field-option-manual and @field-option-visible preserve entry switches.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<dt>Kim 2025</dt><dd>Kim, Lin. Visible Field Options. Review Press, 2025. BibLaTeX options: dataonly=false; skiplab=true; useprefix=true.</dd>', $blocks);
+        $t->true(!str_contains($blocks, '<dt>Rao 2026</dt>'), 'standalone skipbib=true entries must not be appended to the bibliography');
+        $t->true(!str_contains($blocks, 'Standalone Data Only Options'), 'standalone dataonly=true entries must not become CSL items');
+    },
     'omits bounded biblatex skipbib entries from appended bibliographies' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{visible-manual,
