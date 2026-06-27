@@ -202,10 +202,15 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['digitalSignatureExistingOriginCount'] = $digitalSignatures['existingOriginCount'];
         $packageProvenance['summary']['digitalSignatureMissingOriginCount'] = $digitalSignatures['missingOriginCount'];
         $packageProvenance['summary']['digitalSignatureExternalOriginCount'] = $digitalSignatures['externalOriginCount'];
+        $packageProvenance['summary']['digitalSignatureAllowedExternalOriginCount'] = $digitalSignatures['allowedExternalOriginCount'];
+        $packageProvenance['summary']['digitalSignatureUnsafeExternalOriginCount'] = $digitalSignatures['unsafeExternalOriginCount'];
         $packageProvenance['summary']['digitalSignatureSignatureCount'] = $digitalSignatures['signatureCount'];
         $packageProvenance['summary']['digitalSignatureExistingSignatureCount'] = $digitalSignatures['existingSignatureCount'];
         $packageProvenance['summary']['digitalSignatureMissingSignatureCount'] = $digitalSignatures['missingSignatureCount'];
         $packageProvenance['summary']['digitalSignatureExternalSignatureCount'] = $digitalSignatures['externalSignatureCount'];
+        $packageProvenance['summary']['digitalSignatureAllowedExternalSignatureCount'] = $digitalSignatures['allowedExternalSignatureCount'];
+        $packageProvenance['summary']['digitalSignatureUnsafeExternalSignatureCount'] = $digitalSignatures['unsafeExternalSignatureCount'];
+        $packageProvenance['summary']['digitalSignatureExternalTargetIssueCodes'] = $digitalSignatures['externalTargetIssueCodes'];
         $packageProvenance['summary']['digitalSignatureOriginSha256Count'] = $digitalSignatures['originSha256Count'];
         $packageProvenance['summary']['digitalSignatureSignatureSha256Count'] = $digitalSignatures['signatureSha256Count'];
         $packageProvenance['summary']['digitalSignatureInvalidXmlCount'] = $digitalSignatures['invalidSignatureXmlCount'];
@@ -19753,6 +19758,8 @@ final class DocxOpenXmlReader
         $originSha256s = [];
         $signatureSha256s = [];
         $externalTargets = [];
+        $unsafeExternalTargets = [];
+        $externalTargetIssueCodes = [];
         $contentTypesSeen = [];
         $issueCodes = [];
 
@@ -19766,6 +19773,14 @@ final class DocxOpenXmlReader
             $this->appendUniqueString($contentTypesSeen, is_string($origin['contentType'] ?? null) ? $origin['contentType'] : null);
             if (($origin['external'] ?? false) === true) {
                 $this->appendUniqueString($externalTargets, is_string($origin['target'] ?? null) ? $origin['target'] : null);
+                if (($origin['externalTargetAllowed'] ?? null) !== true) {
+                    $this->appendUniqueString($unsafeExternalTargets, is_string($origin['target'] ?? null) ? $origin['target'] : null);
+                }
+                foreach (($origin['externalTargetIssues'] ?? []) as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $externalTargetIssueCodes[$issue] = true;
+                    }
+                }
             }
             foreach (($origin['issues'] ?? []) as $issue) {
                 $issueCodes[(string) $issue] = true;
@@ -19783,6 +19798,14 @@ final class DocxOpenXmlReader
                 $this->appendUniqueString($contentTypesSeen, is_string($signature['contentType'] ?? null) ? $signature['contentType'] : null);
                 if (($signature['external'] ?? false) === true) {
                     $this->appendUniqueString($externalTargets, is_string($signature['target'] ?? null) ? $signature['target'] : null);
+                    if (($signature['externalTargetAllowed'] ?? null) !== true) {
+                        $this->appendUniqueString($unsafeExternalTargets, is_string($signature['target'] ?? null) ? $signature['target'] : null);
+                    }
+                    foreach (($signature['externalTargetIssues'] ?? []) as $issue) {
+                        if (is_string($issue) && $issue !== '') {
+                            $externalTargetIssueCodes[$issue] = true;
+                        }
+                    }
                 }
                 foreach (($signature['issues'] ?? []) as $issue) {
                     $issueCodes[(string) $issue] = true;
@@ -19791,6 +19814,7 @@ final class DocxOpenXmlReader
         }
 
         ksort($issueCodes, SORT_STRING);
+        ksort($externalTargetIssueCodes, SORT_STRING);
 
         $referenceUriKindCounts = [];
         $referenceUris = [];
@@ -19876,6 +19900,14 @@ final class DocxOpenXmlReader
                 static fn (array $origin): bool => $origin['external'] === false && $origin['exists'] === false,
             )),
             'externalOriginCount' => count(array_filter($origins, static fn (array $origin): bool => $origin['external'] === true)),
+            'allowedExternalOriginCount' => count(array_filter(
+                $origins,
+                static fn (array $origin): bool => $origin['external'] === true && ($origin['externalTargetAllowed'] ?? null) === true,
+            )),
+            'unsafeExternalOriginCount' => count(array_filter(
+                $origins,
+                static fn (array $origin): bool => $origin['external'] === true && ($origin['externalTargetAllowed'] ?? null) !== true,
+            )),
             'signatureCount' => count($signatures),
             'existingSignatureCount' => count(array_filter(
                 $signatures,
@@ -19886,6 +19918,14 @@ final class DocxOpenXmlReader
                 static fn (array $signature): bool => $signature['external'] === false && $signature['exists'] === false,
             )),
             'externalSignatureCount' => count(array_filter($signatures, static fn (array $signature): bool => $signature['external'] === true)),
+            'allowedExternalSignatureCount' => count(array_filter(
+                $signatures,
+                static fn (array $signature): bool => $signature['external'] === true && ($signature['externalTargetAllowed'] ?? null) === true,
+            )),
+            'unsafeExternalSignatureCount' => count(array_filter(
+                $signatures,
+                static fn (array $signature): bool => $signature['external'] === true && ($signature['externalTargetAllowed'] ?? null) !== true,
+            )),
             'invalidSignatureXmlCount' => count(array_filter(
                 $signatures,
                 static fn (array $signature): bool => in_array('invalid-signature-xml', $signature['issues'], true),
@@ -19907,6 +19947,8 @@ final class DocxOpenXmlReader
             'originSha256s' => $originSha256s,
             'signatureSha256s' => $signatureSha256s,
             'externalTargets' => $externalTargets,
+            'unsafeExternalTargets' => $unsafeExternalTargets,
+            'externalTargetIssueCodes' => array_keys($externalTargetIssueCodes),
             'contentTypes' => $contentTypesSeen,
             'issueCodes' => array_keys($issueCodes),
             'referenceCount' => $referenceCount,
@@ -19960,6 +20002,11 @@ final class DocxOpenXmlReader
 
         if ($external) {
             $issues[] = 'external-signature-origin';
+            foreach (($summary['externalTargetIssues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issues[] = $issue;
+                }
+            }
         } elseif (!$exists) {
             $issues[] = 'missing-origin-part';
         }
@@ -19992,6 +20039,10 @@ final class DocxOpenXmlReader
             'targetQuery' => $summary['targetQuery'],
             'targetFragment' => $summary['targetFragment'],
             'targetReferenceSuffix' => $summary['targetReferenceSuffix'],
+            'externalTargetKind' => $summary['externalTargetKind'],
+            'externalTargetScheme' => $summary['externalTargetScheme'],
+            'externalTargetAllowed' => $summary['externalTargetAllowed'],
+            'externalTargetIssues' => $summary['externalTargetIssues'],
             'contentType' => $summary['contentType'],
             'contentTypeBase' => $summary['contentTypeBase'],
             'contentTypeHasParameters' => $summary['contentTypeHasParameters'],
@@ -20040,6 +20091,8 @@ final class DocxOpenXmlReader
                 'existingCount' => 0,
                 'missingCount' => 0,
                 'externalCount' => 0,
+                'allowedExternalTargetCount' => 0,
+                'unsafeExternalTargetCount' => 0,
                 'invalidXmlCount' => 0,
                 'unexpectedRootCount' => 0,
                 'issueCount' => 0,
@@ -20050,10 +20103,12 @@ final class DocxOpenXmlReader
                 'relationshipIds' => [],
                 'partNames' => [],
                 'externalTargets' => [],
+                'unsafeExternalTargets' => [],
                 'contentTypes' => [],
                 'referenceTargetParts' => [],
                 'referenceTargetContentTypes' => [],
                 'referenceTargetSha256s' => [],
+                'externalTargetIssueCodes' => [],
                 'issueCodes' => [],
                 'byRelationshipId' => [],
                 'items' => [],
@@ -20065,10 +20120,12 @@ final class DocxOpenXmlReader
         $relationshipIds = [];
         $partNames = [];
         $externalTargets = [];
+        $unsafeExternalTargets = [];
         $contentTypesSeen = [];
         $referenceTargetParts = [];
         $referenceTargetContentTypes = [];
         $referenceTargetSha256s = [];
+        $externalTargetIssueCodes = [];
         $issueCodes = [];
 
         foreach ($relationships as $relationship) {
@@ -20100,6 +20157,14 @@ final class DocxOpenXmlReader
             }
             if (($item['external'] ?? false) === true) {
                 $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+                if (($item['externalTargetAllowed'] ?? null) !== true) {
+                    $this->appendUniqueString($unsafeExternalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+                }
+                foreach (($item['externalTargetIssues'] ?? []) as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $externalTargetIssueCodes[$issue] = true;
+                    }
+                }
             }
             foreach (($item['issues'] ?? []) as $issue) {
                 $issueCodes[(string) $issue] = true;
@@ -20107,6 +20172,7 @@ final class DocxOpenXmlReader
         }
 
         ksort($issueCodes, SORT_STRING);
+        ksort($externalTargetIssueCodes, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -20119,6 +20185,8 @@ final class DocxOpenXmlReader
                 static fn (array $item): bool => $item['external'] === false && $item['exists'] === false,
             )),
             'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'allowedExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true && ($item['externalTargetAllowed'] ?? null) === true)),
+            'unsafeExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true && ($item['externalTargetAllowed'] ?? null) !== true)),
             'invalidXmlCount' => count(array_filter(
                 $items,
                 static fn (array $item): bool => in_array('invalid-signature-xml', $item['issues'], true),
@@ -20135,10 +20203,12 @@ final class DocxOpenXmlReader
             'relationshipIds' => $relationshipIds,
             'partNames' => $partNames,
             'externalTargets' => $externalTargets,
+            'unsafeExternalTargets' => $unsafeExternalTargets,
             'contentTypes' => $contentTypesSeen,
             'referenceTargetParts' => $referenceTargetParts,
             'referenceTargetContentTypes' => $referenceTargetContentTypes,
             'referenceTargetSha256s' => $referenceTargetSha256s,
+            'externalTargetIssueCodes' => array_keys($externalTargetIssueCodes),
             'issueCodes' => array_keys($issueCodes),
             'byRelationshipId' => $byRelationshipId,
             'items' => $items,
@@ -20168,6 +20238,11 @@ final class DocxOpenXmlReader
 
         if ($external) {
             $issues[] = 'external-signature-target';
+            foreach (($summary['externalTargetIssues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issues[] = $issue;
+                }
+            }
         } elseif (!$exists) {
             $issues[] = 'missing-signature-part';
         }
@@ -20199,6 +20274,10 @@ final class DocxOpenXmlReader
             'targetQuery' => $summary['targetQuery'],
             'targetFragment' => $summary['targetFragment'],
             'targetReferenceSuffix' => $summary['targetReferenceSuffix'],
+            'externalTargetKind' => $summary['externalTargetKind'],
+            'externalTargetScheme' => $summary['externalTargetScheme'],
+            'externalTargetAllowed' => $summary['externalTargetAllowed'],
+            'externalTargetIssues' => $summary['externalTargetIssues'],
             'contentType' => $summary['contentType'],
             'contentTypeBase' => $summary['contentTypeBase'],
             'contentTypeHasParameters' => $summary['contentTypeHasParameters'],
