@@ -13895,6 +13895,12 @@ final class DocxOpenXmlReader
             'partXmlStandaloneDeclarationCount' => $partXmlRoots['xmlStandaloneDeclarationCount'],
             'partXmlStandaloneYesCount' => $partXmlRoots['xmlStandaloneYesCount'],
             'partXmlStandaloneNoCount' => $partXmlRoots['xmlStandaloneNoCount'],
+            'partXmlProcessingInstructionPartCount' => $partXmlRoots['xmlProcessingInstructionPartCount'],
+            'partXmlProcessingInstructionCount' => $partXmlRoots['xmlProcessingInstructionCount'],
+            'partXmlProcessingInstructionTargetCount' => count($partXmlRoots['xmlProcessingInstructionTargetCounts']),
+            'partXmlProcessingInstructionTargetCounts' => $partXmlRoots['xmlProcessingInstructionTargetCounts'],
+            'partXmlProcessingInstructionTargets' => $partXmlRoots['xmlProcessingInstructionTargets'],
+            'partXmlProcessingInstructionPartNames' => $partXmlRoots['xmlProcessingInstructionPartNames'],
             'partContentTypeSyntaxSuffixCount' => count($partContentTypeSyntaxSuffixes),
             'partContentTypeSyntaxSuffixCounts' => $partContentTypeSyntaxSuffixCounts,
             'partContentTypeStructuredSyntaxPartCount' => $partContentTypeStructuredSyntaxPartCount,
@@ -14203,6 +14209,7 @@ final class DocxOpenXmlReader
             'partCaseFoldBaseNames' => $partCaseFoldBaseNames,
             'partNameCharacterReviewParts' => $partNameCharacters['parts'],
             'partXmlRoots' => $partXmlRoots['items'],
+            'partXmlProcessingInstructions' => $partXmlRoots['xmlProcessingInstructions'],
             'partContentTypeSyntaxSuffixes' => $partContentTypeSyntaxSuffixes,
             'partContentTypeSources' => $partContentTypeSources,
             'partContentTypes' => $partContentTypes,
@@ -19585,7 +19592,7 @@ final class DocxOpenXmlReader
 
     /**
      * @param array<string, array<string, mixed>> $partInventory
-     * @return array{count:int, validCount:int, invalidCount:int, inspectionReasonCounts:array<string, int>, rootNamespaceCounts:array<string, int>, rootLocalNameCounts:array<string, int>, rootQualifiedNameCounts:array<string, int>, rootPrefixCounts:array<string, int>, rootNamespaceDeclarationCount:int, rootNamespacePrefixCounts:array<string, int>, rootNamespacePrefixes:list<string>, invalidPartNames:list<string>, xmlDeclarationCount:int, xmlDeclarationPartNames:list<string>, xmlDeclarationVersionCounts:array<string, int>, xmlDeclarationEncodingCounts:array<string, int>, xmlStandaloneDeclarationCount:int, xmlStandaloneYesCount:int, xmlStandaloneNoCount:int, items:list<array<string, mixed>>}
+     * @return array{count:int, validCount:int, invalidCount:int, inspectionReasonCounts:array<string, int>, rootNamespaceCounts:array<string, int>, rootLocalNameCounts:array<string, int>, rootQualifiedNameCounts:array<string, int>, rootPrefixCounts:array<string, int>, rootNamespaceDeclarationCount:int, rootNamespacePrefixCounts:array<string, int>, rootNamespacePrefixes:list<string>, invalidPartNames:list<string>, xmlDeclarationCount:int, xmlDeclarationPartNames:list<string>, xmlDeclarationVersionCounts:array<string, int>, xmlDeclarationEncodingCounts:array<string, int>, xmlStandaloneDeclarationCount:int, xmlStandaloneYesCount:int, xmlStandaloneNoCount:int, xmlProcessingInstructionPartCount:int, xmlProcessingInstructionCount:int, xmlProcessingInstructionTargetCounts:array<string, int>, xmlProcessingInstructionTargets:list<string>, xmlProcessingInstructionPartNames:list<string>, xmlProcessingInstructions:list<array<string, mixed>>, items:list<array<string, mixed>>}
      */
     private function packagePartXmlRootSummary(array $partInventory): array
     {
@@ -19602,12 +19609,18 @@ final class DocxOpenXmlReader
         $xmlDeclarationPartNames = [];
         $xmlDeclarationVersionCounts = [];
         $xmlDeclarationEncodingCounts = [];
+        $xmlProcessingInstructionTargetCounts = [];
+        $xmlProcessingInstructionTargets = [];
+        $xmlProcessingInstructionPartNames = [];
+        $xmlProcessingInstructions = [];
         $validCount = 0;
         $invalidCount = 0;
         $xmlDeclarationCount = 0;
         $xmlStandaloneDeclarationCount = 0;
         $xmlStandaloneYesCount = 0;
         $xmlStandaloneNoCount = 0;
+        $xmlProcessingInstructionPartCount = 0;
+        $xmlProcessingInstructionCount = 0;
 
         foreach ($partInventory as $partName => $part) {
             if (($part['xmlInspectable'] ?? false) !== true) {
@@ -19686,6 +19699,48 @@ final class DocxOpenXmlReader
                 }
             }
 
+            $partProcessingInstructionCount = (int) ($part['xmlProcessingInstructionCount'] ?? 0);
+            if ($partProcessingInstructionCount > 0) {
+                ++$xmlProcessingInstructionPartCount;
+                $xmlProcessingInstructionCount += $partProcessingInstructionCount;
+                $xmlProcessingInstructionPartNames[] = $partName;
+            }
+            foreach (($part['xmlProcessingInstructionTargetCounts'] ?? []) as $target => $count) {
+                if (!is_string($target) || $target === '') {
+                    continue;
+                }
+                $xmlProcessingInstructionTargetCounts[$target] =
+                    ($xmlProcessingInstructionTargetCounts[$target] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlProcessingInstructionTargets, $target);
+            }
+            foreach (($part['xmlProcessingInstructions'] ?? []) as $instruction) {
+                if (!is_array($instruction)) {
+                    continue;
+                }
+
+                $xmlProcessingInstructions[] = [
+                    'partName' => $partName,
+                    'directory' => is_string($part['directory'] ?? null)
+                        ? $part['directory']
+                        : $this->packagePartDirectory($partName),
+                    'baseName' => is_string($part['baseName'] ?? null)
+                        ? $part['baseName']
+                        : $this->packagePartBaseName($partName),
+                    'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                    'contentTypeBase' => is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '',
+                    'contentTypeSource' => is_string($part['contentTypeSource'] ?? null) ? $part['contentTypeSource'] : 'missing',
+                    'target' => is_string($instruction['target'] ?? null) ? $instruction['target'] : '',
+                    'targetKey' => is_string($instruction['targetKey'] ?? null) ? $instruction['targetKey'] : '',
+                    'ordinal' => is_int($instruction['ordinal'] ?? null) ? (int) $instruction['ordinal'] : 0,
+                    'dataByteLength' => (int) ($instruction['dataByteLength'] ?? 0),
+                    'dataCrc32' => is_string($instruction['dataCrc32'] ?? null) ? $instruction['dataCrc32'] : null,
+                    'dataSha256' => is_string($instruction['dataSha256'] ?? null) ? $instruction['dataSha256'] : null,
+                    'dataAttributeCount' => (int) ($instruction['dataAttributeCount'] ?? 0),
+                    'dataAttributeNames' => array_values(array_map('strval', $instruction['dataAttributeNames'] ?? [])),
+                    'dataAttributes' => is_array($instruction['dataAttributes'] ?? null) ? $instruction['dataAttributes'] : [],
+                ];
+            }
+
             $items[] = [
                 'partName' => $partName,
                 'directory' => is_string($part['directory'] ?? null)
@@ -19715,6 +19770,14 @@ final class DocxOpenXmlReader
                 'xmlDeclarationEncoding' => is_string($part['xmlDeclarationEncoding'] ?? null) ? $part['xmlDeclarationEncoding'] : null,
                 'xmlDeclarationStandalone' => is_bool($part['xmlDeclarationStandalone'] ?? null) ? $part['xmlDeclarationStandalone'] : null,
                 'xmlDeclarationAttributeCount' => (int) ($part['xmlDeclarationAttributeCount'] ?? 0),
+                'xmlProcessingInstructionCount' => $partProcessingInstructionCount,
+                'xmlProcessingInstructionTargets' => array_values(array_map('strval', $part['xmlProcessingInstructionTargets'] ?? [])),
+                'xmlProcessingInstructionTargetCounts' => is_array($part['xmlProcessingInstructionTargetCounts'] ?? null)
+                    ? $part['xmlProcessingInstructionTargetCounts']
+                    : [],
+                'xmlProcessingInstructions' => is_array($part['xmlProcessingInstructions'] ?? null)
+                    ? $part['xmlProcessingInstructions']
+                    : [],
                 'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
             ];
         }
@@ -19728,8 +19791,16 @@ final class DocxOpenXmlReader
         sort($rootNamespacePrefixes, SORT_STRING);
         ksort($xmlDeclarationVersionCounts, SORT_STRING);
         ksort($xmlDeclarationEncodingCounts, SORT_STRING);
+        ksort($xmlProcessingInstructionTargetCounts, SORT_STRING);
+        sort($xmlProcessingInstructionTargets, SORT_STRING);
         sort($invalidPartNames, SORT_STRING);
         sort($xmlDeclarationPartNames, SORT_STRING);
+        sort($xmlProcessingInstructionPartNames, SORT_STRING);
+        usort(
+            $xmlProcessingInstructions,
+            static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName'])
+                ?: ((int) ($left['ordinal'] ?? 0) <=> (int) ($right['ordinal'] ?? 0)),
+        );
         usort(
             $items,
             static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName']),
@@ -19755,6 +19826,12 @@ final class DocxOpenXmlReader
             'xmlStandaloneDeclarationCount' => $xmlStandaloneDeclarationCount,
             'xmlStandaloneYesCount' => $xmlStandaloneYesCount,
             'xmlStandaloneNoCount' => $xmlStandaloneNoCount,
+            'xmlProcessingInstructionPartCount' => $xmlProcessingInstructionPartCount,
+            'xmlProcessingInstructionCount' => $xmlProcessingInstructionCount,
+            'xmlProcessingInstructionTargetCounts' => $xmlProcessingInstructionTargetCounts,
+            'xmlProcessingInstructionTargets' => $xmlProcessingInstructionTargets,
+            'xmlProcessingInstructionPartNames' => $xmlProcessingInstructionPartNames,
+            'xmlProcessingInstructions' => $xmlProcessingInstructions,
             'items' => $items,
         ];
     }
@@ -21328,6 +21405,106 @@ final class DocxOpenXmlReader
             'encoding' => isset($attributes['encoding']) && $attributes['encoding'] !== '' ? $attributes['encoding'] : null,
             'standalone' => $standalone,
             'attributeCount' => count($attributes),
+        ];
+    }
+
+    /**
+     * @return array{count:int, targetCounts:array<string, int>, targets:list<string>, items:list<array<string, mixed>>}
+     */
+    private function xmlProcessingInstructionProvenance(string $xml, string $partName): array
+    {
+        $dom = $this->loadXmlForProvenance($xml, $partName);
+        if (!$dom instanceof \DOMDocument) {
+            return [
+                'count' => 0,
+                'targetCounts' => [],
+                'targets' => [],
+                'items' => [],
+            ];
+        }
+
+        $items = [];
+        $targets = [];
+        $targetCounts = [];
+        $ordinal = 0;
+        $walk = function (\DOMNode $node) use (&$walk, &$items, &$targets, &$targetCounts, &$ordinal): void {
+            foreach ($node->childNodes as $child) {
+                if ($child instanceof \DOMProcessingInstruction) {
+                    $target = $child->target;
+                    $targetKey = strtolower($target);
+                    $data = $child->data;
+                    $pseudoAttributes = $this->xmlProcessingInstructionPseudoAttributes($data);
+                    ++$ordinal;
+                    $targetCounts[$targetKey] = ($targetCounts[$targetKey] ?? 0) + 1;
+                    $this->appendUniqueString($targets, $targetKey);
+                    $items[] = [
+                        'ordinal' => $ordinal,
+                        'target' => $target,
+                        'targetKey' => $targetKey,
+                        'dataByteLength' => strlen($data),
+                        'dataCrc32' => $data === '' ? null : sprintf('%08x', crc32($data)),
+                        'dataSha256' => $data === '' ? null : hash('sha256', $data),
+                        'dataAttributeCount' => $pseudoAttributes['count'],
+                        'dataAttributeNames' => $pseudoAttributes['names'],
+                        'dataAttributes' => $pseudoAttributes['items'],
+                    ];
+                }
+
+                if ($child->hasChildNodes()) {
+                    $walk($child);
+                }
+            }
+        };
+        $walk($dom);
+
+        ksort($targetCounts, SORT_STRING);
+        sort($targets, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'targetCounts' => $targetCounts,
+            'targets' => $targets,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @return array{count:int, names:list<string>, items:list<array{name:string, valueByteLength:int, valueCrc32:?string, valueSha256:?string}>}
+     */
+    private function xmlProcessingInstructionPseudoAttributes(string $data): array
+    {
+        preg_match_all('/([A-Za-z_][A-Za-z0-9_.:-]*)\s*=\s*(["\'])(.*?)\2/s', $data, $matches, PREG_SET_ORDER);
+
+        $names = [];
+        $items = [];
+        $seen = [];
+        foreach ($matches as $match) {
+            $name = (string) $match[1];
+            if ($name === '' || isset($seen[$name])) {
+                continue;
+            }
+
+            $value = (string) $match[3];
+            $seen[$name] = true;
+            $names[] = $name;
+            $items[] = [
+                'name' => $name,
+                'valueByteLength' => strlen($value),
+                'valueCrc32' => $value === '' ? null : sprintf('%08x', crc32($value)),
+                'valueSha256' => $value === '' ? null : hash('sha256', $value),
+            ];
+        }
+
+        sort($names, SORT_STRING);
+        usort(
+            $items,
+            static fn (array $left, array $right): int => strcmp((string) $left['name'], (string) $right['name']),
+        );
+
+        return [
+            'count' => count($items),
+            'names' => $names,
+            'items' => $items,
         ];
     }
 
@@ -22997,10 +23174,15 @@ final class DocxOpenXmlReader
                 'xmlDeclarationEncoding' => null,
                 'xmlDeclarationStandalone' => null,
                 'xmlDeclarationAttributeCount' => 0,
+                'xmlProcessingInstructionCount' => 0,
+                'xmlProcessingInstructionTargets' => [],
+                'xmlProcessingInstructionTargetCounts' => [],
+                'xmlProcessingInstructions' => [],
             ];
         }
 
         $xmlDeclaration = $this->xmlDeclarationProvenance($contents);
+        $processingInstructions = $this->xmlProcessingInstructionProvenance($contents, $partName);
         $root = $this->xmlRootProvenance($contents, $partName);
 
         return [
@@ -23020,6 +23202,10 @@ final class DocxOpenXmlReader
             'xmlDeclarationEncoding' => $xmlDeclaration['encoding'],
             'xmlDeclarationStandalone' => $xmlDeclaration['standalone'],
             'xmlDeclarationAttributeCount' => $xmlDeclaration['attributeCount'],
+            'xmlProcessingInstructionCount' => $processingInstructions['count'],
+            'xmlProcessingInstructionTargets' => $processingInstructions['targets'],
+            'xmlProcessingInstructionTargetCounts' => $processingInstructions['targetCounts'],
+            'xmlProcessingInstructions' => $processingInstructions['items'],
         ];
     }
 
