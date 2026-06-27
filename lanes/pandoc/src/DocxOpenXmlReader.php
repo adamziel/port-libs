@@ -13735,6 +13735,18 @@ final class DocxOpenXmlReader
         );
         $largestRelationshipSourceParts = array_slice($relationshipSourceExistingParts, 0, 5);
         $relationshipSourceDirectories = $this->relationshipSourceDirectorySummary($relationshipSources);
+        $relationshipSourceDirectoryBaseNames = $this->relationshipSourceDirectoryBaseNameSummary($relationshipSources);
+        $relationshipSourceDirectoryBaseNameCounts = [];
+        $duplicateRelationshipSourceDirectoryBaseNames = [];
+        foreach ($relationshipSourceDirectoryBaseNames as $sourceDirectoryBaseNameSummary) {
+            $directoryBaseNameKey = (string) ($sourceDirectoryBaseNameSummary['sourceDirectoryBaseNameKey'] ?? '');
+            $relationshipSourceDirectoryBaseNameCounts[$directoryBaseNameKey] =
+                (int) ($sourceDirectoryBaseNameSummary['sourceCount'] ?? 0);
+            if ((int) ($sourceDirectoryBaseNameSummary['directoryCount'] ?? 0) > 1) {
+                $duplicateRelationshipSourceDirectoryBaseNames[] = $directoryBaseNameKey;
+            }
+        }
+        ksort($relationshipSourceDirectoryBaseNameCounts, SORT_STRING);
         $relationshipSourcePathDepths = $this->relationshipSourcePathDepthSummary($relationshipSources);
         $relationshipSourcePathDepthCounts = [];
         foreach ($relationshipSourcePathDepths as $sourcePathDepthSummary) {
@@ -14060,6 +14072,11 @@ final class DocxOpenXmlReader
             'relationshipSourceRoles' => $relationshipSourceRoles,
             'relationshipSourceDirectoryCount' => count($relationshipSourceDirectories),
             'relationshipSourceDirectories' => $relationshipSourceDirectories,
+            'relationshipSourceDirectoryBaseNameCount' => count($relationshipSourceDirectoryBaseNames),
+            'relationshipSourceDirectoryBaseNameCounts' => $relationshipSourceDirectoryBaseNameCounts,
+            'duplicateRelationshipSourceDirectoryBaseNameCount' => count($duplicateRelationshipSourceDirectoryBaseNames),
+            'duplicateRelationshipSourceDirectoryBaseNames' => $duplicateRelationshipSourceDirectoryBaseNames,
+            'relationshipSourceDirectoryBaseNames' => $relationshipSourceDirectoryBaseNames,
             'relationshipSourcePathDepthCount' => count($relationshipSourcePathDepths),
             'relationshipSourcePathDepthCounts' => $relationshipSourcePathDepthCounts,
             'maxRelationshipSourcePathSegmentCount' => $maxRelationshipSourcePathSegmentCount,
@@ -16581,6 +16598,161 @@ final class DocxOpenXmlReader
         }
 
         return array_values($directories);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $relationshipSources
+     * @return list<array<string, mixed>>
+     */
+    private function relationshipSourceDirectoryBaseNameSummary(array $relationshipSources): array
+    {
+        $directoryBaseNames = [];
+        foreach ($relationshipSources as $source) {
+            $directory = is_string($source['sourceDirectory'] ?? null) ? $source['sourceDirectory'] : '';
+            if ($directory === '') {
+                $directoryBaseNameKey = '(invalid-source)';
+                $directoryBaseName = null;
+            } else {
+                $directoryBaseName = $this->packagePartDirectoryBaseName($directory);
+                $directoryBaseNameKey = $directoryBaseName;
+            }
+
+            if (!isset($directoryBaseNames[$directoryBaseNameKey])) {
+                $directoryBaseNames[$directoryBaseNameKey] = [
+                    'sourceDirectoryBaseNameKey' => $directoryBaseNameKey,
+                    'sourceDirectoryBaseName' => $directoryBaseName,
+                    'directoryCount' => 0,
+                    'sourceCount' => 0,
+                    'existingSourceCount' => 0,
+                    'nonExistingSourceCount' => 0,
+                    'relationshipCount' => 0,
+                    'relationshipRecordCount' => 0,
+                    'existingSourceByteLength' => 0,
+                    'relationshipSourceKindCounts' => [],
+                    'sourceDirectoryCounts' => [],
+                    'sourceBaseNameCounts' => [],
+                    'sourcePartExtensionCounts' => [],
+                    'sourceContentTypeBaseCounts' => [],
+                    'sourceContentTypeSourceCounts' => [],
+                    'sourceRoleCounts' => [],
+                    'sourceDirectories' => [],
+                    'sourceParts' => [],
+                    'relationshipParts' => [],
+                    'largestExistingSourcePart' => null,
+                ];
+            }
+
+            ++$directoryBaseNames[$directoryBaseNameKey]['sourceCount'];
+            $sourceExists = ($source['sourceExists'] ?? false) === true;
+            if ($sourceExists) {
+                ++$directoryBaseNames[$directoryBaseNameKey]['existingSourceCount'];
+            } else {
+                ++$directoryBaseNames[$directoryBaseNameKey]['nonExistingSourceCount'];
+            }
+            $directoryBaseNames[$directoryBaseNameKey]['relationshipCount'] += (int) ($source['relationshipCount'] ?? 0);
+            $directoryBaseNames[$directoryBaseNameKey]['relationshipRecordCount'] += (int) ($source['relationshipRecordCount'] ?? 0);
+
+            $sourceKind = is_string($source['relationshipSourceKind'] ?? null)
+                ? $source['relationshipSourceKind']
+                : 'invalid-source';
+            $directoryBaseNames[$directoryBaseNameKey]['relationshipSourceKindCounts'][$sourceKind] =
+                ($directoryBaseNames[$directoryBaseNameKey]['relationshipSourceKindCounts'][$sourceKind] ?? 0) + 1;
+
+            $directoryKey = $directory === '' ? '(invalid-source)' : $directory;
+            $directoryBaseNames[$directoryBaseNameKey]['sourceDirectoryCounts'][$directoryKey] =
+                ($directoryBaseNames[$directoryBaseNameKey]['sourceDirectoryCounts'][$directoryKey] ?? 0) + 1;
+            if ($directory !== '') {
+                $this->appendUniqueString($directoryBaseNames[$directoryBaseNameKey]['sourceDirectories'], $directory);
+            }
+
+            $baseName = is_string($source['sourceBaseName'] ?? null) ? $source['sourceBaseName'] : '';
+            $baseNameKey = $baseName === '' ? '(invalid-source)' : $baseName;
+            $directoryBaseNames[$directoryBaseNameKey]['sourceBaseNameCounts'][$baseNameKey] =
+                ($directoryBaseNames[$directoryBaseNameKey]['sourceBaseNameCounts'][$baseNameKey] ?? 0) + 1;
+
+            $extension = is_string($source['sourcePartExtension'] ?? null)
+                ? $source['sourcePartExtension']
+                : null;
+            $extensionKey = $extension ?? '(none)';
+            $directoryBaseNames[$directoryBaseNameKey]['sourcePartExtensionCounts'][$extensionKey] =
+                ($directoryBaseNames[$directoryBaseNameKey]['sourcePartExtensionCounts'][$extensionKey] ?? 0) + 1;
+
+            $contentTypeBase = is_string($source['sourceContentTypeBase'] ?? null)
+                ? $source['sourceContentTypeBase']
+                : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $directoryBaseNames[$directoryBaseNameKey]['sourceContentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($directoryBaseNames[$directoryBaseNameKey]['sourceContentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+
+            $contentTypeSource = is_string($source['sourceContentTypeSource'] ?? null)
+                ? $source['sourceContentTypeSource']
+                : '';
+            $contentTypeSourceKey = $contentTypeSource === '' ? '(missing)' : $contentTypeSource;
+            $directoryBaseNames[$directoryBaseNameKey]['sourceContentTypeSourceCounts'][$contentTypeSourceKey] =
+                ($directoryBaseNames[$directoryBaseNameKey]['sourceContentTypeSourceCounts'][$contentTypeSourceKey] ?? 0) + 1;
+
+            foreach (($source['sourceRoles'] ?? []) as $role) {
+                $role = (string) $role;
+                $directoryBaseNames[$directoryBaseNameKey]['sourceRoleCounts'][$role] =
+                    ($directoryBaseNames[$directoryBaseNameKey]['sourceRoleCounts'][$role] ?? 0) + 1;
+            }
+
+            $this->appendUniqueString(
+                $directoryBaseNames[$directoryBaseNameKey]['sourceParts'],
+                is_string($source['sourcePart'] ?? null) ? $source['sourcePart'] : null,
+            );
+            $this->appendUniqueString(
+                $directoryBaseNames[$directoryBaseNameKey]['relationshipParts'],
+                is_string($source['relationshipsPart'] ?? null) ? $source['relationshipsPart'] : null,
+            );
+
+            if (is_int($source['sourceBytes'] ?? null)) {
+                $sourceBytes = (int) $source['sourceBytes'];
+                $directoryBaseNames[$directoryBaseNameKey]['existingSourceByteLength'] += $sourceBytes;
+                $sourceSummary = [
+                    'sourcePart' => is_string($source['sourcePart'] ?? null) ? $source['sourcePart'] : '',
+                    'relationshipsPart' => is_string($source['relationshipsPart'] ?? null) ? $source['relationshipsPart'] : '',
+                    'relationshipSourceKind' => $sourceKind,
+                    'sourceDirectory' => $directory === '' ? null : $directory,
+                    'sourceDirectoryBaseName' => $directoryBaseName,
+                    'sourceBytes' => $sourceBytes,
+                    'sourceCrc32' => is_string($source['sourceCrc32'] ?? null) ? $source['sourceCrc32'] : null,
+                    'sourceSha256' => is_string($source['sourceSha256'] ?? null) ? $source['sourceSha256'] : null,
+                    'sourceContentTypeBase' => $contentTypeBase === '' ? null : $contentTypeBase,
+                    'sourceContentTypeSource' => $contentTypeSource === '' ? null : $contentTypeSource,
+                    'sourceRoles' => array_values(array_map('strval', $source['sourceRoles'] ?? [])),
+                ];
+                $largestPart = $directoryBaseNames[$directoryBaseNameKey]['largestExistingSourcePart'];
+                if (
+                    !is_array($largestPart)
+                    || $sourceSummary['sourceBytes'] > (int) ($largestPart['sourceBytes'] ?? 0)
+                    || (
+                        $sourceSummary['sourceBytes'] === (int) ($largestPart['sourceBytes'] ?? 0)
+                        && strcmp($sourceSummary['sourcePart'], (string) ($largestPart['sourcePart'] ?? '')) < 0
+                    )
+                ) {
+                    $directoryBaseNames[$directoryBaseNameKey]['largestExistingSourcePart'] = $sourceSummary;
+                }
+            }
+        }
+
+        ksort($directoryBaseNames, SORT_STRING);
+        foreach ($directoryBaseNames as $directoryBaseNameKey => $summary) {
+            ksort($summary['relationshipSourceKindCounts'], SORT_STRING);
+            ksort($summary['sourceDirectoryCounts'], SORT_STRING);
+            ksort($summary['sourceBaseNameCounts'], SORT_STRING);
+            ksort($summary['sourcePartExtensionCounts'], SORT_STRING);
+            ksort($summary['sourceContentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['sourceContentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['sourceRoleCounts'], SORT_STRING);
+            sort($summary['sourceDirectories'], SORT_STRING);
+            sort($summary['sourceParts'], SORT_STRING);
+            sort($summary['relationshipParts'], SORT_STRING);
+            $summary['directoryCount'] = count($summary['sourceDirectories']);
+            $directoryBaseNames[$directoryBaseNameKey] = $summary;
+        }
+
+        return array_values($directoryBaseNames);
     }
 
     /**
