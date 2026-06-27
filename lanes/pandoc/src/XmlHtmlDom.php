@@ -16808,6 +16808,9 @@ final class XmlHtmlDom
                 $summary['importMapIntegrityCount'] = isset($json['integrity']) && is_array($json['integrity']) && !self::isJsonList($json['integrity'])
                     ? count($json['integrity'])
                     : 0;
+                $importMapReview = self::importMapReviewSummary($json);
+                $summary += $importMapReview['summary'];
+                array_push($diagnostics, ...$importMapReview['diagnostics']);
             }
         }
 
@@ -16835,6 +16838,213 @@ final class XmlHtmlDom
         $summary['scriptJsonDiagnostics'] = $diagnostics;
 
         return $summary;
+    }
+
+    /**
+     * @param array<string, mixed> $json
+     * @return array{
+     *     summary:array<string, mixed>,
+     *     diagnostics:list<string>
+     * }
+     */
+    private static function importMapReviewSummary(array $json): array
+    {
+        $diagnostics = [];
+        $topLevelIssues = [];
+        foreach (['imports', 'scopes', 'integrity'] as $key) {
+            if (array_key_exists($key, $json) && (!is_array($json[$key]) || self::isJsonList($json[$key]))) {
+                $topLevelIssues[] = [
+                    'code' => 'invalid-import-map-' . $key,
+                    'valueType' => self::jsonValueKind($json[$key]),
+                ];
+            }
+        }
+
+        $imports = isset($json['imports']) && is_array($json['imports']) && !self::isJsonList($json['imports'])
+            ? self::importMapBindingRecords($json['imports'])
+            : [];
+        $scopeRecords = [];
+        $scopeIssues = [];
+
+        if (isset($json['scopes']) && is_array($json['scopes']) && !self::isJsonList($json['scopes'])) {
+            foreach ($json['scopes'] as $scopePrefix => $scopeImports) {
+                $scopePrefix = (string) $scopePrefix;
+                $scopeUrl = self::hyperlinkUrlReviewSummary($scopePrefix);
+                $issues = [];
+                if ($scopeUrl['unsafe'] === true) {
+                    $issues[] = [
+                        'code' => 'unsafe-import-map-scope-prefix',
+                        'scopePrefix' => $scopePrefix,
+                        'scheme' => $scopeUrl['scheme'],
+                    ];
+                }
+
+                if (!is_array($scopeImports) || self::isJsonList($scopeImports)) {
+                    $diagnostics[] = 'importmap-scope-imports-not-object';
+                    $issues[] = [
+                        'code' => 'invalid-import-map-scope-imports',
+                        'scopePrefix' => $scopePrefix,
+                        'valueType' => self::jsonValueKind($scopeImports),
+                    ];
+                    $scopeImportRecords = [];
+                } else {
+                    $scopeImportRecords = self::importMapBindingRecords($scopeImports);
+                }
+
+                foreach ($scopeImportRecords as $record) {
+                    foreach ($record['issues'] as $issue) {
+                        $scopeIssues[] = $issue + ['scopePrefix' => $scopePrefix];
+                    }
+                }
+                array_push($scopeIssues, ...$issues);
+
+                $scopeRecords[] = [
+                    'scopePrefix' => $scopePrefix,
+                    'scopePrefixKind' => $scopeUrl['kind'],
+                    'scopePrefixScheme' => $scopeUrl['scheme'],
+                    'scopePrefixUnsafe' => $scopeUrl['unsafe'],
+                    'importCount' => is_array($scopeImports) && !self::isJsonList($scopeImports) ? count($scopeImports) : null,
+                    'importSpecifiers' => array_values(array_map(
+                        static fn (array $record): string => (string) $record['specifier'],
+                        $scopeImportRecords
+                    )),
+                    'importRecords' => $scopeImportRecords,
+                    'issues' => $issues,
+                    'issueCodes' => self::importMapIssueCodes($issues),
+                    'valid' => $issues === [] && self::importMapBindingRecordsAreValid($scopeImportRecords),
+                ];
+            }
+        }
+
+        $importIssues = self::importMapBindingIssues($imports);
+        $issues = array_merge($topLevelIssues, $importIssues, $scopeIssues);
+
+        return [
+            'summary' => [
+                'importMapReviewPolicy' => 'import-map-module-target-provenance-review',
+                'importMapImportSpecifiers' => array_values(array_map(
+                    static fn (array $record): string => (string) $record['specifier'],
+                    $imports
+                )),
+                'importMapImportRecords' => $imports,
+                'importMapInvalidImportSpecifiers' => array_values(array_map(
+                    static fn (array $record): string => (string) $record['specifier'],
+                    array_values(array_filter($imports, static fn (array $record): bool => $record['valid'] === false))
+                )),
+                'importMapScopePrefixes' => array_values(array_map(
+                    static fn (array $record): string => (string) $record['scopePrefix'],
+                    $scopeRecords
+                )),
+                'importMapScopeRecords' => $scopeRecords,
+                'importMapIssueCodes' => self::importMapIssueCodes($issues),
+                'importMapIssues' => $issues,
+                'importMapValid' => $issues === [],
+            ],
+            'diagnostics' => array_values(array_unique($diagnostics)),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $bindings
+     * @return list<array<string, mixed>>
+     */
+    private static function importMapBindingRecords(array $bindings): array
+    {
+        $records = [];
+        foreach ($bindings as $specifier => $address) {
+            $specifier = (string) $specifier;
+            $addressString = is_string($address) ? $address : null;
+            $addressUrl = $addressString === null ? null : self::hyperlinkUrlReviewSummary($addressString);
+            $specifierPrefix = str_ends_with($specifier, '/');
+            $addressPrefix = $addressString !== null && str_ends_with(trim($addressString), '/');
+            $issues = [];
+
+            if (!is_string($address)) {
+                $issues[] = [
+                    'code' => 'non-string-import-map-address',
+                    'specifier' => $specifier,
+                    'valueType' => self::jsonValueKind($address),
+                ];
+            } elseif (trim($address) === '') {
+                $issues[] = [
+                    'code' => 'empty-import-map-address',
+                    'specifier' => $specifier,
+                ];
+            } elseif (($addressUrl['unsafe'] ?? false) === true) {
+                $issues[] = [
+                    'code' => 'unsafe-import-map-address',
+                    'specifier' => $specifier,
+                    'address' => $addressString,
+                    'scheme' => $addressUrl['scheme'],
+                ];
+            }
+
+            if ($addressString !== null && $specifierPrefix !== $addressPrefix) {
+                $issues[] = [
+                    'code' => 'import-map-prefix-address-mismatch',
+                    'specifier' => $specifier,
+                    'address' => $addressString,
+                    'specifierPrefix' => $specifierPrefix,
+                    'addressPrefix' => $addressPrefix,
+                ];
+            }
+
+            $records[] = [
+                'specifier' => $specifier,
+                'specifierPrefix' => $specifierPrefix,
+                'address' => $addressString,
+                'addressType' => self::jsonValueKind($address),
+                'addressKind' => $addressUrl['kind'] ?? null,
+                'addressScheme' => $addressUrl['scheme'] ?? null,
+                'addressUnsafe' => $addressUrl['unsafe'] ?? null,
+                'addressPrefix' => $addressPrefix,
+                'issues' => $issues,
+                'issueCodes' => self::importMapIssueCodes($issues),
+                'valid' => $issues === [],
+            ];
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @return list<array<string, mixed>>
+     */
+    private static function importMapBindingIssues(array $records): array
+    {
+        $issues = [];
+        foreach ($records as $record) {
+            array_push($issues, ...$record['issues']);
+        }
+
+        return $issues;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     */
+    private static function importMapBindingRecordsAreValid(array $records): bool
+    {
+        foreach ($records as $record) {
+            if ($record['valid'] === false) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $issues
+     * @return list<string>
+     */
+    private static function importMapIssueCodes(array $issues): array
+    {
+        return array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
     }
 
     private static function jsonValueKind(mixed $value): string
