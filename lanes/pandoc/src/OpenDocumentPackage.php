@@ -490,6 +490,7 @@ final class OpenDocumentPackage
         }
 
         $localHeaderOrder = $this->package->localHeaderOrderPreflight();
+        $packageManifest = $this->package->packageManifestPreflight();
         $compressionMethods = $this->package->compressionMethodPreflight();
         $comments = $this->package->commentPreflight();
         $modificationTimes = $this->package->modificationTimePreflight();
@@ -512,6 +513,7 @@ final class OpenDocumentPackage
                 $localOrderByName[$name] = $entry;
             }
         }
+        $sourceRecordEntriesByName = self::zipPreflightEntriesByName($packageManifest);
         $commentEntriesByName = [];
         foreach ($comments['entries'] ?? [] as $entry) {
             $name = $entry['name'] ?? null;
@@ -585,6 +587,7 @@ final class OpenDocumentPackage
 
             $roles = self::packageEntryRoles($entry, $manifestEntry, $isUndeclared, $embeddedObjectPackage);
             $byteExposurePolicy = null;
+            $sourceRecordProvenance = self::zipEntrySourceRecordProvenance($sourceRecordEntriesByName[$entry->name] ?? null);
             if (is_array($manifestEntry)) {
                 $byteExposurePolicy = $manifestEntry['byteExposurePolicy'] ?? null;
             } elseif ($isUndeclared) {
@@ -677,7 +680,7 @@ final class OpenDocumentPackage
                 'canExposeBytes' => is_array($manifestEntry) && ($manifestEntry['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $byteExposurePolicy,
                 'undeclared' => $isUndeclared,
-            ] + $rawNameProvenance + $timestampProvenance + $platformAttributeProvenance;
+            ] + $rawNameProvenance + $sourceRecordProvenance + $timestampProvenance + $platformAttributeProvenance;
 
             foreach ($roles as $role) {
                 $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
@@ -837,6 +840,7 @@ final class OpenDocumentPackage
             'unicodePathExtraEntryCount' => $unicodePathExtraEntryCount,
             'decodedNameDiffersFromRawNameEntryCount' => $decodedNameDiffersFromRawNameEntryCount,
             'rawNameProvenanceEntries' => $rawNameProvenanceEntries,
+            'zipSourceRecords' => self::zipSourceRecordSummary($packageManifest, $parts),
             'byteExposurePolicy' => 'odf-package-inventory-metadata-only',
             'canExposeBytes' => false,
             'roles' => array_keys($roleCounts),
@@ -1122,6 +1126,107 @@ final class OpenDocumentPackage
         }
 
         return $entriesByName;
+    }
+
+    /**
+     * @param array<string, mixed>|null $entry
+     * @return array<string, mixed>
+     */
+    private static function zipEntrySourceRecordProvenance(?array $entry): array
+    {
+        if ($entry === null) {
+            return [
+                'hasZipSourceRecordProvenance' => false,
+                'zipLocalHeaderLength' => null,
+                'zipLocalHeaderSha256' => null,
+                'zipCentralDirectoryRecordOffset' => null,
+                'zipCentralDirectoryRecordEnd' => null,
+                'zipCentralDirectoryRecordBytes' => null,
+                'zipCentralDirectoryRecordSha256' => null,
+                'zipSourceRecordReviewBytes' => null,
+            ];
+        }
+
+        $centralDirectoryRecordOffset = is_int($entry['centralDirectoryRecordOffset'] ?? null)
+            ? $entry['centralDirectoryRecordOffset']
+            : null;
+        $centralDirectoryRecordEnd = is_int($entry['centralDirectoryRecordEnd'] ?? null)
+            ? $entry['centralDirectoryRecordEnd']
+            : null;
+        $centralDirectoryRecordBytes = $centralDirectoryRecordOffset !== null
+            && $centralDirectoryRecordEnd !== null
+            && $centralDirectoryRecordEnd >= $centralDirectoryRecordOffset
+                ? $centralDirectoryRecordEnd - $centralDirectoryRecordOffset
+                : null;
+        $localHeaderLength = is_int($entry['localHeaderLength'] ?? null) ? $entry['localHeaderLength'] : null;
+
+        return [
+            'hasZipSourceRecordProvenance' => true,
+            'zipLocalHeaderLength' => $localHeaderLength,
+            'zipLocalHeaderSha256' => is_string($entry['localHeaderSha256'] ?? null) ? $entry['localHeaderSha256'] : null,
+            'zipCentralDirectoryRecordOffset' => $centralDirectoryRecordOffset,
+            'zipCentralDirectoryRecordEnd' => $centralDirectoryRecordEnd,
+            'zipCentralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
+            'zipCentralDirectoryRecordSha256' => is_string($entry['centralDirectoryRecordSha256'] ?? null)
+                ? $entry['centralDirectoryRecordSha256']
+                : null,
+            'zipSourceRecordReviewBytes' => ($localHeaderLength ?? 0) + ($centralDirectoryRecordBytes ?? 0),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $packageManifest
+     * @param array<string, array<string, mixed>> $parts
+     * @return array<string, mixed>
+     */
+    private static function zipSourceRecordSummary(array $packageManifest, array $parts): array
+    {
+        $items = [];
+        $localHeaderBytes = 0;
+        $centralDirectoryRecordBytes = 0;
+        $reviewBytes = 0;
+
+        foreach (is_array($packageManifest['entries'] ?? null) ? $packageManifest['entries'] : [] as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $name = $entry['name'] ?? null;
+            if (!is_string($name) || $name === '') {
+                continue;
+            }
+
+            $provenance = self::zipEntrySourceRecordProvenance($entry);
+            $part = $parts[$name] ?? [];
+            if (is_int($provenance['zipLocalHeaderLength'])) {
+                $localHeaderBytes += $provenance['zipLocalHeaderLength'];
+            }
+            if (is_int($provenance['zipCentralDirectoryRecordBytes'])) {
+                $centralDirectoryRecordBytes += $provenance['zipCentralDirectoryRecordBytes'];
+            }
+            if (is_int($provenance['zipSourceRecordReviewBytes'])) {
+                $reviewBytes += $provenance['zipSourceRecordReviewBytes'];
+            }
+
+            $items[] = self::withoutEmptyValues([
+                'path' => $name,
+                'centralDirectoryIndex' => $entry['centralDirectoryIndex'] ?? null,
+                'localHeaderOrder' => $entry['localHeaderOrder'] ?? null,
+                'roles' => is_array($part['roles'] ?? null) ? $part['roles'] : [],
+                'canExposeBytes' => ($part['canExposeBytes'] ?? false) === true,
+                'byteExposurePolicy' => $part['byteExposurePolicy'] ?? null,
+            ] + $provenance);
+        }
+
+        return [
+            'entryCount' => count($items),
+            'localHeaderBytes' => $localHeaderBytes,
+            'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
+            'sourceRecordReviewBytes' => $reviewBytes,
+            'canExposeBytes' => false,
+            'byteExposurePolicy' => 'zip-source-record-provenance-metadata-only',
+            'items' => $items,
+        ];
     }
 
     /**
@@ -3641,9 +3746,10 @@ final class OpenDocumentPackage
                     continue;
                 }
 
+                $containedManifestEntry = $manifestEntriesByPath[$entry->name] ?? null;
                 $containedClassification = self::embeddedObjectContainedPartClassification(
                     $entry->name,
-                    $manifestEntriesByPath[$entry->name] ?? null
+                    $containedManifestEntry
                 );
                 $containedRole = $containedClassification['containedRole'];
                 $containedMediaFamily = $containedClassification['containedMediaFamily'];
@@ -3656,6 +3762,12 @@ final class OpenDocumentPackage
                     'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
                     'crc32' => $entry->crc32Hex(),
                     'declaredInManifest' => isset($declaredContainedParts[$entry->name]),
+                    'manifestMediaType' => is_array($containedManifestEntry) ? ($containedManifestEntry['mediaType'] ?? '') : null,
+                    'manifestMediaTypeBase' => is_array($containedManifestEntry) ? ($containedManifestEntry['mediaTypeBase'] ?? '') : null,
+                    'manifestMediaTypeHasParameters' => is_array($containedManifestEntry) && ($containedManifestEntry['mediaTypeHasParameters'] ?? false) === true,
+                    'manifestMediaTypeParameterCount' => is_array($containedManifestEntry) ? ($containedManifestEntry['mediaTypeParameterCount'] ?? 0) : 0,
+                    'manifestMediaTypeParameters' => is_array($containedManifestEntry) ? ($containedManifestEntry['mediaTypeParameters'] ?? []) : [],
+                    'manifestMediaTypeParameterMap' => is_array($containedManifestEntry) ? ($containedManifestEntry['mediaTypeParameterMap'] ?? []) : [],
                     'containedRole' => $containedRole,
                     'containedMediaFamily' => $containedMediaFamily,
                 ];
@@ -3709,6 +3821,10 @@ final class OpenDocumentPackage
                 'objectType' => $objectType,
                 'mediaType' => $rootEntry['mediaType'] ?? '',
                 'mediaTypeBase' => $rootEntry['mediaTypeBase'] ?? '',
+                'mediaTypeHasParameters' => ($rootEntry['mediaTypeHasParameters'] ?? false) === true,
+                'mediaTypeParameterCount' => $rootEntry['mediaTypeParameterCount'] ?? 0,
+                'mediaTypeParameters' => $rootEntry['mediaTypeParameters'] ?? [],
+                'mediaTypeParameterMap' => $rootEntry['mediaTypeParameterMap'] ?? [],
                 'version' => $rootEntry['version'] ?? null,
                 'preferredViewMode' => $rootEntry['preferredViewMode'] ?? null,
                 'exists' => $exists,
@@ -3909,6 +4025,10 @@ final class OpenDocumentPackage
             'manifestIndex' => $entry['manifestIndex'] ?? null,
             'mediaType' => $entry['mediaType'] ?? '',
             'mediaTypeBase' => $entry['mediaTypeBase'] ?? '',
+            'mediaTypeHasParameters' => ($entry['mediaTypeHasParameters'] ?? false) === true,
+            'mediaTypeParameterCount' => $entry['mediaTypeParameterCount'] ?? 0,
+            'mediaTypeParameters' => $entry['mediaTypeParameters'] ?? [],
+            'mediaTypeParameterMap' => $entry['mediaTypeParameterMap'] ?? [],
             'exists' => ($entry['exists'] ?? false) === true,
             'encrypted' => ($entry['encrypted'] ?? false) === true,
             'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
