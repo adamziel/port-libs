@@ -10265,6 +10265,108 @@ XML;
         $t->true(in_array('root-relationship-target', $package['parts']['_xmlsignatures/origin.sigs']['roles'], true), 'signature origin root target role missing');
         $t->true(in_array('relationship-target', $package['parts']['_xmlsignatures/sig1.xml']['roles'], true), 'signature XML relationship target role missing');
     },
+    'tracks docx digital signature external target policy for package review' => static function (TestRunner $t): void {
+        $originType = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin';
+        $signatureType = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature';
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/_xmlsignatures/policy-origin.sigs" ContentType="application/vnd.openxmlformats-package.digital-signature-origin"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rPolicyOrigin" Type="' . $originType . '" Target="_xmlsignatures/policy-origin.sigs"/>' . "\n" .
+            '  <Relationship Id="rSafeExternalOrigin" Type="' . $originType . '" Target="https://example.test/signatures/origin.sigs?policy=safe#origin" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rUnsafeExternalOrigin" Type="' . $originType . '" Target="file:///C:/signatures/origin.sigs?policy=unsafe#origin" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['_xmlsignatures/policy-origin.sigs'] = 'policy origin bytes';
+        $parts['_xmlsignatures/_rels/policy-origin.sigs.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rSafeExternalSignature" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature" Target="https://example.test/signatures/sig.xml?policy=safe#sig" TargetMode="External"/>
+  <Relationship Id="rUnsafeExternalSignature" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature" Target="file:///C:/signatures/sig.xml?policy=unsafe#sig" TargetMode="External"/>
+</Relationships>
+XML;
+
+        $docx = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx');
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $signatures = $package['digitalSignatures'];
+        $policyOrigin = $signatures['byOriginRelationshipId']['rPolicyOrigin'];
+        $safeOrigin = $signatures['byOriginRelationshipId']['rSafeExternalOrigin'];
+        $unsafeOrigin = $signatures['byOriginRelationshipId']['rUnsafeExternalOrigin'];
+        $safeSignature = $signatures['bySignatureRelationshipId']['rSafeExternalSignature'];
+        $unsafeSignature = $signatures['bySignatureRelationshipId']['rUnsafeExternalSignature'];
+
+        $t->same(3, $signatures['originCount']);
+        $t->same(1, $signatures['existingOriginCount']);
+        $t->same(0, $signatures['missingOriginCount']);
+        $t->same(2, $signatures['externalOriginCount']);
+        $t->same(1, $signatures['allowedExternalOriginCount']);
+        $t->same(1, $signatures['unsafeExternalOriginCount']);
+        $t->same(2, $signatures['signatureCount']);
+        $t->same(0, $signatures['existingSignatureCount']);
+        $t->same(0, $signatures['missingSignatureCount']);
+        $t->same(2, $signatures['externalSignatureCount']);
+        $t->same(1, $signatures['allowedExternalSignatureCount']);
+        $t->same(1, $signatures['unsafeExternalSignatureCount']);
+        $t->same(['external-target-unsafe-scheme'], $signatures['externalTargetIssueCodes']);
+        $t->same([
+            'file:///C:/signatures/sig.xml?policy=unsafe#sig',
+            'file:///C:/signatures/origin.sigs?policy=unsafe#origin',
+        ], $signatures['unsafeExternalTargets']);
+        $t->same([
+            'external-signature-origin',
+            'external-signature-target',
+            'external-target-unsafe-scheme',
+        ], $signatures['issueCodes']);
+
+        $t->same(1, $policyOrigin['signatures']['allowedExternalTargetCount']);
+        $t->same(1, $policyOrigin['signatures']['unsafeExternalTargetCount']);
+        $t->same(['external-target-unsafe-scheme'], $policyOrigin['signatures']['externalTargetIssueCodes']);
+        $t->same([
+            'file:///C:/signatures/sig.xml?policy=unsafe#sig',
+        ], $policyOrigin['signatures']['unsafeExternalTargets']);
+        $t->same([], $policyOrigin['issues']);
+
+        $t->same(true, $safeOrigin['external']);
+        $t->same('https', $safeOrigin['externalTargetScheme']);
+        $t->same(true, $safeOrigin['externalTargetAllowed']);
+        $t->same([], $safeOrigin['externalTargetIssues']);
+        $t->same(['external-signature-origin'], $safeOrigin['issues']);
+
+        $t->same(true, $unsafeOrigin['external']);
+        $t->same('file', $unsafeOrigin['externalTargetScheme']);
+        $t->same(false, $unsafeOrigin['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $unsafeOrigin['externalTargetIssues']);
+        $t->same(['external-signature-origin', 'external-target-unsafe-scheme'], $unsafeOrigin['issues']);
+
+        $t->same(true, $safeSignature['external']);
+        $t->same('https', $safeSignature['externalTargetScheme']);
+        $t->same(true, $safeSignature['externalTargetAllowed']);
+        $t->same([], $safeSignature['externalTargetIssues']);
+        $t->same(['external-signature-target'], $safeSignature['issues']);
+
+        $t->same(true, $unsafeSignature['external']);
+        $t->same('file', $unsafeSignature['externalTargetScheme']);
+        $t->same(false, $unsafeSignature['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $unsafeSignature['externalTargetIssues']);
+        $t->same(['external-signature-target', 'external-target-unsafe-scheme'], $unsafeSignature['issues']);
+
+        $t->same(1, $summary['digitalSignatureAllowedExternalOriginCount']);
+        $t->same(1, $summary['digitalSignatureUnsafeExternalOriginCount']);
+        $t->same(1, $summary['digitalSignatureAllowedExternalSignatureCount']);
+        $t->same(1, $summary['digitalSignatureUnsafeExternalSignatureCount']);
+        $t->same(['external-target-unsafe-scheme'], $summary['digitalSignatureExternalTargetIssueCodes']);
+        $t->same(3, $summary['relationshipTypeCounts'][$originType]);
+        $t->same(2, $summary['relationshipTypeCounts'][$signatureType]);
+        $t->same(2, $package['relationshipTypes'][$originType]['externalCount']);
+        $t->same(2, $package['relationshipTypes'][$signatureType]['externalCount']);
+    },
     'preserves docx digital signature package SHA-256 provenance for review handoff' => static function (TestRunner $t): void {
         $originType = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin';
         $signatureType = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature';
@@ -10395,6 +10497,152 @@ XML;
         $t->same(['https://example.test/signature.xml'], $signatures['externalTargets']);
         $t->same(1, $summary['digitalSignatureMissingSignatureCount']);
         $t->same(1, $summary['digitalSignatureExternalSignatureCount']);
+    },
+    'summarizes docx digital signature reference package targets for review handoff' => static function (TestRunner $t): void {
+        $originType = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin';
+        $originBytes = 'signature origin bytes for reference target review';
+        $customReferenceBytes = '<signed-reference>metadata only</signed-reference>';
+        $opaqueReferenceBytes = 'opaque signed package bytes';
+        $signatureXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/document.xml?review=1#body">
+      <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+      <ds:DigestValue>bodyDigest</ds:DigestValue>
+    </ds:Reference>
+    <ds:Reference URI="/customXml/signed-reference.xml?slot=custom#payload">
+      <ds:DigestValue>customDigest</ds:DigestValue>
+    </ds:Reference>
+    <ds:Reference URI="/customXml/opaque-reference.bin">
+      <ds:DigestValue>opaqueDigest</ds:DigestValue>
+    </ds:Reference>
+    <ds:Reference URI="/customXml/missing-reference.bin?audit=1#missing">
+      <ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>
+    </ds:Reference>
+    <ds:Reference URI="#manifestPackageParts">
+      <ds:DigestValue>manifestDigest</ds:DigestValue>
+    </ds:Reference>
+  </ds:SignedInfo>
+  <ds:SignatureValue>reference-target-review</ds:SignatureValue>
+</ds:Signature>
+XML;
+
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/_xmlsignatures/origin-targets.sigs" ContentType="application/vnd.openxmlformats-package.digital-signature-origin"/>' . "\n" .
+            '  <Override PartName="/_xmlsignatures/sig-targets.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>' . "\n" .
+            '  <Override PartName="/customXml/signed-reference.xml" ContentType="application/xml; profile=signature-reference"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rReferenceTargetOrigin" Type="' . $originType . '" Target="_xmlsignatures/origin-targets.sigs"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['_xmlsignatures/origin-targets.sigs'] = $originBytes;
+        $parts['_xmlsignatures/_rels/origin-targets.sigs.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rReferenceTargetSignature" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature" Target="sig-targets.xml"/>
+</Relationships>
+XML;
+        $parts['_xmlsignatures/sig-targets.xml'] = $signatureXml;
+        $parts['customXml/signed-reference.xml'] = $customReferenceBytes;
+        $parts['customXml/opaque-reference.bin'] = $opaqueReferenceBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $signatures = $package['digitalSignatures'];
+        $origin = $signatures['byOriginRelationshipId']['rReferenceTargetOrigin'];
+        $signature = $signatures['bySignatureRelationshipId']['rReferenceTargetSignature'];
+        $bodyReference = $signature['references'][0];
+        $customReference = $signature['references'][1];
+        $opaqueReference = $signature['references'][2];
+        $missingReference = $signature['references'][3];
+        $sameDocumentReference = $signature['references'][4];
+
+        $t->same(5, $signature['referenceCount']);
+        $t->same(4, $signature['packageReferenceCount']);
+        $t->same(1, $signature['sameDocumentReferenceCount']);
+        $t->same(3, $signature['referenceTargetExistingCount']);
+        $t->same(1, $signature['referenceTargetMissingCount']);
+        $t->same(2, $signature['referenceTargetMissingContentTypeCount']);
+        $t->same(3, $signature['referenceTargetSha256Count']);
+        $t->same([
+            'word/document.xml',
+            'customXml/signed-reference.xml',
+            'customXml/opaque-reference.bin',
+            'customXml/missing-reference.bin',
+        ], $signature['referenceTargetParts']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+            'application/xml; profile=signature-reference',
+        ], $signature['referenceTargetContentTypes']);
+        $t->same([
+            hash('sha256', $parts['word/document.xml']),
+            hash('sha256', $customReferenceBytes),
+            hash('sha256', $opaqueReferenceBytes),
+        ], $signature['referenceTargetSha256s']);
+
+        $t->same('word/document.xml', $bodyReference['targetPart']);
+        $t->same(true, $bodyReference['targetExists']);
+        $t->same(strlen($parts['word/document.xml']), $bodyReference['targetByteLength']);
+        $t->same(sprintf('%08x', crc32($parts['word/document.xml'])), $bodyReference['targetCrc32']);
+        $t->same(hash('sha256', $parts['word/document.xml']), $bodyReference['targetSha256']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $bodyReference['targetContentTypeBase']);
+        $t->same('override', $bodyReference['targetContentTypeSource']);
+        $t->same('digital-signature-reference-target-bytes-blocked', $bodyReference['targetByteExposurePolicy']);
+        $t->same('digital-signature-reference-target-metadata-only', $bodyReference['targetReviewPolicy']);
+        $t->same(false, $bodyReference['targetCanExposeBytes']);
+
+        $t->same('customXml/signed-reference.xml', $customReference['targetPart']);
+        $t->same(true, $customReference['targetExists']);
+        $t->same('application/xml; profile=signature-reference', $customReference['targetContentType']);
+        $t->same('application/xml', $customReference['targetContentTypeBase']);
+        $t->same(['profile' => 'signature-reference'], $customReference['targetContentTypeParameterMap']);
+        $t->same(hash('sha256', $customReferenceBytes), $customReference['targetSha256']);
+
+        $t->same('customXml/opaque-reference.bin', $opaqueReference['targetPart']);
+        $t->same(true, $opaqueReference['targetExists']);
+        $t->same('', $opaqueReference['targetContentType']);
+        $t->same('missing', $opaqueReference['targetContentTypeSource']);
+        $t->same('bin', $opaqueReference['targetDefaultExtension']);
+        $t->same(hash('sha256', $opaqueReferenceBytes), $opaqueReference['targetSha256']);
+
+        $t->same('customXml/missing-reference.bin', $missingReference['targetPart']);
+        $t->same(false, $missingReference['targetExists']);
+        $t->same(null, $missingReference['targetByteLength']);
+        $t->same(null, $missingReference['targetSha256']);
+        $t->same('missing', $missingReference['targetContentTypeSource']);
+        $t->same('bin', $missingReference['targetDefaultExtension']);
+        $t->same(null, $sameDocumentReference['targetPart']);
+        $t->same(null, $sameDocumentReference['targetExists']);
+        $t->same(null, $sameDocumentReference['targetByteExposurePolicy']);
+
+        $t->same(3, $origin['signatures']['referenceTargetExistingCount']);
+        $t->same(1, $origin['signatures']['referenceTargetMissingCount']);
+        $t->same(2, $origin['signatures']['referenceTargetMissingContentTypeCount']);
+        $t->same($signature['referenceTargetParts'], $origin['signatures']['referenceTargetParts']);
+        $t->same($signature['referenceTargetSha256s'], $origin['signatures']['referenceTargetSha256s']);
+        $t->same(3, $signatures['referenceTargetExistingCount']);
+        $t->same(1, $signatures['referenceTargetMissingCount']);
+        $t->same(2, $signatures['referenceTargetMissingContentTypeCount']);
+        $t->same(3, $signatures['referenceTargetSha256Count']);
+        $t->same($signature['referenceTargetParts'], $signatures['referenceTargetParts']);
+        $t->same($signature['referenceTargetContentTypes'], $signatures['referenceTargetContentTypes']);
+        $t->same($signature['referenceTargetSha256s'], $signatures['referenceTargetSha256s']);
+        $t->same(3, $summary['digitalSignatureReferenceTargetExistingCount']);
+        $t->same(1, $summary['digitalSignatureReferenceTargetMissingCount']);
+        $t->same(2, $summary['digitalSignatureReferenceTargetMissingContentTypeCount']);
+        $t->same(3, $summary['digitalSignatureReferenceTargetSha256Count']);
+        $t->same([], $signatures['issueCodes']);
+        $t->true(!isset($document->attr('docx')['media']['customXml/signed-reference.xml']), 'signature reference XML should not be exposed as document media');
+        $t->true(!isset($document->attr('docx')['media']['customXml/opaque-reference.bin']), 'signature reference binary should not be exposed as document media');
     },
     'summarizes docx package relationship targets for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
@@ -21309,6 +21557,151 @@ XML;
         $t->true(in_array('chart-part', $inventory['word/charts/header-chart.xml']['roles'], true), 'header chart inventory role missing');
         $t->true(in_array('embedded-package', $inventory['word/embeddings/header-workbook.xlsx']['roles'], true), 'header chart workbook inventory role missing');
         $t->true(!isset($docx['media']['word/embeddings/header-workbook.xlsx']), 'Header chart workbook package should not be exposed as document media');
+    },
+    'summarizes docx footer chart embedded package relationships for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $chartRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart';
+        $packageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+        $footerContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml';
+        $chartContentType = 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml';
+        $workbookContentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        $workbookBytes = 'footer chart workbook bytes';
+        $chartXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <c:chart>
+    <c:externalData r:id="rFooterWorkbook"/>
+  </c:chart>
+</c:chartSpace>
+XML;
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/footer1.xml" ContentType="' . $footerContentType . '"/>' . "\n" .
+            '  <Override PartName="/word/charts/footer-chart.xml" ContentType="' . $chartContentType . '; profile=footer-chart"/>' . "\n" .
+            '  <Override PartName="/word/embeddings/footer-workbook.xlsx" ContentType="' . $workbookContentType . '; profile=footer-data"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rFooterDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml?slot=default#ftr"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '</w:body>',
+            '    <w:sectPr><w:footerReference w:type="default" r:id="rFooterDefault"/></w:sectPr>' . "\n" .
+            '  </w:body>',
+            $parts['word/document.xml']
+        );
+        $parts['word/footer1.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart">
+  <w:p>
+    <w:r><w:drawing><wp:inline><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart r:id="rFooterChart"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>
+  </w:p>
+</w:ftr>
+XML;
+        $parts['word/_rels/footer1.xml.rels'] = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rFooterChart" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="charts/footer-chart.xml?slot=footer#chart"/>
+</Relationships>
+XML;
+        $parts['word/charts/footer-chart.xml'] = $chartXml;
+        $parts['word/charts/_rels/footer-chart.xml.rels'] = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rFooterWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="../embeddings/footer-workbook.xlsx?sheet=Footer#data"/>
+</Relationships>
+XML;
+        $parts['word/embeddings/footer-workbook.xlsx'] = $workbookBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $charts = $docx['chartParts'];
+        $summary = $package['summary'];
+        $chart = $charts['byRelationshipKey']['word/_rels/footer1.xml.rels#rFooterChart'];
+        $embeddedPackages = $chart['embeddedPackages'];
+        $workbook = $embeddedPackages['byRelationshipId']['rFooterWorkbook'];
+        $chartRelationshipsPart = $package['relationshipParts']['word/charts/_rels/footer-chart.xml.rels'];
+        $relationshipTypes = $package['relationshipTypes'];
+        $inventory = $package['parts'];
+
+        $t->same($charts, $package['chartParts']);
+        $t->same(1, $charts['count']);
+        $t->same(1, $charts['relationshipCount']);
+        $t->same(0, $charts['documentCount']);
+        $t->same(0, $charts['headerCount']);
+        $t->same(1, $charts['footerCount']);
+        $t->same(2, $charts['sourcePartCount']);
+        $t->same(['document', 'footer'], $charts['sourceTypes']);
+        $t->same(['word/document.xml', 'word/footer1.xml'], $charts['sourceParts']);
+        $t->same(['word/_rels/document.xml.rels', 'word/_rels/footer1.xml.rels'], $charts['relationshipsParts']);
+        $t->same(['word/_rels/footer1.xml.rels#rFooterChart'], $charts['relationshipKeys']);
+        $t->same(['word/_rels/footer1.xml.rels#rFooterChart'], $charts['referencedRelationshipKeys']);
+        $t->same([], $charts['unreferencedRelationshipKeys']);
+        $t->same(['word/charts/footer-chart.xml'], $charts['partNames']);
+
+        $t->same(0, $summary['chartPartDocumentCount']);
+        $t->same(0, $summary['chartPartHeaderCount']);
+        $t->same(1, $summary['chartPartFooterCount']);
+        $t->same(2, $summary['chartPartSourcePartCount']);
+        $t->same(['document', 'footer'], $summary['chartPartSourceTypes']);
+        $t->same(['word/document.xml', 'word/footer1.xml'], $summary['chartPartSourceParts']);
+        $t->same(['word/_rels/document.xml.rels', 'word/_rels/footer1.xml.rels'], $summary['chartPartRelationshipParts']);
+
+        $t->same('word/_rels/footer1.xml.rels#rFooterChart', $chart['relationshipKey']);
+        $t->same('footer', $chart['sourceType']);
+        $t->same('word/footer1.xml', $chart['sourcePart']);
+        $t->same('word/_rels/footer1.xml.rels', $chart['relationshipsPart']);
+        $t->same(true, $chart['referenced']);
+        $t->same($chartRel, $chart['relationshipType']);
+        $t->same('charts/footer-chart.xml?slot=footer#chart', $chart['target']);
+        $t->same('word/charts/footer-chart.xml?slot=footer#chart', $chart['resolvedTarget']);
+        $t->same('word/charts/footer-chart.xml', $chart['targetPart']);
+        $t->same('slot=footer', $chart['targetQuery']);
+        $t->same('chart', $chart['targetFragment']);
+        $t->same('?slot=footer#chart', $chart['targetReferenceSuffix']);
+        $t->same('word/charts/_rels/footer-chart.xml.rels', $chart['chartRelationshipsPart']);
+        $t->same(1, $chart['chartRelationshipCount']);
+        $t->same(['rFooterWorkbook'], $chart['externalDataRelationshipIds']);
+        $t->same([], $chart['issues']);
+        $t->same(true, $chart['valid']);
+
+        $t->same(1, $embeddedPackages['count']);
+        $t->same(1, $embeddedPackages['referencedCount']);
+        $t->same(['rFooterWorkbook'], $embeddedPackages['relationshipIds']);
+        $t->same(['rFooterWorkbook'], $embeddedPackages['referencedRelationshipIds']);
+        $t->same(true, $workbook['referenced']);
+        $t->same($packageRel, $workbook['type']);
+        $t->same('../embeddings/footer-workbook.xlsx?sheet=Footer#data', $workbook['target']);
+        $t->same('word/embeddings/footer-workbook.xlsx?sheet=Footer#data', $workbook['resolvedTarget']);
+        $t->same('word/embeddings/footer-workbook.xlsx', $workbook['targetPart']);
+        $t->same('sheet=Footer', $workbook['targetQuery']);
+        $t->same('data', $workbook['targetFragment']);
+        $t->same($workbookContentType . '; profile=footer-data', $workbook['contentType']);
+        $t->same($workbookContentType, $workbook['contentTypeBase']);
+        $t->same(['profile' => 'footer-data'], $workbook['contentTypeParameterMap']);
+        $t->same(strlen($workbookBytes), $workbook['byteLength']);
+        $t->same(sprintf('%08x', crc32($workbookBytes)), $workbook['crc32']);
+        $t->same(hash('sha256', $workbookBytes), $workbook['sha256']);
+        $t->same([], $workbook['issues']);
+        $t->same(true, $workbook['valid']);
+
+        $t->same(1, $summary['chartPartCount']);
+        $t->same(1, $summary['chartPartRelationshipCount']);
+        $t->same(1, $summary['chartEmbeddedPackageCount']);
+        $t->same(1, $summary['chartEmbeddedPackageExistingCount']);
+        $t->same(0, $summary['chartEmbeddedPackageIssueCount']);
+        $t->same(1, $chartRelationshipsPart['relationshipCount']);
+        $t->same('word/charts/footer-chart.xml', $chartRelationshipsPart['sourcePart']);
+        $t->same($workbookContentType, $chartRelationshipsPart['relationships']['rFooterWorkbook']['contentTypeBase']);
+        $t->same(1, $relationshipTypes[$chartRel]['count']);
+        $t->same(1, $relationshipTypes[$packageRel]['count']);
+        $t->true(in_array('chart-part', $inventory['word/charts/footer-chart.xml']['roles'], true), 'footer chart inventory role missing');
+        $t->true(in_array('embedded-package', $inventory['word/embeddings/footer-workbook.xlsx']['roles'], true), 'footer chart workbook inventory role missing');
+        $t->true(!isset($docx['media']['word/embeddings/footer-workbook.xlsx']), 'Footer chart workbook package should not be exposed as document media');
     },
     'summarizes docx diagram embedded package relationships for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
