@@ -20,6 +20,22 @@ final class XmlHtmlDom
     private const XML_NAMESPACE_REVIEW_MAX_ITEMS = 25;
 
     /** @var array<string, true> */
+    private const HTML_BASE_INACTIVE_ANCESTOR_NAMES = [
+        'canvas' => true,
+        'datalist' => true,
+        'iframe' => true,
+        'noembed' => true,
+        'noframes' => true,
+        'noscript' => true,
+        'script' => true,
+        'select' => true,
+        'svg' => true,
+        'template' => true,
+        'textarea' => true,
+        'xmp' => true,
+    ];
+
+    /** @var array<string, true> */
     private const JATS_FIGURE_MEDIA_ELEMENTS = [
         'graphic' => true,
         'inline-graphic' => true,
@@ -15323,7 +15339,7 @@ final class XmlHtmlDom
                 'documentMetadata' => 'base',
                 'href' => self::attributeOrNull($element, 'href'),
                 'target' => self::attributeOrNull($element, 'target'),
-            ];
+            ] + self::baseElementReviewSummary($element);
         }
 
         if ($name === 'link') {
@@ -15379,6 +15395,259 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function baseElementReviewSummary(\DOMElement $base): array
+    {
+        $hrefRaw = self::attributeOrNull($base, 'href');
+        $href = $hrefRaw === null ? null : trim($hrefRaw);
+        $hrefSummary = self::hyperlinkUrlReviewSummary($hrefRaw);
+        $hrefActivity = self::htmlBaseAttributeActivity($base, 'href');
+        $targetRaw = self::attributeOrNull($base, 'target');
+        $targetSummary = self::htmlBaseTargetReviewSummary($targetRaw);
+        $targetActivity = self::htmlBaseAttributeActivity($base, 'target');
+        $issues = [];
+
+        if ($hrefRaw !== null) {
+            if ($href === '') {
+                $issues[] = ['code' => 'empty-base-href'];
+            } elseif ($hrefSummary['kind'] === 'invalid') {
+                $issues[] = [
+                    'code' => 'invalid-base-href',
+                    'href' => $hrefRaw,
+                ];
+            } elseif ($hrefSummary['unsafe']) {
+                $issues[] = [
+                    'code' => 'unsafe-base-href',
+                    'href' => $hrefRaw,
+                    'scheme' => $hrefSummary['scheme'],
+                ];
+            }
+        }
+
+        if (($hrefActivity['inactive'] ?? false) === true && $hrefRaw !== null && $href !== '') {
+            $issues[] = ['code' => 'inactive-base-href'];
+        } elseif (($hrefActivity['duplicateIgnored'] ?? false) === true) {
+            $issues[] = [
+                'code' => 'duplicate-base-href-ignored',
+                'activeIndex' => $hrefActivity['activeIndex'],
+            ];
+        }
+
+        array_push($issues, ...$targetSummary['issues']);
+        if (($targetActivity['inactive'] ?? false) === true && $targetRaw !== null && trim($targetRaw) !== '') {
+            $issues[] = ['code' => 'inactive-base-target'];
+        } elseif (($targetActivity['duplicateIgnored'] ?? false) === true) {
+            $issues[] = [
+                'code' => 'duplicate-base-target-ignored',
+                'activeIndex' => $targetActivity['activeIndex'],
+            ];
+        }
+
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+
+        return [
+            'baseReviewPolicy' => 'html-base-element-document-base-review',
+            'baseHrefRaw' => $hrefRaw,
+            'baseHrefTrimmed' => $href === '' ? null : $href,
+            'baseHrefAttributePresent' => $hrefRaw !== null,
+            'baseHrefKind' => $hrefSummary['kind'],
+            'baseHrefScheme' => $hrefSummary['scheme'],
+            'baseHrefUnsafe' => $hrefSummary['unsafe'],
+            'baseHrefTrustedAbsolute' => $href !== null && self::isTrustedAbsoluteHtmlBaseHref($href),
+            'baseHrefNeedsCallerBase' => in_array($hrefSummary['kind'], ['relative', 'fragment', 'scheme-relative'], true),
+            'baseHrefFirstActive' => $hrefActivity['firstActive'],
+            'baseHrefActiveIndex' => $hrefActivity['activeIndex'],
+            'baseHrefActiveCandidate' => $hrefActivity['activeCandidate'],
+            'baseHrefDuplicateIgnored' => $hrefActivity['duplicateIgnored'],
+            'baseHrefInactive' => $hrefActivity['inactive'],
+            'baseTargetRaw' => $targetRaw,
+            'baseTargetName' => $targetSummary['target'],
+            'baseTargetLower' => $targetSummary['targetLower'],
+            'baseTargetAttributePresent' => $targetRaw !== null,
+            'baseTargetReserved' => $targetSummary['reserved'],
+            'baseTargetBlank' => $targetSummary['blank'],
+            'baseTargetValid' => $targetSummary['valid'],
+            'baseTargetNormalizedToBlank' => $targetSummary['normalizedToBlank'],
+            'baseTargetFirstActive' => $targetActivity['firstActive'],
+            'baseTargetActiveIndex' => $targetActivity['activeIndex'],
+            'baseTargetActiveCandidate' => $targetActivity['activeCandidate'],
+            'baseTargetDuplicateIgnored' => $targetActivity['duplicateIgnored'],
+            'baseTargetInactive' => $targetActivity['inactive'],
+            'baseIssues' => $issues,
+            'baseIssueCodes' => $issueCodes,
+            'baseValid' => $issueCodes === [],
+            'baseReviewOnlyNoNavigation' => true,
+        ];
+    }
+
+    private static function isTrustedAbsoluteHtmlBaseHref(string $href): bool
+    {
+        $parts = parse_url($href);
+        if (!is_array($parts)) {
+            return false;
+        }
+
+        $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+
+        return in_array($scheme, ['http', 'https'], true)
+            && isset($parts['host'])
+            && !isset($parts['user'])
+            && !isset($parts['pass']);
+    }
+
+    /**
+     * @return array{
+     *     target:?string,
+     *     targetLower:?string,
+     *     reserved:bool,
+     *     blank:bool,
+     *     valid:bool,
+     *     normalizedToBlank:bool,
+     *     issues:list<array<string, mixed>>
+     * }
+     */
+    private static function htmlBaseTargetReviewSummary(?string $raw): array
+    {
+        $issues = [];
+        $target = self::htmlBaseTargetName($raw, $issues, true);
+        $targetLower = $target === null ? null : strtolower($target);
+
+        return [
+            'target' => $target,
+            'targetLower' => $targetLower,
+            'reserved' => in_array($targetLower, ['_blank', '_parent', '_self', '_top'], true),
+            'blank' => $targetLower === '_blank',
+            'valid' => $raw === null ? true : $issues === [],
+            'normalizedToBlank' => $raw !== null && preg_match('/[\t\r\n\f<]/', str_replace("\0", '', $raw)) === 1,
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $issues
+     */
+    private static function htmlBaseTargetName(?string $raw, array &$issues = [], bool $recordIssues = false): ?string
+    {
+        if ($raw === null) {
+            return null;
+        }
+
+        $value = str_replace("\0", '', $raw);
+        if (preg_match('/[\t\r\n\f<]/', $value) === 1) {
+            if ($recordIssues) {
+                $issues[] = [
+                    'code' => 'unsafe-base-target-normalized-to-blank',
+                    'targetRaw' => $raw,
+                ];
+            }
+
+            return '_blank';
+        }
+
+        $target = preg_replace('/\s+/u', ' ', trim($value)) ?? trim($value);
+        if ($target === '') {
+            if ($recordIssues) {
+                $issues[] = ['code' => 'empty-base-target'];
+            }
+
+            return null;
+        }
+
+        $targetTooLong = strlen($target) > 128;
+        $targetHasUnsafePunctuation = preg_match('/[>"\'`{}]/', $target) === 1;
+        $targetHasSafeCharacters = preg_match('/^[A-Za-z0-9_.:-]+$/', $target) === 1;
+        if ($targetTooLong || $targetHasUnsafePunctuation || !$targetHasSafeCharacters) {
+            if ($recordIssues) {
+                $issues[] = [
+                    'code' => 'invalid-base-target',
+                    'targetRaw' => $raw,
+                ];
+            }
+
+            return null;
+        }
+
+        return $target;
+    }
+
+    /**
+     * @return array{activeCandidate:bool, firstActive:bool, activeIndex:?int, duplicateIgnored:bool, inactive:bool}
+     */
+    private static function htmlBaseAttributeActivity(\DOMElement $base, string $attribute): array
+    {
+        $activeCandidate = self::htmlBaseAttributeActiveCandidate($base, $attribute);
+        $inactive = self::isInactiveHtmlBaseElement($base);
+        if (!$activeCandidate || $inactive) {
+            return [
+                'activeCandidate' => $activeCandidate,
+                'firstActive' => false,
+                'activeIndex' => null,
+                'duplicateIgnored' => false,
+                'inactive' => $inactive,
+            ];
+        }
+
+        $document = $base->ownerDocument;
+        $activeIndex = 0;
+        if ($document instanceof \DOMDocument) {
+            foreach ($document->getElementsByTagName('base') as $candidate) {
+                if (!$candidate instanceof \DOMElement) {
+                    continue;
+                }
+                if (
+                    self::isInactiveHtmlBaseElement($candidate)
+                    || !self::htmlBaseAttributeActiveCandidate($candidate, $attribute)
+                ) {
+                    continue;
+                }
+                if ($candidate->isSameNode($base)) {
+                    break;
+                }
+
+                ++$activeIndex;
+            }
+        }
+
+        return [
+            'activeCandidate' => true,
+            'firstActive' => $activeIndex === 0,
+            'activeIndex' => $activeIndex,
+            'duplicateIgnored' => $activeIndex > 0,
+            'inactive' => false,
+        ];
+    }
+
+    private static function htmlBaseAttributeActiveCandidate(\DOMElement $base, string $attribute): bool
+    {
+        if (!$base->hasAttribute($attribute)) {
+            return false;
+        }
+
+        if ($attribute === 'href') {
+            return trim($base->getAttribute('href')) !== '';
+        }
+
+        $issues = [];
+
+        return self::htmlBaseTargetName($base->getAttribute('target'), $issues, false) !== null;
+    }
+
+    private static function isInactiveHtmlBaseElement(\DOMElement $base): bool
+    {
+        for ($ancestor = $base->parentNode; $ancestor instanceof \DOMElement; $ancestor = $ancestor->parentNode) {
+            if (isset(self::HTML_BASE_INACTIVE_ANCESTOR_NAMES[self::htmlElementName($ancestor)])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
