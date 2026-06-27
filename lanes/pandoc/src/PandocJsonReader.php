@@ -1643,7 +1643,7 @@ final class PandocJsonReader
         }
 
         if ($this->isTexRawFormat($normalized)) {
-            return new AstNode('raw_tex', array_merge($attrs, ['tex' => $text]));
+            return new AstNode('raw_tex_inline', array_merge($attrs, ['tex' => $text]));
         }
 
         if ($this->isMarkdownRawFormat($normalized)) {
@@ -2269,7 +2269,7 @@ final class PandocJsonReader
                 'raw_html_inline',
                 'raw_markdown',
                 'raw_inline',
-                'raw_tex' => (string) $node->attr('text', ''),
+                'raw_tex', 'raw_tex_inline' => (string) $node->attr('text', ''),
                 'space', 'softbreak' => ' ',
                 'linebreak' => "\n",
                 default => $this->plainText($node->children),
