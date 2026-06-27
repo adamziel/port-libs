@@ -17774,6 +17774,99 @@ XML;
         $t->true(is_string($encodedSections), 'XML CDATA metadata should encode for review');
         $t->true(!str_contains((string) $encodedSections, 'hidden-payload'), 'raw XML CDATA text should not be exposed in summary metadata');
     },
+    'summarizes docx package xml doctype declarations without exposing subsets' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $reviewSubset = '<!ENTITY reviewer "hidden-reviewer">' . "\n";
+        $settingsSubset = '<!ENTITY settingsPayload "hidden-settings">' . "\n";
+        $parts['customXml/doctype-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE packet PUBLIC "-//Example//DTD Review Packet 1.0//EN" "https://example.test/review.dtd" [
+{$reviewSubset}<!NOTATION png SYSTEM "image/png">
+]>
+<packet xmlns="urn:review-doctype"><item>ok</item></packet>
+XML;
+        $parts['word/settings-doctype.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE w:settings SYSTEM "file:///tmp/docx-settings.dtd" [
+{$settingsSubset}]>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:updateFields w:val="true"/>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/doctype-review.xml'];
+        $settingsPart = $package['parts']['word/settings-doctype.xml'];
+        $doctypes = $summary['partXmlDoctypes'];
+
+        $t->same(9, $summary['partXmlInspectableCount']);
+        $t->same(2, $summary['partXmlDoctypePartCount']);
+        $t->same(2, $summary['partXmlDoctypeCount']);
+        $t->same(['customXml/doctype-review.xml', 'word/settings-doctype.xml'], $summary['partXmlDoctypePartNames']);
+        $t->same(['packet' => 1, 'w:settings' => 1], $summary['partXmlDoctypeNameCounts']);
+        $t->same(1, $summary['partXmlDoctypePublicIdCount']);
+        $t->same(2, $summary['partXmlDoctypeSystemIdCount']);
+        $t->same(2, $summary['partXmlDoctypeInternalSubsetCount']);
+        $t->same(strlen($reviewSubset) + strlen($settingsSubset), $summary['partXmlDoctypeInternalSubsetByteLength']);
+        $t->same(2, $summary['partXmlDoctypeEntityCount']);
+        $t->same(1, $summary['partXmlDoctypeNotationCount']);
+        $t->same(1, $summary['partXmlDoctypeAllowedSystemIdCount']);
+        $t->same(1, $summary['partXmlDoctypeUnsafeSystemIdCount']);
+        $t->same(['file' => 1, 'https' => 1], $summary['partXmlDoctypeSystemIdSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme'], $summary['partXmlDoctypeSystemIdIssueCodes']);
+
+        $t->same(true, $reviewPart['xmlDoctypePresent']);
+        $t->same('packet', $reviewPart['xmlDoctypeName']);
+        $t->same('-//Example//DTD Review Packet 1.0//EN', $reviewPart['xmlDoctypePublicId']);
+        $t->same('https://example.test/review.dtd', $reviewPart['xmlDoctypeSystemId']);
+        $t->same(true, $reviewPart['xmlDoctypeHasPublicId']);
+        $t->same(true, $reviewPart['xmlDoctypeHasSystemId']);
+        $t->same(true, $reviewPart['xmlDoctypeHasInternalSubset']);
+        $t->same(strlen($reviewSubset), $reviewPart['xmlDoctypeInternalSubsetByteLength']);
+        $t->same(sprintf('%08x', crc32($reviewSubset)), $reviewPart['xmlDoctypeInternalSubsetCrc32']);
+        $t->same(hash('sha256', $reviewSubset), $reviewPart['xmlDoctypeInternalSubsetSha256']);
+        $t->same(1, $reviewPart['xmlDoctypeEntityCount']);
+        $t->same(['reviewer'], $reviewPart['xmlDoctypeEntityNames']);
+        $t->same(1, $reviewPart['xmlDoctypeNotationCount']);
+        $t->same(['png'], $reviewPart['xmlDoctypeNotationNames']);
+        $t->same('absolute-uri', $reviewPart['xmlDoctypeSystemIdKind']);
+        $t->same('https', $reviewPart['xmlDoctypeSystemIdScheme']);
+        $t->same(true, $reviewPart['xmlDoctypeSystemIdAllowed']);
+        $t->same([], $reviewPart['xmlDoctypeSystemIdIssues']);
+
+        $t->same(true, $settingsPart['xmlDoctypePresent']);
+        $t->same('w:settings', $settingsPart['xmlDoctypeName']);
+        $t->same(null, $settingsPart['xmlDoctypePublicId']);
+        $t->same('file:///tmp/docx-settings.dtd', $settingsPart['xmlDoctypeSystemId']);
+        $t->same(false, $settingsPart['xmlDoctypeHasPublicId']);
+        $t->same(true, $settingsPart['xmlDoctypeHasInternalSubset']);
+        $t->same(strlen($settingsSubset), $settingsPart['xmlDoctypeInternalSubsetByteLength']);
+        $t->same(hash('sha256', $settingsSubset), $settingsPart['xmlDoctypeInternalSubsetSha256']);
+        $t->same(1, $settingsPart['xmlDoctypeEntityCount']);
+        $t->same(['settingsPayload'], $settingsPart['xmlDoctypeEntityNames']);
+        $t->same(0, $settingsPart['xmlDoctypeNotationCount']);
+        $t->same('absolute-uri', $settingsPart['xmlDoctypeSystemIdKind']);
+        $t->same('file', $settingsPart['xmlDoctypeSystemIdScheme']);
+        $t->same(false, $settingsPart['xmlDoctypeSystemIdAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $settingsPart['xmlDoctypeSystemIdIssues']);
+
+        $t->same('customXml/doctype-review.xml', $doctypes[0]['partName']);
+        $t->same('packet', $doctypes[0]['name']);
+        $t->same(['reviewer'], $doctypes[0]['entityNames']);
+        $t->same(['png'], $doctypes[0]['notationNames']);
+        $t->same(true, $doctypes[0]['systemIdAllowed']);
+        $t->same('word/settings-doctype.xml', $doctypes[1]['partName']);
+        $t->same('w:settings', $doctypes[1]['name']);
+        $t->same(['settingsPayload'], $doctypes[1]['entityNames']);
+        $t->same(false, $doctypes[1]['systemIdAllowed']);
+        $t->true(!isset($doctypes[0]['internalSubset']), 'raw XML DOCTYPE internal subset should not be exposed');
+        $encodedDoctypes = json_encode([$reviewPart, $settingsPart, $doctypes]);
+        $t->true(is_string($encodedDoctypes), 'XML DOCTYPE metadata should encode for review');
+        $t->true(!str_contains((string) $encodedDoctypes, 'hidden-reviewer'), 'raw XML entity values should not be exposed in summary metadata');
+        $t->true(!str_contains((string) $encodedDoctypes, 'hidden-settings'), 'raw XML entity values should not be exposed in summary metadata');
+    },
     'accepts docx main document template and macro-enabled content types' => static function (TestRunner $t): void {
         $acceptedDocumentContentTypes = [
             ['application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'],
