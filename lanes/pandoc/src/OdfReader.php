@@ -117,6 +117,7 @@ final class OdfReader
      *     packageLayoutCaches:array<string, mixed>,
      *     packageMetaInfSidecars:array<string, mixed>,
      *     packageDatabases:array<string, mixed>,
+     *     packageVersions:array<string, mixed>,
      *     documentPartVersions:array<string, mixed>,
      *     rdfMetadata:array<string, mixed>,
      *     signatureMetadata:array<string, mixed>,
@@ -161,6 +162,7 @@ final class OdfReader
         $packageLayoutCaches = $this->packageLayoutCacheMetadata($package, $manifest, $undeclaredEntries);
         $packageMetaInfSidecars = $this->packageMetaInfSidecarMetadata($package, $manifest, $undeclaredEntries);
         $packageDatabases = $this->packageDatabaseMetadata($package, $manifest, $undeclaredEntries);
+        $packageVersions = $this->packageVersionMetadata($package, $manifest, $undeclaredEntries);
         $packageProvenance = $this->packageProvenance($package, $manifest, $mimetypeEntry, $undeclaredEntries, $styleCatalog);
         $documentPartVersions = $this->documentPartVersionMetadata($package, $manifest);
         if ($packageThumbnails['count'] > 0) {
@@ -186,6 +188,9 @@ final class OdfReader
         }
         if ($packageDatabases['count'] > 0) {
             $metadata['odfPackageDatabases'] = $packageDatabases;
+        }
+        if ($packageVersions['count'] > 0) {
+            $metadata['odfPackageVersions'] = $packageVersions;
         }
 
         $document = new AstNode('document', [
@@ -257,6 +262,7 @@ final class OdfReader
             'packageLayoutCaches' => $packageLayoutCaches,
             'packageMetaInfSidecars' => $packageMetaInfSidecars,
             'packageDatabases' => $packageDatabases,
+            'packageVersions' => $packageVersions,
             'trackedChanges' => [
                 'count' => count($content['trackedChanges']),
                 'items' => $content['trackedChanges'],
@@ -285,6 +291,7 @@ final class OdfReader
             'packageLayoutCaches' => $packageLayoutCaches,
             'packageMetaInfSidecars' => $packageMetaInfSidecars,
             'packageDatabases' => $packageDatabases,
+            'packageVersions' => $packageVersions,
             'documentPartVersions' => $documentPartVersions,
             'rdfMetadata' => $rdfMetadata,
             'signatureMetadata' => $signatureMetadata,
@@ -371,6 +378,7 @@ final class OdfReader
                 'packageLayoutCaches' => $packageLayoutCaches,
                 'packageMetaInfSidecars' => $packageMetaInfSidecars,
                 'packageDatabases' => $packageDatabases,
+                'packageVersions' => $packageVersions,
                 'rdfMetadata' => $rdfMetadata,
                 'signatureMetadata' => $signatureMetadata,
                 'scriptMetadata' => $scriptMetadata,
@@ -654,6 +662,7 @@ final class OdfReader
             $layoutCachePackagePart = is_string($part) && $this->isLayoutCachePackagePartName($part);
             $metaInfSidecarPackagePart = is_string($part) && $this->isMetaInfSidecarPackagePartName($part);
             $databasePackagePart = is_string($part) && $this->isDatabasePackagePartName($part);
+            $versionPackagePart = is_string($part) && $this->isVersionPackagePartName($part);
             $canExposeBytes = !$encrypted
                 && !$isDirectory
                 && !$embeddedObjectPackagePart
@@ -666,6 +675,7 @@ final class OdfReader
                 && !$layoutCachePackagePart
                 && !$metaInfSidecarPackagePart
                 && !$databasePackagePart
+                && !$versionPackagePart
                 && !$missingFileMediaType
                 && $zipEntry instanceof ZipPackageEntry
                 && $hasSupportedCompression;
@@ -684,6 +694,7 @@ final class OdfReader
                 $layoutCachePackagePart,
                 $metaInfSidecarPackagePart,
                 $databasePackagePart,
+                $versionPackagePart,
                 $missingFileMediaType,
                 $hasSupportedCompression
             );
@@ -715,6 +726,7 @@ final class OdfReader
                 'layoutCachePackagePart' => $layoutCachePackagePart,
                 'metaInfSidecarPackagePart' => $metaInfSidecarPackagePart,
                 'databasePackagePart' => $databasePackagePart,
+                'versionPackagePart' => $versionPackagePart,
                 'canExposeBytes' => $canExposeBytes,
                 'byteExposurePolicy' => $byteExposurePolicy,
             ];
@@ -1381,6 +1393,7 @@ final class OdfReader
         bool $layoutCachePackagePart,
         bool $metaInfSidecarPackagePart,
         bool $databasePackagePart,
+        bool $versionPackagePart,
         bool $missingFileMediaType,
         bool $hasSupportedCompression
     ): string {
@@ -1422,6 +1435,9 @@ final class OdfReader
         }
         if ($databasePackagePart) {
             return 'database-package-bytes-blocked';
+        }
+        if ($versionPackagePart) {
+            return 'version-package-bytes-blocked';
         }
         if ($missingFileMediaType) {
             return 'missing-media-type-bytes-blocked';
@@ -1502,6 +1518,7 @@ final class OdfReader
         $layoutCachePartCount = 0;
         $metaInfSidecarPartCount = 0;
         $databasePackagePartCount = 0;
+        $versionPackagePartCount = 0;
         $rawNameProvenanceEntryCount = 0;
         $legacyEncodedNameEntryCount = 0;
         $unicodePathExtraEntryCount = 0;
@@ -1562,6 +1579,7 @@ final class OdfReader
                 'layoutCachePackagePart' => ($item['layoutCachePackagePart'] ?? false) === true,
                 'metaInfSidecarPackagePart' => ($item['metaInfSidecarPackagePart'] ?? false) === true,
                 'databasePackagePart' => ($item['databasePackagePart'] ?? false) === true,
+                'versionPackagePart' => ($item['versionPackagePart'] ?? false) === true,
                 'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $item['byteExposurePolicy'] ?? null,
                 'diagnostics' => $item['diagnostics'] ?? [],
@@ -1795,6 +1813,7 @@ final class OdfReader
                 'layoutCachePackagePart' => $this->isLayoutCachePackagePartName($entry->name),
                 'metaInfSidecarPackagePart' => $this->isMetaInfSidecarPackagePartName($entry->name),
                 'databasePackagePart' => $this->isDatabasePackagePartName($entry->name),
+                'versionPackagePart' => $this->isVersionPackagePartName($entry->name),
                 'encrypted' => is_array($manifestItem) && ($manifestItem['encrypted'] ?? false) === true,
                 'canExposeBytes' => is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $byteExposurePolicy,
@@ -1860,6 +1879,9 @@ final class OdfReader
             }
             if (in_array('database-package', $roles, true)) {
                 ++$databasePackagePartCount;
+            }
+            if (in_array('version-package', $roles, true)) {
+                ++$versionPackagePartCount;
             }
             if ($rawNameProvenance['hasRawNameProvenance']) {
                 ++$rawNameProvenanceEntryCount;
@@ -1957,6 +1979,7 @@ final class OdfReader
             'layoutCachePartCount' => $layoutCachePartCount,
             'metaInfSidecarPartCount' => $metaInfSidecarPartCount,
             'databasePackagePartCount' => $databasePackagePartCount,
+            'versionPackagePartCount' => $versionPackagePartCount,
             'stylePackageProvenance' => $stylePackageProvenance,
             'embeddedObjectPackageCount' => $embeddedObjectPackages['count'],
             'embeddedObjectPackageExistingCount' => $embeddedObjectPackages['existingCount'],
@@ -2056,6 +2079,7 @@ final class OdfReader
                 'layoutCachePackagePart' => ($item['layoutCachePackagePart'] ?? false) === true,
                 'metaInfSidecarPackagePart' => ($item['metaInfSidecarPackagePart'] ?? false) === true,
                 'databasePackagePart' => ($item['databasePackagePart'] ?? false) === true,
+                'versionPackagePart' => ($item['versionPackagePart'] ?? false) === true,
                 'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $item['byteExposurePolicy'] ?? null,
                 'diagnostics' => $item['diagnostics'] ?? [],
@@ -2152,6 +2176,7 @@ final class OdfReader
                 'layoutCachePackagePart' => ($item['layoutCachePackagePart'] ?? false) === true,
                 'metaInfSidecarPackagePart' => ($item['metaInfSidecarPackagePart'] ?? false) === true,
                 'databasePackagePart' => ($item['databasePackagePart'] ?? false) === true,
+                'versionPackagePart' => ($item['versionPackagePart'] ?? false) === true,
                 'encrypted' => ($item['encrypted'] ?? false) === true,
                 'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $item['byteExposurePolicy'] ?? null,
@@ -2205,6 +2230,7 @@ final class OdfReader
             'embeddedObjectPackageCount' => $provenance['embeddedObjectPackageCount'] ?? 0,
             'scriptPackagePartCount' => $provenance['scriptPackagePartCount'] ?? 0,
             'configurationPackagePartCount' => $provenance['configurationPackagePartCount'] ?? 0,
+            'versionPackagePartCount' => $provenance['versionPackagePartCount'] ?? 0,
             'stylePackageProvenance' => $provenance['stylePackageProvenance'] ?? [],
             'centralDirectoryOrderMatchesLocalHeaderOrder' => ($provenance['centralDirectoryOrderMatchesLocalHeaderOrder'] ?? false) === true,
         ];
@@ -2244,6 +2270,7 @@ final class OdfReader
             'packageEntries' => $packageEntries,
             'scriptPackagePartCount' => $provenance['scriptPackagePartCount'] ?? 0,
             'configurationPackagePartCount' => $provenance['configurationPackagePartCount'] ?? 0,
+            'versionPackagePartCount' => $provenance['versionPackagePartCount'] ?? 0,
             'stylePackageProvenance' => $provenance['stylePackageProvenance'] ?? [],
             'undeclaredEntryCount' => $provenance['undeclaredEntryCount'] ?? 0,
             'identitySha256' => hash('sha256', $identityJson),
@@ -3130,6 +3157,9 @@ final class OdfReader
         if ($this->isDatabasePackagePartName($entry->name)) {
             $roles[] = 'database-package';
         }
+        if ($this->isVersionPackagePartName($entry->name)) {
+            $roles[] = 'version-package';
+        }
         if ($entry->isDirectory()) {
             $roles[] = 'zip-directory';
         }
@@ -3165,6 +3195,9 @@ final class OdfReader
             }
             if ($this->isDatabasePackagePartName($part)) {
                 $roles[] = 'database-package';
+            }
+            if ($this->isVersionPackagePartName($part)) {
+                $roles[] = 'version-package';
             }
         } elseif ($this->isScriptPackagePartName($entry->name)) {
             $roles[] = 'script-package';
@@ -14639,6 +14672,9 @@ final class OdfReader
             if ($this->isDatabasePackagePartName($part)) {
                 continue;
             }
+            if ($this->isVersionPackagePartName($part)) {
+                continue;
+            }
             if (in_array($part, ['content.xml', 'styles.xml', 'meta.xml', 'settings.xml'], true)) {
                 continue;
             }
@@ -15206,6 +15242,9 @@ final class OdfReader
         }
         if ($this->isDatabasePackagePartName($part)) {
             $roles[] = 'database-package';
+        }
+        if ($this->isVersionPackagePartName($part)) {
+            $roles[] = 'version-package';
         }
 
         return array_values(array_unique($roles));
@@ -16663,9 +16702,249 @@ final class OdfReader
         return $group === '' ? null : $group;
     }
 
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @param list<array<string, mixed>> $undeclaredEntries
+     * @return array<string, mixed>
+     */
+    private function packageVersionMetadata(ZipPackage $package, array $manifest, array $undeclaredEntries): array
+    {
+        $candidatesByPart = [];
+        foreach ($manifest as $item) {
+            $part = $item['part'] ?? null;
+            if (!is_string($part) || $part === '' || !$this->isVersionPackagePartName($part)) {
+                continue;
+            }
+
+            $item['declared'] = true;
+            $candidatesByPart[$part] = $item;
+        }
+
+        foreach ($undeclaredEntries as $entry) {
+            $part = $entry['part'] ?? null;
+            if (!is_string($part) || $part === '' || !$this->isVersionPackagePartName($part)) {
+                continue;
+            }
+
+            $mediaType = $this->versionMediaTypeFromPart($part) ?? '';
+            $mediaTypeReport = self::mediaTypeReport($mediaType);
+            $candidatesByPart[$part] = [
+                'fullPath' => $part,
+                'part' => $part,
+                'partReference' => $part,
+                'partSuffix' => null,
+                'partQuery' => null,
+                'partFragment' => null,
+                'mediaType' => $mediaType,
+                'mediaTypeBase' => $mediaTypeReport['mediaTypeBase'],
+                'mediaTypeHasParameters' => false,
+                'mediaTypeParameterCount' => 0,
+                'mediaTypeParameters' => [],
+                'mediaTypeParameterMap' => [],
+                'exists' => true,
+                'isDirectory' => false,
+                'encrypted' => false,
+                'declared' => false,
+                'declaredSize' => null,
+                'declaredSizeMismatch' => false,
+                'byteExposurePolicy' => 'version-package-bytes-blocked',
+            ];
+        }
+
+        ksort($candidatesByPart, SORT_STRING);
+
+        $items = [];
+        $issueCodes = [];
+        $kindCounts = [];
+        $versionIdCounts = [];
+        foreach ($candidatesByPart as $part => $item) {
+            $entry = $package->has($part) ? $package->entry($part) : null;
+            $isDirectory = str_ends_with($part, '/');
+            $exists = $isDirectory || $entry instanceof ZipPackageEntry;
+            $encrypted = ($item['encrypted'] ?? false) === true;
+            $declared = ($item['declared'] ?? false) === true;
+            $mediaType = (string) ($item['mediaType'] ?? '');
+            if ($mediaType === '') {
+                $mediaType = $this->versionMediaTypeFromPart($part) ?? '';
+            }
+            $mediaTypeReport = self::mediaTypeReport($mediaType);
+            $missingMediaType = $mediaType === '' && !$isDirectory;
+            $mediaTypeValid = $isDirectory
+                ? $mediaTypeReport['mediaTypeBase'] === ''
+                : (!$missingMediaType && $this->isVersionPackageMediaType($mediaType));
+            $kind = $this->versionPackagePartKind($part, $mediaType, $isDirectory);
+            $versionId = self::versionPackagePartVersionId($part);
+            $issues = [];
+            if (!$exists) {
+                $issues[] = 'odf-version-package-missing-part';
+            }
+            if (!$declared) {
+                $issues[] = 'odf-version-package-undeclared-part';
+            }
+            if ($encrypted) {
+                $issues[] = 'odf-version-package-encrypted-part';
+            }
+            if ($missingMediaType) {
+                $issues[] = 'odf-version-package-missing-media-type';
+            } elseif (!$mediaTypeValid) {
+                $issues[] = 'odf-version-package-invalid-media-type';
+            }
+            foreach ($issues as $issue) {
+                $issueCodes[$issue] = true;
+            }
+            $kindCounts[$kind] = ($kindCounts[$kind] ?? 0) + 1;
+            if ($versionId !== null) {
+                $versionIdCounts[$versionId] = ($versionIdCounts[$versionId] ?? 0) + 1;
+            }
+
+            $items[] = [
+                'fullPath' => $item['fullPath'] ?? $part,
+                'part' => $part,
+                'partReference' => $item['partReference'] ?? null,
+                'partSuffix' => $item['partSuffix'] ?? null,
+                'partQuery' => $item['partQuery'] ?? null,
+                'partFragment' => $item['partFragment'] ?? null,
+                'mediaType' => $mediaType === '' ? null : $mediaType,
+                'mediaTypeBase' => $mediaTypeReport['mediaTypeBase'],
+                'mediaTypeHasParameters' => $mediaTypeReport['mediaTypeHasParameters'],
+                'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
+                'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
+                'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
+                'kind' => $kind,
+                'versionId' => $versionId,
+                'packageRoot' => 'Versions',
+                'isDirectory' => $isDirectory,
+                'exists' => $exists,
+                'declared' => $declared,
+                'undeclared' => !$declared,
+                'encrypted' => $encrypted,
+                'valid' => $exists && !$encrypted && $mediaTypeValid,
+                'byteLength' => !$isDirectory && !$encrypted && $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+                'compressedByteLength' => $entry instanceof ZipPackageEntry ? $entry->compressedSize : null,
+                'compressionMethod' => $entry instanceof ZipPackageEntry ? $entry->compressionMethod : null,
+                'compressionMethodName' => $entry instanceof ZipPackageEntry ? self::compressionMethodName($entry->compressionMethod) : null,
+                'crc32' => !$isDirectory && !$encrypted && $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+                'storedByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+                'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+                'declaredSize' => $item['declaredSize'] ?? null,
+                'declaredSizeMismatch' => ($item['declaredSizeMismatch'] ?? false) === true,
+                'canExposeBytes' => false,
+                'canExposeAsDocumentMedia' => false,
+                'byteExposurePolicy' => $item['byteExposurePolicy'] ?? ($isDirectory ? 'directory-entry-no-bytes' : 'version-package-bytes-blocked'),
+                'reviewPolicy' => 'version-package-metadata-only',
+                'encryption' => $item['encryption'] ?? null,
+                'issues' => $issues,
+            ];
+        }
+
+        ksort($issueCodes, SORT_STRING);
+        ksort($kindCounts, SORT_STRING);
+        ksort($versionIdCounts, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'readableCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['exists'] === true && $item['byteLength'] !== null,
+            )),
+            'declaredCount' => count(array_filter($items, static fn (array $item): bool => $item['declared'] === true)),
+            'undeclaredCount' => count(array_filter($items, static fn (array $item): bool => $item['undeclared'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] !== true)),
+            'directoryCount' => count(array_filter($items, static fn (array $item): bool => $item['isDirectory'] === true)),
+            'encryptedCount' => count(array_filter($items, static fn (array $item): bool => $item['encrypted'] === true)),
+            'missingMediaTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('odf-version-package-missing-media-type', $item['issues'], true))),
+            'invalidMediaTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('odf-version-package-invalid-media-type', $item['issues'], true))),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'issueCodes' => array_keys($issueCodes),
+            'kindCounts' => $kindCounts,
+            'versionIdCounts' => $versionIdCounts,
+            'byteExposurePolicy' => 'version-package-bytes-blocked',
+            'reviewPolicy' => 'version-package-metadata-only',
+            'items' => $items,
+        ];
+    }
+
+    private function versionMediaTypeFromPart(string $part): ?string
+    {
+        if (str_ends_with($part, '/')) {
+            return '';
+        }
+
+        $basename = strtolower(basename($part));
+        if ($basename === 'versionlist.xml') {
+            return 'text/xml';
+        }
+
+        $extension = strtolower(pathinfo($part, PATHINFO_EXTENSION));
+
+        return match ($extension) {
+            'xml', 'rdf' => 'text/xml',
+            'odt' => self::MIMETYPE,
+            'png' => 'image/png',
+            'jpg', 'jpeg' => 'image/jpeg',
+            'gif' => 'image/gif',
+            'svg' => 'image/svg+xml',
+            'txt' => 'text/plain',
+            'zip' => 'application/zip',
+            default => null,
+        };
+    }
+
+    private function isVersionPackageMediaType(string $mediaType): bool
+    {
+        $base = self::mediaTypeReport($mediaType)['mediaTypeBase'];
+
+        return self::isXmlMediaTypeBase($base)
+            || $this->isEmbeddedObjectPackageMediaType($base)
+            || self::mediaResourceFamilyFromMediaTypeBase($base) !== null
+            || in_array($base, ['text/plain', 'application/octet-stream', 'application/binary', 'application/zip'], true)
+            || str_starts_with($base, 'application/vnd.');
+    }
+
+    private function versionPackagePartKind(string $part, string $mediaType, bool $isDirectory): string
+    {
+        if ($isDirectory) {
+            return 'version-directory';
+        }
+
+        $basename = strtolower(basename($part));
+        if ($basename === 'versionlist.xml') {
+            return 'version-list';
+        }
+
+        $base = self::mediaTypeReport($mediaType)['mediaTypeBase'];
+        if ($this->isEmbeddedObjectPackageMediaType($base)) {
+            return 'version-document-package';
+        }
+        if (self::mediaResourceFamilyFromMediaTypeBase($base) !== null) {
+            return 'version-media-resource';
+        }
+        if (self::isXmlMediaTypeBase($base)) {
+            return 'version-xml';
+        }
+        if (in_array($base, ['application/octet-stream', 'application/binary', 'application/zip'], true)) {
+            return 'version-binary-resource';
+        }
+
+        return 'version-resource';
+    }
+
+    private static function versionPackagePartVersionId(string $part): ?string
+    {
+        $segments = explode('/', trim($part, '/'));
+        $versionId = $segments[1] ?? '';
+
+        return $versionId === '' || strtolower($versionId) === 'versionlist.xml' ? null : $versionId;
+    }
+
     private function isDatabasePackagePartName(string $part): bool
     {
         return str_starts_with(strtolower(ltrim($part, '/')), 'database/');
+    }
+
+    private function isVersionPackagePartName(string $part): bool
+    {
+        return str_starts_with(strtolower(ltrim($part, '/')), 'versions/');
     }
 
     private function isObjectReplacementPackagePartName(string $part): bool
@@ -17244,6 +17523,7 @@ final class OdfReader
                 'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
                 'crc32' => $entry->crc32Hex(),
                 'metaInfSidecarPackagePart' => $this->isMetaInfSidecarPackagePartName($entry->name),
+                'versionPackagePart' => $this->isVersionPackagePartName($entry->name),
                 'canExposeBytes' => false,
                 'byteExposurePolicy' => 'undeclared-package-entry-no-bytes',
                 'diagnostics' => ['odf-manifest-undeclared-package-entry'],
