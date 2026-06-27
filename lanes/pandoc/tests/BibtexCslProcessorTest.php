@@ -2340,6 +2340,8 @@ XML);
   sortname       = {Archive Desk},
   sorttitle      = {Label Manual Legacy},
   sortyear       = {2025},
+  indextitle     = {Legacy Label Manual, The},
+  indexsorttitle = {Legacy Label Manual},
   labelprefix    = {WP},
   labelalpha     = {Smi26},
   labeltitle     = {legacy label},
@@ -2349,7 +2351,8 @@ XML);
 @book{fallback-shorthand,
   title     = {Fallback Shorthand Manual},
   date      = {2025},
-  shorthand = {FSH}
+  shorthand = {FSH},
+  indextitle = {Fallback Shorthand Manual, The}
 }
 BIB;
 
@@ -2368,6 +2371,8 @@ BIB;
         $t->same('Archive Desk', $labels['sort-name']);
         $t->same('Label Manual Legacy', $labels['sort-title']);
         $t->same('2025', $labels['sort-year']);
+        $t->same('Legacy Label Manual, The', $labels['index-title']);
+        $t->same('Legacy Label Manual', $labels['index-sort-title']);
         $t->same('WP', $labels['label-prefix']);
         $t->same('Smi26', $labels['label-alpha']);
         $t->same('legacy label', $labels['label-title']);
@@ -2376,10 +2381,46 @@ BIB;
         $t->same('010 legacy label', $labels['rawBibtex']['fields']['sortshorthand']);
         $t->same('FSH', $fallback['citation-label']);
         $t->same('FSH', $fallback['shorthand-list-sort-key']);
+        $t->same('Fallback Shorthand Manual, The', $fallback['index-title']);
+        $t->same('Fallback Shorthand Manual, The', $fallback['index-sort-title']);
         $t->same(
-            'Ada Smith. Legacy Label Manual. 2026. Citation label: LLM. Shorthand intro: cited as Legacy Label Manual. Sort shorthand: 010 legacy label. Presort: aa. Sort key: 900-smith. Label prefix: WP. Extra alpha: b.',
+            'Ada Smith. Legacy Label Manual. 2026. Citation label: LLM. Shorthand intro: cited as Legacy Label Manual. Sort shorthand: 010 legacy label. Presort: aa. Sort key: 900-smith. Index title: Legacy Label Manual, The. Index sort title: Legacy Label Manual. Label prefix: WP. Extra alpha: b.',
             $processor->renderBibliographyText($labels)
         );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Index Sort Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-index-sort-review</id>
+    <updated>2026-06-27T21:44:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="index-title"/>
+        <text variable="index-sort-title"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="indextitle"/>
+      <text variable="indexsorttitle"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded Legacy BibLaTeX Index Sort Review', $summary['title'] ?? null);
+        $t->same('[Smith | Legacy Label Manual, The | Legacy Label Manual; Fallback Shorthand Manual | Fallback Shorthand Manual, The | Fallback Shorthand Manual, The]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-labels', 'text' => '[@legacy-labels]']),
+            new AstNode('citation', ['id' => 'fallback-shorthand', 'text' => '[@fallback-shorthand]']),
+        ]));
+        $t->same('Legacy Label Manual :: Legacy Label Manual, The :: Legacy Label Manual', $styled->renderBibliographyEntry('legacy-labels'));
 
         $document = (new MarkdownReader())->read('Legacy label source @legacy-labels and [@fallback-shorthand] keep shorthand review metadata.');
         $handoff = $processor->citationHandoff($document, $source);
@@ -2388,9 +2429,100 @@ BIB;
 
         $t->same(['legacy-labels', 'fallback-shorthand'], $handoff['citedKeys']);
         $t->same('010 legacy label', $handoff['bibliography']->children[0]->attr('cslItem')['shorthand-list-sort-key'] ?? null);
+        $t->same('Legacy Label Manual', $handoff['bibliography']->children[0]->attr('cslItem')['index-sort-title'] ?? null);
         $t->same('FSH', $handoff['bibliography']->children[1]->attr('cslItem')['shorthand-list-sort-key'] ?? null);
+        $t->same('Fallback Shorthand Manual, The', $handoff['bibliography']->children[1]->attr('cslItem')['index-sort-title'] ?? null);
         $t->contains('Citation label: LLM', $blocks);
+        $t->contains('Index sort title: Legacy Label Manual', $blocks);
         $t->contains('Fallback Shorthand Manual', $blocks);
+    },
+    'carries biblatex index title aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{legacy-index-manual,
+  author         = {Smith, Ada},
+  title          = {The Source Audit Companion},
+  date           = {2026},
+  publisher      = {Review Press},
+  indextitle     = {Source Audit Companion, The},
+  indexsorttitle = {Source Audit Companion}
+}
+
+@inbook{legacy-index-chapter,
+  author   = {Ng, Nia},
+  title    = {Checklist Chapter},
+  pages    = {12--18},
+  crossref = {legacy-index-manual}
+}
+
+@book{legacy-index-fallback,
+  author     = {Roe, Pat},
+  title      = {Archive Index Packet},
+  date       = {2025},
+  indextitle = {Archive Index Packet, The}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $manual = $items['legacy-index-manual'];
+        $chapter = $items['legacy-index-chapter'];
+        $fallback = $items['legacy-index-fallback'];
+
+        $t->same('Source Audit Companion, The', $manual['index-title']);
+        $t->same('Source Audit Companion', $manual['index-sort-title']);
+        $t->same('Source Audit Companion, The', $chapter['index-title']);
+        $t->same('Source Audit Companion', $chapter['index-sort-title']);
+        $t->same('Archive Index Packet, The', $fallback['index-title']);
+        $t->same('Archive Index Packet, The', $fallback['index-sort-title']);
+        $t->same('Source Audit Companion, The', $manual['rawBibtex']['fields']['indextitle']);
+        $t->same('Source Audit Companion', $manual['rawBibtex']['fields']['indexsorttitle']);
+        $t->same(
+            'Nia Ng. Checklist Chapter. The Source Audit Companion. 2026. 12-18. Index title: Source Audit Companion, The. Index sort title: Source Audit Companion.',
+            $processor->renderBibliographyText($chapter)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Index Title Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-index-title-review</id>
+    <updated>2026-06-27T21:49:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="indextitle"/>
+        <text variable="indexsorttitle"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="index-title"/>
+      <text variable="index-sort-title"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded Legacy BibLaTeX Index Title Review', $summary['title'] ?? null);
+        $t->same('[Smith | Source Audit Companion, The | Source Audit Companion; Ng | Source Audit Companion, The | Source Audit Companion]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-index-manual', 'text' => '[@legacy-index-manual]']),
+            new AstNode('citation', ['id' => 'legacy-index-chapter', 'text' => '[@legacy-index-chapter]']),
+        ]));
+        $t->same('Checklist Chapter :: Source Audit Companion, The :: Source Audit Companion', $styled->renderBibliographyEntry('legacy-index-chapter'));
+
+        $document = (new MarkdownReader())->read('Index title source @legacy-index-manual and chapter [@legacy-index-chapter] keep generated source indexes visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['legacy-index-manual', 'legacy-index-chapter'], $handoff['citedKeys']);
+        $t->same('Source Audit Companion', $handoff['bibliography']->children[1]->attr('cslItem')['index-sort-title'] ?? null);
+        $t->contains('<p>Index title source Smith (2026) and chapter [Ng | Source Audit Companion, The | Source Audit Companion] keep generated source indexes visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Checklist Chapter :: Source Audit Companion, The :: Source Audit Companion</dd>', $blocks);
     },
     'carries biblatex relation aliases and explicit shorthand list metadata in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'

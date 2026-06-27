@@ -388,6 +388,8 @@ final class BibtexCslProcessor
             'sort-shorthand' => 'Sort shorthand',
             'presort' => 'Presort',
             'sort-key' => 'Sort key',
+            'index-title' => 'Index title',
+            'index-sort-title' => 'Index sort title',
             'label-prefix' => 'Label prefix',
             'extra-alpha' => 'Extra alpha',
             'date-addon' => 'Date addendum',
@@ -727,6 +729,8 @@ final class BibtexCslProcessor
             'sort-year' => ['sortyear', 'sort-year'],
             'sort-initial' => ['sortinit', 'sort-initial', 'sortinitial', 'sort-initials'],
             'sort-initial-hash' => ['sortinithash', 'sort-initial-hash'],
+            'index-title' => ['indextitle', 'index-title'],
+            'index-sort-title' => ['indexsorttitle', 'index-sort-title'],
             'label-prefix' => ['labelprefix', 'label-prefix'],
             'label-alpha' => ['labelalpha', 'label-alpha'],
             'label-title' => ['labeltitle', 'label-title'],
@@ -846,6 +850,9 @@ final class BibtexCslProcessor
                 continue;
             }
             $item[$target] = $target === 'page' ? str_replace('--', '-', $value) : $value;
+        }
+        if (($item['index-sort-title'] ?? '') === '' && ($item['index-title'] ?? '') !== '') {
+            $item['index-sort-title'] = $item['index-title'];
         }
 
         foreach ([
