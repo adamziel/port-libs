@@ -21387,6 +21387,73 @@ XML;
         $t->true(in_array('embedded-package', $inventory['word/embeddings/loose-diagram-model.xlsx']['roles'], true), 'loose diagram workbook inventory role missing');
         $t->true(!isset($docx['media']['word/embeddings/loose-diagram-model.xlsx']), 'Loose diagram workbook package should not be exposed as document media');
     },
+    'summarizes docx source zip raw name provenance for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $cp437RawName = "word/media/caf\x82.png";
+        $cp437Name = "word/media/caf\u{00e9}.png";
+        $unicodeRawName = 'word/media/review-image.bin';
+        $unicodeName = "word/media/review-\u{2603}.png";
+        $unicodePathExtra = docx_openxml_reader_unicode_extra(0x7075, $unicodeRawName, $unicodeName);
+
+        $document = (new DocxOpenXmlReader())->readZipPackage(
+            docx_openxml_reader_zip_package_with_raw_name_entries($parts, [
+                [
+                    'name' => $cp437RawName,
+                    'data' => 'legacy encoded image placeholder',
+                    'method' => 0,
+                    'flags' => 0,
+                ],
+                [
+                    'name' => $unicodeRawName,
+                    'localName' => $unicodeRawName,
+                    'data' => 'unicode path image placeholder',
+                    'method' => 0,
+                    'flags' => 0,
+                    'localExtra' => $unicodePathExtra,
+                    'centralExtra' => $unicodePathExtra,
+                ],
+            ])
+        );
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $namePolicy = $package['zipPackage']['namePolicy'];
+        $provenanceEntries = $summary['zipRawNameProvenanceEntries'];
+
+        $t->same('Imported DOCX Heading', $document->children[0]->attr('text'));
+        $t->same(2, $summary['zipRawNameProvenanceEntryCount']);
+        $t->same(1, $summary['zipRawNameLegacyEncodedEntryCount']);
+        $t->same(1, $summary['zipRawNameUnicodePathExtraEntryCount']);
+        $t->same(2, $summary['zipRawNameDecodedDiffersEntryCount']);
+        $t->same(0, $summary['zipRawNameCollisionGroupCount']);
+        $t->same(0, $summary['zipRawNameCollisionEntryCount']);
+        $t->same([], $summary['zipRawNameCollisionGroups']);
+        $t->same([], $summary['zipRawNameCollisionEntries']);
+        $t->same(['raw-name-provenance-review-entries'], $summary['zipNamePolicyIssueCodes']);
+        $t->same($namePolicy['rawNameProvenanceEntries'], $provenanceEntries);
+
+        $t->same($cp437Name, $provenanceEntries[0]['name']);
+        $t->same(bin2hex($cp437RawName), $provenanceEntries[0]['rawNameHex']);
+        $t->same('cp437', $provenanceEntries[0]['nameEncoding']);
+        $t->same(false, $provenanceEntries[0]['rawNameMatchesDecodedName']);
+        $t->same(true, $provenanceEntries[0]['usesLegacyNameEncoding']);
+        $t->same(false, $provenanceEntries[0]['usesUnicodePathExtraField']);
+        $t->same(['raw-name-decoded-value-differs', 'raw-name-legacy-encoding'], $provenanceEntries[0]['issues']);
+
+        $t->same($unicodeName, $provenanceEntries[1]['name']);
+        $t->same(bin2hex($unicodeRawName), $provenanceEntries[1]['rawNameHex']);
+        $t->same('info-zip-unicode-path', $provenanceEntries[1]['nameEncoding']);
+        $t->same(false, $provenanceEntries[1]['rawNameMatchesDecodedName']);
+        $t->same(false, $provenanceEntries[1]['usesLegacyNameEncoding']);
+        $t->same(true, $provenanceEntries[1]['usesUnicodePathExtraField']);
+        $t->same(['raw-name-decoded-value-differs', 'raw-name-info-zip-unicode-path'], $provenanceEntries[1]['issues']);
+
+        $t->same(true, $package['parts'][$cp437Name]['zipEntryPresent']);
+        $t->same(true, $package['parts'][$unicodeName]['zipEntryPresent']);
+        $t->same('image/png', $package['parts'][$cp437Name]['contentTypeBase']);
+        $t->same('image/png', $package['parts'][$unicodeName]['contentTypeBase']);
+        $t->true(in_array($cp437Name, $package['zipPackage']['loadedPartNames'], true), 'CP437 decoded package part should load by decoded name');
+        $t->true(in_array($unicodeName, $package['zipPackage']['loadedPartNames'], true), 'Info-ZIP Unicode package part should load by decoded name');
+    },
     'reads a native zip docx package without shelling out' => static function (TestRunner $t): void {
         $path = docx_openxml_reader_temp_docx(docx_openxml_reader_fixture_parts());
         try {
@@ -21630,6 +21697,109 @@ function docx_openxml_reader_zip_package_with_compression_methods(array $parts, 
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, $entryCount, $entryCount, strlen($central), strlen($body), 0)
     );
+}
+
+/**
+ * @param array<string, string> $parts
+ * @param list<array{name:string, localName?:string, data:string, method?:int, flags?:int, localExtra?:string, centralExtra?:string, comment?:string}> $rawNameEntries
+ */
+function docx_openxml_reader_zip_package_with_raw_name_entries(array $parts, array $rawNameEntries): ZipPackage
+{
+    $entries = [];
+    foreach ($parts as $name => $contents) {
+        $entries[] = [
+            'name' => $name,
+            'data' => $contents,
+            'method' => 8,
+            'flags' => 0x0800,
+        ];
+    }
+    foreach ($rawNameEntries as $entry) {
+        $entries[] = $entry;
+    }
+
+    return ZipPackage::fromString(docx_openxml_reader_raw_zip_bytes($entries));
+}
+
+/**
+ * @param list<array{name:string, localName?:string, data:string, method?:int, flags?:int, localExtra?:string, centralExtra?:string, comment?:string}> $entries
+ */
+function docx_openxml_reader_raw_zip_bytes(array $entries): string
+{
+    $body = '';
+    $central = '';
+    $entryCount = 0;
+
+    foreach ($entries as $entry) {
+        $name = $entry['name'];
+        $localName = $entry['localName'] ?? $name;
+        $contents = $entry['data'];
+        $method = $entry['method'] ?? 8;
+        $flags = $entry['flags'] ?? 0x0800;
+        $localExtra = $entry['localExtra'] ?? '';
+        $centralExtra = $entry['centralExtra'] ?? $localExtra;
+        $comment = $entry['comment'] ?? '';
+        $compressed = match ($method) {
+            0 => $contents,
+            8 => gzdeflate($contents),
+            default => $contents,
+        };
+        if (!is_string($compressed)) {
+            throw new RuntimeException("Unable to deflate DOCX fixture entry {$name}");
+        }
+
+        $crc32 = (int) sprintf('%u', crc32($contents));
+        $offset = strlen($body);
+        $body .= pack(
+            'VvvvvvVVVvv',
+            0x04034b50,
+            20,
+            $flags,
+            $method,
+            0,
+            0,
+            $crc32,
+            strlen($compressed),
+            strlen($contents),
+            strlen($localName),
+            strlen($localExtra),
+        );
+        $body .= $localName . $localExtra . $compressed;
+
+        $central .= pack(
+            'VvvvvvvVVVvvvvvVV',
+            0x02014b50,
+            0x0314,
+            20,
+            $flags,
+            $method,
+            0,
+            0,
+            $crc32,
+            strlen($compressed),
+            strlen($contents),
+            strlen($name),
+            strlen($centralExtra),
+            strlen($comment),
+            0,
+            0,
+            0,
+            $offset,
+        );
+        $central .= $name . $centralExtra . $comment;
+        ++$entryCount;
+    }
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, $entryCount, $entryCount, strlen($central), strlen($body), 0);
+}
+
+function docx_openxml_reader_unicode_extra(int $id, string $rawName, string $unicodeName): string
+{
+    $payload = "\x01" . pack('V', (int) sprintf('%u', crc32($rawName))) . $unicodeName;
+
+    return pack('vv', $id, strlen($payload)) . $payload;
 }
 
 /**
