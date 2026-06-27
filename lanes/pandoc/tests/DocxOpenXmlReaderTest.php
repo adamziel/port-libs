@@ -6723,6 +6723,136 @@ XML;
         $t->same('digest=1', $package['relationshipParts']['word/_rels/source-digest.xml.rels']['relationships']['rSourceDigestImage']['targetQuery']);
         $t->same('image', $package['relationshipParts']['word/_rels/source-digest.xml.rels']['relationships']['rSourceDigestImage']['targetFragment']);
     },
+    'summarizes docx relationship source xml roots for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/source-root.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<rs:sourceRoot xmlns:rs="urn:example:relationship-source" xmlns:meta="urn:example:relationship-meta" meta:kind="review"/>
+XML;
+        $parts['word/broken-source.xml'] = '<broken-source>';
+        $parts['word/media/content-types-root.png'] = 'content types source root image bytes';
+        $parts['word/media/source-root.png'] = 'source root image bytes';
+        $parts['word/media/broken-root.png'] = 'broken source root image bytes';
+        $parts['word/media/missing-root.png'] = 'missing source root image bytes';
+        $parts['word/media/relationship-root.png'] = 'relationship source root image bytes';
+        $parts['_rels/[Content_Types].xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rContentTypesRootImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="word/media/content-types-root.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/source-root.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rSourceRootImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/source-root.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/broken-source.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rBrokenRootImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/broken-root.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/missing-source-root.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rMissingRootImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-root.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/_rels/document.xml.rels.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rRelationshipRootImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/relationship-root.png"/>
+</Relationships>
+XML;
+
+        $package = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $sourcesByPart = [];
+        foreach ($summary['relationshipSources'] as $source) {
+            $sourcesByPart[$source['sourcePart']] = $source;
+        }
+        $rootsByPart = [];
+        foreach ($summary['relationshipSourceXmlRoots'] as $root) {
+            $rootsByPart[$root['sourcePart']] = $root;
+        }
+
+        $t->same(7, $summary['relationshipSourceCount']);
+        $t->same(5, $summary['relationshipSourceXmlInspectableCount']);
+        $t->same(4, $summary['relationshipSourceXmlValidCount']);
+        $t->same(1, $summary['relationshipSourceXmlInvalidCount']);
+        $t->same(['content-type' => 5], $summary['relationshipSourceXmlInspectionReasonCounts']);
+        $t->same(4, $summary['relationshipSourceRootNamespaceCount']);
+        $t->same([
+            'http://schemas.openxmlformats.org/package/2006/content-types' => 1,
+            'http://schemas.openxmlformats.org/package/2006/relationships' => 1,
+            'http://schemas.openxmlformats.org/wordprocessingml/2006/main' => 1,
+            'urn:example:relationship-source' => 1,
+        ], $summary['relationshipSourceRootNamespaceCounts']);
+        $t->same([
+            'Relationships' => 1,
+            'Types' => 1,
+            'document' => 1,
+            'sourceRoot' => 1,
+        ], $summary['relationshipSourceRootLocalNameCounts']);
+        $t->same([
+            'Relationships' => 1,
+            'Types' => 1,
+            'rs:sourceRoot' => 1,
+            'w:document' => 1,
+        ], $summary['relationshipSourceRootQualifiedNameCounts']);
+        $t->same(2, $summary['relationshipSourceRootPrefixCount']);
+        $t->same(['rs' => 1, 'w' => 1], $summary['relationshipSourceRootPrefixCounts']);
+        $t->same(8, $summary['relationshipSourceRootNamespacePrefixCount']);
+        $t->same([
+            'a' => 1,
+            'default' => 2,
+            'meta' => 1,
+            'pic' => 1,
+            'r' => 1,
+            'rs' => 1,
+            'w' => 1,
+            'wp' => 1,
+        ], $summary['relationshipSourceRootNamespacePrefixCounts']);
+        $t->same(['word/broken-source.xml'], $summary['relationshipSourceXmlInvalidSourceParts']);
+
+        $documentSource = $sourcesByPart['word/document.xml'];
+        $t->same(true, $documentSource['sourceXmlInspectable']);
+        $t->same(true, $documentSource['sourceValidXml']);
+        $t->same('document', $documentSource['sourceRootLocalName']);
+        $t->same('w:document', $documentSource['sourceRootQualifiedName']);
+        $t->same('content-type', $documentSource['sourceXmlInspectionReason']);
+
+        $packageRoot = $sourcesByPart['/'];
+        $t->same(false, $packageRoot['sourceXmlInspectable']);
+        $t->same(null, $packageRoot['sourceRootLocalName']);
+
+        $customRoot = $rootsByPart['word/source-root.xml'];
+        $t->same('word/_rels/source-root.xml.rels', $customRoot['relationshipsPart']);
+        $t->same('urn:example:relationship-source', $customRoot['sourceRootNamespace']);
+        $t->same('sourceRoot', $customRoot['sourceRootLocalName']);
+        $t->same('rs:sourceRoot', $customRoot['sourceRootQualifiedName']);
+        $t->same('rs', $customRoot['sourceRootPrefix']);
+        $t->same(['rs', 'meta'], $customRoot['sourceRootNamespacePrefixes']);
+        $t->same('application/xml', $customRoot['sourceContentTypeBase']);
+
+        $relationshipSource = $rootsByPart['word/_rels/document.xml.rels'];
+        $t->same('relationship-part', $relationshipSource['relationshipSourceKind']);
+        $t->same('Relationships', $relationshipSource['sourceRootLocalName']);
+        $t->same('application/vnd.openxmlformats-package.relationships+xml', $relationshipSource['sourceContentTypeBase']);
+
+        $broken = $rootsByPart['word/broken-source.xml'];
+        $t->same(false, $broken['sourceValidXml']);
+        $t->same(null, $broken['sourceRootLocalName']);
+        $t->true(is_string($broken['sourceXmlParseError']) && $broken['sourceXmlParseError'] !== '', 'invalid source XML should retain parse error');
+
+        $missing = $sourcesByPart['word/missing-source-root.xml'];
+        $t->same(false, $missing['sourceExists']);
+        $t->same(false, $missing['sourceXmlInspectable']);
+        $t->true(!isset($rootsByPart['word/missing-source-root.xml']), 'missing source should not be in XML root rollups');
+
+        $t->same('sourceRoot', $package['relationshipParts']['word/_rels/source-root.xml.rels']['sourceRootLocalName']);
+    },
     'summarizes docx relationship type source rollups for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';

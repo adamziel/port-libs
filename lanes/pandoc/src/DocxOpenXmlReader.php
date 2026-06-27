@@ -11776,6 +11776,33 @@ final class DocxOpenXmlReader
             $sourceContentTypeParameterMap = is_array($relationshipPart['sourceContentTypeParameterMap'] ?? null)
                 ? $relationshipPart['sourceContentTypeParameterMap']
                 : [];
+            $sourceXmlInspectable = (bool) ($relationshipPart['sourceXmlInspectable'] ?? false);
+            $sourceValidXml = $sourceXmlInspectable && is_bool($relationshipPart['sourceValidXml'] ?? null)
+                ? $relationshipPart['sourceValidXml']
+                : null;
+            $sourceXmlInspectionReason = $sourceXmlInspectable && is_string($relationshipPart['sourceXmlInspectionReason'] ?? null)
+                ? $relationshipPart['sourceXmlInspectionReason']
+                : null;
+            $sourceXmlParseError = $sourceXmlInspectable && is_string($relationshipPart['sourceXmlParseError'] ?? null)
+                ? $relationshipPart['sourceXmlParseError']
+                : null;
+            $sourceRootNamespace = $sourceXmlInspectable && is_string($relationshipPart['sourceRootNamespace'] ?? null)
+                ? $relationshipPart['sourceRootNamespace']
+                : null;
+            $sourceRootLocalName = $sourceXmlInspectable && is_string($relationshipPart['sourceRootLocalName'] ?? null)
+                ? $relationshipPart['sourceRootLocalName']
+                : null;
+            $sourceRootQualifiedName = $sourceXmlInspectable && is_string($relationshipPart['sourceRootQualifiedName'] ?? null)
+                ? $relationshipPart['sourceRootQualifiedName']
+                : null;
+            $sourceRootPrefix = $sourceXmlInspectable && is_string($relationshipPart['sourceRootPrefix'] ?? null)
+                ? $relationshipPart['sourceRootPrefix']
+                : null;
+            $sourceRootAttributeCount = $sourceXmlInspectable ? (int) ($relationshipPart['sourceRootAttributeCount'] ?? 0) : 0;
+            $sourceRootNamespaceDeclarationCount = $sourceXmlInspectable ? (int) ($relationshipPart['sourceRootNamespaceDeclarationCount'] ?? 0) : 0;
+            $sourceRootNamespacePrefixes = $sourceXmlInspectable && is_array($relationshipPart['sourceRootNamespacePrefixes'] ?? null)
+                ? array_values(array_map('strval', $relationshipPart['sourceRootNamespacePrefixes']))
+                : [];
             if ($sourceContentTypeParameterCount === 0) {
                 $sourceContentTypeParameterCount = count($sourceContentTypeParameters);
             }
@@ -11833,6 +11860,17 @@ final class DocxOpenXmlReader
                     'sourceContentTypeParameterCount' => $sourceContentTypeParameterCount,
                     'sourceContentTypeParameters' => $sourceContentTypeParameters,
                     'sourceContentTypeParameterMap' => $sourceContentTypeParameterMap,
+                    'sourceXmlInspectable' => $sourceXmlInspectable,
+                    'sourceXmlInspectionReason' => $sourceXmlInspectionReason,
+                    'sourceValidXml' => $sourceValidXml,
+                    'sourceXmlParseError' => $sourceXmlParseError,
+                    'sourceRootNamespace' => $sourceRootNamespace,
+                    'sourceRootLocalName' => $sourceRootLocalName,
+                    'sourceRootQualifiedName' => $sourceRootQualifiedName,
+                    'sourceRootPrefix' => $sourceRootPrefix,
+                    'sourceRootAttributeCount' => $sourceRootAttributeCount,
+                    'sourceRootNamespaceDeclarationCount' => $sourceRootNamespaceDeclarationCount,
+                    'sourceRootNamespacePrefixes' => $sourceRootNamespacePrefixes,
                     'sourceBytes' => $sourceBytes,
                     'sourceCrc32' => $sourceCrc32,
                     'sourceSha256' => $sourceSha256,
@@ -11863,6 +11901,17 @@ final class DocxOpenXmlReader
                 'sourceContentTypeParameterCount' => $sourceContentTypeParameterCount,
                 'sourceContentTypeParameters' => $sourceContentTypeParameters,
                 'sourceContentTypeParameterMap' => $sourceContentTypeParameterMap,
+                'sourceXmlInspectable' => $sourceXmlInspectable,
+                'sourceXmlInspectionReason' => $sourceXmlInspectionReason,
+                'sourceValidXml' => $sourceValidXml,
+                'sourceXmlParseError' => $sourceXmlParseError,
+                'sourceRootNamespace' => $sourceRootNamespace,
+                'sourceRootLocalName' => $sourceRootLocalName,
+                'sourceRootQualifiedName' => $sourceRootQualifiedName,
+                'sourceRootPrefix' => $sourceRootPrefix,
+                'sourceRootAttributeCount' => $sourceRootAttributeCount,
+                'sourceRootNamespaceDeclarationCount' => $sourceRootNamespaceDeclarationCount,
+                'sourceRootNamespacePrefixes' => $sourceRootNamespacePrefixes,
                 'sourceBytes' => $sourceBytes,
                 'sourceCrc32' => $sourceCrc32,
                 'sourceSha256' => $sourceSha256,
@@ -13764,6 +13813,7 @@ final class DocxOpenXmlReader
             }
         }
         ksort($relationshipSourcePartExtensionCounts, SORT_STRING);
+        $relationshipSourceXmlRoots = $this->relationshipSourceXmlRootSummary($relationshipSources);
         $relationshipTargetPartExtensions = $this->relationshipTargetPartExtensionSummary($relationshipParts, $partInventory);
         $relationshipTargetPartExtensionCounts = [];
         $relationshipTargetExistingPartExtensionCounts = [];
@@ -14007,6 +14057,22 @@ final class DocxOpenXmlReader
             'relationshipSourcePartExtensionExistingByteBucketCount' => $relationshipSourcePartExtensionExistingByteBucketCount,
             'relationshipSourcePartExtensionNonExistingBucketCount' => $relationshipSourcePartExtensionNonExistingBucketCount,
             'relationshipSourcePartExtensions' => $relationshipSourcePartExtensions,
+            'relationshipSourceXmlInspectableCount' => $relationshipSourceXmlRoots['count'],
+            'relationshipSourceXmlValidCount' => $relationshipSourceXmlRoots['validCount'],
+            'relationshipSourceXmlInvalidCount' => $relationshipSourceXmlRoots['invalidCount'],
+            'relationshipSourceXmlInspectionReasonCounts' => $relationshipSourceXmlRoots['inspectionReasonCounts'],
+            'relationshipSourceRootNamespaceCount' => count($relationshipSourceXmlRoots['rootNamespaceCounts']),
+            'relationshipSourceRootNamespaceCounts' => $relationshipSourceXmlRoots['rootNamespaceCounts'],
+            'relationshipSourceRootLocalNameCount' => count($relationshipSourceXmlRoots['rootLocalNameCounts']),
+            'relationshipSourceRootLocalNameCounts' => $relationshipSourceXmlRoots['rootLocalNameCounts'],
+            'relationshipSourceRootQualifiedNameCount' => count($relationshipSourceXmlRoots['rootQualifiedNameCounts']),
+            'relationshipSourceRootQualifiedNameCounts' => $relationshipSourceXmlRoots['rootQualifiedNameCounts'],
+            'relationshipSourceRootPrefixCount' => count($relationshipSourceXmlRoots['rootPrefixCounts']),
+            'relationshipSourceRootPrefixCounts' => $relationshipSourceXmlRoots['rootPrefixCounts'],
+            'relationshipSourceRootNamespacePrefixCount' => count($relationshipSourceXmlRoots['rootNamespacePrefixCounts']),
+            'relationshipSourceRootNamespacePrefixCounts' => $relationshipSourceXmlRoots['rootNamespacePrefixCounts'],
+            'relationshipSourceXmlInvalidSourceParts' => $relationshipSourceXmlRoots['invalidSourceParts'],
+            'relationshipSourceXmlRoots' => $relationshipSourceXmlRoots['items'],
             'relationshipPartsBySourceKind' => $relationshipPartsBySourceKind,
             'relationshipSources' => $relationshipSources,
             'relationshipTargetTopLevelSegmentCount' => count($relationshipTargetTopLevelSegments),
@@ -16131,6 +16197,116 @@ final class DocxOpenXmlReader
         }
 
         return array_values($depths);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $relationshipSources
+     * @return array{count:int, validCount:int, invalidCount:int, inspectionReasonCounts:array<string, int>, rootNamespaceCounts:array<string, int>, rootLocalNameCounts:array<string, int>, rootQualifiedNameCounts:array<string, int>, rootPrefixCounts:array<string, int>, rootNamespacePrefixCounts:array<string, int>, invalidSourceParts:list<string>, items:list<array<string, mixed>>}
+     */
+    private function relationshipSourceXmlRootSummary(array $relationshipSources): array
+    {
+        $inspectionReasonCounts = [];
+        $rootNamespaceCounts = [];
+        $rootLocalNameCounts = [];
+        $rootQualifiedNameCounts = [];
+        $rootPrefixCounts = [];
+        $rootNamespacePrefixCounts = [];
+        $invalidSourceParts = [];
+        $items = [];
+        $validCount = 0;
+        $invalidCount = 0;
+
+        foreach ($relationshipSources as $source) {
+            if (($source['sourceXmlInspectable'] ?? false) !== true) {
+                continue;
+            }
+
+            $sourcePart = is_string($source['sourcePart'] ?? null) ? $source['sourcePart'] : '';
+            $validXml = is_bool($source['sourceValidXml'] ?? null) ? $source['sourceValidXml'] : null;
+            $inspectionReason = is_string($source['sourceXmlInspectionReason'] ?? null)
+                ? $source['sourceXmlInspectionReason']
+                : '(unknown)';
+            $inspectionReasonCounts[$inspectionReason] = ($inspectionReasonCounts[$inspectionReason] ?? 0) + 1;
+
+            $rootNamespace = is_string($source['sourceRootNamespace'] ?? null) ? $source['sourceRootNamespace'] : null;
+            $rootLocalName = is_string($source['sourceRootLocalName'] ?? null) ? $source['sourceRootLocalName'] : null;
+            $rootQualifiedName = is_string($source['sourceRootQualifiedName'] ?? null) ? $source['sourceRootQualifiedName'] : null;
+            $rootPrefix = is_string($source['sourceRootPrefix'] ?? null) ? $source['sourceRootPrefix'] : null;
+            $rootNamespacePrefixes = array_values(array_map('strval', $source['sourceRootNamespacePrefixes'] ?? []));
+
+            if ($validXml === true) {
+                ++$validCount;
+                $rootNamespaceKey = $rootNamespace === null || $rootNamespace === '' ? '(none)' : $rootNamespace;
+                $rootNamespaceCounts[$rootNamespaceKey] = ($rootNamespaceCounts[$rootNamespaceKey] ?? 0) + 1;
+                if ($rootLocalName !== null && $rootLocalName !== '') {
+                    $rootLocalNameCounts[$rootLocalName] = ($rootLocalNameCounts[$rootLocalName] ?? 0) + 1;
+                }
+                if ($rootQualifiedName !== null && $rootQualifiedName !== '') {
+                    $rootQualifiedNameCounts[$rootQualifiedName] = ($rootQualifiedNameCounts[$rootQualifiedName] ?? 0) + 1;
+                }
+                if ($rootPrefix !== null && $rootPrefix !== '') {
+                    $rootPrefixCounts[$rootPrefix] = ($rootPrefixCounts[$rootPrefix] ?? 0) + 1;
+                }
+                foreach ($rootNamespacePrefixes as $prefix) {
+                    if ($prefix === '') {
+                        continue;
+                    }
+                    $rootNamespacePrefixCounts[$prefix] = ($rootNamespacePrefixCounts[$prefix] ?? 0) + 1;
+                }
+            } else {
+                ++$invalidCount;
+                $this->appendUniqueString($invalidSourceParts, $sourcePart === '' ? null : $sourcePart);
+            }
+
+            $items[] = [
+                'relationshipsPart' => is_string($source['relationshipsPart'] ?? null) ? $source['relationshipsPart'] : '',
+                'sourcePart' => $sourcePart,
+                'relationshipSourceKind' => is_string($source['relationshipSourceKind'] ?? null) ? $source['relationshipSourceKind'] : 'invalid-source',
+                'sourceExists' => (bool) ($source['sourceExists'] ?? false),
+                'relationshipCount' => (int) ($source['relationshipCount'] ?? 0),
+                'relationshipRecordCount' => (int) ($source['relationshipRecordCount'] ?? 0),
+                'sourceXmlInspectionReason' => $inspectionReason,
+                'sourceValidXml' => $validXml,
+                'sourceXmlParseError' => is_string($source['sourceXmlParseError'] ?? null) ? $source['sourceXmlParseError'] : null,
+                'sourceRootNamespace' => $rootNamespace,
+                'sourceRootLocalName' => $rootLocalName,
+                'sourceRootQualifiedName' => $rootQualifiedName,
+                'sourceRootPrefix' => $rootPrefix,
+                'sourceRootAttributeCount' => (int) ($source['sourceRootAttributeCount'] ?? 0),
+                'sourceRootNamespaceDeclarationCount' => (int) ($source['sourceRootNamespaceDeclarationCount'] ?? 0),
+                'sourceRootNamespacePrefixes' => $rootNamespacePrefixes,
+                'sourceContentTypeBase' => is_string($source['sourceContentTypeBase'] ?? null) ? $source['sourceContentTypeBase'] : null,
+                'sourceContentTypeSource' => is_string($source['sourceContentTypeSource'] ?? null) ? $source['sourceContentTypeSource'] : null,
+                'sourceRoles' => array_values(array_map('strval', $source['sourceRoles'] ?? [])),
+            ];
+        }
+
+        ksort($inspectionReasonCounts, SORT_STRING);
+        ksort($rootNamespaceCounts, SORT_STRING);
+        ksort($rootLocalNameCounts, SORT_STRING);
+        ksort($rootQualifiedNameCounts, SORT_STRING);
+        ksort($rootPrefixCounts, SORT_STRING);
+        ksort($rootNamespacePrefixCounts, SORT_STRING);
+        sort($invalidSourceParts, SORT_STRING);
+        usort(
+            $items,
+            static fn (array $left, array $right): int => strcmp((string) $left['sourcePart'], (string) $right['sourcePart'])
+                ?: strcmp((string) $left['relationshipsPart'], (string) $right['relationshipsPart']),
+        );
+
+        return [
+            'count' => count($items),
+            'validCount' => $validCount,
+            'invalidCount' => $invalidCount,
+            'inspectionReasonCounts' => $inspectionReasonCounts,
+            'rootNamespaceCounts' => $rootNamespaceCounts,
+            'rootLocalNameCounts' => $rootLocalNameCounts,
+            'rootQualifiedNameCounts' => $rootQualifiedNameCounts,
+            'rootPrefixCounts' => $rootPrefixCounts,
+            'rootNamespacePrefixCounts' => $rootNamespacePrefixCounts,
+            'invalidSourceParts' => $invalidSourceParts,
+            'items' => $items,
+        ];
     }
 
     /**
@@ -21371,6 +21547,7 @@ final class DocxOpenXmlReader
             : count($this->packagePartPathSegments($sourcePart));
         $sourceDirectory = $isPackageRoot ? '/' : ($sourcePart === '' ? '' : $this->packagePartDirectory($sourcePart));
         $sourceDirectoryDepth = $sourceDirectory === '' ? null : $this->packagePartDirectoryDepth($sourceDirectory);
+        $sourceXmlInspectable = is_array($sourceInventory) ? (bool) ($sourceInventory['xmlInspectable'] ?? false) : false;
 
         return [
             'relationshipSourceKind' => $sourceKind,
@@ -21392,6 +21569,17 @@ final class DocxOpenXmlReader
             'sourceContentTypeParameterCount' => is_array($sourceInventory) ? (int) ($sourceInventory['contentTypeParameterCount'] ?? 0) : 0,
             'sourceContentTypeParameters' => is_array($sourceInventory) && is_array($sourceInventory['contentTypeParameters'] ?? null) ? $sourceInventory['contentTypeParameters'] : [],
             'sourceContentTypeParameterMap' => is_array($sourceInventory) && is_array($sourceInventory['contentTypeParameterMap'] ?? null) ? $sourceInventory['contentTypeParameterMap'] : [],
+            'sourceXmlInspectable' => $sourceXmlInspectable,
+            'sourceXmlInspectionReason' => $sourceXmlInspectable && is_string($sourceInventory['xmlInspectionReason'] ?? null) ? $sourceInventory['xmlInspectionReason'] : null,
+            'sourceValidXml' => $sourceXmlInspectable && is_bool($sourceInventory['validXml'] ?? null) ? $sourceInventory['validXml'] : null,
+            'sourceXmlParseError' => $sourceXmlInspectable && is_string($sourceInventory['xmlParseError'] ?? null) ? $sourceInventory['xmlParseError'] : null,
+            'sourceRootNamespace' => $sourceXmlInspectable && is_string($sourceInventory['rootNamespace'] ?? null) ? $sourceInventory['rootNamespace'] : null,
+            'sourceRootLocalName' => $sourceXmlInspectable && is_string($sourceInventory['rootLocalName'] ?? null) ? $sourceInventory['rootLocalName'] : null,
+            'sourceRootQualifiedName' => $sourceXmlInspectable && is_string($sourceInventory['rootQualifiedName'] ?? null) ? $sourceInventory['rootQualifiedName'] : null,
+            'sourceRootPrefix' => $sourceXmlInspectable && is_string($sourceInventory['rootPrefix'] ?? null) ? $sourceInventory['rootPrefix'] : null,
+            'sourceRootAttributeCount' => $sourceXmlInspectable ? (int) ($sourceInventory['rootAttributeCount'] ?? 0) : 0,
+            'sourceRootNamespaceDeclarationCount' => $sourceXmlInspectable ? (int) ($sourceInventory['rootNamespaceDeclarationCount'] ?? 0) : 0,
+            'sourceRootNamespacePrefixes' => $sourceXmlInspectable && is_array($sourceInventory['rootNamespacePrefixes'] ?? null) ? array_values(array_map('strval', $sourceInventory['rootNamespacePrefixes'])) : [],
             'sourceRoles' => $isPackageRoot
                 ? ['package-root']
                 : (is_array($sourceInventory) ? array_values(array_map('strval', $sourceInventory['roles'] ?? [])) : []),
