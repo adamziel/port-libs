@@ -462,6 +462,9 @@ final class BibtexCslProcessor
         foreach ([
             'reviewed-title' => 'Reviewed title',
             'reviewed-genre' => 'Reviewed genre',
+            'references' => 'References',
+            'dimensions' => 'Dimensions',
+            'scale' => 'Scale',
             'main-title' => 'Main title',
             'main-title-addon' => 'Main title addendum',
             'volume-title' => 'Volume title',
@@ -633,7 +636,7 @@ final class BibtexCslProcessor
             $item['container-title'] = $containerTitle;
         }
 
-        $reviewedTitle = $this->composedTitle($fields, ['reviewedtitle', 'reviewed-title'], ['reviewedsubtitle', 'reviewed-subtitle']);
+        $reviewedTitle = $this->composedTitle($fields, ['reviewedtitle', 'reviewed-title', 'reviewtitle'], ['reviewedsubtitle', 'reviewed-subtitle', 'reviewsubtitle']);
         if ($reviewedTitle !== null && $reviewedTitle !== '') {
             $item['reviewed-title'] = $reviewedTitle;
         }
@@ -747,6 +750,9 @@ final class BibtexCslProcessor
             'source' => ['source', 'sourcetitle', 'source-title'],
             'section' => ['section'],
             'supplement' => ['supplement'],
+            'references' => ['references'],
+            'dimensions' => ['dimensions', 'dimension'],
+            'scale' => ['scale'],
             'DOI' => ['doi'],
             'URL' => ['url'],
             'URL-label' => ['urldescription', 'urltitle', 'urllabel', 'url-label'],

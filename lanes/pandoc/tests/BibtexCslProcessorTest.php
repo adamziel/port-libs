@@ -1793,6 +1793,103 @@ XML);
         $t->contains('<p>Review hierarchy [Critic | Source Manual: Field Appendix | migration handbook | Collected Review Set: Legacy Volume | archive set | Volume Packet: Review Notes | Vol. Pkt. | Part Source: Chapter Notes | Special Issue: Audit Week | guest-edited dossier] stays visible.</p>', $blocks);
         $t->contains('<dt>Critic 2026</dt><dd>Legacy Review Packet :: Source Manual: Field Appendix :: migration handbook :: Collected Review Set: Legacy Volume :: archive set :: Volume Packet: Review Notes :: Vol. Pkt. :: Part Source: Chapter Notes :: Special Issue: Audit Week :: guest-edited dossier</dd>', $blocks);
     },
+    'carries biblatex reviewed references dimensions and scale in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@review{legacy-review-physical,
+  author       = {Roe, Pat},
+  title        = {Legacy Review Metadata Packet},
+  reviewtitle  = {Imported Source Atlas},
+  references   = {Smith 2024, pp. 12-18},
+  dimensions   = {24 x 32 cm},
+  scale        = {1:50000},
+  date         = {2026},
+  journaltitle = {Journal of Source Imports}
+}
+
+@misc{legacy-dimension-alias,
+  author         = {Ng, Nia},
+  title          = {Legacy Dimension Alias Packet},
+  reviewed-title = {Compact Source Atlas},
+  references     = {Archive ref 42},
+  dimension      = {A4},
+  scale          = {1:2500},
+  date           = {2025}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $physical = $items['legacy-review-physical'];
+        $alias = $items['legacy-dimension-alias'];
+
+        $t->same('Imported Source Atlas', $physical['reviewed-title']);
+        $t->same('Smith 2024, pp. 12-18', $physical['references']);
+        $t->same('24 x 32 cm', $physical['dimensions']);
+        $t->same('1:50000', $physical['scale']);
+        $t->same('Compact Source Atlas', $alias['reviewed-title']);
+        $t->same('Archive ref 42', $alias['references']);
+        $t->same('A4', $alias['dimensions']);
+        $t->same('1:2500', $alias['scale']);
+        $t->same('A4', $alias['rawBibtex']['fields']['dimension']);
+        $t->same(
+            'Pat Roe. Legacy Review Metadata Packet. Journal of Source Imports. 2026. Reviewed title: Imported Source Atlas. References: Smith 2024, pp. 12-18. Dimensions: 24 x 32 cm. Scale: 1:50000.',
+            $processor->renderBibliographyText($physical)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Physical Review Metadata</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-physical-review-metadata</id>
+    <updated>2026-06-27T11:35:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="reviewed-title"/>
+        <text variable="references"/>
+        <text variable="dimensions"/>
+        <text variable="scale"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="reviewed-title"/>
+      <text variable="references"/>
+      <text variable="dimensions"/>
+      <text variable="scale"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded Legacy BibLaTeX Physical Review Metadata', $summary['title'] ?? null);
+        $t->same('references', $summary['citationRendering'][0]['children'][2]['variable'] ?? null);
+        $t->same('[Roe | Imported Source Atlas | Smith 2024, pp. 12-18 | 24 x 32 cm | 1:50000; Ng | Compact Source Atlas | Archive ref 42 | A4 | 1:2500]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-review-physical', 'text' => '[@legacy-review-physical]']),
+            new AstNode('citation', ['id' => 'legacy-dimension-alias', 'text' => '[@legacy-dimension-alias]']),
+        ]));
+        $t->same('Legacy Review Metadata Packet :: Imported Source Atlas :: Smith 2024, pp. 12-18 :: 24 x 32 cm :: 1:50000', $styled->renderBibliographyEntry('legacy-review-physical'));
+        $t->same('Legacy Dimension Alias Packet :: Compact Source Atlas :: Archive ref 42 :: A4 :: 1:2500', $styled->renderBibliographyEntry('legacy-dimension-alias'));
+
+        $document = (new MarkdownReader())->read('Legacy physical review metadata cites @legacy-review-physical and [@legacy-dimension-alias].');
+        $handoff = $processor->citationHandoff($document, $source);
+        $bibliographyDocument = new AstNode('document', [], [$handoff['bibliography']]);
+        $markdown = (new MarkdownWriter())->write($bibliographyDocument);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['legacy-review-physical', 'legacy-dimension-alias'], $handoff['citedKeys']);
+        $t->same('Smith 2024, pp. 12-18', $handoff['items'][0]['references'] ?? null);
+        $t->same('A4', $handoff['bibliography']->children[1]->attr('cslItem')['dimensions'] ?? null);
+        $t->contains('References: Smith 2024, pp. 12-18', $markdown);
+        $t->contains('<p>Legacy physical review metadata cites Roe (2026) and [Ng | Compact Source Atlas | Archive ref 42 | A4 | 1:2500].</p>', $blocks);
+        $t->contains('<dt>Roe 2026</dt><dd>Legacy Review Metadata Packet :: Imported Source Atlas :: Smith 2024, pp. 12-18 :: 24 x 32 cm :: 1:50000</dd>', $blocks);
+    },
     'inherits legacy biblatex crossref and xdata metadata into csl items' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @xdata{shared-review-source,
