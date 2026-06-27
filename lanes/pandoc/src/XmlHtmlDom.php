@@ -15329,6 +15329,7 @@ final class XmlHtmlDom
         if ($name === 'link') {
             $relRaw = self::attributeOrNull($element, 'rel');
             $imageSrcset = self::attributeOrNull($element, 'imagesrcset');
+            $imageSizes = self::attributeOrNull($element, 'imagesizes');
             $blockingRaw = self::attributeOrNull($element, 'blocking');
 
             $summary = [
@@ -15346,7 +15347,7 @@ final class XmlHtmlDom
                 'sizes' => self::attributeOrNull($element, 'sizes'),
                 'imageSrcset' => $imageSrcset,
                 'imageSrcsetCandidates' => self::srcsetCandidateSummaries($imageSrcset),
-                'imageSizes' => self::attributeOrNull($element, 'imagesizes'),
+                'imageSizes' => $imageSizes,
                 'fetchpriority' => self::attributeOrNull($element, 'fetchpriority'),
                 'blockingRaw' => $blockingRaw,
                 'blockingTokens' => $blockingRaw === null ? [] : self::spaceSeparatedTokens($blockingRaw),
@@ -15354,7 +15355,8 @@ final class XmlHtmlDom
 
             return $summary
                 + self::linkResourceReviewSummary($element, $relRaw)
-                + self::srcsetResourceReviewSummary($imageSrcset, 'imageSrcset');
+                + self::srcsetResourceReviewSummary($imageSrcset, 'imageSrcset')
+                + self::sourceSizesReviewSummary($imageSizes, 'imageSizes');
         }
 
         $content = self::attributeOrNull($element, 'content');
@@ -25930,13 +25932,14 @@ final class XmlHtmlDom
     private static function imageSummary(\DOMElement $image): array
     {
         $srcset = self::attributeOrNull($image, 'srcset');
+        $sizes = self::attributeOrNull($image, 'sizes');
         $summary = [
             'embeddedResource' => 'image',
             'src' => self::attributeOrNull($image, 'src'),
             'alt' => self::attributeOrNull($image, 'alt'),
             'srcset' => $srcset,
             'srcsetCandidates' => self::srcsetCandidateSummaries($srcset),
-            'sizes' => self::attributeOrNull($image, 'sizes'),
+            'sizes' => $sizes,
             'loading' => self::attributeOrNull($image, 'loading'),
             'decoding' => self::attributeOrNull($image, 'decoding'),
             'crossorigin' => self::attributeOrNull($image, 'crossorigin'),
@@ -25945,6 +25948,7 @@ final class XmlHtmlDom
         ];
         $summary += self::imageLoadingReviewSummary($image);
         $summary += self::srcsetResourceReviewSummary($srcset, 'srcset');
+        $summary += self::sourceSizesReviewSummary($sizes, 'sizes');
 
         if ($image->hasAttribute('usemap')) {
             $useMap = self::useMapAttributeSummary($image->getAttribute('usemap'));
@@ -26628,6 +26632,7 @@ final class XmlHtmlDom
     private static function sourceElementSummary(\DOMElement $source): array
     {
         $srcset = self::attributeOrNull($source, 'srcset');
+        $sizes = self::attributeOrNull($source, 'sizes');
 
         return [
             'src' => self::attributeOrNull($source, 'src'),
@@ -26635,8 +26640,9 @@ final class XmlHtmlDom
             'srcsetCandidates' => self::srcsetCandidateSummaries($srcset),
             'type' => self::attributeOrNull($source, 'type'),
             'media' => self::attributeOrNull($source, 'media'),
-            'sizes' => self::attributeOrNull($source, 'sizes'),
-        ] + self::srcsetResourceReviewSummary($srcset, 'srcset');
+            'sizes' => $sizes,
+        ] + self::srcsetResourceReviewSummary($srcset, 'srcset')
+            + self::sourceSizesReviewSummary($sizes, 'sizes');
     }
 
     /**
@@ -27493,6 +27499,260 @@ final class XmlHtmlDom
             $keyPrefix . 'IssueCodes' => $issueCodes,
             $keyPrefix . 'Valid' => $issues === [],
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function sourceSizesReviewSummary(?string $sizes, string $keyPrefix): array
+    {
+        if ($sizes === null) {
+            return [];
+        }
+
+        $records = [];
+        $issues = [];
+        $kinds = [];
+        $autoPresent = false;
+        $defaultRecord = null;
+
+        foreach (self::splitSourceSizeList($sizes) as $index => $item) {
+            $record = self::sourceSizeRecord($item, $index);
+            $records[] = $record;
+            if ($record['sourceSizeKind'] === 'auto') {
+                $autoPresent = true;
+            }
+            if ($record['sourceSizeKind'] !== 'invalid' && !in_array($record['sourceSizeKind'], $kinds, true)) {
+                $kinds[] = $record['sourceSizeKind'];
+            }
+            if ($record['mediaConditionRaw'] === null && $record['valid']) {
+                $defaultRecord = $record;
+            }
+            foreach ($record['issues'] as $issue) {
+                $issues[] = $issue;
+            }
+        }
+
+        if ($records === []) {
+            $issues[] = ['code' => 'empty-source-size-list'];
+        }
+
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+
+        return [
+            $keyPrefix . 'ReviewPolicy' => 'html-source-size-list-review',
+            $keyPrefix . 'Raw' => $sizes,
+            $keyPrefix . 'Items' => $records,
+            $keyPrefix . 'ItemCount' => count($records),
+            $keyPrefix . 'SourceSizeKinds' => $kinds,
+            $keyPrefix . 'AutoPresent' => $autoPresent,
+            $keyPrefix . 'DefaultSourceSize' => $defaultRecord['sourceSizeNormalized'] ?? null,
+            $keyPrefix . 'DefaultSourceSizeRaw' => $defaultRecord['sourceSizeRaw'] ?? null,
+            $keyPrefix . 'Issues' => $issues,
+            $keyPrefix . 'IssueCodes' => $issueCodes,
+            $keyPrefix . 'Valid' => $issues === [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function sourceSizeRecord(string $item, int $index): array
+    {
+        [$mediaCondition, $sourceSize] = self::splitSourceSizeItem($item);
+        $sourceSizeSummary = self::sourceSizeValueSummary($sourceSize);
+        $mediaConditionValid = self::isSafeSourceSizeMediaCondition($mediaCondition);
+        $issues = [];
+
+        if (trim($item) === '') {
+            $issues[] = ['code' => 'empty-source-size-item', 'index' => $index];
+        }
+        if (!$mediaConditionValid) {
+            $issues[] = [
+                'code' => 'invalid-source-size-media-condition',
+                'index' => $index,
+                'mediaConditionRaw' => $mediaCondition,
+            ];
+        }
+        foreach ($sourceSizeSummary['issues'] as $issue) {
+            $issues[] = $issue + ['index' => $index];
+        }
+
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+
+        return [
+            'index' => $index,
+            'raw' => trim($item),
+            'mediaConditionRaw' => $mediaCondition,
+            'mediaConditionValid' => $mediaConditionValid,
+            'sourceSizeRaw' => $sourceSize,
+            'sourceSizeKind' => $sourceSizeSummary['kind'],
+            'sourceSizeValue' => $sourceSizeSummary['value'],
+            'sourceSizeNormalized' => $sourceSizeSummary['normalized'],
+            'sourceSizeValid' => $sourceSizeSummary['valid'],
+            'issues' => $issues,
+            'issueCodes' => $issueCodes,
+            'valid' => $issues === [],
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function splitSourceSizeList(string $value): array
+    {
+        $items = [];
+        $start = 0;
+        $depth = 0;
+        $length = strlen($value);
+
+        for ($offset = 0; $offset < $length; ++$offset) {
+            $char = $value[$offset];
+            if ($char === '(') {
+                ++$depth;
+                continue;
+            }
+            if ($char === ')' && $depth > 0) {
+                --$depth;
+                continue;
+            }
+            if ($char === ',' && $depth === 0) {
+                $items[] = substr($value, $start, $offset - $start);
+                $start = $offset + 1;
+            }
+        }
+
+        $items[] = substr($value, $start);
+
+        return $items;
+    }
+
+    /**
+     * @return array{0:?string, 1:string}
+     */
+    private static function splitSourceSizeItem(string $item): array
+    {
+        $trimmed = trim($item);
+        if ($trimmed === '') {
+            return [null, ''];
+        }
+        if (strtolower($trimmed) === 'auto') {
+            return [null, 'auto'];
+        }
+
+        $depth = 0;
+        $splitAt = null;
+        $length = strlen($trimmed);
+
+        for ($offset = 0; $offset < $length; ++$offset) {
+            $char = $trimmed[$offset];
+            if ($char === '(') {
+                ++$depth;
+                continue;
+            }
+            if ($char === ')' && $depth > 0) {
+                --$depth;
+                continue;
+            }
+            if ($depth === 0 && ctype_space($char)) {
+                $splitAt = $offset;
+                while ($offset + 1 < $length && ctype_space($trimmed[$offset + 1])) {
+                    ++$offset;
+                }
+            }
+        }
+
+        if ($splitAt === null) {
+            return [null, $trimmed];
+        }
+
+        return [
+            trim(substr($trimmed, 0, $splitAt)),
+            trim(substr($trimmed, $splitAt)),
+        ];
+    }
+
+    /**
+     * @return array{kind:string, value:string|null, normalized:string|null, valid:bool, issues:list<array<string, mixed>>}
+     */
+    private static function sourceSizeValueSummary(string $sourceSize): array
+    {
+        $trimmed = trim($sourceSize);
+        $lower = strtolower($trimmed);
+        $issues = [];
+
+        if ($trimmed === '') {
+            $issues[] = ['code' => 'missing-source-size-value'];
+
+            return ['kind' => 'invalid', 'value' => null, 'normalized' => null, 'valid' => false, 'issues' => $issues];
+        }
+
+        if ($lower === 'auto') {
+            return ['kind' => 'auto', 'value' => 'auto', 'normalized' => 'auto', 'valid' => true, 'issues' => []];
+        }
+
+        if (preg_match('/[\x00-\x1F\x7F<>"`]/', $trimmed) === 1) {
+            $issues[] = ['code' => 'unsafe-source-size-value', 'sourceSizeRaw' => $sourceSize];
+        }
+        if (str_ends_with($trimmed, '%')) {
+            $issues[] = ['code' => 'source-size-percent-not-allowed', 'sourceSizeRaw' => $sourceSize];
+        }
+
+        $lengthPattern = '/^(?:0|(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)(?:px|em|rem|ch|ex|ic|cap|lh|rlh|vw|vh|vi|vb|vmin|vmax|cm|mm|q|in|pc|pt))$/i';
+        $functionPattern = '/^(?:calc|min|max|clamp)\(.+\)$/i';
+        $lengthValid = preg_match($lengthPattern, $trimmed) === 1;
+        $functionValid = preg_match($functionPattern, $trimmed) === 1 && self::hasBalancedParentheses($trimmed);
+
+        if (!$lengthValid && !$functionValid) {
+            $issues[] = ['code' => 'invalid-source-size-value', 'sourceSizeRaw' => $sourceSize];
+        }
+
+        return [
+            'kind' => $functionValid ? 'function' : ($lengthValid ? 'length' : 'invalid'),
+            'value' => $trimmed,
+            'normalized' => $issues === [] ? $lower : null,
+            'valid' => $issues === [],
+            'issues' => $issues,
+        ];
+    }
+
+    private static function isSafeSourceSizeMediaCondition(?string $mediaCondition): bool
+    {
+        if ($mediaCondition === null) {
+            return true;
+        }
+
+        $trimmed = trim($mediaCondition);
+
+        return $trimmed !== ''
+            && preg_match('/[\x00-\x1F\x7F<>"`;{}]/', $trimmed) !== 1
+            && self::hasBalancedParentheses($trimmed);
+    }
+
+    private static function hasBalancedParentheses(string $value): bool
+    {
+        $depth = 0;
+        $length = strlen($value);
+
+        for ($offset = 0; $offset < $length; ++$offset) {
+            $char = $value[$offset];
+            if ($char === '(') {
+                ++$depth;
+            } elseif ($char === ')') {
+                --$depth;
+                if ($depth < 0) {
+                    return false;
+                }
+            }
+        }
+
+        return $depth === 0;
     }
 
     /**
