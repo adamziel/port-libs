@@ -10337,6 +10337,108 @@ XML;
         $t->true(in_array('root-relationship-target', $package['parts']['_xmlsignatures/origin.sigs']['roles'], true), 'signature origin root target role missing');
         $t->true(in_array('relationship-target', $package['parts']['_xmlsignatures/sig1.xml']['roles'], true), 'signature XML relationship target role missing');
     },
+    'tracks docx digital signature external target policy for package review' => static function (TestRunner $t): void {
+        $originType = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin';
+        $signatureType = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature';
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/_xmlsignatures/policy-origin.sigs" ContentType="application/vnd.openxmlformats-package.digital-signature-origin"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rPolicyOrigin" Type="' . $originType . '" Target="_xmlsignatures/policy-origin.sigs"/>' . "\n" .
+            '  <Relationship Id="rSafeExternalOrigin" Type="' . $originType . '" Target="https://example.test/signatures/origin.sigs?policy=safe#origin" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rUnsafeExternalOrigin" Type="' . $originType . '" Target="file:///C:/signatures/origin.sigs?policy=unsafe#origin" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['_xmlsignatures/policy-origin.sigs'] = 'policy origin bytes';
+        $parts['_xmlsignatures/_rels/policy-origin.sigs.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rSafeExternalSignature" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature" Target="https://example.test/signatures/sig.xml?policy=safe#sig" TargetMode="External"/>
+  <Relationship Id="rUnsafeExternalSignature" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature" Target="file:///C:/signatures/sig.xml?policy=unsafe#sig" TargetMode="External"/>
+</Relationships>
+XML;
+
+        $docx = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx');
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $signatures = $package['digitalSignatures'];
+        $policyOrigin = $signatures['byOriginRelationshipId']['rPolicyOrigin'];
+        $safeOrigin = $signatures['byOriginRelationshipId']['rSafeExternalOrigin'];
+        $unsafeOrigin = $signatures['byOriginRelationshipId']['rUnsafeExternalOrigin'];
+        $safeSignature = $signatures['bySignatureRelationshipId']['rSafeExternalSignature'];
+        $unsafeSignature = $signatures['bySignatureRelationshipId']['rUnsafeExternalSignature'];
+
+        $t->same(3, $signatures['originCount']);
+        $t->same(1, $signatures['existingOriginCount']);
+        $t->same(0, $signatures['missingOriginCount']);
+        $t->same(2, $signatures['externalOriginCount']);
+        $t->same(1, $signatures['allowedExternalOriginCount']);
+        $t->same(1, $signatures['unsafeExternalOriginCount']);
+        $t->same(2, $signatures['signatureCount']);
+        $t->same(0, $signatures['existingSignatureCount']);
+        $t->same(0, $signatures['missingSignatureCount']);
+        $t->same(2, $signatures['externalSignatureCount']);
+        $t->same(1, $signatures['allowedExternalSignatureCount']);
+        $t->same(1, $signatures['unsafeExternalSignatureCount']);
+        $t->same(['external-target-unsafe-scheme'], $signatures['externalTargetIssueCodes']);
+        $t->same([
+            'file:///C:/signatures/sig.xml?policy=unsafe#sig',
+            'file:///C:/signatures/origin.sigs?policy=unsafe#origin',
+        ], $signatures['unsafeExternalTargets']);
+        $t->same([
+            'external-signature-origin',
+            'external-signature-target',
+            'external-target-unsafe-scheme',
+        ], $signatures['issueCodes']);
+
+        $t->same(1, $policyOrigin['signatures']['allowedExternalTargetCount']);
+        $t->same(1, $policyOrigin['signatures']['unsafeExternalTargetCount']);
+        $t->same(['external-target-unsafe-scheme'], $policyOrigin['signatures']['externalTargetIssueCodes']);
+        $t->same([
+            'file:///C:/signatures/sig.xml?policy=unsafe#sig',
+        ], $policyOrigin['signatures']['unsafeExternalTargets']);
+        $t->same([], $policyOrigin['issues']);
+
+        $t->same(true, $safeOrigin['external']);
+        $t->same('https', $safeOrigin['externalTargetScheme']);
+        $t->same(true, $safeOrigin['externalTargetAllowed']);
+        $t->same([], $safeOrigin['externalTargetIssues']);
+        $t->same(['external-signature-origin'], $safeOrigin['issues']);
+
+        $t->same(true, $unsafeOrigin['external']);
+        $t->same('file', $unsafeOrigin['externalTargetScheme']);
+        $t->same(false, $unsafeOrigin['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $unsafeOrigin['externalTargetIssues']);
+        $t->same(['external-signature-origin', 'external-target-unsafe-scheme'], $unsafeOrigin['issues']);
+
+        $t->same(true, $safeSignature['external']);
+        $t->same('https', $safeSignature['externalTargetScheme']);
+        $t->same(true, $safeSignature['externalTargetAllowed']);
+        $t->same([], $safeSignature['externalTargetIssues']);
+        $t->same(['external-signature-target'], $safeSignature['issues']);
+
+        $t->same(true, $unsafeSignature['external']);
+        $t->same('file', $unsafeSignature['externalTargetScheme']);
+        $t->same(false, $unsafeSignature['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $unsafeSignature['externalTargetIssues']);
+        $t->same(['external-signature-target', 'external-target-unsafe-scheme'], $unsafeSignature['issues']);
+
+        $t->same(1, $summary['digitalSignatureAllowedExternalOriginCount']);
+        $t->same(1, $summary['digitalSignatureUnsafeExternalOriginCount']);
+        $t->same(1, $summary['digitalSignatureAllowedExternalSignatureCount']);
+        $t->same(1, $summary['digitalSignatureUnsafeExternalSignatureCount']);
+        $t->same(['external-target-unsafe-scheme'], $summary['digitalSignatureExternalTargetIssueCodes']);
+        $t->same(3, $summary['relationshipTypeCounts'][$originType]);
+        $t->same(2, $summary['relationshipTypeCounts'][$signatureType]);
+        $t->same(2, $package['relationshipTypes'][$originType]['externalCount']);
+        $t->same(2, $package['relationshipTypes'][$signatureType]['externalCount']);
+    },
     'preserves docx digital signature package SHA-256 provenance for review handoff' => static function (TestRunner $t): void {
         $originType = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin';
         $signatureType = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature';
