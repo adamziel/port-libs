@@ -193,6 +193,12 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['packageThumbnailReadableCount'] = $packageThumbnails['readableCount'];
         $packageProvenance['summary']['packageThumbnailMissingCount'] = $packageThumbnails['missingCount'];
         $packageProvenance['summary']['packageThumbnailExternalCount'] = $packageThumbnails['externalCount'];
+        $packageProvenance['summary']['packageThumbnailAllowedExternalCount'] = $packageThumbnails['allowedExternalCount'];
+        $packageProvenance['summary']['packageThumbnailUnsafeExternalCount'] = $packageThumbnails['unsafeExternalCount'];
+        $packageProvenance['summary']['packageThumbnailUnsafeExternalTargets'] = $packageThumbnails['unsafeExternalTargets'];
+        $packageProvenance['summary']['packageThumbnailExternalTargetKindCounts'] = $packageThumbnails['externalTargetKindCounts'];
+        $packageProvenance['summary']['packageThumbnailExternalTargetSchemeCounts'] = $packageThumbnails['externalTargetSchemeCounts'];
+        $packageProvenance['summary']['packageThumbnailExternalTargetIssueCodes'] = $packageThumbnails['externalTargetIssueCodes'];
         $packageProvenance['summary']['packageThumbnailInvalidCount'] = $packageThumbnails['invalidCount'];
         $packageProvenance['summary']['packageThumbnailIssueCount'] = $packageThumbnails['issueCount'];
         $packageProvenance['summary']['packageThumbnailIssueCodes'] = $packageThumbnails['issueCodes'];
@@ -19472,6 +19478,10 @@ final class DocxOpenXmlReader
         $relationshipIds = [];
         $targetParts = [];
         $externalTargets = [];
+        $unsafeExternalTargets = [];
+        $externalTargetKindCounts = [];
+        $externalTargetSchemeCounts = [];
+        $externalTargetIssueCodes = [];
         $contentTypesSeen = [];
         $issueCodes = [];
         $rootHasMultipleThumbnails = count($thumbnailRelationships) > 1;
@@ -19490,6 +19500,11 @@ final class DocxOpenXmlReader
             }
             if ($external) {
                 $issues[] = 'external-thumbnail-target';
+                foreach (($summary['externalTargetIssues'] ?? []) as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $issues[] = $issue;
+                    }
+                }
             } elseif (!$exists) {
                 $issues[] = 'missing-in-package';
             }
@@ -19519,6 +19534,10 @@ final class DocxOpenXmlReader
                 'targetQuery' => $summary['targetQuery'],
                 'targetFragment' => $summary['targetFragment'],
                 'targetReferenceSuffix' => $summary['targetReferenceSuffix'],
+                'externalTargetKind' => $summary['externalTargetKind'],
+                'externalTargetScheme' => $summary['externalTargetScheme'],
+                'externalTargetAllowed' => $summary['externalTargetAllowed'],
+                'externalTargetIssues' => $summary['externalTargetIssues'],
                 'contentType' => $summary['contentType'],
                 'contentTypeBase' => $summary['contentTypeBase'],
                 'contentTypeHasParameters' => $summary['contentTypeHasParameters'],
@@ -19551,11 +19570,28 @@ final class DocxOpenXmlReader
             $this->appendUniqueString($targetParts, $targetPart);
             if ($external) {
                 $this->appendUniqueString($externalTargets, is_string($summary['target'] ?? null) ? $summary['target'] : null);
+                if (($summary['externalTargetAllowed'] ?? null) !== true) {
+                    $this->appendUniqueString($unsafeExternalTargets, is_string($summary['target'] ?? null) ? $summary['target'] : null);
+                }
+
+                $kind = is_string($summary['externalTargetKind'] ?? null) ? $summary['externalTargetKind'] : '(unknown)';
+                $externalTargetKindCounts[$kind] = ($externalTargetKindCounts[$kind] ?? 0) + 1;
+                $scheme = is_string($summary['externalTargetScheme'] ?? null) ? $summary['externalTargetScheme'] : '(none)';
+                $externalTargetSchemeCounts[$scheme] = ($externalTargetSchemeCounts[$scheme] ?? 0) + 1;
+
+                foreach (($summary['externalTargetIssues'] ?? []) as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $externalTargetIssueCodes[$issue] = true;
+                    }
+                }
             }
             $this->appendUniqueString($contentTypesSeen, is_string($summary['contentType'] ?? null) ? $summary['contentType'] : null);
         }
 
         ksort($issueCodes, SORT_STRING);
+        ksort($externalTargetKindCounts, SORT_STRING);
+        ksort($externalTargetSchemeCounts, SORT_STRING);
+        ksort($externalTargetIssueCodes, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -19568,11 +19604,23 @@ final class DocxOpenXmlReader
                 static fn (array $item): bool => $item['external'] === false && $item['exists'] === false,
             )),
             'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'allowedExternalCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['external'] === true && ($item['externalTargetAllowed'] ?? null) === true,
+            )),
+            'unsafeExternalCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['external'] === true && ($item['externalTargetAllowed'] ?? null) !== true,
+            )),
             'invalidCount' => count(array_filter($items, static fn (array $item): bool => $item['valid'] !== true)),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'relationshipIds' => $relationshipIds,
             'targetParts' => $targetParts,
             'externalTargets' => $externalTargets,
+            'unsafeExternalTargets' => $unsafeExternalTargets,
+            'externalTargetKindCounts' => $externalTargetKindCounts,
+            'externalTargetSchemeCounts' => $externalTargetSchemeCounts,
+            'externalTargetIssueCodes' => array_keys($externalTargetIssueCodes),
             'contentTypes' => $contentTypesSeen,
             'issueCodes' => array_keys($issueCodes),
             'byRelationshipId' => $byRelationshipId,

@@ -10071,6 +10071,71 @@ XML;
         $t->true(in_array('root-relationship-target', $package['parts']['docProps/thumbnail-review.jpeg']['roles'], true), 'thumbnail root target role missing');
         $t->true(!isset($docx['media']['docProps/thumbnail-review.jpeg']), 'package thumbnail should not be exposed as document media');
     },
+    'reports docx package thumbnail external target policy without fetching targets' => static function (TestRunner $t): void {
+        $thumbnailType = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail';
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSafeThumb" Type="' . $thumbnailType . '" Target="https://example.test/thumb.png?review=safe#preview" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rUnsafeThumb" Type="' . $thumbnailType . '" Target="file:///tmp/private-thumb.png?review=unsafe#preview" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $thumbnails = $package['packageThumbnails'];
+        $safe = $thumbnails['byRelationshipId']['rSafeThumb'];
+        $unsafe = $thumbnails['byRelationshipId']['rUnsafeThumb'];
+
+        $t->same($thumbnails, $docx['packageThumbnails']);
+        $t->same(2, $thumbnails['count']);
+        $t->same(2, $thumbnails['externalCount']);
+        $t->same(1, $thumbnails['allowedExternalCount']);
+        $t->same(1, $thumbnails['unsafeExternalCount']);
+        $t->same([
+            'https://example.test/thumb.png?review=safe#preview',
+            'file:///tmp/private-thumb.png?review=unsafe#preview',
+        ], $thumbnails['externalTargets']);
+        $t->same(['file:///tmp/private-thumb.png?review=unsafe#preview'], $thumbnails['unsafeExternalTargets']);
+        $t->same(['absolute-uri' => 2], $thumbnails['externalTargetKindCounts']);
+        $t->same(['file' => 1, 'https' => 1], $thumbnails['externalTargetSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme'], $thumbnails['externalTargetIssueCodes']);
+
+        $t->same('absolute-uri', $safe['externalTargetKind']);
+        $t->same('https', $safe['externalTargetScheme']);
+        $t->same(true, $safe['externalTargetAllowed']);
+        $t->same([], $safe['externalTargetIssues']);
+        $t->same(['multiple-thumbnail-relationships-for-source', 'external-thumbnail-target'], $safe['issues']);
+        $t->same('review=safe', $safe['targetQuery']);
+        $t->same('preview', $safe['targetFragment']);
+        $t->same(null, $safe['sha256']);
+        $t->same(false, isset($docx['media']['https://example.test/thumb.png?review=safe#preview']));
+
+        $t->same('absolute-uri', $unsafe['externalTargetKind']);
+        $t->same('file', $unsafe['externalTargetScheme']);
+        $t->same(false, $unsafe['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $unsafe['externalTargetIssues']);
+        $t->same([
+            'multiple-thumbnail-relationships-for-source',
+            'external-thumbnail-target',
+            'external-target-unsafe-scheme',
+        ], $unsafe['issues']);
+        $t->same('review=unsafe', $unsafe['targetQuery']);
+        $t->same('preview', $unsafe['targetFragment']);
+        $t->same(null, $unsafe['targetPart']);
+        $t->same(null, $unsafe['sha256']);
+
+        $t->same(2, $summary['packageThumbnailExternalCount']);
+        $t->same(1, $summary['packageThumbnailAllowedExternalCount']);
+        $t->same(1, $summary['packageThumbnailUnsafeExternalCount']);
+        $t->same(['file:///tmp/private-thumb.png?review=unsafe#preview'], $summary['packageThumbnailUnsafeExternalTargets']);
+        $t->same(['absolute-uri' => 2], $summary['packageThumbnailExternalTargetKindCounts']);
+        $t->same(['file' => 1, 'https' => 1], $summary['packageThumbnailExternalTargetSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme'], $summary['packageThumbnailExternalTargetIssueCodes']);
+    },
     'reports docx digital signature package provenance as metadata only' => static function (TestRunner $t): void {
         $originType = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin';
         $signatureType = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature';
