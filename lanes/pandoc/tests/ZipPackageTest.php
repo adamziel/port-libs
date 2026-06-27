@@ -12837,6 +12837,118 @@ return [
         $t->same(null, $summary['entries'][8]['directoryRoot']);
     },
 
+    'summarizes selected zip handoff parent directories for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $contentTypesXml = '<Types/>';
+        $packageRelsXml = '<Relationships/>';
+        $coreXml = '<cp:coreProperties/>';
+        $documentXml = '<w:document><w:body><w:p>parent directory handoff</w:p></w:body></w:document>';
+        $documentRelsXml = '<Relationships><Relationship Id="rIdImage" Target="media/image.png"/></Relationships>';
+        $imageBytes = "parent image bytes\n";
+        $largeBytes = "blocked parent media bytes\n";
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'method' => 0],
+            ['name' => '_rels/.rels', 'data' => $packageRelsXml, 'method' => 0],
+            ['name' => 'docProps/core.xml', 'data' => $coreXml, 'method' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelsXml, 'method' => 0],
+            ['name' => 'word/media/', 'data' => '', 'method' => 0],
+            ['name' => 'word/media/image.png', 'data' => $imageBytes, 'method' => 0],
+            ['name' => 'word/media/large.bin', 'data' => $largeBytes, 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => '[Content_Types].xml', 'required' => true, 'kind' => 'file', 'role' => 'content-types'],
+            ['name' => '_rels/.rels', 'required' => true, 'kind' => 'file', 'role' => 'root-relationships'],
+            ['name' => 'docProps/core.xml', 'required' => false, 'kind' => 'file', 'role' => 'metadata'],
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/_rels/document.xml.rels', 'required' => false, 'kind' => 'file', 'role' => 'document-relationships'],
+            ['name' => 'word/media/', 'required' => false, 'kind' => 'directory', 'role' => 'media-directory'],
+            ['name' => 'word/media/image.png', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'word/media/large.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 8],
+            ['name' => 'word/missing.xml', 'required' => false, 'kind' => 'file', 'role' => 'optional-sidecar'],
+        ], 1024);
+
+        $selectedByParent = [];
+        foreach ($summary['selectedParentDirectorySummaries'] as $parentSummary) {
+            $selectedByParent[$parentSummary['parentDirectory']] = $parentSummary;
+        }
+        $handoffByParent = [];
+        foreach ($summary['handoffParentDirectorySummaries'] as $parentSummary) {
+            $handoffByParent[$parentSummary['parentDirectory']] = $parentSummary;
+        }
+
+        $expectedParents = ['/', '_rels/', 'docProps/', 'word/', 'word/_rels/', 'word/media/'];
+        $t->same(6, $summary['selectedParentDirectoryCount']);
+        $t->same(6, $summary['handoffParentDirectoryCount']);
+        $t->same($expectedParents, array_keys($selectedByParent));
+        $t->same($expectedParents, array_keys($handoffByParent));
+
+        $t->same([
+            'parentDirectory' => '/',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($contentTypesXml),
+            'uncompressedBytes' => strlen($contentTypesXml),
+            'roles' => ['content-types'],
+            'entryNames' => ['[Content_Types].xml'],
+        ], $selectedByParent['/']);
+        $t->same([
+            'parentDirectory' => '_rels/',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($packageRelsXml),
+            'uncompressedBytes' => strlen($packageRelsXml),
+            'roles' => ['root-relationships'],
+            'entryNames' => ['_rels/.rels'],
+        ], $selectedByParent['_rels/']);
+
+        $wordParentBytes = strlen($documentXml);
+        $t->same([
+            'parentDirectory' => 'word/',
+            'entryCount' => 2,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 1,
+            'compressedBytes' => $wordParentBytes,
+            'uncompressedBytes' => $wordParentBytes,
+            'roles' => ['main-document', 'media-directory'],
+            'entryNames' => ['word/document.xml', 'word/media/'],
+        ], $selectedByParent['word/']);
+        $t->same($selectedByParent['word/'], $handoffByParent['word/']);
+
+        $selectedMediaParentBytes = strlen($imageBytes) + strlen($largeBytes);
+        $t->same([
+            'parentDirectory' => 'word/media/',
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => $selectedMediaParentBytes,
+            'uncompressedBytes' => $selectedMediaParentBytes,
+            'roles' => ['media'],
+            'entryNames' => ['word/media/image.png', 'word/media/large.bin'],
+        ], $selectedByParent['word/media/']);
+        $t->same([
+            'parentDirectory' => 'word/media/',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($imageBytes),
+            'uncompressedBytes' => strlen($imageBytes),
+            'roles' => ['media'],
+            'entryNames' => ['word/media/image.png'],
+        ], $handoffByParent['word/media/']);
+
+        $t->same('/', $summary['entries'][0]['parentDirectory']);
+        $t->same('word/', $summary['entries'][5]['parentDirectory']);
+        $t->same('word/media/', $summary['entries'][7]['parentDirectory']);
+        $t->same(null, $summary['entries'][8]['parentDirectory']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
+        $t->same('blocked', $summary['entries'][7]['status']);
+        $t->same('missing-optional', $summary['entries'][8]['status']);
+    },
+
     'summarizes selected zip handoff extension buckets for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
         $mimetype = 'application/epub+zip';
         $contentTypesXml = '<Types/>';
