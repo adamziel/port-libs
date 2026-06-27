@@ -12680,6 +12680,79 @@ return [
         $t->same([], $byStatus['missing-optional']['issueCounts']);
     },
 
+    'summarizes readable zip handoff content digests for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>content digest handoff</w:p></w:body></w:document>';
+        $commentsXml = '<w:comments><w:comment><w:p>digest note</w:p></w:comment></w:comments>';
+        $largeBytes = "blocked digest media bytes\n";
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => 'word/comments.xml', 'data' => $commentsXml, 'method' => 8],
+            ['name' => 'word/media/large.bin', 'data' => $largeBytes, 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => '/word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/comments.xml', 'required' => false, 'kind' => 'file', 'role' => 'comments'],
+            ['name' => 'word/media/large.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 8],
+            ['name' => 'word/missing.xml', 'required' => false, 'kind' => 'file', 'role' => 'optional-sidecar'],
+        ], 1024);
+
+        $expectedEntries = [
+            [
+                'requestIndex' => 0,
+                'requestedName' => '/word/document.xml',
+                'name' => 'word/document.xml',
+                'role' => 'main-document',
+                'required' => true,
+                'expectedKind' => 'file',
+                'status' => 'ready',
+                'bytesRead' => strlen($documentXml),
+                'contentSha256' => hash('sha256', $documentXml),
+                'compressionMethod' => 0,
+                'compressionMethodName' => 'stored',
+                'packagePartKind' => 'markup-part',
+                'directoryRoot' => 'word/',
+                'pathDepth' => 2,
+            ],
+            [
+                'requestIndex' => 1,
+                'requestedName' => 'word/comments.xml',
+                'name' => 'word/comments.xml',
+                'role' => 'comments',
+                'required' => false,
+                'expectedKind' => 'file',
+                'status' => 'ready',
+                'bytesRead' => strlen($commentsXml),
+                'contentSha256' => hash('sha256', $commentsXml),
+                'compressionMethod' => 8,
+                'compressionMethodName' => 'deflated',
+                'packagePartKind' => 'markup-part',
+                'directoryRoot' => 'word/',
+                'pathDepth' => 2,
+            ],
+        ];
+        $expectedManifest = [
+            'manifestVersion' => 'zip-entry-handoff-content-digest-v1',
+            'entries' => $expectedEntries,
+        ];
+        $expectedManifestJson = json_encode(
+            $expectedManifest,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        );
+
+        $t->same(2, $summary['handoffEntryCount']);
+        $t->same(2, $summary['handoffContentDigestEntryCount']);
+        $t->same(strlen($documentXml) + strlen($commentsXml), $summary['handoffContentBytesRead']);
+        $t->same('zip-entry-handoff-content-digest-v1', $summary['handoffContentDigestManifestVersion']);
+        $t->same(hash('sha256', $expectedManifestJson), $summary['handoffContentDigestManifestSha256']);
+        $t->same($expectedEntries, $summary['handoffContentDigestEntries']);
+        $t->same(hash('sha256', $documentXml), $summary['entries'][0]['contentSha256']);
+        $t->same(hash('sha256', $commentsXml), $summary['entries'][1]['contentSha256']);
+        $t->same(null, $summary['entries'][2]['contentSha256']);
+        $t->same(null, $summary['entries'][3]['contentSha256']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
+    },
+
     'summarizes selected zip handoff directory roots for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
         $contentTypesXml = '<Types/>';
         $packageRelsXml = '<Relationships/>';

@@ -5105,6 +5105,11 @@ final class ZipPackage
      *     handoffUnsupportedCompressionMethodEntries:list<array{name:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int}>,
      *     selectedZeroByteEntries:list<array{name:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int,expansionRatio:?float}>,
      *     handoffZeroByteEntries:list<array{requestIndex:int,requestedName:string,name:string,role:?string,required:bool,expectedKind:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int,expansionRatio:?float}>,
+     *     handoffContentDigestEntryCount:int,
+     *     handoffContentBytesRead:int,
+     *     handoffContentDigestManifestVersion:string,
+     *     handoffContentDigestManifestSha256:string,
+     *     handoffContentDigestEntries:list<array<string, mixed>>,
      *     selectedUnknownExpansionRatioEntries:list<array{name:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int,expansionRatio:?float}>,
      *     selectedRawNameProvenanceEntries:list<array<string, mixed>>,
      *     selectedCommentedEntries:list<array<string, mixed>>,
@@ -5984,6 +5989,7 @@ final class ZipPackage
         $handoffPathDepthSummaries = self::entryHandoffPathDepthSummaries($handoffEntries);
         $roleSummaries = self::entryHandoffRoleSummaries($entries);
         $handoffSourceByteSpanSummary = self::entryHandoffSourceByteSpanSummary($handoffEntries);
+        $handoffContentDigestSummary = self::entryHandoffContentDigestSummary($handoffEntries);
         $requirementSummaries = self::entryHandoffRequirementSummaries($entries);
         $statusSummaries = self::entryHandoffStatusSummaries($entries);
 
@@ -6133,6 +6139,10 @@ final class ZipPackage
             'handoffSourceTotalRecordBytes' => $handoffSourceByteSpanSummary['sourceRecordBytes'],
             'handoffSourceByteSpanIssueCount' => count($handoffSourceByteSpanSummary['issues']),
             'handoffSourceByteSpanIssues' => $handoffSourceByteSpanSummary['issues'],
+            'handoffContentDigestEntryCount' => $handoffContentDigestSummary['entryCount'],
+            'handoffContentBytesRead' => $handoffContentDigestSummary['bytesRead'],
+            'handoffContentDigestManifestVersion' => $handoffContentDigestSummary['manifestVersion'],
+            'handoffContentDigestManifestSha256' => $handoffContentDigestSummary['manifestSha256'],
             'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
             'maxTotalUncompressedBytes' => $maxTotalUncompressedBytes,
             'isSupportedByBoundedReader' => $issues === [],
@@ -6172,10 +6182,66 @@ final class ZipPackage
             'selectedDataDescriptorIssueEntries' => $selectedDataDescriptorIssueEntries,
             'selectedSourceByteSpanEntries' => $selectedSourceByteSpanEntries,
             'handoffSourceByteSpanEntries' => $handoffSourceByteSpanSummary['entries'],
+            'handoffContentDigestEntries' => $handoffContentDigestSummary['entries'],
             'missingEntries' => $missingEntries,
             'failedEntries' => $failedEntries,
             'handoffEntries' => $handoffEntries,
             'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array{manifestVersion:string, entryCount:int, bytesRead:int, manifestSha256:string, entries:list<array<string, mixed>>}
+     */
+    private static function entryHandoffContentDigestSummary(array $entries): array
+    {
+        $manifestVersion = 'zip-entry-handoff-content-digest-v1';
+        $digestEntries = [];
+        $bytesReadTotal = 0;
+        foreach ($entries as $entry) {
+            if (($entry['status'] ?? null) !== 'ready' || ($entry['isReadable'] ?? false) !== true) {
+                continue;
+            }
+
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            $contentSha256 = is_string($entry['contentSha256'] ?? null) ? $entry['contentSha256'] : null;
+            $bytesRead = is_int($entry['bytesRead'] ?? null) ? $entry['bytesRead'] : null;
+            if ($name === '' || $contentSha256 === null || $bytesRead === null) {
+                continue;
+            }
+
+            $bytesReadTotal += $bytesRead;
+            $digestEntries[] = [
+                'requestIndex' => is_int($entry['requestIndex'] ?? null) ? $entry['requestIndex'] : null,
+                'requestedName' => is_string($entry['requestedName'] ?? null) ? $entry['requestedName'] : '',
+                'name' => $name,
+                'role' => is_string($entry['role'] ?? null) ? $entry['role'] : null,
+                'required' => ($entry['required'] ?? false) === true,
+                'expectedKind' => is_string($entry['expectedKind'] ?? null) ? $entry['expectedKind'] : null,
+                'status' => 'ready',
+                'bytesRead' => $bytesRead,
+                'contentSha256' => $contentSha256,
+                'compressionMethod' => is_int($entry['compressionMethod'] ?? null) ? $entry['compressionMethod'] : null,
+                'compressionMethodName' => is_string($entry['compressionMethodName'] ?? null) ? $entry['compressionMethodName'] : null,
+                'packagePartKind' => is_string($entry['packagePartKind'] ?? null) ? $entry['packagePartKind'] : null,
+                'directoryRoot' => is_string($entry['directoryRoot'] ?? null) ? $entry['directoryRoot'] : null,
+                'pathDepth' => is_int($entry['pathDepth'] ?? null) ? $entry['pathDepth'] : null,
+            ];
+        }
+
+        $manifest = [
+            'manifestVersion' => $manifestVersion,
+            'entries' => $digestEntries,
+        ];
+        $manifestJson = json_encode($manifest, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+        return [
+            'manifestVersion' => $manifestVersion,
+            'entryCount' => count($digestEntries),
+            'bytesRead' => $bytesReadTotal,
+            'manifestSha256' => hash('sha256', $manifestJson),
+            'entries' => $digestEntries,
         ];
     }
 
