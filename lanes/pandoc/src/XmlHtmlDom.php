@@ -15412,6 +15412,7 @@ final class XmlHtmlDom
             'alternate' => 'alternate',
             'canonical' => 'canonical',
             'dns-prefetch' => 'resource-hint',
+            'expect' => 'expect',
             'icon' => 'icon',
             'manifest' => 'manifest',
             'modulepreload' => 'modulepreload',
@@ -15510,9 +15511,11 @@ final class XmlHtmlDom
         $invalidBlockingTokens = $blocking['invalid'];
         $duplicateBlockingTokens = $blocking['duplicates'];
         $renderBlockingTokenPresent = isset($blockingTokenCounts['render']);
+        $hasExpect = in_array('expect', $normalized, true);
         $renderBlockingResourceCandidate = in_array('stylesheet', $resourceKinds, true)
             || in_array('preload', $resourceKinds, true)
-            || in_array('modulepreload', $resourceKinds, true);
+            || in_array('modulepreload', $resourceKinds, true)
+            || $hasExpect;
         $blockingReviewKind = match (true) {
             $blockingRaw === null => 'not-declared',
             $blockingTokens === [] => 'empty-blocking-attribute',
@@ -15648,7 +15651,88 @@ final class XmlHtmlDom
                 $fetchPolicyIssues
             ))),
             'linkFetchPolicyValid' => $fetchPolicyIssues === [],
+        ] + self::linkExpectReviewSummary($link, $normalized, $renderBlockingTokenPresent);
+    }
+
+    /**
+     * @param list<string> $relTokens
+     * @return array<string, mixed>
+     */
+    private static function linkExpectReviewSummary(\DOMElement $link, array $relTokens, bool $renderBlockingTokenPresent): array
+    {
+        if (!in_array('expect', $relTokens, true)) {
+            return [];
+        }
+
+        $href = self::attributeOrNull($link, 'href');
+        $hrefSummary = self::hyperlinkUrlReviewSummary($href);
+        $sameDocumentFragment = ($hrefSummary['kind'] ?? null) === 'fragment';
+        $fragment = $sameDocumentFragment ? self::hyperlinkFragmentTargetSummary($link, $href) : [];
+        $issues = [];
+
+        if (!$renderBlockingTokenPresent) {
+            $issues[] = ['code' => 'missing-link-expect-render-blocking'];
+        }
+        if ($href === null || trim($href) === '') {
+            $issues[] = ['code' => 'missing-link-expect-href'];
+        } elseif (!$sameDocumentFragment) {
+            $issues[] = [
+                'code' => 'non-fragment-link-expect-href',
+                'href' => $href,
+                'hrefKind' => $hrefSummary['kind'],
+            ];
+        } else {
+            foreach (($fragment['hrefFragmentIssues'] ?? []) as $issue) {
+                if (is_array($issue)) {
+                    $issues[] = $issue;
+                }
+            }
+        }
+
+        return [
+            'linkExpectReviewPolicy' => 'link-expect-internal-resource-target-review',
+            'linkExpectInternalResourceLink' => true,
+            'linkExpectHrefRaw' => $href,
+            'linkExpectHrefKind' => $hrefSummary['kind'],
+            'linkExpectHrefScheme' => $hrefSummary['scheme'],
+            'linkExpectHrefUnsafe' => $hrefSummary['unsafe'],
+            'linkExpectSameDocumentFragment' => $sameDocumentFragment,
+            'linkExpectFragmentRaw' => $fragment['hrefFragmentRaw'] ?? null,
+            'linkExpectTarget' => $fragment['hrefFragmentTarget'] ?? null,
+            'linkExpectTargetValid' => $fragment['hrefFragmentTargetValid'] ?? null,
+            'linkExpectDocumentTop' => $fragment['hrefFragmentDocumentTop'] ?? false,
+            'linkExpectTargetFound' => $fragment['hrefFragmentTargetFound'] ?? false,
+            'linkExpectTargetCount' => $fragment['hrefFragmentTargetCount'] ?? 0,
+            'linkExpectTargetKind' => self::linkExpectTargetKind($href, $hrefSummary, $fragment),
+            'linkExpectTargetElement' => $fragment['hrefFragmentTargetElement'] ?? null,
+            'linkExpectTargetElements' => $fragment['hrefFragmentTargetElements'] ?? [],
+            'linkExpectRenderBlockingTokenPresent' => $renderBlockingTokenPresent,
+            'linkExpectPotentiallyRenderBlocking' => $renderBlockingTokenPresent && $sameDocumentFragment,
+            'linkExpectParserStackKnown' => false,
+            'linkExpectBrowserExecution' => false,
+            'linkExpectIssues' => $issues,
+            'linkExpectIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'linkExpectValid' => $issues === [],
         ];
+    }
+
+    /**
+     * @param array{kind:string, scheme:?string, unsafe:bool} $hrefSummary
+     * @param array<string, mixed> $fragment
+     */
+    private static function linkExpectTargetKind(?string $href, array $hrefSummary, array $fragment): string
+    {
+        if ($href === null || trim($href) === '') {
+            return 'missing-href';
+        }
+        if (($hrefSummary['kind'] ?? null) !== 'fragment') {
+            return 'non-fragment-href';
+        }
+
+        return (string) ($fragment['hrefFragmentTargetKind'] ?? 'missing-target');
     }
 
     /**
