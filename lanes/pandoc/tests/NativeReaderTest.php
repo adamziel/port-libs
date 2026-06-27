@@ -403,7 +403,7 @@ return [
             'quoted',
             'math',
             'raw_html_inline',
-            'raw_tex',
+            'raw_tex_inline',
             'raw_markdown',
             'raw_inline',
             'span',
@@ -1802,7 +1802,7 @@ return [
             'text',
             'quoted',
             'text',
-            'raw_tex',
+            'raw_tex_inline',
             'text',
             'math',
         ], array_map(static fn ($node): string => $node->type, $paragraph->children));

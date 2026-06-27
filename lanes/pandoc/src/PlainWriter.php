@@ -669,7 +669,7 @@ final class PlainWriter
             'link' => $this->renderLink($node),
             'image' => $this->renderImage($node),
             'citation', 'citation_group' => (string) $node->attr('rendered', $node->attr('text', $this->renderInlines($node->children))),
-            'raw_inline', 'raw_markdown', 'raw_tex', 'raw_html_inline' => (string) $node->attr('text', $node->attr('markdown', $node->attr('tex', $node->attr('html', '')))),
+            'raw_inline', 'raw_markdown', 'raw_tex', 'raw_tex_inline', 'raw_html_inline' => (string) $node->attr('text', $node->attr('markdown', $node->attr('tex', $node->attr('html', '')))),
             'note' => $this->renderBlockCollection($node->children),
             default => $this->renderInlines($node->children),
         };
@@ -705,6 +705,7 @@ final class PlainWriter
             'raw_inline',
             'raw_markdown',
             'raw_tex',
+            'raw_tex_inline',
             'raw_html_inline',
             'note',
             'emph',
