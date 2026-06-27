@@ -10477,6 +10477,24 @@ return [
                 'isSupported' => false,
             ],
         ];
+        $handoffCompressionMethodBuckets = [
+            [
+                'compressionMethod' => 0,
+                'compressionMethodName' => 'stored',
+                'entryCount' => 1,
+                'compressedBytes' => strlen($imageBytes),
+                'uncompressedBytes' => strlen($imageBytes),
+                'isSupported' => true,
+            ],
+            [
+                'compressionMethod' => 8,
+                'compressionMethodName' => 'deflated',
+                'entryCount' => 1,
+                'compressedBytes' => $documentCompressed,
+                'uncompressedBytes' => strlen($documentXml),
+                'isSupported' => true,
+            ],
+        ];
 
         $t->same(8, $summary['requestedEntryCount']);
         $t->same(4, $summary['requiredEntryCount']);
@@ -10495,6 +10513,13 @@ return [
         $t->same(1, $summary['missingRequiredEntryCount']);
         $t->same(1, $summary['missingOptionalEntryCount']);
         $t->same(2, $summary['handoffEntryCount']);
+        $t->same(2, $summary['handoffCompressionMethodBucketCount']);
+        $t->same(1, $summary['handoffStoredEntryCount']);
+        $t->same(1, $summary['handoffDeflatedEntryCount']);
+        $t->same(0, $summary['handoffUnsupportedCompressionMethodCount']);
+        $t->same(2, $summary['handoffSupportedCompressionMethodEntryCount']);
+        $t->same($handoffCompressionMethodBuckets, $summary['handoffCompressionMethodBuckets']);
+        $t->same([], $summary['handoffUnsupportedCompressionMethodEntries']);
         $t->same(2, $summary['readableEntryCount']);
         $t->same(5, $summary['failedEntryCount']);
         $t->same(1, $summary['directoryMismatchEntryCount']);
@@ -10607,6 +10632,110 @@ return [
         $t->same([], $safeSummary['issues']);
         $t->same(2, $safeSummary['handoffEntryCount']);
         $t->same(2, $safeSummary['readableEntryCount']);
+    },
+
+    'summarizes readable zip handoff compression buckets for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $contentTypesXml = '<Types/>';
+        $documentXml = '<w:document><w:body><w:p>handoff compression buckets</w:p></w:body></w:document>';
+        $imageBytes = "readable stored image bytes\n";
+        $largeBytes = "blocked stored media bytes\n";
+        $unsupportedBytes = "unsupported compression payload\n";
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'method' => 8],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 8],
+            ['name' => 'word/media/image.png', 'data' => $imageBytes, 'method' => 0],
+            ['name' => 'word/media/large.bin', 'data' => $largeBytes, 'method' => 0],
+            [
+                'name' => 'word/media/unsupported.bin',
+                'data' => $unsupportedBytes,
+                'method' => 12,
+                'centralCompressedSize' => strlen($unsupportedBytes),
+                'centralUncompressedSize' => strlen($unsupportedBytes),
+                'localCompressedSize' => strlen($unsupportedBytes),
+                'localUncompressedSize' => strlen($unsupportedBytes),
+            ],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => '[Content_Types].xml', 'required' => true, 'kind' => 'file', 'role' => 'content-types'],
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/media/image.png', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'word/media/large.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 8],
+            ['name' => 'word/media/unsupported.bin', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+        ], 1024);
+
+        $selectedDeflatedCompressed = strlen(gzdeflate($contentTypesXml)) + strlen(gzdeflate($documentXml));
+        $selectedStoredBytes = strlen($imageBytes) + strlen($largeBytes);
+        $unsupportedEntry = [
+            'name' => 'word/media/unsupported.bin',
+            'compressionMethod' => 12,
+            'isDirectory' => false,
+            'compressedSize' => strlen($unsupportedBytes),
+            'uncompressedSize' => strlen($unsupportedBytes),
+        ];
+
+        $t->same(5, $summary['selectedUniqueEntryCount']);
+        $t->same(3, $summary['selectedCompressionMethodBucketCount']);
+        $t->same(2, $summary['selectedStoredEntryCount']);
+        $t->same(2, $summary['selectedDeflatedEntryCount']);
+        $t->same(1, $summary['selectedUnsupportedCompressionMethodCount']);
+        $t->same([
+            [
+                'compressionMethod' => 0,
+                'compressionMethodName' => 'stored',
+                'entryCount' => 2,
+                'compressedBytes' => $selectedStoredBytes,
+                'uncompressedBytes' => $selectedStoredBytes,
+                'isSupported' => true,
+            ],
+            [
+                'compressionMethod' => 8,
+                'compressionMethodName' => 'deflated',
+                'entryCount' => 2,
+                'compressedBytes' => $selectedDeflatedCompressed,
+                'uncompressedBytes' => strlen($contentTypesXml) + strlen($documentXml),
+                'isSupported' => true,
+            ],
+            [
+                'compressionMethod' => 12,
+                'compressionMethodName' => 'unsupported',
+                'entryCount' => 1,
+                'compressedBytes' => strlen($unsupportedBytes),
+                'uncompressedBytes' => strlen($unsupportedBytes),
+                'isSupported' => false,
+            ],
+        ], $summary['selectedCompressionMethodBuckets']);
+        $t->same([$unsupportedEntry], $summary['selectedUnsupportedCompressionMethodEntries']);
+
+        $t->same(3, $summary['handoffEntryCount']);
+        $t->same(2, $summary['handoffCompressionMethodBucketCount']);
+        $t->same(1, $summary['handoffStoredEntryCount']);
+        $t->same(2, $summary['handoffDeflatedEntryCount']);
+        $t->same(0, $summary['handoffUnsupportedCompressionMethodCount']);
+        $t->same(3, $summary['handoffSupportedCompressionMethodEntryCount']);
+        $t->same([
+            [
+                'compressionMethod' => 0,
+                'compressionMethodName' => 'stored',
+                'entryCount' => 1,
+                'compressedBytes' => strlen($imageBytes),
+                'uncompressedBytes' => strlen($imageBytes),
+                'isSupported' => true,
+            ],
+            [
+                'compressionMethod' => 8,
+                'compressionMethodName' => 'deflated',
+                'entryCount' => 2,
+                'compressedBytes' => $selectedDeflatedCompressed,
+                'uncompressedBytes' => strlen($contentTypesXml) + strlen($documentXml),
+                'isSupported' => true,
+            ],
+        ], $summary['handoffCompressionMethodBuckets']);
+        $t->same([], $summary['handoffUnsupportedCompressionMethodEntries']);
+        $t->same(['entry-uncompressed-size-exceeds-limit', 'unreadable-entry'], $summary['issues']);
+        $t->same('blocked', $summary['entries'][3]['status']);
+        $t->same('blocked', $summary['entries'][4]['status']);
     },
 
     'preflights selected zip entry raw name provenance before reader handoff' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {

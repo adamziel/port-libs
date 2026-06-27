@@ -5037,6 +5037,7 @@ final class ZipPackage
      *     selectedDeflatedEntryCount:int,
      *     selectedUnsupportedCompressionMethodCount:int,
      *     selectedSupportedCompressionMethodEntryCount:int,
+     *     selectedCompressionMethodBucketCount:int,
      *     selectedUnknownExpansionRatioEntryCount:int,
      *     selectedHasUnknownExpansionRatioEntries:bool,
      *     missingEntryCount:int,
@@ -5046,11 +5047,16 @@ final class ZipPackage
      *     handoffDirectoryRootCount:int,
      *     handoffExtensionBucketCount:int,
      *     handoffExtensionlessFileEntryCount:int,
+     *     handoffCompressionMethodBucketCount:int,
      *     readableEntryCount:int,
      *     handoffZeroByteEntryCount:int,
      *     handoffZeroByteFileCount:int,
      *     handoffEmptyDirectoryEntryCount:int,
      *     handoffHasZeroByteEntries:bool,
+     *     handoffStoredEntryCount:int,
+     *     handoffDeflatedEntryCount:int,
+     *     handoffUnsupportedCompressionMethodCount:int,
+     *     handoffSupportedCompressionMethodEntryCount:int,
      *     failedEntryCount:int,
      *     directoryMismatchEntryCount:int,
      *     oversizedEntryCount:int,
@@ -5094,7 +5100,9 @@ final class ZipPackage
      *     selectedExtensionSummaries:list<array<string, mixed>>,
      *     handoffExtensionSummaries:list<array<string, mixed>>,
      *     selectedCompressionMethodBuckets:list<array{compressionMethod:int,compressionMethodName:string,entryCount:int,compressedBytes:int,uncompressedBytes:int,isSupported:bool}>,
+     *     handoffCompressionMethodBuckets:list<array{compressionMethod:int,compressionMethodName:string,entryCount:int,compressedBytes:int,uncompressedBytes:int,isSupported:bool}>,
      *     selectedUnsupportedCompressionMethodEntries:list<array{name:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int}>,
+     *     handoffUnsupportedCompressionMethodEntries:list<array{name:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int}>,
      *     selectedZeroByteEntries:list<array{name:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int,expansionRatio:?float}>,
      *     handoffZeroByteEntries:list<array{requestIndex:int,requestedName:string,name:string,role:?string,required:bool,expectedKind:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int,expansionRatio:?float}>,
      *     selectedUnknownExpansionRatioEntries:list<array{name:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int,expansionRatio:?float}>,
@@ -5911,10 +5919,35 @@ final class ZipPackage
             $entries[] = $summary;
         }
 
+        $handoffCompressionMethodBuckets = [];
+        $handoffUnsupportedCompressionMethodEntries = [];
+        $handoffStoredEntryCount = 0;
+        $handoffDeflatedEntryCount = 0;
         $handoffZeroByteEntries = [];
         $handoffZeroByteFileCount = 0;
         $handoffEmptyDirectoryEntryCount = 0;
         foreach ($handoffEntries as $handoffEntry) {
+            $compressionMethod = (int) $handoffEntry['compressionMethod'];
+            if ($compressionMethod === 0) {
+                ++$handoffStoredEntryCount;
+            } elseif ($compressionMethod === 8) {
+                ++$handoffDeflatedEntryCount;
+            } else {
+                $handoffUnsupportedCompressionMethodEntries[] = [
+                    'name' => $handoffEntry['name'],
+                    'compressionMethod' => $compressionMethod,
+                    'isDirectory' => $handoffEntry['isDirectory'],
+                    'compressedSize' => $handoffEntry['compressedSize'],
+                    'uncompressedSize' => $handoffEntry['uncompressedSize'],
+                ];
+            }
+            self::addCompressionMethodBucket(
+                $handoffCompressionMethodBuckets,
+                $compressionMethod,
+                (int) $handoffEntry['compressedSize'],
+                (int) $handoffEntry['uncompressedSize']
+            );
+
             if ($handoffEntry['uncompressedSize'] !== 0) {
                 continue;
             }
@@ -5982,6 +6015,7 @@ final class ZipPackage
             'selectedDeflatedEntryCount' => $selectedDeflatedEntryCount,
             'selectedUnsupportedCompressionMethodCount' => count($selectedUnsupportedCompressionMethodEntries),
             'selectedSupportedCompressionMethodEntryCount' => count($selectedEntriesByName) - count($selectedUnsupportedCompressionMethodEntries),
+            'selectedCompressionMethodBucketCount' => count($selectedCompressionMethodBuckets),
             'selectedUnknownExpansionRatioEntryCount' => count($selectedUnknownExpansionRatioEntries),
             'selectedHasUnknownExpansionRatioEntries' => $selectedUnknownExpansionRatioEntries !== [],
             'missingEntryCount' => count($missingEntries),
@@ -5994,6 +6028,7 @@ final class ZipPackage
             'handoffRelationshipPartEntryCount' => self::entryHandoffKindEntryCount($handoffPackagePartKindSummaries, 'relationship-part'),
             'handoffExtensionBucketCount' => count($handoffExtensionSummaries),
             'handoffExtensionlessFileEntryCount' => self::entryHandoffExtensionlessFileEntryCount($handoffExtensionSummaries),
+            'handoffCompressionMethodBucketCount' => count($handoffCompressionMethodBuckets),
             'handoffOrderMismatchEntryCount' => $handoffOrderSummary['mismatchEntryCount'],
             'handoffCentralDirectoryOrderMatchesLocalHeaderOrder' => $handoffOrderSummary['centralDirectoryOrderMatchesLocalHeaderOrder'],
             'handoffRequestOrderMatchesCentralDirectoryOrder' => $handoffOrderSummary['requestOrderMatchesCentralDirectoryOrder'],
@@ -6005,6 +6040,10 @@ final class ZipPackage
             'handoffZeroByteFileCount' => $handoffZeroByteFileCount,
             'handoffEmptyDirectoryEntryCount' => $handoffEmptyDirectoryEntryCount,
             'handoffHasZeroByteEntries' => $handoffZeroByteEntries !== [],
+            'handoffStoredEntryCount' => $handoffStoredEntryCount,
+            'handoffDeflatedEntryCount' => $handoffDeflatedEntryCount,
+            'handoffUnsupportedCompressionMethodCount' => count($handoffUnsupportedCompressionMethodEntries),
+            'handoffSupportedCompressionMethodEntryCount' => count($handoffEntries) - count($handoffUnsupportedCompressionMethodEntries),
             'failedEntryCount' => count($failedEntries),
             'directoryMismatchEntryCount' => $directoryMismatchEntryCount,
             'oversizedEntryCount' => $oversizedEntryCount,
@@ -6106,7 +6145,9 @@ final class ZipPackage
             'selectedPathDepthSummaries' => $selectedPathDepthSummaries,
             'handoffPathDepthSummaries' => $handoffPathDepthSummaries,
             'selectedCompressionMethodBuckets' => self::compressionMethodBuckets($selectedCompressionMethodBuckets),
+            'handoffCompressionMethodBuckets' => self::compressionMethodBuckets($handoffCompressionMethodBuckets),
             'selectedUnsupportedCompressionMethodEntries' => $selectedUnsupportedCompressionMethodEntries,
+            'handoffUnsupportedCompressionMethodEntries' => $handoffUnsupportedCompressionMethodEntries,
             'selectedZeroByteEntries' => $selectedZeroByteEntries,
             'handoffZeroByteEntries' => $handoffZeroByteEntries,
             'selectedUnknownExpansionRatioEntries' => $selectedUnknownExpansionRatioEntries,
