@@ -19087,6 +19087,7 @@ final class XmlHtmlDom
             $summary['isRaw'] = $attributes['is'];
             $summary['customElementName'] = $custom['name'];
             $summary['customElementValid'] = $custom['valid'];
+            $summary += self::customizedBuiltInElementSummary($element, $attributes['is']);
         }
 
         if (array_key_exists('accesskey', $attributes)) {
@@ -21817,6 +21818,64 @@ final class XmlHtmlDom
             'customElementTagReservedName' => $reserved,
             'customElementTagIssueCodes' => $issues,
             'autonomousCustomElement' => $valid,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function customizedBuiltInElementSummary(\DOMElement $element, string $raw): array
+    {
+        $hostName = self::htmlElementName($element);
+        $customElement = self::customElementNameSummary($raw);
+        $customName = $customElement['name'];
+        $reserved = is_string($customName) && isset(self::HTML_CUSTOM_ELEMENT_RESERVED_NAMES[$customName]);
+        $autonomousHost = str_contains($hostName, '-');
+        $issues = [];
+
+        if (!$customElement['valid']) {
+            $issues[] = [
+                'code' => 'invalid-custom-element-name',
+                'isRaw' => $raw,
+            ];
+        }
+        if ($reserved) {
+            $issues[] = [
+                'code' => 'reserved-custom-element-name',
+                'customElementName' => $customName,
+            ];
+        }
+        if ($autonomousHost) {
+            $issues[] = [
+                'code' => 'is-attribute-on-autonomous-custom-element',
+                'hostName' => $hostName,
+                'customElementName' => $customName,
+            ];
+        }
+
+        $validCustomName = $customElement['valid'] && !$reserved;
+        $valid = $validCustomName && !$autonomousHost;
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+
+        return [
+            'customizedBuiltInReviewPolicy' => 'html-customized-built-in-upgrade-review',
+            'customizedBuiltInHostName' => $hostName,
+            'customizedBuiltInHostKind' => $autonomousHost ? 'autonomous-custom-element' : 'built-in-element',
+            'customizedBuiltInHostIsAutonomous' => $autonomousHost,
+            'customizedBuiltInHostIsBuiltIn' => !$autonomousHost,
+            'customizedBuiltInNameRaw' => $raw,
+            'customizedBuiltInName' => $customName,
+            'customizedBuiltInNameValid' => $validCustomName,
+            'customizedBuiltInReservedName' => $reserved,
+            'customizedBuiltInElement' => $valid,
+            'customizedBuiltInWouldUpgrade' => $valid,
+            'customizedBuiltInReviewOnlyNoRegistryLookup' => true,
+            'customizedBuiltInIssues' => $issues,
+            'customizedBuiltInIssueCodes' => $issueCodes,
+            'customizedBuiltInValid' => $valid,
         ];
     }
 
