@@ -902,6 +902,117 @@ BIB;
         $t->same('print-on-demand packet', $item['medium']);
         $t->same('Gia Garcia. Migration Manual. Review Press. 2026.', $bibliography);
     },
+    'carries biblatex literal list metadata in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{distributed-source,
+  author        = {Curator, Eli},
+  title         = {Distributed Source Review},
+  date          = {2026},
+  publisher     = {{Review Press} and {Archive Desk}},
+  location      = {{New York} and {London}},
+  language      = {{english} and {french}},
+  origpublisher = {{Archivo Press} and {Migration Desk}},
+  origlocation  = {{Madrid} and {Barcelona}},
+  origlanguage  = {{spanish} and {catalan}},
+  url           = {https://example.test/distributed-source}
+}
+
+@proceedings{distributed-venue,
+  editor     = {Program, Pat},
+  title      = {Distributed Venue Proceedings},
+  eventtitle = {Migration Review Summit},
+  venue      = {{Portland Convention Center} and {Remote Stream}},
+  date       = {2025},
+  institution = {{Migration Board} and {Source Lab}},
+  address     = {{Remote} and {Portland}}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $sourceItem = $items['distributed-source'];
+        $venueItem = $items['distributed-venue'];
+
+        $t->same('Review Press; Archive Desk', $sourceItem['publisher']);
+        $t->same(['Review Press', 'Archive Desk'], $sourceItem['publisher-list']);
+        $t->same('New York; London', $sourceItem['publisher-place']);
+        $t->same(['New York', 'London'], $sourceItem['publisher-place-list']);
+        $t->same('english; french', $sourceItem['language']);
+        $t->same(['english', 'french'], $sourceItem['language-list']);
+        $t->same(['Archivo Press', 'Migration Desk'], $sourceItem['original-publisher-list']);
+        $t->same(['Madrid', 'Barcelona'], $sourceItem['original-publisher-place-list']);
+        $t->same(['spanish', 'catalan'], $sourceItem['original-language-list']);
+        $t->same('Review Press and Archive Desk', $sourceItem['rawBibtex']['fields']['publisher']);
+        $t->same('Portland Convention Center; Remote Stream', $venueItem['event-place']);
+        $t->same(['Portland Convention Center', 'Remote Stream'], $venueItem['event-place-list']);
+        $t->same(['Migration Board', 'Source Lab'], $venueItem['publisher-list']);
+        $t->same(['Remote', 'Portland'], $venueItem['publisher-place-list']);
+        $t->same(
+            'Eli Curator. Distributed Source Review. Review Press; Archive Desk. 2026. https://example.test/distributed-source.',
+            $processor->renderBibliographyText($sourceItem)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Literal List Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-literal-list-review</id>
+    <updated>2026-06-27T10:40:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author editor"/>
+        <text variable="publisher-list"/>
+        <text variable="publisher-place-list"/>
+        <text variable="event-place-list"/>
+        <text variable="language-list"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="publisher-list"/>
+      <text variable="publisher-place-list"/>
+      <text variable="event-place-list"/>
+      <text variable="language-list"/>
+      <text variable="original-publisher-list"/>
+      <text variable="original-publisher-place-list"/>
+      <text variable="original-language-list"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $styledSource = $styled->item('distributed-source');
+        $styledVenue = $styled->item('distributed-venue');
+        $t->same('Bounded Legacy BibLaTeX Literal List Review', $summary['title'] ?? null);
+        $t->same(['Review Press', 'Archive Desk'], $styledSource['publisherList'] ?? null);
+        $t->same(['Portland Convention Center', 'Remote Stream'], $styledVenue['eventPlaceList'] ?? null);
+        $t->same('[Curator | Review Press; Archive Desk | New York; London | english; french; Program | Migration Board; Source Lab | Remote; Portland | Portland Convention Center; Remote Stream]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'distributed-source', 'text' => '[@distributed-source]']),
+            new AstNode('citation', ['id' => 'distributed-venue', 'text' => '[@distributed-venue]']),
+        ]));
+        $t->same(
+            'Distributed Source Review :: Review Press; Archive Desk :: New York; London :: english; french :: Archivo Press; Migration Desk :: Madrid; Barcelona :: spanish; catalan',
+            $styled->renderBibliographyEntry('distributed-source')
+        );
+        $t->same('Distributed Venue Proceedings :: Migration Board; Source Lab :: Remote; Portland :: Portland Convention Center; Remote Stream', $styled->renderBibliographyEntry('distributed-venue'));
+
+        $document = (new MarkdownReader())->read('Distributed source [@distributed-source; @distributed-venue] keep literal lists visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['distributed-source', 'distributed-venue'], $handoff['citedKeys']);
+        $t->same(['Review Press', 'Archive Desk'], $handoff['items'][0]['publisher-list'] ?? null);
+        $t->same(['Portland Convention Center', 'Remote Stream'], $handoff['items'][1]['event-place-list'] ?? null);
+        $t->contains('<p>Distributed source [Curator | Review Press; Archive Desk | New York; London | english; french; Program | Migration Board; Source Lab | Remote; Portland | Portland Convention Center; Remote Stream] keep literal lists visible.</p>', $blocks);
+        $t->contains('<dt>Curator 2026</dt><dd>Distributed Source Review :: Review Press; Archive Desk :: New York; London :: english; french :: Archivo Press; Migration Desk :: Madrid; Barcelona :: spanish; catalan</dd>', $blocks);
+        $t->contains('<dt>Program 2025</dt><dd>Distributed Venue Proceedings :: Migration Board; Source Lab :: Remote; Portland :: Portland Convention Center; Remote Stream</dd>', $blocks);
+    },
     'carries biblatex translated title aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @book{translated-title-source,

@@ -804,6 +804,13 @@ final class BibtexCslProcessor
             }
             $item[$target] = $target === 'page' ? str_replace('--', '-', $value) : $value;
         }
+        $this->applyLiteralListField($item, $fields, 'publisher', ['publisher', 'institution', 'school', 'organization'], 'publisher-list');
+        $this->applyLiteralListField($item, $fields, 'publisher-place', ['address', 'location', 'publisher-place'], 'publisher-place-list');
+        $this->applyLiteralListField($item, $fields, 'event-place', ['venue', 'eventvenue', 'eventlocation', 'eventplace', 'event-place', 'event-location'], 'event-place-list');
+        $this->applyLiteralListField($item, $fields, 'language', ['language', 'langid', 'hyphenation'], 'language-list');
+        $this->applyLiteralListField($item, $fields, 'original-publisher', ['origpublisher', 'originalpublisher', 'original-publisher'], 'original-publisher-list');
+        $this->applyLiteralListField($item, $fields, 'original-publisher-place', ['origlocation', 'origaddress', 'originalpublisherplace', 'original-publisher-place'], 'original-publisher-place-list');
+        $this->applyLiteralListField($item, $fields, 'original-language', ['origlanguage', 'originallanguage', 'original-language'], 'original-language-list');
         $this->normalizeIdentifierFields($item);
 
         $thesisType = $this->thesisTypeForEntry($type, $fields);
@@ -1297,6 +1304,27 @@ final class BibtexCslProcessor
         }
 
         return $values === [] ? null : implode('; ', $values);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param array<string, string> $fields
+     * @param list<string> $names
+     */
+    private function applyLiteralListField(array &$item, array $fields, string $target, array $names, string $listTarget): void
+    {
+        $value = $this->firstField($fields, $names);
+        if ($value === null || $value === '') {
+            return;
+        }
+
+        $values = $this->literalList($value);
+        if (count($values) < 2) {
+            return;
+        }
+
+        $item[$target] = implode('; ', $values);
+        $item[$listTarget] = $values;
     }
 
     /**
