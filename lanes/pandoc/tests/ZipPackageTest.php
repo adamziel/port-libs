@@ -12344,6 +12344,153 @@ return [
         $t->contains('Unsupported ZIP compression method 12', $zeroCompressedEntry['error']);
     },
 
+    'summarizes selected zip handoff expansion ratio buckets for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:p>ratio bucket</w:p></w:document>';
+        $emptyBytes = '';
+        $storedBytes = "stored media bytes\n";
+        $repeatedBytes = str_repeat('A', 2048);
+        $blockedBytes = str_repeat('B', 2048);
+        $unknownName = 'word/media/unknown-ratio.bin';
+        $unknownUncompressedSize = 37;
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 8],
+            ['name' => 'word/media/empty.bin', 'data' => $emptyBytes, 'method' => 0],
+            ['name' => 'word/media/stored.bin', 'data' => $storedBytes, 'method' => 0],
+            ['name' => 'word/media/repeated.bin', 'data' => $repeatedBytes, 'method' => 8],
+            ['name' => 'word/media/blocked.bin', 'data' => $blockedBytes, 'method' => 8],
+            [
+                'name' => $unknownName,
+                'data' => '',
+                'method' => 12,
+                'centralCompressedSize' => 0,
+                'centralUncompressedSize' => $unknownUncompressedSize,
+                'localCompressedSize' => 0,
+                'localUncompressedSize' => $unknownUncompressedSize,
+            ],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/media/empty.bin', 'required' => false, 'kind' => 'file', 'role' => 'attachment'],
+            ['name' => 'word/media/stored.bin', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'word/media/repeated.bin', 'required' => false, 'kind' => 'file', 'role' => 'attachment'],
+            ['name' => 'word/media/blocked.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 8],
+            ['name' => $unknownName, 'required' => false, 'kind' => 'file', 'role' => 'review'],
+        ], 4096);
+
+        $documentCompressed = strlen(gzdeflate($documentXml));
+        $repeatedCompressed = strlen(gzdeflate($repeatedBytes));
+        $blockedCompressed = strlen(gzdeflate($blockedBytes));
+        $documentRatio = strlen($documentXml) / $documentCompressed;
+        $repeatedRatio = strlen($repeatedBytes) / $repeatedCompressed;
+        $blockedRatio = strlen($blockedBytes) / $blockedCompressed;
+
+        $selectedByRatio = [];
+        foreach ($summary['selectedExpansionRatioSummaries'] as $ratioSummary) {
+            $selectedByRatio[$ratioSummary['expansionRatioBucket']] = $ratioSummary;
+        }
+        $handoffByRatio = [];
+        foreach ($summary['handoffExpansionRatioSummaries'] as $ratioSummary) {
+            $handoffByRatio[$ratioSummary['expansionRatioBucket']] = $ratioSummary;
+        }
+
+        $t->same(5, $summary['selectedExpansionRatioBucketCount']);
+        $t->same(4, $summary['handoffExpansionRatioBucketCount']);
+        $t->same(['zero', 'lte-1', 'gt-1-lte-4', 'gt-64', 'unknown'], array_keys($selectedByRatio));
+        $t->same(['zero', 'lte-1', 'gt-1-lte-4', 'gt-64'], array_keys($handoffByRatio));
+
+        $t->same([
+            'expansionRatioBucket' => 'zero',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+            'minExpansionRatio' => 0.0,
+            'maxExpansionRatio' => 0.0,
+            'unknownExpansionRatioEntryCount' => 0,
+            'roles' => ['attachment'],
+            'entryNames' => ['word/media/empty.bin'],
+        ], $selectedByRatio['zero']);
+        $t->same($selectedByRatio['zero'], $handoffByRatio['zero']);
+
+        $t->same([
+            'expansionRatioBucket' => 'lte-1',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($storedBytes),
+            'uncompressedBytes' => strlen($storedBytes),
+            'minExpansionRatio' => 1.0,
+            'maxExpansionRatio' => 1.0,
+            'unknownExpansionRatioEntryCount' => 0,
+            'roles' => ['media'],
+            'entryNames' => ['word/media/stored.bin'],
+        ], $selectedByRatio['lte-1']);
+        $t->same($selectedByRatio['lte-1'], $handoffByRatio['lte-1']);
+
+        $t->same([
+            'expansionRatioBucket' => 'gt-1-lte-4',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => $documentCompressed,
+            'uncompressedBytes' => strlen($documentXml),
+            'minExpansionRatio' => $documentRatio,
+            'maxExpansionRatio' => $documentRatio,
+            'unknownExpansionRatioEntryCount' => 0,
+            'roles' => ['main-document'],
+            'entryNames' => ['word/document.xml'],
+        ], $selectedByRatio['gt-1-lte-4']);
+        $t->same($selectedByRatio['gt-1-lte-4'], $handoffByRatio['gt-1-lte-4']);
+
+        $t->same([
+            'expansionRatioBucket' => 'gt-64',
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => $repeatedCompressed + $blockedCompressed,
+            'uncompressedBytes' => strlen($repeatedBytes) + strlen($blockedBytes),
+            'minExpansionRatio' => min($repeatedRatio, $blockedRatio),
+            'maxExpansionRatio' => max($repeatedRatio, $blockedRatio),
+            'unknownExpansionRatioEntryCount' => 0,
+            'roles' => ['attachment', 'media'],
+            'entryNames' => ['word/media/repeated.bin', 'word/media/blocked.bin'],
+        ], $selectedByRatio['gt-64']);
+        $t->same([
+            'expansionRatioBucket' => 'gt-64',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => $repeatedCompressed,
+            'uncompressedBytes' => strlen($repeatedBytes),
+            'minExpansionRatio' => $repeatedRatio,
+            'maxExpansionRatio' => $repeatedRatio,
+            'unknownExpansionRatioEntryCount' => 0,
+            'roles' => ['attachment'],
+            'entryNames' => ['word/media/repeated.bin'],
+        ], $handoffByRatio['gt-64']);
+
+        $t->same([
+            'expansionRatioBucket' => 'unknown',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => $unknownUncompressedSize,
+            'minExpansionRatio' => null,
+            'maxExpansionRatio' => null,
+            'unknownExpansionRatioEntryCount' => 1,
+            'roles' => ['review'],
+            'entryNames' => [$unknownName],
+        ], $selectedByRatio['unknown']);
+        $t->same(false, isset($handoffByRatio['unknown']));
+        $t->same(['entry-uncompressed-size-exceeds-limit', 'unreadable-entry'], $summary['issues']);
+        $t->same('blocked', $summary['entries'][4]['status']);
+        $t->same('blocked', $summary['entries'][5]['status']);
+    },
+
     'preflights duplicate selected zip package requests before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>duplicate selected handoff</w:p></w:body></w:document>';
         $imageBytes = "review image bytes\n";

@@ -5022,6 +5022,7 @@ final class ZipPackage
      *     presentEntryCount:int,
      *     selectedUniqueEntryCount:int,
      *     selectedDirectoryRootCount:int,
+     *     selectedExpansionRatioBucketCount:int,
      *     selectedExtensionBucketCount:int,
      *     selectedExtensionlessFileEntryCount:int,
      *     selectedFileEntryCount:int,
@@ -5045,6 +5046,7 @@ final class ZipPackage
      *     missingOptionalEntryCount:int,
      *     handoffEntryCount:int,
      *     handoffDirectoryRootCount:int,
+     *     handoffExpansionRatioBucketCount:int,
      *     handoffExtensionBucketCount:int,
      *     handoffExtensionlessFileEntryCount:int,
      *     handoffCompressionMethodBucketCount:int,
@@ -5097,6 +5099,8 @@ final class ZipPackage
      *     duplicateRequestedEntryGroups:list<array{name:string,count:int,requestIndexes:list<int>,requestedNames:list<string>,requiredCount:int,optionalCount:int}>,
      *     selectedDirectoryRootSummaries:list<array<string, mixed>>,
      *     handoffDirectoryRootSummaries:list<array<string, mixed>>,
+     *     selectedExpansionRatioSummaries:list<array<string, mixed>>,
+     *     handoffExpansionRatioSummaries:list<array<string, mixed>>,
      *     selectedExtensionSummaries:list<array<string, mixed>>,
      *     handoffExtensionSummaries:list<array<string, mixed>>,
      *     selectedCompressionMethodBuckets:list<array{compressionMethod:int,compressionMethodName:string,entryCount:int,compressedBytes:int,uncompressedBytes:int,isSupported:bool}>,
@@ -7121,12 +7125,12 @@ final class ZipPackage
 
             $compressedBytes = (int) ($entry['compressedSize'] ?? 0);
             $uncompressedBytes = (int) ($entry['uncompressedSize'] ?? 0);
-            $expansionRatio = array_key_exists('expansionRatio', $entry)
-                && (is_float($entry['expansionRatio']) || is_int($entry['expansionRatio']))
+            if (array_key_exists('expansionRatio', $entry)) {
+                $expansionRatio = is_float($entry['expansionRatio']) || is_int($entry['expansionRatio'])
                     ? (float) $entry['expansionRatio']
-                    : self::expansionRatio($uncompressedBytes, $compressedBytes);
-            if (array_key_exists('expansionRatio', $entry) && $entry['expansionRatio'] === null) {
-                $expansionRatio = null;
+                    : null;
+            } else {
+                $expansionRatio = self::expansionRatio($uncompressedBytes, $compressedBytes);
             }
 
             $bucket = self::entryHandoffExpansionRatioBucket($expansionRatio);
@@ -7188,9 +7192,12 @@ final class ZipPackage
 
         uksort(
             $summaries,
-            static fn (string $left, string $right): int => self::entryHandoffExpansionRatioBucketOrder($left)
-                <=> self::entryHandoffExpansionRatioBucketOrder($right)
-                ?: $left <=> $right
+            static function (string $left, string $right): int {
+                $order = self::entryHandoffExpansionRatioBucketOrder($left)
+                    <=> self::entryHandoffExpansionRatioBucketOrder($right);
+
+                return $order !== 0 ? $order : $left <=> $right;
+            }
         );
 
         return array_values($summaries);
