@@ -182,6 +182,9 @@ final class OdfReader
         if ($packageDatabases['count'] > 0) {
             $metadata['odfPackageDatabases'] = $packageDatabases;
         }
+        if ($scriptMetadata['count'] > 0) {
+            $metadata['odfPackageScripts'] = $scriptMetadata;
+        }
 
         $document = new AstNode('document', [
             'source' => 'odt',
@@ -14229,6 +14232,8 @@ final class OdfReader
         $parts = [];
         $kindCounts = [];
         $languageCounts = [];
+        $issueCodes = [];
+        $issueCount = 0;
         foreach ($candidatesByPart as $part => $item) {
             $metadata = $this->scriptPartMetadata($package, $item, $part, $referencesByPart[$part] ?? []);
             $parts[] = $metadata;
@@ -14236,9 +14241,19 @@ final class OdfReader
             $language = (string) ($metadata['language'] ?? 'script');
             $kindCounts[$kind] = ($kindCounts[$kind] ?? 0) + 1;
             $languageCounts[$language] = ($languageCounts[$language] ?? 0) + 1;
+            $issues = is_array($metadata['issues'] ?? null) ? $metadata['issues'] : [];
+            if ($issues !== []) {
+                ++$issueCount;
+            }
+            foreach ($issues as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issueCodes[$issue] = true;
+                }
+            }
         }
         ksort($kindCounts);
         ksort($languageCounts);
+        ksort($issueCodes, SORT_STRING);
 
         $declaredPartCount = 0;
         $undeclaredPartCount = 0;
@@ -14273,8 +14288,12 @@ final class OdfReader
             'referencedPartCount' => $referencedPartCount,
             'unreferencedPartCount' => count($parts) - $referencedPartCount,
             'referenceCount' => count($references),
+            'issueCount' => $issueCount,
+            'issueCodes' => array_keys($issueCodes),
             'kindCounts' => $kindCounts,
             'languageCounts' => $languageCounts,
+            'byteExposurePolicy' => 'script-package-bytes-blocked',
+            'reviewPolicy' => 'package-script-metadata-only',
             'directories' => $directories,
             'parts' => $parts,
             'references' => $references,
@@ -14309,6 +14328,8 @@ final class OdfReader
         $entry = $package->has($part) ? $package->entry($part) : null;
         $encrypted = ($item['encrypted'] ?? false) === true;
         $declared = ($item['declared'] ?? false) === true;
+        $mediaType = (string) ($item['mediaType'] ?? '');
+        $mediaTypeReport = self::mediaTypeReport($mediaType);
         $diagnostics = [];
         if (!$entry instanceof ZipPackageEntry) {
             $diagnostics[] = 'odf-script-package-missing-part';
@@ -14319,6 +14340,7 @@ final class OdfReader
         if ($encrypted) {
             $diagnostics[] = 'odf-script-package-encrypted-part';
         }
+        $byteExposurePolicy = (string) ($item['byteExposurePolicy'] ?? ($encrypted ? 'encrypted-resource-bytes-blocked' : 'script-package-bytes-blocked'));
 
         $hrefs = [];
         foreach ($references as $reference) {
@@ -14332,9 +14354,14 @@ final class OdfReader
         return [
             'fullPath' => $item['fullPath'] ?? $part,
             'part' => $part,
-            'mediaType' => $item['mediaType'] ?? null,
-            'kind' => $this->scriptPartKind($part, (string) ($item['mediaType'] ?? '')),
-            'language' => $this->scriptPartLanguage($part, (string) ($item['mediaType'] ?? '')),
+            'mediaType' => $mediaType === '' ? null : $mediaType,
+            'mediaTypeBase' => $mediaTypeReport['mediaTypeBase'],
+            'mediaTypeHasParameters' => $mediaTypeReport['mediaTypeHasParameters'],
+            'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
+            'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
+            'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
+            'kind' => $this->scriptPartKind($part, $mediaType),
+            'language' => $this->scriptPartLanguage($part, $mediaType),
             'packageRoot' => strtok($part, '/') ?: $part,
             'libraryName' => $this->scriptPartLibraryName($part),
             'moduleName' => $this->scriptPartModuleName($part),
@@ -14345,7 +14372,9 @@ final class OdfReader
             'referenceCount' => count($references),
             'hrefs' => $hrefs,
             'encrypted' => $encrypted,
+            'valid' => $entry instanceof ZipPackageEntry && $diagnostics === [],
             'canExposeBytes' => false,
+            'canExposeAsDocumentMedia' => false,
             'byteLength' => null,
             'storedByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
             'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
@@ -14353,6 +14382,9 @@ final class OdfReader
             'declaredSizeMismatch' => ($item['declaredSizeMismatch'] ?? false) === true,
             'encryption' => $item['encryption'] ?? null,
             'eventReferences' => $references,
+            'byteExposurePolicy' => $byteExposurePolicy,
+            'reviewPolicy' => 'package-script-metadata-only',
+            'issues' => $diagnostics,
             'diagnostics' => $diagnostics,
         ];
     }
