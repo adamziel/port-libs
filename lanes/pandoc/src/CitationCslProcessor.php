@@ -817,6 +817,10 @@ final class CitationCslProcessor
             $parts[] = $part;
         }
 
+        foreach ($this->crossrefBibliographyParts($item) as $part) {
+            $parts[] = $part;
+        }
+
         foreach ($this->xrefBibliographyParts($item) as $part) {
             $parts[] = $part;
         }
@@ -1299,6 +1303,9 @@ final class CitationCslProcessor
         $entrySetKeys = self::stringListFromFirstField($item, ['entrySet', 'entry-set', 'entryset']);
         $entrySetItems = self::relatedItemSummaries($item['entrySetItems'] ?? $item['entry-set-items'] ?? [], $id, 'entrySetItems');
         $missingEntrySetKeys = self::stringListFromFirstField($item, ['missingEntrySetKeys', 'missing-entry-set-keys', 'missing-entryset-keys']);
+        $crossrefKeys = self::stringListFromFirstField($item, ['crossrefKeys', 'crossref-keys', 'crossref']);
+        $crossrefItems = self::relatedItemSummaries($item['crossrefItems'] ?? $item['crossref-items'] ?? [], $id, 'crossrefItems');
+        $missingCrossrefKeys = self::stringListFromFirstField($item, ['missingCrossrefKeys', 'missing-crossref-keys']);
         $itemType = self::stringField($item, 'type');
         $genre = self::stringField($item, 'genre');
         $patentType = self::firstStringField($item, ['patent-type', 'patentType', 'patenttype']);
@@ -1606,6 +1613,10 @@ final class CitationCslProcessor
             'relatedOptions' => self::stringListFromFirstField($item, ['relatedOptions', 'related-options', 'relatedoptions']),
             'relatedItems' => self::relatedItemSummaries($item['relatedItems'] ?? [], $id),
             'missingRelatedKeys' => self::stringListFromFirstField($item, ['missingRelatedKeys', 'missing-related-keys']),
+            'crossrefKeys' => $crossrefKeys,
+            'crossrefItems' => $crossrefItems,
+            'missingCrossrefKeys' => $missingCrossrefKeys,
+            'crossrefSummary' => self::summarizedReferenceValues($crossrefItems, $missingCrossrefKeys, $crossrefKeys),
             'xrefKeys' => self::stringListFromFirstField($item, ['xrefKeys', 'xref-keys', 'xref']),
             'xrefItems' => self::relatedItemSummaries($item['xrefItems'] ?? [], $id, 'xrefItems'),
             'missingXrefKeys' => self::stringListFromFirstField($item, ['missingXrefKeys', 'missing-xref-keys']),
@@ -8993,6 +9004,17 @@ final class CitationCslProcessor
      * @param array<string, mixed> $item
      * @return list<string>
      */
+    private function crossrefBibliographyParts(array $item): array
+    {
+        $summary = $this->crossrefSummary($item);
+
+        return $summary === '' ? [] : [$this->withTerminalPunctuation($summary)];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return list<string>
+     */
     private function xrefBibliographyParts(array $item): array
     {
         $summary = $this->xrefSummary($item);
@@ -9185,6 +9207,63 @@ final class CitationCslProcessor
             if (is_array($relatedKeys)) {
                 $values = array_values(array_filter(
                     array_map(static fn (mixed $key): string => trim((string) $key), $relatedKeys),
+                    static fn (string $key): bool => $key !== ''
+                ));
+            }
+        }
+
+        if ($values === []) {
+            return '';
+        }
+
+        return implode('; ', $values);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function crossrefSummary(array $item): string
+    {
+        $values = $this->crossrefSummaryValues($item);
+
+        return $values === '' ? '' : 'Crossref: ' . $values;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function crossrefSummaryValues(array $item): string
+    {
+        $values = [];
+        $crossrefItems = $item['crossrefItems'] ?? [];
+        if (is_array($crossrefItems)) {
+            foreach ($crossrefItems as $crossrefItem) {
+                if (!is_array($crossrefItem)) {
+                    continue;
+                }
+
+                $display = trim((string) ($crossrefItem['display'] ?? ''));
+                if ($display !== '') {
+                    $values[] = $display;
+                }
+            }
+        }
+
+        $missing = $item['missingCrossrefKeys'] ?? [];
+        if (is_array($missing)) {
+            foreach ($missing as $key) {
+                $key = trim((string) $key);
+                if ($key !== '') {
+                    $values[] = 'missing: ' . $key;
+                }
+            }
+        }
+
+        if ($values === []) {
+            $crossrefKeys = $item['crossrefKeys'] ?? [];
+            if (is_array($crossrefKeys)) {
+                $values = array_values(array_filter(
+                    array_map(static fn (mixed $key): string => trim((string) $key), $crossrefKeys),
                     static fn (string $key): bool => $key !== ''
                 ));
             }
@@ -11214,6 +11293,10 @@ final class CitationCslProcessor
             'related-string', 'relatedstring' => (string) ($item['relatedString'] ?? ''),
             'related-options', 'relatedoptions' => implode(', ', is_array($item['relatedOptions'] ?? null) ? $item['relatedOptions'] : []),
             'missing-related-keys' => implode(', ', is_array($item['missingRelatedKeys'] ?? null) ? $item['missingRelatedKeys'] : []),
+            'crossref' => $this->crossrefSummaryValues($item),
+            'crossref-summary' => $this->crossrefSummary($item),
+            'crossref-keys' => implode(', ', is_array($item['crossrefKeys'] ?? null) ? $item['crossrefKeys'] : []),
+            'missing-crossref-keys' => implode(', ', is_array($item['missingCrossrefKeys'] ?? null) ? $item['missingCrossrefKeys'] : []),
             'xref' => $this->xrefSummaryValues($item),
             'xref-summary' => $this->xrefSummary($item),
             'xref-keys' => implode(', ', is_array($item['xrefKeys'] ?? null) ? $item['xrefKeys'] : []),

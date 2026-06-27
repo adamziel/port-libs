@@ -1820,6 +1820,10 @@ BIB;
         $t->same('12-18', $paper['page']);
         $t->same(['shared-review-source'], $paper['xdataKeys']);
         $t->same('shared-review-source', $paper['xdataSummary']);
+        $t->same(['review-proceedings'], $paper['crossrefKeys']);
+        $t->same('Source Review Proceedings: Package Track', $paper['crossrefItems'][0]['title'] ?? null);
+        $t->same([2026], $paper['crossrefItems'][0]['issued']['date-parts'][0] ?? null);
+        $t->same('Source Review Proceedings: Package Track (2026)', $paper['crossrefSummary']);
         $t->same('review-proceedings', $paper['rawBibtex']['fields']['crossref']);
         $t->same('Source Review Proceedings', $paper['rawBibtex']['fields']['booktitle']);
         $t->same('Package Track', $paper['rawBibtex']['fields']['booksubtitle']);
@@ -1833,7 +1837,7 @@ BIB;
         $t->same('shared-review-source', $xdataChild['xdataSummary']);
         $t->same('shared-review-source', $xdataChild['rawBibtex']['fields']['xdata']);
         $t->same(
-            'Nia Ng. Packet Audit Trails. Source Review Proceedings: Package Track. 2026. 12-18. Rights: Internal review only. BibLaTeX xdata packets: shared-review-source.',
+            'Nia Ng. Packet Audit Trails. Source Review Proceedings: Package Track. 2026. 12-18. Rights: Internal review only. BibLaTeX crossref parent: Source Review Proceedings: Package Track (2026). BibLaTeX xdata packets: shared-review-source.',
             $processor->renderBibliographyText($paper)
         );
         $t->same(
@@ -1850,7 +1854,7 @@ BIB;
         $t->same([], $handoff['missingKeys']);
         $t->same('Source Review Proceedings: Package Track', $handoff['items'][0]['container-title']);
         $t->same('Review Press', $handoff['items'][1]['publisher']);
-        $t->contains('<dt>crossref-paper</dt><dd>Nia Ng. Packet Audit Trails. Source Review Proceedings: Package Track. 2026. 12-18. Rights: Internal review only. BibLaTeX xdata packets: shared-review-source.</dd>', $blocks);
+        $t->contains('<dt>crossref-paper</dt><dd>Nia Ng. Packet Audit Trails. Source Review Proceedings: Package Track. 2026. 12-18. Rights: Internal review only. BibLaTeX crossref parent: Source Review Proceedings: Package Track (2026). BibLaTeX xdata packets: shared-review-source.</dd>', $blocks);
         $t->contains('<dt>xdata-child</dt><dd>Archive Desk. Inherited Source Packet. Review Press. Rights: Internal review only. BibLaTeX xdata packets: shared-review-source. https://example.test/source-packet.</dd>', $blocks);
     },
     'carries biblatex xdata and entryset provenance in legacy csl handoff' => static function (TestRunner $t): void {
