@@ -7754,12 +7754,55 @@ final class CitationCslProcessor
     {
         $entry = $this->sourceCitationText($citation);
         $suffix = $this->citationSuffix($citation);
-        if ($suffix !== '') {
+        if ($suffix !== '' && !$this->citationSourceTextHasSuffix($entry, $suffix)) {
             $entry .= ', ' . $suffix;
         }
 
         $prefix = $this->citationPrefix($citation);
-        return $prefix === '' ? $entry : $prefix . ' ' . $entry;
+        if ($prefix !== '' && !$this->citationSourceTextHasPrefix($entry, $prefix)) {
+            return $prefix . ' ' . $entry;
+        }
+
+        return $entry;
+    }
+
+    private function citationSourceTextHasPrefix(string $source, string $prefix): bool
+    {
+        $source = $this->normalizedInlineText($source);
+        $prefix = $this->normalizedInlineText($prefix);
+
+        return $prefix !== ''
+            && (
+                $source === $prefix
+                || str_starts_with($source, $prefix . ' ')
+                || str_starts_with($source, '[' . $prefix . ' ')
+                || str_starts_with($source, '(' . $prefix . ' ')
+            );
+    }
+
+    private function citationSourceTextHasSuffix(string $source, string $suffix): bool
+    {
+        $source = $this->normalizedInlineText($source);
+        $suffix = $this->normalizedInlineText($suffix);
+        if ($suffix === '') {
+            return false;
+        }
+
+        foreach ([$suffix, ' ' . $suffix, ', ' . $suffix, '; ' . $suffix] as $candidate) {
+            if (str_ends_with($source, $candidate)) {
+                return true;
+            }
+            if (str_ends_with($source, $candidate . ']') || str_ends_with($source, $candidate . ')')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function normalizedInlineText(string $text): string
+    {
+        return trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
     }
 
     /**
