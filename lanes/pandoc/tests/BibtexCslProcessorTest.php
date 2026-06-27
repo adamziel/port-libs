@@ -94,6 +94,74 @@ BIB;
         $t->same('Import note attached', $item['note']);
         $t->same('Nia Ng. Obscure Archive Packet: Source Review Appendix. 2026. https://example.test/preprint.', $bibliography);
     },
+    'carries legacy biblatex access date aliases in csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@online{legacy-url-date,
+  author   = {Alias, Ada},
+  title    = {Legacy URL Date Alias},
+  date     = {2026},
+  url      = {https://example.test/legacy-url-date},
+  url-date = {2026-06-08}
+}
+
+@online{legacy-access-date,
+  author      = {Field, Fran},
+  title       = {Legacy Access Date Alias},
+  date        = {2025},
+  url         = {https://example.test/legacy-access-date},
+  access-date = {2026-06-09}
+}
+
+@online{legacy-visited-date,
+  author  = {Review, Rita},
+  title   = {Legacy Visited Date Alias},
+  date    = {2024},
+  url     = {https://example.test/legacy-visited-date},
+  visited = {2026-06-10}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $urlDate = $items['legacy-url-date'];
+        $accessDate = $items['legacy-access-date'];
+        $visited = $items['legacy-visited-date'];
+
+        $t->same([2026, 6, 8], $urlDate['accessed']['date-parts'][0]);
+        $t->same([2026, 6, 9], $accessDate['accessed']['date-parts'][0]);
+        $t->same([2026, 6, 10], $visited['accessed']['date-parts'][0]);
+        $t->same('2026-06-08', $urlDate['rawBibtex']['fields']['url-date']);
+        $t->same('2026-06-09', $accessDate['rawBibtex']['fields']['access-date']);
+        $t->same('2026-06-10', $visited['rawBibtex']['fields']['visited']);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <date variable="accessed"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="accessed"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('[Alias | 2026-06-08; Field | 2026-06-09; Review | 2026-06-10]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-url-date', 'text' => '[@legacy-url-date]']),
+            new AstNode('citation', ['id' => 'legacy-access-date', 'text' => '[@legacy-access-date]']),
+            new AstNode('citation', ['id' => 'legacy-visited-date', 'text' => '[@legacy-visited-date]']),
+        ]));
+        $t->same('Legacy URL Date Alias :: 2026-06-08', $styled->renderBibliographyEntry('legacy-url-date'));
+        $t->same('Legacy Access Date Alias :: 2026-06-09', $styled->renderBibliographyEntry('legacy-access-date'));
+    },
     'carries legacy biblatex registry identifiers in bibliography handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @article{legacy-pubmed,

@@ -4872,27 +4872,75 @@ XML);
   url     = {https://example.test/visited-source},
   visited = {review queue}
 }
+
+@online{url-date-source,
+  author   = {{Alias Desk}},
+  title    = {URL Date Alias Source},
+  date     = {2023},
+  url      = {https://example.test/url-date-source},
+  URL-date = {2026-06-08}
+}
+
+@online{access-date-source,
+  author      = {Field, Fran},
+  title       = {Access Date Alias Source},
+  date        = {2022},
+  url         = {https://example.test/access-date-source},
+  access-date = {2026-06-09}
+}
+
+@online{urlaccessdate-source,
+  author        = {{URL Desk}},
+  title         = {Compact URL Access Date Source},
+  date          = {2021},
+  url           = {https://example.test/urlaccessdate-source},
+  urlaccessdate = {2026-06-10}
+}
+
+@online{accessed-date-source,
+  author        = {{Access Desk}},
+  title         = {Accessed Date Alias Source},
+  date          = {2020},
+  url           = {https://example.test/accessed-date-source},
+  accessed-date = {2026-06-11}
+}
 BIB;
 
         $items = CitationCslProcessor::bibtexItems($bibtex);
-        $t->same(3, count($items));
+        $t->same(7, count($items));
         $t->same(['date-parts' => [[2026, 6, 7]]], $items[0]['accessed'] ?? null);
         $t->same(['date-parts' => [[2026, 6]], 'uncertain' => true, 'raw' => '2026-06?'], $items[1]['accessed'] ?? null);
         $t->same(['literal' => 'review queue'], $items[2]['accessed'] ?? null);
+        $t->same(['date-parts' => [[2026, 6, 8]]], $items[3]['accessed'] ?? null);
+        $t->same(['date-parts' => [[2026, 6, 9]]], $items[4]['accessed'] ?? null);
+        $t->same(['date-parts' => [[2026, 6, 10]]], $items[5]['accessed'] ?? null);
+        $t->same(['date-parts' => [[2026, 6, 11]]], $items[6]['accessed'] ?? null);
         $t->same('2026-06-07', $items[0]['rawBibtex']['fields']['lastchecked'] ?? null);
         $t->same('2026-06?', $items[1]['rawBibtex']['fields']['lastaccessed'] ?? null);
         $t->same('review queue', $items[2]['rawBibtex']['fields']['visited'] ?? null);
+        $t->same('2026-06-08', $items[3]['rawBibtex']['fields']['url-date'] ?? null);
+        $t->same('2026-06-09', $items[4]['rawBibtex']['fields']['access-date'] ?? null);
+        $t->same('2026-06-10', $items[5]['rawBibtex']['fields']['urlaccessdate'] ?? null);
+        $t->same('2026-06-11', $items[6]['rawBibtex']['fields']['accessed-date'] ?? null);
 
         $processor = CitationCslProcessor::fromBibtex($bibtex);
         $lastChecked = $processor->item('lastchecked-source');
         $lastAccessed = $processor->item('lastaccessed-source');
         $visited = $processor->item('visited-source');
+        $urlDate = $processor->item('url-date-source');
+        $accessDate = $processor->item('access-date-source');
+        $urlAccessDate = $processor->item('urlaccessdate-source');
+        $accessedDate = $processor->item('accessed-date-source');
         $t->same([2026, 6, 7], $lastChecked['accessedDate']['parts'] ?? null);
         $t->same('2026-06-07', $lastChecked['accessedDate']['display'] ?? null);
         $t->same(true, $lastAccessed['accessedDate']['uncertain'] ?? null);
         $t->same('2026-06', $lastAccessed['accessedDate']['display'] ?? null);
         $t->same('review queue', $visited['accessedDate']['literal'] ?? null);
         $t->same('review queue', $visited['accessedDate']['display'] ?? null);
+        $t->same('2026-06-08', $urlDate['accessedDate']['display'] ?? null);
+        $t->same('2026-06-09', $accessDate['accessedDate']['display'] ?? null);
+        $t->same('2026-06-10', $urlAccessDate['accessedDate']['display'] ?? null);
+        $t->same('2026-06-11', $accessedDate['accessedDate']['display'] ?? null);
         $t->same('(Ng 2026; Review Desk 2025; Curator 2024)', $processor->renderCitationCluster([
             $citation('lastchecked-source', '[@lastchecked-source]'),
             $citation('lastaccessed-source', '[@lastaccessed-source]'),
@@ -4902,12 +4950,19 @@ BIB;
         $t->same('Review Desk. Last Accessed Source. 2025. Date markers: accessed uncertain (2026-06?). https://example.test/lastaccessed-source. Accessed 2026-06.', $processor->renderBibliographyEntry('lastaccessed-source'));
         $t->same('Curator, Eli. Visited Source. 2024. https://example.test/visited-source. Accessed review queue.', $processor->renderBibliographyEntry('visited-source'));
 
-        $document = (new MarkdownReader())->read('Legacy access dates [@lastchecked-source; @lastaccessed-source; @visited-source] stay reviewable.');
+        $t->same('Alias Desk. URL Date Alias Source. 2023. https://example.test/url-date-source. Accessed 2026-06-08.', $processor->renderBibliographyEntry('url-date-source'));
+        $t->same('Field, Fran. Access Date Alias Source. 2022. https://example.test/access-date-source. Accessed 2026-06-09.', $processor->renderBibliographyEntry('access-date-source'));
+        $t->same('URL Desk. Compact URL Access Date Source. 2021. https://example.test/urlaccessdate-source. Accessed 2026-06-10.', $processor->renderBibliographyEntry('urlaccessdate-source'));
+        $t->same('Access Desk. Accessed Date Alias Source. 2020. https://example.test/accessed-date-source. Accessed 2026-06-11.', $processor->renderBibliographyEntry('accessed-date-source'));
+
+        $document = (new MarkdownReader())->read('Legacy access dates [@lastchecked-source; @lastaccessed-source; @visited-source; @url-date-source; @access-date-source; @urlaccessdate-source; @accessed-date-source] stay reviewable.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
-        $t->contains('<p>Legacy access dates (Ng 2026; Review Desk 2025; Curator 2024) stay reviewable.</p>', $blocks);
+        $t->contains('<p>Legacy access dates (Ng 2026; Review Desk 2025; Curator 2024; Alias Desk 2023; Field 2022; URL Desk 2021; Access Desk 2020) stay reviewable.</p>', $blocks);
         $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Last Checked Source. 2026. https://example.test/lastchecked-source. Accessed 2026-06-07.</dd>', $blocks);
         $t->contains('<dt>Review Desk 2025</dt><dd>Review Desk. Last Accessed Source. 2025. Date markers: accessed uncertain (2026-06?). https://example.test/lastaccessed-source. Accessed 2026-06.</dd>', $blocks);
         $t->contains('<dt>Curator 2024</dt><dd>Curator, Eli. Visited Source. 2024. https://example.test/visited-source. Accessed review queue.</dd>', $blocks);
+        $t->contains('<dt>Alias Desk 2023</dt><dd>Alias Desk. URL Date Alias Source. 2023. https://example.test/url-date-source. Accessed 2026-06-08.</dd>', $blocks);
+        $t->contains('<dt>Access Desk 2020</dt><dd>Access Desk. Accessed Date Alias Source. 2020. https://example.test/accessed-date-source. Accessed 2026-06-11.</dd>', $blocks);
     },
     'maps direct csl json access date aliases into accessed metadata' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([

@@ -1257,7 +1257,20 @@ final class BibtexCslParser
             $item['label-date'] = $labelDate;
         }
 
-        $accessed = self::dateFromFields($fields, ['urldate', 'accessed', 'accessdate', 'lastchecked', 'lastaccessed', 'visited'], ['urlyear', 'urlmonth', 'urlday'], [
+        $accessed = self::dateFromFields($fields, [
+            'urldate',
+            'url-date',
+            'urlaccessdate',
+            'url-access-date',
+            'accessed',
+            'accesseddate',
+            'accessed-date',
+            'accessdate',
+            'access-date',
+            'lastchecked',
+            'lastaccessed',
+            'visited',
+        ], ['urlyear', 'urlmonth', 'urlday'], [
             'hour' => 'urlhour',
             'minute' => 'urlminute',
             'second' => 'urlsecond',
@@ -1268,7 +1281,7 @@ final class BibtexCslParser
             'endtimezone' => 'urlendtimezone',
         ], ['urlendyear', 'urlendmonth', 'urlendday']);
         if ($accessed !== null) {
-            $accessed = self::dateWithEra($accessed, $fields, ['urldateera', 'url-date-era', 'accesseddateera', 'accessed-date-era']);
+            $accessed = self::dateWithEra($accessed, $fields, ['urldateera', 'url-date-era', 'urlaccessdateera', 'url-access-date-era', 'accesseddateera', 'accessed-date-era', 'accessdateera', 'access-date-era']);
             $item['accessed'] = $accessed;
         }
 

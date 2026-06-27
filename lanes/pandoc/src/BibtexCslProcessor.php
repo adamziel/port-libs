@@ -939,7 +939,20 @@ final class BibtexCslProcessor
             $item['issued'] = ['date-parts' => [$date]];
         }
 
-        $accessed = $this->datePartsFromFields($fields, ['urldate', 'accessed', 'accessdate'], []);
+        $accessed = $this->datePartsFromFields($fields, [
+            'urldate',
+            'url-date',
+            'urlaccessdate',
+            'url-access-date',
+            'accessed',
+            'accesseddate',
+            'accessed-date',
+            'accessdate',
+            'access-date',
+            'lastchecked',
+            'lastaccessed',
+            'visited',
+        ], []);
         if ($accessed !== null) {
             $item['accessed'] = ['date-parts' => [$accessed]];
         }
