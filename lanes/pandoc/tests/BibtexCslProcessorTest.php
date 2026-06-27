@@ -1227,6 +1227,87 @@ BIB;
         $t->same('320', $item['number-of-pages']);
         $t->same('Casey Chapter. Extent Review Chapter. Migration Extent Handbook 2. 2026. 101-120.', $bibliography);
     },
+    'carries biblatex part printing and supplement number metadata in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{part-printing-review,
+  author           = {Ng, Nia},
+  title            = {Part Printing Review Manual},
+  date             = {2026},
+  division         = {Migration Division},
+  section          = {Review Shelf A},
+  part             = {2},
+  printing         = {3},
+  supplement       = {Appendix B},
+  supplementnumber = {7}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $item = $items['part-printing-review'];
+
+        $t->same('Migration Division', $item['division']);
+        $t->same('Review Shelf A', $item['section']);
+        $t->same('2', $item['part']);
+        $t->same('3', $item['printing-number']);
+        $t->same('Appendix B', $item['supplement']);
+        $t->same('7', $item['supplement-number']);
+        $t->same('3', $item['rawBibtex']['fields']['printing']);
+        $t->same('7', $item['rawBibtex']['fields']['supplementnumber']);
+        $t->same(
+            'Nia Ng. Part Printing Review Manual. 2026. Division: Migration Division. Section: Review Shelf A. Part: 2. Printing number: 3. Supplement: Appendix B. Supplement number: 7.',
+            $processor->renderBibliographyText($item)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Part Printing Number Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-part-printing-number-review</id>
+    <updated>2026-06-27T20:15:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="division"/>
+        <number variable="part"/>
+        <number variable="printing-number"/>
+        <number variable="supplement-number"/>
+        <text variable="supplement"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="division"/>
+      <number variable="part"/>
+      <number variable="printing-number"/>
+      <number variable="supplement-number"/>
+      <text variable="supplement"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('Bounded Legacy BibLaTeX Part Printing Number Review', $styled->cslStyleSummary()['title'] ?? null);
+        $t->same('[Ng | Migration Division | 2 | 3 | 7 | Appendix B]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'part-printing-review', 'text' => '[@part-printing-review]']),
+        ]));
+        $t->same('Part Printing Review Manual :: Migration Division :: 2 :: 3 :: 7 :: Appendix B', $styled->renderBibliographyEntry('part-printing-review'));
+
+        $document = (new MarkdownReader())->read('Part printing source [@part-printing-review] keeps review numbers visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$handoff['bibliography']]));
+
+        $t->same(['part-printing-review'], $handoff['citedKeys']);
+        $t->same('3', $handoff['items'][0]['printing-number']);
+        $t->same('7', $handoff['items'][0]['supplement-number']);
+        $t->contains('Printing number: 3', $blocks);
+        $t->contains('Supplement number: 7', $blocks);
+    },
     'carries biblatex pagination unit metadata in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @article{legacy-pagination-review,

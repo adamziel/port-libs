@@ -376,11 +376,17 @@ final class BibtexCslProcessor
                 $parts[] = $label . ': ' . $summary;
             }
         }
-        if (($item['section'] ?? '') !== '') {
-            $parts[] = 'Section: ' . (string) $item['section'];
-        }
-        if (($item['supplement'] ?? '') !== '') {
-            $parts[] = 'Supplement: ' . (string) $item['supplement'];
+        foreach ([
+            'division' => 'Division',
+            'section' => 'Section',
+            'part' => 'Part',
+            'printing-number' => 'Printing number',
+            'supplement' => 'Supplement',
+            'supplement-number' => 'Supplement number',
+        ] as $field => $label) {
+            if (($item[$field] ?? '') !== '') {
+                $parts[] = $label . ': ' . (string) $item[$field];
+            }
         }
         foreach ([
             'citation-label' => 'Citation label',
@@ -780,8 +786,12 @@ final class BibtexCslProcessor
             'number-of-pages' => ['pagetotal', 'numpages', 'numberofpages', 'number-of-pages'],
             'chapter-number' => ['chapter'],
             'source' => ['source', 'sourcetitle', 'source-title'],
+            'division' => ['division', 'subdivision'],
             'section' => ['section'],
+            'part' => ['part', 'partnumber', 'part-number'],
+            'printing-number' => ['printing', 'printingnumber', 'printing-number', 'printnumber', 'print-number'],
             'supplement' => ['supplement'],
+            'supplement-number' => ['supplementnumber', 'supplement-number'],
             'references' => ['references'],
             'dimensions' => ['dimensions', 'dimension'],
             'scale' => ['scale'],
