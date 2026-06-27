@@ -2587,9 +2587,10 @@ final class OdfReader
                     continue;
                 }
 
+                $containedManifestItem = $manifestByPart[$entry->name] ?? null;
                 $containedClassification = self::embeddedObjectContainedPartClassification(
                     $entry->name,
-                    $manifestByPart[$entry->name] ?? null
+                    $containedManifestItem
                 );
                 $containedRole = $containedClassification['containedRole'];
                 $containedMediaFamily = $containedClassification['containedMediaFamily'];
@@ -2601,6 +2602,12 @@ final class OdfReader
                     'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
                     'crc32' => $entry->crc32Hex(),
                     'declaredInManifest' => isset($declaredContainedParts[$entry->name]),
+                    'manifestMediaType' => is_array($containedManifestItem) ? ($containedManifestItem['mediaType'] ?? '') : null,
+                    'manifestMediaTypeBase' => is_array($containedManifestItem) ? ($containedManifestItem['mediaTypeBase'] ?? '') : null,
+                    'manifestMediaTypeHasParameters' => is_array($containedManifestItem) && ($containedManifestItem['mediaTypeHasParameters'] ?? false) === true,
+                    'manifestMediaTypeParameterCount' => is_array($containedManifestItem) ? ($containedManifestItem['mediaTypeParameterCount'] ?? 0) : 0,
+                    'manifestMediaTypeParameters' => is_array($containedManifestItem) ? ($containedManifestItem['mediaTypeParameters'] ?? []) : [],
+                    'manifestMediaTypeParameterMap' => is_array($containedManifestItem) ? ($containedManifestItem['mediaTypeParameterMap'] ?? []) : [],
                     'containedRole' => $containedRole,
                     'containedMediaFamily' => $containedMediaFamily,
                 ];
@@ -2654,6 +2661,10 @@ final class OdfReader
                 'objectType' => $objectType,
                 'mediaType' => $rootItem['mediaType'] ?? '',
                 'mediaTypeBase' => $rootItem['mediaTypeBase'] ?? '',
+                'mediaTypeHasParameters' => ($rootItem['mediaTypeHasParameters'] ?? false) === true,
+                'mediaTypeParameterCount' => $rootItem['mediaTypeParameterCount'] ?? 0,
+                'mediaTypeParameters' => $rootItem['mediaTypeParameters'] ?? [],
+                'mediaTypeParameterMap' => $rootItem['mediaTypeParameterMap'] ?? [],
                 'version' => $rootItem['version'] ?? null,
                 'preferredViewMode' => $rootItem['preferredViewMode'] ?? null,
                 'exists' => $exists,
@@ -2822,6 +2833,10 @@ final class OdfReader
             'manifestIndex' => $item['manifestIndex'] ?? null,
             'mediaType' => $item['mediaType'] ?? '',
             'mediaTypeBase' => $item['mediaTypeBase'] ?? '',
+            'mediaTypeHasParameters' => ($item['mediaTypeHasParameters'] ?? false) === true,
+            'mediaTypeParameterCount' => $item['mediaTypeParameterCount'] ?? 0,
+            'mediaTypeParameters' => $item['mediaTypeParameters'] ?? [],
+            'mediaTypeParameterMap' => $item['mediaTypeParameterMap'] ?? [],
             'exists' => ($item['exists'] ?? false) === true,
             'encrypted' => ($item['encrypted'] ?? false) === true,
             'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
