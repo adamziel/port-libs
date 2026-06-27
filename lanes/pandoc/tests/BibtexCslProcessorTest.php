@@ -2059,6 +2059,76 @@ XML);
         $t->contains('<p>Legacy custom fields [Curator | migration batch 42 | migration batch; review desk | Roe and Ng | Archive] stay visible.</p>', $styledBlocks);
         $t->contains('<dt>Curator 2026</dt><dd>Legacy Custom Packet :: usera: migration batch 42; userf: reviewer escalation; verba: wp shortcode [gallery] :: lista: migration batch; review desk; listc: archive queue; internal QA :: namea: Roe, Pat; Ng, Nia; namec: Archive, Desk</dd>', $styledBlocks);
     },
+    'carries biblatex name annotations and name addendum in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{legacy-name-annotations,
+  author     = {Smith, Ada and Ng, Nia},
+  author+an  = {1=primary source author; 2:family=family name verified},
+  editor     = {Curator, Eli},
+  editor+an:role = {1=review editor},
+  title      = {Name Annotation Packet},
+  date       = {2026},
+  publisher  = {Review Press},
+  nameaddon  = {Imported source names verified}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $item = $items['legacy-name-annotations'];
+
+        $t->same('Imported source names verified', $item['name-addon']);
+        $t->same([['part' => 'name', 'value' => 'primary source author']], $item['author'][0]['annotations'] ?? null);
+        $t->same([['part' => 'family', 'value' => 'family name verified']], $item['author'][1]['annotations'] ?? null);
+        $t->same([['part' => 'role', 'value' => 'review editor']], $item['editor'][0]['annotations'] ?? null);
+        $t->same('1=primary source author; 2:family=family name verified', $item['rawBibtex']['fields']['author+an']);
+        $t->same('1=review editor', $item['rawBibtex']['fields']['editor+an:role']);
+        $t->same(
+            'Ada Smith and Nia Ng. Name Annotation Packet. Review Press. 2026. Name addendum: Imported source names verified. Name annotations: Author 1: primary source author; Author 2 family: family name verified; Editor 1 role: review editor.',
+            $processor->renderBibliographyText($item)
+        );
+
+        $document = (new MarkdownReader())->read('Name metadata source @legacy-name-annotations stays reviewable.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$handoff['bibliography']]));
+
+        $t->same(['legacy-name-annotations'], $handoff['citedKeys']);
+        $t->same('primary source author', $handoff['items'][0]['author'][0]['annotations'][0]['value'] ?? null);
+        $t->same('family', $handoff['bibliography']->children[0]->attr('cslItem')['author'][1]['annotations'][0]['part'] ?? null);
+        $t->contains('Name addendum: Imported source names verified', $blocks);
+        $t->contains('Name annotations: Author 1: primary source author; Author 2 family: family name verified; Editor 1 role: review editor', $blocks);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="name-addon"/>
+        <text variable="name-annotation-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="name-addon"/>
+      <text variable="name-annotation-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledItem = $styled->item('legacy-name-annotations');
+        $t->same('Imported source names verified', $styledItem['nameAddon'] ?? null);
+        $t->same('primary source author', $styledItem['authors'][0]['annotations'][0]['value'] ?? null);
+        $t->same('review editor', $styledItem['editors'][0]['annotations'][0]['value'] ?? null);
+        $t->same('[Smith and Ng | Imported source names verified | Author 1: primary source author; Author 2 family: family name verified; Editor 1 role: review editor]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-name-annotations', 'text' => '[@legacy-name-annotations]']),
+        ]));
+        $t->same('Name Annotation Packet :: Imported source names verified :: Author 1: primary source author; Author 2 family: family name verified; Editor 1 role: review editor', $styled->renderBibliographyEntry('legacy-name-annotations'));
+    },
     'carries biblatex entry options reference context and field annotations in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @book{legacy-review-context,
