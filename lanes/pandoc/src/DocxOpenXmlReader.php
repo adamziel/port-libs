@@ -13943,6 +13943,13 @@ final class DocxOpenXmlReader
             'partXmlRootQualifiedNameCount' => count($partXmlRoots['rootQualifiedNameCounts']),
             'partXmlRootQualifiedNameCounts' => $partXmlRoots['rootQualifiedNameCounts'],
             'partXmlInvalidPartNames' => $partXmlRoots['invalidPartNames'],
+            'partXmlDeclarationCount' => $partXmlRoots['xmlDeclarationCount'],
+            'partXmlDeclarationPartNames' => $partXmlRoots['xmlDeclarationPartNames'],
+            'partXmlDeclarationVersionCounts' => $partXmlRoots['xmlDeclarationVersionCounts'],
+            'partXmlDeclarationEncodingCounts' => $partXmlRoots['xmlDeclarationEncodingCounts'],
+            'partXmlStandaloneDeclarationCount' => $partXmlRoots['xmlStandaloneDeclarationCount'],
+            'partXmlStandaloneYesCount' => $partXmlRoots['xmlStandaloneYesCount'],
+            'partXmlStandaloneNoCount' => $partXmlRoots['xmlStandaloneNoCount'],
             'partContentTypeSyntaxSuffixCount' => count($partContentTypeSyntaxSuffixes),
             'partContentTypeSyntaxSuffixCounts' => $partContentTypeSyntaxSuffixCounts,
             'partContentTypeStructuredSyntaxPartCount' => $partContentTypeStructuredSyntaxPartCount,
@@ -19473,7 +19480,7 @@ final class DocxOpenXmlReader
 
     /**
      * @param array<string, array<string, mixed>> $partInventory
-     * @return array{count:int, validCount:int, invalidCount:int, inspectionReasonCounts:array<string, int>, rootNamespaceCounts:array<string, int>, rootLocalNameCounts:array<string, int>, rootQualifiedNameCounts:array<string, int>, invalidPartNames:list<string>, items:list<array<string, mixed>>}
+     * @return array{count:int, validCount:int, invalidCount:int, inspectionReasonCounts:array<string, int>, rootNamespaceCounts:array<string, int>, rootLocalNameCounts:array<string, int>, rootQualifiedNameCounts:array<string, int>, invalidPartNames:list<string>, xmlDeclarationCount:int, xmlDeclarationPartNames:list<string>, xmlDeclarationVersionCounts:array<string, int>, xmlDeclarationEncodingCounts:array<string, int>, xmlStandaloneDeclarationCount:int, xmlStandaloneYesCount:int, xmlStandaloneNoCount:int, items:list<array<string, mixed>>}
      */
     private function packagePartXmlRootSummary(array $partInventory): array
     {
@@ -19483,8 +19490,15 @@ final class DocxOpenXmlReader
         $rootLocalNameCounts = [];
         $rootQualifiedNameCounts = [];
         $invalidPartNames = [];
+        $xmlDeclarationPartNames = [];
+        $xmlDeclarationVersionCounts = [];
+        $xmlDeclarationEncodingCounts = [];
         $validCount = 0;
         $invalidCount = 0;
+        $xmlDeclarationCount = 0;
+        $xmlStandaloneDeclarationCount = 0;
+        $xmlStandaloneYesCount = 0;
+        $xmlStandaloneNoCount = 0;
 
         foreach ($partInventory as $partName => $part) {
             if (($part['xmlInspectable'] ?? false) !== true) {
@@ -19521,6 +19535,32 @@ final class DocxOpenXmlReader
                 $rootQualifiedNameCounts[$rootQualifiedName] = ($rootQualifiedNameCounts[$rootQualifiedName] ?? 0) + 1;
             }
 
+            if (($part['xmlDeclarationPresent'] ?? false) === true) {
+                ++$xmlDeclarationCount;
+                $xmlDeclarationPartNames[] = $partName;
+            }
+            $xmlDeclarationVersion = is_string($part['xmlDeclarationVersion'] ?? null)
+                ? $part['xmlDeclarationVersion']
+                : '';
+            if ($xmlDeclarationVersion !== '') {
+                $xmlDeclarationVersionCounts[$xmlDeclarationVersion] = ($xmlDeclarationVersionCounts[$xmlDeclarationVersion] ?? 0) + 1;
+            }
+            $xmlDeclarationEncoding = is_string($part['xmlDeclarationEncoding'] ?? null)
+                ? $part['xmlDeclarationEncoding']
+                : '';
+            if ($xmlDeclarationEncoding !== '') {
+                $xmlDeclarationEncodingCounts[$xmlDeclarationEncoding] = ($xmlDeclarationEncodingCounts[$xmlDeclarationEncoding] ?? 0) + 1;
+            }
+            $xmlDeclarationStandalone = $part['xmlDeclarationStandalone'] ?? null;
+            if (is_bool($xmlDeclarationStandalone)) {
+                ++$xmlStandaloneDeclarationCount;
+                if ($xmlDeclarationStandalone) {
+                    ++$xmlStandaloneYesCount;
+                } else {
+                    ++$xmlStandaloneNoCount;
+                }
+            }
+
             $items[] = [
                 'partName' => $partName,
                 'directory' => is_string($part['directory'] ?? null)
@@ -19545,6 +19585,11 @@ final class DocxOpenXmlReader
                 'rootAttributeCount' => (int) ($part['rootAttributeCount'] ?? 0),
                 'rootNamespaceDeclarationCount' => (int) ($part['rootNamespaceDeclarationCount'] ?? 0),
                 'rootNamespacePrefixes' => array_values(array_map('strval', $part['rootNamespacePrefixes'] ?? [])),
+                'xmlDeclarationPresent' => (bool) ($part['xmlDeclarationPresent'] ?? false),
+                'xmlDeclarationVersion' => is_string($part['xmlDeclarationVersion'] ?? null) ? $part['xmlDeclarationVersion'] : null,
+                'xmlDeclarationEncoding' => is_string($part['xmlDeclarationEncoding'] ?? null) ? $part['xmlDeclarationEncoding'] : null,
+                'xmlDeclarationStandalone' => is_bool($part['xmlDeclarationStandalone'] ?? null) ? $part['xmlDeclarationStandalone'] : null,
+                'xmlDeclarationAttributeCount' => (int) ($part['xmlDeclarationAttributeCount'] ?? 0),
                 'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
             ];
         }
@@ -19553,7 +19598,10 @@ final class DocxOpenXmlReader
         ksort($rootNamespaceCounts, SORT_STRING);
         ksort($rootLocalNameCounts, SORT_STRING);
         ksort($rootQualifiedNameCounts, SORT_STRING);
+        ksort($xmlDeclarationVersionCounts, SORT_STRING);
+        ksort($xmlDeclarationEncodingCounts, SORT_STRING);
         sort($invalidPartNames, SORT_STRING);
+        sort($xmlDeclarationPartNames, SORT_STRING);
         usort(
             $items,
             static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName']),
@@ -19568,6 +19616,13 @@ final class DocxOpenXmlReader
             'rootLocalNameCounts' => $rootLocalNameCounts,
             'rootQualifiedNameCounts' => $rootQualifiedNameCounts,
             'invalidPartNames' => $invalidPartNames,
+            'xmlDeclarationCount' => $xmlDeclarationCount,
+            'xmlDeclarationPartNames' => $xmlDeclarationPartNames,
+            'xmlDeclarationVersionCounts' => $xmlDeclarationVersionCounts,
+            'xmlDeclarationEncodingCounts' => $xmlDeclarationEncodingCounts,
+            'xmlStandaloneDeclarationCount' => $xmlStandaloneDeclarationCount,
+            'xmlStandaloneYesCount' => $xmlStandaloneYesCount,
+            'xmlStandaloneNoCount' => $xmlStandaloneNoCount,
             'items' => $items,
         ];
     }
@@ -22805,9 +22860,15 @@ final class DocxOpenXmlReader
                 'rootAttributeCount' => 0,
                 'rootNamespaceDeclarationCount' => 0,
                 'rootNamespacePrefixes' => [],
+                'xmlDeclarationPresent' => false,
+                'xmlDeclarationVersion' => null,
+                'xmlDeclarationEncoding' => null,
+                'xmlDeclarationStandalone' => null,
+                'xmlDeclarationAttributeCount' => 0,
             ];
         }
 
+        $xmlDeclaration = $this->xmlDeclarationProvenance($contents);
         $root = $this->xmlRootProvenance($contents, $partName);
 
         return [
@@ -22822,6 +22883,11 @@ final class DocxOpenXmlReader
             'rootAttributeCount' => $root['attributeCount'],
             'rootNamespaceDeclarationCount' => $root['namespaceDeclarationCount'],
             'rootNamespacePrefixes' => $root['namespacePrefixes'],
+            'xmlDeclarationPresent' => $xmlDeclaration['present'],
+            'xmlDeclarationVersion' => $xmlDeclaration['version'],
+            'xmlDeclarationEncoding' => $xmlDeclaration['encoding'],
+            'xmlDeclarationStandalone' => $xmlDeclaration['standalone'],
+            'xmlDeclarationAttributeCount' => $xmlDeclaration['attributeCount'],
         ];
     }
 
