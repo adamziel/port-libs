@@ -353,8 +353,50 @@ final class OdtReader
             'tab' => [new AstNode('text', ['text' => "\t"])],
             's' => [new AstNode('text', ['text' => str_repeat(' ', max(1, (int) ($this->attr($element, self::TEXT_NS, 'c') ?: '1')))])],
             'frame' => $this->frame($element),
+            'note' => [$this->note($element)],
             default => $this->parseInlines($element),
         };
+    }
+
+    private function note(\DOMElement $element): AstNode
+    {
+        $noteClass = $this->attr($element, self::TEXT_NS, 'note-class');
+        if ($noteClass === '') {
+            $noteClass = 'footnote';
+        }
+
+        $attrs = [
+            'sourceFormat' => 'odt',
+            'noteClass' => $noteClass,
+        ];
+        $id = $this->attr($element, self::TEXT_NS, 'id');
+        if ($id !== '') {
+            $attrs['id'] = $id;
+        }
+
+        $citation = $this->firstChildElementByLocalName($element, 'note-citation');
+        if ($citation instanceof \DOMElement) {
+            $citationText = $this->plainText($this->parseInlines($citation));
+            if ($citationText === '') {
+                $citationText = trim(preg_replace('/\s+/', ' ', $citation->textContent) ?? $citation->textContent);
+            }
+            $attrs['citation'] = $citationText;
+        }
+
+        $blocks = [];
+        $body = $this->firstChildElementByLocalName($element, 'note-body');
+        if ($body instanceof \DOMElement) {
+            $blocks = $this->parseBlockChildren($body);
+            if ($blocks === []) {
+                $inlines = $this->parseInlines($body);
+                $text = $this->plainText($inlines);
+                if ($text !== '' || $inlines !== []) {
+                    $blocks[] = new AstNode('paragraph', ['text' => $text], $inlines);
+                }
+            }
+        }
+
+        return new AstNode('note', $attrs, $blocks);
     }
 
     /**
@@ -690,6 +732,9 @@ final class OdtReader
 
     private function nodeText(AstNode $node): string
     {
+        if ($node->type === 'note') {
+            return '';
+        }
         if (isset($node->attrs['text'])) {
             return (string) $node->attrs['text'];
         }

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\OdtReader;
+use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\PandocConverter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
@@ -146,5 +147,70 @@ XML);
         $t->same('heading', $document->children[0]->type);
         $t->same('Byte ODT', $document->children[0]->attr('text'));
         $t->same('paragraph', $document->children[1]->type);
+    },
+    'preserves odt footnotes through the converter input path' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary ODT path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary ODT package');
+        }
+        $zip->addFromString('content.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Paragraph with source note<text:note text:id="ftn1" text:note-class="footnote"><text:note-citation>1</text:note-citation><text:note-body><text:p>ODT footnote body <text:span>with inline text</text:span>.</text:p></text:note-body></text:note> after.</text:p>
+      <text:p>Endnote marker<text:note text:id="edn1" text:note-class="endnote"><text:note-citation>i</text:note-citation><text:note-body><text:p>ODT endnote body.</text:p></text:note-body></text:note>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML);
+        $zip->close();
+
+        try {
+            $bytes = file_get_contents($path);
+            if (!is_string($bytes)) {
+                throw new RuntimeException('Unable to read temporary ODT package');
+            }
+            $document = PandocConverter::read($bytes, 'odt');
+        } finally {
+            @unlink($path);
+        }
+
+        $firstParagraph = $document->children[0];
+        $secondParagraph = $document->children[1];
+        $footnote = $firstParagraph->children[1];
+        $endnote = $secondParagraph->children[1];
+
+        $t->same('Paragraph with source note after.', $firstParagraph->attr('text'));
+        $t->same('note', $footnote->type);
+        $t->same('odt', $footnote->attr('sourceFormat'));
+        $t->same('footnote', $footnote->attr('noteClass'));
+        $t->same('ftn1', $footnote->attr('id'));
+        $t->same('1', $footnote->attr('citation'));
+        $t->same('ODT footnote body with inline text.', $footnote->children[0]->attr('text'));
+        $t->same('Endnote marker.', $secondParagraph->attr('text'));
+        $t->same('note', $endnote->type);
+        $t->same('endnote', $endnote->attr('noteClass'));
+        $t->same('edn1', $endnote->attr('id'));
+        $t->same('i', $endnote->attr('citation'));
+        $t->same('ODT endnote body.', $endnote->children[0]->attr('text'));
+
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains('Paragraph with source note[^1] after.', $markdown);
+        $t->contains('[^1]: ODT footnote body with inline text.', $markdown);
+        $t->contains('[^2]: ODT endnote body.', $markdown);
+        $t->contains('<sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup>', $blocks);
+        $t->contains('<section class="footnotes" role="doc-endnotes"><ol>', $blocks);
+        $t->contains('ODT footnote body with inline text.', $blocks);
+        $t->contains('ODT endnote body.', $blocks);
     },
 ];
