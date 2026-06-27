@@ -2010,7 +2010,31 @@ final class PandocJsonWriter
             return $native;
         }
 
-        return $this->taggedNative($native, $constructor);
+        return $this->taggedNative($native, $constructor)
+            ?? $this->regeneratedEnumNative($native, $constructor);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function regeneratedEnumNative(mixed $native, string $constructor): ?array
+    {
+        if (
+            !is_array($native)
+            || array_is_list($native)
+            || !is_string($native['t'] ?? null)
+            || !$this->isNullaryNativeHelperConstructor($constructor)
+            || !$this->isNullaryNativeHelperConstructor($native['t'])
+        ) {
+            return null;
+        }
+
+        $native['t'] = $constructor;
+        if (array_key_exists('c', $native)) {
+            unset($native['c']);
+        }
+
+        return $native;
     }
 
     private function enumNativeAt(mixed $natives, int $index, string $constructor): mixed

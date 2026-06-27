@@ -13907,6 +13907,81 @@ return [
             }
         }
     },
+    'preserves edited tagged inline enum helper constructors through rebuilt writers' => static function (TestRunner $t): void {
+        $quoteTypeNative = ['t' => 'SingleQuote', 'reviewQueue' => 'quote-helper-source'];
+        $mathTypeNative = ['t' => 'DisplayMath', 'reviewQueue' => 'math-helper-source'];
+        $citationModeNative = ['t' => 'SuppressAuthor', 'reviewQueue' => 'citation-mode-helper-source'];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Quoted', 'c' => [
+                        $quoteTypeNative,
+                        [['t' => 'Str', 'c' => 'quoted']],
+                    ]],
+                    ['t' => 'Space'],
+                    ['t' => 'Math', 'c' => [
+                        $mathTypeNative,
+                        'E = mc^2',
+                    ]],
+                    ['t' => 'Space'],
+                    ['t' => 'Cite', 'c' => [
+                        [[
+                            'citationId' => 'enum-cite',
+                            'citationPrefix' => [],
+                            'citationSuffix' => [],
+                            'citationMode' => $citationModeNative,
+                            'citationNoteNum' => 3,
+                            'citationHash' => 303,
+                        ]],
+                        [['t' => 'Str', 'c' => '@enum-cite']],
+                    ]],
+                ]],
+            ],
+        ];
+        $stripWrapper = static function (AstNode $node): array {
+            $attrs = $node->attrs;
+            unset($attrs['constructor'], $attrs['native']);
+
+            return $attrs;
+        };
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $paragraph = $document->children[0];
+            $quote = $paragraph->children[0];
+            $math = $paragraph->children[2];
+            $citation = $paragraph->children[4];
+            $edited = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', $stripWrapper($paragraph), [
+                    new AstNode('quoted', array_replace($stripWrapper($quote), ['kind' => 'double']), $quote->children),
+                    $paragraph->children[1],
+                    new AstNode('math', array_replace($stripWrapper($math), ['display' => false]), $math->children),
+                    $paragraph->children[3],
+                    new AstNode('citation', array_replace($stripWrapper($citation), ['mode' => 'normal']), $citation->children),
+                ]),
+            ]);
+
+            $t->same($quoteTypeNative, $quote->attr('quoteTypeNative'), "{$source} records tagged quote helper");
+            $t->same($mathTypeNative, $math->attr('mathTypeNative'), "{$source} records tagged math helper");
+            $t->same($citationModeNative, $citation->attr('citationModeNative'), "{$source} records tagged citation mode helper");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($edited),
+                'native' => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedInlines = $encoded['blocks'][0]['c'];
+                $encodedCitation = $encodedInlines[4]['c'][0][0];
+
+                $t->same(['t' => 'DoubleQuote', 'reviewQueue' => 'quote-helper-source'], $encodedInlines[0]['c'][0], "{$source} {$writer} regenerates edited quote helper with provenance");
+                $t->same(['t' => 'InlineMath', 'reviewQueue' => 'math-helper-source'], $encodedInlines[2]['c'][0], "{$source} {$writer} regenerates edited math helper with provenance");
+                $t->same(['t' => 'NormalCitation', 'reviewQueue' => 'citation-mode-helper-source'], $encodedCitation['citationMode'], "{$source} {$writer} regenerates edited citation mode helper with provenance");
+            }
+        }
+    },
     'preserves tagged ordered list attribute constructors through rebuilt writers' => static function (TestRunner $t): void {
         $styleNative = ['t' => 'LowerAlpha', 'reviewQueue' => 'list-attribute-style'];
         $delimiterNative = ['t' => 'TwoParens', 'reviewQueue' => 'list-attribute-delimiter'];
