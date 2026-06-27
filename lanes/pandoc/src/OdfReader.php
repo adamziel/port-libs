@@ -3138,6 +3138,8 @@ final class OdfReader
             if ($this->isDatabasePackagePartName($part)) {
                 $roles[] = 'database-package';
             }
+        } elseif ($this->isScriptPackagePartName($entry->name)) {
+            $roles[] = 'script-package';
         }
         if ($undeclared) {
             $roles[] = 'undeclared-package-entry';
@@ -14362,6 +14364,7 @@ final class OdfReader
         $normalized = strtolower(ltrim($part, '/'));
 
         return str_starts_with($normalized, 'basic/')
+            || str_starts_with($normalized, 'dialogs/')
             || str_starts_with($normalized, 'scripts/');
     }
 
@@ -14380,6 +14383,9 @@ final class OdfReader
         }
         if (str_starts_with($normalized, 'basic/')) {
             return 'basic-module';
+        }
+        if (str_starts_with($normalized, 'dialogs/') && (str_ends_with($normalized, '.xml') || str_ends_with($normalized, '.xdl'))) {
+            return 'basic-dialog';
         }
         if ($mediaType === 'text/x-python' || str_ends_with($normalized, '.py')) {
             return 'python-script';
@@ -14400,7 +14406,7 @@ final class OdfReader
     private function scriptPartLanguage(string $part, string $mediaType): string
     {
         return match ($this->scriptPartKind($part, $mediaType)) {
-            'basic-library-index', 'basic-module' => 'Basic',
+            'basic-dialog', 'basic-library-index', 'basic-module' => 'Basic',
             'python-script' => 'Python',
             'javascript-script' => 'JavaScript',
             'beanshell-script' => 'BeanShell',
@@ -14412,7 +14418,7 @@ final class OdfReader
     private function scriptPartLibraryName(string $part): ?string
     {
         $segments = explode('/', trim($part, '/'));
-        if (strtolower($segments[0] ?? '') === 'basic') {
+        if (in_array(strtolower($segments[0] ?? ''), ['basic', 'dialogs'], true)) {
             return $segments[1] ?? null;
         }
         if (strtolower($segments[0] ?? '') === 'scripts' && count($segments) > 2) {
