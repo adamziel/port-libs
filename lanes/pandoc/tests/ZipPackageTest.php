@@ -12343,6 +12343,101 @@ return [
         $t->same(null, $summary['entries'][8]['directoryRoot']);
     },
 
+    'summarizes selected zip handoff extension buckets for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $mimetype = 'application/epub+zip';
+        $contentTypesXml = '<Types/>';
+        $packageRelsXml = '<Relationships/>';
+        $documentXml = '<w:document><w:body><w:p>extension bucket handoff</w:p></w:body></w:document>';
+        $imageBytes = "image extension bytes\n";
+        $largeBytes = "large binary extension bytes\n";
+        $licenseBytes = "package license review\n";
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => 'mimetype', 'data' => $mimetype, 'method' => 0],
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'method' => 0],
+            ['name' => '_rels/.rels', 'data' => $packageRelsXml, 'method' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => 'word/media/', 'data' => '', 'method' => 0],
+            ['name' => 'word/media/image.png', 'data' => $imageBytes, 'method' => 0],
+            ['name' => 'word/media/large.bin', 'data' => $largeBytes, 'method' => 0],
+            ['name' => 'word/media/LICENSE', 'data' => $licenseBytes, 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'mimetype', 'required' => false, 'kind' => 'file', 'role' => 'epub-mimetype'],
+            ['name' => '[Content_Types].xml', 'required' => true, 'kind' => 'file', 'role' => 'content-types'],
+            ['name' => '_rels/.rels', 'required' => true, 'kind' => 'file', 'role' => 'root-relationships'],
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/media/', 'required' => false, 'kind' => 'directory', 'role' => 'media-directory'],
+            ['name' => 'word/media/image.png', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'word/media/large.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 8],
+            ['name' => 'word/media/LICENSE', 'required' => false, 'kind' => 'file', 'role' => 'license'],
+        ], 1024);
+
+        $selectedByExtension = [];
+        foreach ($summary['selectedExtensionSummaries'] as $extensionSummary) {
+            $selectedByExtension[$extensionSummary['extension'] ?? '(none)'] = $extensionSummary;
+        }
+        $handoffByExtension = [];
+        foreach ($summary['handoffExtensionSummaries'] as $extensionSummary) {
+            $handoffByExtension[$extensionSummary['extension'] ?? '(none)'] = $extensionSummary;
+        }
+
+        $t->same(5, $summary['selectedExtensionBucketCount']);
+        $t->same(2, $summary['selectedExtensionlessFileEntryCount']);
+        $t->same(4, $summary['handoffExtensionBucketCount']);
+        $t->same(2, $summary['handoffExtensionlessFileEntryCount']);
+        $t->same(['(none)', 'bin', 'png', 'rels', 'xml'], array_keys($selectedByExtension));
+        $t->same(['(none)', 'png', 'rels', 'xml'], array_keys($handoffByExtension));
+
+        $t->same([
+            'extension' => null,
+            'entryCount' => 2,
+            'compressedBytes' => strlen($mimetype) + strlen($licenseBytes),
+            'uncompressedBytes' => strlen($mimetype) + strlen($licenseBytes),
+            'roles' => ['epub-mimetype', 'license'],
+            'entryNames' => ['mimetype', 'word/media/LICENSE'],
+        ], $selectedByExtension['(none)']);
+        $t->same([
+            'extension' => 'xml',
+            'entryCount' => 2,
+            'compressedBytes' => strlen($contentTypesXml) + strlen($documentXml),
+            'uncompressedBytes' => strlen($contentTypesXml) + strlen($documentXml),
+            'roles' => ['content-types', 'main-document'],
+            'entryNames' => ['[Content_Types].xml', 'word/document.xml'],
+        ], $selectedByExtension['xml']);
+        $t->same([
+            'extension' => 'bin',
+            'entryCount' => 1,
+            'compressedBytes' => strlen($largeBytes),
+            'uncompressedBytes' => strlen($largeBytes),
+            'roles' => ['media'],
+            'entryNames' => ['word/media/large.bin'],
+        ], $selectedByExtension['bin']);
+
+        $t->same($selectedByExtension['(none)'], $handoffByExtension['(none)']);
+        $t->same($selectedByExtension['xml'], $handoffByExtension['xml']);
+        $t->same([
+            'extension' => 'rels',
+            'entryCount' => 1,
+            'compressedBytes' => strlen($packageRelsXml),
+            'uncompressedBytes' => strlen($packageRelsXml),
+            'roles' => ['root-relationships'],
+            'entryNames' => ['_rels/.rels'],
+        ], $handoffByExtension['rels']);
+        $t->same([
+            'extension' => 'png',
+            'entryCount' => 1,
+            'compressedBytes' => strlen($imageBytes),
+            'uncompressedBytes' => strlen($imageBytes),
+            'roles' => ['media'],
+            'entryNames' => ['word/media/image.png'],
+        ], $handoffByExtension['png']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
+        $t->same('blocked', $summary['entries'][6]['status']);
+        $t->same('ready', $summary['entries'][7]['status']);
+    },
+
     'preflights aggregate zip package expansion before exposing media bytes' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>aggregate package preflight</w:p></w:body></w:document>';
         $mediaBytes = str_repeat("review media bytes\n", 24);
