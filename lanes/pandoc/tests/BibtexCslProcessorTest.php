@@ -2633,6 +2633,97 @@ XML);
         $t->contains('Date addendum: first source capture', $blocks);
         $t->contains('Event date addendum: hybrid review window', $blocks);
     },
+    'carries biblatex availability submitted and label dates in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@online{legacy-availability-window,
+  author        = {Ng, Nia},
+  title         = {Availability Window Packet},
+  date          = {2026-06-09},
+  availabledate = {2026-06-01},
+  submitteddate = {2026-05-28},
+  labeldate     = {2026},
+  url           = {https://example.test/availability-window}
+}
+
+@report{legacy-split-window,
+  author         = {Roe, Rae},
+  title          = {Split Availability Packet},
+  institution    = {Archive Desk},
+  year           = {2025},
+  availableyear  = {2025},
+  availablemonth = {12},
+  availableday   = {31},
+  submitted      = {2025-11-15},
+  labelyear      = {2025}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $window = $items['legacy-availability-window'];
+        $split = $items['legacy-split-window'];
+
+        $t->same([2026, 6, 1], $window['available-date']['date-parts'][0]);
+        $t->same([2026, 5, 28], $window['submitted']['date-parts'][0]);
+        $t->same([2026], $window['label-date']['date-parts'][0]);
+        $t->same('2026-06-01', $window['rawBibtex']['fields']['availabledate']);
+        $t->same('2026-05-28', $window['rawBibtex']['fields']['submitteddate']);
+        $t->same('2026', $window['rawBibtex']['fields']['labeldate']);
+        $t->same([2025, 12, 31], $split['available-date']['date-parts'][0]);
+        $t->same([2025, 11, 15], $split['submitted']['date-parts'][0]);
+        $t->same(
+            'Nia Ng. Availability Window Packet. 2026. Available date: 2026-06-01. Submitted date: 2026-05-28. Label date: 2026. https://example.test/availability-window.',
+            $processor->renderBibliographyText($window)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <date variable="available-date"/>
+        <date variable="submitted"/>
+        <date variable="label-date"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="available-date"/>
+      <date variable="submitted"/>
+      <date variable="label-date"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledWindow = $styled->item('legacy-availability-window');
+        $styledSplit = $styled->item('legacy-split-window');
+        $t->same([2026, 6, 1], $styledWindow['availableDate']['parts'] ?? null);
+        $t->same([2026, 5, 28], $styledWindow['submittedDate']['parts'] ?? null);
+        $t->same([2026], $styledWindow['labelDate']['parts'] ?? null);
+        $t->same([2025, 12, 31], $styledSplit['availableDate']['parts'] ?? null);
+        $t->same(
+            '[Availability Window Packet | 2026-06-01 | 2026-05-28 | 2026; Split Availability Packet | 2025-12-31 | 2025-11-15 | 2025]',
+            $styled->renderCitationCluster([
+                new AstNode('citation', ['id' => 'legacy-availability-window', 'text' => '[@legacy-availability-window]']),
+                new AstNode('citation', ['id' => 'legacy-split-window', 'text' => '[@legacy-split-window]']),
+            ])
+        );
+        $t->same('Availability Window Packet :: 2026-06-01 :: 2026-05-28 :: 2026', $styled->renderBibliographyEntry('legacy-availability-window'));
+
+        $document = (new MarkdownReader())->read('Availability dates [@legacy-availability-window; @legacy-split-window] stay reviewable.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['legacy-availability-window', 'legacy-split-window'], $handoff['citedKeys']);
+        $t->same([2026, 6, 1], $handoff['bibliography']->children[0]->attr('cslItem')['available-date']['date-parts'][0] ?? null);
+        $t->contains('<p>Availability dates [Availability Window Packet | 2026-06-01 | 2026-05-28 | 2026; Split Availability Packet | 2025-12-31 | 2025-11-15 | 2025] stay reviewable.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Availability Window Packet :: 2026-06-01 :: 2026-05-28 :: 2026</dd>', $blocks);
+    },
     'carries legacy biblatex source file attachment policy metadata' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @online{legacy-file-source,

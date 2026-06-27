@@ -404,6 +404,16 @@ final class BibtexCslProcessor
                 $parts[] = $label . ': ' . $value;
             }
         }
+        foreach ([
+            'available-date' => 'Available date',
+            'submitted' => 'Submitted date',
+            'label-date' => 'Label date',
+        ] as $field => $label) {
+            $value = $this->datePartsLabel($item[$field] ?? null);
+            if ($value !== '') {
+                $parts[] = $label . ': ' . $value;
+            }
+        }
         if (($item['rights'] ?? '') !== '') {
             $parts[] = 'Rights: ' . (string) $item['rights'];
         }
@@ -959,6 +969,21 @@ final class BibtexCslProcessor
             $item['event-date'] = ['date-parts' => [$eventDate]];
         }
 
+        $availableDate = $this->datePartsFromFields($fields, ['availabledate', 'available-date'], ['availableyear', 'availablemonth', 'availableday']);
+        if ($availableDate !== null) {
+            $item['available-date'] = ['date-parts' => [$availableDate]];
+        }
+
+        $submittedDate = $this->datePartsFromFields($fields, ['submitteddate', 'submitted-date', 'submitted'], ['submittedyear', 'submittedmonth', 'submittedday']);
+        if ($submittedDate !== null) {
+            $item['submitted'] = ['date-parts' => [$submittedDate]];
+        }
+
+        $labelDate = $this->datePartsFromFields($fields, ['labeldate', 'label-date'], ['labelyear', 'labelmonth', 'labelday']);
+        if ($labelDate !== null) {
+            $item['label-date'] = ['date-parts' => [$labelDate]];
+        }
+
         $keywords = $this->keywordList($this->firstField($fields, ['keywords', 'keyword', 'keyword-list', 'keywordlist']));
         if ($keywords !== []) {
             $item['keyword'] = $keywords;
@@ -1205,7 +1230,36 @@ final class BibtexCslProcessor
     private function referenceDateLabel(array $item): string
     {
         $parts = $item['issued']['date-parts'][0] ?? null;
-        if (!is_array($parts) || $parts === []) {
+        if (!is_array($parts)) {
+            return '';
+        }
+
+        return $this->datePartsFromPartsLabel($parts);
+    }
+
+    /**
+     * @param mixed $date
+     */
+    private function datePartsLabel(mixed $date): string
+    {
+        if (!is_array($date)) {
+            return '';
+        }
+
+        $parts = $date['date-parts'][0] ?? null;
+        if (!is_array($parts)) {
+            return '';
+        }
+
+        return $this->datePartsFromPartsLabel($parts);
+    }
+
+    /**
+     * @param list<mixed> $parts
+     */
+    private function datePartsFromPartsLabel(array $parts): string
+    {
+        if ($parts === []) {
             return '';
         }
 
