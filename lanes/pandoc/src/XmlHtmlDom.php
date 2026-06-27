@@ -15371,6 +15371,9 @@ final class XmlHtmlDom
         if ($httpEquiv === 'refresh') {
             $summary['refresh'] = self::metaRefreshSummary($content);
         }
+        if ($httpEquiv === 'content-security-policy' || $httpEquiv === 'content-security-policy-report-only') {
+            $summary += self::metaContentSecurityPolicySummary($content, $httpEquiv);
+        }
 
         return $summary;
     }
@@ -15679,6 +15682,224 @@ final class XmlHtmlDom
             'urlRaw' => $urlRaw,
             'url' => $url,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function metaContentSecurityPolicySummary(?string $content, string $httpEquiv): array
+    {
+        $raw = $content ?? '';
+        $directives = [];
+        $directiveNames = [];
+        $directiveNameCounts = [];
+        $directiveKinds = [];
+        $fetchDirectiveNames = [];
+        $schemeSources = [];
+        $networkSources = [];
+        $reportEndpoints = [];
+        $unsafeKeywords = [];
+        $nonceSourceDigests = [];
+        $hashSourceAlgorithms = [];
+        $invalidDirectiveNames = [];
+        $invalidSourceTokens = [];
+
+        foreach (explode(';', $raw) as $fragmentIndex => $fragment) {
+            $directiveRaw = trim($fragment);
+            if ($directiveRaw === '') {
+                continue;
+            }
+
+            $tokens = preg_split('/[\t\n\f\r ]+/', $directiveRaw) ?: [];
+            $nameRaw = (string) array_shift($tokens);
+            $name = strtolower($nameRaw);
+            $validName = self::isSafeCspDirectiveName($nameRaw);
+            $kind = $validName ? self::cspDirectiveKind($name) : 'invalid';
+            $invalidValues = [];
+
+            if ($validName) {
+                if (!isset($directiveNameCounts[$name])) {
+                    $directiveNameCounts[$name] = 0;
+                    $directiveNames[] = $name;
+                }
+                ++$directiveNameCounts[$name];
+                self::appendUniqueString($directiveKinds, $kind);
+                if ($kind === 'fetch') {
+                    self::appendUniqueString($fetchDirectiveNames, $name);
+                }
+            } else {
+                $invalidDirectiveNames[] = $nameRaw;
+            }
+
+            foreach ($tokens as $token) {
+                if (!self::isSafeCspSourceToken($token)) {
+                    $invalidValues[] = $token;
+                    $invalidSourceTokens[] = $token;
+                    continue;
+                }
+
+                $lower = strtolower($token);
+                if (in_array($lower, ["'unsafe-inline'", "'unsafe-eval'", "'unsafe-hashes'"], true)) {
+                    self::appendUniqueString($unsafeKeywords, $lower);
+                }
+
+                if (preg_match("/^'nonce-([^']+)'$/i", $token, $matches) === 1) {
+                    $nonceSourceDigests[] = hash('sha256', (string) $matches[1]);
+                }
+
+                if (preg_match("/^'(sha256|sha384|sha512)-[A-Za-z0-9+\/_-]+=*'$/i", $token, $matches) === 1) {
+                    self::appendUniqueString($hashSourceAlgorithms, strtolower((string) $matches[1]));
+                }
+
+                if (self::isCspSchemeSource($token)) {
+                    self::appendUniqueString($schemeSources, strtolower($token));
+                }
+
+                if (self::isCspNetworkSource($token)) {
+                    self::appendUniqueString($networkSources, $token);
+                }
+
+                if ($name === 'report-uri' && self::isCspNetworkSource($token)) {
+                    self::appendUniqueString($reportEndpoints, $token);
+                }
+            }
+
+            $directiveIssues = [];
+            if (!$validName) {
+                $directiveIssues[] = 'invalid-csp-directive-name';
+            }
+            if ($invalidValues !== []) {
+                $directiveIssues[] = 'invalid-csp-source-token';
+            }
+
+            $directives[] = [
+                'index' => count($directives),
+                'sourceIndex' => $fragmentIndex,
+                'raw' => $directiveRaw,
+                'nameRaw' => $nameRaw,
+                'name' => $validName ? $name : null,
+                'kind' => $kind,
+                'values' => $tokens,
+                'valueCount' => count($tokens),
+                'invalidValues' => $invalidValues,
+                'valid' => $validName && $invalidValues === [],
+                'issueCodes' => $directiveIssues,
+            ];
+        }
+
+        $duplicateDirectiveNames = array_values(array_filter(
+            $directiveNames,
+            static fn (string $name): bool => ($directiveNameCounts[$name] ?? 0) > 1
+        ));
+        $issues = [];
+        if ($content === null || trim($content) === '') {
+            $issues[] = ['code' => 'missing-meta-csp-content'];
+        }
+        foreach ($invalidDirectiveNames as $name) {
+            $issues[] = ['code' => 'invalid-csp-directive-name', 'nameRaw' => $name];
+        }
+        foreach ($invalidSourceTokens as $token) {
+            $issues[] = ['code' => 'invalid-csp-source-token', 'sourceToken' => $token];
+        }
+        foreach ($duplicateDirectiveNames as $name) {
+            $issues[] = [
+                'code' => 'duplicate-csp-directive',
+                'directive' => $name,
+                'count' => $directiveNameCounts[$name] ?? 0,
+            ];
+        }
+        foreach ($unsafeKeywords as $keyword) {
+            $issues[] = ['code' => 'unsafe-csp-keyword', 'keyword' => $keyword];
+        }
+        if (in_array('data:', $schemeSources, true)) {
+            $issues[] = ['code' => 'data-csp-source'];
+        }
+
+        return [
+            'contentSecurityPolicyReviewPolicy' => 'meta-content-security-policy-review',
+            'contentSecurityPolicyHttpEquiv' => $httpEquiv,
+            'contentSecurityPolicyRaw' => $content,
+            'contentSecurityPolicyByteLength' => strlen($raw),
+            'contentSecurityPolicySha256' => hash('sha256', $raw),
+            'cspDirectiveCount' => count($directives),
+            'cspDirectives' => $directives,
+            'cspDirectiveNames' => $directiveNames,
+            'cspDirectiveNameCounts' => $directiveNameCounts,
+            'cspDirectiveKinds' => $directiveKinds,
+            'cspFetchDirectiveNames' => $fetchDirectiveNames,
+            'duplicateCspDirectiveNames' => $duplicateDirectiveNames,
+            'invalidCspDirectiveNames' => $invalidDirectiveNames,
+            'invalidCspSourceTokens' => $invalidSourceTokens,
+            'cspSchemeSources' => $schemeSources,
+            'cspNetworkSources' => $networkSources,
+            'cspReportEndpoints' => $reportEndpoints,
+            'cspUnsafeKeywords' => $unsafeKeywords,
+            'cspNonceSourceCount' => count($nonceSourceDigests),
+            'cspNonceSourceDigests' => $nonceSourceDigests,
+            'cspHashSourceAlgorithms' => $hashSourceAlgorithms,
+            'cspIssues' => $issues,
+            'cspIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'contentSecurityPolicyValid' => $issues === [],
+        ];
+    }
+
+    private static function isSafeCspDirectiveName(string $name): bool
+    {
+        return preg_match('/^[A-Za-z][A-Za-z0-9-]*$/', $name) === 1;
+    }
+
+    private static function isSafeCspSourceToken(string $token): bool
+    {
+        return $token !== '' && preg_match('/[\s<>"`\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u', $token) !== 1;
+    }
+
+    private static function cspDirectiveKind(string $name): string
+    {
+        return match ($name) {
+            'default-src',
+            'child-src',
+            'connect-src',
+            'font-src',
+            'frame-src',
+            'img-src',
+            'manifest-src',
+            'media-src',
+            'object-src',
+            'prefetch-src',
+            'script-src',
+            'script-src-attr',
+            'script-src-elem',
+            'style-src',
+            'style-src-attr',
+            'style-src-elem',
+            'worker-src' => 'fetch',
+            'base-uri',
+            'plugin-types',
+            'sandbox' => 'document',
+            'form-action',
+            'frame-ancestors',
+            'navigate-to' => 'navigation',
+            'report-to',
+            'report-uri' => 'reporting',
+            'block-all-mixed-content',
+            'upgrade-insecure-requests' => 'transport',
+            'require-trusted-types-for',
+            'trusted-types' => 'trusted-types',
+            default => 'other',
+        };
+    }
+
+    private static function isCspSchemeSource(string $token): bool
+    {
+        return preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:$/', $token) === 1;
+    }
+
+    private static function isCspNetworkSource(string $token): bool
+    {
+        return preg_match('~^(?:[A-Za-z][A-Za-z0-9+.-]*:)?//~', $token) === 1;
     }
 
     /**
