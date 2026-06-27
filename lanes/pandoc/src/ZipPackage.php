@@ -142,6 +142,40 @@ final class ZipPackage
         "\u{2068}" => 'first-strong-isolate',
         "\u{2069}" => 'pop-directional-isolate',
     ];
+    private const HANDOFF_MEDIA_EXTENSIONS = [
+        'apng' => true,
+        'avif' => true,
+        'bmp' => true,
+        'emf' => true,
+        'gif' => true,
+        'jpeg' => true,
+        'jpg' => true,
+        'm4a' => true,
+        'mov' => true,
+        'mp3' => true,
+        'mp4' => true,
+        'oga' => true,
+        'ogg' => true,
+        'ogv' => true,
+        'png' => true,
+        'svg' => true,
+        'tif' => true,
+        'tiff' => true,
+        'wav' => true,
+        'webm' => true,
+        'webp' => true,
+        'wmf' => true,
+    ];
+    private const HANDOFF_MARKUP_EXTENSIONS = [
+        'css' => true,
+        'html' => true,
+        'htm' => true,
+        'jats' => true,
+        'ncx' => true,
+        'opf' => true,
+        'xhtml' => true,
+        'xml' => true,
+    ];
 
     /**
      * @param array<string, ZipPackageEntry> $entriesByName
@@ -5293,6 +5327,7 @@ final class ZipPackage
                 'centralDirectoryIndex' => $centralDirectoryIndexByName[$entry->name] ?? null,
                 'localHeaderOrder' => $localHeaderOrderByName[$entry->name] ?? null,
                 'pathDepth' => self::entryHandoffPathDepth($entry->name),
+                'packagePartKind' => self::entryHandoffPackagePartKind($entry->name, $isDirectory),
                 'compressedSize' => $entry->compressedSize,
                 'uncompressedSize' => $entry->uncompressedSize,
             ];
@@ -5532,6 +5567,7 @@ final class ZipPackage
                 'exists' => $entry !== null,
                 'isDirectory' => null,
                 'directoryRoot' => null,
+                'packagePartKind' => null,
                 'centralDirectoryIndex' => null,
                 'localHeaderOrder' => null,
                 'pathDepth' => null,
@@ -5788,6 +5824,7 @@ final class ZipPackage
             $compressedDataEnd = $compressedDataOffset + $entry->compressedSize;
             $summary['isDirectory'] = $isDirectory;
             $summary['directoryRoot'] = self::entryHandoffDirectoryRoot($entry->name);
+            $summary['packagePartKind'] = self::entryHandoffPackagePartKind($entry->name, $isDirectory);
             $summary['centralDirectoryIndex'] = $centralDirectoryIndexByName[$entry->name] ?? null;
             $summary['localHeaderOrder'] = $localHeaderOrderByName[$entry->name] ?? null;
             $summary['pathDepth'] = self::entryHandoffPathDepth($entry->name);
@@ -5903,6 +5940,8 @@ final class ZipPackage
 
         $selectedDirectoryRootSummaries = self::entryHandoffDirectoryRootSummaries($selectedDirectoryRootSummaryEntries);
         $handoffDirectoryRootSummaries = self::entryHandoffDirectoryRootSummaries($handoffEntries);
+        $selectedPackagePartKindSummaries = self::entryHandoffPackagePartKindSummaries($selectedDirectoryRootSummaryEntries);
+        $handoffPackagePartKindSummaries = self::entryHandoffPackagePartKindSummaries($handoffEntries);
         $selectedExtensionSummaries = self::entryHandoffExtensionSummaries($selectedDirectoryRootSummaryEntries);
         $handoffExtensionSummaries = self::entryHandoffExtensionSummaries($handoffEntries);
         $selectedOrderSummary = self::entryHandoffOrderSummary($selectedDirectoryRootSummaryEntries);
@@ -5918,6 +5957,9 @@ final class ZipPackage
             'presentEntryCount' => count($presentNames),
             'selectedUniqueEntryCount' => count($selectedEntriesByName),
             'selectedDirectoryRootCount' => count($selectedDirectoryRootSummaries),
+            'selectedPackagePartKindCount' => count($selectedPackagePartKindSummaries),
+            'selectedMediaPartEntryCount' => self::entryHandoffKindEntryCount($selectedPackagePartKindSummaries, 'media'),
+            'selectedRelationshipPartEntryCount' => self::entryHandoffKindEntryCount($selectedPackagePartKindSummaries, 'relationship-part'),
             'selectedExtensionBucketCount' => count($selectedExtensionSummaries),
             'selectedExtensionlessFileEntryCount' => self::entryHandoffExtensionlessFileEntryCount($selectedExtensionSummaries),
             'selectedOrderMismatchEntryCount' => $selectedOrderSummary['mismatchEntryCount'],
@@ -5946,6 +5988,9 @@ final class ZipPackage
             'missingOptionalEntryCount' => $missingOptionalEntryCount,
             'handoffEntryCount' => count($handoffEntries),
             'handoffDirectoryRootCount' => count($handoffDirectoryRootSummaries),
+            'handoffPackagePartKindCount' => count($handoffPackagePartKindSummaries),
+            'handoffMediaPartEntryCount' => self::entryHandoffKindEntryCount($handoffPackagePartKindSummaries, 'media'),
+            'handoffRelationshipPartEntryCount' => self::entryHandoffKindEntryCount($handoffPackagePartKindSummaries, 'relationship-part'),
             'handoffExtensionBucketCount' => count($handoffExtensionSummaries),
             'handoffExtensionlessFileEntryCount' => self::entryHandoffExtensionlessFileEntryCount($handoffExtensionSummaries),
             'handoffOrderMismatchEntryCount' => $handoffOrderSummary['mismatchEntryCount'],
@@ -6031,6 +6076,8 @@ final class ZipPackage
             'roleSummaries' => $roleSummaries,
             'selectedDirectoryRootSummaries' => $selectedDirectoryRootSummaries,
             'handoffDirectoryRootSummaries' => $handoffDirectoryRootSummaries,
+            'selectedPackagePartKindSummaries' => $selectedPackagePartKindSummaries,
+            'handoffPackagePartKindSummaries' => $handoffPackagePartKindSummaries,
             'selectedExtensionSummaries' => $selectedExtensionSummaries,
             'handoffExtensionSummaries' => $handoffExtensionSummaries,
             'selectedOrderSummary' => $selectedOrderSummary,
@@ -6525,6 +6572,136 @@ final class ZipPackage
         $separator = strpos($name, '/');
 
         return $separator === false ? '/' : substr($name, 0, $separator + 1);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffPackagePartKindSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $isDirectory = ($entry['isDirectory'] ?? false) === true;
+            $kind = is_string($entry['packagePartKind'] ?? null) && $entry['packagePartKind'] !== ''
+                ? $entry['packagePartKind']
+                : self::entryHandoffPackagePartKind($name, $isDirectory);
+            if (!isset($summaries[$kind])) {
+                $summaries[$kind] = [
+                    'packagePartKind' => $kind,
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'roles' => [],
+                    'entryNames' => [],
+                ];
+            }
+
+            ++$summaries[$kind]['entryCount'];
+            if ($isDirectory) {
+                ++$summaries[$kind]['directoryEntryCount'];
+            } else {
+                ++$summaries[$kind]['fileEntryCount'];
+            }
+
+            $summaries[$kind]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$kind]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$kind]['entryNames'][] = $name;
+
+            $roles = [];
+            if (is_array($entry['roles'] ?? null)) {
+                $roles = array_values(array_filter($entry['roles'], static fn (mixed $role): bool => is_string($role) && $role !== ''));
+            } elseif (is_string($entry['role'] ?? null) && $entry['role'] !== '') {
+                $roles = [$entry['role']];
+            }
+
+            foreach ($roles as $role) {
+                if (!in_array($role, $summaries[$kind]['roles'], true)) {
+                    $summaries[$kind]['roles'][] = $role;
+                }
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['roles'], SORT_STRING);
+        }
+        unset($summary);
+
+        ksort($summaries, SORT_STRING);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $kindSummaries
+     */
+    private static function entryHandoffKindEntryCount(array $kindSummaries, string $kind): int
+    {
+        foreach ($kindSummaries as $summary) {
+            if (($summary['packagePartKind'] ?? null) === $kind) {
+                return (int) ($summary['entryCount'] ?? 0);
+            }
+        }
+
+        return 0;
+    }
+
+    private static function entryHandoffPackagePartKind(string $name, bool $isDirectory): string
+    {
+        if ($isDirectory) {
+            return 'directory';
+        }
+
+        if ($name === '[Content_Types].xml') {
+            return 'content-types';
+        }
+
+        if ($name === 'mimetype') {
+            return 'mimetype';
+        }
+
+        if ($name === '_rels/.rels') {
+            return 'root-relationships';
+        }
+
+        if (self::entryHandoffIsRelationshipPart($name)) {
+            return 'relationship-part';
+        }
+
+        if (str_starts_with($name, 'docProps/') || str_starts_with($name, 'META-INF/')) {
+            return 'metadata';
+        }
+
+        $extension = self::entryHandoffFileExtension($name);
+        if ($extension !== null && isset(self::HANDOFF_MEDIA_EXTENSIONS[$extension])) {
+            return 'media';
+        }
+
+        if (str_contains($name, '/media/') || str_starts_with($name, 'media/')) {
+            return 'media';
+        }
+
+        if ($extension !== null && isset(self::HANDOFF_MARKUP_EXTENSIONS[$extension])) {
+            return 'markup-part';
+        }
+
+        return $extension === null ? 'extensionless' : 'package-part';
+    }
+
+    private static function entryHandoffIsRelationshipPart(string $name): bool
+    {
+        if (!str_ends_with(strtolower($name), '.rels')) {
+            return false;
+        }
+
+        return str_starts_with($name, '_rels/') || str_contains($name, '/_rels/');
     }
 
     /**
