@@ -17461,6 +17461,135 @@ XML;
         $t->same('urn:package-default', $defaultPart['rootNamespace']);
         $t->same('packet', $defaultPart['rootQualifiedName']);
     },
+    'summarizes docx package xml processing instructions for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['customXml/pi-review.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="../word/theme/review.xsl"?>
+<review:packet xmlns:review="urn:review-pi">
+  <?review-audit checkpoint="package"?>
+  <review:item/>
+</review:packet>
+XML;
+        $parts['word/settings-pi.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Word.Document"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:updateFields w:val="true"/>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/pi-review.xml'];
+        $settingsPart = $package['parts']['word/settings-pi.xml'];
+        $processingInstructions = $summary['partXmlProcessingInstructions'];
+        $stylesheetData = 'type="text/xsl" href="../word/theme/review.xsl"';
+        $msoData = 'progid="Word.Document"';
+
+        $t->same(9, $summary['partXmlInspectableCount']);
+        $t->same(2, $summary['partXmlProcessingInstructionPartCount']);
+        $t->same(3, $summary['partXmlProcessingInstructionCount']);
+        $t->same(3, $summary['partXmlProcessingInstructionTargetCount']);
+        $t->same(
+            ['mso-application' => 1, 'review-audit' => 1, 'xml-stylesheet' => 1],
+            $summary['partXmlProcessingInstructionTargetCounts']
+        );
+        $t->same(['mso-application', 'review-audit', 'xml-stylesheet'], $summary['partXmlProcessingInstructionTargets']);
+        $t->same(['customXml/pi-review.xml', 'word/settings-pi.xml'], $summary['partXmlProcessingInstructionPartNames']);
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(2, $reviewPart['xmlProcessingInstructionCount']);
+        $t->same(['review-audit', 'xml-stylesheet'], $reviewPart['xmlProcessingInstructionTargets']);
+        $t->same(['review-audit' => 1, 'xml-stylesheet' => 1], $reviewPart['xmlProcessingInstructionTargetCounts']);
+        $t->same('xml-stylesheet', $reviewPart['xmlProcessingInstructions'][0]['targetKey']);
+        $t->same(strlen($stylesheetData), $reviewPart['xmlProcessingInstructions'][0]['dataByteLength']);
+        $t->same(sprintf('%08x', crc32($stylesheetData)), $reviewPart['xmlProcessingInstructions'][0]['dataCrc32']);
+        $t->same(hash('sha256', $stylesheetData), $reviewPart['xmlProcessingInstructions'][0]['dataSha256']);
+        $t->same(2, $reviewPart['xmlProcessingInstructions'][0]['dataAttributeCount']);
+        $t->same(['href', 'type'], $reviewPart['xmlProcessingInstructions'][0]['dataAttributeNames']);
+        $t->same('review-audit', $reviewPart['xmlProcessingInstructions'][1]['targetKey']);
+        $t->same(['checkpoint'], $reviewPart['xmlProcessingInstructions'][1]['dataAttributeNames']);
+
+        $t->same(1, $settingsPart['xmlProcessingInstructionCount']);
+        $t->same(['mso-application'], $settingsPart['xmlProcessingInstructionTargets']);
+        $t->same(strlen($msoData), $settingsPart['xmlProcessingInstructions'][0]['dataByteLength']);
+        $t->same(hash('sha256', $msoData), $settingsPart['xmlProcessingInstructions'][0]['dataSha256']);
+        $t->same(['progid'], $settingsPart['xmlProcessingInstructions'][0]['dataAttributeNames']);
+
+        $t->same('customXml/pi-review.xml', $processingInstructions[0]['partName']);
+        $t->same('xml-stylesheet', $processingInstructions[0]['targetKey']);
+        $t->same(['href', 'type'], $processingInstructions[0]['dataAttributeNames']);
+        $t->same('customXml/pi-review.xml', $processingInstructions[1]['partName']);
+        $t->same('review-audit', $processingInstructions[1]['targetKey']);
+        $t->same('word/settings-pi.xml', $processingInstructions[2]['partName']);
+        $t->same('mso-application', $processingInstructions[2]['targetKey']);
+        $t->same(['progid'], $processingInstructions[2]['dataAttributeNames']);
+    },
+    'summarizes docx package xml comments without exposing comment text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $rootComment = 'package-level-reviewer-note:hidden-contents';
+        $childComment = 'child-checkpoint-alpha';
+        $itemComment = 'item-note-beta';
+        $settingsComment = 'settings-checkpoint';
+        $parts['customXml/comment-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<!--{$rootComment}-->
+<review:packet xmlns:review="urn:review-comments">
+  <!--{$childComment}-->
+  <review:item><!--{$itemComment}--></review:item>
+</review:packet>
+XML;
+        $parts['word/settings-comment.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <!--{$settingsComment}-->
+  <w:updateFields w:val="true"/>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/comment-review.xml'];
+        $settingsPart = $package['parts']['word/settings-comment.xml'];
+        $comments = $summary['partXmlComments'];
+        $commentByteLength = strlen($rootComment) + strlen($childComment) + strlen($itemComment) + strlen($settingsComment);
+
+        $t->same(9, $summary['partXmlInspectableCount']);
+        $t->same(2, $summary['partXmlCommentPartCount']);
+        $t->same(4, $summary['partXmlCommentCount']);
+        $t->same($commentByteLength, $summary['partXmlCommentByteLength']);
+        $t->same(['customXml/comment-review.xml', 'word/settings-comment.xml'], $summary['partXmlCommentPartNames']);
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(3, $reviewPart['xmlCommentCount']);
+        $t->same(strlen($rootComment) + strlen($childComment) + strlen($itemComment), $reviewPart['xmlCommentByteLength']);
+        $t->same('/', $reviewPart['xmlComments'][0]['parentPath']);
+        $t->same('/review:packet', $reviewPart['xmlComments'][1]['parentPath']);
+        $t->same('/review:packet/review:item', $reviewPart['xmlComments'][2]['parentPath']);
+        $t->same(strlen($rootComment), $reviewPart['xmlComments'][0]['byteLength']);
+        $t->same(sprintf('%08x', crc32($rootComment)), $reviewPart['xmlComments'][0]['crc32']);
+        $t->same(hash('sha256', $rootComment), $reviewPart['xmlComments'][0]['sha256']);
+
+        $t->same(1, $settingsPart['xmlCommentCount']);
+        $t->same(strlen($settingsComment), $settingsPart['xmlCommentByteLength']);
+        $t->same('/w:settings', $settingsPart['xmlComments'][0]['parentPath']);
+        $t->same(sprintf('%08x', crc32($settingsComment)), $settingsPart['xmlComments'][0]['crc32']);
+        $t->same(hash('sha256', $settingsComment), $settingsPart['xmlComments'][0]['sha256']);
+
+        $t->same('customXml/comment-review.xml', $comments[0]['partName']);
+        $t->same('/', $comments[0]['parentPath']);
+        $t->same('customXml/comment-review.xml', $comments[2]['partName']);
+        $t->same('/review:packet/review:item', $comments[2]['parentPath']);
+        $t->same('word/settings-comment.xml', $comments[3]['partName']);
+        $t->same('/w:settings', $comments[3]['parentPath']);
+        $t->true(!isset($reviewPart['xmlComments'][0]['data']), 'raw XML comment text should not be exposed on part metadata');
+        $encodedComments = json_encode([$reviewPart['xmlComments'], $settingsPart['xmlComments'], $comments]);
+        $t->true(is_string($encodedComments), 'XML comment metadata should encode for review');
+        $t->true(!str_contains((string) $encodedComments, 'hidden-contents'), 'raw XML comment text should not be exposed in summary metadata');
+    },
     'accepts docx main document template and macro-enabled content types' => static function (TestRunner $t): void {
         $acceptedDocumentContentTypes = [
             ['application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'],
