@@ -19085,10 +19085,7 @@ final class XmlHtmlDom
         $summary += self::effectiveInertSummary($element, $attributes);
 
         if (array_key_exists('translate', $attributes)) {
-            $translate = self::htmlTranslateState($attributes['translate']);
-            $summary['translateRaw'] = $attributes['translate'];
-            $summary['translate'] = $translate;
-            $summary['translateValid'] = $translate !== null;
+            $summary += self::htmlTranslateAttributeSummary($attributes['translate']);
         }
 
         $summary += self::effectiveTranslateSummary($element, $attributes);
@@ -20271,6 +20268,42 @@ final class XmlHtmlDom
             'no' => false,
             default => null,
         };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function htmlTranslateAttributeSummary(string $raw): array
+    {
+        $translate = self::htmlTranslateState($raw);
+        $keyword = match ($translate) {
+            true => 'yes',
+            false => 'no',
+            default => null,
+        };
+        $issues = [];
+
+        if ($translate === null) {
+            $issues[] = [
+                'code' => 'invalid-html-translate-token',
+                'translateRaw' => $raw,
+            ];
+        }
+
+        return [
+            'translateAttributeReviewPolicy' => 'html-translate-attribute-review',
+            'translateRaw' => $raw,
+            'translateKeyword' => $keyword,
+            'translate' => $translate,
+            'translateState' => $keyword ?? 'invalid',
+            'translateValid' => $translate !== null,
+            'translateInvalidValueIgnored' => $translate === null,
+            'translateIssueCodes' => array_values(array_map(
+                static fn (array $issue): string => (string) $issue['code'],
+                $issues
+            )),
+            'translateIssues' => $issues,
+        ];
     }
 
     private static function htmlDraggableKeyword(string $value): ?string
