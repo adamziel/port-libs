@@ -1820,6 +1820,10 @@ BIB;
         $t->same('12-18', $paper['page']);
         $t->same(['shared-review-source'], $paper['xdataKeys']);
         $t->same('shared-review-source', $paper['xdataSummary']);
+        $t->same(['review-proceedings'], $paper['crossrefKeys']);
+        $t->same('Source Review Proceedings: Package Track', $paper['crossrefItems'][0]['title'] ?? null);
+        $t->same([2026], $paper['crossrefItems'][0]['issued']['date-parts'][0] ?? null);
+        $t->same('Source Review Proceedings: Package Track (2026)', $paper['crossrefSummary']);
         $t->same('review-proceedings', $paper['rawBibtex']['fields']['crossref']);
         $t->same('Source Review Proceedings', $paper['rawBibtex']['fields']['booktitle']);
         $t->same('Package Track', $paper['rawBibtex']['fields']['booksubtitle']);
@@ -1833,7 +1837,7 @@ BIB;
         $t->same('shared-review-source', $xdataChild['xdataSummary']);
         $t->same('shared-review-source', $xdataChild['rawBibtex']['fields']['xdata']);
         $t->same(
-            'Nia Ng. Packet Audit Trails. Source Review Proceedings: Package Track. 2026. 12-18. Rights: Internal review only. BibLaTeX xdata packets: shared-review-source.',
+            'Nia Ng. Packet Audit Trails. Source Review Proceedings: Package Track. 2026. 12-18. Rights: Internal review only. BibLaTeX crossref parent: Source Review Proceedings: Package Track (2026). BibLaTeX xdata packets: shared-review-source.',
             $processor->renderBibliographyText($paper)
         );
         $t->same(
@@ -1850,7 +1854,7 @@ BIB;
         $t->same([], $handoff['missingKeys']);
         $t->same('Source Review Proceedings: Package Track', $handoff['items'][0]['container-title']);
         $t->same('Review Press', $handoff['items'][1]['publisher']);
-        $t->contains('<dt>crossref-paper</dt><dd>Nia Ng. Packet Audit Trails. Source Review Proceedings: Package Track. 2026. 12-18. Rights: Internal review only. BibLaTeX xdata packets: shared-review-source.</dd>', $blocks);
+        $t->contains('<dt>crossref-paper</dt><dd>Nia Ng. Packet Audit Trails. Source Review Proceedings: Package Track. 2026. 12-18. Rights: Internal review only. BibLaTeX crossref parent: Source Review Proceedings: Package Track (2026). BibLaTeX xdata packets: shared-review-source.</dd>', $blocks);
         $t->contains('<dt>xdata-child</dt><dd>Archive Desk. Inherited Source Packet. Review Press. Rights: Internal review only. BibLaTeX xdata packets: shared-review-source. https://example.test/source-packet.</dd>', $blocks);
     },
     'carries biblatex xdata and entryset provenance in legacy csl handoff' => static function (TestRunner $t): void {
@@ -2391,6 +2395,86 @@ BIB;
         $t->same('FSH', $handoff['bibliography']->children[1]->attr('cslItem')['shorthand-list-sort-key'] ?? null);
         $t->contains('Citation label: LLM', $blocks);
         $t->contains('Fallback Shorthand Manual', $blocks);
+    },
+    'carries biblatex index title aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{legacy-index-title,
+  author         = {Smith, Ada},
+  title          = {Legacy Index Manual},
+  date           = {2026},
+  indextitle     = {Manual, Legacy Index},
+  indexsorttitle = {0001 legacy index manual}
+}
+
+@book{hyphen-index-title,
+  author           = {Roe, Pat},
+  title            = {Hyphen Index Packet},
+  date             = {2025},
+  index-title      = {Packet, Hyphen Index},
+  index-sort-title = {0002 hyphen index packet}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $legacy = $items['legacy-index-title'];
+        $hyphen = $items['hyphen-index-title'];
+
+        $t->same('Manual, Legacy Index', $legacy['index-title']);
+        $t->same('0001 legacy index manual', $legacy['index-sort-title']);
+        $t->same('Packet, Hyphen Index', $hyphen['index-title']);
+        $t->same('0002 hyphen index packet', $hyphen['index-sort-title']);
+        $t->same('Manual, Legacy Index', $legacy['rawBibtex']['fields']['indextitle']);
+        $t->same('0002 hyphen index packet', $hyphen['rawBibtex']['fields']['index-sort-title']);
+        $t->same(
+            'Ada Smith. Legacy Index Manual. 2026. Index title: Manual, Legacy Index. Index sort title: 0001 legacy index manual.',
+            $processor->renderBibliographyText($legacy)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Index Title Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-index-title-review</id>
+    <updated>2026-06-27T22:30:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="index-title"/>
+        <text variable="index-sort-title"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="index-title"/>
+      <text variable="index-sort-title"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('Bounded Legacy BibLaTeX Index Title Review', $styled->cslStyleSummary()['title'] ?? null);
+        $t->same('[Manual, Legacy Index | 0001 legacy index manual; Packet, Hyphen Index | 0002 hyphen index packet]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-index-title', 'text' => '[@legacy-index-title]']),
+            new AstNode('citation', ['id' => 'hyphen-index-title', 'text' => '[@hyphen-index-title]']),
+        ]));
+        $t->same('Legacy Index Manual :: Manual, Legacy Index :: 0001 legacy index manual', $styled->renderBibliographyEntry('legacy-index-title'));
+        $t->same('Hyphen Index Packet :: Packet, Hyphen Index :: 0002 hyphen index packet', $styled->renderBibliographyEntry('hyphen-index-title'));
+
+        $document = (new MarkdownReader())->read('Index titles [@legacy-index-title; @hyphen-index-title] keep sort labels visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['legacy-index-title', 'hyphen-index-title'], $handoff['citedKeys']);
+        $t->same('Manual, Legacy Index', $handoff['bibliography']->children[0]->attr('cslItem')['index-title'] ?? null);
+        $t->same('0002 hyphen index packet', $handoff['bibliography']->children[1]->attr('cslItem')['index-sort-title'] ?? null);
+        $t->contains('<p>Index titles [Manual, Legacy Index | 0001 legacy index manual; Packet, Hyphen Index | 0002 hyphen index packet] keep sort labels visible.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Legacy Index Manual :: Manual, Legacy Index :: 0001 legacy index manual</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Hyphen Index Packet :: Packet, Hyphen Index :: 0002 hyphen index packet</dd>', $blocks);
     },
     'carries biblatex relation aliases and explicit shorthand list metadata in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'

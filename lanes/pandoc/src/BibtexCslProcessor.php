@@ -388,6 +388,8 @@ final class BibtexCslProcessor
             'sort-shorthand' => 'Sort shorthand',
             'presort' => 'Presort',
             'sort-key' => 'Sort key',
+            'index-title' => 'Index title',
+            'index-sort-title' => 'Index sort title',
             'label-prefix' => 'Label prefix',
             'extra-alpha' => 'Extra alpha',
             'date-addon' => 'Date addendum',
@@ -440,6 +442,9 @@ final class BibtexCslProcessor
         }
         if (($item['entrySetSummary'] ?? '') !== '') {
             $parts[] = 'BibLaTeX entry set: ' . (string) $item['entrySetSummary'];
+        }
+        if (($item['crossrefSummary'] ?? '') !== '') {
+            $parts[] = 'BibLaTeX crossref parent: ' . (string) $item['crossrefSummary'];
         }
         if (($item['xdataSummary'] ?? '') !== '') {
             $parts[] = 'BibLaTeX xdata packets: ' . (string) $item['xdataSummary'];
@@ -727,6 +732,8 @@ final class BibtexCslProcessor
             'sort-year' => ['sortyear', 'sort-year'],
             'sort-initial' => ['sortinit', 'sort-initial', 'sortinitial', 'sort-initials'],
             'sort-initial-hash' => ['sortinithash', 'sort-initial-hash'],
+            'index-title' => ['indextitle', 'index-title'],
+            'index-sort-title' => ['indexsorttitle', 'index-sort-title'],
             'label-prefix' => ['labelprefix', 'label-prefix'],
             'label-alpha' => ['labelalpha', 'label-alpha'],
             'label-title' => ['labeltitle', 'label-title'],
@@ -1093,6 +1100,19 @@ final class BibtexCslProcessor
             $item['entrySetSummary'] = $this->summarizedReferenceValues($entrySetItems, $missing);
             if ($missing !== []) {
                 $item['missingEntrySetKeys'] = $missing;
+            }
+        }
+
+        $crossref = $this->fieldKeyList($fields['crossref'] ?? '');
+        if ($crossref !== []) {
+            $crossrefItems = $this->referencedEntrySummaries($crossref, $entriesByKey);
+            $missing = $this->missingReferenceKeys($crossref, $entriesByKey);
+
+            $item['crossrefKeys'] = $crossref;
+            $item['crossrefItems'] = $crossrefItems;
+            $item['crossrefSummary'] = $this->summarizedReferenceValues($crossrefItems, $missing);
+            if ($missing !== []) {
+                $item['missingCrossrefKeys'] = $missing;
             }
         }
 
