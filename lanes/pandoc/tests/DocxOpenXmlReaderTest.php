@@ -17270,6 +17270,52 @@ XML;
         $t->same('UTF-8', $byKind['document']['xmlDeclarationEncoding']);
         $t->same(null, $byKind['document']['xmlDeclarationStandalone']);
     },
+    'summarizes docx package xml root namespace declarations for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['customXml/ns-review.xml'] = <<<'XML'
+<review:packet xmlns:review="urn:review" xmlns="urn:default-review" xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><review:item/></review:packet>
+XML;
+        $parts['word/metadata/default-root.xml'] = <<<'XML'
+<packet xmlns="urn:package-default" xmlns:pkg="urn:pkg"><child/></packet>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/ns-review.xml'];
+        $defaultPart = $package['parts']['word/metadata/default-root.xml'];
+
+        $t->same(9, $summary['partXmlInspectableCount']);
+        $t->same(['(none)' => 4, 'cp' => 1, 'review' => 1, 'w' => 3], $summary['partXmlRootPrefixCounts']);
+        $t->same(18, $summary['partXmlRootNamespaceDeclarationCount']);
+        $t->same(11, $summary['partXmlRootNamespacePrefixCount']);
+        $t->same(
+            ['a', 'cp', 'dc', 'dcterms', 'default', 'pic', 'pkg', 'r', 'review', 'w', 'wp'],
+            $summary['partXmlRootNamespacePrefixes']
+        );
+        $t->same(5, $summary['partXmlRootNamespacePrefixCounts']['default']);
+        $t->same(4, $summary['partXmlRootNamespacePrefixCounts']['w']);
+        $t->same(1, $summary['partXmlRootNamespacePrefixCounts']['review']);
+        $t->same(1, $summary['partXmlRootNamespacePrefixCounts']['pkg']);
+        $t->same(1, $summary['partXmlRootQualifiedNameCounts']['review:packet']);
+        $t->same(1, $summary['partXmlRootQualifiedNameCounts']['packet']);
+        $t->same(1, $summary['partXmlRootNamespaceCounts']['urn:review']);
+        $t->same(1, $summary['partXmlRootNamespaceCounts']['urn:package-default']);
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same('review', $reviewPart['rootPrefix']);
+        $t->same(3, $reviewPart['rootNamespaceDeclarationCount']);
+        $t->same(['review', 'default', 'w'], $reviewPart['rootNamespacePrefixes']);
+        $t->same('urn:review', $reviewPart['rootNamespace']);
+        $t->same('review:packet', $reviewPart['rootQualifiedName']);
+
+        $t->same(true, $defaultPart['xmlInspectable']);
+        $t->same(null, $defaultPart['rootPrefix']);
+        $t->same(2, $defaultPart['rootNamespaceDeclarationCount']);
+        $t->same(['default', 'pkg'], $defaultPart['rootNamespacePrefixes']);
+        $t->same('urn:package-default', $defaultPart['rootNamespace']);
+        $t->same('packet', $defaultPart['rootQualifiedName']);
+    },
     'accepts docx main document template and macro-enabled content types' => static function (TestRunner $t): void {
         $acceptedDocumentContentTypes = [
             ['application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'],
