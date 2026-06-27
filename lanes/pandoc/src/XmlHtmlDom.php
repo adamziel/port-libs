@@ -14795,6 +14795,9 @@ final class XmlHtmlDom
             if ($inputType === 'file' || $node->hasAttribute('accept') || $node->hasAttribute('capture')) {
                 $summary += self::fileInputReviewSummary($node, $inputType);
             }
+            if ($inputType === 'image') {
+                $summary += self::inputImageSubmitterReviewSummary($node);
+            }
             if ($node->hasAttribute('placeholder')) {
                 $summary['placeholder'] = $node->getAttribute('placeholder');
             }
@@ -22665,6 +22668,98 @@ final class XmlHtmlDom
             'fileInputCaptureValid' => $captureRaw === null ? null : $capture !== null,
             'fileInputIssueCodes' => $issues,
             'fileInputValid' => $issues === [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function inputImageSubmitterReviewSummary(\DOMElement $input): array
+    {
+        $srcRaw = self::attributeOrNull($input, 'src');
+        $src = self::hyperlinkUrlReviewSummary($srcRaw);
+        $altRaw = self::attributeOrNull($input, 'alt');
+        $altText = $altRaw === null ? null : self::normalizedAttributeText($altRaw);
+        $width = self::inputImageDimensionSummary($input, 'width');
+        $height = self::inputImageDimensionSummary($input, 'height');
+        $nameRaw = self::attributeOrNull($input, 'name');
+        $coordinateParameters = $nameRaw === null || $nameRaw === ''
+            ? ['x', 'y']
+            : [$nameRaw . '.x', $nameRaw . '.y'];
+        $issues = [];
+
+        if ($srcRaw === null) {
+            $issues[] = ['code' => 'missing-input-image-src'];
+        } elseif (trim($srcRaw) === '') {
+            $issues[] = ['code' => 'empty-input-image-src'];
+        } elseif ($src['unsafe']) {
+            $issues[] = [
+                'code' => 'unsafe-input-image-src',
+                'src' => $srcRaw,
+                'scheme' => $src['scheme'],
+            ];
+        }
+        if ($altRaw === null) {
+            $issues[] = ['code' => 'missing-input-image-alt'];
+        } elseif ($altText === '') {
+            $issues[] = ['code' => 'empty-input-image-alt'];
+        }
+        foreach (['width' => $width, 'height' => $height] as $attribute => $dimension) {
+            if (($dimension['raw'] ?? null) !== null && ($dimension['valid'] ?? false) === false) {
+                $issues[] = [
+                    'code' => 'invalid-input-image-' . $attribute,
+                    $attribute . 'Raw' => $dimension['raw'],
+                ];
+            }
+        }
+
+        return [
+            'inputImageSubmitterReviewPolicy' => 'html-input-image-submitter-review',
+            'inputImageSubmitter' => true,
+            'inputImageSrcRaw' => $srcRaw,
+            'inputImageSrcPresent' => $srcRaw !== null && trim($srcRaw) !== '',
+            'inputImageSrcKind' => $src['kind'],
+            'inputImageSrcScheme' => $src['scheme'],
+            'inputImageSrcUnsafe' => $src['unsafe'],
+            'inputImageAltRaw' => $altRaw,
+            'inputImageAltText' => $altText,
+            'inputImageAltPresent' => $altRaw !== null,
+            'inputImageAltEmpty' => $altRaw !== null && $altText === '',
+            'inputImageWidthRaw' => $width['raw'],
+            'inputImageWidth' => $width['value'],
+            'inputImageWidthValid' => $width['valid'],
+            'inputImageHeightRaw' => $height['raw'],
+            'inputImageHeight' => $height['value'],
+            'inputImageHeightValid' => $height['valid'],
+            'inputImageNameRaw' => $nameRaw,
+            'inputImageCoordinateNamePrefix' => $nameRaw === null || $nameRaw === '' ? null : $nameRaw,
+            'inputImageCoordinateParameterNames' => $coordinateParameters,
+            'inputImageValueRaw' => self::attributeOrNull($input, 'value'),
+            'inputImageIssues' => $issues,
+            'inputImageIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'inputImageValid' => $issues === [],
+        ];
+    }
+
+    /**
+     * @return array{raw:?string, value:?int, valid:?bool}
+     */
+    private static function inputImageDimensionSummary(\DOMElement $input, string $attribute): array
+    {
+        $raw = self::attributeOrNull($input, $attribute);
+        if ($raw === null) {
+            return ['raw' => null, 'value' => null, 'valid' => null];
+        }
+
+        $value = self::nonNegativeIntegerToken($raw, 100000);
+
+        return [
+            'raw' => $raw,
+            'value' => $value,
+            'valid' => $value !== null,
         ];
     }
 
