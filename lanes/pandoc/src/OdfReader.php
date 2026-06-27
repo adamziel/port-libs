@@ -13212,6 +13212,9 @@ final class OdfReader
         $packagePartReferenceSuffixCount = 0;
         $packagePartReferenceQueryCount = 0;
         $packagePartReferenceFragmentCount = 0;
+        $transformCount = 0;
+        $xpathTransformCount = 0;
+        $xpathExpressionCount = 0;
         $signedParts = [];
 
         foreach ($candidatesByPart as $part => $item) {
@@ -13272,6 +13275,9 @@ final class OdfReader
             $packagePartReferenceSuffixCount += (int) ($parsed['packagePartReferenceSuffixCount'] ?? 0);
             $packagePartReferenceQueryCount += (int) ($parsed['packagePartReferenceQueryCount'] ?? 0);
             $packagePartReferenceFragmentCount += (int) ($parsed['packagePartReferenceFragmentCount'] ?? 0);
+            $transformCount += (int) ($parsed['transformCount'] ?? 0);
+            $xpathTransformCount += (int) ($parsed['xpathTransformCount'] ?? 0);
+            $xpathExpressionCount += (int) ($parsed['xpathExpressionCount'] ?? 0);
             foreach ($parsed['signedParts'] ?? [] as $signedPart) {
                 if (is_string($signedPart) && $signedPart !== '') {
                     $signedParts[] = $signedPart;
@@ -13305,6 +13311,9 @@ final class OdfReader
             'packagePartReferenceSuffixCount' => $packagePartReferenceSuffixCount,
             'packagePartReferenceQueryCount' => $packagePartReferenceQueryCount,
             'packagePartReferenceFragmentCount' => $packagePartReferenceFragmentCount,
+            'transformCount' => $transformCount,
+            'xpathTransformCount' => $xpathTransformCount,
+            'xpathExpressionCount' => $xpathExpressionCount,
             'signedPartCount' => count($signedParts),
             'signedParts' => $signedParts,
             'parts' => $parts,
@@ -13414,12 +13423,21 @@ final class OdfReader
         $digestValue = self::firstChildElement($reference, 'DigestValue', self::DSIG_NS);
         $transformsElement = self::firstChildElement($reference, 'Transforms', self::DSIG_NS);
         $transforms = [];
+        $transformItems = [];
+        $xpathTransformCount = 0;
+        $xpathExpressionCount = 0;
         if ($transformsElement instanceof \DOMElement) {
             foreach (self::childElements($transformsElement, 'Transform', self::DSIG_NS) as $transform) {
-                $algorithm = self::domAttribute($transform, 'Algorithm');
+                $item = $this->signatureTransformMetadata($transform);
+                $algorithm = (string) ($item['algorithm'] ?? '');
                 if ($algorithm !== '') {
                     $transforms[] = $algorithm;
                 }
+                if ((int) ($item['xpathCount'] ?? 0) > 0) {
+                    ++$xpathTransformCount;
+                    $xpathExpressionCount += (int) ($item['xpathCount'] ?? 0);
+                }
+                $transformItems[] = $item;
             }
         }
 
@@ -13432,9 +13450,39 @@ final class OdfReader
             'id' => self::nullable(self::domAttribute($reference, 'Id') ?: self::domAttribute($reference, 'ID')),
             'digestMethod' => $digestMethod instanceof \DOMElement ? self::nullable(self::domAttribute($digestMethod, 'Algorithm')) : null,
             'digestValueLength' => $digestValue instanceof \DOMElement ? strlen(trim($digestValue->textContent)) : null,
-            'transformCount' => count($transforms),
+            'transformCount' => count($transformItems),
             'transforms' => $transforms,
+            'transformItems' => $transformItems,
+            'xpathTransformCount' => $xpathTransformCount,
+            'xpathExpressionCount' => $xpathExpressionCount,
         ] + $target);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function signatureTransformMetadata(\DOMElement $transform): array
+    {
+        $xpaths = [];
+        $xpathItems = [];
+        foreach (self::childElements($transform, 'XPath') as $xpath) {
+            $expression = self::normalizedText($xpath);
+            if ($expression !== '') {
+                $xpaths[] = $expression;
+                $xpathItems[] = self::withoutEmpty([
+                    'expression' => $expression,
+                    'namespaceUri' => self::nullable((string) $xpath->namespaceURI),
+                    'filter' => self::nullable(self::domAttribute($xpath, 'Filter')),
+                ]);
+            }
+        }
+
+        return self::withoutEmpty([
+            'algorithm' => self::nullable(self::domAttribute($transform, 'Algorithm')),
+            'xpathCount' => count($xpaths),
+            'xpaths' => $xpaths,
+            'xpathItems' => $xpathItems,
+        ]);
     }
 
     /**
@@ -13534,6 +13582,9 @@ final class OdfReader
             'packagePartReferenceSuffixCount' => 0,
             'packagePartReferenceQueryCount' => 0,
             'packagePartReferenceFragmentCount' => 0,
+            'transformCount' => 0,
+            'xpathTransformCount' => 0,
+            'xpathExpressionCount' => 0,
         ];
 
         foreach ($signatures as $signature) {
@@ -13575,6 +13626,10 @@ final class OdfReader
                 } elseif ($kind === 'unsafe-package-path') {
                     $summary['unsafeReferenceCount']++;
                 }
+
+                $summary['transformCount'] += (int) ($reference['transformCount'] ?? 0);
+                $summary['xpathTransformCount'] += (int) ($reference['xpathTransformCount'] ?? 0);
+                $summary['xpathExpressionCount'] += (int) ($reference['xpathExpressionCount'] ?? 0);
             }
         }
 
