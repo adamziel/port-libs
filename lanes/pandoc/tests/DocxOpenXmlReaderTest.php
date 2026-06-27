@@ -6299,6 +6299,91 @@ XML;
         $t->same([$headerContentType => 1], $header['sourceContentTypeBaseCounts']);
         $t->same(['word/header/header-base.xml'], $header['sourceParts']);
     },
+    'summarizes docx relationship source base name stems for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/customXml/review.bin" ContentType="application/octet-stream; profile=relationship-source-stem"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/review.xml'] = '<reviewStem/>';
+        $parts['customXml/review.bin'] = 'binary review source';
+        $parts['word/_rels/review.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rReviewXmlStem" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review-stem.png"/>
+</Relationships>
+XML;
+        $parts['customXml/_rels/review.bin.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rReviewBinStem" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../word/media/review-bin-stem.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/missing-review.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rMissingReviewStem" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-stem.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/_rels/document.xml.rels.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rDocumentRelationshipStem" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/document-rels-stem.png"/>
+</Relationships>
+XML;
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $stems = [];
+        foreach ($summary['relationshipSourceBaseNameStems'] as $stem) {
+            $stems[$stem['sourceBaseNameStemKey']] = $stem;
+        }
+
+        $t->same(5, $summary['relationshipSourceBaseNameStemCount']);
+        $t->same([
+            '/' => 1,
+            'document' => 1,
+            'document.xml' => 1,
+            'missing-review' => 1,
+            'review' => 2,
+        ], $summary['relationshipSourceBaseNameStemCounts']);
+        $t->same(1, $summary['duplicateRelationshipSourceBaseNameStemCount']);
+        $t->same(['review'], $summary['duplicateRelationshipSourceBaseNameStems']);
+        $t->same(['/', 'document', 'document.xml', 'missing-review', 'review'], array_column($summary['relationshipSourceBaseNameStems'], 'sourceBaseNameStemKey'));
+
+        $review = $stems['review'];
+        $t->same('review', $review['sourceBaseNameStem']);
+        $t->same(2, $review['sourceCount']);
+        $t->same(2, $review['existingSourceCount']);
+        $t->same(0, $review['nonExistingSourceCount']);
+        $t->same(2, $review['relationshipCount']);
+        $t->same(strlen($parts['word/review.xml']) + strlen($parts['customXml/review.bin']), $review['existingSourceByteLength']);
+        $t->same(['package-part' => 2], $review['relationshipSourceKindCounts']);
+        $t->same(['review.bin' => 1, 'review.xml' => 1], $review['sourceBaseNameCounts']);
+        $t->same(['bin' => 1, 'xml' => 1], $review['sourcePartExtensionCounts']);
+        $t->same(['application/octet-stream' => 1, 'application/xml' => 1], $review['sourceContentTypeBaseCounts']);
+        $t->same(['default' => 1, 'override' => 1], $review['sourceContentTypeSourceCounts']);
+        $t->same(['customXml', 'word'], $review['sourceDirectories']);
+        $t->same(['customXml/review.bin', 'word/review.xml'], $review['sourceParts']);
+        $t->same(['customXml/_rels/review.bin.rels', 'word/_rels/review.xml.rels'], $review['relationshipParts']);
+        $t->same('customXml/review.bin', $review['largestExistingSourcePart']['sourcePart']);
+        $t->same('review', $review['largestExistingSourcePart']['sourceBaseNameStem']);
+
+        $relationshipPart = $stems['document.xml'];
+        $t->same(['relationship-part' => 1], $relationshipPart['relationshipSourceKindCounts']);
+        $t->same(['document.xml.rels' => 1], $relationshipPart['sourceBaseNameCounts']);
+        $t->same(['rels' => 1], $relationshipPart['sourcePartExtensionCounts']);
+        $t->same(['word/_rels/document.xml.rels'], $relationshipPart['sourceParts']);
+        $t->same(['word/_rels/_rels/document.xml.rels.rels'], $relationshipPart['relationshipParts']);
+
+        $missing = $stems['missing-review'];
+        $t->same(0, $missing['existingSourceCount']);
+        $t->same(1, $missing['nonExistingSourceCount']);
+        $t->same(['missing-source' => 1], $missing['relationshipSourceKindCounts']);
+        $t->same(['missing-review.xml' => 1], $missing['sourceBaseNameCounts']);
+        $t->same(['(missing)' => 1], $missing['sourceContentTypeBaseCounts']);
+    },
     'summarizes docx relationship source top-level segments for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['customXml/source-segment.xml'] = '<customSegment/>';

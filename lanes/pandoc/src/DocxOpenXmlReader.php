@@ -11825,6 +11825,7 @@ final class DocxOpenXmlReader
                     'sourcePathSegments' => $sourcePathSegments,
                     'sourcePathSegmentCount' => $sourcePathSegmentCount,
                     'sourceBaseName' => is_string($relationshipPart['sourceBaseName'] ?? null) ? $relationshipPart['sourceBaseName'] : null,
+                    'sourceBaseNameStem' => is_string($relationshipPart['sourceBaseNameStem'] ?? null) ? $relationshipPart['sourceBaseNameStem'] : null,
                     'sourcePartExtension' => is_string($relationshipPart['sourcePartExtension'] ?? null) ? $relationshipPart['sourcePartExtension'] : null,
                     'sourceContentType' => $sourceContentType,
                     'sourceContentTypeBase' => $sourceContentTypeBase === '' ? null : $sourceContentTypeBase,
@@ -11855,6 +11856,7 @@ final class DocxOpenXmlReader
                 'sourcePathSegments' => $sourcePathSegments,
                 'sourcePathSegmentCount' => $sourcePathSegmentCount,
                 'sourceBaseName' => is_string($relationshipPart['sourceBaseName'] ?? null) ? $relationshipPart['sourceBaseName'] : null,
+                'sourceBaseNameStem' => is_string($relationshipPart['sourceBaseNameStem'] ?? null) ? $relationshipPart['sourceBaseNameStem'] : null,
                 'sourcePartExtension' => is_string($relationshipPart['sourcePartExtension'] ?? null) ? $relationshipPart['sourcePartExtension'] : null,
                 'sourceContentType' => $sourceContentType,
                 'sourceContentTypeBase' => $sourceContentTypeBase === '' ? null : $sourceContentTypeBase,
@@ -13761,6 +13763,17 @@ final class DocxOpenXmlReader
             }
         }
         ksort($relationshipSourceBaseNameCounts, SORT_STRING);
+        $relationshipSourceBaseNameStems = $this->relationshipSourceBaseNameStemSummary($relationshipSources);
+        $relationshipSourceBaseNameStemCounts = [];
+        $duplicateRelationshipSourceBaseNameStems = [];
+        foreach ($relationshipSourceBaseNameStems as $sourceBaseNameStemSummary) {
+            $baseNameStemKey = (string) ($sourceBaseNameStemSummary['sourceBaseNameStemKey'] ?? '');
+            $relationshipSourceBaseNameStemCounts[$baseNameStemKey] = (int) ($sourceBaseNameStemSummary['sourceCount'] ?? 0);
+            if ((int) ($sourceBaseNameStemSummary['sourceCount'] ?? 0) > 1) {
+                $duplicateRelationshipSourceBaseNameStems[] = $baseNameStemKey;
+            }
+        }
+        ksort($relationshipSourceBaseNameStemCounts, SORT_STRING);
         $relationshipSourcePartExtensions = $this->relationshipSourcePartExtensionSummary($relationshipSources);
         $relationshipSourcePartExtensionCounts = [];
         $relationshipSourcePartExtensionExistingByteBucketCount = 0;
@@ -14032,6 +14045,11 @@ final class DocxOpenXmlReader
             'duplicateRelationshipSourceBaseNameCount' => count($duplicateRelationshipSourceBaseNames),
             'duplicateRelationshipSourceBaseNames' => $duplicateRelationshipSourceBaseNames,
             'relationshipSourceBaseNames' => $relationshipSourceBaseNames,
+            'relationshipSourceBaseNameStemCount' => count($relationshipSourceBaseNameStems),
+            'relationshipSourceBaseNameStemCounts' => $relationshipSourceBaseNameStemCounts,
+            'duplicateRelationshipSourceBaseNameStemCount' => count($duplicateRelationshipSourceBaseNameStems),
+            'duplicateRelationshipSourceBaseNameStems' => $duplicateRelationshipSourceBaseNameStems,
+            'relationshipSourceBaseNameStems' => $relationshipSourceBaseNameStems,
             'relationshipSourcePartExtensionCount' => count($relationshipSourcePartExtensions),
             'relationshipSourcePartExtensionCounts' => $relationshipSourcePartExtensionCounts,
             'relationshipSourcePartExtensionExistingByteBucketCount' => $relationshipSourcePartExtensionExistingByteBucketCount,
@@ -19183,6 +19201,153 @@ final class DocxOpenXmlReader
      * @param list<array<string, mixed>> $relationshipSources
      * @return list<array<string, mixed>>
      */
+    private function relationshipSourceBaseNameStemSummary(array $relationshipSources): array
+    {
+        $baseNameStems = [];
+        foreach ($relationshipSources as $source) {
+            $baseNameStem = is_string($source['sourceBaseNameStem'] ?? null) ? $source['sourceBaseNameStem'] : '';
+            $baseNameStemKey = $baseNameStem === '' ? '(invalid-source)' : $baseNameStem;
+            if (!isset($baseNameStems[$baseNameStemKey])) {
+                $baseNameStems[$baseNameStemKey] = [
+                    'sourceBaseNameStemKey' => $baseNameStemKey,
+                    'sourceBaseNameStem' => $baseNameStem === '' ? null : $baseNameStem,
+                    'sourceCount' => 0,
+                    'existingSourceCount' => 0,
+                    'nonExistingSourceCount' => 0,
+                    'relationshipCount' => 0,
+                    'relationshipRecordCount' => 0,
+                    'existingSourceByteLength' => 0,
+                    'relationshipSourceKindCounts' => [],
+                    'sourceBaseNameCounts' => [],
+                    'sourcePartExtensionCounts' => [],
+                    'sourceContentTypeBaseCounts' => [],
+                    'sourceContentTypeSourceCounts' => [],
+                    'sourceRoleCounts' => [],
+                    'sourceDirectories' => [],
+                    'sourceParts' => [],
+                    'relationshipParts' => [],
+                    'largestExistingSourcePart' => null,
+                ];
+            }
+
+            ++$baseNameStems[$baseNameStemKey]['sourceCount'];
+            $sourceExists = ($source['sourceExists'] ?? false) === true;
+            if ($sourceExists) {
+                ++$baseNameStems[$baseNameStemKey]['existingSourceCount'];
+            } else {
+                ++$baseNameStems[$baseNameStemKey]['nonExistingSourceCount'];
+            }
+            $baseNameStems[$baseNameStemKey]['relationshipCount'] += (int) ($source['relationshipCount'] ?? 0);
+            $baseNameStems[$baseNameStemKey]['relationshipRecordCount'] += (int) ($source['relationshipRecordCount'] ?? 0);
+            if (is_int($source['sourceBytes'] ?? null)) {
+                $baseNameStems[$baseNameStemKey]['existingSourceByteLength'] += (int) $source['sourceBytes'];
+            }
+
+            $sourceKind = is_string($source['relationshipSourceKind'] ?? null)
+                ? $source['relationshipSourceKind']
+                : 'invalid-source';
+            $baseNameStems[$baseNameStemKey]['relationshipSourceKindCounts'][$sourceKind] =
+                ($baseNameStems[$baseNameStemKey]['relationshipSourceKindCounts'][$sourceKind] ?? 0) + 1;
+
+            $baseName = is_string($source['sourceBaseName'] ?? null) ? $source['sourceBaseName'] : '';
+            $baseNameKey = $baseName === '' ? '(invalid-source)' : $baseName;
+            $baseNameStems[$baseNameStemKey]['sourceBaseNameCounts'][$baseNameKey] =
+                ($baseNameStems[$baseNameStemKey]['sourceBaseNameCounts'][$baseNameKey] ?? 0) + 1;
+
+            $extension = is_string($source['sourcePartExtension'] ?? null)
+                ? $source['sourcePartExtension']
+                : null;
+            $extensionKey = $extension ?? '(none)';
+            $baseNameStems[$baseNameStemKey]['sourcePartExtensionCounts'][$extensionKey] =
+                ($baseNameStems[$baseNameStemKey]['sourcePartExtensionCounts'][$extensionKey] ?? 0) + 1;
+
+            $contentTypeBase = is_string($source['sourceContentTypeBase'] ?? null)
+                ? $source['sourceContentTypeBase']
+                : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $baseNameStems[$baseNameStemKey]['sourceContentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($baseNameStems[$baseNameStemKey]['sourceContentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+
+            $contentTypeSource = is_string($source['sourceContentTypeSource'] ?? null)
+                ? $source['sourceContentTypeSource']
+                : '';
+            $contentTypeSourceKey = $contentTypeSource === '' ? '(missing)' : $contentTypeSource;
+            $baseNameStems[$baseNameStemKey]['sourceContentTypeSourceCounts'][$contentTypeSourceKey] =
+                ($baseNameStems[$baseNameStemKey]['sourceContentTypeSourceCounts'][$contentTypeSourceKey] ?? 0) + 1;
+
+            foreach (($source['sourceRoles'] ?? []) as $role) {
+                $role = (string) $role;
+                $baseNameStems[$baseNameStemKey]['sourceRoleCounts'][$role] =
+                    ($baseNameStems[$baseNameStemKey]['sourceRoleCounts'][$role] ?? 0) + 1;
+            }
+
+            $this->appendUniqueString(
+                $baseNameStems[$baseNameStemKey]['sourceDirectories'],
+                is_string($source['sourceDirectory'] ?? null) ? $source['sourceDirectory'] : null,
+            );
+            $this->appendUniqueString(
+                $baseNameStems[$baseNameStemKey]['sourceParts'],
+                is_string($source['sourcePart'] ?? null) ? $source['sourcePart'] : null,
+            );
+            $this->appendUniqueString(
+                $baseNameStems[$baseNameStemKey]['relationshipParts'],
+                is_string($source['relationshipsPart'] ?? null) ? $source['relationshipsPart'] : null,
+            );
+
+            if (is_int($source['sourceBytes'] ?? null)) {
+                $sourceBytes = (int) $source['sourceBytes'];
+                $sourceSummary = [
+                    'sourcePart' => is_string($source['sourcePart'] ?? null) ? $source['sourcePart'] : '',
+                    'relationshipsPart' => is_string($source['relationshipsPart'] ?? null) ? $source['relationshipsPart'] : '',
+                    'relationshipSourceKind' => $sourceKind,
+                    'sourceDirectory' => is_string($source['sourceDirectory'] ?? null) ? $source['sourceDirectory'] : null,
+                    'sourceBaseName' => $baseName === '' ? null : $baseName,
+                    'sourceBaseNameStem' => $baseNameStem === '' ? null : $baseNameStem,
+                    'sourcePartExtension' => $extension,
+                    'sourceBytes' => $sourceBytes,
+                    'sourceCrc32' => is_string($source['sourceCrc32'] ?? null) ? $source['sourceCrc32'] : null,
+                    'sourceSha256' => is_string($source['sourceSha256'] ?? null) ? $source['sourceSha256'] : null,
+                    'sourceContentTypeBase' => $contentTypeBase === '' ? null : $contentTypeBase,
+                    'sourceContentTypeSource' => $contentTypeSource === '' ? null : $contentTypeSource,
+                    'sourceRoles' => array_values(array_map('strval', $source['sourceRoles'] ?? [])),
+                    'relationshipCount' => (int) ($source['relationshipCount'] ?? 0),
+                    'relationshipRecordCount' => (int) ($source['relationshipRecordCount'] ?? 0),
+                ];
+                $largestPart = $baseNameStems[$baseNameStemKey]['largestExistingSourcePart'];
+                if (
+                    !is_array($largestPart)
+                    || $sourceSummary['sourceBytes'] > (int) ($largestPart['sourceBytes'] ?? 0)
+                    || (
+                        $sourceSummary['sourceBytes'] === (int) ($largestPart['sourceBytes'] ?? 0)
+                        && strcmp($sourceSummary['sourcePart'], (string) ($largestPart['sourcePart'] ?? '')) < 0
+                    )
+                ) {
+                    $baseNameStems[$baseNameStemKey]['largestExistingSourcePart'] = $sourceSummary;
+                }
+            }
+        }
+
+        ksort($baseNameStems, SORT_STRING);
+        foreach ($baseNameStems as $baseNameStemKey => $summary) {
+            ksort($summary['relationshipSourceKindCounts'], SORT_STRING);
+            ksort($summary['sourceBaseNameCounts'], SORT_STRING);
+            ksort($summary['sourcePartExtensionCounts'], SORT_STRING);
+            ksort($summary['sourceContentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['sourceContentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['sourceRoleCounts'], SORT_STRING);
+            sort($summary['sourceDirectories'], SORT_STRING);
+            sort($summary['sourceParts'], SORT_STRING);
+            sort($summary['relationshipParts'], SORT_STRING);
+            $baseNameStems[$baseNameStemKey] = $summary;
+        }
+
+        return array_values($baseNameStems);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $relationshipSources
+     * @return list<array<string, mixed>>
+     */
     private function relationshipSourcePartExtensionSummary(array $relationshipSources): array
     {
         $extensions = [];
@@ -21641,6 +21806,7 @@ final class DocxOpenXmlReader
             'sourceDirectoryDepth' => $sourceDirectoryDepth,
             'sourcePathDepth' => $sourcePathDepth,
             'sourceBaseName' => $isPackageRoot ? '/' : ($sourcePart === '' ? '' : $this->packagePartBaseName($sourcePart)),
+            'sourceBaseNameStem' => $isPackageRoot ? '/' : ($sourcePart === '' ? '' : $this->packagePartBaseNameStem($sourcePart)),
             'sourcePartExtension' => $isPackageRoot || $sourcePart === '' ? null : $this->packagePartExtension($sourcePart),
             'sourceBytes' => is_array($sourceInventory) ? (int) ($sourceInventory['bytes'] ?? 0) : null,
             'sourceCrc32' => is_array($sourceInventory) && is_string($sourceInventory['crc32'] ?? null) ? $sourceInventory['crc32'] : null,
