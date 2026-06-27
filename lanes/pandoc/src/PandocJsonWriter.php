@@ -2098,7 +2098,7 @@ final class PandocJsonWriter
     }
 
     /**
-     * @return list<mixed>
+     * @return array<string, mixed>|list<mixed>
      */
     private function targetTuple(AstNode $node): array
     {
@@ -2110,7 +2110,65 @@ final class PandocJsonWriter
             return $native;
         }
 
+        $regenerated = $this->regeneratedTargetConstructorNative($native, [$url, $title]);
+        if ($regenerated !== null) {
+            return $regenerated;
+        }
+
         return [$url, $title];
+    }
+
+    /**
+     * @param list<string> $target
+     * @return array<string, mixed>|list<mixed>|null
+     */
+    private function regeneratedTargetConstructorNative(mixed $native, array $target): ?array
+    {
+        if (!is_array($native)) {
+            return null;
+        }
+
+        if (!array_is_list($native)) {
+            if (($native['t'] ?? null) !== 'Target') {
+                return null;
+            }
+
+            $regenerated = $native;
+            $regenerated['c'] = $this->regeneratedTargetConstructorContent($native['c'] ?? null, $target);
+
+            return $regenerated;
+        }
+
+        if (
+            count($native) === 1
+            && is_array($native[0])
+            && !array_is_list($native[0])
+            && ($native[0]['t'] ?? null) === 'Target'
+        ) {
+            $regenerated = $this->regeneratedTargetConstructorNative($native[0], $target);
+
+            return $regenerated === null ? null : [$regenerated];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $target
+     * @return list<mixed>
+     */
+    private function regeneratedTargetConstructorContent(mixed $content, array $target): array
+    {
+        if (
+            is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+        ) {
+            return [$target];
+        }
+
+        return $target;
     }
 
     /**
