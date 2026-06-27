@@ -3642,57 +3642,8 @@ final class ZipPackage
         $unicodeBidiControlEntryCount = 0;
 
         foreach ($this->entries as $entry) {
-            $path = rtrim($entry->name, '/');
-            $segments = explode('/', $path);
-            $flaggedSegments = [];
-            $issues = [];
-
-            foreach ($segments as $index => $segment) {
-                $segmentIssues = [];
-
-                if ($segment !== trim($segment)) {
-                    $segmentIssues[] = 'segment-leading-or-trailing-whitespace';
-                }
-
-                if (str_ends_with($segment, '.')) {
-                    $segmentIssues[] = 'segment-trailing-dot';
-                }
-
-                if (self::isWindowsReservedDeviceNameSegment($segment)) {
-                    $segmentIssues[] = 'segment-windows-reserved-name';
-                }
-
-                if (str_contains($segment, ':')) {
-                    $segmentIssues[] = 'segment-windows-alternate-data-stream';
-                }
-
-                $formatControlNames = self::unicodeFormatControlNames($segment);
-                $bidiControlNames = self::unicodeBidiControlNames($segment);
-                if ($formatControlNames !== []) {
-                    $segmentIssues[] = 'segment-unicode-format-control';
-                }
-
-                if ($bidiControlNames !== []) {
-                    $segmentIssues[] = 'segment-bidi-format-control';
-                }
-
-                if ($segmentIssues === []) {
-                    continue;
-                }
-
-                $flaggedSegments[] = [
-                    'index' => $index,
-                    'segment' => $segment,
-                    'issues' => $segmentIssues,
-                    'unicodeFormatControlNames' => $formatControlNames,
-                    'bidiControlNames' => $bidiControlNames,
-                ];
-                foreach ($segmentIssues as $issue) {
-                    if (!in_array($issue, $issues, true)) {
-                        $issues[] = $issue;
-                    }
-                }
-            }
+            $summary = self::entryNameHygieneSummary($entry->name, $entry->isDirectory());
+            $issues = $summary['issues'];
 
             if (in_array('segment-leading-or-trailing-whitespace', $issues, true)) {
                 $leadingOrTrailingWhitespaceEntryCount++;
@@ -3713,15 +3664,6 @@ final class ZipPackage
                 $unicodeBidiControlEntryCount++;
             }
 
-            $summary = [
-                'name' => $entry->name,
-                'path' => $path,
-                'isDirectory' => $entry->isDirectory(),
-                'segments' => $segments,
-                'flaggedSegments' => $flaggedSegments,
-                'hasNameHygieneIssue' => $issues !== [],
-                'issues' => $issues,
-            ];
             $entries[] = $summary;
             if ($issues !== []) {
                 $reviewEntries[] = $summary;
@@ -3798,6 +3740,74 @@ final class ZipPackage
         $suffix = substr($deviceBase, 3, 1);
 
         return ($prefix === 'COM' || $prefix === 'LPT') && $suffix >= '1' && $suffix <= '9';
+    }
+
+    /**
+     * @return array{name:string,path:string,isDirectory:bool,segments:list<string>,flaggedSegments:list<array{index:int,segment:string,issues:list<string>,unicodeFormatControlNames:list<string>,bidiControlNames:list<string>}>,hasNameHygieneIssue:bool,issues:list<string>}
+     */
+    private static function entryNameHygieneSummary(string $name, bool $isDirectory): array
+    {
+        $path = rtrim($name, '/');
+        $segments = explode('/', $path);
+        $flaggedSegments = [];
+        $issues = [];
+
+        foreach ($segments as $index => $segment) {
+            $segmentIssues = [];
+
+            if ($segment !== trim($segment)) {
+                $segmentIssues[] = 'segment-leading-or-trailing-whitespace';
+            }
+
+            if (str_ends_with($segment, '.')) {
+                $segmentIssues[] = 'segment-trailing-dot';
+            }
+
+            if (self::isWindowsReservedDeviceNameSegment($segment)) {
+                $segmentIssues[] = 'segment-windows-reserved-name';
+            }
+
+            if (str_contains($segment, ':')) {
+                $segmentIssues[] = 'segment-windows-alternate-data-stream';
+            }
+
+            $formatControlNames = self::unicodeFormatControlNames($segment);
+            $bidiControlNames = self::unicodeBidiControlNames($segment);
+            if ($formatControlNames !== []) {
+                $segmentIssues[] = 'segment-unicode-format-control';
+            }
+
+            if ($bidiControlNames !== []) {
+                $segmentIssues[] = 'segment-bidi-format-control';
+            }
+
+            if ($segmentIssues === []) {
+                continue;
+            }
+
+            $flaggedSegments[] = [
+                'index' => $index,
+                'segment' => $segment,
+                'issues' => $segmentIssues,
+                'unicodeFormatControlNames' => $formatControlNames,
+                'bidiControlNames' => $bidiControlNames,
+            ];
+            foreach ($segmentIssues as $issue) {
+                if (!in_array($issue, $issues, true)) {
+                    $issues[] = $issue;
+                }
+            }
+        }
+
+        return [
+            'name' => $name,
+            'path' => $path,
+            'isDirectory' => $isDirectory,
+            'segments' => $segments,
+            'flaggedSegments' => $flaggedSegments,
+            'hasNameHygieneIssue' => $issues !== [],
+            'issues' => $issues,
+        ];
     }
 
     /**
@@ -5064,6 +5074,10 @@ final class ZipPackage
      *     unreadableEntryCount:int,
      *     duplicateRequestedEntryCount:int,
      *     duplicateRequestedEntryGroupCount:int,
+     *     selectedNameHygieneReviewEntryCount:int,
+     *     selectedNameHygieneIssueCount:int,
+     *     handoffNameHygieneReviewEntryCount:int,
+     *     handoffNameHygieneIssueCount:int,
      *     selectedRawNameProvenanceEntryCount:int,
      *     selectedLegacyEncodedNameEntryCount:int,
      *     selectedUnicodePathExtraEntryCount:int,
@@ -5095,6 +5109,12 @@ final class ZipPackage
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
      *     duplicateRequestedEntryGroups:list<array{name:string,count:int,requestIndexes:list<int>,requestedNames:list<string>,requiredCount:int,optionalCount:int}>,
+     *     selectedNameHygieneIssues:list<string>,
+     *     handoffNameHygieneIssues:list<string>,
+     *     selectedNameHygieneIssueSummaries:list<array<string, mixed>>,
+     *     handoffNameHygieneIssueSummaries:list<array<string, mixed>>,
+     *     selectedNameHygieneReviewEntries:list<array<string, mixed>>,
+     *     handoffNameHygieneReviewEntries:list<array<string, mixed>>,
      *     selectedDirectoryRootSummaries:list<array<string, mixed>>,
      *     handoffDirectoryRootSummaries:list<array<string, mixed>>,
      *     selectedExtensionSummaries:list<array<string, mixed>>,
@@ -5105,6 +5125,11 @@ final class ZipPackage
      *     handoffUnsupportedCompressionMethodEntries:list<array{name:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int}>,
      *     selectedZeroByteEntries:list<array{name:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int,expansionRatio:?float}>,
      *     handoffZeroByteEntries:list<array{requestIndex:int,requestedName:string,name:string,role:?string,required:bool,expectedKind:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int,expansionRatio:?float}>,
+     *     handoffContentDigestEntryCount:int,
+     *     handoffContentBytesRead:int,
+     *     handoffContentDigestManifestVersion:string,
+     *     handoffContentDigestManifestSha256:string,
+     *     handoffContentDigestEntries:list<array<string, mixed>>,
      *     selectedUnknownExpansionRatioEntries:list<array{name:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int,expansionRatio:?float}>,
      *     selectedRawNameProvenanceEntries:list<array<string, mixed>>,
      *     selectedCommentedEntries:list<array<string, mixed>>,
@@ -5266,6 +5291,8 @@ final class ZipPackage
         $selectedZeroByteFileCount = 0;
         $selectedEmptyDirectoryEntryCount = 0;
         $selectedUnknownExpansionRatioEntries = [];
+        $selectedNameHygieneReviewEntries = [];
+        $selectedNameHygieneIssues = [];
         $selectedRawNameProvenanceEntries = [];
         $selectedLegacyEncodedNameEntryCount = 0;
         $selectedUnicodePathExtraEntryCount = 0;
@@ -5380,6 +5407,17 @@ final class ZipPackage
             }
             if ($selectedExpansionRatio === null) {
                 $selectedUnknownExpansionRatioEntries[] = $selectedEntrySizeSummary;
+            }
+            $nameHygiene = self::entryNameHygieneSummary($entry->name, $isDirectory);
+            if ($nameHygiene['hasNameHygieneIssue']) {
+                foreach ($nameHygiene['issues'] as $nameHygieneIssue) {
+                    self::appendUniqueIssue($selectedNameHygieneIssues, $nameHygieneIssue);
+                }
+                $selectedNameHygieneReviewEntries[] = [
+                    'roles' => array_keys($selectedRolesByName[$entry->name] ?? []),
+                    'compressedSize' => $entry->compressedSize,
+                    'uncompressedSize' => $entry->uncompressedSize,
+                ] + $nameHygiene;
             }
             $rawNameProvenance = self::entryRawNameHandoffProvenance($entry);
             if (!$rawNameProvenance['rawNameMatchesDecodedName']) {
@@ -5580,6 +5618,11 @@ final class ZipPackage
                 'centralDirectoryIndex' => null,
                 'localHeaderOrder' => null,
                 'pathDepth' => null,
+                'nameHygienePath' => null,
+                'nameHygieneSegments' => [],
+                'nameHygieneFlaggedSegments' => [],
+                'hasNameHygieneIssue' => false,
+                'nameHygieneIssues' => [],
                 'compressionMethod' => null,
                 'compressionMethodName' => null,
                 'rawName' => null,
@@ -5837,6 +5880,12 @@ final class ZipPackage
             $summary['centralDirectoryIndex'] = $centralDirectoryIndexByName[$entry->name] ?? null;
             $summary['localHeaderOrder'] = $localHeaderOrderByName[$entry->name] ?? null;
             $summary['pathDepth'] = self::entryHandoffPathDepth($entry->name);
+            $nameHygiene = self::entryNameHygieneSummary($entry->name, $isDirectory);
+            $summary['nameHygienePath'] = $nameHygiene['path'];
+            $summary['nameHygieneSegments'] = $nameHygiene['segments'];
+            $summary['nameHygieneFlaggedSegments'] = $nameHygiene['flaggedSegments'];
+            $summary['hasNameHygieneIssue'] = $nameHygiene['hasNameHygieneIssue'];
+            $summary['nameHygieneIssues'] = $nameHygiene['issues'];
             $summary['compressionMethod'] = $entry->compressionMethod;
             $summary['compressionMethodName'] = self::compressionMethodName($entry->compressionMethod);
             $summary = array_merge($summary, self::entryRawNameHandoffProvenance($entry));
@@ -5982,8 +6031,13 @@ final class ZipPackage
         $handoffOrderSummary = self::entryHandoffOrderSummary($handoffEntries);
         $selectedPathDepthSummaries = self::entryHandoffPathDepthSummaries($selectedDirectoryRootSummaryEntries);
         $handoffPathDepthSummaries = self::entryHandoffPathDepthSummaries($handoffEntries);
+        $selectedNameHygieneIssueSummaries = self::entryHandoffNameHygieneIssueSummaries($selectedNameHygieneReviewEntries);
+        $handoffNameHygieneIssueSummaries = self::entryHandoffNameHygieneIssueSummaries($handoffEntries);
+        $handoffNameHygieneReviewEntries = self::entryHandoffNameHygieneReviewEntries($handoffEntries);
+        $handoffNameHygieneIssues = self::entryHandoffNameHygieneIssues($handoffNameHygieneIssueSummaries);
         $roleSummaries = self::entryHandoffRoleSummaries($entries);
         $handoffSourceByteSpanSummary = self::entryHandoffSourceByteSpanSummary($handoffEntries);
+        $handoffContentDigestSummary = self::entryHandoffContentDigestSummary($handoffEntries);
         $requirementSummaries = self::entryHandoffRequirementSummaries($entries);
         $statusSummaries = self::entryHandoffStatusSummaries($entries);
 
@@ -6057,6 +6111,10 @@ final class ZipPackage
             'requestedRoleCount' => count($roleSummaries),
             'requestRequirementSummaryCount' => count($requirementSummaries),
             'requestStatusSummaryCount' => count($statusSummaries),
+            'selectedNameHygieneReviewEntryCount' => count($selectedNameHygieneReviewEntries),
+            'selectedNameHygieneIssueCount' => count($selectedNameHygieneIssues),
+            'handoffNameHygieneReviewEntryCount' => count($handoffNameHygieneReviewEntries),
+            'handoffNameHygieneIssueCount' => count($handoffNameHygieneIssues),
             'selectedRawNameProvenanceEntryCount' => count($selectedRawNameProvenanceEntries),
             'selectedLegacyEncodedNameEntryCount' => $selectedLegacyEncodedNameEntryCount,
             'selectedUnicodePathExtraEntryCount' => $selectedUnicodePathExtraEntryCount,
@@ -6133,11 +6191,21 @@ final class ZipPackage
             'handoffSourceTotalRecordBytes' => $handoffSourceByteSpanSummary['sourceRecordBytes'],
             'handoffSourceByteSpanIssueCount' => count($handoffSourceByteSpanSummary['issues']),
             'handoffSourceByteSpanIssues' => $handoffSourceByteSpanSummary['issues'],
+            'handoffContentDigestEntryCount' => $handoffContentDigestSummary['entryCount'],
+            'handoffContentBytesRead' => $handoffContentDigestSummary['bytesRead'],
+            'handoffContentDigestManifestVersion' => $handoffContentDigestSummary['manifestVersion'],
+            'handoffContentDigestManifestSha256' => $handoffContentDigestSummary['manifestSha256'],
             'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
             'maxTotalUncompressedBytes' => $maxTotalUncompressedBytes,
             'isSupportedByBoundedReader' => $issues === [],
             'issues' => $issues,
             'duplicateRequestedEntryGroups' => $duplicateRequestedEntryGroups,
+            'selectedNameHygieneIssues' => $selectedNameHygieneIssues,
+            'handoffNameHygieneIssues' => $handoffNameHygieneIssues,
+            'selectedNameHygieneIssueSummaries' => $selectedNameHygieneIssueSummaries,
+            'handoffNameHygieneIssueSummaries' => $handoffNameHygieneIssueSummaries,
+            'selectedNameHygieneReviewEntries' => $selectedNameHygieneReviewEntries,
+            'handoffNameHygieneReviewEntries' => $handoffNameHygieneReviewEntries,
             'roleSummaries' => $roleSummaries,
             'requirementSummaries' => $requirementSummaries,
             'statusSummaries' => $statusSummaries,
@@ -6172,11 +6240,214 @@ final class ZipPackage
             'selectedDataDescriptorIssueEntries' => $selectedDataDescriptorIssueEntries,
             'selectedSourceByteSpanEntries' => $selectedSourceByteSpanEntries,
             'handoffSourceByteSpanEntries' => $handoffSourceByteSpanSummary['entries'],
+            'handoffContentDigestEntries' => $handoffContentDigestSummary['entries'],
             'missingEntries' => $missingEntries,
             'failedEntries' => $failedEntries,
             'handoffEntries' => $handoffEntries,
             'entries' => $entries,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array{manifestVersion:string, entryCount:int, bytesRead:int, manifestSha256:string, entries:list<array<string, mixed>>}
+     */
+    private static function entryHandoffContentDigestSummary(array $entries): array
+    {
+        $manifestVersion = 'zip-entry-handoff-content-digest-v1';
+        $digestEntries = [];
+        $bytesReadTotal = 0;
+        foreach ($entries as $entry) {
+            if (($entry['status'] ?? null) !== 'ready' || ($entry['isReadable'] ?? false) !== true) {
+                continue;
+            }
+
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            $contentSha256 = is_string($entry['contentSha256'] ?? null) ? $entry['contentSha256'] : null;
+            $bytesRead = is_int($entry['bytesRead'] ?? null) ? $entry['bytesRead'] : null;
+            if ($name === '' || $contentSha256 === null || $bytesRead === null) {
+                continue;
+            }
+
+            $bytesReadTotal += $bytesRead;
+            $digestEntries[] = [
+                'requestIndex' => is_int($entry['requestIndex'] ?? null) ? $entry['requestIndex'] : null,
+                'requestedName' => is_string($entry['requestedName'] ?? null) ? $entry['requestedName'] : '',
+                'name' => $name,
+                'role' => is_string($entry['role'] ?? null) ? $entry['role'] : null,
+                'required' => ($entry['required'] ?? false) === true,
+                'expectedKind' => is_string($entry['expectedKind'] ?? null) ? $entry['expectedKind'] : null,
+                'status' => 'ready',
+                'bytesRead' => $bytesRead,
+                'contentSha256' => $contentSha256,
+                'compressionMethod' => is_int($entry['compressionMethod'] ?? null) ? $entry['compressionMethod'] : null,
+                'compressionMethodName' => is_string($entry['compressionMethodName'] ?? null) ? $entry['compressionMethodName'] : null,
+                'packagePartKind' => is_string($entry['packagePartKind'] ?? null) ? $entry['packagePartKind'] : null,
+                'directoryRoot' => is_string($entry['directoryRoot'] ?? null) ? $entry['directoryRoot'] : null,
+                'pathDepth' => is_int($entry['pathDepth'] ?? null) ? $entry['pathDepth'] : null,
+            ];
+        }
+
+        $manifest = [
+            'manifestVersion' => $manifestVersion,
+            'entries' => $digestEntries,
+        ];
+        $manifestJson = json_encode($manifest, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+        return [
+            'manifestVersion' => $manifestVersion,
+            'entryCount' => count($digestEntries),
+            'bytesRead' => $bytesReadTotal,
+            'manifestSha256' => hash('sha256', $manifestJson),
+            'entries' => $digestEntries,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffNameHygieneIssueSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $issues = self::entryHandoffNameHygieneIssuesForEntry($entry);
+            if ($issues === []) {
+                continue;
+            }
+
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $roles = self::entryHandoffRolesForSummary($entry);
+            foreach ($issues as $issue) {
+                if (!isset($summaries[$issue])) {
+                    $summaries[$issue] = [
+                        'issue' => $issue,
+                        'entryCount' => 0,
+                        'fileEntryCount' => 0,
+                        'directoryEntryCount' => 0,
+                        'compressedBytes' => 0,
+                        'uncompressedBytes' => 0,
+                        'roles' => [],
+                        'entryNames' => [],
+                    ];
+                }
+
+                ++$summaries[$issue]['entryCount'];
+                if (($entry['isDirectory'] ?? false) === true) {
+                    ++$summaries[$issue]['directoryEntryCount'];
+                } else {
+                    ++$summaries[$issue]['fileEntryCount'];
+                }
+                $summaries[$issue]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+                $summaries[$issue]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+                $summaries[$issue]['entryNames'][] = $name;
+
+                foreach ($roles as $role) {
+                    if (!in_array($role, $summaries[$issue]['roles'], true)) {
+                        $summaries[$issue]['roles'][] = $role;
+                    }
+                }
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['roles'], SORT_STRING);
+        }
+        unset($summary);
+
+        ksort($summaries, SORT_STRING);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffNameHygieneReviewEntries(array $entries): array
+    {
+        $reviewEntries = [];
+        foreach ($entries as $entry) {
+            $issues = self::entryHandoffNameHygieneIssuesForEntry($entry);
+            if ($issues === []) {
+                continue;
+            }
+
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $reviewEntries[] = [
+                'name' => $name,
+                'path' => is_string($entry['nameHygienePath'] ?? null) ? $entry['nameHygienePath'] : rtrim($name, '/'),
+                'isDirectory' => ($entry['isDirectory'] ?? false) === true,
+                'segments' => is_array($entry['nameHygieneSegments'] ?? null) ? $entry['nameHygieneSegments'] : [],
+                'flaggedSegments' => is_array($entry['nameHygieneFlaggedSegments'] ?? null) ? $entry['nameHygieneFlaggedSegments'] : [],
+                'hasNameHygieneIssue' => true,
+                'issues' => $issues,
+                'roles' => self::entryHandoffRolesForSummary($entry),
+                'compressedSize' => (int) ($entry['compressedSize'] ?? 0),
+                'uncompressedSize' => (int) ($entry['uncompressedSize'] ?? 0),
+            ];
+        }
+
+        return $reviewEntries;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $issueSummaries
+     * @return list<string>
+     */
+    private static function entryHandoffNameHygieneIssues(array $issueSummaries): array
+    {
+        return array_values(array_filter(
+            array_map(
+                static fn (array $summary): mixed => $summary['issue'] ?? null,
+                $issueSummaries
+            ),
+            'is_string'
+        ));
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @return list<string>
+     */
+    private static function entryHandoffNameHygieneIssuesForEntry(array $entry): array
+    {
+        $issues = is_array($entry['nameHygieneIssues'] ?? null)
+            ? $entry['nameHygieneIssues']
+            : ($entry['issues'] ?? []);
+
+        return array_values(array_filter($issues, 'is_string'));
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @return list<string>
+     */
+    private static function entryHandoffRolesForSummary(array $entry): array
+    {
+        if (is_array($entry['roles'] ?? null)) {
+            $roles = array_values(array_filter(
+                $entry['roles'],
+                static fn (mixed $role): bool => is_string($role) && $role !== ''
+            ));
+            sort($roles, SORT_STRING);
+
+            return $roles;
+        }
+
+        if (is_string($entry['role'] ?? null) && $entry['role'] !== '') {
+            return [$entry['role']];
+        }
+
+        return [];
     }
 
     /**

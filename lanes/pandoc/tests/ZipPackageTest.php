@@ -12680,6 +12680,79 @@ return [
         $t->same([], $byStatus['missing-optional']['issueCounts']);
     },
 
+    'summarizes readable zip handoff content digests for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>content digest handoff</w:p></w:body></w:document>';
+        $commentsXml = '<w:comments><w:comment><w:p>digest note</w:p></w:comment></w:comments>';
+        $largeBytes = "blocked digest media bytes\n";
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => 'word/comments.xml', 'data' => $commentsXml, 'method' => 8],
+            ['name' => 'word/media/large.bin', 'data' => $largeBytes, 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => '/word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/comments.xml', 'required' => false, 'kind' => 'file', 'role' => 'comments'],
+            ['name' => 'word/media/large.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 8],
+            ['name' => 'word/missing.xml', 'required' => false, 'kind' => 'file', 'role' => 'optional-sidecar'],
+        ], 1024);
+
+        $expectedEntries = [
+            [
+                'requestIndex' => 0,
+                'requestedName' => '/word/document.xml',
+                'name' => 'word/document.xml',
+                'role' => 'main-document',
+                'required' => true,
+                'expectedKind' => 'file',
+                'status' => 'ready',
+                'bytesRead' => strlen($documentXml),
+                'contentSha256' => hash('sha256', $documentXml),
+                'compressionMethod' => 0,
+                'compressionMethodName' => 'stored',
+                'packagePartKind' => 'markup-part',
+                'directoryRoot' => 'word/',
+                'pathDepth' => 2,
+            ],
+            [
+                'requestIndex' => 1,
+                'requestedName' => 'word/comments.xml',
+                'name' => 'word/comments.xml',
+                'role' => 'comments',
+                'required' => false,
+                'expectedKind' => 'file',
+                'status' => 'ready',
+                'bytesRead' => strlen($commentsXml),
+                'contentSha256' => hash('sha256', $commentsXml),
+                'compressionMethod' => 8,
+                'compressionMethodName' => 'deflated',
+                'packagePartKind' => 'markup-part',
+                'directoryRoot' => 'word/',
+                'pathDepth' => 2,
+            ],
+        ];
+        $expectedManifest = [
+            'manifestVersion' => 'zip-entry-handoff-content-digest-v1',
+            'entries' => $expectedEntries,
+        ];
+        $expectedManifestJson = json_encode(
+            $expectedManifest,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        );
+
+        $t->same(2, $summary['handoffEntryCount']);
+        $t->same(2, $summary['handoffContentDigestEntryCount']);
+        $t->same(strlen($documentXml) + strlen($commentsXml), $summary['handoffContentBytesRead']);
+        $t->same('zip-entry-handoff-content-digest-v1', $summary['handoffContentDigestManifestVersion']);
+        $t->same(hash('sha256', $expectedManifestJson), $summary['handoffContentDigestManifestSha256']);
+        $t->same($expectedEntries, $summary['handoffContentDigestEntries']);
+        $t->same(hash('sha256', $documentXml), $summary['entries'][0]['contentSha256']);
+        $t->same(hash('sha256', $commentsXml), $summary['entries'][1]['contentSha256']);
+        $t->same(null, $summary['entries'][2]['contentSha256']);
+        $t->same(null, $summary['entries'][3]['contentSha256']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
+    },
+
     'summarizes selected zip handoff directory roots for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
         $contentTypesXml = '<Types/>';
         $packageRelsXml = '<Relationships/>';
@@ -13065,6 +13138,109 @@ return [
         $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
         $t->same('blocked', $summary['entries'][6]['status']);
         $t->same('missing-optional', $summary['entries'][7]['status']);
+    },
+
+    'summarizes selected zip handoff name hygiene before reader byte exposure' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>name hygiene handoff</w:p></w:body></w:document>';
+        $bidiName = "word/media/review\u{202e}gnp.txt";
+        $bidiBytes = "bidi name media bytes\n";
+        $adsName = 'word/media/image.png:Zone.Identifier';
+        $adsBytes = "alternate stream metadata bytes\n";
+        $reservedName = 'word/media/CON.txt';
+        $reservedBytes = "windows reserved media bytes\n";
+        $spacedName = 'word/media/ raw.bin ';
+        $spacedBytes = "blocked whitespace media bytes\n";
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => $bidiName, 'data' => $bidiBytes, 'method' => 0],
+            ['name' => $adsName, 'data' => $adsBytes, 'method' => 0],
+            ['name' => $reservedName, 'data' => $reservedBytes, 'method' => 0],
+            ['name' => $spacedName, 'data' => $spacedBytes, 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => $bidiName, 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => $adsName, 'required' => false, 'kind' => 'file', 'role' => 'metadata-sidecar'],
+            ['name' => $reservedName, 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => $spacedName, 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 4],
+        ], 1024);
+
+        $selectedByIssue = [];
+        foreach ($summary['selectedNameHygieneIssueSummaries'] as $issueSummary) {
+            $selectedByIssue[$issueSummary['issue']] = $issueSummary;
+        }
+        $handoffByIssue = [];
+        foreach ($summary['handoffNameHygieneIssueSummaries'] as $issueSummary) {
+            $handoffByIssue[$issueSummary['issue']] = $issueSummary;
+        }
+
+        $t->same(5, $summary['selectedUniqueEntryCount']);
+        $t->same(4, $summary['selectedNameHygieneReviewEntryCount']);
+        $t->same(5, $summary['selectedNameHygieneIssueCount']);
+        $t->same([
+            'segment-unicode-format-control',
+            'segment-bidi-format-control',
+            'segment-windows-alternate-data-stream',
+            'segment-windows-reserved-name',
+            'segment-leading-or-trailing-whitespace',
+        ], $summary['selectedNameHygieneIssues']);
+        $t->same(4, $summary['handoffEntryCount']);
+        $t->same(3, $summary['handoffNameHygieneReviewEntryCount']);
+        $t->same(4, $summary['handoffNameHygieneIssueCount']);
+        $t->same([
+            'segment-bidi-format-control',
+            'segment-unicode-format-control',
+            'segment-windows-alternate-data-stream',
+            'segment-windows-reserved-name',
+        ], $summary['handoffNameHygieneIssues']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
+
+        $bidiEntry = $summary['entries'][1];
+        $adsEntry = $summary['entries'][2];
+        $reservedEntry = $summary['entries'][3];
+        $spacedEntry = $summary['entries'][4];
+
+        $t->same(true, $bidiEntry['hasNameHygieneIssue']);
+        $t->same(['segment-unicode-format-control', 'segment-bidi-format-control'], $bidiEntry['nameHygieneIssues']);
+        $t->same("review\u{202e}gnp.txt", $bidiEntry['nameHygieneFlaggedSegments'][0]['segment']);
+        $t->same(['right-to-left-override'], $bidiEntry['nameHygieneFlaggedSegments'][0]['unicodeFormatControlNames']);
+        $t->same(['right-to-left-override'], $bidiEntry['nameHygieneFlaggedSegments'][0]['bidiControlNames']);
+        $t->same('ready', $bidiEntry['status']);
+
+        $t->same(['segment-windows-alternate-data-stream'], $adsEntry['nameHygieneIssues']);
+        $t->same(['segment-windows-reserved-name'], $reservedEntry['nameHygieneIssues']);
+        $t->same(['segment-leading-or-trailing-whitespace'], $spacedEntry['nameHygieneIssues']);
+        $t->same('blocked', $spacedEntry['status']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $spacedEntry['issues']);
+
+        $t->same([
+            $bidiName,
+            $adsName,
+            $reservedName,
+            $spacedName,
+        ], array_map(static fn (array $entry): string => $entry['name'], $summary['selectedNameHygieneReviewEntries']));
+        $t->same([$bidiName, $adsName, $reservedName], array_map(
+            static fn (array $entry): string => $entry['name'],
+            $summary['handoffNameHygieneReviewEntries']
+        ));
+
+        $t->same([
+            'issue' => 'segment-leading-or-trailing-whitespace',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($spacedBytes),
+            'uncompressedBytes' => strlen($spacedBytes),
+            'roles' => ['media'],
+            'entryNames' => [$spacedName],
+        ], $selectedByIssue['segment-leading-or-trailing-whitespace']);
+        $t->same(false, isset($handoffByIssue['segment-leading-or-trailing-whitespace']));
+        $t->same([$bidiName], $handoffByIssue['segment-bidi-format-control']['entryNames']);
+        $t->same([$adsName], $handoffByIssue['segment-windows-alternate-data-stream']['entryNames']);
+        $t->same([$reservedName], $handoffByIssue['segment-windows-reserved-name']['entryNames']);
+        $t->same([$summary['entries'][0], $bidiEntry, $adsEntry, $reservedEntry], $summary['handoffEntries']);
     },
 
     'summarizes selected zip handoff package part kinds for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
