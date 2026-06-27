@@ -5030,6 +5030,7 @@ final class ZipPackage
      *     selectedZeroByteFileCount:int,
      *     selectedEmptyDirectoryEntryCount:int,
      *     selectedHasZeroByteEntries:bool,
+     *     selectedZeroBytePackagePartKindCount:int,
      *     selectedCompressedBytes:int,
      *     selectedUncompressedBytes:int,
      *     selectedExpansionRatio:?float,
@@ -5051,6 +5052,7 @@ final class ZipPackage
      *     handoffZeroByteFileCount:int,
      *     handoffEmptyDirectoryEntryCount:int,
      *     handoffHasZeroByteEntries:bool,
+     *     handoffZeroBytePackagePartKindCount:int,
      *     failedEntryCount:int,
      *     directoryMismatchEntryCount:int,
      *     oversizedEntryCount:int,
@@ -5097,6 +5099,8 @@ final class ZipPackage
      *     selectedUnsupportedCompressionMethodEntries:list<array{name:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int}>,
      *     selectedZeroByteEntries:list<array{name:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int,expansionRatio:?float}>,
      *     handoffZeroByteEntries:list<array{requestIndex:int,requestedName:string,name:string,role:?string,required:bool,expectedKind:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int,expansionRatio:?float}>,
+     *     selectedZeroBytePackagePartKindSummaries:list<array<string, mixed>>,
+     *     handoffZeroBytePackagePartKindSummaries:list<array<string, mixed>>,
      *     selectedUnknownExpansionRatioEntries:list<array{name:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int,expansionRatio:?float}>,
      *     selectedRawNameProvenanceEntries:list<array<string, mixed>>,
      *     selectedCommentedEntries:list<array<string, mixed>>,
@@ -5254,6 +5258,7 @@ final class ZipPackage
         $selectedCompressionMethodBuckets = [];
         $selectedDirectoryRootSummaryEntries = [];
         $selectedZeroByteEntries = [];
+        $selectedZeroBytePackagePartKindSummaryEntries = [];
         $selectedZeroByteFileCount = 0;
         $selectedEmptyDirectoryEntryCount = 0;
         $selectedUnknownExpansionRatioEntries = [];
@@ -5315,6 +5320,9 @@ final class ZipPackage
         foreach ($selectedEntriesByName as $entry) {
             $localHeader = $this->readLocalHeader($entry);
             $isDirectory = $entry->isDirectory();
+            $pathDepth = self::entryHandoffPathDepth($entry->name);
+            $packagePartKind = self::entryHandoffPackagePartKind($entry->name, $isDirectory);
+            $roles = array_keys($selectedRolesByName[$entry->name] ?? []);
             if ($isDirectory) {
                 ++$selectedDirectoryEntryCount;
             } else {
@@ -5322,12 +5330,12 @@ final class ZipPackage
             }
             $selectedDirectoryRootSummaryEntries[] = [
                 'name' => $entry->name,
-                'roles' => array_keys($selectedRolesByName[$entry->name] ?? []),
+                'roles' => $roles,
                 'isDirectory' => $isDirectory,
                 'centralDirectoryIndex' => $centralDirectoryIndexByName[$entry->name] ?? null,
                 'localHeaderOrder' => $localHeaderOrderByName[$entry->name] ?? null,
-                'pathDepth' => self::entryHandoffPathDepth($entry->name),
-                'packagePartKind' => self::entryHandoffPackagePartKind($entry->name, $isDirectory),
+                'pathDepth' => $pathDepth,
+                'packagePartKind' => $packagePartKind,
                 'compressedSize' => $entry->compressedSize,
                 'uncompressedSize' => $entry->uncompressedSize,
             ];
@@ -5368,6 +5376,14 @@ final class ZipPackage
                     ++$selectedZeroByteFileCount;
                 }
                 $selectedZeroByteEntries[] = $selectedEntrySizeSummary;
+                $selectedZeroBytePackagePartKindSummaryEntries[] = [
+                    'name' => $entry->name,
+                    'roles' => $roles,
+                    'isDirectory' => $isDirectory,
+                    'packagePartKind' => $packagePartKind,
+                    'compressedSize' => $entry->compressedSize,
+                    'uncompressedSize' => $entry->uncompressedSize,
+                ];
             }
             if ($selectedExpansionRatio === null) {
                 $selectedUnknownExpansionRatioEntries[] = $selectedEntrySizeSummary;
@@ -5912,6 +5928,7 @@ final class ZipPackage
         }
 
         $handoffZeroByteEntries = [];
+        $handoffZeroBytePackagePartKindSummaryEntries = [];
         $handoffZeroByteFileCount = 0;
         $handoffEmptyDirectoryEntryCount = 0;
         foreach ($handoffEntries as $handoffEntry) {
@@ -5936,12 +5953,22 @@ final class ZipPackage
                 'uncompressedSize' => $handoffEntry['uncompressedSize'],
                 'expansionRatio' => $handoffEntry['expansionRatio'],
             ];
+            $handoffZeroBytePackagePartKindSummaryEntries[] = [
+                'name' => $handoffEntry['name'],
+                'role' => $handoffEntry['role'],
+                'isDirectory' => $handoffEntry['isDirectory'],
+                'packagePartKind' => $handoffEntry['packagePartKind'],
+                'compressedSize' => $handoffEntry['compressedSize'],
+                'uncompressedSize' => $handoffEntry['uncompressedSize'],
+            ];
         }
 
         $selectedDirectoryRootSummaries = self::entryHandoffDirectoryRootSummaries($selectedDirectoryRootSummaryEntries);
         $handoffDirectoryRootSummaries = self::entryHandoffDirectoryRootSummaries($handoffEntries);
         $selectedPackagePartKindSummaries = self::entryHandoffPackagePartKindSummaries($selectedDirectoryRootSummaryEntries);
         $handoffPackagePartKindSummaries = self::entryHandoffPackagePartKindSummaries($handoffEntries);
+        $selectedZeroBytePackagePartKindSummaries = self::entryHandoffPackagePartKindSummaries($selectedZeroBytePackagePartKindSummaryEntries);
+        $handoffZeroBytePackagePartKindSummaries = self::entryHandoffPackagePartKindSummaries($handoffZeroBytePackagePartKindSummaryEntries);
         $selectedExtensionSummaries = self::entryHandoffExtensionSummaries($selectedDirectoryRootSummaryEntries);
         $handoffExtensionSummaries = self::entryHandoffExtensionSummaries($handoffEntries);
         $selectedOrderSummary = self::entryHandoffOrderSummary($selectedDirectoryRootSummaryEntries);
@@ -5975,6 +6002,7 @@ final class ZipPackage
             'selectedZeroByteFileCount' => $selectedZeroByteFileCount,
             'selectedEmptyDirectoryEntryCount' => $selectedEmptyDirectoryEntryCount,
             'selectedHasZeroByteEntries' => $selectedZeroByteEntries !== [],
+            'selectedZeroBytePackagePartKindCount' => count($selectedZeroBytePackagePartKindSummaries),
             'selectedCompressedBytes' => $selectedCompressedBytes,
             'selectedUncompressedBytes' => $selectedUncompressedBytes,
             'selectedExpansionRatio' => self::expansionRatio($selectedUncompressedBytes, $selectedCompressedBytes),
@@ -6005,6 +6033,7 @@ final class ZipPackage
             'handoffZeroByteFileCount' => $handoffZeroByteFileCount,
             'handoffEmptyDirectoryEntryCount' => $handoffEmptyDirectoryEntryCount,
             'handoffHasZeroByteEntries' => $handoffZeroByteEntries !== [],
+            'handoffZeroBytePackagePartKindCount' => count($handoffZeroBytePackagePartKindSummaries),
             'failedEntryCount' => count($failedEntries),
             'directoryMismatchEntryCount' => $directoryMismatchEntryCount,
             'oversizedEntryCount' => $oversizedEntryCount,
@@ -6109,6 +6138,8 @@ final class ZipPackage
             'selectedUnsupportedCompressionMethodEntries' => $selectedUnsupportedCompressionMethodEntries,
             'selectedZeroByteEntries' => $selectedZeroByteEntries,
             'handoffZeroByteEntries' => $handoffZeroByteEntries,
+            'selectedZeroBytePackagePartKindSummaries' => $selectedZeroBytePackagePartKindSummaries,
+            'handoffZeroBytePackagePartKindSummaries' => $handoffZeroBytePackagePartKindSummaries,
             'selectedUnknownExpansionRatioEntries' => $selectedUnknownExpansionRatioEntries,
             'selectedRawNameProvenanceEntries' => $selectedRawNameProvenanceEntries,
             'selectedCommentedEntries' => $selectedCommentedEntries,

@@ -12153,6 +12153,93 @@ return [
         $t->same([], $summary['failedEntries']);
     },
 
+    'summarizes zero byte zip handoff package part kinds before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => 'word/document.xml', 'data' => '<w:document/>', 'method' => 0],
+            ['name' => 'word/media/empty.png', 'data' => '', 'method' => 0],
+            ['name' => 'word/_rels/empty.rels', 'data' => '', 'method' => 0],
+            ['name' => 'docProps/custom.xml', 'data' => '', 'method' => 0],
+            ['name' => 'word/media/cache/', 'data' => '', 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/media/empty.png', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'word/_rels/empty.rels', 'required' => false, 'kind' => 'file', 'role' => 'relationships'],
+            ['name' => 'docProps/custom.xml', 'required' => false, 'kind' => 'file', 'role' => 'metadata'],
+            ['name' => 'word/media/cache/', 'required' => false, 'kind' => 'file', 'role' => 'media-directory'],
+            ['name' => 'word/media/missing.png', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+        ], 1024);
+
+        $selectedByKind = [];
+        foreach ($summary['selectedZeroBytePackagePartKindSummaries'] as $kindSummary) {
+            $selectedByKind[$kindSummary['packagePartKind']] = $kindSummary;
+        }
+        $handoffByKind = [];
+        foreach ($summary['handoffZeroBytePackagePartKindSummaries'] as $kindSummary) {
+            $handoffByKind[$kindSummary['packagePartKind']] = $kindSummary;
+        }
+
+        $t->same(4, $summary['selectedZeroByteEntryCount']);
+        $t->same(3, $summary['handoffZeroByteEntryCount']);
+        $t->same(4, $summary['selectedZeroBytePackagePartKindCount']);
+        $t->same(3, $summary['handoffZeroBytePackagePartKindCount']);
+        $t->same([
+            'directory',
+            'media',
+            'metadata',
+            'relationship-part',
+        ], array_keys($selectedByKind));
+        $t->same([
+            'media',
+            'metadata',
+            'relationship-part',
+        ], array_keys($handoffByKind));
+        $t->same([
+            'packagePartKind' => 'directory',
+            'entryCount' => 1,
+            'fileEntryCount' => 0,
+            'directoryEntryCount' => 1,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+            'roles' => ['media-directory'],
+            'entryNames' => ['word/media/cache/'],
+        ], $selectedByKind['directory']);
+        $t->same([
+            'packagePartKind' => 'media',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+            'roles' => ['media'],
+            'entryNames' => ['word/media/empty.png'],
+        ], $handoffByKind['media']);
+        $t->same([
+            'packagePartKind' => 'metadata',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+            'roles' => ['metadata'],
+            'entryNames' => ['docProps/custom.xml'],
+        ], $handoffByKind['metadata']);
+        $t->same([
+            'packagePartKind' => 'relationship-part',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+            'roles' => ['relationships'],
+            'entryNames' => ['word/_rels/empty.rels'],
+        ], $handoffByKind['relationship-part']);
+        $t->same('blocked', $summary['entries'][4]['status']);
+        $t->same(['directory-entry-not-file'], $summary['entries'][4]['issues']);
+        $t->same(['directory-entry-not-file'], $summary['issues']);
+    },
+
     'preflights selected zip package expansion before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>selected expansion review</w:p></w:body></w:document>';
         $zeroCompressedName = 'word/media/zero-compressed.bin';
