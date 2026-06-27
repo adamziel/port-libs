@@ -3758,9 +3758,10 @@ final class OpenDocumentPackage
                     continue;
                 }
 
+                $containedManifestEntry = $manifestEntriesByPath[$entry->name] ?? null;
                 $containedClassification = self::embeddedObjectContainedPartClassification(
                     $entry->name,
-                    $manifestEntriesByPath[$entry->name] ?? null
+                    $containedManifestEntry
                 );
                 $containedRole = $containedClassification['containedRole'];
                 $containedMediaFamily = $containedClassification['containedMediaFamily'];
@@ -3773,6 +3774,12 @@ final class OpenDocumentPackage
                     'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
                     'crc32' => $entry->crc32Hex(),
                     'declaredInManifest' => isset($declaredContainedParts[$entry->name]),
+                    'manifestMediaType' => is_array($containedManifestEntry) ? ($containedManifestEntry['mediaType'] ?? '') : null,
+                    'manifestMediaTypeBase' => is_array($containedManifestEntry) ? ($containedManifestEntry['mediaTypeBase'] ?? '') : null,
+                    'manifestMediaTypeHasParameters' => is_array($containedManifestEntry) && ($containedManifestEntry['mediaTypeHasParameters'] ?? false) === true,
+                    'manifestMediaTypeParameterCount' => is_array($containedManifestEntry) ? ($containedManifestEntry['mediaTypeParameterCount'] ?? 0) : 0,
+                    'manifestMediaTypeParameters' => is_array($containedManifestEntry) ? ($containedManifestEntry['mediaTypeParameters'] ?? []) : [],
+                    'manifestMediaTypeParameterMap' => is_array($containedManifestEntry) ? ($containedManifestEntry['mediaTypeParameterMap'] ?? []) : [],
                     'containedRole' => $containedRole,
                     'containedMediaFamily' => $containedMediaFamily,
                 ];
@@ -3826,6 +3833,10 @@ final class OpenDocumentPackage
                 'objectType' => $objectType,
                 'mediaType' => $rootEntry['mediaType'] ?? '',
                 'mediaTypeBase' => $rootEntry['mediaTypeBase'] ?? '',
+                'mediaTypeHasParameters' => ($rootEntry['mediaTypeHasParameters'] ?? false) === true,
+                'mediaTypeParameterCount' => $rootEntry['mediaTypeParameterCount'] ?? 0,
+                'mediaTypeParameters' => $rootEntry['mediaTypeParameters'] ?? [],
+                'mediaTypeParameterMap' => $rootEntry['mediaTypeParameterMap'] ?? [],
                 'version' => $rootEntry['version'] ?? null,
                 'preferredViewMode' => $rootEntry['preferredViewMode'] ?? null,
                 'exists' => $exists,
@@ -4026,6 +4037,10 @@ final class OpenDocumentPackage
             'manifestIndex' => $entry['manifestIndex'] ?? null,
             'mediaType' => $entry['mediaType'] ?? '',
             'mediaTypeBase' => $entry['mediaTypeBase'] ?? '',
+            'mediaTypeHasParameters' => ($entry['mediaTypeHasParameters'] ?? false) === true,
+            'mediaTypeParameterCount' => $entry['mediaTypeParameterCount'] ?? 0,
+            'mediaTypeParameters' => $entry['mediaTypeParameters'] ?? [],
+            'mediaTypeParameterMap' => $entry['mediaTypeParameterMap'] ?? [],
             'exists' => ($entry['exists'] ?? false) === true,
             'encrypted' => ($entry['encrypted'] ?? false) === true,
             'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
