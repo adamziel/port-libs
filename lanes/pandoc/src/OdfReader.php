@@ -3077,7 +3077,10 @@ final class OdfReader
         if ($entry->name === 'settings.xml') {
             $roles[] = 'odf-settings';
         }
-        if ($this->isThumbnailPackagePartName($entry->name)) {
+        if ($this->isThumbnailPackagePartName(
+            $entry->name,
+            is_array($manifestItem) ? (string) ($manifestItem['mediaType'] ?? '') : null
+        )) {
             $roles[] = 'package-thumbnail';
         }
         if ($this->isSignaturePartName($entry->name)) {
@@ -14587,7 +14590,7 @@ final class OdfReader
             if (self::isConfigurationPackagePartName($part)) {
                 continue;
             }
-            if ($this->isThumbnailPackagePartName($part)) {
+            if ($this->isThumbnailPackagePartName($part, $mediaType)) {
                 continue;
             }
             if ($this->isSignaturePartName($part)) {
@@ -15152,7 +15155,7 @@ final class OdfReader
         if (self::isConfigurationPackagePartName($part)) {
             $roles[] = 'configuration-package';
         }
-        if ($this->isThumbnailPackagePartName($part)) {
+        if ($this->isThumbnailPackagePartName($part, $mediaType)) {
             $roles[] = 'package-thumbnail';
         }
         if ($this->isSignaturePartName($part)) {
@@ -15431,7 +15434,14 @@ final class OdfReader
         $candidatesByPart = [];
         foreach ($manifest as $item) {
             $part = $item['part'] ?? null;
-            if (!is_string($part) || $part === '' || !$this->isThumbnailPackagePartName($part)) {
+            if (
+                !is_string($part)
+                || $part === ''
+                || !$this->isThumbnailPackagePartName(
+                    $part,
+                    is_string($item['mediaType'] ?? null) ? (string) $item['mediaType'] : null
+                )
+            ) {
                 continue;
             }
 
@@ -15548,14 +15558,19 @@ final class OdfReader
         ];
     }
 
-    private function isThumbnailPackagePartName(string $part): bool
+    private function isThumbnailPackagePartName(string $part, ?string $mediaType = null): bool
     {
         $normalized = strtolower(ltrim($part, '/'));
         if (!str_starts_with($normalized, 'thumbnails/') || str_ends_with($normalized, '/')) {
             return false;
         }
 
-        return $this->thumbnailMediaTypeFromPart($normalized) !== null;
+        if ($this->thumbnailMediaTypeFromPart($normalized) !== null) {
+            return true;
+        }
+
+        return $mediaType !== null
+            && str_starts_with(self::mediaTypeReport($mediaType)['mediaTypeBase'], 'image/');
     }
 
     private function thumbnailMediaTypeFromPart(string $part): ?string

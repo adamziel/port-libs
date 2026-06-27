@@ -1383,7 +1383,10 @@ final class OpenDocumentPackage
         if ($entry->name === 'settings.xml') {
             $roles[] = 'odf-settings';
         }
-        if (self::isThumbnailPackagePartName($entry->name)) {
+        if (self::isThumbnailPackagePartName(
+            $entry->name,
+            is_array($manifestEntry) ? (string) ($manifestEntry['mediaType'] ?? '') : null
+        )) {
             $roles[] = 'package-thumbnail';
         }
         if (self::isSignaturePackagePartName($entry->name)) {
@@ -1629,7 +1632,13 @@ final class OpenDocumentPackage
         if (($entry['embeddedObjectPackagePart'] ?? false) === true) {
             return false;
         }
-        if (is_string($packagePath) && self::isThumbnailPackagePartName($packagePath)) {
+        if (
+            is_string($packagePath)
+            && self::isThumbnailPackagePartName(
+                $packagePath,
+                is_string($entry['mediaType'] ?? null) ? (string) $entry['mediaType'] : null
+            )
+        ) {
             return false;
         }
         if (is_string($packagePath) && self::isSignaturePackagePartName($packagePath)) {
@@ -1910,7 +1919,7 @@ final class OpenDocumentPackage
         if ($configurationPackagePart) {
             return 'configuration';
         }
-        if (self::isThumbnailPackagePartName($packagePath)) {
+        if (self::isThumbnailPackagePartName($packagePath, (string) ($entry['mediaType'] ?? ''))) {
             return 'thumbnail';
         }
         if (self::isSignaturePackagePartName($packagePath)) {
@@ -2667,7 +2676,14 @@ final class OpenDocumentPackage
         $candidatesByPath = [];
         foreach ($manifestEntries as $entry) {
             $packagePath = $entry['packagePath'] ?? null;
-            if (!is_string($packagePath) || $packagePath === '' || !self::isThumbnailPackagePartName($packagePath)) {
+            if (
+                !is_string($packagePath)
+                || $packagePath === ''
+                || !self::isThumbnailPackagePartName(
+                    $packagePath,
+                    is_string($entry['mediaType'] ?? null) ? (string) $entry['mediaType'] : null
+                )
+            ) {
                 continue;
             }
 
@@ -2795,14 +2811,19 @@ final class OpenDocumentPackage
         ];
     }
 
-    private static function isThumbnailPackagePartName(string $path): bool
+    private static function isThumbnailPackagePartName(string $path, ?string $mediaType = null): bool
     {
         $normalized = strtolower(ltrim($path, '/'));
         if (!str_starts_with($normalized, 'thumbnails/') || str_ends_with($normalized, '/')) {
             return false;
         }
 
-        return self::thumbnailMediaTypeFromPart($normalized) !== null;
+        if (self::thumbnailMediaTypeFromPart($normalized) !== null) {
+            return true;
+        }
+
+        return $mediaType !== null
+            && str_starts_with(self::mediaTypeReport($mediaType)['mediaTypeBase'], 'image/');
     }
 
     private static function thumbnailMediaTypeFromPart(string $path): ?string
