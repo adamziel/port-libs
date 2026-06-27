@@ -10468,6 +10468,152 @@ XML;
         $t->same(1, $summary['digitalSignatureMissingSignatureCount']);
         $t->same(1, $summary['digitalSignatureExternalSignatureCount']);
     },
+    'summarizes docx digital signature reference package targets for review handoff' => static function (TestRunner $t): void {
+        $originType = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin';
+        $originBytes = 'signature origin bytes for reference target review';
+        $customReferenceBytes = '<signed-reference>metadata only</signed-reference>';
+        $opaqueReferenceBytes = 'opaque signed package bytes';
+        $signatureXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/document.xml?review=1#body">
+      <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+      <ds:DigestValue>bodyDigest</ds:DigestValue>
+    </ds:Reference>
+    <ds:Reference URI="/customXml/signed-reference.xml?slot=custom#payload">
+      <ds:DigestValue>customDigest</ds:DigestValue>
+    </ds:Reference>
+    <ds:Reference URI="/customXml/opaque-reference.bin">
+      <ds:DigestValue>opaqueDigest</ds:DigestValue>
+    </ds:Reference>
+    <ds:Reference URI="/customXml/missing-reference.bin?audit=1#missing">
+      <ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>
+    </ds:Reference>
+    <ds:Reference URI="#manifestPackageParts">
+      <ds:DigestValue>manifestDigest</ds:DigestValue>
+    </ds:Reference>
+  </ds:SignedInfo>
+  <ds:SignatureValue>reference-target-review</ds:SignatureValue>
+</ds:Signature>
+XML;
+
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/_xmlsignatures/origin-targets.sigs" ContentType="application/vnd.openxmlformats-package.digital-signature-origin"/>' . "\n" .
+            '  <Override PartName="/_xmlsignatures/sig-targets.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>' . "\n" .
+            '  <Override PartName="/customXml/signed-reference.xml" ContentType="application/xml; profile=signature-reference"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rReferenceTargetOrigin" Type="' . $originType . '" Target="_xmlsignatures/origin-targets.sigs"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['_xmlsignatures/origin-targets.sigs'] = $originBytes;
+        $parts['_xmlsignatures/_rels/origin-targets.sigs.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rReferenceTargetSignature" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature" Target="sig-targets.xml"/>
+</Relationships>
+XML;
+        $parts['_xmlsignatures/sig-targets.xml'] = $signatureXml;
+        $parts['customXml/signed-reference.xml'] = $customReferenceBytes;
+        $parts['customXml/opaque-reference.bin'] = $opaqueReferenceBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $signatures = $package['digitalSignatures'];
+        $origin = $signatures['byOriginRelationshipId']['rReferenceTargetOrigin'];
+        $signature = $signatures['bySignatureRelationshipId']['rReferenceTargetSignature'];
+        $bodyReference = $signature['references'][0];
+        $customReference = $signature['references'][1];
+        $opaqueReference = $signature['references'][2];
+        $missingReference = $signature['references'][3];
+        $sameDocumentReference = $signature['references'][4];
+
+        $t->same(5, $signature['referenceCount']);
+        $t->same(4, $signature['packageReferenceCount']);
+        $t->same(1, $signature['sameDocumentReferenceCount']);
+        $t->same(3, $signature['referenceTargetExistingCount']);
+        $t->same(1, $signature['referenceTargetMissingCount']);
+        $t->same(2, $signature['referenceTargetMissingContentTypeCount']);
+        $t->same(3, $signature['referenceTargetSha256Count']);
+        $t->same([
+            'word/document.xml',
+            'customXml/signed-reference.xml',
+            'customXml/opaque-reference.bin',
+            'customXml/missing-reference.bin',
+        ], $signature['referenceTargetParts']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+            'application/xml; profile=signature-reference',
+        ], $signature['referenceTargetContentTypes']);
+        $t->same([
+            hash('sha256', $parts['word/document.xml']),
+            hash('sha256', $customReferenceBytes),
+            hash('sha256', $opaqueReferenceBytes),
+        ], $signature['referenceTargetSha256s']);
+
+        $t->same('word/document.xml', $bodyReference['targetPart']);
+        $t->same(true, $bodyReference['targetExists']);
+        $t->same(strlen($parts['word/document.xml']), $bodyReference['targetByteLength']);
+        $t->same(sprintf('%08x', crc32($parts['word/document.xml'])), $bodyReference['targetCrc32']);
+        $t->same(hash('sha256', $parts['word/document.xml']), $bodyReference['targetSha256']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $bodyReference['targetContentTypeBase']);
+        $t->same('override', $bodyReference['targetContentTypeSource']);
+        $t->same('digital-signature-reference-target-bytes-blocked', $bodyReference['targetByteExposurePolicy']);
+        $t->same('digital-signature-reference-target-metadata-only', $bodyReference['targetReviewPolicy']);
+        $t->same(false, $bodyReference['targetCanExposeBytes']);
+
+        $t->same('customXml/signed-reference.xml', $customReference['targetPart']);
+        $t->same(true, $customReference['targetExists']);
+        $t->same('application/xml; profile=signature-reference', $customReference['targetContentType']);
+        $t->same('application/xml', $customReference['targetContentTypeBase']);
+        $t->same(['profile' => 'signature-reference'], $customReference['targetContentTypeParameterMap']);
+        $t->same(hash('sha256', $customReferenceBytes), $customReference['targetSha256']);
+
+        $t->same('customXml/opaque-reference.bin', $opaqueReference['targetPart']);
+        $t->same(true, $opaqueReference['targetExists']);
+        $t->same('', $opaqueReference['targetContentType']);
+        $t->same('missing', $opaqueReference['targetContentTypeSource']);
+        $t->same('bin', $opaqueReference['targetDefaultExtension']);
+        $t->same(hash('sha256', $opaqueReferenceBytes), $opaqueReference['targetSha256']);
+
+        $t->same('customXml/missing-reference.bin', $missingReference['targetPart']);
+        $t->same(false, $missingReference['targetExists']);
+        $t->same(null, $missingReference['targetByteLength']);
+        $t->same(null, $missingReference['targetSha256']);
+        $t->same('missing', $missingReference['targetContentTypeSource']);
+        $t->same('bin', $missingReference['targetDefaultExtension']);
+        $t->same(null, $sameDocumentReference['targetPart']);
+        $t->same(null, $sameDocumentReference['targetExists']);
+        $t->same(null, $sameDocumentReference['targetByteExposurePolicy']);
+
+        $t->same(3, $origin['signatures']['referenceTargetExistingCount']);
+        $t->same(1, $origin['signatures']['referenceTargetMissingCount']);
+        $t->same(2, $origin['signatures']['referenceTargetMissingContentTypeCount']);
+        $t->same($signature['referenceTargetParts'], $origin['signatures']['referenceTargetParts']);
+        $t->same($signature['referenceTargetSha256s'], $origin['signatures']['referenceTargetSha256s']);
+        $t->same(3, $signatures['referenceTargetExistingCount']);
+        $t->same(1, $signatures['referenceTargetMissingCount']);
+        $t->same(2, $signatures['referenceTargetMissingContentTypeCount']);
+        $t->same(3, $signatures['referenceTargetSha256Count']);
+        $t->same($signature['referenceTargetParts'], $signatures['referenceTargetParts']);
+        $t->same($signature['referenceTargetContentTypes'], $signatures['referenceTargetContentTypes']);
+        $t->same($signature['referenceTargetSha256s'], $signatures['referenceTargetSha256s']);
+        $t->same(3, $summary['digitalSignatureReferenceTargetExistingCount']);
+        $t->same(1, $summary['digitalSignatureReferenceTargetMissingCount']);
+        $t->same(2, $summary['digitalSignatureReferenceTargetMissingContentTypeCount']);
+        $t->same(3, $summary['digitalSignatureReferenceTargetSha256Count']);
+        $t->same([], $signatures['issueCodes']);
+        $t->true(!isset($document->attr('docx')['media']['customXml/signed-reference.xml']), 'signature reference XML should not be exposed as document media');
+        $t->true(!isset($document->attr('docx')['media']['customXml/opaque-reference.bin']), 'signature reference binary should not be exposed as document media');
+    },
     'summarizes docx package relationship targets for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
