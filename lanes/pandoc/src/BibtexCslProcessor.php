@@ -31,6 +31,9 @@ final class BibtexCslProcessor
         'curator',
         'director',
         'editor',
+        'editora',
+        'editorb',
+        'editorc',
         'editorial-director',
         'editorialdirector',
         'eventorganizer',
@@ -458,6 +461,10 @@ final class BibtexCslProcessor
         $nameAnnotationSummary = $this->biblatexNameAnnotationSummary($item);
         if ($nameAnnotationSummary !== '') {
             $parts[] = 'Name annotations: ' . $nameAnnotationSummary;
+        }
+        $editorialRoleSummary = $this->biblatexEditorialRoleSummary($item['editorial-roles'] ?? []);
+        if ($editorialRoleSummary !== '') {
+            $parts[] = 'BibLaTeX editorial roles: ' . $editorialRoleSummary;
         }
         if (($item['annotation'] ?? '') !== '') {
             $parts[] = 'Annotation: ' . rtrim((string) $item['annotation'], '.');
@@ -934,6 +941,23 @@ final class BibtexCslProcessor
             if ($fieldNames !== []) {
                 $item[$target] = $fieldNames;
             }
+        }
+
+        $editorialRoles = $this->editorialRolesFromFields($fields);
+        foreach ($editorialRoles as $role) {
+            $cslVariable = $this->editorialRoleCslNameVariable($role['type']);
+            if ($cslVariable === null) {
+                continue;
+            }
+
+            $existing = $item[$cslVariable] ?? [];
+            $item[$cslVariable] = [
+                ...(is_array($existing) ? $existing : []),
+                ...$role['names'],
+            ];
+        }
+        if ($editorialRoles !== []) {
+            $item['editorial-roles'] = $editorialRoles;
         }
 
         $citationAliases = $this->citationAliases($fields);
@@ -2356,6 +2380,173 @@ final class BibtexCslProcessor
         }
         if ($refsegment !== '') {
             $parts[] = 'refsegment ' . $refsegment;
+        }
+
+        return implode('; ', $parts);
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @return list<array{field:string, type:string, label:string, names:list<array<string, mixed>>}>
+     */
+    private function editorialRolesFromFields(array $fields): array
+    {
+        $roles = [];
+        $primaryEditorType = $this->normalizedEditorialRoleType($fields['editortype'] ?? '');
+        if ($primaryEditorType !== '' && $primaryEditorType !== 'editor') {
+            $editorNames = $this->parseNamesFromFirstField($fields, ['editor']);
+            if ($editorNames !== []) {
+                $roles[] = [
+                    'field' => 'editor',
+                    'type' => $primaryEditorType,
+                    'label' => $this->editorialRoleLabel($primaryEditorType),
+                    'names' => $editorNames,
+                ];
+            }
+        }
+
+        foreach ([
+            ['editora', 'editoratype'],
+            ['editorb', 'editorbtype'],
+            ['editorc', 'editorctype'],
+        ] as [$nameField, $typeField]) {
+            $names = $this->parseNamesFromFirstField($fields, [$nameField]);
+            if ($names === []) {
+                continue;
+            }
+
+            $type = $this->normalizedEditorialRoleType($fields[$typeField] ?? 'editor');
+            $roles[] = [
+                'field' => $nameField,
+                'type' => $type,
+                'label' => $this->editorialRoleLabel($type),
+                'names' => $names,
+            ];
+        }
+
+        return $roles;
+    }
+
+    private function normalizedEditorialRoleType(string $type): string
+    {
+        $type = strtolower(trim($type));
+        if ($type === '') {
+            return 'editor';
+        }
+
+        $type = str_replace(['_', ' '], '-', $type);
+
+        return match ($type) {
+            'editorialdirector', 'editorial-director' => 'editorial-director',
+            'reviewedauthor', 'reviewed-author' => 'reviewed-author',
+            'executiveproducer', 'executive-producer' => 'executive-producer',
+            'scriptwriter', 'script-writer' => 'script-writer',
+            default => $type,
+        };
+    }
+
+    private function editorialRoleCslNameVariable(string $type): ?string
+    {
+        return match ($this->normalizedEditorialRoleType($type)) {
+            'editor',
+            'compiler',
+            'curator',
+            'director',
+            'editorial-director',
+            'illustrator',
+            'interviewer',
+            'reviewed-author',
+            'redactor',
+            'founder',
+            'continuator',
+            'reviser',
+            'collaborator',
+            'commentator',
+            'annotator',
+            'executive-producer',
+            'guest',
+            'host',
+            'narrator',
+            'performer',
+            'producer',
+            'script-writer',
+            'introduction',
+            'foreword',
+            'afterword' => $this->normalizedEditorialRoleType($type),
+            default => null,
+        };
+    }
+
+    private function editorialRoleLabel(string $type): string
+    {
+        $type = $this->normalizedEditorialRoleType($type);
+
+        return match ($type) {
+            'editor' => 'Editor',
+            'compiler' => 'Compiler',
+            'curator' => 'Curator',
+            'director' => 'Director',
+            'editorial-director' => 'Editorial director',
+            'illustrator' => 'Illustrator',
+            'interviewer' => 'Interviewer',
+            'reviewed-author' => 'Reviewed author',
+            'redactor' => 'Redactor',
+            'founder' => 'Founder',
+            'continuator' => 'Continuator',
+            'reviser' => 'Reviser',
+            'collaborator' => 'Collaborator',
+            'organizer' => 'Organizer',
+            'commentator' => 'Commentator',
+            'annotator' => 'Annotator',
+            'executive-producer' => 'Executive producer',
+            'guest' => 'Guest',
+            'host' => 'Host',
+            'narrator' => 'Narrator',
+            'performer' => 'Performer',
+            'producer' => 'Producer',
+            'script-writer' => 'Script writer',
+            'introduction' => 'Introduction',
+            'foreword' => 'Foreword',
+            'afterword' => 'Afterword',
+            default => ucfirst(strtolower(str_replace('-', ' ', $type))),
+        };
+    }
+
+    /**
+     * @param mixed $roles
+     */
+    private function biblatexEditorialRoleSummary(mixed $roles): string
+    {
+        if (!is_array($roles)) {
+            return '';
+        }
+
+        $parts = [];
+        foreach ($roles as $role) {
+            if (!is_array($role)) {
+                continue;
+            }
+
+            $names = $role['names'] ?? [];
+            if (!is_array($names) || $names === []) {
+                continue;
+            }
+
+            $nameSummary = implode('; ', array_values(array_filter(
+                array_map(fn (mixed $name): string => $this->biblatexCustomNameDisplay($name), $names),
+                static fn (string $name): bool => $name !== ''
+            )));
+            if ($nameSummary === '') {
+                continue;
+            }
+
+            $label = trim((string) ($role['label'] ?? ''));
+            if ($label === '') {
+                $label = $this->editorialRoleLabel((string) ($role['type'] ?? ''));
+            }
+            $field = trim((string) ($role['field'] ?? ''));
+            $prefix = $field === '' ? $label : $field . ' ' . strtolower($label);
+            $parts[] = $prefix . ': ' . $nameSummary;
         }
 
         return implode('; ', $parts);
