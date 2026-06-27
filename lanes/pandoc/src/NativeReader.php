@@ -894,10 +894,15 @@ final class NativeReader
             return new AstNode('raw_html', ['format' => $format, 'text' => $text, 'html' => $text]);
         }
 
-        return match ($format) {
-            'tex' => new AstNode('raw_tex', ['format' => $format, 'text' => $text, 'tex' => $text]),
-            default => new AstNode('raw_block', ['format' => $format, 'text' => $text]),
-        };
+        if ($this->isTexRawFormat($format)) {
+            return new AstNode('raw_tex', ['format' => $format, 'text' => $text, 'tex' => $text]);
+        }
+
+        if ($this->isMarkdownRawFormat($format)) {
+            return new AstNode('raw_markdown', ['format' => $format, 'text' => $text, 'markdown' => $text]);
+        }
+
+        return new AstNode('raw_block', ['format' => $format, 'text' => $text]);
     }
 
     /**
@@ -1034,10 +1039,15 @@ final class NativeReader
             return new AstNode('raw_html_inline', ['format' => $format, 'text' => $text, 'html' => $text]);
         }
 
-        return match ($format) {
-            'tex' => new AstNode('raw_tex_inline', ['format' => $format, 'text' => $text, 'tex' => $text]),
-            default => new AstNode('raw_inline', ['format' => $format, 'text' => $text]),
-        };
+        if ($this->isTexRawFormat($format)) {
+            return new AstNode('raw_tex_inline', ['format' => $format, 'text' => $text, 'tex' => $text]);
+        }
+
+        if ($this->isMarkdownRawFormat($format)) {
+            return new AstNode('raw_markdown', ['format' => $format, 'text' => $text, 'markdown' => $text]);
+        }
+
+        return new AstNode('raw_inline', ['format' => $format, 'text' => $text]);
     }
 
     private function isHtmlRawFormat(string $format): bool
@@ -1047,6 +1057,20 @@ final class NativeReader
 
         return in_array($normalized, ['html', 'html4', 'html5', 'xhtml'], true)
             || in_array($baseFormat, ['html', 'html4', 'html5', 'xhtml'], true);
+    }
+
+    private function isTexRawFormat(string $format): bool
+    {
+        $normalized = strtolower(str_replace('-', '+', $format));
+        $baseFormat = explode('+', $normalized, 2)[0];
+
+        return in_array($normalized, ['tex', 'latex', 'context'], true)
+            || in_array($baseFormat, ['tex', 'latex', 'context'], true);
+    }
+
+    private function isMarkdownRawFormat(string $format): bool
+    {
+        return MarkdownFormatProfile::canonicalMarkdownFormat($format) !== null;
     }
 
     /**

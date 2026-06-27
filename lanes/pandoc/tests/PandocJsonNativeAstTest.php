@@ -5547,6 +5547,64 @@ return [
             $t->true(!str_contains($blocks, '<outline'), "{$source} wordpress keeps unsupported raw disabled");
         }
     },
+    'maps textual native raw markdown and tex aliases into specific ast constructors' => static function (TestRunner $t): void {
+        $nativeText = <<<'NATIVE'
+[ RawBlock (Format "markdown") "**raw block**"
+, RawBlock (Format "latex") "\\begin{review}\\end{review}"
+, Para [ RawInline (Format "markdown+tex_math_dollars") "$x$" , Space , RawInline (Format "context") "\\startformula x \\stopformula" , Space , RawInline (Format "opml") "<outline/>" ]
+]
+NATIVE;
+
+        $document = (new NativeReader())->read($nativeText);
+        $rawMarkdownBlock = $document->children[0];
+        $rawTexBlock = $document->children[1];
+        $paragraph = $document->children[2];
+        $rawMarkdownInline = $paragraph->children[0];
+        $rawTexInline = $paragraph->children[2];
+        $genericInline = $paragraph->children[4];
+        $jsonDocument = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
+        ], $document->children);
+        $jsonPacket = (new PandocJsonWriter())->toArray($jsonDocument);
+        $nativePacket = json_decode((new NativeWriter())->write($jsonDocument), true, 512, JSON_THROW_ON_ERROR);
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($jsonPacket),
+            'native' => (new NativeReader())->read(json_encode($jsonPacket, JSON_THROW_ON_ERROR)),
+        ] as $source => $roundTrip) {
+            $t->same('raw_markdown', $roundTrip->children[0]->type, "{$source} block markdown alias");
+            $t->same('raw_tex', $roundTrip->children[1]->type, "{$source} block tex alias");
+            $t->same('raw_markdown', $roundTrip->children[2]->children[0]->type, "{$source} inline markdown alias");
+            $t->same('raw_tex_inline', $roundTrip->children[2]->children[2]->type, "{$source} inline tex alias");
+            $t->same('raw_inline', $roundTrip->children[2]->children[4]->type, "{$source} unsupported inline remains generic");
+        }
+
+        $t->same('raw_markdown', $rawMarkdownBlock->type);
+        $t->same('markdown', $rawMarkdownBlock->attr('format'));
+        $t->same('**raw block**', $rawMarkdownBlock->attr('markdown'));
+        $t->same('raw_tex', $rawTexBlock->type);
+        $t->same('latex', $rawTexBlock->attr('format'));
+        $t->same('\\begin{review}\\end{review}', $rawTexBlock->attr('tex'));
+        $t->same('raw_markdown', $rawMarkdownInline->type);
+        $t->same('markdown+tex_math_dollars', $rawMarkdownInline->attr('format'));
+        $t->same('$x$', $rawMarkdownInline->attr('markdown'));
+        $t->same('raw_tex_inline', $rawTexInline->type);
+        $t->same('context', $rawTexInline->attr('format'));
+        $t->same('\\startformula x \\stopformula', $rawTexInline->attr('tex'));
+        $t->same('raw_inline', $genericInline->type);
+        $t->same('opml', $genericInline->attr('format'));
+        $t->same(['markdown', '**raw block**'], $jsonPacket['blocks'][0]['c']);
+        $t->same(['latex', '\\begin{review}\\end{review}'], $jsonPacket['blocks'][1]['c']);
+        $t->same(['markdown+tex_math_dollars', '$x$'], $jsonPacket['blocks'][2]['c'][0]['c']);
+        $t->same(['context', '\\startformula x \\stopformula'], $jsonPacket['blocks'][2]['c'][2]['c']);
+        $t->same(['opml', '<outline/>'], $jsonPacket['blocks'][2]['c'][4]['c']);
+        $t->same($jsonPacket['blocks'][0]['c'], $nativePacket['blocks'][0]['c']);
+        $t->same($jsonPacket['blocks'][1]['c'], $nativePacket['blocks'][1]['c']);
+        $t->same($jsonPacket['blocks'][2]['c'][0]['c'], $nativePacket['blocks'][2]['c'][0]['c']);
+        $t->same($jsonPacket['blocks'][2]['c'][2]['c'], $nativePacket['blocks'][2]['c'][2]['c']);
+        $t->same($jsonPacket['blocks'][2]['c'][4]['c'], $nativePacket['blocks'][2]['c'][4]['c']);
+    },
     'records ordered list style and delimiter native enum payloads on json and native ast' => static function (TestRunner $t): void {
         $styles = [
             ['DefaultStyle', 'default'],
