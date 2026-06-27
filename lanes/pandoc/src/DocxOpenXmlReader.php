@@ -802,6 +802,12 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['customXmlPropertiesExistingPartCount'] = $customXmlParts['existingPropertiesPartCount'];
         $packageProvenance['summary']['customXmlPropertiesMissingPartCount'] = $customXmlParts['missingPropertiesPartCount'];
         $packageProvenance['summary']['customXmlPropertiesExternalPartCount'] = $customXmlParts['externalPropertiesPartCount'];
+        $packageProvenance['summary']['customXmlAllowedExternalCount'] = $customXmlParts['allowedExternalCount'];
+        $packageProvenance['summary']['customXmlUnsafeExternalCount'] = $customXmlParts['unsafeExternalCount'];
+        $packageProvenance['summary']['customXmlExternalTargetIssueCodes'] = $customXmlParts['externalTargetIssueCodes'];
+        $packageProvenance['summary']['customXmlPropertiesAllowedExternalPartCount'] = $customXmlParts['allowedExternalPropertiesPartCount'];
+        $packageProvenance['summary']['customXmlPropertiesUnsafeExternalPartCount'] = $customXmlParts['unsafeExternalPropertiesPartCount'];
+        $packageProvenance['summary']['customXmlPropertiesExternalTargetIssueCodes'] = $customXmlParts['propertiesExternalTargetIssueCodes'];
         $packageProvenance['summary']['customXmlPropertiesInvalidXmlCount'] = $customXmlParts['invalidPropertiesXmlCount'];
         $packageProvenance['summary']['customXmlPropertiesInvalidRootCount'] = $customXmlParts['invalidPropertiesRootCount'];
         $packageProvenance['summary']['customXmlPropertiesMissingStoreItemIdCount'] = $customXmlParts['missingPropertiesStoreItemIdCount'];
@@ -8678,12 +8684,16 @@ final class DocxOpenXmlReader
         $existingPropertiesPartCount = 0;
         $missingPropertiesPartCount = 0;
         $externalPropertiesPartCount = 0;
+        $allowedExternalPropertiesPartCount = 0;
+        $unsafeExternalPropertiesPartCount = 0;
         $invalidPropertiesXmlCount = 0;
         $invalidPropertiesRootCount = 0;
         $missingPropertiesStoreItemIdCount = 0;
         $propertiesIssueCount = 0;
         $issueCodes = [];
         $propertiesIssueCodes = [];
+        $externalTargetIssueCodes = [];
+        $propertiesExternalTargetIssueCodes = [];
         $schemaRefs = [];
         $schemaRefCounts = [];
         $rootNames = [];
@@ -8707,12 +8717,24 @@ final class DocxOpenXmlReader
             $existingPropertiesPartCount += (int) $propertiesParts['existingCount'];
             $missingPropertiesPartCount += (int) $propertiesParts['missingCount'];
             $externalPropertiesPartCount += (int) $propertiesParts['externalCount'];
+            $allowedExternalPropertiesPartCount += (int) ($propertiesParts['allowedExternalTargetCount'] ?? 0);
+            $unsafeExternalPropertiesPartCount += (int) ($propertiesParts['unsafeExternalTargetCount'] ?? 0);
             $invalidPropertiesXmlCount += (int) $propertiesParts['invalidXmlCount'];
             $invalidPropertiesRootCount += (int) $propertiesParts['invalidRootCount'];
             $missingPropertiesStoreItemIdCount += (int) $propertiesParts['missingStoreItemIdCount'];
             foreach ($item['issues'] as $issue) {
                 if (is_string($issue) && $issue !== '') {
                     $issueCodes[$issue] = true;
+                }
+            }
+            foreach (($item['externalTargetIssues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $externalTargetIssueCodes[$issue] = true;
+                }
+            }
+            foreach (($propertiesParts['externalTargetIssueCodes'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $propertiesExternalTargetIssueCodes[$issue] = true;
                 }
             }
             foreach ($propertiesParts['items'] as $propertiesItem) {
@@ -8734,6 +8756,8 @@ final class DocxOpenXmlReader
         }
         ksort($issueCodes);
         ksort($propertiesIssueCodes);
+        ksort($externalTargetIssueCodes);
+        ksort($propertiesExternalTargetIssueCodes);
         ksort($rootNamespaceCounts);
         ksort($schemaRefCounts);
         $duplicateSchemaRefs = [];
@@ -8749,6 +8773,9 @@ final class DocxOpenXmlReader
             'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] === true)),
             'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-item-part', $item['issues'], true))),
             'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'allowedExternalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true && ($item['externalTargetAllowed'] ?? null) === true)),
+            'unsafeExternalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true && ($item['externalTargetAllowed'] ?? null) !== true)),
+            'externalTargetIssueCodes' => array_keys($externalTargetIssueCodes),
             'invalidXmlCount' => count(array_filter($items, static fn (array $item): bool => in_array('invalid-xml', $item['issues'], true))),
             'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-content-type', $item['issues'], true))),
             'missingPropertiesRelationshipCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-properties-relationship', $item['issues'], true))),
@@ -8756,6 +8783,9 @@ final class DocxOpenXmlReader
             'existingPropertiesPartCount' => $existingPropertiesPartCount,
             'missingPropertiesPartCount' => $missingPropertiesPartCount,
             'externalPropertiesPartCount' => $externalPropertiesPartCount,
+            'allowedExternalPropertiesPartCount' => $allowedExternalPropertiesPartCount,
+            'unsafeExternalPropertiesPartCount' => $unsafeExternalPropertiesPartCount,
+            'propertiesExternalTargetIssueCodes' => array_keys($propertiesExternalTargetIssueCodes),
             'invalidPropertiesXmlCount' => $invalidPropertiesXmlCount,
             'invalidPropertiesRootCount' => $invalidPropertiesRootCount,
             'missingPropertiesStoreItemIdCount' => $missingPropertiesStoreItemIdCount,
@@ -9178,6 +9208,11 @@ final class DocxOpenXmlReader
 
         if ($external) {
             $issues[] = 'external-custom-xml';
+            foreach (($summary['externalTargetIssues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issues[] = $issue;
+                }
+            }
         } elseif (!$exists) {
             $issues[] = 'missing-item-part';
         }
@@ -9195,6 +9230,7 @@ final class DocxOpenXmlReader
                 $issues[] = 'invalid-xml';
             }
         }
+        $issues = array_values(array_unique($issues));
 
         return [
             'index' => $index,
@@ -9209,6 +9245,10 @@ final class DocxOpenXmlReader
             'targetQuery' => $summary['targetQuery'],
             'targetFragment' => $summary['targetFragment'],
             'targetReferenceSuffix' => $summary['targetReferenceSuffix'],
+            'externalTargetKind' => $summary['externalTargetKind'],
+            'externalTargetScheme' => $summary['externalTargetScheme'],
+            'externalTargetAllowed' => $summary['externalTargetAllowed'],
+            'externalTargetIssues' => $summary['externalTargetIssues'],
             'exists' => $exists,
             'bytes' => $exists && $targetPart !== null ? strlen($parts[$targetPart]) : 0,
             'contentType' => $summary['contentType'],
@@ -9261,6 +9301,9 @@ final class DocxOpenXmlReader
         $byRelationshipId = [];
         $relationshipIds = [];
         $partNames = [];
+        $externalTargets = [];
+        $unsafeExternalTargets = [];
+        $externalTargetIssueCodes = [];
 
         if ($sourcePart === null || $relationshipsPart === null) {
             return [
@@ -9268,6 +9311,11 @@ final class DocxOpenXmlReader
                 'existingCount' => 0,
                 'missingCount' => 0,
                 'externalCount' => 0,
+                'allowedExternalTargetCount' => 0,
+                'unsafeExternalTargetCount' => 0,
+                'externalTargets' => [],
+                'unsafeExternalTargets' => [],
+                'externalTargetIssueCodes' => [],
                 'invalidXmlCount' => 0,
                 'invalidRootCount' => 0,
                 'missingContentTypeCount' => 0,
@@ -9297,13 +9345,30 @@ final class DocxOpenXmlReader
             $byRelationshipId[$relationship['id']] = $item;
             $relationshipIds[] = $relationship['id'];
             $this->appendUniqueString($partNames, is_string($item['partName'] ?? null) ? $item['partName'] : null);
+            if (($item['external'] ?? false) === true) {
+                $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+                if (($item['externalTargetAllowed'] ?? null) !== true) {
+                    $this->appendUniqueString($unsafeExternalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+                }
+                foreach (($item['externalTargetIssues'] ?? []) as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $externalTargetIssueCodes[$issue] = true;
+                    }
+                }
+            }
         }
+        ksort($externalTargetIssueCodes, SORT_STRING);
 
         return [
             'count' => count($items),
             'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] === true)),
             'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-properties-part', $item['issues'], true))),
             'externalCount' => count(array_filter($items, static fn (array $item): bool => in_array('external-properties', $item['issues'], true))),
+            'allowedExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true && ($item['externalTargetAllowed'] ?? null) === true)),
+            'unsafeExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true && ($item['externalTargetAllowed'] ?? null) !== true)),
+            'externalTargets' => $externalTargets,
+            'unsafeExternalTargets' => $unsafeExternalTargets,
+            'externalTargetIssueCodes' => array_keys($externalTargetIssueCodes),
             'invalidXmlCount' => count(array_filter($items, static fn (array $item): bool => in_array('invalid-xml', $item['issues'], true))),
             'invalidRootCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-root', $item['issues'], true))),
             'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-content-type', $item['issues'], true))),
@@ -9347,6 +9412,11 @@ final class DocxOpenXmlReader
         }
         if ($external) {
             $issues[] = 'external-properties';
+            foreach (($summary['externalTargetIssues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issues[] = $issue;
+                }
+            }
         } elseif (!$exists) {
             $issues[] = 'missing-properties-part';
         }
@@ -9377,6 +9447,7 @@ final class DocxOpenXmlReader
                 $issues[] = 'duplicate-schema-ref';
             }
         }
+        $issues = array_values(array_unique($issues));
 
         return [
             'index' => $index,
@@ -9391,6 +9462,10 @@ final class DocxOpenXmlReader
             'targetQuery' => $summary['targetQuery'],
             'targetFragment' => $summary['targetFragment'],
             'targetReferenceSuffix' => $summary['targetReferenceSuffix'],
+            'externalTargetKind' => $summary['externalTargetKind'],
+            'externalTargetScheme' => $summary['externalTargetScheme'],
+            'externalTargetAllowed' => $summary['externalTargetAllowed'],
+            'externalTargetIssues' => $summary['externalTargetIssues'],
             'exists' => $exists,
             'bytes' => $exists && $targetPart !== null ? strlen($parts[$targetPart]) : 0,
             'contentType' => $summary['contentType'],
