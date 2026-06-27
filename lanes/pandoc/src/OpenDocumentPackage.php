@@ -4172,7 +4172,7 @@ final class OpenDocumentPackage
         $candidatesByPath = [];
         foreach ($manifestEntries as $entry) {
             $packagePath = $entry['packagePath'] ?? null;
-            if (!is_string($packagePath) || $packagePath === '' || str_ends_with($packagePath, '/') || !self::isScriptPackagePartName($packagePath)) {
+            if (!is_string($packagePath) || $packagePath === '' || !self::isScriptPackagePartName($packagePath)) {
                 continue;
             }
 
@@ -4218,18 +4218,22 @@ final class OpenDocumentPackage
         $scriptKinds = [];
         foreach ($candidatesByPath as $packagePath => $entry) {
             $zipEntry = $package->has($packagePath) ? $package->entry($packagePath) : null;
+            $isDirectory = str_ends_with($packagePath, '/');
+            $exists = $isDirectory || $zipEntry instanceof ZipPackageEntry;
             $encrypted = ($entry['encrypted'] ?? false) === true;
             $declared = ($entry['declared'] ?? false) === true;
             $mediaType = (string) ($entry['mediaType'] ?? '');
-            if ($mediaType === '') {
+            if ($mediaType === '' && !$isDirectory) {
                 $mediaType = self::scriptMediaTypeFromPart($packagePath) ?? '';
             }
 
             $mediaTypeReport = self::mediaTypeReport($mediaType);
             $pathInfo = self::scriptPackagePathInfo($packagePath, $mediaTypeReport['mediaTypeBase']);
-            $mediaTypeValid = self::scriptMediaTypeValid($packagePath, $mediaTypeReport['mediaTypeBase']);
+            $mediaTypeValid = $isDirectory
+                ? $mediaTypeReport['mediaTypeBase'] === ''
+                : self::scriptMediaTypeValid($packagePath, $mediaTypeReport['mediaTypeBase']);
             $issues = [];
-            if (!$zipEntry instanceof ZipPackageEntry) {
+            if (!$exists) {
                 $issues[] = 'odf-script-missing-package-part';
             }
             if (!$declared) {
@@ -4274,22 +4278,24 @@ final class OpenDocumentPackage
                 'scriptLibrary' => $pathInfo['scriptLibrary'] ?? null,
                 'scriptModule' => $pathInfo['scriptModule'] ?? null,
                 'extension' => $pathInfo['extension'] ?? null,
-                'exists' => $zipEntry instanceof ZipPackageEntry,
+                'isDirectory' => $isDirectory,
+                'exists' => $exists,
                 'declared' => $declared,
                 'undeclared' => !$declared,
                 'encrypted' => $encrypted,
-                'valid' => $zipEntry instanceof ZipPackageEntry && !$encrypted && $mediaTypeValid,
-                'byteLength' => !$encrypted && $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
+                'valid' => $exists && !$encrypted && $mediaTypeValid,
+                'byteLength' => !$isDirectory && !$encrypted && $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
                 'compressedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressedSize : null,
                 'compressionMethod' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressionMethod : null,
                 'compressionMethodName' => $zipEntry instanceof ZipPackageEntry ? self::compressionMethodName($zipEntry->compressionMethod) : null,
-                'crc32' => !$encrypted && $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
+                'crc32' => !$isDirectory && !$encrypted && $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
                 'storedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
                 'storedCrc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
                 'declaredSize' => $entry['declaredSize'] ?? $entry['size'] ?? null,
                 'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
+                'canExposeBytes' => false,
                 'canExposeAsDocumentMedia' => false,
-                'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? 'script-package-bytes-blocked',
+                'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? ($isDirectory ? 'directory-entry-no-bytes' : 'script-package-bytes-blocked'),
                 'reviewPolicy' => 'package-script-metadata-only',
                 'issues' => $issues,
             ];
@@ -4301,6 +4307,9 @@ final class OpenDocumentPackage
 
         return [
             'count' => count($items),
+            'fileCount' => count(array_filter($items, static fn (array $item): bool => $item['isDirectory'] !== true)),
+            'directoryCount' => count(array_filter($items, static fn (array $item): bool => $item['isDirectory'] === true)),
+            'storedPartCount' => count(array_filter($items, static fn (array $item): bool => $item['storedByteLength'] !== null)),
             'readableCount' => count(array_filter(
                 $items,
                 static fn (array $item): bool => $item['exists'] === true && ($item['byteLength'] ?? null) !== null,
@@ -4607,16 +4616,17 @@ final class OpenDocumentPackage
         $trimmed = trim($path, '/');
         $segments = $trimmed === '' ? [] : explode('/', $trimmed);
         $container = strtolower($segments[0] ?? '');
+        $isDirectory = str_ends_with($path, '/');
         $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
         $scriptPath = count($segments) > 1 ? implode('/', array_slice($segments, 1)) : null;
-        $module = $extension === '' ? basename($path) : basename($path, '.' . $extension);
+        $module = $isDirectory ? null : ($extension === '' ? basename($path) : basename($path, '.' . $extension));
         $library = null;
         if (in_array($container, ['basic', 'dialogs'], true) && isset($segments[1]) && $segments[1] !== '') {
             $library = $segments[1];
         }
 
         $basename = strtolower(basename($path));
-        $kind = match ($extension) {
+        $kind = $isDirectory ? 'script-directory' : match ($extension) {
             'bsh' => 'beanshell',
             'class' => 'java-class',
             'jar' => 'java-archive',
