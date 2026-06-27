@@ -22615,7 +22615,7 @@ final class XmlHtmlDom
             )),
             'controls' => $controls,
             'controlNames' => self::formOwnedControlNames($controls),
-        ];
+        ] + self::formAcceptCharsetReviewSummary($acceptCharsetRaw);
     }
 
     /**
@@ -23460,6 +23460,130 @@ final class XmlHtmlDom
         $autocomplete = strtolower(trim($form->getAttribute('autocomplete')));
 
         return $autocomplete === 'off' ? 'off' : 'on';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function formAcceptCharsetReviewSummary(?string $raw): array
+    {
+        $tokens = $raw === null ? [] : self::spaceSeparatedTokens($raw);
+        $normalized = [];
+        $validTokens = [];
+        $invalidTokens = [];
+        $unsupportedTokens = [];
+        $counts = [];
+
+        foreach ($tokens as $token) {
+            if (!self::isHtmlEncodingLabelToken($token)) {
+                $invalidTokens[] = $token;
+                continue;
+            }
+
+            $encoding = strtolower($token);
+            if (!isset($counts[$encoding])) {
+                $normalized[] = $encoding;
+                $counts[$encoding] = 0;
+            }
+            ++$counts[$encoding];
+
+            if ($encoding === 'utf-8') {
+                if (!in_array($encoding, $validTokens, true)) {
+                    $validTokens[] = $encoding;
+                }
+            } else {
+                $unsupportedTokens[] = $token;
+            }
+        }
+
+        $duplicates = [];
+        foreach ($counts as $encoding => $count) {
+            if ($count > 1) {
+                $duplicates[] = $encoding;
+            }
+        }
+
+        $issues = [];
+        if ($raw !== null && $tokens === []) {
+            $issues[] = ['code' => 'empty-form-accept-charset'];
+        }
+        if (count($tokens) > 1) {
+            $issues[] = ['code' => 'multiple-form-accept-charset-tokens', 'tokenCount' => count($tokens)];
+        }
+        foreach ($invalidTokens as $token) {
+            $issues[] = ['code' => 'invalid-form-accept-charset-token', 'token' => $token];
+        }
+        foreach ($unsupportedTokens as $token) {
+            $issues[] = ['code' => 'unsupported-form-accept-charset-token', 'token' => $token];
+        }
+        foreach ($duplicates as $encoding) {
+            $issues[] = [
+                'code' => 'duplicate-form-accept-charset-token',
+                'token' => $encoding,
+                'count' => $counts[$encoding],
+            ];
+        }
+
+        $valid = $raw === null || (count($tokens) === 1
+            && ($normalized[0] ?? null) === 'utf-8'
+            && $invalidTokens === []
+            && $unsupportedTokens === []);
+
+        return [
+            'acceptCharsetReviewPolicy' => 'form-accept-charset-review',
+            'acceptCharsetPresent' => $raw !== null,
+            'acceptCharsetNormalizedTokens' => $normalized,
+            'acceptCharsetValidTokens' => $validTokens,
+            'invalidAcceptCharsetTokens' => $invalidTokens,
+            'unsupportedAcceptCharsets' => $unsupportedTokens,
+            'duplicateAcceptCharsets' => $duplicates,
+            'acceptCharsetTokenCounts' => $counts,
+            'acceptCharsetState' => self::formAcceptCharsetState($raw, $tokens, $normalized, $invalidTokens, $unsupportedTokens),
+            'acceptCharsetEffectiveEncoding' => 'utf-8',
+            'acceptCharsetIssues' => $issues,
+            'acceptCharsetIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'acceptCharsetValid' => $valid && $issues === [],
+        ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @param list<string> $normalized
+     * @param list<string> $invalidTokens
+     * @param list<string> $unsupportedTokens
+     */
+    private static function formAcceptCharsetState(
+        ?string $raw,
+        array $tokens,
+        array $normalized,
+        array $invalidTokens,
+        array $unsupportedTokens
+    ): string {
+        if ($raw === null) {
+            return 'default-utf-8';
+        }
+        if ($tokens === []) {
+            return 'empty';
+        }
+        if ($invalidTokens !== []) {
+            return 'invalid';
+        }
+        if ($normalized === ['utf-8']) {
+            return count($tokens) === 1 ? 'utf-8' : 'utf-8-with-duplicate-tokens';
+        }
+        if (in_array('utf-8', $normalized, true) && $unsupportedTokens !== []) {
+            return 'utf-8-with-legacy-tokens';
+        }
+
+        return 'unsupported';
+    }
+
+    private static function isHtmlEncodingLabelToken(string $token): bool
+    {
+        return preg_match('/^[A-Za-z0-9][A-Za-z0-9._:-]*$/', $token) === 1;
     }
 
     /**
