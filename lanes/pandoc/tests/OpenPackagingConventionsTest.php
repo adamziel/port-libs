@@ -13208,15 +13208,37 @@ XML;
 </Relationships>
 XML;
 
-        $summary = OpcRelationshipGraph::relationshipPartLoadSummary(ZipPackage::fromParts([
+        $package = ZipPackage::fromParts([
             ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
-            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml, 'compressionMethod' => 0],
             ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
-            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml, 'compressionMethod' => 0],
             ['name' => 'word/comments.xml', 'data' => '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
-            ['name' => 'word/_rels/comments.xml.rels', 'data' => $commentsRelationshipsXml],
-            ['name' => 'word/_rels/missing.xml.rels', 'data' => $commentsRelationshipsXml],
-        ]));
+            ['name' => 'word/_rels/comments.xml.rels', 'data' => $commentsRelationshipsXml, 'compressionMethod' => 0],
+            ['name' => 'word/_rels/missing.xml.rels', 'data' => $commentsRelationshipsXml, 'compressionMethod' => 0],
+        ]);
+
+        $loads = [];
+        foreach (OpcRelationshipGraph::preflightRelationshipPartsInPackage($package) as $part) {
+            $loads[$part['partName']] = $part;
+        }
+
+        $t->same('_rels/.rels', $loads['/_rels/.rels']['entryName']);
+        $t->same(0, $loads['/_rels/.rels']['compressionMethod']);
+        $t->same('stored', $loads['/_rels/.rels']['compressionMethodName']);
+        $t->same(strlen($packageRelationshipsXml), $loads['/_rels/.rels']['compressedSize']);
+        $t->same(strlen($packageRelationshipsXml), $loads['/_rels/.rels']['uncompressedSize']);
+        $t->same('word/_rels/comments.xml.rels', $loads['/word/_rels/comments.xml.rels']['entryName']);
+        $t->same(0, $loads['/word/_rels/comments.xml.rels']['compressionMethod']);
+        $t->same('stored', $loads['/word/_rels/comments.xml.rels']['compressionMethodName']);
+        $t->same(strlen($commentsRelationshipsXml), $loads['/word/_rels/comments.xml.rels']['compressedSize']);
+        $t->same(strlen($commentsRelationshipsXml), $loads['/word/_rels/comments.xml.rels']['uncompressedSize']);
+
+        $loadedRelationshipPartBytes = strlen($packageRelationshipsXml) + strlen($documentRelationshipsXml);
+        $skippedRelationshipPartBytes = strlen($commentsRelationshipsXml) * 2;
+        $totalRelationshipPartBytes = $loadedRelationshipPartBytes + $skippedRelationshipPartBytes;
+
+        $summary = OpcRelationshipGraph::relationshipPartLoadSummary($package);
 
         $t->same(false, $summary['valid']);
         $t->same(4, $summary['relationshipPartCount']);
@@ -13225,12 +13247,64 @@ XML;
         $t->same(2, $summary['validCount']);
         $t->same(2, $summary['invalidCount']);
         $t->same(2, $summary['relationshipCount']);
+        $t->same($totalRelationshipPartBytes, $summary['compressedRelationshipPartBytes']);
+        $t->same($totalRelationshipPartBytes, $summary['uncompressedRelationshipPartBytes']);
+        $t->same($loadedRelationshipPartBytes, $summary['loadedCompressedRelationshipPartBytes']);
+        $t->same($loadedRelationshipPartBytes, $summary['loadedUncompressedRelationshipPartBytes']);
+        $t->same($skippedRelationshipPartBytes, $summary['skippedCompressedRelationshipPartBytes']);
+        $t->same($skippedRelationshipPartBytes, $summary['skippedUncompressedRelationshipPartBytes']);
         $t->same(['loaded' => 2, 'skipped' => 2], $summary['loadActionCounts']);
         $t->same([
             'invalid-relationship-content-type' => 1,
             'loaded' => 2,
             'orphan-relationship-part' => 1,
         ], $summary['loadReasonCounts']);
+        $t->same([
+            'loaded' => [
+                'entryCount' => 2,
+                'compressedBytes' => $loadedRelationshipPartBytes,
+                'uncompressedBytes' => $loadedRelationshipPartBytes,
+            ],
+            'skipped' => [
+                'entryCount' => 2,
+                'compressedBytes' => $skippedRelationshipPartBytes,
+                'uncompressedBytes' => $skippedRelationshipPartBytes,
+            ],
+        ], $summary['byteCountsByLoadAction']);
+        $t->same([
+            'invalid-relationship-content-type' => [
+                'entryCount' => 1,
+                'compressedBytes' => strlen($commentsRelationshipsXml),
+                'uncompressedBytes' => strlen($commentsRelationshipsXml),
+            ],
+            'loaded' => [
+                'entryCount' => 2,
+                'compressedBytes' => $loadedRelationshipPartBytes,
+                'uncompressedBytes' => $loadedRelationshipPartBytes,
+            ],
+            'orphan-relationship-part' => [
+                'entryCount' => 1,
+                'compressedBytes' => strlen($commentsRelationshipsXml),
+                'uncompressedBytes' => strlen($commentsRelationshipsXml),
+            ],
+        ], $summary['byteCountsByLoadReason']);
+        $t->same([
+            'missing-source' => [
+                'entryCount' => 1,
+                'compressedBytes' => strlen($commentsRelationshipsXml),
+                'uncompressedBytes' => strlen($commentsRelationshipsXml),
+            ],
+            'package-part' => [
+                'entryCount' => 2,
+                'compressedBytes' => strlen($documentRelationshipsXml) + strlen($commentsRelationshipsXml),
+                'uncompressedBytes' => strlen($documentRelationshipsXml) + strlen($commentsRelationshipsXml),
+            ],
+            'package-root' => [
+                'entryCount' => 1,
+                'compressedBytes' => strlen($packageRelationshipsXml),
+                'uncompressedBytes' => strlen($packageRelationshipsXml),
+            ],
+        ], $summary['byteCountsBySourceKind']);
         $t->same([
             'invalid-relationship-content-type' => 1,
             'orphan-relationship-part' => 1,

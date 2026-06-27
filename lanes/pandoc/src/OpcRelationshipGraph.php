@@ -1899,7 +1899,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{partName:string, contentType:?string, contentTypeSource:string, contentTypeDefaultExtension:?string, contentTypeOverridePartName:?string, contentTypeOverridePartNameExactMatch:bool, contentTypeOverridePartNameEquivalentMatch:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceKind:string, sourceExists:?bool, duplicateRelationshipPartNames:list<string>, loaded:bool, loadAction:string, loadReason:string, relationshipCount:?int, valid:bool, issues:list<string>, parseError:?string, relationshipXmlIssueRecords:list<array{relationshipOrdinal:int, id:?string, type:?string, target:?string, targetMode:?string, duplicateOfOrdinal:?int, issues:list<string>}>}>
+     * @return list<array{entryName:string, partName:string, compressionMethod:int, compressionMethodName:string, compressedSize:int, uncompressedSize:int, contentType:?string, contentTypeSource:string, contentTypeDefaultExtension:?string, contentTypeOverridePartName:?string, contentTypeOverridePartNameExactMatch:bool, contentTypeOverridePartNameEquivalentMatch:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceKind:string, sourceExists:?bool, duplicateRelationshipPartNames:list<string>, loaded:bool, loadAction:string, loadReason:string, relationshipCount:?int, valid:bool, issues:list<string>, parseError:?string, relationshipXmlIssueRecords:list<array{relationshipOrdinal:int, id:?string, type:?string, target:?string, targetMode:?string, duplicateOfOrdinal:?int, issues:list<string>}>}>
      */
     public static function preflightRelationshipPartsInPackage(ZipPackage $package): array
     {
@@ -1917,6 +1917,7 @@ final class OpcRelationshipGraph
                 continue;
             }
 
+            $entry = $package->entry($name);
             $partName = OpcPackagePath::canonicalPartName($name);
             $contentTypeResolution = $contentTypes->contentTypeResolutionForPart($partName);
             $contentType = $contentTypeResolution['contentType'];
@@ -1959,7 +1960,12 @@ final class OpcRelationshipGraph
 
             $issues = array_values(array_unique($issues));
             $preflight[] = [
+                'entryName' => $name,
                 'partName' => $partName,
+                'compressionMethod' => $entry->compressionMethod,
+                'compressionMethodName' => self::zipCompressionMethodName($entry->compressionMethod),
+                'compressedSize' => $entry->compressedSize,
+                'uncompressedSize' => $entry->uncompressedSize,
                 'contentType' => $contentType,
                 'contentTypeSource' => $contentTypeResolution['contentTypeSource'],
                 'contentTypeDefaultExtension' => $contentTypeResolution['defaultExtension'],
@@ -2041,7 +2047,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{valid:bool, relationshipPartCount:int, loadedCount:int, skippedCount:int, validCount:int, invalidCount:int, relationshipCount:int, relationshipXmlIssueRecordCount:int, loadedPartNames:list<string>, skippedPartNames:list<string>, loadedSources:list<string>, skippedSources:list<string>, loadActionCounts:array<string, int>, loadReasonCounts:array<string, int>, contentTypeSourceCounts:array<string, int>, sourceKindCounts:array<string, int>, partNamesByLoadReason:array<string, list<string>>, partNamesByContentTypeSource:array<string, list<string>>, partNamesBySourceKind:array<string, list<string>>, issueCounts:array<string, int>, partNamesByIssue:array<string, list<string>>, relationshipXmlIssueRecords:list<array{partName:string, relationshipSource:?string, relationshipOrdinal:int, id:?string, type:?string, target:?string, targetMode:?string, duplicateOfOrdinal:?int, issues:list<string>}>, issues:list<string>}
+     * @return array{valid:bool, relationshipPartCount:int, loadedCount:int, skippedCount:int, validCount:int, invalidCount:int, relationshipCount:int, compressedRelationshipPartBytes:int, uncompressedRelationshipPartBytes:int, loadedCompressedRelationshipPartBytes:int, loadedUncompressedRelationshipPartBytes:int, skippedCompressedRelationshipPartBytes:int, skippedUncompressedRelationshipPartBytes:int, relationshipXmlIssueRecordCount:int, loadedPartNames:list<string>, skippedPartNames:list<string>, loadedSources:list<string>, skippedSources:list<string>, loadActionCounts:array<string, int>, loadReasonCounts:array<string, int>, contentTypeSourceCounts:array<string, int>, sourceKindCounts:array<string, int>, byteCountsByLoadAction:array<string, array{entryCount:int, compressedBytes:int, uncompressedBytes:int}>, byteCountsByLoadReason:array<string, array{entryCount:int, compressedBytes:int, uncompressedBytes:int}>, byteCountsBySourceKind:array<string, array{entryCount:int, compressedBytes:int, uncompressedBytes:int}>, partNamesByLoadReason:array<string, list<string>>, partNamesByContentTypeSource:array<string, list<string>>, partNamesBySourceKind:array<string, list<string>>, issueCounts:array<string, int>, partNamesByIssue:array<string, list<string>>, relationshipXmlIssueRecords:list<array{partName:string, relationshipSource:?string, relationshipOrdinal:int, id:?string, type:?string, target:?string, targetMode:?string, duplicateOfOrdinal:?int, issues:list<string>}>, issues:list<string>}
      */
     public static function relationshipPartLoadSummary(ZipPackage $package): array
     {
@@ -2053,6 +2059,12 @@ final class OpcRelationshipGraph
             'validCount' => 0,
             'invalidCount' => 0,
             'relationshipCount' => 0,
+            'compressedRelationshipPartBytes' => 0,
+            'uncompressedRelationshipPartBytes' => 0,
+            'loadedCompressedRelationshipPartBytes' => 0,
+            'loadedUncompressedRelationshipPartBytes' => 0,
+            'skippedCompressedRelationshipPartBytes' => 0,
+            'skippedUncompressedRelationshipPartBytes' => 0,
             'relationshipXmlIssueRecordCount' => 0,
             'loadedPartNames' => [],
             'skippedPartNames' => [],
@@ -2062,6 +2074,9 @@ final class OpcRelationshipGraph
             'loadReasonCounts' => [],
             'contentTypeSourceCounts' => [],
             'sourceKindCounts' => [],
+            'byteCountsByLoadAction' => [],
+            'byteCountsByLoadReason' => [],
+            'byteCountsBySourceKind' => [],
             'partNamesByLoadReason' => [],
             'partNamesByContentTypeSource' => [],
             'partNamesBySourceKind' => [],
@@ -2080,10 +2095,32 @@ final class OpcRelationshipGraph
             $summary['partNamesByLoadReason'][$part['loadReason']][] = $part['partName'];
             $summary['partNamesByContentTypeSource'][$part['contentTypeSource']][] = $part['partName'];
             $summary['partNamesBySourceKind'][$part['relationshipSourceKind']][] = $part['partName'];
+            $summary['compressedRelationshipPartBytes'] += $part['compressedSize'];
+            $summary['uncompressedRelationshipPartBytes'] += $part['uncompressedSize'];
+            self::incrementZipEntryManifestByteBucket(
+                $summary['byteCountsByLoadAction'],
+                $part['loadAction'],
+                $part['compressedSize'],
+                $part['uncompressedSize'],
+            );
+            self::incrementZipEntryManifestByteBucket(
+                $summary['byteCountsByLoadReason'],
+                $part['loadReason'],
+                $part['compressedSize'],
+                $part['uncompressedSize'],
+            );
+            self::incrementZipEntryManifestByteBucket(
+                $summary['byteCountsBySourceKind'],
+                $part['relationshipSourceKind'],
+                $part['compressedSize'],
+                $part['uncompressedSize'],
+            );
 
             if ($part['loaded']) {
                 $summary['loadedCount']++;
                 $summary['loadedPartNames'][] = $part['partName'];
+                $summary['loadedCompressedRelationshipPartBytes'] += $part['compressedSize'];
+                $summary['loadedUncompressedRelationshipPartBytes'] += $part['uncompressedSize'];
                 $summary['relationshipCount'] += $part['relationshipCount'] ?? 0;
                 if ($part['relationshipSource'] !== null) {
                     self::appendUniqueString($summary['loadedSources'], $part['relationshipSource']);
@@ -2091,6 +2128,8 @@ final class OpcRelationshipGraph
             } else {
                 $summary['skippedCount']++;
                 $summary['skippedPartNames'][] = $part['partName'];
+                $summary['skippedCompressedRelationshipPartBytes'] += $part['compressedSize'];
+                $summary['skippedUncompressedRelationshipPartBytes'] += $part['uncompressedSize'];
                 if ($part['relationshipSource'] !== null) {
                     self::appendUniqueString($summary['skippedSources'], $part['relationshipSource']);
                 }
@@ -2132,6 +2171,9 @@ final class OpcRelationshipGraph
         ksort($summary['loadReasonCounts'], SORT_STRING);
         ksort($summary['contentTypeSourceCounts'], SORT_STRING);
         ksort($summary['sourceKindCounts'], SORT_STRING);
+        ksort($summary['byteCountsByLoadAction'], SORT_STRING);
+        ksort($summary['byteCountsByLoadReason'], SORT_STRING);
+        ksort($summary['byteCountsBySourceKind'], SORT_STRING);
         ksort($summary['partNamesByLoadReason'], SORT_STRING);
         foreach ($summary['partNamesByLoadReason'] as &$partNames) {
             sort($partNames, SORT_STRING);
