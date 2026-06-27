@@ -13140,6 +13140,109 @@ return [
         $t->same('missing-optional', $summary['entries'][7]['status']);
     },
 
+    'summarizes selected zip handoff name hygiene before reader byte exposure' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>name hygiene handoff</w:p></w:body></w:document>';
+        $bidiName = "word/media/review\u{202e}gnp.txt";
+        $bidiBytes = "bidi name media bytes\n";
+        $adsName = 'word/media/image.png:Zone.Identifier';
+        $adsBytes = "alternate stream metadata bytes\n";
+        $reservedName = 'word/media/CON.txt';
+        $reservedBytes = "windows reserved media bytes\n";
+        $spacedName = 'word/media/ raw.bin ';
+        $spacedBytes = "blocked whitespace media bytes\n";
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => $bidiName, 'data' => $bidiBytes, 'method' => 0],
+            ['name' => $adsName, 'data' => $adsBytes, 'method' => 0],
+            ['name' => $reservedName, 'data' => $reservedBytes, 'method' => 0],
+            ['name' => $spacedName, 'data' => $spacedBytes, 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => $bidiName, 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => $adsName, 'required' => false, 'kind' => 'file', 'role' => 'metadata-sidecar'],
+            ['name' => $reservedName, 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => $spacedName, 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 4],
+        ], 1024);
+
+        $selectedByIssue = [];
+        foreach ($summary['selectedNameHygieneIssueSummaries'] as $issueSummary) {
+            $selectedByIssue[$issueSummary['issue']] = $issueSummary;
+        }
+        $handoffByIssue = [];
+        foreach ($summary['handoffNameHygieneIssueSummaries'] as $issueSummary) {
+            $handoffByIssue[$issueSummary['issue']] = $issueSummary;
+        }
+
+        $t->same(5, $summary['selectedUniqueEntryCount']);
+        $t->same(4, $summary['selectedNameHygieneReviewEntryCount']);
+        $t->same(5, $summary['selectedNameHygieneIssueCount']);
+        $t->same([
+            'segment-unicode-format-control',
+            'segment-bidi-format-control',
+            'segment-windows-alternate-data-stream',
+            'segment-windows-reserved-name',
+            'segment-leading-or-trailing-whitespace',
+        ], $summary['selectedNameHygieneIssues']);
+        $t->same(4, $summary['handoffEntryCount']);
+        $t->same(3, $summary['handoffNameHygieneReviewEntryCount']);
+        $t->same(4, $summary['handoffNameHygieneIssueCount']);
+        $t->same([
+            'segment-bidi-format-control',
+            'segment-unicode-format-control',
+            'segment-windows-alternate-data-stream',
+            'segment-windows-reserved-name',
+        ], $summary['handoffNameHygieneIssues']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
+
+        $bidiEntry = $summary['entries'][1];
+        $adsEntry = $summary['entries'][2];
+        $reservedEntry = $summary['entries'][3];
+        $spacedEntry = $summary['entries'][4];
+
+        $t->same(true, $bidiEntry['hasNameHygieneIssue']);
+        $t->same(['segment-unicode-format-control', 'segment-bidi-format-control'], $bidiEntry['nameHygieneIssues']);
+        $t->same("review\u{202e}gnp.txt", $bidiEntry['nameHygieneFlaggedSegments'][0]['segment']);
+        $t->same(['right-to-left-override'], $bidiEntry['nameHygieneFlaggedSegments'][0]['unicodeFormatControlNames']);
+        $t->same(['right-to-left-override'], $bidiEntry['nameHygieneFlaggedSegments'][0]['bidiControlNames']);
+        $t->same('ready', $bidiEntry['status']);
+
+        $t->same(['segment-windows-alternate-data-stream'], $adsEntry['nameHygieneIssues']);
+        $t->same(['segment-windows-reserved-name'], $reservedEntry['nameHygieneIssues']);
+        $t->same(['segment-leading-or-trailing-whitespace'], $spacedEntry['nameHygieneIssues']);
+        $t->same('blocked', $spacedEntry['status']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $spacedEntry['issues']);
+
+        $t->same([
+            $bidiName,
+            $adsName,
+            $reservedName,
+            $spacedName,
+        ], array_map(static fn (array $entry): string => $entry['name'], $summary['selectedNameHygieneReviewEntries']));
+        $t->same([$bidiName, $adsName, $reservedName], array_map(
+            static fn (array $entry): string => $entry['name'],
+            $summary['handoffNameHygieneReviewEntries']
+        ));
+
+        $t->same([
+            'issue' => 'segment-leading-or-trailing-whitespace',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($spacedBytes),
+            'uncompressedBytes' => strlen($spacedBytes),
+            'roles' => ['media'],
+            'entryNames' => [$spacedName],
+        ], $selectedByIssue['segment-leading-or-trailing-whitespace']);
+        $t->same(false, isset($handoffByIssue['segment-leading-or-trailing-whitespace']));
+        $t->same([$bidiName], $handoffByIssue['segment-bidi-format-control']['entryNames']);
+        $t->same([$adsName], $handoffByIssue['segment-windows-alternate-data-stream']['entryNames']);
+        $t->same([$reservedName], $handoffByIssue['segment-windows-reserved-name']['entryNames']);
+        $t->same([$summary['entries'][0], $bidiEntry, $adsEntry, $reservedEntry], $summary['handoffEntries']);
+    },
+
     'summarizes selected zip handoff package part kinds for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
         $mimetype = 'application/epub+zip';
         $contentTypesXml = '<Types/>';
