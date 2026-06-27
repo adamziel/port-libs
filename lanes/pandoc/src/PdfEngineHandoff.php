@@ -365,6 +365,18 @@ final class PdfEngineHandoff
             if (($typstBoundaryProvenance['inputVariableOverrides'] ?? []) !== []) {
                 $diagnostics[] = 'typst-boundary-input-overrides:' . count($typstBoundaryProvenance['inputVariableOverrides']);
             }
+            if (($typstBoundaryProvenance['inputVariablePolicy'] ?? []) !== []) {
+                $inputVariablePolicy = $typstBoundaryProvenance['inputVariablePolicy'];
+                if (is_array($inputVariablePolicy) && is_string($inputVariablePolicy['reviewStatus'] ?? null)) {
+                    $diagnostics[] = 'typst-input-variable-policy:' . $inputVariablePolicy['reviewStatus'];
+                }
+                if (is_array($inputVariablePolicy) && is_int($inputVariablePolicy['unsafeInputVariableCount'] ?? null) && $inputVariablePolicy['unsafeInputVariableCount'] > 0) {
+                    $diagnostics[] = 'typst-input-variable-unsafe:' . $inputVariablePolicy['unsafeInputVariableCount'];
+                }
+                if (is_array($inputVariablePolicy) && is_int($inputVariablePolicy['duplicateInputNameCount'] ?? null) && $inputVariablePolicy['duplicateInputNameCount'] > 0) {
+                    $diagnostics[] = 'typst-input-variable-overridden:' . $inputVariablePolicy['duplicateInputNameCount'];
+                }
+            }
             if (($typstBoundaryProvenance['environmentVariables'] ?? []) !== []) {
                 $diagnostics[] = 'typst-boundary-environment:' . count($typstBoundaryProvenance['environmentVariables']);
             }
@@ -7127,6 +7139,7 @@ final class PdfEngineHandoff
         );
         $outputFormat = $outputFormatHistory === [] ? null : $outputFormatHistory[count($outputFormatHistory) - 1];
         $inputVariableOverrides = $this->typstInputVariableOverrideEntries($inputVariables);
+        $inputVariablePolicy = $this->typstInputVariablePolicy($inputVariables, $inputVariableOverrides);
         $overrides = $this->typstBoundaryOverrideEntries([
             'root' => $rootValues,
             'packagePath' => $packagePathValues,
@@ -7314,6 +7327,9 @@ final class PdfEngineHandoff
         }
         if ($inputVariableOverrides !== []) {
             $provenance['inputVariableOverrides'] = $inputVariableOverrides;
+        }
+        if ($inputVariablePolicy !== []) {
+            $provenance['inputVariablePolicy'] = $inputVariablePolicy;
         }
         if ($ignoreSystemFontCount > 0 || ($systemFontEnvironmentFlag['issues'] ?? []) !== []) {
             $provenance['systemFonts'] = [
@@ -7747,6 +7763,7 @@ final class PdfEngineHandoff
 
         $inputVariables = is_array($provenance['inputVariables'] ?? null) ? $provenance['inputVariables'] : [];
         $inputVariableOverrides = is_array($provenance['inputVariableOverrides'] ?? null) ? $provenance['inputVariableOverrides'] : [];
+        $inputVariablePolicy = is_array($provenance['inputVariablePolicy'] ?? null) ? $provenance['inputVariablePolicy'] : [];
         $inputBoundaryOverrides = array_values(array_filter(
             is_array($provenance['overrides'] ?? null) ? $provenance['overrides'] : [],
             static fn (mixed $entry): bool => is_array($entry) && is_string($entry['option'] ?? null) && str_starts_with($entry['option'], 'input:')
@@ -7787,12 +7804,21 @@ final class PdfEngineHandoff
         $overriddenInputNames = array_values(array_unique($overriddenInputNames));
         sort($overriddenInputNames);
         if ($inputVariables !== [] || $inputVariableOverrides !== [] || $inputIssues !== []) {
+            $selectedByName = is_array($inputVariablePolicy['selectedByName'] ?? null)
+                ? $inputVariablePolicy['selectedByName']
+                : [];
+            ksort($selectedByName);
             $appendCase('input-variables', $unsafeInputVariableCount === 0 && $inputVariableOverrides === [] && $inputIssues === [] ? 'ok' : 'review', count($inputVariables), [
                 'inputVariableCount' => count($inputVariables),
                 'unsafeInputVariableCount' => $unsafeInputVariableCount,
+                'safeInputVariableCount' => is_int($inputVariablePolicy['safeInputVariableCount'] ?? null) ? $inputVariablePolicy['safeInputVariableCount'] : count($inputVariables) - $unsafeInputVariableCount,
+                'distinctInputNameCount' => is_int($inputVariablePolicy['distinctInputNameCount'] ?? null) ? $inputVariablePolicy['distinctInputNameCount'] : count($inputNames),
+                'duplicateInputNameCount' => is_int($inputVariablePolicy['duplicateInputNameCount'] ?? null) ? $inputVariablePolicy['duplicateInputNameCount'] : count($overriddenInputNames),
+                'duplicateAssignmentCount' => is_int($inputVariablePolicy['duplicateAssignmentCount'] ?? null) ? $inputVariablePolicy['duplicateAssignmentCount'] : count($inputVariableOverrides),
                 'overrideCount' => count($inputVariableOverrides),
                 'inputNames' => $inputNames,
                 'overriddenInputNames' => $overriddenInputNames,
+                'selectedByName' => $selectedByName,
             ], $inputIssues);
         }
 
@@ -9387,6 +9413,92 @@ final class PdfEngineHandoff
         }
 
         return $entries;
+    }
+
+    /**
+     * @param list<array{raw:string, name:string, value:string, safe:bool, issues:list<string>}> $inputVariables
+     * @param list<array{name:string, count:int, values:list<string>, selected:string, issue:string}> $inputVariableOverrides
+     * @return array{reviewStatus:string, inputVariableCount:int, safeInputVariableCount:int, unsafeInputVariableCount:int, distinctInputNameCount:int, duplicateInputNameCount:int, duplicateAssignmentCount:int, inputNames:list<string>, overriddenInputNames:list<string>, valuesByName:array<string, list<string>>, selectedByName:array<string, string>, issues:list<string>}|array{}
+     */
+    private function typstInputVariablePolicy(array $inputVariables, array $inputVariableOverrides): array
+    {
+        if ($inputVariables === []) {
+            return [];
+        }
+
+        $issues = [];
+        $safeInputVariableCount = 0;
+        $unsafeInputVariableCount = 0;
+        $valuesByName = [];
+        foreach ($inputVariables as $inputVariable) {
+            foreach ($inputVariable['issues'] ?? [] as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issues[] = $issue;
+                }
+            }
+
+            if (($inputVariable['safe'] ?? false) !== true) {
+                ++$unsafeInputVariableCount;
+                continue;
+            }
+
+            ++$safeInputVariableCount;
+            $name = is_string($inputVariable['name'] ?? null) ? $inputVariable['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $valuesByName[$name][] = is_string($inputVariable['value'] ?? null) ? $inputVariable['value'] : '';
+        }
+
+        ksort($valuesByName);
+        $selectedByName = [];
+        foreach ($valuesByName as $name => $values) {
+            $selectedByName[$name] = $values[count($values) - 1];
+        }
+
+        $overriddenInputNames = [];
+        $duplicateAssignmentCount = 0;
+        foreach ($inputVariableOverrides as $override) {
+            $name = is_string($override['name'] ?? null) ? $override['name'] : '';
+            if ($name !== '') {
+                $overriddenInputNames[] = $name;
+            }
+            if (is_int($override['count'] ?? null) && $override['count'] > 1) {
+                $duplicateAssignmentCount += $override['count'] - 1;
+            }
+            if (is_string($override['issue'] ?? null) && $override['issue'] !== '') {
+                $issues[] = $override['issue'];
+            }
+            if ($name !== '') {
+                $issues[] = 'input-variable-boundary-overridden:' . $name;
+            }
+        }
+
+        $inputNames = array_keys($valuesByName);
+        $overriddenInputNames = array_values(array_unique($overriddenInputNames));
+        sort($overriddenInputNames);
+        $issues = array_values(array_unique($issues));
+        sort($issues);
+
+        if ($issues === []) {
+            return [];
+        }
+
+        return [
+            'reviewStatus' => 'review',
+            'inputVariableCount' => count($inputVariables),
+            'safeInputVariableCount' => $safeInputVariableCount,
+            'unsafeInputVariableCount' => $unsafeInputVariableCount,
+            'distinctInputNameCount' => count($inputNames),
+            'duplicateInputNameCount' => count($overriddenInputNames),
+            'duplicateAssignmentCount' => $duplicateAssignmentCount,
+            'inputNames' => $inputNames,
+            'overriddenInputNames' => $overriddenInputNames,
+            'valuesByName' => $valuesByName,
+            'selectedByName' => $selectedByName,
+            'issues' => $issues,
+        ];
     }
 
     /**
