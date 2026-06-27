@@ -6,6 +6,15 @@ namespace PortLibs\Pandoc;
 
 final class NativeWriter
 {
+    private const META_CONSTRUCTORS = [
+        'MetaString',
+        'MetaBool',
+        'MetaInlines',
+        'MetaBlocks',
+        'MetaList',
+        'MetaMap',
+    ];
+
     private const NATIVE_COMPARISON_PROVENANCE_ATTRS = [
         'alignmentConstructor',
         'alignmentConstructors',
@@ -105,7 +114,85 @@ final class NativeWriter
             return true;
         }
 
-        return is_array($document->attr('documentNative')) || $this->hasJsonNativeProvenance($document);
+        $meta = $document->attr('meta', []);
+
+        return is_array($document->attr('documentNative'))
+            || (is_array($meta) && $this->valueHasTaggedNativeMeta($meta))
+            || $this->hasGeneratedNoteLabel($document)
+            || $this->hasJsonNativeProvenance($document)
+            || $this->hasMixedBlockContainerContent($document);
+    }
+
+    private function valueHasTaggedNativeMeta(mixed $value): bool
+    {
+        if (!is_array($value)) {
+            return false;
+        }
+
+        if (
+            !array_is_list($value)
+            && isset($value['t'])
+            && is_string($value['t'])
+            && in_array($value['t'], self::META_CONSTRUCTORS, true)
+        ) {
+            return true;
+        }
+
+        foreach ($value as $item) {
+            if ($this->valueHasTaggedNativeMeta($item)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function hasGeneratedNoteLabel(AstNode $node): bool
+    {
+        if ($node->type === 'note' && $this->isValidGeneratedNoteLabel($node->attr('label', null))) {
+            return true;
+        }
+
+        foreach ($node->attrs as $value) {
+            if ($this->valueHasGeneratedNoteLabel($value)) {
+                return true;
+            }
+        }
+
+        foreach ($node->children as $child) {
+            if ($this->hasGeneratedNoteLabel($child)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function valueHasGeneratedNoteLabel(mixed $value): bool
+    {
+        if ($value instanceof AstNode) {
+            return $this->hasGeneratedNoteLabel($value);
+        }
+
+        if (!is_array($value)) {
+            return false;
+        }
+
+        foreach ($value as $item) {
+            if ($this->valueHasGeneratedNoteLabel($item)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isValidGeneratedNoteLabel(mixed $label): bool
+    {
+        return is_string($label)
+            && trim($label) === $label
+            && $label !== ''
+            && preg_match('/[\]\s]/u', $label) !== 1;
     }
 
     private function hasJsonNativeProvenance(AstNode $node): bool
@@ -121,6 +208,53 @@ final class NativeWriter
 
         foreach ($node->children as $child) {
             if ($this->hasJsonNativeProvenance($child)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function hasMixedBlockContainerContent(AstNode $node): bool
+    {
+        foreach (['captionBlocks', 'shortCaptionBlocks'] as $key) {
+            $blocks = $node->attr($key);
+            if (is_array($blocks) && $this->isAstNodeList($blocks) && $this->needsBlockFlushing($blocks)) {
+                return true;
+            }
+        }
+
+        if (
+            in_array($node->type, ['blockquote', 'definition', 'div', 'figure', 'list_item', 'note', 'table_cell'], true)
+            && $this->needsBlockFlushing($node->children)
+        ) {
+            return true;
+        }
+
+        foreach ($node->children as $child) {
+            if ($this->hasMixedBlockContainerContent($child)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<AstNode> $children
+     */
+    private function needsBlockFlushing(array $children): bool
+    {
+        $hasInline = false;
+        $hasBlock = false;
+        foreach ($children as $child) {
+            if ($this->isInlineNode($child)) {
+                $hasInline = true;
+            } else {
+                $hasBlock = true;
+            }
+
+            if ($hasInline && $hasBlock) {
                 return true;
             }
         }
@@ -644,6 +778,7 @@ final class NativeWriter
             'paragraph',
             'heading',
             'term',
+            'definition_term',
             'line',
             'emph',
             'strong',
@@ -921,26 +1056,7 @@ final class NativeWriter
      */
     private function listItemBlocks(AstNode $item): array
     {
-        $blocks = [];
-        $inlines = [];
-        foreach ($item->children as $child) {
-            if ($this->isInlineNode($child)) {
-                $inlines[] = $child;
-                continue;
-            }
-
-            if ($inlines !== []) {
-                $blocks[] = new AstNode('plain', [], $inlines);
-                $inlines = [];
-            }
-            $blocks[] = $child;
-        }
-
-        if ($inlines !== []) {
-            $blocks[] = new AstNode('plain', [], $inlines);
-        }
-
-        return $blocks;
+        return $this->mixedChildrenAsBlocks($item->children);
     }
 
     /**
@@ -957,7 +1073,7 @@ final class NativeWriter
             $term = null;
             $definitions = [];
             foreach ($item->children as $child) {
-                if ($child->type === 'term') {
+                if (in_array($child->type, ['term', 'definition_term'], true)) {
                     $term = $child;
                 } elseif ($child->type === 'definition') {
                     $definitions[] = $this->renderBlockList($child->children, 0);
@@ -1104,9 +1220,18 @@ final class NativeWriter
             return $text === '' ? [] : [new AstNode('plain', [], $this->textInlines($text))];
         }
 
+        return $this->mixedChildrenAsBlocks($cell->children);
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<AstNode>
+     */
+    private function mixedChildrenAsBlocks(array $children): array
+    {
         $blocks = [];
         $inlines = [];
-        foreach ($cell->children as $child) {
+        foreach ($children as $child) {
             if ($this->isInlineNode($child)) {
                 $inlines[] = $child;
                 continue;
@@ -1146,6 +1271,7 @@ final class NativeWriter
     {
         return match ($node->type) {
             'text' => $this->renderTextInline((string) $node->attr('text', '')),
+            'space' => ['Space'],
             'softbreak' => ['SoftBreak'],
             'linebreak' => ['LineBreak'],
             'emph' => ['Emph ' . $this->renderInlineList($node->children)],
@@ -1213,7 +1339,7 @@ final class NativeWriter
     {
         $captionBlocks = $node->attr('captionBlocks', null);
         if (is_array($captionBlocks) && $this->isAstNodeList($captionBlocks)) {
-            return $captionBlocks;
+            return $this->mixedChildrenAsBlocks($captionBlocks);
         }
 
         $captionInlines = $this->captionInlines($node->attr('captionInlines', null), $node->attr('caption', null));
@@ -1249,26 +1375,7 @@ final class NativeWriter
      */
     private function figureBlocks(AstNode $node): array
     {
-        $blocks = [];
-        $inlines = [];
-        foreach ($node->children as $child) {
-            if ($this->isInlineNode($child)) {
-                $inlines[] = $child;
-                continue;
-            }
-
-            if ($inlines !== []) {
-                $blocks[] = new AstNode('plain', [], $inlines);
-                $inlines = [];
-            }
-            $blocks[] = $child;
-        }
-
-        if ($inlines !== []) {
-            $blocks[] = new AstNode('plain', [], $inlines);
-        }
-
-        return $blocks;
+        return $this->mixedChildrenAsBlocks($node->children);
     }
 
     private function renderCitation(AstNode $node): string
@@ -1674,6 +1781,7 @@ final class NativeWriter
     {
         return in_array($node->type, [
             'text',
+            'space',
             'softbreak',
             'linebreak',
             'emph',
