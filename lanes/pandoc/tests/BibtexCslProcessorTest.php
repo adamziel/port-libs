@@ -2532,6 +2532,95 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Literal List Review Manual :: Review Press; Archive Desk :: New York; London :: Archivo Press; Migration Desk :: Madrid; Barcelona :: spanish; basque :: english; french</dd>', $blocks);
         $t->contains('<dt>Curator 2025</dt><dd>Event List Proceedings :: Migration Desk :: Portland Convention Center; Remote Stream</dd>', $blocks);
     },
+    'carries biblatex printing and supplement number aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@periodical{periodical-printing,
+  editor           = {Curator, Eli},
+  title            = {Printing Number Review},
+  date             = {2026},
+  publisher        = {Review Press},
+  printingnumber   = {3},
+  supplementnumber = {1}
+}
+
+@article{article-supplement,
+  author            = {Ng, Nia},
+  title             = {Supplement Alias Packet},
+  journaltitle      = {Migration Review},
+  date              = {2025},
+  print-number      = {4},
+  supplement-number = {2}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $periodical = $items['periodical-printing'];
+        $article = $items['article-supplement'];
+
+        $t->same('3', $periodical['printing-number']);
+        $t->same('1', $periodical['supplement-number']);
+        $t->same('4', $article['printing-number']);
+        $t->same('2', $article['supplement-number']);
+        $t->same('3', $periodical['rawBibtex']['fields']['printingnumber']);
+        $t->same('1', $periodical['rawBibtex']['fields']['supplementnumber']);
+        $t->same('4', $article['rawBibtex']['fields']['print-number']);
+        $t->same('2', $article['rawBibtex']['fields']['supplement-number']);
+        $t->same(
+            'Printing Number Review. Review Press. 2026. Printing number: 3. Supplement number: 1.',
+            $processor->renderBibliographyText($periodical)
+        );
+        $t->same(
+            'Nia Ng. Supplement Alias Packet. Migration Review. 2025. Printing number: 4. Supplement number: 2.',
+            $processor->renderBibliographyText($article)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="printing-number"/>
+        <text variable="supplement-number"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="printing-number"/>
+      <text variable="supplement-number"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledPeriodical = $styled->item('periodical-printing');
+        $styledArticle = $styled->item('article-supplement');
+        $t->same('3', $styledPeriodical['printingNumber'] ?? null);
+        $t->same('1', $styledPeriodical['supplementNumber'] ?? null);
+        $t->same('4', $styledArticle['printingNumber'] ?? null);
+        $t->same('2', $styledArticle['supplementNumber'] ?? null);
+        $t->same('[Printing Number Review | 3 | 1; Supplement Alias Packet | 4 | 2]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'periodical-printing', 'text' => '[@periodical-printing]']),
+            new AstNode('citation', ['id' => 'article-supplement', 'text' => '[@article-supplement]']),
+        ]));
+        $t->same('Printing Number Review :: 3 :: 1', $styled->renderBibliographyEntry('periodical-printing'));
+        $t->same('Supplement Alias Packet :: 4 :: 2', $styled->renderBibliographyEntry('article-supplement'));
+
+        $document = (new MarkdownReader())->read('Printing supplement review [@periodical-printing; @article-supplement] keeps source numbers visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['periodical-printing', 'article-supplement'], $handoff['citedKeys']);
+        $t->same('3', $handoff['items'][0]['printing-number'] ?? null);
+        $t->same('2', $handoff['bibliography']->children[1]->attr('cslItem')['supplement-number'] ?? null);
+        $t->contains('<p>Printing supplement review [Printing Number Review | 3 | 1; Supplement Alias Packet | 4 | 2] keeps source numbers visible.</p>', $blocks);
+        $t->contains('<dt>Curator 2026</dt><dd>Printing Number Review :: 3 :: 1</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Supplement Alias Packet :: 4 :: 2</dd>', $blocks);
+    },
     'carries biblatex date addendum aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @online{legacy-date-addendum,

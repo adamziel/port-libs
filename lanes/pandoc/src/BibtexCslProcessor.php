@@ -382,6 +382,12 @@ final class BibtexCslProcessor
         if (($item['supplement'] ?? '') !== '') {
             $parts[] = 'Supplement: ' . (string) $item['supplement'];
         }
+        if (($item['printing-number'] ?? '') !== '') {
+            $parts[] = 'Printing number: ' . (string) $item['printing-number'];
+        }
+        if (($item['supplement-number'] ?? '') !== '') {
+            $parts[] = 'Supplement number: ' . (string) $item['supplement-number'];
+        }
         foreach ([
             'citation-label' => 'Citation label',
             'shorthand-intro' => 'Shorthand intro',
@@ -782,6 +788,8 @@ final class BibtexCslProcessor
             'source' => ['source', 'sourcetitle', 'source-title'],
             'section' => ['section'],
             'supplement' => ['supplement'],
+            'printing-number' => ['printingnumber', 'printing-number', 'printnumber', 'print-number', 'printing'],
+            'supplement-number' => ['supplementnumber', 'supplement-number'],
             'references' => ['references'],
             'dimensions' => ['dimensions', 'dimension'],
             'scale' => ['scale'],
