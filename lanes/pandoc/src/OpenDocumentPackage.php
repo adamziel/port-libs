@@ -26,6 +26,9 @@ final class OpenDocumentPackage
         'size' => true,
         'version' => true,
     ];
+    private const MANIFEST_FILE_ENTRY_STRUCTURAL_CHILD_ELEMENTS = [
+        'encryption-data' => true,
+    ];
     private const MANIFEST_ROOT_STRUCTURAL_ATTRIBUTES = [
         'version' => true,
     ];
@@ -639,6 +642,12 @@ final class OpenDocumentPackage
                 'manifestNamespaceDeclarationNames' => is_array($manifestEntry) ? ($manifestEntry['manifestNamespaceDeclarationNames'] ?? []) : [],
                 'manifestNamespaceDeclarations' => is_array($manifestEntry) ? ($manifestEntry['manifestNamespaceDeclarations'] ?? []) : [],
                 'manifestNamespaceDeclarationMap' => is_array($manifestEntry) ? ($manifestEntry['manifestNamespaceDeclarationMap'] ?? []) : [],
+                'manifestChildElementCount' => is_array($manifestEntry) ? ($manifestEntry['manifestChildElementCount'] ?? 0) : 0,
+                'manifestChildElementNames' => is_array($manifestEntry) ? ($manifestEntry['manifestChildElementNames'] ?? []) : [],
+                'manifestChildElements' => is_array($manifestEntry) ? ($manifestEntry['manifestChildElements'] ?? []) : [],
+                'customManifestChildElementCount' => is_array($manifestEntry) ? ($manifestEntry['customManifestChildElementCount'] ?? 0) : 0,
+                'customManifestChildElementNames' => is_array($manifestEntry) ? ($manifestEntry['customManifestChildElementNames'] ?? []) : [],
+                'customManifestChildElements' => is_array($manifestEntry) ? ($manifestEntry['customManifestChildElements'] ?? []) : [],
                 'manifestDeclaredSize' => is_array($manifestEntry) ? $manifestEntry['declaredSize'] : null,
                 'manifestDeclaredSizeMismatch' => is_array($manifestEntry) && ($manifestEntry['declaredSizeMismatch'] ?? false) === true,
                 'manifestMissingMediaType' => is_array($manifestEntry) && ($manifestEntry['missingMediaType'] ?? false) === true,
@@ -898,6 +907,8 @@ final class OpenDocumentPackage
                 'byteSha256' => $entry['byteSha256'] ?? null,
                 'declaredSize' => $entry['declaredSize'] ?? null,
                 'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
+                'customManifestChildElementCount' => $entry['customManifestChildElementCount'] ?? 0,
+                'customManifestChildElementNames' => $entry['customManifestChildElementNames'] ?? [],
                 'diagnostics' => $entry['diagnostics'] ?? [],
             ]);
         }
@@ -969,6 +980,8 @@ final class OpenDocumentPackage
                 'manifestMediaTypeBase' => $part['manifestMediaTypeBase'] ?? null,
                 'manifestMediaFamily' => $part['manifestMediaFamily'] ?? null,
                 'manifestDeclaredSizeMismatch' => ($part['manifestDeclaredSizeMismatch'] ?? false) === true,
+                'customManifestChildElementCount' => $part['customManifestChildElementCount'] ?? 0,
+                'customManifestChildElementNames' => $part['customManifestChildElementNames'] ?? [],
                 'manifestDiagnostics' => $part['manifestDiagnostics'] ?? [],
                 'canExposeBytes' => ($part['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $part['byteExposurePolicy'] ?? null,
@@ -3961,6 +3974,10 @@ final class OpenDocumentPackage
             'manifestCustomAttributeCount' => 0,
             'manifestCustomAttributeNames' => [],
             'manifestCustomAttributeItems' => [],
+            'manifestCustomChildElementEntryCount' => 0,
+            'manifestCustomChildElementCount' => 0,
+            'manifestCustomChildElementNames' => [],
+            'manifestCustomChildElementItems' => [],
             'uriEncodedPackageReferenceCount' => 0,
             'uriEncodedPackageReferenceItems' => [],
             'zipTimestampEntryCount' => 0,
@@ -4047,6 +4064,30 @@ final class OpenDocumentPackage
                     'manifestNamespaceDeclarationNames' => $entry['manifestNamespaceDeclarationNames'] ?? [],
                     'manifestNamespaceDeclarations' => $entry['manifestNamespaceDeclarations'] ?? [],
                     'manifestNamespaceDeclarationMap' => $entry['manifestNamespaceDeclarationMap'] ?? [],
+                ];
+            }
+            $customManifestChildElements = is_array($entry['customManifestChildElements'] ?? null)
+                ? $entry['customManifestChildElements']
+                : [];
+            if ($customManifestChildElements !== []) {
+                ++$summary['manifestCustomChildElementEntryCount'];
+                $summary['manifestCustomChildElementCount'] += count($customManifestChildElements);
+                foreach ($entry['customManifestChildElementNames'] ?? [] as $elementName) {
+                    if (is_string($elementName) && $elementName !== '' && !in_array($elementName, $summary['manifestCustomChildElementNames'], true)) {
+                        $summary['manifestCustomChildElementNames'][] = $elementName;
+                    }
+                }
+                $summary['manifestCustomChildElementItems'][] = [
+                    'manifestIndex' => $entry['manifestIndex'] ?? null,
+                    'fullPath' => $entry['path'],
+                    'path' => $entry['path'],
+                    'part' => $entry['packagePath'] ?? null,
+                    'packagePath' => $entry['packagePath'] ?? null,
+                    'customManifestChildElementCount' => count($customManifestChildElements),
+                    'customManifestChildElementNames' => $entry['customManifestChildElementNames'] ?? [],
+                    'customManifestChildElements' => $customManifestChildElements,
+                    'manifestChildElementCount' => $entry['manifestChildElementCount'] ?? 0,
+                    'manifestChildElementNames' => $entry['manifestChildElementNames'] ?? [],
                 ];
             }
             if (($entry['uriEncodedPackageReference'] ?? false) === true) {
@@ -4165,6 +4206,7 @@ final class OpenDocumentPackage
         );
         $summary['largestDeclaredSizeItemCount'] = count($summary['largestDeclaredSizeItems']);
         sort($summary['manifestCustomAttributeNames'], SORT_STRING);
+        sort($summary['manifestCustomChildElementNames'], SORT_STRING);
         ksort($summary['manifestMediaFamilyCounts'], SORT_STRING);
         ksort($summary['manifestMediaFamilyByteLengths'], SORT_STRING);
         ksort($summary['manifestMediaFamilyCompressedByteLengths'], SORT_STRING);
@@ -4565,6 +4607,12 @@ final class OpenDocumentPackage
             'manifestNamespaceDeclarationNames' => $entry['manifestNamespaceDeclarationNames'] ?? [],
             'manifestNamespaceDeclarations' => $entry['manifestNamespaceDeclarations'] ?? [],
             'manifestNamespaceDeclarationMap' => $entry['manifestNamespaceDeclarationMap'] ?? [],
+            'manifestChildElementCount' => $entry['manifestChildElementCount'] ?? 0,
+            'manifestChildElementNames' => $entry['manifestChildElementNames'] ?? [],
+            'manifestChildElements' => $entry['manifestChildElements'] ?? [],
+            'customManifestChildElementCount' => $entry['customManifestChildElementCount'] ?? 0,
+            'customManifestChildElementNames' => $entry['customManifestChildElementNames'] ?? [],
+            'customManifestChildElements' => $entry['customManifestChildElements'] ?? [],
             'exists' => ($entry['exists'] ?? false) === true,
             'isDirectory' => ($entry['isDirectory'] ?? false) === true,
             'encrypted' => ($entry['encrypted'] ?? false) === true,
@@ -4645,6 +4693,11 @@ final class OpenDocumentPackage
             'manifestNamespaceDeclarationNames' => $entry['manifestNamespaceDeclarationNames'] ?? [],
             'manifestNamespaceDeclarations' => $entry['manifestNamespaceDeclarations'] ?? [],
             'manifestNamespaceDeclarationMap' => $entry['manifestNamespaceDeclarationMap'] ?? [],
+            'manifestChildElementCount' => $entry['manifestChildElementCount'] ?? 0,
+            'manifestChildElementNames' => $entry['manifestChildElementNames'] ?? [],
+            'customManifestChildElementCount' => $entry['customManifestChildElementCount'] ?? 0,
+            'customManifestChildElementNames' => $entry['customManifestChildElementNames'] ?? [],
+            'customManifestChildElements' => $entry['customManifestChildElements'] ?? [],
             'exists' => ($entry['exists'] ?? false) === true,
             'isDirectory' => ($entry['isDirectory'] ?? false) === true,
             'encrypted' => ($entry['encrypted'] ?? false) === true,
@@ -4860,6 +4913,7 @@ final class OpenDocumentPackage
             $diagnostics = $missingMediaType ? ['odf-manifest-file-entry-missing-media-type'] : [];
             $mediaTypeReport = self::mediaTypeReport($mediaType);
             $attributeProvenance = self::manifestFileEntryAttributeProvenance($child);
+            $childElementProvenance = self::manifestFileEntryChildElementProvenance($child);
 
             $size = self::manifestSize(
                 self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'size'),
@@ -4895,6 +4949,12 @@ final class OpenDocumentPackage
                 'manifestNamespaceDeclarationNames' => $attributeProvenance['namespaceDeclarationNames'],
                 'manifestNamespaceDeclarations' => $attributeProvenance['namespaceDeclarations'],
                 'manifestNamespaceDeclarationMap' => $attributeProvenance['namespaceDeclarationMap'],
+                'manifestChildElementCount' => $childElementProvenance['childElementCount'],
+                'manifestChildElementNames' => $childElementProvenance['childElementNames'],
+                'manifestChildElements' => $childElementProvenance['childElements'],
+                'customManifestChildElementCount' => $childElementProvenance['customChildElementCount'],
+                'customManifestChildElementNames' => $childElementProvenance['customChildElementNames'],
+                'customManifestChildElements' => $childElementProvenance['customChildElements'],
                 'missingMediaType' => $missingMediaType,
                 'encrypted' => $encryption !== null,
                 'encryption' => $encryption,
@@ -4948,6 +5008,55 @@ final class OpenDocumentPackage
     private static function manifestRootAttributeProvenance(\DOMElement $element): array
     {
         return self::manifestElementAttributeProvenance($element, self::MANIFEST_ROOT_STRUCTURAL_ATTRIBUTES);
+    }
+
+    /**
+     * @return array{
+     *     childElementCount:int,
+     *     childElementNames:list<string>,
+     *     childElements:list<array<string, mixed>>,
+     *     customChildElementCount:int,
+     *     customChildElementNames:list<string>,
+     *     customChildElements:list<array<string, mixed>>
+     * }
+     */
+    private static function manifestFileEntryChildElementProvenance(\DOMElement $element): array
+    {
+        $childElements = [];
+        $customChildElements = [];
+
+        foreach (self::childElements($element) as $child) {
+            $namespaceUri = (string) $child->namespaceURI;
+            $structural = $namespaceUri === self::MANIFEST_NAMESPACE
+                && isset(self::MANIFEST_FILE_ENTRY_STRUCTURAL_CHILD_ELEMENTS[$child->localName]);
+            $record = [
+                'name' => self::qualifiedElementName($child),
+                'localName' => $child->localName,
+                'structural' => $structural,
+                'attributeCount' => $child->hasAttributes() ? $child->attributes->length : 0,
+                'childElementCount' => count(self::childElements($child)),
+            ];
+            if ($namespaceUri !== '') {
+                $record['namespaceUri'] = $namespaceUri;
+            }
+            if ($child->prefix !== '') {
+                $record['prefix'] = $child->prefix;
+            }
+
+            $childElements[] = $record;
+            if (!$structural) {
+                $customChildElements[] = $record;
+            }
+        }
+
+        return [
+            'childElementCount' => count($childElements),
+            'childElementNames' => array_values(array_map(static fn (array $item): string => $item['name'], $childElements)),
+            'childElements' => $childElements,
+            'customChildElementCount' => count($customChildElements),
+            'customChildElementNames' => array_values(array_map(static fn (array $item): string => $item['name'], $customChildElements)),
+            'customChildElements' => $customChildElements,
+        ];
     }
 
     /**

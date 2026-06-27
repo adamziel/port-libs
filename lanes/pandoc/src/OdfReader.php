@@ -36,6 +36,9 @@ final class OdfReader
         'size' => true,
         'version' => true,
     ];
+    private const MANIFEST_FILE_ENTRY_STRUCTURAL_CHILD_ELEMENTS = [
+        'encryption-data' => true,
+    ];
     private const MANIFEST_ROOT_STRUCTURAL_ATTRIBUTES = [
         'version' => true,
     ];
@@ -527,6 +530,7 @@ final class OdfReader
             $preferredViewMode = self::attr($entryElement, self::MANIFEST_NS, 'preferred-view-mode');
             $declaredSize = self::manifestDeclaredSize(self::attr($entryElement, self::MANIFEST_NS, 'size'));
             $attributeProvenance = $this->manifestFileEntryAttributeProvenance($entryElement);
+            $childElementProvenance = $this->manifestFileEntryChildElementProvenance($entryElement);
             $encryptionElements = self::childElements($entryElement, 'encryption-data', self::MANIFEST_NS);
             $encrypted = $encryptionElements !== [];
             $packageReference = $fullPath === '/' ? self::rootManifestPackageReference() : $this->manifestPackageReference($fullPath);
@@ -569,6 +573,12 @@ final class OdfReader
                 'manifestNamespaceDeclarationNames' => $attributeProvenance['namespaceDeclarationNames'],
                 'manifestNamespaceDeclarations' => $attributeProvenance['namespaceDeclarations'],
                 'manifestNamespaceDeclarationMap' => $attributeProvenance['namespaceDeclarationMap'],
+                'manifestChildElementCount' => $childElementProvenance['childElementCount'],
+                'manifestChildElementNames' => $childElementProvenance['childElementNames'],
+                'manifestChildElements' => $childElementProvenance['childElements'],
+                'customManifestChildElementCount' => $childElementProvenance['customChildElementCount'],
+                'customManifestChildElementNames' => $childElementProvenance['customChildElementNames'],
+                'customManifestChildElements' => $childElementProvenance['customChildElements'],
                 'declaredSize' => $declaredSize['value'],
                 'declaredSizeRaw' => $declaredSize['raw'],
                 'declaredSizeValid' => $declaredSize['valid'],
@@ -731,6 +741,55 @@ final class OdfReader
     private function manifestRootAttributeProvenance(\DOMElement $element): array
     {
         return $this->manifestElementAttributeProvenance($element, self::MANIFEST_ROOT_STRUCTURAL_ATTRIBUTES);
+    }
+
+    /**
+     * @return array{
+     *     childElementCount:int,
+     *     childElementNames:list<string>,
+     *     childElements:list<array<string, mixed>>,
+     *     customChildElementCount:int,
+     *     customChildElementNames:list<string>,
+     *     customChildElements:list<array<string, mixed>>
+     * }
+     */
+    private function manifestFileEntryChildElementProvenance(\DOMElement $element): array
+    {
+        $childElements = [];
+        $customChildElements = [];
+
+        foreach (self::childElements($element) as $child) {
+            $namespaceUri = (string) $child->namespaceURI;
+            $structural = $namespaceUri === self::MANIFEST_NS
+                && isset(self::MANIFEST_FILE_ENTRY_STRUCTURAL_CHILD_ELEMENTS[$child->localName]);
+            $record = [
+                'name' => $this->qualifiedElementName($child),
+                'localName' => $child->localName,
+                'structural' => $structural,
+                'attributeCount' => $child->hasAttributes() ? $child->attributes->length : 0,
+                'childElementCount' => count(self::childElements($child)),
+            ];
+            if ($namespaceUri !== '') {
+                $record['namespaceUri'] = $namespaceUri;
+            }
+            if ($child->prefix !== '') {
+                $record['prefix'] = $child->prefix;
+            }
+
+            $childElements[] = $record;
+            if (!$structural) {
+                $customChildElements[] = $record;
+            }
+        }
+
+        return [
+            'childElementCount' => count($childElements),
+            'childElementNames' => array_values(array_map(static fn (array $item): string => $item['name'], $childElements)),
+            'childElements' => $childElements,
+            'customChildElementCount' => count($customChildElements),
+            'customChildElementNames' => array_values(array_map(static fn (array $item): string => $item['name'], $customChildElements)),
+            'customChildElements' => $customChildElements,
+        ];
     }
 
     /**
@@ -1324,6 +1383,9 @@ final class OdfReader
         $manifestCustomAttributeCount = 0;
         $manifestCustomAttributeNames = [];
         $manifestCustomAttributeItems = [];
+        $manifestCustomChildElementCount = 0;
+        $manifestCustomChildElementNames = [];
+        $manifestCustomChildElementItems = [];
         $objectPackageRootParts = $this->objectPackageRootParts($manifest);
         $roleCounts = [];
         $undeclaredRoleCounts = [];
@@ -1390,6 +1452,12 @@ final class OdfReader
                 'manifestNamespaceDeclarationNames' => $item['manifestNamespaceDeclarationNames'] ?? [],
                 'manifestNamespaceDeclarations' => $item['manifestNamespaceDeclarations'] ?? [],
                 'manifestNamespaceDeclarationMap' => $item['manifestNamespaceDeclarationMap'] ?? [],
+                'manifestChildElementCount' => $item['manifestChildElementCount'] ?? 0,
+                'manifestChildElementNames' => $item['manifestChildElementNames'] ?? [],
+                'manifestChildElements' => $item['manifestChildElements'] ?? [],
+                'customManifestChildElementCount' => $item['customManifestChildElementCount'] ?? 0,
+                'customManifestChildElementNames' => $item['customManifestChildElementNames'] ?? [],
+                'customManifestChildElements' => $item['customManifestChildElements'] ?? [],
                 'exists' => ($item['exists'] ?? false) === true,
                 'isDirectory' => ($item['isDirectory'] ?? false) === true,
                 'encrypted' => ($item['encrypted'] ?? false) === true,
@@ -1442,6 +1510,27 @@ final class OdfReader
                     'manifestNamespaceDeclarationNames' => $item['manifestNamespaceDeclarationNames'] ?? [],
                     'manifestNamespaceDeclarations' => $item['manifestNamespaceDeclarations'] ?? [],
                     'manifestNamespaceDeclarationMap' => $item['manifestNamespaceDeclarationMap'] ?? [],
+                ];
+            }
+            $customManifestChildElements = is_array($item['customManifestChildElements'] ?? null)
+                ? $item['customManifestChildElements']
+                : [];
+            if ($customManifestChildElements !== []) {
+                $manifestCustomChildElementCount += count($customManifestChildElements);
+                foreach ($item['customManifestChildElementNames'] ?? [] as $elementName) {
+                    if (is_string($elementName) && $elementName !== '' && !in_array($elementName, $manifestCustomChildElementNames, true)) {
+                        $manifestCustomChildElementNames[] = $elementName;
+                    }
+                }
+                $manifestCustomChildElementItems[] = [
+                    'manifestIndex' => is_int($manifestIndex) ? $manifestIndex : count($manifestCustomChildElementItems),
+                    'fullPath' => $item['fullPath'] ?? null,
+                    'part' => $part,
+                    'customManifestChildElementCount' => count($customManifestChildElements),
+                    'customManifestChildElementNames' => $item['customManifestChildElementNames'] ?? [],
+                    'customManifestChildElements' => $customManifestChildElements,
+                    'manifestChildElementCount' => $item['manifestChildElementCount'] ?? 0,
+                    'manifestChildElementNames' => $item['manifestChildElementNames'] ?? [],
                 ];
             }
             if (is_string($part) && $part !== '') {
@@ -1580,6 +1669,12 @@ final class OdfReader
                 'manifestNamespaceDeclarationNames' => is_array($manifestItem) ? ($manifestItem['manifestNamespaceDeclarationNames'] ?? []) : [],
                 'manifestNamespaceDeclarations' => is_array($manifestItem) ? ($manifestItem['manifestNamespaceDeclarations'] ?? []) : [],
                 'manifestNamespaceDeclarationMap' => is_array($manifestItem) ? ($manifestItem['manifestNamespaceDeclarationMap'] ?? []) : [],
+                'manifestChildElementCount' => is_array($manifestItem) ? ($manifestItem['manifestChildElementCount'] ?? 0) : 0,
+                'manifestChildElementNames' => is_array($manifestItem) ? ($manifestItem['manifestChildElementNames'] ?? []) : [],
+                'manifestChildElements' => is_array($manifestItem) ? ($manifestItem['manifestChildElements'] ?? []) : [],
+                'customManifestChildElementCount' => is_array($manifestItem) ? ($manifestItem['customManifestChildElementCount'] ?? 0) : 0,
+                'customManifestChildElementNames' => is_array($manifestItem) ? ($manifestItem['customManifestChildElementNames'] ?? []) : [],
+                'customManifestChildElements' => is_array($manifestItem) ? ($manifestItem['customManifestChildElements'] ?? []) : [],
                 'manifestDiagnostics' => is_array($manifestItem) ? ($manifestItem['diagnostics'] ?? []) : [],
                 'manifestEncryption' => is_array($manifestItem) ? $manifestItem['encryption'] : null,
                 'manifestEncryptionRecordCount' => is_array($manifestItem) && is_array($manifestItem['encryption'] ?? null)
@@ -1690,6 +1785,7 @@ final class OdfReader
         $embeddedObjectPackages = $this->embeddedObjectPackageProvenance($package, $manifest, $objectPackageRootParts);
         $stylePackageProvenance = $this->stylePackageProvenance($styleCatalog, $manifestByPart, $parts);
         sort($manifestCustomAttributeNames, SORT_STRING);
+        sort($manifestCustomChildElementNames, SORT_STRING);
 
         $provenance = [
             'mimetypeEntry' => $mimetypeEntry,
@@ -1723,6 +1819,10 @@ final class OdfReader
             'manifestCustomAttributeCount' => $manifestCustomAttributeCount,
             'manifestCustomAttributeNames' => $manifestCustomAttributeNames,
             'manifestCustomAttributeItems' => $manifestCustomAttributeItems,
+            'manifestCustomChildElementEntryCount' => count($manifestCustomChildElementItems),
+            'manifestCustomChildElementCount' => $manifestCustomChildElementCount,
+            'manifestCustomChildElementNames' => $manifestCustomChildElementNames,
+            'manifestCustomChildElementItems' => $manifestCustomChildElementItems,
             'manifestPartReferenceSuffixCount' => count($manifestPartReferenceSuffixItems),
             'manifestPartReferenceQueryCount' => $manifestPartReferenceQueryCount,
             'manifestPartReferenceFragmentCount' => $manifestPartReferenceFragmentCount,
@@ -1835,6 +1935,8 @@ final class OdfReader
                 'declaredSizeInvalid' => ($item['declaredSizeInvalid'] ?? false) === true,
                 'customManifestAttributeMap' => $item['customManifestAttributeMap'] ?? [],
                 'manifestNamespaceDeclarationMap' => $item['manifestNamespaceDeclarationMap'] ?? [],
+                'customManifestChildElementCount' => $item['customManifestChildElementCount'] ?? 0,
+                'customManifestChildElementNames' => $item['customManifestChildElementNames'] ?? [],
                 'exists' => ($item['exists'] ?? false) === true,
                 'isDirectory' => ($item['isDirectory'] ?? false) === true,
                 'encrypted' => ($item['encrypted'] ?? false) === true,
@@ -1928,6 +2030,8 @@ final class OdfReader
                 'manifestDeclaredSizeInvalid' => ($item['manifestDeclaredSizeInvalid'] ?? false) === true,
                 'customManifestAttributeMap' => $item['customManifestAttributeMap'] ?? [],
                 'manifestNamespaceDeclarationMap' => $item['manifestNamespaceDeclarationMap'] ?? [],
+                'customManifestChildElementCount' => $item['customManifestChildElementCount'] ?? 0,
+                'customManifestChildElementNames' => $item['customManifestChildElementNames'] ?? [],
                 'manifestDiagnostics' => $item['manifestDiagnostics'] ?? [],
                 'manifestEncryptionIssueCodes' => $item['manifestEncryptionIssueCodes'] ?? [],
                 'scriptPackagePart' => ($item['scriptPackagePart'] ?? false) === true,

@@ -11460,6 +11460,68 @@ XML;
         $t->same(3, $inventory['Pictures/hero.png']['customManifestAttributeCount']);
         $t->same('en-US', $inventory['Pictures/hero.png']['customManifestAttributeMap']['xml:lang']);
     },
+    'preserves ODT manifest file-entry child element provenance in package review' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $manifestWithChildElements = <<<'XML'
+<manifest:manifest
+  xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0"
+  xmlns:loext="urn:libreoffice:manifest"
+  xmlns:wp="urn:wordpress:review"
+  manifest:version="1.3">
+  <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"><wp:review-hint wp:state="manual"><wp:nested/></wp:review-hint></manifest:file-entry>
+  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png" manifest:size="7"><manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="hero-checksum"/><loext:media-policy loext:role="review"/></manifest:file-entry>
+</manifest:manifest>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithChildElements));
+        $manifestByPart = [];
+        foreach ($result['manifest'] as $item) {
+            if (is_string($item['part'] ?? null)) {
+                $manifestByPart[$item['part']] = $item;
+            }
+        }
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $documentProvenance = $result['document']->attr('manifest')['packageProvenance'];
+        $order = $provenance['manifestFileEntryOrder'];
+        $inventory = $provenance['parts'];
+        $identityByPath = [];
+        foreach ($provenance['packageIdentity']['manifestEntries'] as $item) {
+            $identityByPath[$item['fullPath']] = $item;
+        }
+        $content = $manifestByPart['content.xml'];
+        $hero = $manifestByPart['Pictures/hero.png'];
+
+        $t->same($provenance, $documentProvenance);
+        $t->same(1, $content['manifestChildElementCount']);
+        $t->same(['wp:review-hint'], $content['manifestChildElementNames']);
+        $t->same(1, $content['customManifestChildElementCount']);
+        $t->same(['wp:review-hint'], $content['customManifestChildElementNames']);
+        $t->same('urn:wordpress:review', $content['customManifestChildElements'][0]['namespaceUri']);
+        $t->same('wp', $content['customManifestChildElements'][0]['prefix']);
+        $t->same(1, $content['customManifestChildElements'][0]['attributeCount']);
+        $t->same(1, $content['customManifestChildElements'][0]['childElementCount']);
+
+        $t->same(2, $hero['manifestChildElementCount']);
+        $t->same(['manifest:encryption-data', 'loext:media-policy'], $hero['manifestChildElementNames']);
+        $t->same(true, $hero['manifestChildElements'][0]['structural']);
+        $t->same(false, $hero['manifestChildElements'][1]['structural']);
+        $t->same(1, $hero['customManifestChildElementCount']);
+        $t->same(['loext:media-policy'], $hero['customManifestChildElementNames']);
+        $t->same('media-policy', $hero['customManifestChildElements'][0]['localName']);
+
+        $t->same(2, $provenance['manifestCustomChildElementEntryCount']);
+        $t->same(2, $provenance['manifestCustomChildElementCount']);
+        $t->same(['loext:media-policy', 'wp:review-hint'], $provenance['manifestCustomChildElementNames']);
+        $t->same(['content.xml', 'Pictures/hero.png'], array_column($provenance['manifestCustomChildElementItems'], 'part'));
+        $t->same(['wp:review-hint'], $order[1]['customManifestChildElementNames']);
+        $t->same(['loext:media-policy'], $order[4]['customManifestChildElementNames']);
+        $t->same(['wp:review-hint'], $inventory['content.xml']['customManifestChildElementNames']);
+        $t->same(['loext:media-policy'], $inventory['Pictures/hero.png']['customManifestChildElementNames']);
+        $t->same(['wp:review-hint'], $identityByPath['content.xml']['customManifestChildElementNames']);
+        $t->same(['loext:media-policy'], $identityByPath['Pictures/hero.png']['customManifestChildElementNames']);
+    },
     'summarizes ODT XML package part office versions for provenance review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifestWithSettings = str_replace(
             '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>',
