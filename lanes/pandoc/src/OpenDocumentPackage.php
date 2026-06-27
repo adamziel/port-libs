@@ -491,6 +491,16 @@ final class OpenDocumentPackage
         $comments = $this->package->commentPreflight();
         $modificationTimes = $this->package->modificationTimePreflight();
         $modificationTimeByName = self::zipModificationTimeEntriesByName($modificationTimes);
+        $platformMetadata = $this->package->platformMetadataPreflight();
+        $platformMetadataByName = self::zipPreflightEntriesByName($platformMetadata);
+        $permissions = $this->package->permissionPreflight();
+        $permissionsByName = self::zipPreflightEntriesByName($permissions);
+        $creatorHostSystems = $this->package->creatorHostSystemPreflight();
+        $creatorHostSystemsByName = self::zipPreflightEntriesByName($creatorHostSystems);
+        $dosAttributes = $this->package->dosAttributePreflight();
+        $dosAttributesByName = self::zipPreflightEntriesByName($dosAttributes);
+        $internalAttributes = $this->package->internalAttributePreflight();
+        $internalAttributesByName = self::zipPreflightEntriesByName($internalAttributes);
         $objectPackageRootParts = self::embeddedObjectPackageRootParts($this->manifestEntries);
         $localOrderByName = [];
         foreach ($localHeaderOrder['entries'] as $entry) {
@@ -558,6 +568,14 @@ final class OpenDocumentPackage
             $embeddedObjectPackage = self::embeddedObjectPackageMembership($entry->name, $objectPackageRootParts);
             $rawNameProvenance = self::zipEntryRawNameProvenance($entry);
             $timestampProvenance = self::zipTimestampProvenance($modificationTimeByName[$entry->name] ?? null);
+            $platformAttributeProvenance = self::zipPlatformAttributeProvenance(
+                $entry,
+                $platformMetadataByName[$entry->name] ?? null,
+                $permissionsByName[$entry->name] ?? null,
+                $creatorHostSystemsByName[$entry->name] ?? null,
+                $dosAttributesByName[$entry->name] ?? null,
+                $internalAttributesByName[$entry->name] ?? null
+            );
             if ($entry->isDirectory()) {
                 ++$packageDirectoryCount;
             }
@@ -649,7 +667,7 @@ final class OpenDocumentPackage
                 'canExposeBytes' => is_array($manifestEntry) && ($manifestEntry['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $byteExposurePolicy,
                 'undeclared' => $isUndeclared,
-            ] + $rawNameProvenance + $timestampProvenance;
+            ] + $rawNameProvenance + $timestampProvenance + $platformAttributeProvenance;
 
             foreach ($roles as $role) {
                 $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
@@ -830,6 +848,21 @@ final class OpenDocumentPackage
             'zipNtfsTimestampEntryCount' => $modificationTimes['ntfsTimestampEntryCount'],
             'zipInvalidDosTimestampEntryCount' => $modificationTimes['invalidDosTimestampEntryCount'],
             'zipInvalidDosTimestampEntries' => $modificationTimes['invalidDosTimestampEntries'],
+            'platformMetadata' => $platformMetadata,
+            'platformMetadataEntryCount' => $platformMetadata['platformMetadataEntryCount'],
+            'creatorHostSystems' => $creatorHostSystems,
+            'knownCreatorHostSystemEntryCount' => $creatorHostSystems['knownHostSystemEntryCount'],
+            'unknownCreatorHostSystemEntryCount' => $creatorHostSystems['unknownHostSystemEntryCount'],
+            'creatorVersionBelowNeededEntryCount' => $creatorHostSystems['creatorVersionBelowNeededEntryCount'],
+            'permissions' => $permissions,
+            'unixModeEntryCount' => $permissions['unixModeEntryCount'],
+            'executableFileCount' => $permissions['executableFileCount'],
+            'writablePermissionEntryCount' => $permissions['writablePermissionEntryCount'],
+            'dosAttributes' => $dosAttributes,
+            'dosAttributeEntryCount' => $dosAttributes['dosAttributeEntryCount'],
+            'hiddenSystemOrVolumeLabelEntryCount' => $dosAttributes['hiddenSystemOrVolumeLabelEntryCount'],
+            'internalAttributes' => $internalAttributes,
+            'internalAttributeEntryCount' => $internalAttributes['internalAttributeEntryCount'],
             'parts' => $parts,
         ];
     }
@@ -886,6 +919,49 @@ final class OpenDocumentPackage
                 'compressedByteLength' => $part['compressedByteLength'] ?? null,
                 'crc32' => $part['crc32'] ?? null,
                 'byteSha256' => $part['byteSha256'] ?? null,
+                'madeByHostSystem' => $part['madeByHostSystem'] ?? null,
+                'madeByHostSystemName' => $part['madeByHostSystemName'] ?? null,
+                'madeByVersion' => $part['madeByVersion'] ?? null,
+                'versionMadeBy' => $part['versionMadeBy'] ?? null,
+                'versionNeededToExtract' => $part['versionNeededToExtract'] ?? null,
+                'creatorVersionMeetsNeeded' => $part['creatorVersionMeetsNeeded'] ?? null,
+                'creatorVersionComparison' => $part['creatorVersionComparison'] ?? null,
+                'creatorVersionDelta' => $part['creatorVersionDelta'] ?? null,
+                'creatorHostIssues' => $part['creatorHostIssues'] ?? [],
+                'externalAttributes' => $part['externalAttributes'] ?? null,
+                'externalAttributesHex' => $part['externalAttributesHex'] ?? null,
+                'hasExternalAttributes' => ($part['hasExternalAttributes'] ?? false) === true,
+                'dosAttributes' => $part['dosAttributes'] ?? null,
+                'dosAttributeNames' => $part['dosAttributeNames'] ?? [],
+                'hasDosAttributes' => ($part['hasDosAttributes'] ?? false) === true,
+                'hasDosReadOnlyAttribute' => ($part['hasDosReadOnlyAttribute'] ?? false) === true,
+                'hasDosHiddenAttribute' => ($part['hasDosHiddenAttribute'] ?? false) === true,
+                'hasDosSystemAttribute' => ($part['hasDosSystemAttribute'] ?? false) === true,
+                'hasDosVolumeLabelAttribute' => ($part['hasDosVolumeLabelAttribute'] ?? false) === true,
+                'hasDosDirectoryAttribute' => ($part['hasDosDirectoryAttribute'] ?? false) === true,
+                'hasDosArchiveAttribute' => ($part['hasDosArchiveAttribute'] ?? false) === true,
+                'internalFileAttributes' => $part['internalFileAttributes'] ?? null,
+                'internalFileAttributesHex' => $part['internalFileAttributesHex'] ?? null,
+                'internalAttributeNames' => $part['internalAttributeNames'] ?? [],
+                'hasInternalFileAttributes' => ($part['hasInternalFileAttributes'] ?? false) === true,
+                'hasTextInternalAttribute' => ($part['hasTextInternalAttribute'] ?? false) === true,
+                'hasUnknownInternalAttributeBits' => ($part['hasUnknownInternalAttributeBits'] ?? false) === true,
+                'unknownInternalAttributeBits' => $part['unknownInternalAttributeBits'] ?? null,
+                'unixMode' => $part['unixMode'] ?? null,
+                'unixModeOctal' => $part['unixModeOctal'] ?? null,
+                'unixPermissions' => $part['unixPermissions'] ?? null,
+                'unixPermissionsOctal' => $part['unixPermissionsOctal'] ?? null,
+                'hasUnixMode' => ($part['hasUnixMode'] ?? false) === true,
+                'unixFileType' => $part['unixFileType'] ?? null,
+                'unixFileTypeName' => $part['unixFileTypeName'] ?? null,
+                'isUnixExecutableFile' => ($part['isUnixExecutableFile'] ?? false) === true,
+                'isGroupWritable' => ($part['isGroupWritable'] ?? false) === true,
+                'isWorldWritable' => ($part['isWorldWritable'] ?? false) === true,
+                'hasWritablePermissions' => ($part['hasWritablePermissions'] ?? false) === true,
+                'platformMetadataPlatform' => $part['platformMetadataPlatform'] ?? null,
+                'platformMetadataIssues' => $part['platformMetadataIssues'] ?? [],
+                'platformAttributeIssues' => $part['platformAttributeIssues'] ?? [],
+                'hasPlatformAttributeProvenance' => ($part['hasPlatformAttributeProvenance'] ?? false) === true,
                 'declaredInManifest' => ($part['declaredInManifest'] ?? false) === true,
                 'manifestIndex' => $part['manifestIndex'] ?? null,
                 'manifestPath' => $part['manifestPath'] ?? null,
@@ -917,6 +993,16 @@ final class OpenDocumentPackage
             'undeclaredEntryCount' => $packageInventory['undeclaredEntryCount'] ?? 0,
             'unsupportedCompressionMethodCount' => $packageInventory['unsupportedCompressionMethodCount'] ?? 0,
             'encryptedCount' => count($this->encryptedManifestEntries()),
+            'platformMetadataEntryCount' => $packageInventory['platformMetadataEntryCount'] ?? 0,
+            'knownCreatorHostSystemEntryCount' => $packageInventory['knownCreatorHostSystemEntryCount'] ?? 0,
+            'unknownCreatorHostSystemEntryCount' => $packageInventory['unknownCreatorHostSystemEntryCount'] ?? 0,
+            'creatorVersionBelowNeededEntryCount' => $packageInventory['creatorVersionBelowNeededEntryCount'] ?? 0,
+            'unixModeEntryCount' => $packageInventory['unixModeEntryCount'] ?? 0,
+            'executableFileCount' => $packageInventory['executableFileCount'] ?? 0,
+            'writablePermissionEntryCount' => $packageInventory['writablePermissionEntryCount'] ?? 0,
+            'dosAttributeEntryCount' => $packageInventory['dosAttributeEntryCount'] ?? 0,
+            'hiddenSystemOrVolumeLabelEntryCount' => $packageInventory['hiddenSystemOrVolumeLabelEntryCount'] ?? 0,
+            'internalAttributeEntryCount' => $packageInventory['internalAttributeEntryCount'] ?? 0,
             'totalByteLength' => $packageInventory['totalByteLength'] ?? 0,
             'totalCompressedByteLength' => $packageInventory['totalCompressedByteLength'] ?? 0,
             'exposableByteLength' => $packageInventory['exposableByteLength'] ?? 0,
@@ -1001,6 +1087,116 @@ final class OpenDocumentPackage
         }
 
         return $entriesByName;
+    }
+
+    /**
+     * @param array<string, mixed> $summary
+     * @return array<string, array<string, mixed>>
+     */
+    private static function zipPreflightEntriesByName(array $summary): array
+    {
+        $entriesByName = [];
+        foreach (is_array($summary['entries'] ?? null) ? $summary['entries'] : [] as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $name = $entry['name'] ?? null;
+            if (is_string($name) && $name !== '') {
+                $entriesByName[$name] = $entry;
+            }
+        }
+
+        return $entriesByName;
+    }
+
+    /**
+     * @param array<string, mixed>|null $platformMetadata
+     * @param array<string, mixed>|null $permissions
+     * @param array<string, mixed>|null $creatorHost
+     * @param array<string, mixed>|null $dosAttributes
+     * @param array<string, mixed>|null $internalAttributes
+     * @return array<string, mixed>
+     */
+    private static function zipPlatformAttributeProvenance(
+        ZipPackageEntry $entry,
+        ?array $platformMetadata,
+        ?array $permissions,
+        ?array $creatorHost,
+        ?array $dosAttributes,
+        ?array $internalAttributes
+    ): array {
+        $unixMode = $entry->unixMode();
+        $unixPermissions = $entry->unixPermissionBits();
+        $platformAttributeIssues = [];
+        foreach ([$platformMetadata, $permissions, $creatorHost, $internalAttributes] as $summary) {
+            foreach (is_array($summary['issues'] ?? null) ? $summary['issues'] : [] as $issue) {
+                if (is_string($issue) && $issue !== '' && !in_array($issue, $platformAttributeIssues, true)) {
+                    $platformAttributeIssues[] = $issue;
+                }
+            }
+        }
+        if (is_array($dosAttributes)) {
+            foreach ([
+                'hasHiddenAttribute' => 'dos-hidden-attribute',
+                'hasSystemAttribute' => 'dos-system-attribute',
+                'hasVolumeLabelAttribute' => 'dos-volume-label-attribute',
+            ] as $flag => $issue) {
+                if (($dosAttributes[$flag] ?? false) === true && !in_array($issue, $platformAttributeIssues, true)) {
+                    $platformAttributeIssues[] = $issue;
+                }
+            }
+        }
+
+        return [
+            'madeByHostSystem' => $entry->madeByHostSystem(),
+            'madeByHostSystemName' => $creatorHost['madeByHostSystemName'] ?? null,
+            'madeByVersion' => $entry->madeByVersion(),
+            'versionMadeBy' => $entry->versionMadeBy,
+            'versionNeededToExtract' => $entry->neededToExtractVersion(),
+            'creatorVersionMeetsNeeded' => $creatorHost['creatorVersionMeetsNeeded'] ?? null,
+            'creatorVersionComparison' => $creatorHost['creatorVersionComparison'] ?? null,
+            'creatorVersionDelta' => $creatorHost['creatorVersionDelta'] ?? null,
+            'creatorHostIssues' => is_array($creatorHost['issues'] ?? null) ? $creatorHost['issues'] : [],
+            'externalAttributes' => $entry->externalFileAttributes,
+            'externalAttributesHex' => sprintf('%08x', $entry->externalFileAttributes),
+            'hasExternalAttributes' => $entry->externalFileAttributes !== 0,
+            'dosAttributes' => $dosAttributes['dosAttributes'] ?? ($entry->externalFileAttributes & 0xff),
+            'dosAttributeNames' => is_array($dosAttributes['dosAttributeNames'] ?? null) ? $dosAttributes['dosAttributeNames'] : $entry->dosAttributeNames(),
+            'hasDosAttributes' => (($dosAttributes['dosAttributes'] ?? ($entry->externalFileAttributes & 0xff)) !== 0),
+            'hasDosReadOnlyAttribute' => $dosAttributes['hasReadOnlyAttribute'] ?? $entry->hasDosReadOnlyAttribute(),
+            'hasDosHiddenAttribute' => $dosAttributes['hasHiddenAttribute'] ?? $entry->hasDosHiddenAttribute(),
+            'hasDosSystemAttribute' => $dosAttributes['hasSystemAttribute'] ?? $entry->hasDosSystemAttribute(),
+            'hasDosVolumeLabelAttribute' => $dosAttributes['hasVolumeLabelAttribute'] ?? $entry->hasDosVolumeLabelAttribute(),
+            'hasDosDirectoryAttribute' => $dosAttributes['hasDirectoryAttribute'] ?? $entry->hasDosDirectoryAttribute(),
+            'hasDosArchiveAttribute' => $dosAttributes['hasArchiveAttribute'] ?? $entry->hasDosArchiveAttribute(),
+            'internalFileAttributes' => $entry->internalFileAttributes,
+            'internalFileAttributesHex' => sprintf('%04x', $entry->internalFileAttributes),
+            'internalAttributeNames' => is_array($internalAttributes['internalAttributeNames'] ?? null) ? $internalAttributes['internalAttributeNames'] : $entry->internalAttributeNames(),
+            'hasInternalFileAttributes' => $internalAttributes['hasInternalFileAttributes'] ?? ($entry->internalFileAttributes !== 0),
+            'hasTextInternalAttribute' => $internalAttributes['hasTextInternalAttribute'] ?? $entry->hasTextInternalAttribute(),
+            'hasUnknownInternalAttributeBits' => $internalAttributes['hasUnknownInternalAttributeBits'] ?? ($entry->unknownInternalAttributeBits() !== 0),
+            'unknownInternalAttributeBits' => $internalAttributes['unknownInternalAttributeBits'] ?? $entry->unknownInternalAttributeBits(),
+            'unixMode' => $unixMode,
+            'unixModeOctal' => $unixMode === null ? null : sprintf('%06o', $unixMode),
+            'unixPermissions' => $unixPermissions,
+            'unixPermissionsOctal' => $unixPermissions === null ? null : sprintf('%04o', $unixPermissions),
+            'hasUnixMode' => $unixMode !== null,
+            'unixFileType' => $entry->unixFileType(),
+            'unixFileTypeName' => $entry->unixFileTypeName(),
+            'isUnixExecutableFile' => $permissions['isExecutableFile'] ?? $entry->isUnixExecutableFile(),
+            'isGroupWritable' => $permissions['isGroupWritable'] ?? false,
+            'isWorldWritable' => $permissions['isWorldWritable'] ?? false,
+            'hasWritablePermissions' => $permissions['hasWritablePermissions'] ?? false,
+            'platformMetadataPlatform' => $platformMetadata['platform'] ?? null,
+            'platformMetadataIssues' => is_array($platformMetadata['issues'] ?? null) ? $platformMetadata['issues'] : [],
+            'platformAttributeIssues' => $platformAttributeIssues,
+            'hasPlatformAttributeProvenance' => $platformAttributeIssues !== []
+                || $entry->externalFileAttributes !== 0
+                || $entry->internalFileAttributes !== 0
+                || $entry->madeByHostSystem() !== 3
+                || $entry->madeByVersion() !== $entry->neededToExtractVersion(),
+        ];
     }
 
     /**
