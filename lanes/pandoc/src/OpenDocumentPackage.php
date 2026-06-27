@@ -5114,14 +5114,22 @@ final class OpenDocumentPackage
         $items = [];
         $encryptedParts = [];
         $checksumTypeCounts = [];
+        $checksumTypeProfileCounts = [];
         $algorithmNameCounts = [];
+        $algorithmProfileCounts = [];
         $keyDerivationNameCounts = [];
+        $keyDerivationProfileCounts = [];
+        $keyDerivationIterationBucketCounts = [];
         $startKeyGenerationNameCounts = [];
+        $startKeyGenerationProfileCounts = [];
         $unknownChildNameCounts = [];
         $issueCodeCounts = [];
         $recordCount = 0;
         $unknownChildCount = 0;
         $issueItemCount = 0;
+        $base64ValueCount = 0;
+        $validBase64ValueCount = 0;
+        $invalidBase64ValueCount = 0;
 
         foreach ($entries as $entry) {
             if (($entry['encrypted'] ?? false) !== true) {
@@ -5137,20 +5145,41 @@ final class OpenDocumentPackage
             $recordCount += count($records);
             $checksumTypes = [];
             $algorithmNames = [];
+            $checksumTypeProfiles = [];
+            $algorithmProfiles = [];
             $keyDerivationNames = [];
+            $keyDerivationProfiles = [];
+            $keyDerivationIterationBuckets = [];
             $startKeyGenerationNames = [];
+            $startKeyGenerationProfiles = [];
             $unknownChildNames = [];
             $issueCodes = [];
+            $itemBase64ValueCount = 0;
+            $itemValidBase64ValueCount = 0;
+            $itemInvalidBase64ValueCount = 0;
 
             foreach ($records as $record) {
                 if (!is_array($record)) {
                     continue;
                 }
 
+                $recordBase64Counts = self::encryptionBase64ReviewCounts($record);
+                $itemBase64ValueCount += $recordBase64Counts['base64ValueCount'];
+                $itemValidBase64ValueCount += $recordBase64Counts['validBase64ValueCount'];
+                $itemInvalidBase64ValueCount += $recordBase64Counts['invalidBase64ValueCount'];
+                $base64ValueCount += $recordBase64Counts['base64ValueCount'];
+                $validBase64ValueCount += $recordBase64Counts['validBase64ValueCount'];
+                $invalidBase64ValueCount += $recordBase64Counts['invalidBase64ValueCount'];
+
                 $checksumType = $record['checksumType'] ?? null;
                 if (is_string($checksumType) && $checksumType !== '') {
                     $checksumTypes[] = $checksumType;
                     $checksumTypeCounts[$checksumType] = ($checksumTypeCounts[$checksumType] ?? 0) + 1;
+                }
+                $checksumTypeProfile = $record['checksumTypeProfile'] ?? null;
+                if (is_string($checksumTypeProfile) && $checksumTypeProfile !== '') {
+                    $checksumTypeProfiles[] = $checksumTypeProfile;
+                    $checksumTypeProfileCounts[$checksumTypeProfile] = ($checksumTypeProfileCounts[$checksumTypeProfile] ?? 0) + 1;
                 }
 
                 foreach (self::encryptionNamedRecords($record, 'algorithm', 'algorithms') as $algorithm) {
@@ -5158,6 +5187,11 @@ final class OpenDocumentPackage
                     if (is_string($name) && $name !== '') {
                         $algorithmNames[] = $name;
                         $algorithmNameCounts[$name] = ($algorithmNameCounts[$name] ?? 0) + 1;
+                    }
+                    $profile = $algorithm['profile'] ?? null;
+                    if (is_string($profile) && $profile !== '') {
+                        $algorithmProfiles[] = $profile;
+                        $algorithmProfileCounts[$profile] = ($algorithmProfileCounts[$profile] ?? 0) + 1;
                     }
                 }
 
@@ -5167,6 +5201,16 @@ final class OpenDocumentPackage
                         $keyDerivationNames[] = $name;
                         $keyDerivationNameCounts[$name] = ($keyDerivationNameCounts[$name] ?? 0) + 1;
                     }
+                    $profile = $keyDerivation['profile'] ?? null;
+                    if (is_string($profile) && $profile !== '') {
+                        $keyDerivationProfiles[] = $profile;
+                        $keyDerivationProfileCounts[$profile] = ($keyDerivationProfileCounts[$profile] ?? 0) + 1;
+                    }
+                    $iterationBucket = $keyDerivation['iterationCountBucket'] ?? null;
+                    if (is_string($iterationBucket) && $iterationBucket !== '') {
+                        $keyDerivationIterationBuckets[] = $iterationBucket;
+                        $keyDerivationIterationBucketCounts[$iterationBucket] = ($keyDerivationIterationBucketCounts[$iterationBucket] ?? 0) + 1;
+                    }
                 }
 
                 foreach (self::encryptionNamedRecords($record, 'startKeyGeneration', 'startKeyGenerations') as $startKeyGeneration) {
@@ -5174,6 +5218,11 @@ final class OpenDocumentPackage
                     if (is_string($name) && $name !== '') {
                         $startKeyGenerationNames[] = $name;
                         $startKeyGenerationNameCounts[$name] = ($startKeyGenerationNameCounts[$name] ?? 0) + 1;
+                    }
+                    $profile = $startKeyGeneration['profile'] ?? null;
+                    if (is_string($profile) && $profile !== '') {
+                        $startKeyGenerationProfiles[] = $profile;
+                        $startKeyGenerationProfileCounts[$profile] = ($startKeyGenerationProfileCounts[$profile] ?? 0) + 1;
                     }
                 }
 
@@ -5226,9 +5275,17 @@ final class OpenDocumentPackage
                 'mediaType' => $entry['mediaType'] ?? null,
                 'encryptionRecordCount' => count($records),
                 'checksumTypes' => array_values(array_unique($checksumTypes)),
+                'checksumTypeProfiles' => array_values(array_unique($checksumTypeProfiles)),
                 'algorithmNames' => array_values(array_unique($algorithmNames)),
+                'algorithmProfiles' => array_values(array_unique($algorithmProfiles)),
                 'keyDerivationNames' => array_values(array_unique($keyDerivationNames)),
+                'keyDerivationProfiles' => array_values(array_unique($keyDerivationProfiles)),
+                'keyDerivationIterationBuckets' => array_values(array_unique($keyDerivationIterationBuckets)),
                 'startKeyGenerationNames' => array_values(array_unique($startKeyGenerationNames)),
+                'startKeyGenerationProfiles' => array_values(array_unique($startKeyGenerationProfiles)),
+                'base64ValueCount' => $itemBase64ValueCount,
+                'validBase64ValueCount' => $itemValidBase64ValueCount,
+                'invalidBase64ValueCount' => $itemInvalidBase64ValueCount,
                 'unknownChildNames' => array_values(array_unique($unknownChildNames)),
                 'issueCodes' => $issueCodes,
                 'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
@@ -5237,9 +5294,14 @@ final class OpenDocumentPackage
         }
 
         ksort($checksumTypeCounts, SORT_STRING);
+        ksort($checksumTypeProfileCounts, SORT_STRING);
         ksort($algorithmNameCounts, SORT_STRING);
+        ksort($algorithmProfileCounts, SORT_STRING);
         ksort($keyDerivationNameCounts, SORT_STRING);
+        ksort($keyDerivationProfileCounts, SORT_STRING);
+        ksort($keyDerivationIterationBucketCounts, SORT_STRING);
         ksort($startKeyGenerationNameCounts, SORT_STRING);
+        ksort($startKeyGenerationProfileCounts, SORT_STRING);
         ksort($unknownChildNameCounts, SORT_STRING);
         ksort($issueCodeCounts, SORT_STRING);
 
@@ -5249,9 +5311,17 @@ final class OpenDocumentPackage
             'recordCount' => $recordCount,
             'encryptedParts' => $encryptedParts,
             'checksumTypeCounts' => $checksumTypeCounts,
+            'checksumTypeProfileCounts' => $checksumTypeProfileCounts,
             'algorithmNameCounts' => $algorithmNameCounts,
+            'algorithmProfileCounts' => $algorithmProfileCounts,
             'keyDerivationNameCounts' => $keyDerivationNameCounts,
+            'keyDerivationProfileCounts' => $keyDerivationProfileCounts,
+            'keyDerivationIterationBucketCounts' => $keyDerivationIterationBucketCounts,
             'startKeyGenerationNameCounts' => $startKeyGenerationNameCounts,
+            'startKeyGenerationProfileCounts' => $startKeyGenerationProfileCounts,
+            'base64ValueCount' => $base64ValueCount,
+            'validBase64ValueCount' => $validBase64ValueCount,
+            'invalidBase64ValueCount' => $invalidBase64ValueCount,
             'unknownChildCount' => $unknownChildCount,
             'unknownChildNameCounts' => $unknownChildNameCounts,
             'issueItemCount' => $issueItemCount,
@@ -5278,6 +5348,46 @@ final class OpenDocumentPackage
         }
 
         return $items;
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @return array{base64ValueCount:int,validBase64ValueCount:int,invalidBase64ValueCount:int}
+     */
+    private static function encryptionBase64ReviewCounts(array $record): array
+    {
+        $counts = [
+            'base64ValueCount' => 0,
+            'validBase64ValueCount' => 0,
+            'invalidBase64ValueCount' => 0,
+        ];
+
+        self::addEncryptionBase64FlagCounts($record['checksumBase64Valid'] ?? null, $counts);
+        foreach (self::encryptionNamedRecords($record, 'algorithm', 'algorithms') as $algorithm) {
+            self::addEncryptionBase64FlagCounts($algorithm['initialisationVectorBase64Valid'] ?? null, $counts);
+        }
+        foreach (self::encryptionNamedRecords($record, 'keyDerivation', 'keyDerivations') as $keyDerivation) {
+            self::addEncryptionBase64FlagCounts($keyDerivation['saltBase64Valid'] ?? null, $counts);
+        }
+
+        return $counts;
+    }
+
+    /**
+     * @param array{base64ValueCount:int,validBase64ValueCount:int,invalidBase64ValueCount:int} $counts
+     */
+    private static function addEncryptionBase64FlagCounts(mixed $valid, array &$counts): void
+    {
+        if (!is_bool($valid)) {
+            return;
+        }
+
+        ++$counts['base64ValueCount'];
+        if ($valid) {
+            ++$counts['validBase64ValueCount'];
+        } else {
+            ++$counts['invalidBase64ValueCount'];
+        }
     }
 
     /**
@@ -6176,6 +6286,12 @@ final class OpenDocumentPackage
             'checksumType' => self::optionalString(self::namespacedAttribute($encryption, self::MANIFEST_NAMESPACE, 'checksum-type')),
             'checksum' => self::optionalString(self::namespacedAttribute($encryption, self::MANIFEST_NAMESPACE, 'checksum')),
         ]);
+        if (is_string($data['checksumType'] ?? null)) {
+            $data['checksumTypeProfile'] = self::encryptionChecksumTypeProfile($data['checksumType']);
+        }
+        if (is_string($data['checksum'] ?? null)) {
+            $data += self::base64ReviewFields($data['checksum'], 'checksum');
+        }
 
         $algorithms = array_map(
             static fn (\DOMElement $algorithm): array => self::manifestEncryptionAlgorithm($algorithm),
@@ -6241,11 +6357,18 @@ final class OpenDocumentPackage
     {
         $initialisationVector = self::namespacedAttribute($algorithm, self::MANIFEST_NAMESPACE, 'initialisation-vector')
             ?? self::namespacedAttribute($algorithm, self::MANIFEST_NAMESPACE, 'initialization-vector');
+        $name = self::optionalString(self::namespacedAttribute($algorithm, self::MANIFEST_NAMESPACE, 'algorithm-name'));
 
-        return self::withoutNulls([
-            'name' => self::optionalString(self::namespacedAttribute($algorithm, self::MANIFEST_NAMESPACE, 'algorithm-name')),
+        $data = self::withoutNulls([
+            'name' => $name,
+            'profile' => self::encryptionAlgorithmProfile($name),
             'initialisationVector' => self::optionalString($initialisationVector),
         ]);
+        if (is_string($data['initialisationVector'] ?? null)) {
+            $data += self::base64ReviewFields($data['initialisationVector'], 'initialisationVector');
+        }
+
+        return $data;
     }
 
     /**
@@ -6253,12 +6376,21 @@ final class OpenDocumentPackage
      */
     private static function manifestEncryptionKeyDerivation(\DOMElement $keyDerivation): array
     {
-        return self::withoutNulls([
-            'name' => self::optionalString(self::namespacedAttribute($keyDerivation, self::MANIFEST_NAMESPACE, 'key-derivation-name')),
+        $name = self::optionalString(self::namespacedAttribute($keyDerivation, self::MANIFEST_NAMESPACE, 'key-derivation-name'));
+        $iterationCount = self::optionalInt(self::namespacedAttribute($keyDerivation, self::MANIFEST_NAMESPACE, 'iteration-count'));
+        $data = self::withoutNulls([
+            'name' => $name,
+            'profile' => self::encryptionKeyDerivationProfile($name),
             'keySize' => self::optionalInt(self::namespacedAttribute($keyDerivation, self::MANIFEST_NAMESPACE, 'key-size')),
-            'iterationCount' => self::optionalInt(self::namespacedAttribute($keyDerivation, self::MANIFEST_NAMESPACE, 'iteration-count')),
+            'iterationCount' => $iterationCount,
+            'iterationCountBucket' => self::encryptionIterationCountBucket($iterationCount),
             'salt' => self::optionalString(self::namespacedAttribute($keyDerivation, self::MANIFEST_NAMESPACE, 'salt')),
         ]);
+        if (is_string($data['salt'] ?? null)) {
+            $data += self::base64ReviewFields($data['salt'], 'salt');
+        }
+
+        return $data;
     }
 
     /**
@@ -6266,10 +6398,143 @@ final class OpenDocumentPackage
      */
     private static function manifestEncryptionStartKeyGeneration(\DOMElement $startKeyGeneration): array
     {
+        $name = self::optionalString(self::namespacedAttribute($startKeyGeneration, self::MANIFEST_NAMESPACE, 'start-key-generation-name'));
+
         return self::withoutNulls([
-            'name' => self::optionalString(self::namespacedAttribute($startKeyGeneration, self::MANIFEST_NAMESPACE, 'start-key-generation-name')),
+            'name' => $name,
+            'profile' => self::encryptionStartKeyGenerationProfile($name),
             'keySize' => self::optionalInt(self::namespacedAttribute($startKeyGeneration, self::MANIFEST_NAMESPACE, 'key-size')),
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function base64ReviewFields(string $value, string $prefix): array
+    {
+        $normalized = preg_replace('/\s+/', '', $value) ?? $value;
+        $decoded = base64_decode($normalized, true);
+        if ($decoded === false) {
+            return [
+                $prefix . 'Base64Valid' => false,
+            ];
+        }
+
+        return [
+            $prefix . 'Base64Valid' => true,
+            $prefix . 'DecodedByteLength' => strlen($decoded),
+        ];
+    }
+
+    private static function encryptionChecksumTypeProfile(?string $checksumType): ?string
+    {
+        $normalized = self::encryptionProfileToken($checksumType);
+        if ($normalized === '') {
+            return null;
+        }
+        if (str_contains($normalized, 'sha1') && str_contains($normalized, '1k')) {
+            return 'sha1-1k';
+        }
+        if (str_contains($normalized, 'sha256') && str_contains($normalized, '1k')) {
+            return 'sha256-1k';
+        }
+        if (str_contains($normalized, 'sha512') && str_contains($normalized, '1k')) {
+            return 'sha512-1k';
+        }
+        if (str_contains($normalized, 'sha1')) {
+            return 'sha1';
+        }
+        if (str_contains($normalized, 'sha256')) {
+            return 'sha256';
+        }
+        if (str_contains($normalized, 'sha512')) {
+            return 'sha512';
+        }
+
+        return 'custom';
+    }
+
+    private static function encryptionAlgorithmProfile(?string $name): ?string
+    {
+        $normalized = self::encryptionProfileToken($name);
+        if ($normalized === '') {
+            return null;
+        }
+        if (str_contains($normalized, 'aes') && str_contains($normalized, '256')) {
+            return 'aes-256';
+        }
+        if (str_contains($normalized, 'aes') && str_contains($normalized, '128')) {
+            return 'aes-128';
+        }
+        if (str_contains($normalized, 'aes')) {
+            return 'aes';
+        }
+        if (str_contains($normalized, 'blowfish')) {
+            return str_contains($normalized, 'cfb') ? 'blowfish-cfb' : 'blowfish';
+        }
+        if (str_contains($normalized, 'chacha20')) {
+            return 'chacha20';
+        }
+        if (str_contains($normalized, 'twofish')) {
+            return 'twofish';
+        }
+
+        return 'custom';
+    }
+
+    private static function encryptionKeyDerivationProfile(?string $name): ?string
+    {
+        $normalized = self::encryptionProfileToken($name);
+        if ($normalized === '') {
+            return null;
+        }
+        foreach (['pbkdf2', 'argon2id', 'argon2i', 'scrypt', 'pgp'] as $profile) {
+            if (str_contains($normalized, $profile)) {
+                return $profile;
+            }
+        }
+
+        return 'custom';
+    }
+
+    private static function encryptionStartKeyGenerationProfile(?string $name): ?string
+    {
+        $normalized = self::encryptionProfileToken($name);
+        if ($normalized === '') {
+            return null;
+        }
+        foreach (['sha1', 'sha256', 'sha384', 'sha512'] as $profile) {
+            if (str_contains($normalized, $profile)) {
+                return $profile;
+            }
+        }
+
+        return 'custom';
+    }
+
+    private static function encryptionIterationCountBucket(?int $iterationCount): ?string
+    {
+        if ($iterationCount === null) {
+            return null;
+        }
+        if ($iterationCount < 1_000) {
+            return 'under-1k';
+        }
+        if ($iterationCount < 10_000) {
+            return '1k-9999';
+        }
+        if ($iterationCount < 100_000) {
+            return '10k-99999';
+        }
+
+        return '100k-plus';
+    }
+
+    private static function encryptionProfileToken(?string $value): string
+    {
+        $value = strtolower(trim((string) $value));
+
+        return preg_replace('/[^a-z0-9]+/', '', $value) ?? '';
     }
 
     /**
