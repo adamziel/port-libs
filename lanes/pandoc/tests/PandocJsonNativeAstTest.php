@@ -4716,9 +4716,12 @@ return [
                 "{$source} edited native" => json_decode((new NativeWriter())->write(new AstNode('document', $document->attrs, [$editedHeading])), true, 512, JSON_THROW_ON_ERROR),
             ] as $writer => $encoded) {
                 $editedAttr = $encoded['blocks'][0]['c'][1];
+                $editedTuple = $editedAttr['c'][0] ?? null;
 
-                $t->same(['edited-heading', ['review'], [['data-source', 'wrapped']]], $editedAttr, "{$writer} regenerates edited wrapped attr as canonical tuple");
-                $t->same(false, array_key_exists('t', $editedAttr), "{$writer} drops stale wrapped attr constructor");
+                $t->same('Attr', $editedAttr['t'] ?? null, "{$writer} preserves edited wrapped attr constructor");
+                $t->same('header-attr-source', $editedAttr['reviewQueue'] ?? null, "{$writer} preserves edited attr wrapper sidecar");
+                $t->same(['edited-heading', ['review'], [['data-source', 'wrapped']]], $editedTuple, "{$writer} regenerates edited wrapped attr tuple");
+                $t->same(false, is_array($editedTuple) && array_key_exists(3, $editedTuple), "{$writer} drops stale wrapped attr tuple sidecars");
             }
         }
     },
@@ -7028,13 +7031,18 @@ return [
                 $editedCellPayload = $encodedCells[0]['c'] ?? $encodedCells[0];
 
                 $t->same([
-                    'merged-cell',
-                    ['merged-edit'],
-                    [
-                        ['data-cell', 'merged-source'],
-                        ['data-review', 'span-attr'],
+                    't' => 'Attr',
+                    'c' => [
+                        'merged-cell',
+                        ['merged-edit'],
+                        [
+                            ['data-cell', 'merged-source'],
+                            ['data-review', 'span-attr'],
+                        ],
                     ],
-                ], $editedCellPayload[0], "{$source} {$writer} writer regenerates edited cell Attr tuple");
+                    'reviewQueue' => 'edit-cell-attr-source',
+                    'sourceOrdinal' => 101,
+                ], $editedCellPayload[0], "{$source} {$writer} writer regenerates edited cell Attr constructor");
                 $t->same($editedCellAlignmentNative, $editedCellPayload[1], "{$source} {$writer} writer preserves unchanged edited-cell alignment helper sidecar");
                 $t->same(['t' => 'RowSpan', 'c' => 2], $editedCellPayload[2], "{$source} {$writer} writer regenerates edited RowSpan helper without stale sidecar");
                 $t->same(['t' => 'ColSpan', 'c' => 3], $editedCellPayload[3], "{$source} {$writer} writer regenerates edited ColSpan helper without stale sidecar");
@@ -7231,14 +7239,18 @@ return [
                 $t->same(false, array_key_exists('reviewQueue', $encodedCells[0]), "{$source} {$writer} writer drops stale edited spanning cell wrapper sidecar");
                 $t->same(false, array_key_exists('sourceOrdinal', $encodedCells[0]), "{$source} {$writer} writer drops stale edited spanning cell wrapper ordinal");
                 $t->same([
-                    'span-edited',
-                    ['source-cell', 'edited-span'],
-                    [
-                        ['data-state', 'edited'],
-                        ['data-review', 'span-sidecar'],
+                    't' => 'Attr',
+                    'c' => [
+                        'span-edited',
+                        ['source-cell', 'edited-span'],
+                        [
+                            ['data-state', 'edited'],
+                            ['data-review', 'span-sidecar'],
+                        ],
                     ],
-                ], $editedPayload[0], "{$source} {$writer} writer regenerates edited spanning cell Attr tuple");
-                $t->same(false, array_key_exists('reviewQueue', $editedPayload[0]), "{$source} {$writer} writer drops stale edited spanning cell Attr sidecar");
+                    'reviewQueue' => 'stale-span-cell-attr-source',
+                    'sourceOrdinal' => 210,
+                ], $editedPayload[0], "{$source} {$writer} writer regenerates edited spanning cell Attr constructor");
                 $t->same($sourceCellAlign, $editedPayload[1], "{$source} {$writer} writer preserves unchanged spanning cell alignment helper sidecar");
                 $t->same(['t' => 'RowSpan', 'c' => 4], $editedPayload[2], "{$source} {$writer} writer regenerates edited RowSpan helper");
                 $t->same(false, array_key_exists('reviewQueue', $editedPayload[2]), "{$source} {$writer} writer drops stale RowSpan sidecar");
@@ -8971,8 +8983,8 @@ return [
             $editedJson = (new PandocJsonWriter())->toArray($editedDocument);
             $editedNative = json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR);
 
-            $t->same(['edited-heading', ['review'], [['data-source', 'json']]], $editedJson['blocks'][0]['c'][1], "{$source} json writer regenerates edited Attr tuple");
-            $t->same(['edited-heading', ['review'], [['data-source', 'json']]], $editedNative['blocks'][0]['c'][1], "{$source} native writer regenerates edited Attr tuple");
+            $t->same(['t' => 'Attr', 'c' => ['edited-heading', ['review'], [['data-source', 'json']]]], $editedJson['blocks'][0]['c'][1], "{$source} json writer regenerates edited Attr constructor");
+            $t->same(['t' => 'Attr', 'c' => ['edited-heading', ['review'], [['data-source', 'json']]]], $editedNative['blocks'][0]['c'][1], "{$source} native writer regenerates edited Attr constructor");
         }
     },
     'preserves native-reader tagged attr sidecars when regenerating edited constructors' => static function (TestRunner $t): void {
@@ -9018,7 +9030,7 @@ return [
         ]);
         $editedAttrJson = (new PandocJsonWriter())->toArray($editedAttrDocument);
         $editedAttrNative = json_decode((new NativeWriter())->write($editedAttrDocument), true, 512, JSON_THROW_ON_ERROR);
-        $regeneratedAttr = ['edited-code', ['php'], [['data-source', 'native-reader']]];
+        $regeneratedAttr = ['t' => 'Attr', 'c' => ['edited-code', ['php'], [['data-source', 'native-reader']]]];
 
         $t->same($regeneratedAttr, $editedAttrJson['blocks'][0]['c'][0], 'json writer regenerates stale tagged Attr sidecar after attr edit');
         $t->same($regeneratedAttr, $editedAttrNative['blocks'][0]['c'][0], 'native writer regenerates stale tagged Attr sidecar after attr edit');
@@ -9079,7 +9091,7 @@ return [
         ]);
         $editedAttrJson = (new PandocJsonWriter())->toArray($editedAttrDocument);
         $editedAttrNative = json_decode((new NativeWriter())->write($editedAttrDocument), true, 512, JSON_THROW_ON_ERROR);
-        $regeneratedAttr = ['edited-json-code', ['php'], [['data-source', 'json-reader']]];
+        $regeneratedAttr = ['t' => 'Attr', 'c' => ['edited-json-code', ['php'], [['data-source', 'json-reader']]]];
 
         $t->same($regeneratedAttr, $editedAttrJson['blocks'][0]['c'][0], 'json writer regenerates json-reader tagged Attr sidecar after attr edit');
         $t->same($regeneratedAttr, $editedAttrNative['blocks'][0]['c'][0], 'native writer regenerates json-reader tagged Attr sidecar after attr edit');
@@ -11961,7 +11973,7 @@ return [
 
                 $t->same('Cell', $cells[0]['t'] ?? null, "{$writer} writer regenerates current edited cell constructor");
                 $t->same(false, array_key_exists('reviewQueue', $cells[0]), "{$writer} writer drops stale edited cell sidecar");
-                $t->same(['edited-cell', ['metric', 'review', 'edited'], [['data-source', 'json'], ['data-state', 'edited']]], $editedPayload[0], "{$writer} writer regenerates edited cell Attr tuple");
+                $t->same(['t' => 'Attr', 'c' => ['edited-cell', ['metric', 'review', 'edited'], [['data-source', 'json'], ['data-state', 'edited']]]], $editedPayload[0], "{$writer} writer regenerates edited cell Attr constructor");
                 $t->same($firstCellAlignment, $editedPayload[1], "{$writer} writer preserves unchanged cell alignment sidecar");
                 $t->same($firstCellRowSpan, $editedPayload[2], "{$writer} writer preserves unchanged cell rowspan sidecar");
                 $t->same($firstCellColSpan, $editedPayload[3], "{$writer} writer preserves unchanged cell colspan sidecar");

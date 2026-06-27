@@ -2620,9 +2620,10 @@ final class PandocJsonWriter
     private function reusableAttrNative(AstNode $node): ?array
     {
         $native = $node->attr('attrNative');
+        $generated = $this->generatedAttrTuple($node);
         $tuple = is_array($native) && array_is_list($native) ? $this->validAttrTuplePrefix($native) : null;
         if ($tuple !== null) {
-            return $this->normalizedAttrTuple($tuple) === $this->normalizedAttrTuple($this->generatedAttrTuple($node))
+            return $this->normalizedAttrTuple($tuple) === $this->normalizedAttrTuple($generated)
                 ? $native
                 : null;
         }
@@ -2637,9 +2638,33 @@ final class PandocJsonWriter
             return null;
         }
 
-        return $this->normalizedAttrTuple($content) === $this->normalizedAttrTuple($this->generatedAttrTuple($node))
+        return $this->normalizedAttrTuple($content) === $this->normalizedAttrTuple($generated)
             ? $tagged
-            : null;
+            : $this->regeneratedAttrNative($tagged, $generated);
+    }
+
+    /**
+     * @param array<string, mixed> $native
+     * @param array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>} $generated
+     * @return array<string, mixed>
+     */
+    private function regeneratedAttrNative(array $native, array $generated): array
+    {
+        $native['c'] = $this->hasSingleWrappedAttrTupleContent($native['c'] ?? null)
+            ? [$generated]
+            : $generated;
+
+        return $native;
+    }
+
+    private function hasSingleWrappedAttrTupleContent(mixed $content): bool
+    {
+        return is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+            && array_is_list($content[0])
+            && $this->validAttrTuplePrefix($content[0]) !== null;
     }
 
     /**
