@@ -660,7 +660,9 @@ final class PandocJsonWriter
             return $native;
         }
 
-        $native['c'] = $payload;
+        $native['c'] = $this->hasSingleWrappedListAttributesContent($native['c'] ?? null)
+            ? [$payload]
+            : $payload;
 
         return $native;
     }
@@ -681,6 +683,16 @@ final class PandocJsonWriter
         }
 
         return is_array($content) && array_is_list($content) && count($content) === 3 ? $content : null;
+    }
+
+    private function hasSingleWrappedListAttributesContent(mixed $content): bool
+    {
+        return is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+            && array_is_list($content[0])
+            && $this->listAttributesNativeContent($content) !== null;
     }
 
     /**
@@ -2047,7 +2059,9 @@ final class PandocJsonWriter
             return null;
         }
 
-        return abs((float) $content - (float) $width) < 0.000000000001 ? $native : null;
+        return abs((float) $content - (float) $width) < 0.000000000001
+            ? $native
+            : $this->regeneratedScalarConstructorNative($native, (float) $width);
     }
 
     /**
@@ -2094,7 +2108,31 @@ final class PandocJsonWriter
 
         $content = $this->singleWrappedScalarContent($tagged['c'] ?? null);
 
-        return is_int($content) && $content === $integer ? $tagged : null;
+        if (!is_int($content)) {
+            return null;
+        }
+
+        return $content === $integer ? $tagged : $this->regeneratedScalarConstructorNative($tagged, $integer);
+    }
+
+    private function regeneratedScalarConstructorNative(array $native, int|float $value): array
+    {
+        $native['c'] = $this->regeneratedScalarConstructorContent($native['c'] ?? null, $value);
+
+        return $native;
+    }
+
+    private function regeneratedScalarConstructorContent(mixed $content, int|float $value): mixed
+    {
+        if (
+            is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+        ) {
+            return [$this->regeneratedScalarConstructorContent($content[0], $value)];
+        }
+
+        return $value;
     }
 
     /**
@@ -2620,9 +2658,10 @@ final class PandocJsonWriter
     private function reusableAttrNative(AstNode $node): ?array
     {
         $native = $node->attr('attrNative');
+        $generated = $this->generatedAttrTuple($node);
         $tuple = is_array($native) && array_is_list($native) ? $this->validAttrTuplePrefix($native) : null;
         if ($tuple !== null) {
-            return $this->normalizedAttrTuple($tuple) === $this->normalizedAttrTuple($this->generatedAttrTuple($node))
+            return $this->normalizedAttrTuple($tuple) === $this->normalizedAttrTuple($generated)
                 ? $native
                 : null;
         }
@@ -2637,9 +2676,33 @@ final class PandocJsonWriter
             return null;
         }
 
-        return $this->normalizedAttrTuple($content) === $this->normalizedAttrTuple($this->generatedAttrTuple($node))
+        return $this->normalizedAttrTuple($content) === $this->normalizedAttrTuple($generated)
             ? $tagged
-            : null;
+            : $this->regeneratedAttrNative($tagged, $generated);
+    }
+
+    /**
+     * @param array<string, mixed> $native
+     * @param array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>} $generated
+     * @return array<string, mixed>
+     */
+    private function regeneratedAttrNative(array $native, array $generated): array
+    {
+        $native['c'] = $this->hasSingleWrappedAttrTupleContent($native['c'] ?? null)
+            ? [$generated]
+            : $generated;
+
+        return $native;
+    }
+
+    private function hasSingleWrappedAttrTupleContent(mixed $content): bool
+    {
+        return is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+            && array_is_list($content[0])
+            && $this->validAttrTuplePrefix($content[0]) !== null;
     }
 
     /**
@@ -2669,7 +2732,12 @@ final class PandocJsonWriter
      */
     private function validAttrTuple(mixed $value): ?array
     {
-        if (!is_array($value) || !array_is_list($value) || count($value) !== 3 || !is_string($value[0])) {
+        if (!is_array($value) || !array_is_list($value) || count($value) !== 3) {
+            return null;
+        }
+
+        $id = $this->validAttrString($value[0]);
+        if ($id === null) {
             return null;
         }
 
@@ -2679,7 +2747,8 @@ final class PandocJsonWriter
 
         $classes = [];
         foreach ($value[1] as $class) {
-            if (!is_string($class)) {
+            $class = $this->validAttrString($class);
+            if ($class === null) {
                 return null;
             }
             $classes[] = $class;
@@ -2691,13 +2760,27 @@ final class PandocJsonWriter
 
         $attributes = [];
         foreach ($value[2] as $pair) {
-            if (!is_array($pair) || !array_is_list($pair) || count($pair) !== 2 || !is_string($pair[0]) || !is_string($pair[1])) {
+            if (!is_array($pair) || !array_is_list($pair) || count($pair) !== 2) {
                 return null;
             }
-            $attributes[] = [$pair[0], $pair[1]];
+            $key = $this->validAttrString($pair[0]);
+            $attributeValue = $this->validAttrString($pair[1]);
+            if ($key === null || $attributeValue === null) {
+                return null;
+            }
+            $attributes[] = [$key, $attributeValue];
         }
 
-        return [$value[0], $classes, $attributes];
+        return [$id, $classes, $attributes];
+    }
+
+    private function validAttrString(mixed $value): ?string
+    {
+        while (is_array($value) && array_is_list($value) && count($value) === 1) {
+            $value = $value[0];
+        }
+
+        return is_string($value) ? $value : null;
     }
 
     /**
