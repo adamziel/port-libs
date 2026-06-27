@@ -12438,6 +12438,113 @@ return [
         $t->same('ready', $summary['entries'][7]['status']);
     },
 
+    'summarizes selected zip handoff order provenance for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $mimetype = 'application/epub+zip';
+        $contentTypesXml = '<Types/>';
+        $documentXml = '<w:document><w:body><w:p>handoff order provenance</w:p></w:body></w:document>';
+        $imageBytes = "image order bytes\n";
+        $largeBytes = "large order bytes\n";
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => 'mimetype', 'data' => $mimetype, 'method' => 0, 'centralIndex' => 3],
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'method' => 0, 'centralIndex' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0, 'centralIndex' => 1],
+            ['name' => 'word/media/image.png', 'data' => $imageBytes, 'method' => 0, 'centralIndex' => 2],
+            ['name' => 'word/media/large.bin', 'data' => $largeBytes, 'method' => 0, 'centralIndex' => 4],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/media/image.png', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => '[Content_Types].xml', 'required' => true, 'kind' => 'file', 'role' => 'content-types'],
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'mimetype', 'required' => false, 'kind' => 'file', 'role' => 'epub-mimetype'],
+            ['name' => 'word/media/large.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 4],
+        ], 1024);
+
+        $selectedOrder = $summary['selectedOrderSummary'];
+        $handoffOrder = $summary['handoffOrderSummary'];
+        $selectedByName = [];
+        foreach ($selectedOrder['entries'] as $entry) {
+            $selectedByName[$entry['name']] = $entry;
+        }
+        $handoffByName = [];
+        foreach ($handoffOrder['entries'] as $entry) {
+            $handoffByName[$entry['name']] = $entry;
+        }
+
+        $t->same(5, $summary['selectedUniqueEntryCount']);
+        $t->same(4, $summary['handoffEntryCount']);
+        $t->same(4, $summary['selectedOrderMismatchEntryCount']);
+        $t->same(4, $summary['handoffOrderMismatchEntryCount']);
+        $t->same(false, $summary['selectedCentralDirectoryOrderMatchesLocalHeaderOrder']);
+        $t->same(false, $summary['handoffCentralDirectoryOrderMatchesLocalHeaderOrder']);
+        $t->same(false, $summary['selectedRequestOrderMatchesCentralDirectoryOrder']);
+        $t->same(false, $summary['selectedRequestOrderMatchesLocalHeaderOrder']);
+
+        $t->same([
+            'word/media/image.png',
+            '[Content_Types].xml',
+            'word/document.xml',
+            'mimetype',
+            'word/media/large.bin',
+        ], $selectedOrder['requestOrderNames']);
+        $t->same([
+            '[Content_Types].xml',
+            'word/document.xml',
+            'word/media/image.png',
+            'mimetype',
+            'word/media/large.bin',
+        ], $selectedOrder['centralDirectoryOrderNames']);
+        $t->same([
+            'mimetype',
+            '[Content_Types].xml',
+            'word/document.xml',
+            'word/media/image.png',
+            'word/media/large.bin',
+        ], $selectedOrder['localHeaderOrderNames']);
+
+        $t->same(2, $summary['entries'][0]['centralDirectoryIndex']);
+        $t->same(3, $summary['entries'][0]['localHeaderOrder']);
+        $t->same(4, $summary['entries'][4]['centralDirectoryIndex']);
+        $t->same(4, $summary['entries'][4]['localHeaderOrder']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['entries'][4]['issues']);
+
+        $t->same(2, $selectedByName['word/media/image.png']['centralDirectoryIndex']);
+        $t->same(3, $selectedByName['word/media/image.png']['localHeaderOrder']);
+        $t->same(0, $selectedByName['word/media/image.png']['requestOrder']);
+        $t->same(2, $selectedByName['word/media/image.png']['centralDirectorySubsetOrder']);
+        $t->same(3, $selectedByName['word/media/image.png']['localHeaderSubsetOrder']);
+        $t->same(false, $selectedByName['word/media/image.png']['matchesCentralDirectoryOrder']);
+        $t->same(['media'], $selectedByName['word/media/image.png']['roles']);
+
+        $t->same(4, $selectedByName['word/media/large.bin']['centralDirectorySubsetOrder']);
+        $t->same(4, $selectedByName['word/media/large.bin']['localHeaderSubsetOrder']);
+        $t->same(true, $selectedByName['word/media/large.bin']['matchesCentralDirectoryOrder']);
+        $t->same(false, isset($handoffByName['word/media/large.bin']));
+
+        $t->same([
+            'word/media/image.png',
+            '[Content_Types].xml',
+            'word/document.xml',
+            'mimetype',
+        ], $handoffOrder['requestOrderNames']);
+        $t->same([
+            '[Content_Types].xml',
+            'word/document.xml',
+            'word/media/image.png',
+            'mimetype',
+        ], $handoffOrder['centralDirectoryOrderNames']);
+        $t->same([
+            'mimetype',
+            '[Content_Types].xml',
+            'word/document.xml',
+            'word/media/image.png',
+        ], $handoffOrder['localHeaderOrderNames']);
+        $t->same(0, $handoffByName['mimetype']['localHeaderOrder']);
+        $t->same(3, $handoffByName['mimetype']['centralDirectoryIndex']);
+        $t->same(4, count($handoffOrder['mismatchedEntries']));
+    },
+
     'preflights aggregate zip package expansion before exposing media bytes' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>aggregate package preflight</w:p></w:body></w:document>';
         $mediaBytes = str_repeat("review media bytes\n", 24);
