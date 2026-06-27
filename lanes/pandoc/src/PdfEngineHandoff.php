@@ -7438,7 +7438,7 @@ final class PdfEngineHandoff
         if (count($ppiHistory) > 1 || $this->typstBoundaryHistoryHasIssues($ppiHistory)) {
             $provenance['ppiHistory'] = $ppiHistory;
         }
-        if ($this->typstBoundaryHistoryHasIssues($pdfStandardHistory)) {
+        if (count($pdfStandardHistory) > 1 || $this->typstBoundaryHistoryHasIssues($pdfStandardHistory)) {
             $provenance['pdfStandardHistory'] = $pdfStandardHistory;
         }
         if ($this->typstBoundaryHistoryHasIssues($featureGateHistory)) {
