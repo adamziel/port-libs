@@ -1453,7 +1453,7 @@ final class BibtexCslParser
     private static function cslTypeForEntry(string $type, array $fields): string
     {
         $entryType = strtolower($type);
-        if ($entryType === 'unpublished' && self::firstField($fields, ['eventtitle']) !== '') {
+        if ($entryType === 'unpublished' && self::firstField($fields, ['eventtitle', 'event-title', 'event']) !== '') {
             return 'speech';
         }
 
@@ -1483,7 +1483,7 @@ final class BibtexCslParser
             return true;
         }
 
-        return $entryType === 'unpublished' && self::firstField($fields, ['eventtitle']) !== '';
+        return $entryType === 'unpublished' && self::firstField($fields, ['eventtitle', 'event-title', 'event']) !== '';
     }
 
     /**
