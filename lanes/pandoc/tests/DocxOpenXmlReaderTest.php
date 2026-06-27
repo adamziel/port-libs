@@ -12775,6 +12775,103 @@ XML;
         $t->same(['customXml/itemProps1.xml', 'customXml/itemPropsBad.xml', 'customXml/itemPropsNoId.xml'], $relationshipTypes[$customXmlPropsRel]['existingTargetParts']);
         $t->same(['customXml/missingProps.xml'], $relationshipTypes[$customXmlPropsRel]['missingTargetParts']);
     },
+    'summarizes docx custom xml external target policy for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
+        $customXmlPropsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps';
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/customXml/local-item.xml" ContentType="application/xml; profile=external-policy"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rLocalCustomXml" Type="' . $customXmlRel . '" Target="../customXml/local-item.xml"/>' . "\n" .
+            '  <Relationship Id="rExternalSafeCustomXml" Type="' . $customXmlRel . '" Target="https://example.test/customXml/remote-item.xml?remote=1#data" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rExternalUnsafeCustomXml" Type="' . $customXmlRel . '" Target="file:///C:/Users/reviewer/custom-item.xml" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['customXml/local-item.xml'] = '<review><title>External policy packet</title></review>';
+        $parts['customXml/_rels/local-item.xml.rels'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rPropsExternalSafe" Type="{$customXmlPropsRel}" Target="https://example.test/customXml/itemProps.xml?remote=1#props" TargetMode="External"/>
+  <Relationship Id="rPropsExternalUnsafe" Type="{$customXmlPropsRel}" Target="file:///C:/Users/reviewer/itemProps.xml" TargetMode="External"/>
+</Relationships>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $customXml = $docx['customXmlParts'];
+        $summary = $docx['packageProvenance']['summary'];
+        $safeItem = $customXml['byRelationshipId']['rExternalSafeCustomXml'];
+        $unsafeItem = $customXml['byRelationshipId']['rExternalUnsafeCustomXml'];
+        $propertiesParts = $customXml['byRelationshipId']['rLocalCustomXml']['propertiesParts'];
+        $safeProperties = $propertiesParts['byRelationshipId']['rPropsExternalSafe'];
+        $unsafeProperties = $propertiesParts['byRelationshipId']['rPropsExternalUnsafe'];
+
+        $t->same($customXml, $docx['packageProvenance']['customXmlParts']);
+        $t->same(3, $customXml['count']);
+        $t->same(2, $customXml['externalCount']);
+        $t->same(1, $customXml['allowedExternalCount']);
+        $t->same(1, $customXml['unsafeExternalCount']);
+        $t->same(['external-target-unsafe-scheme'], $customXml['externalTargetIssueCodes']);
+        $t->same(2, $customXml['propertiesPartCount']);
+        $t->same(2, $customXml['externalPropertiesPartCount']);
+        $t->same(1, $customXml['allowedExternalPropertiesPartCount']);
+        $t->same(1, $customXml['unsafeExternalPropertiesPartCount']);
+        $t->same(['external-target-unsafe-scheme'], $customXml['propertiesExternalTargetIssueCodes']);
+        $t->same(['external-properties', 'external-target-unsafe-scheme'], $customXml['propertiesIssueCodes']);
+
+        $t->same(1, $summary['customXmlAllowedExternalCount']);
+        $t->same(1, $summary['customXmlUnsafeExternalCount']);
+        $t->same(['external-target-unsafe-scheme'], $summary['customXmlExternalTargetIssueCodes']);
+        $t->same(1, $summary['customXmlPropertiesAllowedExternalPartCount']);
+        $t->same(1, $summary['customXmlPropertiesUnsafeExternalPartCount']);
+        $t->same(['external-target-unsafe-scheme'], $summary['customXmlPropertiesExternalTargetIssueCodes']);
+
+        $t->same(true, $safeItem['external']);
+        $t->same('absolute-uri', $safeItem['externalTargetKind']);
+        $t->same('https', $safeItem['externalTargetScheme']);
+        $t->same(true, $safeItem['externalTargetAllowed']);
+        $t->same([], $safeItem['externalTargetIssues']);
+        $t->same(['external-custom-xml'], $safeItem['issues']);
+        $t->same(null, $safeItem['partName']);
+        $t->same('remote=1', $safeItem['targetQuery']);
+        $t->same('data', $safeItem['targetFragment']);
+
+        $t->same(true, $unsafeItem['external']);
+        $t->same('file', $unsafeItem['externalTargetScheme']);
+        $t->same(false, $unsafeItem['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $unsafeItem['externalTargetIssues']);
+        $t->same(['external-custom-xml', 'external-target-unsafe-scheme'], $unsafeItem['issues']);
+
+        $t->same(2, $propertiesParts['count']);
+        $t->same(2, $propertiesParts['externalCount']);
+        $t->same(1, $propertiesParts['allowedExternalTargetCount']);
+        $t->same(1, $propertiesParts['unsafeExternalTargetCount']);
+        $t->same([
+            'https://example.test/customXml/itemProps.xml?remote=1#props',
+            'file:///C:/Users/reviewer/itemProps.xml',
+        ], $propertiesParts['externalTargets']);
+        $t->same(['file:///C:/Users/reviewer/itemProps.xml'], $propertiesParts['unsafeExternalTargets']);
+        $t->same(['external-target-unsafe-scheme'], $propertiesParts['externalTargetIssueCodes']);
+
+        $t->same('https', $safeProperties['externalTargetScheme']);
+        $t->same(true, $safeProperties['externalTargetAllowed']);
+        $t->same(['external-properties'], $safeProperties['issues']);
+        $t->same('remote=1', $safeProperties['targetQuery']);
+        $t->same('props', $safeProperties['targetFragment']);
+        $t->same(null, $safeProperties['partName']);
+
+        $t->same('file', $unsafeProperties['externalTargetScheme']);
+        $t->same(false, $unsafeProperties['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $unsafeProperties['externalTargetIssues']);
+        $t->same(['external-properties', 'external-target-unsafe-scheme'], $unsafeProperties['issues']);
+        $t->true(!isset($safeProperties['bytes']) || $safeProperties['bytes'] === 0, 'external custom XML properties bytes must not be exposed');
+    },
     'reports malformed docx custom xml data store parts without aborting package ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
