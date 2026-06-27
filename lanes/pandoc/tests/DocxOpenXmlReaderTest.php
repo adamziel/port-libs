@@ -1114,6 +1114,93 @@ return [
         $t->same('png', $zeroByteParts[2]['defaultExtension']);
         $t->same(['package-part'], $zeroByteParts[2]['roles']);
     },
+    'summarizes docx package part xml root provenance for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Default Extension="bin" ContentType="application/octet-stream"/>' . "\n" .
+            '  <Override PartName="/customXml/root-review.xml" ContentType="application/xml; profile=root-provenance"/>' . "\n" .
+            '  <Override PartName="/customXml/broken-root.xml" ContentType="application/xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['customXml/root-review.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<pkg:packet xmlns:pkg="urn:example:package-root" xmlns:meta="urn:example:package-meta" review="ready">
+  <meta:title>Package root review</meta:title>
+</pkg:packet>
+XML;
+        $parts['customXml/broken-root.xml'] = '<broken-root>';
+        $parts['customXml/raw.bin'] = 'raw non-xml package bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $byPartName = [];
+        foreach ($summary['partXmlRoots'] as $item) {
+            $byPartName[$item['partName']] = $item;
+        }
+
+        $t->same(9, $summary['partXmlInspectableCount']);
+        $t->same(8, $summary['partXmlValidCount']);
+        $t->same(1, $summary['partXmlInvalidCount']);
+        $t->same(['content-type' => 9], $summary['partXmlInspectionReasonCounts']);
+        $t->same(['customXml/broken-root.xml'], $summary['partXmlInvalidPartNames']);
+        $t->same([
+            'http://schemas.openxmlformats.org/package/2006/content-types' => 1,
+            'http://schemas.openxmlformats.org/package/2006/metadata/core-properties' => 1,
+            'http://schemas.openxmlformats.org/package/2006/relationships' => 2,
+            'http://schemas.openxmlformats.org/wordprocessingml/2006/main' => 3,
+            'urn:example:package-root' => 1,
+        ], $summary['partXmlRootNamespaceCounts']);
+        $t->same([
+            'Relationships' => 2,
+            'Types' => 1,
+            'coreProperties' => 1,
+            'document' => 1,
+            'numbering' => 1,
+            'packet' => 1,
+            'styles' => 1,
+        ], $summary['partXmlRootLocalNameCounts']);
+
+        $contentTypes = $byPartName['[Content_Types].xml'];
+        $t->same(true, $contentTypes['validXml']);
+        $t->same('Types', $contentTypes['rootLocalName']);
+        $t->same('http://schemas.openxmlformats.org/package/2006/content-types', $contentTypes['rootNamespace']);
+        $t->same('content-type', $contentTypes['xmlInspectionReason']);
+        $t->same(true, $inventory['[Content_Types].xml']['xmlInspectable']);
+        $t->same('Types', $inventory['[Content_Types].xml']['rootLocalName']);
+
+        $relationships = $byPartName['word/_rels/document.xml.rels'];
+        $t->same(true, $relationships['validXml']);
+        $t->same('Relationships', $relationships['rootLocalName']);
+        $t->same('http://schemas.openxmlformats.org/package/2006/relationships', $relationships['rootNamespace']);
+        $t->same(['office-document-relationships', 'relationship-part'], $relationships['roles']);
+
+        $custom = $byPartName['customXml/root-review.xml'];
+        $t->same(true, $custom['validXml']);
+        $t->same('urn:example:package-root', $custom['rootNamespace']);
+        $t->same('packet', $custom['rootLocalName']);
+        $t->same('pkg:packet', $custom['rootQualifiedName']);
+        $t->same('pkg', $custom['rootPrefix']);
+        $t->same(1, $custom['rootAttributeCount']);
+        $t->same(2, $custom['rootNamespaceDeclarationCount']);
+        $t->same(['pkg', 'meta'], $custom['rootNamespacePrefixes']);
+        $t->same(hash('sha256', $parts['customXml/root-review.xml']), $inventory['customXml/root-review.xml']['sha256']);
+        $t->same('pkg:packet', $inventory['customXml/root-review.xml']['rootQualifiedName']);
+
+        $broken = $byPartName['customXml/broken-root.xml'];
+        $t->same(false, $broken['validXml']);
+        $t->true(is_string($broken['xmlParseError']) && $broken['xmlParseError'] !== '', 'broken XML parse error should be preserved');
+        $t->same(null, $broken['rootNamespace']);
+        $t->same(null, $broken['rootLocalName']);
+        $t->same(false, $inventory['customXml/broken-root.xml']['validXml']);
+
+        $t->same(false, $inventory['customXml/raw.bin']['xmlInspectable']);
+        $t->same(null, $inventory['customXml/raw.bin']['validXml']);
+        $t->true(!isset($byPartName['customXml/raw.bin']), 'non-XML binary part must not appear in XML root summary');
+    },
     'summarizes docx package part directories for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['customXml/raw-review.bin'] = 'raw custom payload bytes';

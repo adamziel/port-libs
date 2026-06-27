@@ -11390,6 +11390,7 @@ final class DocxOpenXmlReader
         $partBaseNameStems = $this->packagePartBaseNameStemSummary($partInventory);
         $partCaseFoldBaseNames = $this->packagePartCaseFoldBaseNameSummary($partInventory);
         $partNameCharacters = $this->packagePartNameCharacterSummary($partInventory);
+        $partXmlRoots = $this->packagePartXmlRootSummary($partInventory);
         $partContentTypeSyntaxSuffixes = $this->packagePartContentTypeSyntaxSuffixSummary($partInventory);
         $partContentTypeSyntaxSuffixCounts = [];
         $partContentTypeStructuredSyntaxPartCount = 0;
@@ -13858,6 +13859,17 @@ final class DocxOpenXmlReader
             'partNameNonAsciiPartCount' => count($partNameCharacters['flagPartNames']['non-ascii'] ?? []),
             'partNameCharacterFlagCounts' => $partNameCharacters['flagCounts'],
             'partNameCharacterFlagPartNames' => $partNameCharacters['flagPartNames'],
+            'partXmlInspectableCount' => $partXmlRoots['count'],
+            'partXmlValidCount' => $partXmlRoots['validCount'],
+            'partXmlInvalidCount' => $partXmlRoots['invalidCount'],
+            'partXmlInspectionReasonCounts' => $partXmlRoots['inspectionReasonCounts'],
+            'partXmlRootNamespaceCount' => count($partXmlRoots['rootNamespaceCounts']),
+            'partXmlRootNamespaceCounts' => $partXmlRoots['rootNamespaceCounts'],
+            'partXmlRootLocalNameCount' => count($partXmlRoots['rootLocalNameCounts']),
+            'partXmlRootLocalNameCounts' => $partXmlRoots['rootLocalNameCounts'],
+            'partXmlRootQualifiedNameCount' => count($partXmlRoots['rootQualifiedNameCounts']),
+            'partXmlRootQualifiedNameCounts' => $partXmlRoots['rootQualifiedNameCounts'],
+            'partXmlInvalidPartNames' => $partXmlRoots['invalidPartNames'],
             'partContentTypeSyntaxSuffixCount' => count($partContentTypeSyntaxSuffixes),
             'partContentTypeSyntaxSuffixCounts' => $partContentTypeSyntaxSuffixCounts,
             'partContentTypeStructuredSyntaxPartCount' => $partContentTypeStructuredSyntaxPartCount,
@@ -14160,6 +14172,7 @@ final class DocxOpenXmlReader
             'partBaseNameStems' => $partBaseNameStems,
             'partCaseFoldBaseNames' => $partCaseFoldBaseNames,
             'partNameCharacterReviewParts' => $partNameCharacters['parts'],
+            'partXmlRoots' => $partXmlRoots['items'],
             'partContentTypeSyntaxSuffixes' => $partContentTypeSyntaxSuffixes,
             'partContentTypeSources' => $partContentTypeSources,
             'partContentTypes' => $partContentTypes,
@@ -19386,6 +19399,107 @@ final class DocxOpenXmlReader
     }
 
     /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return array{count:int, validCount:int, invalidCount:int, inspectionReasonCounts:array<string, int>, rootNamespaceCounts:array<string, int>, rootLocalNameCounts:array<string, int>, rootQualifiedNameCounts:array<string, int>, invalidPartNames:list<string>, items:list<array<string, mixed>>}
+     */
+    private function packagePartXmlRootSummary(array $partInventory): array
+    {
+        $items = [];
+        $inspectionReasonCounts = [];
+        $rootNamespaceCounts = [];
+        $rootLocalNameCounts = [];
+        $rootQualifiedNameCounts = [];
+        $invalidPartNames = [];
+        $validCount = 0;
+        $invalidCount = 0;
+
+        foreach ($partInventory as $partName => $part) {
+            if (($part['xmlInspectable'] ?? false) !== true) {
+                continue;
+            }
+
+            $partName = (string) ($part['partName'] ?? $partName);
+            $inspectionReason = is_string($part['xmlInspectionReason'] ?? null)
+                ? $part['xmlInspectionReason']
+                : 'unknown';
+            $inspectionReasonCounts[$inspectionReason] = ($inspectionReasonCounts[$inspectionReason] ?? 0) + 1;
+
+            $validXml = $part['validXml'] ?? null;
+            if ($validXml === true) {
+                ++$validCount;
+            } elseif ($validXml === false) {
+                ++$invalidCount;
+                $invalidPartNames[] = $partName;
+            }
+
+            $rootNamespace = is_string($part['rootNamespace'] ?? null) ? $part['rootNamespace'] : null;
+            $rootNamespaceKey = $rootNamespace === null || $rootNamespace === '' ? '(none)' : $rootNamespace;
+            if ($validXml === true) {
+                $rootNamespaceCounts[$rootNamespaceKey] = ($rootNamespaceCounts[$rootNamespaceKey] ?? 0) + 1;
+            }
+
+            $rootLocalName = is_string($part['rootLocalName'] ?? null) ? $part['rootLocalName'] : null;
+            if ($validXml === true && $rootLocalName !== null && $rootLocalName !== '') {
+                $rootLocalNameCounts[$rootLocalName] = ($rootLocalNameCounts[$rootLocalName] ?? 0) + 1;
+            }
+
+            $rootQualifiedName = is_string($part['rootQualifiedName'] ?? null) ? $part['rootQualifiedName'] : null;
+            if ($validXml === true && $rootQualifiedName !== null && $rootQualifiedName !== '') {
+                $rootQualifiedNameCounts[$rootQualifiedName] = ($rootQualifiedNameCounts[$rootQualifiedName] ?? 0) + 1;
+            }
+
+            $items[] = [
+                'partName' => $partName,
+                'directory' => is_string($part['directory'] ?? null)
+                    ? $part['directory']
+                    : $this->packagePartDirectory($partName),
+                'baseName' => is_string($part['baseName'] ?? null)
+                    ? $part['baseName']
+                    : $this->packagePartBaseName($partName),
+                'bytes' => (int) ($part['bytes'] ?? 0),
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
+                'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                'contentTypeBase' => is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '',
+                'contentTypeSource' => is_string($part['contentTypeSource'] ?? null) ? $part['contentTypeSource'] : 'missing',
+                'xmlInspectionReason' => $inspectionReason,
+                'validXml' => is_bool($validXml) ? $validXml : null,
+                'xmlParseError' => is_string($part['xmlParseError'] ?? null) ? $part['xmlParseError'] : null,
+                'rootNamespace' => $rootNamespace,
+                'rootLocalName' => $rootLocalName,
+                'rootQualifiedName' => $rootQualifiedName,
+                'rootPrefix' => is_string($part['rootPrefix'] ?? null) ? $part['rootPrefix'] : null,
+                'rootAttributeCount' => (int) ($part['rootAttributeCount'] ?? 0),
+                'rootNamespaceDeclarationCount' => (int) ($part['rootNamespaceDeclarationCount'] ?? 0),
+                'rootNamespacePrefixes' => array_values(array_map('strval', $part['rootNamespacePrefixes'] ?? [])),
+                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+            ];
+        }
+
+        ksort($inspectionReasonCounts, SORT_STRING);
+        ksort($rootNamespaceCounts, SORT_STRING);
+        ksort($rootLocalNameCounts, SORT_STRING);
+        ksort($rootQualifiedNameCounts, SORT_STRING);
+        sort($invalidPartNames, SORT_STRING);
+        usort(
+            $items,
+            static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName']),
+        );
+
+        return [
+            'count' => count($items),
+            'validCount' => $validCount,
+            'invalidCount' => $invalidCount,
+            'inspectionReasonCounts' => $inspectionReasonCounts,
+            'rootNamespaceCounts' => $rootNamespaceCounts,
+            'rootLocalNameCounts' => $rootLocalNameCounts,
+            'rootQualifiedNameCounts' => $rootQualifiedNameCounts,
+            'invalidPartNames' => $invalidPartNames,
+            'items' => $items,
+        ];
+    }
+
+    /**
      * @param array<string, string> $parts
      * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $rootRelationships
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
@@ -22521,6 +22635,7 @@ final class DocxOpenXmlReader
                 $roles = ['package-part'];
             }
             $partNameCharacterFlags = $this->packagePartNameCharacterFlags($partName);
+            $xmlRoot = $this->packagePartXmlRootInventory($contents, $partName, $contentTypeResolution, $partExtension);
 
             $entry = [
                 'partName' => $partName,
@@ -22559,7 +22674,7 @@ final class DocxOpenXmlReader
                 'partNameHasWhitespace' => in_array('whitespace', $partNameCharacterFlags, true),
                 'partNameHasPercentEncodedOctet' => in_array('percent-encoded-octet', $partNameCharacterFlags, true),
                 'partNameHasNonAscii' => in_array('non-ascii', $partNameCharacterFlags, true),
-            ];
+            ] + $xmlRoot;
             if ($entry['isRelationshipPart']) {
                 $relationshipSourcePart = $this->relationshipSourcePartForInventory($partName);
                 $entry['relationshipSourcePart'] = $relationshipSourcePart;
@@ -22591,6 +22706,74 @@ final class DocxOpenXmlReader
         }
 
         return $flags;
+    }
+
+    /**
+     * @param array<string, mixed> $contentTypeResolution
+     * @return array<string, mixed>
+     */
+    private function packagePartXmlRootInventory(
+        string $contents,
+        string $partName,
+        array $contentTypeResolution,
+        ?string $partExtension,
+    ): array {
+        $inspectionReason = $this->packagePartXmlInspectionReason($partName, $contentTypeResolution, $partExtension);
+        if ($inspectionReason === null) {
+            return [
+                'xmlInspectable' => false,
+                'xmlInspectionReason' => null,
+                'validXml' => null,
+                'xmlParseError' => null,
+                'rootNamespace' => null,
+                'rootLocalName' => null,
+                'rootQualifiedName' => null,
+                'rootPrefix' => null,
+                'rootAttributeCount' => 0,
+                'rootNamespaceDeclarationCount' => 0,
+                'rootNamespacePrefixes' => [],
+            ];
+        }
+
+        $root = $this->xmlRootProvenance($contents, $partName);
+
+        return [
+            'xmlInspectable' => true,
+            'xmlInspectionReason' => $inspectionReason,
+            'validXml' => $root['validXml'],
+            'xmlParseError' => $root['xmlParseError'],
+            'rootNamespace' => $root['namespace'],
+            'rootLocalName' => $root['localName'],
+            'rootQualifiedName' => $root['qualifiedName'],
+            'rootPrefix' => $root['prefix'],
+            'rootAttributeCount' => $root['attributeCount'],
+            'rootNamespaceDeclarationCount' => $root['namespaceDeclarationCount'],
+            'rootNamespacePrefixes' => $root['namespacePrefixes'],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $contentTypeResolution
+     */
+    private function packagePartXmlInspectionReason(
+        string $partName,
+        array $contentTypeResolution,
+        ?string $partExtension,
+    ): ?string {
+        $contentTypeBase = is_string($contentTypeResolution['contentTypeBase'] ?? null)
+            ? strtolower($contentTypeResolution['contentTypeBase'])
+            : '';
+        if ($contentTypeBase === 'application/xml' || $contentTypeBase === 'text/xml' || str_ends_with($contentTypeBase, '+xml')) {
+            return 'content-type';
+        }
+        if ($this->isRelationshipPartName($partName)) {
+            return 'relationship-part';
+        }
+        if ($partExtension === 'xml') {
+            return 'extension';
+        }
+
+        return null;
     }
 
     private function packagePartDirectory(string $partName): string
