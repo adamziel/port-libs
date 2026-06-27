@@ -57,8 +57,11 @@ return [
 
         $decoded = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
 
-        $t->same(['edited-code-id', ['php'], [['data-source', 'native-json']]], $decoded['blocks'][0]['c'][0]);
-        $t->same(false, array_key_exists('reviewQueue', $decoded['blocks'][0]['c'][0]));
+        $t->same([
+            't' => 'Attr',
+            'c' => [['edited-code-id', ['php'], [['data-source', 'native-json']]]],
+            'reviewQueue' => 'attr-source',
+        ], $decoded['blocks'][0]['c'][0]);
         $t->same($formatNative, $decoded['blocks'][1]['c'][0]['c'][0]);
         $t->same('<span data-review="raw">edited</span>', $decoded['blocks'][1]['c'][0]['c'][1]);
     },
