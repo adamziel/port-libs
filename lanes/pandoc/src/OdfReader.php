@@ -114,6 +114,7 @@ final class OdfReader
      *     packageFonts:array<string, mixed>,
      *     packageConfigurations:array<string, mixed>,
      *     packageObjectReplacements:array<string, mixed>,
+     *     packageScripts:array<string, mixed>,
      *     packageLayoutCaches:array<string, mixed>,
      *     packageDatabases:array<string, mixed>,
      *     documentPartVersions:array<string, mixed>,
@@ -157,6 +158,7 @@ final class OdfReader
         $packageFonts = $this->packageFontMetadata($package, $manifest, $undeclaredEntries);
         $packageConfigurations = $this->packageConfigurationMetadata($package, $manifest, $undeclaredEntries);
         $packageObjectReplacements = $this->packageObjectReplacementMetadata($package, $manifest, $undeclaredEntries);
+        $packageScripts = $this->packageScriptMetadata($package, $manifest, $undeclaredEntries);
         $packageLayoutCaches = $this->packageLayoutCacheMetadata($package, $manifest, $undeclaredEntries);
         $packageDatabases = $this->packageDatabaseMetadata($package, $manifest, $undeclaredEntries);
         $packageProvenance = $this->packageProvenance($package, $manifest, $mimetypeEntry, $undeclaredEntries, $styleCatalog);
@@ -175,6 +177,9 @@ final class OdfReader
         }
         if ($packageObjectReplacements['count'] > 0) {
             $metadata['odfPackageObjectReplacements'] = $packageObjectReplacements;
+        }
+        if ($packageScripts['count'] > 0) {
+            $metadata['odfPackageScripts'] = $packageScripts;
         }
         if ($packageLayoutCaches['count'] > 0) {
             $metadata['odfPackageLayoutCaches'] = $packageLayoutCaches;
@@ -249,6 +254,7 @@ final class OdfReader
             'packageFonts' => $packageFonts,
             'packageConfigurations' => $packageConfigurations,
             'packageObjectReplacements' => $packageObjectReplacements,
+            'packageScripts' => $packageScripts,
             'packageLayoutCaches' => $packageLayoutCaches,
             'packageDatabases' => $packageDatabases,
             'trackedChanges' => [
@@ -276,6 +282,7 @@ final class OdfReader
             'packageFonts' => $packageFonts,
             'packageConfigurations' => $packageConfigurations,
             'packageObjectReplacements' => $packageObjectReplacements,
+            'packageScripts' => $packageScripts,
             'packageLayoutCaches' => $packageLayoutCaches,
             'packageDatabases' => $packageDatabases,
             'documentPartVersions' => $documentPartVersions,
@@ -361,6 +368,7 @@ final class OdfReader
                 'packageFonts' => $packageFonts,
                 'packageConfigurations' => $packageConfigurations,
                 'packageObjectReplacements' => $packageObjectReplacements,
+                'packageScripts' => $packageScripts,
                 'packageLayoutCaches' => $packageLayoutCaches,
                 'packageDatabases' => $packageDatabases,
                 'rdfMetadata' => $rdfMetadata,
@@ -14368,6 +14376,97 @@ final class OdfReader
             || str_starts_with($normalized, 'scripts/');
     }
 
+    private static function scriptMediaTypeFromPart(string $part): ?string
+    {
+        $extension = strtolower(pathinfo($part, PATHINFO_EXTENSION));
+
+        return match ($extension) {
+            'bsh' => 'application/x-beanshell',
+            'class' => 'application/java-vm',
+            'jar' => 'application/java-archive',
+            'js', 'mjs' => 'application/javascript',
+            'py' => 'text/x-python',
+            'xba', 'xdl', 'xml' => 'text/xml',
+            default => null,
+        };
+    }
+
+    private static function scriptMediaTypeValid(string $part, string $mediaTypeBase): bool
+    {
+        if ($mediaTypeBase === '') {
+            return false;
+        }
+
+        $expected = self::scriptMediaTypeFromPart($part);
+        if ($expected === null) {
+            return true;
+        }
+
+        $expectedBase = self::mediaTypeReport($expected)['mediaTypeBase'];
+        if ($expectedBase === 'application/javascript') {
+            return in_array($mediaTypeBase, ['application/javascript', 'text/javascript'], true);
+        }
+        if ($expectedBase === 'text/xml') {
+            return in_array($mediaTypeBase, ['text/xml', 'application/xml'], true);
+        }
+        if ($expectedBase === 'text/x-python') {
+            return in_array($mediaTypeBase, ['text/x-python', 'application/x-python'], true);
+        }
+
+        return $mediaTypeBase === $expectedBase;
+    }
+
+    /**
+     * @return array<string, string|null>
+     */
+    private static function scriptPackagePathInfo(string $part, string $mediaTypeBase): array
+    {
+        $trimmed = trim($part, '/');
+        $segments = $trimmed === '' ? [] : explode('/', $trimmed);
+        $container = strtolower($segments[0] ?? '');
+        $extension = strtolower(pathinfo($part, PATHINFO_EXTENSION));
+        $scriptPath = count($segments) > 1 ? implode('/', array_slice($segments, 1)) : null;
+        $module = $extension === '' ? basename($part) : basename($part, '.' . $extension);
+        $library = null;
+        if (in_array($container, ['basic', 'dialogs'], true) && isset($segments[1]) && $segments[1] !== '') {
+            $library = $segments[1];
+        }
+
+        $basename = strtolower(basename($part));
+        $kind = match ($extension) {
+            'bsh' => 'beanshell',
+            'class' => 'java-class',
+            'jar' => 'java-archive',
+            'js', 'mjs' => 'javascript',
+            'py' => 'python',
+            'xba' => 'basic-module',
+            'xdl' => $container === 'dialogs' ? 'basic-dialog' : 'script-xml',
+            'xml' => in_array($basename, ['dialog-lb.xml', 'dialog-lc.xml'], true)
+                ? 'basic-library-index'
+                : match ($container) {
+                    'basic' => 'basic-module',
+                    'dialogs' => 'basic-dialog',
+                    default => 'script-xml',
+                },
+            default => match ($mediaTypeBase) {
+                'application/javascript', 'text/javascript' => 'javascript',
+                'application/java-archive' => 'java-archive',
+                'application/java-vm' => 'java-class',
+                'text/x-python' => 'python',
+                default => $container === 'basic' ? 'basic-package-part' : 'script-package-part',
+            },
+        };
+
+        return [
+            'scriptContainer' => $container === '' ? null : $container,
+            'scriptKind' => $kind,
+            'scriptPath' => $scriptPath,
+            'scriptLibrary' => $library,
+            'scriptModule' => $module === '' ? null : $module,
+            'extension' => $extension === '' ? null : $extension,
+        ];
+    }
+
     private static function isConfigurationPackagePartName(string $part): bool
     {
         return str_starts_with(strtolower(ltrim($part, '/')), 'configurations2/');
@@ -15212,6 +15311,167 @@ final class OdfReader
             'avi', 'm4v', 'mov', 'mp4', 'mpeg', 'mpg', 'ogv', 'webm' => 'video',
             default => null,
         };
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @param list<array<string, mixed>> $undeclaredEntries
+     * @return array<string, mixed>
+     */
+    private function packageScriptMetadata(ZipPackage $package, array $manifest, array $undeclaredEntries): array
+    {
+        $candidatesByPath = [];
+        foreach ($manifest as $entry) {
+            $packagePath = $entry['part'] ?? null;
+            if (!is_string($packagePath) || $packagePath === '' || str_ends_with($packagePath, '/') || !$this->isScriptPackagePartName($packagePath)) {
+                continue;
+            }
+
+            $entry['declared'] = true;
+            $candidatesByPath[$packagePath] = $entry;
+        }
+
+        foreach ($undeclaredEntries as $entry) {
+            $packagePath = $entry['part'] ?? null;
+            if (!is_string($packagePath) || $packagePath === '' || str_ends_with($packagePath, '/') || !$this->isScriptPackagePartName($packagePath)) {
+                continue;
+            }
+
+            $mediaType = self::scriptMediaTypeFromPart($packagePath);
+            $mediaTypeReport = self::mediaTypeReport($mediaType ?? '');
+            $candidatesByPath[$packagePath] = [
+                'fullPath' => $packagePath,
+                'part' => $packagePath,
+                'partReference' => $packagePath,
+                'partSuffix' => null,
+                'partQuery' => null,
+                'partFragment' => null,
+                'mediaType' => $mediaType ?? '',
+                'mediaTypeBase' => $mediaTypeReport['mediaTypeBase'],
+                'mediaTypeHasParameters' => false,
+                'mediaTypeParameterCount' => 0,
+                'mediaTypeParameters' => [],
+                'mediaTypeParameterMap' => [],
+                'exists' => true,
+                'encrypted' => false,
+                'declared' => false,
+                'declaredSize' => null,
+                'declaredSizeMismatch' => false,
+                'byteExposurePolicy' => 'script-package-bytes-blocked',
+            ];
+        }
+
+        ksort($candidatesByPath, SORT_STRING);
+
+        $items = [];
+        $issueCodes = [];
+        $containers = [];
+        $scriptKinds = [];
+        foreach ($candidatesByPath as $packagePath => $entry) {
+            $zipEntry = $package->has($packagePath) ? $package->entry($packagePath) : null;
+            $encrypted = ($entry['encrypted'] ?? false) === true;
+            $declared = ($entry['declared'] ?? false) === true;
+            $mediaType = (string) ($entry['mediaType'] ?? '');
+            if ($mediaType === '') {
+                $mediaType = self::scriptMediaTypeFromPart($packagePath) ?? '';
+            }
+
+            $mediaTypeReport = self::mediaTypeReport($mediaType);
+            $pathInfo = self::scriptPackagePathInfo($packagePath, $mediaTypeReport['mediaTypeBase']);
+            $mediaTypeValid = self::scriptMediaTypeValid($packagePath, $mediaTypeReport['mediaTypeBase']);
+            $issues = [];
+            if (!$zipEntry instanceof ZipPackageEntry) {
+                $issues[] = 'odf-script-missing-package-part';
+            }
+            if (!$declared) {
+                $issues[] = 'odf-script-undeclared-package-part';
+            }
+            if ($encrypted) {
+                $issues[] = 'odf-script-encrypted-package-part';
+            }
+            if (!$mediaTypeValid) {
+                $issues[] = 'odf-script-invalid-media-type';
+            }
+            foreach ($issues as $issue) {
+                $issueCodes[$issue] = true;
+            }
+
+            if (($pathInfo['scriptContainer'] ?? null) !== null) {
+                $containers[(string) $pathInfo['scriptContainer']] = true;
+            }
+            if (($pathInfo['scriptKind'] ?? null) !== null) {
+                $scriptKinds[(string) $pathInfo['scriptKind']] = true;
+            }
+
+            $items[] = [
+                'fullPath' => $entry['fullPath'] ?? $packagePath,
+                'path' => $entry['fullPath'] ?? $packagePath,
+                'packagePath' => $packagePath,
+                'part' => $packagePath,
+                'pathReference' => $entry['partReference'] ?? null,
+                'pathSuffix' => $entry['partSuffix'] ?? null,
+                'pathQuery' => $entry['partQuery'] ?? null,
+                'pathFragment' => $entry['partFragment'] ?? null,
+                'mediaType' => $mediaType === '' ? null : $mediaType,
+                'mediaTypeBase' => $mediaTypeReport['mediaTypeBase'],
+                'mediaTypeHasParameters' => $mediaTypeReport['mediaTypeHasParameters'],
+                'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
+                'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
+                'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
+                'mediaTypeValid' => $mediaTypeValid,
+                'scriptContainer' => $pathInfo['scriptContainer'] ?? null,
+                'scriptKind' => $pathInfo['scriptKind'] ?? null,
+                'scriptPath' => $pathInfo['scriptPath'] ?? null,
+                'scriptLibrary' => $pathInfo['scriptLibrary'] ?? null,
+                'scriptModule' => $pathInfo['scriptModule'] ?? null,
+                'extension' => $pathInfo['extension'] ?? null,
+                'exists' => $zipEntry instanceof ZipPackageEntry,
+                'declared' => $declared,
+                'undeclared' => !$declared,
+                'encrypted' => $encrypted,
+                'valid' => $zipEntry instanceof ZipPackageEntry && !$encrypted && $mediaTypeValid,
+                'byteLength' => !$encrypted && $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
+                'compressedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressedSize : null,
+                'compressionMethod' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressionMethod : null,
+                'compressionMethodName' => $zipEntry instanceof ZipPackageEntry ? self::compressionMethodName($zipEntry->compressionMethod) : null,
+                'crc32' => !$encrypted && $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
+                'storedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
+                'storedCrc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
+                'declaredSize' => $entry['declaredSize'] ?? null,
+                'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
+                'canExposeAsDocumentMedia' => false,
+                'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? 'script-package-bytes-blocked',
+                'reviewPolicy' => 'package-script-metadata-only',
+                'issues' => $issues,
+            ];
+        }
+
+        ksort($issueCodes, SORT_STRING);
+        ksort($containers, SORT_STRING);
+        ksort($scriptKinds, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'readableCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['exists'] === true && ($item['byteLength'] ?? null) !== null,
+            )),
+            'declaredCount' => count(array_filter($items, static fn (array $item): bool => $item['declared'] === true)),
+            'undeclaredCount' => count(array_filter($items, static fn (array $item): bool => $item['undeclared'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] !== true)),
+            'encryptedCount' => count(array_filter($items, static fn (array $item): bool => $item['encrypted'] === true)),
+            'invalidMediaTypeCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['mediaTypeValid'] !== true,
+            )),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'issueCodes' => array_keys($issueCodes),
+            'scriptContainers' => array_keys($containers),
+            'scriptKinds' => array_keys($scriptKinds),
+            'byteExposurePolicy' => 'script-package-bytes-blocked',
+            'reviewPolicy' => 'package-script-metadata-only',
+            'items' => $items,
+        ];
     }
 
     /**
