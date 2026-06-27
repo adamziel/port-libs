@@ -11222,6 +11222,148 @@ return [
         $t->same([$documentEntry, $macroEntry, $commentsEntry], $summary['handoffEntries']);
     },
 
+    'summarizes selected zip handoff creator host systems for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>creator host handoff</w:p></w:body></w:document>';
+        $commentsXml = '<w:comments><w:comment>blocked comments sidecar</w:comment></w:comments>';
+        $legacyBytes = "legacy host payload\n";
+        $themeXml = '<a:theme><a:themeElements/></a:theme>';
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 0,
+                'versionMadeBy' => 0x0314,
+                'versionNeededToExtract' => 20,
+            ],
+            [
+                'name' => 'word/comments.xml',
+                'data' => $commentsXml,
+                'method' => 0,
+                'versionMadeBy' => 0x0a14,
+                'versionNeededToExtract' => 20,
+            ],
+            [
+                'name' => 'word/media/legacy.bin',
+                'data' => $legacyBytes,
+                'method' => 0,
+                'versionMadeBy' => 0x3f14,
+                'versionNeededToExtract' => 20,
+            ],
+            [
+                'name' => 'word/theme/theme1.xml',
+                'data' => $themeXml,
+                'method' => 0,
+                'versionMadeBy' => 0x030a,
+                'versionNeededToExtract' => 20,
+            ],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/comments.xml', 'required' => false, 'kind' => 'file', 'role' => 'comments', 'maxUncompressedBytes' => 8],
+            ['name' => 'word/media/legacy.bin', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'word/theme/theme1.xml', 'required' => false, 'kind' => 'file', 'role' => 'theme'],
+            ['name' => 'word/missing.xml', 'required' => false, 'kind' => 'file', 'role' => 'optional-sidecar'],
+        ], 1024);
+
+        $t->same(3, $summary['selectedCreatorHostSystemBucketCount']);
+        $t->same(1, $summary['selectedUnknownCreatorHostSystemEntryCount']);
+        $t->same(1, $summary['selectedCreatorVersionBelowNeededEntryCount']);
+        $t->same(2, $summary['selectedCreatorHostSystemIssueCount']);
+        $t->same([
+            'creator-version-below-version-needed',
+            'unknown-creator-host-system',
+        ], $summary['selectedCreatorHostSystemIssues']);
+        $t->same(2, $summary['handoffCreatorHostSystemBucketCount']);
+        $t->same(1, $summary['handoffUnknownCreatorHostSystemEntryCount']);
+        $t->same(1, $summary['handoffCreatorVersionBelowNeededEntryCount']);
+        $t->same(2, $summary['handoffCreatorHostSystemIssueCount']);
+        $t->same($summary['selectedCreatorHostSystemIssues'], $summary['handoffCreatorHostSystemIssues']);
+
+        $selectedByHost = [];
+        foreach ($summary['selectedCreatorHostSystemSummaries'] as $hostSummary) {
+            $selectedByHost[$hostSummary['madeByHostSystem']] = $hostSummary;
+        }
+        $handoffByHost = [];
+        foreach ($summary['handoffCreatorHostSystemSummaries'] as $hostSummary) {
+            $handoffByHost[$hostSummary['madeByHostSystem']] = $hostSummary;
+        }
+
+        $unixBytes = strlen($documentXml) + strlen($themeXml);
+        $t->same([
+            'madeByHostSystem' => 3,
+            'madeByHostSystemName' => 'unix',
+            'isKnown' => true,
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => $unixBytes,
+            'uncompressedBytes' => $unixBytes,
+            'creatorVersionMeetsNeededEntryCount' => 1,
+            'creatorVersionBelowNeededEntryCount' => 1,
+            'creatorVersionComparisonCounts' => [
+                'below-needed' => 1,
+                'equals-needed' => 1,
+                'above-needed' => 0,
+            ],
+            'roles' => ['main-document', 'theme'],
+            'entryNames' => ['word/document.xml', 'word/theme/theme1.xml'],
+            'issues' => ['creator-version-below-version-needed'],
+            'issueCounts' => ['creator-version-below-version-needed' => 1],
+        ], $selectedByHost[3]);
+        $t->same($selectedByHost[3], $handoffByHost[3]);
+
+        $t->same([
+            'madeByHostSystem' => 10,
+            'madeByHostSystemName' => 'windows-ntfs',
+            'isKnown' => true,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($commentsXml),
+            'uncompressedBytes' => strlen($commentsXml),
+            'creatorVersionMeetsNeededEntryCount' => 1,
+            'creatorVersionBelowNeededEntryCount' => 0,
+            'creatorVersionComparisonCounts' => [
+                'below-needed' => 0,
+                'equals-needed' => 1,
+                'above-needed' => 0,
+            ],
+            'roles' => ['comments'],
+            'entryNames' => ['word/comments.xml'],
+            'issues' => [],
+            'issueCounts' => [],
+        ], $selectedByHost[10]);
+        $t->same(false, isset($handoffByHost[10]));
+
+        $t->same([
+            'madeByHostSystem' => 63,
+            'madeByHostSystemName' => 'unknown',
+            'isKnown' => false,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($legacyBytes),
+            'uncompressedBytes' => strlen($legacyBytes),
+            'creatorVersionMeetsNeededEntryCount' => 1,
+            'creatorVersionBelowNeededEntryCount' => 0,
+            'creatorVersionComparisonCounts' => [
+                'below-needed' => 0,
+                'equals-needed' => 1,
+                'above-needed' => 0,
+            ],
+            'roles' => ['media'],
+            'entryNames' => ['word/media/legacy.bin'],
+            'issues' => ['unknown-creator-host-system'],
+            'issueCounts' => ['unknown-creator-host-system' => 1],
+        ], $selectedByHost[63]);
+        $t->same($selectedByHost[63], $handoffByHost[63]);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
+        $t->same('blocked', $summary['entries'][1]['status']);
+        $t->same('ready', $summary['entries'][2]['status']);
+        $t->same('ready', $summary['entries'][3]['status']);
+    },
+
     'preflights selected zip entry local fixed header provenance before reader handoff' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
         $documentXml = '<w:document><w:body><w:p>selected fixed header provenance</w:p></w:body></w:document>';
         $commentsXml = '<w:comments><w:comment>fixed header descriptor placeholders</w:comment></w:comments>';

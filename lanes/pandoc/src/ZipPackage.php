@@ -5102,6 +5102,14 @@ final class ZipPackage
      *     selectedWritablePermissionEntryCount:int,
      *     selectedPlatformAttributeIssueEntryCount:int,
      *     selectedPlatformAttributeIssues:list<string>,
+     *     selectedCreatorHostSystemBucketCount:int,
+     *     selectedUnknownCreatorHostSystemEntryCount:int,
+     *     selectedCreatorVersionBelowNeededEntryCount:int,
+     *     selectedCreatorHostSystemIssueCount:int,
+     *     handoffCreatorHostSystemBucketCount:int,
+     *     handoffUnknownCreatorHostSystemEntryCount:int,
+     *     handoffCreatorVersionBelowNeededEntryCount:int,
+     *     handoffCreatorHostSystemIssueCount:int,
      *     selectedCentralDirectoryFixedFieldEntryCount:int,
      *     selectedCentralDirectoryFixedFieldIssueEntryCount:int,
      *     selectedTimestampProvenanceEntryCount:int,
@@ -5161,6 +5169,10 @@ final class ZipPackage
      *     selectedExtraFieldProvenanceEntries:list<array<string, mixed>>,
      *     selectedPlatformAttributeProvenanceEntries:list<array<string, mixed>>,
      *     selectedPlatformAttributeIssueEntries:list<array<string, mixed>>,
+     *     selectedCreatorHostSystemIssues:list<string>,
+     *     handoffCreatorHostSystemIssues:list<string>,
+     *     selectedCreatorHostSystemSummaries:list<array<string, mixed>>,
+     *     handoffCreatorHostSystemSummaries:list<array<string, mixed>>,
      *     selectedCentralDirectoryFixedFieldEntries:list<array<string, mixed>>,
      *     selectedCentralDirectoryFixedFieldIssueEntries:list<array<string, mixed>>,
      *     selectedTimestampIssues:list<string>,
@@ -5398,6 +5410,12 @@ final class ZipPackage
                 'pathDepth' => self::entryHandoffPathDepth($entry->name),
                 'parentDirectory' => self::entryHandoffParentDirectory($entry->name),
                 'packagePartKind' => self::entryHandoffPackagePartKind($entry->name, $isDirectory),
+                'madeByHostSystem' => $entry->madeByHostSystem(),
+                'madeByHostSystemName' => self::creatorHostSystemName($entry->madeByHostSystem()),
+                'madeByVersion' => $entry->madeByVersion(),
+                'versionMadeBy' => $entry->versionMadeBy,
+                'versionNeededToExtract' => $entry->neededToExtractVersion(),
+                'creatorVersionMeetsNeeded' => $entry->madeByVersion() >= $entry->neededToExtractVersion(),
                 'compressedSize' => $entry->compressedSize,
                 'uncompressedSize' => $entry->uncompressedSize,
             ];
@@ -6119,6 +6137,10 @@ final class ZipPackage
         $handoffNameHygieneIssues = self::entryHandoffNameHygieneIssues($handoffNameHygieneIssueSummaries);
         $selectedTimestampSummary = self::entryHandoffTimestampSummary($selectedTimestampSummaryEntries);
         $handoffTimestampSummary = self::entryHandoffTimestampSummary($handoffEntries);
+        $selectedCreatorHostSystemSummaries = self::entryHandoffCreatorHostSystemSummaries($selectedDirectoryRootSummaryEntries);
+        $handoffCreatorHostSystemSummaries = self::entryHandoffCreatorHostSystemSummaries($handoffEntries);
+        $selectedCreatorHostSystemIssues = self::entryHandoffCreatorHostSystemIssues($selectedCreatorHostSystemSummaries);
+        $handoffCreatorHostSystemIssues = self::entryHandoffCreatorHostSystemIssues($handoffCreatorHostSystemSummaries);
         $roleSummaries = self::entryHandoffRoleSummaries($entries);
         $handoffSourceByteSpanSummary = self::entryHandoffSourceByteSpanSummary($handoffEntries);
         $handoffContentDigestSummary = self::entryHandoffContentDigestSummary($handoffEntries);
@@ -6225,6 +6247,26 @@ final class ZipPackage
             'selectedWritablePermissionEntryCount' => $selectedWritablePermissionEntryCount,
             'selectedPlatformAttributeIssueEntryCount' => count($selectedPlatformAttributeIssueEntries),
             'selectedPlatformAttributeIssues' => $selectedPlatformAttributeIssues,
+            'selectedCreatorHostSystemBucketCount' => count($selectedCreatorHostSystemSummaries),
+            'selectedUnknownCreatorHostSystemEntryCount' => self::entryHandoffCreatorHostSystemIssueEntryCount(
+                $selectedCreatorHostSystemSummaries,
+                'unknown-creator-host-system'
+            ),
+            'selectedCreatorVersionBelowNeededEntryCount' => self::entryHandoffCreatorHostSystemIssueEntryCount(
+                $selectedCreatorHostSystemSummaries,
+                'creator-version-below-version-needed'
+            ),
+            'selectedCreatorHostSystemIssueCount' => count($selectedCreatorHostSystemIssues),
+            'handoffCreatorHostSystemBucketCount' => count($handoffCreatorHostSystemSummaries),
+            'handoffUnknownCreatorHostSystemEntryCount' => self::entryHandoffCreatorHostSystemIssueEntryCount(
+                $handoffCreatorHostSystemSummaries,
+                'unknown-creator-host-system'
+            ),
+            'handoffCreatorVersionBelowNeededEntryCount' => self::entryHandoffCreatorHostSystemIssueEntryCount(
+                $handoffCreatorHostSystemSummaries,
+                'creator-version-below-version-needed'
+            ),
+            'handoffCreatorHostSystemIssueCount' => count($handoffCreatorHostSystemIssues),
             'selectedLocalHeaderFixedFieldEntryCount' => count($selectedLocalHeaderFixedFieldEntries),
             'selectedLocalHeaderFixedFieldIssueEntryCount' => count($selectedLocalHeaderFixedFieldIssueEntries),
             'selectedCentralDirectoryFixedFieldEntryCount' => count($selectedCentralDirectoryFixedFieldEntries),
@@ -6344,6 +6386,10 @@ final class ZipPackage
             'selectedExtraFieldProvenanceEntries' => $selectedExtraFieldProvenanceEntries,
             'selectedPlatformAttributeProvenanceEntries' => $selectedPlatformAttributeProvenanceEntries,
             'selectedPlatformAttributeIssueEntries' => $selectedPlatformAttributeIssueEntries,
+            'selectedCreatorHostSystemIssues' => $selectedCreatorHostSystemIssues,
+            'handoffCreatorHostSystemIssues' => $handoffCreatorHostSystemIssues,
+            'selectedCreatorHostSystemSummaries' => $selectedCreatorHostSystemSummaries,
+            'handoffCreatorHostSystemSummaries' => $handoffCreatorHostSystemSummaries,
             'selectedLocalHeaderFixedFieldEntries' => $selectedLocalHeaderFixedFieldEntries,
             'selectedLocalHeaderFixedFieldIssueEntries' => $selectedLocalHeaderFixedFieldIssueEntries,
             'selectedCentralDirectoryFixedFieldEntries' => $selectedCentralDirectoryFixedFieldEntries,
@@ -7122,6 +7168,148 @@ final class ZipPackage
         }
 
         return $ordered;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffCreatorHostSystemSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            $hostSystem = $entry['madeByHostSystem'] ?? null;
+            if ($name === '' || !is_int($hostSystem)) {
+                continue;
+            }
+
+            $hostSystemName = is_string($entry['madeByHostSystemName'] ?? null)
+                ? $entry['madeByHostSystemName']
+                : self::creatorHostSystemName($hostSystem);
+            $isKnown = self::isKnownCreatorHostSystem($hostSystem);
+            if (!isset($summaries[$hostSystem])) {
+                $summaries[$hostSystem] = [
+                    'madeByHostSystem' => $hostSystem,
+                    'madeByHostSystemName' => $hostSystemName,
+                    'isKnown' => $isKnown,
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'creatorVersionMeetsNeededEntryCount' => 0,
+                    'creatorVersionBelowNeededEntryCount' => 0,
+                    'creatorVersionComparisonCounts' => [
+                        'below-needed' => 0,
+                        'equals-needed' => 0,
+                        'above-needed' => 0,
+                    ],
+                    'roles' => [],
+                    'entryNames' => [],
+                    'issues' => [],
+                    'issueCounts' => [],
+                ];
+            }
+
+            ++$summaries[$hostSystem]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$summaries[$hostSystem]['directoryEntryCount'];
+            } else {
+                ++$summaries[$hostSystem]['fileEntryCount'];
+            }
+
+            $summaries[$hostSystem]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$hostSystem]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$hostSystem]['entryNames'][] = $name;
+
+            $madeByVersion = $entry['madeByVersion'] ?? null;
+            $versionNeededToExtract = $entry['versionNeededToExtract'] ?? null;
+            if (is_int($madeByVersion) && is_int($versionNeededToExtract)) {
+                $comparison = $madeByVersion < $versionNeededToExtract
+                    ? 'below-needed'
+                    : ($madeByVersion === $versionNeededToExtract ? 'equals-needed' : 'above-needed');
+                ++$summaries[$hostSystem]['creatorVersionComparisonCounts'][$comparison];
+                if ($comparison === 'below-needed') {
+                    ++$summaries[$hostSystem]['creatorVersionBelowNeededEntryCount'];
+                } else {
+                    ++$summaries[$hostSystem]['creatorVersionMeetsNeededEntryCount'];
+                }
+            } elseif (($entry['creatorVersionMeetsNeeded'] ?? false) === true) {
+                ++$summaries[$hostSystem]['creatorVersionMeetsNeededEntryCount'];
+            }
+
+            $entryIssues = [];
+            if (!$isKnown) {
+                $entryIssues[] = 'unknown-creator-host-system';
+            }
+            if (($entry['creatorVersionMeetsNeeded'] ?? true) === false) {
+                $entryIssues[] = 'creator-version-below-version-needed';
+            }
+
+            foreach ($entryIssues as $issue) {
+                if (!in_array($issue, $summaries[$hostSystem]['issues'], true)) {
+                    $summaries[$hostSystem]['issues'][] = $issue;
+                }
+                $summaries[$hostSystem]['issueCounts'][$issue] = (
+                    $summaries[$hostSystem]['issueCounts'][$issue] ?? 0
+                ) + 1;
+            }
+
+            foreach (self::entryHandoffRolesForSummary($entry) as $role) {
+                if (!in_array($role, $summaries[$hostSystem]['roles'], true)) {
+                    $summaries[$hostSystem]['roles'][] = $role;
+                }
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['roles'], SORT_STRING);
+            sort($summary['issues'], SORT_STRING);
+            ksort($summary['issueCounts'], SORT_STRING);
+        }
+        unset($summary);
+
+        ksort($summaries, SORT_NUMERIC);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $creatorHostSystemSummaries
+     * @return list<string>
+     */
+    private static function entryHandoffCreatorHostSystemIssues(array $creatorHostSystemSummaries): array
+    {
+        $issues = [];
+        foreach ($creatorHostSystemSummaries as $summary) {
+            foreach (($summary['issues'] ?? []) as $issue) {
+                if (is_string($issue) && !in_array($issue, $issues, true)) {
+                    $issues[] = $issue;
+                }
+            }
+        }
+
+        sort($issues, SORT_STRING);
+
+        return $issues;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $creatorHostSystemSummaries
+     */
+    private static function entryHandoffCreatorHostSystemIssueEntryCount(
+        array $creatorHostSystemSummaries,
+        string $issue
+    ): int {
+        $count = 0;
+        foreach ($creatorHostSystemSummaries as $summary) {
+            if (isset($summary['issueCounts'][$issue]) && is_int($summary['issueCounts'][$issue])) {
+                $count += $summary['issueCounts'][$issue];
+            }
+        }
+
+        return $count;
     }
 
     /**
