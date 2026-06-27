@@ -39,6 +39,12 @@ final class OdfReader
     private const MANIFEST_FILE_ENTRY_STRUCTURAL_CHILD_ELEMENTS = [
         'encryption-data' => true,
     ];
+    private const MANIFEST_FILE_ENTRY_CHILD_STRUCTURAL_ATTRIBUTES = [
+        'encryption-data' => [
+            'checksum' => true,
+            'checksum-type' => true,
+        ],
+    ];
     private const MANIFEST_ROOT_STRUCTURAL_ATTRIBUTES = [
         'version' => true,
     ];
@@ -762,11 +768,27 @@ final class OdfReader
             $namespaceUri = (string) $child->namespaceURI;
             $structural = $namespaceUri === self::MANIFEST_NS
                 && isset(self::MANIFEST_FILE_ENTRY_STRUCTURAL_CHILD_ELEMENTS[$child->localName]);
+            $attributeProvenance = $this->manifestElementAttributeProvenance(
+                $child,
+                $namespaceUri === self::MANIFEST_NS
+                    ? (self::MANIFEST_FILE_ENTRY_CHILD_STRUCTURAL_ATTRIBUTES[$child->localName] ?? [])
+                    : []
+            );
             $record = [
                 'name' => $this->qualifiedElementName($child),
                 'localName' => $child->localName,
                 'structural' => $structural,
-                'attributeCount' => $child->hasAttributes() ? $child->attributes->length : 0,
+                'attributeCount' => $attributeProvenance['attributeCount'],
+                'attributeNames' => $attributeProvenance['attributeNames'],
+                'attributes' => $attributeProvenance['attributes'],
+                'customAttributeCount' => $attributeProvenance['customAttributeCount'],
+                'customAttributeNames' => $attributeProvenance['customAttributeNames'],
+                'customAttributes' => $attributeProvenance['customAttributes'],
+                'customAttributeMap' => $attributeProvenance['customAttributeMap'],
+                'namespaceDeclarationCount' => $attributeProvenance['namespaceDeclarationCount'],
+                'namespaceDeclarationNames' => $attributeProvenance['namespaceDeclarationNames'],
+                'namespaceDeclarations' => $attributeProvenance['namespaceDeclarations'],
+                'namespaceDeclarationMap' => $attributeProvenance['namespaceDeclarationMap'],
                 'childElementCount' => count(self::childElements($child)),
             ];
             if ($namespaceUri !== '') {
@@ -1994,6 +2016,7 @@ final class OdfReader
                 'manifestNamespaceDeclarationMap' => $item['manifestNamespaceDeclarationMap'] ?? [],
                 'customManifestChildElementCount' => $item['customManifestChildElementCount'] ?? 0,
                 'customManifestChildElementNames' => $item['customManifestChildElementNames'] ?? [],
+                'customManifestChildElements' => $item['customManifestChildElements'] ?? [],
                 'exists' => ($item['exists'] ?? false) === true,
                 'isDirectory' => ($item['isDirectory'] ?? false) === true,
                 'encrypted' => ($item['encrypted'] ?? false) === true,
@@ -2089,6 +2112,7 @@ final class OdfReader
                 'manifestNamespaceDeclarationMap' => $item['manifestNamespaceDeclarationMap'] ?? [],
                 'customManifestChildElementCount' => $item['customManifestChildElementCount'] ?? 0,
                 'customManifestChildElementNames' => $item['customManifestChildElementNames'] ?? [],
+                'customManifestChildElements' => $item['customManifestChildElements'] ?? [],
                 'manifestDiagnostics' => $item['manifestDiagnostics'] ?? [],
                 'manifestEncryptionIssueCodes' => $item['manifestEncryptionIssueCodes'] ?? [],
                 'scriptPackagePart' => ($item['scriptPackagePart'] ?? false) === true,

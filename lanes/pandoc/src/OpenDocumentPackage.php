@@ -29,6 +29,12 @@ final class OpenDocumentPackage
     private const MANIFEST_FILE_ENTRY_STRUCTURAL_CHILD_ELEMENTS = [
         'encryption-data' => true,
     ];
+    private const MANIFEST_FILE_ENTRY_CHILD_STRUCTURAL_ATTRIBUTES = [
+        'encryption-data' => [
+            'checksum' => true,
+            'checksum-type' => true,
+        ],
+    ];
     private const MANIFEST_ROOT_STRUCTURAL_ATTRIBUTES = [
         'version' => true,
     ];
@@ -910,6 +916,7 @@ final class OpenDocumentPackage
                 'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
                 'customManifestChildElementCount' => $entry['customManifestChildElementCount'] ?? 0,
                 'customManifestChildElementNames' => $entry['customManifestChildElementNames'] ?? [],
+                'customManifestChildElements' => $entry['customManifestChildElements'] ?? [],
                 'diagnostics' => $entry['diagnostics'] ?? [],
             ]);
         }
@@ -983,6 +990,7 @@ final class OpenDocumentPackage
                 'manifestDeclaredSizeMismatch' => ($part['manifestDeclaredSizeMismatch'] ?? false) === true,
                 'customManifestChildElementCount' => $part['customManifestChildElementCount'] ?? 0,
                 'customManifestChildElementNames' => $part['customManifestChildElementNames'] ?? [],
+                'customManifestChildElements' => $part['customManifestChildElements'] ?? [],
                 'manifestDiagnostics' => $part['manifestDiagnostics'] ?? [],
                 'canExposeBytes' => ($part['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $part['byteExposurePolicy'] ?? null,
@@ -5040,11 +5048,27 @@ final class OpenDocumentPackage
             $namespaceUri = (string) $child->namespaceURI;
             $structural = $namespaceUri === self::MANIFEST_NAMESPACE
                 && isset(self::MANIFEST_FILE_ENTRY_STRUCTURAL_CHILD_ELEMENTS[$child->localName]);
+            $attributeProvenance = self::manifestElementAttributeProvenance(
+                $child,
+                $namespaceUri === self::MANIFEST_NAMESPACE
+                    ? (self::MANIFEST_FILE_ENTRY_CHILD_STRUCTURAL_ATTRIBUTES[$child->localName] ?? [])
+                    : []
+            );
             $record = [
                 'name' => self::qualifiedElementName($child),
                 'localName' => $child->localName,
                 'structural' => $structural,
-                'attributeCount' => $child->hasAttributes() ? $child->attributes->length : 0,
+                'attributeCount' => $attributeProvenance['attributeCount'],
+                'attributeNames' => $attributeProvenance['attributeNames'],
+                'attributes' => $attributeProvenance['attributes'],
+                'customAttributeCount' => $attributeProvenance['customAttributeCount'],
+                'customAttributeNames' => $attributeProvenance['customAttributeNames'],
+                'customAttributes' => $attributeProvenance['customAttributes'],
+                'customAttributeMap' => $attributeProvenance['customAttributeMap'],
+                'namespaceDeclarationCount' => $attributeProvenance['namespaceDeclarationCount'],
+                'namespaceDeclarationNames' => $attributeProvenance['namespaceDeclarationNames'],
+                'namespaceDeclarations' => $attributeProvenance['namespaceDeclarations'],
+                'namespaceDeclarationMap' => $attributeProvenance['namespaceDeclarationMap'],
                 'childElementCount' => count(self::childElements($child)),
             ];
             if ($namespaceUri !== '') {

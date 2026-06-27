@@ -483,20 +483,33 @@ return [
         $t->same('urn:wordpress:review', $content['customManifestChildElements'][0]['namespaceUri']);
         $t->same('wp', $content['customManifestChildElements'][0]['prefix']);
         $t->same(1, $content['customManifestChildElements'][0]['attributeCount']);
+        $t->same(['wp:state'], $content['customManifestChildElements'][0]['attributeNames']);
+        $t->same(['wp:state'], $content['customManifestChildElements'][0]['customAttributeNames']);
+        $t->same('manual', $content['customManifestChildElements'][0]['customAttributeMap']['wp:state']);
+        $t->same('urn:wordpress:review', $content['customManifestChildElements'][0]['namespaceDeclarationMap']['xmlns:wp']);
         $t->same(1, $content['customManifestChildElements'][0]['childElementCount']);
 
         $t->same(2, $hero['manifestChildElementCount']);
         $t->same(['manifest:encryption-data', 'loext:media-policy'], $hero['manifestChildElementNames']);
         $t->same(true, $hero['manifestChildElements'][0]['structural']);
+        $t->same(['manifest:checksum', 'manifest:checksum-type'], $hero['manifestChildElements'][0]['attributeNames']);
+        $t->same([], $hero['manifestChildElements'][0]['customAttributeNames']);
+        $t->same(true, $hero['manifestChildElements'][0]['attributes'][0]['structural']);
+        $t->same('hero-checksum', $hero['manifestChildElements'][0]['attributes'][0]['value']);
         $t->same(false, $hero['manifestChildElements'][1]['structural']);
         $t->same(1, $hero['customManifestChildElementCount']);
         $t->same(['loext:media-policy'], $hero['customManifestChildElementNames']);
         $t->same('media-policy', $hero['customManifestChildElements'][0]['localName']);
+        $t->same(['loext:role'], $hero['customManifestChildElements'][0]['attributeNames']);
+        $t->same('review', $hero['customManifestChildElements'][0]['customAttributeMap']['loext:role']);
+        $t->same('urn:libreoffice:manifest', $hero['customManifestChildElements'][0]['namespaceDeclarationMap']['xmlns:loext']);
 
         $t->same(2, $review['manifestCustomChildElementEntryCount']);
         $t->same(2, $review['manifestCustomChildElementCount']);
         $t->same(['loext:media-policy', 'wp:review-hint'], $review['manifestCustomChildElementNames']);
         $t->same(['content.xml', 'Pictures/hero.png'], array_column($review['manifestCustomChildElementItems'], 'part'));
+        $t->same('manual', $review['manifestCustomChildElementItems'][0]['customManifestChildElements'][0]['customAttributeMap']['wp:state']);
+        $t->same('review', $review['manifestCustomChildElementItems'][1]['customManifestChildElements'][0]['customAttributeMap']['loext:role']);
         $t->same(['wp:review-hint'], $reviewByPath['content.xml']['customManifestChildElementNames']);
         $t->same(['loext:media-policy'], $reviewByPath['Pictures/hero.png']['customManifestChildElementNames']);
         $t->same(['wp:review-hint'], $order[1]['customManifestChildElementNames']);
@@ -505,6 +518,8 @@ return [
         $t->same(['loext:media-policy'], $inventory['Pictures/hero.png']['customManifestChildElementNames']);
         $t->same(['wp:review-hint'], $identityByPath['content.xml']['customManifestChildElementNames']);
         $t->same(['loext:media-policy'], $identityByPath['Pictures/hero.png']['customManifestChildElementNames']);
+        $t->same('manual', $identityByPath['content.xml']['customManifestChildElements'][0]['customAttributeMap']['wp:state']);
+        $t->same('review', $identityByPath['Pictures/hero.png']['customManifestChildElements'][0]['customAttributeMap']['loext:role']);
     },
     'keeps compact ODT manifest custom attribute collision provenance stable' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifest = str_replace(
