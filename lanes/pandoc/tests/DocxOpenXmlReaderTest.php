@@ -21630,6 +21630,151 @@ XML;
         $t->true(in_array('embedded-package', $inventory['word/embeddings/header-workbook.xlsx']['roles'], true), 'header chart workbook inventory role missing');
         $t->true(!isset($docx['media']['word/embeddings/header-workbook.xlsx']), 'Header chart workbook package should not be exposed as document media');
     },
+    'summarizes docx footer chart embedded package relationships for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $chartRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart';
+        $packageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+        $footerContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml';
+        $chartContentType = 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml';
+        $workbookContentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        $workbookBytes = 'footer chart workbook bytes';
+        $chartXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <c:chart>
+    <c:externalData r:id="rFooterWorkbook"/>
+  </c:chart>
+</c:chartSpace>
+XML;
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/footer1.xml" ContentType="' . $footerContentType . '"/>' . "\n" .
+            '  <Override PartName="/word/charts/footer-chart.xml" ContentType="' . $chartContentType . '; profile=footer-chart"/>' . "\n" .
+            '  <Override PartName="/word/embeddings/footer-workbook.xlsx" ContentType="' . $workbookContentType . '; profile=footer-data"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rFooterDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml?slot=default#ftr"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '</w:body>',
+            '    <w:sectPr><w:footerReference w:type="default" r:id="rFooterDefault"/></w:sectPr>' . "\n" .
+            '  </w:body>',
+            $parts['word/document.xml']
+        );
+        $parts['word/footer1.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart">
+  <w:p>
+    <w:r><w:drawing><wp:inline><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart r:id="rFooterChart"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>
+  </w:p>
+</w:ftr>
+XML;
+        $parts['word/_rels/footer1.xml.rels'] = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rFooterChart" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="charts/footer-chart.xml?slot=footer#chart"/>
+</Relationships>
+XML;
+        $parts['word/charts/footer-chart.xml'] = $chartXml;
+        $parts['word/charts/_rels/footer-chart.xml.rels'] = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rFooterWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="../embeddings/footer-workbook.xlsx?sheet=Footer#data"/>
+</Relationships>
+XML;
+        $parts['word/embeddings/footer-workbook.xlsx'] = $workbookBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $charts = $docx['chartParts'];
+        $summary = $package['summary'];
+        $chart = $charts['byRelationshipKey']['word/_rels/footer1.xml.rels#rFooterChart'];
+        $embeddedPackages = $chart['embeddedPackages'];
+        $workbook = $embeddedPackages['byRelationshipId']['rFooterWorkbook'];
+        $chartRelationshipsPart = $package['relationshipParts']['word/charts/_rels/footer-chart.xml.rels'];
+        $relationshipTypes = $package['relationshipTypes'];
+        $inventory = $package['parts'];
+
+        $t->same($charts, $package['chartParts']);
+        $t->same(1, $charts['count']);
+        $t->same(1, $charts['relationshipCount']);
+        $t->same(0, $charts['documentCount']);
+        $t->same(0, $charts['headerCount']);
+        $t->same(1, $charts['footerCount']);
+        $t->same(2, $charts['sourcePartCount']);
+        $t->same(['document', 'footer'], $charts['sourceTypes']);
+        $t->same(['word/document.xml', 'word/footer1.xml'], $charts['sourceParts']);
+        $t->same(['word/_rels/document.xml.rels', 'word/_rels/footer1.xml.rels'], $charts['relationshipsParts']);
+        $t->same(['word/_rels/footer1.xml.rels#rFooterChart'], $charts['relationshipKeys']);
+        $t->same(['word/_rels/footer1.xml.rels#rFooterChart'], $charts['referencedRelationshipKeys']);
+        $t->same([], $charts['unreferencedRelationshipKeys']);
+        $t->same(['word/charts/footer-chart.xml'], $charts['partNames']);
+
+        $t->same(0, $summary['chartPartDocumentCount']);
+        $t->same(0, $summary['chartPartHeaderCount']);
+        $t->same(1, $summary['chartPartFooterCount']);
+        $t->same(2, $summary['chartPartSourcePartCount']);
+        $t->same(['document', 'footer'], $summary['chartPartSourceTypes']);
+        $t->same(['word/document.xml', 'word/footer1.xml'], $summary['chartPartSourceParts']);
+        $t->same(['word/_rels/document.xml.rels', 'word/_rels/footer1.xml.rels'], $summary['chartPartRelationshipParts']);
+
+        $t->same('word/_rels/footer1.xml.rels#rFooterChart', $chart['relationshipKey']);
+        $t->same('footer', $chart['sourceType']);
+        $t->same('word/footer1.xml', $chart['sourcePart']);
+        $t->same('word/_rels/footer1.xml.rels', $chart['relationshipsPart']);
+        $t->same(true, $chart['referenced']);
+        $t->same($chartRel, $chart['relationshipType']);
+        $t->same('charts/footer-chart.xml?slot=footer#chart', $chart['target']);
+        $t->same('word/charts/footer-chart.xml?slot=footer#chart', $chart['resolvedTarget']);
+        $t->same('word/charts/footer-chart.xml', $chart['targetPart']);
+        $t->same('slot=footer', $chart['targetQuery']);
+        $t->same('chart', $chart['targetFragment']);
+        $t->same('?slot=footer#chart', $chart['targetReferenceSuffix']);
+        $t->same('word/charts/_rels/footer-chart.xml.rels', $chart['chartRelationshipsPart']);
+        $t->same(1, $chart['chartRelationshipCount']);
+        $t->same(['rFooterWorkbook'], $chart['externalDataRelationshipIds']);
+        $t->same([], $chart['issues']);
+        $t->same(true, $chart['valid']);
+
+        $t->same(1, $embeddedPackages['count']);
+        $t->same(1, $embeddedPackages['referencedCount']);
+        $t->same(['rFooterWorkbook'], $embeddedPackages['relationshipIds']);
+        $t->same(['rFooterWorkbook'], $embeddedPackages['referencedRelationshipIds']);
+        $t->same(true, $workbook['referenced']);
+        $t->same($packageRel, $workbook['type']);
+        $t->same('../embeddings/footer-workbook.xlsx?sheet=Footer#data', $workbook['target']);
+        $t->same('word/embeddings/footer-workbook.xlsx?sheet=Footer#data', $workbook['resolvedTarget']);
+        $t->same('word/embeddings/footer-workbook.xlsx', $workbook['targetPart']);
+        $t->same('sheet=Footer', $workbook['targetQuery']);
+        $t->same('data', $workbook['targetFragment']);
+        $t->same($workbookContentType . '; profile=footer-data', $workbook['contentType']);
+        $t->same($workbookContentType, $workbook['contentTypeBase']);
+        $t->same(['profile' => 'footer-data'], $workbook['contentTypeParameterMap']);
+        $t->same(strlen($workbookBytes), $workbook['byteLength']);
+        $t->same(sprintf('%08x', crc32($workbookBytes)), $workbook['crc32']);
+        $t->same(hash('sha256', $workbookBytes), $workbook['sha256']);
+        $t->same([], $workbook['issues']);
+        $t->same(true, $workbook['valid']);
+
+        $t->same(1, $summary['chartPartCount']);
+        $t->same(1, $summary['chartPartRelationshipCount']);
+        $t->same(1, $summary['chartEmbeddedPackageCount']);
+        $t->same(1, $summary['chartEmbeddedPackageExistingCount']);
+        $t->same(0, $summary['chartEmbeddedPackageIssueCount']);
+        $t->same(1, $chartRelationshipsPart['relationshipCount']);
+        $t->same('word/charts/footer-chart.xml', $chartRelationshipsPart['sourcePart']);
+        $t->same($workbookContentType, $chartRelationshipsPart['relationships']['rFooterWorkbook']['contentTypeBase']);
+        $t->same(1, $relationshipTypes[$chartRel]['count']);
+        $t->same(1, $relationshipTypes[$packageRel]['count']);
+        $t->true(in_array('chart-part', $inventory['word/charts/footer-chart.xml']['roles'], true), 'footer chart inventory role missing');
+        $t->true(in_array('embedded-package', $inventory['word/embeddings/footer-workbook.xlsx']['roles'], true), 'footer chart workbook inventory role missing');
+        $t->true(!isset($docx['media']['word/embeddings/footer-workbook.xlsx']), 'Footer chart workbook package should not be exposed as document media');
+    },
     'summarizes docx diagram embedded package relationships for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $dataRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData';
