@@ -2936,6 +2936,10 @@ XML;
         foreach ($scripts['items'] as $item) {
             $scriptByPath[$item['packagePath']] = $item;
         }
+        $scriptDirectoryByPath = [];
+        foreach ($scripts['directories'] as $directory) {
+            $scriptDirectoryByPath[$directory['packagePath']] = $directory;
+        }
         $reviewByPath = [];
         foreach ($summary['manifestReview']['items'] as $item) {
             $reviewByPath[$item['path']] = $item;
@@ -2947,6 +2951,7 @@ XML;
         $t->same(5, $scripts['declaredCount']);
         $t->same(1, $scripts['undeclaredCount']);
         $t->same(1, $scripts['missingCount']);
+        $t->same(2, $scripts['directoryCount']);
         $t->same(1, $scripts['encryptedCount']);
         $t->same(3, $scripts['issueCount']);
         $t->same([
@@ -2958,6 +2963,29 @@ XML;
         $t->same(['basic-module', 'javascript', 'script-package-part'], $scripts['scriptKinds']);
         $t->same('script-package-bytes-blocked', $scripts['byteExposurePolicy']);
         $t->same('package-script-metadata-only', $scripts['reviewPolicy']);
+        $t->same(['Basic/', 'Scripts/'], array_column($scripts['directories'], 'packagePath'));
+
+        $basicRoot = $scriptDirectoryByPath['Basic/'];
+        $t->same('basic', $basicRoot['scriptContainer']);
+        $t->same('basic-script-root', $basicRoot['scriptDirectoryKind']);
+        $t->same(true, $basicRoot['isDirectory']);
+        $t->same(true, $basicRoot['declared']);
+        $t->same(null, $basicRoot['byteLength']);
+        $t->same(0, $basicRoot['storedByteLength']);
+        $t->same(false, $basicRoot['canExposeBytes']);
+        $t->same(false, $basicRoot['canExposeAsDocumentMedia']);
+        $t->same('directory-entry-no-bytes', $basicRoot['byteExposurePolicy']);
+        $t->same('package-script-metadata-only', $basicRoot['reviewPolicy']);
+        $t->same([], $basicRoot['issues']);
+
+        $scriptsRoot = $scriptDirectoryByPath['Scripts/'];
+        $t->same('scripts', $scriptsRoot['scriptContainer']);
+        $t->same('script-root', $scriptsRoot['scriptDirectoryKind']);
+        $t->same(true, $scriptsRoot['isDirectory']);
+        $t->same(null, $scriptsRoot['byteLength']);
+        $t->same(0, $scriptsRoot['storedByteLength']);
+        $t->same(false, $scriptsRoot['canExposeBytes']);
+        $t->same('directory-entry-no-bytes', $scriptsRoot['byteExposurePolicy']);
 
         $t->same(7, $summary['manifestReview']['scriptPackagePartCount']);
         $t->same([

@@ -4158,13 +4158,19 @@ final class OpenDocumentPackage
     private static function packageScriptMetadata(ZipPackage $package, array $manifestEntries, array $undeclaredPackageEntries): array
     {
         $candidatesByPath = [];
+        $directories = [];
         foreach ($manifestEntries as $entry) {
             $packagePath = $entry['packagePath'] ?? null;
-            if (!is_string($packagePath) || $packagePath === '' || str_ends_with($packagePath, '/') || !self::isScriptPackagePartName($packagePath)) {
+            if (!is_string($packagePath) || $packagePath === '' || !self::isScriptPackagePartName($packagePath)) {
                 continue;
             }
 
             $entry['declared'] = true;
+            if (str_ends_with($packagePath, '/')) {
+                $directories[] = self::packageScriptDirectoryMetadata($entry, $packagePath);
+                continue;
+            }
+
             $candidatesByPath[$packagePath] = $entry;
         }
 
@@ -4296,6 +4302,7 @@ final class OpenDocumentPackage
             'declaredCount' => count(array_filter($items, static fn (array $item): bool => $item['declared'] === true)),
             'undeclaredCount' => count(array_filter($items, static fn (array $item): bool => $item['undeclared'] === true)),
             'missingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] !== true)),
+            'directoryCount' => count($directories),
             'encryptedCount' => count(array_filter($items, static fn (array $item): bool => $item['encrypted'] === true)),
             'invalidMediaTypeCount' => count(array_filter(
                 $items,
@@ -4307,7 +4314,63 @@ final class OpenDocumentPackage
             'scriptKinds' => array_keys($scriptKinds),
             'byteExposurePolicy' => 'script-package-bytes-blocked',
             'reviewPolicy' => 'package-script-metadata-only',
+            'directories' => $directories,
             'items' => $items,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @return array<string, mixed>
+     */
+    private static function packageScriptDirectoryMetadata(array $entry, string $packagePath): array
+    {
+        $mediaType = (string) ($entry['mediaType'] ?? '');
+        $mediaTypeReport = self::mediaTypeReport($mediaType);
+        $pathInfo = self::scriptPackagePathInfo($packagePath, $mediaTypeReport['mediaTypeBase']);
+        $issues = [];
+        if ($mediaTypeReport['mediaTypeBase'] !== '') {
+            $issues[] = 'odf-script-directory-media-type';
+        }
+
+        return [
+            'fullPath' => $entry['path'] ?? $packagePath,
+            'path' => $entry['path'] ?? $packagePath,
+            'packagePath' => $packagePath,
+            'part' => $packagePath,
+            'pathReference' => $entry['pathReference'] ?? null,
+            'pathSuffix' => $entry['pathSuffix'] ?? null,
+            'pathQuery' => $entry['pathQuery'] ?? null,
+            'pathFragment' => $entry['pathFragment'] ?? null,
+            'mediaType' => $mediaType === '' ? null : $mediaType,
+            'mediaTypeBase' => $mediaTypeReport['mediaTypeBase'],
+            'mediaTypeHasParameters' => $mediaTypeReport['mediaTypeHasParameters'],
+            'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
+            'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
+            'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
+            'scriptContainer' => $pathInfo['scriptContainer'] ?? null,
+            'scriptDirectoryKind' => self::scriptPackageDirectoryKind($packagePath),
+            'scriptPath' => $pathInfo['scriptPath'] ?? null,
+            'scriptLibrary' => $pathInfo['scriptLibrary'] ?? null,
+            'extension' => null,
+            'exists' => ($entry['exists'] ?? true) === true,
+            'isDirectory' => true,
+            'declared' => ($entry['declared'] ?? false) === true,
+            'undeclared' => ($entry['declared'] ?? false) !== true,
+            'encrypted' => ($entry['encrypted'] ?? false) === true,
+            'valid' => ($entry['exists'] ?? true) === true && ($entry['encrypted'] ?? false) !== true && $issues === [],
+            'byteLength' => null,
+            'compressedByteLength' => $entry['compressedByteLength'] ?? null,
+            'compressionMethod' => $entry['compressionMethod'] ?? null,
+            'compressionMethodName' => $entry['compressionMethodName'] ?? null,
+            'crc32' => null,
+            'storedByteLength' => $entry['storedByteLength'] ?? null,
+            'storedCrc32' => $entry['storedCrc32'] ?? null,
+            'canExposeBytes' => false,
+            'canExposeAsDocumentMedia' => false,
+            'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? 'directory-entry-no-bytes',
+            'reviewPolicy' => 'package-script-metadata-only',
+            'issues' => $issues,
         ];
     }
 
@@ -4636,6 +4699,26 @@ final class OpenDocumentPackage
             'scriptModule' => $module === '' ? null : $module,
             'extension' => $extension === '' ? null : $extension,
         ];
+    }
+
+    private static function scriptPackageDirectoryKind(string $path): string
+    {
+        $segments = explode('/', trim($path, '/'));
+        $container = strtolower($segments[0] ?? '');
+        if (count($segments) <= 1) {
+            return match ($container) {
+                'basic' => 'basic-script-root',
+                'dialogs' => 'basic-dialog-root',
+                'scripts' => 'script-root',
+                default => 'script-directory',
+            };
+        }
+
+        return match ($container) {
+            'basic' => 'basic-library-directory',
+            'dialogs' => 'basic-dialog-library-directory',
+            default => 'script-directory',
+        };
     }
 
     /**
