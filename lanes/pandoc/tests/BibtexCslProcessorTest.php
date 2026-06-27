@@ -2456,6 +2456,90 @@ XML);
         $t->contains('<p>Cluster review [Alpha Cluster Packet | 2026; Beta Cluster Packet | 2025] stays resolved.</p>', $blocks);
         $t->contains('<dt>Alpha 2026</dt><dd>Alpha Cluster Packet :: 2026</dd>', $blocks);
     },
+    'carries split biblatex url date aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@online{split-url-access,
+  author   = {Ng, Nia},
+  title    = {Split URL Access Packet},
+  date     = {2026},
+  url      = {https://example.test/split-url-access},
+  urlyear  = {2026},
+  urlmonth = {june},
+  urlday   = {5}
+}
+
+@online{whole-url-access,
+  author   = {Curator, Eli},
+  title    = {Whole URL Access Packet},
+  date     = {2025},
+  url      = {https://example.test/whole-url-access},
+  urldate  = {2026-06-01},
+  urlyear  = {2026},
+  urlmonth = {7},
+  urlday   = {9}
+}
+
+@online{checked-url-access,
+  author      = {Desk, Archive},
+  title       = {Checked URL Access Packet},
+  date        = {2024},
+  url         = {https://example.test/checked-url-access},
+  lastchecked = {2026-07-10}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $split = $items['split-url-access'];
+        $whole = $items['whole-url-access'];
+        $checked = $items['checked-url-access'];
+
+        $t->same([2026, 6, 5], $split['accessed']['date-parts'][0] ?? null);
+        $t->same([2026, 6, 1], $whole['accessed']['date-parts'][0] ?? null);
+        $t->same([2026, 7, 10], $checked['accessed']['date-parts'][0] ?? null);
+        $t->same('june', $split['rawBibtex']['fields']['urlmonth']);
+        $t->same('2026-06-01', $whole['rawBibtex']['fields']['urldate']);
+        $t->same('2026-07-10', $checked['rawBibtex']['fields']['lastchecked']);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <date variable="accessed"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="accessed"/>
+      <text variable="url"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('[Ng | 2026-06-05; Curator | 2026-06-01; Desk | 2026-07-10]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'split-url-access', 'text' => '[@split-url-access]']),
+            new AstNode('citation', ['id' => 'whole-url-access', 'text' => '[@whole-url-access]']),
+            new AstNode('citation', ['id' => 'checked-url-access', 'text' => '[@checked-url-access]']),
+        ]));
+        $t->same('Split URL Access Packet :: 2026-06-05 :: https://example.test/split-url-access', $styled->renderBibliographyEntry('split-url-access'));
+
+        $document = (new MarkdownReader())->read('Split access dates [@split-url-access; @whole-url-access; @checked-url-access] remain visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Accessed Sources'));
+
+        $t->same(['split-url-access', 'whole-url-access', 'checked-url-access'], $handoff['citedKeys']);
+        $t->same([2026, 6, 5], $handoff['items'][0]['accessed']['date-parts'][0] ?? null);
+        $t->same([2026, 7, 10], $handoff['items'][2]['accessed']['date-parts'][0] ?? null);
+        $t->contains('<p>Split access dates [Ng | 2026-06-05; Curator | 2026-06-01; Desk | 2026-07-10] remain visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Split URL Access Packet :: 2026-06-05 :: https://example.test/split-url-access</dd>', $blocks);
+        $t->contains('<dt>Desk 2024</dt><dd>Checked URL Access Packet :: 2026-07-10 :: https://example.test/checked-url-access</dd>', $blocks);
+    },
     'collects cited keys in document order with missing bibliography diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Review @fielding2000 before @missing and [@lovelace1843]. Repeat @fielding2000.');
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-bibtex-csl-review.bib');

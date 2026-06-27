@@ -886,7 +886,11 @@ final class BibtexCslProcessor
             $item['issued'] = ['date-parts' => [$date]];
         }
 
-        $accessed = $this->datePartsFromFields($fields, ['urldate', 'accessed', 'accessdate'], []);
+        $accessed = $this->datePartsFromFields(
+            $fields,
+            ['urldate', 'accessed', 'accessdate', 'lastchecked', 'lastaccessed', 'visited'],
+            ['urlyear', 'urlmonth', 'urlday']
+        );
         if ($accessed !== null) {
             $item['accessed'] = ['date-parts' => [$accessed]];
         }
@@ -1453,8 +1457,9 @@ final class BibtexCslProcessor
 
         $parts = [(int) $fields[$yearField]];
         $month = is_string($monthField) ? ($fields[$monthField] ?? '') : '';
-        if ($month !== '' && ctype_digit($month)) {
-            $parts[] = (int) $month;
+        $monthNumber = $this->monthNumber($month);
+        if ($monthNumber !== null) {
+            $parts[] = $monthNumber;
         }
 
         $day = is_string($dayField) ? ($fields[$dayField] ?? '') : '';
@@ -1466,6 +1471,34 @@ final class BibtexCslProcessor
         }
 
         return $parts;
+    }
+
+    private function monthNumber(string $month): ?int
+    {
+        $month = strtolower(trim($month));
+        if ($month === '') {
+            return null;
+        }
+
+        if (ctype_digit($month)) {
+            return (int) $month;
+        }
+
+        return match (substr($month, 0, 3)) {
+            'jan' => 1,
+            'feb' => 2,
+            'mar' => 3,
+            'apr' => 4,
+            'may' => 5,
+            'jun' => 6,
+            'jul' => 7,
+            'aug' => 8,
+            'sep' => 9,
+            'oct' => 10,
+            'nov' => 11,
+            'dec' => 12,
+            default => null,
+        };
     }
 
     /**
