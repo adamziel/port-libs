@@ -32,7 +32,9 @@ final class WordPressBlockWriter
                 $blocks[] = $metadataBlock;
             }
         }
-        foreach ($document->children as $node) {
+        $children = $document->children;
+        for ($index = 0, $count = count($children); $index < $count; $index++) {
+            $node = $children[$index];
             if ($node->type !== 'list_item') {
                 $this->flushList($pendingList, $blocks);
             }
@@ -59,6 +61,11 @@ final class WordPressBlockWriter
             } elseif ($node->type === 'table') {
                 $blocks[] = $this->renderTable($node);
             } elseif ($node->type === 'raw_html') {
+                $inlineContainer = $this->tryRenderRawHtmlInlineContainerParagraph($children, $index);
+                if ($inlineContainer !== null) {
+                    $blocks[] = $inlineContainer;
+                    continue;
+                }
                 $blocks[] = $this->renderRawHtmlBlock($node);
             } elseif ($node->type === 'raw_tex') {
                 $blocks[] = $this->renderRawTexBlock($node);
@@ -329,6 +336,44 @@ final class WordPressBlockWriter
 
         return '<!-- wp:paragraph -->'
             . "\n" . '<p' . $this->renderBlockHtmlAttrs($node) . '>' . $this->renderInlines($node) . '</p>'
+            . "\n" . '<!-- /wp:paragraph -->';
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function tryRenderRawHtmlInlineContainerParagraph(array $nodes, int &$index): ?string
+    {
+        $open = $nodes[$index] ?? null;
+        $body = $nodes[$index + 1] ?? null;
+        $close = $nodes[$index + 2] ?? null;
+        if (
+            !$open instanceof AstNode
+            || !$body instanceof AstNode
+            || !$close instanceof AstNode
+            || $open->type !== 'raw_html'
+            || !in_array($body->type, ['paragraph', 'plain'], true)
+            || $close->type !== 'raw_html'
+            || $this->shouldSkipEmptyParagraphLikeBlock($body)
+        ) {
+            return null;
+        }
+
+        $openHtml = trim((string) $open->attr('html', ''));
+        $closeHtml = trim((string) $close->attr('html', ''));
+        if (preg_match('/^<(del|ins|button)(?:\s+(?:"[^"]*"|\'[^\']*\'|[^\'"<>])*)?>$/iu', $openHtml, $match) !== 1) {
+            return null;
+        }
+
+        $tag = preg_quote((string) $match[1], '/');
+        if (preg_match('/^<\/' . $tag . '\s*>$/iu', $closeHtml) !== 1) {
+            return null;
+        }
+
+        $index += 2;
+
+        return '<!-- wp:paragraph -->'
+            . "\n" . '<p>' . $openHtml . $this->renderInlines($body) . $closeHtml . '</p>'
             . "\n" . '<!-- /wp:paragraph -->';
     }
 
