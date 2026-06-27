@@ -1087,6 +1087,13 @@ final class DocxOpenXmlReader
         $packageProvenance['chartParts'] = $chartParts;
         $packageProvenance['summary']['chartPartCount'] = $chartParts['count'];
         $packageProvenance['summary']['chartPartRelationshipCount'] = $chartParts['relationshipCount'];
+        $packageProvenance['summary']['chartPartDocumentCount'] = $chartParts['documentCount'];
+        $packageProvenance['summary']['chartPartHeaderCount'] = $chartParts['headerCount'];
+        $packageProvenance['summary']['chartPartFooterCount'] = $chartParts['footerCount'];
+        $packageProvenance['summary']['chartPartSourcePartCount'] = $chartParts['sourcePartCount'];
+        $packageProvenance['summary']['chartPartSourceTypes'] = $chartParts['sourceTypes'];
+        $packageProvenance['summary']['chartPartSourceParts'] = $chartParts['sourceParts'];
+        $packageProvenance['summary']['chartPartRelationshipParts'] = $chartParts['relationshipsParts'];
         $packageProvenance['summary']['chartPartReferencedCount'] = $chartParts['referencedCount'];
         $packageProvenance['summary']['chartPartExistingCount'] = $chartParts['existingCount'];
         $packageProvenance['summary']['chartPartMissingCount'] = $chartParts['missingCount'];
