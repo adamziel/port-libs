@@ -1253,7 +1253,7 @@ final class PandocJsonWriter
             $this->writeTableRows($section->children),
         ];
 
-        return $this->reusableTaggedTableHelperNative($section, $constructor, $payload)
+        return $this->taggedTableHelperNative($section, $constructor, $payload)
             ?? $this->taggedTableHelper($constructor, $payload);
     }
 
@@ -1272,7 +1272,7 @@ final class PandocJsonWriter
             $this->writeTableRows($body->children),
         ];
 
-        return $this->reusableTaggedTableHelperNative($body, 'TableBody', $payload)
+        return $this->taggedTableHelperNative($body, 'TableBody', $payload)
             ?? $this->taggedTableHelper('TableBody', $payload);
     }
 
@@ -1292,7 +1292,7 @@ final class PandocJsonWriter
                 $this->attrTuple($row),
                 $this->writeTableCells($row->children),
             ];
-            $encoded[] = $this->reusableTaggedTableHelperNative($row, 'Row', $payload)
+            $encoded[] = $this->taggedTableHelperNative($row, 'Row', $payload)
                 ?? $this->taggedTableHelper('Row', $payload);
         }
 
@@ -1322,7 +1322,7 @@ final class PandocJsonWriter
                 $this->integerConstructorNative($cell->attr('colSpanNative'), 'ColSpan', $colspan) ?? ['t' => 'ColSpan', 'c' => $colspan],
                 $this->reusableLegacyTableCellBlocksNative($cell, $blocks) ?? $blocks,
             ];
-            $encoded[] = $this->reusableTaggedTableHelperNative($cell, 'Cell', $payload)
+            $encoded[] = $this->taggedTableHelperNative($cell, 'Cell', $payload)
                 ?? $this->taggedTableHelper('Cell', $payload);
         }
 
@@ -1401,7 +1401,7 @@ final class PandocJsonWriter
      * @param list<mixed> $payload
      * @return array<string, mixed>|null
      */
-    private function reusableTaggedTableHelperNative(AstNode $node, string $constructor, array $payload): ?array
+    private function taggedTableHelperNative(AstNode $node, string $constructor, array $payload): ?array
     {
         $native = $node->attr('native');
         if (!is_array($native) || array_is_list($native) || ($native['t'] ?? null) !== $constructor) {
@@ -1413,12 +1413,42 @@ final class PandocJsonWriter
             return $native;
         }
 
-        return (
+        if (
             is_array($content)
             && array_is_list($content)
             && count($content) === 1
             && $content[0] === $payload
-        ) ? $native : null;
+        ) {
+            return $native;
+        }
+
+        $shape = $this->taggedTableHelperContentShape($content, count($payload));
+        if ($shape === null) {
+            return null;
+        }
+
+        return [
+            't' => $constructor,
+            'c' => $shape === 'wrapped' ? [$payload] : $payload,
+        ];
+    }
+
+    private function taggedTableHelperContentShape(mixed $content, int $payloadSize): ?string
+    {
+        if (!is_array($content) || !array_is_list($content)) {
+            return null;
+        }
+
+        if (count($content) === $payloadSize) {
+            return 'direct';
+        }
+
+        return (
+            count($content) === 1
+            && is_array($content[0])
+            && array_is_list($content[0])
+            && count($content[0]) === $payloadSize
+        ) ? 'wrapped' : null;
     }
 
     /**
