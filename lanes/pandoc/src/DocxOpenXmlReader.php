@@ -804,10 +804,21 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['endnotesIssueCodes'] = $endnotes['summary']['issueCodes'];
         $packageProvenance['customXmlParts'] = $customXmlParts;
         $packageProvenance['summary']['customXmlPartCount'] = $customXmlParts['count'];
+        $packageProvenance['summary']['customXmlRelationshipCount'] = $customXmlParts['relationshipCount'];
+        $packageProvenance['summary']['customXmlExistingPartCount'] = $customXmlParts['existingCount'];
+        $packageProvenance['summary']['customXmlMissingPartCount'] = $customXmlParts['missingCount'];
+        $packageProvenance['summary']['customXmlExternalPartCount'] = $customXmlParts['externalCount'];
+        $packageProvenance['summary']['customXmlByteLength'] = $customXmlParts['byteLength'];
+        $packageProvenance['summary']['customXmlByteDigestCount'] = $customXmlParts['byteDigestCount'];
+        $packageProvenance['summary']['customXmlInvalidXmlCount'] = $customXmlParts['invalidXmlCount'];
+        $packageProvenance['summary']['customXmlMissingContentTypeCount'] = $customXmlParts['missingContentTypeCount'];
+        $packageProvenance['summary']['customXmlMissingPropertiesRelationshipCount'] = $customXmlParts['missingPropertiesRelationshipCount'];
         $packageProvenance['summary']['customXmlPropertiesPartCount'] = $customXmlParts['propertiesPartCount'];
         $packageProvenance['summary']['customXmlPropertiesExistingPartCount'] = $customXmlParts['existingPropertiesPartCount'];
         $packageProvenance['summary']['customXmlPropertiesMissingPartCount'] = $customXmlParts['missingPropertiesPartCount'];
         $packageProvenance['summary']['customXmlPropertiesExternalPartCount'] = $customXmlParts['externalPropertiesPartCount'];
+        $packageProvenance['summary']['customXmlPropertiesByteLength'] = $customXmlParts['propertiesByteLength'];
+        $packageProvenance['summary']['customXmlPropertiesByteDigestCount'] = $customXmlParts['propertiesByteDigestCount'];
         $packageProvenance['summary']['customXmlAllowedExternalCount'] = $customXmlParts['allowedExternalCount'];
         $packageProvenance['summary']['customXmlUnsafeExternalCount'] = $customXmlParts['unsafeExternalCount'];
         $packageProvenance['summary']['customXmlExternalTargetIssueCodes'] = $customXmlParts['externalTargetIssueCodes'];
@@ -830,6 +841,8 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['customXmlTextPreviewCount'] = $customXmlParts['textPreviewCount'];
         $packageProvenance['summary']['customXmlRootAttributeCount'] = $customXmlParts['rootAttributeCount'];
         $packageProvenance['summary']['customXmlRootNamespaceDeclarationCount'] = $customXmlParts['rootNamespaceDeclarationCount'];
+        $packageProvenance['summary']['customXmlStoreItemIds'] = $customXmlParts['storeItemIds'];
+        $packageProvenance['summary']['customXmlSchemaRefs'] = $customXmlParts['schemaRefs'];
         $packageProvenance['summary']['customXmlDuplicateStoreItemIdCount'] = $customXmlParts['duplicateStoreItemIdCount'];
         $packageProvenance['summary']['customXmlDuplicateStoreItemIds'] = $customXmlParts['duplicateStoreItemIds'];
         $packageProvenance['contentControls'] = $contentControls;
@@ -837,7 +850,12 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['contentControlDataBindingCount'] = $contentControls['dataBindingCount'];
         $packageProvenance['summary']['contentControlMatchedDataBindingCount'] = $contentControls['matchedDataBindingCount'];
         $packageProvenance['summary']['contentControlUnmatchedDataBindingCount'] = $contentControls['unmatchedDataBindingCount'];
+        $packageProvenance['summary']['contentControlMissingStoreItemIdCount'] = $contentControls['missingStoreItemIdCount'];
         $packageProvenance['summary']['contentControlDuplicateStoreItemBindingCount'] = $contentControls['duplicateStoreItemBindingCount'];
+        $packageProvenance['summary']['contentControlScopeCounts'] = $contentControls['scopeCounts'];
+        $packageProvenance['summary']['contentControlStoreItemIds'] = $contentControls['storeItemIds'];
+        $packageProvenance['summary']['contentControlMatchedStoreItemIds'] = $contentControls['matchedStoreItemIds'];
+        $packageProvenance['summary']['contentControlTags'] = $contentControls['tags'];
         $packageProvenance['summary']['contentControlIssueCount'] = $contentControls['issueCount'];
         $packageProvenance['summary']['contentControlIssueCodes'] = $contentControls['issueCodes'];
         $packageProvenance['settingsRelationships'] = $settingsRelationshipInventory;
@@ -8707,6 +8725,10 @@ final class DocxOpenXmlReader
         $textPreviewCount = 0;
         $rootAttributeCount = 0;
         $rootNamespaceDeclarationCount = 0;
+        $byteLength = 0;
+        $byteDigestCount = 0;
+        $propertiesByteLength = 0;
+        $propertiesByteDigestCount = 0;
         foreach ($items as $item) {
             $this->appendUniqueString($rootNames, is_string($item['rootName'] ?? null) ? $item['rootName'] : null);
             $rootNamespace = is_string($item['rootNamespace'] ?? null) ? $item['rootNamespace'] : '';
@@ -8718,6 +8740,12 @@ final class DocxOpenXmlReader
             }
             $rootAttributeCount += (int) ($item['rootAttributeCount'] ?? 0);
             $rootNamespaceDeclarationCount += (int) ($item['rootNamespaceDeclarationCount'] ?? 0);
+            if (($item['exists'] ?? false) === true) {
+                $byteLength += (int) ($item['byteLength'] ?? 0);
+                if (is_string($item['sha256'] ?? null) && $item['sha256'] !== '') {
+                    ++$byteDigestCount;
+                }
+            }
             $propertiesParts = $item['propertiesParts'];
             $propertiesPartCount += (int) $propertiesParts['count'];
             $existingPropertiesPartCount += (int) $propertiesParts['existingCount'];
@@ -8744,6 +8772,12 @@ final class DocxOpenXmlReader
                 }
             }
             foreach ($propertiesParts['items'] as $propertiesItem) {
+                if (($propertiesItem['exists'] ?? false) === true) {
+                    $propertiesByteLength += (int) ($propertiesItem['byteLength'] ?? 0);
+                    if (is_string($propertiesItem['sha256'] ?? null) && $propertiesItem['sha256'] !== '') {
+                        ++$propertiesByteDigestCount;
+                    }
+                }
                 foreach (($propertiesItem['issues'] ?? []) as $issue) {
                     if (is_string($issue) && $issue !== '') {
                         $issueCodes[$issue] = true;
@@ -8781,6 +8815,8 @@ final class DocxOpenXmlReader
             'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
             'allowedExternalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true && ($item['externalTargetAllowed'] ?? null) === true)),
             'unsafeExternalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true && ($item['externalTargetAllowed'] ?? null) !== true)),
+            'byteLength' => $byteLength,
+            'byteDigestCount' => $byteDigestCount,
             'externalTargetIssueCodes' => array_keys($externalTargetIssueCodes),
             'invalidXmlCount' => count(array_filter($items, static fn (array $item): bool => in_array('invalid-xml', $item['issues'], true))),
             'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-content-type', $item['issues'], true))),
@@ -8789,6 +8825,8 @@ final class DocxOpenXmlReader
             'existingPropertiesPartCount' => $existingPropertiesPartCount,
             'missingPropertiesPartCount' => $missingPropertiesPartCount,
             'externalPropertiesPartCount' => $externalPropertiesPartCount,
+            'propertiesByteLength' => $propertiesByteLength,
+            'propertiesByteDigestCount' => $propertiesByteDigestCount,
             'allowedExternalPropertiesPartCount' => $allowedExternalPropertiesPartCount,
             'unsafeExternalPropertiesPartCount' => $unsafeExternalPropertiesPartCount,
             'propertiesExternalTargetIssueCodes' => array_keys($propertiesExternalTargetIssueCodes),
@@ -9257,6 +9295,9 @@ final class DocxOpenXmlReader
             'externalTargetIssues' => $summary['externalTargetIssues'],
             'exists' => $exists,
             'bytes' => $exists && $targetPart !== null ? strlen($parts[$targetPart]) : 0,
+            'byteLength' => $exists && $targetPart !== null ? strlen($parts[$targetPart]) : null,
+            'crc32' => $exists && $targetPart !== null ? sprintf('%08x', crc32($parts[$targetPart])) : null,
+            'sha256' => $exists && $targetPart !== null ? hash('sha256', $parts[$targetPart]) : null,
             'contentType' => $summary['contentType'],
             'contentTypeBase' => $summary['contentTypeBase'],
             'contentTypeHasParameters' => $summary['contentTypeHasParameters'],
@@ -9286,6 +9327,9 @@ final class DocxOpenXmlReader
             'relationshipCount' => count($partRelationships),
             'propertiesParts' => $propertiesParts,
             'relationship' => $summary,
+            'canExposeBytes' => false,
+            'byteExposurePolicy' => 'custom-xml-data-store-bytes-blocked',
+            'reviewPolicy' => 'custom-xml-data-store-metadata-only',
             'issues' => $issues,
         ];
     }
@@ -9474,6 +9518,9 @@ final class DocxOpenXmlReader
             'externalTargetIssues' => $summary['externalTargetIssues'],
             'exists' => $exists,
             'bytes' => $exists && $targetPart !== null ? strlen($parts[$targetPart]) : 0,
+            'byteLength' => $exists && $targetPart !== null ? strlen($parts[$targetPart]) : null,
+            'crc32' => $exists && $targetPart !== null ? sprintf('%08x', crc32($parts[$targetPart])) : null,
+            'sha256' => $exists && $targetPart !== null ? hash('sha256', $parts[$targetPart]) : null,
             'contentType' => $summary['contentType'],
             'contentTypeBase' => $summary['contentTypeBase'],
             'contentTypeHasParameters' => $summary['contentTypeHasParameters'],
@@ -9498,6 +9545,9 @@ final class DocxOpenXmlReader
             'duplicateSchemaRefs' => $metadata['duplicateSchemaRefs'],
             'duplicateSchemaRefCount' => count($metadata['duplicateSchemaRefs']),
             'relationship' => $summary,
+            'canExposeBytes' => false,
+            'byteExposurePolicy' => 'custom-xml-properties-bytes-blocked',
+            'reviewPolicy' => 'custom-xml-properties-metadata-only',
             'issues' => $issues,
         ];
     }
