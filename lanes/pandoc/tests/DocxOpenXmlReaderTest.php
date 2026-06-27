@@ -12633,6 +12633,19 @@ XML;
         $t->same(['rCustomXml', 'rMissingCustomXml'], $customXml['relationshipIds']);
         $t->same(['customXml/item1.xml', 'customXml/missing-item.xml'], $customXml['partNames']);
         $t->same(2, $summary['customXmlPartCount']);
+        $t->same(2, $summary['customXmlRelationshipCount']);
+        $t->same(1, $summary['customXmlExistingPartCount']);
+        $t->same(1, $summary['customXmlMissingPartCount']);
+        $t->same(0, $summary['customXmlExternalPartCount']);
+        $t->same(strlen($parts['customXml/item1.xml']), $summary['customXmlByteLength']);
+        $t->same(1, $summary['customXmlByteDigestCount']);
+        $t->same(0, $summary['customXmlInvalidXmlCount']);
+        $t->same(0, $summary['customXmlMissingContentTypeCount']);
+        $t->same(0, $summary['customXmlMissingPropertiesRelationshipCount']);
+        $t->same(strlen($parts['customXml/itemProps1.xml']), $summary['customXmlPropertiesByteLength']);
+        $t->same(1, $summary['customXmlPropertiesByteDigestCount']);
+        $t->same(['{11111111-2222-3333-4444-555555555555}'], $summary['customXmlStoreItemIds']);
+        $t->same(['urn:example:review-schema', 'urn:example:review-extra'], $summary['customXmlSchemaRefs']);
         $t->same(1, $summary['customXmlIssueCount']);
 
         $t->same('customXml/item1.xml', $item['partName']);
@@ -12641,6 +12654,12 @@ XML;
         $t->same('?slot=1#payload', $item['targetReferenceSuffix']);
         $t->same(true, $item['exists']);
         $t->same(strlen($parts['customXml/item1.xml']), $item['bytes']);
+        $t->same(strlen($parts['customXml/item1.xml']), $item['byteLength']);
+        $t->same(sprintf('%08x', crc32($parts['customXml/item1.xml'])), $item['crc32']);
+        $t->same(hash('sha256', $parts['customXml/item1.xml']), $item['sha256']);
+        $t->same(false, $item['canExposeBytes']);
+        $t->same('custom-xml-data-store-bytes-blocked', $item['byteExposurePolicy']);
+        $t->same('custom-xml-data-store-metadata-only', $item['reviewPolicy']);
         $t->same('application/xml; profile=review-data', $item['contentType']);
         $t->same('application/xml', $item['contentTypeBase']);
         $t->same(['profile' => 'review-data'], $item['contentTypeParameterMap']);
@@ -12658,6 +12677,13 @@ XML;
         $t->same('customXml/itemProps1.xml#props', $properties['resolvedTarget']);
         $t->same('#props', $properties['targetReferenceSuffix']);
         $t->same(true, $properties['exists']);
+        $t->same(strlen($parts['customXml/itemProps1.xml']), $properties['bytes']);
+        $t->same(strlen($parts['customXml/itemProps1.xml']), $properties['byteLength']);
+        $t->same(sprintf('%08x', crc32($parts['customXml/itemProps1.xml'])), $properties['crc32']);
+        $t->same(hash('sha256', $parts['customXml/itemProps1.xml']), $properties['sha256']);
+        $t->same(false, $properties['canExposeBytes']);
+        $t->same('custom-xml-properties-bytes-blocked', $properties['byteExposurePolicy']);
+        $t->same('custom-xml-properties-metadata-only', $properties['reviewPolicy']);
         $t->same('application/vnd.openxmlformats-officedocument.customXmlProperties+xml', $properties['contentType']);
         $t->same('application/vnd.openxmlformats-officedocument.customxmlproperties+xml', $properties['contentTypeBase']);
         $t->same(true, $properties['contentTypeMatchesExpected']);
@@ -12670,6 +12696,8 @@ XML;
 
         $t->same('customXml/missing-item.xml', $missing['partName']);
         $t->same(false, $missing['exists']);
+        $t->same(null, $missing['byteLength']);
+        $t->same(null, $missing['sha256']);
         $t->same('application/xml', $missing['contentType']);
         $t->same(null, $missing['validXml']);
         $t->same(0, $missing['propertiesParts']['count']);
@@ -12681,6 +12709,85 @@ XML;
         $t->same(['customXml/missing-item.xml'], $relationshipTypes[$customXmlRel]['missingTargetParts']);
         $t->same('customXmlProps', $relationshipTypes[$customXmlPropsRel]['label']);
         $t->same(['customXml/itemProps1.xml'], $relationshipTypes[$customXmlPropsRel]['existingTargetParts']);
+    },
+    'preserves docx custom xml metadata-only digest rollups for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
+        $customXmlPropsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps';
+        $storeItemId = '{12121212-3434-5656-7878-909090909090}';
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/customXml/digest-item.xml" ContentType="application/xml; profile=digest"/>' . "\n" .
+            '  <Override PartName="/customXml/digest-props.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml; profile=digest"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rDigestCustomXml" Type="' . $customXmlRel . '" Target="../customXml/digest-item.xml?batch=review#payload"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['customXml/digest-item.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<review:digest xmlns:review="urn:example:digest">
+  <review:label>Metadata-only digest packet</review:label>
+</review:digest>
+XML;
+        $parts['customXml/_rels/digest-item.xml.rels'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rDigestProps" Type="{$customXmlPropsRel}" Target="digest-props.xml?source=store#props"/>
+</Relationships>
+XML;
+        $parts['customXml/digest-props.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<ds:datastoreItem ds:itemID="{$storeItemId}" xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml">
+  <ds:schemaRefs>
+    <ds:schemaRef ds:uri="urn:example:digest-schema"/>
+  </ds:schemaRefs>
+</ds:datastoreItem>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $customXml = $docx['customXmlParts'];
+        $summary = $docx['packageProvenance']['summary'];
+        $item = $customXml['byRelationshipId']['rDigestCustomXml'];
+        $properties = $item['propertiesParts']['byRelationshipId']['rDigestProps'];
+
+        $t->same(1, $customXml['count']);
+        $t->same(1, $customXml['byteDigestCount']);
+        $t->same(strlen($parts['customXml/digest-item.xml']), $customXml['byteLength']);
+        $t->same(1, $customXml['propertiesByteDigestCount']);
+        $t->same(strlen($parts['customXml/digest-props.xml']), $customXml['propertiesByteLength']);
+        $t->same([$storeItemId], $customXml['storeItemIds']);
+        $t->same(['urn:example:digest-schema'], $customXml['schemaRefs']);
+        $t->same(1, $summary['customXmlByteDigestCount']);
+        $t->same(strlen($parts['customXml/digest-item.xml']), $summary['customXmlByteLength']);
+        $t->same(1, $summary['customXmlPropertiesByteDigestCount']);
+        $t->same(strlen($parts['customXml/digest-props.xml']), $summary['customXmlPropertiesByteLength']);
+        $t->same([$storeItemId], $summary['customXmlStoreItemIds']);
+        $t->same(['urn:example:digest-schema'], $summary['customXmlSchemaRefs']);
+
+        $t->same('customXml/digest-item.xml', $item['partName']);
+        $t->same('?batch=review#payload', $item['targetReferenceSuffix']);
+        $t->same(strlen($parts['customXml/digest-item.xml']), $item['byteLength']);
+        $t->same(sprintf('%08x', crc32($parts['customXml/digest-item.xml'])), $item['crc32']);
+        $t->same(hash('sha256', $parts['customXml/digest-item.xml']), $item['sha256']);
+        $t->same(false, $item['canExposeBytes']);
+        $t->same('custom-xml-data-store-bytes-blocked', $item['byteExposurePolicy']);
+        $t->same('custom-xml-data-store-metadata-only', $item['reviewPolicy']);
+
+        $t->same('customXml/digest-props.xml', $properties['partName']);
+        $t->same('?source=store#props', $properties['targetReferenceSuffix']);
+        $t->same(strlen($parts['customXml/digest-props.xml']), $properties['byteLength']);
+        $t->same(sprintf('%08x', crc32($parts['customXml/digest-props.xml'])), $properties['crc32']);
+        $t->same(hash('sha256', $parts['customXml/digest-props.xml']), $properties['sha256']);
+        $t->same(false, $properties['canExposeBytes']);
+        $t->same('custom-xml-properties-bytes-blocked', $properties['byteExposurePolicy']);
+        $t->same('custom-xml-properties-metadata-only', $properties['reviewPolicy']);
+        $t->same($storeItemId, $properties['itemId']);
     },
     'preserves docx custom xml item root metadata for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
@@ -13325,7 +13432,12 @@ XML;
         $t->same(2, $summary['contentControlDataBindingCount']);
         $t->same(1, $summary['contentControlMatchedDataBindingCount']);
         $t->same(1, $summary['contentControlUnmatchedDataBindingCount']);
+        $t->same(0, $summary['contentControlMissingStoreItemIdCount']);
         $t->same(0, $summary['contentControlDuplicateStoreItemBindingCount']);
+        $t->same(['block' => 1, 'inline' => 1], $summary['contentControlScopeCounts']);
+        $t->same([$storeItemId, $missingStoreItemId], $summary['contentControlStoreItemIds']);
+        $t->same([$storeItemId], $summary['contentControlMatchedStoreItemIds']);
+        $t->same(['reviewer-name', 'missing-review-field'], $summary['contentControlTags']);
         $t->same(1, $summary['contentControlIssueCount']);
         $t->same(['unmatched-store-item-id'], $summary['contentControlIssueCodes']);
 
