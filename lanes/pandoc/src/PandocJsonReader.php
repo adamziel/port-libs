@@ -1907,33 +1907,24 @@ final class PandocJsonReader
             throw new \InvalidArgumentException('Attr must have at least 3 entries');
         }
         $tuple = array_slice($attrTuple, 0, 3);
-        if (!is_string($tuple[0])) {
-            throw new \InvalidArgumentException('Attr identifier must be a string');
-        }
+        $id = $this->attrStringContent($tuple[0], 'Attr identifier');
 
         $classes = $this->listContent($tuple[1], 'Attr classes');
-        foreach ($classes as $class) {
-            if (!is_string($class)) {
-                throw new \InvalidArgumentException('Attr classes must be strings');
-            }
-        }
+        $classes = array_map(fn (mixed $class): string => $this->attrStringContent($class, 'Attr classes'), $classes);
 
         $attributes = $this->listContent($tuple[2], 'Attr key-values');
         $mappedAttributes = [];
         foreach ($attributes as $attribute) {
             $keyValue = $this->tuple($attribute, 2, 'Attr key-value');
-            if (!is_string($keyValue[0]) || !is_string($keyValue[1])) {
-                throw new \InvalidArgumentException('Attr key-value entries must be strings');
-            }
-            $mappedAttributes[$keyValue[0]] = $keyValue[1];
+            $mappedAttributes[$this->attrStringContent($keyValue[0], 'Attr key-value key')] = $this->attrStringContent($keyValue[1], 'Attr key-value value');
         }
 
         $attrs = [
             'attrConstructor' => 'Attr',
             'attrNative' => $this->isTaggedConstructor($native, 'Attr') ? $native : $attrTuple,
         ];
-        if ($tuple[0] !== '') {
-            $attrs['id'] = $tuple[0];
+        if ($id !== '') {
+            $attrs['id'] = $id;
         }
         if ($classes !== []) {
             $attrs['classes'] = $classes;
@@ -1943,6 +1934,16 @@ final class PandocJsonReader
         }
 
         return $attrs;
+    }
+
+    private function attrStringContent(mixed $value, string $context): string
+    {
+        $value = $this->singleWrappedScalarContent($value);
+        if (!is_string($value)) {
+            throw new \InvalidArgumentException("{$context} must be a string");
+        }
+
+        return $value;
     }
 
     private function attrTupleContent(mixed $content): mixed
