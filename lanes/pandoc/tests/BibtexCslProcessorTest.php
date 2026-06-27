@@ -2238,6 +2238,116 @@ XML);
         $t->contains('<dt>Smith 2026</dt><dd>Legacy Review Context :: skipbib=false, useprefix=true, maxnames=3 :: variant=mexican; hyphenation=traditional :: refsection 2; refsegment migration-import :: title default: title verified; title source: OCR headline normalized; url source: archived before WordPress import :: feminine</dd>', $blocks);
         $t->true(!str_contains($blocks, '<dt>Desk 2025</dt>'), 'skipbib=true legacy BibLaTeX entries must stay out of appended bibliographies');
     },
+    'maps standalone biblatex entry option fields in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{field-option-manual,
+  author         = {Rao, Mira},
+  title          = {Field Option Manual},
+  date           = {2026},
+  publisher      = {Review Press},
+  options        = {skipbib=false, useauthor=true, maxnames=3},
+  labeldateparts = {year},
+  skipbib        = {true},
+  sortlocale     = {de-DE},
+  useauthor      = {false},
+  useeditor      = {true},
+  uniquelist     = {minyear},
+  uniquename     = {init}
+}
+
+@book{field-option-visible,
+  author    = {Kim, Lin},
+  title     = {Visible Field Options},
+  date      = {2025},
+  publisher = {Review Press},
+  dataonly  = {false},
+  skiplab   = {true},
+  useprefix = {true}
+}
+
+@misc{field-option-data,
+  title    = {Standalone Data Only Options},
+  date     = {2024},
+  dataonly = {true}
+}
+
+@set{field-option-set,
+  title    = {Standalone Option Set},
+  date     = {2026},
+  entryset = {field-option-data}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $manual = $items['field-option-manual'];
+        $visible = $items['field-option-visible'];
+        $set = $items['field-option-set'];
+
+        $t->same(['field-option-manual', 'field-option-visible', 'field-option-set'], array_keys($items));
+        $t->same([
+            'maxnames=3',
+            'labeldateparts=year',
+            'skipbib=true',
+            'sortlocale=de-DE',
+            'useauthor=false',
+            'useeditor=true',
+            'uniquelist=minyear',
+            'uniquename=init',
+        ], $manual['biblatex-options']);
+        $t->same([
+            'dataonly=false',
+            'skiplab=true',
+            'useprefix=true',
+        ], $visible['biblatex-options']);
+        $t->same('true', $manual['rawBibtex']['fields']['skipbib']);
+        $t->same('false', $visible['rawBibtex']['fields']['dataonly']);
+        $t->same('field-option-data', $set['entrySetItems'][0]['id'] ?? null);
+        $t->same(true, $set['entrySetItems'][0]['dataOnly'] ?? null);
+        $t->contains('BibLaTeX options: maxnames=3; labeldateparts=year; skipbib=true; sortlocale=de-DE; useauthor=false; useeditor=true; uniquelist=minyear; uniquename=init', $processor->renderBibliographyText($manual));
+        $t->contains('BibLaTeX options: dataonly=false; skiplab=true; useprefix=true', $processor->renderBibliographyText($visible));
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="biblatex-option-summary"/>
+        <text variable="skipbib"/>
+        <text variable="biblatex-bibliography-visibility"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="biblatex-option-summary"/>
+      <text variable="biblatex-bibliography-visibility"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same(
+            '[Field Option Manual | maxnames=3; labeldateparts=year; skipbib=true; sortlocale=de-DE; useauthor=false; useeditor=true; uniquelist=minyear; uniquename=init | true | omit]',
+            $styled->renderCitationCluster([
+                new AstNode('citation', ['id' => 'field-option-manual', 'text' => '[@field-option-manual]']),
+            ])
+        );
+        $t->same(
+            'Visible Field Options :: dataonly=false; skiplab=true; useprefix=true :: include',
+            $styled->renderBibliographyEntry('field-option-visible')
+        );
+
+        $document = (new MarkdownReader())->read('Standalone field options [@field-option-manual; @field-option-visible] preserve entry switches.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->contains('<dt>Kim 2025</dt><dd>Visible Field Options :: dataonly=false; skiplab=true; useprefix=true :: include</dd>', $blocks);
+        $t->true(!str_contains($blocks, '<dt>Rao 2026</dt>'), 'standalone skipbib=true entries must not be appended to styled bibliographies');
+        $t->true(!str_contains($blocks, 'Standalone Data Only Options'), 'standalone dataonly=true entries must stay metadata-only unless referenced');
+    },
     'carries biblatex issue title aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @article{legacy-issue-title,

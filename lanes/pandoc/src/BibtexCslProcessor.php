@@ -15,6 +15,37 @@ final class BibtexCslProcessor
     /** @var list<string> */
     private const BIBLATEX_CUSTOM_NAME_FIELDS = ['namea', 'nameb', 'namec'];
 
+    /** @var array<string, string> */
+    private const BIBLATEX_ENTRY_OPTION_FIELDS = [
+        'dashed' => 'dashed',
+        'data-only' => 'dataonly',
+        'dataonly' => 'dataonly',
+        'label-date-parts' => 'labeldateparts',
+        'labeldateparts' => 'labeldateparts',
+        'maxitems' => 'maxitems',
+        'maxnames' => 'maxnames',
+        'minitems' => 'minitems',
+        'minnames' => 'minnames',
+        'skip-bib' => 'skipbib',
+        'skip-lab' => 'skiplab',
+        'skipbib' => 'skipbib',
+        'skiplab' => 'skiplab',
+        'sort-locale' => 'sortlocale',
+        'sortlocale' => 'sortlocale',
+        'use-author' => 'useauthor',
+        'use-editor' => 'useeditor',
+        'use-prefix' => 'useprefix',
+        'use-translator' => 'usetranslator',
+        'useauthor' => 'useauthor',
+        'useeditor' => 'useeditor',
+        'useprefix' => 'useprefix',
+        'usetranslator' => 'usetranslator',
+        'unique-list' => 'uniquelist',
+        'unique-name' => 'uniquename',
+        'uniquelist' => 'uniquelist',
+        'uniquename' => 'uniquename',
+    ];
+
     /** @var list<string> */
     private const BIBLATEX_NAME_ANNOTATION_FIELDS = [
         'author',
@@ -142,6 +173,10 @@ final class BibtexCslProcessor
 
         $entries = [];
         foreach ($rawEntries as $key => $entry) {
+            if ($this->isDataOnlyEntry($entry['fields'])) {
+                continue;
+            }
+
             $fields = $this->resolveInheritedFields($entry, $rawEntries);
             $item = $this->toCslItem($key, $entry['type'], $fields);
             $entries[$key] = [
@@ -999,7 +1034,7 @@ final class BibtexCslProcessor
             $item['biblatex-field-annotations'] = $fieldAnnotations;
         }
 
-        $options = $this->biblatexOptionList($fields['options'] ?? '');
+        $options = $this->biblatexEntryOptions($fields);
         if ($options !== []) {
             $item['biblatex-options'] = $options;
         }
@@ -1116,7 +1151,7 @@ final class BibtexCslProcessor
             $fields = $this->resolveInheritedFields($entry, $entriesByKey);
             $summary = $this->toCslItem($entry['id'], $entry['type'], $fields);
             unset($summary['rawBibtex']);
-            if ($entry['type'] === 'xdata' || $this->hasDataOnlyOption($entry['fields']['options'] ?? '')) {
+            if ($entry['type'] === 'xdata' || $this->isDataOnlyEntry($entry['fields'])) {
                 $summary['dataOnly'] = true;
             }
             $summaries[] = $summary;
@@ -1227,6 +1262,33 @@ final class BibtexCslProcessor
             if ($name === 'dataonly') {
                 return true;
             }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, string> $fields
+     */
+    private function isDataOnlyEntry(array $fields): bool
+    {
+        return $this->hasDataOnlyOption($fields['options'] ?? '')
+            || $this->truthyBiblatexOptionField($fields, ['dataonly', 'data-only']);
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @param list<string> $names
+     */
+    private function truthyBiblatexOptionField(array $fields, array $names): bool
+    {
+        foreach ($names as $name) {
+            $value = strtolower(trim($fields[$name] ?? ''));
+            if ($value === '') {
+                continue;
+            }
+
+            return in_array($value, ['1', 'true', 'yes', 'on'], true);
         }
 
         return false;
@@ -1963,6 +2025,45 @@ final class BibtexCslProcessor
             ),
             static fn (string $option): bool => $option !== ''
         ));
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @return list<string>
+     */
+    private function biblatexEntryOptions(array $fields): array
+    {
+        $options = $this->biblatexOptionList($fields['options'] ?? '');
+
+        foreach (self::BIBLATEX_ENTRY_OPTION_FIELDS as $field => $optionName) {
+            $value = trim($fields[$field] ?? '');
+            if ($value === '') {
+                continue;
+            }
+
+            $this->appendOrReplaceBiblatexOption($options, $optionName, $value);
+        }
+
+        return $options;
+    }
+
+    /**
+     * @param list<string> $options
+     */
+    private function appendOrReplaceBiblatexOption(array &$options, string $name, string $value): void
+    {
+        $normalizedName = $this->normalizedBiblatexOptionName($name);
+        $options = array_values(array_filter(
+            $options,
+            fn (string $option): bool => $this->normalizedBiblatexOptionName(explode('=', $option, 2)[0]) !== $normalizedName
+        ));
+
+        $options[] = $name . '=' . $value;
+    }
+
+    private function normalizedBiblatexOptionName(string $name): string
+    {
+        return strtolower(str_replace('_', '-', trim($name)));
     }
 
     /**
