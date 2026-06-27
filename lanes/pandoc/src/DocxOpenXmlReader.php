@@ -965,6 +965,15 @@ final class DocxOpenXmlReader
         $mailMerge = $settings['mailMerge'] ?? null;
         if (is_array($mailMerge)) {
             $packageProvenance['summary']['mailMergeRelationshipCount'] = (int) ($mailMerge['relationshipCount'] ?? 0);
+            $packageProvenance['summary']['mailMergeInternalRelationshipCount'] = (int) ($mailMerge['internalRelationshipCount'] ?? 0);
+            $packageProvenance['summary']['mailMergeExternalRelationshipCount'] = (int) ($mailMerge['externalRelationshipCount'] ?? 0);
+            $packageProvenance['summary']['mailMergeAllowedExternalTargetCount'] = (int) ($mailMerge['allowedExternalTargetCount'] ?? 0);
+            $packageProvenance['summary']['mailMergeUnsafeExternalTargetCount'] = (int) ($mailMerge['unsafeExternalTargetCount'] ?? 0);
+            $packageProvenance['summary']['mailMergeExternalTargets'] = $mailMerge['externalTargets'] ?? [];
+            $packageProvenance['summary']['mailMergeUnsafeExternalTargets'] = $mailMerge['unsafeExternalTargets'] ?? [];
+            $packageProvenance['summary']['mailMergeExternalTargetKindCounts'] = $mailMerge['externalTargetKindCounts'] ?? [];
+            $packageProvenance['summary']['mailMergeExternalTargetSchemeCounts'] = $mailMerge['externalTargetSchemeCounts'] ?? [];
+            $packageProvenance['summary']['mailMergeExternalTargetIssueCodes'] = $mailMerge['externalTargetIssueCodes'] ?? [];
             $packageProvenance['summary']['mailMergeIssueCount'] = (int) ($mailMerge['issueCount'] ?? 0);
             $packageProvenance['summary']['mailMergeIssueCodes'] = $mailMerge['issueCodes'] ?? [];
             $mailMergeOdso = $mailMerge['odso'] ?? null;
@@ -24665,6 +24674,15 @@ final class DocxOpenXmlReader
         }
 
         $relationshipCount = 0;
+        $internalRelationshipCount = 0;
+        $externalRelationshipCount = 0;
+        $allowedExternalTargetCount = 0;
+        $unsafeExternalTargetCount = 0;
+        $externalTargets = [];
+        $unsafeExternalTargets = [];
+        $externalTargetKindCounts = [];
+        $externalTargetSchemeCounts = [];
+        $externalTargetIssueCodes = [];
         $issueCount = 0;
         $issueCodes = [];
         $relationshipChildren = [
@@ -24717,6 +24735,27 @@ final class DocxOpenXmlReader
 
             $metadata[$relationshipChild['key']] = $summary;
             ++$relationshipCount;
+            if (($summary['external'] ?? null) === true) {
+                ++$externalRelationshipCount;
+                $this->appendUniqueString($externalTargets, is_string($summary['target'] ?? null) ? $summary['target'] : null);
+                $kind = is_string($summary['externalTargetKind'] ?? null) ? $summary['externalTargetKind'] : '(unknown)';
+                $scheme = is_string($summary['externalTargetScheme'] ?? null) ? $summary['externalTargetScheme'] : '(none)';
+                $externalTargetKindCounts[$kind] = ($externalTargetKindCounts[$kind] ?? 0) + 1;
+                $externalTargetSchemeCounts[$scheme] = ($externalTargetSchemeCounts[$scheme] ?? 0) + 1;
+                if (($summary['externalTargetAllowed'] ?? null) === true) {
+                    ++$allowedExternalTargetCount;
+                } else {
+                    ++$unsafeExternalTargetCount;
+                    $this->appendUniqueString($unsafeExternalTargets, is_string($summary['target'] ?? null) ? $summary['target'] : null);
+                }
+                foreach (($summary['externalTargetIssues'] ?? []) as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $externalTargetIssueCodes[$issue] = true;
+                    }
+                }
+            } elseif (($summary['external'] ?? null) === false) {
+                ++$internalRelationshipCount;
+            }
             if ($summary['issues'] !== []) {
                 ++$issueCount;
                 foreach ($summary['issues'] as $issue) {
@@ -24726,9 +24765,21 @@ final class DocxOpenXmlReader
                 }
             }
         }
+        ksort($externalTargetKindCounts, SORT_STRING);
+        ksort($externalTargetSchemeCounts, SORT_STRING);
+        ksort($externalTargetIssueCodes, SORT_STRING);
         ksort($issueCodes, SORT_STRING);
 
         $metadata['relationshipCount'] = $relationshipCount;
+        $metadata['internalRelationshipCount'] = $internalRelationshipCount;
+        $metadata['externalRelationshipCount'] = $externalRelationshipCount;
+        $metadata['allowedExternalTargetCount'] = $allowedExternalTargetCount;
+        $metadata['unsafeExternalTargetCount'] = $unsafeExternalTargetCount;
+        $metadata['externalTargets'] = $externalTargets;
+        $metadata['unsafeExternalTargets'] = $unsafeExternalTargets;
+        $metadata['externalTargetKindCounts'] = $externalTargetKindCounts;
+        $metadata['externalTargetSchemeCounts'] = $externalTargetSchemeCounts;
+        $metadata['externalTargetIssueCodes'] = array_keys($externalTargetIssueCodes);
         $metadata['issueCount'] = $issueCount;
         $metadata['issueCodes'] = array_keys($issueCodes);
 
@@ -24931,6 +24982,7 @@ final class DocxOpenXmlReader
             'externalTargetKind' => null,
             'externalTargetScheme' => null,
             'externalTargetAllowed' => null,
+            'externalTargetIssues' => [],
             'byteExposurePolicy' => $reviewPolicy . '-bytes-blocked',
             'reviewPolicy' => $reviewPolicy . '-metadata-only',
             'relationship' => null,
@@ -24993,6 +25045,7 @@ final class DocxOpenXmlReader
             $item['externalTargetKind'] = $externalPolicy['kind'];
             $item['externalTargetScheme'] = $externalPolicy['scheme'];
             $item['externalTargetAllowed'] = $externalPolicy['allowed'];
+            $item['externalTargetIssues'] = $externalPolicy['issues'];
             $item['issues'] = array_values(array_unique(array_merge($item['issues'], $externalPolicy['issues'])));
         } else {
             if ($item['exists'] !== true) {

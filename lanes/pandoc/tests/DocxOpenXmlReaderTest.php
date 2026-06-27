@@ -15202,6 +15202,7 @@ XML;
         $t->same('absolute-uri', $dataSource['externalTargetKind']);
         $t->same('file', $dataSource['externalTargetScheme']);
         $t->same(false, $dataSource['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $dataSource['externalTargetIssues']);
         $t->same(['external-target-unsafe-scheme'], $dataSource['issues']);
 
         $headerSource = $mailMerge['headerSource'];
@@ -15226,10 +15227,113 @@ XML;
         $t->same([], $headerSource['issues']);
 
         $t->same(2, $summary['mailMergeRelationshipCount']);
+        $t->same(1, $summary['mailMergeInternalRelationshipCount']);
+        $t->same(1, $summary['mailMergeExternalRelationshipCount']);
+        $t->same(0, $summary['mailMergeAllowedExternalTargetCount']);
+        $t->same(1, $summary['mailMergeUnsafeExternalTargetCount']);
+        $t->same(['file:///C:/legacy/review-source.xlsx'], $summary['mailMergeExternalTargets']);
+        $t->same(['file:///C:/legacy/review-source.xlsx'], $summary['mailMergeUnsafeExternalTargets']);
+        $t->same(['absolute-uri' => 1], $summary['mailMergeExternalTargetKindCounts']);
+        $t->same(['file' => 1], $summary['mailMergeExternalTargetSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme'], $summary['mailMergeExternalTargetIssueCodes']);
         $t->same(1, $summary['mailMergeIssueCount']);
         $t->same(['external-target-unsafe-scheme'], $summary['mailMergeIssueCodes']);
         $t->true(in_array('mail-merge-header-source', $inventory['mailmerge/header-source.xml']['roles'], true), 'mail merge header-source inventory role missing');
         $t->true(!isset($docx['media']['mailmerge/header-source.xml']), 'Mail merge header source must remain metadata-only');
+    },
+    'reports docx mail merge external target policy without fetching sources' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/_rels/settings.xml.rels'] = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rSafeMergeSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeSource" Target="https://example.test/mailmerge/source.xlsx?batch=safe#records" TargetMode="External"/>
+  <Relationship Id="rUnsafeMergeHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeHeaderSource" Target="file:///C:/legacy/header-source.xml?batch=unsafe#fields" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['word/settings.xml'] = <<<'XML'
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:mailMerge>
+    <w:mainDocumentType w:val="email"/>
+    <w:dataType w:val="native"/>
+    <w:dataSource r:id="rSafeMergeSource"/>
+    <w:headerSource r:id="rUnsafeMergeHeader"/>
+  </w:mailMerge>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $mailMerge = $docx['settings']['mailMerge'];
+        $summary = $docx['packageProvenance']['summary'];
+        $safe = $mailMerge['dataSource'];
+        $unsafe = $mailMerge['headerSource'];
+
+        $t->same(2, $mailMerge['relationshipCount']);
+        $t->same(0, $mailMerge['internalRelationshipCount']);
+        $t->same(2, $mailMerge['externalRelationshipCount']);
+        $t->same(1, $mailMerge['allowedExternalTargetCount']);
+        $t->same(1, $mailMerge['unsafeExternalTargetCount']);
+        $t->same([
+            'https://example.test/mailmerge/source.xlsx?batch=safe#records',
+            'file:///C:/legacy/header-source.xml?batch=unsafe#fields',
+        ], $mailMerge['externalTargets']);
+        $t->same(['file:///C:/legacy/header-source.xml?batch=unsafe#fields'], $mailMerge['unsafeExternalTargets']);
+        $t->same(['absolute-uri' => 2], $mailMerge['externalTargetKindCounts']);
+        $t->same(['file' => 1, 'https' => 1], $mailMerge['externalTargetSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme'], $mailMerge['externalTargetIssueCodes']);
+        $t->same(1, $mailMerge['issueCount']);
+        $t->same(['external-target-unsafe-scheme'], $mailMerge['issueCodes']);
+
+        $t->same('https://example.test/mailmerge/source.xlsx?batch=safe#records', $safe['target']);
+        $t->same(true, $safe['external']);
+        $t->same(null, $safe['targetPart']);
+        $t->same(false, $safe['exists']);
+        $t->same('absolute-uri', $safe['externalTargetKind']);
+        $t->same('https', $safe['externalTargetScheme']);
+        $t->same(true, $safe['externalTargetAllowed']);
+        $t->same([], $safe['externalTargetIssues']);
+        $t->same([], $safe['issues']);
+        $t->same(null, $safe['byteLength']);
+        $t->same('mail-merge-source-metadata-only', $safe['reviewPolicy']);
+
+        $t->same('file:///C:/legacy/header-source.xml?batch=unsafe#fields', $unsafe['target']);
+        $t->same(true, $unsafe['external']);
+        $t->same('batch=unsafe', $unsafe['targetQuery']);
+        $t->same('fields', $unsafe['targetFragment']);
+        $t->same('?batch=unsafe#fields', $unsafe['targetReferenceSuffix']);
+        $t->same('file', $unsafe['externalTargetScheme']);
+        $t->same(false, $unsafe['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $unsafe['externalTargetIssues']);
+        $t->same(['external-target-unsafe-scheme'], $unsafe['issues']);
+        $t->same(null, $unsafe['byteLength']);
+        $t->same('mail-merge-header-source-metadata-only', $unsafe['reviewPolicy']);
+
+        $t->same(2, $summary['mailMergeRelationshipCount']);
+        $t->same(0, $summary['mailMergeInternalRelationshipCount']);
+        $t->same(2, $summary['mailMergeExternalRelationshipCount']);
+        $t->same(1, $summary['mailMergeAllowedExternalTargetCount']);
+        $t->same(1, $summary['mailMergeUnsafeExternalTargetCount']);
+        $t->same($mailMerge['externalTargets'], $summary['mailMergeExternalTargets']);
+        $t->same($mailMerge['unsafeExternalTargets'], $summary['mailMergeUnsafeExternalTargets']);
+        $t->same($mailMerge['externalTargetKindCounts'], $summary['mailMergeExternalTargetKindCounts']);
+        $t->same($mailMerge['externalTargetSchemeCounts'], $summary['mailMergeExternalTargetSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme'], $summary['mailMergeExternalTargetIssueCodes']);
+        $t->same(1, $summary['mailMergeIssueCount']);
+        $t->same(['external-target-unsafe-scheme'], $summary['mailMergeIssueCodes']);
+        $t->true(!isset($docx['media']['https://example.test/mailmerge/source.xlsx?batch=safe#records']), 'External mail merge source must not be exposed as media');
+        $t->true(!isset($docx['media']['file:///C:/legacy/header-source.xml?batch=unsafe#fields']), 'External mail merge header source must not be exposed as media');
     },
     'summarizes docx mail merge odso data source metadata for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
