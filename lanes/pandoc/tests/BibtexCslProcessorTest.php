@@ -749,6 +749,84 @@ BIB;
         $t->same('Director, Edna', $item['rawBibtex']['fields']['editorialdirector']);
         $t->same('Willa Writer. Secondary Credit Packet. 2026.', $bibliography);
     },
+    'carries biblatex secondary editor roles in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@collection{legacy-secondary-editor-roles,
+  author      = {Smith, Ada},
+  editor      = {Primary, Pat},
+  editortype  = {compiler},
+  editora     = {Roe, Riley},
+  editora+an  = {1=compiled packet notes},
+  editoratype = {redactor},
+  editorb     = {Ng, Nia},
+  editorbtype = {editorialdirector},
+  editorc     = {Cruz, Ana Maria},
+  editorctype = {foreword},
+  title       = {Legacy Secondary Editor Packet},
+  publisher   = {Review Press},
+  year        = {2026}
+}
+BIB;
+
+        $items = (new BibtexCslProcessor())->cslItems($source);
+        $item = $items['legacy-secondary-editor-roles'];
+        $bibliography = (new BibtexCslProcessor())->renderBibliographyText($item);
+
+        $t->same('Primary', $item['compiler'][0]['family']);
+        $t->same('Pat', $item['compiler'][0]['given']);
+        $t->same('Roe', $item['redactor'][0]['family']);
+        $t->same('compiled packet notes', $item['redactor'][0]['annotations'][0]['value'] ?? null);
+        $t->same('Ng', $item['editorial-director'][0]['family']);
+        $t->same('Cruz', $item['foreword'][0]['family']);
+        $t->same('editor', $item['editorial-roles'][0]['field'] ?? null);
+        $t->same('compiler', $item['editorial-roles'][0]['type'] ?? null);
+        $t->same('editora', $item['editorial-roles'][1]['field'] ?? null);
+        $t->same('redactor', $item['editorial-roles'][1]['type'] ?? null);
+        $t->same('editorial-director', $item['editorial-roles'][2]['type'] ?? null);
+        $t->same('foreword', $item['editorial-roles'][3]['type'] ?? null);
+        $t->same(false, isset($item['biblatex-field-annotations']['editora']));
+        $t->contains('Name annotations: Redactor 1: compiled packet notes', $bibliography);
+        $t->contains('BibLaTeX editorial roles: editor compiler: Primary, Pat; editora redactor: Roe, Riley; editorb editorial director: Ng, Nia; editorc foreword: Cruz, Ana Maria', $bibliography);
+
+        $processor = CitationCslProcessor::fromItems(array_values($items));
+        $normalized = $processor->item('legacy-secondary-editor-roles');
+        $t->same('Primary', $normalized['compilers'][0]['family'] ?? null);
+        $t->same('Roe', $normalized['redactors'][0]['family'] ?? null);
+        $t->same('compiled packet notes', $normalized['redactors'][0]['annotations'][0]['value'] ?? null);
+        $t->same('Ng', $normalized['editorialDirectors'][0]['family'] ?? null);
+        $t->same('Cruz', $normalized['forewordAuthors'][0]['family'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="compiler"/>
+        <names variable="redactor"/>
+        <names variable="editorial-director"/>
+        <names variable="foreword"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="editorial-role-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $citation = new AstNode('citation', ['id' => 'legacy-secondary-editor-roles', 'text' => '[@legacy-secondary-editor-roles]']);
+        $t->same('[Primary | Roe | Ng | Cruz]', $styled->renderCitationCluster([$citation]));
+        $t->same('Legacy Secondary Editor Packet :: Compiled by Primary, Pat. Redacted by Roe, Riley. Editorial direction by Ng, Nia. Foreword by Cruz, Ana Maria.', $styled->renderBibliographyEntry('legacy-secondary-editor-roles'));
+
+        $document = (new MarkdownReader())->read('Legacy secondary editor roles [@legacy-secondary-editor-roles] stay reviewable.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Legacy secondary editor roles (Smith 2026) stay reviewable.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Legacy Secondary Editor Packet. Review Press, 2026. Name annotations: Redactor 1: compiled packet notes. Compiled by Primary, Pat. Redacted by Roe, Riley. Editorial direction by Ng, Nia. Foreword by Cruz, Ana Maria.</dd>', $blocks);
+    },
     'carries biblatex media and participant creator roles in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @video{legacy-production,
