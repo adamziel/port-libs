@@ -140,7 +140,7 @@ final class OpcContentTypes
     }
 
     /**
-     * @return array{uriReference:string, partName:string, uriReferenceSuffix:string, uriReferenceQuery:?string, uriReferenceFragment:?string, hasUriReferenceSuffix:bool, contentType:?string, contentTypeSource:string, defaultExtension:?string, overridePartName:?string, overridePartNameExactMatch:bool, overridePartNameEquivalentMatch:bool}
+     * @return array{uriReference:string, partName:string, uriReferenceSuffix:string, uriReferenceQuery:?string, uriReferenceFragment:?string, hasUriReferenceSuffix:bool, contentType:?string, contentTypeBase:?string, contentTypeHasParameters:bool, contentTypeParameterCount:int, contentTypeParameters:list<array{name:string, value:string, raw:string}>, contentTypeParameterMap:array<string, string>, contentTypeSource:string, defaultExtension:?string, overridePartName:?string, overridePartNameExactMatch:bool, overridePartNameEquivalentMatch:bool}
      */
     public function contentTypeResolutionForPart(string $partName): array
     {
@@ -149,10 +149,12 @@ final class OpcContentTypes
         $partName = OpcPackagePath::canonicalPartNameFromUri(OpcPackagePath::stripQueryAndFragment($partName));
         $base = self::resolutionBase($uriReference, $partName, $suffix);
         if (isset($this->overrides[$partName])) {
+            $contentType = $this->overrides[$partName];
+
             return [
                 ...$base,
                 'partName' => $partName,
-                'contentType' => $this->overrides[$partName],
+                ...self::contentTypeReport($contentType),
                 'contentTypeSource' => 'override',
                 'defaultExtension' => null,
                 'overridePartName' => $partName,
@@ -163,10 +165,12 @@ final class OpcContentTypes
 
         $overridePartName = $this->overridePartNamesByEquivalenceKey[self::partNameEquivalenceKey($partName)] ?? null;
         if ($overridePartName !== null) {
+            $contentType = $this->overrides[$overridePartName];
+
             return [
                 ...$base,
                 'partName' => $partName,
-                'contentType' => $this->overrides[$overridePartName],
+                ...self::contentTypeReport($contentType),
                 'contentTypeSource' => 'override',
                 'defaultExtension' => null,
                 'overridePartName' => $overridePartName,
@@ -187,7 +191,7 @@ final class OpcContentTypes
             return [
                 ...$base,
                 'partName' => $partName,
-                'contentType' => $default['contentType'],
+                ...self::contentTypeReport($default['contentType']),
                 'contentTypeSource' => 'default',
                 'defaultExtension' => $default['extension'],
                 'overridePartName' => null,
@@ -335,7 +339,7 @@ final class OpcContentTypes
 
     /**
      * @param array{suffix:string, query:?string, fragment:?string} $suffix
-     * @return array{uriReference:string, partName:string, uriReferenceSuffix:string, uriReferenceQuery:?string, uriReferenceFragment:?string, hasUriReferenceSuffix:bool, contentType:null, contentTypeSource:string, defaultExtension:null, overridePartName:null, overridePartNameExactMatch:bool, overridePartNameEquivalentMatch:bool}
+     * @return array{uriReference:string, partName:string, uriReferenceSuffix:string, uriReferenceQuery:?string, uriReferenceFragment:?string, hasUriReferenceSuffix:bool, contentType:null, contentTypeBase:null, contentTypeHasParameters:bool, contentTypeParameterCount:int, contentTypeParameters:list<array{name:string, value:string, raw:string}>, contentTypeParameterMap:array<string, string>, contentTypeSource:string, defaultExtension:null, overridePartName:null, overridePartNameExactMatch:bool, overridePartNameEquivalentMatch:bool}
      */
     private static function missingResolution(string $partName, string $uriReference, array $suffix): array
     {
@@ -343,6 +347,11 @@ final class OpcContentTypes
             ...self::resolutionBase($uriReference, $partName, $suffix),
             'partName' => $partName,
             'contentType' => null,
+            'contentTypeBase' => null,
+            'contentTypeHasParameters' => false,
+            'contentTypeParameterCount' => 0,
+            'contentTypeParameters' => [],
+            'contentTypeParameterMap' => [],
             'contentTypeSource' => 'missing',
             'defaultExtension' => null,
             'overridePartName' => null,
@@ -416,6 +425,60 @@ final class OpcContentTypes
         }
 
         return true;
+    }
+
+    /**
+     * @return array{contentType:string, contentTypeBase:string, contentTypeHasParameters:bool, contentTypeParameterCount:int, contentTypeParameters:list<array{name:string, value:string, raw:string}>, contentTypeParameterMap:array<string, string>}
+     */
+    public static function contentTypeReport(string $contentType): array
+    {
+        self::assertContentType($contentType);
+
+        $token = '[A-Za-z0-9!#$%&\'*+.^_`{|}~-]+';
+        if (preg_match('/\A' . $token . '\/' . $token . '/', $contentType, $baseMatch) !== 1) {
+            throw new \LogicException('Validated OPC content type was missing a media type');
+        }
+        $base = strtolower($baseMatch[0]);
+        $rest = substr($contentType, strlen($baseMatch[0]));
+        $parameters = [];
+        $parameterMap = [];
+
+        while ($rest !== '') {
+            if (preg_match(
+                '/\A\s*;\s*(' . $token . ')\s*=\s*(' . $token . '|"(?:[^"\\\\\x00-\x1F\x7F]|\\\\[\x20-\x7E])*")/',
+                $rest,
+                $parameter
+            ) !== 1) {
+                throw new \LogicException('Validated OPC content type parameter could not be parsed');
+            }
+            $raw = ltrim($parameter[0]);
+            if (str_starts_with($raw, ';')) {
+                $raw = ltrim(substr($raw, 1));
+            }
+            $name = strtolower($parameter[1]);
+            $value = $parameter[2];
+            if (strlen($value) >= 2 && $value[0] === '"' && substr($value, -1) === '"') {
+                $value = substr($value, 1, -1);
+                $value = preg_replace('/\\\\([\x20-\x7E])/', '$1', $value) ?? $value;
+            }
+
+            $parameters[] = [
+                'name' => $name,
+                'value' => $value,
+                'raw' => $raw,
+            ];
+            $parameterMap[$name] = $value;
+            $rest = substr($rest, strlen($parameter[0]));
+        }
+
+        return [
+            'contentType' => $contentType,
+            'contentTypeBase' => $base,
+            'contentTypeHasParameters' => $parameters !== [],
+            'contentTypeParameterCount' => count($parameters),
+            'contentTypeParameters' => $parameters,
+            'contentTypeParameterMap' => $parameterMap,
+        ];
     }
 
     private static function assertContentType(string $contentType): void
