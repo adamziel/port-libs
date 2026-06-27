@@ -21427,6 +21427,121 @@ XML;
         $t->true(in_array('relationship-target', $inventory['word/embeddings/unreferenced-diagram-model.xlsx']['roles'], true), 'unreferenced diagram workbook target role missing');
         $t->true(!isset($docx['media']['word/embeddings/diagram-model.xlsx']), 'Diagram workbook package should not be exposed as document media');
     },
+    'recovers docx diagram embedded package relationships with unqualified id attributes' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $dataRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData';
+        $packageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+        $dataContentType = 'application/vnd.openxmlformats-officedocument.drawingml.diagramData+xml';
+        $modelContentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        $modelBytes = 'loose diagram embedded package workbook bytes';
+        $dataXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram">
+  <dgm:ptLst>
+    <dgm:pt modelId="rLooseDataModelPackage"/>
+  </dgm:ptLst>
+  <dgm:extLst>
+    <dgm:ext uri="{diagram-package-review}" id="rLooseDataModelPackage"/>
+    <dgm:ext uri="{diagram-ignored-id}" id="notARelationship"/>
+  </dgm:extLst>
+</dgm:dataModel>
+XML;
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/diagrams/loose-data.xml" ContentType="' . $dataContentType . '"/>' . "\n" .
+            '  <Override PartName="/word/embeddings/loose-diagram-model.xlsx" ContentType="' . $modelContentType . '; profile=loose-diagram-data"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rLooseDiagramData" Type="' . $dataRel . '" Target="diagrams/loose-data.xml?diagram=loose#data"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"',
+            'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"',
+            $parts['word/document.xml']
+        );
+        $parts['word/document.xml'] = str_replace(
+            "      </w:r>\n    </w:p>\n    <w:tbl>",
+            "      </w:r>\n" .
+            "      <w:r><w:drawing><wp:inline><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/diagram\"><dgm:relIds r:dm=\"rLooseDiagramData\"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>\n" .
+            "    </w:p>\n    <w:tbl>",
+            $parts['word/document.xml']
+        );
+        $parts['word/diagrams/loose-data.xml'] = $dataXml;
+        $parts['word/diagrams/_rels/loose-data.xml.rels'] = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rLooseDataModelPackage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="../embeddings/loose-diagram-model.xlsx?sheet=Loose#data"/>
+</Relationships>
+XML;
+        $parts['word/embeddings/loose-diagram-model.xlsx'] = $modelBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $diagram = $docx['diagramParts']['byRelationshipId']['rLooseDiagramData'];
+        $embeddedPackages = $diagram['embeddedPackages'];
+        $model = $embeddedPackages['byRelationshipId']['rLooseDataModelPackage'];
+        $diagramRelationshipsPart = $package['relationshipParts']['word/diagrams/_rels/loose-data.xml.rels'];
+        $inventory = $package['parts'];
+        $relationshipTypes = $package['relationshipTypes'];
+
+        $t->same(['rLooseDataModelPackage'], $diagram['embeddedPackageRelationshipIds']);
+        $t->same(1, $embeddedPackages['count']);
+        $t->same(1, $embeddedPackages['relationshipCount']);
+        $t->same(1, $embeddedPackages['referencedCount']);
+        $t->same(0, $embeddedPackages['unreferencedRelationshipCount']);
+        $t->same(1, $embeddedPackages['existingCount']);
+        $t->same(0, $embeddedPackages['missingCount']);
+        $t->same(0, $embeddedPackages['externalCount']);
+        $t->same(0, $embeddedPackages['issueCount']);
+        $t->same([], $embeddedPackages['issueCodes']);
+        $t->same(['rLooseDataModelPackage'], $embeddedPackages['relationshipIds']);
+        $t->same(['rLooseDataModelPackage'], $embeddedPackages['referencedRelationshipIds']);
+        $t->same([], $embeddedPackages['unreferencedRelationshipIds']);
+
+        $t->same(true, $model['referenced']);
+        $t->same(true, $model['exists']);
+        $t->same(false, $model['external']);
+        $t->same($packageRel, $model['type']);
+        $t->same('../embeddings/loose-diagram-model.xlsx?sheet=Loose#data', $model['target']);
+        $t->same('word/embeddings/loose-diagram-model.xlsx?sheet=Loose#data', $model['resolvedTarget']);
+        $t->same('word/embeddings/loose-diagram-model.xlsx', $model['targetPart']);
+        $t->same('sheet=Loose', $model['targetQuery']);
+        $t->same('data', $model['targetFragment']);
+        $t->same('?sheet=Loose#data', $model['targetReferenceSuffix']);
+        $t->same($modelContentType . '; profile=loose-diagram-data', $model['contentType']);
+        $t->same($modelContentType, $model['contentTypeBase']);
+        $t->same(['profile' => 'loose-diagram-data'], $model['contentTypeParameterMap']);
+        $t->same(strlen($modelBytes), $model['byteLength']);
+        $t->same(sprintf('%08x', crc32($modelBytes)), $model['crc32']);
+        $t->same(hash('sha256', $modelBytes), $model['sha256']);
+        $t->same([], $model['issues']);
+        $t->same(true, $model['valid']);
+        $t->same(true, $diagram['valid']);
+        $t->same([], $diagram['issues']);
+
+        $t->same(1, $summary['diagramEmbeddedPackageCount']);
+        $t->same(1, $summary['diagramEmbeddedPackageExistingCount']);
+        $t->same(0, $summary['diagramEmbeddedPackageMissingCount']);
+        $t->same(0, $summary['diagramEmbeddedPackageExternalCount']);
+        $t->same(0, $summary['diagramEmbeddedPackageIssueCount']);
+        $t->same([], $summary['diagramEmbeddedPackageIssueCodes']);
+        $t->same(1, $diagramRelationshipsPart['relationshipCount']);
+        $t->same('word/diagrams/loose-data.xml', $diagramRelationshipsPart['sourcePart']);
+        $t->same($modelContentType, $diagramRelationshipsPart['relationships']['rLooseDataModelPackage']['contentTypeBase']);
+        $t->same(1, $relationshipTypes[$packageRel]['count']);
+        $t->same(1, $relationshipTypes[$packageRel]['internalCount']);
+        $t->same(0, $relationshipTypes[$packageRel]['externalCount']);
+        $t->same(['word/embeddings/loose-diagram-model.xlsx'], $relationshipTypes[$packageRel]['existingTargetParts']);
+        $t->true(in_array('embedded-package', $inventory['word/embeddings/loose-diagram-model.xlsx']['roles'], true), 'loose diagram workbook inventory role missing');
+        $t->true(!isset($docx['media']['word/embeddings/loose-diagram-model.xlsx']), 'Loose diagram workbook package should not be exposed as document media');
+    },
     'reads a native zip docx package without shelling out' => static function (TestRunner $t): void {
         $path = docx_openxml_reader_temp_docx(docx_openxml_reader_fixture_parts());
         try {

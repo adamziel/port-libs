@@ -7090,7 +7090,11 @@ final class DocxOpenXmlReader
             } elseif ($item['validRoot'] === false) {
                 $item['issues'][] = 'unexpected-diagram-root';
             } else {
-                $item['embeddedPackageRelationshipIds'] = $this->diagramEmbeddedPackageRelationshipIds($parts[$targetPart], $targetPart);
+                $item['embeddedPackageRelationshipIds'] = $this->diagramEmbeddedPackageRelationshipIds(
+                    $parts[$targetPart],
+                    $targetPart,
+                    $diagramRelationships,
+                );
             }
         }
 
@@ -7110,14 +7114,37 @@ final class DocxOpenXmlReader
     /**
      * @return list<string>
      */
-    private function diagramEmbeddedPackageRelationshipIds(string $xml, string $partName): array
+    private function diagramEmbeddedPackageRelationshipIds(string $xml, string $partName, array $relationships): array
     {
         $dom = $this->loadXmlForProvenance($xml, $partName);
         if (!$dom instanceof \DOMDocument || !$dom->documentElement instanceof \DOMElement) {
             return [];
         }
 
-        return $this->relationshipIdsInElement($dom->documentElement);
+        $relationshipIds = $this->relationshipIdsInElement($dom->documentElement);
+        $knownRelationshipIds = array_fill_keys(array_keys($relationships), true);
+        $stack = [$dom->documentElement];
+        while ($stack !== []) {
+            $current = array_pop($stack);
+            if (!$current instanceof \DOMElement) {
+                continue;
+            }
+
+            $candidate = $this->emptyStringToNull($current->getAttribute('id'));
+            if ($candidate !== null && isset($knownRelationshipIds[$candidate])) {
+                $this->appendUniqueString($relationshipIds, $candidate);
+            }
+
+            foreach ($current->childNodes as $child) {
+                if ($child instanceof \DOMElement) {
+                    $stack[] = $child;
+                }
+            }
+        }
+
+        sort($relationshipIds, SORT_STRING);
+
+        return $relationshipIds;
     }
 
     /**
