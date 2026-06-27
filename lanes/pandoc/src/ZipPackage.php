@@ -142,6 +142,40 @@ final class ZipPackage
         "\u{2068}" => 'first-strong-isolate',
         "\u{2069}" => 'pop-directional-isolate',
     ];
+    private const HANDOFF_MEDIA_EXTENSIONS = [
+        'apng' => true,
+        'avif' => true,
+        'bmp' => true,
+        'emf' => true,
+        'gif' => true,
+        'jpeg' => true,
+        'jpg' => true,
+        'm4a' => true,
+        'mov' => true,
+        'mp3' => true,
+        'mp4' => true,
+        'oga' => true,
+        'ogg' => true,
+        'ogv' => true,
+        'png' => true,
+        'svg' => true,
+        'tif' => true,
+        'tiff' => true,
+        'wav' => true,
+        'webm' => true,
+        'webp' => true,
+        'wmf' => true,
+    ];
+    private const HANDOFF_MARKUP_EXTENSIONS = [
+        'css' => true,
+        'html' => true,
+        'htm' => true,
+        'jats' => true,
+        'ncx' => true,
+        'opf' => true,
+        'xhtml' => true,
+        'xml' => true,
+    ];
 
     /**
      * @param array<string, ZipPackageEntry> $entriesByName
@@ -5003,6 +5037,7 @@ final class ZipPackage
      *     selectedDeflatedEntryCount:int,
      *     selectedUnsupportedCompressionMethodCount:int,
      *     selectedSupportedCompressionMethodEntryCount:int,
+     *     selectedCompressionMethodBucketCount:int,
      *     selectedUnknownExpansionRatioEntryCount:int,
      *     selectedHasUnknownExpansionRatioEntries:bool,
      *     missingEntryCount:int,
@@ -5012,11 +5047,16 @@ final class ZipPackage
      *     handoffDirectoryRootCount:int,
      *     handoffExtensionBucketCount:int,
      *     handoffExtensionlessFileEntryCount:int,
+     *     handoffCompressionMethodBucketCount:int,
      *     readableEntryCount:int,
      *     handoffZeroByteEntryCount:int,
      *     handoffZeroByteFileCount:int,
      *     handoffEmptyDirectoryEntryCount:int,
      *     handoffHasZeroByteEntries:bool,
+     *     handoffStoredEntryCount:int,
+     *     handoffDeflatedEntryCount:int,
+     *     handoffUnsupportedCompressionMethodCount:int,
+     *     handoffSupportedCompressionMethodEntryCount:int,
      *     failedEntryCount:int,
      *     directoryMismatchEntryCount:int,
      *     oversizedEntryCount:int,
@@ -5060,7 +5100,9 @@ final class ZipPackage
      *     selectedExtensionSummaries:list<array<string, mixed>>,
      *     handoffExtensionSummaries:list<array<string, mixed>>,
      *     selectedCompressionMethodBuckets:list<array{compressionMethod:int,compressionMethodName:string,entryCount:int,compressedBytes:int,uncompressedBytes:int,isSupported:bool}>,
+     *     handoffCompressionMethodBuckets:list<array{compressionMethod:int,compressionMethodName:string,entryCount:int,compressedBytes:int,uncompressedBytes:int,isSupported:bool}>,
      *     selectedUnsupportedCompressionMethodEntries:list<array{name:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int}>,
+     *     handoffUnsupportedCompressionMethodEntries:list<array{name:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int}>,
      *     selectedZeroByteEntries:list<array{name:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int,expansionRatio:?float}>,
      *     handoffZeroByteEntries:list<array{requestIndex:int,requestedName:string,name:string,role:?string,required:bool,expectedKind:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int,expansionRatio:?float}>,
      *     selectedUnknownExpansionRatioEntries:list<array{name:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int,expansionRatio:?float}>,
@@ -5200,6 +5242,16 @@ final class ZipPackage
             }
         }
 
+        $centralDirectoryIndexByName = [];
+        foreach ($this->entries as $centralDirectoryIndex => $entry) {
+            $centralDirectoryIndexByName[$entry->name] = $centralDirectoryIndex;
+        }
+
+        $localHeaderOrderByName = [];
+        foreach ($this->localEntries() as $localHeaderOrder => $entry) {
+            $localHeaderOrderByName[$entry->name] = $localHeaderOrder;
+        }
+
         $selectedCompressedBytes = 0;
         $selectedUncompressedBytes = 0;
         $selectedFileEntryCount = 0;
@@ -5280,6 +5332,10 @@ final class ZipPackage
                 'name' => $entry->name,
                 'roles' => array_keys($selectedRolesByName[$entry->name] ?? []),
                 'isDirectory' => $isDirectory,
+                'centralDirectoryIndex' => $centralDirectoryIndexByName[$entry->name] ?? null,
+                'localHeaderOrder' => $localHeaderOrderByName[$entry->name] ?? null,
+                'pathDepth' => self::entryHandoffPathDepth($entry->name),
+                'packagePartKind' => self::entryHandoffPackagePartKind($entry->name, $isDirectory),
                 'compressedSize' => $entry->compressedSize,
                 'uncompressedSize' => $entry->uncompressedSize,
             ];
@@ -5519,6 +5575,10 @@ final class ZipPackage
                 'exists' => $entry !== null,
                 'isDirectory' => null,
                 'directoryRoot' => null,
+                'packagePartKind' => null,
+                'centralDirectoryIndex' => null,
+                'localHeaderOrder' => null,
+                'pathDepth' => null,
                 'compressionMethod' => null,
                 'compressionMethodName' => null,
                 'rawName' => null,
@@ -5772,6 +5832,10 @@ final class ZipPackage
             $compressedDataEnd = $compressedDataOffset + $entry->compressedSize;
             $summary['isDirectory'] = $isDirectory;
             $summary['directoryRoot'] = self::entryHandoffDirectoryRoot($entry->name);
+            $summary['packagePartKind'] = self::entryHandoffPackagePartKind($entry->name, $isDirectory);
+            $summary['centralDirectoryIndex'] = $centralDirectoryIndexByName[$entry->name] ?? null;
+            $summary['localHeaderOrder'] = $localHeaderOrderByName[$entry->name] ?? null;
+            $summary['pathDepth'] = self::entryHandoffPathDepth($entry->name);
             $summary['compressionMethod'] = $entry->compressionMethod;
             $summary['compressionMethodName'] = self::compressionMethodName($entry->compressionMethod);
             $summary = array_merge($summary, self::entryRawNameHandoffProvenance($entry));
@@ -5855,10 +5919,35 @@ final class ZipPackage
             $entries[] = $summary;
         }
 
+        $handoffCompressionMethodBuckets = [];
+        $handoffUnsupportedCompressionMethodEntries = [];
+        $handoffStoredEntryCount = 0;
+        $handoffDeflatedEntryCount = 0;
         $handoffZeroByteEntries = [];
         $handoffZeroByteFileCount = 0;
         $handoffEmptyDirectoryEntryCount = 0;
         foreach ($handoffEntries as $handoffEntry) {
+            $compressionMethod = (int) $handoffEntry['compressionMethod'];
+            if ($compressionMethod === 0) {
+                ++$handoffStoredEntryCount;
+            } elseif ($compressionMethod === 8) {
+                ++$handoffDeflatedEntryCount;
+            } else {
+                $handoffUnsupportedCompressionMethodEntries[] = [
+                    'name' => $handoffEntry['name'],
+                    'compressionMethod' => $compressionMethod,
+                    'isDirectory' => $handoffEntry['isDirectory'],
+                    'compressedSize' => $handoffEntry['compressedSize'],
+                    'uncompressedSize' => $handoffEntry['uncompressedSize'],
+                ];
+            }
+            self::addCompressionMethodBucket(
+                $handoffCompressionMethodBuckets,
+                $compressionMethod,
+                (int) $handoffEntry['compressedSize'],
+                (int) $handoffEntry['uncompressedSize']
+            );
+
             if ($handoffEntry['uncompressedSize'] !== 0) {
                 continue;
             }
@@ -5884,9 +5973,16 @@ final class ZipPackage
 
         $selectedDirectoryRootSummaries = self::entryHandoffDirectoryRootSummaries($selectedDirectoryRootSummaryEntries);
         $handoffDirectoryRootSummaries = self::entryHandoffDirectoryRootSummaries($handoffEntries);
+        $selectedPackagePartKindSummaries = self::entryHandoffPackagePartKindSummaries($selectedDirectoryRootSummaryEntries);
+        $handoffPackagePartKindSummaries = self::entryHandoffPackagePartKindSummaries($handoffEntries);
         $selectedExtensionSummaries = self::entryHandoffExtensionSummaries($selectedDirectoryRootSummaryEntries);
         $handoffExtensionSummaries = self::entryHandoffExtensionSummaries($handoffEntries);
+        $selectedOrderSummary = self::entryHandoffOrderSummary($selectedDirectoryRootSummaryEntries);
+        $handoffOrderSummary = self::entryHandoffOrderSummary($handoffEntries);
+        $selectedPathDepthSummaries = self::entryHandoffPathDepthSummaries($selectedDirectoryRootSummaryEntries);
+        $handoffPathDepthSummaries = self::entryHandoffPathDepthSummaries($handoffEntries);
         $roleSummaries = self::entryHandoffRoleSummaries($entries);
+        $handoffSourceByteSpanSummary = self::entryHandoffSourceByteSpanSummary($handoffEntries);
 
         return [
             'requestedEntryCount' => count($requests),
@@ -5895,8 +5991,17 @@ final class ZipPackage
             'presentEntryCount' => count($presentNames),
             'selectedUniqueEntryCount' => count($selectedEntriesByName),
             'selectedDirectoryRootCount' => count($selectedDirectoryRootSummaries),
+            'selectedPackagePartKindCount' => count($selectedPackagePartKindSummaries),
+            'selectedMediaPartEntryCount' => self::entryHandoffKindEntryCount($selectedPackagePartKindSummaries, 'media'),
+            'selectedRelationshipPartEntryCount' => self::entryHandoffKindEntryCount($selectedPackagePartKindSummaries, 'relationship-part'),
             'selectedExtensionBucketCount' => count($selectedExtensionSummaries),
             'selectedExtensionlessFileEntryCount' => self::entryHandoffExtensionlessFileEntryCount($selectedExtensionSummaries),
+            'selectedOrderMismatchEntryCount' => $selectedOrderSummary['mismatchEntryCount'],
+            'selectedCentralDirectoryOrderMatchesLocalHeaderOrder' => $selectedOrderSummary['centralDirectoryOrderMatchesLocalHeaderOrder'],
+            'selectedRequestOrderMatchesCentralDirectoryOrder' => $selectedOrderSummary['requestOrderMatchesCentralDirectoryOrder'],
+            'selectedRequestOrderMatchesLocalHeaderOrder' => $selectedOrderSummary['requestOrderMatchesLocalHeaderOrder'],
+            'selectedPathDepthBucketCount' => count($selectedPathDepthSummaries),
+            'selectedMaxPathDepth' => self::entryHandoffMaxPathDepth($selectedPathDepthSummaries),
             'selectedFileEntryCount' => $selectedFileEntryCount,
             'selectedDirectoryEntryCount' => $selectedDirectoryEntryCount,
             'selectedZeroByteEntryCount' => count($selectedZeroByteEntries),
@@ -5910,6 +6015,7 @@ final class ZipPackage
             'selectedDeflatedEntryCount' => $selectedDeflatedEntryCount,
             'selectedUnsupportedCompressionMethodCount' => count($selectedUnsupportedCompressionMethodEntries),
             'selectedSupportedCompressionMethodEntryCount' => count($selectedEntriesByName) - count($selectedUnsupportedCompressionMethodEntries),
+            'selectedCompressionMethodBucketCount' => count($selectedCompressionMethodBuckets),
             'selectedUnknownExpansionRatioEntryCount' => count($selectedUnknownExpansionRatioEntries),
             'selectedHasUnknownExpansionRatioEntries' => $selectedUnknownExpansionRatioEntries !== [],
             'missingEntryCount' => count($missingEntries),
@@ -5917,13 +6023,27 @@ final class ZipPackage
             'missingOptionalEntryCount' => $missingOptionalEntryCount,
             'handoffEntryCount' => count($handoffEntries),
             'handoffDirectoryRootCount' => count($handoffDirectoryRootSummaries),
+            'handoffPackagePartKindCount' => count($handoffPackagePartKindSummaries),
+            'handoffMediaPartEntryCount' => self::entryHandoffKindEntryCount($handoffPackagePartKindSummaries, 'media'),
+            'handoffRelationshipPartEntryCount' => self::entryHandoffKindEntryCount($handoffPackagePartKindSummaries, 'relationship-part'),
             'handoffExtensionBucketCount' => count($handoffExtensionSummaries),
             'handoffExtensionlessFileEntryCount' => self::entryHandoffExtensionlessFileEntryCount($handoffExtensionSummaries),
+            'handoffCompressionMethodBucketCount' => count($handoffCompressionMethodBuckets),
+            'handoffOrderMismatchEntryCount' => $handoffOrderSummary['mismatchEntryCount'],
+            'handoffCentralDirectoryOrderMatchesLocalHeaderOrder' => $handoffOrderSummary['centralDirectoryOrderMatchesLocalHeaderOrder'],
+            'handoffRequestOrderMatchesCentralDirectoryOrder' => $handoffOrderSummary['requestOrderMatchesCentralDirectoryOrder'],
+            'handoffRequestOrderMatchesLocalHeaderOrder' => $handoffOrderSummary['requestOrderMatchesLocalHeaderOrder'],
+            'handoffPathDepthBucketCount' => count($handoffPathDepthSummaries),
+            'handoffMaxPathDepth' => self::entryHandoffMaxPathDepth($handoffPathDepthSummaries),
             'readableEntryCount' => count($handoffEntries),
             'handoffZeroByteEntryCount' => count($handoffZeroByteEntries),
             'handoffZeroByteFileCount' => $handoffZeroByteFileCount,
             'handoffEmptyDirectoryEntryCount' => $handoffEmptyDirectoryEntryCount,
             'handoffHasZeroByteEntries' => $handoffZeroByteEntries !== [],
+            'handoffStoredEntryCount' => $handoffStoredEntryCount,
+            'handoffDeflatedEntryCount' => $handoffDeflatedEntryCount,
+            'handoffUnsupportedCompressionMethodCount' => count($handoffUnsupportedCompressionMethodEntries),
+            'handoffSupportedCompressionMethodEntryCount' => count($handoffEntries) - count($handoffUnsupportedCompressionMethodEntries),
             'failedEntryCount' => count($failedEntries),
             'directoryMismatchEntryCount' => $directoryMismatchEntryCount,
             'oversizedEntryCount' => $oversizedEntryCount,
@@ -5988,6 +6108,26 @@ final class ZipPackage
             'selectedSourceTotalRecordBytes' => $selectedSourceTotalRecordBytes,
             'selectedSourceByteSpanIssueCount' => count($selectedSourceByteSpanIssues),
             'selectedSourceByteSpanIssues' => $selectedSourceByteSpanIssues,
+            'handoffSourceByteSpanEntryCount' => $handoffSourceByteSpanSummary['entryCount'],
+            'handoffSourceLocalRecordBytes' => $handoffSourceByteSpanSummary['localRecordBytes'],
+            'handoffSourceLocalHeaderBytes' => $handoffSourceByteSpanSummary['localHeaderBytes'],
+            'handoffSourceLocalFixedHeaderBytes' => $handoffSourceByteSpanSummary['localFixedHeaderBytes'],
+            'handoffSourceLocalHeaderVariableFieldBytes' => $handoffSourceByteSpanSummary['localHeaderVariableFieldBytes'],
+            'handoffSourceLocalRawNameBytes' => $handoffSourceByteSpanSummary['localRawNameBytes'],
+            'handoffSourceLocalExtraFieldBytes' => $handoffSourceByteSpanSummary['localExtraFieldBytes'],
+            'handoffSourceLocalReviewFieldBytes' => $handoffSourceByteSpanSummary['localHeaderReviewFieldBytes'],
+            'handoffSourceCompressedDataBytes' => $handoffSourceByteSpanSummary['compressedDataBytes'],
+            'handoffSourceDataDescriptorBytes' => $handoffSourceByteSpanSummary['dataDescriptorBytes'],
+            'handoffSourceCentralDirectoryRecordBytes' => $handoffSourceByteSpanSummary['centralDirectoryRecordBytes'],
+            'handoffSourceCentralDirectoryFixedHeaderBytes' => $handoffSourceByteSpanSummary['centralDirectoryFixedHeaderBytes'],
+            'handoffSourceCentralDirectoryVariableFieldBytes' => $handoffSourceByteSpanSummary['centralDirectoryVariableFieldBytes'],
+            'handoffSourceCentralDirectoryRawNameBytes' => $handoffSourceByteSpanSummary['centralDirectoryRawNameBytes'],
+            'handoffSourceCentralDirectoryExtraFieldBytes' => $handoffSourceByteSpanSummary['centralDirectoryExtraFieldBytes'],
+            'handoffSourceCentralDirectoryRawCommentBytes' => $handoffSourceByteSpanSummary['centralDirectoryRawCommentBytes'],
+            'handoffSourceCentralDirectoryReviewFieldBytes' => $handoffSourceByteSpanSummary['centralDirectoryReviewFieldBytes'],
+            'handoffSourceTotalRecordBytes' => $handoffSourceByteSpanSummary['sourceRecordBytes'],
+            'handoffSourceByteSpanIssueCount' => count($handoffSourceByteSpanSummary['issues']),
+            'handoffSourceByteSpanIssues' => $handoffSourceByteSpanSummary['issues'],
             'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
             'maxTotalUncompressedBytes' => $maxTotalUncompressedBytes,
             'isSupportedByBoundedReader' => $issues === [],
@@ -5996,10 +6136,18 @@ final class ZipPackage
             'roleSummaries' => $roleSummaries,
             'selectedDirectoryRootSummaries' => $selectedDirectoryRootSummaries,
             'handoffDirectoryRootSummaries' => $handoffDirectoryRootSummaries,
+            'selectedPackagePartKindSummaries' => $selectedPackagePartKindSummaries,
+            'handoffPackagePartKindSummaries' => $handoffPackagePartKindSummaries,
             'selectedExtensionSummaries' => $selectedExtensionSummaries,
             'handoffExtensionSummaries' => $handoffExtensionSummaries,
+            'selectedOrderSummary' => $selectedOrderSummary,
+            'handoffOrderSummary' => $handoffOrderSummary,
+            'selectedPathDepthSummaries' => $selectedPathDepthSummaries,
+            'handoffPathDepthSummaries' => $handoffPathDepthSummaries,
             'selectedCompressionMethodBuckets' => self::compressionMethodBuckets($selectedCompressionMethodBuckets),
+            'handoffCompressionMethodBuckets' => self::compressionMethodBuckets($handoffCompressionMethodBuckets),
             'selectedUnsupportedCompressionMethodEntries' => $selectedUnsupportedCompressionMethodEntries,
+            'handoffUnsupportedCompressionMethodEntries' => $handoffUnsupportedCompressionMethodEntries,
             'selectedZeroByteEntries' => $selectedZeroByteEntries,
             'handoffZeroByteEntries' => $handoffZeroByteEntries,
             'selectedUnknownExpansionRatioEntries' => $selectedUnknownExpansionRatioEntries,
@@ -6016,11 +6164,140 @@ final class ZipPackage
             'selectedDataDescriptorProvenanceEntries' => $selectedDataDescriptorProvenanceEntries,
             'selectedDataDescriptorIssueEntries' => $selectedDataDescriptorIssueEntries,
             'selectedSourceByteSpanEntries' => $selectedSourceByteSpanEntries,
+            'handoffSourceByteSpanEntries' => $handoffSourceByteSpanSummary['entries'],
             'missingEntries' => $missingEntries,
             'failedEntries' => $failedEntries,
             'handoffEntries' => $handoffEntries,
             'entries' => $entries,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array{entryCount:int, localRecordBytes:int, localHeaderBytes:int, localFixedHeaderBytes:int, localHeaderVariableFieldBytes:int, localRawNameBytes:int, localExtraFieldBytes:int, localHeaderReviewFieldBytes:int, compressedDataBytes:int, dataDescriptorBytes:int, centralDirectoryRecordBytes:int, centralDirectoryFixedHeaderBytes:int, centralDirectoryVariableFieldBytes:int, centralDirectoryRawNameBytes:int, centralDirectoryExtraFieldBytes:int, centralDirectoryRawCommentBytes:int, centralDirectoryReviewFieldBytes:int, sourceRecordBytes:int, issues:list<string>, entries:list<array<string, mixed>>}
+     */
+    private static function entryHandoffSourceByteSpanSummary(array $entries): array
+    {
+        $summary = [
+            'entryCount' => 0,
+            'localRecordBytes' => 0,
+            'localHeaderBytes' => 0,
+            'localFixedHeaderBytes' => 0,
+            'localHeaderVariableFieldBytes' => 0,
+            'localRawNameBytes' => 0,
+            'localExtraFieldBytes' => 0,
+            'localHeaderReviewFieldBytes' => 0,
+            'compressedDataBytes' => 0,
+            'dataDescriptorBytes' => 0,
+            'centralDirectoryRecordBytes' => 0,
+            'centralDirectoryFixedHeaderBytes' => 0,
+            'centralDirectoryVariableFieldBytes' => 0,
+            'centralDirectoryRawNameBytes' => 0,
+            'centralDirectoryExtraFieldBytes' => 0,
+            'centralDirectoryRawCommentBytes' => 0,
+            'centralDirectoryReviewFieldBytes' => 0,
+            'sourceRecordBytes' => 0,
+            'issues' => [],
+            'entries' => [],
+        ];
+        $sourceByteKeys = [
+            'localRecordBytes',
+            'localHeaderBytes',
+            'localFixedHeaderBytes',
+            'localHeaderVariableFieldBytes',
+            'localRawNameBytes',
+            'localExtraFieldBytes',
+            'localHeaderReviewFieldBytes',
+            'compressedDataBytes',
+            'dataDescriptorBytes',
+            'centralDirectoryRecordBytes',
+            'centralDirectoryFixedHeaderBytes',
+            'centralDirectoryVariableFieldBytes',
+            'centralDirectoryRawNameBytes',
+            'centralDirectoryExtraFieldBytes',
+            'centralDirectoryRawCommentBytes',
+            'centralDirectoryReviewFieldBytes',
+            'sourceRecordBytes',
+        ];
+        $provenanceKeys = [
+            'hasSourceByteSpanProvenance',
+            'localRecordOffset',
+            'localRecordBytes',
+            'localRecordEnd',
+            'localRecordSha256',
+            'localHeaderBytes',
+            'localHeaderEnd',
+            'localHeaderSha256',
+            'localFixedHeaderBytes',
+            'localHeaderVariableFieldOffset',
+            'localHeaderVariableFieldBytes',
+            'localHeaderVariableFieldSha256',
+            'localRawNameOffset',
+            'localRawNameBytes',
+            'localRawNameSha256',
+            'localExtraFieldOffset',
+            'localExtraFieldBytes',
+            'localExtraFieldSha256',
+            'localHeaderReviewFieldBytes',
+            'compressedDataOffset',
+            'compressedDataBytes',
+            'compressedDataEnd',
+            'compressedDataSha256',
+            'sourceByteSpanIncludesDataDescriptor',
+            'dataDescriptorOffset',
+            'dataDescriptorBytes',
+            'dataDescriptorEnd',
+            'dataDescriptorSha256',
+            'centralDirectoryRecordOffset',
+            'centralDirectoryRecordBytes',
+            'centralDirectoryRecordEnd',
+            'centralDirectoryRecordSha256',
+            'centralDirectoryFixedHeaderBytes',
+            'centralDirectoryVariableFieldOffset',
+            'centralDirectoryVariableFieldBytes',
+            'centralDirectoryVariableFieldSha256',
+            'centralDirectoryRawNameOffset',
+            'centralDirectoryRawNameBytes',
+            'centralDirectoryRawNameSha256',
+            'centralDirectoryExtraFieldOffset',
+            'centralDirectoryExtraFieldBytes',
+            'centralDirectoryExtraFieldSha256',
+            'centralDirectoryRawCommentOffset',
+            'centralDirectoryRawCommentBytes',
+            'centralDirectoryRawCommentSha256',
+            'centralDirectoryReviewFieldBytes',
+            'sourceRecordBytes',
+            'sourceByteSpanIssues',
+        ];
+
+        foreach ($entries as $entry) {
+            if (($entry['exists'] ?? false) !== true || ($entry['status'] ?? null) !== 'ready') {
+                continue;
+            }
+
+            $summary['entryCount']++;
+            foreach ($sourceByteKeys as $key) {
+                if (is_int($entry[$key] ?? null)) {
+                    $summary[$key] += $entry[$key];
+                }
+            }
+
+            $entrySummary = ['name' => is_string($entry['name'] ?? null) ? $entry['name'] : ''];
+            foreach ($provenanceKeys as $key) {
+                $entrySummary[$key] = $entry[$key] ?? null;
+            }
+            if (!is_array($entrySummary['sourceByteSpanIssues'])) {
+                $entrySummary['sourceByteSpanIssues'] = [];
+            }
+            foreach ($entrySummary['sourceByteSpanIssues'] as $issue) {
+                if (is_string($issue)) {
+                    self::appendUniqueIssue($summary['issues'], $issue);
+                }
+            }
+            $summary['entries'][] = $entrySummary;
+        }
+
+        return $summary;
     }
 
     /**
@@ -6486,6 +6763,341 @@ final class ZipPackage
         $separator = strpos($name, '/');
 
         return $separator === false ? '/' : substr($name, 0, $separator + 1);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffPackagePartKindSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $isDirectory = ($entry['isDirectory'] ?? false) === true;
+            $kind = is_string($entry['packagePartKind'] ?? null) && $entry['packagePartKind'] !== ''
+                ? $entry['packagePartKind']
+                : self::entryHandoffPackagePartKind($name, $isDirectory);
+            if (!isset($summaries[$kind])) {
+                $summaries[$kind] = [
+                    'packagePartKind' => $kind,
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'roles' => [],
+                    'entryNames' => [],
+                ];
+            }
+
+            ++$summaries[$kind]['entryCount'];
+            if ($isDirectory) {
+                ++$summaries[$kind]['directoryEntryCount'];
+            } else {
+                ++$summaries[$kind]['fileEntryCount'];
+            }
+
+            $summaries[$kind]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$kind]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$kind]['entryNames'][] = $name;
+
+            $roles = [];
+            if (is_array($entry['roles'] ?? null)) {
+                $roles = array_values(array_filter($entry['roles'], static fn (mixed $role): bool => is_string($role) && $role !== ''));
+            } elseif (is_string($entry['role'] ?? null) && $entry['role'] !== '') {
+                $roles = [$entry['role']];
+            }
+
+            foreach ($roles as $role) {
+                if (!in_array($role, $summaries[$kind]['roles'], true)) {
+                    $summaries[$kind]['roles'][] = $role;
+                }
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['roles'], SORT_STRING);
+        }
+        unset($summary);
+
+        ksort($summaries, SORT_STRING);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $kindSummaries
+     */
+    private static function entryHandoffKindEntryCount(array $kindSummaries, string $kind): int
+    {
+        foreach ($kindSummaries as $summary) {
+            if (($summary['packagePartKind'] ?? null) === $kind) {
+                return (int) ($summary['entryCount'] ?? 0);
+            }
+        }
+
+        return 0;
+    }
+
+    private static function entryHandoffPackagePartKind(string $name, bool $isDirectory): string
+    {
+        if ($isDirectory) {
+            return 'directory';
+        }
+
+        if ($name === '[Content_Types].xml') {
+            return 'content-types';
+        }
+
+        if ($name === 'mimetype') {
+            return 'mimetype';
+        }
+
+        if ($name === '_rels/.rels') {
+            return 'root-relationships';
+        }
+
+        if (self::entryHandoffIsRelationshipPart($name)) {
+            return 'relationship-part';
+        }
+
+        if (str_starts_with($name, 'docProps/') || str_starts_with($name, 'META-INF/')) {
+            return 'metadata';
+        }
+
+        $extension = self::entryHandoffFileExtension($name);
+        if ($extension !== null && isset(self::HANDOFF_MEDIA_EXTENSIONS[$extension])) {
+            return 'media';
+        }
+
+        if (str_contains($name, '/media/') || str_starts_with($name, 'media/')) {
+            return 'media';
+        }
+
+        if ($extension !== null && isset(self::HANDOFF_MARKUP_EXTENSIONS[$extension])) {
+            return 'markup-part';
+        }
+
+        return $extension === null ? 'extensionless' : 'package-part';
+    }
+
+    private static function entryHandoffIsRelationshipPart(string $name): bool
+    {
+        if (!str_ends_with(strtolower($name), '.rels')) {
+            return false;
+        }
+
+        return str_starts_with($name, '_rels/') || str_contains($name, '/_rels/');
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array<string, mixed>
+     */
+    private static function entryHandoffOrderSummary(array $entries): array
+    {
+        $orderEntries = [];
+        foreach ($entries as $requestOrder => $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $roles = [];
+            if (is_array($entry['roles'] ?? null)) {
+                $roles = array_values(array_filter(
+                    $entry['roles'],
+                    static fn (mixed $role): bool => is_string($role) && $role !== ''
+                ));
+            } elseif (is_string($entry['role'] ?? null) && $entry['role'] !== '') {
+                $roles = [$entry['role']];
+            }
+            sort($roles, SORT_STRING);
+
+            $orderEntries[] = [
+                'orderKey' => $name . "\0" . $requestOrder,
+                'name' => $name,
+                'requestOrder' => $requestOrder,
+                'centralDirectoryIndex' => is_int($entry['centralDirectoryIndex'] ?? null)
+                    ? $entry['centralDirectoryIndex']
+                    : null,
+                'localHeaderOrder' => is_int($entry['localHeaderOrder'] ?? null)
+                    ? $entry['localHeaderOrder']
+                    : null,
+                'roles' => $roles,
+            ];
+        }
+
+        $centralDirectoryEntries = $orderEntries;
+        usort(
+            $centralDirectoryEntries,
+            static function (array $left, array $right): int {
+                return [
+                    $left['centralDirectoryIndex'] ?? PHP_INT_MAX,
+                    $left['requestOrder'],
+                ] <=> [
+                    $right['centralDirectoryIndex'] ?? PHP_INT_MAX,
+                    $right['requestOrder'],
+                ];
+            }
+        );
+
+        $localHeaderEntries = $orderEntries;
+        usort(
+            $localHeaderEntries,
+            static function (array $left, array $right): int {
+                return [
+                    $left['localHeaderOrder'] ?? PHP_INT_MAX,
+                    $left['requestOrder'],
+                ] <=> [
+                    $right['localHeaderOrder'] ?? PHP_INT_MAX,
+                    $right['requestOrder'],
+                ];
+            }
+        );
+
+        $requestOrderNames = array_map(static fn (array $entry): string => $entry['name'], $orderEntries);
+        $centralDirectoryOrderNames = array_map(
+            static fn (array $entry): string => $entry['name'],
+            $centralDirectoryEntries
+        );
+        $localHeaderOrderNames = array_map(static fn (array $entry): string => $entry['name'], $localHeaderEntries);
+        $centralSubsetOrderByKey = [];
+        foreach ($centralDirectoryEntries as $centralDirectorySubsetOrder => $entry) {
+            $centralSubsetOrderByKey[$entry['orderKey']] = $centralDirectorySubsetOrder;
+        }
+
+        $localSubsetOrderByKey = [];
+        foreach ($localHeaderEntries as $localHeaderSubsetOrder => $entry) {
+            $localSubsetOrderByKey[$entry['orderKey']] = $localHeaderSubsetOrder;
+        }
+
+        $summaryEntries = [];
+        $mismatchedEntries = [];
+        foreach ($orderEntries as $entry) {
+            $centralDirectorySubsetOrder = $centralSubsetOrderByKey[$entry['orderKey']] ?? null;
+            $localHeaderSubsetOrder = $localSubsetOrderByKey[$entry['orderKey']] ?? null;
+            $matchesCentralDirectoryOrder = $centralDirectorySubsetOrder !== null
+                && $centralDirectorySubsetOrder === $localHeaderSubsetOrder;
+            $summary = [
+                'name' => $entry['name'],
+                'requestOrder' => $entry['requestOrder'],
+                'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
+                'localHeaderOrder' => $entry['localHeaderOrder'],
+                'centralDirectorySubsetOrder' => $centralDirectorySubsetOrder,
+                'localHeaderSubsetOrder' => $localHeaderSubsetOrder,
+                'matchesCentralDirectoryOrder' => $matchesCentralDirectoryOrder,
+                'roles' => $entry['roles'],
+            ];
+            $summaryEntries[] = $summary;
+            if (!$matchesCentralDirectoryOrder) {
+                $mismatchedEntries[] = $summary;
+            }
+        }
+
+        return [
+            'entryCount' => count($summaryEntries),
+            'requestOrderNames' => $requestOrderNames,
+            'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
+            'localHeaderOrderNames' => $localHeaderOrderNames,
+            'requestOrderMatchesCentralDirectoryOrder' => $requestOrderNames === $centralDirectoryOrderNames,
+            'requestOrderMatchesLocalHeaderOrder' => $requestOrderNames === $localHeaderOrderNames,
+            'centralDirectoryOrderMatchesLocalHeaderOrder' => $centralDirectoryOrderNames === $localHeaderOrderNames,
+            'mismatchEntryCount' => count($mismatchedEntries),
+            'mismatchedEntries' => $mismatchedEntries,
+            'entries' => $summaryEntries,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffPathDepthSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $depth = is_int($entry['pathDepth'] ?? null)
+                ? $entry['pathDepth']
+                : self::entryHandoffPathDepth($name);
+            if (!isset($summaries[$depth])) {
+                $summaries[$depth] = [
+                    'pathDepth' => $depth,
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'roles' => [],
+                    'entryNames' => [],
+                ];
+            }
+
+            ++$summaries[$depth]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$summaries[$depth]['directoryEntryCount'];
+            } else {
+                ++$summaries[$depth]['fileEntryCount'];
+            }
+
+            $summaries[$depth]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$depth]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$depth]['entryNames'][] = $name;
+
+            $roles = [];
+            if (is_array($entry['roles'] ?? null)) {
+                $roles = array_values(array_filter($entry['roles'], static fn (mixed $role): bool => is_string($role) && $role !== ''));
+            } elseif (is_string($entry['role'] ?? null) && $entry['role'] !== '') {
+                $roles = [$entry['role']];
+            }
+
+            foreach ($roles as $role) {
+                if (!in_array($role, $summaries[$depth]['roles'], true)) {
+                    $summaries[$depth]['roles'][] = $role;
+                }
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['roles'], SORT_STRING);
+        }
+        unset($summary);
+
+        ksort($summaries, SORT_NUMERIC);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $pathDepthSummaries
+     */
+    private static function entryHandoffMaxPathDepth(array $pathDepthSummaries): int
+    {
+        $maxDepth = 0;
+        foreach ($pathDepthSummaries as $summary) {
+            if (is_int($summary['pathDepth'] ?? null) && $summary['pathDepth'] > $maxDepth) {
+                $maxDepth = $summary['pathDepth'];
+            }
+        }
+
+        return $maxDepth;
+    }
+
+    private static function entryHandoffPathDepth(string $name): int
+    {
+        $segments = array_values(array_filter(explode('/', $name), static fn (string $segment): bool => $segment !== ''));
+
+        return count($segments);
     }
 
     /**
