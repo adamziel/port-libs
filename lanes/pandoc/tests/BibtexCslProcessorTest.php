@@ -498,6 +498,92 @@ BIB;
         $t->same('Mailbox import', $items['mail']['note']);
         $t->same('Nia Ng. Converter Tool. 2026. https://example.test/tool.', $bibliography);
     },
+    'carries biblatex standard type and number metadata in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@standard{migration-standard,
+  author       = {Ng, Nia},
+  title        = {Migration Package Standard},
+  organization = {Standards Office},
+  date         = {2026},
+  number       = {STD-1581},
+  status       = {approved},
+  langid       = {en},
+  series       = {Review Standards Series},
+  url          = {https://example.test/standard}
+}
+
+@article{journal-number,
+  author       = {Roe, Pat},
+  title        = {Journal Number Packet},
+  journaltitle = {Migration Standards Review},
+  date         = {2025},
+  number       = {3}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $standard = $items['migration-standard'];
+        $journal = $items['journal-number'];
+
+        $t->same('standard', $standard['type']);
+        $t->same('STD-1581', $standard['number']);
+        $t->same(false, array_key_exists('issue', $standard));
+        $t->same('approved', $standard['status']);
+        $t->same('en', $standard['language']);
+        $t->same('Review Standards Series', $standard['collection-title']);
+        $t->same('STD-1581', $standard['rawBibtex']['fields']['number']);
+        $t->same('article-journal', $journal['type']);
+        $t->same('3', $journal['issue']);
+        $t->same(false, array_key_exists('number', $journal));
+        $t->same(
+            'Nia Ng. Migration Package Standard. Standards Office. 2026. Number: STD-1581. https://example.test/standard.',
+            $processor->renderBibliographyText($standard)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="type"/>
+        <text variable="number"/>
+        <text variable="issue"/>
+        <text variable="status"/>
+        <text variable="language"/>
+        <text variable="collection-title"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="type"/>
+      <text variable="number"/>
+      <text variable="issue"/>
+      <text variable="status"/>
+      <text variable="collection-title"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('[standard | STD-1581 | approved | en | Review Standards Series; article-journal | 3]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'migration-standard', 'text' => '[@migration-standard]']),
+            new AstNode('citation', ['id' => 'journal-number', 'text' => '[@journal-number]']),
+        ]));
+        $t->same('Migration Package Standard :: standard :: STD-1581 :: approved :: Review Standards Series', $styled->renderBibliographyEntry('migration-standard'));
+
+        $document = (new MarkdownReader())->read('Standard review @migration-standard keeps document numbers distinct from journal issues.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$handoff['bibliography']]));
+
+        $t->same(['migration-standard'], $handoff['citedKeys']);
+        $t->same('STD-1581', $handoff['items'][0]['number']);
+        $t->same(false, array_key_exists('issue', $handoff['items'][0]));
+        $t->contains('Number: STD-1581', $blocks);
+    },
     'carries extended biblatex creator roles in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @incollection{roles,

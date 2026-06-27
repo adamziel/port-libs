@@ -349,6 +349,9 @@ final class BibtexCslProcessor
         if (($item['article-number'] ?? '') !== '') {
             $parts[] = 'Article number: ' . (string) $item['article-number'];
         }
+        if (($item['number'] ?? '') !== '') {
+            $parts[] = 'Number: ' . (string) $item['number'];
+        }
         if (($item['thesis-type'] ?? '') !== '') {
             $parts[] = 'Thesis type: ' . (string) $item['thesis-type'];
         }
@@ -733,9 +736,10 @@ final class BibtexCslProcessor
             'event-place' => ['venue', 'eventvenue', 'eventlocation', 'eventplace', 'event-place', 'event-location'],
             'event-type' => ['eventtype', 'event-type'],
             'edition' => ['edition'],
+            'number' => ['number'],
             'volume' => ['volume'],
             'number-of-volumes' => ['volumes'],
-            'issue' => ['number', 'issue'],
+            'issue' => ['issue'],
             'page' => ['pages', 'page'],
             'article-number' => ['eid', 'article-number', 'articlenumber'],
             'number-of-pages' => ['pagetotal', 'numpages', 'numberofpages', 'number-of-pages'],
@@ -811,6 +815,11 @@ final class BibtexCslProcessor
         $this->applyLiteralListField($item, $fields, 'original-publisher', ['origpublisher', 'originalpublisher', 'original-publisher'], 'original-publisher-list');
         $this->applyLiteralListField($item, $fields, 'original-publisher-place', ['origlocation', 'origaddress', 'originalpublisherplace', 'original-publisher-place'], 'original-publisher-place-list');
         $this->applyLiteralListField($item, $fields, 'original-language', ['origlanguage', 'originallanguage', 'original-language'], 'original-language-list');
+        $number = $this->firstField($fields, ['number']);
+        if (($item['issue'] ?? '') === '' && $number !== null && $number !== '' && $this->entryNumberActsAsIssue($type)) {
+            $item['issue'] = $number;
+            unset($item['number']);
+        }
         $this->normalizeIdentifierFields($item);
 
         $thesisType = $this->thesisTypeForEntry($type, $fields);
@@ -1191,6 +1200,11 @@ final class BibtexCslProcessor
         return false;
     }
 
+    private function entryNumberActsAsIssue(string $type): bool
+    {
+        return in_array(strtolower($type), ['article', 'periodical', 'review', 'suppperiodical'], true);
+    }
+
     /**
      * @param array<string, string> $fields
      * @param list<string> $titleNames
@@ -1232,6 +1246,7 @@ final class BibtexCslProcessor
             'booklet' => 'pamphlet',
             'letter' => 'personal_communication',
             'misc' => 'document',
+            'standard' => 'standard',
             'software' => 'software',
             'dataset' => 'dataset',
             'movie', 'video' => 'motion_picture',
