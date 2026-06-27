@@ -5949,6 +5949,7 @@ final class ZipPackage
         $selectedPathDepthSummaries = self::entryHandoffPathDepthSummaries($selectedDirectoryRootSummaryEntries);
         $handoffPathDepthSummaries = self::entryHandoffPathDepthSummaries($handoffEntries);
         $roleSummaries = self::entryHandoffRoleSummaries($entries);
+        $handoffSourceByteSpanSummary = self::entryHandoffSourceByteSpanSummary($handoffEntries);
 
         return [
             'requestedEntryCount' => count($requests),
@@ -6068,6 +6069,26 @@ final class ZipPackage
             'selectedSourceTotalRecordBytes' => $selectedSourceTotalRecordBytes,
             'selectedSourceByteSpanIssueCount' => count($selectedSourceByteSpanIssues),
             'selectedSourceByteSpanIssues' => $selectedSourceByteSpanIssues,
+            'handoffSourceByteSpanEntryCount' => $handoffSourceByteSpanSummary['entryCount'],
+            'handoffSourceLocalRecordBytes' => $handoffSourceByteSpanSummary['localRecordBytes'],
+            'handoffSourceLocalHeaderBytes' => $handoffSourceByteSpanSummary['localHeaderBytes'],
+            'handoffSourceLocalFixedHeaderBytes' => $handoffSourceByteSpanSummary['localFixedHeaderBytes'],
+            'handoffSourceLocalHeaderVariableFieldBytes' => $handoffSourceByteSpanSummary['localHeaderVariableFieldBytes'],
+            'handoffSourceLocalRawNameBytes' => $handoffSourceByteSpanSummary['localRawNameBytes'],
+            'handoffSourceLocalExtraFieldBytes' => $handoffSourceByteSpanSummary['localExtraFieldBytes'],
+            'handoffSourceLocalReviewFieldBytes' => $handoffSourceByteSpanSummary['localHeaderReviewFieldBytes'],
+            'handoffSourceCompressedDataBytes' => $handoffSourceByteSpanSummary['compressedDataBytes'],
+            'handoffSourceDataDescriptorBytes' => $handoffSourceByteSpanSummary['dataDescriptorBytes'],
+            'handoffSourceCentralDirectoryRecordBytes' => $handoffSourceByteSpanSummary['centralDirectoryRecordBytes'],
+            'handoffSourceCentralDirectoryFixedHeaderBytes' => $handoffSourceByteSpanSummary['centralDirectoryFixedHeaderBytes'],
+            'handoffSourceCentralDirectoryVariableFieldBytes' => $handoffSourceByteSpanSummary['centralDirectoryVariableFieldBytes'],
+            'handoffSourceCentralDirectoryRawNameBytes' => $handoffSourceByteSpanSummary['centralDirectoryRawNameBytes'],
+            'handoffSourceCentralDirectoryExtraFieldBytes' => $handoffSourceByteSpanSummary['centralDirectoryExtraFieldBytes'],
+            'handoffSourceCentralDirectoryRawCommentBytes' => $handoffSourceByteSpanSummary['centralDirectoryRawCommentBytes'],
+            'handoffSourceCentralDirectoryReviewFieldBytes' => $handoffSourceByteSpanSummary['centralDirectoryReviewFieldBytes'],
+            'handoffSourceTotalRecordBytes' => $handoffSourceByteSpanSummary['sourceRecordBytes'],
+            'handoffSourceByteSpanIssueCount' => count($handoffSourceByteSpanSummary['issues']),
+            'handoffSourceByteSpanIssues' => $handoffSourceByteSpanSummary['issues'],
             'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
             'maxTotalUncompressedBytes' => $maxTotalUncompressedBytes,
             'isSupportedByBoundedReader' => $issues === [],
@@ -6102,11 +6123,140 @@ final class ZipPackage
             'selectedDataDescriptorProvenanceEntries' => $selectedDataDescriptorProvenanceEntries,
             'selectedDataDescriptorIssueEntries' => $selectedDataDescriptorIssueEntries,
             'selectedSourceByteSpanEntries' => $selectedSourceByteSpanEntries,
+            'handoffSourceByteSpanEntries' => $handoffSourceByteSpanSummary['entries'],
             'missingEntries' => $missingEntries,
             'failedEntries' => $failedEntries,
             'handoffEntries' => $handoffEntries,
             'entries' => $entries,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array{entryCount:int, localRecordBytes:int, localHeaderBytes:int, localFixedHeaderBytes:int, localHeaderVariableFieldBytes:int, localRawNameBytes:int, localExtraFieldBytes:int, localHeaderReviewFieldBytes:int, compressedDataBytes:int, dataDescriptorBytes:int, centralDirectoryRecordBytes:int, centralDirectoryFixedHeaderBytes:int, centralDirectoryVariableFieldBytes:int, centralDirectoryRawNameBytes:int, centralDirectoryExtraFieldBytes:int, centralDirectoryRawCommentBytes:int, centralDirectoryReviewFieldBytes:int, sourceRecordBytes:int, issues:list<string>, entries:list<array<string, mixed>>}
+     */
+    private static function entryHandoffSourceByteSpanSummary(array $entries): array
+    {
+        $summary = [
+            'entryCount' => 0,
+            'localRecordBytes' => 0,
+            'localHeaderBytes' => 0,
+            'localFixedHeaderBytes' => 0,
+            'localHeaderVariableFieldBytes' => 0,
+            'localRawNameBytes' => 0,
+            'localExtraFieldBytes' => 0,
+            'localHeaderReviewFieldBytes' => 0,
+            'compressedDataBytes' => 0,
+            'dataDescriptorBytes' => 0,
+            'centralDirectoryRecordBytes' => 0,
+            'centralDirectoryFixedHeaderBytes' => 0,
+            'centralDirectoryVariableFieldBytes' => 0,
+            'centralDirectoryRawNameBytes' => 0,
+            'centralDirectoryExtraFieldBytes' => 0,
+            'centralDirectoryRawCommentBytes' => 0,
+            'centralDirectoryReviewFieldBytes' => 0,
+            'sourceRecordBytes' => 0,
+            'issues' => [],
+            'entries' => [],
+        ];
+        $sourceByteKeys = [
+            'localRecordBytes',
+            'localHeaderBytes',
+            'localFixedHeaderBytes',
+            'localHeaderVariableFieldBytes',
+            'localRawNameBytes',
+            'localExtraFieldBytes',
+            'localHeaderReviewFieldBytes',
+            'compressedDataBytes',
+            'dataDescriptorBytes',
+            'centralDirectoryRecordBytes',
+            'centralDirectoryFixedHeaderBytes',
+            'centralDirectoryVariableFieldBytes',
+            'centralDirectoryRawNameBytes',
+            'centralDirectoryExtraFieldBytes',
+            'centralDirectoryRawCommentBytes',
+            'centralDirectoryReviewFieldBytes',
+            'sourceRecordBytes',
+        ];
+        $provenanceKeys = [
+            'hasSourceByteSpanProvenance',
+            'localRecordOffset',
+            'localRecordBytes',
+            'localRecordEnd',
+            'localRecordSha256',
+            'localHeaderBytes',
+            'localHeaderEnd',
+            'localHeaderSha256',
+            'localFixedHeaderBytes',
+            'localHeaderVariableFieldOffset',
+            'localHeaderVariableFieldBytes',
+            'localHeaderVariableFieldSha256',
+            'localRawNameOffset',
+            'localRawNameBytes',
+            'localRawNameSha256',
+            'localExtraFieldOffset',
+            'localExtraFieldBytes',
+            'localExtraFieldSha256',
+            'localHeaderReviewFieldBytes',
+            'compressedDataOffset',
+            'compressedDataBytes',
+            'compressedDataEnd',
+            'compressedDataSha256',
+            'sourceByteSpanIncludesDataDescriptor',
+            'dataDescriptorOffset',
+            'dataDescriptorBytes',
+            'dataDescriptorEnd',
+            'dataDescriptorSha256',
+            'centralDirectoryRecordOffset',
+            'centralDirectoryRecordBytes',
+            'centralDirectoryRecordEnd',
+            'centralDirectoryRecordSha256',
+            'centralDirectoryFixedHeaderBytes',
+            'centralDirectoryVariableFieldOffset',
+            'centralDirectoryVariableFieldBytes',
+            'centralDirectoryVariableFieldSha256',
+            'centralDirectoryRawNameOffset',
+            'centralDirectoryRawNameBytes',
+            'centralDirectoryRawNameSha256',
+            'centralDirectoryExtraFieldOffset',
+            'centralDirectoryExtraFieldBytes',
+            'centralDirectoryExtraFieldSha256',
+            'centralDirectoryRawCommentOffset',
+            'centralDirectoryRawCommentBytes',
+            'centralDirectoryRawCommentSha256',
+            'centralDirectoryReviewFieldBytes',
+            'sourceRecordBytes',
+            'sourceByteSpanIssues',
+        ];
+
+        foreach ($entries as $entry) {
+            if (($entry['exists'] ?? false) !== true || ($entry['status'] ?? null) !== 'ready') {
+                continue;
+            }
+
+            $summary['entryCount']++;
+            foreach ($sourceByteKeys as $key) {
+                if (is_int($entry[$key] ?? null)) {
+                    $summary[$key] += $entry[$key];
+                }
+            }
+
+            $entrySummary = ['name' => is_string($entry['name'] ?? null) ? $entry['name'] : ''];
+            foreach ($provenanceKeys as $key) {
+                $entrySummary[$key] = $entry[$key] ?? null;
+            }
+            if (!is_array($entrySummary['sourceByteSpanIssues'])) {
+                $entrySummary['sourceByteSpanIssues'] = [];
+            }
+            foreach ($entrySummary['sourceByteSpanIssues'] as $issue) {
+                if (is_string($issue)) {
+                    self::appendUniqueIssue($summary['issues'], $issue);
+                }
+            }
+            $summary['entries'][] = $entrySummary;
+        }
+
+        return $summary;
     }
 
     /**

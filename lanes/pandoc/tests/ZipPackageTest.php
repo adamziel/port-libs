@@ -11586,6 +11586,124 @@ return [
         $t->same([$documentEntry, $commentsEntry], $summary['handoffEntries']);
     },
 
+    'summarizes readable zip source byte spans before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>readable source spans</w:p></w:body></w:document>';
+        $commentsXml = '<w:comments><w:comment>readable descriptor span</w:comment></w:comments>';
+        $largeMediaBytes = "large readable-source media bytes\n";
+        $commentsExtra = pack('vva*', 0xb0b1, strlen('readable-comments'), 'readable-comments');
+        $documentComment = 'readable document source record';
+        $commentsComment = 'readable comments source record';
+        $largeComment = 'blocked media source record';
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 0,
+                'comment' => $documentComment,
+            ],
+            [
+                'name' => 'word/comments.xml',
+                'data' => $commentsXml,
+                'method' => 8,
+                'descriptor' => true,
+                'descriptorSignature' => true,
+                'localExtra' => $commentsExtra,
+                'centralExtra' => $commentsExtra,
+                'comment' => $commentsComment,
+            ],
+            [
+                'name' => 'word/media/raw.bin',
+                'data' => $largeMediaBytes,
+                'method' => 0,
+                'comment' => $largeComment,
+            ],
+        ], 'readable-source-span-review');
+        $package = ZipPackage::fromString($zip);
+        $commentsCompressed = gzdeflate($commentsXml);
+        if ($commentsCompressed === false) {
+            throw new RuntimeException('Unable to deflate readable comments fixture');
+        }
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/comments.xml', 'required' => false, 'kind' => 'file', 'role' => 'review-sidecar'],
+            ['name' => 'word/media/raw.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 8],
+        ], 2048);
+
+        $selectedSpansByName = [];
+        foreach ($summary['selectedSourceByteSpanEntries'] as $sourceSpanEntry) {
+            $selectedSpansByName[$sourceSpanEntry['name']] = $sourceSpanEntry;
+        }
+        $handoffSpansByName = [];
+        foreach ($summary['handoffSourceByteSpanEntries'] as $sourceSpanEntry) {
+            $handoffSpansByName[$sourceSpanEntry['name']] = $sourceSpanEntry;
+        }
+
+        $documentSpan = $selectedSpansByName['word/document.xml'];
+        $commentsSpan = $selectedSpansByName['word/comments.xml'];
+        $largeSpan = $selectedSpansByName['word/media/raw.bin'];
+
+        $t->same(3, $summary['selectedSourceByteSpanEntryCount']);
+        $t->same(2, $summary['handoffSourceByteSpanEntryCount']);
+        $t->same(['word/document.xml', 'word/comments.xml'], array_keys($handoffSpansByName));
+        $t->same([$documentSpan, $commentsSpan], $summary['handoffSourceByteSpanEntries']);
+        $t->same(1, $summary['failedEntryCount']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
+        $t->same('blocked', $summary['entries'][2]['status']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['entries'][2]['issues']);
+
+        $handoffLocalRecordBytes = $documentSpan['localRecordBytes'] + $commentsSpan['localRecordBytes'];
+        $handoffCentralRecordBytes = $documentSpan['centralDirectoryRecordBytes'] + $commentsSpan['centralDirectoryRecordBytes'];
+        $handoffTotalRecordBytes = $documentSpan['sourceRecordBytes'] + $commentsSpan['sourceRecordBytes'];
+        $handoffLocalHeaderBytes = $documentSpan['localHeaderBytes'] + $commentsSpan['localHeaderBytes'];
+        $handoffCentralVariableBytes = $documentSpan['centralDirectoryVariableFieldBytes']
+            + $commentsSpan['centralDirectoryVariableFieldBytes'];
+
+        $t->same($handoffLocalRecordBytes, $summary['handoffSourceLocalRecordBytes']);
+        $t->same($handoffLocalHeaderBytes, $summary['handoffSourceLocalHeaderBytes']);
+        $t->same(60, $summary['handoffSourceLocalFixedHeaderBytes']);
+        $t->same(
+            strlen('word/document.xml') + strlen('word/comments.xml') + strlen($commentsExtra),
+            $summary['handoffSourceLocalHeaderVariableFieldBytes']
+        );
+        $t->same(
+            strlen('word/document.xml') + strlen('word/comments.xml'),
+            $summary['handoffSourceLocalRawNameBytes']
+        );
+        $t->same(strlen($commentsExtra), $summary['handoffSourceLocalExtraFieldBytes']);
+        $t->same(strlen($commentsExtra), $summary['handoffSourceLocalReviewFieldBytes']);
+        $t->same(strlen($documentXml) + strlen($commentsCompressed), $summary['handoffSourceCompressedDataBytes']);
+        $t->same(16, $summary['handoffSourceDataDescriptorBytes']);
+        $t->same($handoffCentralRecordBytes, $summary['handoffSourceCentralDirectoryRecordBytes']);
+        $t->same(92, $summary['handoffSourceCentralDirectoryFixedHeaderBytes']);
+        $t->same($handoffCentralVariableBytes, $summary['handoffSourceCentralDirectoryVariableFieldBytes']);
+        $t->same(
+            strlen('word/document.xml') + strlen('word/comments.xml'),
+            $summary['handoffSourceCentralDirectoryRawNameBytes']
+        );
+        $t->same(strlen($commentsExtra), $summary['handoffSourceCentralDirectoryExtraFieldBytes']);
+        $t->same(
+            strlen($documentComment) + strlen($commentsComment),
+            $summary['handoffSourceCentralDirectoryRawCommentBytes']
+        );
+        $t->same(
+            strlen($commentsExtra) + strlen($documentComment) + strlen($commentsComment),
+            $summary['handoffSourceCentralDirectoryReviewFieldBytes']
+        );
+        $t->same($handoffTotalRecordBytes, $summary['handoffSourceTotalRecordBytes']);
+        $t->same(0, $summary['handoffSourceByteSpanIssueCount']);
+        $t->same([], $summary['handoffSourceByteSpanIssues']);
+
+        $t->same($summary['selectedSourceLocalRecordBytes'] - $largeSpan['localRecordBytes'], $summary['handoffSourceLocalRecordBytes']);
+        $t->same($summary['selectedSourceCompressedDataBytes'] - $largeSpan['compressedDataBytes'], $summary['handoffSourceCompressedDataBytes']);
+        $t->same(
+            $summary['selectedSourceCentralDirectoryRawCommentBytes'] - strlen($largeComment),
+            $summary['handoffSourceCentralDirectoryRawCommentBytes']
+        );
+        $t->same($summary['selectedSourceTotalRecordBytes'] - $largeSpan['sourceRecordBytes'], $summary['handoffSourceTotalRecordBytes']);
+        $t->same(hash('sha256', substr($zip, $largeSpan['localRecordOffset'], $largeSpan['localRecordBytes'])), $largeSpan['localRecordSha256']);
+    },
+
     'preflights selected zip central directory fixed fields before reader handoff' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
         $documentName = 'word/document.xml';
         $mediaName = 'word/media/review.bin';
