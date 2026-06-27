@@ -15479,6 +15479,42 @@ NATIVE;
         $t->same('raw_tex', $roundTrip->children[0]->children[2]->type);
         $t->same('\\alpha', $roundTrip->children[0]->children[2]->attr('tex'));
     },
+    'serializes native text markdown raw format constructors through pandoc json writers' => static function (TestRunner $t): void {
+        $nativeText = <<<'NATIVE'
+Pandoc Meta {unMeta = fromList []} [ RawBlock (Format "markdown") "**raw block**", Para [ Str "Before", Space, RawInline (Format "gfm+raw_html") "<span>inline</span>", Space, RawInline (Format "latex") "\\beta" ] ]
+NATIVE;
+
+        $nativeDocument = (new NativeReader())->read($nativeText);
+        $document = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
+        ], $nativeDocument->children);
+        $jsonPacket = (new PandocJsonWriter())->toArray($document);
+        $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $roundTrip = (new PandocJsonReader())->readPacket($jsonPacket);
+
+        $rawBlock = $nativeDocument->children[0];
+        $rawInline = $nativeDocument->children[1]->children[2];
+        $rawTexInline = $nativeDocument->children[1]->children[4];
+
+        $t->same('raw_markdown', $rawBlock->type);
+        $t->same('markdown', $rawBlock->attr('format'));
+        $t->same('**raw block**', $rawBlock->attr('markdown'));
+        $t->same('raw_markdown', $rawInline->type);
+        $t->same('gfm+raw_html', $rawInline->attr('format'));
+        $t->same('<span>inline</span>', $rawInline->attr('markdown'));
+        $t->same('raw_tex_inline', $rawTexInline->type);
+        $t->same('latex', $rawTexInline->attr('format'));
+        $t->same('\\beta', $rawTexInline->attr('tex'));
+        $t->same(['t' => 'RawBlock', 'c' => ['markdown', '**raw block**']], $jsonPacket['blocks'][0]);
+        $t->same(['t' => 'RawInline', 'c' => ['gfm+raw_html', '<span>inline</span>']], $jsonPacket['blocks'][1]['c'][2]);
+        $t->same(['t' => 'RawInline', 'c' => ['latex', '\\beta']], $jsonPacket['blocks'][1]['c'][4]);
+        $t->same($jsonPacket['blocks'][0], $nativePacket['blocks'][0]);
+        $t->same($jsonPacket['blocks'][1]['c'][2], $nativePacket['blocks'][1]['c'][2]);
+        $t->same('raw_markdown', $roundTrip->children[0]->type);
+        $t->same('raw_markdown', $roundTrip->children[1]->children[2]->type);
+        $t->same('raw_tex', $roundTrip->children[1]->children[4]->type);
+    },
     'preserves single wrapped raw format constructors through json and native stacks' => static function (TestRunner $t): void {
         $blockFormat = ['t' => 'Format', 'c' => [['html']], 'reviewQueue' => 'raw-block-format-source'];
         $inlineFormat = ['t' => 'Format', 'c' => [['latex']], 'reviewQueue' => 'raw-inline-format-source'];
