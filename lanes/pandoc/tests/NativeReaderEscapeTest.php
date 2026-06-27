@@ -68,4 +68,38 @@ NATIVE;
             (new NativeWriter(['blocksOnly' => true]))->write($document)
         );
     },
+    'classifies textual native tex-family raw constructors through shared ast writers' => static function (TestRunner $t): void {
+        $native = <<<'NATIVE'
+[ RawBlock (Format "latex") "\\begin{review}body\\end{review}"
+, Para [ Str "Before" , Space , RawInline (Format "context") "\\startformula x \\stopformula" , Space , RawInline (Format "tex+macros") "\\alpha" ] ]
+NATIVE;
+
+        $document = (new NativeReader())->read($native);
+        $rawBlock = $document->children[0];
+        $paragraph = $document->children[1];
+        $contextInline = $paragraph->children[2];
+        $texMacroInline = $paragraph->children[4];
+        $json = (new PandocJsonWriter())->toArray(new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+        ], $document->children));
+
+        $t->same('raw_tex', $rawBlock->type);
+        $t->same('latex', $rawBlock->attr('format'));
+        $t->same('\\begin{review}body\\end{review}', $rawBlock->attr('tex'));
+        $t->same('raw_tex_inline', $contextInline->type);
+        $t->same('context', $contextInline->attr('format'));
+        $t->same('\\startformula x \\stopformula', $contextInline->attr('tex'));
+        $t->same('raw_tex_inline', $texMacroInline->type);
+        $t->same('tex+macros', $texMacroInline->attr('format'));
+        $t->same('\\alpha', $texMacroInline->attr('tex'));
+        $t->same(['t' => 'RawBlock', 'c' => ['latex', '\\begin{review}body\\end{review}']], $json['blocks'][0]);
+        $t->same(['t' => 'RawInline', 'c' => ['context', '\\startformula x \\stopformula']], $json['blocks'][1]['c'][2]);
+        $t->same(['t' => 'RawInline', 'c' => ['tex+macros', '\\alpha']], $json['blocks'][1]['c'][4]);
+        $t->same(
+            '[ RawBlock (Format "latex") "\\\\begin{review}body\\\\end{review}"' . "\n"
+            . ', Para [ Str "Before" , Space , RawInline (Format "context") "\\\\startformula x \\\\stopformula" , Space , RawInline (Format "tex+macros") "\\\\alpha" ]' . "\n"
+            . ']',
+            (new NativeWriter(['blocksOnly' => true]))->write($document)
+        );
+    },
 ];
