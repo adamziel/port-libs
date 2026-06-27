@@ -1166,6 +1166,104 @@ XML;
         $t->same(2, $summary['roleCounts']['media']);
         $t->same(2, $rawSummary['roleCounts']['media']);
     },
+    'summarizes OPC ZIP central directory review fields before XML package handoff' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+</Types>
+XML;
+        $relationshipsXml = '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"/>';
+        $relsExtra = pack('vva*', 0xcafe, strlen('rels-review'), 'rels-review');
+        $documentExtra = pack('vva*', 0xd00d, strlen('document-review'), 'document-review');
+        $relsComment = 'root relationship review';
+        $documentComment = 'document part review';
+        $parts = [
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'compressionMethod' => 0],
+            [
+                'name' => '_rels/.rels',
+                'data' => $relationshipsXml,
+                'compressionMethod' => 0,
+                'extraFieldData' => $relsExtra,
+                'comment' => $relsComment,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document/>',
+                'compressionMethod' => 0,
+                'extraFieldData' => $documentExtra,
+                'comment' => $documentComment,
+            ],
+            ['name' => 'word/media/image.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+        ];
+
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest(ZipPackage::fromParts($parts));
+        $rawSummary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest(ZipPackage::build($parts));
+        $entries = [];
+        foreach ($summary['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+        $rawEntries = [];
+        foreach ($rawSummary['entries'] as $entry) {
+            $rawEntries[$entry['entryName']] = $entry;
+        }
+
+        $expectedExtraBytes = strlen($relsExtra) + strlen($documentExtra);
+        $expectedCommentBytes = strlen($relsComment) + strlen($documentComment);
+        $expectedReviewBytes = $expectedExtraBytes + $expectedCommentBytes;
+
+        $t->same(true, $summary['valid']);
+        $t->same(true, $rawSummary['valid']);
+        $t->same($summary['centralDirectoryVariableFieldBytes'], $rawSummary['centralDirectoryVariableFieldBytes']);
+        $t->same($summary['centralDirectoryNameBytes'], $rawSummary['centralDirectoryNameBytes']);
+        $t->same($expectedExtraBytes, $summary['centralDirectoryExtraFieldBytes']);
+        $t->same($summary['centralDirectoryExtraFieldBytes'], $rawSummary['centralDirectoryExtraFieldBytes']);
+        $t->same($expectedCommentBytes, $summary['centralDirectoryCommentBytes']);
+        $t->same($summary['centralDirectoryCommentBytes'], $rawSummary['centralDirectoryCommentBytes']);
+        $t->same($expectedReviewBytes, $summary['centralDirectoryReviewFieldBytes']);
+        $t->same($summary['centralDirectoryReviewFieldBytes'], $rawSummary['centralDirectoryReviewFieldBytes']);
+        $t->same(2, $summary['centralExtraFieldEntryCount']);
+        $t->same($summary['centralExtraFieldEntryCount'], $rawSummary['centralExtraFieldEntryCount']);
+        $t->same(2, $summary['centralDirectoryEntryCommentCount']);
+        $t->same($summary['centralDirectoryEntryCommentCount'], $rawSummary['centralDirectoryEntryCommentCount']);
+        $t->same(2, $summary['centralDirectoryReviewFieldEntryCount']);
+        $t->same(true, $summary['hasCentralDirectoryReviewFields']);
+        $t->same([
+            '_rels/.rels',
+            'word/document.xml',
+        ], $summary['entryNamesWithCentralExtraFields']);
+        $t->same($summary['entryNamesWithCentralExtraFields'], $rawSummary['entryNamesWithCentralExtraFields']);
+        $t->same([
+            '_rels/.rels',
+            'word/document.xml',
+        ], $summary['entryNamesWithCentralDirectoryComments']);
+        $t->same($summary['entryNamesWithCentralDirectoryComments'], $rawSummary['entryNamesWithCentralDirectoryComments']);
+        $t->same([
+            [
+                'entryName' => '_rels/.rels',
+                'partName' => '/_rels/.rels',
+                'role' => 'package-relationships',
+                'handoffKind' => 'relationships+xml',
+                'centralDirectoryExtraFieldBytes' => strlen($relsExtra),
+                'centralDirectoryRawCommentBytes' => strlen($relsComment),
+                'centralDirectoryReviewFieldBytes' => strlen($relsExtra) + strlen($relsComment),
+            ],
+            [
+                'entryName' => 'word/document.xml',
+                'partName' => '/word/document.xml',
+                'role' => 'xml-part',
+                'handoffKind' => 'xml',
+                'centralDirectoryExtraFieldBytes' => strlen($documentExtra),
+                'centralDirectoryRawCommentBytes' => strlen($documentComment),
+                'centralDirectoryReviewFieldBytes' => strlen($documentExtra) + strlen($documentComment),
+            ],
+        ], $summary['centralDirectoryReviewFieldEntries']);
+        $t->same($summary['centralDirectoryReviewFieldEntries'], $rawSummary['centralDirectoryReviewFieldEntries']);
+        $t->same(strlen($documentExtra), $entries['word/document.xml']['centralDirectoryExtraFieldBytes']);
+        $t->same(strlen($documentComment), $entries['word/document.xml']['centralDirectoryRawCommentBytes']);
+        $t->same($entries['word/document.xml']['centralDirectoryReviewFieldBytes'], $rawEntries['word/document.xml']['centralDirectoryReviewFieldBytes']);
+    },
     'summarizes OPC ZIP manifest compression provenance before XML package handoff' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

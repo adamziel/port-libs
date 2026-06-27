@@ -599,6 +599,14 @@ final class OpcRelationshipGraph
                 'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
                 'centralDirectoryRecordEnd' => $centralDirectoryRecordEnd,
                 'centralDirectoryRecordSha256' => $manifestEntry['centralDirectoryRecordSha256'] ?? null,
+                'centralDirectoryVariableFieldBytes' => strlen($entry->rawName)
+                    + strlen($entry->centralExtraFieldData)
+                    + strlen($entry->rawComment),
+                'centralDirectoryNameBytes' => strlen($entry->rawName),
+                'centralDirectoryExtraFieldBytes' => strlen($entry->centralExtraFieldData),
+                'centralDirectoryRawCommentBytes' => strlen($entry->rawComment),
+                'centralDirectoryReviewFieldBytes' => strlen($entry->centralExtraFieldData)
+                    + strlen($entry->rawComment),
                 'localHeaderOrder' => $orderEntry['localHeaderOrder'] ?? $entryIndex,
                 'localHeaderOffset' => $orderEntry['localHeaderOffset'] ?? $entry->localHeaderOffset,
                 'rawName' => $entry->rawName,
@@ -857,6 +865,7 @@ final class OpcRelationshipGraph
         unset($entry);
 
         $rawNameManifest = self::zipRawNameManifestSummary($entries);
+        $centralDirectoryReviewFields = self::zipCentralDirectoryReviewFieldsSummary($entries);
         $issues = [];
         $issueCounts = [];
         $entryNamesByIssue = [];
@@ -1271,6 +1280,15 @@ final class OpcRelationshipGraph
             'rawNameLegacyEncodedEntryCount' => $rawNameManifest['rawNameLegacyEncodedEntryCount'],
             'rawNameUnicodePathExtraEntryCount' => $rawNameManifest['rawNameUnicodePathExtraEntryCount'],
             'rawNameDecodedDiffersEntryCount' => $rawNameManifest['rawNameDecodedDiffersEntryCount'],
+            'centralDirectoryVariableFieldBytes' => $centralDirectoryReviewFields['centralDirectoryVariableFieldBytes'],
+            'centralDirectoryNameBytes' => $centralDirectoryReviewFields['centralDirectoryNameBytes'],
+            'centralDirectoryExtraFieldBytes' => $centralDirectoryReviewFields['centralDirectoryExtraFieldBytes'],
+            'centralDirectoryCommentBytes' => $centralDirectoryReviewFields['centralDirectoryCommentBytes'],
+            'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFields['centralDirectoryReviewFieldBytes'],
+            'centralExtraFieldEntryCount' => $centralDirectoryReviewFields['centralExtraFieldEntryCount'],
+            'centralDirectoryEntryCommentCount' => $centralDirectoryReviewFields['centralDirectoryEntryCommentCount'],
+            'centralDirectoryReviewFieldEntryCount' => $centralDirectoryReviewFields['centralDirectoryReviewFieldEntryCount'],
+            'hasCentralDirectoryReviewFields' => $centralDirectoryReviewFields['hasCentralDirectoryReviewFields'],
             'relationshipPartCount' => $relationshipPartCount,
             'rootRelationshipPartCount' => $rootRelationshipPartCount,
             'partRelationshipPartCount' => $partRelationshipPartCount,
@@ -1312,6 +1330,9 @@ final class OpcRelationshipGraph
             'rawNameCollisionGroups' => $rawNameManifest['rawNameCollisionGroups'],
             'rawNameCollisionEntries' => $rawNameManifest['rawNameCollisionEntries'],
             'rawNameProvenanceEntries' => $rawNameManifest['rawNameProvenanceEntries'],
+            'entryNamesWithCentralExtraFields' => $centralDirectoryReviewFields['entryNamesWithCentralExtraFields'],
+            'entryNamesWithCentralDirectoryComments' => $centralDirectoryReviewFields['entryNamesWithCentralDirectoryComments'],
+            'centralDirectoryReviewFieldEntries' => $centralDirectoryReviewFields['centralDirectoryReviewFieldEntries'],
             'relationshipParts' => $relationshipParts,
             'contentTypeOverrideDeclarations' => $contentTypeOverrideDeclarations,
             'entries' => $entries,
@@ -1327,6 +1348,17 @@ final class OpcRelationshipGraph
     public static function preflightZipCentralDirectoryManifest(string $bytes): array
     {
         $centralDirectory = ZipPackage::centralDirectorySizePreflight($bytes);
+        $centralDirectoryVariableFields = null;
+        $centralDirectoryVariableFieldsPreflightError = null;
+        $centralDirectoryVariableFieldsByCentralDirectoryIndex = [];
+        try {
+            $centralDirectoryVariableFields = ZipPackage::centralDirectoryVariableFieldsPreflight($bytes);
+            foreach ($centralDirectoryVariableFields['entries'] as $variableFieldsEntry) {
+                $centralDirectoryVariableFieldsByCentralDirectoryIndex[$variableFieldsEntry['centralDirectoryIndex']] = $variableFieldsEntry;
+            }
+        } catch (\Throwable $exception) {
+            $centralDirectoryVariableFieldsPreflightError = $exception->getMessage();
+        }
         $localHeaderOrder = ZipPackage::centralDirectoryLocalHeaderOrderPreflight($bytes);
         $localHeaderOrderByCentralDirectoryIndex = [];
         foreach ($localHeaderOrder['entries'] as $orderEntry) {
@@ -1359,6 +1391,7 @@ final class OpcRelationshipGraph
             $byteCountsAreExact = !$centralEntry['hasZip64SizeSentinel'];
             $orderEntry = $localHeaderOrderByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
             $localHeaderNameEntry = $localHeaderNameByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
+            $variableFieldsEntry = $centralDirectoryVariableFieldsByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
             if ($localHeaderNameEntry !== null && $localHeaderNameEntry['issues'] !== []) {
                 $issues = array_values(array_unique(array_merge($issues, $localHeaderNameEntry['issues'])));
             }
@@ -1416,6 +1449,13 @@ final class OpcRelationshipGraph
                     'sha256',
                     substr($bytes, $centralEntry['centralDirectoryOffset'], $centralDirectoryRecordBytes)
                 ),
+                'centralDirectoryVariableFieldBytes' => $variableFieldsEntry['variableFieldsLength']
+                    ?? strlen($centralEntry['rawName']),
+                'centralDirectoryNameBytes' => $variableFieldsEntry['rawNameLength']
+                    ?? strlen($centralEntry['rawName']),
+                'centralDirectoryExtraFieldBytes' => $variableFieldsEntry['centralExtraFieldLength'] ?? 0,
+                'centralDirectoryRawCommentBytes' => $variableFieldsEntry['rawCommentLength'] ?? 0,
+                'centralDirectoryReviewFieldBytes' => $variableFieldsEntry['reviewFieldBytes'] ?? 0,
                 'localHeaderOffset' => $centralEntry['localHeaderOffset'],
                 'compressionMethod' => $centralEntry['compressionMethod'],
                 'compressionMethodName' => $centralEntry['compressionMethodName'],
@@ -1544,6 +1584,7 @@ final class OpcRelationshipGraph
         unset($entry);
 
         $rawNameManifest = self::zipRawNameManifestSummary($entries);
+        $centralDirectoryReviewFields = self::zipCentralDirectoryReviewFieldsSummary($entries);
         $issues = $centralDirectory['issues'];
         $issueCounts = [];
         $entryNamesByIssue = [];
@@ -1554,6 +1595,10 @@ final class OpcRelationshipGraph
         if ($localHeaderNamePreflightError !== null) {
             $issueCounts['local-header-name-preflight-error'] = 1;
             self::appendUniqueString($issues, 'local-header-name-preflight-error');
+        }
+        if ($centralDirectoryVariableFieldsPreflightError !== null) {
+            $issueCounts['central-directory-variable-field-preflight-error'] = 1;
+            self::appendUniqueString($issues, 'central-directory-variable-field-preflight-error');
         }
         $roleCounts = [];
         $byteCountsByRole = [];
@@ -1808,6 +1853,14 @@ final class OpcRelationshipGraph
             'localHeaderNamePreflightError' => $localHeaderNamePreflightError,
             'localHeaderNameMismatchEntryCount' => $localHeaderNames['mismatchedEntryCount'] ?? 0,
             'localHeaderNameMismatchedEntries' => $localHeaderNames['mismatchedEntries'] ?? [],
+            'centralDirectoryVariableFieldsValid' => $centralDirectoryVariableFields !== null
+                && $centralDirectoryVariableFields['isSupportedByBoundedReader'],
+            'centralDirectoryVariableFieldIssues' => $centralDirectoryVariableFields['issues'] ?? (
+                $centralDirectoryVariableFieldsPreflightError === null
+                    ? []
+                    : ['central-directory-variable-field-preflight-error']
+            ),
+            'centralDirectoryVariableFieldsPreflightError' => $centralDirectoryVariableFieldsPreflightError,
             'byteCountsAreExact' => $centralDirectory['totalsAreExact'],
             'unknownByteCountEntryCount' => count($unknownByteCountEntries),
             'declaredEntryCount' => $centralDirectory['declaredEntryCount'],
@@ -1834,6 +1887,15 @@ final class OpcRelationshipGraph
             'rawNameLegacyEncodedEntryCount' => $rawNameManifest['rawNameLegacyEncodedEntryCount'],
             'rawNameUnicodePathExtraEntryCount' => $rawNameManifest['rawNameUnicodePathExtraEntryCount'],
             'rawNameDecodedDiffersEntryCount' => $rawNameManifest['rawNameDecodedDiffersEntryCount'],
+            'centralDirectoryVariableFieldBytes' => $centralDirectoryReviewFields['centralDirectoryVariableFieldBytes'],
+            'centralDirectoryNameBytes' => $centralDirectoryReviewFields['centralDirectoryNameBytes'],
+            'centralDirectoryExtraFieldBytes' => $centralDirectoryReviewFields['centralDirectoryExtraFieldBytes'],
+            'centralDirectoryCommentBytes' => $centralDirectoryReviewFields['centralDirectoryCommentBytes'],
+            'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFields['centralDirectoryReviewFieldBytes'],
+            'centralExtraFieldEntryCount' => $centralDirectoryReviewFields['centralExtraFieldEntryCount'],
+            'centralDirectoryEntryCommentCount' => $centralDirectoryReviewFields['centralDirectoryEntryCommentCount'],
+            'centralDirectoryReviewFieldEntryCount' => $centralDirectoryReviewFields['centralDirectoryReviewFieldEntryCount'],
+            'hasCentralDirectoryReviewFields' => $centralDirectoryReviewFields['hasCentralDirectoryReviewFields'],
             'relationshipPartCount' => $relationshipPartCount,
             'rootRelationshipPartCount' => $rootRelationshipPartCount,
             'partRelationshipPartCount' => $partRelationshipPartCount,
@@ -1871,9 +1933,13 @@ final class OpcRelationshipGraph
             'rawNameCollisionGroups' => $rawNameManifest['rawNameCollisionGroups'],
             'rawNameCollisionEntries' => $rawNameManifest['rawNameCollisionEntries'],
             'rawNameProvenanceEntries' => $rawNameManifest['rawNameProvenanceEntries'],
+            'entryNamesWithCentralExtraFields' => $centralDirectoryReviewFields['entryNamesWithCentralExtraFields'],
+            'entryNamesWithCentralDirectoryComments' => $centralDirectoryReviewFields['entryNamesWithCentralDirectoryComments'],
+            'centralDirectoryReviewFieldEntries' => $centralDirectoryReviewFields['centralDirectoryReviewFieldEntries'],
             'relationshipParts' => $relationshipParts,
             'entries' => $entries,
             'centralDirectory' => $centralDirectory,
+            'centralDirectoryVariableFields' => $centralDirectoryVariableFields,
         ];
     }
 
@@ -8740,6 +8806,82 @@ final class OpcRelationshipGraph
         unset($summary);
 
         return array_values($summaries);
+    }
+
+    private static function zipCentralDirectoryReviewFieldsSummary(array $entries): array
+    {
+        $centralDirectoryVariableFieldBytes = 0;
+        $centralDirectoryNameBytes = 0;
+        $centralDirectoryExtraFieldBytes = 0;
+        $centralDirectoryCommentBytes = 0;
+        $centralDirectoryReviewFieldBytes = 0;
+        $centralExtraFieldEntryCount = 0;
+        $centralDirectoryEntryCommentCount = 0;
+        $centralDirectoryReviewFieldEntries = [];
+        $entryNamesWithCentralExtraFields = [];
+        $entryNamesWithCentralDirectoryComments = [];
+
+        foreach ($entries as $entry) {
+            $nameBytes = (int) ($entry['centralDirectoryNameBytes'] ?? strlen((string) ($entry['rawName'] ?? $entry['entryName'])));
+            $extraFieldBytes = (int) ($entry['centralDirectoryExtraFieldBytes'] ?? 0);
+            $commentBytes = (int) ($entry['centralDirectoryRawCommentBytes'] ?? 0);
+            $reviewFieldBytes = (int) ($entry['centralDirectoryReviewFieldBytes'] ?? ($extraFieldBytes + $commentBytes));
+            $variableFieldBytes = (int) ($entry['centralDirectoryVariableFieldBytes'] ?? (
+                $nameBytes + $extraFieldBytes + $commentBytes
+            ));
+
+            $centralDirectoryVariableFieldBytes += $variableFieldBytes;
+            $centralDirectoryNameBytes += $nameBytes;
+            $centralDirectoryExtraFieldBytes += $extraFieldBytes;
+            $centralDirectoryCommentBytes += $commentBytes;
+            $centralDirectoryReviewFieldBytes += $reviewFieldBytes;
+
+            if ($extraFieldBytes > 0) {
+                $centralExtraFieldEntryCount++;
+                self::appendUniqueString($entryNamesWithCentralExtraFields, $entry['entryName']);
+            }
+
+            if ($commentBytes > 0) {
+                $centralDirectoryEntryCommentCount++;
+                self::appendUniqueString($entryNamesWithCentralDirectoryComments, $entry['entryName']);
+            }
+
+            if ($reviewFieldBytes <= 0) {
+                continue;
+            }
+
+            $centralDirectoryReviewFieldEntries[] = [
+                'entryName' => $entry['entryName'],
+                'partName' => $entry['partName'],
+                'role' => $entry['role'],
+                'handoffKind' => $entry['handoffKind'],
+                'centralDirectoryExtraFieldBytes' => $extraFieldBytes,
+                'centralDirectoryRawCommentBytes' => $commentBytes,
+                'centralDirectoryReviewFieldBytes' => $reviewFieldBytes,
+            ];
+        }
+
+        sort($entryNamesWithCentralExtraFields, SORT_STRING);
+        sort($entryNamesWithCentralDirectoryComments, SORT_STRING);
+        usort(
+            $centralDirectoryReviewFieldEntries,
+            static fn (array $left, array $right): int => strcmp($left['entryName'], $right['entryName'])
+        );
+
+        return [
+            'centralDirectoryVariableFieldBytes' => $centralDirectoryVariableFieldBytes,
+            'centralDirectoryNameBytes' => $centralDirectoryNameBytes,
+            'centralDirectoryExtraFieldBytes' => $centralDirectoryExtraFieldBytes,
+            'centralDirectoryCommentBytes' => $centralDirectoryCommentBytes,
+            'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFieldBytes,
+            'centralExtraFieldEntryCount' => $centralExtraFieldEntryCount,
+            'centralDirectoryEntryCommentCount' => $centralDirectoryEntryCommentCount,
+            'centralDirectoryReviewFieldEntryCount' => count($centralDirectoryReviewFieldEntries),
+            'hasCentralDirectoryReviewFields' => $centralDirectoryReviewFieldEntries !== [],
+            'entryNamesWithCentralExtraFields' => $entryNamesWithCentralExtraFields,
+            'entryNamesWithCentralDirectoryComments' => $entryNamesWithCentralDirectoryComments,
+            'centralDirectoryReviewFieldEntries' => $centralDirectoryReviewFieldEntries,
+        ];
     }
 
     /**
