@@ -17559,6 +17559,11 @@ XML;
         $processingInstructions = $summary['partXmlProcessingInstructions'];
         $stylesheetData = 'type="text/xsl" href="../word/theme/review.xsl"';
         $msoData = 'progid="Word.Document"';
+        $processingInstructionAttributeValueBytes =
+            strlen('../word/theme/review.xsl')
+            + strlen('text/xsl')
+            + strlen('package')
+            + strlen('Word.Document');
 
         $t->same(9, $summary['partXmlInspectableCount']);
         $t->same(2, $summary['partXmlProcessingInstructionPartCount']);
@@ -17570,6 +17575,14 @@ XML;
         );
         $t->same(['mso-application', 'review-audit', 'xml-stylesheet'], $summary['partXmlProcessingInstructionTargets']);
         $t->same(['customXml/pi-review.xml', 'word/settings-pi.xml'], $summary['partXmlProcessingInstructionPartNames']);
+        $t->same(4, $summary['partXmlProcessingInstructionDataAttributeCount']);
+        $t->same(4, $summary['partXmlProcessingInstructionDataAttributeNameCount']);
+        $t->same(
+            ['checkpoint' => 1, 'href' => 1, 'progid' => 1, 'type' => 1],
+            $summary['partXmlProcessingInstructionDataAttributeNameCounts']
+        );
+        $t->same(['checkpoint', 'href', 'progid', 'type'], $summary['partXmlProcessingInstructionDataAttributeNames']);
+        $t->same($processingInstructionAttributeValueBytes, $summary['partXmlProcessingInstructionDataAttributeValueByteLength']);
 
         $t->same(true, $reviewPart['xmlInspectable']);
         $t->same(2, $reviewPart['xmlProcessingInstructionCount']);
@@ -17598,6 +17611,40 @@ XML;
         $t->same('word/settings-pi.xml', $processingInstructions[2]['partName']);
         $t->same('mso-application', $processingInstructions[2]['targetKey']);
         $t->same(['progid'], $processingInstructions[2]['dataAttributeNames']);
+    },
+    'summarizes docx package xml processing instruction pseudo attributes for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['customXml/pi-attributes.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="../word/theme/review.xsl" alternate="yes"?>
+<review:packet xmlns:review="urn:review-pi">
+  <?review-audit checkpoint="package" href="../audit.xml"?>
+  <review:item><?mso-application progid="Word.Document"?></review:item>
+</review:packet>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $summary = $document->attr('docx')['packageProvenance']['summary'];
+        $attributeValueBytes =
+            strlen('text/xsl')
+            + strlen('../word/theme/review.xsl')
+            + strlen('yes')
+            + strlen('package')
+            + strlen('../audit.xml')
+            + strlen('Word.Document');
+
+        $t->same(8, $summary['partXmlInspectableCount']);
+        $t->same(1, $summary['partXmlProcessingInstructionPartCount']);
+        $t->same(3, $summary['partXmlProcessingInstructionCount']);
+        $t->same(['mso-application' => 1, 'review-audit' => 1, 'xml-stylesheet' => 1], $summary['partXmlProcessingInstructionTargetCounts']);
+        $t->same(6, $summary['partXmlProcessingInstructionDataAttributeCount']);
+        $t->same(5, $summary['partXmlProcessingInstructionDataAttributeNameCount']);
+        $t->same(
+            ['alternate' => 1, 'checkpoint' => 1, 'href' => 2, 'progid' => 1, 'type' => 1],
+            $summary['partXmlProcessingInstructionDataAttributeNameCounts']
+        );
+        $t->same(['alternate', 'checkpoint', 'href', 'progid', 'type'], $summary['partXmlProcessingInstructionDataAttributeNames']);
+        $t->same($attributeValueBytes, $summary['partXmlProcessingInstructionDataAttributeValueByteLength']);
     },
     'summarizes docx package xml comments without exposing comment text' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();

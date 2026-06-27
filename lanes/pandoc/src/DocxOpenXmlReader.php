@@ -13974,6 +13974,11 @@ final class DocxOpenXmlReader
             'partXmlProcessingInstructionTargetCounts' => $partXmlRoots['xmlProcessingInstructionTargetCounts'],
             'partXmlProcessingInstructionTargets' => $partXmlRoots['xmlProcessingInstructionTargets'],
             'partXmlProcessingInstructionPartNames' => $partXmlRoots['xmlProcessingInstructionPartNames'],
+            'partXmlProcessingInstructionDataAttributeCount' => $partXmlRoots['xmlProcessingInstructionDataAttributeCount'],
+            'partXmlProcessingInstructionDataAttributeNameCount' => count($partXmlRoots['xmlProcessingInstructionDataAttributeNameCounts']),
+            'partXmlProcessingInstructionDataAttributeNameCounts' => $partXmlRoots['xmlProcessingInstructionDataAttributeNameCounts'],
+            'partXmlProcessingInstructionDataAttributeNames' => $partXmlRoots['xmlProcessingInstructionDataAttributeNames'],
+            'partXmlProcessingInstructionDataAttributeValueByteLength' => $partXmlRoots['xmlProcessingInstructionDataAttributeValueByteLength'],
             'partXmlCommentPartCount' => $partXmlRoots['xmlCommentPartCount'],
             'partXmlCommentCount' => $partXmlRoots['xmlCommentCount'],
             'partXmlCommentByteLength' => $partXmlRoots['xmlCommentByteLength'],
@@ -19670,7 +19675,7 @@ final class DocxOpenXmlReader
 
     /**
      * @param array<string, array<string, mixed>> $partInventory
-     * @return array{count:int, validCount:int, invalidCount:int, inspectionReasonCounts:array<string, int>, rootNamespaceCounts:array<string, int>, rootLocalNameCounts:array<string, int>, rootQualifiedNameCounts:array<string, int>, rootPrefixCounts:array<string, int>, rootNamespaceDeclarationCount:int, rootNamespacePrefixCounts:array<string, int>, rootNamespacePrefixes:list<string>, invalidPartNames:list<string>, xmlDeclarationCount:int, xmlDeclarationPartNames:list<string>, xmlDeclarationVersionCounts:array<string, int>, xmlDeclarationEncodingCounts:array<string, int>, xmlStandaloneDeclarationCount:int, xmlStandaloneYesCount:int, xmlStandaloneNoCount:int, xmlProcessingInstructionPartCount:int, xmlProcessingInstructionCount:int, xmlProcessingInstructionTargetCounts:array<string, int>, xmlProcessingInstructionTargets:list<string>, xmlProcessingInstructionPartNames:list<string>, xmlProcessingInstructions:list<array<string, mixed>>, xmlCommentPartCount:int, xmlCommentCount:int, xmlCommentByteLength:int, xmlCommentPartNames:list<string>, xmlComments:list<array<string, mixed>>, items:list<array<string, mixed>>}
+     * @return array{count:int, validCount:int, invalidCount:int, inspectionReasonCounts:array<string, int>, rootNamespaceCounts:array<string, int>, rootLocalNameCounts:array<string, int>, rootQualifiedNameCounts:array<string, int>, rootPrefixCounts:array<string, int>, rootNamespaceDeclarationCount:int, rootNamespacePrefixCounts:array<string, int>, rootNamespacePrefixes:list<string>, invalidPartNames:list<string>, xmlDeclarationCount:int, xmlDeclarationPartNames:list<string>, xmlDeclarationVersionCounts:array<string, int>, xmlDeclarationEncodingCounts:array<string, int>, xmlStandaloneDeclarationCount:int, xmlStandaloneYesCount:int, xmlStandaloneNoCount:int, xmlProcessingInstructionPartCount:int, xmlProcessingInstructionCount:int, xmlProcessingInstructionTargetCounts:array<string, int>, xmlProcessingInstructionTargets:list<string>, xmlProcessingInstructionPartNames:list<string>, xmlProcessingInstructionDataAttributeCount:int, xmlProcessingInstructionDataAttributeNameCounts:array<string, int>, xmlProcessingInstructionDataAttributeNames:list<string>, xmlProcessingInstructionDataAttributeValueByteLength:int, xmlProcessingInstructions:list<array<string, mixed>>, xmlCommentPartCount:int, xmlCommentCount:int, xmlCommentByteLength:int, xmlCommentPartNames:list<string>, xmlComments:list<array<string, mixed>>, items:list<array<string, mixed>>}
      */
     private function packagePartXmlRootSummary(array $partInventory): array
     {
@@ -19690,6 +19695,8 @@ final class DocxOpenXmlReader
         $xmlProcessingInstructionTargetCounts = [];
         $xmlProcessingInstructionTargets = [];
         $xmlProcessingInstructionPartNames = [];
+        $xmlProcessingInstructionDataAttributeNameCounts = [];
+        $xmlProcessingInstructionDataAttributeNames = [];
         $xmlProcessingInstructions = [];
         $xmlCommentPartNames = [];
         $xmlComments = [];
@@ -19701,6 +19708,8 @@ final class DocxOpenXmlReader
         $xmlStandaloneNoCount = 0;
         $xmlProcessingInstructionPartCount = 0;
         $xmlProcessingInstructionCount = 0;
+        $xmlProcessingInstructionDataAttributeCount = 0;
+        $xmlProcessingInstructionDataAttributeValueByteLength = 0;
         $xmlCommentPartCount = 0;
         $xmlCommentCount = 0;
         $xmlCommentByteLength = 0;
@@ -19822,6 +19831,22 @@ final class DocxOpenXmlReader
                     'dataAttributeNames' => array_values(array_map('strval', $instruction['dataAttributeNames'] ?? [])),
                     'dataAttributes' => is_array($instruction['dataAttributes'] ?? null) ? $instruction['dataAttributes'] : [],
                 ];
+                foreach (($instruction['dataAttributes'] ?? []) as $attribute) {
+                    if (!is_array($attribute)) {
+                        continue;
+                    }
+
+                    $attributeName = is_string($attribute['name'] ?? null) ? $attribute['name'] : '';
+                    if ($attributeName === '') {
+                        continue;
+                    }
+
+                    ++$xmlProcessingInstructionDataAttributeCount;
+                    $xmlProcessingInstructionDataAttributeNameCounts[$attributeName] =
+                        ($xmlProcessingInstructionDataAttributeNameCounts[$attributeName] ?? 0) + 1;
+                    $this->appendUniqueString($xmlProcessingInstructionDataAttributeNames, $attributeName);
+                    $xmlProcessingInstructionDataAttributeValueByteLength += (int) ($attribute['valueByteLength'] ?? 0);
+                }
             }
             $partCommentCount = (int) ($part['xmlCommentCount'] ?? 0);
             if ($partCommentCount > 0) {
@@ -19911,7 +19936,9 @@ final class DocxOpenXmlReader
         ksort($xmlDeclarationVersionCounts, SORT_STRING);
         ksort($xmlDeclarationEncodingCounts, SORT_STRING);
         ksort($xmlProcessingInstructionTargetCounts, SORT_STRING);
+        ksort($xmlProcessingInstructionDataAttributeNameCounts, SORT_STRING);
         sort($xmlProcessingInstructionTargets, SORT_STRING);
+        sort($xmlProcessingInstructionDataAttributeNames, SORT_STRING);
         sort($invalidPartNames, SORT_STRING);
         sort($xmlDeclarationPartNames, SORT_STRING);
         sort($xmlProcessingInstructionPartNames, SORT_STRING);
@@ -19956,6 +19983,10 @@ final class DocxOpenXmlReader
             'xmlProcessingInstructionTargetCounts' => $xmlProcessingInstructionTargetCounts,
             'xmlProcessingInstructionTargets' => $xmlProcessingInstructionTargets,
             'xmlProcessingInstructionPartNames' => $xmlProcessingInstructionPartNames,
+            'xmlProcessingInstructionDataAttributeCount' => $xmlProcessingInstructionDataAttributeCount,
+            'xmlProcessingInstructionDataAttributeNameCounts' => $xmlProcessingInstructionDataAttributeNameCounts,
+            'xmlProcessingInstructionDataAttributeNames' => $xmlProcessingInstructionDataAttributeNames,
+            'xmlProcessingInstructionDataAttributeValueByteLength' => $xmlProcessingInstructionDataAttributeValueByteLength,
             'xmlProcessingInstructions' => $xmlProcessingInstructions,
             'xmlCommentPartCount' => $xmlCommentPartCount,
             'xmlCommentCount' => $xmlCommentCount,
