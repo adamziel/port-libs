@@ -44,25 +44,12 @@ final class DocxReader
 
     public function read(string $bytes): AstNode
     {
-        $path = tempnam(sys_get_temp_dir(), 'pandoc-docx-');
-        if ($path === false) {
-            throw new \RuntimeException('Unable to create temporary DOCX path.');
-        }
-
-        try {
-            if (file_put_contents($path, $bytes) === false) {
-                throw new \RuntimeException('Unable to write temporary DOCX package.');
-            }
-
-            return $this->readDocxFile($path);
-        } finally {
-            @unlink($path);
-        }
+        return $this->readDocument(ZipPackage::fromString($bytes));
     }
 
     public function readDocument(ZipPackage $package): AstNode
     {
-        $parts = [];
+        $entriesByName = [];
         $entries = [];
         $media = [];
         $header_xmls = [];
@@ -74,18 +61,17 @@ final class DocxReader
             }
 
             $name = $entry->name;
+            $entriesByName[$name] = $entry;
             $entries[] = $name;
-            $contents = $package->read($name);
-            $parts[$name] = $contents;
 
             if (str_starts_with($name, 'word/media/')) {
                 $media[] = $name;
             }
-            if (preg_match('#^word/header\d*\.xml$#', $name) === 1) {
-                $header_xmls[$name] = $contents;
+            if (preg_match('#^word/header\d*\.xml$#', $name) === 1 && $this->isReadablePackageEntry($entry)) {
+                $header_xmls[$name] = $package->read($name);
             }
-            if (preg_match('#^word/footer\d*\.xml$#', $name) === 1) {
-                $footer_xmls[$name] = $contents;
+            if (preg_match('#^word/footer\d*\.xml$#', $name) === 1 && $this->isReadablePackageEntry($entry)) {
+                $footer_xmls[$name] = $package->read($name);
             }
         }
 
@@ -93,14 +79,14 @@ final class DocxReader
         ksort($footer_xmls);
 
         return $this->readPackage(
-            $parts['word/document.xml'] ?? throw new \InvalidArgumentException('DOCX package is missing word/document.xml.'),
-            $parts['word/styles.xml'] ?? '',
-            $parts['word/numbering.xml'] ?? '',
-            $parts['word/_rels/document.xml.rels'] ?? '',
-            $parts['docProps/core.xml'] ?? '',
-            $parts['word/footnotes.xml'] ?? '',
-            $parts['word/endnotes.xml'] ?? '',
-            $parts['word/comments.xml'] ?? '',
+            $this->readRequiredPackagePart($package, $entriesByName, 'word/document.xml'),
+            $this->readOptionalPackagePart($package, $entriesByName, 'word/styles.xml'),
+            $this->readOptionalPackagePart($package, $entriesByName, 'word/numbering.xml'),
+            $this->readOptionalPackagePart($package, $entriesByName, 'word/_rels/document.xml.rels'),
+            $this->readOptionalPackagePart($package, $entriesByName, 'docProps/core.xml'),
+            $this->readOptionalPackagePart($package, $entriesByName, 'word/footnotes.xml'),
+            $this->readOptionalPackagePart($package, $entriesByName, 'word/endnotes.xml'),
+            $this->readOptionalPackagePart($package, $entriesByName, 'word/comments.xml'),
             $header_xmls,
             $footer_xmls,
             $entries,
@@ -110,75 +96,49 @@ final class DocxReader
 
     public function readDocxFile(string $path): AstNode
     {
-        if (!class_exists(\ZipArchive::class)) {
-            throw new \RuntimeException('DOCX analysis needs PHP ZipArchive, which is unavailable in this runtime.');
+        if (!is_file($path)) {
+            throw new \InvalidArgumentException("DOCX package does not exist: '{$path}'.");
         }
 
-        $zip = new \ZipArchive();
-        if ($zip->open($path) !== true) {
-            throw new \InvalidArgumentException("Unable to open DOCX package '{$path}'.");
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new \RuntimeException("Unable to read DOCX package '{$path}'.");
         }
 
-        try {
-            $document_xml = $zip->getFromName('word/document.xml');
-            if (!is_string($document_xml)) {
-                throw new \InvalidArgumentException('DOCX package is missing word/document.xml.');
-            }
-            $styles_xml = $zip->getFromName('word/styles.xml');
-            $numbering_xml = $zip->getFromName('word/numbering.xml');
-            $rels_xml = $zip->getFromName('word/_rels/document.xml.rels');
-            $core_xml = $zip->getFromName('docProps/core.xml');
-            $footnotes_xml = $zip->getFromName('word/footnotes.xml');
-            $endnotes_xml = $zip->getFromName('word/endnotes.xml');
-            $comments_xml = $zip->getFromName('word/comments.xml');
+        return $this->read($bytes);
+    }
 
-            $entries = [];
-            $media = [];
-            $header_xmls = [];
-            $footer_xmls = [];
-            for ($i = 0; $i < $zip->numFiles; $i++) {
-                $stat = $zip->statIndex($i);
-                $name = is_array($stat) ? (string) ($stat['name'] ?? '') : '';
-                if ($name === '') {
-                    continue;
-                }
-                $entries[] = $name;
-                if (str_starts_with($name, 'word/media/')) {
-                    $media[] = $name;
-                }
-                if (preg_match('#^word/header\d*\.xml$#', $name) === 1) {
-                    $xml = $zip->getFromName($name);
-                    if (is_string($xml)) {
-                        $header_xmls[$name] = $xml;
-                    }
-                }
-                if (preg_match('#^word/footer\d*\.xml$#', $name) === 1) {
-                    $xml = $zip->getFromName($name);
-                    if (is_string($xml)) {
-                        $footer_xmls[$name] = $xml;
-                    }
-                }
-            }
-            ksort($header_xmls);
-            ksort($footer_xmls);
-        } finally {
-            $zip->close();
+    /**
+     * @param array<string, ZipPackageEntry> $entriesByName
+     */
+    private function readRequiredPackagePart(ZipPackage $package, array $entriesByName, string $partName): string
+    {
+        if (!isset($entriesByName[$partName])) {
+            throw new \InvalidArgumentException("DOCX package is missing {$partName}.");
         }
 
-        return $this->readPackage(
-            $document_xml,
-            is_string($styles_xml) ? $styles_xml : '',
-            is_string($numbering_xml) ? $numbering_xml : '',
-            is_string($rels_xml) ? $rels_xml : '',
-            is_string($core_xml) ? $core_xml : '',
-            is_string($footnotes_xml) ? $footnotes_xml : '',
-            is_string($endnotes_xml) ? $endnotes_xml : '',
-            is_string($comments_xml) ? $comments_xml : '',
-            $header_xmls,
-            $footer_xmls,
-            $entries,
-            $media,
-        );
+        return $package->read($partName);
+    }
+
+    /**
+     * @param array<string, ZipPackageEntry> $entriesByName
+     */
+    private function readOptionalPackagePart(ZipPackage $package, array $entriesByName, string $partName): string
+    {
+        $entry = $entriesByName[$partName] ?? null;
+        if (!$entry instanceof ZipPackageEntry) {
+            return '';
+        }
+        if (!$this->isReadablePackageEntry($entry)) {
+            return '';
+        }
+
+        return $package->read($partName);
+    }
+
+    private function isReadablePackageEntry(ZipPackageEntry $entry): bool
+    {
+        return $entry->compressionMethod === 0 || $entry->compressionMethod === 8;
     }
 
     /**
