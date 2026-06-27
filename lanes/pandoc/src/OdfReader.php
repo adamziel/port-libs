@@ -1468,6 +1468,7 @@ final class OdfReader
         $manifestRootAttributes = $this->manifestRootAttributeProvenance;
         $manifestRootExtensions = $this->manifestRootExtensionElementProvenance;
         $localHeaderOrder = $package->localHeaderOrderPreflight();
+        $packageManifest = $package->packageManifestPreflight();
         $compressionMethods = $package->compressionMethodPreflight();
         $comments = $package->commentPreflight();
         $platformMetadata = $package->platformMetadataPreflight();
@@ -1680,6 +1681,7 @@ final class OdfReader
         foreach ($localHeaderOrder['entries'] as $entry) {
             $localOrderByName[$entry['name']] = $entry;
         }
+        $sourceRecordEntriesByName = self::zipPreflightEntriesByName($packageManifest);
         $commentEntriesByName = [];
         foreach ($comments['entries'] ?? [] as $entry) {
             $name = $entry['name'] ?? null;
@@ -1706,6 +1708,7 @@ final class OdfReader
             $embeddedObjectPackage = $this->embeddedObjectPackageMembership($entry->name, $objectPackageRootParts);
             $roles = $this->packagePartRoles($entry, $manifestItem, $isUndeclared, $objectPackageRootParts);
             $rawNameProvenance = $this->zipEntryRawNameProvenance($entry);
+            $sourceRecordProvenance = self::zipEntrySourceRecordProvenance($sourceRecordEntriesByName[$entry->name] ?? null);
             $platformAttributeProvenance = self::zipPlatformAttributeProvenance(
                 $entry,
                 $platformMetadataByName[$entry->name] ?? null,
@@ -1810,7 +1813,7 @@ final class OdfReader
                 'canExposeBytes' => is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $byteExposurePolicy,
                 'undeclared' => $isUndeclared,
-            ] + $rawNameProvenance + $platformAttributeProvenance;
+            ] + $rawNameProvenance + $sourceRecordProvenance + $platformAttributeProvenance;
 
             if (is_string($byteExposurePolicy) && $byteExposurePolicy !== '') {
                 $packagePartByteExposurePolicyCounts[$byteExposurePolicy] = ($packagePartByteExposurePolicyCounts[$byteExposurePolicy] ?? 0) + 1;
@@ -1984,6 +1987,7 @@ final class OdfReader
             'unicodePathExtraEntryCount' => $unicodePathExtraEntryCount,
             'decodedNameDiffersFromRawNameEntryCount' => $decodedNameDiffersFromRawNameEntryCount,
             'rawNameProvenanceEntries' => $rawNameProvenanceEntries,
+            'zipSourceRecords' => self::zipSourceRecordSummary($packageManifest, $parts),
             'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],
             'localHeaderOrder' => $localHeaderOrder,
             'compressionMethods' => $compressionMethods,
@@ -2870,6 +2874,107 @@ final class OdfReader
         }
 
         return $entriesByName;
+    }
+
+    /**
+     * @param array<string, mixed>|null $entry
+     * @return array<string, mixed>
+     */
+    private static function zipEntrySourceRecordProvenance(?array $entry): array
+    {
+        if ($entry === null) {
+            return [
+                'hasZipSourceRecordProvenance' => false,
+                'zipLocalHeaderLength' => null,
+                'zipLocalHeaderSha256' => null,
+                'zipCentralDirectoryRecordOffset' => null,
+                'zipCentralDirectoryRecordEnd' => null,
+                'zipCentralDirectoryRecordBytes' => null,
+                'zipCentralDirectoryRecordSha256' => null,
+                'zipSourceRecordReviewBytes' => null,
+            ];
+        }
+
+        $centralDirectoryRecordOffset = is_int($entry['centralDirectoryRecordOffset'] ?? null)
+            ? $entry['centralDirectoryRecordOffset']
+            : null;
+        $centralDirectoryRecordEnd = is_int($entry['centralDirectoryRecordEnd'] ?? null)
+            ? $entry['centralDirectoryRecordEnd']
+            : null;
+        $centralDirectoryRecordBytes = $centralDirectoryRecordOffset !== null
+            && $centralDirectoryRecordEnd !== null
+            && $centralDirectoryRecordEnd >= $centralDirectoryRecordOffset
+                ? $centralDirectoryRecordEnd - $centralDirectoryRecordOffset
+                : null;
+        $localHeaderLength = is_int($entry['localHeaderLength'] ?? null) ? $entry['localHeaderLength'] : null;
+
+        return [
+            'hasZipSourceRecordProvenance' => true,
+            'zipLocalHeaderLength' => $localHeaderLength,
+            'zipLocalHeaderSha256' => is_string($entry['localHeaderSha256'] ?? null) ? $entry['localHeaderSha256'] : null,
+            'zipCentralDirectoryRecordOffset' => $centralDirectoryRecordOffset,
+            'zipCentralDirectoryRecordEnd' => $centralDirectoryRecordEnd,
+            'zipCentralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
+            'zipCentralDirectoryRecordSha256' => is_string($entry['centralDirectoryRecordSha256'] ?? null)
+                ? $entry['centralDirectoryRecordSha256']
+                : null,
+            'zipSourceRecordReviewBytes' => ($localHeaderLength ?? 0) + ($centralDirectoryRecordBytes ?? 0),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $packageManifest
+     * @param array<string, array<string, mixed>> $parts
+     * @return array<string, mixed>
+     */
+    private static function zipSourceRecordSummary(array $packageManifest, array $parts): array
+    {
+        $items = [];
+        $localHeaderBytes = 0;
+        $centralDirectoryRecordBytes = 0;
+        $reviewBytes = 0;
+
+        foreach (is_array($packageManifest['entries'] ?? null) ? $packageManifest['entries'] : [] as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $name = $entry['name'] ?? null;
+            if (!is_string($name) || $name === '') {
+                continue;
+            }
+
+            $provenance = self::zipEntrySourceRecordProvenance($entry);
+            $part = $parts[$name] ?? [];
+            if (is_int($provenance['zipLocalHeaderLength'])) {
+                $localHeaderBytes += $provenance['zipLocalHeaderLength'];
+            }
+            if (is_int($provenance['zipCentralDirectoryRecordBytes'])) {
+                $centralDirectoryRecordBytes += $provenance['zipCentralDirectoryRecordBytes'];
+            }
+            if (is_int($provenance['zipSourceRecordReviewBytes'])) {
+                $reviewBytes += $provenance['zipSourceRecordReviewBytes'];
+            }
+
+            $items[] = self::withoutEmpty([
+                'part' => $name,
+                'centralDirectoryIndex' => $entry['centralDirectoryIndex'] ?? null,
+                'localHeaderOrder' => $entry['localHeaderOrder'] ?? null,
+                'roles' => is_array($part['roles'] ?? null) ? $part['roles'] : [],
+                'canExposeBytes' => ($part['canExposeBytes'] ?? false) === true,
+                'byteExposurePolicy' => $part['byteExposurePolicy'] ?? null,
+            ] + $provenance);
+        }
+
+        return [
+            'entryCount' => count($items),
+            'localHeaderBytes' => $localHeaderBytes,
+            'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
+            'sourceRecordReviewBytes' => $reviewBytes,
+            'canExposeBytes' => false,
+            'byteExposurePolicy' => 'zip-source-record-provenance-metadata-only',
+            'items' => $items,
+        ];
     }
 
     /**
