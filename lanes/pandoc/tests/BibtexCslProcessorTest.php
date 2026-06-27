@@ -1227,6 +1227,69 @@ BIB;
         $t->same('320', $item['number-of-pages']);
         $t->same('Casey Chapter. Extent Review Chapter. Migration Extent Handbook 2. 2026. 101-120.', $bibliography);
     },
+    'carries biblatex pagination unit metadata in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@article{legacy-pagination-review,
+  author         = {Ng, Nia},
+  title          = {Column Pagination Review},
+  journaltitle   = {Source Unit Ledger},
+  date           = {2026},
+  pages          = {12--14},
+  pagination     = {column},
+  bookpagination = {section}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $item = $items['legacy-pagination-review'];
+
+        $t->same('12-14', $item['page']);
+        $t->same('column', $item['pagination']);
+        $t->same('section', $item['book-pagination']);
+        $t->same('column', $item['rawBibtex']['fields']['pagination']);
+        $t->same('section', $item['rawBibtex']['fields']['bookpagination']);
+        $t->same(
+            'Nia Ng. Column Pagination Review. Source Unit Ledger. 2026. 12-14. Pagination: column. Book pagination: section.',
+            $processor->renderBibliographyText($item)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <group delimiter=" ">
+        <label variable="page" form="long"/>
+        <text variable="page"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" | ">
+      <text variable="title"/>
+      <label variable="page" form="short"/>
+      <text variable="page"/>
+      <text variable="book-pagination"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledItem = $styled->item('legacy-pagination-review');
+        $t->same('column', $styledItem['pagination'] ?? null);
+        $t->same('section', $styledItem['bookPagination'] ?? null);
+        $t->same('columns 12-14', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-pagination-review', 'text' => '[@legacy-pagination-review]']),
+        ]));
+        $t->same('Column Pagination Review | cols. | 12-14 | section', $styled->renderBibliographyEntry('legacy-pagination-review'));
+
+        $document = (new MarkdownReader())->read('Pagination review [@legacy-pagination-review] keeps page-unit labels visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->contains('<p>Pagination review columns 12-14 keeps page-unit labels visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Column Pagination Review | cols. | 12-14 | section</dd>', $blocks);
+    },
     'carries legacy biblatex journal abbreviation and article number metadata' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @article{legacy-journal-id,
