@@ -15445,6 +15445,48 @@ return [
             }
         }
     },
+    'maps textual native raw markdown and tex aliases into specific ast constructors' => static function (TestRunner $t): void {
+        $nativeText = <<<'NATIVE'
+[ RawBlock (Format "markdown") "**raw block**"
+, RawBlock (Format "latex") "\\begin{review}\\end{review}"
+, Para [ RawInline (Format "markdown+tex_math_dollars") "$x$" , Space , RawInline (Format "context") "\\startformula x \\stopformula" ]
+]
+NATIVE;
+
+        $document = (new NativeReader())->read($nativeText);
+        $rawMarkdownBlock = $document->children[0];
+        $rawTexBlock = $document->children[1];
+        $paragraph = $document->children[2];
+        $rawMarkdownInline = $paragraph->children[0];
+        $rawTexInline = $paragraph->children[2];
+        $jsonDocument = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
+        ], $document->children);
+        $packet = (new PandocJsonWriter())->toArray($jsonDocument);
+        $roundTrip = (new PandocJsonReader())->readPacket($packet);
+
+        $t->same('raw_markdown', $rawMarkdownBlock->type);
+        $t->same('markdown', $rawMarkdownBlock->attr('format'));
+        $t->same('**raw block**', $rawMarkdownBlock->attr('markdown'));
+        $t->same('raw_tex', $rawTexBlock->type);
+        $t->same('latex', $rawTexBlock->attr('format'));
+        $t->same('\\begin{review}\\end{review}', $rawTexBlock->attr('tex'));
+        $t->same('raw_markdown', $rawMarkdownInline->type);
+        $t->same('markdown+tex_math_dollars', $rawMarkdownInline->attr('format'));
+        $t->same('$x$', $rawMarkdownInline->attr('markdown'));
+        $t->same('raw_tex_inline', $rawTexInline->type);
+        $t->same('context', $rawTexInline->attr('format'));
+        $t->same('\\startformula x \\stopformula', $rawTexInline->attr('tex'));
+        $t->same(['markdown', '**raw block**'], $packet['blocks'][0]['c']);
+        $t->same(['latex', '\\begin{review}\\end{review}'], $packet['blocks'][1]['c']);
+        $t->same(['markdown+tex_math_dollars', '$x$'], $packet['blocks'][2]['c'][0]['c']);
+        $t->same(['context', '\\startformula x \\stopformula'], $packet['blocks'][2]['c'][2]['c']);
+        $t->same('raw_markdown', $roundTrip->children[0]->type);
+        $t->same('raw_tex', $roundTrip->children[1]->type);
+        $t->same('raw_markdown', $roundTrip->children[2]->children[0]->type);
+        $t->same('raw_tex', $roundTrip->children[2]->children[2]->type);
+    },
     'serializes native text raw tex inline nodes through pandoc json writers' => static function (TestRunner $t): void {
         $nativeText = <<<'NATIVE'
 Pandoc Meta {unMeta = fromList []} [ Para [ Str "Before", Space, RawInline (Format "tex") "\\alpha", Space, Str "after" ] ]
