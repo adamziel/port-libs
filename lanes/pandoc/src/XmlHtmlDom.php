@@ -22557,7 +22557,80 @@ final class XmlHtmlDom
             )),
             'controls' => $controls,
             'controlNames' => self::formOwnedControlNames($controls),
-        ] + self::formAcceptCharsetReviewSummary($acceptCharsetRaw);
+        ] + self::formAcceptCharsetReviewSummary($acceptCharsetRaw)
+            + self::formActionReviewSummary($form);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function formActionReviewSummary(\DOMElement $form): array
+    {
+        $actionRaw = self::attributeOrNull($form, 'action');
+        $action = self::hyperlinkUrlReviewSummary($actionRaw);
+        $methodRaw = self::attributeOrNull($form, 'method');
+        $enctypeRaw = self::attributeOrNull($form, 'enctype');
+        $targetRaw = self::attributeOrNull($form, 'target');
+        $method = self::formMethod($form, 'method', 'get') ?? 'get';
+        $enctype = self::formEnctype($form, 'enctype', 'application/x-www-form-urlencoded')
+            ?? 'application/x-www-form-urlencoded';
+        $issues = [];
+
+        if ($action['unsafe'] === true) {
+            $issues[] = [
+                'code' => 'unsafe-form-action-url',
+                'action' => $actionRaw,
+                'scheme' => $action['scheme'],
+            ];
+        } elseif ($action['kind'] === 'absolute' && !in_array($action['scheme'], ['http', 'https'], true)) {
+            $issues[] = [
+                'code' => 'non-http-form-action-url',
+                'action' => $actionRaw,
+                'scheme' => $action['scheme'],
+            ];
+        }
+        if ($methodRaw !== null && self::formMethodAttributeState($methodRaw) === null) {
+            $issues[] = [
+                'code' => 'invalid-form-method',
+                'methodRaw' => $methodRaw,
+            ];
+        }
+        if ($enctypeRaw !== null && self::formEnctypeAttributeState($enctypeRaw) === null) {
+            $issues[] = [
+                'code' => 'invalid-form-enctype',
+                'enctypeRaw' => $enctypeRaw,
+            ];
+        }
+
+        return [
+            'formActionReviewPolicy' => 'form-action-provenance-review',
+            'formActionFormId' => self::attributeOrNull($form, 'id'),
+            'formActionRaw' => $actionRaw,
+            'formActionSource' => $actionRaw === null ? 'document-url-default' : 'attribute',
+            'formActionKind' => $action['kind'],
+            'formActionScheme' => $action['scheme'],
+            'formActionUnsafe' => $action['unsafe'],
+            'formActionUsesDocumentUrl' => $actionRaw === null || trim($actionRaw) === '',
+            'formMethodRaw' => $methodRaw,
+            'formMethodSource' => $methodRaw === null ? 'default-get' : 'attribute',
+            'formEffectiveMethod' => $method,
+            'formMethodValid' => $methodRaw === null ? null : self::formMethodAttributeState($methodRaw) !== null,
+            'formEnctypeRaw' => $enctypeRaw,
+            'formEnctypeSource' => $enctypeRaw === null ? 'default-urlencoded' : 'attribute',
+            'formEffectiveEnctype' => $enctype,
+            'formEnctypeValid' => $enctypeRaw === null ? null : self::formEnctypeAttributeState($enctypeRaw) !== null,
+            'formTargetRaw' => $targetRaw,
+            'formTargetSource' => $targetRaw === null ? 'default-self' : 'attribute',
+            'formEffectiveTarget' => $targetRaw === null || trim($targetRaw) === '' ? null : trim($targetRaw),
+            'formWouldSubmitNetworkRequest' => $method !== 'dialog',
+            'formReviewOnlyNoNetworkRequest' => true,
+            'formActionIssues' => $issues,
+            'formActionIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'formActionValid' => $issues === [],
+        ];
     }
 
     /**
