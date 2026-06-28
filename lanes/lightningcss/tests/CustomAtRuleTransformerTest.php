@@ -5872,6 +5872,28 @@ CSS;
         $t->same('type', $seenNth['of'][0][0]['type'] ?? null);
         $t->same('a', $seenNth['of'][0][0]['name'] ?? null);
     },
+    'custom at-rules expose upstream nested pseudo-class selectors to Selector visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = [
+            'Selector' => static function (array $selector) use (&$seen): array {
+                $seen[] = $selector;
+
+                return $selector;
+            },
+        ];
+
+        $result = (new CustomAtRuleTransformer())->transform(
+            ':not(:hover) ~ label { color: red; } ::before:hover { color: blue; }',
+            [],
+            $visitor
+        );
+
+        $t->same(':not(:hover)~label{color:red}:before:hover{color:#00f}', $result, 'upstream selectors/parser.rs::tests::visitor lines 4007-4016');
+        $t->same('not', $seen[0][0]['kind'] ?? null);
+        $t->same('hover', $seen[0][0]['selectors'][0][0]['kind'] ?? null);
+        $t->same('before', $seen[1][0]['kind'] ?? null);
+        $t->same('hover', $seen[1][1]['kind'] ?? null);
+    },
     'custom at-rules expose upstream pseudo-elements to Selector visitors' => static function (TestRunner $t): void {
         $seen = [];
         $visitor = [
