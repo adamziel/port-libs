@@ -1688,8 +1688,10 @@ XML;
     <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
       <dc:title id="series-title">Series Packet</dc:title>
       <meta id="series-title-script" refines="#series-title" property="alternate-script" xml:lang="pl" dir="ltr">Pakiet serii</meta>
+      <link id="series-metadata-record" rel="record" refines="#series-title" href="meta/series.json?kind=metadata#record" media-type="application/json"/>
     </metadata>
     <link id="series-record" rel="record" refines="#series-title-script" href="meta/series.json" media-type="application/json"/>
+    <link id="series-metadata-member" rel="record" refines="#series-metadata-record" href="meta/series.json" media-type="application/json"/>
     <link id="series-missing" rel="record" refines="#missing-collection-target" href="meta/missing-series.json" media-type="application/json"/>
     <link id="bad collection link" rel="record" refines="#series-title" href="meta/series.json" media-type="application/json"/>
   </collection>
@@ -1710,6 +1712,7 @@ XML;
         $targets = $metadata['refinementTargets'];
         $collections = $epub->collections();
         $collectionMetadataMeta = $collections[0]['metadata']['meta'][0];
+        $collectionMetadataLinks = $collections[0]['metadata']['links'];
         $validation = $epub->validationReport();
         $summary = $epub->summary();
         $find = static function (string $source, string $refines, ?string $id = null) use ($targets): array {
@@ -1731,8 +1734,8 @@ XML;
         $collectionLinkDiagnostics = array_column($collections[0]['diagnostics'], 'type');
 
         $t->same(true, $targets['present']);
-        $t->same(11, $targets['refinementCount']);
-        $t->same(7, $targets['resolvedRefinementCount']);
+        $t->same(13, $targets['refinementCount']);
+        $t->same(9, $targets['resolvedRefinementCount']);
         $t->same(4, $targets['unresolvedRefinementCount']);
         $t->same(1, $targets['packageRelativeRefinementCount']);
         $t->same(['unresolved-metadata-refinement-target', 'invalid-metadata-refinement-fragment', 'unresolved-metadata-refinement-target'], array_column($targets['diagnostics'], 'type'));
@@ -1748,7 +1751,17 @@ XML;
         $t->same('series-title-script', $collectionMetadataMeta['id']);
         $t->same('pl', $collectionMetadataMeta['language']);
         $t->same('ltr', $collectionMetadataMeta['direction']);
+        $t->same(1, $collections[0]['metadata']['linkCount']);
+        $t->same('series-metadata-record', $collectionMetadataLinks[0]['id']);
+        $t->same('/EPUB/meta/series.json?kind=metadata#record', $collectionMetadataLinks[0]['target']);
+        $t->same(true, $collectionMetadataLinks[0]['hrefHasQuery']);
+        $t->same('kind=metadata', $collectionMetadataLinks[0]['hrefQuery']);
+        $t->same(true, $collectionMetadataLinks[0]['hrefHasFragment']);
+        $t->same('record', $collectionMetadataLinks[0]['hrefFragment']);
+        $t->same([], $collectionMetadataLinks[0]['diagnostics']);
+        $t->same(['collection-dc-metadata'], $find('collection-metadata-link', '#series-title', 'series-metadata-record')['targetKinds']);
         $t->same(['collection-metadata-meta'], $find('collection-link', '#series-title-script', 'series-record')['targetKinds']);
+        $t->same(['collection-metadata-link'], $find('collection-link', '#series-metadata-record', 'series-metadata-member')['targetKinds']);
         $t->same(false, $find('collection-link', '#missing-collection-target', 'series-missing')['resolved']);
         $t->same(['collection-dc-metadata'], $find('collection-link', '#series-title', 'bad collection link')['targetKinds']);
 
@@ -1763,6 +1776,8 @@ XML;
         $t->same(false, $validation['metadata']['refinementTargetValid']);
         $t->same($targets, $validation['metadata']['refinementTargets']);
         $t->same($targets, $summary['metadataRefinementTargets']);
+        $t->same(1, $summary['remoteResourcePolicy']['collectionMetadataLinkCount']);
+        $t->same(1, $summary['linkHrefSuffixes']['collectionMetadataLinkCount']);
         $t->same($targets['diagnostics'], $summary['wordpressImport']['metadataRefinementTargetDiagnostics']);
     },
 

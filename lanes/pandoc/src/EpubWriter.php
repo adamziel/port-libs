@@ -152,6 +152,16 @@ final class EpubWriter
             'accessibilityFeatures' => $this->metaStringList($meta, ['accessibilityFeatures']) ?: ['alternativeText', 'readingOrder', 'structuralNavigation', 'tableOfContents'],
             'accessibilityHazards' => $this->metaStringList($meta, ['accessibilityHazards']) ?: ['none'],
             'accessibilitySummary' => $this->metaString($meta, ['accessibilitySummary']),
+            'packageLinkRecords' => $this->metaAttributeRecordList($meta, ['epubPackageLinks', 'packageLinks'], [
+                'id',
+                'rel',
+                'href',
+                'media-type',
+                'properties',
+                'refines',
+                'title',
+                'hreflang',
+            ]),
         ];
     }
 
@@ -283,6 +293,77 @@ final class EpubWriter
         }
 
         return $this->recordsFromMetaValue($meta[$key], $fields);
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     * @param list<string> $keys
+     * @param list<string> $fields
+     * @return list<array<string, string>>
+     */
+    private function metaAttributeRecordList(array $meta, array $keys, array $fields): array
+    {
+        foreach ($keys as $key) {
+            if (!array_key_exists($key, $meta)) {
+                continue;
+            }
+
+            $records = $this->attributeRecordsFromMetaValue($meta[$key], $fields);
+            if ($records !== []) {
+                return $records;
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @param list<string> $fields
+     * @return list<array<string, string>>
+     */
+    private function attributeRecordsFromMetaValue(mixed $value, array $fields): array
+    {
+        if (is_array($value) && array_is_list($value)) {
+            $records = [];
+            foreach ($value as $item) {
+                $record = $this->attributeRecordFromMetaValue($item, $fields);
+                if ($record !== null) {
+                    $records[] = $record;
+                }
+            }
+
+            return $records;
+        }
+
+        $record = $this->attributeRecordFromMetaValue($value, $fields);
+
+        return $record === null ? [] : [$record];
+    }
+
+    /**
+     * @param list<string> $fields
+     * @return array<string, string>|null
+     */
+    private function attributeRecordFromMetaValue(mixed $value, array $fields): ?array
+    {
+        if (is_string($value)) {
+            $href = trim($value);
+
+            return $href === '' ? null : ['href' => $href];
+        }
+        if (!is_array($value) || array_is_list($value)) {
+            return null;
+        }
+
+        $record = [];
+        foreach ($fields as $field) {
+            $fieldValue = $this->recordFieldValue($value, $field);
+            if ($fieldValue !== null) {
+                $record[$field] = $fieldValue;
+            }
+        }
+
+        return isset($record['href']) ? $record : null;
     }
 
     /**
@@ -932,6 +1013,24 @@ final class EpubWriter
             $nodes[] = $this->opfMetaNode($metadata['accessibilitySummary'], ['property' => 'schema:accessibilitySummary']);
         }
 
+        $packageLinkRecords = is_array($metadata['packageLinkRecords'] ?? null) ? array_values($metadata['packageLinkRecords']) : [];
+        foreach ($packageLinkRecords as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            $nodes[] = $this->opfLinkNode(array_filter([
+                'id' => is_string($record['id'] ?? null) ? $record['id'] : '',
+                'rel' => is_string($record['rel'] ?? null) ? $record['rel'] : '',
+                'href' => is_string($record['href'] ?? null) ? $record['href'] : '',
+                'media-type' => is_string($record['media-type'] ?? null) ? $record['media-type'] : '',
+                'properties' => is_string($record['properties'] ?? null) ? $record['properties'] : '',
+                'refines' => is_string($record['refines'] ?? null) ? $record['refines'] : '',
+                'title' => is_string($record['title'] ?? null) ? $record['title'] : '',
+                'hreflang' => is_string($record['hreflang'] ?? null) ? $record['hreflang'] : '',
+            ], static fn (string $value): bool => $value !== ''));
+        }
+
         return $nodes;
     }
 
@@ -949,6 +1048,14 @@ final class EpubWriter
     private function opfMetaNode(string $text, array $attrs = []): string
     {
         return '    <meta' . $this->xmlAttributes($attrs) . '>' . $this->esc($text) . '</meta>' . "\n";
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     */
+    private function opfLinkNode(array $attrs): string
+    {
+        return '    <link' . $this->xmlAttributes($attrs) . '/>' . "\n";
     }
 
     /**

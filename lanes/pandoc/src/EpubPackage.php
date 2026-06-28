@@ -5295,6 +5295,23 @@ final class EpubPackage
                 }
 
                 $collectionMetadata = is_array($collection['metadata'] ?? null) ? $collection['metadata'] : [];
+                foreach (is_array($collectionMetadata['links'] ?? null) ? $collectionMetadata['links'] : [] as $linkIndex => $link) {
+                    if (!is_array($link)) {
+                        continue;
+                    }
+
+                    $id = is_string($link['id'] ?? null) ? $link['id'] : null;
+                    $addTarget(
+                        $id !== null && self::isXmlNcName($id) ? $id : null,
+                        'collection-metadata-link',
+                        [
+                            'index' => (int) $linkIndex,
+                            'collectionPath' => $currentPath,
+                            'href' => is_string($link['href'] ?? null) ? $link['href'] : null,
+                        ],
+                    );
+                }
+
                 foreach (is_array($collectionMetadata['dc'] ?? null) ? $collectionMetadata['dc'] : [] as $name => $entries) {
                     if (!is_array($entries)) {
                         continue;
@@ -5417,6 +5434,21 @@ final class EpubPackage
                 }
 
                 $collectionMetadata = is_array($collection['metadata'] ?? null) ? $collection['metadata'] : [];
+                foreach (is_array($collectionMetadata['links'] ?? null) ? $collectionMetadata['links'] : [] as $linkIndex => $link) {
+                    if (!is_array($link)) {
+                        continue;
+                    }
+
+                    $refinementSources[] = [
+                        'source' => 'collection-metadata-link',
+                        'sourceIndex' => (int) $linkIndex,
+                        'linkIndex' => (int) $linkIndex,
+                        'collectionPath' => $currentPath,
+                        'collectionId' => $collectionId,
+                        'entry' => $link,
+                    ];
+                }
+
                 foreach (is_array($collectionMetadata['meta'] ?? null) ? $collectionMetadata['meta'] : [] as $metaIndex => $entry) {
                     if (!is_array($entry)) {
                         continue;
@@ -13666,13 +13698,26 @@ final class EpubPackage
         $metadata = $metadataElement instanceof \DOMElement
             ? self::parseMetadata($metadataElement, $collectionElement)
             : [];
+        $metadataLinks = $metadataElement instanceof \DOMElement
+            ? self::parseCollectionMetadataLinks($metadataElement, $opfPartName, $package, $manifestByPart, $prefixBindings)
+            : [];
+        $metadataLinkReport = self::collectionLinkReport($metadataLinks, true);
+        $metadata['links'] = $metadataLinks;
+        $metadata['linkCount'] = $metadataLinkReport['count'];
+        $metadata['localLinkCount'] = $metadataLinkReport['localCount'];
+        $metadata['externalLinkCount'] = $metadataLinkReport['externalCount'];
+        $metadata['missingLinkCount'] = $metadataLinkReport['missingCount'];
+        $metadata['linkRelTokens'] = $metadataLinkReport['relTokens'];
+        $metadata['linkRelCounts'] = $metadataLinkReport['relCounts'];
+        $metadata['linksByRel'] = $metadataLinkReport['linksByRel'];
+        $metadata['linkDiagnostics'] = $metadataLinkReport['diagnostics'];
         $attributes = self::elementAttributes($collectionElement);
         $customAttributes = self::collectionCustomAttributes($attributes);
         $role = self::emptyToNull($collectionElement->getAttribute('role'));
         $roleTokens = self::splitTokens($role ?? '');
         $roleVocabulary = self::collectionRoleTokenReport($roleTokens, $prefixBindings, $index);
         $report = self::collectionLinkReport($links, true);
-        $diagnostics = array_merge($roleVocabulary['diagnostics'], $report['diagnostics']);
+        $diagnostics = array_merge($roleVocabulary['diagnostics'], $report['diagnostics'], $metadataLinkReport['diagnostics']);
 
         return [
             'index' => $index,
@@ -13706,6 +13751,35 @@ final class EpubPackage
     /**
      * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}> $manifestByPart
      *
+     * @return list<array<string, mixed>>
+     */
+    private static function parseCollectionMetadataLinks(
+        \DOMElement $metadataElement,
+        string $opfPartName,
+        ZipPackage $package,
+        array $manifestByPart,
+        array $prefixBindings = []
+    ): array {
+        $links = [];
+        foreach (self::childElements($metadataElement, 'link', self::OPF_NAMESPACE) as $linkIndex => $linkElement) {
+            $links[] = self::parseCollectionLink(
+                $linkElement,
+                $linkIndex,
+                $opfPartName,
+                $package,
+                $manifestByPart,
+                $prefixBindings,
+                'collection-metadata-link',
+                'EPUB OPF collection metadata link',
+            );
+        }
+
+        return self::linksWithIdDiagnostics($links, 'collection-metadata', 'EPUB OPF collection metadata link');
+    }
+
+    /**
+     * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}> $manifestByPart
+     *
      * @return array<string, mixed>
      */
     private static function parseCollectionLink(
@@ -13714,7 +13788,9 @@ final class EpubPackage
         string $opfPartName,
         ZipPackage $package,
         array $manifestByPart,
-        array $prefixBindings = []
+        array $prefixBindings = [],
+        string $diagnosticSource = 'collection-link',
+        string $messageSubject = 'EPUB OPF collection link',
     ): array {
         $href = self::emptyToNull($linkElement->getAttribute('href'));
         $rel = self::splitTokens($linkElement->getAttribute('rel'));
@@ -13735,8 +13811,8 @@ final class EpubPackage
 
         if ($href === null) {
             $diagnostics[] = [
-                'type' => 'missing-collection-link-href',
-                'message' => 'EPUB OPF collection link is missing href',
+                'type' => 'missing-' . $diagnosticSource . '-href',
+                'message' => $messageSubject . ' is missing href',
             ];
         } else {
             try {
@@ -13745,9 +13821,9 @@ final class EpubPackage
                 $external = self::isAbsoluteUri($target);
                 if ($external) {
                     $diagnostics[] = [
-                        'type' => 'external-collection-link-target',
+                        'type' => 'external-' . $diagnosticSource . '-target',
                         'href' => $href,
-                        'message' => 'EPUB OPF collection link points outside the package and was not fetched',
+                        'message' => $messageSubject . ' points outside the package and was not fetched',
                     ];
                 } else {
                     $partName = OpcPackagePath::stripQueryAndFragment($target);
@@ -13756,16 +13832,16 @@ final class EpubPackage
                     $manifestItem = $manifestByPart[$partName] ?? null;
                     if (!$exists) {
                         $diagnostics[] = [
-                            'type' => 'missing-collection-link-target',
+                            'type' => 'missing-' . $diagnosticSource . '-target',
                             'href' => $href,
                             'partName' => $partName,
-                            'message' => 'EPUB OPF collection link target is missing from the package',
+                            'message' => $messageSubject . ' target is missing from the package',
                         ];
                     }
                 }
             } catch (\InvalidArgumentException $exception) {
                 $diagnostics[] = [
-                    'type' => 'invalid-collection-link-href',
+                    'type' => 'invalid-' . $diagnosticSource . '-href',
                     'href' => $href,
                     'message' => $exception->getMessage(),
                 ];
@@ -13792,8 +13868,22 @@ final class EpubPackage
             'manifestId' => is_array($manifestItem) ? $manifestItem['id'] : null,
             'manifestMediaType' => is_array($manifestItem) ? $manifestItem['mediaType'] : null,
             'properties' => $properties,
-            'relVocabulary' => self::collectionLinkTokenReport($rel, $prefixBindings, 'rel', $index),
-            'propertyVocabulary' => self::collectionLinkTokenReport($properties, $prefixBindings, 'properties', $index),
+            'relVocabulary' => self::linkVocabularyTokenReport(
+                $rel,
+                $prefixBindings,
+                'rel',
+                $index,
+                $diagnosticSource,
+                $messageSubject,
+            ),
+            'propertyVocabulary' => self::linkVocabularyTokenReport(
+                $properties,
+                $prefixBindings,
+                'properties',
+                $index,
+                $diagnosticSource,
+                $messageSubject,
+            ),
             'title' => self::emptyToNull($linkElement->getAttribute('title')),
             'hreflang' => self::emptyToNull($linkElement->getAttribute('hreflang')),
             'language' => self::metadataElementLanguage($linkElement),
@@ -14416,6 +14506,13 @@ final class EpubPackage
                 }
             }
 
+            $metadata = is_array($collection['metadata'] ?? null) ? $collection['metadata'] : [];
+            foreach (is_array($metadata['links'] ?? null) ? $metadata['links'] : [] as $link) {
+                if (is_array($link)) {
+                    $links[] = $link;
+                }
+            }
+
             self::appendCollectionLinks(
                 is_array($collection['children'] ?? null) ? $collection['children'] : [],
                 $links,
@@ -14844,6 +14941,7 @@ final class EpubPackage
             'containerLinkCount' => $sourceCounts['container-link'] ?? 0,
             'packageLinkCount' => $sourceCounts['package-link'] ?? 0,
             'collectionLinkCount' => $sourceCounts['collection-link'] ?? 0,
+            'collectionMetadataLinkCount' => $sourceCounts['collection-metadata-link'] ?? 0,
             'queryCount' => count($queryValues),
             'fragmentCount' => count($fragmentValues),
             'localTargetCount' => $localTargetCount,
@@ -14886,6 +14984,18 @@ final class EpubPackage
                 }
             }
 
+            $metadata = is_array($collection['metadata'] ?? null) ? $collection['metadata'] : [];
+            foreach (is_array($metadata['links'] ?? null) ? $metadata['links'] : [] as $linkIndex => $link) {
+                if (!is_array($link)) {
+                    continue;
+                }
+
+                $item = self::linkHrefSuffixItem($link, 'collection-metadata-link', $linkIndex, $collection, $currentPath);
+                if ($item !== null) {
+                    $items[] = $item;
+                }
+            }
+
             self::appendCollectionLinkHrefSuffixItems(
                 is_array($collection['children'] ?? null) ? $collection['children'] : [],
                 $currentPath,
@@ -14917,7 +15027,7 @@ final class EpubPackage
         return [
             'source' => $source,
             'sourceIndex' => $sourceIndex,
-            'collectionPath' => $source === 'collection-link' ? $collectionPath : null,
+            'collectionPath' => in_array($source, ['collection-link', 'collection-metadata-link'], true) ? $collectionPath : null,
             'collectionId' => is_array($collection) && is_string($collection['id'] ?? null)
                 ? $collection['id']
                 : null,
@@ -14970,6 +15080,7 @@ final class EpubPackage
         $containerLinkCount = 0;
         $packageLinkCount = 0;
         $collectionLinkCount = 0;
+        $collectionMetadataLinkCount = 0;
 
         foreach ($items as $item) {
             $policy = (string) $item['policy'];
@@ -14982,6 +15093,8 @@ final class EpubPackage
                 ++$packageLinkCount;
             } elseif ($item['source'] === 'collection-link') {
                 ++$collectionLinkCount;
+            } elseif ($item['source'] === 'collection-metadata-link') {
+                ++$collectionMetadataLinkCount;
             }
 
             $target = is_string($item['target'] ?? null) ? $item['target'] : null;
@@ -15017,6 +15130,7 @@ final class EpubPackage
             'containerLinkCount' => $containerLinkCount,
             'packageLinkCount' => $packageLinkCount,
             'collectionLinkCount' => $collectionLinkCount,
+            'collectionMetadataLinkCount' => $collectionMetadataLinkCount,
             'localTargetCount' => $policyCounts['local-package'] ?? 0,
             'externalTargetCount' => $policyCounts['remote-no-fetch'] ?? 0,
             'remoteNoFetchCount' => $policyCounts['remote-no-fetch'] ?? 0,
@@ -15056,6 +15170,21 @@ final class EpubPackage
                 $items[] = self::remoteResourcePolicyItem(
                     $link,
                     'collection-link',
+                    $linkIndex,
+                    $collection,
+                    $currentPath,
+                );
+            }
+
+            $metadata = is_array($collection['metadata'] ?? null) ? $collection['metadata'] : [];
+            foreach (is_array($metadata['links'] ?? null) ? $metadata['links'] : [] as $linkIndex => $link) {
+                if (!is_array($link)) {
+                    continue;
+                }
+
+                $items[] = self::remoteResourcePolicyItem(
+                    $link,
+                    'collection-metadata-link',
                     $linkIndex,
                     $collection,
                     $currentPath,
@@ -15102,7 +15231,7 @@ final class EpubPackage
         return [
             'source' => $source,
             'sourceIndex' => $sourceIndex,
-            'collectionPath' => $source === 'collection-link' ? $collectionPath : null,
+            'collectionPath' => in_array($source, ['collection-link', 'collection-metadata-link'], true) ? $collectionPath : null,
             'collectionId' => is_array($collection) && is_string($collection['id'] ?? null)
                 ? $collection['id']
                 : null,
