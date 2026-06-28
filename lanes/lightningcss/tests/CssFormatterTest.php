@@ -299,6 +299,21 @@ CSS, $formatter->format(<<<'CSS'
 CSS));
 
         $t->same(<<<'CSS'
+@supports (foo: bar) and ((bar: baz) or (test: foo)) {
+  .test {
+    foo: bar;
+  }
+}
+
+CSS, $formatter->format(<<<'CSS'
+@supports (foo: bar) and (((bar: baz) or (test: foo))) {
+  .test {
+    foo: bar;
+  }
+}
+CSS));
+
+        $t->same(<<<'CSS'
 @supports not ((foo: bar) and (bar: baz)) {
   .test {
     foo: bar;

@@ -4240,7 +4240,7 @@ final class CssFormatter
             $condition = $unwrapped;
         }
 
-        return $condition;
+        return $this->stripRedundantNestedSupportsOperandWrappers($condition);
     }
 
     private function stripOneRedundantSupportsWrapper(string $condition): string
@@ -4292,6 +4292,98 @@ final class CssFormatter
         }
 
         return $condition;
+    }
+
+    private function stripRedundantNestedSupportsOperandWrappers(string $condition): string
+    {
+        $output = '';
+        $cursor = 0;
+        $quote = null;
+        $length = strlen($condition);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $condition[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char !== '(') {
+                continue;
+            }
+
+            $end = $this->findMatchingSupportsConditionParen($condition, $i);
+            if ($end === null) {
+                return $condition;
+            }
+
+            $group = substr($condition, $i, $end - $i + 1);
+            $stripped = $this->stripOneRedundantSupportsWrapper($group);
+            if ($stripped !== $group && $this->supportsConditionIsFullyWrapped($stripped)) {
+                $output .= substr($condition, $cursor, $i - $cursor) . $stripped;
+                $cursor = $end + 1;
+            }
+
+            $i = $end;
+        }
+
+        if ($cursor === 0) {
+            return $condition;
+        }
+
+        return $output . substr($condition, $cursor);
+    }
+
+    private function findMatchingSupportsConditionParen(string $condition, int $open): ?int
+    {
+        $quote = null;
+        $depth = 0;
+        $length = strlen($condition);
+        for ($i = $open; $i < $length; $i++) {
+            $char = $condition[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+
+            if ($char !== ')') {
+                continue;
+            }
+
+            $depth--;
+            if ($depth === 0) {
+                return $i;
+            }
+        }
+
+        return null;
     }
 
     private function supportsConditionIsFullyWrapped(string $condition): bool
