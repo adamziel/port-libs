@@ -13989,6 +13989,12 @@ final class DocxOpenXmlReader
             'partXmlTextNodeWhitespaceCount' => $partXmlRoots['xmlTextNodeWhitespaceCount'],
             'partXmlTextNodeNonWhitespaceCount' => $partXmlRoots['xmlTextNodeNonWhitespaceCount'],
             'partXmlTextNodeNonWhitespaceByteLength' => $partXmlRoots['xmlTextNodeNonWhitespaceByteLength'],
+            'partXmlTextNodeLeadingWhitespaceCount' => $partXmlRoots['xmlTextNodeLeadingWhitespaceCount'],
+            'partXmlTextNodeTrailingWhitespaceCount' => $partXmlRoots['xmlTextNodeTrailingWhitespaceCount'],
+            'partXmlTextNodeLeadingWhitespaceByteLength' => $partXmlRoots['xmlTextNodeLeadingWhitespaceByteLength'],
+            'partXmlTextNodeTrailingWhitespaceByteLength' => $partXmlRoots['xmlTextNodeTrailingWhitespaceByteLength'],
+            'partXmlTextNodeLineBreakCount' => $partXmlRoots['xmlTextNodeLineBreakCount'],
+            'partXmlTextNodeLineBreakNodeCount' => $partXmlRoots['xmlTextNodeLineBreakNodeCount'],
             'partXmlTextNodePartNames' => $partXmlRoots['xmlTextNodePartNames'],
             'partXmlTextNodeParentPathCount' => $partXmlRoots['xmlTextNodeParentPathCount'],
             'partXmlTextNodeParentPathCounts' => $partXmlRoots['xmlTextNodeParentPathCounts'],
@@ -19802,6 +19808,12 @@ final class DocxOpenXmlReader
         $xmlTextNodeWhitespaceCount = 0;
         $xmlTextNodeNonWhitespaceCount = 0;
         $xmlTextNodeNonWhitespaceByteLength = 0;
+        $xmlTextNodeLeadingWhitespaceCount = 0;
+        $xmlTextNodeTrailingWhitespaceCount = 0;
+        $xmlTextNodeLeadingWhitespaceByteLength = 0;
+        $xmlTextNodeTrailingWhitespaceByteLength = 0;
+        $xmlTextNodeLineBreakCount = 0;
+        $xmlTextNodeLineBreakNodeCount = 0;
         $xmlElementPartCount = 0;
         $xmlElementCount = 0;
         $xmlElementLeafCount = 0;
@@ -20144,6 +20156,12 @@ final class DocxOpenXmlReader
                 $xmlTextNodeWhitespaceCount += (int) ($part['xmlTextNodeWhitespaceCount'] ?? 0);
                 $xmlTextNodeNonWhitespaceCount += (int) ($part['xmlTextNodeNonWhitespaceCount'] ?? 0);
                 $xmlTextNodeNonWhitespaceByteLength += (int) ($part['xmlTextNodeNonWhitespaceByteLength'] ?? 0);
+                $xmlTextNodeLeadingWhitespaceCount += (int) ($part['xmlTextNodeLeadingWhitespaceCount'] ?? 0);
+                $xmlTextNodeTrailingWhitespaceCount += (int) ($part['xmlTextNodeTrailingWhitespaceCount'] ?? 0);
+                $xmlTextNodeLeadingWhitespaceByteLength += (int) ($part['xmlTextNodeLeadingWhitespaceByteLength'] ?? 0);
+                $xmlTextNodeTrailingWhitespaceByteLength += (int) ($part['xmlTextNodeTrailingWhitespaceByteLength'] ?? 0);
+                $xmlTextNodeLineBreakCount += (int) ($part['xmlTextNodeLineBreakCount'] ?? 0);
+                $xmlTextNodeLineBreakNodeCount += (int) ($part['xmlTextNodeLineBreakNodeCount'] ?? 0);
                 $xmlTextNodePartNames[] = $partName;
             }
             foreach (($part['xmlTextNodeParentPathCounts'] ?? []) as $parentPath => $count) {
@@ -20203,6 +20221,12 @@ final class DocxOpenXmlReader
                     'parentQualifiedName' => is_string($node['parentQualifiedName'] ?? null) ? $node['parentQualifiedName'] : null,
                     'byteLength' => (int) ($node['byteLength'] ?? 0),
                     'isWhitespaceOnly' => (bool) ($node['isWhitespaceOnly'] ?? false),
+                    'leadingWhitespaceByteLength' => (int) ($node['leadingWhitespaceByteLength'] ?? 0),
+                    'trailingWhitespaceByteLength' => (int) ($node['trailingWhitespaceByteLength'] ?? 0),
+                    'hasLeadingWhitespace' => (bool) ($node['hasLeadingWhitespace'] ?? false),
+                    'hasTrailingWhitespace' => (bool) ($node['hasTrailingWhitespace'] ?? false),
+                    'lineBreakCount' => (int) ($node['lineBreakCount'] ?? 0),
+                    'hasLineBreak' => (bool) ($node['hasLineBreak'] ?? false),
                     'crc32' => is_string($node['crc32'] ?? null) ? $node['crc32'] : null,
                     'sha256' => is_string($node['sha256'] ?? null) ? $node['sha256'] : null,
                 ];
@@ -20477,6 +20501,12 @@ final class DocxOpenXmlReader
                 'xmlTextNodeWhitespaceCount' => (int) ($part['xmlTextNodeWhitespaceCount'] ?? 0),
                 'xmlTextNodeNonWhitespaceCount' => (int) ($part['xmlTextNodeNonWhitespaceCount'] ?? 0),
                 'xmlTextNodeNonWhitespaceByteLength' => (int) ($part['xmlTextNodeNonWhitespaceByteLength'] ?? 0),
+                'xmlTextNodeLeadingWhitespaceCount' => (int) ($part['xmlTextNodeLeadingWhitespaceCount'] ?? 0),
+                'xmlTextNodeTrailingWhitespaceCount' => (int) ($part['xmlTextNodeTrailingWhitespaceCount'] ?? 0),
+                'xmlTextNodeLeadingWhitespaceByteLength' => (int) ($part['xmlTextNodeLeadingWhitespaceByteLength'] ?? 0),
+                'xmlTextNodeTrailingWhitespaceByteLength' => (int) ($part['xmlTextNodeTrailingWhitespaceByteLength'] ?? 0),
+                'xmlTextNodeLineBreakCount' => (int) ($part['xmlTextNodeLineBreakCount'] ?? 0),
+                'xmlTextNodeLineBreakNodeCount' => (int) ($part['xmlTextNodeLineBreakNodeCount'] ?? 0),
                 'xmlTextNodeParentPathCounts' => is_array($part['xmlTextNodeParentPathCounts'] ?? null)
                     ? $part['xmlTextNodeParentPathCounts']
                     : [],
@@ -20720,6 +20750,12 @@ final class DocxOpenXmlReader
             'xmlTextNodeWhitespaceCount' => $xmlTextNodeWhitespaceCount,
             'xmlTextNodeNonWhitespaceCount' => $xmlTextNodeNonWhitespaceCount,
             'xmlTextNodeNonWhitespaceByteLength' => $xmlTextNodeNonWhitespaceByteLength,
+            'xmlTextNodeLeadingWhitespaceCount' => $xmlTextNodeLeadingWhitespaceCount,
+            'xmlTextNodeTrailingWhitespaceCount' => $xmlTextNodeTrailingWhitespaceCount,
+            'xmlTextNodeLeadingWhitespaceByteLength' => $xmlTextNodeLeadingWhitespaceByteLength,
+            'xmlTextNodeTrailingWhitespaceByteLength' => $xmlTextNodeTrailingWhitespaceByteLength,
+            'xmlTextNodeLineBreakCount' => $xmlTextNodeLineBreakCount,
+            'xmlTextNodeLineBreakNodeCount' => $xmlTextNodeLineBreakNodeCount,
             'xmlTextNodePartNames' => $xmlTextNodePartNames,
             'xmlTextNodeParentPathCount' => count($xmlTextNodeParentPathCounts),
             'xmlTextNodeParentPathCounts' => $xmlTextNodeParentPathCounts,
@@ -22599,7 +22635,7 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{count:int, byteLength:int, whitespaceCount:int, nonWhitespaceCount:int, nonWhitespaceByteLength:int, parentPathCounts:array<string, int>, parentPaths:list<string>, parentNamespaceCounts:array<string, int>, parentLocalNameCounts:array<string, int>, parentQualifiedNameCounts:array<string, int>, items:list<array<string, mixed>>}
+     * @return array{count:int, byteLength:int, whitespaceCount:int, nonWhitespaceCount:int, nonWhitespaceByteLength:int, leadingWhitespaceCount:int, trailingWhitespaceCount:int, leadingWhitespaceByteLength:int, trailingWhitespaceByteLength:int, lineBreakCount:int, lineBreakNodeCount:int, parentPathCounts:array<string, int>, parentPaths:list<string>, parentNamespaceCounts:array<string, int>, parentLocalNameCounts:array<string, int>, parentQualifiedNameCounts:array<string, int>, items:list<array<string, mixed>>}
      */
     private function xmlTextNodeProvenance(string $xml, string $partName): array
     {
@@ -22611,6 +22647,12 @@ final class DocxOpenXmlReader
                 'whitespaceCount' => 0,
                 'nonWhitespaceCount' => 0,
                 'nonWhitespaceByteLength' => 0,
+                'leadingWhitespaceCount' => 0,
+                'trailingWhitespaceCount' => 0,
+                'leadingWhitespaceByteLength' => 0,
+                'trailingWhitespaceByteLength' => 0,
+                'lineBreakCount' => 0,
+                'lineBreakNodeCount' => 0,
                 'parentPathCounts' => [],
                 'parentPaths' => [],
                 'parentNamespaceCounts' => [],
@@ -22631,6 +22673,12 @@ final class DocxOpenXmlReader
         $whitespaceCount = 0;
         $nonWhitespaceCount = 0;
         $nonWhitespaceByteLength = 0;
+        $leadingWhitespaceCount = 0;
+        $trailingWhitespaceCount = 0;
+        $leadingWhitespaceByteLength = 0;
+        $trailingWhitespaceByteLength = 0;
+        $lineBreakCount = 0;
+        $lineBreakNodeCount = 0;
         $walk = function (\DOMNode $node) use (
             &$walk,
             &$items,
@@ -22644,6 +22692,12 @@ final class DocxOpenXmlReader
             &$whitespaceCount,
             &$nonWhitespaceCount,
             &$nonWhitespaceByteLength,
+            &$leadingWhitespaceCount,
+            &$trailingWhitespaceCount,
+            &$leadingWhitespaceByteLength,
+            &$trailingWhitespaceByteLength,
+            &$lineBreakCount,
+            &$lineBreakNodeCount,
         ): void {
             foreach ($node->childNodes as $child) {
                 if ($child instanceof \DOMText && !$child instanceof \DOMCdataSection) {
@@ -22665,6 +22719,18 @@ final class DocxOpenXmlReader
                     $parentQualifiedNameKey = $parentQualifiedName ?? '(none)';
                     $textByteLength = strlen($data);
                     $isWhitespaceOnly = preg_match('/[^\x20\x09\x0D\x0A]/', $data) !== 1;
+                    $leadingWhitespace = '';
+                    if (preg_match('/^[\x20\x09\x0D\x0A]+/', $data, $match) === 1) {
+                        $leadingWhitespace = (string) $match[0];
+                    }
+                    $trailingWhitespace = '';
+                    if (preg_match('/[\x20\x09\x0D\x0A]+$/', $data, $match) === 1) {
+                        $trailingWhitespace = (string) $match[0];
+                    }
+                    $nodeLineBreakCount = preg_match_all('/\r\n|\r|\n/', $data);
+                    $nodeLineBreakCount = is_int($nodeLineBreakCount) ? $nodeLineBreakCount : 0;
+                    $nodeLeadingWhitespaceByteLength = strlen($leadingWhitespace);
+                    $nodeTrailingWhitespaceByteLength = strlen($trailingWhitespace);
                     ++$ordinal;
                     $byteLength += $textByteLength;
                     $parentPathCounts[$textParentPath] = ($parentPathCounts[$textParentPath] ?? 0) + 1;
@@ -22678,6 +22744,18 @@ final class DocxOpenXmlReader
                         ++$nonWhitespaceCount;
                         $nonWhitespaceByteLength += $textByteLength;
                     }
+                    if ($nodeLeadingWhitespaceByteLength > 0) {
+                        ++$leadingWhitespaceCount;
+                        $leadingWhitespaceByteLength += $nodeLeadingWhitespaceByteLength;
+                    }
+                    if ($nodeTrailingWhitespaceByteLength > 0) {
+                        ++$trailingWhitespaceCount;
+                        $trailingWhitespaceByteLength += $nodeTrailingWhitespaceByteLength;
+                    }
+                    if ($nodeLineBreakCount > 0) {
+                        ++$lineBreakNodeCount;
+                        $lineBreakCount += $nodeLineBreakCount;
+                    }
                     $items[] = [
                         'ordinal' => $ordinal,
                         'parentPath' => $textParentPath,
@@ -22687,6 +22765,12 @@ final class DocxOpenXmlReader
                         'parentQualifiedName' => $parentQualifiedName,
                         'byteLength' => $textByteLength,
                         'isWhitespaceOnly' => $isWhitespaceOnly,
+                        'leadingWhitespaceByteLength' => $nodeLeadingWhitespaceByteLength,
+                        'trailingWhitespaceByteLength' => $nodeTrailingWhitespaceByteLength,
+                        'hasLeadingWhitespace' => $nodeLeadingWhitespaceByteLength > 0,
+                        'hasTrailingWhitespace' => $nodeTrailingWhitespaceByteLength > 0,
+                        'lineBreakCount' => $nodeLineBreakCount,
+                        'hasLineBreak' => $nodeLineBreakCount > 0,
                         'crc32' => $data === '' ? null : sprintf('%08x', crc32($data)),
                         'sha256' => $data === '' ? null : hash('sha256', $data),
                     ];
@@ -22711,6 +22795,12 @@ final class DocxOpenXmlReader
             'whitespaceCount' => $whitespaceCount,
             'nonWhitespaceCount' => $nonWhitespaceCount,
             'nonWhitespaceByteLength' => $nonWhitespaceByteLength,
+            'leadingWhitespaceCount' => $leadingWhitespaceCount,
+            'trailingWhitespaceCount' => $trailingWhitespaceCount,
+            'leadingWhitespaceByteLength' => $leadingWhitespaceByteLength,
+            'trailingWhitespaceByteLength' => $trailingWhitespaceByteLength,
+            'lineBreakCount' => $lineBreakCount,
+            'lineBreakNodeCount' => $lineBreakNodeCount,
             'parentPathCounts' => $parentPathCounts,
             'parentPaths' => $parentPaths,
             'parentNamespaceCounts' => $parentNamespaceCounts,
@@ -24772,6 +24862,12 @@ final class DocxOpenXmlReader
                 'xmlTextNodeWhitespaceCount' => 0,
                 'xmlTextNodeNonWhitespaceCount' => 0,
                 'xmlTextNodeNonWhitespaceByteLength' => 0,
+                'xmlTextNodeLeadingWhitespaceCount' => 0,
+                'xmlTextNodeTrailingWhitespaceCount' => 0,
+                'xmlTextNodeLeadingWhitespaceByteLength' => 0,
+                'xmlTextNodeTrailingWhitespaceByteLength' => 0,
+                'xmlTextNodeLineBreakCount' => 0,
+                'xmlTextNodeLineBreakNodeCount' => 0,
                 'xmlTextNodeParentPathCounts' => [],
                 'xmlTextNodeParentPaths' => [],
                 'xmlTextNodeParentNamespaceCounts' => [],
@@ -24871,6 +24967,12 @@ final class DocxOpenXmlReader
             'xmlTextNodeWhitespaceCount' => $textNodes['whitespaceCount'],
             'xmlTextNodeNonWhitespaceCount' => $textNodes['nonWhitespaceCount'],
             'xmlTextNodeNonWhitespaceByteLength' => $textNodes['nonWhitespaceByteLength'],
+            'xmlTextNodeLeadingWhitespaceCount' => $textNodes['leadingWhitespaceCount'],
+            'xmlTextNodeTrailingWhitespaceCount' => $textNodes['trailingWhitespaceCount'],
+            'xmlTextNodeLeadingWhitespaceByteLength' => $textNodes['leadingWhitespaceByteLength'],
+            'xmlTextNodeTrailingWhitespaceByteLength' => $textNodes['trailingWhitespaceByteLength'],
+            'xmlTextNodeLineBreakCount' => $textNodes['lineBreakCount'],
+            'xmlTextNodeLineBreakNodeCount' => $textNodes['lineBreakNodeCount'],
             'xmlTextNodeParentPathCounts' => $textNodes['parentPathCounts'],
             'xmlTextNodeParentPaths' => $textNodes['parentPaths'],
             'xmlTextNodeParentNamespaceCounts' => $textNodes['parentNamespaceCounts'],
