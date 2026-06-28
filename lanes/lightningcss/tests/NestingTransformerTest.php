@@ -172,6 +172,11 @@ CSS;
             '.foo{display:grid}@media (orientation:landscape){.foo{grid-auto-flow:column}}',
             $transformer->lower('.foo { display: grid; @media (orientation: landscape) { grid-auto-flow: column; } }')
         );
+        // Pinned upstream 22bdda3d src/lib.rs::test_nesting nesting_test line 24734.
+        $t->same(
+            '@media (width>=640px){.foo{color:red!important}}',
+            $transformer->lower('.foo { @media (min-width: 640px) { color: red !important; } }')
+        );
         $t->same(
             '.foo{color:red}.parent .foo{color:#00f}',
             $transformer->lower('.foo { color: red; @nest .parent & { color: blue; } }')

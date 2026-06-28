@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LightningCSS\CssFormatter;
 use PortLibs\LightningCSS\CssMinifier;
+use PortLibs\LightningCSS\CustomMediaTransformer;
 use PortLibs\LightningCSS\CssModulesTransformer;
 use PortLibs\LightningCSS\LightningCssCliOptions;
 use PortLibs\LightningCSS\NestingTransformer;
@@ -111,6 +112,30 @@ return [
             '.foo{color:#00f}.foo>.bar{color:red}',
             (new NestingTransformer())->lower((string) file_get_contents($plan['inputs'][0]))
         );
+    },
+    'lightningcss cli targets option applies custom media lowering' => static function (TestRunner $t) use ($temporaryPath): void {
+        // Pinned upstream 22bdda3d tests/cli_integration_tests.rs::targets lines 451-475.
+        $inputFile = $temporaryPath('test.css');
+        file_put_contents($inputFile, <<<'CSS'
+@custom-media --foo print;
+@media (--foo) {
+  .a { color: red }
+}
+CSS);
+        $plan = LightningCssCliOptions::planOutputs([$inputFile], null, null, false, 'last 1 Chrome version');
+        $targets = LightningCssCliOptions::targetsForBrowserslistQueries(['last 1 Chrome version']);
+        $output = (new CssFormatter())->format(
+            (new CustomMediaTransformer())->transform((string) file_get_contents($plan['inputs'][0]))
+        );
+
+        $t->same(['chrome' => 120], $targets);
+        $t->same(<<<'CSS'
+@media print {
+  .a {
+    color: red;
+  }
+}
+CSS . "\n", $output);
     },
     'lightningcss cli output file preserves checked input is selector' => static function (TestRunner $t) use ($temporaryPath): void {
         // Pinned upstream 22bdda3d tests/cli_integration_tests.rs::next_66191 lines 794-812.

@@ -4159,6 +4159,29 @@ CSS;
             '.foo{transition-timing-function:cubic-bezier(.58,.2,.11,1.2)}',
             $minifier->minify('.foo { transition-timing-function: cubic-bezier(0.58, 0.2, 0.11, 1.2) }')
         );
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_transitions lines 11476, 11480, and 11484.
+        $cases = [
+            [
+                11476,
+                '.foo { transition-timing-function: ease-in-out, cubic-bezier(0.42, 0, 1, 1) }',
+                '.foo{transition-timing-function:ease-in-out,ease-in}',
+            ],
+            [
+                11480,
+                '.foo { transition-timing-function: cubic-bezier(0.42, 0, 1, 1), cubic-bezier(0.58, 0.2, 0.11, 1.2) }',
+                '.foo{transition-timing-function:ease-in,cubic-bezier(.58,.2,.11,1.2)}',
+            ],
+            [
+                11484,
+                '.foo { transition-timing-function: step-start, steps(5, jump-start) }',
+                '.foo{transition-timing-function:step-start,steps(5,start)}',
+            ],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_transitions line ' . $line);
+        }
     },
     'css minifier maps upstream transition shorthand value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();

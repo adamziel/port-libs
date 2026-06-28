@@ -3894,6 +3894,55 @@ CSS;
         $t->same('@media (width<=600px){body{padding:20px}}', $result);
         $t->same(['--branding-small', '--branding-padding'], $seenNames);
     },
+    'custom at-rules map upstream specific EnvironmentVariable visitors in media and declarations' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::specific environment variables lines 210-251.
+        $tokens = [
+            '--branding-small' => [
+                'type' => 'length',
+                'value' => [
+                    'unit' => 'px',
+                    'value' => 600,
+                ],
+            ],
+            '--branding-padding' => [
+                'type' => 'length',
+                'value' => [
+                    'unit' => 'px',
+                    'value' => 20,
+                ],
+            ],
+        ];
+        $seenNames = [];
+
+        $css = <<<'CSS'
+@media (max-width: env(--branding-small)) {
+  body {
+    padding: env(--branding-padding);
+  }
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'EnvironmentVariable' => [
+                '--branding-small' => static function (array $environmentVariable) use (&$seenNames, $tokens): array {
+                    $seenNames[] = $environmentVariable['name'];
+
+                    return $tokens['--branding-small'];
+                },
+                '--branding-padding' => static function (array $environmentVariable) use (&$seenNames, $tokens): array {
+                    $seenNames[] = $environmentVariable['name'];
+
+                    return $tokens['--branding-padding'];
+                },
+            ],
+        ]);
+
+        $t->same('@media (width<=600px){body{padding:20px}}', $result);
+        $t->same([
+            ['type' => 'custom', 'ident' => '--branding-small'],
+            ['type' => 'custom', 'ident' => '--branding-padding'],
+        ], $seenNames);
+    },
     'custom at-rules compose upstream EnvironmentVariable visitors in media and declarations' => static function (TestRunner $t): void {
         $tokens = [
             '--branding-small' => [
