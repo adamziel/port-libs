@@ -9128,6 +9128,11 @@ XML;
         foreach ($report['items'] as $item) {
             $itemsByPart[$item['part']] = $item;
         }
+        $manifestByPart = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByPart[$item['part'] ?? ''] = $item;
+        }
+        $provenanceParts = $result['importReport']['manifest']['packageProvenance']['parts'];
 
         $t->same($report, $metadata);
         $t->same($report, $documentThumbnails);
@@ -9152,9 +9157,24 @@ XML;
         $t->same(strlen($thumbnailBytes), $itemsByPart['Thumbnails/thumbnail.png']['byteLength']);
         $t->same(sprintf('%08x', crc32($thumbnailBytes)), $itemsByPart['Thumbnails/thumbnail.png']['crc32']);
         $t->same(strlen($thumbnailBytes), $itemsByPart['Thumbnails/thumbnail.png']['storedByteLength']);
+        $t->same(false, $itemsByPart['Thumbnails/thumbnail.png']['canExposeBytes']);
         $t->same(false, $itemsByPart['Thumbnails/thumbnail.png']['canExposeAsDocumentMedia']);
+        $t->same('package-thumbnail-bytes-blocked', $itemsByPart['Thumbnails/thumbnail.png']['byteExposurePolicy']);
         $t->same('package-thumbnail-metadata-only', $itemsByPart['Thumbnails/thumbnail.png']['reviewPolicy']);
         $t->same([], $itemsByPart['Thumbnails/thumbnail.png']['issues']);
+
+        $manifestThumbnail = $manifestByPart['Thumbnails/thumbnail.png'];
+        $t->same(true, $manifestThumbnail['thumbnailPackagePart']);
+        $t->same(false, $manifestThumbnail['canExposeBytes']);
+        $t->same(null, $manifestThumbnail['byteLength']);
+        $t->same(strlen($thumbnailBytes), $manifestThumbnail['storedByteLength']);
+        $t->same(null, $manifestThumbnail['crc32']);
+        $t->same(sprintf('%08x', crc32($thumbnailBytes)), $manifestThumbnail['storedCrc32']);
+        $t->same(null, $manifestThumbnail['byteSha256']);
+        $t->same('package-thumbnail-bytes-blocked', $manifestThumbnail['byteExposurePolicy']);
+        $t->same(true, $provenanceParts['Thumbnails/thumbnail.png']['thumbnailPackagePart']);
+        $t->same(false, $provenanceParts['Thumbnails/thumbnail.png']['canExposeBytes']);
+        $t->same('package-thumbnail-bytes-blocked', $provenanceParts['Thumbnails/thumbnail.png']['byteExposurePolicy']);
 
         $t->same(false, $itemsByPart['Thumbnails/missing.jpg']['exists']);
         $t->same(['odf-thumbnail-missing-package-part'], $itemsByPart['Thumbnails/missing.jpg']['issues']);
