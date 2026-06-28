@@ -1173,6 +1173,8 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['vbaProjectExternalCount'] = $vbaProjects['externalCount'];
         $packageProvenance['summary']['vbaProjectAllowedExternalCount'] = $vbaProjects['allowedExternalProjectCount'];
         $packageProvenance['summary']['vbaProjectUnsafeExternalCount'] = $vbaProjects['unsafeExternalProjectCount'];
+        $packageProvenance['summary']['vbaProjectExternalTargetKindCounts'] = $vbaProjects['projectExternalTargetKindCounts'];
+        $packageProvenance['summary']['vbaProjectExternalTargetSchemeCounts'] = $vbaProjects['projectExternalTargetSchemeCounts'];
         $packageProvenance['summary']['vbaProjectExternalTargetIssueCodes'] = $vbaProjects['projectExternalTargetIssueCodes'];
         $packageProvenance['summary']['vbaProjectSignatureCount'] = $vbaProjects['signatureCount'];
         $packageProvenance['summary']['vbaProjectExistingSignatureCount'] = $vbaProjects['existingSignatureCount'];
@@ -1180,6 +1182,8 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['vbaProjectExternalSignatureCount'] = $vbaProjects['externalSignatureCount'];
         $packageProvenance['summary']['vbaProjectSignatureAllowedExternalCount'] = $vbaProjects['allowedExternalSignatureCount'];
         $packageProvenance['summary']['vbaProjectSignatureUnsafeExternalCount'] = $vbaProjects['unsafeExternalSignatureCount'];
+        $packageProvenance['summary']['vbaProjectSignatureExternalTargetKindCounts'] = $vbaProjects['signatureExternalTargetKindCounts'];
+        $packageProvenance['summary']['vbaProjectSignatureExternalTargetSchemeCounts'] = $vbaProjects['signatureExternalTargetSchemeCounts'];
         $packageProvenance['summary']['vbaProjectSignatureExternalTargetIssueCodes'] = $vbaProjects['signatureExternalTargetIssueCodes'];
         $packageProvenance['summary']['vbaDataPartCount'] = $vbaProjects['dataPartCount'];
         $packageProvenance['summary']['vbaDataExistingCount'] = $vbaProjects['existingDataPartCount'];
@@ -1187,6 +1191,8 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['vbaDataExternalCount'] = $vbaProjects['externalDataPartCount'];
         $packageProvenance['summary']['vbaDataAllowedExternalCount'] = $vbaProjects['allowedExternalDataPartCount'];
         $packageProvenance['summary']['vbaDataUnsafeExternalCount'] = $vbaProjects['unsafeExternalDataPartCount'];
+        $packageProvenance['summary']['vbaDataExternalTargetKindCounts'] = $vbaProjects['dataPartExternalTargetKindCounts'];
+        $packageProvenance['summary']['vbaDataExternalTargetSchemeCounts'] = $vbaProjects['dataPartExternalTargetSchemeCounts'];
         $packageProvenance['summary']['vbaDataExternalTargetIssueCodes'] = $vbaProjects['dataPartExternalTargetIssueCodes'];
         $packageProvenance['summary']['vbaDataInvalidXmlCount'] = $vbaProjects['dataPartInvalidXmlCount'];
         $packageProvenance['summary']['vbaDataUnexpectedRootCount'] = $vbaProjects['dataPartUnexpectedRootCount'];
@@ -8114,10 +8120,18 @@ final class DocxOpenXmlReader
         $dataPartNames = [];
         $externalTargets = [];
         $unsafeExternalTargets = [];
+        $externalTargetKindCounts = [];
+        $externalTargetSchemeCounts = [];
         $contentTypesSeen = [];
         $issueCodes = [];
+        $projectExternalTargetKindCounts = [];
+        $projectExternalTargetSchemeCounts = [];
         $projectExternalTargetIssueCodes = [];
+        $signatureExternalTargetKindCounts = [];
+        $signatureExternalTargetSchemeCounts = [];
         $signatureExternalTargetIssueCodes = [];
+        $dataPartExternalTargetKindCounts = [];
+        $dataPartExternalTargetSchemeCounts = [];
         $dataPartExternalTargetIssueCodes = [];
         $relationshipsPart = $this->relationshipsPartFor($documentPart);
 
@@ -8137,6 +8151,12 @@ final class DocxOpenXmlReader
                 if (($item['externalTargetAllowed'] ?? null) !== true) {
                     $this->appendUniqueString($unsafeExternalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
                 }
+                $targetKind = is_string($item['externalTargetKind'] ?? null) ? $item['externalTargetKind'] : '(unknown)';
+                $targetScheme = is_string($item['externalTargetScheme'] ?? null) ? $item['externalTargetScheme'] : '(none)';
+                $externalTargetKindCounts[$targetKind] = ($externalTargetKindCounts[$targetKind] ?? 0) + 1;
+                $externalTargetSchemeCounts[$targetScheme] = ($externalTargetSchemeCounts[$targetScheme] ?? 0) + 1;
+                $projectExternalTargetKindCounts[$targetKind] = ($projectExternalTargetKindCounts[$targetKind] ?? 0) + 1;
+                $projectExternalTargetSchemeCounts[$targetScheme] = ($projectExternalTargetSchemeCounts[$targetScheme] ?? 0) + 1;
                 foreach (($item['externalTargetIssues'] ?? []) as $issue) {
                     if (is_string($issue) && $issue !== '') {
                         $projectExternalTargetIssueCodes[$issue] = true;
@@ -8160,6 +8180,12 @@ final class DocxOpenXmlReader
                     if (($signature['externalTargetAllowed'] ?? null) !== true) {
                         $this->appendUniqueString($unsafeExternalTargets, is_string($signature['target'] ?? null) ? $signature['target'] : null);
                     }
+                    $targetKind = is_string($signature['externalTargetKind'] ?? null) ? $signature['externalTargetKind'] : '(unknown)';
+                    $targetScheme = is_string($signature['externalTargetScheme'] ?? null) ? $signature['externalTargetScheme'] : '(none)';
+                    $externalTargetKindCounts[$targetKind] = ($externalTargetKindCounts[$targetKind] ?? 0) + 1;
+                    $externalTargetSchemeCounts[$targetScheme] = ($externalTargetSchemeCounts[$targetScheme] ?? 0) + 1;
+                    $signatureExternalTargetKindCounts[$targetKind] = ($signatureExternalTargetKindCounts[$targetKind] ?? 0) + 1;
+                    $signatureExternalTargetSchemeCounts[$targetScheme] = ($signatureExternalTargetSchemeCounts[$targetScheme] ?? 0) + 1;
                     foreach (($signature['externalTargetIssues'] ?? []) as $issue) {
                         if (is_string($issue) && $issue !== '') {
                             $signatureExternalTargetIssueCodes[$issue] = true;
@@ -8184,6 +8210,12 @@ final class DocxOpenXmlReader
                     if (($dataPart['externalTargetAllowed'] ?? null) !== true) {
                         $this->appendUniqueString($unsafeExternalTargets, is_string($dataPart['target'] ?? null) ? $dataPart['target'] : null);
                     }
+                    $targetKind = is_string($dataPart['externalTargetKind'] ?? null) ? $dataPart['externalTargetKind'] : '(unknown)';
+                    $targetScheme = is_string($dataPart['externalTargetScheme'] ?? null) ? $dataPart['externalTargetScheme'] : '(none)';
+                    $externalTargetKindCounts[$targetKind] = ($externalTargetKindCounts[$targetKind] ?? 0) + 1;
+                    $externalTargetSchemeCounts[$targetScheme] = ($externalTargetSchemeCounts[$targetScheme] ?? 0) + 1;
+                    $dataPartExternalTargetKindCounts[$targetKind] = ($dataPartExternalTargetKindCounts[$targetKind] ?? 0) + 1;
+                    $dataPartExternalTargetSchemeCounts[$targetScheme] = ($dataPartExternalTargetSchemeCounts[$targetScheme] ?? 0) + 1;
                     foreach (($dataPart['externalTargetIssues'] ?? []) as $issue) {
                         if (is_string($issue) && $issue !== '') {
                             $dataPartExternalTargetIssueCodes[$issue] = true;
@@ -8198,8 +8230,16 @@ final class DocxOpenXmlReader
             }
         }
         ksort($issueCodes, SORT_STRING);
+        ksort($externalTargetKindCounts, SORT_STRING);
+        ksort($externalTargetSchemeCounts, SORT_STRING);
+        ksort($projectExternalTargetKindCounts, SORT_STRING);
+        ksort($projectExternalTargetSchemeCounts, SORT_STRING);
         ksort($projectExternalTargetIssueCodes, SORT_STRING);
+        ksort($signatureExternalTargetKindCounts, SORT_STRING);
+        ksort($signatureExternalTargetSchemeCounts, SORT_STRING);
         ksort($signatureExternalTargetIssueCodes, SORT_STRING);
+        ksort($dataPartExternalTargetKindCounts, SORT_STRING);
+        ksort($dataPartExternalTargetSchemeCounts, SORT_STRING);
         ksort($dataPartExternalTargetIssueCodes, SORT_STRING);
 
         return [
@@ -8238,10 +8278,18 @@ final class DocxOpenXmlReader
             'dataPartNames' => $dataPartNames,
             'externalTargets' => $externalTargets,
             'unsafeExternalTargets' => $unsafeExternalTargets,
+            'externalTargetKindCounts' => $externalTargetKindCounts,
+            'externalTargetSchemeCounts' => $externalTargetSchemeCounts,
             'contentTypes' => $contentTypesSeen,
             'issueCodes' => array_keys($issueCodes),
+            'projectExternalTargetKindCounts' => $projectExternalTargetKindCounts,
+            'projectExternalTargetSchemeCounts' => $projectExternalTargetSchemeCounts,
             'projectExternalTargetIssueCodes' => array_keys($projectExternalTargetIssueCodes),
+            'signatureExternalTargetKindCounts' => $signatureExternalTargetKindCounts,
+            'signatureExternalTargetSchemeCounts' => $signatureExternalTargetSchemeCounts,
             'signatureExternalTargetIssueCodes' => array_keys($signatureExternalTargetIssueCodes),
+            'dataPartExternalTargetKindCounts' => $dataPartExternalTargetKindCounts,
+            'dataPartExternalTargetSchemeCounts' => $dataPartExternalTargetSchemeCounts,
             'dataPartExternalTargetIssueCodes' => array_keys($dataPartExternalTargetIssueCodes),
             'byRelationshipId' => $byRelationshipId,
             'items' => $items,
@@ -8371,6 +8419,8 @@ final class DocxOpenXmlReader
             'partNames' => [],
             'externalTargets' => [],
             'unsafeExternalTargets' => [],
+            'externalTargetKindCounts' => [],
+            'externalTargetSchemeCounts' => [],
             'contentTypes' => [],
             'externalTargetIssueCodes' => [],
             'issueCodes' => [],
@@ -8405,6 +8455,8 @@ final class DocxOpenXmlReader
         $partNames = [];
         $externalTargets = [];
         $unsafeExternalTargets = [];
+        $externalTargetKindCounts = [];
+        $externalTargetSchemeCounts = [];
         $contentTypesSeen = [];
         $externalTargetIssueCodes = [];
         $issueCodes = [];
@@ -8433,6 +8485,10 @@ final class DocxOpenXmlReader
                 if (($item['externalTargetAllowed'] ?? null) !== true) {
                     $this->appendUniqueString($unsafeExternalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
                 }
+                $targetKind = is_string($item['externalTargetKind'] ?? null) ? $item['externalTargetKind'] : '(unknown)';
+                $targetScheme = is_string($item['externalTargetScheme'] ?? null) ? $item['externalTargetScheme'] : '(none)';
+                $externalTargetKindCounts[$targetKind] = ($externalTargetKindCounts[$targetKind] ?? 0) + 1;
+                $externalTargetSchemeCounts[$targetScheme] = ($externalTargetSchemeCounts[$targetScheme] ?? 0) + 1;
                 foreach (($item['externalTargetIssues'] ?? []) as $issue) {
                     if (is_string($issue) && $issue !== '') {
                         $externalTargetIssueCodes[$issue] = true;
@@ -8445,6 +8501,8 @@ final class DocxOpenXmlReader
                 }
             }
         }
+        ksort($externalTargetKindCounts, SORT_STRING);
+        ksort($externalTargetSchemeCounts, SORT_STRING);
         ksort($externalTargetIssueCodes, SORT_STRING);
         ksort($issueCodes, SORT_STRING);
 
@@ -8463,6 +8521,8 @@ final class DocxOpenXmlReader
             'partNames' => $partNames,
             'externalTargets' => $externalTargets,
             'unsafeExternalTargets' => $unsafeExternalTargets,
+            'externalTargetKindCounts' => $externalTargetKindCounts,
+            'externalTargetSchemeCounts' => $externalTargetSchemeCounts,
             'contentTypes' => $contentTypesSeen,
             'externalTargetIssueCodes' => array_keys($externalTargetIssueCodes),
             'issueCodes' => array_keys($issueCodes),
