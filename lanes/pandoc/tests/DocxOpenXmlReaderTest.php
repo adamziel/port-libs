@@ -18543,6 +18543,113 @@ XML;
         $t->true(!str_contains((string) $encodedDoctypes, 'hidden-reviewer'), 'raw XML entity values should not be exposed in summary metadata');
         $t->true(!str_contains((string) $encodedDoctypes, 'hidden-settings'), 'raw XML entity values should not be exposed in summary metadata');
     },
+    'summarizes docx package xml entity references without expanding replacement text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $reviewerValue = 'entity-reference:hidden-reviewer';
+        $approvalValue = 'entity-reference:hidden-approval';
+        $settingsValue = 'entity-reference:hidden-settings';
+        $parts['customXml/entity-reference-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE review:packet [
+<!ENTITY reviewer "{$reviewerValue}">
+<!ENTITY approval "{$approvalValue}">
+]>
+<review:packet xmlns:review="urn:review-entity">
+  <review:item>&reviewer;</review:item>
+  <review:item>&approval; &reviewer;</review:item>
+</review:packet>
+XML;
+        $parts['word/settings-entity-reference.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE w:settings [
+<!ENTITY settingsPayload "{$settingsValue}">
+]>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docVars>
+    <w:docVar>&settingsPayload;</w:docVar>
+  </w:docVars>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/entity-reference-review.xml'];
+        $settingsPart = $package['parts']['word/settings-entity-reference.xml'];
+        $entityReferences = array_values(array_filter(
+            $summary['partXmlEntityReferences'],
+            static fn (array $reference): bool => in_array(
+                $reference['partName'],
+                ['customXml/entity-reference-review.xml', 'word/settings-entity-reference.xml'],
+                true,
+            ),
+        ));
+
+        $t->same(9, $summary['partXmlInspectableCount']);
+        $t->same(2, $summary['partXmlEntityReferencePartCount']);
+        $t->same(4, $summary['partXmlEntityReferenceCount']);
+        $t->same(['customXml/entity-reference-review.xml', 'word/settings-entity-reference.xml'], $summary['partXmlEntityReferencePartNames']);
+        $t->same(3, $summary['partXmlEntityReferenceNameCount']);
+        $t->same(['approval' => 1, 'reviewer' => 2, 'settingsPayload' => 1], $summary['partXmlEntityReferenceNameCounts']);
+        $t->same(['approval', 'reviewer', 'settingsPayload'], $summary['partXmlEntityReferenceNames']);
+        $t->same(2, $summary['partXmlEntityReferenceParentPathCount']);
+        $t->same(
+            [
+                '/review:packet/review:item' => 3,
+                '/w:settings/w:docVars/w:docVar' => 1,
+            ],
+            $summary['partXmlEntityReferenceParentPathCounts']
+        );
+        $t->same(['/review:packet/review:item', '/w:settings/w:docVars/w:docVar'], $summary['partXmlEntityReferenceParentPaths']);
+        $t->same(
+            [
+                'http://schemas.openxmlformats.org/wordprocessingml/2006/main' => 1,
+                'urn:review-entity' => 3,
+            ],
+            $summary['partXmlEntityReferenceParentNamespaceCounts']
+        );
+        $t->same(['docVar' => 1, 'item' => 3], $summary['partXmlEntityReferenceParentLocalNameCounts']);
+        $t->same(['review:item' => 3, 'w:docVar' => 1], $summary['partXmlEntityReferenceParentQualifiedNameCounts']);
+        $t->same(3, $summary['partXmlDoctypeEntityCount']);
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(3, $reviewPart['xmlEntityReferenceCount']);
+        $t->same(['approval' => 1, 'reviewer' => 2], $reviewPart['xmlEntityReferenceNameCounts']);
+        $t->same(['approval', 'reviewer'], $reviewPart['xmlEntityReferenceNames']);
+        $t->same(['/review:packet/review:item' => 3], $reviewPart['xmlEntityReferenceParentPathCounts']);
+        $t->same(['urn:review-entity' => 3], $reviewPart['xmlEntityReferenceParentNamespaceCounts']);
+        $t->same(['item' => 3], $reviewPart['xmlEntityReferenceParentLocalNameCounts']);
+        $t->same(['review:item' => 3], $reviewPart['xmlEntityReferenceParentQualifiedNameCounts']);
+        $t->same('reviewer', $reviewPart['xmlEntityReferences'][0]['name']);
+        $t->same(strlen('reviewer'), $reviewPart['xmlEntityReferences'][0]['nameByteLength']);
+        $t->same('/review:packet/review:item', $reviewPart['xmlEntityReferences'][0]['parentPath']);
+        $t->same(2, $reviewPart['xmlEntityReferences'][0]['parentDepth']);
+        $t->same('urn:review-entity', $reviewPart['xmlEntityReferences'][0]['parentNamespace']);
+        $t->same('item', $reviewPart['xmlEntityReferences'][0]['parentLocalName']);
+        $t->same('review:item', $reviewPart['xmlEntityReferences'][0]['parentQualifiedName']);
+        $t->same('approval', $reviewPart['xmlEntityReferences'][1]['name']);
+        $t->same('reviewer', $reviewPart['xmlEntityReferences'][2]['name']);
+        $t->same(2, $reviewPart['xmlDoctypeEntityCount']);
+        $t->same(['approval', 'reviewer'], $reviewPart['xmlDoctypeEntityNames']);
+
+        $t->same(1, $settingsPart['xmlEntityReferenceCount']);
+        $t->same(['settingsPayload' => 1], $settingsPart['xmlEntityReferenceNameCounts']);
+        $t->same('/w:settings/w:docVars/w:docVar', $settingsPart['xmlEntityReferences'][0]['parentPath']);
+        $t->same('http://schemas.openxmlformats.org/wordprocessingml/2006/main', $settingsPart['xmlEntityReferences'][0]['parentNamespace']);
+        $t->same('w:docVar', $settingsPart['xmlEntityReferences'][0]['parentQualifiedName']);
+        $t->same(['settingsPayload'], $settingsPart['xmlDoctypeEntityNames']);
+
+        $t->same(4, count($entityReferences));
+        $t->same('customXml/entity-reference-review.xml', $entityReferences[0]['partName']);
+        $t->same('reviewer', $entityReferences[0]['name']);
+        $t->same('approval', $entityReferences[1]['name']);
+        $t->same('word/settings-entity-reference.xml', $entityReferences[3]['partName']);
+        $t->same('settingsPayload', $entityReferences[3]['name']);
+        $t->true(!isset($reviewPart['xmlEntityReferences'][0]['value']), 'raw XML entity replacement value should not be exposed on part metadata');
+        $encodedReferences = json_encode([$reviewPart, $settingsPart, $entityReferences]);
+        $t->true(is_string($encodedReferences), 'XML entity-reference metadata should encode for review');
+        $t->true(!str_contains((string) $encodedReferences, 'entity-reference:hidden'), 'raw XML entity replacement values should not be exposed in summary metadata');
+    },
     'accepts docx main document template and macro-enabled content types' => static function (TestRunner $t): void {
         $acceptedDocumentContentTypes = [
             ['application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'],
