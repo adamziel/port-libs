@@ -26847,6 +26847,121 @@ XML;
         $t->true(is_string($encodedReferences), 'relationship-reference metadata should encode for review');
         $t->true(!str_contains((string) $encodedReferences, $hiddenText), 'raw XML text should not be exposed in relationship-reference metadata');
     },
+    'summarizes docx xml element ancestry without exposing XML text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $hiddenText = 'element-ancestry:hidden-text';
+        $parts['customXml/ancestry-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:package xmlns:review="urn:element-ancestry-review">
+  <review:section>
+    <review:item><review:caption>{$hiddenText}</review:caption></review:item>
+    <review:item><review:caption/></review:item>
+  </review:section>
+  <review:appendix><review:note/></review:appendix>
+</review:package>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/ancestry-review.xml'];
+        $ancestries = array_values(array_filter(
+            $summary['partXmlElementAncestries'],
+            static fn (array $ancestry): bool => $ancestry['partName'] === 'customXml/ancestry-review.xml',
+        ));
+
+        $t->same(8, $reviewPart['xmlElementAncestryCount']);
+        $t->same(1, $reviewPart['xmlElementAncestryRootCount']);
+        $t->same(7, $reviewPart['xmlElementAncestryParentCount']);
+        $t->same(5, $reviewPart['xmlElementAncestryGrandparentCount']);
+        $t->same(4, $reviewPart['xmlElementAncestryMaxDepth']);
+        $t->same([
+            1 => 1,
+            2 => 2,
+            3 => 3,
+            4 => 2,
+        ], $reviewPart['xmlElementAncestryDepthCounts']);
+        $t->same([
+            0 => 1,
+            1 => 2,
+            2 => 3,
+            3 => 2,
+        ], $reviewPart['xmlElementAncestryAncestorDepthCounts']);
+        $t->same([
+            '(root)' => 1,
+            'review:package' => 2,
+            'review:package/review:appendix' => 1,
+            'review:package/review:section' => 2,
+            'review:package/review:section/review:item' => 2,
+        ], $reviewPart['xmlElementAncestryAncestorChainCounts']);
+        $t->same([
+            'review:package' => 8,
+        ], $reviewPart['xmlElementAncestryRootQualifiedNameCounts']);
+        $t->same([
+            'review:appendix' => 1,
+            'review:item' => 2,
+            'review:package' => 2,
+            'review:section' => 2,
+        ], $reviewPart['xmlElementAncestryParentQualifiedNameCounts']);
+        $t->same([
+            'review:package' => 3,
+            'review:section' => 2,
+        ], $reviewPart['xmlElementAncestryGrandparentQualifiedNameCounts']);
+        $t->same([
+            'review:appendix' => 1,
+            'review:caption' => 2,
+            'review:item' => 2,
+            'review:note' => 1,
+            'review:package' => 1,
+            'review:section' => 1,
+        ], $reviewPart['xmlElementAncestryElementQualifiedNameCounts']);
+        $t->same([
+            '/review:package' => 1,
+            '/review:package/review:appendix' => 1,
+            '/review:package/review:appendix/review:note' => 1,
+            '/review:package/review:section' => 1,
+            '/review:package/review:section/review:item' => 2,
+            '/review:package/review:section/review:item/review:caption' => 2,
+        ], $reviewPart['xmlElementAncestryElementPathCounts']);
+        $t->same([
+            '/review:package' => 2,
+            '/review:package/review:appendix' => 1,
+            '/review:package/review:section' => 2,
+            '/review:package/review:section/review:item' => 2,
+        ], $reviewPart['xmlElementAncestryParentPathCounts']);
+
+        $t->same(8, count($ancestries));
+        $t->same('/review:package', $ancestries[0]['elementPath']);
+        $t->same(null, $ancestries[0]['parentQualifiedName']);
+        $t->same('(root)', $ancestries[0]['ancestorChain']);
+        $t->same('/review:package/review:section/review:item/review:caption', $ancestries[3]['elementPath']);
+        $t->same('review:item', $ancestries[3]['parentQualifiedName']);
+        $t->same('review:section', $ancestries[3]['grandparentQualifiedName']);
+        $t->same('review:package', $ancestries[3]['rootQualifiedName']);
+        $t->same(3, $ancestries[3]['ancestorDepth']);
+        $t->same([
+            'review:package',
+            'review:section',
+            'review:item',
+        ], $ancestries[3]['ancestorQualifiedNames']);
+        $t->same([
+            '/review:package',
+            '/review:package/review:section',
+            '/review:package/review:section/review:item',
+        ], $ancestries[3]['ancestorPaths']);
+        $t->same('review:appendix', $ancestries[7]['parentQualifiedName']);
+        $t->same('review:package', $ancestries[7]['grandparentQualifiedName']);
+
+        $t->true($summary['partXmlElementAncestryPartCount'] >= 1, 'summary ancestry part count should include custom XML');
+        $t->true($summary['partXmlElementAncestryCount'] >= 8, 'summary ancestry count should include custom XML');
+        $t->true($summary['partXmlElementAncestryGrandparentCount'] >= 5, 'summary grandparent count should include custom XML');
+        $t->true(in_array('customXml/ancestry-review.xml', $summary['partXmlElementAncestryPartNames'], true), 'custom XML ancestry part should be summarized');
+        $t->true(in_array('/review:package/review:section/review:item/review:caption', $summary['partXmlElementAncestryElementPaths'], true), 'caption path should be summarized');
+        $t->true(in_array('/review:package/review:section/review:item', $summary['partXmlElementAncestryParentPaths'], true), 'caption parent path should be summarized');
+        $encodedAncestry = json_encode([$reviewPart['xmlElementAncestries'], $ancestries]);
+        $t->true(is_string($encodedAncestry), 'element ancestry metadata should encode for review');
+        $t->true(!str_contains((string) $encodedAncestry, $hiddenText), 'raw XML text should not be exposed in element ancestry metadata');
+    },
     'summarizes docx source zip raw name provenance for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $cp437RawName = "word/media/caf\x82.png";

@@ -12720,6 +12720,7 @@ final class DocxOpenXmlReader
         $partCaseFoldBaseNames = $this->packagePartCaseFoldBaseNameSummary($partInventory);
         $partNameCharacters = $this->packagePartNameCharacterSummary($partInventory);
         $partXmlRoots = $this->packagePartXmlRootSummary($partInventory);
+        $partXmlElementAncestry = $this->packagePartXmlElementAncestrySummary($partInventory);
         $partXmlNamespaceShadows = $this->packagePartXmlNamespaceShadowSummary($partInventory);
         $partXmlAttributeCooccurrences = $this->packagePartXmlElementAttributeCooccurrenceSummary($partInventory);
         $partXmlRelationshipReferences = $this->packagePartXmlRelationshipReferenceSummary($partInventory);
@@ -15293,6 +15294,34 @@ final class DocxOpenXmlReader
             'partXmlElementAncestorChainElementQualifiedNameCounts' => $partXmlRoots['xmlElementAncestorChainElementQualifiedNameCounts'],
             'partXmlElementAncestorChainAncestorQualifiedNameCount' => $partXmlRoots['xmlElementAncestorChainAncestorQualifiedNameCount'],
             'partXmlElementAncestorChainAncestorQualifiedNameCounts' => $partXmlRoots['xmlElementAncestorChainAncestorQualifiedNameCounts'],
+            'partXmlElementAncestryPartCount' => $partXmlElementAncestry['partCount'],
+            'partXmlElementAncestryCount' => $partXmlElementAncestry['count'],
+            'partXmlElementAncestryRootCount' => $partXmlElementAncestry['rootElementCount'],
+            'partXmlElementAncestryParentCount' => $partXmlElementAncestry['parentElementCount'],
+            'partXmlElementAncestryGrandparentCount' => $partXmlElementAncestry['grandparentElementCount'],
+            'partXmlElementAncestryMaxDepth' => $partXmlElementAncestry['maxDepth'],
+            'partXmlElementAncestryPartNames' => $partXmlElementAncestry['partNames'],
+            'partXmlElementAncestryDepthCount' => count($partXmlElementAncestry['depthCounts']),
+            'partXmlElementAncestryDepthCounts' => $partXmlElementAncestry['depthCounts'],
+            'partXmlElementAncestryAncestorDepthCount' => count($partXmlElementAncestry['ancestorDepthCounts']),
+            'partXmlElementAncestryAncestorDepthCounts' => $partXmlElementAncestry['ancestorDepthCounts'],
+            'partXmlElementAncestryAncestorChainCount' => count($partXmlElementAncestry['ancestorChainCounts']),
+            'partXmlElementAncestryAncestorChainCounts' => $partXmlElementAncestry['ancestorChainCounts'],
+            'partXmlElementAncestryAncestorChains' => $partXmlElementAncestry['ancestorChains'],
+            'partXmlElementAncestryRootQualifiedNameCount' => count($partXmlElementAncestry['rootQualifiedNameCounts']),
+            'partXmlElementAncestryRootQualifiedNameCounts' => $partXmlElementAncestry['rootQualifiedNameCounts'],
+            'partXmlElementAncestryParentQualifiedNameCount' => count($partXmlElementAncestry['parentQualifiedNameCounts']),
+            'partXmlElementAncestryParentQualifiedNameCounts' => $partXmlElementAncestry['parentQualifiedNameCounts'],
+            'partXmlElementAncestryGrandparentQualifiedNameCount' => count($partXmlElementAncestry['grandparentQualifiedNameCounts']),
+            'partXmlElementAncestryGrandparentQualifiedNameCounts' => $partXmlElementAncestry['grandparentQualifiedNameCounts'],
+            'partXmlElementAncestryElementQualifiedNameCount' => count($partXmlElementAncestry['elementQualifiedNameCounts']),
+            'partXmlElementAncestryElementQualifiedNameCounts' => $partXmlElementAncestry['elementQualifiedNameCounts'],
+            'partXmlElementAncestryElementPathCount' => count($partXmlElementAncestry['elementPathCounts']),
+            'partXmlElementAncestryElementPathCounts' => $partXmlElementAncestry['elementPathCounts'],
+            'partXmlElementAncestryElementPaths' => $partXmlElementAncestry['elementPaths'],
+            'partXmlElementAncestryParentPathCount' => count($partXmlElementAncestry['parentPathCounts']),
+            'partXmlElementAncestryParentPathCounts' => $partXmlElementAncestry['parentPathCounts'],
+            'partXmlElementAncestryParentPaths' => $partXmlElementAncestry['parentPaths'],
             'partXmlElementParentChildPairPartCount' => $partXmlRoots['xmlElementParentChildPairPartCount'],
             'partXmlElementParentChildPairCount' => $partXmlRoots['xmlElementParentChildPairCount'],
             'partXmlElementParentChildPairSameNamespaceCount' => $partXmlRoots['xmlElementParentChildPairSameNamespaceCount'],
@@ -16236,6 +16265,7 @@ final class DocxOpenXmlReader
             'partXmlEntityReferences' => $partXmlRoots['xmlEntityReferences'],
             'partXmlElementStructures' => $partXmlRoots['xmlElementStructures'],
             'partXmlElementAncestorChains' => $partXmlRoots['xmlElementAncestorChains'],
+            'partXmlElementAncestries' => $partXmlElementAncestry['items'],
             'partXmlElementParentChildPairs' => $partXmlRoots['xmlElementParentChildPairs'],
             'partXmlElementChildProfiles' => $partXmlRoots['xmlElementChildProfiles'],
             'partXmlElementSubtrees' => $partXmlRoots['xmlElementSubtrees'],
@@ -30934,6 +30964,238 @@ final class DocxOpenXmlReader
     }
 
     /**
+     * @return array{count:int, rootElementCount:int, parentElementCount:int, grandparentElementCount:int, maxDepth:int, depthCounts:array<int, int>, ancestorDepthCounts:array<int, int>, ancestorChainCounts:array<string, int>, ancestorChains:list<string>, rootQualifiedNameCounts:array<string, int>, parentQualifiedNameCounts:array<string, int>, grandparentQualifiedNameCounts:array<string, int>, elementQualifiedNameCounts:array<string, int>, elementPathCounts:array<string, int>, elementPaths:list<string>, parentPathCounts:array<string, int>, parentPaths:list<string>, items:list<array<string, mixed>>}
+     */
+    private function xmlElementAncestryProvenance(string $xml, string $partName): array
+    {
+        $empty = [
+            'count' => 0,
+            'rootElementCount' => 0,
+            'parentElementCount' => 0,
+            'grandparentElementCount' => 0,
+            'maxDepth' => 0,
+            'depthCounts' => [],
+            'ancestorDepthCounts' => [],
+            'ancestorChainCounts' => [],
+            'ancestorChains' => [],
+            'rootQualifiedNameCounts' => [],
+            'parentQualifiedNameCounts' => [],
+            'grandparentQualifiedNameCounts' => [],
+            'elementQualifiedNameCounts' => [],
+            'elementPathCounts' => [],
+            'elementPaths' => [],
+            'parentPathCounts' => [],
+            'parentPaths' => [],
+            'items' => [],
+        ];
+
+        $dom = $this->loadXmlForProvenance($xml, $partName);
+        if (!$dom instanceof \DOMDocument || !$dom->documentElement instanceof \DOMElement) {
+            return $empty;
+        }
+
+        $items = [];
+        $depthCounts = [];
+        $ancestorDepthCounts = [];
+        $ancestorChainCounts = [];
+        $ancestorChains = [];
+        $rootQualifiedNameCounts = [];
+        $parentQualifiedNameCounts = [];
+        $grandparentQualifiedNameCounts = [];
+        $elementQualifiedNameCounts = [];
+        $elementPathCounts = [];
+        $elementPaths = [];
+        $parentPathCounts = [];
+        $parentPaths = [];
+        $rootElementCount = 0;
+        $parentElementCount = 0;
+        $grandparentElementCount = 0;
+        $maxDepth = 0;
+        $ordinal = 0;
+
+        $elementInfo = function (\DOMElement $element): array {
+            $path = $this->xmlProvenanceParentPath($element);
+            $localName = $element->localName === '' ? '(none)' : $element->localName;
+            $qualifiedName = $element->tagName === '' ? $localName : $element->tagName;
+            $namespace = is_string($element->namespaceURI) && $element->namespaceURI !== ''
+                ? $element->namespaceURI
+                : null;
+            $prefix = $this->emptyStringToNull((string) $element->prefix);
+
+            return [
+                'path' => $path,
+                'depth' => $this->xmlProvenanceParentDepth($path),
+                'namespace' => $namespace,
+                'localName' => $localName,
+                'qualifiedName' => $qualifiedName,
+                'prefix' => $prefix,
+            ];
+        };
+
+        $walk = function (\DOMElement $element) use (
+            &$walk,
+            &$items,
+            &$depthCounts,
+            &$ancestorDepthCounts,
+            &$ancestorChainCounts,
+            &$ancestorChains,
+            &$rootQualifiedNameCounts,
+            &$parentQualifiedNameCounts,
+            &$grandparentQualifiedNameCounts,
+            &$elementQualifiedNameCounts,
+            &$elementPathCounts,
+            &$elementPaths,
+            &$parentPathCounts,
+            &$parentPaths,
+            &$rootElementCount,
+            &$parentElementCount,
+            &$grandparentElementCount,
+            &$maxDepth,
+            &$ordinal,
+            $elementInfo,
+        ): void {
+            ++$ordinal;
+            $info = $elementInfo($element);
+            $depth = (int) $info['depth'];
+            $maxDepth = max($maxDepth, $depth);
+            $depthCounts[$depth] = ($depthCounts[$depth] ?? 0) + 1;
+            $elementQualifiedName = (string) $info['qualifiedName'];
+            $elementQualifiedNameCounts[$elementQualifiedName] =
+                ($elementQualifiedNameCounts[$elementQualifiedName] ?? 0) + 1;
+            $elementPath = (string) $info['path'];
+            $elementPathCounts[$elementPath] = ($elementPathCounts[$elementPath] ?? 0) + 1;
+            $this->appendUniqueString($elementPaths, $elementPath);
+
+            $ancestors = [];
+            $ancestor = $element->parentNode;
+            while ($ancestor instanceof \DOMElement) {
+                array_unshift($ancestors, $ancestor);
+                $ancestor = $ancestor->parentNode;
+            }
+
+            $ancestorInfos = array_map($elementInfo, $ancestors);
+            $ancestorQualifiedNames = array_values(array_map(
+                static fn (array $ancestorInfo): string => (string) $ancestorInfo['qualifiedName'],
+                $ancestorInfos,
+            ));
+            $ancestorPaths = array_values(array_map(
+                static fn (array $ancestorInfo): string => (string) $ancestorInfo['path'],
+                $ancestorInfos,
+            ));
+            $ancestorDepth = count($ancestorInfos);
+            $ancestorDepthCounts[$ancestorDepth] = ($ancestorDepthCounts[$ancestorDepth] ?? 0) + 1;
+            $ancestorChain = $ancestorQualifiedNames === [] ? '(root)' : implode('/', $ancestorQualifiedNames);
+            $ancestorChainCounts[$ancestorChain] = ($ancestorChainCounts[$ancestorChain] ?? 0) + 1;
+            $this->appendUniqueString($ancestorChains, $ancestorChain);
+
+            $rootInfo = $ancestorInfos[0] ?? $info;
+            $parentInfo = $ancestorInfos[count($ancestorInfos) - 1] ?? null;
+            $grandparentInfo = $ancestorInfos[count($ancestorInfos) - 2] ?? null;
+            $rootQualifiedName = (string) $rootInfo['qualifiedName'];
+            $rootQualifiedNameCounts[$rootQualifiedName] = ($rootQualifiedNameCounts[$rootQualifiedName] ?? 0) + 1;
+
+            if ($parentInfo === null) {
+                ++$rootElementCount;
+            } else {
+                ++$parentElementCount;
+                $parentQualifiedName = (string) $parentInfo['qualifiedName'];
+                $parentQualifiedNameCounts[$parentQualifiedName] =
+                    ($parentQualifiedNameCounts[$parentQualifiedName] ?? 0) + 1;
+                $parentPath = (string) $parentInfo['path'];
+                $parentPathCounts[$parentPath] = ($parentPathCounts[$parentPath] ?? 0) + 1;
+                $this->appendUniqueString($parentPaths, $parentPath);
+            }
+
+            if ($grandparentInfo !== null) {
+                ++$grandparentElementCount;
+                $grandparentQualifiedName = (string) $grandparentInfo['qualifiedName'];
+                $grandparentQualifiedNameCounts[$grandparentQualifiedName] =
+                    ($grandparentQualifiedNameCounts[$grandparentQualifiedName] ?? 0) + 1;
+            }
+
+            $items[] = [
+                'ordinal' => $ordinal,
+                'elementPath' => $elementPath,
+                'elementDepth' => $depth,
+                'elementNamespace' => is_string($info['namespace'] ?? null) ? $info['namespace'] : null,
+                'elementLocalName' => (string) $info['localName'],
+                'elementQualifiedName' => $elementQualifiedName,
+                'elementPrefix' => is_string($info['prefix'] ?? null) ? $info['prefix'] : null,
+                'rootPath' => (string) $rootInfo['path'],
+                'rootNamespace' => is_string($rootInfo['namespace'] ?? null) ? $rootInfo['namespace'] : null,
+                'rootLocalName' => (string) $rootInfo['localName'],
+                'rootQualifiedName' => $rootQualifiedName,
+                'rootPrefix' => is_string($rootInfo['prefix'] ?? null) ? $rootInfo['prefix'] : null,
+                'parentPath' => is_array($parentInfo) ? (string) $parentInfo['path'] : null,
+                'parentDepth' => is_array($parentInfo) ? (int) $parentInfo['depth'] : null,
+                'parentNamespace' => is_array($parentInfo) && is_string($parentInfo['namespace'] ?? null)
+                    ? $parentInfo['namespace']
+                    : null,
+                'parentLocalName' => is_array($parentInfo) ? (string) $parentInfo['localName'] : null,
+                'parentQualifiedName' => is_array($parentInfo) ? (string) $parentInfo['qualifiedName'] : null,
+                'parentPrefix' => is_array($parentInfo) && is_string($parentInfo['prefix'] ?? null)
+                    ? $parentInfo['prefix']
+                    : null,
+                'grandparentPath' => is_array($grandparentInfo) ? (string) $grandparentInfo['path'] : null,
+                'grandparentDepth' => is_array($grandparentInfo) ? (int) $grandparentInfo['depth'] : null,
+                'grandparentNamespace' => is_array($grandparentInfo) && is_string($grandparentInfo['namespace'] ?? null)
+                    ? $grandparentInfo['namespace']
+                    : null,
+                'grandparentLocalName' => is_array($grandparentInfo) ? (string) $grandparentInfo['localName'] : null,
+                'grandparentQualifiedName' => is_array($grandparentInfo) ? (string) $grandparentInfo['qualifiedName'] : null,
+                'grandparentPrefix' => is_array($grandparentInfo) && is_string($grandparentInfo['prefix'] ?? null)
+                    ? $grandparentInfo['prefix']
+                    : null,
+                'ancestorDepth' => $ancestorDepth,
+                'ancestorChain' => $ancestorChain,
+                'ancestorQualifiedNames' => $ancestorQualifiedNames,
+                'ancestorPaths' => $ancestorPaths,
+            ];
+
+            foreach ($element->childNodes as $child) {
+                if ($child instanceof \DOMElement) {
+                    $walk($child);
+                }
+            }
+        };
+        $walk($dom->documentElement);
+
+        ksort($depthCounts, SORT_NUMERIC);
+        ksort($ancestorDepthCounts, SORT_NUMERIC);
+        ksort($ancestorChainCounts, SORT_STRING);
+        ksort($rootQualifiedNameCounts, SORT_STRING);
+        ksort($parentQualifiedNameCounts, SORT_STRING);
+        ksort($grandparentQualifiedNameCounts, SORT_STRING);
+        ksort($elementQualifiedNameCounts, SORT_STRING);
+        ksort($elementPathCounts, SORT_STRING);
+        ksort($parentPathCounts, SORT_STRING);
+        sort($ancestorChains, SORT_STRING);
+        sort($elementPaths, SORT_STRING);
+        sort($parentPaths, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'rootElementCount' => $rootElementCount,
+            'parentElementCount' => $parentElementCount,
+            'grandparentElementCount' => $grandparentElementCount,
+            'maxDepth' => $maxDepth,
+            'depthCounts' => $depthCounts,
+            'ancestorDepthCounts' => $ancestorDepthCounts,
+            'ancestorChainCounts' => $ancestorChainCounts,
+            'ancestorChains' => $ancestorChains,
+            'rootQualifiedNameCounts' => $rootQualifiedNameCounts,
+            'parentQualifiedNameCounts' => $parentQualifiedNameCounts,
+            'grandparentQualifiedNameCounts' => $grandparentQualifiedNameCounts,
+            'elementQualifiedNameCounts' => $elementQualifiedNameCounts,
+            'elementPathCounts' => $elementPathCounts,
+            'elementPaths' => $elementPaths,
+            'parentPathCounts' => $parentPathCounts,
+            'parentPaths' => $parentPaths,
+            'items' => $items,
+        ];
+    }
+
+    /**
      * @return array{count:int, pairNameCounts:array<string, int>, pairNames:list<string>, parentPathCounts:array<string, int>, parentPaths:list<string>, childPathCounts:array<string, int>, childPaths:list<string>, parentNamespaceCounts:array<string, int>, parentLocalNameCounts:array<string, int>, parentQualifiedNameCounts:array<string, int>, parentPrefixCounts:array<string, int>, parentPrefixes:list<string>, childNamespaceCounts:array<string, int>, childLocalNameCounts:array<string, int>, childQualifiedNameCounts:array<string, int>, childPrefixCounts:array<string, int>, childPrefixes:list<string>, items:list<array<string, mixed>>}
      */
     private function xmlElementParentChildPairProvenance(string $xml, string $partName): array
@@ -35819,6 +36081,24 @@ final class DocxOpenXmlReader
                 'xmlElementAncestorChainElementQualifiedNameCounts' => [],
                 'xmlElementAncestorChainAncestorQualifiedNameCounts' => [],
                 'xmlElementAncestorChains' => [],
+                'xmlElementAncestryCount' => 0,
+                'xmlElementAncestryRootCount' => 0,
+                'xmlElementAncestryParentCount' => 0,
+                'xmlElementAncestryGrandparentCount' => 0,
+                'xmlElementAncestryMaxDepth' => 0,
+                'xmlElementAncestryDepthCounts' => [],
+                'xmlElementAncestryAncestorDepthCounts' => [],
+                'xmlElementAncestryAncestorChainCounts' => [],
+                'xmlElementAncestryAncestorChains' => [],
+                'xmlElementAncestryRootQualifiedNameCounts' => [],
+                'xmlElementAncestryParentQualifiedNameCounts' => [],
+                'xmlElementAncestryGrandparentQualifiedNameCounts' => [],
+                'xmlElementAncestryElementQualifiedNameCounts' => [],
+                'xmlElementAncestryElementPathCounts' => [],
+                'xmlElementAncestryElementPaths' => [],
+                'xmlElementAncestryParentPathCounts' => [],
+                'xmlElementAncestryParentPaths' => [],
+                'xmlElementAncestries' => [],
                 'xmlElementParentChildPairCount' => 0,
                 'xmlElementParentChildPairNameCounts' => [],
                 'xmlElementParentChildPairNames' => [],
@@ -36047,6 +36327,7 @@ final class DocxOpenXmlReader
         $entityReferences = $this->xmlEntityReferenceProvenance($contents, $partName);
         $elements = $this->xmlElementStructureProvenance($contents, $partName);
         $elementAncestorChains = $this->xmlElementAncestorChainProvenance($contents, $partName);
+        $elementAncestry = $this->xmlElementAncestryProvenance($contents, $partName);
         $elementParentChildPairs = $this->xmlElementParentChildPairProvenance($contents, $partName);
         $elementChildProfiles = $this->xmlElementChildProfileProvenance($contents, $partName);
         $elementSubtrees = $this->xmlElementSubtreeProvenance($contents, $partName);
@@ -36314,6 +36595,24 @@ final class DocxOpenXmlReader
             'xmlElementAncestorChainElementQualifiedNameCounts' => $elementAncestorChains['elementQualifiedNameCounts'],
             'xmlElementAncestorChainAncestorQualifiedNameCounts' => $elementAncestorChains['ancestorQualifiedNameCounts'],
             'xmlElementAncestorChains' => $elementAncestorChains['items'],
+            'xmlElementAncestryCount' => $elementAncestry['count'],
+            'xmlElementAncestryRootCount' => $elementAncestry['rootElementCount'],
+            'xmlElementAncestryParentCount' => $elementAncestry['parentElementCount'],
+            'xmlElementAncestryGrandparentCount' => $elementAncestry['grandparentElementCount'],
+            'xmlElementAncestryMaxDepth' => $elementAncestry['maxDepth'],
+            'xmlElementAncestryDepthCounts' => $elementAncestry['depthCounts'],
+            'xmlElementAncestryAncestorDepthCounts' => $elementAncestry['ancestorDepthCounts'],
+            'xmlElementAncestryAncestorChainCounts' => $elementAncestry['ancestorChainCounts'],
+            'xmlElementAncestryAncestorChains' => $elementAncestry['ancestorChains'],
+            'xmlElementAncestryRootQualifiedNameCounts' => $elementAncestry['rootQualifiedNameCounts'],
+            'xmlElementAncestryParentQualifiedNameCounts' => $elementAncestry['parentQualifiedNameCounts'],
+            'xmlElementAncestryGrandparentQualifiedNameCounts' => $elementAncestry['grandparentQualifiedNameCounts'],
+            'xmlElementAncestryElementQualifiedNameCounts' => $elementAncestry['elementQualifiedNameCounts'],
+            'xmlElementAncestryElementPathCounts' => $elementAncestry['elementPathCounts'],
+            'xmlElementAncestryElementPaths' => $elementAncestry['elementPaths'],
+            'xmlElementAncestryParentPathCounts' => $elementAncestry['parentPathCounts'],
+            'xmlElementAncestryParentPaths' => $elementAncestry['parentPaths'],
+            'xmlElementAncestries' => $elementAncestry['items'],
             'xmlElementParentChildPairCount' => $elementParentChildPairs['count'],
             'xmlElementParentChildPairNameCounts' => $elementParentChildPairs['pairNameCounts'],
             'xmlElementParentChildPairNames' => $elementParentChildPairs['pairNames'],
@@ -36524,6 +36823,210 @@ final class DocxOpenXmlReader
             'xmlElementAttributeCooccurrenceSameNamespacePairCount' => $elementAttributes['cooccurrenceSameNamespacePairCount'],
             'xmlElementAttributeCooccurrences' => $elementAttributes['cooccurrences'],
             'xmlElementAttributes' => $elementAttributes['items'],
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return array<string, mixed>
+     */
+    private function packagePartXmlElementAncestrySummary(array $partInventory): array
+    {
+        $partNames = [];
+        $depthCounts = [];
+        $ancestorDepthCounts = [];
+        $ancestorChainCounts = [];
+        $ancestorChains = [];
+        $rootQualifiedNameCounts = [];
+        $parentQualifiedNameCounts = [];
+        $grandparentQualifiedNameCounts = [];
+        $elementQualifiedNameCounts = [];
+        $elementPathCounts = [];
+        $elementPaths = [];
+        $parentPathCounts = [];
+        $parentPaths = [];
+        $items = [];
+        $partCount = 0;
+        $count = 0;
+        $rootElementCount = 0;
+        $parentElementCount = 0;
+        $grandparentElementCount = 0;
+        $maxDepth = 0;
+
+        foreach ($partInventory as $partName => $part) {
+            $partName = (string) ($part['partName'] ?? $partName);
+            $partAncestryCount = (int) ($part['xmlElementAncestryCount'] ?? 0);
+            if ($partAncestryCount <= 0) {
+                continue;
+            }
+
+            ++$partCount;
+            $count += $partAncestryCount;
+            $rootElementCount += (int) ($part['xmlElementAncestryRootCount'] ?? 0);
+            $parentElementCount += (int) ($part['xmlElementAncestryParentCount'] ?? 0);
+            $grandparentElementCount += (int) ($part['xmlElementAncestryGrandparentCount'] ?? 0);
+            $maxDepth = max($maxDepth, (int) ($part['xmlElementAncestryMaxDepth'] ?? 0));
+            $this->appendUniqueString($partNames, $partName);
+
+            foreach (($part['xmlElementAncestryDepthCounts'] ?? []) as $depth => $depthCount) {
+                $depthKey = (int) $depth;
+                $depthCounts[$depthKey] = ($depthCounts[$depthKey] ?? 0) + (int) $depthCount;
+            }
+            foreach (($part['xmlElementAncestryAncestorDepthCounts'] ?? []) as $depth => $depthCount) {
+                $depthKey = (int) $depth;
+                $ancestorDepthCounts[$depthKey] = ($ancestorDepthCounts[$depthKey] ?? 0) + (int) $depthCount;
+            }
+            foreach (($part['xmlElementAncestryAncestorChainCounts'] ?? []) as $ancestorChain => $chainCount) {
+                if (!is_string($ancestorChain) || $ancestorChain === '') {
+                    continue;
+                }
+
+                $ancestorChainCounts[$ancestorChain] =
+                    ($ancestorChainCounts[$ancestorChain] ?? 0) + (int) $chainCount;
+                $this->appendUniqueString($ancestorChains, $ancestorChain);
+            }
+            foreach (($part['xmlElementAncestryRootQualifiedNameCounts'] ?? []) as $qualifiedName => $nameCount) {
+                if (!is_string($qualifiedName) || $qualifiedName === '') {
+                    continue;
+                }
+
+                $rootQualifiedNameCounts[$qualifiedName] =
+                    ($rootQualifiedNameCounts[$qualifiedName] ?? 0) + (int) $nameCount;
+            }
+            foreach (($part['xmlElementAncestryParentQualifiedNameCounts'] ?? []) as $qualifiedName => $nameCount) {
+                if (!is_string($qualifiedName) || $qualifiedName === '') {
+                    continue;
+                }
+
+                $parentQualifiedNameCounts[$qualifiedName] =
+                    ($parentQualifiedNameCounts[$qualifiedName] ?? 0) + (int) $nameCount;
+            }
+            foreach (($part['xmlElementAncestryGrandparentQualifiedNameCounts'] ?? []) as $qualifiedName => $nameCount) {
+                if (!is_string($qualifiedName) || $qualifiedName === '') {
+                    continue;
+                }
+
+                $grandparentQualifiedNameCounts[$qualifiedName] =
+                    ($grandparentQualifiedNameCounts[$qualifiedName] ?? 0) + (int) $nameCount;
+            }
+            foreach (($part['xmlElementAncestryElementQualifiedNameCounts'] ?? []) as $qualifiedName => $nameCount) {
+                if (!is_string($qualifiedName) || $qualifiedName === '') {
+                    continue;
+                }
+
+                $elementQualifiedNameCounts[$qualifiedName] =
+                    ($elementQualifiedNameCounts[$qualifiedName] ?? 0) + (int) $nameCount;
+            }
+            foreach (($part['xmlElementAncestryElementPathCounts'] ?? []) as $elementPath => $pathCount) {
+                if (!is_string($elementPath) || $elementPath === '') {
+                    continue;
+                }
+
+                $elementPathCounts[$elementPath] =
+                    ($elementPathCounts[$elementPath] ?? 0) + (int) $pathCount;
+                $this->appendUniqueString($elementPaths, $elementPath);
+            }
+            foreach (($part['xmlElementAncestryParentPathCounts'] ?? []) as $parentPath => $pathCount) {
+                if (!is_string($parentPath) || $parentPath === '') {
+                    continue;
+                }
+
+                $parentPathCounts[$parentPath] =
+                    ($parentPathCounts[$parentPath] ?? 0) + (int) $pathCount;
+                $this->appendUniqueString($parentPaths, $parentPath);
+            }
+            foreach (($part['xmlElementAncestries'] ?? []) as $ancestry) {
+                if (!is_array($ancestry)) {
+                    continue;
+                }
+
+                $items[] = [
+                    'partName' => $partName,
+                    'directory' => is_string($part['directory'] ?? null)
+                        ? $part['directory']
+                        : $this->packagePartDirectory($partName),
+                    'baseName' => is_string($part['baseName'] ?? null)
+                        ? $part['baseName']
+                        : $this->packagePartBaseName($partName),
+                    'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                    'contentTypeBase' => is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '',
+                    'contentTypeSource' => is_string($part['contentTypeSource'] ?? null) ? $part['contentTypeSource'] : 'missing',
+                    'ordinal' => (int) ($ancestry['ordinal'] ?? 0),
+                    'elementPath' => is_string($ancestry['elementPath'] ?? null) ? $ancestry['elementPath'] : '/',
+                    'elementDepth' => (int) ($ancestry['elementDepth'] ?? 0),
+                    'elementNamespace' => is_string($ancestry['elementNamespace'] ?? null) ? $ancestry['elementNamespace'] : null,
+                    'elementLocalName' => is_string($ancestry['elementLocalName'] ?? null) ? $ancestry['elementLocalName'] : null,
+                    'elementQualifiedName' => is_string($ancestry['elementQualifiedName'] ?? null) ? $ancestry['elementQualifiedName'] : null,
+                    'elementPrefix' => is_string($ancestry['elementPrefix'] ?? null) ? $ancestry['elementPrefix'] : null,
+                    'rootPath' => is_string($ancestry['rootPath'] ?? null) ? $ancestry['rootPath'] : '/',
+                    'rootNamespace' => is_string($ancestry['rootNamespace'] ?? null) ? $ancestry['rootNamespace'] : null,
+                    'rootLocalName' => is_string($ancestry['rootLocalName'] ?? null) ? $ancestry['rootLocalName'] : null,
+                    'rootQualifiedName' => is_string($ancestry['rootQualifiedName'] ?? null) ? $ancestry['rootQualifiedName'] : null,
+                    'rootPrefix' => is_string($ancestry['rootPrefix'] ?? null) ? $ancestry['rootPrefix'] : null,
+                    'parentPath' => is_string($ancestry['parentPath'] ?? null) ? $ancestry['parentPath'] : null,
+                    'parentDepth' => is_numeric($ancestry['parentDepth'] ?? null) ? (int) $ancestry['parentDepth'] : null,
+                    'parentNamespace' => is_string($ancestry['parentNamespace'] ?? null) ? $ancestry['parentNamespace'] : null,
+                    'parentLocalName' => is_string($ancestry['parentLocalName'] ?? null) ? $ancestry['parentLocalName'] : null,
+                    'parentQualifiedName' => is_string($ancestry['parentQualifiedName'] ?? null) ? $ancestry['parentQualifiedName'] : null,
+                    'parentPrefix' => is_string($ancestry['parentPrefix'] ?? null) ? $ancestry['parentPrefix'] : null,
+                    'grandparentPath' => is_string($ancestry['grandparentPath'] ?? null) ? $ancestry['grandparentPath'] : null,
+                    'grandparentDepth' => is_numeric($ancestry['grandparentDepth'] ?? null) ? (int) $ancestry['grandparentDepth'] : null,
+                    'grandparentNamespace' => is_string($ancestry['grandparentNamespace'] ?? null) ? $ancestry['grandparentNamespace'] : null,
+                    'grandparentLocalName' => is_string($ancestry['grandparentLocalName'] ?? null) ? $ancestry['grandparentLocalName'] : null,
+                    'grandparentQualifiedName' => is_string($ancestry['grandparentQualifiedName'] ?? null) ? $ancestry['grandparentQualifiedName'] : null,
+                    'grandparentPrefix' => is_string($ancestry['grandparentPrefix'] ?? null) ? $ancestry['grandparentPrefix'] : null,
+                    'ancestorDepth' => (int) ($ancestry['ancestorDepth'] ?? 0),
+                    'ancestorChain' => is_string($ancestry['ancestorChain'] ?? null) ? $ancestry['ancestorChain'] : '(root)',
+                    'ancestorQualifiedNames' => is_array($ancestry['ancestorQualifiedNames'] ?? null)
+                        ? array_values(array_map('strval', $ancestry['ancestorQualifiedNames']))
+                        : [],
+                    'ancestorPaths' => is_array($ancestry['ancestorPaths'] ?? null)
+                        ? array_values(array_map('strval', $ancestry['ancestorPaths']))
+                        : [],
+                ];
+            }
+        }
+
+        ksort($depthCounts, SORT_NUMERIC);
+        ksort($ancestorDepthCounts, SORT_NUMERIC);
+        ksort($ancestorChainCounts, SORT_STRING);
+        ksort($rootQualifiedNameCounts, SORT_STRING);
+        ksort($parentQualifiedNameCounts, SORT_STRING);
+        ksort($grandparentQualifiedNameCounts, SORT_STRING);
+        ksort($elementQualifiedNameCounts, SORT_STRING);
+        ksort($elementPathCounts, SORT_STRING);
+        ksort($parentPathCounts, SORT_STRING);
+        sort($partNames, SORT_STRING);
+        sort($ancestorChains, SORT_STRING);
+        sort($elementPaths, SORT_STRING);
+        sort($parentPaths, SORT_STRING);
+        usort(
+            $items,
+            static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName'])
+                ?: ((int) ($left['ordinal'] ?? 0) <=> (int) ($right['ordinal'] ?? 0)),
+        );
+
+        return [
+            'partCount' => $partCount,
+            'count' => $count,
+            'rootElementCount' => $rootElementCount,
+            'parentElementCount' => $parentElementCount,
+            'grandparentElementCount' => $grandparentElementCount,
+            'maxDepth' => $maxDepth,
+            'partNames' => $partNames,
+            'depthCounts' => $depthCounts,
+            'ancestorDepthCounts' => $ancestorDepthCounts,
+            'ancestorChainCounts' => $ancestorChainCounts,
+            'ancestorChains' => $ancestorChains,
+            'rootQualifiedNameCounts' => $rootQualifiedNameCounts,
+            'parentQualifiedNameCounts' => $parentQualifiedNameCounts,
+            'grandparentQualifiedNameCounts' => $grandparentQualifiedNameCounts,
+            'elementQualifiedNameCounts' => $elementQualifiedNameCounts,
+            'elementPathCounts' => $elementPathCounts,
+            'elementPaths' => $elementPaths,
+            'parentPathCounts' => $parentPathCounts,
+            'parentPaths' => $parentPaths,
+            'items' => $items,
         ];
     }
 
