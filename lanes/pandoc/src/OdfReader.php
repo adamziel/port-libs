@@ -112,6 +112,7 @@ final class OdfReader
      *     settings:array<string, mixed>,
      *     contentDeclarations:array<string, mixed>,
      *     media:list<array<string, mixed>>,
+     *     corePackageHandoff:array<string, mixed>,
      *     packageThumbnails:array<string, mixed>,
      *     packageSignatures:array<string, mixed>,
      *     packageFonts:array<string, mixed>,
@@ -142,6 +143,7 @@ final class OdfReader
 
         $manifest = $this->readManifest($package);
         $this->manifestByPart = $this->manifestByPart($manifest);
+        $corePackageHandoff = $this->corePackageHandoffPreflight($package, $manifest);
         $manifestRootAttributes = $this->manifestRootAttributeProvenance;
         $manifestRootExtensions = $this->manifestRootExtensionElementProvenance;
         $rdfMetadata = $this->readRdfMetadata($package, $manifest);
@@ -260,6 +262,7 @@ final class OdfReader
                 'mediaTypeSummary' => $manifestMediaTypeSummary,
                 'packageProvenance' => $packageProvenance,
                 'documentPartVersions' => $documentPartVersions,
+                'corePackageHandoff' => $corePackageHandoff,
                 'encryption' => $manifestEncryptionSummary,
             ],
             'styles' => [
@@ -334,6 +337,7 @@ final class OdfReader
             'settings' => $settings,
             'contentDeclarations' => $content['contentDeclarations'],
             'media' => $media,
+            'corePackageHandoff' => $corePackageHandoff,
             'packageThumbnails' => $packageThumbnails,
             'packageSignatures' => $packageSignatures,
             'packageFonts' => $packageFonts,
@@ -379,6 +383,7 @@ final class OdfReader
                     'mediaTypeSummary' => $manifestMediaTypeSummary,
                     'packageProvenance' => $packageProvenance,
                     'documentPartVersions' => $documentPartVersions,
+                    'corePackageHandoff' => $corePackageHandoff,
                     'directoryCount' => count($directoryItems),
                     'directoryItems' => $directoryItems,
                     'missingItems' => array_values(array_filter(
@@ -830,6 +835,146 @@ final class OdfReader
         }
 
         return $items;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @return array<string, mixed>
+     */
+    private function corePackageHandoffPreflight(ZipPackage $package, array $manifest): array
+    {
+        $summary = $package->entryHandoffPreflight(self::corePackageHandoffRequests());
+        $manifestByPart = $this->manifestByPart($manifest);
+        $rootManifestEntry = null;
+        foreach ($manifest as $manifestEntry) {
+            if (($manifestEntry['fullPath'] ?? null) === '/') {
+                $rootManifestEntry = $manifestEntry;
+                break;
+            }
+        }
+
+        foreach (['entries', 'handoffEntries', 'failedEntries', 'missingEntries'] as $listKey) {
+            if (!is_array($summary[$listKey] ?? null)) {
+                continue;
+            }
+
+            $summary[$listKey] = array_values(array_map(
+                fn (array $entry): array => $this->corePackageHandoffEntryWithManifestState($entry, $manifestByPart, $rootManifestEntry),
+                $summary[$listKey]
+            ));
+        }
+
+        $manifestDeclarationStateCounts = [];
+        $manifestDeclaredSelectedEntryCount = 0;
+        $undeclaredSelectedEntryCount = 0;
+        $specialPackageSelectedEntryCount = 0;
+        foreach ($summary['entries'] ?? [] as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $state = is_string($entry['manifestDeclarationState'] ?? null) ? $entry['manifestDeclarationState'] : 'unknown';
+            $manifestDeclarationStateCounts[$state] = ($manifestDeclarationStateCounts[$state] ?? 0) + 1;
+            if (($entry['exists'] ?? false) !== true) {
+                continue;
+            }
+            if ($state === 'declared') {
+                ++$manifestDeclaredSelectedEntryCount;
+            } elseif ($state === 'undeclared') {
+                ++$undeclaredSelectedEntryCount;
+            } elseif ($state === 'package-mimetype-entry' || $state === 'package-manifest-entry') {
+                ++$specialPackageSelectedEntryCount;
+            }
+        }
+        ksort($manifestDeclarationStateCounts, SORT_STRING);
+
+        return [
+            'scope' => 'odf-core-package-handoff',
+            'byteExposurePolicy' => 'odf-core-package-handoff-metadata-only',
+            'reviewPolicy' => 'core-package-selected-entry-preflight',
+            'manifestDeclarationStateCounts' => $manifestDeclarationStateCounts,
+            'manifestDeclaredSelectedEntryCount' => $manifestDeclaredSelectedEntryCount,
+            'undeclaredSelectedEntryCount' => $undeclaredSelectedEntryCount,
+            'specialPackageSelectedEntryCount' => $specialPackageSelectedEntryCount,
+        ] + $summary;
+    }
+
+    /**
+     * @return list<array{name:string, required:bool, kind:string, role:string}>
+     */
+    private static function corePackageHandoffRequests(): array
+    {
+        return [
+            ['name' => 'mimetype', 'required' => true, 'kind' => 'file', 'role' => 'odf-mimetype'],
+            ['name' => 'META-INF/manifest.xml', 'required' => true, 'kind' => 'file', 'role' => 'odf-manifest'],
+            ['name' => 'content.xml', 'required' => true, 'kind' => 'file', 'role' => 'odf-content'],
+            ['name' => 'styles.xml', 'required' => false, 'kind' => 'file', 'role' => 'odf-styles'],
+            ['name' => 'meta.xml', 'required' => false, 'kind' => 'file', 'role' => 'odf-meta'],
+            ['name' => 'settings.xml', 'required' => false, 'kind' => 'file', 'role' => 'odf-settings'],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @param array<string, array<string, mixed>> $manifestByPart
+     * @param array<string, mixed>|null $rootManifestEntry
+     * @return array<string, mixed>
+     */
+    private function corePackageHandoffEntryWithManifestState(array $entry, array $manifestByPart, ?array $rootManifestEntry): array
+    {
+        $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+        $manifestEntry = $this->corePackageManifestEntryForName($name, $manifestByPart, $rootManifestEntry);
+        $state = $this->corePackageManifestDeclarationState($name, $entry, $manifestEntry);
+
+        return $entry + [
+            'odfCorePackagePart' => true,
+            'manifestDeclarationState' => $state,
+            'manifestDeclared' => is_array($manifestEntry) && $state === 'declared',
+            'manifestIndex' => is_array($manifestEntry) ? ($manifestEntry['manifestIndex'] ?? null) : null,
+            'manifestFullPath' => is_array($manifestEntry) ? ($manifestEntry['fullPath'] ?? null) : null,
+            'manifestPackagePath' => is_array($manifestEntry) ? ($manifestEntry['part'] ?? null) : null,
+            'manifestMediaType' => is_array($manifestEntry) ? ($manifestEntry['mediaType'] ?? null) : null,
+            'manifestMediaTypeBase' => is_array($manifestEntry) ? ($manifestEntry['mediaTypeBase'] ?? null) : null,
+            'manifestVersion' => is_array($manifestEntry) ? ($manifestEntry['version'] ?? null) : null,
+            'manifestPreferredViewMode' => is_array($manifestEntry) ? ($manifestEntry['preferredViewMode'] ?? null) : null,
+            'manifestDeclaredSize' => is_array($manifestEntry) ? ($manifestEntry['declaredSize'] ?? null) : null,
+            'manifestDeclaredSizeMismatch' => is_array($manifestEntry) && ($manifestEntry['declaredSizeMismatch'] ?? false) === true,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPart
+     * @param array<string, mixed>|null $rootManifestEntry
+     * @return array<string, mixed>|null
+     */
+    private function corePackageManifestEntryForName(string $name, array $manifestByPart, ?array $rootManifestEntry): ?array
+    {
+        if ($name === 'mimetype') {
+            return $rootManifestEntry;
+        }
+        if ($name === 'META-INF/manifest.xml') {
+            return null;
+        }
+
+        return $manifestByPart[$name] ?? null;
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @param array<string, mixed>|null $manifestEntry
+     */
+    private function corePackageManifestDeclarationState(string $name, array $entry, ?array $manifestEntry): string
+    {
+        if ($name === 'mimetype') {
+            return 'package-mimetype-entry';
+        }
+        if ($name === 'META-INF/manifest.xml') {
+            return 'package-manifest-entry';
+        }
+        if (is_array($manifestEntry)) {
+            return 'declared';
+        }
+
+        return ($entry['exists'] ?? false) === true ? 'undeclared' : 'not-declared';
     }
 
     /**
