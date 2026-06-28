@@ -3253,16 +3253,17 @@ CSS,
     },
     'css bundler maps upstream source provider read diagnostics' => static function (TestRunner $t): void {
         $initialReadRejected = false;
+        $initialReadRow = 'upstream node/test/bundle.test.mjs::read throw lines 191-209';
         try {
             (new CssBundler())->bundleWithReader('foo.css', static function (string $file): string {
                 throw new RuntimeException("Oh noes! Failed to read `{$file}`.");
             });
         } catch (CssBundleException $exception) {
-            $t->same('resolver-error', $exception->kind);
-            $t->same('Oh noes! Failed to read `foo.css`.', $exception->getMessage());
-            $t->same(null, $exception->sourceFile);
-            $t->same(null, $exception->sourceLine);
-            $t->same(null, $exception->sourceColumn);
+            $t->same('resolver-error', $exception->kind, $initialReadRow . ' kind');
+            $t->same('Oh noes! Failed to read `foo.css`.', $exception->getMessage(), $initialReadRow . ' message');
+            $t->same(null, $exception->sourceFile, $initialReadRow . ' fileName');
+            $t->same(null, $exception->sourceLine, $initialReadRow . ' loc.line');
+            $t->same(null, $exception->sourceColumn, $initialReadRow . ' loc.column');
             $initialReadRejected = true;
         }
 
