@@ -11041,6 +11041,54 @@ final class DocxOpenXmlReader
         $summary['zipPackageManifestCompressedDataSha256Count'] = $zipPackageManifestCompressedDataSha256Count;
         $summary['zipPackageManifestCentralDirectoryRecordSha256Count'] =
             $zipPackageManifestCentralDirectoryRecordSha256Count;
+        $zipLocalHeaders = is_array($zipPackage['localHeaders'] ?? null) ? $zipPackage['localHeaders'] : [];
+        $summary['zipLocalHeaderPreflightPresent'] = (bool) ($zipLocalHeaders['present'] ?? false);
+        $summary['zipLocalHeaderEntryCount'] = (int) ($zipLocalHeaders['entryCount'] ?? 0);
+        $summary['zipLocalHeaderFirstEntryName'] = $zipLocalHeaders['firstLocalEntryName'] ?? null;
+        $summary['zipLocalHeaderCentralDirectoryOffset'] = $zipLocalHeaders['centralDirectoryOffset'] ?? null;
+        $summary['zipLocalHeaderByteLength'] = (int) ($zipLocalHeaders['localHeaderBytes'] ?? 0);
+        $summary['zipLocalHeaderFixedByteLength'] = (int) ($zipLocalHeaders['localFixedHeaderBytes'] ?? 0);
+        $summary['zipLocalHeaderVariableFieldByteLength'] =
+            (int) ($zipLocalHeaders['localVariableFieldBytes'] ?? 0);
+        $summary['zipLocalHeaderNameByteLength'] = (int) ($zipLocalHeaders['localNameBytes'] ?? 0);
+        $summary['zipLocalHeaderExtraFieldByteLength'] = (int) ($zipLocalHeaders['localExtraFieldBytes'] ?? 0);
+        $summary['zipLocalHeaderExtraFieldEntryCount'] = (int) ($zipLocalHeaders['localExtraFieldEntryCount'] ?? 0);
+        $summary['zipLocalHeaderExtraFieldRecordCount'] = (int) ($zipLocalHeaders['localExtraFieldRecordCount'] ?? 0);
+        $summary['zipLocalHeaderExtraFieldRecordIds'] = is_array($zipLocalHeaders['localExtraFieldRecordIds'] ?? null)
+            ? $zipLocalHeaders['localExtraFieldRecordIds']
+            : [];
+        $summary['zipLocalHeaderHasVariableFields'] = (bool) ($zipLocalHeaders['hasLocalHeaderVariableFields'] ?? false);
+        $summary['zipLocalHeaderHasExtraFields'] = (bool) ($zipLocalHeaders['hasLocalExtraFields'] ?? false);
+        $zipLocalHeaderContiguousEntryCount = 0;
+        $zipLocalHeaderNonContiguousEntryCount = 0;
+        $zipLocalHeaderExtraFieldIssueEntryCount = 0;
+        $zipLocalHeaderExtraFieldIssueCodes = [];
+        foreach (($zipLocalHeaders['entries'] ?? []) as $zipLocalHeaderEntry) {
+            if (!is_array($zipLocalHeaderEntry)) {
+                continue;
+            }
+            if (($zipLocalHeaderEntry['isContiguousWithNext'] ?? null) === true) {
+                ++$zipLocalHeaderContiguousEntryCount;
+            } else {
+                ++$zipLocalHeaderNonContiguousEntryCount;
+            }
+            $issues = is_array($zipLocalHeaderEntry['localExtraFieldStructureIssues'] ?? null)
+                ? $zipLocalHeaderEntry['localExtraFieldStructureIssues']
+                : [];
+            if ($issues !== []) {
+                ++$zipLocalHeaderExtraFieldIssueEntryCount;
+            }
+            foreach ($issues as $issue) {
+                if (is_string($issue) && !in_array($issue, $zipLocalHeaderExtraFieldIssueCodes, true)) {
+                    $zipLocalHeaderExtraFieldIssueCodes[] = $issue;
+                }
+            }
+        }
+        sort($zipLocalHeaderExtraFieldIssueCodes, SORT_STRING);
+        $summary['zipLocalHeaderContiguousEntryCount'] = $zipLocalHeaderContiguousEntryCount;
+        $summary['zipLocalHeaderNonContiguousEntryCount'] = $zipLocalHeaderNonContiguousEntryCount;
+        $summary['zipLocalHeaderExtraFieldIssueEntryCount'] = $zipLocalHeaderExtraFieldIssueEntryCount;
+        $summary['zipLocalHeaderExtraFieldIssueCodes'] = $zipLocalHeaderExtraFieldIssueCodes;
         $summary['partNameNormalizationInputPartCount'] = (int) ($partNameNormalization['inputPartCount'] ?? count($parts));
         $summary['partNameNormalizationNormalizedPartCount'] = (int) ($partNameNormalization['normalizedPartCount'] ?? count($partInventory));
         $summary['partNameNormalizationChangedEntryCount'] = (int) ($partNameNormalization['changedEntryCount'] ?? 0);
@@ -11112,6 +11160,26 @@ final class DocxOpenXmlReader
                     'mismatchedEntries' => [],
                     'entries' => [],
                 ],
+                'localHeaders' => [
+                    'present' => false,
+                    'entryCount' => 0,
+                    'firstLocalEntryName' => null,
+                    'centralDirectoryOffset' => null,
+                    'localHeaderBytes' => 0,
+                    'localFixedHeaderBytes' => 0,
+                    'localVariableFieldBytes' => 0,
+                    'localNameBytes' => 0,
+                    'localExtraFieldBytes' => 0,
+                    'localExtraFieldEntryCount' => 0,
+                    'localExtraFieldRecordCount' => 0,
+                    'localExtraFieldRecordIds' => [],
+                    'localHeaderVariableFieldBytes' => 0,
+                    'localHeaderNameBytes' => 0,
+                    'localHeaderExtraFieldBytes' => 0,
+                    'hasLocalHeaderVariableFields' => false,
+                    'hasLocalExtraFields' => false,
+                    'entries' => [],
+                ],
                 'packageManifest' => [
                     'present' => false,
                     'manifestVersion' => null,
@@ -11146,6 +11214,18 @@ final class DocxOpenXmlReader
         }
 
         $localHeaderOrder = $sourcePackage->localHeaderOrderPreflight();
+        $localHeaders = [
+            'present' => true,
+            ...$sourcePackage->localHeaderPreflight(),
+        ];
+        $localHeaderByName = [];
+        foreach (($localHeaders['entries'] ?? []) as $localHeaderEntry) {
+            if (!is_array($localHeaderEntry) || !is_string($localHeaderEntry['name'] ?? null)) {
+                continue;
+            }
+
+            $localHeaderByName[$localHeaderEntry['name']] = $localHeaderEntry;
+        }
         $packageManifest = [
             'present' => true,
             ...$sourcePackage->packageManifestPreflight(),
@@ -11207,6 +11287,7 @@ final class DocxOpenXmlReader
 
             $localOrder = $localOrderByName[$entry->name] ?? null;
             $manifestEntry = $packageManifestByName[$entry->name] ?? [];
+            $localHeaderEntry = $localHeaderByName[$entry->name] ?? [];
             $summary = [
                 'packagePath' => $entry->name,
                 'partName' => $isDirectory ? null : $entry->name,
@@ -11234,6 +11315,35 @@ final class DocxOpenXmlReader
                 'centralDirectoryRecordOffset' => $manifestEntry['centralDirectoryRecordOffset'] ?? null,
                 'centralDirectoryRecordEnd' => $manifestEntry['centralDirectoryRecordEnd'] ?? null,
                 'centralDirectoryRecordSha256' => $manifestEntry['centralDirectoryRecordSha256'] ?? null,
+                'localHeaderPreflightPresent' => $localHeaderEntry !== [],
+                'localFixedHeaderOffset' => $localHeaderEntry['localFixedHeaderOffset'] ?? null,
+                'localFixedHeaderLength' => $localHeaderEntry['localFixedHeaderLength'] ?? null,
+                'localVariableFieldsOffset' => $localHeaderEntry['localVariableFieldsOffset'] ?? null,
+                'localVariableFieldsLength' => $localHeaderEntry['localVariableFieldsLength'] ?? null,
+                'localNameOffset' => $localHeaderEntry['localNameOffset'] ?? null,
+                'localNameLength' => $localHeaderEntry['localNameLength'] ?? null,
+                'localExtraFieldOffset' => $localHeaderEntry['localExtraFieldOffset'] ?? null,
+                'localExtraFieldLength' => $localHeaderEntry['localExtraFieldLength'] ?? null,
+                'localExtraFieldRecordCount' => (int) ($localHeaderEntry['localExtraFieldRecordCount'] ?? 0),
+                'localExtraFieldIds' => is_array($localHeaderEntry['localExtraFieldIds'] ?? null)
+                    ? $localHeaderEntry['localExtraFieldIds']
+                    : [],
+                'localExtraFieldStructureIssues' => is_array($localHeaderEntry['localExtraFieldStructureIssues'] ?? null)
+                    ? $localHeaderEntry['localExtraFieldStructureIssues']
+                    : [],
+                'localExtraFieldRecords' => is_array($localHeaderEntry['localExtraFieldRecords'] ?? null)
+                    ? $localHeaderEntry['localExtraFieldRecords']
+                    : [],
+                'hasLocalExtraFields' => (bool) ($localHeaderEntry['hasLocalExtraFields'] ?? false),
+                'localHeaderDataStart' => $localHeaderEntry['dataStart'] ?? null,
+                'localHeaderCompressedDataEnd' => $localHeaderEntry['compressedDataEnd'] ?? null,
+                'localHeaderRecordEnd' => $localHeaderEntry['recordEnd'] ?? null,
+                'localHeaderNextOffset' => $localHeaderEntry['nextOffset'] ?? null,
+                'localHeaderIsContiguousWithNext' => $localHeaderEntry['isContiguousWithNext'] ?? null,
+                'localHeaderGeneralPurposeFlags' => $localHeaderEntry['generalPurposeFlags'] ?? null,
+                'localHeaderCrc32' => $localHeaderEntry['localHeaderCrc32'] ?? null,
+                'localHeaderCompressedSize' => $localHeaderEntry['localHeaderCompressedSize'] ?? null,
+                'localHeaderUncompressedSize' => $localHeaderEntry['localHeaderUncompressedSize'] ?? null,
                 'isDirectory' => $isDirectory,
                 'loadedPart' => $loadedPart,
                 'canExposeBytes' => false,
@@ -11261,6 +11371,7 @@ final class DocxOpenXmlReader
             'loadedPartNames' => $loadedPartNames,
             'compressionMethods' => $compressionMethods,
             'packageManifest' => $packageManifest,
+            'localHeaders' => $localHeaders,
             'dataDescriptors' => $dataDescriptors,
             'namePolicy' => $this->zipNamePolicyProvenance($sourcePackage),
             'opcManifest' => $this->zipOpcManifestPreflight($sourcePackage),
@@ -11965,6 +12076,35 @@ final class DocxOpenXmlReader
             $partInventory[$partName]['zipCentralDirectoryRecordOffset'] = $entry['centralDirectoryRecordOffset'] ?? null;
             $partInventory[$partName]['zipCentralDirectoryRecordEnd'] = $entry['centralDirectoryRecordEnd'] ?? null;
             $partInventory[$partName]['zipCentralDirectoryRecordSha256'] = $entry['centralDirectoryRecordSha256'] ?? null;
+            $partInventory[$partName]['zipLocalHeaderPreflightPresent'] = $entry['localHeaderPreflightPresent'] ?? false;
+            $partInventory[$partName]['zipLocalFixedHeaderOffset'] = $entry['localFixedHeaderOffset'] ?? null;
+            $partInventory[$partName]['zipLocalFixedHeaderLength'] = $entry['localFixedHeaderLength'] ?? null;
+            $partInventory[$partName]['zipLocalVariableFieldsOffset'] = $entry['localVariableFieldsOffset'] ?? null;
+            $partInventory[$partName]['zipLocalVariableFieldsLength'] = $entry['localVariableFieldsLength'] ?? null;
+            $partInventory[$partName]['zipLocalNameOffset'] = $entry['localNameOffset'] ?? null;
+            $partInventory[$partName]['zipLocalNameLength'] = $entry['localNameLength'] ?? null;
+            $partInventory[$partName]['zipLocalExtraFieldOffset'] = $entry['localExtraFieldOffset'] ?? null;
+            $partInventory[$partName]['zipLocalExtraFieldLength'] = $entry['localExtraFieldLength'] ?? null;
+            $partInventory[$partName]['zipLocalExtraFieldRecordCount'] = $entry['localExtraFieldRecordCount'] ?? 0;
+            $partInventory[$partName]['zipLocalExtraFieldIds'] = $entry['localExtraFieldIds'] ?? [];
+            $partInventory[$partName]['zipLocalExtraFieldStructureIssues'] =
+                $entry['localExtraFieldStructureIssues'] ?? [];
+            $partInventory[$partName]['zipLocalExtraFieldRecords'] = $entry['localExtraFieldRecords'] ?? [];
+            $partInventory[$partName]['zipHasLocalExtraFields'] = $entry['hasLocalExtraFields'] ?? false;
+            $partInventory[$partName]['zipLocalHeaderDataStart'] = $entry['localHeaderDataStart'] ?? null;
+            $partInventory[$partName]['zipLocalHeaderCompressedDataEnd'] =
+                $entry['localHeaderCompressedDataEnd'] ?? null;
+            $partInventory[$partName]['zipLocalHeaderRecordEnd'] = $entry['localHeaderRecordEnd'] ?? null;
+            $partInventory[$partName]['zipLocalHeaderNextOffset'] = $entry['localHeaderNextOffset'] ?? null;
+            $partInventory[$partName]['zipLocalHeaderIsContiguousWithNext'] =
+                $entry['localHeaderIsContiguousWithNext'] ?? null;
+            $partInventory[$partName]['zipLocalHeaderGeneralPurposeFlags'] =
+                $entry['localHeaderGeneralPurposeFlags'] ?? null;
+            $partInventory[$partName]['zipLocalHeaderCrc32'] = $entry['localHeaderCrc32'] ?? null;
+            $partInventory[$partName]['zipLocalHeaderCompressedSize'] =
+                $entry['localHeaderCompressedSize'] ?? null;
+            $partInventory[$partName]['zipLocalHeaderUncompressedSize'] =
+                $entry['localHeaderUncompressedSize'] ?? null;
             $partInventory[$partName]['zipByteExposurePolicy'] = $entry['byteExposurePolicy'] ?? null;
             $partInventory[$partName]['zipCanExposeBytes'] = $entry['canExposeBytes'] ?? null;
             foreach ([

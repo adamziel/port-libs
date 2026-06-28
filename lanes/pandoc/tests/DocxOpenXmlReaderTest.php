@@ -1118,6 +1118,129 @@ XML;
         $t->same('docx-zip-entry-metadata-only', $inventory['word/document.xml']['zipByteExposurePolicy']);
         $t->same(false, $inventory['word/document.xml']['zipCanExposeBytes']);
     },
+    'carries docx zip local header variable-field provenance into package inventory' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $hiddenExtraPayload = 'docx-local-header-hidden-payload';
+        $documentExtra = pack('vva*', 0xcafe, strlen($hiddenExtraPayload), $hiddenExtraPayload)
+            . pack('vv', 0xbeef, 0);
+        $zipParts = docx_openxml_reader_zip_parts($parts);
+        foreach ($zipParts as &$zipPart) {
+            if ($zipPart['name'] === 'word/document.xml') {
+                $zipPart['compressionMethod'] = 8;
+                $zipPart['extraFieldData'] = $documentExtra;
+            }
+            if ($zipPart['name'] === 'word/media/review.png') {
+                $zipPart['compressionMethod'] = 0;
+            }
+        }
+        unset($zipPart);
+
+        $zip = ZipPackage::fromParts($zipParts);
+        $localHeaderPreflight = $zip->localHeaderPreflight();
+        $localHeaderByName = [];
+        foreach ($localHeaderPreflight['entries'] as $localHeaderEntry) {
+            $localHeaderByName[$localHeaderEntry['name']] = $localHeaderEntry;
+        }
+
+        $document = (new DocxOpenXmlReader())->readZipPackage($zip);
+        $package = $document->attr('docx')['packageProvenance'];
+        $zipPackage = $package['zipPackage'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $localHeaders = $zipPackage['localHeaders'];
+        $documentEntry = $zipPackage['byPackagePath']['word/document.xml'];
+        $mediaEntry = $zipPackage['byPackagePath']['word/media/review.png'];
+        $documentLocalHeader = $localHeaderByName['word/document.xml'];
+        $mediaLocalHeader = $localHeaderByName['word/media/review.png'];
+        $documentExtraRecords = $documentLocalHeader['localExtraFieldRecords'];
+
+        $t->same('Imported DOCX Heading', $document->children[0]->attr('text'));
+        $t->same(true, $localHeaders['present']);
+        $t->same($localHeaderPreflight['entryCount'], $localHeaders['entryCount']);
+        $t->same($localHeaderPreflight['firstLocalEntryName'], $localHeaders['firstLocalEntryName']);
+        $t->same($localHeaderPreflight['centralDirectoryOffset'], $localHeaders['centralDirectoryOffset']);
+        $t->same($localHeaderPreflight['localHeaderBytes'], $localHeaders['localHeaderBytes']);
+        $t->same($localHeaderPreflight['localVariableFieldBytes'], $localHeaders['localVariableFieldBytes']);
+        $t->same($localHeaderPreflight['localExtraFieldRecordIds'], $localHeaders['localExtraFieldRecordIds']);
+        $t->same($localHeaderPreflight['entries'], $localHeaders['entries']);
+
+        $t->same(true, $summary['zipLocalHeaderPreflightPresent']);
+        $t->same(count($parts), $summary['zipLocalHeaderEntryCount']);
+        $t->same($localHeaderPreflight['firstLocalEntryName'], $summary['zipLocalHeaderFirstEntryName']);
+        $t->same($localHeaderPreflight['centralDirectoryOffset'], $summary['zipLocalHeaderCentralDirectoryOffset']);
+        $t->same($localHeaderPreflight['localHeaderBytes'], $summary['zipLocalHeaderByteLength']);
+        $t->same(30 * count($parts), $summary['zipLocalHeaderFixedByteLength']);
+        $t->same($localHeaderPreflight['localVariableFieldBytes'], $summary['zipLocalHeaderVariableFieldByteLength']);
+        $t->same($localHeaderPreflight['localNameBytes'], $summary['zipLocalHeaderNameByteLength']);
+        $t->same(strlen($documentExtra), $summary['zipLocalHeaderExtraFieldByteLength']);
+        $t->same(1, $summary['zipLocalHeaderExtraFieldEntryCount']);
+        $t->same(2, $summary['zipLocalHeaderExtraFieldRecordCount']);
+        $t->same([0xcafe, 0xbeef], $summary['zipLocalHeaderExtraFieldRecordIds']);
+        $t->same(true, $summary['zipLocalHeaderHasVariableFields']);
+        $t->same(true, $summary['zipLocalHeaderHasExtraFields']);
+        $t->same(count($parts), $summary['zipLocalHeaderContiguousEntryCount']);
+        $t->same(0, $summary['zipLocalHeaderNonContiguousEntryCount']);
+        $t->same(0, $summary['zipLocalHeaderExtraFieldIssueEntryCount']);
+        $t->same([], $summary['zipLocalHeaderExtraFieldIssueCodes']);
+
+        $t->same(true, $documentEntry['localHeaderPreflightPresent']);
+        $t->same($documentLocalHeader['localFixedHeaderOffset'], $documentEntry['localFixedHeaderOffset']);
+        $t->same(30, $documentEntry['localFixedHeaderLength']);
+        $t->same($documentLocalHeader['localVariableFieldsOffset'], $documentEntry['localVariableFieldsOffset']);
+        $t->same(strlen('word/document.xml') + strlen($documentExtra), $documentEntry['localVariableFieldsLength']);
+        $t->same($documentLocalHeader['localNameOffset'], $documentEntry['localNameOffset']);
+        $t->same(strlen('word/document.xml'), $documentEntry['localNameLength']);
+        $t->same($documentLocalHeader['localExtraFieldOffset'], $documentEntry['localExtraFieldOffset']);
+        $t->same(strlen($documentExtra), $documentEntry['localExtraFieldLength']);
+        $t->same(2, $documentEntry['localExtraFieldRecordCount']);
+        $t->same([0xcafe, 0xbeef], $documentEntry['localExtraFieldIds']);
+        $t->same([], $documentEntry['localExtraFieldStructureIssues']);
+        $t->same(true, $documentEntry['hasLocalExtraFields']);
+        $t->same($documentLocalHeader['dataStart'], $documentEntry['localHeaderDataStart']);
+        $t->same($documentLocalHeader['compressedDataEnd'], $documentEntry['localHeaderCompressedDataEnd']);
+        $t->same($documentLocalHeader['recordEnd'], $documentEntry['localHeaderRecordEnd']);
+        $t->same($documentLocalHeader['nextOffset'], $documentEntry['localHeaderNextOffset']);
+        $t->same(true, $documentEntry['localHeaderIsContiguousWithNext']);
+        $t->same($documentLocalHeader['generalPurposeFlags'], $documentEntry['localHeaderGeneralPurposeFlags']);
+        $t->same(sprintf('%08x', crc32($parts['word/document.xml'])), sprintf('%08x', $documentEntry['localHeaderCrc32']));
+        $t->same(strlen(gzdeflate($parts['word/document.xml'])), $documentEntry['localHeaderCompressedSize']);
+        $t->same(strlen($parts['word/document.xml']), $documentEntry['localHeaderUncompressedSize']);
+
+        $t->same(0xcafe, $documentExtraRecords[0]['id']);
+        $t->same('cafe', $documentExtraRecords[0]['idHex']);
+        $t->same($documentLocalHeader['localExtraFieldOffset'], $documentExtraRecords[0]['localExtraFieldRecordOffset']);
+        $t->same($documentLocalHeader['localExtraFieldOffset'] + 4, $documentExtraRecords[0]['localExtraFieldDataOffset']);
+        $t->same(strlen($hiddenExtraPayload), $documentExtraRecords[0]['declaredDataLength']);
+        $t->same(false, $documentExtraRecords[0]['isTruncated']);
+        $t->same(0xbeef, $documentExtraRecords[1]['id']);
+        $t->same('beef', $documentExtraRecords[1]['idHex']);
+        $t->same(0, $documentExtraRecords[1]['declaredDataLength']);
+
+        $t->same(false, $mediaEntry['hasLocalExtraFields']);
+        $t->same(0, $mediaEntry['localExtraFieldRecordCount']);
+        $t->same([], $mediaEntry['localExtraFieldIds']);
+        $t->same($mediaLocalHeader['dataStart'], $mediaEntry['localHeaderDataStart']);
+
+        $t->same(true, $inventory['word/document.xml']['zipLocalHeaderPreflightPresent']);
+        $t->same($documentEntry['localFixedHeaderOffset'], $inventory['word/document.xml']['zipLocalFixedHeaderOffset']);
+        $t->same($documentEntry['localFixedHeaderLength'], $inventory['word/document.xml']['zipLocalFixedHeaderLength']);
+        $t->same($documentEntry['localVariableFieldsOffset'], $inventory['word/document.xml']['zipLocalVariableFieldsOffset']);
+        $t->same($documentEntry['localVariableFieldsLength'], $inventory['word/document.xml']['zipLocalVariableFieldsLength']);
+        $t->same($documentEntry['localExtraFieldOffset'], $inventory['word/document.xml']['zipLocalExtraFieldOffset']);
+        $t->same($documentEntry['localExtraFieldLength'], $inventory['word/document.xml']['zipLocalExtraFieldLength']);
+        $t->same($documentEntry['localExtraFieldRecordCount'], $inventory['word/document.xml']['zipLocalExtraFieldRecordCount']);
+        $t->same($documentEntry['localExtraFieldIds'], $inventory['word/document.xml']['zipLocalExtraFieldIds']);
+        $t->same($documentEntry['localExtraFieldRecords'], $inventory['word/document.xml']['zipLocalExtraFieldRecords']);
+        $t->same($documentEntry['localHeaderDataStart'], $inventory['word/document.xml']['zipLocalHeaderDataStart']);
+        $t->same($documentEntry['localHeaderRecordEnd'], $inventory['word/document.xml']['zipLocalHeaderRecordEnd']);
+        $t->same($documentEntry['localHeaderIsContiguousWithNext'], $inventory['word/document.xml']['zipLocalHeaderIsContiguousWithNext']);
+        $t->same($documentEntry['localHeaderCompressedSize'], $inventory['word/document.xml']['zipLocalHeaderCompressedSize']);
+        $t->same($documentEntry['localHeaderUncompressedSize'], $inventory['word/document.xml']['zipLocalHeaderUncompressedSize']);
+
+        $encodedReview = json_encode([$localHeaders, $documentEntry, $inventory['word/document.xml']]);
+        $t->true(is_string($encodedReview), 'local header metadata should encode for review');
+        $t->true(!str_contains((string) $encodedReview, $hiddenExtraPayload), 'raw local extra field payload should not be exposed');
+    },
     'preserves docx zip entry name policy provenance for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $zipParts = docx_openxml_reader_zip_parts($parts);
