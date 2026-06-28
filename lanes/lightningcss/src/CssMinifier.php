@@ -76,6 +76,12 @@ final class CssMinifier
         $warnings = [];
         $invalidFeatureValueWarnings = $this->collectRecoverableInvalidMediaFeatureValueWarnings($css, $filename);
         $css = $this->omitRecoverableInvalidAtRules($css, $filename, $warnings);
+        $css = $this->omitRecoverableInvalidQualifiedRules($css, $filename, $warnings);
+        $css = $this->omitRecoverableInvalidDeclarations($css, $filename, $warnings);
+        $warnings = array_merge(
+            $warnings,
+            $this->collectRecoverableUnsupportedSelectorWarnings($css, $filename),
+        );
 
         $previousRecover = $this->recoverInvalidMediaFeatureValues;
 
@@ -428,6 +434,145 @@ final class CssMinifier
         return $output . substr($css, $cursor);
     }
 
+    /**
+     * @param list<array{message:string,type:string,loc:array{filename:string,line:int,column:int}}> $warnings
+     */
+    private function omitRecoverableInvalidQualifiedRules(string $css, string $filename, array &$warnings): string
+    {
+        $output = '';
+        $cursor = 0;
+
+        while (($invalid = $this->findRecoverableInvalidQualifiedRule($css, $cursor)) !== null) {
+            $output .= substr($css, $cursor, $invalid['start'] - $cursor);
+            $output .= $this->blankCssSpanPreservingLines(substr($css, $invalid['start'], $invalid['end'] - $invalid['start']));
+            $warnings[] = [
+                'message' => 'Empty selector',
+                'type' => 'EmptySelector',
+                'loc' => $this->sourceLocation($css, $invalid['warningOffset'], $filename),
+            ];
+            $cursor = $invalid['end'];
+        }
+
+        return $output . substr($css, $cursor);
+    }
+
+    /**
+     * @param list<array{message:string,type:string,loc:array{filename:string,line:int,column:int}}> $warnings
+     */
+    private function omitRecoverableInvalidDeclarations(string $css, string $filename, array &$warnings): string
+    {
+        $output = '';
+        $quote = null;
+        $braceDepth = 0;
+        $declarationStart = 0;
+        $lastEmit = 0;
+        $length = strlen($css);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '/' && ($css[$i + 1] ?? '') === '*') {
+                $end = strpos($css, '*/', $i + 2);
+                if ($end === false) {
+                    break;
+                }
+                $i = $end + 1;
+                continue;
+            }
+
+            if ($char === '{') {
+                $braceDepth++;
+                $declarationStart = $i + 1;
+                continue;
+            }
+
+            if ($char === '}') {
+                $braceDepth = max(0, $braceDepth - 1);
+                $declarationStart = $i + 1;
+                continue;
+            }
+
+            if ($braceDepth === 0) {
+                continue;
+            }
+
+            if ($char === ';') {
+                $declarationStart = $i + 1;
+                continue;
+            }
+
+            if ($char !== '*') {
+                continue;
+            }
+
+            $invalid = $this->recoverableInvalidDeclarationAt($css, $declarationStart, $i);
+            if ($invalid === null) {
+                continue;
+            }
+
+            $output .= substr($css, $lastEmit, $declarationStart - $lastEmit);
+            $output .= $this->blankCssSpanPreservingLines(substr($css, $declarationStart, $invalid['end'] - $declarationStart));
+            $warnings[] = [
+                'message' => 'Unexpected token Semicolon',
+                'type' => 'UnexpectedToken',
+                'loc' => $this->sourceLocation($css, $invalid['warningOffset'], $filename),
+            ];
+            $lastEmit = $invalid['end'];
+            $declarationStart = $invalid['end'];
+            $i = $invalid['end'] - 1;
+        }
+
+        return $output . substr($css, $lastEmit);
+    }
+
+    /**
+     * @return list<array{message:string,type:string,loc:array{filename:string,line:int,column:int}}>
+     */
+    private function collectRecoverableUnsupportedSelectorWarnings(string $css, string $filename): array
+    {
+        $warnings = [];
+        $cursor = 0;
+
+        while (($open = $this->findNextTopLevel($css, '{', $cursor)) !== null) {
+            $preludeStart = $this->rulePreludeStart($css, $open);
+            $prelude = substr($css, $preludeStart, $open - $preludeStart);
+            $trimmed = ltrim($prelude);
+            $close = $this->findMatchingBraceInCss($css, $open);
+
+            if ($trimmed === '') {
+                $cursor = $close + 1;
+                continue;
+            }
+
+            if ($trimmed[0] === '@') {
+                $cursor = $open + 1;
+                continue;
+            }
+
+            foreach ($this->recoverableUnsupportedSelectorWarnings($prelude, $preludeStart, $css, $filename) as $warning) {
+                $warnings[] = $warning;
+            }
+            $cursor = $close + 1;
+        }
+
+        return $warnings;
+    }
+
     private function blankCssSpanPreservingLines(string $span): string
     {
         return preg_replace('/[^\r\n]/', ' ', $span) ?? $span;
@@ -507,6 +652,140 @@ final class CssMinifier
         }
 
         return null;
+    }
+
+    /**
+     * @return array{start:int,end:int,warningOffset:int}|null
+     */
+    private function findRecoverableInvalidQualifiedRule(string $css, int $start): ?array
+    {
+        $cursor = $start;
+        $length = strlen($css);
+
+        while ($cursor < $length && ($open = $this->findNextTopLevel($css, '{', $cursor)) !== null) {
+            $preludeStart = $this->rulePreludeStart($css, $open);
+            $prelude = substr($css, $preludeStart, $open - $preludeStart);
+            $trimmed = ltrim($prelude);
+            $close = $this->findMatchingBraceInCss($css, $open);
+
+            if ($trimmed === '') {
+                $cursor = $close + 1;
+                continue;
+            }
+
+            if ($trimmed[0] === '@') {
+                $cursor = $open + 1;
+                continue;
+            }
+
+            $warningOffset = $this->recoverableEmptySelectorWarningOffset($prelude);
+            if ($warningOffset !== null) {
+                return [
+                    'start' => $preludeStart,
+                    'end' => $close + 1,
+                    'warningOffset' => $preludeStart + $warningOffset,
+                ];
+            }
+
+            $cursor = $close + 1;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{end:int,warningOffset:int}|null
+     */
+    private function recoverableInvalidDeclarationAt(string $css, int $declarationStart, int $starOffset): ?array
+    {
+        if (trim(substr($css, $declarationStart, $starOffset - $declarationStart)) !== '') {
+            return null;
+        }
+
+        $propertyStart = $starOffset + 1;
+        $property = $this->readIdentifier($css, $propertyStart);
+        if ($property === '') {
+            return null;
+        }
+
+        $colon = $propertyStart + strlen($property);
+        $length = strlen($css);
+        while ($colon < $length && ctype_space($css[$colon])) {
+            $colon++;
+        }
+
+        if (($css[$colon] ?? '') !== ':') {
+            return null;
+        }
+
+        [, $delimiter, $offset] = $this->readDeclarationValue($css, $colon + 1);
+        if ($delimiter !== ';') {
+            return null;
+        }
+
+        return [
+            'end' => $offset + 1,
+            'warningOffset' => $offset,
+        ];
+    }
+
+    private function recoverableEmptySelectorWarningOffset(string $prelude): ?int
+    {
+        if (preg_match('/\(\s*[>+~]/', $prelude) !== 1) {
+            return null;
+        }
+
+        return strlen(rtrim($prelude));
+    }
+
+    /**
+     * @return list<array{message:string,type:string,loc:array{filename:string,line:int,column:int}}>
+     */
+    private function recoverableUnsupportedSelectorWarnings(
+        string $prelude,
+        int $preludeStart,
+        string $css,
+        string $filename
+    ): array {
+        $warnings = [];
+        if (preg_match_all('/::([_a-zA-Z-][_a-zA-Z0-9-]*)|:([_a-zA-Z-][_a-zA-Z0-9-]*)/', $prelude, $matches, PREG_OFFSET_CAPTURE) !== false) {
+            foreach ($matches[0] as $index => $match) {
+                $element = $matches[1][$index][0] ?? '';
+                $class = $matches[2][$index][0] ?? '';
+
+                if ($element === 'hover') {
+                    $nameOffset = $match[1] + 2;
+                    $warnings[] = [
+                        'message' => 'Unsupported pseudo-element hover',
+                        'type' => 'UnsupportedPseudoElement',
+                        'loc' => $this->sourceLocation($css, $preludeStart + $nameOffset, $filename),
+                    ];
+                    continue;
+                }
+
+                if ($class === 'placeholder') {
+                    $nameOffset = $match[1] + 1;
+                    $warnings[] = [
+                        'message' => 'Unsupported pseudo-class placeholder',
+                        'type' => 'UnsupportedPseudoClass',
+                        'loc' => $this->sourceLocation($css, $preludeStart + $nameOffset, $filename),
+                    ];
+                }
+            }
+        }
+
+        return $warnings;
+    }
+
+    private function rulePreludeStart(string $css, int $open): int
+    {
+        for ($i = $open - 1; $i >= 0; $i--) {
+            if ($css[$i] === '{' || $css[$i] === '}' || $css[$i] === ';') {
+                return $i + 1;
+            }
+        }
+
+        return 0;
     }
 
     private function startsWithAtKeyword(string $css, int $offset, string $keyword): bool

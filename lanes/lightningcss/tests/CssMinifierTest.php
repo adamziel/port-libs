@@ -4015,6 +4015,77 @@ CSS;
         $t->same('@import "./actual-styles.css";', $validImport['code']);
         $t->same([], $validImport['warnings']);
 
+        // Pinned upstream 22bdda3d src/lib.rs::test_error_recovery line 30075.
+        $invalidSelectors = $minifier->minifyWithErrorRecovery(
+            <<<'CSS'
+h1(>h1) {
+  color: red;
+}
+
+.foo {
+  color: red;
+}
+
+.clearfix {
+  *zoom: 1;
+  background: red;
+}
+
+@media (hover) {
+  h1(>h1) {
+    color: red;
+  }
+
+  .bar {
+    color: red;
+  }
+}
+
+input:placeholder {
+  color: red;
+}
+
+input::hover {
+  color: red;
+}
+CSS,
+            'test.css'
+        );
+        $t->same(
+            '.foo{color:red}.clearfix{background:red}@media (hover){.bar{color:red}}input:placeholder{color:red}input::hover{color:red}',
+            $invalidSelectors['code']
+        );
+        $t->same(
+            [
+                [
+                    'message' => 'Empty selector',
+                    'type' => 'EmptySelector',
+                    'loc' => ['filename' => 'test.css', 'line' => 1, 'column' => 7],
+                ],
+                [
+                    'message' => 'Unexpected token Semicolon',
+                    'type' => 'UnexpectedToken',
+                    'loc' => ['filename' => 'test.css', 'line' => 10, 'column' => 10],
+                ],
+                [
+                    'message' => 'Empty selector',
+                    'type' => 'EmptySelector',
+                    'loc' => ['filename' => 'test.css', 'line' => 15, 'column' => 9],
+                ],
+                [
+                    'message' => 'Unsupported pseudo-class placeholder',
+                    'type' => 'UnsupportedPseudoClass',
+                    'loc' => ['filename' => 'test.css', 'line' => 24, 'column' => 6],
+                ],
+                [
+                    'message' => 'Unsupported pseudo-element hover',
+                    'type' => 'UnsupportedPseudoElement',
+                    'loc' => ['filename' => 'test.css', 'line' => 28, 'column' => 7],
+                ],
+            ],
+            $invalidSelectors['warnings']
+        );
+
         $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@container unknown(foo) {}'));
 
         // Pinned upstream 22bdda3d src/lib.rs::test_container_queries line 30659.
