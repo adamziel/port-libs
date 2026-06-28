@@ -9,13 +9,16 @@ use PortLibs\Pandoc\ZipPackage;
 
 $reportManifestXml = '<reports xmlns="urn:example:reports"><report name="quarterly"/></reports>';
 $reportDocumentBytes = 'ODF-REPORT-DOCUMENT-BYTES';
+$reportDocxBytes = 'DOCX-REPORT-DOCUMENT-BYTES';
 $previewBytes = 'REPORT-PREVIEW-PNG';
 $exportBytes = '%PDF-REPORT-EXPORT%';
 $encryptedBytes = 'ENCRYPTED-REPORT-BYTES';
 $orphanBytes = '%PDF-ORPHAN-REPORT%';
+$orphanWorkbookBytes = 'XLSX-ORPHAN-REPORT-DATA';
 
 $reportManifestSize = strlen($reportManifestXml);
 $reportDocumentSize = strlen($reportDocumentBytes);
+$reportDocxSize = strlen($reportDocxBytes);
 $previewSize = strlen($previewBytes);
 $exportSize = strlen($exportBytes);
 $encryptedSize = strlen($encryptedBytes);
@@ -30,6 +33,7 @@ $manifestXml = <<<XML
   <manifest:file-entry manifest:full-path="Reports/Quarterly/" manifest:media-type=""/>
   <manifest:file-entry manifest:full-path="Reports/Quarterly/manifest.xml" manifest:media-type="text/xml" manifest:size="{$reportManifestSize}"/>
   <manifest:file-entry manifest:full-path="Reports/Quarterly/report.odt" manifest:media-type="application/vnd.oasis.opendocument.text" manifest:size="{$reportDocumentSize}"/>
+  <manifest:file-entry manifest:full-path="Reports/Quarterly/source.docx" manifest:media-type="" manifest:size="{$reportDocxSize}"/>
   <manifest:file-entry manifest:full-path="Reports/Quarterly/preview.png" manifest:media-type="image/png" manifest:size="{$previewSize}"/>
   <manifest:file-entry manifest:full-path="Reports/Quarterly/export.pdf" manifest:media-type="application/pdf" manifest:size="{$exportSize}bytes"/>
   <manifest:file-entry manifest:full-path="Reports/Quarterly/missing.pdf" manifest:media-type="application/pdf" manifest:size="21"/>
@@ -84,10 +88,12 @@ $buildPackage = static fn (): ZipPackage => ZipPackage::fromParts([
     ['name' => 'Reports/Quarterly/', 'data' => '', 'compressionMethod' => 0],
     ['name' => 'Reports/Quarterly/manifest.xml', 'data' => $reportManifestXml, 'compressionMethod' => 0],
     ['name' => 'Reports/Quarterly/report.odt', 'data' => $reportDocumentBytes, 'compressionMethod' => 0],
+    ['name' => 'Reports/Quarterly/source.docx', 'data' => $reportDocxBytes, 'compressionMethod' => 0],
     ['name' => 'Reports/Quarterly/preview.png', 'data' => $previewBytes, 'compressionMethod' => 0],
     ['name' => 'Reports/Quarterly/export.pdf', 'data' => $exportBytes, 'compressionMethod' => 0],
     ['name' => 'Reports/Quarterly/encrypted.pdf', 'data' => $encryptedBytes, 'compressionMethod' => 0],
     ['name' => 'Reports/Quarterly/orphan.pdf', 'data' => $orphanBytes, 'compressionMethod' => 0],
+    ['name' => 'Reports/Quarterly/orphan.xlsx', 'data' => $orphanWorkbookBytes, 'compressionMethod' => 0],
 ], 'odt report package sidecars');
 
 $indexBy = static function (array $items, string $key): array {
@@ -107,10 +113,12 @@ return [
         $buildPackage,
         $reportManifestXml,
         $reportDocumentBytes,
+        $reportDocxBytes,
         $previewBytes,
         $exportBytes,
         $exportSize,
         $orphanBytes,
+        $orphanWorkbookBytes,
         $indexBy
     ): void {
         $package = $buildPackage();
@@ -126,17 +134,17 @@ return [
         $t->same($readerReports, $result['document']->attr('packageReports'));
         $t->same($readerReports, $result['metadata']['odfPackageReports']);
         $t->same($readerReports, $result['importReport']['packageReports']);
-        $t->same(8, $readerReports['count']);
-        $t->same(5, $readerReports['readableCount']);
-        $t->same(7, $readerReports['declaredCount']);
-        $t->same(1, $readerReports['undeclaredCount']);
+        $t->same(10, $readerReports['count']);
+        $t->same(7, $readerReports['readableCount']);
+        $t->same(8, $readerReports['declaredCount']);
+        $t->same(2, $readerReports['undeclaredCount']);
         $t->same(1, $readerReports['missingCount']);
         $t->same(1, $readerReports['directoryCount']);
         $t->same(1, $readerReports['encryptedCount']);
         $t->same(0, $readerReports['missingMediaTypeCount']);
         $t->same(0, $readerReports['invalidMediaTypeCount']);
         $t->same(1, $readerReports['invalidDeclaredSizeCount']);
-        $t->same(4, $readerReports['issueCount']);
+        $t->same(5, $readerReports['issueCount']);
         $t->same([
             'odf-report-package-encrypted-part',
             'odf-report-package-invalid-declared-size',
@@ -146,11 +154,11 @@ return [
         $t->same([
             'report-definition' => 1,
             'report-directory' => 1,
-            'report-document' => 1,
+            'report-document' => 3,
             'report-output-resource' => 4,
             'report-preview-media' => 1,
         ], $readerReports['kindCounts']);
-        $t->same(['quarterly' => 8], $readerReports['groupCounts']);
+        $t->same(['quarterly' => 10], $readerReports['groupCounts']);
         $t->same('report-package-bytes-blocked', $readerReports['byteExposurePolicy']);
         $t->same('report-package-metadata-only', $readerReports['reviewPolicy']);
         $t->same(0, $result['packageForms']['count']);
@@ -176,6 +184,13 @@ return [
         $t->same('application/vnd.oasis.opendocument.text', $document['mediaTypeBase']);
         $t->same(strlen($reportDocumentBytes), $document['byteLength']);
         $t->same(false, $document['canExposeBytes']);
+
+        $sourceDocx = $readerItems['Reports/Quarterly/source.docx'];
+        $t->same('report-document', $sourceDocx['kind']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document', $sourceDocx['mediaTypeBase']);
+        $t->same(strlen($reportDocxBytes), $sourceDocx['byteLength']);
+        $t->same(false, $sourceDocx['canExposeBytes']);
+        $t->same([], $sourceDocx['issues']);
 
         $preview = $readerItems['Reports/Quarterly/preview.png'];
         $t->same('report-preview-media', $preview['kind']);
@@ -210,6 +225,15 @@ return [
         $t->same(strlen($orphanBytes), $orphan['byteLength']);
         $t->same(['odf-report-package-undeclared-part'], $orphan['issues']);
 
+        $orphanWorkbook = $readerItems['Reports/Quarterly/orphan.xlsx'];
+        $t->same(false, $orphanWorkbook['declared']);
+        $t->same(true, $orphanWorkbook['undeclared']);
+        $t->same('report-document', $orphanWorkbook['kind']);
+        $t->same('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', $orphanWorkbook['mediaTypeBase']);
+        $t->same(strlen($orphanWorkbookBytes), $orphanWorkbook['byteLength']);
+        $t->same(['odf-report-package-undeclared-part'], $orphanWorkbook['issues']);
+        $t->same('report-package-bytes-blocked', $orphanWorkbook['byteExposurePolicy']);
+
         $manifestPreview = $manifestByPart['Reports/Quarterly/preview.png'];
         $t->same(true, $manifestPreview['reportPackagePart']);
         $t->same(false, $manifestPreview['canExposeBytes']);
@@ -232,25 +256,30 @@ return [
         $t->same(false, $readerMediaResourceByPart['Reports/Quarterly/preview.png']['mediaResource']);
         $t->same(['odf-media-resource-package-role-precedence'], $readerMediaResourceByPart['Reports/Quarterly/preview.png']['issues']);
         $t->same('report-package-bytes-blocked', $readerMediaResourcePrecedenceByPart['Reports/Quarterly/preview.png']['byteExposurePolicy']);
-        $t->same(7, $readerProvenance['reportPackagePartCount']);
-        $t->same(7, $readerProvenance['roleCounts']['report-package']);
-        $t->same(1, $readerProvenance['undeclaredRoleCounts']['report-package']);
+        $t->same(9, $readerProvenance['reportPackagePartCount']);
+        $t->same(9, $readerProvenance['roleCounts']['report-package']);
+        $t->same(2, $readerProvenance['undeclaredRoleCounts']['report-package']);
         $t->same(['report-package', 'manifest-declared'], $readerProvenance['parts']['Reports/Quarterly/preview.png']['roles']);
         $t->same(['report-package', 'undeclared-package-entry'], $readerProvenance['parts']['Reports/Quarterly/orphan.pdf']['roles']);
+        $t->same(['report-package', 'undeclared-package-entry'], $readerProvenance['parts']['Reports/Quarterly/orphan.xlsx']['roles']);
+        $t->same(['report-package', 'manifest-declared'], $readerProvenance['parts']['Reports/Quarterly/source.docx']['roles']);
         $t->same(true, $readerProvenance['parts']['Reports/Quarterly/preview.png']['reportPackagePart']);
+        $t->same(true, $readerProvenance['parts']['Reports/Quarterly/source.docx']['reportPackagePart']);
         $t->same(0, $readerProvenance['formPackagePartCount']);
         $t->same(false, array_key_exists('form-package', $readerProvenance['roleCounts']));
         $t->same(false, $readerProvenance['parts']['Reports/Quarterly/preview.png']['formPackagePart'] ?? false);
         $t->same(0, $readerProvenance['packageIdentity']['formPackagePartCount']);
-        $t->same(7, $readerProvenance['packageIdentity']['reportPackagePartCount']);
+        $t->same(9, $readerProvenance['packageIdentity']['reportPackagePartCount']);
 
         $blocks = (new WordPressBlockWriter())->write($result['document']);
         $t->contains('Report package sidecars.', $blocks);
         $t->same(false, str_contains($blocks, $reportManifestXml));
         $t->same(false, str_contains($blocks, $reportDocumentBytes));
+        $t->same(false, str_contains($blocks, $reportDocxBytes));
         $t->same(false, str_contains($blocks, $previewBytes));
         $t->same(false, str_contains($blocks, $exportBytes));
         $t->same(false, str_contains($blocks, $orphanBytes));
+        $t->same(false, str_contains($blocks, $orphanWorkbookBytes));
 
         $compactSummary = OpenDocumentPackage::fromPackage($package)->summarize();
         $compactReports = $compactSummary['packageReports'];
@@ -263,20 +292,23 @@ return [
 
         $t->same(0, $compactSummary['packageForms']['count']);
         $t->same([], $compactSummary['packageForms']['items']);
-        $t->same(8, $compactReports['count']);
-        $t->same(5, $compactReports['readableCount']);
-        $t->same(7, $compactReports['declaredCount']);
-        $t->same(1, $compactReports['undeclaredCount']);
+        $t->same(10, $compactReports['count']);
+        $t->same(7, $compactReports['readableCount']);
+        $t->same(8, $compactReports['declaredCount']);
+        $t->same(2, $compactReports['undeclaredCount']);
         $t->same(1, $compactReports['missingCount']);
         $t->same(1, $compactReports['directoryCount']);
         $t->same(1, $compactReports['encryptedCount']);
         $t->same(1, $compactReports['invalidDeclaredSizeCount']);
-        $t->same(4, $compactReports['issueCount']);
+        $t->same(5, $compactReports['issueCount']);
         $t->same($readerReports['issueCodes'], $compactReports['issueCodes']);
+        $t->same($readerReports['kindCounts'], $compactReports['kindCounts']);
         $t->same('report-package-bytes-blocked', $compactReports['byteExposurePolicy']);
         $t->same('report-package-metadata-only', $compactReports['reviewPolicy']);
         $t->same('report-definition', $compactItems['Reports/Quarterly/manifest.xml']['kind']);
         $t->same('report-document', $compactItems['Reports/Quarterly/report.odt']['kind']);
+        $t->same('report-document', $compactItems['Reports/Quarterly/source.docx']['kind']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document', $compactItems['Reports/Quarterly/source.docx']['mediaTypeBase']);
         $t->same('report-preview-media', $compactItems['Reports/Quarterly/preview.png']['kind']);
         $t->same('report-output-resource', $compactItems['Reports/Quarterly/export.pdf']['kind']);
         $t->same(null, $compactItems['Reports/Quarterly/export.pdf']['declaredSize']);
@@ -287,9 +319,12 @@ return [
         $t->same(['odf-report-package-missing-part'], $compactItems['Reports/Quarterly/missing.pdf']['issues']);
         $t->same(['odf-report-package-encrypted-part'], $compactItems['Reports/Quarterly/encrypted.pdf']['issues']);
         $t->same(['odf-report-package-undeclared-part'], $compactItems['Reports/Quarterly/orphan.pdf']['issues']);
+        $t->same('report-document', $compactItems['Reports/Quarterly/orphan.xlsx']['kind']);
+        $t->same('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', $compactItems['Reports/Quarterly/orphan.xlsx']['mediaTypeBase']);
+        $t->same(['odf-report-package-undeclared-part'], $compactItems['Reports/Quarterly/orphan.xlsx']['issues']);
 
         $t->same(['Pictures/hero.png'], array_column($compactSummary['mediaParts'], 'packagePath'));
-        $t->same(7, $compactSummary['manifestReview']['reportPackagePartCount']);
+        $t->same(8, $compactSummary['manifestReview']['reportPackagePartCount']);
         $t->same(0, $compactSummary['manifestReview']['formPackagePartCount']);
         $t->same(true, $reviewByPath['Reports/Quarterly/preview.png']['reportPackagePart']);
         $t->same(false, $reviewByPath['Reports/Quarterly/preview.png']['formPackagePart'] ?? false);
@@ -312,17 +347,20 @@ return [
         $t->same(false, $compactMediaResourceByPart['Reports/Quarterly/preview.png']['mediaResource']);
         $t->same(['odf-media-resource-package-role-precedence'], $compactMediaResourceByPart['Reports/Quarterly/preview.png']['issues']);
         $t->same('report-package-bytes-blocked', $compactMediaResourcePrecedenceByPart['Reports/Quarterly/preview.png']['byteExposurePolicy']);
-        $t->same(6, $compactSummary['manifestReview']['manifestMediaFamilyCounts']['report']);
-        $t->same(7, $inventory['reportPackagePartCount']);
+        $t->same(7, $compactSummary['manifestReview']['manifestMediaFamilyCounts']['report']);
+        $t->same(9, $inventory['reportPackagePartCount']);
         $t->same(0, $inventory['formPackagePartCount']);
-        $t->same(7, $inventory['roleCounts']['report-package']);
+        $t->same(9, $inventory['roleCounts']['report-package']);
         $t->same(false, array_key_exists('form-package', $inventory['roleCounts']));
-        $t->same(1, $inventory['undeclaredRoleCounts']['report-package']);
+        $t->same(2, $inventory['undeclaredRoleCounts']['report-package']);
         $t->same(['report-package', 'manifest-declared'], $inventory['parts']['Reports/Quarterly/preview.png']['roles']);
         $t->same(['report-package', 'undeclared-package-entry'], $inventory['parts']['Reports/Quarterly/orphan.pdf']['roles']);
+        $t->same(['report-package', 'undeclared-package-entry'], $inventory['parts']['Reports/Quarterly/orphan.xlsx']['roles']);
+        $t->same(['report-package', 'manifest-declared'], $inventory['parts']['Reports/Quarterly/source.docx']['roles']);
         $t->same(true, $inventory['parts']['Reports/Quarterly/preview.png']['reportPackagePart']);
+        $t->same(true, $inventory['parts']['Reports/Quarterly/source.docx']['reportPackagePart']);
         $t->same(false, $inventory['parts']['Reports/Quarterly/preview.png']['formPackagePart'] ?? false);
         $t->same(0, $compactSummary['packageIdentity']['formPackagePartCount']);
-        $t->same(7, $compactSummary['packageIdentity']['reportPackagePartCount']);
+        $t->same(9, $compactSummary['packageIdentity']['reportPackagePartCount']);
     },
 ];
