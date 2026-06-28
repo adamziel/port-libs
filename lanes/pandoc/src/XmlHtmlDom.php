@@ -91,6 +91,7 @@ final class XmlHtmlDom
         'autoplay' => true,
         'checked' => true,
         'controls' => true,
+        'credentialless' => true,
         'default' => true,
         'defer' => true,
         'disablepictureinpicture' => true,
@@ -27993,10 +27994,12 @@ final class XmlHtmlDom
             'iframePolicyReview' => 'iframe-policy-metadata-review',
             'iframePolicyIssueCodes' => [],
         ];
+        $sandboxValidTokens = [];
 
         if ($iframe->hasAttribute('sandbox')) {
             $sandbox = self::iframeSandboxPolicySummary($iframe->getAttribute('sandbox'));
             $summary += $sandbox;
+            $sandboxValidTokens = $sandbox['sandboxValidTokens'];
             if (($sandbox['invalidSandboxTokens'] ?? []) !== []) {
                 $summary['iframePolicyIssueCodes'][] = 'invalid-iframe-sandbox-token';
             }
@@ -28033,7 +28036,7 @@ final class XmlHtmlDom
         }
 
         if ($iframe->hasAttribute('credentialless')) {
-            $credentialless = self::iframeCredentiallessPolicySummary($iframe->getAttribute('credentialless'));
+            $credentialless = self::iframeCredentiallessPolicySummary($iframe, $sandboxValidTokens);
             $summary += $credentialless;
             foreach ($credentialless['iframeCredentiallessIssueCodes'] as $issueCode) {
                 self::appendUniqueString($summary['iframePolicyIssueCodes'], $issueCode);
@@ -28043,6 +28046,48 @@ final class XmlHtmlDom
         $summary['allowFullscreen'] = $iframe->hasAttribute('allowfullscreen');
 
         return $summary;
+    }
+
+    /**
+     * @param list<string> $sandboxValidTokens
+     * @return array<string, mixed>
+     */
+    private static function iframeCredentiallessPolicySummary(\DOMElement $iframe, array $sandboxValidTokens): array
+    {
+        $raw = $iframe->getAttribute('credentialless');
+        $canonical = $raw === '' || strtolower(trim($raw)) === 'credentialless';
+        $sandboxAllowsScripts = in_array('allow-scripts', $sandboxValidTokens, true);
+        $sandboxAllowsSameOrigin = in_array('allow-same-origin', $sandboxValidTokens, true);
+        $issues = [];
+
+        if (!$canonical) {
+            $issues[] = [
+                'code' => 'noncanonical-iframe-credentialless-value',
+                'credentiallessRaw' => $raw,
+            ];
+        }
+
+        return [
+            'iframeCredentiallessReviewPolicy' => 'iframe-credentialless-storage-partition-review',
+            'iframeCredentiallessRaw' => $raw,
+            'iframeCredentialless' => true,
+            'iframeCredentiallessCanonical' => $canonical,
+            'iframeCredentiallessEphemeralContext' => true,
+            'iframeCredentiallessNetworkCredentials' => false,
+            'iframeCredentiallessCookieAccess' => false,
+            'iframeCredentiallessStorageAccess' => false,
+            'iframeCredentiallessReviewOnlyNoNetworkRequest' => true,
+            'iframeCredentiallessSandboxPresent' => $iframe->hasAttribute('sandbox'),
+            'iframeCredentiallessSandboxAllowsScripts' => $sandboxAllowsScripts,
+            'iframeCredentiallessSandboxAllowsSameOrigin' => $sandboxAllowsSameOrigin,
+            'iframeCredentiallessSandboxAllowsScriptsAndSameOrigin' => $sandboxAllowsScripts && $sandboxAllowsSameOrigin,
+            'iframeCredentiallessIssues' => $issues,
+            'iframeCredentiallessIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'iframeCredentiallessValid' => $issues === [],
+        ];
     }
 
     /**
@@ -28190,35 +28235,6 @@ final class XmlHtmlDom
             'loadingRaw' => $value,
             'loadingState' => $valid ? $loading : null,
             'loadingValid' => $valid,
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private static function iframeCredentiallessPolicySummary(string $value): array
-    {
-        $normalized = strtolower(trim($value));
-        $canonical = $normalized === '' || $normalized === 'credentialless';
-        $issueCodes = $canonical ? [] : ['noncanonical-iframe-credentialless-value'];
-        $issues = [];
-
-        if (!$canonical) {
-            $issues[] = [
-                'code' => 'noncanonical-iframe-credentialless-value',
-                'credentiallessRaw' => $value,
-            ];
-        }
-
-        return [
-            'iframeCredentiallessReviewPolicy' => 'iframe-credentialless-network-isolation-review',
-            'iframeCredentialless' => true,
-            'iframeCredentiallessRaw' => $value,
-            'iframeCredentiallessState' => 'enabled',
-            'iframeCredentiallessBooleanAttribute' => true,
-            'iframeCredentiallessCanonical' => $canonical,
-            'iframeCredentiallessIssueCodes' => $issueCodes,
-            'iframeCredentiallessIssues' => $issues,
         ];
     }
 
