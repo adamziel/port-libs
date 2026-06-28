@@ -9285,7 +9285,7 @@ final class MarkdownReader
                 continue;
             }
 
-            $emoji = $this->tryParseEmojiAlias($text, $offset);
+            $emoji = $this->emojiExtensionEnabled() ? $this->tryParseEmojiAlias($text, $offset) : null;
             if ($emoji !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $emoji['node'];
@@ -10081,6 +10081,21 @@ final class MarkdownReader
         return in_array($canonical, ['markdown', 'commonmark_x'], true);
     }
 
+    private function emojiExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        foreach (['emoji', 'emoji_shortcodes'] as $extension) {
+            if (array_key_exists($extension, $overrides)) {
+                return $overrides[$extension];
+            }
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x', 'gfm'], true);
+    }
+
     private function commonMarkRawHtmlBlockPrecedenceEnabled(): bool
     {
         $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
@@ -10312,6 +10327,7 @@ final class MarkdownReader
         $emoji = match ($m[1]) {
             'smile' => "\u{1F604}",
             '+1' => "\u{1F44D}",
+            'rocket' => "\u{1F680}",
             default => null,
         };
         if ($emoji === null) {

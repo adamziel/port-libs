@@ -1275,6 +1275,7 @@
         "mappedMarkdownReaderRawEmailAddressCases": 1,
         "markdownReaderEmojiExtensionCases": 1,
         "mappedMarkdownReaderEmojiExtensionCases": 1,
+        "mappedMarkdownReaderEmojiExtensionProfileCases": 16,
         "mappedMarkdownReaderMarkExtensionProfileCases": 13,
         "markdownReaderGithubWikiLinkCases": 6,
         "mappedMarkdownReaderGithubWikiLinkCases": 6,
