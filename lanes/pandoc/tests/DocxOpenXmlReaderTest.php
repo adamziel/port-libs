@@ -18642,6 +18642,82 @@ XML;
         $t->true(!isset($reviewPart['xmlElementAttributes'][0]['value']), 'raw XML attribute value should not be exposed on part metadata');
         $t->true(!str_contains((string) $encodedAttributes, 'value-shape:hidden'), 'raw XML attribute values should not be exposed in value-shape metadata');
     },
+    'summarizes docx package xml attribute value shape categories without exposing values' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $relationshipId = 'rShape42';
+        $tokenList = 'shape-hidden-alpha shape-hidden-beta';
+        $absoluteUri = 'https://example.test/review-source.xml?packet=1#root';
+        $relativeTarget = 'media/review-shape.png';
+        $qname = 'w:body';
+        $decimal = '12.50';
+        $padded = ' padded-hidden-gamma ';
+        $parts['customXml/attribute-value-shapes.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:attribute-value-shapes" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xml:lang="en" review:empty="" review:tokens="{$tokenList}" review:uri="{$absoluteUri}" review:qname="{$qname}" review:decimal="{$decimal}" review:padded="{$padded}">
+  <review:item r:id="{$relationshipId}" count="42" flag="true" relative="{$relativeTarget}"/>
+</review:packet>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $part = $package['parts']['customXml/attribute-value-shapes.xml'];
+        $attributes = array_values(array_filter(
+            $summary['partXmlElementAttributes'],
+            static fn (array $attribute): bool => $attribute['partName'] === 'customXml/attribute-value-shapes.xml',
+        ));
+        $attributesByName = [];
+        foreach ($attributes as $attribute) {
+            $attributesByName[$attribute['name']] = $attribute;
+        }
+
+        $t->same(true, $part['xmlInspectable']);
+        $t->same(11, $part['xmlElementAttributeCount']);
+        $t->same(
+            [
+                'absolute-uri' => 1,
+                'boolean' => 1,
+                'decimal' => 1,
+                'empty' => 1,
+                'integer' => 1,
+                'qname' => 1,
+                'relationship-id' => 1,
+                'relative-reference' => 1,
+                'token' => 2,
+                'token-list' => 1,
+            ],
+            $part['xmlElementAttributeValueShapeCounts']
+        );
+        $t->same(
+            ['absolute-uri', 'boolean', 'decimal', 'empty', 'integer', 'qname', 'relationship-id', 'relative-reference', 'token', 'token-list'],
+            $part['xmlElementAttributeValueShapes']
+        );
+        $t->same('relationship-id', $attributesByName['r:id']['valueShape']);
+        $t->same('integer', $attributesByName['count']['valueShape']);
+        $t->same('boolean', $attributesByName['flag']['valueShape']);
+        $t->same('absolute-uri', $attributesByName['review:uri']['valueShape']);
+        $t->same('qname', $attributesByName['review:qname']['valueShape']);
+        $t->same('relative-reference', $attributesByName['relative']['valueShape']);
+        $t->same('token-list', $attributesByName['review:tokens']['valueShape']);
+        $t->same(2, $attributesByName['review:tokens']['valueTokenCount']);
+        $t->same('empty', $attributesByName['review:empty']['valueShape']);
+        $t->same(0, $attributesByName['review:empty']['valueTokenCount']);
+        $t->same('token', $attributesByName['review:padded']['valueShape']);
+        $t->same(true, $attributesByName['review:padded']['valueContainsWhitespace']);
+        $t->same(true, $attributesByName['review:padded']['valueHasLeadingWhitespace']);
+        $t->same(true, $attributesByName['review:padded']['valueHasTrailingWhitespace']);
+
+        $t->true($summary['partXmlElementAttributeValueShapeCounts']['relationship-id'] >= 1, 'summary should include relationship-id attribute values');
+        $t->true($summary['partXmlElementAttributeValueShapeCounts']['absolute-uri'] >= 1, 'summary should include URI-shaped attribute values');
+        $t->true($summary['partXmlElementAttributeValueShapeCounts']['token-list'] >= 1, 'summary should include token-list attribute values');
+        $t->true(in_array('relationship-id', $summary['partXmlElementAttributeValueShapes'], true), 'summary should carry attribute value shape names');
+
+        $encodedAttributes = json_encode([$part['xmlElementAttributes'], $attributes]);
+        $t->true(is_string($encodedAttributes), 'XML attribute value-shape metadata should encode for review');
+        $t->true(!isset($part['xmlElementAttributes'][0]['value']), 'raw XML attribute value should not be exposed on value-shape metadata');
+        $t->true(!str_contains((string) $encodedAttributes, 'hidden-'), 'raw XML attribute values should not be exposed in value-shape metadata');
+        $t->true(!str_contains((string) $encodedAttributes, $absoluteUri), 'raw XML URI attribute value should not be exposed in value-shape metadata');
+    },
     'summarizes docx package xml processing instructions for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['customXml/pi-review.xml'] = <<<'XML'

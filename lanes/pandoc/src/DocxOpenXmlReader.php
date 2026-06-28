@@ -14393,6 +14393,9 @@ final class DocxOpenXmlReader
             'partXmlElementAttributeElementPaths' => $partXmlRoots['xmlElementAttributeElementPaths'],
             'partXmlElementAttributeElementNameCount' => count($partXmlRoots['xmlElementAttributeElementNameCounts']),
             'partXmlElementAttributeElementNameCounts' => $partXmlRoots['xmlElementAttributeElementNameCounts'],
+            'partXmlElementAttributeValueShapeCount' => count($partXmlRoots['xmlElementAttributeValueShapeCounts']),
+            'partXmlElementAttributeValueShapeCounts' => $partXmlRoots['xmlElementAttributeValueShapeCounts'],
+            'partXmlElementAttributeValueShapes' => $partXmlRoots['xmlElementAttributeValueShapes'],
             'partXmlElementAttributeValueByteLength' => $partXmlRoots['xmlElementAttributeValueByteLength'],
             'partXmlElementAttributeEmptyValueCount' => $partXmlRoots['xmlElementAttributeEmptyValueCount'],
             'partXmlElementAttributeWhitespaceOnlyValueCount' => $partXmlRoots['xmlElementAttributeWhitespaceOnlyValueCount'],
@@ -27091,6 +27094,8 @@ final class DocxOpenXmlReader
             'elementPathCounts' => [],
             'elementPaths' => [],
             'elementNameCounts' => [],
+            'valueShapeCounts' => [],
+            'valueShapes' => [],
             'items' => [],
         ];
 
@@ -27109,6 +27114,8 @@ final class DocxOpenXmlReader
         $elementPathCounts = [];
         $elementPaths = [];
         $elementNameCounts = [];
+        $valueShapeCounts = [];
+        $valueShapes = [];
         $valueByteLength = 0;
         $emptyValueCount = 0;
         $whitespaceOnlyValueCount = 0;
@@ -27133,6 +27140,8 @@ final class DocxOpenXmlReader
             &$elementPathCounts,
             &$elementPaths,
             &$elementNameCounts,
+            &$valueShapeCounts,
+            &$valueShapes,
             &$valueByteLength,
             &$emptyValueCount,
             &$whitespaceOnlyValueCount,
@@ -27185,6 +27194,8 @@ final class DocxOpenXmlReader
                 $attributeTokenCount = is_int($attributeTokenCount) ? $attributeTokenCount : 0;
                 $valueLeadingWhitespaceByteLength = strlen($valueLeadingWhitespace);
                 $valueTrailingWhitespaceByteLength = strlen($valueTrailingWhitespace);
+                $valueShape = $this->xmlAttributeValueShape($value, $attribute);
+                $valueShapeName = $valueShape['shape'];
 
                 $valueByteLength += $attributeValueByteLength;
                 if ($isValueEmpty) {
@@ -27220,6 +27231,8 @@ final class DocxOpenXmlReader
                 $elementPathCounts[$elementPath] = ($elementPathCounts[$elementPath] ?? 0) + 1;
                 $this->appendUniqueString($elementPaths, $elementPath);
                 $elementNameCounts[$elementQualifiedName] = ($elementNameCounts[$elementQualifiedName] ?? 0) + 1;
+                $valueShapeCounts[$valueShapeName] = ($valueShapeCounts[$valueShapeName] ?? 0) + 1;
+                $this->appendUniqueString($valueShapes, $valueShapeName);
 
                 $items[] = [
                     'ordinal' => $ordinal,
@@ -27234,6 +27247,7 @@ final class DocxOpenXmlReader
                     'namespace' => $namespace,
                     'localName' => $attribute->localName,
                     'valueByteLength' => $attributeValueByteLength,
+                    'valueShape' => $valueShapeName,
                     'isValueEmpty' => $isValueEmpty,
                     'isValueWhitespaceOnly' => $isValueWhitespaceOnly,
                     'valueLeadingWhitespaceByteLength' => $valueLeadingWhitespaceByteLength,
@@ -27243,6 +27257,9 @@ final class DocxOpenXmlReader
                     'valueLineBreakCount' => $attributeLineBreakCount,
                     'hasValueLineBreak' => $attributeLineBreakCount > 0,
                     'valueTokenCount' => $attributeTokenCount,
+                    'valueContainsWhitespace' => $valueShape['containsWhitespace'],
+                    'valueHasLeadingWhitespace' => $valueShape['hasLeadingWhitespace'],
+                    'valueHasTrailingWhitespace' => $valueShape['hasTrailingWhitespace'],
                     'valueCrc32' => $value === '' ? null : sprintf('%08x', crc32($value)),
                     'valueSha256' => $value === '' ? null : hash('sha256', $value),
                 ];
@@ -27261,10 +27278,12 @@ final class DocxOpenXmlReader
         ksort($prefixCounts, SORT_STRING);
         ksort($elementPathCounts, SORT_STRING);
         ksort($elementNameCounts, SORT_STRING);
+        ksort($valueShapeCounts, SORT_STRING);
         sort($names, SORT_STRING);
         sort($namespaces, SORT_STRING);
         sort($prefixes, SORT_STRING);
         sort($elementPaths, SORT_STRING);
+        sort($valueShapes, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -27288,7 +27307,54 @@ final class DocxOpenXmlReader
             'elementPathCounts' => $elementPathCounts,
             'elementPaths' => $elementPaths,
             'elementNameCounts' => $elementNameCounts,
+            'valueShapeCounts' => $valueShapeCounts,
+            'valueShapes' => $valueShapes,
             'items' => $items,
+        ];
+    }
+
+    /**
+     * @return array{shape:string, tokenCount:int, containsWhitespace:bool, hasLeadingWhitespace:bool, hasTrailingWhitespace:bool}
+     */
+    private function xmlAttributeValueShape(string $value, \DOMAttr $attribute): array
+    {
+        $trimmed = trim($value);
+        $tokenCount = $trimmed === ''
+            ? 0
+            : count(preg_split('/\s+/', $trimmed) ?: []);
+        $containsWhitespace = preg_match('/\s/', $value) === 1;
+        $hasLeadingWhitespace = $value !== '' && preg_match('/^\s/', $value) === 1;
+        $hasTrailingWhitespace = $value !== '' && preg_match('/\s$/', $value) === 1;
+        $shape = 'token';
+
+        if ($trimmed === '') {
+            $shape = 'empty';
+        } elseif ($attribute->namespaceURI === self::NS_R && preg_match('/\A[A-Za-z_][A-Za-z0-9_.:-]*\z/', $trimmed) === 1) {
+            $shape = 'relationship-id';
+        } elseif (preg_match('/\A(?:true|false|on|off|yes|no)\z/i', $trimmed) === 1) {
+            $shape = 'boolean';
+        } elseif (preg_match('/\A[+-]?\d+\z/', $trimmed) === 1) {
+            $shape = 'integer';
+        } elseif (preg_match('/\A[+-]?(?:\d+\.\d+|\d+\.\d*|\.\d+)\z/', $trimmed) === 1) {
+            $shape = 'decimal';
+        } elseif (preg_match('/\A[A-Za-z_][A-Za-z0-9_.-]*:[A-Za-z_][A-Za-z0-9_.-]*\z/', $trimmed) === 1) {
+            $shape = 'qname';
+        } elseif (preg_match('/\A[A-Za-z][A-Za-z0-9+.-]*:/', $trimmed) === 1) {
+            $shape = 'absolute-uri';
+        } elseif (str_starts_with($trimmed, '//')) {
+            $shape = 'network-path-reference';
+        } elseif ($tokenCount > 1) {
+            $shape = 'token-list';
+        } elseif (str_contains($trimmed, '/') || str_contains($trimmed, '\\')) {
+            $shape = 'relative-reference';
+        }
+
+        return [
+            'shape' => $shape,
+            'tokenCount' => $tokenCount,
+            'containsWhitespace' => $containsWhitespace,
+            'hasLeadingWhitespace' => $hasLeadingWhitespace,
+            'hasTrailingWhitespace' => $hasTrailingWhitespace,
         ];
     }
 
@@ -29342,6 +29408,8 @@ final class DocxOpenXmlReader
                 'xmlElementAttributeElementPathCounts' => [],
                 'xmlElementAttributeElementPaths' => [],
                 'xmlElementAttributeElementNameCounts' => [],
+                'xmlElementAttributeValueShapeCounts' => [],
+                'xmlElementAttributeValueShapes' => [],
                 'xmlElementAttributes' => [],
             ];
         }
@@ -29605,6 +29673,8 @@ final class DocxOpenXmlReader
             'xmlElementAttributeElementPathCounts' => $elementAttributes['elementPathCounts'],
             'xmlElementAttributeElementPaths' => $elementAttributes['elementPaths'],
             'xmlElementAttributeElementNameCounts' => $elementAttributes['elementNameCounts'],
+            'xmlElementAttributeValueShapeCounts' => $elementAttributes['valueShapeCounts'],
+            'xmlElementAttributeValueShapes' => $elementAttributes['valueShapes'],
             'xmlElementAttributes' => $elementAttributes['items'],
         ];
     }
