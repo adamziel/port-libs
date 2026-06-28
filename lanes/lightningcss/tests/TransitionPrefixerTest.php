@@ -3034,7 +3034,7 @@ CSS;
         $prefixer = new TransitionPrefixer();
         $selector = $variants('.foo');
 
-        // Pinned upstream 22bdda3d src/lib.rs::test_border lines 1757, 1790, 1823, 1898, and 1931.
+        // Pinned upstream 22bdda3d src/lib.rs::test_border lines 1757, 1790, 1823, 1865, 1898, and 1931.
         $t->same(
             $selector['ltr-webkit'] . '{border-left-color:#b32323;border-left-color:lab(40% 56.6 39)}'
                 . $selector['ltr-modern'] . '{border-left-color:#b32323;border-left-color:lab(40% 56.6 39)}'
@@ -3060,6 +3060,12 @@ CSS;
             'upstream src/lib.rs::test_border line 1823'
         );
         $t->same(
+            $selector['ltr-modern'] . '{border-left-color:#b32323;border-left-color:color(display-p3 .643308 .192455 .167712);border-left-color:lab(40% 56.6 39);border-right-color:#ee00be;border-right-color:color(display-p3 .972962 -.362078 .804206);border-right-color:lch(50.998% 135.363 338)}'
+                . $selector['rtl-modern'] . '{border-left-color:#ee00be;border-left-color:color(display-p3 .972962 -.362078 .804206);border-left-color:lch(50.998% 135.363 338);border-right-color:#b32323;border-right-color:color(display-p3 .643308 .192455 .167712);border-right-color:lab(40% 56.6 39)}',
+            $prefixer->prefixForTargets('.foo { border-inline-start-color: lab(40% 56.6 39); border-inline-end-color: lch(50.998% 135.363 338); }', ['chrome' => 8, 'safari' => 14]),
+            'upstream src/lib.rs::test_border line 1865'
+        );
+        $t->same(
             $selector['ltr-webkit'] . '{border-left:2px solid #b32323;border-left:2px solid lab(40% 56.6 39)}'
                 . $selector['ltr-modern'] . '{border-left:2px solid #b32323;border-left:2px solid lab(40% 56.6 39)}'
                 . $selector['rtl-webkit'] . '{border-right:2px solid #b32323;border-right:2px solid lab(40% 56.6 39)}'
@@ -3083,6 +3089,8 @@ CSS;
             . $selector['ltr-modern'] . '{border-left:2px solid red}'
             . $selector['rtl-webkit'] . '{border-right:2px solid red}'
             . $selector['rtl-modern'] . '{border-right:2px solid red}';
+        $inlineStartFallbackModern = $selector['ltr-modern'] . '{border-left:2px solid red}'
+            . $selector['rtl-modern'] . '{border-right:2px solid red}';
 
         $t->same('.foo{border-block-start-width:2px;border-block-end-width:2px}', $prefixer->prefixForTargets('.foo { border-block-width: 2px; }', ['safari' => 13]));
         $t->same('.foo{border-block-width:2px}', $prefixer->prefixForTargets('.foo { border-block-width: 2px; }', ['safari' => 15]));
@@ -3092,9 +3100,9 @@ CSS;
         $t->same('.foo{border-inline-start:2px solid red}', $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', ['safari' => '12.1']));
         $t->same($inlineStartFallback, $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', ['chrome' => 68]));
         $t->same('.foo{border-inline-start:2px solid red}', $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', ['chrome' => 69]));
-        $t->same($inlineStartFallback, $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', ['firefox' => 40]));
+        $t->same($inlineStartFallbackModern, $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', ['firefox' => 40]));
         $t->same('.foo{border-inline-start:2px solid red}', $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', ['firefox' => 41]));
-        $t->same($inlineStartFallback, $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', [
+        $t->same($inlineStartFallbackModern, $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', [
             'browsers' => ['chrome' => 120],
             'include' => ['LogicalProperties'],
         ]));

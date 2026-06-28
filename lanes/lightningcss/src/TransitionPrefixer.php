@@ -4695,17 +4695,22 @@ final class TransitionPrefixer
         }
 
         $rules = '';
+        $needsWebkitDirectionSelector = $targetOptions['anyPseudoNeedsWebkit'] ?? false;
         foreach ($this->selectorsWithTargetPrefixVariants($selectors, $targetOptions) as $selector) {
             $ltrModernSelector = $this->selectorVariant($selector, 'ltr-modern');
             $rtlModernSelector = $this->selectorVariant($selector, 'rtl-modern');
-            $rules .= $this->selectorVariant($selector, 'ltr-webkit') . '{' . $this->serializeDeclarations($fallback['ltr']) . '}'
-                . $ltrModernSelector . '{' . $this->serializeDeclarations($fallback['ltr']) . '}';
+            if ($needsWebkitDirectionSelector) {
+                $rules .= $this->selectorVariant($selector, 'ltr-webkit') . '{' . $this->serializeDeclarations($fallback['ltr']) . '}';
+            }
+            $rules .= $ltrModernSelector . '{' . $this->serializeDeclarations($fallback['ltr']) . '}';
             foreach ($support['transformed'] as $supportRule) {
                 $rules .= $this->serializeSupportRuleForSelectors($supportRule['prelude'], [$ltrModernSelector], $supportRule['ltr']);
             }
 
-            $rules .= $this->selectorVariant($selector, 'rtl-webkit') . '{' . $this->serializeDeclarations($fallback['rtl']) . '}'
-                . $rtlModernSelector . '{' . $this->serializeDeclarations($fallback['rtl']) . '}';
+            if ($needsWebkitDirectionSelector) {
+                $rules .= $this->selectorVariant($selector, 'rtl-webkit') . '{' . $this->serializeDeclarations($fallback['rtl']) . '}';
+            }
+            $rules .= $rtlModernSelector . '{' . $this->serializeDeclarations($fallback['rtl']) . '}';
             foreach ($support['transformed'] as $supportRule) {
                 $rules .= $this->serializeSupportRuleForSelectors($supportRule['prelude'], [$rtlModernSelector], $supportRule['rtl']);
             }
