@@ -20436,6 +20436,10 @@ final class OdfReader
     private function manifestPackagePart(string $path): string
     {
         $path = preg_replace('/[#?].*$/', '', $path) ?? $path;
+        if (preg_match('/%(?![0-9A-Fa-f]{2})/', $path) === 1) {
+            throw new \InvalidArgumentException('Malformed percent escape in ODT manifest full-path: ' . $path);
+        }
+
         $path = rawurldecode($path);
         $path = ltrim($path, '/');
         while (str_starts_with($path, './')) {
