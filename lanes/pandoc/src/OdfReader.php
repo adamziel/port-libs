@@ -994,8 +994,20 @@ final class OdfReader
             'manifestIndex' => is_array($manifestEntry) ? ($manifestEntry['manifestIndex'] ?? null) : null,
             'manifestFullPath' => is_array($manifestEntry) ? ($manifestEntry['fullPath'] ?? null) : null,
             'manifestPackagePath' => is_array($manifestEntry) ? ($manifestEntry['part'] ?? null) : null,
+            'manifestPathReference' => is_array($manifestEntry) ? ($manifestEntry['partReference'] ?? null) : null,
+            'manifestPathSuffix' => is_array($manifestEntry) ? ($manifestEntry['partSuffix'] ?? null) : null,
+            'manifestPathQuery' => is_array($manifestEntry) ? ($manifestEntry['partQuery'] ?? null) : null,
+            'manifestPathFragment' => is_array($manifestEntry) ? ($manifestEntry['partFragment'] ?? null) : null,
+            'manifestUriEncodedPackageReference' => is_array($manifestEntry)
+                && is_string($manifestEntry['partReference'] ?? null)
+                && is_string($manifestEntry['part'] ?? null)
+                && $manifestEntry['partReference'] !== $manifestEntry['part'],
             'manifestMediaType' => is_array($manifestEntry) ? ($manifestEntry['mediaType'] ?? null) : null,
             'manifestMediaTypeBase' => is_array($manifestEntry) ? ($manifestEntry['mediaTypeBase'] ?? null) : null,
+            'manifestMediaTypeHasParameters' => is_array($manifestEntry) && ($manifestEntry['mediaTypeHasParameters'] ?? false) === true,
+            'manifestMediaTypeParameterCount' => is_array($manifestEntry) ? ($manifestEntry['mediaTypeParameterCount'] ?? 0) : 0,
+            'manifestMediaTypeParameters' => is_array($manifestEntry) ? ($manifestEntry['mediaTypeParameters'] ?? []) : [],
+            'manifestMediaTypeParameterMap' => is_array($manifestEntry) ? ($manifestEntry['mediaTypeParameterMap'] ?? []) : [],
             'manifestVersion' => is_array($manifestEntry) ? ($manifestEntry['version'] ?? null) : null,
             'manifestPreferredViewMode' => is_array($manifestEntry) ? ($manifestEntry['preferredViewMode'] ?? null) : null,
             'manifestDeclaredSize' => is_array($manifestEntry) ? ($manifestEntry['declaredSize'] ?? null) : null,
