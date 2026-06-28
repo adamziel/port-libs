@@ -8056,6 +8056,76 @@ XML,
         $t->same('word/embeddings/review-package', $package['existingTargetPartDigests'][1]['partName']);
         $t->same(null, $package['existingTargetPartDigests'][1]['partExtension']);
     },
+    'summarizes docx relationship target raw extension case variants for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $upperPngBytes = str_repeat('U', 31);
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Default Extension="png" ContentType="image/png"/>',
+            '  <Default Extension="png" ContentType="image/png"/>' . "\n" .
+            '  <Default Extension="gif" ContentType="image/gif"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rUpperPng" Type="' . $imageRel . '" Target="media/review.PNG?case=upper#image"/>' . "\n" .
+            '  <Relationship Id="rMissingGifCase" Type="' . $imageRel . '" Target="media/MISSING.GIF?case=upper#missing"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/media/review.PNG'] = $upperPngBytes;
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $variants = [];
+        foreach ($summary['relationshipTargetRawExtensionCaseVariants'] as $variant) {
+            $variants[$variant['extension']] = $variant;
+        }
+
+        $t->same(2, $summary['relationshipTargetRawExtensionCaseVariantCount']);
+        $t->same(['gif' => 1, 'png' => 2], $summary['relationshipTargetRawExtensionCaseVariantCounts']);
+        $t->same(['gif', 'png'], $summary['relationshipTargetRawExtensionCaseVariantExtensions']);
+        $t->same(2, $summary['relationshipTargetRawExtensionUppercaseTargetCount']);
+        $t->same(2, $summary['relationshipTargetRawExtensionNormalizedTargetCount']);
+        $t->same(3, $summary['relationshipTargetRawExtensionCaseVariantTargetCount']);
+
+        $png = $variants['png'];
+        $t->same(2, $png['relationshipCount']);
+        $t->same(2, $png['existingTargetCount']);
+        $t->same(0, $png['missingTargetCount']);
+        $t->same(1, $png['uppercaseTargetCount']);
+        $t->same(1, $png['normalizedTargetCount']);
+        $t->same(['PNG' => 1, 'png' => 1], $png['rawExtensionCounts']);
+        $t->same(['word/media/review.PNG'], $png['rawExtensionTargetParts']['PNG']);
+        $t->same(['word/media/review.png'], $png['rawExtensionTargetParts']['png']);
+        $t->same(['default' => 2], $png['contentTypeSourceCounts']);
+        $t->same(['image/png' => 2], $png['contentTypeBaseCounts']);
+        $t->same([$imageRel => 2], $png['relationshipTypeCounts']);
+        $t->same(['rImage', 'rUpperPng'], $png['relationshipIds']);
+        $t->same(['word/media/review.PNG', 'word/media/review.png'], $png['targetParts']);
+        $t->same(strlen('fake png bytes') + strlen($upperPngBytes), $png['existingTargetByteLength']);
+        $t->same('word/media/review.PNG', $png['largestExistingTargetPart']['partName']);
+        $t->same('PNG', $png['largestExistingTargetPart']['rawPartExtension']);
+        $t->same(true, $png['largestExistingTargetPart']['partExtensionHasUppercase']);
+        $t->same(true, $png['largestExistingTargetPart']['partExtensionWasNormalized']);
+        $t->same(hash('sha256', $upperPngBytes), $png['largestExistingTargetPart']['sha256']);
+
+        $gif = $variants['gif'];
+        $t->same(1, $gif['relationshipCount']);
+        $t->same(0, $gif['existingTargetCount']);
+        $t->same(1, $gif['missingTargetCount']);
+        $t->same(0, $gif['missingContentTypeTargetCount']);
+        $t->same(1, $gif['uppercaseTargetCount']);
+        $t->same(1, $gif['normalizedTargetCount']);
+        $t->same(['GIF' => 1], $gif['rawExtensionCounts']);
+        $t->same(['word/media/MISSING.GIF'], $gif['rawExtensionTargetParts']['GIF']);
+        $t->same(['word/media/MISSING.GIF'], $gif['missingTargetParts']);
+        $t->same(['default' => 1], $gif['contentTypeSourceCounts']);
+        $t->same(['image/gif' => 1], $gif['contentTypeBaseCounts']);
+        $t->same([$imageRel => 1], $gif['relationshipTypeCounts']);
+        $t->same(['rMissingGifCase'], $gif['relationshipIds']);
+        $t->same(null, $gif['largestExistingTargetPart']);
+    },
     'summarizes docx relationship target part extension rollups for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';

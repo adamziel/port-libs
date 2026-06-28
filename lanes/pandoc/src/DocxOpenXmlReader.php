@@ -15135,6 +15135,33 @@ final class DocxOpenXmlReader
         ksort($relationshipTargetPartExtensionCounts, SORT_STRING);
         ksort($relationshipTargetExistingPartExtensionCounts, SORT_STRING);
         ksort($relationshipTargetMissingPartExtensionCounts, SORT_STRING);
+        $relationshipTargetRawExtensionCaseVariants = $this->relationshipTargetRawExtensionCaseVariantSummary(
+            $relationshipParts,
+            $partInventory,
+        );
+        $relationshipTargetRawExtensionCaseVariantCounts = [];
+        $relationshipTargetRawExtensionCaseVariantExtensions = [];
+        $relationshipTargetRawExtensionUppercaseTargetCount = 0;
+        $relationshipTargetRawExtensionNormalizedTargetCount = 0;
+        $relationshipTargetRawExtensionCaseVariantTargetCount = 0;
+        foreach ($relationshipTargetRawExtensionCaseVariants as $rawExtensionCaseVariant) {
+            $extension = is_string($rawExtensionCaseVariant['extension'] ?? null)
+                ? $rawExtensionCaseVariant['extension']
+                : '';
+            if ($extension !== '') {
+                $relationshipTargetRawExtensionCaseVariantExtensions[] = $extension;
+                $relationshipTargetRawExtensionCaseVariantCounts[$extension] =
+                    (int) ($rawExtensionCaseVariant['relationshipCount'] ?? 0);
+            }
+            $relationshipTargetRawExtensionUppercaseTargetCount +=
+                (int) ($rawExtensionCaseVariant['uppercaseTargetCount'] ?? 0);
+            $relationshipTargetRawExtensionNormalizedTargetCount +=
+                (int) ($rawExtensionCaseVariant['normalizedTargetCount'] ?? 0);
+            $relationshipTargetRawExtensionCaseVariantTargetCount +=
+                (int) ($rawExtensionCaseVariant['relationshipCount'] ?? 0);
+        }
+        sort($relationshipTargetRawExtensionCaseVariantExtensions, SORT_STRING);
+        ksort($relationshipTargetRawExtensionCaseVariantCounts, SORT_STRING);
         $relationshipSourceRoles = $this->relationshipSourceRoleSummary($relationshipSources);
         $relationshipSourceRoleBucketCounts = [];
         foreach ($relationshipSourceRoles as $sourceRoleSummary) {
@@ -16164,6 +16191,13 @@ final class DocxOpenXmlReader
             'relationshipTargetPartExtensionExistingByteBucketCount' => $relationshipTargetPartExtensionExistingByteBucketCount,
             'relationshipTargetPartExtensionNonExistingBucketCount' => $relationshipTargetPartExtensionNonExistingBucketCount,
             'relationshipTargetPartExtensions' => $relationshipTargetPartExtensions,
+            'relationshipTargetRawExtensionCaseVariantCount' => count($relationshipTargetRawExtensionCaseVariants),
+            'relationshipTargetRawExtensionCaseVariantCounts' => $relationshipTargetRawExtensionCaseVariantCounts,
+            'relationshipTargetRawExtensionCaseVariantExtensions' => $relationshipTargetRawExtensionCaseVariantExtensions,
+            'relationshipTargetRawExtensionUppercaseTargetCount' => $relationshipTargetRawExtensionUppercaseTargetCount,
+            'relationshipTargetRawExtensionNormalizedTargetCount' => $relationshipTargetRawExtensionNormalizedTargetCount,
+            'relationshipTargetRawExtensionCaseVariantTargetCount' => $relationshipTargetRawExtensionCaseVariantTargetCount,
+            'relationshipTargetRawExtensionCaseVariants' => $relationshipTargetRawExtensionCaseVariants,
             'largestRelationshipSourcePart' => $largestRelationshipSourceParts[0] ?? null,
             'largestRelationshipSourceParts' => $largestRelationshipSourceParts,
             'missingContentTypePartCount' => count($partsWithoutContentType),
@@ -21587,6 +21621,253 @@ final class DocxOpenXmlReader
             sort($summary['existingTargetParts'], SORT_STRING);
             sort($summary['missingTargetParts'], SORT_STRING);
             $extensions[$extensionKey] = $summary;
+        }
+
+        return array_values($extensions);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $relationshipParts
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function relationshipTargetRawExtensionCaseVariantSummary(array $relationshipParts, array $partInventory): array
+    {
+        $variantExtensions = [];
+        foreach ($relationshipParts as $relationshipPart) {
+            foreach (($relationshipPart['relationships'] ?? []) as $relationship) {
+                if (!is_array($relationship) || ($relationship['external'] ?? false) === true) {
+                    continue;
+                }
+
+                $targetPart = is_string($relationship['targetPart'] ?? null) ? $relationship['targetPart'] : '';
+                if ($targetPart === '') {
+                    continue;
+                }
+
+                $targetInventory = is_array($partInventory[$targetPart] ?? null) ? $partInventory[$targetPart] : null;
+                $extension = $targetInventory !== null && is_string($targetInventory['partExtension'] ?? null)
+                    ? $targetInventory['partExtension']
+                    : $this->packagePartExtension($targetPart);
+                $rawExtension = $targetInventory !== null && is_string($targetInventory['rawPartExtension'] ?? null)
+                    ? $targetInventory['rawPartExtension']
+                    : $this->packagePartRawExtension($targetPart);
+                if ($extension === null || $rawExtension === null) {
+                    continue;
+                }
+
+                $hasUppercase = $targetInventory !== null
+                    ? (bool) ($targetInventory['partExtensionHasUppercase'] ?? preg_match('/[A-Z]/', $rawExtension) === 1)
+                    : preg_match('/[A-Z]/', $rawExtension) === 1;
+                $wasNormalized = $targetInventory !== null
+                    ? (bool) ($targetInventory['partExtensionWasNormalized'] ?? $rawExtension !== $extension)
+                    : $rawExtension !== $extension;
+                if ($hasUppercase || $wasNormalized) {
+                    $variantExtensions[$extension] = true;
+                }
+            }
+        }
+
+        $extensions = [];
+        foreach ($relationshipParts as $relationshipPart) {
+            foreach (($relationshipPart['relationships'] ?? []) as $relationship) {
+                if (!is_array($relationship) || ($relationship['external'] ?? false) === true) {
+                    continue;
+                }
+
+                $targetPart = is_string($relationship['targetPart'] ?? null) ? $relationship['targetPart'] : '';
+                if ($targetPart === '') {
+                    continue;
+                }
+
+                $targetInventory = is_array($partInventory[$targetPart] ?? null) ? $partInventory[$targetPart] : null;
+                $extension = $targetInventory !== null && is_string($targetInventory['partExtension'] ?? null)
+                    ? $targetInventory['partExtension']
+                    : $this->packagePartExtension($targetPart);
+                $rawExtension = $targetInventory !== null && is_string($targetInventory['rawPartExtension'] ?? null)
+                    ? $targetInventory['rawPartExtension']
+                    : $this->packagePartRawExtension($targetPart);
+                if ($extension === null || $rawExtension === null || !isset($variantExtensions[$extension])) {
+                    continue;
+                }
+
+                if (!isset($extensions[$extension])) {
+                    $extensions[$extension] = [
+                        'extension' => $extension,
+                        'relationshipCount' => 0,
+                        'existingTargetCount' => 0,
+                        'missingTargetCount' => 0,
+                        'missingContentTypeTargetCount' => 0,
+                        'uppercaseTargetCount' => 0,
+                        'normalizedTargetCount' => 0,
+                        'existingTargetByteLength' => 0,
+                        'rawExtensionCounts' => [],
+                        'rawExtensionTargetParts' => [],
+                        'contentTypeBaseCounts' => [],
+                        'contentTypeSourceCounts' => [],
+                        'relationshipTypeCounts' => [],
+                        'relationshipSourceKindCounts' => [],
+                        'targetRoleCounts' => [],
+                        'sourceParts' => [],
+                        'relationshipParts' => [],
+                        'relationshipIds' => [],
+                        'relationshipTypes' => [],
+                        'targetParts' => [],
+                        'existingTargetParts' => [],
+                        'missingTargetParts' => [],
+                        'contentTypes' => [],
+                        'largestExistingTargetPart' => null,
+                    ];
+                }
+
+                ++$extensions[$extension]['relationshipCount'];
+                $hasUppercase = $targetInventory !== null
+                    ? (bool) ($targetInventory['partExtensionHasUppercase'] ?? preg_match('/[A-Z]/', $rawExtension) === 1)
+                    : preg_match('/[A-Z]/', $rawExtension) === 1;
+                $wasNormalized = $targetInventory !== null
+                    ? (bool) ($targetInventory['partExtensionWasNormalized'] ?? $rawExtension !== $extension)
+                    : $rawExtension !== $extension;
+                if ($hasUppercase) {
+                    ++$extensions[$extension]['uppercaseTargetCount'];
+                }
+                if ($wasNormalized) {
+                    ++$extensions[$extension]['normalizedTargetCount'];
+                }
+
+                $exists = ($relationship['exists'] ?? false) === true;
+                if ($exists) {
+                    ++$extensions[$extension]['existingTargetCount'];
+                    $this->appendUniqueString($extensions[$extension]['existingTargetParts'], $targetPart);
+                } else {
+                    ++$extensions[$extension]['missingTargetCount'];
+                    $this->appendUniqueString($extensions[$extension]['missingTargetParts'], $targetPart);
+                }
+
+                $extensions[$extension]['rawExtensionCounts'][$rawExtension] =
+                    ($extensions[$extension]['rawExtensionCounts'][$rawExtension] ?? 0) + 1;
+                $extensions[$extension]['rawExtensionTargetParts'][$rawExtension] ??= [];
+                $this->appendUniqueString($extensions[$extension]['rawExtensionTargetParts'][$rawExtension], $targetPart);
+
+                $contentType = is_string($relationship['contentType'] ?? null) ? $relationship['contentType'] : '';
+                $contentTypeBase = is_string($relationship['contentTypeBase'] ?? null) ? $relationship['contentTypeBase'] : '';
+                $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+                $extensions[$extension]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                    ($extensions[$extension]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+
+                $contentTypeSource = is_string($relationship['contentTypeSource'] ?? null)
+                    ? $relationship['contentTypeSource']
+                    : '';
+                $contentTypeSourceKey = $contentTypeSource === '' ? 'missing' : $contentTypeSource;
+                $extensions[$extension]['contentTypeSourceCounts'][$contentTypeSourceKey] =
+                    ($extensions[$extension]['contentTypeSourceCounts'][$contentTypeSourceKey] ?? 0) + 1;
+                if ($contentTypeSourceKey === 'missing') {
+                    ++$extensions[$extension]['missingContentTypeTargetCount'];
+                }
+
+                $relationshipType = is_string($relationship['type'] ?? null) ? $relationship['type'] : '';
+                $relationshipTypeKey = $relationshipType === '' ? '(missing-type)' : $relationshipType;
+                $extensions[$extension]['relationshipTypeCounts'][$relationshipTypeKey] =
+                    ($extensions[$extension]['relationshipTypeCounts'][$relationshipTypeKey] ?? 0) + 1;
+
+                $sourceKind = is_string($relationship['relationshipSourceKind'] ?? null)
+                    ? $relationship['relationshipSourceKind']
+                    : 'invalid-source';
+                $extensions[$extension]['relationshipSourceKindCounts'][$sourceKind] =
+                    ($extensions[$extension]['relationshipSourceKindCounts'][$sourceKind] ?? 0) + 1;
+
+                $targetRoles = [];
+                if ($targetInventory !== null) {
+                    foreach (($targetInventory['roles'] ?? []) as $targetRole) {
+                        if (is_string($targetRole) && $targetRole !== '') {
+                            $targetRoles[$targetRole] = true;
+                        }
+                    }
+                }
+                if ($targetRoles === []) {
+                    $targetRoles[$exists ? 'relationship-target' : 'missing-relationship-target'] = true;
+                }
+                foreach (array_keys($targetRoles) as $targetRole) {
+                    $extensions[$extension]['targetRoleCounts'][$targetRole] =
+                        ($extensions[$extension]['targetRoleCounts'][$targetRole] ?? 0) + 1;
+                }
+
+                $this->appendUniqueString(
+                    $extensions[$extension]['sourceParts'],
+                    is_string($relationship['sourcePart'] ?? null) ? $relationship['sourcePart'] : null,
+                );
+                $this->appendUniqueString(
+                    $extensions[$extension]['relationshipParts'],
+                    is_string($relationship['relationshipsPart'] ?? null) ? $relationship['relationshipsPart'] : null,
+                );
+                $this->appendUniqueString(
+                    $extensions[$extension]['relationshipIds'],
+                    is_string($relationship['id'] ?? null) ? $relationship['id'] : null,
+                );
+                $this->appendUniqueString($extensions[$extension]['relationshipTypes'], $relationshipType);
+                $this->appendUniqueString($extensions[$extension]['targetParts'], $targetPart);
+                $this->appendUniqueString($extensions[$extension]['contentTypes'], $contentType);
+
+                if ($targetInventory === null) {
+                    continue;
+                }
+
+                $targetSummary = [
+                    'partName' => $targetPart,
+                    'directory' => is_string($targetInventory['directory'] ?? null)
+                        ? $targetInventory['directory']
+                        : $this->packagePartDirectory($targetPart),
+                    'baseName' => is_string($targetInventory['baseName'] ?? null)
+                        ? $targetInventory['baseName']
+                        : $this->packagePartBaseName($targetPart),
+                    'partExtension' => $extension,
+                    'rawPartExtension' => $rawExtension,
+                    'partExtensionHasUppercase' => $hasUppercase,
+                    'partExtensionWasNormalized' => $wasNormalized,
+                    'bytes' => (int) ($targetInventory['bytes'] ?? 0),
+                    'crc32' => is_string($targetInventory['crc32'] ?? null) ? $targetInventory['crc32'] : null,
+                    'sha256' => is_string($targetInventory['sha256'] ?? null) ? $targetInventory['sha256'] : null,
+                    'contentType' => is_string($targetInventory['contentType'] ?? null) ? $targetInventory['contentType'] : '',
+                    'contentTypeBase' => is_string($targetInventory['contentTypeBase'] ?? null) ? $targetInventory['contentTypeBase'] : '',
+                    'contentTypeSource' => is_string($targetInventory['contentTypeSource'] ?? null) ? $targetInventory['contentTypeSource'] : 'missing',
+                    'roles' => array_values(array_map('strval', $targetInventory['roles'] ?? [])),
+                ];
+                $extensions[$extension]['existingTargetByteLength'] += $targetSummary['bytes'];
+                $largestPart = $extensions[$extension]['largestExistingTargetPart'];
+                if (
+                    !is_array($largestPart)
+                    || $targetSummary['bytes'] > (int) ($largestPart['bytes'] ?? 0)
+                    || (
+                        $targetSummary['bytes'] === (int) ($largestPart['bytes'] ?? 0)
+                        && strcmp($targetSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                    )
+                ) {
+                    $extensions[$extension]['largestExistingTargetPart'] = $targetSummary;
+                }
+            }
+        }
+
+        ksort($extensions, SORT_STRING);
+        foreach ($extensions as $extension => $summary) {
+            ksort($summary['rawExtensionCounts'], SORT_STRING);
+            ksort($summary['rawExtensionTargetParts'], SORT_STRING);
+            foreach ($summary['rawExtensionTargetParts'] as &$targetParts) {
+                sort($targetParts, SORT_STRING);
+            }
+            unset($targetParts);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['relationshipTypeCounts'], SORT_STRING);
+            ksort($summary['relationshipSourceKindCounts'], SORT_STRING);
+            ksort($summary['targetRoleCounts'], SORT_STRING);
+            sort($summary['sourceParts'], SORT_STRING);
+            sort($summary['relationshipParts'], SORT_STRING);
+            sort($summary['relationshipIds'], SORT_STRING);
+            sort($summary['relationshipTypes'], SORT_STRING);
+            sort($summary['targetParts'], SORT_STRING);
+            sort($summary['existingTargetParts'], SORT_STRING);
+            sort($summary['missingTargetParts'], SORT_STRING);
+            sort($summary['contentTypes'], SORT_STRING);
+            $extensions[$extension] = $summary;
         }
 
         return array_values($extensions);
