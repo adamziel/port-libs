@@ -778,6 +778,9 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['commentsExtendedCount'] = $commentsExtended['summary']['count'];
         $packageProvenance['summary']['commentsExtendedResolvedCount'] = $commentsExtended['summary']['resolvedCount'];
         $packageProvenance['summary']['commentsExtendedThreadedCount'] = $commentsExtended['summary']['threadedCount'];
+        $packageProvenance['summary']['commentsExtendedMissingParaIdCount'] = $commentsExtended['summary']['missingParaIdCount'];
+        $packageProvenance['summary']['commentsExtendedDuplicateParaIdCount'] = $commentsExtended['summary']['duplicateParaIdCount'];
+        $packageProvenance['summary']['commentsExtendedDuplicateParaIds'] = $commentsExtended['summary']['duplicateParaIds'];
         $packageProvenance['summary']['commentsExtendedInvalidXmlCount'] = $commentsExtended['summary']['invalidXmlCount'];
         $packageProvenance['summary']['commentsExtendedIssueCount'] = $commentsExtended['summary']['issueCount'];
         $packageProvenance['summary']['commentsExtendedIssueCodes'] = $commentsExtended['summary']['issueCodes'];
@@ -35163,7 +35166,7 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{summary:array<string, mixed>, byParaId:array<string, array{paraId:string, parentParaId:?string, resolved:?bool, partName:string}>}
+     * @return array{summary:array<string, mixed>, byParaId:array<string, array<string, mixed>>}
      */
     private function readCommentsExtended(string $xml, string $partName): array
     {
@@ -35171,6 +35174,9 @@ final class DocxOpenXmlReader
             'count' => 0,
             'resolvedCount' => 0,
             'threadedCount' => 0,
+            'missingParaIdCount' => 0,
+            'duplicateParaIdCount' => 0,
+            'duplicateParaIds' => [],
             'paraIds' => [],
             'byParaId' => [],
             'items' => [],
@@ -35224,6 +35230,11 @@ final class DocxOpenXmlReader
 
         $items = [];
         $byParaId = [];
+        $paraIds = [];
+        $paraIdCounts = [];
+        $missingParaIdCount = 0;
+        $issueCount = 0;
+        $issueCodes = [];
         foreach ($root->childNodes as $comment) {
             if (!$comment instanceof \DOMElement || $comment->namespaceURI !== self::NS_W15 || $comment->localName !== 'commentEx') {
                 continue;
@@ -35231,7 +35242,7 @@ final class DocxOpenXmlReader
 
             $paraId = $this->wordExtensionAttr($comment, 'paraId');
             if ($paraId === null || $paraId === '') {
-                continue;
+                $paraId = null;
             }
 
             $parentParaId = $this->wordExtensionAttr($comment, 'paraIdParent');
@@ -35239,13 +35250,47 @@ final class DocxOpenXmlReader
                 $parentParaId = null;
             }
             $resolved = $this->onOffStringValue($this->wordExtensionAttr($comment, 'done'));
+            $issues = [];
+            if ($paraId === null) {
+                $issues[] = 'missing-para-id';
+                ++$missingParaIdCount;
+            } else {
+                $this->appendUniqueString($paraIds, $paraId);
+                $paraIdCounts[$paraId] = ($paraIdCounts[$paraId] ?? 0) + 1;
+            }
+            foreach ($issues as $issue) {
+                $this->appendUniqueString($issueCodes, $issue);
+            }
+            $issueCount += count($issues);
+
             $item = [
                 'paraId' => $paraId,
                 'parentParaId' => $parentParaId,
                 'resolved' => $resolved,
                 'partName' => $partName,
+                'issues' => $issues,
             ];
             $items[] = $item;
+            if ($paraId !== null) {
+                $byParaId[$paraId] = $item;
+            }
+        }
+
+        $duplicateParaIds = [];
+        foreach ($paraIdCounts as $paraId => $count) {
+            if ($count > 1) {
+                $duplicateParaIds[] = $paraId;
+            }
+        }
+        sort($duplicateParaIds, SORT_STRING);
+        $duplicateLookup = array_fill_keys($duplicateParaIds, true);
+        foreach ($items as &$item) {
+            $paraId = $item['paraId'];
+            $item['duplicateParaId'] = is_string($paraId) && isset($duplicateLookup[$paraId]);
+        }
+        unset($item);
+        foreach ($byParaId as $paraId => $item) {
+            $item['duplicateParaId'] = isset($duplicateLookup[$paraId]);
             $byParaId[$paraId] = $item;
         }
 
@@ -35254,7 +35299,10 @@ final class DocxOpenXmlReader
                 'count' => count($items),
                 'resolvedCount' => count(array_filter($items, static fn (array $item): bool => $item['resolved'] === true)),
                 'threadedCount' => count(array_filter($items, static fn (array $item): bool => is_string($item['parentParaId']) && $item['parentParaId'] !== '')),
-                'paraIds' => array_column($items, 'paraId'),
+                'missingParaIdCount' => $missingParaIdCount,
+                'duplicateParaIdCount' => count($duplicateParaIds),
+                'duplicateParaIds' => $duplicateParaIds,
+                'paraIds' => $paraIds,
                 'byParaId' => $byParaId,
                 'items' => $items,
                 'validXml' => true,
@@ -35263,8 +35311,8 @@ final class DocxOpenXmlReader
                 'rootLocalName' => $root->localName,
                 'validRoot' => true,
                 'invalidXmlCount' => 0,
-                'issueCount' => 0,
-                'issueCodes' => [],
+                'issueCount' => $issueCount,
+                'issueCodes' => $issueCodes,
             ],
             'byParaId' => $byParaId,
         ];
@@ -35414,7 +35462,7 @@ final class DocxOpenXmlReader
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
      * @param array<string, array{id:string, name:string, headingLevel:int|null}> $styles
      * @param array<string, array{abstractNumId:string, levels:array<int, array{format:string, text:string, start:int}>}> $numbering
-     * @param array<string, array{paraId:string, parentParaId:?string, resolved:?bool, partName:string}> $commentsExtended
+     * @param array<string, array<string, mixed>> $commentsExtended
      * @param array<string, array<string, mixed>> $commentsIds
      * @param array<string, mixed> $people
      * @return array{summary:array<string, mixed>, nodes:array<string, AstNode>}
@@ -36688,7 +36736,7 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @param array<string, array{paraId:string, parentParaId:?string, resolved:?bool, partName:string}> $commentsExtended
+     * @param array<string, array<string, mixed>> $commentsExtended
      * @param array<string, array<string, mixed>> $commentsIds
      * @return array<string, mixed>
      */
