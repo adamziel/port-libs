@@ -15484,6 +15484,9 @@ final class XmlHtmlDom
         if ($metadataName === 'color-scheme') {
             $summary += self::metaColorSchemeSummary($content);
         }
+        if ($metadataName === 'viewport') {
+            $summary += self::metaViewportSummary($content);
+        }
         if ($httpEquiv === 'refresh') {
             $summary['refresh'] = self::metaRefreshSummary($content);
         }
@@ -16136,6 +16139,378 @@ final class XmlHtmlDom
             ))),
             'valid' => $issues === [],
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function metaViewportSummary(?string $content): array
+    {
+        $directives = [];
+        $names = [];
+        $nameCounts = [];
+        $valuesByName = [];
+        $unknown = [];
+        $issues = [];
+        $lastKnownValues = [];
+
+        if ($content === null) {
+            $issues[] = ['code' => 'missing-meta-viewport-content'];
+        } elseif (trim($content) === '') {
+            $issues[] = ['code' => 'empty-meta-viewport-content'];
+        } else {
+            foreach (explode(',', $content) as $index => $part) {
+                $record = self::metaViewportDirectiveRecord($part, $index);
+                $name = $record['name'];
+
+                if (is_string($name) && $name !== '') {
+                    if (!isset($nameCounts[$name])) {
+                        $names[] = $name;
+                        $nameCounts[$name] = 0;
+                    }
+                    ++$nameCounts[$name];
+                    $valuesByName[$name][] = $record['value'];
+
+                    if ($record['known'] === false && $record['validName'] === true && !in_array($name, $unknown, true)) {
+                        $unknown[] = $name;
+                    }
+
+                    if ($record['known'] === true && $record['valueValid'] === true) {
+                        $lastKnownValues[$name] = $record;
+                    }
+                }
+
+                foreach ($record['issues'] as $issue) {
+                    $issues[] = $issue;
+                }
+
+                $directives[] = $record;
+            }
+        }
+
+        $duplicates = array_values(array_filter(
+            $names,
+            static fn (string $name): bool => ($nameCounts[$name] ?? 0) > 1
+        ));
+        if ($duplicates !== []) {
+            foreach ($duplicates as $name) {
+                $issues[] = [
+                    'code' => 'duplicate-meta-viewport-directive',
+                    'directive' => $name,
+                    'count' => $nameCounts[$name] ?? 0,
+                ];
+            }
+            foreach ($directives as &$directive) {
+                if (is_string($directive['name']) && in_array($directive['name'], $duplicates, true)) {
+                    $directive['issues'][] = [
+                        'code' => 'duplicate-meta-viewport-directive',
+                        'directive' => $directive['name'],
+                        'count' => $nameCounts[$directive['name']] ?? 0,
+                    ];
+                    $directive['duplicate'] = true;
+                    $directive['valid'] = false;
+                    $directive['issueCodes'][] = 'duplicate-meta-viewport-directive';
+                }
+            }
+            unset($directive);
+        }
+
+        return [
+            'metaViewportReviewPolicy' => 'meta-viewport-layout-intent-review',
+            'metaViewportRaw' => $content,
+            'metaViewportDirectiveCount' => count($directives),
+            'metaViewportDirectives' => $directives,
+            'metaViewportDirectiveNames' => $names,
+            'metaViewportDirectiveNameCounts' => $nameCounts,
+            'metaViewportDirectiveValues' => $valuesByName,
+            'duplicateMetaViewportDirectives' => $duplicates,
+            'unknownMetaViewportDirectives' => $unknown,
+            'metaViewportWidth' => $lastKnownValues['width']['normalizedValue'] ?? null,
+            'metaViewportWidthKind' => $lastKnownValues['width']['valueKind'] ?? null,
+            'metaViewportHeight' => $lastKnownValues['height']['normalizedValue'] ?? null,
+            'metaViewportHeightKind' => $lastKnownValues['height']['valueKind'] ?? null,
+            'metaViewportInitialScale' => $lastKnownValues['initial-scale']['numericValue'] ?? null,
+            'metaViewportMinimumScale' => $lastKnownValues['minimum-scale']['numericValue'] ?? null,
+            'metaViewportMaximumScale' => $lastKnownValues['maximum-scale']['numericValue'] ?? null,
+            'metaViewportUserScalable' => $lastKnownValues['user-scalable']['booleanValue'] ?? null,
+            'metaViewportUserScalableToken' => $lastKnownValues['user-scalable']['normalizedValue'] ?? null,
+            'metaViewportFit' => $lastKnownValues['viewport-fit']['normalizedValue'] ?? null,
+            'metaViewportInteractiveWidget' => $lastKnownValues['interactive-widget']['normalizedValue'] ?? null,
+            'metaViewportBrowserLayoutEvaluation' => false,
+            'metaViewportIssues' => $issues,
+            'metaViewportIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'metaViewportValid' => $issues === [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function metaViewportDirectiveRecord(string $rawPart, int $index): array
+    {
+        $raw = trim($rawPart);
+        $hasAssignment = str_contains($raw, '=');
+        [$nameRaw, $valueRaw] = $hasAssignment ? array_map('trim', explode('=', $raw, 2)) : [$raw, null];
+        $name = $nameRaw === '' ? null : strtolower($nameRaw);
+        $value = $valueRaw === null ? null : trim($valueRaw);
+        $known = $name !== null && in_array($name, [
+            'height',
+            'initial-scale',
+            'interactive-widget',
+            'maximum-scale',
+            'minimum-scale',
+            'user-scalable',
+            'viewport-fit',
+            'width',
+        ], true);
+        $nameValid = $nameRaw !== '' && self::isSafeMetaViewportDirectiveName($nameRaw);
+        $valueSafe = $value === null || self::isSafeMetaViewportDirectiveValue($value);
+        $issues = [];
+
+        if ($raw === '') {
+            $issues[] = ['code' => 'empty-meta-viewport-directive', 'index' => $index];
+        } elseif (!$hasAssignment) {
+            $issues[] = [
+                'code' => 'malformed-meta-viewport-directive',
+                'directiveRaw' => $raw,
+                'index' => $index,
+            ];
+        }
+        if ($nameRaw === '') {
+            $issues[] = ['code' => 'empty-meta-viewport-directive-name', 'index' => $index];
+        } elseif (!$nameValid) {
+            $issues[] = [
+                'code' => 'invalid-meta-viewport-directive-name',
+                'directiveNameRaw' => $nameRaw,
+                'index' => $index,
+            ];
+        } elseif (!$known) {
+            $issues[] = [
+                'code' => 'unknown-meta-viewport-directive',
+                'directive' => $name,
+                'index' => $index,
+            ];
+        }
+        if ($hasAssignment && ($value === null || $value === '')) {
+            $issues[] = [
+                'code' => 'empty-meta-viewport-directive-value',
+                'directive' => $name,
+                'index' => $index,
+            ];
+        } elseif ($valueSafe === false) {
+            $issues[] = [
+                'code' => 'unsafe-meta-viewport-directive-value',
+                'directive' => $name,
+                'valueRaw' => $value,
+                'index' => $index,
+            ];
+        }
+
+        $valueSummary = [
+            'valueKind' => null,
+            'normalizedValue' => $value,
+            'numericValue' => null,
+            'booleanValue' => null,
+            'valueValid' => $value !== null && $value !== '' && $valueSafe,
+            'issues' => [],
+        ];
+        if ($known && $value !== null && $value !== '' && $valueSafe) {
+            $valueSummary = self::metaViewportKnownDirectiveValueSummary($name ?? '', $value);
+            foreach ($valueSummary['issues'] as $issue) {
+                $issues[] = $issue + ['directive' => $name, 'index' => $index];
+            }
+        }
+
+        return [
+            'index' => $index,
+            'raw' => $raw,
+            'nameRaw' => $nameRaw,
+            'name' => $name,
+            'valueRaw' => $valueRaw,
+            'value' => $value,
+            'known' => $known,
+            'validName' => $nameValid,
+            'valueSafe' => $valueSafe,
+            'valueKind' => $valueSummary['valueKind'],
+            'normalizedValue' => $valueSummary['normalizedValue'],
+            'numericValue' => $valueSummary['numericValue'],
+            'booleanValue' => $valueSummary['booleanValue'],
+            'valueValid' => $valueSummary['valueValid'],
+            'duplicate' => false,
+            'issues' => $issues,
+            'issueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'valid' => $issues === [],
+        ];
+    }
+
+    /**
+     * @return array{valueKind:?string, normalizedValue:?string, numericValue:?float, booleanValue:?bool, valueValid:bool, issues:list<array<string, mixed>>}
+     */
+    private static function metaViewportKnownDirectiveValueSummary(string $name, string $value): array
+    {
+        if ($name === 'width' || $name === 'height') {
+            $allowedDevice = $name === 'width' ? 'device-width' : 'device-height';
+
+            return self::metaViewportDimensionValueSummary($value, $name, $allowedDevice);
+        }
+
+        if (in_array($name, ['initial-scale', 'minimum-scale', 'maximum-scale'], true)) {
+            return self::metaViewportScaleValueSummary($value, $name);
+        }
+
+        if ($name === 'user-scalable') {
+            $normalized = strtolower($value);
+            if (in_array($normalized, ['yes', '1'], true)) {
+                return [
+                    'valueKind' => 'keyword',
+                    'normalizedValue' => 'yes',
+                    'numericValue' => null,
+                    'booleanValue' => true,
+                    'valueValid' => true,
+                    'issues' => [],
+                ];
+            }
+            if (in_array($normalized, ['no', '0'], true)) {
+                return [
+                    'valueKind' => 'keyword',
+                    'normalizedValue' => 'no',
+                    'numericValue' => null,
+                    'booleanValue' => false,
+                    'valueValid' => true,
+                    'issues' => [],
+                ];
+            }
+
+            return self::invalidMetaViewportValueSummary($value, 'invalid-meta-viewport-user-scalable');
+        }
+
+        if ($name === 'viewport-fit') {
+            return self::metaViewportKeywordValueSummary($value, ['auto', 'contain', 'cover'], 'invalid-meta-viewport-fit');
+        }
+
+        if ($name === 'interactive-widget') {
+            return self::metaViewportKeywordValueSummary(
+                $value,
+                ['resizes-visual', 'resizes-content', 'overlays-content'],
+                'invalid-meta-viewport-interactive-widget'
+            );
+        }
+
+        return [
+            'valueKind' => null,
+            'normalizedValue' => $value,
+            'numericValue' => null,
+            'booleanValue' => null,
+            'valueValid' => true,
+            'issues' => [],
+        ];
+    }
+
+    /**
+     * @return array{valueKind:?string, normalizedValue:?string, numericValue:?float, booleanValue:?bool, valueValid:bool, issues:list<array<string, mixed>>}
+     */
+    private static function metaViewportDimensionValueSummary(string $value, string $name, string $allowedDevice): array
+    {
+        $normalized = strtolower($value);
+        if ($normalized === $allowedDevice) {
+            return [
+                'valueKind' => 'device',
+                'normalizedValue' => $normalized,
+                'numericValue' => null,
+                'booleanValue' => null,
+                'valueValid' => true,
+                'issues' => [],
+            ];
+        }
+        if (preg_match('/^[0-9]+$/', $value) === 1) {
+            $number = (int) $value;
+            if ($number >= 1 && $number <= 10000) {
+                return [
+                    'valueKind' => 'integer',
+                    'normalizedValue' => (string) $number,
+                    'numericValue' => (float) $number,
+                    'booleanValue' => null,
+                    'valueValid' => true,
+                    'issues' => [],
+                ];
+            }
+        }
+
+        return self::invalidMetaViewportValueSummary($value, 'invalid-meta-viewport-' . $name);
+    }
+
+    /**
+     * @return array{valueKind:?string, normalizedValue:?string, numericValue:?float, booleanValue:?bool, valueValid:bool, issues:list<array<string, mixed>>}
+     */
+    private static function metaViewportScaleValueSummary(string $value, string $name): array
+    {
+        if (preg_match('/^[0-9]+(?:\.[0-9]+)?$/', $value) === 1) {
+            $number = (float) $value;
+            if (is_finite($number) && $number > 0.0) {
+                return [
+                    'valueKind' => 'number',
+                    'normalizedValue' => rtrim(rtrim(sprintf('%.6F', $number), '0'), '.'),
+                    'numericValue' => $number,
+                    'booleanValue' => null,
+                    'valueValid' => true,
+                    'issues' => [],
+                ];
+            }
+        }
+
+        return self::invalidMetaViewportValueSummary($value, 'invalid-meta-viewport-' . $name);
+    }
+
+    /**
+     * @param list<string> $allowed
+     * @return array{valueKind:?string, normalizedValue:?string, numericValue:?float, booleanValue:?bool, valueValid:bool, issues:list<array<string, mixed>>}
+     */
+    private static function metaViewportKeywordValueSummary(string $value, array $allowed, string $issueCode): array
+    {
+        $normalized = strtolower($value);
+        if (in_array($normalized, $allowed, true)) {
+            return [
+                'valueKind' => 'keyword',
+                'normalizedValue' => $normalized,
+                'numericValue' => null,
+                'booleanValue' => null,
+                'valueValid' => true,
+                'issues' => [],
+            ];
+        }
+
+        return self::invalidMetaViewportValueSummary($value, $issueCode);
+    }
+
+    /**
+     * @return array{valueKind:?string, normalizedValue:?string, numericValue:?float, booleanValue:?bool, valueValid:bool, issues:list<array<string, mixed>>}
+     */
+    private static function invalidMetaViewportValueSummary(string $value, string $issueCode): array
+    {
+        return [
+            'valueKind' => 'invalid',
+            'normalizedValue' => $value,
+            'numericValue' => null,
+            'booleanValue' => null,
+            'valueValid' => false,
+            'issues' => [['code' => $issueCode, 'valueRaw' => $value]],
+        ];
+    }
+
+    private static function isSafeMetaViewportDirectiveName(string $name): bool
+    {
+        return preg_match('/^[A-Za-z][A-Za-z0-9_-]*$/', $name) === 1;
+    }
+
+    private static function isSafeMetaViewportDirectiveValue(string $value): bool
+    {
+        return preg_match('/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}<>"`]|url\s*\(|expression\s*\(|javascript\s*:/iu', $value) !== 1;
     }
 
     /**
