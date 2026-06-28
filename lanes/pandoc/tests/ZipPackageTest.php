@@ -10860,6 +10860,153 @@ return [
         $t->same('blocked', $summary['entries'][4]['status']);
     },
 
+    'summarizes selected zip handoff general purpose flags before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>flag handoff descriptor</w:p></w:body></w:document>';
+        $relsXml = '<Relationships><Relationship Id="rIdMedia" Target="media/image.png"/></Relationships>';
+        $imageBytes = "flagged image bytes\n";
+        $largeBytes = "blocked flag bytes\n";
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+                'flags' => 0x0806,
+                'descriptor' => true,
+            ],
+            [
+                'name' => 'word/_rels/document.xml.rels',
+                'data' => $relsXml,
+                'method' => 0,
+                'flags' => 0,
+            ],
+            [
+                'name' => 'word/media/image.png',
+                'data' => $imageBytes,
+                'method' => 0,
+                'flags' => 0x0800,
+            ],
+            [
+                'name' => 'word/media/large.bin',
+                'data' => $largeBytes,
+                'method' => 8,
+                'flags' => 0x0802,
+            ],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/_rels/document.xml.rels', 'required' => false, 'kind' => 'file', 'role' => 'document-relationships'],
+            ['name' => 'word/media/image.png', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'word/media/large.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 8],
+            ['name' => 'word/missing.xml', 'required' => false, 'kind' => 'file', 'role' => 'optional-sidecar'],
+        ], 1024);
+
+        $selectedByFlags = [];
+        foreach ($summary['selectedGeneralPurposeFlagSummaries'] as $flagSummary) {
+            $selectedByFlags[$flagSummary['generalPurposeFlagsHex']] = $flagSummary;
+        }
+        $handoffByFlags = [];
+        foreach ($summary['handoffGeneralPurposeFlagSummaries'] as $flagSummary) {
+            $handoffByFlags[$flagSummary['generalPurposeFlagsHex']] = $flagSummary;
+        }
+
+        $t->same(4, $summary['selectedUniqueEntryCount']);
+        $t->same(4, $summary['selectedGeneralPurposeFlagBucketCount']);
+        $t->same(3, $summary['selectedUtf8NameFlagEntryCount']);
+        $t->same(1, $summary['selectedDataDescriptorFlagEntryCount']);
+        $t->same(2, $summary['selectedDeflateOptionFlagEntryCount']);
+        $t->same(2, $summary['selectedGeneralPurposeFlagReviewEntryCount']);
+        $t->same(0, $summary['selectedUnsupportedGeneralPurposeFlagEntryCount']);
+        $t->same(2, $summary['selectedGeneralPurposeFlagIssueCount']);
+        $t->same(['data-descriptor-entry', 'deflate-option-flags'], $summary['selectedGeneralPurposeFlagIssues']);
+        $t->same(['0x0000', '0x0800', '0x0802', '0x080e'], array_keys($selectedByFlags));
+
+        $documentCompressed = strlen(gzdeflate($documentXml));
+        $largeCompressed = strlen(gzdeflate($largeBytes));
+        $t->same([
+            'generalPurposeFlags' => 0x080e,
+            'generalPurposeFlagsHex' => '0x080e',
+            'flagNames' => ['deflate-super-fast', 'data-descriptor', 'utf-8-names'],
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => $documentCompressed,
+            'uncompressedBytes' => strlen($documentXml),
+            'roles' => ['main-document'],
+            'entryNames' => ['word/document.xml'],
+            'unsupportedFlagBits' => 0,
+            'unsupportedFlagBitsHex' => '0x0000',
+            'isSupportedByReader' => true,
+            'usesUtf8Names' => true,
+            'usesDataDescriptor' => true,
+            'deflateOptionFlags' => 0x0006,
+            'deflateOptionName' => 'deflate-super-fast',
+            'requiresStrictReview' => true,
+            'issues' => ['data-descriptor-entry', 'deflate-option-flags'],
+        ], $selectedByFlags['0x080e']);
+        $t->same([
+            'generalPurposeFlags' => 0x0802,
+            'generalPurposeFlagsHex' => '0x0802',
+            'flagNames' => ['deflate-maximum-compression', 'utf-8-names'],
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => $largeCompressed,
+            'uncompressedBytes' => strlen($largeBytes),
+            'roles' => ['media'],
+            'entryNames' => ['word/media/large.bin'],
+            'unsupportedFlagBits' => 0,
+            'unsupportedFlagBitsHex' => '0x0000',
+            'isSupportedByReader' => true,
+            'usesUtf8Names' => true,
+            'usesDataDescriptor' => false,
+            'deflateOptionFlags' => 0x0002,
+            'deflateOptionName' => 'deflate-maximum-compression',
+            'requiresStrictReview' => true,
+            'issues' => ['deflate-option-flags'],
+        ], $selectedByFlags['0x0802']);
+
+        $t->same(3, $summary['handoffEntryCount']);
+        $t->same(3, $summary['handoffGeneralPurposeFlagBucketCount']);
+        $t->same(2, $summary['handoffUtf8NameFlagEntryCount']);
+        $t->same(1, $summary['handoffDataDescriptorFlagEntryCount']);
+        $t->same(1, $summary['handoffDeflateOptionFlagEntryCount']);
+        $t->same(1, $summary['handoffGeneralPurposeFlagReviewEntryCount']);
+        $t->same(0, $summary['handoffUnsupportedGeneralPurposeFlagEntryCount']);
+        $t->same(2, $summary['handoffGeneralPurposeFlagIssueCount']);
+        $t->same(['data-descriptor-entry', 'deflate-option-flags'], $summary['handoffGeneralPurposeFlagIssues']);
+        $t->same(['0x0000', '0x0800', '0x080e'], array_keys($handoffByFlags));
+        $t->same($selectedByFlags['0x080e'], $handoffByFlags['0x080e']);
+        $t->same(false, isset($handoffByFlags['0x0802']));
+
+        $reviewNames = array_map(
+            static fn (array $entry): string => $entry['name'],
+            $summary['selectedGeneralPurposeFlagReviewEntries']
+        );
+        $handoffReviewNames = array_map(
+            static fn (array $entry): string => $entry['name'],
+            $summary['handoffGeneralPurposeFlagReviewEntries']
+        );
+        $t->same(['word/document.xml', 'word/media/large.bin'], $reviewNames);
+        $t->same(['word/document.xml'], $handoffReviewNames);
+        $t->same([], $summary['selectedUnsupportedGeneralPurposeFlagEntries']);
+        $t->same([], $summary['handoffUnsupportedGeneralPurposeFlagEntries']);
+
+        $documentEntry = $summary['entries'][0];
+        $largeEntry = $summary['entries'][3];
+        $t->same(0x080e, $documentEntry['centralGeneralPurposeFlags']);
+        $t->same(0x080e, $documentEntry['localGeneralPurposeFlags']);
+        $t->same(true, $documentEntry['usesDataDescriptor']);
+        $t->same('ready', $documentEntry['status']);
+        $t->same(hash('sha256', $documentXml), $documentEntry['contentSha256']);
+        $t->same(0x0802, $largeEntry['centralGeneralPurposeFlags']);
+        $t->same('blocked', $largeEntry['status']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $largeEntry['issues']);
+        $t->same(null, $largeEntry['contentSha256']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
+    },
+
     'preflights selected zip entry raw name provenance before reader handoff' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
         $documentXml = '<w:document><w:body><w:p>selected raw name provenance</w:p></w:body></w:document>';
         $unicodeRawName = 'word/media/review-image.bin';

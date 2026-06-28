@@ -5137,6 +5137,13 @@ final class ZipPackage
      *     selectedTimestampIssueEntryCount:int,
      *     selectedTimestampIssueCount:int,
      *     selectedTimestampSourceSummaryCount:int,
+     *     selectedGeneralPurposeFlagBucketCount:int,
+     *     selectedUtf8NameFlagEntryCount:int,
+     *     selectedDataDescriptorFlagEntryCount:int,
+     *     selectedDeflateOptionFlagEntryCount:int,
+     *     selectedGeneralPurposeFlagReviewEntryCount:int,
+     *     selectedUnsupportedGeneralPurposeFlagEntryCount:int,
+     *     selectedGeneralPurposeFlagIssueCount:int,
      *     handoffTimestampProvenanceEntryCount:int,
      *     handoffTimestampEntryCount:int,
      *     handoffDosTimestampEntryCount:int,
@@ -5167,6 +5174,13 @@ final class ZipPackage
      *     handoffCrc32ZeroEntryCount:int,
      *     handoffCrc32IssueEntryCount:int,
      *     handoffCrc32IssueCount:int,
+     *     handoffGeneralPurposeFlagBucketCount:int,
+     *     handoffUtf8NameFlagEntryCount:int,
+     *     handoffDataDescriptorFlagEntryCount:int,
+     *     handoffDeflateOptionFlagEntryCount:int,
+     *     handoffGeneralPurposeFlagReviewEntryCount:int,
+     *     handoffUnsupportedGeneralPurposeFlagEntryCount:int,
+     *     handoffGeneralPurposeFlagIssueCount:int,
      *     maxEntryUncompressedBytes:?int,
      *     maxTotalUncompressedBytes:?int,
      *     isSupportedByBoundedReader:bool,
@@ -5242,6 +5256,14 @@ final class ZipPackage
      *     handoffCrc32ManifestSha256:string,
      *     selectedCrc32Entries:list<array<string, mixed>>,
      *     handoffCrc32Entries:list<array<string, mixed>>,
+     *     selectedGeneralPurposeFlagIssues:list<string>,
+     *     handoffGeneralPurposeFlagIssues:list<string>,
+     *     selectedGeneralPurposeFlagSummaries:list<array<string, mixed>>,
+     *     handoffGeneralPurposeFlagSummaries:list<array<string, mixed>>,
+     *     selectedGeneralPurposeFlagReviewEntries:list<array<string, mixed>>,
+     *     handoffGeneralPurposeFlagReviewEntries:list<array<string, mixed>>,
+     *     selectedUnsupportedGeneralPurposeFlagEntries:list<array<string, mixed>>,
+     *     handoffUnsupportedGeneralPurposeFlagEntries:list<array<string, mixed>>,
      *     selectedDataDescriptorProvenanceEntries:list<array<string, mixed>>,
      *     selectedDataDescriptorIssueEntries:list<array<string, mixed>>,
      *     missingEntries:list<array<string, mixed>>,
@@ -5477,6 +5499,9 @@ final class ZipPackage
                 'versionMadeBy' => $entry->versionMadeBy,
                 'versionNeededToExtract' => $entry->neededToExtractVersion(),
                 'creatorVersionMeetsNeeded' => $entry->madeByVersion() >= $entry->neededToExtractVersion(),
+                'generalPurposeFlags' => $entry->generalPurposeFlags,
+                'centralGeneralPurposeFlags' => $entry->generalPurposeFlags,
+                'localGeneralPurposeFlags' => $localHeader['generalPurposeFlags'],
                 'compressedSize' => $entry->compressedSize,
                 'uncompressedSize' => $entry->uncompressedSize,
             ] + self::entryPlatformMetadataHandoffProvenance($entry->name);
@@ -6267,6 +6292,8 @@ final class ZipPackage
         $handoffNameHygieneIssues = self::entryHandoffNameHygieneIssues($handoffNameHygieneIssueSummaries);
         $selectedTimestampSummary = self::entryHandoffTimestampSummary($selectedTimestampSummaryEntries);
         $handoffTimestampSummary = self::entryHandoffTimestampSummary($handoffEntries);
+        $selectedGeneralPurposeFlagSummary = self::entryHandoffGeneralPurposeFlagSummary($selectedDirectoryRootSummaryEntries);
+        $handoffGeneralPurposeFlagSummary = self::entryHandoffGeneralPurposeFlagSummary($handoffEntries);
         $selectedCreatorHostSystemSummaries = self::entryHandoffCreatorHostSystemSummaries($selectedDirectoryRootSummaryEntries);
         $handoffCreatorHostSystemSummaries = self::entryHandoffCreatorHostSystemSummaries($handoffEntries);
         $selectedCreatorHostSystemIssues = self::entryHandoffCreatorHostSystemIssues($selectedCreatorHostSystemSummaries);
@@ -6458,6 +6485,13 @@ final class ZipPackage
             'selectedTimestampIssueEntryCount' => $selectedTimestampSummary['issueEntryCount'],
             'selectedTimestampIssueCount' => count($selectedTimestampSummary['issues']),
             'selectedTimestampSourceSummaryCount' => count($selectedTimestampSummary['sourceSummaries']),
+            'selectedGeneralPurposeFlagBucketCount' => count($selectedGeneralPurposeFlagSummary['flagSummaries']),
+            'selectedUtf8NameFlagEntryCount' => $selectedGeneralPurposeFlagSummary['utf8NameEntryCount'],
+            'selectedDataDescriptorFlagEntryCount' => $selectedGeneralPurposeFlagSummary['dataDescriptorEntryCount'],
+            'selectedDeflateOptionFlagEntryCount' => $selectedGeneralPurposeFlagSummary['deflateOptionEntryCount'],
+            'selectedGeneralPurposeFlagReviewEntryCount' => count($selectedGeneralPurposeFlagSummary['reviewEntries']),
+            'selectedUnsupportedGeneralPurposeFlagEntryCount' => count($selectedGeneralPurposeFlagSummary['unsupportedEntries']),
+            'selectedGeneralPurposeFlagIssueCount' => count($selectedGeneralPurposeFlagSummary['issues']),
             'handoffTimestampProvenanceEntryCount' => $handoffTimestampSummary['provenanceEntryCount'],
             'handoffTimestampEntryCount' => $handoffTimestampSummary['timestampEntryCount'],
             'handoffDosTimestampEntryCount' => $handoffTimestampSummary['dosTimestampEntryCount'],
@@ -6500,6 +6534,13 @@ final class ZipPackage
             'handoffCrc32BytesRead' => $handoffCrc32Summary['bytesRead'],
             'handoffCrc32ManifestVersion' => $handoffCrc32Summary['manifestVersion'],
             'handoffCrc32ManifestSha256' => $handoffCrc32Summary['manifestSha256'],
+            'handoffGeneralPurposeFlagBucketCount' => count($handoffGeneralPurposeFlagSummary['flagSummaries']),
+            'handoffUtf8NameFlagEntryCount' => $handoffGeneralPurposeFlagSummary['utf8NameEntryCount'],
+            'handoffDataDescriptorFlagEntryCount' => $handoffGeneralPurposeFlagSummary['dataDescriptorEntryCount'],
+            'handoffDeflateOptionFlagEntryCount' => $handoffGeneralPurposeFlagSummary['deflateOptionEntryCount'],
+            'handoffGeneralPurposeFlagReviewEntryCount' => count($handoffGeneralPurposeFlagSummary['reviewEntries']),
+            'handoffUnsupportedGeneralPurposeFlagEntryCount' => count($handoffGeneralPurposeFlagSummary['unsupportedEntries']),
+            'handoffGeneralPurposeFlagIssueCount' => count($handoffGeneralPurposeFlagSummary['issues']),
             'selectedDataDescriptorEntryCount' => $selectedDataDescriptorEntryCount,
             'selectedSignedDataDescriptorEntryCount' => $selectedSignedDataDescriptorEntryCount,
             'selectedUnsignedDataDescriptorEntryCount' => $selectedUnsignedDataDescriptorEntryCount,
@@ -6651,6 +6692,14 @@ final class ZipPackage
             'handoffCrc32ProvenanceEntries' => $handoffCrc32Summary['provenanceEntries'],
             'selectedCrc32IssueEntries' => $selectedCrc32Summary['issueEntries'],
             'handoffCrc32IssueEntries' => $handoffCrc32Summary['issueEntries'],
+            'selectedGeneralPurposeFlagIssues' => $selectedGeneralPurposeFlagSummary['issues'],
+            'handoffGeneralPurposeFlagIssues' => $handoffGeneralPurposeFlagSummary['issues'],
+            'selectedGeneralPurposeFlagSummaries' => $selectedGeneralPurposeFlagSummary['flagSummaries'],
+            'handoffGeneralPurposeFlagSummaries' => $handoffGeneralPurposeFlagSummary['flagSummaries'],
+            'selectedGeneralPurposeFlagReviewEntries' => $selectedGeneralPurposeFlagSummary['reviewEntries'],
+            'handoffGeneralPurposeFlagReviewEntries' => $handoffGeneralPurposeFlagSummary['reviewEntries'],
+            'selectedUnsupportedGeneralPurposeFlagEntries' => $selectedGeneralPurposeFlagSummary['unsupportedEntries'],
+            'handoffUnsupportedGeneralPurposeFlagEntries' => $handoffGeneralPurposeFlagSummary['unsupportedEntries'],
             'selectedDataDescriptorProvenanceEntries' => $selectedDataDescriptorProvenanceEntries,
             'selectedDataDescriptorIssueEntries' => $selectedDataDescriptorIssueEntries,
             'handoffDataDescriptorProvenanceEntries' => $handoffDataDescriptorSummary['provenanceEntries'],
@@ -6802,6 +6851,172 @@ final class ZipPackage
             'centralDirectoryFixedFieldsMatchEntryMetadata',
             'centralDirectoryFixedFieldIssues',
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array{entryCount:int, supportedEntryCount:int, utf8NameEntryCount:int, dataDescriptorEntryCount:int, deflateOptionEntryCount:int, issues:list<string>, flagSummaries:list<array<string, mixed>>, reviewEntries:list<array<string, mixed>>, unsupportedEntries:list<array<string, mixed>>}
+     */
+    private static function entryHandoffGeneralPurposeFlagSummary(array $entries): array
+    {
+        $flagSummaries = [];
+        $reviewEntries = [];
+        $unsupportedEntries = [];
+        $issues = [];
+        $entryCount = 0;
+        $supportedEntryCount = 0;
+        $utf8NameEntryCount = 0;
+        $dataDescriptorEntryCount = 0;
+        $deflateOptionEntryCount = 0;
+
+        foreach ($entries as $entry) {
+            $flags = self::entryHandoffGeneralPurposeFlags($entry);
+            if ($flags === null) {
+                continue;
+            }
+
+            $entryCount++;
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $unsupportedFlagBits = $flags & ~self::SUPPORTED_GENERAL_PURPOSE_FLAGS;
+            $usesUtf8Names = ($flags & self::UTF8_GENERAL_PURPOSE_FLAG) !== 0;
+            $usesDataDescriptor = ($flags & 0x0008) !== 0;
+            $deflateOptionFlags = $flags & self::DEFLATE_OPTION_GENERAL_PURPOSE_FLAGS;
+            $deflateOptionName = self::deflateOptionFlagName($deflateOptionFlags);
+            $requiresStrictReview = $unsupportedFlagBits !== 0 || $usesDataDescriptor || $deflateOptionFlags !== 0;
+            $entryIssues = [];
+
+            if ($unsupportedFlagBits !== 0) {
+                $entryIssues[] = 'unsupported-general-purpose-flags';
+            }
+            if ($usesDataDescriptor) {
+                $entryIssues[] = 'data-descriptor-entry';
+            }
+            if ($deflateOptionFlags !== 0) {
+                $entryIssues[] = 'deflate-option-flags';
+            }
+            foreach ($entryIssues as $entryIssue) {
+                self::appendUniqueIssue($issues, $entryIssue);
+            }
+
+            if ($unsupportedFlagBits === 0) {
+                $supportedEntryCount++;
+            }
+            if ($usesUtf8Names) {
+                $utf8NameEntryCount++;
+            }
+            if ($usesDataDescriptor) {
+                $dataDescriptorEntryCount++;
+            }
+            if ($deflateOptionFlags !== 0) {
+                $deflateOptionEntryCount++;
+            }
+
+            $flagKey = sprintf('%04x', $flags);
+            if (!isset($flagSummaries[$flagKey])) {
+                $flagSummaries[$flagKey] = [
+                    'generalPurposeFlags' => $flags,
+                    'generalPurposeFlagsHex' => sprintf('0x%04x', $flags),
+                    'flagNames' => self::generalPurposeFlagNames($flags),
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'roles' => [],
+                    'entryNames' => [],
+                    'unsupportedFlagBits' => $unsupportedFlagBits,
+                    'unsupportedFlagBitsHex' => sprintf('0x%04x', $unsupportedFlagBits),
+                    'isSupportedByReader' => $unsupportedFlagBits === 0,
+                    'usesUtf8Names' => $usesUtf8Names,
+                    'usesDataDescriptor' => $usesDataDescriptor,
+                    'deflateOptionFlags' => $deflateOptionFlags,
+                    'deflateOptionName' => $deflateOptionName,
+                    'requiresStrictReview' => $requiresStrictReview,
+                    'issues' => $entryIssues,
+                ];
+            }
+
+            ++$flagSummaries[$flagKey]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$flagSummaries[$flagKey]['directoryEntryCount'];
+            } else {
+                ++$flagSummaries[$flagKey]['fileEntryCount'];
+            }
+            $flagSummaries[$flagKey]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $flagSummaries[$flagKey]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            $flagSummaries[$flagKey]['entryNames'][] = $name;
+            foreach (self::entryHandoffRolesForSummary($entry) as $role) {
+                if (!in_array($role, $flagSummaries[$flagKey]['roles'], true)) {
+                    $flagSummaries[$flagKey]['roles'][] = $role;
+                }
+            }
+
+            if ($requiresStrictReview || $unsupportedFlagBits !== 0) {
+                $reviewEntry = [
+                    'name' => $name,
+                    'roles' => self::entryHandoffRolesForSummary($entry),
+                    'isDirectory' => ($entry['isDirectory'] ?? false) === true,
+                    'compressedSize' => (int) ($entry['compressedSize'] ?? 0),
+                    'uncompressedSize' => (int) ($entry['uncompressedSize'] ?? 0),
+                    'generalPurposeFlags' => $flags,
+                    'generalPurposeFlagsHex' => sprintf('0x%04x', $flags),
+                    'flagNames' => self::generalPurposeFlagNames($flags),
+                    'unsupportedFlagBits' => $unsupportedFlagBits,
+                    'unsupportedFlagBitsHex' => sprintf('0x%04x', $unsupportedFlagBits),
+                    'isSupportedByReader' => $unsupportedFlagBits === 0,
+                    'usesUtf8Names' => $usesUtf8Names,
+                    'usesDataDescriptor' => $usesDataDescriptor,
+                    'deflateOptionFlags' => $deflateOptionFlags,
+                    'deflateOptionName' => $deflateOptionName,
+                    'requiresStrictReview' => $requiresStrictReview,
+                    'issues' => $entryIssues,
+                ];
+                $reviewEntries[] = $reviewEntry;
+                if ($unsupportedFlagBits !== 0) {
+                    $unsupportedEntries[] = $reviewEntry;
+                }
+            }
+        }
+
+        foreach ($flagSummaries as &$summary) {
+            sort($summary['roles'], SORT_STRING);
+        }
+        unset($summary);
+        ksort($flagSummaries, SORT_STRING);
+
+        return [
+            'entryCount' => $entryCount,
+            'supportedEntryCount' => $supportedEntryCount,
+            'utf8NameEntryCount' => $utf8NameEntryCount,
+            'dataDescriptorEntryCount' => $dataDescriptorEntryCount,
+            'deflateOptionEntryCount' => $deflateOptionEntryCount,
+            'issues' => $issues,
+            'flagSummaries' => array_values($flagSummaries),
+            'reviewEntries' => $reviewEntries,
+            'unsupportedEntries' => $unsupportedEntries,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     */
+    private static function entryHandoffGeneralPurposeFlags(array $entry): ?int
+    {
+        if (is_int($entry['centralGeneralPurposeFlags'] ?? null)) {
+            return $entry['centralGeneralPurposeFlags'];
+        }
+        if (is_int($entry['generalPurposeFlags'] ?? null)) {
+            return $entry['generalPurposeFlags'];
+        }
+        if (is_int($entry['localGeneralPurposeFlags'] ?? null)) {
+            return $entry['localGeneralPurposeFlags'];
+        }
+
+        return null;
     }
 
     /**
