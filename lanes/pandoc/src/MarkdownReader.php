@@ -9144,7 +9144,7 @@ final class MarkdownReader
                         $code = substr($code, 1, -1);
                     }
                     $next = $end + $tickCount;
-                    $rawAttribute = $this->tryParseRawAttributeSpec($text, $next);
+                    $rawAttribute = $this->rawAttributeEnabled() ? $this->tryParseRawAttributeSpec($text, $next) : null;
                     if ($rawAttribute !== null) {
                         $this->flushText($buffer, $nodes);
                         $nodes[] = $this->rawInlineNode($rawAttribute['format'], $code);
@@ -9152,7 +9152,9 @@ final class MarkdownReader
                         continue;
                     }
                     $attrs = ['text' => $code];
-                    $attribute = $this->tryParseInlineAttributeSpec($text, $next);
+                    $attribute = $this->inlineAttributeExtensionEnabled()
+                        ? $this->tryParseInlineAttributeSpec($text, $next)
+                        : null;
                     $literalAttribute = null;
                     if ($attribute !== null) {
                         $attrs = array_replace($attrs, $attribute['attrs']);
@@ -9181,7 +9183,7 @@ final class MarkdownReader
                 continue;
             }
 
-            $math = $this->tryParseMath($text, $offset);
+            $math = $this->dollarMathExtensionEnabled() ? $this->tryParseMath($text, $offset) : null;
             if ($math !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $math['node'];
@@ -9205,7 +9207,7 @@ final class MarkdownReader
                 continue;
             }
 
-            $strikeout = $this->tryParseStrikeout($text, $offset);
+            $strikeout = $this->strikeoutExtensionEnabled() ? $this->tryParseStrikeout($text, $offset) : null;
             if ($strikeout !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $strikeout['node'];
@@ -9213,7 +9215,7 @@ final class MarkdownReader
                 continue;
             }
 
-            $script = $this->tryParseScript($text, $offset);
+            $script = $this->scriptExtensionEnabled($text[$offset] ?? '') ? $this->tryParseScript($text, $offset) : null;
             if ($script !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $script['node'];
@@ -9245,7 +9247,9 @@ final class MarkdownReader
                 continue;
             }
 
-            $citation = $allowLinks ? $this->tryParseCitation($text, $offset, $allowBareCitations) : null;
+            $citation = $allowLinks && $this->citationExtensionEnabled()
+                ? $this->tryParseCitation($text, $offset, $allowBareCitations)
+                : null;
             if ($citation !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $citation['node'];
@@ -9253,7 +9257,7 @@ final class MarkdownReader
                 continue;
             }
 
-            $wikiLink = $allowLinks ? $this->tryParseWikiLink($text, $offset) : null;
+            $wikiLink = $allowLinks && $this->wikilinkExtensionEnabled() ? $this->tryParseWikiLink($text, $offset) : null;
             if ($wikiLink !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $wikiLink['node'];
@@ -9277,7 +9281,7 @@ final class MarkdownReader
                 continue;
             }
 
-            $span = $this->tryParseBracketedSpan($text, $offset);
+            $span = $this->bracketedSpanExtensionEnabled() ? $this->tryParseBracketedSpan($text, $offset) : null;
             if ($span !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $span['node'];
@@ -9320,7 +9324,9 @@ final class MarkdownReader
                 continue;
             }
 
-            $bareUriAutolink = $allowLinks ? $this->tryParseBareUriAutolink($text, $offset) : null;
+            $bareUriAutolink = $allowLinks && $this->bareUriAutolinkExtensionEnabled()
+                ? $this->tryParseBareUriAutolink($text, $offset)
+                : null;
             if ($bareUriAutolink !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $bareUriAutolink['node'];
@@ -10096,6 +10102,127 @@ final class MarkdownReader
         return in_array($canonical, ['markdown', 'commonmark_x', 'gfm'], true);
     }
 
+    private function strikeoutExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('strikeout', $overrides)) {
+            return $overrides['strikeout'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x', 'gfm'], true);
+    }
+
+    private function bareUriAutolinkExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('bare_uri_autolinks', $overrides)) {
+            return $overrides['bare_uri_autolinks'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x', 'gfm'], true);
+    }
+
+    private function scriptExtensionEnabled(string $delimiter): bool
+    {
+        $extension = match ($delimiter) {
+            '^' => 'superscript',
+            '~' => 'subscript',
+            default => null,
+        };
+        if ($extension === null) {
+            return false;
+        }
+
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists($extension, $overrides)) {
+            return $overrides[$extension];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x'], true);
+    }
+
+    private function rawAttributeEnabled(): bool
+    {
+        $options = $this->options;
+        $options['format'] = $this->markdownFormatWithExtensionOption();
+
+        return MarkdownFormatProfile::rawAttributeEnabled($options, true);
+    }
+
+    private function inlineAttributeExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('inline_attributes', $overrides)) {
+            return $overrides['inline_attributes'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x'], true);
+    }
+
+    private function citationExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('citations', $overrides)) {
+            return $overrides['citations'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_mmd'], true);
+    }
+
+    private function dollarMathExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('tex_math_dollars', $overrides)) {
+            return $overrides['tex_math_dollars'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_mmd'], true);
+    }
+
+    private function wikilinkExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('wikilinks', $overrides)) {
+            return $overrides['wikilinks'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x'], true);
+    }
+
+    private function bracketedSpanExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('bracketed_spans', $overrides)) {
+            return $overrides['bracketed_spans'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_phpextra', 'markdown_mmd'], true);
+    }
+
     private function commonMarkRawHtmlBlockPrecedenceEnabled(): bool
     {
         $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
@@ -10426,22 +10553,6 @@ final class MarkdownReader
 
     private function rawInlineNode(string $format, string $text): AstNode
     {
-        $normalized = strtolower($format);
-        if (in_array($normalized, ['html', 'html4', 'html5'], true)) {
-            return new AstNode('raw_html_inline', [
-                'format' => $format,
-                'html' => $text,
-                'text' => $text,
-            ]);
-        }
-        if ($normalized === 'tex') {
-            return new AstNode('raw_tex_inline', [
-                'format' => $format,
-                'tex' => $text,
-                'text' => $text,
-            ]);
-        }
-
         return new AstNode('raw_inline', [
             'format' => $format,
             'text' => $text,
@@ -10854,7 +10965,7 @@ final class MarkdownReader
 
         if (
             preg_match(
-                '~\G(?:(?:https?|git|file)://[^\s<>"\']+|mailto:[^\s<>"\']+|doi:10\.[^\s<>"\']+)~iu',
+                '~\G(?:(?:https?|git|file)://[^\s<>"\']+|mailto:[^\s<>"\']+|doi:10\.[^\s<>"\']+|www\.[^\s<>"\']+)~iu',
                 $text,
                 $m,
                 0,
@@ -10906,6 +11017,9 @@ final class MarkdownReader
     private function normalizeBareUriDestination(string $destination): string
     {
         $destination = $this->normalizeLinkDestination($destination);
+        if (preg_match('/^www\./i', $destination) === 1) {
+            $destination = 'http://' . $destination;
+        }
 
         return strtr($destination, [
             '[' => '%5B',
@@ -11787,7 +11901,13 @@ final class MarkdownReader
             return null;
         }
 
-        if ($delimiter === '~' && ($text[$offset + 1] ?? '') === '~') {
+        if (
+            $delimiter === '~'
+            && (
+                ($text[$offset + 1] ?? '') === '~'
+                || ($offset > 0 && ($text[$offset - 1] ?? '') === '~')
+            )
+        ) {
             return null;
         }
 

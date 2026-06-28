@@ -177,7 +177,7 @@ final class MarkdownFormatProfile
             return [];
         }
 
-        if (preg_match_all('/([+-])([A-Za-z0-9_-]+)/', $suffix, $matches, PREG_SET_ORDER) === false) {
+        if (preg_match_all('/([+-])([A-Za-z0-9_]+)/', $suffix, $matches, PREG_SET_ORDER) === false) {
             return [];
         }
 
