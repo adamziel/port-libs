@@ -4053,6 +4053,11 @@ CSS;
             $prefixer->prefixForTargets('.foo { filter: var(--foo) }', ['chrome' => 20])
         );
         $t->same(
+            '.foo{filter:blur(5px)}',
+            $prefixer->prefixForTargets('.foo { filter: blur(5px) }', ['chrome' => 80]),
+            'upstream src/lib.rs::test_filter line 28286'
+        );
+        $t->same(
             '.foo{backdrop-filter:blur(5px)}',
             $prefixer->prefixForTargets('.foo { backdrop-filter: blur(5px) }', ['chrome' => 80])
         );
@@ -4386,6 +4391,16 @@ CSS;
         $t->same(
             '.foo{-webkit-filter:drop-shadow(16px 16px 20px #b32323);filter:drop-shadow(16px 16px 20px #b32323);filter:drop-shadow(16px 16px 20px lab(40% 56.6 39))}',
             $prefixer->prefixForTargets('.foo { filter: drop-shadow(16px 16px 20px lab(40% 56.6 39)) }', ['chrome' => 20])
+        );
+        $t->same(
+            '.foo{filter:contrast(175%) drop-shadow(16px 16px 20px #b32323);filter:contrast(175%) drop-shadow(16px 16px 20px lab(40% 56.6 39))}',
+            $prefixer->prefixForTargets('.foo { filter: contrast(175%) drop-shadow(16px 16px 20px lab(40% 56.6 39)) }', ['chrome' => 4]),
+            'upstream src/lib.rs::test_filter line 28373'
+        );
+        $t->same(
+            '.foo{filter:drop-shadow(16px 16px 20px #b32323) drop-shadow(16px 16px 20px #ff0);filter:drop-shadow(16px 16px 20px lab(40% 56.6 39)) drop-shadow(16px 16px 20px #ff0)}',
+            $prefixer->prefixForTargets('.foo { filter: drop-shadow(16px 16px 20px lab(40% 56.6 39)) drop-shadow(16px 16px 20px yellow) }', ['chrome' => 4]),
+            'upstream src/lib.rs::test_filter line 28387'
         );
         $t->same(
             '.foo{filter:var(--foo) drop-shadow(16px 16px 20px #b32323)}@supports (color:lab(0% 0 0)){.foo{filter:var(--foo) drop-shadow(16px 16px 20px lab(40% 56.6 39))}}',
