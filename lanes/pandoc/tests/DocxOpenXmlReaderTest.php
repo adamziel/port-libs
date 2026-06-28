@@ -1262,6 +1262,20 @@ XML;
         $t->same(['meta:scope', 'review', 'xml:lang'], $summary['partXmlRootAttributeNames']);
         $t->same(strlen('package') + strlen('ready') + strlen('en'), $summary['partXmlRootAttributeValueByteLength']);
         $t->same(['customXml/root-review.xml'], $summary['partXmlRootAttributePartNames']);
+        $t->same(3, $summary['partXmlRootAttributeNamespaceCount']);
+        $t->same([
+            '(none)' => 1,
+            'http://www.w3.org/XML/1998/namespace' => 1,
+            'urn:example:package-meta' => 1,
+        ], $summary['partXmlRootAttributeNamespaceCounts']);
+        $t->same(['http://www.w3.org/XML/1998/namespace', 'urn:example:package-meta'], $summary['partXmlRootAttributeNamespaces']);
+        $t->same(3, $summary['partXmlRootAttributePrefixCount']);
+        $t->same([
+            '(none)' => 1,
+            'meta' => 1,
+            'xml' => 1,
+        ], $summary['partXmlRootAttributePrefixCounts']);
+        $t->same(['meta', 'xml'], $summary['partXmlRootAttributePrefixes']);
 
         $contentTypes = $byPartName['[Content_Types].xml'];
         $t->same(true, $contentTypes['validXml']);
@@ -1343,6 +1357,57 @@ XML;
         $t->same(null, $inventory['customXml/raw.bin']['validXml']);
         $t->same(false, $inventory['customXml/raw.bin']['xmlDeclarationPresent']);
         $t->true(!isset($byPartName['customXml/raw.bin']), 'non-XML binary part must not appear in XML root summary');
+    },
+    'summarizes docx package part root attribute namespace buckets for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/customXml/root-attribute-policy.xml" ContentType="application/xml; profile=root-attribute-policy"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['customXml/root-attribute-policy.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:example:package-review" xmlns:meta="urn:example:package-meta" review:state="ready" meta:scope="package" meta:origin="editorial" xml:lang="en" unqualified="yes">
+  <meta:title>Root attribute policy</meta:title>
+</review:packet>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $summary = $document->attr('docx')['packageProvenance']['summary'];
+        $attributesByName = [];
+        foreach ($summary['partXmlRootAttributes'] as $attribute) {
+            if (($attribute['partName'] ?? null) === 'customXml/root-attribute-policy.xml') {
+                $attributesByName[$attribute['name']] = $attribute;
+            }
+        }
+
+        $t->same(5, $summary['partXmlRootAttributeCount']);
+        $t->same(1, $summary['partXmlRootAttributePartCount']);
+        $t->same([
+            '(none)' => 1,
+            'http://www.w3.org/XML/1998/namespace' => 1,
+            'urn:example:package-meta' => 2,
+            'urn:example:package-review' => 1,
+        ], $summary['partXmlRootAttributeNamespaceCounts']);
+        $t->same([
+            'http://www.w3.org/XML/1998/namespace',
+            'urn:example:package-meta',
+            'urn:example:package-review',
+        ], $summary['partXmlRootAttributeNamespaces']);
+        $t->same([
+            '(none)' => 1,
+            'meta' => 2,
+            'review' => 1,
+            'xml' => 1,
+        ], $summary['partXmlRootAttributePrefixCounts']);
+        $t->same(['meta', 'review', 'xml'], $summary['partXmlRootAttributePrefixes']);
+        $t->same('urn:example:package-review', $attributesByName['review:state']['namespace']);
+        $t->same('review', $attributesByName['review:state']['prefix']);
+        $t->same('urn:example:package-meta', $attributesByName['meta:origin']['namespace']);
+        $t->same('meta', $attributesByName['meta:origin']['prefix']);
+        $t->same(null, $attributesByName['unqualified']['namespace']);
+        $t->same(null, $attributesByName['unqualified']['prefix']);
     },
     'summarizes docx package part directories for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
