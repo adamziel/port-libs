@@ -19252,6 +19252,85 @@ XML;
         $t->true(is_string($encodedLeafTextElements), 'XML leaf text metadata should encode for review');
         $t->true(!str_contains((string) $encodedLeafTextElements, 'leaf-text-review:hidden'), 'raw XML leaf text should not be exposed in summary metadata');
     },
+    'summarizes docx package xml element text density without exposing text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $titleText = 'text-density:hidden-title';
+        $paragraphText = 'text-density:hidden-paragraph';
+        $cdataText = 'text-density:hidden-cdata';
+        $auditText = 'text-density:hidden-audit';
+        $settingsText = 'text-density:hidden-settings';
+        $parts['customXml/text-density-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:review-text-density" xmlns:audit="urn:audit-text-density">
+  <review:section>
+    <review:title>{$titleText}</review:title>
+    <review:body><review:p>{$paragraphText}</review:p><review:p><![CDATA[{$cdataText}]]></review:p></review:body>
+  </review:section>
+  <audit:trail>  {$auditText}  </audit:trail>
+</review:packet>
+XML;
+        $parts['word/settings-text-density.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docVars>
+    <w:docVar w:name="Density">{$settingsText}</w:docVar>
+  </w:docVars>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/text-density-review.xml'];
+        $settingsPart = $package['parts']['word/settings-text-density.xml'];
+        $densityElements = array_values(array_filter(
+            $summary['partXmlElementTextDensityElements'],
+            static fn (array $element): bool => in_array(
+                $element['partName'],
+                ['customXml/text-density-review.xml', 'word/settings-text-density.xml'],
+                true,
+            ),
+        ));
+        $densityByPartPath = [];
+        foreach ($densityElements as $element) {
+            $densityByPartPath[$element['partName'] . '|' . $element['elementPath']] = $element;
+        }
+        $titleKey = 'customXml/text-density-review.xml|/review:packet/review:section/review:title';
+        $settingsKey = 'word/settings-text-density.xml|/w:settings/w:docVars/w:docVar';
+
+        $t->same(7, $reviewPart['xmlElementTextDensityCount']);
+        $t->same(1, $reviewPart['xmlElementTextDensityPathCounts']['/review:packet/review:section/review:title']);
+        $t->same(2, $reviewPart['xmlElementTextDensityPathCounts']['/review:packet/review:section/review:body/review:p']);
+        $t->same(2, $reviewPart['xmlElementTextDensityQualifiedNameCounts']['review:p']);
+        $t->same(1, $reviewPart['xmlElementTextDensityQualifiedNameCounts']['audit:trail']);
+        $t->same(['audit' => 1, 'review' => 6], $reviewPart['xmlElementTextDensityPrefixCounts']);
+        $t->true($reviewPart['xmlElementTextDensityCdataSectionCount'] >= 1, 'CDATA text should contribute to element text density');
+        $t->true(($reviewPart['xmlElementTextDensityByteLengthBucketCounts']['medium'] ?? 0) >= 4, 'review text density should bucket medium text-bearing elements');
+        $t->same(3, $settingsPart['xmlElementTextDensityCount']);
+        $t->same(1, $settingsPart['xmlElementTextDensityQualifiedNameCounts']['w:docVar']);
+
+        $t->true($summary['partXmlElementTextDensityPartCount'] >= 2, 'summary text-density part count should include both injected XML parts');
+        $t->true($summary['partXmlElementTextDensityCount'] >= 10, 'summary text-density count should include injected XML elements');
+        $t->true(in_array('customXml/text-density-review.xml', $summary['partXmlElementTextDensityPartNames'], true), 'custom XML text-density part should be summarized');
+        $t->true(in_array('word/settings-text-density.xml', $summary['partXmlElementTextDensityPartNames'], true), 'settings XML text-density part should be summarized');
+        $t->same(1, $summary['partXmlElementTextDensityQualifiedNameCounts']['audit:trail']);
+        $t->true(($summary['partXmlElementTextDensityQualifiedNameCounts']['w:docVar'] ?? 0) >= 1, 'summary text-density qualified names should include settings docVar');
+        $t->true(($summary['partXmlElementTextDensityByteLengthBucketCounts']['medium'] ?? 0) >= 4, 'summary text-density byte buckets should include medium elements');
+        $t->same(true, isset($densityByPartPath[$titleKey]), 'title text-density metadata should be present');
+        $t->same(strlen($titleText), $densityByPartPath[$titleKey]['textByteLength']);
+        $t->same(hash('sha256', $titleText), $densityByPartPath[$titleKey]['sha256']);
+        $t->same(true, isset($densityByPartPath[$settingsKey]), 'settings text-density metadata should be present');
+        $t->same(strlen($settingsText), $densityByPartPath[$settingsKey]['nonWhitespaceTextByteLength']);
+        $t->same(hash('sha256', $settingsText), $densityByPartPath[$settingsKey]['sha256']);
+        $t->true(!isset($reviewPart['xmlElementTextDensityElements'][0]['text']), 'raw XML text should not be exposed on part text-density metadata');
+        $encodedDensity = json_encode([
+            $reviewPart['xmlElementTextDensityElements'],
+            $settingsPart['xmlElementTextDensityElements'],
+            $densityElements,
+        ]);
+        $t->true(is_string($encodedDensity), 'XML element text-density metadata should encode for review');
+        $t->true(!str_contains((string) $encodedDensity, 'text-density:hidden'), 'raw XML text should not be exposed in text-density metadata');
+    },
     'summarizes docx package xml text node whitespace shape without exposing text' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $leadingText = '  whitespace-shape:hidden-leading';
