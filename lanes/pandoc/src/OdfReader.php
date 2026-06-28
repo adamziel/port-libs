@@ -19364,16 +19364,25 @@ final class OdfReader
 
         return match ($extension) {
             'odt' => self::MIMETYPE,
+            'odm' => 'application/vnd.oasis.opendocument.text-master',
+            'ott' => 'application/vnd.oasis.opendocument.text-template',
             'ods' => 'application/vnd.oasis.opendocument.spreadsheet',
+            'ots' => 'application/vnd.oasis.opendocument.spreadsheet-template',
             'odp' => 'application/vnd.oasis.opendocument.presentation',
+            'otp' => 'application/vnd.oasis.opendocument.presentation-template',
             'odg' => 'application/vnd.oasis.opendocument.graphics',
+            'otg' => 'application/vnd.oasis.opendocument.graphics-template',
             'odf' => 'application/vnd.oasis.opendocument.formula',
             'odc' => 'application/vnd.oasis.opendocument.chart',
+            'doc', 'dot' => 'application/msword',
             'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xls', 'xlt' => 'application/vnd.ms-excel',
             'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'ppt', 'pot' => 'application/vnd.ms-powerpoint',
             'pptx' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
             'xml', 'xhtml', 'html' => 'text/xml',
             'pdf' => 'application/pdf',
+            'rtf' => 'application/rtf',
             'png' => 'image/png',
             'jpg', 'jpeg' => 'image/jpeg',
             'gif' => 'image/gif',
@@ -19391,6 +19400,7 @@ final class OdfReader
 
         return self::isXmlMediaTypeBase($base)
             || self::mediaResourceFamilyFromMediaTypeBase($base) !== null
+            || self::isAttachmentDocumentMediaTypeBase($base)
             || in_array($base, ['text/plain', 'text/csv', 'application/pdf', 'application/zip', 'application/octet-stream', 'application/binary'], true)
             || str_starts_with($base, 'application/vnd.')
             || str_starts_with($base, 'application/x-');
@@ -19411,6 +19421,7 @@ final class OdfReader
             return 'attachment-media-resource';
         }
         if (in_array($base, ['application/pdf', 'text/plain', 'text/csv'], true)
+            || self::isAttachmentDocumentMediaTypeBase($base)
             || str_starts_with($base, 'application/vnd.oasis.opendocument.')
             || str_starts_with($base, 'application/vnd.openxmlformats-officedocument.')
         ) {
@@ -19421,6 +19432,17 @@ final class OdfReader
         }
 
         return 'attachment-resource';
+    }
+
+    private static function isAttachmentDocumentMediaTypeBase(string $base): bool
+    {
+        return in_array($base, [
+            'application/msword',
+            'application/rtf',
+            'text/rtf',
+            'application/vnd.ms-excel',
+            'application/vnd.ms-powerpoint',
+        ], true);
     }
 
     private static function attachmentPackagePartGroup(string $part): ?string
