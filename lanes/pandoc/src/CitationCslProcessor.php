@@ -11961,7 +11961,9 @@ final class CitationCslProcessor
 
         $explicitValue = $this->inlineValue($citation->attr('locatorValue', ''));
         if ($explicitValue !== '') {
-            return 'explicit';
+            $rawLabel = trim((string) $citation->attr('locatorLabel', ''));
+
+            return $rawLabel === '' ? 'defaulted' : 'explicit';
         }
 
         $rawLocator = $this->inlineValue($citation->attr('locator', ''));

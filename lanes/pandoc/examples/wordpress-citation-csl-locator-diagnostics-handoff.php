@@ -112,6 +112,9 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($defaultedDiagnostics[0]['locatorLabel'] ?? null) !== 'page' || ($defaultedDiagnostics[0]['locatorValue'] ?? null) !== 'appendix A') {
         throw new RuntimeException('Citation locator diagnostics handoff did not preserve explicit defaulted page locator metadata');
     }
+    if (($processor->normalizeCitation($defaultedPage)->attr('cslLocator')['sourceClass'] ?? null) !== 'defaulted') {
+        throw new RuntimeException('Citation locator diagnostics handoff did not mark direct AST page defaults as defaulted source metadata');
+    }
 
     $labelWithoutValue = new AstNode('citation', [
         'id' => 'locator-diagnostics-source',
