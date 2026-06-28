@@ -15527,6 +15527,9 @@ final class DocxOpenXmlReader
             'partXmlElementAttributeValueShapeCount' => count($partXmlRoots['xmlElementAttributeValueShapeCounts']),
             'partXmlElementAttributeValueShapeCounts' => $partXmlRoots['xmlElementAttributeValueShapeCounts'],
             'partXmlElementAttributeValueShapes' => $partXmlRoots['xmlElementAttributeValueShapes'],
+            'partXmlElementAttributeValueShapeNamePairCount' => count($partXmlRoots['xmlElementAttributeValueShapeNamePairCounts']),
+            'partXmlElementAttributeValueShapeNamePairCounts' => $partXmlRoots['xmlElementAttributeValueShapeNamePairCounts'],
+            'partXmlElementAttributeValueShapeNamePairs' => $partXmlRoots['xmlElementAttributeValueShapeNamePairs'],
             'partXmlElementAttributeValueLengthBucketCount' => count($partXmlRoots['xmlElementAttributeValueLengthBucketCounts']),
             'partXmlElementAttributeValueLengthBucketCounts' => $partXmlRoots['xmlElementAttributeValueLengthBucketCounts'],
             'partXmlElementAttributeValueLengthBuckets' => $partXmlRoots['xmlElementAttributeValueLengthBuckets'],
@@ -21933,6 +21936,8 @@ final class DocxOpenXmlReader
         $xmlElementAttributeElementNameCounts = [];
         $xmlElementAttributeValueShapeCounts = [];
         $xmlElementAttributeValueShapes = [];
+        $xmlElementAttributeValueShapeNamePairCounts = [];
+        $xmlElementAttributeValueShapeNamePairs = [];
         $xmlElementAttributeValueLengthBucketCounts = [];
         $xmlElementAttributeValueLengthBuckets = [];
         $xmlElementAttributeSetPartNames = [];
@@ -24549,6 +24554,14 @@ final class DocxOpenXmlReader
                     ($xmlElementAttributeValueShapeCounts[$valueShape] ?? 0) + (int) $count;
                 $this->appendUniqueString($xmlElementAttributeValueShapes, $valueShape);
             }
+            foreach (($part['xmlElementAttributeValueShapeNamePairCounts'] ?? []) as $pair => $count) {
+                if (!is_string($pair) || $pair === '') {
+                    continue;
+                }
+                $xmlElementAttributeValueShapeNamePairCounts[$pair] =
+                    ($xmlElementAttributeValueShapeNamePairCounts[$pair] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlElementAttributeValueShapeNamePairs, $pair);
+            }
             $partElementAttributeSetCount = (int) ($part['xmlElementAttributeSetCount'] ?? 0);
             if ($partElementAttributeSetCount > 0) {
                 ++$xmlElementAttributeSetPartCount;
@@ -25635,6 +25648,10 @@ final class DocxOpenXmlReader
                     ? $part['xmlElementAttributeValueShapeCounts']
                     : [],
                 'xmlElementAttributeValueShapes' => array_values(array_map('strval', $part['xmlElementAttributeValueShapes'] ?? [])),
+                'xmlElementAttributeValueShapeNamePairCounts' => is_array($part['xmlElementAttributeValueShapeNamePairCounts'] ?? null)
+                    ? $part['xmlElementAttributeValueShapeNamePairCounts']
+                    : [],
+                'xmlElementAttributeValueShapeNamePairs' => array_values(array_map('strval', $part['xmlElementAttributeValueShapeNamePairs'] ?? [])),
                 'xmlElementAttributeSetCount' => $partElementAttributeSetCount,
                 'xmlElementAttributeSetAttributedElementCount' => (int) ($part['xmlElementAttributeSetAttributedElementCount'] ?? 0),
                 'xmlElementAttributeSetUnattributedElementCount' => (int) ($part['xmlElementAttributeSetUnattributedElementCount'] ?? 0),
@@ -25882,6 +25899,7 @@ final class DocxOpenXmlReader
         ksort($xmlElementAttributeElementPathCounts, SORT_STRING);
         ksort($xmlElementAttributeElementNameCounts, SORT_STRING);
         ksort($xmlElementAttributeValueShapeCounts, SORT_STRING);
+        ksort($xmlElementAttributeValueShapeNamePairCounts, SORT_STRING);
         ksort($xmlElementAttributeSetAttributeCountBuckets, SORT_STRING);
         ksort($xmlElementAttributeSetElementPathCounts, SORT_STRING);
         ksort($xmlElementAttributeSetElementNamespaceCounts, SORT_STRING);
@@ -25973,6 +25991,7 @@ final class DocxOpenXmlReader
         sort($xmlElementAttributePrefixes, SORT_STRING);
         sort($xmlElementAttributeElementPaths, SORT_STRING);
         sort($xmlElementAttributeValueShapes, SORT_STRING);
+        sort($xmlElementAttributeValueShapeNamePairs, SORT_STRING);
         sort($xmlElementAttributeSetPartNames, SORT_STRING);
         sort($xmlElementAttributeSetElementPaths, SORT_STRING);
         sort($xmlElementAttributeGroupPartNames, SORT_STRING);
@@ -26571,6 +26590,8 @@ final class DocxOpenXmlReader
             'xmlElementAttributeElementNameCounts' => $xmlElementAttributeElementNameCounts,
             'xmlElementAttributeValueShapeCounts' => $xmlElementAttributeValueShapeCounts,
             'xmlElementAttributeValueShapes' => $xmlElementAttributeValueShapes,
+            'xmlElementAttributeValueShapeNamePairCounts' => $xmlElementAttributeValueShapeNamePairCounts,
+            'xmlElementAttributeValueShapeNamePairs' => $xmlElementAttributeValueShapeNamePairs,
             'xmlElementAttributeValueLengthBucketCounts' => $xmlElementAttributeValueLengthBucketCounts,
             'xmlElementAttributeValueLengthBuckets' => $xmlElementAttributeValueLengthBuckets,
             'xmlElementAttributeValueByteLength' => $xmlElementAttributeValueByteLength,
@@ -32818,6 +32839,8 @@ final class DocxOpenXmlReader
             'elementNameCounts' => [],
             'valueShapeCounts' => [],
             'valueShapes' => [],
+            'valueShapeNamePairCounts' => [],
+            'valueShapeNamePairs' => [],
             'valueLengthBucketCounts' => [],
             'valueLengthBuckets' => [],
             'elementSetCount' => 0,
@@ -32865,6 +32888,8 @@ final class DocxOpenXmlReader
         $elementNameCounts = [];
         $valueShapeCounts = [];
         $valueShapes = [];
+        $valueShapeNamePairCounts = [];
+        $valueShapeNamePairs = [];
         $valueLengthBucketCounts = [];
         $valueLengthBuckets = [];
         $attributeSetPathCounts = [];
@@ -32942,6 +32967,8 @@ final class DocxOpenXmlReader
             &$elementNameCounts,
             &$valueShapeCounts,
             &$valueShapes,
+            &$valueShapeNamePairCounts,
+            &$valueShapeNamePairs,
             &$valueLengthBucketCounts,
             &$valueLengthBuckets,
             &$attributeSetPathCounts,
@@ -33259,6 +33286,10 @@ final class DocxOpenXmlReader
                 $elementNameCounts[$elementQualifiedName] = ($elementNameCounts[$elementQualifiedName] ?? 0) + 1;
                 $valueShapeCounts[$valueShapeName] = ($valueShapeCounts[$valueShapeName] ?? 0) + 1;
                 $this->appendUniqueString($valueShapes, $valueShapeName);
+                $valueShapeNamePair = $name . '=' . $valueShapeName;
+                $valueShapeNamePairCounts[$valueShapeNamePair] =
+                    ($valueShapeNamePairCounts[$valueShapeNamePair] ?? 0) + 1;
+                $this->appendUniqueString($valueShapeNamePairs, $valueShapeNamePair);
                 $valueLengthBucketCounts[$valueLengthBucket] = ($valueLengthBucketCounts[$valueLengthBucket] ?? 0) + 1;
                 $this->appendUniqueString($valueLengthBuckets, $valueLengthBucket);
                 if ($isXmlReservedAttribute) {
@@ -33375,6 +33406,7 @@ final class DocxOpenXmlReader
         ksort($elementPathCounts, SORT_STRING);
         ksort($elementNameCounts, SORT_STRING);
         ksort($valueShapeCounts, SORT_STRING);
+        ksort($valueShapeNamePairCounts, SORT_STRING);
         ksort($valueLengthBucketCounts, SORT_STRING);
         ksort($attributeSetPathCounts, SORT_STRING);
         ksort($attributeSetNamespaceCounts, SORT_STRING);
@@ -33396,6 +33428,7 @@ final class DocxOpenXmlReader
         sort($prefixes, SORT_STRING);
         sort($elementPaths, SORT_STRING);
         sort($valueShapes, SORT_STRING);
+        sort($valueShapeNamePairs, SORT_STRING);
         sort($valueLengthBuckets, SORT_STRING);
         sort($attributeSetPaths, SORT_STRING);
         sort($cooccurrencePairNames, SORT_STRING);
@@ -33453,6 +33486,8 @@ final class DocxOpenXmlReader
             'elementNameCounts' => $elementNameCounts,
             'valueShapeCounts' => $valueShapeCounts,
             'valueShapes' => $valueShapes,
+            'valueShapeNamePairCounts' => $valueShapeNamePairCounts,
+            'valueShapeNamePairs' => $valueShapeNamePairs,
             'valueLengthBucketCounts' => $valueLengthBucketCounts,
             'valueLengthBuckets' => $valueLengthBuckets,
             'elementSetCount' => count($attributeSets),
@@ -36243,6 +36278,8 @@ final class DocxOpenXmlReader
                 'xmlElementAttributeElementNameCounts' => [],
                 'xmlElementAttributeValueShapeCounts' => [],
                 'xmlElementAttributeValueShapes' => [],
+                'xmlElementAttributeValueShapeNamePairCounts' => [],
+                'xmlElementAttributeValueShapeNamePairs' => [],
                 'xmlElementAttributeValueLengthBucketCounts' => [],
                 'xmlElementAttributeValueLengthBuckets' => [],
                 'xmlElementAttributeSetCount' => 0,
@@ -36757,6 +36794,8 @@ final class DocxOpenXmlReader
             'xmlElementAttributeElementNameCounts' => $elementAttributes['elementNameCounts'],
             'xmlElementAttributeValueShapeCounts' => $elementAttributes['valueShapeCounts'],
             'xmlElementAttributeValueShapes' => $elementAttributes['valueShapes'],
+            'xmlElementAttributeValueShapeNamePairCounts' => $elementAttributes['valueShapeNamePairCounts'],
+            'xmlElementAttributeValueShapeNamePairs' => $elementAttributes['valueShapeNamePairs'],
             'xmlElementAttributeValueLengthBucketCounts' => $elementAttributes['valueLengthBucketCounts'],
             'xmlElementAttributeValueLengthBuckets' => $elementAttributes['valueLengthBuckets'],
             'xmlElementAttributeSetCount' => $elementAttributes['elementSetCount'],

@@ -19462,6 +19462,65 @@ XML;
         $t->true(!str_contains((string) $encodedAttributes, 'hidden-'), 'raw XML attribute values should not be exposed in value-shape metadata');
         $t->true(!str_contains((string) $encodedAttributes, $absoluteUri), 'raw XML URI attribute value should not be exposed in value-shape metadata');
     },
+    'summarizes docx package xml attribute value shapes by attribute name without exposing values' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $absoluteUri = 'https://example.test/hidden-mode';
+        $tokenList = 'hidden-alpha hidden-beta';
+        $fragment = '#hidden-fragment';
+        $parts['customXml/attribute-value-shape-names.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:attribute-value-shape-names" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" review:mode="true" plain="42">
+  <review:item review:mode="{$absoluteUri}"/>
+  <review:item review:mode="{$tokenList}" r:id="rShape42"/>
+  <review:item review:mode="{$fragment}"/>
+</review:packet>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $part = $package['parts']['customXml/attribute-value-shape-names.xml'];
+        $rootRows = array_values(array_filter(
+            $summary['partXmlRoots'],
+            static fn (array $root): bool => $root['partName'] === 'customXml/attribute-value-shape-names.xml',
+        ));
+
+        $expectedPairs = [
+            'plain=integer' => 1,
+            'r:id=relationship-id' => 1,
+            'review:mode=absolute-uri' => 1,
+            'review:mode=boolean' => 1,
+            'review:mode=fragment-reference' => 1,
+            'review:mode=token-list' => 1,
+        ];
+
+        $t->same(6, $part['xmlElementAttributeCount']);
+        $t->same($expectedPairs, $part['xmlElementAttributeValueShapeNamePairCounts']);
+        $t->same(array_keys($expectedPairs), $part['xmlElementAttributeValueShapeNamePairs']);
+        $t->same($expectedPairs, $rootRows[0]['xmlElementAttributeValueShapeNamePairCounts']);
+        $t->same(array_keys($expectedPairs), $rootRows[0]['xmlElementAttributeValueShapeNamePairs']);
+
+        foreach ($expectedPairs as $pair => $count) {
+            $t->true(
+                ($summary['partXmlElementAttributeValueShapeNamePairCounts'][$pair] ?? 0) >= $count,
+                "summary should include {$pair} XML attribute value-shape bucket"
+            );
+            $t->true(
+                in_array($pair, $summary['partXmlElementAttributeValueShapeNamePairs'], true),
+                "summary should carry {$pair} XML attribute value-shape pair"
+            );
+        }
+        $t->true($summary['partXmlElementAttributeValueShapeNamePairCount'] >= count($expectedPairs), 'summary should count XML attribute value-shape name pairs');
+
+        $encodedPairs = json_encode([
+            $part['xmlElementAttributeValueShapeNamePairCounts'],
+            $summary['partXmlElementAttributeValueShapeNamePairCounts'],
+        ]);
+        $t->true(is_string($encodedPairs), 'XML attribute value-shape name metadata should encode for review');
+        $t->true(!str_contains((string) $encodedPairs, 'hidden-'), 'raw XML attribute values should not be exposed in value-shape name metadata');
+        $t->true(!str_contains((string) $encodedPairs, $absoluteUri), 'raw XML URI attribute value should not be exposed in value-shape name metadata');
+        $t->true(!str_contains((string) $encodedPairs, $fragment), 'raw XML fragment attribute value should not be exposed in value-shape name metadata');
+    },
     'summarizes docx package xml reserved attributes without exposing values' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $baseUri = 'https://example.test/hidden-base/';
