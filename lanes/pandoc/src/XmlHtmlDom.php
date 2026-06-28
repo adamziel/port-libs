@@ -16907,20 +16907,9 @@ final class XmlHtmlDom
             if (!is_array($json) || self::isJsonList($json)) {
                 $diagnostics[] = 'speculationrules-top-level-not-object';
             } else {
-                $ruleSetCounts = [];
-                foreach (['prefetch', 'prerender'] as $key) {
-                    if (!array_key_exists($key, $json)) {
-                        continue;
-                    }
-                    if (!is_array($json[$key]) || !self::isJsonList($json[$key])) {
-                        $diagnostics[] = 'speculationrules-' . $key . '-not-array';
-                        $ruleSetCounts[$key] = null;
-                        continue;
-                    }
-                    $ruleSetCounts[$key] = count($json[$key]);
-                }
-                $summary['speculationRuleSetNames'] = array_keys($ruleSetCounts);
-                $summary['speculationRuleSetCounts'] = $ruleSetCounts;
+                $speculationRulesReview = self::speculationRulesReviewSummary($json);
+                $summary += $speculationRulesReview['summary'];
+                array_push($diagnostics, ...$speculationRulesReview['diagnostics']);
             }
         }
 
@@ -17129,6 +17118,265 @@ final class XmlHtmlDom
      * @return list<string>
      */
     private static function importMapIssueCodes(array $issues): array
+    {
+        return array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+    }
+
+    /**
+     * @param array<string, mixed> $json
+     * @return array{
+     *     summary:array<string, mixed>,
+     *     diagnostics:list<string>
+     * }
+     */
+    private static function speculationRulesReviewSummary(array $json): array
+    {
+        $diagnostics = [];
+        $ruleSetCounts = [];
+        $rulesBySet = [];
+        $records = [];
+        $issues = [];
+        $unsafeUrls = [];
+        $urlCount = 0;
+
+        foreach (['prefetch', 'prerender'] as $key) {
+            if (!array_key_exists($key, $json)) {
+                continue;
+            }
+
+            $rules = $json[$key];
+            if (!is_array($rules) || !self::isJsonList($rules)) {
+                $diagnostics[] = 'speculationrules-' . $key . '-not-array';
+                $issue = [
+                    'code' => 'invalid-speculation-rule-set',
+                    'ruleSet' => $key,
+                    'valueType' => self::jsonValueKind($rules),
+                ];
+                $issues[] = $issue;
+                $ruleSetCounts[$key] = null;
+                $rulesBySet[$key] = [];
+                continue;
+            }
+
+            $ruleSetCounts[$key] = count($rules);
+            $rulesBySet[$key] = [];
+            foreach ($rules as $index => $rule) {
+                if (!is_array($rule) || self::isJsonList($rule)) {
+                    $record = [
+                        'ruleSet' => $key,
+                        'index' => $index,
+                        'source' => null,
+                        'sourceKind' => 'non-object',
+                        'urlCount' => 0,
+                        'urls' => [],
+                        'urlRecords' => [],
+                        'issueCodes' => ['non-object-speculation-rule'],
+                        'issues' => [[
+                            'code' => 'non-object-speculation-rule',
+                            'ruleSet' => $key,
+                            'index' => $index,
+                            'valueType' => self::jsonValueKind($rule),
+                        ]],
+                        'valid' => false,
+                    ];
+                } else {
+                    $record = self::speculationRuleRecord($key, $index, $rule);
+                }
+
+                $urlCount += (int) ($record['urlCount'] ?? 0);
+                foreach (($record['urlRecords'] ?? []) as $urlRecord) {
+                    if (is_array($urlRecord) && ($urlRecord['unsafe'] ?? false) === true) {
+                        $url = $urlRecord['url'] ?? null;
+                        if (is_string($url)) {
+                            self::appendUniqueString($unsafeUrls, $url);
+                        }
+                    }
+                }
+
+                array_push($issues, ...($record['issues'] ?? []));
+                $records[] = $record;
+                $rulesBySet[$key][] = $record;
+            }
+        }
+
+        return [
+            'summary' => [
+                'speculationRulesReviewPolicy' => 'speculation-rules-target-provenance-review',
+                'speculationRuleSetNames' => array_keys($ruleSetCounts),
+                'speculationRuleSetCounts' => $ruleSetCounts,
+                'speculationRulesBySet' => $rulesBySet,
+                'speculationRuleRecords' => $records,
+                'speculationRuleCount' => count($records),
+                'speculationRuleUrlCount' => $urlCount,
+                'unsafeSpeculationRuleUrls' => $unsafeUrls,
+                'speculationRuleIssues' => $issues,
+                'speculationRuleIssueCodes' => self::reviewIssueCodes($issues),
+                'speculationRulesValid' => $issues === [],
+                'speculationRulesBrowserExecution' => false,
+                'speculationRulesFetchesResources' => false,
+            ],
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $rule
+     * @return array<string, mixed>
+     */
+    private static function speculationRuleRecord(string $ruleSet, int $index, array $rule): array
+    {
+        $source = is_string($rule['source'] ?? null) ? strtolower(trim((string) $rule['source'])) : null;
+        $sourceKind = in_array($source, ['list', 'document'], true)
+            ? $source
+            : ($source === null ? 'missing' : 'unknown');
+        $urls = $rule['urls'] ?? null;
+        $urlRecords = [];
+        $issues = [];
+
+        if ($sourceKind === 'missing') {
+            $issues[] = ['code' => 'missing-speculation-rule-source'];
+        } elseif ($sourceKind === 'unknown') {
+            $issues[] = [
+                'code' => 'invalid-speculation-rule-source',
+                'source' => $rule['source'] ?? null,
+            ];
+        }
+
+        if ($sourceKind === 'list') {
+            if (!is_array($urls) || !self::isJsonList($urls)) {
+                $issues[] = [
+                    'code' => 'invalid-speculation-rule-urls',
+                    'valueType' => self::jsonValueKind($urls),
+                ];
+            } else {
+                if ($urls === []) {
+                    $issues[] = ['code' => 'empty-speculation-rule-urls'];
+                }
+                foreach ($urls as $urlIndex => $url) {
+                    $urlRecord = self::speculationRuleUrlRecord($urlIndex, $url);
+                    array_push($issues, ...$urlRecord['issues']);
+                    $urlRecords[] = $urlRecord;
+                }
+            }
+        } elseif (array_key_exists('urls', $rule)) {
+            $issues[] = ['code' => 'speculation-rule-urls-without-list-source'];
+        }
+
+        $eagernessRaw = $rule['eagerness'] ?? null;
+        $eagerness = is_string($eagernessRaw) ? strtolower(trim($eagernessRaw)) : null;
+        if (
+            array_key_exists('eagerness', $rule)
+            && !in_array($eagerness, ['conservative', 'moderate', 'eager', 'immediate'], true)
+        ) {
+            $issues[] = [
+                'code' => 'invalid-speculation-rule-eagerness',
+                'eagernessRaw' => $eagernessRaw,
+            ];
+            $eagerness = null;
+        }
+
+        $referrerPolicyRaw = $rule['referrer_policy'] ?? null;
+        $referrerPolicy = is_string($referrerPolicyRaw) ? self::referrerPolicyState($referrerPolicyRaw) : null;
+        if (array_key_exists('referrer_policy', $rule) && $referrerPolicy === null) {
+            $issues[] = [
+                'code' => 'invalid-speculation-rule-referrer-policy',
+                'referrerPolicyRaw' => $referrerPolicyRaw,
+            ];
+        }
+
+        $where = $rule['where'] ?? null;
+        $requires = $rule['requires'] ?? null;
+        $requiresTokens = is_array($requires) && self::isJsonList($requires)
+            ? array_values(array_filter($requires, 'is_string'))
+            : [];
+
+        return [
+            'ruleSet' => $ruleSet,
+            'index' => $index,
+            'source' => $source,
+            'sourceKind' => $sourceKind,
+            'urls' => array_values(array_filter(
+                array_map(static fn (array $record): ?string => $record['url'] ?? null, $urlRecords),
+                static fn (?string $url): bool => $url !== null
+            )),
+            'urlCount' => count($urlRecords),
+            'urlRecords' => $urlRecords,
+            'eagernessRaw' => is_string($eagernessRaw) ? $eagernessRaw : null,
+            'eagerness' => $eagerness,
+            'referrerPolicyRaw' => is_string($referrerPolicyRaw) ? $referrerPolicyRaw : null,
+            'referrerPolicy' => $referrerPolicy,
+            'wherePresent' => array_key_exists('where', $rule),
+            'whereType' => self::jsonValueKind($where),
+            'requiresPresent' => array_key_exists('requires', $rule),
+            'requiresType' => self::jsonValueKind($requires),
+            'requiresTokens' => $requiresTokens,
+            'requiresTokenCount' => count($requiresTokens),
+            'issueCodes' => self::reviewIssueCodes($issues),
+            'issues' => $issues,
+            'valid' => $issues === [],
+        ];
+    }
+
+    /**
+     * @return array{index:int, url:?string, valueType:string, kind:?string, scheme:?string, unsafe:?bool, issueCodes:list<string>, issues:list<array<string, mixed>>, valid:bool}
+     */
+    private static function speculationRuleUrlRecord(int $index, mixed $url): array
+    {
+        $issues = [];
+        if (!is_string($url)) {
+            $issues[] = [
+                'code' => 'non-string-speculation-rule-url',
+                'index' => $index,
+                'valueType' => self::jsonValueKind($url),
+            ];
+
+            return [
+                'index' => $index,
+                'url' => null,
+                'valueType' => self::jsonValueKind($url),
+                'kind' => null,
+                'scheme' => null,
+                'unsafe' => null,
+                'issueCodes' => self::reviewIssueCodes($issues),
+                'issues' => $issues,
+                'valid' => false,
+            ];
+        }
+
+        $urlSummary = self::hyperlinkUrlReviewSummary($url);
+        if (trim($url) === '') {
+            $issues[] = ['code' => 'empty-speculation-rule-url', 'index' => $index];
+        }
+        if ($urlSummary['unsafe'] === true) {
+            $issues[] = [
+                'code' => 'unsafe-speculation-rule-url',
+                'index' => $index,
+                'url' => $url,
+                'scheme' => $urlSummary['scheme'],
+            ];
+        }
+
+        return [
+            'index' => $index,
+            'url' => $url,
+            'valueType' => 'string',
+            'kind' => $urlSummary['kind'],
+            'scheme' => $urlSummary['scheme'],
+            'unsafe' => $urlSummary['unsafe'],
+            'issueCodes' => self::reviewIssueCodes($issues),
+            'issues' => $issues,
+            'valid' => $issues === [],
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $issues
+     * @return list<string>
+     */
+    private static function reviewIssueCodes(array $issues): array
     {
         return array_values(array_unique(array_map(
             static fn (array $issue): string => (string) ($issue['code'] ?? ''),
