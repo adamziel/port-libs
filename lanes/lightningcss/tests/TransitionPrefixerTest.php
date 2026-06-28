@@ -2921,20 +2921,20 @@ CSS;
         $t->same(
             $selector['ltr-webkit'] . '{border-left:2px solid red;border-right:5px solid green}'
                 . $selector['ltr-modern'] . '{border-left:2px solid red;border-right:5px solid green}'
-                . $selector['rtl-webkit'] . '{border-right:2px solid red;border-left:5px solid green}'
-                . $selector['rtl-modern'] . '{border-right:2px solid red;border-left:5px solid green}',
+                . $selector['rtl-webkit'] . '{border-left:5px solid green;border-right:2px solid red}'
+                . $selector['rtl-modern'] . '{border-left:5px solid green;border-right:2px solid red}',
             $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; border-inline-end: 5px solid green; }', ['safari' => 8])
         );
         $barSelector = $variants('.bar');
         $t->same(
             $selector['ltr-webkit'] . '{border-left:2px solid red;border-right:5px solid green}'
                 . $selector['ltr-modern'] . '{border-left:2px solid red;border-right:5px solid green}'
-                . $selector['rtl-webkit'] . '{border-right:2px solid red;border-left:5px solid green}'
-                . $selector['rtl-modern'] . '{border-right:2px solid red;border-left:5px solid green}'
+                . $selector['rtl-webkit'] . '{border-left:5px solid green;border-right:2px solid red}'
+                . $selector['rtl-modern'] . '{border-left:5px solid green;border-right:2px solid red}'
                 . $barSelector['ltr-webkit'] . '{border-left:1px dotted gray;border-right:1px solid #000}'
                 . $barSelector['ltr-modern'] . '{border-left:1px dotted gray;border-right:1px solid #000}'
-                . $barSelector['rtl-webkit'] . '{border-right:1px dotted gray;border-left:1px solid #000}'
-                . $barSelector['rtl-modern'] . '{border-right:1px dotted gray;border-left:1px solid #000}',
+                . $barSelector['rtl-webkit'] . '{border-left:1px solid #000;border-right:1px dotted gray}'
+                . $barSelector['rtl-modern'] . '{border-left:1px solid #000;border-right:1px dotted gray}',
             $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; border-inline-end: 5px solid green; } .bar { border-inline-start: 1px dotted gray; border-inline-end: 1px solid black; }', ['safari' => 8])
         );
         $t->same(
@@ -3034,7 +3034,7 @@ CSS;
         $prefixer = new TransitionPrefixer();
         $selector = $variants('.foo');
 
-        // Pinned upstream 22bdda3d src/lib.rs::test_border lines 1757, 1790, 1898, and 1931.
+        // Pinned upstream 22bdda3d src/lib.rs::test_border lines 1757, 1790, 1823, 1898, and 1931.
         $t->same(
             $selector['ltr-webkit'] . '{border-left-color:#b32323;border-left-color:lab(40% 56.6 39)}'
                 . $selector['ltr-modern'] . '{border-left-color:#b32323;border-left-color:lab(40% 56.6 39)}'
@@ -3050,6 +3050,14 @@ CSS;
                 . $selector['rtl-modern'] . '{border-left-color:#b32323;border-left-color:lab(40% 56.6 39)}',
             $prefixer->prefixForTargets('.foo { border-inline-end-color: lab(40% 56.6 39); }', ['safari' => 8]),
             'upstream src/lib.rs::test_border line 1790'
+        );
+        $t->same(
+            $selector['ltr-webkit'] . '{border-left-color:#b32323;border-left-color:lab(40% 56.6 39);border-right-color:#ee00be;border-right-color:lch(50.998% 135.363 338)}'
+                . $selector['ltr-modern'] . '{border-left-color:#b32323;border-left-color:lab(40% 56.6 39);border-right-color:#ee00be;border-right-color:lch(50.998% 135.363 338)}'
+                . $selector['rtl-webkit'] . '{border-left-color:#ee00be;border-left-color:lch(50.998% 135.363 338);border-right-color:#b32323;border-right-color:lab(40% 56.6 39)}'
+                . $selector['rtl-modern'] . '{border-left-color:#ee00be;border-left-color:lch(50.998% 135.363 338);border-right-color:#b32323;border-right-color:lab(40% 56.6 39)}',
+            $prefixer->prefixForTargets('.foo { border-inline-start-color: lab(40% 56.6 39); border-inline-end-color: lch(50.998% 135.363 338); }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border line 1823'
         );
         $t->same(
             $selector['ltr-webkit'] . '{border-left:2px solid #b32323;border-left:2px solid lab(40% 56.6 39)}'

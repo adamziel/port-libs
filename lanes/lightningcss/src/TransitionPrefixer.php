@@ -4722,22 +4722,42 @@ final class TransitionPrefixer
     {
         $ltrEntries = [];
         $rtlEntries = [];
+        $ltrDirectionalBuffer = [];
+        $rtlDirectionalBuffer = [];
         $changed = false;
         $needsDirectionSplit = false;
+        $flushDirectionalBuffer = function () use (&$ltrEntries, &$rtlEntries, &$ltrDirectionalBuffer, &$rtlDirectionalBuffer): void {
+            if ($ltrDirectionalBuffer === []) {
+                return;
+            }
+
+            array_push($ltrEntries, ...$this->sortLogicalBorderPhysicalEntries($ltrDirectionalBuffer));
+            array_push($rtlEntries, ...$this->sortLogicalBorderPhysicalEntries($rtlDirectionalBuffer));
+            $ltrDirectionalBuffer = [];
+            $rtlDirectionalBuffer = [];
+        };
 
         foreach ($entries as $entry) {
             $fallback = $this->logicalBorderFallbackEntries($entry, $needsFullFallback, $needsShorthandFallback);
             if ($fallback === null) {
+                $flushDirectionalBuffer();
                 $ltrEntries[] = $entry;
                 $rtlEntries[] = $entry;
                 continue;
             }
 
-            array_push($ltrEntries, ...$fallback['ltr']);
-            array_push($rtlEntries, ...$fallback['rtl']);
+            if ($this->logicalBorderFallbackShouldUsePhysicalOrder($entry, $fallback)) {
+                array_push($ltrDirectionalBuffer, ...$fallback['ltr']);
+                array_push($rtlDirectionalBuffer, ...$fallback['rtl']);
+            } else {
+                $flushDirectionalBuffer();
+                array_push($ltrEntries, ...$fallback['ltr']);
+                array_push($rtlEntries, ...$fallback['rtl']);
+            }
             $changed = true;
             $needsDirectionSplit = $needsDirectionSplit || $fallback['directional'];
         }
+        $flushDirectionalBuffer();
 
         return [
             'ltr' => $ltrEntries,
@@ -4745,6 +4765,52 @@ final class TransitionPrefixer
             'changed' => $changed,
             'directional' => $needsDirectionSplit,
         ];
+    }
+
+    /**
+     * @param array{property:string,name:string,value:string,important:bool} $entry
+     * @param array{ltr:list<array{property:string,name:string,value:string,important:bool}>,rtl:list<array{property:string,name:string,value:string,important:bool}>,directional:bool} $fallback
+     */
+    private function logicalBorderFallbackShouldUsePhysicalOrder(array $entry, array $fallback): bool
+    {
+        if (!$fallback['directional'] || $this->containsCustomPropertyReference($entry['value']) || $this->containsEnvironmentReference($entry['value'])) {
+            return false;
+        }
+
+        return preg_match('/^border-inline-(?:start|end)(?:-(?:width|style|color))?$/', $entry['property']) === 1;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @return list<array{property:string,name:string,value:string,important:bool}>
+     */
+    private function sortLogicalBorderPhysicalEntries(array $entries): array
+    {
+        $indexed = [];
+        foreach ($entries as $index => $entry) {
+            $indexed[] = [$index, $entry];
+        }
+
+        usort(
+            $indexed,
+            function (array $left, array $right): int {
+                $leftOrder = $this->logicalBorderPhysicalPropertyOrder($left[1]['property']);
+                $rightOrder = $this->logicalBorderPhysicalPropertyOrder($right[1]['property']);
+
+                return $leftOrder <=> $rightOrder ?: $left[0] <=> $right[0];
+            }
+        );
+
+        return array_map(static fn (array $item): array => $item[1], $indexed);
+    }
+
+    private function logicalBorderPhysicalPropertyOrder(string $property): int
+    {
+        return match (true) {
+            str_starts_with($property, 'border-left') => 0,
+            str_starts_with($property, 'border-right') => 1,
+            default => 2,
+        };
     }
 
     /**
