@@ -7001,6 +7001,7 @@ final class OpenDocumentPackage
             'jar' => 'application/java-archive',
             'js', 'mjs' => 'application/javascript',
             'py' => 'text/x-python',
+            'rb' => 'text/x-ruby',
             'xba', 'xdl', 'xlb', 'xml' => 'text/xml',
             default => null,
         };
@@ -7027,6 +7028,9 @@ final class OpenDocumentPackage
         if ($expectedBase === 'text/x-python') {
             return in_array($mediaTypeBase, ['text/x-python', 'application/x-python'], true);
         }
+        if ($expectedBase === 'text/x-ruby') {
+            return in_array($mediaTypeBase, ['text/x-ruby', 'application/x-ruby'], true);
+        }
 
         return $mediaTypeBase === $expectedBase;
     }
@@ -7046,6 +7050,8 @@ final class OpenDocumentPackage
         $library = null;
         if (in_array($container, ['basic', 'dialogs'], true) && isset($segments[1]) && $segments[1] !== '') {
             $library = $segments[1];
+        } elseif ($container === 'scripts' && count($segments) > 2 && isset($segments[1]) && $segments[1] !== '') {
+            $library = $segments[1];
         }
 
         $basename = strtolower(basename($path));
@@ -7055,6 +7061,7 @@ final class OpenDocumentPackage
             'jar' => 'java-archive',
             'js', 'mjs' => 'javascript',
             'py' => 'python',
+            'rb' => 'ruby',
             'xba' => 'basic-module',
             'xdl' => $container === 'dialogs' ? 'basic-dialog' : 'script-xml',
             'xlb' => 'basic-library-index',
@@ -7070,6 +7077,7 @@ final class OpenDocumentPackage
                 'application/java-archive' => 'java-archive',
                 'application/java-vm' => 'java-class',
                 'text/x-python' => 'python',
+                'text/x-ruby', 'application/x-ruby' => 'ruby',
                 default => $container === 'basic' ? 'basic-package-part' : 'script-package-part',
             },
         };
