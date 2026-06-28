@@ -278,8 +278,15 @@ return [
         $t->same('dictionary-package-bytes-blocked', $reviewByPath['Dictionaries/en_US/preview.png']['byteExposurePolicy']);
         $t->same('dictionary', $reviewByPath['Dictionaries/en_US/preview.png']['manifestMediaFamily']);
         $t->same(1, $compactMediaResources['mediaResourceCount']);
-        $t->same(1, $compactMediaResources['packageRolePrecedenceCount']);
-        $t->same(['Pictures/hero.png', 'Dictionaries/en_US/preview.png'], array_column($compactMediaResources['items'], 'part'));
+        $t->same(5, $compactMediaResources['packageRolePrecedenceCount']);
+        $t->same([
+            'Pictures/hero.png',
+            'Dictionaries/en_US/en_US.dic',
+            'Dictionaries/en_US/en_US.aff',
+            'Dictionaries/en_US/preview.png',
+            'Dictionaries/en_US/missing.dic',
+            'Dictionaries/en_US/encrypted.dic',
+        ], array_column($compactMediaResources['items'], 'part'));
         $t->same(['dictionary-package'], $compactMediaResourceByPart['Dictionaries/en_US/preview.png']['packageRolePrecedence']);
         $t->same(false, $compactMediaResourceByPart['Dictionaries/en_US/preview.png']['mediaResource']);
         $t->same(['odf-media-resource-package-role-precedence'], $compactMediaResourceByPart['Dictionaries/en_US/preview.png']['issues']);
