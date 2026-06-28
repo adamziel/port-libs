@@ -7914,6 +7914,96 @@ return [
         $t->same($expectedEdges, $sequence['finalEngineDependencyEdges']);
     },
 
+    'fake runner parses typst json dependency sidecar provenance' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/json-deps.pdf',
+            'source' => '= Typst JSON Dependency Packet',
+            'engineOptions' => ['--deps=build/json-deps.json', '--deps-format=json'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst JSON dependency packet\n%%EOF\n";
+        $depfile = json_encode([
+            'inputs' => [
+                'build/json-deps.typ',
+                'figures/chart.svg',
+                '@preview/cetz:0.3.2/src/lib.typ',
+                '/usr/share/fonts/LibertinusSerif-Regular.otf',
+            ],
+            'outputs' => ['build/json-deps.pdf'],
+        ], JSON_THROW_ON_ERROR);
+        $expectedPackageDependencies = [
+            [
+                'input' => 'typst-package:@preview/cetz:0.3.2/src/lib.typ',
+                'reference' => '@preview/cetz:0.3.2/src/lib.typ',
+                'namespace' => 'preview',
+                'package' => 'cetz',
+                'version' => '0.3.2',
+                'subpath' => 'src/lib.typ',
+                'sourceClass' => 'preview-registry',
+            ],
+        ];
+        $expectedEdges = [
+            [
+                'outputFiles' => ['build/json-deps.pdf'],
+                'inputFiles' => ['build/json-deps.typ', 'figures/chart.svg'],
+                'externalInputFiles' => ['LibertinusSerif-Regular.otf', 'typst-package:@preview/cetz:0.3.2/src/lib.typ'],
+                'artifact' => 'build/json-deps.json',
+            ],
+        ];
+        $expectedOutputPolicy = [
+            'reviewStatus' => 'ok',
+            'declaredOutputFile' => 'build/json-deps.pdf',
+            'dependencyOutputFiles' => ['build/json-deps.pdf'],
+            'declaredOutputPresent' => true,
+            'extraOutputFiles' => [],
+            'issues' => [],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/json-deps.json' => $depfile,
+                'build/json-deps.pdf' => $pdfBytes,
+                'figures/chart.svg' => '<svg viewBox="0 0 4 3"/>',
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'build/json-deps.json' => $depfile,
+                    'build/json-deps.pdf' => $pdfBytes,
+                    'figures/chart.svg' => '<svg viewBox="0 0 4 3"/>',
+                ],
+            ],
+        ]);
+
+        $t->same('build/json-deps.json', $plan['engineDependencyFile']);
+        $t->same(['build/json-deps.json'], $plan['expectedEngineArtifacts']);
+        $t->same(true, $result['ok']);
+        $t->same(['build/json-deps.json' => hash('sha256', $depfile)], $result['engineDependencyArtifactsSha256']);
+        $t->same(['build/json-deps.typ', 'figures/chart.svg'], $result['engineInputFiles']);
+        $t->same(['LibertinusSerif-Regular.otf', 'typst-package:@preview/cetz:0.3.2/src/lib.typ'], $result['engineExternalInputFiles']);
+        $t->same(['typst-package:@preview/cetz:0.3.2/src/lib.typ'], $result['engineTypstPackageInputs']);
+        $t->same($expectedPackageDependencies, $result['engineTypstPackageDependencies']);
+        $t->same(['build/json-deps.pdf'], $result['engineOutputFiles']);
+        $t->same($expectedOutputPolicy, $result['typstDependencyOutputPolicy']);
+        $t->same($expectedEdges, $result['engineDependencyEdges']);
+        $t->same($expectedEdges, $result['artifactProvenanceReview']['engineDependencyEdges']);
+        $t->same($expectedPackageDependencies, $result['artifactProvenanceReview']['typstPackageDependencies']);
+        $t->same($expectedOutputPolicy, $result['artifactProvenanceReview']['typstDependencyOutputPolicy']);
+        $t->contains('engine-dependency-artifacts:1', implode(',', $result['diagnostics']));
+        $t->contains('engine-dependency-files:2', implode(',', $result['diagnostics']));
+        $t->contains('engine-external-input-files:2', implode(',', $result['diagnostics']));
+        $t->contains('engine-typst-package-inputs:1', implode(',', $result['diagnostics']));
+        $t->contains('engine-typst-package-dependencies:1', implode(',', $result['diagnostics']));
+        $t->contains('engine-dependency-edges:1', implode(',', $result['diagnostics']));
+        $t->contains('engine-output-files:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-dependency-output-policy:ok', implode(',', $result['diagnostics']));
+        $t->same($expectedEdges, $sequence['finalEngineDependencyEdges']);
+        $t->same($expectedPackageDependencies, $sequence['finalEngineTypstPackageDependencies']);
+        $t->same($expectedOutputPolicy, $sequence['finalTypstDependencyOutputPolicy']);
+    },
+
     'fake runner preserves typst dependency edge package provenance' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
