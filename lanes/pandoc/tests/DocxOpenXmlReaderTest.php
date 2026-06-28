@@ -17919,6 +17919,110 @@ XML;
         $t->true(is_string($encodedStructures), 'XML element structure metadata should encode for review');
         $t->true(!str_contains((string) $encodedStructures, $hiddenText), 'raw XML element text should not be exposed in structure metadata');
     },
+    'summarizes docx package xml repeated sibling elements without exposing text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $hiddenText = 'hidden-repeated-sibling-payload';
+        $parts['customXml/repeated-siblings.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:review-sibling" xmlns:audit="urn:audit-sibling">
+  <review:items>
+    <review:item/>
+    <review:item/>
+    <review:item/>
+    <audit:item/>
+    <audit:item/>
+  </review:items>
+  <review:groups>
+    <review:group>
+      <review:member/>
+      <review:member/>
+    </review:group>
+    <review:group/>
+  </review:groups>
+  <review:payload>{$hiddenText}</review:payload>
+</review:packet>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/repeated-siblings.xml'];
+        $groups = array_values(array_filter(
+            $summary['partXmlRepeatedSiblingElements'],
+            static fn (array $group): bool => ($group['partName'] ?? null) === 'customXml/repeated-siblings.xml',
+        ));
+        $groupsByKey = [];
+        foreach ($groups as $group) {
+            $groupsByKey[$group['parentPath'] . '|' . $group['elementQualifiedName']] = $group;
+        }
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(4, $reviewPart['xmlRepeatedSiblingElementGroupCount']);
+        $t->same(9, $reviewPart['xmlRepeatedSiblingElementCount']);
+        $t->same(3, $reviewPart['xmlRepeatedSiblingElementMaxCount']);
+        $t->same([
+            '/review:packet/review:groups' => 1,
+            '/review:packet/review:groups/review:group' => 1,
+            '/review:packet/review:items' => 2,
+        ], $reviewPart['xmlRepeatedSiblingElementParentPathCounts']);
+        $t->same([
+            'urn:review-sibling' => 4,
+        ], $reviewPart['xmlRepeatedSiblingElementParentNamespaceCounts']);
+        $t->same(['group' => 1, 'groups' => 1, 'items' => 2], $reviewPart['xmlRepeatedSiblingElementParentLocalNameCounts']);
+        $t->same([
+            'review:group' => 1,
+            'review:groups' => 1,
+            'review:items' => 2,
+        ], $reviewPart['xmlRepeatedSiblingElementParentQualifiedNameCounts']);
+        $t->same([
+            'urn:audit-sibling' => 2,
+            'urn:review-sibling' => 7,
+        ], $reviewPart['xmlRepeatedSiblingElementNamespaceCounts']);
+        $t->same(['group' => 2, 'item' => 5, 'member' => 2], $reviewPart['xmlRepeatedSiblingElementLocalNameCounts']);
+        $t->same([
+            'audit:item' => 2,
+            'review:group' => 2,
+            'review:item' => 3,
+            'review:member' => 2,
+        ], $reviewPart['xmlRepeatedSiblingElementQualifiedNameCounts']);
+        $t->same(['audit' => 2, 'review' => 7], $reviewPart['xmlRepeatedSiblingElementPrefixCounts']);
+        $t->same(['audit', 'review'], $reviewPart['xmlRepeatedSiblingElementPrefixes']);
+
+        $t->true($summary['partXmlRepeatedSiblingElementPartCount'] >= 1, 'summary repeated sibling part count should include custom XML');
+        $t->true(in_array('customXml/repeated-siblings.xml', $summary['partXmlRepeatedSiblingElementPartNames'], true), 'custom XML repeated sibling part should be summarized');
+        $t->true($summary['partXmlRepeatedSiblingElementGroupCount'] >= 4, 'summary repeated sibling group count should include custom XML groups');
+        $t->true($summary['partXmlRepeatedSiblingElementCount'] >= 9, 'summary repeated sibling element count should include custom XML repeated elements');
+        $t->true($summary['partXmlRepeatedSiblingElementMaxCount'] >= 3, 'summary repeated sibling max count should include custom XML max siblings');
+        $t->same(2, $summary['partXmlRepeatedSiblingElementNamespaceCounts']['urn:audit-sibling']);
+        $t->same(7, $summary['partXmlRepeatedSiblingElementNamespaceCounts']['urn:review-sibling']);
+        $t->same(2, $summary['partXmlRepeatedSiblingElementQualifiedNameCounts']['audit:item']);
+        $t->same(3, $summary['partXmlRepeatedSiblingElementQualifiedNameCounts']['review:item']);
+        $t->same(2, $summary['partXmlRepeatedSiblingElementQualifiedNameCounts']['review:member']);
+        $t->same(2, $summary['partXmlRepeatedSiblingElementParentPathCounts']['/review:packet/review:items']);
+        $t->same(1, $summary['partXmlRepeatedSiblingElementParentPathCounts']['/review:packet/review:groups/review:group']);
+        $t->true(in_array('/review:packet/review:groups/review:group', $summary['partXmlRepeatedSiblingElementParentPaths'], true), 'summary repeated sibling parent paths should include nested group');
+
+        $reviewItems = $groupsByKey['/review:packet/review:items|review:item'];
+        $auditItems = $groupsByKey['/review:packet/review:items|audit:item'];
+        $members = $groupsByKey['/review:packet/review:groups/review:group|review:member'];
+        $t->same(3, $reviewItems['count']);
+        $t->same(1, $reviewItems['firstSiblingIndex']);
+        $t->same(3, $reviewItems['lastSiblingIndex']);
+        $t->same('urn:review-sibling', $reviewItems['elementNamespace']);
+        $t->same('review', $reviewItems['elementPrefix']);
+        $t->same(2, $auditItems['count']);
+        $t->same(4, $auditItems['firstSiblingIndex']);
+        $t->same(5, $auditItems['lastSiblingIndex']);
+        $t->same('urn:audit-sibling', $auditItems['elementNamespace']);
+        $t->same('audit', $auditItems['elementPrefix']);
+        $t->same(2, $members['count']);
+        $t->same('/review:packet/review:groups/review:group', $members['parentPath']);
+        $t->same(3, $members['parentDepth']);
+
+        $encodedGroups = json_encode([$reviewPart, $groups]);
+        $t->true(is_string($encodedGroups), 'XML repeated sibling metadata should encode for review');
+        $t->true(!str_contains((string) $encodedGroups, $hiddenText), 'raw XML text should not be exposed in repeated sibling metadata');
+    },
     'summarizes docx package xml element attributes without exposing values' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $rootState = 'root-state-hidden-alpha';
