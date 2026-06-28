@@ -6176,6 +6176,7 @@ final class ZipPackage
         );
         $handoffRawCommentSummary = self::entryHandoffRawCommentSummary($handoffEntries);
         $roleSummaries = self::entryHandoffRoleSummaries($entries);
+        $handoffDataDescriptorSummary = self::entryHandoffDataDescriptorSummary($handoffEntries);
         $handoffSourceByteSpanSummary = self::entryHandoffSourceByteSpanSummary($handoffEntries);
         $handoffContentDigestSummary = self::entryHandoffContentDigestSummary($handoffEntries);
         $requirementSummaries = self::entryHandoffRequirementSummaries($entries);
@@ -6350,6 +6351,14 @@ final class ZipPackage
             'selectedDataDescriptorValuesMatchCentralEntryCount' => $selectedDataDescriptorValuesMatchCentralEntryCount,
             'selectedDataDescriptorIssueEntryCount' => count($selectedDataDescriptorIssueEntries),
             'selectedDataDescriptorIssues' => $selectedDataDescriptorIssues,
+            'handoffDataDescriptorEntryCount' => $handoffDataDescriptorSummary['entryCount'],
+            'handoffSignedDataDescriptorEntryCount' => $handoffDataDescriptorSummary['signedEntryCount'],
+            'handoffUnsignedDataDescriptorEntryCount' => $handoffDataDescriptorSummary['unsignedEntryCount'],
+            'handoffZip64SizedDataDescriptorEntryCount' => $handoffDataDescriptorSummary['zip64SizedEntryCount'],
+            'handoffZeroLocalHeaderPlaceholderEntryCount' => $handoffDataDescriptorSummary['zeroLocalHeaderPlaceholderEntryCount'],
+            'handoffDataDescriptorValuesMatchCentralEntryCount' => $handoffDataDescriptorSummary['valuesMatchCentralEntryCount'],
+            'handoffDataDescriptorIssueEntryCount' => $handoffDataDescriptorSummary['issueEntryCount'],
+            'handoffDataDescriptorIssues' => $handoffDataDescriptorSummary['issues'],
             'selectedSourceByteSpanEntryCount' => count($selectedSourceByteSpanEntries),
             'selectedSourceLocalRecordBytes' => $selectedSourceLocalRecordBytes,
             'selectedSourceLocalHeaderBytes' => $selectedSourceLocalHeaderBytes,
@@ -6459,6 +6468,8 @@ final class ZipPackage
             'handoffTimestampIssueEntries' => $handoffTimestampSummary['issueEntries'],
             'selectedDataDescriptorProvenanceEntries' => $selectedDataDescriptorProvenanceEntries,
             'selectedDataDescriptorIssueEntries' => $selectedDataDescriptorIssueEntries,
+            'handoffDataDescriptorProvenanceEntries' => $handoffDataDescriptorSummary['provenanceEntries'],
+            'handoffDataDescriptorIssueEntries' => $handoffDataDescriptorSummary['issueEntries'],
             'selectedSourceByteSpanEntries' => $selectedSourceByteSpanEntries,
             'handoffSourceByteSpanEntries' => $handoffSourceByteSpanSummary['entries'],
             'handoffContentDigestEntries' => $handoffContentDigestSummary['entries'],
@@ -6681,6 +6692,117 @@ final class ZipPackage
             'decodedCommentDiffersFromRawCommentEntryCount' => $decodedCommentDiffersFromRawCommentEntryCount,
             'commentedEntries' => $commentedEntries,
             'rawCommentProvenanceEntries' => $rawCommentProvenanceEntries,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array{entryCount:int, signedEntryCount:int, unsignedEntryCount:int, zip64SizedEntryCount:int, zeroLocalHeaderPlaceholderEntryCount:int, valuesMatchCentralEntryCount:int, issueEntryCount:int, issues:list<string>, provenanceEntries:list<array<string, mixed>>, issueEntries:list<array<string, mixed>>}
+     */
+    private static function entryHandoffDataDescriptorSummary(array $entries): array
+    {
+        $signedEntryCount = 0;
+        $unsignedEntryCount = 0;
+        $zip64SizedEntryCount = 0;
+        $zeroLocalHeaderPlaceholderEntryCount = 0;
+        $valuesMatchCentralEntryCount = 0;
+        $issues = [];
+        $provenanceEntries = [];
+        $issueEntries = [];
+
+        foreach ($entries as $entry) {
+            if (
+                ($entry['exists'] ?? false) !== true
+                || ($entry['status'] ?? null) !== 'ready'
+                || ($entry['usesDataDescriptor'] ?? false) !== true
+            ) {
+                continue;
+            }
+
+            $entryIssues = array_values(array_filter(
+                is_array($entry['dataDescriptorIssues'] ?? null) ? $entry['dataDescriptorIssues'] : [],
+                'is_string'
+            ));
+            $summary = [
+                'requestIndex' => is_int($entry['requestIndex'] ?? null) ? $entry['requestIndex'] : null,
+                'requestedName' => is_string($entry['requestedName'] ?? null) ? $entry['requestedName'] : '',
+                'name' => is_string($entry['name'] ?? null) ? $entry['name'] : '',
+                'role' => is_string($entry['role'] ?? null) ? $entry['role'] : null,
+                'required' => ($entry['required'] ?? false) === true,
+                'expectedKind' => is_string($entry['expectedKind'] ?? null) ? $entry['expectedKind'] : null,
+                'status' => 'ready',
+                'isReadable' => ($entry['isReadable'] ?? false) === true,
+                'compressedSize' => (int) ($entry['compressedSize'] ?? 0),
+                'uncompressedSize' => (int) ($entry['uncompressedSize'] ?? 0),
+                'usesDataDescriptor' => true,
+                'dataDescriptorHasSignature' => is_bool($entry['dataDescriptorHasSignature'] ?? null)
+                    ? $entry['dataDescriptorHasSignature']
+                    : null,
+                'dataDescriptorOffset' => is_int($entry['dataDescriptorOffset'] ?? null) ? $entry['dataDescriptorOffset'] : null,
+                'dataDescriptorValueOffset' => is_int($entry['dataDescriptorValueOffset'] ?? null) ? $entry['dataDescriptorValueOffset'] : null,
+                'dataDescriptorLength' => is_int($entry['dataDescriptorLength'] ?? null) ? $entry['dataDescriptorLength'] : null,
+                'dataDescriptorNextOffset' => is_int($entry['dataDescriptorNextOffset'] ?? null) ? $entry['dataDescriptorNextOffset'] : null,
+                'dataDescriptorSpan' => is_int($entry['dataDescriptorSpan'] ?? null) ? $entry['dataDescriptorSpan'] : null,
+                'dataDescriptorEnd' => is_int($entry['dataDescriptorEnd'] ?? null) ? $entry['dataDescriptorEnd'] : null,
+                'dataDescriptorSurplusBytes' => is_int($entry['dataDescriptorSurplusBytes'] ?? null) ? $entry['dataDescriptorSurplusBytes'] : null,
+                'dataDescriptorTruncatedBytes' => is_int($entry['dataDescriptorTruncatedBytes'] ?? null) ? $entry['dataDescriptorTruncatedBytes'] : null,
+                'dataDescriptorCrc32' => is_int($entry['dataDescriptorCrc32'] ?? null) ? $entry['dataDescriptorCrc32'] : null,
+                'dataDescriptorCrc32Hex' => is_string($entry['dataDescriptorCrc32Hex'] ?? null) ? $entry['dataDescriptorCrc32Hex'] : null,
+                'dataDescriptorCompressedSize' => is_int($entry['dataDescriptorCompressedSize'] ?? null) ? $entry['dataDescriptorCompressedSize'] : null,
+                'dataDescriptorUncompressedSize' => is_int($entry['dataDescriptorUncompressedSize'] ?? null) ? $entry['dataDescriptorUncompressedSize'] : null,
+                'dataDescriptorUsesZip64SizedFields' => ($entry['dataDescriptorUsesZip64SizedFields'] ?? false) === true,
+                'dataDescriptorValuesMatchCentral' => is_bool($entry['dataDescriptorValuesMatchCentral'] ?? null)
+                    ? $entry['dataDescriptorValuesMatchCentral']
+                    : null,
+                'dataDescriptorIssues' => $entryIssues,
+                'localHeaderCrc32' => is_int($entry['localHeaderCrc32'] ?? null) ? $entry['localHeaderCrc32'] : null,
+                'localHeaderCompressedSize' => is_int($entry['localHeaderCompressedSize'] ?? null)
+                    ? $entry['localHeaderCompressedSize']
+                    : null,
+                'localHeaderUncompressedSize' => is_int($entry['localHeaderUncompressedSize'] ?? null)
+                    ? $entry['localHeaderUncompressedSize']
+                    : null,
+                'hasZeroLocalHeaderPlaceholders' => is_bool($entry['hasZeroLocalHeaderPlaceholders'] ?? null)
+                    ? $entry['hasZeroLocalHeaderPlaceholders']
+                    : null,
+            ];
+            $provenanceEntries[] = $summary;
+
+            if ($summary['dataDescriptorHasSignature'] === true) {
+                ++$signedEntryCount;
+            } else {
+                ++$unsignedEntryCount;
+            }
+            if ($summary['dataDescriptorUsesZip64SizedFields']) {
+                ++$zip64SizedEntryCount;
+            }
+            if ($summary['hasZeroLocalHeaderPlaceholders'] === true) {
+                ++$zeroLocalHeaderPlaceholderEntryCount;
+            }
+            if ($summary['dataDescriptorValuesMatchCentral'] === true) {
+                ++$valuesMatchCentralEntryCount;
+            }
+            if ($entryIssues !== []) {
+                $issueEntries[] = $summary;
+                foreach ($entryIssues as $issue) {
+                    self::appendUniqueIssue($issues, $issue);
+                }
+            }
+        }
+
+        sort($issues, SORT_STRING);
+
+        return [
+            'entryCount' => count($provenanceEntries),
+            'signedEntryCount' => $signedEntryCount,
+            'unsignedEntryCount' => $unsignedEntryCount,
+            'zip64SizedEntryCount' => $zip64SizedEntryCount,
+            'zeroLocalHeaderPlaceholderEntryCount' => $zeroLocalHeaderPlaceholderEntryCount,
+            'valuesMatchCentralEntryCount' => $valuesMatchCentralEntryCount,
+            'issueEntryCount' => count($issueEntries),
+            'issues' => $issues,
+            'provenanceEntries' => $provenanceEntries,
+            'issueEntries' => $issueEntries,
         ];
     }
 

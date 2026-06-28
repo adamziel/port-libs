@@ -11788,6 +11788,98 @@ return [
             $summary['selectedDataDescriptorProvenanceEntries']
         ));
     },
+
+    'summarizes readable zip data descriptors before reader byte handoff' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
+        $documentXml = '<w:document><w:body><w:p>readable descriptor handoff</w:p></w:body></w:document>';
+        $commentsXml = '<w:comments><w:comment>readable signed descriptor</w:comment></w:comments>';
+        $mediaBytes = str_repeat('blocked descriptor media bytes ', 3);
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/comments.xml',
+                'data' => $commentsXml,
+                'method' => 8,
+                'descriptor' => true,
+            ],
+            [
+                'name' => 'word/media/raw.bin',
+                'data' => $mediaBytes,
+                'method' => 0,
+                'descriptor' => true,
+                'descriptorSignature' => false,
+            ],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/comments.xml', 'required' => false, 'kind' => 'file', 'role' => 'review-sidecar'],
+            ['name' => 'word/media/raw.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 8],
+        ], 1024);
+
+        $commentsEntry = $summary['entries'][1];
+        $mediaEntry = $summary['entries'][2];
+
+        $t->same(2, $summary['selectedDataDescriptorEntryCount']);
+        $t->same(1, $summary['selectedSignedDataDescriptorEntryCount']);
+        $t->same(1, $summary['selectedUnsignedDataDescriptorEntryCount']);
+        $t->same(2, $summary['selectedZeroLocalHeaderPlaceholderEntryCount']);
+        $t->same(2, $summary['selectedDataDescriptorValuesMatchCentralEntryCount']);
+        $t->same(0, $summary['selectedDataDescriptorIssueEntryCount']);
+        $t->same(1, $summary['handoffDataDescriptorEntryCount']);
+        $t->same(1, $summary['handoffSignedDataDescriptorEntryCount']);
+        $t->same(0, $summary['handoffUnsignedDataDescriptorEntryCount']);
+        $t->same(0, $summary['handoffZip64SizedDataDescriptorEntryCount']);
+        $t->same(1, $summary['handoffZeroLocalHeaderPlaceholderEntryCount']);
+        $t->same(1, $summary['handoffDataDescriptorValuesMatchCentralEntryCount']);
+        $t->same(0, $summary['handoffDataDescriptorIssueEntryCount']);
+        $t->same([], $summary['handoffDataDescriptorIssues']);
+        $t->same([], $summary['handoffDataDescriptorIssueEntries']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
+        $t->same('blocked', $mediaEntry['status']);
+        $t->same(false, $mediaEntry['isReadable']);
+        $t->same(true, $mediaEntry['usesDataDescriptor']);
+
+        $t->same([
+            [
+                'requestIndex' => 1,
+                'requestedName' => 'word/comments.xml',
+                'name' => 'word/comments.xml',
+                'role' => 'review-sidecar',
+                'required' => false,
+                'expectedKind' => 'file',
+                'status' => 'ready',
+                'isReadable' => true,
+                'compressedSize' => strlen(gzdeflate($commentsXml)),
+                'uncompressedSize' => strlen($commentsXml),
+                'usesDataDescriptor' => true,
+                'dataDescriptorHasSignature' => true,
+                'dataDescriptorOffset' => $commentsEntry['compressedDataEnd'],
+                'dataDescriptorValueOffset' => $commentsEntry['compressedDataEnd'] + 4,
+                'dataDescriptorLength' => 16,
+                'dataDescriptorNextOffset' => $mediaEntry['localHeaderOffset'],
+                'dataDescriptorSpan' => 16,
+                'dataDescriptorEnd' => $mediaEntry['localHeaderOffset'],
+                'dataDescriptorSurplusBytes' => 0,
+                'dataDescriptorTruncatedBytes' => 0,
+                'dataDescriptorCrc32' => $crc32($commentsXml),
+                'dataDescriptorCrc32Hex' => sprintf('%08x', $crc32($commentsXml)),
+                'dataDescriptorCompressedSize' => strlen(gzdeflate($commentsXml)),
+                'dataDescriptorUncompressedSize' => strlen($commentsXml),
+                'dataDescriptorUsesZip64SizedFields' => false,
+                'dataDescriptorValuesMatchCentral' => true,
+                'dataDescriptorIssues' => [],
+                'localHeaderCrc32' => 0,
+                'localHeaderCompressedSize' => 0,
+                'localHeaderUncompressedSize' => 0,
+                'hasZeroLocalHeaderPlaceholders' => true,
+            ],
+        ], $summary['handoffDataDescriptorProvenanceEntries']);
+    },
+
     'summarizes selected zip source byte spans before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>selected source spans</w:p></w:body></w:document>';
         $commentsXml = '<w:comments><w:comment>descriptor source span</w:comment></w:comments>';
