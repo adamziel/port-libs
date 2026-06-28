@@ -2886,7 +2886,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{relationshipType:?string, valid:bool, relationshipCount:int, validTargetCount:int, invalidTargetCount:int, internalTargetCount:int, externalTargetCount:int, existingInternalTargetCount:int, missingInternalTargetCount:int, queryTargetCount:int, fragmentTargetCount:int, sameSourceReferenceCount:int, relationshipPartTargetCount:int, contentTypesItemTargetCount:int, reservedRelationshipDirectoryTargetCount:int, unsafeExternalTargetCount:int, relativeExternalTargetCount:int, rewriteRequiredExternalTargetCount:int, sourceCount:int, targetPartCount:int, sourcePartCounts:array<string, int>, relationshipTypeCounts:array<string, int>, targetResolutionKindCounts:array<string, int>, targetKeysByResolutionKind:array<string, list<string>>, targetNamesByResolutionKind:array<string, list<string>>, externalTargetKindCounts:array<string, int>, externalTargetSchemeCounts:array<string, int>, contentTypeCounts:array<string, int>, targetParts:list<string>, missingTargetParts:list<string>, externalTargets:list<string>, contentTypes:list<string>, contentTypeSourceCounts:array<string, int>, issueCounts:array<string, int>, issues:list<string>, targets:list<array{source:string, id:string, type:string, target:string, targetPart:?string, targetQuery:?string, targetFragment:?string, sameSourceReference:bool, targetResolutionKind:string, contentType:?string, contentTypeSource:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>}
+     * @return array{relationshipType:?string, valid:bool, relationshipCount:int, validTargetCount:int, invalidTargetCount:int, internalTargetCount:int, externalTargetCount:int, existingInternalTargetCount:int, missingInternalTargetCount:int, queryTargetCount:int, fragmentTargetCount:int, sameSourceReferenceCount:int, relationshipPartTargetCount:int, contentTypesItemTargetCount:int, reservedRelationshipDirectoryTargetCount:int, unsafeExternalTargetCount:int, relativeExternalTargetCount:int, rewriteRequiredExternalTargetCount:int, sourceCount:int, targetPartCount:int, sourcePartCounts:array<string, int>, relationshipTypeCounts:array<string, int>, targetResolutionKindCounts:array<string, int>, targetKeysByResolutionKind:array<string, list<string>>, targetNamesByResolutionKind:array<string, list<string>>, externalTargetKindCounts:array<string, int>, externalTargetSchemeCounts:array<string, int>, contentTypeCounts:array<string, int>, targetParts:list<string>, missingTargetParts:list<string>, queryTargetKeys:list<string>, fragmentTargetKeys:list<string>, queryTargets:list<string>, fragmentTargets:list<string>, queryTargetParts:list<string>, fragmentTargetParts:list<string>, externalTargets:list<string>, contentTypes:list<string>, contentTypeSourceCounts:array<string, int>, issueCounts:array<string, int>, issues:list<string>, targets:list<array{source:string, id:string, type:string, target:string, targetPart:?string, targetQuery:?string, targetFragment:?string, sameSourceReference:bool, targetResolutionKind:string, contentType:?string, contentTypeSource:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>}
      */
     public function relationshipTargetSummary(?string $relationshipType = null): array
     {
@@ -2921,6 +2921,12 @@ final class OpcRelationshipGraph
             'contentTypeCounts' => [],
             'targetParts' => [],
             'missingTargetParts' => [],
+            'queryTargetKeys' => [],
+            'fragmentTargetKeys' => [],
+            'queryTargets' => [],
+            'fragmentTargets' => [],
+            'queryTargetParts' => [],
+            'fragmentTargetParts' => [],
             'externalTargets' => [],
             'contentTypes' => [],
             'contentTypeSourceCounts' => [],
@@ -3000,9 +3006,19 @@ final class OpcRelationshipGraph
 
                 if ($suffix['query'] !== null) {
                     $summary['queryTargetCount']++;
+                    $summary['queryTargetKeys'][] = $targetResolutionKey;
+                    self::appendUniqueString($summary['queryTargets'], $target['target']);
+                    if ($targetPart !== null) {
+                        self::appendUniqueString($summary['queryTargetParts'], $targetPart);
+                    }
                 }
                 if ($suffix['fragment'] !== null) {
                     $summary['fragmentTargetCount']++;
+                    $summary['fragmentTargetKeys'][] = $targetResolutionKey;
+                    self::appendUniqueString($summary['fragmentTargets'], $target['target']);
+                    if ($targetPart !== null) {
+                        self::appendUniqueString($summary['fragmentTargetParts'], $targetPart);
+                    }
                 }
                 if ($sameSourceReference) {
                     $summary['sameSourceReferenceCount']++;
@@ -3061,6 +3077,12 @@ final class OpcRelationshipGraph
         foreach ([
             'targetParts',
             'missingTargetParts',
+            'queryTargetKeys',
+            'fragmentTargetKeys',
+            'queryTargets',
+            'fragmentTargets',
+            'queryTargetParts',
+            'fragmentTargetParts',
             'externalTargets',
             'contentTypes',
             'issues',
