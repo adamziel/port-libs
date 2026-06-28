@@ -2114,7 +2114,7 @@ final class OpcRelationshipGraph
         $contentTypes = OpcContentTypes::fromXml($package->read($contentTypesItemName));
         $packagePartNamesByEquivalenceKey = self::packagePartNamesByEquivalenceKey($package);
         $preflight = [];
-        $sourceIndexes = [];
+        $sourceIndexesByEquivalenceKey = [];
         foreach ($package->names() as $name) {
             if (!self::isRelationshipPartName($name)) {
                 continue;
@@ -2189,11 +2189,11 @@ final class OpcRelationshipGraph
             ];
 
             if ($relationshipSource !== null) {
-                $sourceIndexes[$relationshipSource][] = array_key_last($preflight);
+                $sourceIndexesByEquivalenceKey[self::partNameEquivalenceKey($relationshipSource)][] = array_key_last($preflight);
             }
         }
 
-        foreach ($sourceIndexes as $rowIndexes) {
+        foreach ($sourceIndexesByEquivalenceKey as $rowIndexes) {
             if (count($rowIndexes) < 2) {
                 continue;
             }

@@ -3379,6 +3379,77 @@ XML;
 
         $t->throws(\RuntimeException::class, static fn (): OpcRelationshipGraph => OpcRelationshipGraph::fromPackage($package));
     },
+    'preflights case-equivalent OPC relationship sources as duplicate before loading' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/Word/Document.XML" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>
+XML;
+
+        $upperCaseRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdUpperImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/upper.png"/>
+</Relationships>
+XML;
+
+        $lowerCaseRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdLowerImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/lower.png"/>
+</Relationships>
+XML;
+
+        $package = ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => 'Word/Document.XML', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'Word/_rels/Document.XML.rels', 'data' => $upperCaseRelationshipsXml],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $lowerCaseRelationshipsXml],
+            ['name' => 'Word/media/upper.png', 'data' => 'PNG'],
+            ['name' => 'Word/media/lower.png', 'data' => 'PNG'],
+        ]);
+
+        $loads = [];
+        foreach (OpcRelationshipGraph::preflightRelationshipPartsInPackage($package) as $part) {
+            $loads[$part['partName']] = $part;
+        }
+
+        $duplicateRelationshipPartNames = [
+            '/Word/_rels/Document.XML.rels',
+            '/word/_rels/document.xml.rels',
+        ];
+
+        $t->same($duplicateRelationshipPartNames, array_keys($loads));
+
+        foreach ($duplicateRelationshipPartNames as $relationshipPartName) {
+            $t->same(true, $loads[$relationshipPartName]['sourceExists']);
+            $t->same(false, $loads[$relationshipPartName]['loaded']);
+            $t->same('skipped', $loads[$relationshipPartName]['loadAction']);
+            $t->same('duplicate-relationship-source', $loads[$relationshipPartName]['loadReason']);
+            $t->same(null, $loads[$relationshipPartName]['relationshipCount']);
+            $t->same($duplicateRelationshipPartNames, $loads[$relationshipPartName]['duplicateRelationshipPartNames']);
+            $t->same(['duplicate-relationship-source'], $loads[$relationshipPartName]['issues']);
+            $t->same(false, $loads[$relationshipPartName]['valid']);
+        }
+
+        $t->same('/Word/Document.XML', $loads['/Word/_rels/Document.XML.rels']['relationshipSource']);
+        $t->same('/word/document.xml', $loads['/word/_rels/document.xml.rels']['relationshipSource']);
+
+        $summary = OpcRelationshipGraph::relationshipPartLoadSummary($package);
+        $t->same(false, $summary['valid']);
+        $t->same(2, $summary['relationshipPartCount']);
+        $t->same(0, $summary['loadedCount']);
+        $t->same(2, $summary['skippedCount']);
+        $t->same(0, $summary['validCount']);
+        $t->same(2, $summary['invalidCount']);
+        $t->same(0, $summary['relationshipCount']);
+        $t->same(['skipped' => 2], $summary['loadActionCounts']);
+        $t->same(['duplicate-relationship-source' => 2], $summary['loadReasonCounts']);
+        $t->same(['duplicate-relationship-source' => 2], $summary['issueCounts']);
+        $t->same($duplicateRelationshipPartNames, $summary['partNamesByIssue']['duplicate-relationship-source']);
+        $t->same(['duplicate-relationship-source'], $summary['issues']);
+    },
     'preflights case-insensitive OPC part-name equivalence collisions' => static function (TestRunner $t): void {
         $types = new OpcContentTypes();
         $types->addDefault('xml', 'application/xml');
