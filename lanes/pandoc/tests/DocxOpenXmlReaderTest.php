@@ -25409,6 +25409,111 @@ XML;
         $t->true(in_array('embedded-package', $inventory['word/embeddings/loose-diagram-model.xlsx']['roles'], true), 'loose diagram workbook inventory role missing');
         $t->true(!isset($docx['media']['word/embeddings/loose-diagram-model.xlsx']), 'Loose diagram workbook package should not be exposed as document media');
     },
+    'summarizes docx xml relationship reference attributes without exposing XML text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $packageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+        $imageBytes = 'relationship reference preview bytes';
+        $hiddenText = 'relationship-reference:hidden-text';
+        $parts['customXml/relationship-reference-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:package xmlns:review="urn:relationship-reference-review" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <review:item r:id="rInternalImage">{$hiddenText}</review:item>
+  <review:link r:link="rExternalLink"/>
+  <review:missingTarget r:embed="rMissingTarget"/>
+  <review:missingRelationship r:id="rMissingRelationship"/>
+</review:package>
+XML;
+        $parts['customXml/_rels/relationship-reference-review.xml.rels'] = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rInternalImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../word/media/reference.png?slot=review#img"/>
+  <Relationship Id="rExternalLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/review?case=external#link" TargetMode="External"/>
+  <Relationship Id="rMissingTarget" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="../word/embeddings/missing-workbook.bin?case=missing#pkg"/>
+</Relationships>
+XML;
+        $parts['word/media/reference.png'] = $imageBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/relationship-reference-review.xml'];
+        $references = array_values(array_filter(
+            $summary['partXmlRelationshipReferenceAttributes'],
+            static fn (array $reference): bool => $reference['partName'] === 'customXml/relationship-reference-review.xml',
+        ));
+
+        $t->same(4, $reviewPart['xmlRelationshipReferenceAttributeCount']);
+        $t->same(3, $reviewPart['xmlRelationshipReferenceMatchedCount']);
+        $t->same(1, $reviewPart['xmlRelationshipReferenceMissingCount']);
+        $t->same(2, $reviewPart['xmlRelationshipReferenceInternalCount']);
+        $t->same(1, $reviewPart['xmlRelationshipReferenceExternalCount']);
+        $t->same(1, $reviewPart['xmlRelationshipReferenceExistingTargetCount']);
+        $t->same(1, $reviewPart['xmlRelationshipReferenceMissingTargetCount']);
+        $t->same(1, $reviewPart['xmlRelationshipReferenceMissingContentTypeCount']);
+        $t->same([
+            'r:embed' => 1,
+            'r:id' => 2,
+            'r:link' => 1,
+        ], $reviewPart['xmlRelationshipReferenceAttributeNameCounts']);
+        $t->same([
+            '/review:package/review:item' => 1,
+            '/review:package/review:link' => 1,
+            '/review:package/review:missingRelationship' => 1,
+            '/review:package/review:missingTarget' => 1,
+        ], $reviewPart['xmlRelationshipReferenceElementPathCounts']);
+        $t->same([
+            'rExternalLink' => 1,
+            'rInternalImage' => 1,
+            'rMissingRelationship' => 1,
+            'rMissingTarget' => 1,
+        ], $reviewPart['xmlRelationshipReferenceRelationshipIdCounts']);
+        $t->same([
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink' => 1,
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image' => 1,
+            $packageRel => 1,
+        ], $reviewPart['xmlRelationshipReferenceRelationshipTypeCounts']);
+        $t->same([
+            'word/embeddings/missing-workbook.bin' => 1,
+            'word/media/reference.png' => 1,
+        ], $reviewPart['xmlRelationshipReferenceTargetPartCounts']);
+
+        $t->same('customXml/_rels/relationship-reference-review.xml.rels', $references[0]['relationshipsPart']);
+        $t->same('/review:package/review:item', $references[0]['elementPath']);
+        $t->same('r:id', $references[0]['attributeName']);
+        $t->same('rInternalImage', $references[0]['relationshipId']);
+        $t->same(true, $references[0]['matchedRelationship']);
+        $t->same(false, $references[0]['external']);
+        $t->same('word/media/reference.png', $references[0]['targetPart']);
+        $t->same('slot=review', $references[0]['targetQuery']);
+        $t->same('img', $references[0]['targetFragment']);
+        $t->same('?slot=review#img', $references[0]['targetReferenceSuffix']);
+        $t->same(true, $references[0]['targetExists']);
+        $t->same('image/png', $references[0]['targetContentTypeBase']);
+        $t->same('default', $references[0]['targetContentTypeSource']);
+        $t->same('rExternalLink', $references[1]['relationshipId']);
+        $t->same(true, $references[1]['external']);
+        $t->same('case=external', $references[1]['targetQuery']);
+        $t->same('link', $references[1]['targetFragment']);
+        $t->same(null, $references[1]['targetPart']);
+        $t->same('rMissingTarget', $references[2]['relationshipId']);
+        $t->same(false, $references[2]['targetExists']);
+        $t->same('missing', $references[2]['targetContentTypeSource']);
+        $t->same('rMissingRelationship', $references[3]['relationshipId']);
+        $t->same(false, $references[3]['matchedRelationship']);
+        $t->same(null, $references[3]['relationshipType']);
+
+        $t->true($summary['partXmlRelationshipReferenceAttributePartCount'] >= 1, 'summary relationship-reference part count should include custom XML');
+        $t->true($summary['partXmlRelationshipReferenceAttributeCount'] >= 4, 'summary relationship-reference count should include custom XML');
+        $t->true($summary['partXmlRelationshipReferenceMatchedCount'] >= 3, 'summary matched relationship-reference count should include custom XML');
+        $t->true($summary['partXmlRelationshipReferenceMissingCount'] >= 1, 'summary missing relationship-reference count should include custom XML');
+        $t->true($summary['partXmlRelationshipReferenceExistingTargetCount'] >= 1, 'summary existing target count should include custom XML');
+        $t->true($summary['partXmlRelationshipReferenceMissingContentTypeCount'] >= 1, 'summary missing content-type target count should include custom XML');
+        $t->true(in_array('customXml/relationship-reference-review.xml', $summary['partXmlRelationshipReferencePartNames'], true), 'custom XML relationship-reference part should be summarized');
+        $t->true(in_array('rInternalImage', $summary['partXmlRelationshipReferenceRelationshipIds'], true), 'relationship id should be summarized');
+        $t->true(in_array('word/media/reference.png', $summary['partXmlRelationshipReferenceTargetParts'], true), 'relationship target part should be summarized');
+        $encodedReferences = json_encode([$reviewPart['xmlRelationshipReferenceAttributes'], $references]);
+        $t->true(is_string($encodedReferences), 'relationship-reference metadata should encode for review');
+        $t->true(!str_contains((string) $encodedReferences, $hiddenText), 'raw XML text should not be exposed in relationship-reference metadata');
+    },
     'summarizes docx source zip raw name provenance for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $cp437RawName = "word/media/caf\x82.png";
