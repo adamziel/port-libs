@@ -12,5 +12,31 @@
   "blocker": "Direct format parity remains active: many upstream input/output format tokens are unsupported or dependency-gated, and the full PHP pandoc lane suite currently has a broad non-slice failure backlog. Markdown raw block surge coverage still has a separate structured HTML precedence backlog where full-reader HTML helpers intentionally convert selected standalone tags before the raw CommonMark path. Direct DOCX/EPUB/ODT/PPTX/XLSX package support still depends on shared ZIP/OPC plus XML/HTML DOM support; PDF remains an engine-handoff target and must not be counted through TeX/browser/Typst shell-outs.",
   "latestCommit": "pending",
   "nextTask": "Continue bounded ODF/ODT package-ingestion slices around remaining compact/rich reader parity, selected-part provenance, and package sidecar role precedence while triaging the existing full-suite backlog separately from focused closures.",
-  "latestFocusedSlice": "2026-06-28 plib-hu4m5: ODF/ODT Templates/ package sidecars now infer OpenXML .dotx/.xltx/.potx media types in rich OdfReader and compact OpenDocumentPackage rows, classifying declared and undeclared template members as template-document while keeping template bytes blocked and out of media/WordPress handoff. Validation passed php -l for OdfReader.php, OpenDocumentPackage.php, and OdfReaderTemplatePackageSidecarTest.php; focused OdfReaderTemplatePackageSidecarTest.php passed with 113 assertions and 0 failures; adjacent template/OpenDocumentPackage/report/attachment gate passed 4 files with 2,525 assertions and 0 failures."
+  "latestFocusedSlice": "2026-06-28 plib-hu4m5: ODF/ODT Templates/ package sidecars now infer OpenXML .dotx/.xltx/.potx media types in rich OdfReader and compact OpenDocumentPackage rows, classifying declared and undeclared template members as template-document while keeping template bytes blocked and out of media/WordPress handoff. Validation passed php -l for OdfReader.php, OpenDocumentPackage.php, and OdfReaderTemplatePackageSidecarTest.php; focused OdfReaderTemplatePackageSidecarTest.php passed with 113 assertions and 0 failures; adjacent template/OpenDocumentPackage/report/attachment gate passed 4 files with 2,525 assertions and 0 failures.",
+  "odfOdtShipReadiness": {
+    "verdict": "ship-ready",
+    "upstreamFormatCases": 20,
+    "upstreamFormatAssertions": 575,
+    "localMappedCases": 90,
+    "localFocusedAssertions": 2070,
+    "caseCoveragePercent": 450.0,
+    "assertionCoveragePercent": 360.0,
+    "remainingCriticalGaps": [],
+    "uncoveredUpstreamCriticalTests": [],
+    "localFocusedTestFiles": [
+      "lanes/pandoc/tests/OdfReaderTest.php",
+      "lanes/pandoc/tests/OdtReaderTest.php",
+      "lanes/pandoc/tests/OpenDocumentReaderTest.php",
+      "lanes/pandoc/tests/OpenDocumentPackageTest.php",
+      "lanes/pandoc/tests/OdfReaderPackageIdentityTest.php",
+      "lanes/pandoc/tests/OdfReaderZipPlatformAttributesProvenanceTest.php",
+      "lanes/pandoc/tests/OdfReaderDocumentPartRootAttributesTest.php",
+      "lanes/pandoc/tests/OdfReaderSignatureTransformProvenanceTest.php"
+    ],
+    "evidence": [
+      "ODF/ODT package ingestion preserves manifest custom attributes, namespace declarations, direct child elements, root extension elements, package identity, and sidecar provenance through compact and rich reader review surfaces.",
+      "Current package-focused gates passed OpenDocumentPackageTest.php with 1,896 assertions and neighboring rich ODF provenance tests with 174 assertions.",
+      "No external Pandoc, office suites, zip/unzip tools, browser engines, validators, or network services are used for this evidence."
+    ]
+  }
 }
