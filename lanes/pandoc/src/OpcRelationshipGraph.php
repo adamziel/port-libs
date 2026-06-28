@@ -1360,6 +1360,7 @@ final class OpcRelationshipGraph
             $relationshipParts,
             static fn (array $left, array $right): int => $left['partName'] <=> $right['partName'],
         );
+        $relationshipSourceDirectorySummary = self::zipEntryManifestRelationshipSourceDirectorySummary($relationshipParts);
         usort(
             $contentTypeOverrideDeclarations,
             static fn (array $left, array $right): int => $left['partName'] <=> $right['partName'],
@@ -1434,6 +1435,10 @@ final class OpcRelationshipGraph
             'relationshipPartCount' => $relationshipPartCount,
             'rootRelationshipPartCount' => $rootRelationshipPartCount,
             'partRelationshipPartCount' => $partRelationshipPartCount,
+            'relationshipSourceDirectoryCount' => $relationshipSourceDirectorySummary['relationshipSourceDirectoryCount'],
+            'relationshipPartCountsBySourceDirectory' => $relationshipSourceDirectorySummary['relationshipPartCountsBySourceDirectory'],
+            'entryNamesByRelationshipSourceDirectory' => $relationshipSourceDirectorySummary['entryNamesByRelationshipSourceDirectory'],
+            'relationshipSourceDirectorySummaries' => $relationshipSourceDirectorySummary['relationshipSourceDirectorySummaries'],
             'invalidRelationshipPartCount' => $invalidRelationshipPartCount,
             'reservedRelationshipDirectoryPartCount' => $reservedRelationshipDirectoryPartCount,
             'orphanRelationshipPartCount' => $orphanRelationshipPartCount,
@@ -1958,6 +1963,7 @@ final class OpcRelationshipGraph
             $relationshipParts,
             static fn (array $left, array $right): int => $left['partName'] <=> $right['partName'],
         );
+        $relationshipSourceDirectorySummary = self::zipEntryManifestRelationshipSourceDirectorySummary($relationshipParts);
         $largestPayloadEntries = self::largestZipManifestPayloadEntries(
             $payloadEntries,
             self::ZIP_MANIFEST_LARGEST_PAYLOAD_ENTRY_LIMIT
@@ -2005,6 +2011,10 @@ final class OpcRelationshipGraph
             'relationshipPartCount' => $relationshipPartCount,
             'rootRelationshipPartCount' => $rootRelationshipPartCount,
             'partRelationshipPartCount' => $partRelationshipPartCount,
+            'relationshipSourceDirectoryCount' => $relationshipSourceDirectorySummary['relationshipSourceDirectoryCount'],
+            'relationshipPartCountsBySourceDirectory' => $relationshipSourceDirectorySummary['relationshipPartCountsBySourceDirectory'],
+            'entryNamesByRelationshipSourceDirectory' => $relationshipSourceDirectorySummary['entryNamesByRelationshipSourceDirectory'],
+            'relationshipSourceDirectorySummaries' => $relationshipSourceDirectorySummary['relationshipSourceDirectorySummaries'],
             'invalidRelationshipPartCount' => $invalidRelationshipPartCount,
             'reservedRelationshipDirectoryPartCount' => $reservedRelationshipDirectoryPartCount,
             'orphanRelationshipPartCount' => $orphanRelationshipPartCount,
@@ -8908,6 +8918,124 @@ final class OpcRelationshipGraph
         unset($summary);
 
         return array_values($summaries);
+    }
+
+    /**
+     * @param list<array{entryName:string, partName:string, relationshipSource:?string, relationshipSourceExists:?bool, issues:list<string>}> $relationshipParts
+     * @return array{
+     *     relationshipSourceDirectoryCount:int,
+     *     relationshipPartCountsBySourceDirectory:array<string, int>,
+     *     entryNamesByRelationshipSourceDirectory:array<string, list<string>>,
+     *     relationshipSourceDirectorySummaries:list<array<string, mixed>>
+     * }
+     */
+    private static function zipEntryManifestRelationshipSourceDirectorySummary(array $relationshipParts): array
+    {
+        $relationshipPartCountsBySourceDirectory = [];
+        $entryNamesByRelationshipSourceDirectory = [];
+        $summaries = [];
+
+        foreach ($relationshipParts as $relationshipPart) {
+            $source = $relationshipPart['relationshipSource'];
+            if (!is_string($source)) {
+                continue;
+            }
+
+            $sourceDirectory = self::relationshipSourceDirectory($source);
+            $relationshipPartCountsBySourceDirectory[$sourceDirectory] =
+                ($relationshipPartCountsBySourceDirectory[$sourceDirectory] ?? 0) + 1;
+            $entryNamesByRelationshipSourceDirectory[$sourceDirectory] ??= [];
+            self::appendUniqueString(
+                $entryNamesByRelationshipSourceDirectory[$sourceDirectory],
+                $relationshipPart['entryName'],
+            );
+
+            $summaries[$sourceDirectory] ??= [
+                'sourceDirectory' => $sourceDirectory,
+                'relationshipPartCount' => 0,
+                'sourceCount' => 0,
+                'existingSourceCount' => 0,
+                'missingSourceCount' => 0,
+                'validRelationshipPartCount' => 0,
+                'invalidRelationshipPartCount' => 0,
+                'relationshipPartSourceCount' => 0,
+                'contentTypesItemSourceCount' => 0,
+                'relationshipPartNames' => [],
+                'entryNames' => [],
+                'relationshipSources' => [],
+                'existingSources' => [],
+                'missingSources' => [],
+                'issues' => [],
+                'issueCounts' => [],
+            ];
+
+            $summary =& $summaries[$sourceDirectory];
+            $summary['relationshipPartCount']++;
+            self::appendUniqueString($summary['relationshipPartNames'], $relationshipPart['partName']);
+            self::appendUniqueString($summary['entryNames'], $relationshipPart['entryName']);
+            self::appendUniqueString($summary['relationshipSources'], $source);
+
+            if ($relationshipPart['relationshipSourceExists'] === false) {
+                self::appendUniqueString($summary['missingSources'], $source);
+            } else {
+                self::appendUniqueString($summary['existingSources'], $source);
+            }
+
+            if ($relationshipPart['issues'] === []) {
+                $summary['validRelationshipPartCount']++;
+            } else {
+                $summary['invalidRelationshipPartCount']++;
+            }
+
+            if ($source !== '/' && self::isRelationshipPartName($source)) {
+                $summary['relationshipPartSourceCount']++;
+            }
+
+            if ($source !== '/' && self::isContentTypesItemName($source)) {
+                $summary['contentTypesItemSourceCount']++;
+            }
+
+            foreach ($relationshipPart['issues'] as $issue) {
+                self::appendUniqueString($summary['issues'], $issue);
+                $summary['issueCounts'][$issue] = ($summary['issueCounts'][$issue] ?? 0) + 1;
+            }
+            unset($summary);
+        }
+
+        ksort($relationshipPartCountsBySourceDirectory, SORT_STRING);
+        self::sortStringListMap($entryNamesByRelationshipSourceDirectory);
+        ksort($summaries, SORT_STRING);
+        foreach ($summaries as &$summary) {
+            foreach ([
+                'relationshipPartNames',
+                'entryNames',
+                'relationshipSources',
+                'existingSources',
+                'missingSources',
+                'issues',
+            ] as $listKey) {
+                sort($summary[$listKey], SORT_STRING);
+            }
+            $summary['sourceCount'] = count($summary['relationshipSources']);
+            $summary['existingSourceCount'] = count($summary['existingSources']);
+            $summary['missingSourceCount'] = count($summary['missingSources']);
+            ksort($summary['issueCounts'], SORT_STRING);
+        }
+        unset($summary);
+
+        return [
+            'relationshipSourceDirectoryCount' => count($summaries),
+            'relationshipPartCountsBySourceDirectory' => $relationshipPartCountsBySourceDirectory,
+            'entryNamesByRelationshipSourceDirectory' => $entryNamesByRelationshipSourceDirectory,
+            'relationshipSourceDirectorySummaries' => array_values($summaries),
+        ];
+    }
+
+    private static function relationshipSourceDirectory(string $source): string
+    {
+        $source = OpcPackagePath::canonicalPartName($source, true);
+
+        return $source === '/' ? '/' : dirname($source);
     }
 
     /**

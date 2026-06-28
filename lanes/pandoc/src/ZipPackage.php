@@ -5102,8 +5102,40 @@ final class ZipPackage
      *     selectedWritablePermissionEntryCount:int,
      *     selectedPlatformAttributeIssueEntryCount:int,
      *     selectedPlatformAttributeIssues:list<string>,
+     *     selectedCreatorHostSystemBucketCount:int,
+     *     selectedUnknownCreatorHostSystemEntryCount:int,
+     *     selectedCreatorVersionBelowNeededEntryCount:int,
+     *     selectedCreatorHostSystemIssueCount:int,
+     *     handoffCreatorHostSystemBucketCount:int,
+     *     handoffUnknownCreatorHostSystemEntryCount:int,
+     *     handoffCreatorVersionBelowNeededEntryCount:int,
+     *     handoffCreatorHostSystemIssueCount:int,
      *     selectedCentralDirectoryFixedFieldEntryCount:int,
      *     selectedCentralDirectoryFixedFieldIssueEntryCount:int,
+     *     selectedTimestampProvenanceEntryCount:int,
+     *     selectedTimestampEntryCount:int,
+     *     selectedDosTimestampEntryCount:int,
+     *     selectedExtendedTimestampEntryCount:int,
+     *     selectedNtfsTimestampEntryCount:int,
+     *     selectedLocalTimestampEntryCount:int,
+     *     selectedLocalExtendedTimestampEntryCount:int,
+     *     selectedLocalNtfsTimestampEntryCount:int,
+     *     selectedInvalidDosTimestampEntryCount:int,
+     *     selectedTimestampIssueEntryCount:int,
+     *     selectedTimestampIssueCount:int,
+     *     selectedTimestampSourceSummaryCount:int,
+     *     handoffTimestampProvenanceEntryCount:int,
+     *     handoffTimestampEntryCount:int,
+     *     handoffDosTimestampEntryCount:int,
+     *     handoffExtendedTimestampEntryCount:int,
+     *     handoffNtfsTimestampEntryCount:int,
+     *     handoffLocalTimestampEntryCount:int,
+     *     handoffLocalExtendedTimestampEntryCount:int,
+     *     handoffLocalNtfsTimestampEntryCount:int,
+     *     handoffInvalidDosTimestampEntryCount:int,
+     *     handoffTimestampIssueEntryCount:int,
+     *     handoffTimestampIssueCount:int,
+     *     handoffTimestampSourceSummaryCount:int,
      *     maxEntryUncompressedBytes:?int,
      *     maxTotalUncompressedBytes:?int,
      *     isSupportedByBoundedReader:bool,
@@ -5137,8 +5169,20 @@ final class ZipPackage
      *     selectedExtraFieldProvenanceEntries:list<array<string, mixed>>,
      *     selectedPlatformAttributeProvenanceEntries:list<array<string, mixed>>,
      *     selectedPlatformAttributeIssueEntries:list<array<string, mixed>>,
+     *     selectedCreatorHostSystemIssues:list<string>,
+     *     handoffCreatorHostSystemIssues:list<string>,
+     *     selectedCreatorHostSystemSummaries:list<array<string, mixed>>,
+     *     handoffCreatorHostSystemSummaries:list<array<string, mixed>>,
      *     selectedCentralDirectoryFixedFieldEntries:list<array<string, mixed>>,
      *     selectedCentralDirectoryFixedFieldIssueEntries:list<array<string, mixed>>,
+     *     selectedTimestampIssues:list<string>,
+     *     handoffTimestampIssues:list<string>,
+     *     selectedTimestampSourceSummaries:list<array<string, mixed>>,
+     *     handoffTimestampSourceSummaries:list<array<string, mixed>>,
+     *     selectedTimestampProvenanceEntries:list<array<string, mixed>>,
+     *     handoffTimestampProvenanceEntries:list<array<string, mixed>>,
+     *     selectedTimestampIssueEntries:list<array<string, mixed>>,
+     *     handoffTimestampIssueEntries:list<array<string, mixed>>,
      *     selectedDataDescriptorProvenanceEntries:list<array<string, mixed>>,
      *     selectedDataDescriptorIssueEntries:list<array<string, mixed>>,
      *     missingEntries:list<array<string, mixed>>,
@@ -5320,6 +5364,7 @@ final class ZipPackage
         $selectedLocalHeaderFixedFieldIssueEntries = [];
         $selectedCentralDirectoryFixedFieldEntries = [];
         $selectedCentralDirectoryFixedFieldIssueEntries = [];
+        $selectedTimestampSummaryEntries = [];
         $selectedDataDescriptorProvenanceEntries = [];
         $selectedDataDescriptorEntryCount = 0;
         $selectedSignedDataDescriptorEntryCount = 0;
@@ -5363,7 +5408,14 @@ final class ZipPackage
                 'centralDirectoryIndex' => $centralDirectoryIndexByName[$entry->name] ?? null,
                 'localHeaderOrder' => $localHeaderOrderByName[$entry->name] ?? null,
                 'pathDepth' => self::entryHandoffPathDepth($entry->name),
+                'parentDirectory' => self::entryHandoffParentDirectory($entry->name),
                 'packagePartKind' => self::entryHandoffPackagePartKind($entry->name, $isDirectory),
+                'madeByHostSystem' => $entry->madeByHostSystem(),
+                'madeByHostSystemName' => self::creatorHostSystemName($entry->madeByHostSystem()),
+                'madeByVersion' => $entry->madeByVersion(),
+                'versionMadeBy' => $entry->versionMadeBy,
+                'versionNeededToExtract' => $entry->neededToExtractVersion(),
+                'creatorVersionMeetsNeeded' => $entry->madeByVersion() >= $entry->neededToExtractVersion(),
                 'compressedSize' => $entry->compressedSize,
                 'uncompressedSize' => $entry->uncompressedSize,
             ];
@@ -5518,6 +5570,18 @@ final class ZipPackage
                     'name' => $entry->name,
                 ] + $centralDirectoryFixedFieldProvenance;
             }
+            $timestampProvenance = self::entryTimestampHandoffProvenance($entry, $localHeader);
+            if ($timestampProvenance['hasTimestampProvenance'] || $timestampProvenance['timestampIssues'] !== []) {
+                $selectedTimestampSummaryEntries[] = [
+                    'name' => $entry->name,
+                    'roles' => array_keys($selectedRolesByName[$entry->name] ?? []),
+                    'isDirectory' => $isDirectory,
+                    'compressedSize' => $entry->compressedSize,
+                    'uncompressedSize' => $entry->uncompressedSize,
+                    'status' => 'selected',
+                    'isReadable' => false,
+                ] + $timestampProvenance;
+            }
             $dataDescriptorProvenance = $this->entryDataDescriptorHandoffProvenance($entry, $localHeader);
             if ($dataDescriptorProvenance['usesDataDescriptor']) {
                 $selectedDataDescriptorEntryCount++;
@@ -5614,6 +5678,7 @@ final class ZipPackage
                 'exists' => $entry !== null,
                 'isDirectory' => null,
                 'directoryRoot' => null,
+                'parentDirectory' => null,
                 'packagePartKind' => null,
                 'centralDirectoryIndex' => null,
                 'localHeaderOrder' => null,
@@ -5798,6 +5863,37 @@ final class ZipPackage
                 'centralDirectoryLocalHeaderOffset' => null,
                 'centralDirectoryFixedFieldsMatchEntryMetadata' => null,
                 'centralDirectoryFixedFieldIssues' => [],
+                'hasDosTimestamp' => false,
+                'isDosTimestampValid' => true,
+                'dosModifiedAt' => null,
+                'extendedModifiedAt' => null,
+                'extendedAccessedAt' => null,
+                'extendedCreatedAt' => null,
+                'ntfsModifiedAt' => null,
+                'ntfsAccessedAt' => null,
+                'ntfsCreatedAt' => null,
+                'modifiedAt' => null,
+                'timestampSource' => null,
+                'centralExtendedModifiedAt' => null,
+                'centralExtendedAccessedAt' => null,
+                'centralExtendedCreatedAt' => null,
+                'centralNtfsModifiedAt' => null,
+                'centralNtfsAccessedAt' => null,
+                'centralNtfsCreatedAt' => null,
+                'centralModifiedAt' => null,
+                'centralTimestampSource' => null,
+                'localExtendedModifiedAt' => null,
+                'localExtendedAccessedAt' => null,
+                'localExtendedCreatedAt' => null,
+                'localNtfsModifiedAt' => null,
+                'localNtfsAccessedAt' => null,
+                'localNtfsCreatedAt' => null,
+                'localModifiedAt' => null,
+                'localTimestampSource' => null,
+                'hasCentralTimestampProvenance' => false,
+                'hasLocalTimestampProvenance' => false,
+                'hasTimestampProvenance' => false,
+                'timestampIssues' => [],
                 'hasSourceByteSpanProvenance' => false,
                 'localRecordOffset' => null,
                 'localRecordBytes' => null,
@@ -5876,6 +5972,7 @@ final class ZipPackage
             $compressedDataEnd = $compressedDataOffset + $entry->compressedSize;
             $summary['isDirectory'] = $isDirectory;
             $summary['directoryRoot'] = self::entryHandoffDirectoryRoot($entry->name);
+            $summary['parentDirectory'] = self::entryHandoffParentDirectory($entry->name);
             $summary['packagePartKind'] = self::entryHandoffPackagePartKind($entry->name, $isDirectory);
             $summary['centralDirectoryIndex'] = $centralDirectoryIndexByName[$entry->name] ?? null;
             $summary['localHeaderOrder'] = $localHeaderOrderByName[$entry->name] ?? null;
@@ -5894,6 +5991,7 @@ final class ZipPackage
             $summary = array_merge($summary, self::entryPlatformAttributeHandoffProvenance($entry));
             $summary = array_merge($summary, self::entryLocalHeaderFixedFieldHandoffProvenance($entry, $localHeader));
             $summary = array_merge($summary, $this->entryCentralDirectoryFixedFieldHandoffProvenance($entry));
+            $summary = array_merge($summary, self::entryTimestampHandoffProvenance($entry, $localHeader));
             $dataDescriptorProvenance = $this->entryDataDescriptorHandoffProvenance($entry, $localHeader);
             $summary = array_merge($summary, $dataDescriptorProvenance);
             $summary = array_merge(
@@ -6031,10 +6129,18 @@ final class ZipPackage
         $handoffOrderSummary = self::entryHandoffOrderSummary($handoffEntries);
         $selectedPathDepthSummaries = self::entryHandoffPathDepthSummaries($selectedDirectoryRootSummaryEntries);
         $handoffPathDepthSummaries = self::entryHandoffPathDepthSummaries($handoffEntries);
+        $selectedParentDirectorySummaries = self::entryHandoffParentDirectorySummaries($selectedDirectoryRootSummaryEntries);
+        $handoffParentDirectorySummaries = self::entryHandoffParentDirectorySummaries($handoffEntries);
         $selectedNameHygieneIssueSummaries = self::entryHandoffNameHygieneIssueSummaries($selectedNameHygieneReviewEntries);
         $handoffNameHygieneIssueSummaries = self::entryHandoffNameHygieneIssueSummaries($handoffEntries);
         $handoffNameHygieneReviewEntries = self::entryHandoffNameHygieneReviewEntries($handoffEntries);
         $handoffNameHygieneIssues = self::entryHandoffNameHygieneIssues($handoffNameHygieneIssueSummaries);
+        $selectedTimestampSummary = self::entryHandoffTimestampSummary($selectedTimestampSummaryEntries);
+        $handoffTimestampSummary = self::entryHandoffTimestampSummary($handoffEntries);
+        $selectedCreatorHostSystemSummaries = self::entryHandoffCreatorHostSystemSummaries($selectedDirectoryRootSummaryEntries);
+        $handoffCreatorHostSystemSummaries = self::entryHandoffCreatorHostSystemSummaries($handoffEntries);
+        $selectedCreatorHostSystemIssues = self::entryHandoffCreatorHostSystemIssues($selectedCreatorHostSystemSummaries);
+        $handoffCreatorHostSystemIssues = self::entryHandoffCreatorHostSystemIssues($handoffCreatorHostSystemSummaries);
         $roleSummaries = self::entryHandoffRoleSummaries($entries);
         $handoffSourceByteSpanSummary = self::entryHandoffSourceByteSpanSummary($handoffEntries);
         $handoffContentDigestSummary = self::entryHandoffContentDigestSummary($handoffEntries);
@@ -6059,6 +6165,7 @@ final class ZipPackage
             'selectedRequestOrderMatchesLocalHeaderOrder' => $selectedOrderSummary['requestOrderMatchesLocalHeaderOrder'],
             'selectedPathDepthBucketCount' => count($selectedPathDepthSummaries),
             'selectedMaxPathDepth' => self::entryHandoffMaxPathDepth($selectedPathDepthSummaries),
+            'selectedParentDirectoryCount' => count($selectedParentDirectorySummaries),
             'selectedFileEntryCount' => $selectedFileEntryCount,
             'selectedDirectoryEntryCount' => $selectedDirectoryEntryCount,
             'selectedZeroByteEntryCount' => count($selectedZeroByteEntries),
@@ -6092,6 +6199,7 @@ final class ZipPackage
             'handoffRequestOrderMatchesLocalHeaderOrder' => $handoffOrderSummary['requestOrderMatchesLocalHeaderOrder'],
             'handoffPathDepthBucketCount' => count($handoffPathDepthSummaries),
             'handoffMaxPathDepth' => self::entryHandoffMaxPathDepth($handoffPathDepthSummaries),
+            'handoffParentDirectoryCount' => count($handoffParentDirectorySummaries),
             'readableEntryCount' => count($handoffEntries),
             'handoffZeroByteEntryCount' => count($handoffZeroByteEntries),
             'handoffZeroByteFileCount' => $handoffZeroByteFileCount,
@@ -6139,10 +6247,54 @@ final class ZipPackage
             'selectedWritablePermissionEntryCount' => $selectedWritablePermissionEntryCount,
             'selectedPlatformAttributeIssueEntryCount' => count($selectedPlatformAttributeIssueEntries),
             'selectedPlatformAttributeIssues' => $selectedPlatformAttributeIssues,
+            'selectedCreatorHostSystemBucketCount' => count($selectedCreatorHostSystemSummaries),
+            'selectedUnknownCreatorHostSystemEntryCount' => self::entryHandoffCreatorHostSystemIssueEntryCount(
+                $selectedCreatorHostSystemSummaries,
+                'unknown-creator-host-system'
+            ),
+            'selectedCreatorVersionBelowNeededEntryCount' => self::entryHandoffCreatorHostSystemIssueEntryCount(
+                $selectedCreatorHostSystemSummaries,
+                'creator-version-below-version-needed'
+            ),
+            'selectedCreatorHostSystemIssueCount' => count($selectedCreatorHostSystemIssues),
+            'handoffCreatorHostSystemBucketCount' => count($handoffCreatorHostSystemSummaries),
+            'handoffUnknownCreatorHostSystemEntryCount' => self::entryHandoffCreatorHostSystemIssueEntryCount(
+                $handoffCreatorHostSystemSummaries,
+                'unknown-creator-host-system'
+            ),
+            'handoffCreatorVersionBelowNeededEntryCount' => self::entryHandoffCreatorHostSystemIssueEntryCount(
+                $handoffCreatorHostSystemSummaries,
+                'creator-version-below-version-needed'
+            ),
+            'handoffCreatorHostSystemIssueCount' => count($handoffCreatorHostSystemIssues),
             'selectedLocalHeaderFixedFieldEntryCount' => count($selectedLocalHeaderFixedFieldEntries),
             'selectedLocalHeaderFixedFieldIssueEntryCount' => count($selectedLocalHeaderFixedFieldIssueEntries),
             'selectedCentralDirectoryFixedFieldEntryCount' => count($selectedCentralDirectoryFixedFieldEntries),
             'selectedCentralDirectoryFixedFieldIssueEntryCount' => count($selectedCentralDirectoryFixedFieldIssueEntries),
+            'selectedTimestampProvenanceEntryCount' => $selectedTimestampSummary['provenanceEntryCount'],
+            'selectedTimestampEntryCount' => $selectedTimestampSummary['timestampEntryCount'],
+            'selectedDosTimestampEntryCount' => $selectedTimestampSummary['dosTimestampEntryCount'],
+            'selectedExtendedTimestampEntryCount' => $selectedTimestampSummary['extendedTimestampEntryCount'],
+            'selectedNtfsTimestampEntryCount' => $selectedTimestampSummary['ntfsTimestampEntryCount'],
+            'selectedLocalTimestampEntryCount' => $selectedTimestampSummary['localTimestampEntryCount'],
+            'selectedLocalExtendedTimestampEntryCount' => $selectedTimestampSummary['localExtendedTimestampEntryCount'],
+            'selectedLocalNtfsTimestampEntryCount' => $selectedTimestampSummary['localNtfsTimestampEntryCount'],
+            'selectedInvalidDosTimestampEntryCount' => $selectedTimestampSummary['invalidDosTimestampEntryCount'],
+            'selectedTimestampIssueEntryCount' => $selectedTimestampSummary['issueEntryCount'],
+            'selectedTimestampIssueCount' => count($selectedTimestampSummary['issues']),
+            'selectedTimestampSourceSummaryCount' => count($selectedTimestampSummary['sourceSummaries']),
+            'handoffTimestampProvenanceEntryCount' => $handoffTimestampSummary['provenanceEntryCount'],
+            'handoffTimestampEntryCount' => $handoffTimestampSummary['timestampEntryCount'],
+            'handoffDosTimestampEntryCount' => $handoffTimestampSummary['dosTimestampEntryCount'],
+            'handoffExtendedTimestampEntryCount' => $handoffTimestampSummary['extendedTimestampEntryCount'],
+            'handoffNtfsTimestampEntryCount' => $handoffTimestampSummary['ntfsTimestampEntryCount'],
+            'handoffLocalTimestampEntryCount' => $handoffTimestampSummary['localTimestampEntryCount'],
+            'handoffLocalExtendedTimestampEntryCount' => $handoffTimestampSummary['localExtendedTimestampEntryCount'],
+            'handoffLocalNtfsTimestampEntryCount' => $handoffTimestampSummary['localNtfsTimestampEntryCount'],
+            'handoffInvalidDosTimestampEntryCount' => $handoffTimestampSummary['invalidDosTimestampEntryCount'],
+            'handoffTimestampIssueEntryCount' => $handoffTimestampSummary['issueEntryCount'],
+            'handoffTimestampIssueCount' => count($handoffTimestampSummary['issues']),
+            'handoffTimestampSourceSummaryCount' => count($handoffTimestampSummary['sourceSummaries']),
             'selectedDataDescriptorEntryCount' => $selectedDataDescriptorEntryCount,
             'selectedSignedDataDescriptorEntryCount' => $selectedSignedDataDescriptorEntryCount,
             'selectedUnsignedDataDescriptorEntryCount' => $selectedUnsignedDataDescriptorEntryCount,
@@ -6219,6 +6371,8 @@ final class ZipPackage
             'handoffOrderSummary' => $handoffOrderSummary,
             'selectedPathDepthSummaries' => $selectedPathDepthSummaries,
             'handoffPathDepthSummaries' => $handoffPathDepthSummaries,
+            'selectedParentDirectorySummaries' => $selectedParentDirectorySummaries,
+            'handoffParentDirectorySummaries' => $handoffParentDirectorySummaries,
             'selectedCompressionMethodBuckets' => self::compressionMethodBuckets($selectedCompressionMethodBuckets),
             'handoffCompressionMethodBuckets' => self::compressionMethodBuckets($handoffCompressionMethodBuckets),
             'selectedUnsupportedCompressionMethodEntries' => $selectedUnsupportedCompressionMethodEntries,
@@ -6232,10 +6386,22 @@ final class ZipPackage
             'selectedExtraFieldProvenanceEntries' => $selectedExtraFieldProvenanceEntries,
             'selectedPlatformAttributeProvenanceEntries' => $selectedPlatformAttributeProvenanceEntries,
             'selectedPlatformAttributeIssueEntries' => $selectedPlatformAttributeIssueEntries,
+            'selectedCreatorHostSystemIssues' => $selectedCreatorHostSystemIssues,
+            'handoffCreatorHostSystemIssues' => $handoffCreatorHostSystemIssues,
+            'selectedCreatorHostSystemSummaries' => $selectedCreatorHostSystemSummaries,
+            'handoffCreatorHostSystemSummaries' => $handoffCreatorHostSystemSummaries,
             'selectedLocalHeaderFixedFieldEntries' => $selectedLocalHeaderFixedFieldEntries,
             'selectedLocalHeaderFixedFieldIssueEntries' => $selectedLocalHeaderFixedFieldIssueEntries,
             'selectedCentralDirectoryFixedFieldEntries' => $selectedCentralDirectoryFixedFieldEntries,
             'selectedCentralDirectoryFixedFieldIssueEntries' => $selectedCentralDirectoryFixedFieldIssueEntries,
+            'selectedTimestampIssues' => $selectedTimestampSummary['issues'],
+            'handoffTimestampIssues' => $handoffTimestampSummary['issues'],
+            'selectedTimestampSourceSummaries' => $selectedTimestampSummary['sourceSummaries'],
+            'handoffTimestampSourceSummaries' => $handoffTimestampSummary['sourceSummaries'],
+            'selectedTimestampProvenanceEntries' => $selectedTimestampSummary['provenanceEntries'],
+            'handoffTimestampProvenanceEntries' => $handoffTimestampSummary['provenanceEntries'],
+            'selectedTimestampIssueEntries' => $selectedTimestampSummary['issueEntries'],
+            'handoffTimestampIssueEntries' => $handoffTimestampSummary['issueEntries'],
             'selectedDataDescriptorProvenanceEntries' => $selectedDataDescriptorProvenanceEntries,
             'selectedDataDescriptorIssueEntries' => $selectedDataDescriptorIssueEntries,
             'selectedSourceByteSpanEntries' => $selectedSourceByteSpanEntries,
@@ -6301,6 +6467,196 @@ final class ZipPackage
             'manifestSha256' => hash('sha256', $manifestJson),
             'entries' => $digestEntries,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array{provenanceEntryCount:int, timestampEntryCount:int, dosTimestampEntryCount:int, extendedTimestampEntryCount:int, ntfsTimestampEntryCount:int, localTimestampEntryCount:int, localExtendedTimestampEntryCount:int, localNtfsTimestampEntryCount:int, invalidDosTimestampEntryCount:int, issueEntryCount:int, issues:list<string>, sourceSummaries:list<array<string, mixed>>, provenanceEntries:list<array<string, mixed>>, issueEntries:list<array<string, mixed>>}
+     */
+    private static function entryHandoffTimestampSummary(array $entries): array
+    {
+        $timestampEntryCount = 0;
+        $dosTimestampEntryCount = 0;
+        $extendedTimestampEntryCount = 0;
+        $ntfsTimestampEntryCount = 0;
+        $localTimestampEntryCount = 0;
+        $localExtendedTimestampEntryCount = 0;
+        $localNtfsTimestampEntryCount = 0;
+        $invalidDosTimestampEntryCount = 0;
+        $issues = [];
+        $sourceSummaries = [];
+        $provenanceEntries = [];
+        $issueEntries = [];
+
+        foreach ($entries as $entry) {
+            if (($entry['hasTimestampProvenance'] ?? false) !== true && !is_array($entry['timestampIssues'] ?? null)) {
+                continue;
+            }
+
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $entryIssues = array_values(array_filter(
+                is_array($entry['timestampIssues'] ?? null) ? $entry['timestampIssues'] : [],
+                'is_string'
+            ));
+            $hasTimestampProvenance = ($entry['hasTimestampProvenance'] ?? false) === true || $entryIssues !== [];
+            if (!$hasTimestampProvenance) {
+                continue;
+            }
+
+            $reviewEntry = self::entryHandoffTimestampReviewEntry($entry, $entryIssues);
+            $provenanceEntries[] = $reviewEntry;
+            if ($entryIssues !== []) {
+                $issueEntries[] = $reviewEntry;
+                foreach ($entryIssues as $issue) {
+                    self::appendUniqueIssue($issues, $issue);
+                }
+            }
+
+            if (is_int($entry['modifiedAt'] ?? null)) {
+                ++$timestampEntryCount;
+                $source = is_string($entry['timestampSource'] ?? null) ? $entry['timestampSource'] : null;
+                if ($source !== null) {
+                    self::addTimestampSourceSummary($sourceSummaries, $entry, $source, $name);
+                }
+            }
+            if (($entry['hasDosTimestamp'] ?? false) === true) {
+                ++$dosTimestampEntryCount;
+            }
+            if (self::entryHasAnyTimestampField($entry, 'centralExtended')) {
+                ++$extendedTimestampEntryCount;
+            }
+            if (self::entryHasAnyTimestampField($entry, 'centralNtfs')) {
+                ++$ntfsTimestampEntryCount;
+            }
+            if (is_int($entry['localModifiedAt'] ?? null)) {
+                ++$localTimestampEntryCount;
+            }
+            if (self::entryHasAnyTimestampField($entry, 'localExtended')) {
+                ++$localExtendedTimestampEntryCount;
+            }
+            if (self::entryHasAnyTimestampField($entry, 'localNtfs')) {
+                ++$localNtfsTimestampEntryCount;
+            }
+            if (($entry['isDosTimestampValid'] ?? true) !== true) {
+                ++$invalidDosTimestampEntryCount;
+            }
+        }
+
+        foreach ($sourceSummaries as &$summary) {
+            sort($summary['roles'], SORT_STRING);
+        }
+        unset($summary);
+        ksort($sourceSummaries, SORT_STRING);
+
+        return [
+            'provenanceEntryCount' => count($provenanceEntries),
+            'timestampEntryCount' => $timestampEntryCount,
+            'dosTimestampEntryCount' => $dosTimestampEntryCount,
+            'extendedTimestampEntryCount' => $extendedTimestampEntryCount,
+            'ntfsTimestampEntryCount' => $ntfsTimestampEntryCount,
+            'localTimestampEntryCount' => $localTimestampEntryCount,
+            'localExtendedTimestampEntryCount' => $localExtendedTimestampEntryCount,
+            'localNtfsTimestampEntryCount' => $localNtfsTimestampEntryCount,
+            'invalidDosTimestampEntryCount' => $invalidDosTimestampEntryCount,
+            'issueEntryCount' => count($issueEntries),
+            'issues' => $issues,
+            'sourceSummaries' => array_values($sourceSummaries),
+            'provenanceEntries' => $provenanceEntries,
+            'issueEntries' => $issueEntries,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @param list<string> $issues
+     * @return array<string, mixed>
+     */
+    private static function entryHandoffTimestampReviewEntry(array $entry, array $issues): array
+    {
+        return [
+            'name' => is_string($entry['name'] ?? null) ? $entry['name'] : '',
+            'roles' => self::entryHandoffRolesForSummary($entry),
+            'isDirectory' => ($entry['isDirectory'] ?? false) === true,
+            'status' => is_string($entry['status'] ?? null) ? $entry['status'] : null,
+            'isReadable' => ($entry['isReadable'] ?? false) === true,
+            'compressedSize' => (int) ($entry['compressedSize'] ?? 0),
+            'uncompressedSize' => (int) ($entry['uncompressedSize'] ?? 0),
+            'modifiedDosTime' => is_int($entry['centralModifiedDosTime'] ?? null) ? $entry['centralModifiedDosTime'] : null,
+            'modifiedDosDate' => is_int($entry['centralModifiedDosDate'] ?? null) ? $entry['centralModifiedDosDate'] : null,
+            'hasDosTimestamp' => ($entry['hasDosTimestamp'] ?? false) === true,
+            'isDosTimestampValid' => ($entry['isDosTimestampValid'] ?? true) === true,
+            'dosModifiedAt' => is_int($entry['dosModifiedAt'] ?? null) ? $entry['dosModifiedAt'] : null,
+            'extendedModifiedAt' => is_int($entry['extendedModifiedAt'] ?? null) ? $entry['extendedModifiedAt'] : null,
+            'extendedAccessedAt' => is_int($entry['extendedAccessedAt'] ?? null) ? $entry['extendedAccessedAt'] : null,
+            'extendedCreatedAt' => is_int($entry['extendedCreatedAt'] ?? null) ? $entry['extendedCreatedAt'] : null,
+            'ntfsModifiedAt' => is_int($entry['ntfsModifiedAt'] ?? null) ? $entry['ntfsModifiedAt'] : null,
+            'ntfsAccessedAt' => is_int($entry['ntfsAccessedAt'] ?? null) ? $entry['ntfsAccessedAt'] : null,
+            'ntfsCreatedAt' => is_int($entry['ntfsCreatedAt'] ?? null) ? $entry['ntfsCreatedAt'] : null,
+            'modifiedAt' => is_int($entry['modifiedAt'] ?? null) ? $entry['modifiedAt'] : null,
+            'timestampSource' => is_string($entry['timestampSource'] ?? null) ? $entry['timestampSource'] : null,
+            'localExtendedModifiedAt' => is_int($entry['localExtendedModifiedAt'] ?? null) ? $entry['localExtendedModifiedAt'] : null,
+            'localExtendedAccessedAt' => is_int($entry['localExtendedAccessedAt'] ?? null) ? $entry['localExtendedAccessedAt'] : null,
+            'localExtendedCreatedAt' => is_int($entry['localExtendedCreatedAt'] ?? null) ? $entry['localExtendedCreatedAt'] : null,
+            'localNtfsModifiedAt' => is_int($entry['localNtfsModifiedAt'] ?? null) ? $entry['localNtfsModifiedAt'] : null,
+            'localNtfsAccessedAt' => is_int($entry['localNtfsAccessedAt'] ?? null) ? $entry['localNtfsAccessedAt'] : null,
+            'localNtfsCreatedAt' => is_int($entry['localNtfsCreatedAt'] ?? null) ? $entry['localNtfsCreatedAt'] : null,
+            'localModifiedAt' => is_int($entry['localModifiedAt'] ?? null) ? $entry['localModifiedAt'] : null,
+            'localTimestampSource' => is_string($entry['localTimestampSource'] ?? null) ? $entry['localTimestampSource'] : null,
+            'hasCentralTimestampProvenance' => ($entry['hasCentralTimestampProvenance'] ?? false) === true,
+            'hasLocalTimestampProvenance' => ($entry['hasLocalTimestampProvenance'] ?? false) === true,
+            'hasTimestampProvenance' => ($entry['hasTimestampProvenance'] ?? false) === true,
+            'timestampIssues' => $issues,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $summaries
+     * @param array<string, mixed> $entry
+     */
+    private static function addTimestampSourceSummary(array &$summaries, array $entry, string $source, string $name): void
+    {
+        if (!isset($summaries[$source])) {
+            $summaries[$source] = [
+                'timestampSource' => $source,
+                'entryCount' => 0,
+                'fileEntryCount' => 0,
+                'directoryEntryCount' => 0,
+                'compressedBytes' => 0,
+                'uncompressedBytes' => 0,
+                'roles' => [],
+                'entryNames' => [],
+            ];
+        }
+
+        ++$summaries[$source]['entryCount'];
+        if (($entry['isDirectory'] ?? false) === true) {
+            ++$summaries[$source]['directoryEntryCount'];
+        } else {
+            ++$summaries[$source]['fileEntryCount'];
+        }
+        $summaries[$source]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+        $summaries[$source]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+        $summaries[$source]['entryNames'][] = $name;
+
+        foreach (self::entryHandoffRolesForSummary($entry) as $role) {
+            if (!in_array($role, $summaries[$source]['roles'], true)) {
+                $summaries[$source]['roles'][] = $role;
+            }
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     */
+    private static function entryHasAnyTimestampField(array $entry, string $prefix): bool
+    {
+        return is_int($entry[$prefix . 'ModifiedAt'] ?? null)
+            || is_int($entry[$prefix . 'AccessedAt'] ?? null)
+            || is_int($entry[$prefix . 'CreatedAt'] ?? null);
     }
 
     /**
@@ -6815,6 +7171,148 @@ final class ZipPackage
     }
 
     /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffCreatorHostSystemSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            $hostSystem = $entry['madeByHostSystem'] ?? null;
+            if ($name === '' || !is_int($hostSystem)) {
+                continue;
+            }
+
+            $hostSystemName = is_string($entry['madeByHostSystemName'] ?? null)
+                ? $entry['madeByHostSystemName']
+                : self::creatorHostSystemName($hostSystem);
+            $isKnown = self::isKnownCreatorHostSystem($hostSystem);
+            if (!isset($summaries[$hostSystem])) {
+                $summaries[$hostSystem] = [
+                    'madeByHostSystem' => $hostSystem,
+                    'madeByHostSystemName' => $hostSystemName,
+                    'isKnown' => $isKnown,
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'creatorVersionMeetsNeededEntryCount' => 0,
+                    'creatorVersionBelowNeededEntryCount' => 0,
+                    'creatorVersionComparisonCounts' => [
+                        'below-needed' => 0,
+                        'equals-needed' => 0,
+                        'above-needed' => 0,
+                    ],
+                    'roles' => [],
+                    'entryNames' => [],
+                    'issues' => [],
+                    'issueCounts' => [],
+                ];
+            }
+
+            ++$summaries[$hostSystem]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$summaries[$hostSystem]['directoryEntryCount'];
+            } else {
+                ++$summaries[$hostSystem]['fileEntryCount'];
+            }
+
+            $summaries[$hostSystem]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$hostSystem]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$hostSystem]['entryNames'][] = $name;
+
+            $madeByVersion = $entry['madeByVersion'] ?? null;
+            $versionNeededToExtract = $entry['versionNeededToExtract'] ?? null;
+            if (is_int($madeByVersion) && is_int($versionNeededToExtract)) {
+                $comparison = $madeByVersion < $versionNeededToExtract
+                    ? 'below-needed'
+                    : ($madeByVersion === $versionNeededToExtract ? 'equals-needed' : 'above-needed');
+                ++$summaries[$hostSystem]['creatorVersionComparisonCounts'][$comparison];
+                if ($comparison === 'below-needed') {
+                    ++$summaries[$hostSystem]['creatorVersionBelowNeededEntryCount'];
+                } else {
+                    ++$summaries[$hostSystem]['creatorVersionMeetsNeededEntryCount'];
+                }
+            } elseif (($entry['creatorVersionMeetsNeeded'] ?? false) === true) {
+                ++$summaries[$hostSystem]['creatorVersionMeetsNeededEntryCount'];
+            }
+
+            $entryIssues = [];
+            if (!$isKnown) {
+                $entryIssues[] = 'unknown-creator-host-system';
+            }
+            if (($entry['creatorVersionMeetsNeeded'] ?? true) === false) {
+                $entryIssues[] = 'creator-version-below-version-needed';
+            }
+
+            foreach ($entryIssues as $issue) {
+                if (!in_array($issue, $summaries[$hostSystem]['issues'], true)) {
+                    $summaries[$hostSystem]['issues'][] = $issue;
+                }
+                $summaries[$hostSystem]['issueCounts'][$issue] = (
+                    $summaries[$hostSystem]['issueCounts'][$issue] ?? 0
+                ) + 1;
+            }
+
+            foreach (self::entryHandoffRolesForSummary($entry) as $role) {
+                if (!in_array($role, $summaries[$hostSystem]['roles'], true)) {
+                    $summaries[$hostSystem]['roles'][] = $role;
+                }
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['roles'], SORT_STRING);
+            sort($summary['issues'], SORT_STRING);
+            ksort($summary['issueCounts'], SORT_STRING);
+        }
+        unset($summary);
+
+        ksort($summaries, SORT_NUMERIC);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $creatorHostSystemSummaries
+     * @return list<string>
+     */
+    private static function entryHandoffCreatorHostSystemIssues(array $creatorHostSystemSummaries): array
+    {
+        $issues = [];
+        foreach ($creatorHostSystemSummaries as $summary) {
+            foreach (($summary['issues'] ?? []) as $issue) {
+                if (is_string($issue) && !in_array($issue, $issues, true)) {
+                    $issues[] = $issue;
+                }
+            }
+        }
+
+        sort($issues, SORT_STRING);
+
+        return $issues;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $creatorHostSystemSummaries
+     */
+    private static function entryHandoffCreatorHostSystemIssueEntryCount(
+        array $creatorHostSystemSummaries,
+        string $issue
+    ): int {
+        $count = 0;
+        foreach ($creatorHostSystemSummaries as $summary) {
+            if (isset($summary['issueCounts'][$issue]) && is_int($summary['issueCounts'][$issue])) {
+                $count += $summary['issueCounts'][$issue];
+            }
+        }
+
+        return $count;
+    }
+
+    /**
      * @param array<string, mixed> $localHeader
      * @return array{
      *     usesDataDescriptor:bool,
@@ -7277,6 +7775,78 @@ final class ZipPackage
         $separator = strpos($name, '/');
 
         return $separator === false ? '/' : substr($name, 0, $separator + 1);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffParentDirectorySummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $parentDirectory = is_string($entry['parentDirectory'] ?? null) && $entry['parentDirectory'] !== ''
+                ? $entry['parentDirectory']
+                : self::entryHandoffParentDirectory($name);
+            if (!isset($summaries[$parentDirectory])) {
+                $summaries[$parentDirectory] = [
+                    'parentDirectory' => $parentDirectory,
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'roles' => [],
+                    'entryNames' => [],
+                ];
+            }
+
+            ++$summaries[$parentDirectory]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$summaries[$parentDirectory]['directoryEntryCount'];
+            } else {
+                ++$summaries[$parentDirectory]['fileEntryCount'];
+            }
+
+            $summaries[$parentDirectory]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$parentDirectory]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$parentDirectory]['entryNames'][] = $name;
+
+            $roles = [];
+            if (is_array($entry['roles'] ?? null)) {
+                $roles = array_values(array_filter($entry['roles'], static fn (mixed $role): bool => is_string($role) && $role !== ''));
+            } elseif (is_string($entry['role'] ?? null) && $entry['role'] !== '') {
+                $roles = [$entry['role']];
+            }
+
+            foreach ($roles as $role) {
+                if (!in_array($role, $summaries[$parentDirectory]['roles'], true)) {
+                    $summaries[$parentDirectory]['roles'][] = $role;
+                }
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['roles'], SORT_STRING);
+        }
+        unset($summary);
+
+        ksort($summaries, SORT_STRING);
+
+        return array_values($summaries);
+    }
+
+    private static function entryHandoffParentDirectory(string $name): string
+    {
+        $trimmedName = rtrim($name, '/');
+        $separator = strrpos($trimmedName, '/');
+
+        return $separator === false ? '/' : substr($trimmedName, 0, $separator + 1);
     }
 
     /**
@@ -8005,6 +8575,149 @@ final class ZipPackage
             'centralDirectoryFixedFieldsMatchEntryMetadata' => $issues === [],
             'centralDirectoryFixedFieldIssues' => $issues,
         ]);
+    }
+
+    /**
+     * @param array<string, mixed> $localHeader
+     * @return array{
+     *     hasDosTimestamp:bool,
+     *     isDosTimestampValid:bool,
+     *     dosModifiedAt:?int,
+     *     extendedModifiedAt:?int,
+     *     extendedAccessedAt:?int,
+     *     extendedCreatedAt:?int,
+     *     ntfsModifiedAt:?int,
+     *     ntfsAccessedAt:?int,
+     *     ntfsCreatedAt:?int,
+     *     modifiedAt:?int,
+     *     timestampSource:?string,
+     *     centralExtendedModifiedAt:?int,
+     *     centralExtendedAccessedAt:?int,
+     *     centralExtendedCreatedAt:?int,
+     *     centralNtfsModifiedAt:?int,
+     *     centralNtfsAccessedAt:?int,
+     *     centralNtfsCreatedAt:?int,
+     *     centralModifiedAt:?int,
+     *     centralTimestampSource:?string,
+     *     localExtendedModifiedAt:?int,
+     *     localExtendedAccessedAt:?int,
+     *     localExtendedCreatedAt:?int,
+     *     localNtfsModifiedAt:?int,
+     *     localNtfsAccessedAt:?int,
+     *     localNtfsCreatedAt:?int,
+     *     localModifiedAt:?int,
+     *     localTimestampSource:?string,
+     *     hasCentralTimestampProvenance:bool,
+     *     hasLocalTimestampProvenance:bool,
+     *     hasTimestampProvenance:bool,
+     *     timestampIssues:list<string>
+     * }
+     */
+    private static function entryTimestampHandoffProvenance(ZipPackageEntry $entry, array $localHeader): array
+    {
+        $hasDosTimestamp = $entry->hasDosLastModifiedTimestamp();
+        $dosModifiedAt = $entry->dosLastModifiedTimestamp();
+        $centralExtendedTimestamps = $entry->extendedTimestamps();
+        $centralNtfsTimestamps = $entry->ntfsTimestamps();
+        $centralExtendedModifiedAt = $centralExtendedTimestamps['modifiedAt'] ?? null;
+        $centralExtendedAccessedAt = $centralExtendedTimestamps['accessedAt'] ?? null;
+        $centralExtendedCreatedAt = $centralExtendedTimestamps['createdAt'] ?? null;
+        $centralNtfsModifiedAt = $centralNtfsTimestamps['modifiedAt'] ?? null;
+        $centralNtfsAccessedAt = $centralNtfsTimestamps['accessedAt'] ?? null;
+        $centralNtfsCreatedAt = $centralNtfsTimestamps['createdAt'] ?? null;
+        $modifiedAt = $centralExtendedModifiedAt ?? $centralNtfsModifiedAt ?? $dosModifiedAt;
+        $timestampSource = self::timestampSourceForModifiedAt(
+            $centralExtendedModifiedAt,
+            $centralNtfsModifiedAt,
+            $dosModifiedAt
+        );
+
+        $localExtraFieldData = is_string($localHeader['extraFieldData'] ?? null)
+            ? $localHeader['extraFieldData']
+            : '';
+        $localExtendedTimestamps = self::extendedTimestampsFromExtraFieldData(
+            $localExtraFieldData,
+            "local extra fields for {$entry->name}"
+        );
+        $localNtfsTimestamps = self::ntfsTimestampsFromExtraFieldData(
+            $localExtraFieldData,
+            "local extra fields for {$entry->name}"
+        );
+        $localExtendedModifiedAt = $localExtendedTimestamps['modifiedAt'] ?? null;
+        $localExtendedAccessedAt = $localExtendedTimestamps['accessedAt'] ?? null;
+        $localExtendedCreatedAt = $localExtendedTimestamps['createdAt'] ?? null;
+        $localNtfsModifiedAt = $localNtfsTimestamps['modifiedAt'] ?? null;
+        $localNtfsAccessedAt = $localNtfsTimestamps['accessedAt'] ?? null;
+        $localNtfsCreatedAt = $localNtfsTimestamps['createdAt'] ?? null;
+        $localModifiedAt = $localExtendedModifiedAt ?? $localNtfsModifiedAt ?? $dosModifiedAt;
+        $localTimestampSource = self::timestampSourceForModifiedAt(
+            $localExtendedModifiedAt,
+            $localNtfsModifiedAt,
+            $dosModifiedAt
+        );
+
+        $timestampIssues = [];
+        $isDosTimestampValid = !$hasDosTimestamp || $dosModifiedAt !== null;
+        if (!$isDosTimestampValid) {
+            $timestampIssues[] = 'invalid-dos-modified-timestamp';
+        }
+
+        $hasCentralTimestampProvenance = $hasDosTimestamp
+            || $centralExtendedTimestamps !== null
+            || $centralNtfsTimestamps !== null;
+        $hasLocalTimestampProvenance = $localExtendedTimestamps !== null
+            || $localNtfsTimestamps !== null;
+
+        return [
+            'hasDosTimestamp' => $hasDosTimestamp,
+            'isDosTimestampValid' => $isDosTimestampValid,
+            'dosModifiedAt' => $dosModifiedAt,
+            'extendedModifiedAt' => $centralExtendedModifiedAt,
+            'extendedAccessedAt' => $centralExtendedAccessedAt,
+            'extendedCreatedAt' => $centralExtendedCreatedAt,
+            'ntfsModifiedAt' => $centralNtfsModifiedAt,
+            'ntfsAccessedAt' => $centralNtfsAccessedAt,
+            'ntfsCreatedAt' => $centralNtfsCreatedAt,
+            'modifiedAt' => $modifiedAt,
+            'timestampSource' => $timestampSource,
+            'centralExtendedModifiedAt' => $centralExtendedModifiedAt,
+            'centralExtendedAccessedAt' => $centralExtendedAccessedAt,
+            'centralExtendedCreatedAt' => $centralExtendedCreatedAt,
+            'centralNtfsModifiedAt' => $centralNtfsModifiedAt,
+            'centralNtfsAccessedAt' => $centralNtfsAccessedAt,
+            'centralNtfsCreatedAt' => $centralNtfsCreatedAt,
+            'centralModifiedAt' => $modifiedAt,
+            'centralTimestampSource' => $timestampSource,
+            'localExtendedModifiedAt' => $localExtendedModifiedAt,
+            'localExtendedAccessedAt' => $localExtendedAccessedAt,
+            'localExtendedCreatedAt' => $localExtendedCreatedAt,
+            'localNtfsModifiedAt' => $localNtfsModifiedAt,
+            'localNtfsAccessedAt' => $localNtfsAccessedAt,
+            'localNtfsCreatedAt' => $localNtfsCreatedAt,
+            'localModifiedAt' => $localModifiedAt,
+            'localTimestampSource' => $localTimestampSource,
+            'hasCentralTimestampProvenance' => $hasCentralTimestampProvenance,
+            'hasLocalTimestampProvenance' => $hasLocalTimestampProvenance,
+            'hasTimestampProvenance' => $hasCentralTimestampProvenance || $hasLocalTimestampProvenance,
+            'timestampIssues' => $timestampIssues,
+        ];
+    }
+
+    private static function timestampSourceForModifiedAt(?int $extendedModifiedAt, ?int $ntfsModifiedAt, ?int $dosModifiedAt): ?string
+    {
+        if ($extendedModifiedAt !== null) {
+            return 'extended-timestamp';
+        }
+
+        if ($ntfsModifiedAt !== null) {
+            return 'ntfs';
+        }
+
+        if ($dosModifiedAt !== null) {
+            return 'dos';
+        }
+
+        return null;
     }
 
     /**

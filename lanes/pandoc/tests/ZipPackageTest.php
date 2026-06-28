@@ -11222,6 +11222,148 @@ return [
         $t->same([$documentEntry, $macroEntry, $commentsEntry], $summary['handoffEntries']);
     },
 
+    'summarizes selected zip handoff creator host systems for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>creator host handoff</w:p></w:body></w:document>';
+        $commentsXml = '<w:comments><w:comment>blocked comments sidecar</w:comment></w:comments>';
+        $legacyBytes = "legacy host payload\n";
+        $themeXml = '<a:theme><a:themeElements/></a:theme>';
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 0,
+                'versionMadeBy' => 0x0314,
+                'versionNeededToExtract' => 20,
+            ],
+            [
+                'name' => 'word/comments.xml',
+                'data' => $commentsXml,
+                'method' => 0,
+                'versionMadeBy' => 0x0a14,
+                'versionNeededToExtract' => 20,
+            ],
+            [
+                'name' => 'word/media/legacy.bin',
+                'data' => $legacyBytes,
+                'method' => 0,
+                'versionMadeBy' => 0x3f14,
+                'versionNeededToExtract' => 20,
+            ],
+            [
+                'name' => 'word/theme/theme1.xml',
+                'data' => $themeXml,
+                'method' => 0,
+                'versionMadeBy' => 0x030a,
+                'versionNeededToExtract' => 20,
+            ],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/comments.xml', 'required' => false, 'kind' => 'file', 'role' => 'comments', 'maxUncompressedBytes' => 8],
+            ['name' => 'word/media/legacy.bin', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'word/theme/theme1.xml', 'required' => false, 'kind' => 'file', 'role' => 'theme'],
+            ['name' => 'word/missing.xml', 'required' => false, 'kind' => 'file', 'role' => 'optional-sidecar'],
+        ], 1024);
+
+        $t->same(3, $summary['selectedCreatorHostSystemBucketCount']);
+        $t->same(1, $summary['selectedUnknownCreatorHostSystemEntryCount']);
+        $t->same(1, $summary['selectedCreatorVersionBelowNeededEntryCount']);
+        $t->same(2, $summary['selectedCreatorHostSystemIssueCount']);
+        $t->same([
+            'creator-version-below-version-needed',
+            'unknown-creator-host-system',
+        ], $summary['selectedCreatorHostSystemIssues']);
+        $t->same(2, $summary['handoffCreatorHostSystemBucketCount']);
+        $t->same(1, $summary['handoffUnknownCreatorHostSystemEntryCount']);
+        $t->same(1, $summary['handoffCreatorVersionBelowNeededEntryCount']);
+        $t->same(2, $summary['handoffCreatorHostSystemIssueCount']);
+        $t->same($summary['selectedCreatorHostSystemIssues'], $summary['handoffCreatorHostSystemIssues']);
+
+        $selectedByHost = [];
+        foreach ($summary['selectedCreatorHostSystemSummaries'] as $hostSummary) {
+            $selectedByHost[$hostSummary['madeByHostSystem']] = $hostSummary;
+        }
+        $handoffByHost = [];
+        foreach ($summary['handoffCreatorHostSystemSummaries'] as $hostSummary) {
+            $handoffByHost[$hostSummary['madeByHostSystem']] = $hostSummary;
+        }
+
+        $unixBytes = strlen($documentXml) + strlen($themeXml);
+        $t->same([
+            'madeByHostSystem' => 3,
+            'madeByHostSystemName' => 'unix',
+            'isKnown' => true,
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => $unixBytes,
+            'uncompressedBytes' => $unixBytes,
+            'creatorVersionMeetsNeededEntryCount' => 1,
+            'creatorVersionBelowNeededEntryCount' => 1,
+            'creatorVersionComparisonCounts' => [
+                'below-needed' => 1,
+                'equals-needed' => 1,
+                'above-needed' => 0,
+            ],
+            'roles' => ['main-document', 'theme'],
+            'entryNames' => ['word/document.xml', 'word/theme/theme1.xml'],
+            'issues' => ['creator-version-below-version-needed'],
+            'issueCounts' => ['creator-version-below-version-needed' => 1],
+        ], $selectedByHost[3]);
+        $t->same($selectedByHost[3], $handoffByHost[3]);
+
+        $t->same([
+            'madeByHostSystem' => 10,
+            'madeByHostSystemName' => 'windows-ntfs',
+            'isKnown' => true,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($commentsXml),
+            'uncompressedBytes' => strlen($commentsXml),
+            'creatorVersionMeetsNeededEntryCount' => 1,
+            'creatorVersionBelowNeededEntryCount' => 0,
+            'creatorVersionComparisonCounts' => [
+                'below-needed' => 0,
+                'equals-needed' => 1,
+                'above-needed' => 0,
+            ],
+            'roles' => ['comments'],
+            'entryNames' => ['word/comments.xml'],
+            'issues' => [],
+            'issueCounts' => [],
+        ], $selectedByHost[10]);
+        $t->same(false, isset($handoffByHost[10]));
+
+        $t->same([
+            'madeByHostSystem' => 63,
+            'madeByHostSystemName' => 'unknown',
+            'isKnown' => false,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($legacyBytes),
+            'uncompressedBytes' => strlen($legacyBytes),
+            'creatorVersionMeetsNeededEntryCount' => 1,
+            'creatorVersionBelowNeededEntryCount' => 0,
+            'creatorVersionComparisonCounts' => [
+                'below-needed' => 0,
+                'equals-needed' => 1,
+                'above-needed' => 0,
+            ],
+            'roles' => ['media'],
+            'entryNames' => ['word/media/legacy.bin'],
+            'issues' => ['unknown-creator-host-system'],
+            'issueCounts' => ['unknown-creator-host-system' => 1],
+        ], $selectedByHost[63]);
+        $t->same($selectedByHost[63], $handoffByHost[63]);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
+        $t->same('blocked', $summary['entries'][1]['status']);
+        $t->same('ready', $summary['entries'][2]['status']);
+        $t->same('ready', $summary['entries'][3]['status']);
+    },
+
     'preflights selected zip entry local fixed header provenance before reader handoff' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
         $documentXml = '<w:document><w:body><w:p>selected fixed header provenance</w:p></w:body></w:document>';
         $commentsXml = '<w:comments><w:comment>fixed header descriptor placeholders</w:comment></w:comments>';
@@ -12837,6 +12979,118 @@ return [
         $t->same(null, $summary['entries'][8]['directoryRoot']);
     },
 
+    'summarizes selected zip handoff parent directories for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $contentTypesXml = '<Types/>';
+        $packageRelsXml = '<Relationships/>';
+        $coreXml = '<cp:coreProperties/>';
+        $documentXml = '<w:document><w:body><w:p>parent directory handoff</w:p></w:body></w:document>';
+        $documentRelsXml = '<Relationships><Relationship Id="rIdImage" Target="media/image.png"/></Relationships>';
+        $imageBytes = "parent image bytes\n";
+        $largeBytes = "blocked parent media bytes\n";
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'method' => 0],
+            ['name' => '_rels/.rels', 'data' => $packageRelsXml, 'method' => 0],
+            ['name' => 'docProps/core.xml', 'data' => $coreXml, 'method' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelsXml, 'method' => 0],
+            ['name' => 'word/media/', 'data' => '', 'method' => 0],
+            ['name' => 'word/media/image.png', 'data' => $imageBytes, 'method' => 0],
+            ['name' => 'word/media/large.bin', 'data' => $largeBytes, 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => '[Content_Types].xml', 'required' => true, 'kind' => 'file', 'role' => 'content-types'],
+            ['name' => '_rels/.rels', 'required' => true, 'kind' => 'file', 'role' => 'root-relationships'],
+            ['name' => 'docProps/core.xml', 'required' => false, 'kind' => 'file', 'role' => 'metadata'],
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/_rels/document.xml.rels', 'required' => false, 'kind' => 'file', 'role' => 'document-relationships'],
+            ['name' => 'word/media/', 'required' => false, 'kind' => 'directory', 'role' => 'media-directory'],
+            ['name' => 'word/media/image.png', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'word/media/large.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 8],
+            ['name' => 'word/missing.xml', 'required' => false, 'kind' => 'file', 'role' => 'optional-sidecar'],
+        ], 1024);
+
+        $selectedByParent = [];
+        foreach ($summary['selectedParentDirectorySummaries'] as $parentSummary) {
+            $selectedByParent[$parentSummary['parentDirectory']] = $parentSummary;
+        }
+        $handoffByParent = [];
+        foreach ($summary['handoffParentDirectorySummaries'] as $parentSummary) {
+            $handoffByParent[$parentSummary['parentDirectory']] = $parentSummary;
+        }
+
+        $expectedParents = ['/', '_rels/', 'docProps/', 'word/', 'word/_rels/', 'word/media/'];
+        $t->same(6, $summary['selectedParentDirectoryCount']);
+        $t->same(6, $summary['handoffParentDirectoryCount']);
+        $t->same($expectedParents, array_keys($selectedByParent));
+        $t->same($expectedParents, array_keys($handoffByParent));
+
+        $t->same([
+            'parentDirectory' => '/',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($contentTypesXml),
+            'uncompressedBytes' => strlen($contentTypesXml),
+            'roles' => ['content-types'],
+            'entryNames' => ['[Content_Types].xml'],
+        ], $selectedByParent['/']);
+        $t->same([
+            'parentDirectory' => '_rels/',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($packageRelsXml),
+            'uncompressedBytes' => strlen($packageRelsXml),
+            'roles' => ['root-relationships'],
+            'entryNames' => ['_rels/.rels'],
+        ], $selectedByParent['_rels/']);
+
+        $wordParentBytes = strlen($documentXml);
+        $t->same([
+            'parentDirectory' => 'word/',
+            'entryCount' => 2,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 1,
+            'compressedBytes' => $wordParentBytes,
+            'uncompressedBytes' => $wordParentBytes,
+            'roles' => ['main-document', 'media-directory'],
+            'entryNames' => ['word/document.xml', 'word/media/'],
+        ], $selectedByParent['word/']);
+        $t->same($selectedByParent['word/'], $handoffByParent['word/']);
+
+        $selectedMediaParentBytes = strlen($imageBytes) + strlen($largeBytes);
+        $t->same([
+            'parentDirectory' => 'word/media/',
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => $selectedMediaParentBytes,
+            'uncompressedBytes' => $selectedMediaParentBytes,
+            'roles' => ['media'],
+            'entryNames' => ['word/media/image.png', 'word/media/large.bin'],
+        ], $selectedByParent['word/media/']);
+        $t->same([
+            'parentDirectory' => 'word/media/',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($imageBytes),
+            'uncompressedBytes' => strlen($imageBytes),
+            'roles' => ['media'],
+            'entryNames' => ['word/media/image.png'],
+        ], $handoffByParent['word/media/']);
+
+        $t->same('/', $summary['entries'][0]['parentDirectory']);
+        $t->same('word/', $summary['entries'][5]['parentDirectory']);
+        $t->same('word/media/', $summary['entries'][7]['parentDirectory']);
+        $t->same(null, $summary['entries'][8]['parentDirectory']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
+        $t->same('blocked', $summary['entries'][7]['status']);
+        $t->same('missing-optional', $summary['entries'][8]['status']);
+    },
+
     'summarizes selected zip handoff extension buckets for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
         $mimetype = 'application/epub+zip';
         $contentTypesXml = '<Types/>';
@@ -13241,6 +13495,149 @@ return [
         $t->same([$adsName], $handoffByIssue['segment-windows-alternate-data-stream']['entryNames']);
         $t->same([$reservedName], $handoffByIssue['segment-windows-reserved-name']['entryNames']);
         $t->same([$summary['entries'][0], $bidiEntry, $adsEntry, $reservedEntry], $summary['handoffEntries']);
+    },
+
+    'summarizes selected zip handoff timestamp provenance before reader byte exposure' => static function (TestRunner $t) use ($buildZipPackage, $buildNtfsExtra): void {
+        $documentModifiedAt = 1780479017;
+        $mediaModifiedAt = 1780479027;
+        $mediaAccessedAt = 1780479028;
+        $mediaCreatedAt = 1780479029;
+        $documentXml = '<w:document><w:body><w:p>timestamp handoff</w:p></w:body></w:document>';
+        $relsXml = '<Relationships><Relationship Id="rIdMedia" Target="media/review.bin"/></Relationships>';
+        $mediaBytes = "blocked timestamped media bytes\n";
+        $documentTimestampExtra = pack('vvCV', 0x5455, 5, 0x01, $documentModifiedAt);
+        $mediaNtfsExtra = $buildNtfsExtra($mediaModifiedAt, $mediaAccessedAt, $mediaCreatedAt);
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 0,
+                'modifiedTime' => 19400,
+                'modifiedDate' => 23747,
+                'localExtra' => $documentTimestampExtra,
+                'centralExtra' => $documentTimestampExtra,
+            ],
+            [
+                'name' => 'word/_rels/document.xml.rels',
+                'data' => $relsXml,
+                'method' => 0,
+                'modifiedTime' => 19400,
+                'modifiedDate' => 23747,
+            ],
+            [
+                'name' => 'word/media/review.bin',
+                'data' => $mediaBytes,
+                'method' => 0,
+                'modifiedTime' => 19400,
+                'modifiedDate' => 23747,
+                'localExtra' => $mediaNtfsExtra,
+                'centralExtra' => $mediaNtfsExtra,
+            ],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/_rels/document.xml.rels', 'required' => false, 'kind' => 'file', 'role' => 'document-relationships'],
+            ['name' => 'word/media/review.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 8],
+            ['name' => 'word/missing.xml', 'required' => false, 'kind' => 'file', 'role' => 'optional-sidecar'],
+        ], 1024);
+
+        $selectedBySource = [];
+        foreach ($summary['selectedTimestampSourceSummaries'] as $sourceSummary) {
+            $selectedBySource[$sourceSummary['timestampSource']] = $sourceSummary;
+        }
+        $handoffBySource = [];
+        foreach ($summary['handoffTimestampSourceSummaries'] as $sourceSummary) {
+            $handoffBySource[$sourceSummary['timestampSource']] = $sourceSummary;
+        }
+
+        $t->same(3, $summary['selectedUniqueEntryCount']);
+        $t->same(2, $summary['handoffEntryCount']);
+        $t->same(1, $summary['failedEntryCount']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
+        $t->same(3, $summary['selectedTimestampProvenanceEntryCount']);
+        $t->same(3, $summary['selectedTimestampEntryCount']);
+        $t->same(3, $summary['selectedDosTimestampEntryCount']);
+        $t->same(1, $summary['selectedExtendedTimestampEntryCount']);
+        $t->same(1, $summary['selectedNtfsTimestampEntryCount']);
+        $t->same(3, $summary['selectedLocalTimestampEntryCount']);
+        $t->same(1, $summary['selectedLocalExtendedTimestampEntryCount']);
+        $t->same(1, $summary['selectedLocalNtfsTimestampEntryCount']);
+        $t->same(0, $summary['selectedInvalidDosTimestampEntryCount']);
+        $t->same(0, $summary['selectedTimestampIssueCount']);
+        $t->same([], $summary['selectedTimestampIssues']);
+        $t->same(3, $summary['selectedTimestampSourceSummaryCount']);
+        $t->same(2, $summary['handoffTimestampProvenanceEntryCount']);
+        $t->same(2, $summary['handoffTimestampEntryCount']);
+        $t->same(2, $summary['handoffDosTimestampEntryCount']);
+        $t->same(1, $summary['handoffExtendedTimestampEntryCount']);
+        $t->same(0, $summary['handoffNtfsTimestampEntryCount']);
+        $t->same(2, $summary['handoffLocalTimestampEntryCount']);
+        $t->same(1, $summary['handoffLocalExtendedTimestampEntryCount']);
+        $t->same(0, $summary['handoffLocalNtfsTimestampEntryCount']);
+        $t->same(2, $summary['handoffTimestampSourceSummaryCount']);
+        $t->same([], $summary['handoffTimestampIssues']);
+
+        $t->same(['dos', 'extended-timestamp', 'ntfs'], array_keys($selectedBySource));
+        $t->same(['dos', 'extended-timestamp'], array_keys($handoffBySource));
+        $t->same([
+            'timestampSource' => 'extended-timestamp',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($documentXml),
+            'uncompressedBytes' => strlen($documentXml),
+            'roles' => ['main-document'],
+            'entryNames' => ['word/document.xml'],
+        ], $selectedBySource['extended-timestamp']);
+        $t->same([
+            'timestampSource' => 'dos',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($relsXml),
+            'uncompressedBytes' => strlen($relsXml),
+            'roles' => ['document-relationships'],
+            'entryNames' => ['word/_rels/document.xml.rels'],
+        ], $handoffBySource['dos']);
+        $t->same([
+            'timestampSource' => 'ntfs',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($mediaBytes),
+            'uncompressedBytes' => strlen($mediaBytes),
+            'roles' => ['media'],
+            'entryNames' => ['word/media/review.bin'],
+        ], $selectedBySource['ntfs']);
+        $t->same(false, isset($handoffBySource['ntfs']));
+
+        $documentEntry = $summary['entries'][0];
+        $mediaEntry = $summary['entries'][2];
+        $t->same($documentModifiedAt, $documentEntry['modifiedAt']);
+        $t->same('extended-timestamp', $documentEntry['timestampSource']);
+        $t->same($documentModifiedAt, $documentEntry['localExtendedModifiedAt']);
+        $t->same('extended-timestamp', $documentEntry['localTimestampSource']);
+        $t->same(true, $documentEntry['hasTimestampProvenance']);
+        $t->same('ready', $documentEntry['status']);
+        $t->same($mediaModifiedAt, $mediaEntry['modifiedAt']);
+        $t->same('ntfs', $mediaEntry['timestampSource']);
+        $t->same($mediaAccessedAt, $mediaEntry['localNtfsAccessedAt']);
+        $t->same($mediaCreatedAt, $mediaEntry['localNtfsCreatedAt']);
+        $t->same('ntfs', $mediaEntry['localTimestampSource']);
+        $t->same('blocked', $mediaEntry['status']);
+        $t->same(false, $mediaEntry['isReadable']);
+        $t->same(null, $mediaEntry['contentSha256']);
+
+        $t->same(
+            ['word/document.xml', 'word/_rels/document.xml.rels', 'word/media/review.bin'],
+            array_map(static fn (array $entry): string => $entry['name'], $summary['selectedTimestampProvenanceEntries'])
+        );
+        $t->same(
+            ['word/document.xml', 'word/_rels/document.xml.rels'],
+            array_map(static fn (array $entry): string => $entry['name'], $summary['handoffTimestampProvenanceEntries'])
+        );
     },
 
     'summarizes selected zip handoff package part kinds for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
