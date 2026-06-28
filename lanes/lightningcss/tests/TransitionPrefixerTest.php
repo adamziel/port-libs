@@ -3649,15 +3649,18 @@ CSS;
 
         $t->same(
             '.foo{outline-color:#b32323;outline-color:lab(40% 56.6 39)}',
-            $prefixer->prefixForTargets('.foo { outline-color: lab(40% 56.6 39) }', ['chrome' => 90])
+            $prefixer->prefixForTargets('.foo { outline-color: lab(40% 56.6 39) }', ['chrome' => 90]),
+            'upstream src/lib.rs::test_outline line 3205'
         );
         $t->same(
             '.foo{outline:2px solid #b32323;outline:2px solid lab(40% 56.6 39)}',
-            $prefixer->prefixForTargets('.foo { outline: 2px solid lab(40% 56.6 39) }', ['chrome' => 90])
+            $prefixer->prefixForTargets('.foo { outline: 2px solid lab(40% 56.6 39) }', ['chrome' => 90]),
+            'upstream src/lib.rs::test_outline line 3219'
         );
         $t->same(
             '.foo{outline:var(--width) solid #b32323}@supports (color:lab(0% 0 0)){.foo{outline:var(--width) solid lab(40% 56.6 39)}}',
-            $prefixer->prefixForTargets('.foo { outline: var(--width) solid lab(40% 56.6 39) }', ['chrome' => 90])
+            $prefixer->prefixForTargets('.foo { outline: var(--width) solid lab(40% 56.6 39) }', ['chrome' => 90]),
+            'upstream src/lib.rs::test_outline line 3233'
         );
         $t->same(
             '.foo{outline-color:lab(40% 56.6 39)}',
