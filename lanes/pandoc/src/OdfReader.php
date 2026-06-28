@@ -12209,6 +12209,7 @@ final class OdfReader
             if (!$style instanceof \DOMElement) {
                 continue;
             }
+            $this->appendStyleDefinitionDiagnostics($diagnostics, $style, $sourcePart);
             $name = self::attr($style, self::STYLE_NS, 'name');
             if ($name === '') {
                 continue;
@@ -12361,6 +12362,62 @@ final class OdfReader
         }
 
         return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private function appendStyleDefinitionDiagnostics(array &$diagnostics, \DOMElement $style, string $sourcePart): void
+    {
+        $name = self::attr($style, self::STYLE_NS, 'name');
+        $family = self::attr($style, self::STYLE_NS, 'family');
+        $sourceMetadata = $this->styleDefinitionSourceMetadata($style, $sourcePart);
+
+        if ($name === '') {
+            $diagnostics[] = self::withoutEmpty([
+                'code' => 'odf-style-missing-name',
+                'family' => self::nullable($family),
+            ] + $sourceMetadata);
+
+            return;
+        }
+
+        if ($family === '') {
+            $diagnostics[] = self::withoutEmpty([
+                'code' => 'odf-style-missing-family',
+                'styleName' => $name,
+            ] + $sourceMetadata);
+
+            return;
+        }
+
+        if (!$this->isKnownStyleFamily($family)) {
+            $diagnostics[] = self::withoutEmpty([
+                'code' => 'odf-style-unknown-family',
+                'styleName' => $name,
+                'family' => $family,
+            ] + $sourceMetadata);
+        }
+    }
+
+    private function isKnownStyleFamily(string $family): bool
+    {
+        return in_array($family, [
+            'chart',
+            'control',
+            'drawing-page',
+            'graphic',
+            'paragraph',
+            'presentation',
+            'ruby',
+            'section',
+            'table',
+            'table-cell',
+            'table-column',
+            'table-page',
+            'table-row',
+            'text',
+        ], true);
     }
 
     /**
