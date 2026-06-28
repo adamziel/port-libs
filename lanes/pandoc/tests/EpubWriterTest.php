@@ -210,6 +210,55 @@ return [
         $t->same('rtl', $spineMetadata['pageProgressionDirection']);
         $t->same('right-to-left', $spineMetadata['readingProgression']);
     },
+    'writes epub3 package metadata links with sanitized refines targets' => static function (TestRunner $t) use ($text, $paragraph): void {
+        $document = new AstNode('document', [
+            'meta' => [
+                'identifier' => 'urn:uuid:writer-package-link-refines',
+                'title' => 'Package Link Refines EPUB',
+                'creator' => 'Link Desk',
+                'lang' => 'en',
+                'epubPackageLinks' => [
+                    [
+                        'id' => 'creator-record',
+                        'rel' => 'record',
+                        'href' => '#epub-creator-1',
+                        'media-type' => 'application/oebps-package+xml',
+                        'properties' => 'review',
+                        'refines' => '#epub-creator-1',
+                        'title' => 'Creator package record',
+                        'hreflang' => 'en',
+                    ],
+                    [
+                        'id' => 'ignored-link-without-href',
+                        'rel' => 'record',
+                    ],
+                ],
+            ],
+        ], [
+            new AstNode('heading', ['level' => 1, 'id' => 'links'], [$text('Package Link Refines EPUB')]),
+            $paragraph([$text('Metadata link body.')]),
+        ]);
+
+        $bytes = (new EpubWriter([
+            'modified' => '2026-06-21T08:39:00Z',
+            'writerEpubTitlePage' => false,
+        ]))->write($document);
+        $zip = ZipPackage::fromString($bytes);
+        $epub = EpubPackage::fromString($bytes);
+        $opf = $zip->read('EPUB/package.opf');
+        $links = $epub->packageLinks();
+        $targets = $epub->metadata()['refinementTargets'];
+
+        $t->contains('<link id="creator-record" rel="record" href="#epub-creator-1" media-type="application/oebps-package+xml" properties="review" refines="#epub-creator-1" title="Creator package record" hreflang="en"/>', $opf);
+        $t->same(1, count($links));
+        $t->same('creator-record', $links[0]['id']);
+        $t->same('/EPUB/package.opf#epub-creator-1', $links[0]['target']);
+        $t->same('/EPUB/package.opf', $links[0]['partName']);
+        $t->same(true, $links[0]['exists']);
+        $t->same([], $links[0]['diagnostics']);
+        $t->same(true, $targets['present']);
+        $t->same(0, $epub->validationReport()['metadata']['refinementTargetDiagnosticCount']);
+    },
     'writes epub3 manifest properties for mathml and svg spine xhtml' => static function (TestRunner $t) use ($text, $paragraph): void {
         $document = new AstNode('document', [
             'meta' => ['title' => 'Manifest Properties EPUB', 'author' => 'Port Libs', 'lang' => 'en'],

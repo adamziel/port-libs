@@ -2718,6 +2718,23 @@ final class EpubPackageReader
                 }
 
                 $metadata = is_array($collection['metadata'] ?? null) ? $collection['metadata'] : [];
+                foreach (is_array($metadata['links'] ?? null) ? $metadata['links'] : [] as $linkIndex => $link) {
+                    if (!is_array($link)) {
+                        continue;
+                    }
+
+                    $addTarget(
+                        is_string($link['id'] ?? null) ? $link['id'] : null,
+                        'collection-metadata-link',
+                        [
+                            'index' => (int) $linkIndex,
+                            'collectionPath' => $currentPath,
+                            'href' => is_string($link['href'] ?? null) ? $link['href'] : null,
+                            'target' => is_string($link['target'] ?? null) ? $link['target'] : null,
+                        ]
+                    );
+                }
+
                 foreach (is_array($metadata['items'] ?? null) ? $metadata['items'] : [] as $metadataIndex => $metadataItem) {
                     if (!is_array($metadataItem)) {
                         continue;
@@ -2767,6 +2784,42 @@ final class EpubPackageReader
             ['source' => 'metadata-meta', 'items' => $properties],
             ['source' => 'metadata-link', 'items' => $links],
         ];
+        $appendCollectionSources = function (array $items, array $path = []) use (&$appendCollectionSources, &$sources): void {
+            foreach ($items as $collectionIndex => $collection) {
+                if (!is_array($collection)) {
+                    continue;
+                }
+
+                $currentPath = array_merge($path, [(int) $collectionIndex]);
+                foreach (is_array($collection['links'] ?? null) ? $collection['links'] : [] as $linkIndex => $link) {
+                    if (is_array($link)) {
+                        $sources[] = [
+                            'source' => 'collection-link',
+                            'items' => [$link],
+                            'collectionPath' => $currentPath,
+                            'collectionId' => is_string($collection['id'] ?? null) ? $collection['id'] : null,
+                            'sourceIndexOffset' => (int) $linkIndex,
+                        ];
+                    }
+                }
+
+                $metadata = is_array($collection['metadata'] ?? null) ? $collection['metadata'] : [];
+                foreach (is_array($metadata['links'] ?? null) ? $metadata['links'] : [] as $linkIndex => $link) {
+                    if (is_array($link)) {
+                        $sources[] = [
+                            'source' => 'collection-metadata-link',
+                            'items' => [$link],
+                            'collectionPath' => $currentPath,
+                            'collectionId' => is_string($collection['id'] ?? null) ? $collection['id'] : null,
+                            'sourceIndexOffset' => (int) $linkIndex,
+                        ];
+                    }
+                }
+
+                $appendCollectionSources(is_array($collection['children'] ?? null) ? $collection['children'] : [], $currentPath);
+            }
+        };
+        $appendCollectionSources($collections);
 
         foreach ($sources as $source) {
             foreach ($source['items'] as $sourceIndex => $entry) {
@@ -2791,23 +2844,28 @@ final class EpubPackageReader
                     $targets
                 )));
                 $itemDiagnostics = [];
+                $sourceIndexValue = (int) ($source['sourceIndexOffset'] ?? ($entry['index'] ?? $sourceIndex));
+                $diagnosticContext = [
+                    'source' => $source['source'],
+                    'sourceIndex' => $sourceIndexValue,
+                    'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                    'refines' => $refines,
+                ];
+                if (isset($source['collectionPath'])) {
+                    $diagnosticContext['collectionPath'] = $source['collectionPath'];
+                }
+                if (isset($source['collectionId'])) {
+                    $diagnosticContext['collectionId'] = $source['collectionId'];
+                }
 
                 if ($subjectId === null) {
-                    $itemDiagnostics[] = [
+                    $itemDiagnostics[] = $diagnosticContext + [
                         'type' => 'invalid-metadata-refinement-target',
-                        'source' => $source['source'],
-                        'sourceIndex' => (int) ($entry['index'] ?? $sourceIndex),
-                        'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
-                        'refines' => $refines,
                         'message' => 'EPUB OPF metadata refinement target must include a fragment identifier',
                     ];
                 } elseif ($targetLocal && $targets === []) {
-                    $itemDiagnostics[] = [
+                    $itemDiagnostics[] = $diagnosticContext + [
                         'type' => 'unresolved-metadata-refinement-target',
-                        'source' => $source['source'],
-                        'sourceIndex' => (int) ($entry['index'] ?? $sourceIndex),
-                        'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
-                        'refines' => $refines,
                         'subjectId' => $subjectId,
                         'message' => 'EPUB OPF metadata refinement points at a local package subject id that was not found in the direct reader target inventory',
                     ];
@@ -2815,7 +2873,7 @@ final class EpubPackageReader
 
                 $item = [
                     'source' => $source['source'],
-                    'sourceIndex' => (int) ($entry['index'] ?? $sourceIndex),
+                    'sourceIndex' => $sourceIndexValue,
                     'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
                     'property' => is_string($entry['property'] ?? null) ? $entry['property'] : null,
                     'rel' => is_array($entry['rel'] ?? null) ? array_values($entry['rel']) : [],
@@ -2832,6 +2890,12 @@ final class EpubPackageReader
                     'targets' => $targets,
                     'diagnostics' => $itemDiagnostics,
                 ];
+                if (isset($source['collectionPath'])) {
+                    $item['collectionPath'] = $source['collectionPath'];
+                }
+                if (isset($source['collectionId'])) {
+                    $item['collectionId'] = $source['collectionId'];
+                }
                 $refinementItems[] = $item;
 
                 if ($item['resolved']) {
@@ -4544,7 +4608,7 @@ final class EpubPackageReader
     ): array {
         $role = trim($collectionElement->getAttribute('role'));
         $roleTokens = $this->tokens($role);
-        $metadata = $this->collectionMetadata($collectionElement);
+        $metadata = $this->collectionMetadata($root, $opfDir, $manifestByPath, $collectionElement);
         $links = [];
         $children = [];
 
@@ -4568,7 +4632,8 @@ final class EpubPackageReader
         }
 
         $linkReport = $this->collectionLinkReport($links);
-        $diagnostics = $linkReport['diagnostics'];
+        $metadataLinkReport = is_array($metadata['linkReport'] ?? null) ? $metadata['linkReport'] : $this->collectionLinkReport([]);
+        $diagnostics = array_merge($linkReport['diagnostics'], $metadataLinkReport['diagnostics']);
         if ($roleTokens === []) {
             $diagnostics[] = [
                 'type' => 'missing-collection-role',
@@ -4605,8 +4670,12 @@ final class EpubPackageReader
     /**
      * @return array<string, mixed>
      */
-    private function collectionMetadata(\DOMElement $collectionElement): array
-    {
+    private function collectionMetadata(
+        string $root,
+        string $opfDir,
+        array $manifestByPath,
+        \DOMElement $collectionElement
+    ): array {
         $metadataElement = $this->firstDirectChild($collectionElement, 'metadata');
         if (!$metadataElement instanceof \DOMElement) {
             return [
@@ -4614,13 +4683,37 @@ final class EpubPackageReader
                 'itemCount' => 0,
                 'items' => [],
                 'title' => null,
+                'links' => [],
+                'linkCount' => 0,
+                'localLinkCount' => 0,
+                'externalLinkCount' => 0,
+                'missingLinkCount' => 0,
+                'linkRelTokens' => [],
+                'linkRelCounts' => [],
+                'linksByRel' => [],
+                'linkReport' => $this->collectionLinkReport([]),
+                'linkDiagnostics' => [],
             ];
         }
 
         $items = [];
+        $links = [];
         $title = null;
         foreach ($metadataElement->childNodes as $node) {
             if (!$node instanceof \DOMElement) {
+                continue;
+            }
+
+            if ($node->localName === 'link') {
+                $links[] = $this->collectionLink(
+                    $root,
+                    $opfDir,
+                    $manifestByPath,
+                    $node,
+                    count($links),
+                    'collection-metadata-link',
+                    'EPUB OPF collection metadata link',
+                );
                 continue;
             }
 
@@ -4646,11 +4739,23 @@ final class EpubPackageReader
             $items[] = $item;
         }
 
+        $linkReport = $this->collectionLinkReport($links);
+
         return [
             'present' => true,
             'itemCount' => count($items),
             'items' => $items,
             'title' => $title,
+            'links' => $links,
+            'linkCount' => $linkReport['count'],
+            'localLinkCount' => $linkReport['localCount'],
+            'externalLinkCount' => $linkReport['externalCount'],
+            'missingLinkCount' => $linkReport['missingCount'],
+            'linkRelTokens' => $linkReport['relTokens'],
+            'linkRelCounts' => $linkReport['relCounts'],
+            'linksByRel' => $linkReport['linksByRel'],
+            'linkReport' => $linkReport,
+            'linkDiagnostics' => $linkReport['diagnostics'],
         ];
     }
 
@@ -4663,7 +4768,9 @@ final class EpubPackageReader
         string $opfDir,
         array $manifestByPath,
         \DOMElement $linkElement,
-        int $index
+        int $index,
+        string $diagnosticSource = 'collection-link',
+        string $messageSubject = 'EPUB OPF collection link'
     ): array {
         $href = trim($linkElement->getAttribute('href'));
         $suffix = $this->hrefSuffix($href);
@@ -4675,16 +4782,16 @@ final class EpubPackageReader
 
         if ($href === '') {
             $diagnostics[] = [
-                'type' => 'missing-collection-link-href',
-                'message' => 'EPUB OPF collection link is missing href',
+                'type' => 'missing-' . $diagnosticSource . '-href',
+                'message' => $messageSubject . ' is missing href',
             ];
         } elseif ($external) {
             $target = $href;
             $diagnostics[] = [
-                'type' => 'external-collection-link-target',
+                'type' => 'external-' . $diagnosticSource . '-target',
                 'href' => $href,
                 'target' => $target,
-                'message' => 'EPUB OPF collection link points outside the package and was not fetched',
+                'message' => $messageSubject . ' points outside the package and was not fetched',
             ];
         } else {
             try {
@@ -4693,15 +4800,15 @@ final class EpubPackageReader
                 $exists = $path !== '' && $this->packagePathExists($root, $path);
                 if ($path !== '' && !$exists) {
                     $diagnostics[] = [
-                        'type' => 'missing-collection-link-target',
+                        'type' => 'missing-' . $diagnosticSource . '-target',
                         'href' => $href,
                         'path' => $path,
-                        'message' => 'EPUB OPF collection link target is missing from the package',
+                        'message' => $messageSubject . ' target is missing from the package',
                     ];
                 }
             } catch (\RuntimeException $exception) {
                 $diagnostics[] = [
-                    'type' => 'invalid-collection-link-href',
+                    'type' => 'invalid-' . $diagnosticSource . '-href',
                     'href' => $href,
                     'message' => $exception->getMessage(),
                 ];

@@ -830,8 +830,9 @@ XML);
   <collection id="series" role="series">
     <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
       <dc:title id="series-title">Series Review</dc:title>
+      <link id="series-metadata-record" rel="record" refines="#series-title" href="meta/series.json?kind=metadata#record" media-type="application/json"/>
     </metadata>
-    <link id="series-record" rel="record" href="meta/series.json" media-type="application/json"/>
+    <link id="series-record" rel="record" refines="#series-metadata-record" href="meta/series.json" media-type="application/json"/>
   </collection>
 </package>
 XML);
@@ -867,12 +868,13 @@ XML);
             $t->same($targets, $report['refinementTargets']);
             $t->same($targets['diagnostics'], $epub['metadataRefinementTargetDiagnostics']);
             $t->same(true, $targets['present']);
-            $t->same(15, $targets['targetIdCount']);
-            $t->same(15, $targets['targetCount']);
+            $t->same(16, $targets['targetIdCount']);
+            $t->same(16, $targets['targetCount']);
             $t->same([
                 'collection' => 1,
                 'collection-link' => 1,
                 'collection-metadata-item' => 1,
+                'collection-metadata-link' => 1,
                 'manifest-item' => 4,
                 'metadata-item' => 3,
                 'metadata-link' => 2,
@@ -880,15 +882,15 @@ XML);
                 'package' => 1,
                 'spine-itemref' => 1,
             ], $targets['targetKindCounts']);
-            $t->same(14, $targets['refinementCount']);
-            $t->same(9, $targets['resolvedRefinementCount']);
+            $t->same(16, $targets['refinementCount']);
+            $t->same(11, $targets['resolvedRefinementCount']);
             $t->same(5, $targets['unresolvedRefinementCount']);
             $t->same(2, $targets['externalRefinementCount']);
             $t->same(1, $targets['packageRelativeRefinementCount']);
             $t->same(2, $targets['diagnosticCount']);
             $t->same(['unresolved-metadata-refinement-target', 'invalid-metadata-refinement-target'], array_column($targets['diagnostics'], 'type'));
-            $t->same(14, $report['summary']['refinementTargetCount']);
-            $t->same(9, $report['summary']['resolvedRefinementTargetCount']);
+            $t->same(16, $report['summary']['refinementTargetCount']);
+            $t->same(11, $report['summary']['resolvedRefinementTargetCount']);
             $t->same(5, $report['summary']['unresolvedRefinementTargetCount']);
             $t->same(2, $report['summary']['refinementTargetDiagnosticCount']);
 
@@ -901,6 +903,11 @@ XML);
             $t->same(['collection-metadata-item'], $find('metadata-meta', '#series-title')['targetKinds']);
             $t->same(['metadata-link'], $find('metadata-meta', '#creator-record')['targetKinds']);
             $t->same(['metadata-item'], $find('metadata-link', '#creator')['targetKinds']);
+            $t->same(1, $epub['collections'][0]['metadata']['linkCount']);
+            $t->same('series-metadata-record', $epub['collections'][0]['metadata']['links'][0]['id']);
+            $t->same('EPUB/meta/series.json?kind=metadata#record', $epub['collections'][0]['metadata']['links'][0]['target']);
+            $t->same(['collection-metadata-item'], $find('collection-metadata-link', '#series-title')['targetKinds']);
+            $t->same(['collection-metadata-link'], $find('collection-link', '#series-metadata-record')['targetKinds']);
             $t->same(false, $find('metadata-meta', '#missing-target')['resolved']);
             $t->same('missing-target', $find('metadata-meta', '#missing-target')['subjectId']);
             $t->same(true, $find('metadata-meta', 'https://example.invalid/meta#remote')['targetExternal']);
