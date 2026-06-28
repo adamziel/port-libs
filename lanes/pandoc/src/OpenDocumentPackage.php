@@ -289,6 +289,7 @@ final class OpenDocumentPackage
      *     packageConfigurations:array<string, mixed>,
      *     packageFonts:array<string, mixed>,
      *     packageLayoutCaches:array<string, mixed>,
+     *     packageDictionaries:array<string, mixed>,
      *     packageStyles:array<string, mixed>,
      *     comments:array<string, mixed>,
      *     rdfMetadata:array<string, mixed>,
@@ -314,6 +315,7 @@ final class OpenDocumentPackage
         $packageConfigurations = self::packageConfigurationMetadata($this->package, $this->manifestEntries, $undeclaredPackageEntries);
         $packageFonts = self::packageFontMetadata($this->package, $this->manifestEntries, $undeclaredPackageEntries);
         $packageLayoutCaches = self::packageLayoutCacheMetadata($this->package, $this->manifestEntries, $undeclaredPackageEntries);
+        $packageDictionaries = self::packageDictionaryMetadata($this->package, $this->manifestEntries, $undeclaredPackageEntries);
         $packageStyles = $this->packageStyleProvenance($packageInventory);
         foreach ($this->manifestEntries as $entry) {
             if (self::isMediaResourceManifestEntry($entry)) {
@@ -407,6 +409,7 @@ final class OpenDocumentPackage
             'packageConfigurations' => $packageConfigurations,
             'packageFonts' => $packageFonts,
             'packageLayoutCaches' => $packageLayoutCaches,
+            'packageDictionaries' => $packageDictionaries,
             'packageStyles' => $packageStyles,
             'rdfMetadata' => $this->rdfMetadata,
             'manifestEncryption' => self::manifestEncryptionSummary($this->manifestEntries),
@@ -549,6 +552,7 @@ final class OpenDocumentPackage
         $fontPackagePartCount = 0;
         $rdfMetadataPartCount = 0;
         $layoutCachePartCount = 0;
+        $dictionaryPackagePartCount = 0;
         $unsupportedCompressionMethodCount = 0;
         $totalByteLength = 0;
         $totalCompressedByteLength = 0;
@@ -682,6 +686,7 @@ final class OpenDocumentPackage
                 'fontPackagePart' => self::isFontPackagePart($entry->name, is_array($manifestEntry) ? (string) ($manifestEntry['mediaType'] ?? '') : null),
                 'rdfMetadataPart' => self::isRdfMetadataPart($entry->name, is_array($manifestEntry) ? (string) ($manifestEntry['mediaType'] ?? '') : null),
                 'layoutCachePackagePart' => self::isLayoutCachePackagePartName($entry->name),
+                'dictionaryPackagePart' => self::isDictionaryPackagePartName($entry->name),
                 'encrypted' => is_array($manifestEntry) && ($manifestEntry['encrypted'] ?? false) === true,
                 'canExposeBytes' => is_array($manifestEntry) && ($manifestEntry['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $byteExposurePolicy,
@@ -769,6 +774,9 @@ final class OpenDocumentPackage
             if (in_array('layout-cache', $roles, true)) {
                 ++$layoutCachePartCount;
             }
+            if (in_array('dictionary-package', $roles, true)) {
+                ++$dictionaryPackagePartCount;
+            }
             if ($rawNameProvenance['hasRawNameProvenance']) {
                 ++$rawNameProvenanceEntryCount;
                 $rawNameProvenanceEntries[] = [
@@ -822,6 +830,7 @@ final class OpenDocumentPackage
             'fontPackagePartCount' => $fontPackagePartCount,
             'rdfMetadataPartCount' => $rdfMetadataPartCount,
             'layoutCachePartCount' => $layoutCachePartCount,
+            'dictionaryPackagePartCount' => $dictionaryPackagePartCount,
             'unsupportedCompressionMethodCount' => $unsupportedCompressionMethodCount,
             'totalByteLength' => $totalByteLength,
             'totalCompressedByteLength' => $totalCompressedByteLength,
@@ -907,6 +916,7 @@ final class OpenDocumentPackage
                 'exists' => ($entry['exists'] ?? false) === true,
                 'isDirectory' => ($entry['isDirectory'] ?? false) === true,
                 'encrypted' => ($entry['encrypted'] ?? false) === true,
+                'dictionaryPackagePart' => ($entry['dictionaryPackagePart'] ?? false) === true,
                 'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? null,
                 'storedByteLength' => $entry['storedByteLength'] ?? null,
@@ -993,6 +1003,7 @@ final class OpenDocumentPackage
                 'customManifestChildElementCount' => $part['customManifestChildElementCount'] ?? 0,
                 'customManifestChildElementNames' => $part['customManifestChildElementNames'] ?? [],
                 'manifestDiagnostics' => $part['manifestDiagnostics'] ?? [],
+                'dictionaryPackagePart' => ($part['dictionaryPackagePart'] ?? false) === true,
                 'canExposeBytes' => ($part['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $part['byteExposurePolicy'] ?? null,
                 'undeclared' => ($part['undeclared'] ?? false) === true,
@@ -1019,6 +1030,7 @@ final class OpenDocumentPackage
             'undeclaredEntryCount' => $packageInventory['undeclaredEntryCount'] ?? 0,
             'unsupportedCompressionMethodCount' => $packageInventory['unsupportedCompressionMethodCount'] ?? 0,
             'encryptedCount' => count($this->encryptedManifestEntries()),
+            'dictionaryPackagePartCount' => $packageInventory['dictionaryPackagePartCount'] ?? 0,
             'platformMetadataEntryCount' => $packageInventory['platformMetadataEntryCount'] ?? 0,
             'knownCreatorHostSystemEntryCount' => $packageInventory['knownCreatorHostSystemEntryCount'] ?? 0,
             'unknownCreatorHostSystemEntryCount' => $packageInventory['unknownCreatorHostSystemEntryCount'] ?? 0,
@@ -1312,6 +1324,9 @@ final class OpenDocumentPackage
         if (self::isLayoutCachePackagePartName($entry->name)) {
             $roles[] = 'layout-cache';
         }
+        if (self::isDictionaryPackagePartName($entry->name)) {
+            $roles[] = 'dictionary-package';
+        }
         if (is_array($manifestEntry)) {
             $roles[] = 'manifest-declared';
             if (!$entry->isDirectory() && self::isMediaResourceManifestEntry($manifestEntry)) {
@@ -1384,6 +1399,11 @@ final class OpenDocumentPackage
     private static function isLayoutCachePackagePartName(string $path): bool
     {
         return strtolower(ltrim($path, '/')) === 'layout-cache';
+    }
+
+    private static function isDictionaryPackagePartName(string $path): bool
+    {
+        return str_starts_with(strtolower(ltrim($path, '/')), 'dictionaries/');
     }
 
     private static function layoutCacheMediaTypeFromPart(string $path): string
@@ -1540,6 +1560,9 @@ final class OpenDocumentPackage
         if (is_string($packagePath) && self::isLayoutCachePackagePartName($packagePath)) {
             return false;
         }
+        if (is_string($packagePath) && self::isDictionaryPackagePartName($packagePath)) {
+            return false;
+        }
 
         $mediaTypeBase = (string) ($entry['mediaTypeBase'] ?? $entry['mediaType'] ?? '');
         if (
@@ -1580,6 +1603,7 @@ final class OpenDocumentPackage
             $rdfMetadataPart = is_string($packagePath) && self::isRdfMetadataPart($packagePath, (string) ($entry['mediaType'] ?? ''));
             $objectReplacementPackagePart = is_string($packagePath) && self::isObjectReplacementPackagePartName($packagePath);
             $layoutCachePackagePart = is_string($packagePath) && self::isLayoutCachePackagePartName($packagePath);
+            $dictionaryPackagePart = is_string($packagePath) && self::isDictionaryPackagePartName($packagePath);
             $zipEntry = (!$isRoot && is_string($packagePath) && $package->has($packagePath))
                 ? $package->entry($packagePath)
                 : null;
@@ -1604,6 +1628,7 @@ final class OpenDocumentPackage
                 && !$rdfMetadataPart
                 && !$objectReplacementPackagePart
                 && !$layoutCachePackagePart
+                && !$dictionaryPackagePart
                 && !$missingMediaType
                 && $hasSupportedCompression;
             $declaredSize = is_int($entry['size'] ?? null) ? $entry['size'] : null;
@@ -1638,7 +1663,8 @@ final class OpenDocumentPackage
                 $fontPackagePart,
                 $rdfMetadataPart,
                 $objectReplacementPackagePart,
-                $layoutCachePackagePart
+                $layoutCachePackagePart,
+                $dictionaryPackagePart
             );
 
             $hydrated[] = array_merge($entry, [
@@ -1669,6 +1695,7 @@ final class OpenDocumentPackage
                 'rdfMetadataPart' => $rdfMetadataPart,
                 'objectReplacementPackagePart' => $objectReplacementPackagePart,
                 'layoutCachePackagePart' => $layoutCachePackagePart,
+                'dictionaryPackagePart' => $dictionaryPackagePart,
                 'canExposeBytes' => $canExposeBytes,
                 'byteExposurePolicy' => self::byteExposurePolicy(
                     $isRoot,
@@ -1683,6 +1710,7 @@ final class OpenDocumentPackage
                     $rdfMetadataPart,
                     $objectReplacementPackagePart,
                     $layoutCachePackagePart,
+                    $dictionaryPackagePart,
                     $missingMediaType,
                     $hasSupportedCompression
                 ),
@@ -1706,6 +1734,7 @@ final class OpenDocumentPackage
         bool $rdfMetadataPart,
         bool $objectReplacementPackagePart,
         bool $layoutCachePackagePart,
+        bool $dictionaryPackagePart,
         bool $missingMediaType,
         bool $hasSupportedCompression
     ): string {
@@ -1742,6 +1771,9 @@ final class OpenDocumentPackage
         if ($layoutCachePackagePart) {
             return 'layout-cache-package-bytes-blocked';
         }
+        if ($dictionaryPackagePart) {
+            return 'dictionary-package-bytes-blocked';
+        }
         if ($missingMediaType) {
             return 'missing-media-type-bytes-blocked';
         }
@@ -1766,7 +1798,8 @@ final class OpenDocumentPackage
         bool $fontPackagePart,
         bool $rdfMetadataPart,
         bool $objectReplacementPackagePart,
-        bool $layoutCachePackagePart
+        bool $layoutCachePackagePart,
+        bool $dictionaryPackagePart
     ): string {
         if ($isRoot) {
             return 'opendocument-text-package';
@@ -1798,6 +1831,9 @@ final class OpenDocumentPackage
         }
         if ($layoutCachePackagePart) {
             return 'layout-cache';
+        }
+        if ($dictionaryPackagePart) {
+            return 'dictionary';
         }
         if ($fontPackagePart || ($mediaTypeBase !== '' && self::isFontMediaType($mediaTypeBase))) {
             return 'font';
@@ -1858,6 +1894,9 @@ final class OpenDocumentPackage
             if (isset($this->manifestEntriesByPath[$path]) || isset($specialPackageParts[$path])) {
                 continue;
             }
+            $byteExposurePolicy = self::isDictionaryPackagePartName($path)
+                ? 'dictionary-package-bytes-blocked'
+                : 'undeclared-package-entry-no-bytes';
 
             $entries[] = [
                 'path' => $path,
@@ -1874,8 +1913,9 @@ final class OpenDocumentPackage
                 'rdfMetadataPart' => self::isRdfPartName($path),
                 'objectReplacementPackagePart' => self::isObjectReplacementPackagePartName($path),
                 'layoutCachePackagePart' => self::isLayoutCachePackagePartName($path),
+                'dictionaryPackagePart' => self::isDictionaryPackagePartName($path),
                 'canExposeBytes' => false,
-                'byteExposurePolicy' => 'undeclared-package-entry-no-bytes',
+                'byteExposurePolicy' => $byteExposurePolicy,
                 'diagnostics' => ['odf-manifest-undeclared-package-entry'],
             ];
         }
@@ -3114,6 +3154,229 @@ final class OpenDocumentPackage
      * @param list<array<string, mixed>> $undeclaredPackageEntries
      * @return array<string, mixed>
      */
+    private static function packageDictionaryMetadata(ZipPackage $package, array $manifestEntries, array $undeclaredPackageEntries): array
+    {
+        $candidatesByPath = [];
+        foreach ($manifestEntries as $entry) {
+            $packagePath = $entry['packagePath'] ?? null;
+            if (!is_string($packagePath) || $packagePath === '' || !self::isDictionaryPackagePartName($packagePath)) {
+                continue;
+            }
+
+            $entry['declared'] = true;
+            $candidatesByPath[$packagePath] = $entry;
+        }
+
+        foreach ($undeclaredPackageEntries as $entry) {
+            $packagePath = $entry['path'] ?? null;
+            if (!is_string($packagePath) || $packagePath === '' || !self::isDictionaryPackagePartName($packagePath)) {
+                continue;
+            }
+
+            $mediaType = self::dictionaryMediaTypeFromPart($packagePath) ?? '';
+            $mediaTypeReport = self::mediaTypeReport($mediaType);
+            $candidatesByPath[$packagePath] = [
+                'path' => $packagePath,
+                'packagePath' => $packagePath,
+                'pathReference' => $packagePath,
+                'pathSuffix' => null,
+                'pathQuery' => null,
+                'pathFragment' => null,
+                'mediaType' => $mediaType,
+                'mediaTypeBase' => $mediaTypeReport['mediaTypeBase'],
+                'mediaTypeHasParameters' => false,
+                'mediaTypeParameterCount' => 0,
+                'mediaTypeParameters' => [],
+                'mediaTypeParameterMap' => [],
+                'exists' => true,
+                'isDirectory' => str_ends_with($packagePath, '/'),
+                'encrypted' => false,
+                'declared' => false,
+                'declaredSize' => null,
+                'declaredSizeMismatch' => false,
+                'byteExposurePolicy' => str_ends_with($packagePath, '/') ? 'directory-entry-no-bytes' : 'dictionary-package-bytes-blocked',
+            ];
+        }
+
+        ksort($candidatesByPath, SORT_STRING);
+
+        $items = [];
+        $issueCodes = [];
+        $kindCounts = [];
+        $groupCounts = [];
+        foreach ($candidatesByPath as $packagePath => $entry) {
+            $zipEntry = $package->has($packagePath) ? $package->entry($packagePath) : null;
+            $isDirectory = str_ends_with($packagePath, '/');
+            $exists = $isDirectory || $zipEntry instanceof ZipPackageEntry;
+            $encrypted = ($entry['encrypted'] ?? false) === true;
+            $declared = ($entry['declared'] ?? false) === true;
+            $mediaType = (string) ($entry['mediaType'] ?? '');
+            if ($mediaType === '') {
+                $mediaType = self::dictionaryMediaTypeFromPart($packagePath) ?? '';
+            }
+            $mediaTypeReport = self::mediaTypeReport($mediaType);
+            $missingMediaType = $mediaType === '' && !$isDirectory;
+            $mediaTypeValid = $isDirectory
+                ? $mediaTypeReport['mediaTypeBase'] === ''
+                : (!$missingMediaType && self::isDictionaryMediaType($mediaType));
+            $kind = self::dictionaryPackagePartKind($packagePath, $mediaType, $isDirectory);
+            $group = self::dictionaryPackagePartGroup($packagePath);
+            $issues = [];
+            if (!$exists) {
+                $issues[] = 'odf-dictionary-package-missing-part';
+            }
+            if (!$declared) {
+                $issues[] = 'odf-dictionary-package-undeclared-part';
+            }
+            if ($encrypted) {
+                $issues[] = 'odf-dictionary-package-encrypted-part';
+            }
+            if ($missingMediaType) {
+                $issues[] = 'odf-dictionary-package-missing-media-type';
+            } elseif (!$mediaTypeValid) {
+                $issues[] = 'odf-dictionary-package-invalid-media-type';
+            }
+            foreach ($issues as $issue) {
+                $issueCodes[$issue] = true;
+            }
+            $kindCounts[$kind] = ($kindCounts[$kind] ?? 0) + 1;
+            if ($group !== null) {
+                $groupCounts[$group] = ($groupCounts[$group] ?? 0) + 1;
+            }
+
+            $items[] = [
+                'fullPath' => $entry['path'] ?? $packagePath,
+                'path' => $entry['path'] ?? $packagePath,
+                'packagePath' => $packagePath,
+                'part' => $packagePath,
+                'pathReference' => $entry['pathReference'] ?? null,
+                'pathSuffix' => $entry['pathSuffix'] ?? null,
+                'pathQuery' => $entry['pathQuery'] ?? null,
+                'pathFragment' => $entry['pathFragment'] ?? null,
+                'mediaType' => $mediaType === '' ? null : $mediaType,
+                'mediaTypeBase' => $mediaTypeReport['mediaTypeBase'],
+                'mediaTypeHasParameters' => $mediaTypeReport['mediaTypeHasParameters'],
+                'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
+                'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
+                'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
+                'kind' => $kind,
+                'group' => $group,
+                'packageRoot' => 'Dictionaries',
+                'isDirectory' => $isDirectory,
+                'exists' => $exists,
+                'declared' => $declared,
+                'undeclared' => !$declared,
+                'encrypted' => $encrypted,
+                'valid' => $exists && !$encrypted && $mediaTypeValid,
+                'byteLength' => !$isDirectory && !$encrypted && $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
+                'compressedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressedSize : null,
+                'compressionMethod' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressionMethod : null,
+                'compressionMethodName' => $zipEntry instanceof ZipPackageEntry ? self::compressionMethodName($zipEntry->compressionMethod) : null,
+                'crc32' => !$isDirectory && !$encrypted && $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
+                'storedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
+                'storedCrc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
+                'declaredSize' => $entry['declaredSize'] ?? $entry['size'] ?? null,
+                'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
+                'canExposeBytes' => false,
+                'canExposeAsDocumentMedia' => false,
+                'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? ($isDirectory ? 'directory-entry-no-bytes' : 'dictionary-package-bytes-blocked'),
+                'reviewPolicy' => 'dictionary-package-metadata-only',
+                'encryption' => $entry['encryption'] ?? null,
+                'issues' => $issues,
+            ];
+        }
+
+        ksort($issueCodes, SORT_STRING);
+        ksort($kindCounts, SORT_STRING);
+        ksort($groupCounts, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'readableCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['exists'] === true && ($item['byteLength'] ?? null) !== null,
+            )),
+            'declaredCount' => count(array_filter($items, static fn (array $item): bool => $item['declared'] === true)),
+            'undeclaredCount' => count(array_filter($items, static fn (array $item): bool => $item['undeclared'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] !== true)),
+            'directoryCount' => count(array_filter($items, static fn (array $item): bool => $item['isDirectory'] === true)),
+            'encryptedCount' => count(array_filter($items, static fn (array $item): bool => $item['encrypted'] === true)),
+            'missingMediaTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('odf-dictionary-package-missing-media-type', $item['issues'], true))),
+            'invalidMediaTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('odf-dictionary-package-invalid-media-type', $item['issues'], true))),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'issueCodes' => array_keys($issueCodes),
+            'kindCounts' => $kindCounts,
+            'groupCounts' => $groupCounts,
+            'byteExposurePolicy' => 'dictionary-package-bytes-blocked',
+            'reviewPolicy' => 'dictionary-package-metadata-only',
+            'items' => $items,
+        ];
+    }
+
+    private static function dictionaryMediaTypeFromPart(string $path): ?string
+    {
+        if (str_ends_with($path, '/')) {
+            return '';
+        }
+
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+
+        return match ($extension) {
+            'xml' => 'text/xml',
+            'dic', 'aff', 'txt', 'lst', 'conf' => 'text/plain',
+            'dat', 'idx', 'bin' => 'application/octet-stream',
+            default => null,
+        };
+    }
+
+    private static function isDictionaryMediaType(string $mediaType): bool
+    {
+        $base = self::mediaTypeReport($mediaType)['mediaTypeBase'];
+
+        return self::isXmlMediaTypeBase($base)
+            || in_array($base, ['text/plain', 'text/csv', 'application/octet-stream', 'application/binary'], true)
+            || str_starts_with($base, 'application/vnd.')
+            || str_starts_with($base, 'application/x-');
+    }
+
+    private static function dictionaryPackagePartKind(string $path, string $mediaType, bool $isDirectory): string
+    {
+        if ($isDirectory) {
+            return 'dictionary-directory';
+        }
+
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        if ($extension === 'dic') {
+            return 'dictionary-word-list';
+        }
+        if ($extension === 'aff') {
+            return 'dictionary-affix-rules';
+        }
+
+        $base = self::mediaTypeReport($mediaType)['mediaTypeBase'];
+        if (self::isXmlMediaTypeBase($base)) {
+            return 'dictionary-metadata';
+        }
+        if (in_array($base, ['application/octet-stream', 'application/binary'], true)) {
+            return 'dictionary-binary-resource';
+        }
+
+        return 'dictionary-resource';
+    }
+
+    private static function dictionaryPackagePartGroup(string $path): ?string
+    {
+        $segments = explode('/', trim($path, '/'));
+        $group = strtolower($segments[1] ?? '');
+
+        return $group === '' ? null : $group;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifestEntries
+     * @param list<array<string, mixed>> $undeclaredPackageEntries
+     * @return array<string, mixed>
+     */
     private static function packageScriptMetadata(ZipPackage $package, array $manifestEntries, array $undeclaredPackageEntries): array
     {
         $candidatesByPath = [];
@@ -4032,6 +4295,8 @@ final class OpenDocumentPackage
             'rdfMetadataItems' => [],
             'layoutCachePartCount' => 0,
             'layoutCacheItems' => [],
+            'dictionaryPackagePartCount' => 0,
+            'dictionaryPackageItems' => [],
             'missingMediaTypeCount' => 0,
             'missingMediaTypeItems' => [],
             'diagnosticCount' => 0,
@@ -4169,6 +4434,10 @@ final class OpenDocumentPackage
             if (($entry['layoutCachePackagePart'] ?? false) === true) {
                 ++$summary['layoutCachePartCount'];
                 $summary['layoutCacheItems'][] = $item;
+            }
+            if (($entry['dictionaryPackagePart'] ?? false) === true) {
+                ++$summary['dictionaryPackagePartCount'];
+                $summary['dictionaryPackageItems'][] = $item;
             }
             if (($entry['missingMediaType'] ?? false) === true) {
                 ++$summary['missingMediaTypeCount'];
@@ -4664,6 +4933,7 @@ final class OpenDocumentPackage
             'fontPackagePart' => ($entry['fontPackagePart'] ?? false) === true,
             'rdfMetadataPart' => ($entry['rdfMetadataPart'] ?? false) === true,
             'layoutCachePackagePart' => ($entry['layoutCachePackagePart'] ?? false) === true,
+            'dictionaryPackagePart' => ($entry['dictionaryPackagePart'] ?? false) === true,
             'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
             'byteLength' => $entry['byteLength'] ?? null,
             'storedByteLength' => $entry['storedByteLength'] ?? null,
@@ -4745,6 +5015,7 @@ final class OpenDocumentPackage
             'fontPackagePart' => ($entry['fontPackagePart'] ?? false) === true,
             'rdfMetadataPart' => ($entry['rdfMetadataPart'] ?? false) === true,
             'layoutCachePackagePart' => ($entry['layoutCachePackagePart'] ?? false) === true,
+            'dictionaryPackagePart' => ($entry['dictionaryPackagePart'] ?? false) === true,
             'zipModifiedAt' => $entry['zipModifiedAt'] ?? null,
             'zipTimestampSource' => $entry['zipTimestampSource'] ?? null,
             'zipLocalModifiedAt' => $entry['zipLocalModifiedAt'] ?? null,
