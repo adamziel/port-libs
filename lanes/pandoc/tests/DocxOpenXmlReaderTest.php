@@ -17614,12 +17614,34 @@ XML;
             ['audit:checkpoint' => 1, 'review:branch' => 2, 'review:leaf' => 2, 'review:structurePacket' => 1],
             $reviewPart['xmlElementQualifiedNameCounts']
         );
+        $t->same([1 => 1, 2 => 2, 3 => 3], $reviewPart['xmlElementDepthCounts']);
+        $t->same(['audit' => 1, 'review' => 5], $reviewPart['xmlElementPrefixCounts']);
+        $t->same(['audit', 'review'], $reviewPart['xmlElementPrefixes']);
+        $t->same([
+            '/review:structurePacket' => 1,
+            '/review:structurePacket/review:branch' => 2,
+            '/review:structurePacket/review:branch/audit:checkpoint' => 1,
+            '/review:structurePacket/review:branch/review:leaf' => 2,
+        ], $reviewPart['xmlElementPathCounts']);
+        $t->same([
+            '/review:structurePacket/review:branch/audit:checkpoint' => 1,
+            '/review:structurePacket/review:branch/review:leaf' => 2,
+        ], $reviewPart['xmlElementLeafPathCounts']);
 
         $t->same(true, $settingsPart['xmlInspectable']);
         $t->same(5, $settingsPart['xmlElementCount']);
         $t->same(2, $settingsPart['xmlElementLeafCount']);
         $t->same(3, $settingsPart['xmlElementMaxDepth']);
         $t->same(['http://schemas.openxmlformats.org/wordprocessingml/2006/main' => 3, 'urn:settings-structure' => 2], $settingsPart['xmlElementNamespaceCounts']);
+        $t->same([1 => 1, 2 => 2, 3 => 2], $settingsPart['xmlElementDepthCounts']);
+        $t->same(['review' => 2, 'w' => 3], $settingsPart['xmlElementPrefixCounts']);
+        $t->same([
+            '/w:settings' => 1,
+            '/w:settings/review:checkpoint' => 1,
+            '/w:settings/review:checkpoint/review:leaf' => 1,
+            '/w:settings/w:docVars' => 1,
+            '/w:settings/w:docVars/w:docVar' => 1,
+        ], $settingsPart['xmlElementPathCounts']);
 
         $t->true($summary['partXmlElementCount'] >= 11, 'summary element count should include the added structure parts');
         $t->true($summary['partXmlElementLeafCount'] >= 5, 'summary leaf count should include the added structure parts');
@@ -17633,10 +17655,23 @@ XML;
         $t->same(1, $summary['partXmlElementLocalNameCounts']['structurePacket']);
         $t->same(1, $summary['partXmlElementQualifiedNameCounts']['audit:checkpoint']);
         $t->same(1, $summary['partXmlElementQualifiedNameCounts']['review:structurePacket']);
+        $t->true($summary['partXmlElementDepthCounts'][3] >= 5, 'summary element depth buckets should include nested structure leaves');
+        $t->same(1, $summary['partXmlElementPrefixCounts']['audit']);
+        $t->true($summary['partXmlElementPrefixCounts']['review'] >= 7, 'summary element prefix buckets should include review-prefixed elements');
+        $t->same(2, $summary['partXmlElementPathCounts']['/review:structurePacket/review:branch']);
+        $t->same(2, $summary['partXmlElementPathCounts']['/review:structurePacket/review:branch/review:leaf']);
+        $t->same(1, $summary['partXmlElementPathCounts']['/w:settings/w:docVars/w:docVar']);
+        $t->same(2, $summary['partXmlElementLeafPathCounts']['/review:structurePacket/review:branch/review:leaf']);
+        $t->same(1, $summary['partXmlElementLeafPathCounts']['/w:settings/review:checkpoint/review:leaf']);
+        $t->true(in_array('/review:structurePacket/review:branch/review:leaf', $summary['partXmlElementPaths'], true), 'summary element paths should include review leaf path');
+        $t->true(in_array('/w:settings/review:checkpoint/review:leaf', $summary['partXmlElementLeafPaths'], true), 'summary leaf paths should include settings review leaf path');
 
         $t->same(6, $structuresByPart['customXml/structure-review.xml']['elementCount']);
         $t->same(3, $structuresByPart['customXml/structure-review.xml']['leafElementCount']);
         $t->same(['branch' => 2, 'checkpoint' => 1, 'leaf' => 2, 'structurePacket' => 1], $structuresByPart['customXml/structure-review.xml']['localNameCounts']);
+        $t->same(['audit' => 1, 'review' => 5], $structuresByPart['customXml/structure-review.xml']['prefixCounts']);
+        $t->same(2, $structuresByPart['customXml/structure-review.xml']['pathCounts']['/review:structurePacket/review:branch']);
+        $t->same(2, $structuresByPart['customXml/structure-review.xml']['leafPathCounts']['/review:structurePacket/review:branch/review:leaf']);
         $encodedStructures = json_encode([$reviewPart, $settingsPart, $summary['partXmlElementStructures']]);
         $t->true(is_string($encodedStructures), 'XML element structure metadata should encode for review');
         $t->true(!str_contains((string) $encodedStructures, $hiddenText), 'raw XML element text should not be exposed in structure metadata');

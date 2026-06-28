@@ -13912,6 +13912,17 @@ final class DocxOpenXmlReader
             'partXmlElementLocalNameCounts' => $partXmlRoots['xmlElementLocalNameCounts'],
             'partXmlElementQualifiedNameCount' => count($partXmlRoots['xmlElementQualifiedNameCounts']),
             'partXmlElementQualifiedNameCounts' => $partXmlRoots['xmlElementQualifiedNameCounts'],
+            'partXmlElementDepthCount' => count($partXmlRoots['xmlElementDepthCounts']),
+            'partXmlElementDepthCounts' => $partXmlRoots['xmlElementDepthCounts'],
+            'partXmlElementPrefixCount' => count($partXmlRoots['xmlElementPrefixCounts']),
+            'partXmlElementPrefixCounts' => $partXmlRoots['xmlElementPrefixCounts'],
+            'partXmlElementPrefixes' => $partXmlRoots['xmlElementPrefixes'],
+            'partXmlElementPathCount' => count($partXmlRoots['xmlElementPathCounts']),
+            'partXmlElementPathCounts' => $partXmlRoots['xmlElementPathCounts'],
+            'partXmlElementPaths' => $partXmlRoots['xmlElementPaths'],
+            'partXmlElementLeafPathCount' => count($partXmlRoots['xmlElementLeafPathCounts']),
+            'partXmlElementLeafPathCounts' => $partXmlRoots['xmlElementLeafPathCounts'],
+            'partXmlElementLeafPaths' => $partXmlRoots['xmlElementLeafPaths'],
             'partXmlElementAttributePartCount' => $partXmlRoots['xmlElementAttributePartCount'],
             'partXmlElementAttributeCount' => $partXmlRoots['xmlElementAttributeCount'],
             'partXmlElementAttributeNameCount' => count($partXmlRoots['xmlElementAttributeNameCounts']),
@@ -19737,6 +19748,13 @@ final class DocxOpenXmlReader
         $xmlElementNamespaceCounts = [];
         $xmlElementLocalNameCounts = [];
         $xmlElementQualifiedNameCounts = [];
+        $xmlElementDepthCounts = [];
+        $xmlElementPrefixCounts = [];
+        $xmlElementPrefixes = [];
+        $xmlElementPathCounts = [];
+        $xmlElementPaths = [];
+        $xmlElementLeafPathCounts = [];
+        $xmlElementLeafPaths = [];
         $xmlElementStructures = [];
         $xmlElementAttributePartNames = [];
         $xmlElementAttributeNameCounts = [];
@@ -20215,6 +20233,36 @@ final class DocxOpenXmlReader
                     }
                     $xmlElementQualifiedNameCounts[$qualifiedName] = ($xmlElementQualifiedNameCounts[$qualifiedName] ?? 0) + (int) $count;
                 }
+                foreach (($part['xmlElementDepthCounts'] ?? []) as $depth => $count) {
+                    $depth = (int) $depth;
+                    if ($depth <= 0) {
+                        continue;
+                    }
+                    $xmlElementDepthCounts[$depth] = ($xmlElementDepthCounts[$depth] ?? 0) + (int) $count;
+                }
+                foreach (($part['xmlElementPrefixCounts'] ?? []) as $prefix => $count) {
+                    if (!is_string($prefix) || $prefix === '') {
+                        continue;
+                    }
+                    $xmlElementPrefixCounts[$prefix] = ($xmlElementPrefixCounts[$prefix] ?? 0) + (int) $count;
+                    if ($prefix !== '(none)') {
+                        $this->appendUniqueString($xmlElementPrefixes, $prefix);
+                    }
+                }
+                foreach (($part['xmlElementPathCounts'] ?? []) as $elementPath => $count) {
+                    if (!is_string($elementPath) || $elementPath === '') {
+                        continue;
+                    }
+                    $xmlElementPathCounts[$elementPath] = ($xmlElementPathCounts[$elementPath] ?? 0) + (int) $count;
+                    $this->appendUniqueString($xmlElementPaths, $elementPath);
+                }
+                foreach (($part['xmlElementLeafPathCounts'] ?? []) as $elementPath => $count) {
+                    if (!is_string($elementPath) || $elementPath === '') {
+                        continue;
+                    }
+                    $xmlElementLeafPathCounts[$elementPath] = ($xmlElementLeafPathCounts[$elementPath] ?? 0) + (int) $count;
+                    $this->appendUniqueString($xmlElementLeafPaths, $elementPath);
+                }
                 $xmlElementStructures[] = [
                     'partName' => $partName,
                     'directory' => is_string($part['directory'] ?? null)
@@ -20239,6 +20287,21 @@ final class DocxOpenXmlReader
                     'qualifiedNameCounts' => is_array($part['xmlElementQualifiedNameCounts'] ?? null)
                         ? $part['xmlElementQualifiedNameCounts']
                         : [],
+                    'depthCounts' => is_array($part['xmlElementDepthCounts'] ?? null)
+                        ? $part['xmlElementDepthCounts']
+                        : [],
+                    'prefixCounts' => is_array($part['xmlElementPrefixCounts'] ?? null)
+                        ? $part['xmlElementPrefixCounts']
+                        : [],
+                    'prefixes' => array_values(array_map('strval', $part['xmlElementPrefixes'] ?? [])),
+                    'pathCounts' => is_array($part['xmlElementPathCounts'] ?? null)
+                        ? $part['xmlElementPathCounts']
+                        : [],
+                    'paths' => array_values(array_map('strval', $part['xmlElementPaths'] ?? [])),
+                    'leafPathCounts' => is_array($part['xmlElementLeafPathCounts'] ?? null)
+                        ? $part['xmlElementLeafPathCounts']
+                        : [],
+                    'leafPaths' => array_values(array_map('strval', $part['xmlElementLeafPaths'] ?? [])),
                 ];
             }
             $partElementAttributeCount = (int) ($part['xmlElementAttributeCount'] ?? 0);
@@ -20443,6 +20506,21 @@ final class DocxOpenXmlReader
                 'xmlElementQualifiedNameCounts' => is_array($part['xmlElementQualifiedNameCounts'] ?? null)
                     ? $part['xmlElementQualifiedNameCounts']
                     : [],
+                'xmlElementDepthCounts' => is_array($part['xmlElementDepthCounts'] ?? null)
+                    ? $part['xmlElementDepthCounts']
+                    : [],
+                'xmlElementPrefixCounts' => is_array($part['xmlElementPrefixCounts'] ?? null)
+                    ? $part['xmlElementPrefixCounts']
+                    : [],
+                'xmlElementPrefixes' => array_values(array_map('strval', $part['xmlElementPrefixes'] ?? [])),
+                'xmlElementPathCounts' => is_array($part['xmlElementPathCounts'] ?? null)
+                    ? $part['xmlElementPathCounts']
+                    : [],
+                'xmlElementPaths' => array_values(array_map('strval', $part['xmlElementPaths'] ?? [])),
+                'xmlElementLeafPathCounts' => is_array($part['xmlElementLeafPathCounts'] ?? null)
+                    ? $part['xmlElementLeafPathCounts']
+                    : [],
+                'xmlElementLeafPaths' => array_values(array_map('strval', $part['xmlElementLeafPaths'] ?? [])),
                 'xmlElementAttributeCount' => $partElementAttributeCount,
                 'xmlElementAttributeValueByteLength' => (int) ($part['xmlElementAttributeValueByteLength'] ?? 0),
                 'xmlElementAttributeNameCounts' => is_array($part['xmlElementAttributeNameCounts'] ?? null)
@@ -20499,6 +20577,10 @@ final class DocxOpenXmlReader
         ksort($xmlElementNamespaceCounts, SORT_STRING);
         ksort($xmlElementLocalNameCounts, SORT_STRING);
         ksort($xmlElementQualifiedNameCounts, SORT_STRING);
+        ksort($xmlElementDepthCounts, SORT_NUMERIC);
+        ksort($xmlElementPrefixCounts, SORT_STRING);
+        ksort($xmlElementPathCounts, SORT_STRING);
+        ksort($xmlElementLeafPathCounts, SORT_STRING);
         ksort($xmlElementAttributeNameCounts, SORT_STRING);
         ksort($xmlElementAttributeNamespaceCounts, SORT_STRING);
         ksort($xmlElementAttributePrefixCounts, SORT_STRING);
@@ -20515,6 +20597,9 @@ final class DocxOpenXmlReader
         sort($xmlTextNodePartNames, SORT_STRING);
         sort($xmlTextNodeParentPaths, SORT_STRING);
         sort($xmlElementPartNames, SORT_STRING);
+        sort($xmlElementPrefixes, SORT_STRING);
+        sort($xmlElementPaths, SORT_STRING);
+        sort($xmlElementLeafPaths, SORT_STRING);
         sort($xmlElementAttributePartNames, SORT_STRING);
         sort($xmlElementAttributeNames, SORT_STRING);
         sort($xmlElementAttributeNamespaces, SORT_STRING);
@@ -20652,6 +20737,13 @@ final class DocxOpenXmlReader
             'xmlElementNamespaceCounts' => $xmlElementNamespaceCounts,
             'xmlElementLocalNameCounts' => $xmlElementLocalNameCounts,
             'xmlElementQualifiedNameCounts' => $xmlElementQualifiedNameCounts,
+            'xmlElementDepthCounts' => $xmlElementDepthCounts,
+            'xmlElementPrefixCounts' => $xmlElementPrefixCounts,
+            'xmlElementPrefixes' => $xmlElementPrefixes,
+            'xmlElementPathCounts' => $xmlElementPathCounts,
+            'xmlElementPaths' => $xmlElementPaths,
+            'xmlElementLeafPathCounts' => $xmlElementLeafPathCounts,
+            'xmlElementLeafPaths' => $xmlElementLeafPaths,
             'xmlElementStructures' => $xmlElementStructures,
             'xmlElementAttributePartCount' => $xmlElementAttributePartCount,
             'xmlElementAttributeCount' => $xmlElementAttributeCount,
@@ -22629,7 +22721,7 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{count:int, leafCount:int, maxDepth:int, prefixedCount:int, namespaceCounts:array<string, int>, localNameCounts:array<string, int>, qualifiedNameCounts:array<string, int>}
+     * @return array{count:int, leafCount:int, maxDepth:int, prefixedCount:int, namespaceCounts:array<string, int>, localNameCounts:array<string, int>, qualifiedNameCounts:array<string, int>, depthCounts:array<int, int>, prefixCounts:array<string, int>, prefixes:list<string>, pathCounts:array<string, int>, paths:list<string>, leafPathCounts:array<string, int>, leafPaths:list<string>}
      */
     private function xmlElementStructureProvenance(string $xml, string $partName): array
     {
@@ -22643,6 +22735,13 @@ final class DocxOpenXmlReader
                 'namespaceCounts' => [],
                 'localNameCounts' => [],
                 'qualifiedNameCounts' => [],
+                'depthCounts' => [],
+                'prefixCounts' => [],
+                'prefixes' => [],
+                'pathCounts' => [],
+                'paths' => [],
+                'leafPathCounts' => [],
+                'leafPaths' => [],
             ];
         }
 
@@ -22653,6 +22752,13 @@ final class DocxOpenXmlReader
         $namespaceCounts = [];
         $localNameCounts = [];
         $qualifiedNameCounts = [];
+        $depthCounts = [];
+        $prefixCounts = [];
+        $prefixes = [];
+        $pathCounts = [];
+        $paths = [];
+        $leafPathCounts = [];
+        $leafPaths = [];
 
         $walk = function (\DOMElement $element, int $depth) use (
             &$walk,
@@ -22663,9 +22769,17 @@ final class DocxOpenXmlReader
             &$namespaceCounts,
             &$localNameCounts,
             &$qualifiedNameCounts,
+            &$depthCounts,
+            &$prefixCounts,
+            &$prefixes,
+            &$pathCounts,
+            &$paths,
+            &$leafPathCounts,
+            &$leafPaths,
         ): void {
             ++$count;
             $maxDepth = max($maxDepth, $depth);
+            $depthCounts[$depth] = ($depthCounts[$depth] ?? 0) + 1;
 
             $namespace = $element->namespaceURI;
             $namespaceKey = $namespace === null || $namespace === '' ? '(none)' : $namespace;
@@ -22677,9 +22791,17 @@ final class DocxOpenXmlReader
             $qualifiedName = $element->tagName === '' ? $localName : $element->tagName;
             $qualifiedNameCounts[$qualifiedName] = ($qualifiedNameCounts[$qualifiedName] ?? 0) + 1;
 
-            if (is_string($element->prefix) && $element->prefix !== '') {
+            $prefix = is_string($element->prefix) && $element->prefix !== '' ? $element->prefix : null;
+            $prefixKey = $prefix ?? '(none)';
+            $prefixCounts[$prefixKey] = ($prefixCounts[$prefixKey] ?? 0) + 1;
+            if ($prefix !== null) {
                 ++$prefixedCount;
+                $this->appendUniqueString($prefixes, $prefix);
             }
+
+            $elementPath = $this->xmlProvenanceParentPath($element);
+            $pathCounts[$elementPath] = ($pathCounts[$elementPath] ?? 0) + 1;
+            $this->appendUniqueString($paths, $elementPath);
 
             $childElementCount = 0;
             foreach ($element->childNodes as $child) {
@@ -22693,6 +22815,8 @@ final class DocxOpenXmlReader
 
             if ($childElementCount === 0) {
                 ++$leafCount;
+                $leafPathCounts[$elementPath] = ($leafPathCounts[$elementPath] ?? 0) + 1;
+                $this->appendUniqueString($leafPaths, $elementPath);
             }
         };
         $walk($dom->documentElement, 1);
@@ -22700,6 +22824,13 @@ final class DocxOpenXmlReader
         ksort($namespaceCounts, SORT_STRING);
         ksort($localNameCounts, SORT_STRING);
         ksort($qualifiedNameCounts, SORT_STRING);
+        ksort($depthCounts, SORT_NUMERIC);
+        ksort($prefixCounts, SORT_STRING);
+        ksort($pathCounts, SORT_STRING);
+        ksort($leafPathCounts, SORT_STRING);
+        sort($prefixes, SORT_STRING);
+        sort($paths, SORT_STRING);
+        sort($leafPaths, SORT_STRING);
 
         return [
             'count' => $count,
@@ -22709,6 +22840,13 @@ final class DocxOpenXmlReader
             'namespaceCounts' => $namespaceCounts,
             'localNameCounts' => $localNameCounts,
             'qualifiedNameCounts' => $qualifiedNameCounts,
+            'depthCounts' => $depthCounts,
+            'prefixCounts' => $prefixCounts,
+            'prefixes' => $prefixes,
+            'pathCounts' => $pathCounts,
+            'paths' => $paths,
+            'leafPathCounts' => $leafPathCounts,
+            'leafPaths' => $leafPaths,
         ];
     }
 
@@ -24647,6 +24785,13 @@ final class DocxOpenXmlReader
                 'xmlElementNamespaceCounts' => [],
                 'xmlElementLocalNameCounts' => [],
                 'xmlElementQualifiedNameCounts' => [],
+                'xmlElementDepthCounts' => [],
+                'xmlElementPrefixCounts' => [],
+                'xmlElementPrefixes' => [],
+                'xmlElementPathCounts' => [],
+                'xmlElementPaths' => [],
+                'xmlElementLeafPathCounts' => [],
+                'xmlElementLeafPaths' => [],
                 'xmlElementAttributeCount' => 0,
                 'xmlElementAttributeValueByteLength' => 0,
                 'xmlElementAttributeNameCounts' => [],
@@ -24739,6 +24884,13 @@ final class DocxOpenXmlReader
             'xmlElementNamespaceCounts' => $elements['namespaceCounts'],
             'xmlElementLocalNameCounts' => $elements['localNameCounts'],
             'xmlElementQualifiedNameCounts' => $elements['qualifiedNameCounts'],
+            'xmlElementDepthCounts' => $elements['depthCounts'],
+            'xmlElementPrefixCounts' => $elements['prefixCounts'],
+            'xmlElementPrefixes' => $elements['prefixes'],
+            'xmlElementPathCounts' => $elements['pathCounts'],
+            'xmlElementPaths' => $elements['paths'],
+            'xmlElementLeafPathCounts' => $elements['leafPathCounts'],
+            'xmlElementLeafPaths' => $elements['leafPaths'],
             'xmlElementAttributeCount' => $elementAttributes['count'],
             'xmlElementAttributeValueByteLength' => $elementAttributes['valueByteLength'],
             'xmlElementAttributeNameCounts' => $elementAttributes['nameCounts'],
