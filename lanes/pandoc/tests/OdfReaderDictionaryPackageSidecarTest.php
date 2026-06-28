@@ -241,6 +241,9 @@ return [
         $compactItems = $indexBy($compactDictionaries['items'], 'packagePath');
         $reviewByPath = $indexBy($compactSummary['manifestReview']['items'], 'path');
         $inventory = $compactSummary['packageInventory'];
+        $compactMediaResources = $compactSummary['manifestReview']['mediaResources'];
+        $compactMediaResourceByPart = $indexBy($compactMediaResources['items'], 'part');
+        $compactMediaResourcePrecedenceByPart = $indexBy($compactMediaResources['packageRolePrecedenceItems'], 'part');
         $compactIdentityManifest = $identityEntriesByPath($compactSummary['packageIdentity']['manifestEntries']);
         $compactIdentityEntries = $identityEntriesByPath($compactSummary['packageIdentity']['packageEntries']);
 
@@ -274,6 +277,13 @@ return [
         $t->same(strlen($previewBytes), $reviewByPath['Dictionaries/en_US/preview.png']['storedByteLength']);
         $t->same('dictionary-package-bytes-blocked', $reviewByPath['Dictionaries/en_US/preview.png']['byteExposurePolicy']);
         $t->same('dictionary', $reviewByPath['Dictionaries/en_US/preview.png']['manifestMediaFamily']);
+        $t->same(1, $compactMediaResources['mediaResourceCount']);
+        $t->same(1, $compactMediaResources['packageRolePrecedenceCount']);
+        $t->same(['Pictures/hero.png', 'Dictionaries/en_US/preview.png'], array_column($compactMediaResources['items'], 'part'));
+        $t->same(['dictionary-package'], $compactMediaResourceByPart['Dictionaries/en_US/preview.png']['packageRolePrecedence']);
+        $t->same(false, $compactMediaResourceByPart['Dictionaries/en_US/preview.png']['mediaResource']);
+        $t->same(['odf-media-resource-package-role-precedence'], $compactMediaResourceByPart['Dictionaries/en_US/preview.png']['issues']);
+        $t->same('dictionary-package-bytes-blocked', $compactMediaResourcePrecedenceByPart['Dictionaries/en_US/preview.png']['byteExposurePolicy']);
         $t->same(6, $compactSummary['manifestReview']['manifestMediaFamilyCounts']['dictionary']);
         $t->same(7, $inventory['dictionaryPackagePartCount']);
         $t->same(7, $inventory['roleCounts']['dictionary-package']);
