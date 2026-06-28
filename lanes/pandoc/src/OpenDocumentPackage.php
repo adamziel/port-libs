@@ -2232,6 +2232,12 @@ final class OpenDocumentPackage
         if (is_string($packagePath) && self::isFontPackagePart($packagePath, is_string($entry['mediaType'] ?? null) ? $entry['mediaType'] : null)) {
             return false;
         }
+        if (
+            ($entry['rdfMetadataPart'] ?? false) === true
+            || (is_string($packagePath) && self::isRdfMetadataPart($packagePath, is_string($entry['mediaType'] ?? null) ? $entry['mediaType'] : null))
+        ) {
+            return false;
+        }
         if (is_string($packagePath) && self::isObjectReplacementPackagePartName($packagePath)) {
             return false;
         }
