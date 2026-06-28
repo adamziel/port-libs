@@ -177,6 +177,143 @@ return [
         $t->same('override', $inventory['customXml/item1.xml']['contentTypeSource']);
         $t->same('package-part', $inventory['word/styles.xml']['roles'][0]);
     },
+    'labels docx relationship target package parts with semantic inventory roles' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>' . "\n" .
+            '  <Override PartName="/docProps/custom.xml" ContentType="application/vnd.openxmlformats-officedocument.custom-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' . "\n" .
+            '  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' . "\n" .
+            '  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' . "\n" .
+            '  <Override PartName="/word/webSettings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.websettings+xml"/>' . "\n" .
+            '  <Override PartName="/word/fontTable.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.fonttable+xml"/>' . "\n" .
+            '  <Override PartName="/word/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>' . "\n" .
+            '  <Override PartName="/_xmlsignatures/origin.sigs" ContentType="application/vnd.openxmlformats-package.digital-signature-origin"/>' . "\n" .
+            '  <Override PartName="/_xmlsignatures/sig1.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rExtendedProps" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>' . "\n" .
+            '  <Relationship Id="rCustomProps" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties" Target="docProps/custom.xml"/>' . "\n" .
+            '  <Relationship Id="rThumbnail" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail" Target="docProps/thumbnail.png"/>' . "\n" .
+            '  <Relationship Id="rSignatureOrigin" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin" Target="_xmlsignatures/origin.sigs"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' . "\n" .
+            '  <Relationship Id="rNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>' . "\n" .
+            '  <Relationship Id="rSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>' . "\n" .
+            '  <Relationship Id="rWebSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings" Target="webSettings.xml"/>' . "\n" .
+            '  <Relationship Id="rFontTable" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable" Target="fontTable.xml"/>' . "\n" .
+            '  <Relationship Id="rTheme" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['docProps/app.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties">
+  <Application>Port Libs</Application>
+</Properties>
+XML;
+        $parts['docProps/custom.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/custom-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"/>
+XML;
+        $parts['docProps/thumbnail.png'] = 'thumbnail bytes';
+        $parts['word/settings.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:zoom w:percent="125"/>
+</w:settings>
+XML;
+        $parts['word/webSettings.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:webSettings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:allowPNG/>
+</w:webSettings>
+XML;
+        $parts['word/fontTable.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:fonts xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:font w:name="Review Sans"/>
+</w:fonts>
+XML;
+        $parts['word/theme/theme1.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Review Theme">
+  <a:themeElements>
+    <a:clrScheme name="Review"><a:dk1><a:srgbClr val="000000"/></a:dk1></a:clrScheme>
+    <a:fontScheme name="Review"><a:majorFont><a:latin typeface="Aptos"/></a:majorFont><a:minorFont><a:latin typeface="Aptos"/></a:minorFont></a:fontScheme>
+    <a:fmtScheme name="Review"/>
+  </a:themeElements>
+</a:theme>
+XML;
+        $parts['_xmlsignatures/origin.sigs'] = '';
+        $parts['_xmlsignatures/_rels/origin.sigs.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rSignature" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature" Target="sig1.xml"/>
+</Relationships>
+XML;
+        $parts['_xmlsignatures/sig1.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Signature xmlns="http://www.w3.org/2000/09/xmldsig#">
+  <SignedInfo><Reference URI="/word/document.xml"/></SignedInfo>
+  <SignatureValue>review-signature</SignatureValue>
+</Signature>
+XML;
+
+        $package = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance'];
+        $inventory = $package['parts'];
+        $relationshipTypes = $package['relationshipTypes'];
+        $expectedRoles = [
+            'docProps/core.xml' => 'core-properties',
+            'docProps/app.xml' => 'extended-properties',
+            'docProps/custom.xml' => 'custom-properties',
+            'word/styles.xml' => 'styles',
+            'word/numbering.xml' => 'numbering',
+            'word/settings.xml' => 'settings',
+            'word/webSettings.xml' => 'web-settings',
+            'word/fontTable.xml' => 'font-table',
+            'word/theme/theme1.xml' => 'theme',
+            'docProps/thumbnail.png' => 'package-thumbnail',
+            '_xmlsignatures/origin.sigs' => 'digital-signature-origin',
+            '_xmlsignatures/sig1.xml' => 'digital-signature-signature',
+        ];
+        $relationshipTypeRoles = [
+            'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties' => 'core-properties',
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties' => 'extended-properties',
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties' => 'custom-properties',
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles' => 'styles',
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering' => 'numbering',
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings' => 'settings',
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings' => 'web-settings',
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable' => 'font-table',
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme' => 'theme',
+            'http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail' => 'package-thumbnail',
+            'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin' => 'digital-signature-origin',
+            'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature' => 'digital-signature-signature',
+        ];
+
+        foreach ($expectedRoles as $partName => $role) {
+            $t->true(in_array($role, $inventory[$partName]['roles'], true), "{$partName} inventory role missing {$role}");
+        }
+        foreach ($relationshipTypeRoles as $relationshipType => $role) {
+            $t->same(1, $relationshipTypes[$relationshipType]['targetRoleCounts'][$role] ?? 0);
+        }
+
+        $t->same('relationship', $package['selectedXmlParts']['byKind']['styles']['selectionSource']);
+        $t->same('relationship', $package['selectedXmlParts']['byKind']['numbering']['selectionSource']);
+        $t->same('relationship', $package['selectedXmlParts']['byKind']['webSettings']['selectionSource']);
+        $t->same(1, $package['summary']['packageThumbnailReadableCount']);
+        $t->same(1, $package['summary']['digitalSignatureOriginCount']);
+        $t->same(1, $package['summary']['digitalSignatureSignatureCount']);
+    },
     'summarizes docx relationship part target states for package handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/_rels/document.xml.rels'] = str_replace(
@@ -11945,6 +12082,7 @@ XML;
         $t->same(['customXml/review.json', 'docProps/core.xml', 'word/document.xml'], $application['overridePartNames']);
         $t->same([
             'content-types' => 1,
+            'core-properties' => 1,
             'office-document' => 1,
             'office-document-relationships' => 1,
             'package-part' => 3,
@@ -12294,7 +12432,7 @@ XML;
         $t->same(['xml' => 3], $override['contentTypeSyntaxSuffixCounts']);
         $t->same(['xml' => 3], $override['partExtensionCounts']);
         $t->same(['customXml/override-source.xml', 'docProps/core.xml', 'word/document.xml'], $override['overridePartNames']);
-        $t->same(['office-document' => 1, 'package-part' => 1, 'root-relationship-target' => 2], $override['roleCounts']);
+        $t->same(['core-properties' => 1, 'office-document' => 1, 'package-part' => 1, 'root-relationship-target' => 2], $override['roleCounts']);
         $t->same('word/document.xml', $override['largestPart']['partName']);
         $t->same('word', $override['largestPart']['directory']);
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $override['largestPart']['contentTypeBase']);
@@ -12350,9 +12488,10 @@ XML;
             $roles[$role['role']] = $role;
         }
 
-        $t->same(9, $summary['partRoleCount']);
+        $t->same(10, $summary['partRoleCount']);
         $t->same([
             'content-types',
+            'core-properties',
             'document-relationship-target',
             'embedded-package',
             'office-document',
