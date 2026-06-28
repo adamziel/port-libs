@@ -71,6 +71,22 @@ final class TransitionPrefixer
     }
 
     /**
+     * @param array<string, mixed> $targets
+     */
+    public function prefixStyleAttributeForTargets(string $declarations, array $targets = [], bool $minify = true): string
+    {
+        $body = (new CustomAtRuleTransformer())->transformStyleAttribute($declarations);
+        $entries = $this->parseDeclarations($body);
+        if ($entries === null) {
+            return $body;
+        }
+
+        $this->rewriteStyleAttributeAdvancedColorFallbackEntries($entries, $this->targetOptions($targets));
+
+        return $this->serializeStyleAttributeDeclarations($entries, $minify);
+    }
+
+    /**
      * @param array<string, bool>|null $targetOptions
      */
     private function rewriteRuleList(
@@ -3757,6 +3773,21 @@ final class TransitionPrefixer
     {
         return implode(';', array_map(
             static fn (array $entry): string => $entry['name'] . ':' . $entry['value'] . ($entry['important'] ? '!important' : ''),
+            $entries
+        ));
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     */
+    private function serializeStyleAttributeDeclarations(array $entries, bool $minify): string
+    {
+        if ($minify) {
+            return $this->serializeDeclarations($entries);
+        }
+
+        return implode('; ', array_map(
+            static fn (array $entry): string => $entry['name'] . ': ' . $entry['value'] . ($entry['important'] ? ' !important' : ''),
             $entries
         ));
     }
@@ -11337,6 +11368,56 @@ final class TransitionPrefixer
             $supportRules[] = $this->supportsLabRule($selectors, $labSupportEntries);
         }
         array_push($supportRules, ...$postSupportRules);
+
+        $entries = $rewritten;
+
+        return $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteStyleAttributeAdvancedColorFallbackEntries(array &$entries, array $targetOptions): bool
+    {
+        $needsSrgbFallback = $targetOptions['advancedColorNeedsSrgbFallback'] ?? false;
+        $usesP3Fallback = $targetOptions['advancedColorUsesP3Fallback'] ?? false;
+        $supportsNative = $targetOptions['advancedColorSupportsNative'] ?? false;
+        $needsLabFallback = $targetOptions['advancedColorNeedsLabFallback'] ?? false;
+        if (!$needsSrgbFallback && !$usesP3Fallback && !$supportsNative && !$needsLabFallback) {
+            return false;
+        }
+
+        $rewritten = [];
+        $changed = false;
+        foreach ($entries as $entry) {
+            $isCustomProperty = str_starts_with($entry['property'], '--');
+            $normalized = $isCustomProperty ? $entry['value'] : $this->normalizeBackgroundFallbackValue($entry['value']);
+            $supportsInlineFallback = $isCustomProperty
+                || $entry['property'] === 'text-decoration'
+                || (!$entry['important'] && $this->propertySupportsAdvancedColorFallback($entry['property'], $normalized));
+            if (!$supportsInlineFallback || !$this->containsAdvancedColorFunction($normalized)) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $fallback = $this->advancedColorFallbackValue($normalized);
+            if ($fallback === null) {
+                $rewritten[] = $this->entryWithValue($entry, $normalized);
+                $changed = $changed || $normalized !== $entry['value'];
+                continue;
+            }
+
+            if ($isCustomProperty || $this->containsCustomPropertyReference($normalized)) {
+                $rewritten[] = $this->entryWithValue($entry, $fallback);
+                $changed = true;
+                continue;
+            }
+
+            $rewritten[] = $this->entryWithValue($entry, $fallback);
+            $rewritten[] = $this->entryWithValue($entry, $this->advancedColorLabTargetValue($normalized) ?? $normalized);
+            $changed = true;
+        }
 
         $entries = $rewritten;
 

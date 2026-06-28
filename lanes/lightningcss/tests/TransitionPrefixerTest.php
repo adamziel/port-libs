@@ -13,6 +13,40 @@ $variants = static fn (string $selector): array => [
 ];
 
 return [
+    'transition prefixer maps upstream style attribute rows' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            'color: #ff0; flex: auto',
+            $prefixer->prefixStyleAttributeForTargets('color: yellow; flex: 1 1 auto', [], false),
+            'upstream src/lib.rs::test_style_attr line 24421'
+        );
+        $t->same(
+            'color:#ff0;flex:auto',
+            $prefixer->prefixStyleAttributeForTargets('color: yellow; flex: 1 1 auto'),
+            'upstream src/lib.rs::test_style_attr line 24422'
+        );
+        $t->same(
+            'border-inline-start: 2px solid red',
+            $prefixer->prefixStyleAttributeForTargets('border-inline-start: 2px solid red', ['safari' => 12], false),
+            'upstream src/lib.rs::test_style_attr line 24423'
+        );
+        $t->same(
+            'color:#b32323;color:lab(40% 56.6 39)',
+            $prefixer->prefixStyleAttributeForTargets('color: lab(40% 56.6 39);', ['safari' => 8]),
+            'upstream src/lib.rs::test_style_attr line 24432'
+        );
+        $t->same(
+            '--foo:#b32323',
+            $prefixer->prefixStyleAttributeForTargets('--foo: lab(40% 56.6 39);', ['safari' => 8]),
+            'upstream src/lib.rs::test_style_attr line 24441'
+        );
+        $t->same(
+            'text-decoration:var(--foo) #b32323',
+            $prefixer->prefixStyleAttributeForTargets('text-decoration: var(--foo) lab(40% 56.6 39);', ['chrome' => 90]),
+            'upstream src/lib.rs::test_style_attr line 24450'
+        );
+    },
     'transition prefixer maps upstream inline transition-property direction selectors' => static function (TestRunner $t) use ($variants): void {
         $selector = $variants('.foo');
         $expected = $selector['ltr-webkit'] . '{transition-property:margin-left,padding-left}'
