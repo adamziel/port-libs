@@ -147,6 +147,10 @@ return [
         $t->same(['quarterly' => 8], $readerReports['groupCounts']);
         $t->same('report-package-bytes-blocked', $readerReports['byteExposurePolicy']);
         $t->same('report-package-metadata-only', $readerReports['reviewPolicy']);
+        $t->same(0, $result['packageForms']['count']);
+        $t->same([], $result['packageForms']['items']);
+        $t->same(0, $result['document']->attr('packageForms')['count']);
+        $t->same(false, array_key_exists('odfPackageForms', $result['metadata']));
 
         $directory = $readerItems['Reports/Quarterly/'];
         $t->same('report-directory', $directory['kind']);
@@ -209,6 +213,10 @@ return [
         $t->same(['report-package', 'manifest-declared'], $readerProvenance['parts']['Reports/Quarterly/preview.png']['roles']);
         $t->same(['report-package', 'undeclared-package-entry'], $readerProvenance['parts']['Reports/Quarterly/orphan.pdf']['roles']);
         $t->same(true, $readerProvenance['parts']['Reports/Quarterly/preview.png']['reportPackagePart']);
+        $t->same(0, $readerProvenance['formPackagePartCount']);
+        $t->same(false, array_key_exists('form-package', $readerProvenance['roleCounts']));
+        $t->same(false, $readerProvenance['parts']['Reports/Quarterly/preview.png']['formPackagePart'] ?? false);
+        $t->same(0, $readerProvenance['packageIdentity']['formPackagePartCount']);
         $t->same(7, $readerProvenance['packageIdentity']['reportPackagePartCount']);
 
         $blocks = (new WordPressBlockWriter())->write($result['document']);
@@ -225,6 +233,8 @@ return [
         $reviewByPath = $indexBy($compactSummary['manifestReview']['items'], 'path');
         $inventory = $compactSummary['packageInventory'];
 
+        $t->same(0, $compactSummary['packageForms']['count']);
+        $t->same([], $compactSummary['packageForms']['items']);
         $t->same(8, $compactReports['count']);
         $t->same(5, $compactReports['readableCount']);
         $t->same(7, $compactReports['declaredCount']);
@@ -246,7 +256,9 @@ return [
 
         $t->same(['Pictures/hero.png'], array_column($compactSummary['mediaParts'], 'packagePath'));
         $t->same(7, $compactSummary['manifestReview']['reportPackagePartCount']);
+        $t->same(0, $compactSummary['manifestReview']['formPackagePartCount']);
         $t->same(true, $reviewByPath['Reports/Quarterly/preview.png']['reportPackagePart']);
+        $t->same(false, $reviewByPath['Reports/Quarterly/preview.png']['formPackagePart'] ?? false);
         $t->same(false, $reviewByPath['Reports/Quarterly/preview.png']['canExposeBytes']);
         $t->same(null, $reviewByPath['Reports/Quarterly/preview.png']['byteLength']);
         $t->same(strlen($previewBytes), $reviewByPath['Reports/Quarterly/preview.png']['storedByteLength']);
@@ -254,11 +266,15 @@ return [
         $t->same('report', $reviewByPath['Reports/Quarterly/preview.png']['manifestMediaFamily']);
         $t->same(6, $compactSummary['manifestReview']['manifestMediaFamilyCounts']['report']);
         $t->same(7, $inventory['reportPackagePartCount']);
+        $t->same(0, $inventory['formPackagePartCount']);
         $t->same(7, $inventory['roleCounts']['report-package']);
+        $t->same(false, array_key_exists('form-package', $inventory['roleCounts']));
         $t->same(1, $inventory['undeclaredRoleCounts']['report-package']);
         $t->same(['report-package', 'manifest-declared'], $inventory['parts']['Reports/Quarterly/preview.png']['roles']);
         $t->same(['report-package', 'undeclared-package-entry'], $inventory['parts']['Reports/Quarterly/orphan.pdf']['roles']);
         $t->same(true, $inventory['parts']['Reports/Quarterly/preview.png']['reportPackagePart']);
+        $t->same(false, $inventory['parts']['Reports/Quarterly/preview.png']['formPackagePart'] ?? false);
+        $t->same(0, $compactSummary['packageIdentity']['formPackagePartCount']);
         $t->same(7, $compactSummary['packageIdentity']['reportPackagePartCount']);
     },
 ];
