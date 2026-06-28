@@ -13463,6 +13463,117 @@ return [
         $t->same('missing', $summary['entries'][4]['byteExposurePolicy']);
     },
 
+    'summarizes declared zip handoff content types for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>declared content type</w:p></w:body></w:document>';
+        $relsXml = '<Relationships><Relationship Id="rIdMedia" Target="media/image.png"/></Relationships>';
+        $largeBytes = "blocked content type media bytes\n";
+        $invalidBytes = "invalid content type should still hand off\n";
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $relsXml, 'method' => 0],
+            ['name' => 'word/media/raw.bin', 'data' => $largeBytes, 'method' => 0],
+            ['name' => 'custom/invalid-type.bin', 'data' => $invalidBytes, 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            [
+                'name' => 'word/document.xml',
+                'required' => true,
+                'kind' => 'file',
+                'role' => 'main-document',
+                'declaredContentType' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+                'declaredContentTypeSource' => 'content-types-override',
+            ],
+            [
+                'name' => 'word/_rels/document.xml.rels',
+                'required' => false,
+                'kind' => 'file',
+                'role' => 'document-relationships',
+                'contentType' => 'application/vnd.openxmlformats-package.relationships+xml; charset=UTF-8',
+                'contentTypeSource' => 'content-types-default',
+            ],
+            [
+                'name' => 'word/media/raw.bin',
+                'required' => false,
+                'kind' => 'file',
+                'role' => 'media',
+                'declaredContentType' => 'application/octet-stream',
+                'declaredContentTypeSource' => 'content-types-default',
+                'maxUncompressedBytes' => 8,
+            ],
+            [
+                'name' => 'word/missing.xml',
+                'required' => false,
+                'kind' => 'file',
+                'role' => 'optional-sidecar',
+                'declaredContentType' => 'application/xml',
+                'declaredContentTypeSource' => 'content-types-default',
+            ],
+            [
+                'name' => 'custom/invalid-type.bin',
+                'required' => false,
+                'kind' => 'file',
+                'role' => 'custom-review',
+                'declaredContentType' => 'not a content type',
+                'declaredContentTypeSource' => 'content-types-override',
+            ],
+        ], 1024);
+
+        $byContentType = [];
+        foreach ($summary['declaredContentTypeSummaries'] as $contentTypeSummary) {
+            $key = $contentTypeSummary['declaredContentTypeBase'] ?? $contentTypeSummary['declaredContentTypes'][0];
+            $byContentType[$key] = $contentTypeSummary;
+        }
+        $handoffByContentType = [];
+        foreach ($summary['handoffDeclaredContentTypeSummaries'] as $contentTypeSummary) {
+            $key = $contentTypeSummary['declaredContentTypeBase'] ?? $contentTypeSummary['declaredContentTypes'][0];
+            $handoffByContentType[$key] = $contentTypeSummary;
+        }
+
+        $mainType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
+        $relsType = 'application/vnd.openxmlformats-package.relationships+xml';
+        $t->same(5, $summary['declaredContentTypeEntryCount']);
+        $t->same(3, $summary['handoffDeclaredContentTypeEntryCount']);
+        $t->same(5, $summary['declaredContentTypeSummaryCount']);
+        $t->same(3, $summary['handoffDeclaredContentTypeSummaryCount']);
+        $t->same(1, $summary['invalidDeclaredContentTypeEntryCount']);
+        $t->same(1, $summary['handoffInvalidDeclaredContentTypeEntryCount']);
+        $t->same(1, $summary['declaredContentTypeParameterEntryCount']);
+        $t->same(1, $summary['handoffDeclaredContentTypeParameterEntryCount']);
+        $t->same(['invalid-declared-content-type'], $summary['declaredContentTypeIssues']);
+        $t->same(['invalid-declared-content-type'], $summary['handoffDeclaredContentTypeIssues']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
+
+        $t->same($mainType, $summary['entries'][0]['declaredContentTypeBase']);
+        $t->same('content-types-override', $summary['entries'][0]['declaredContentTypeSource']);
+        $t->same(true, $summary['entries'][0]['declaredContentTypeIsValid']);
+        $t->same($relsType, $summary['entries'][1]['declaredContentTypeBase']);
+        $t->same(true, $summary['entries'][1]['declaredContentTypeHasParameters']);
+        $t->same(1, $summary['entries'][1]['declaredContentTypeParameterCount']);
+        $t->same('UTF-8', $summary['entries'][1]['declaredContentTypeParameterMap']['charset']);
+        $t->same(false, $summary['entries'][4]['declaredContentTypeIsValid']);
+        $t->same(['invalid-declared-content-type'], $summary['entries'][4]['declaredContentTypeIssues']);
+        $t->same('ready', $summary['entries'][4]['status']);
+        $t->same(hash('sha256', $invalidBytes), $summary['entries'][4]['contentSha256']);
+
+        $t->same(['content-types-override'], $byContentType[$mainType]['sources']);
+        $t->same(['main-document'], $byContentType[$mainType]['roles']);
+        $t->same(['word/document.xml'], $byContentType[$mainType]['handoffEntryNames']);
+        $t->same(1, $byContentType[$relsType]['parameterEntryCount']);
+        $t->same(1, $byContentType[$relsType]['parameterCount']);
+        $t->same(['document-relationships'], $byContentType[$relsType]['roles']);
+        $t->same(1, $byContentType['application/octet-stream']['failedEntryCount']);
+        $t->same(['word/media/raw.bin'], $byContentType['application/octet-stream']['failedEntryNames']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $byContentType['application/octet-stream']['issues']);
+        $t->same(1, $byContentType['application/xml']['missingEntryCount']);
+        $t->same(['word/missing.xml'], $byContentType['application/xml']['missingEntryNames']);
+        $t->same(1, $byContentType['not a content type']['invalidEntryCount']);
+        $t->same(['invalid-declared-content-type'], $byContentType['not a content type']['issues']);
+        $t->same(false, isset($handoffByContentType['application/octet-stream']));
+        $t->same(false, isset($handoffByContentType['application/xml']));
+        $t->same(['custom/invalid-type.bin'], $handoffByContentType['not a content type']['handoffEntryNames']);
+    },
+
     'summarizes readable zip handoff content digests for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>content digest handoff</w:p></w:body></w:document>';
         $commentsXml = '<w:comments><w:comment><w:p>digest note</w:p></w:comment></w:comments>';
