@@ -15528,6 +15528,7 @@ final class XmlHtmlDom
         $issues = [];
         $loadingIssues = [];
         $fetchPolicyIssues = [];
+        $stylesheetReview = self::linkStylesheetReviewSummary($link, $normalized);
 
         foreach ($invalid as $token) {
             $issues[] = ['code' => 'invalid-link-rel-token', 'relToken' => $token];
@@ -15567,6 +15568,9 @@ final class XmlHtmlDom
                 'blockingToken' => $token,
                 'count' => $blockingTokenCounts[$token],
             ];
+        }
+        if (isset($stylesheetReview['linkStylesheetIssues']) && is_array($stylesheetReview['linkStylesheetIssues'])) {
+            array_push($issues, ...$stylesheetReview['linkStylesheetIssues']);
         }
         if ($crossoriginRaw !== null && $crossorigin === null) {
             $loadingIssues[] = ['code' => 'invalid-link-crossorigin', 'value' => $crossoriginRaw];
@@ -15653,7 +15657,94 @@ final class XmlHtmlDom
                 $fetchPolicyIssues
             ))),
             'linkFetchPolicyValid' => $fetchPolicyIssues === [],
-        ] + self::linkExpectReviewSummary($link, $normalized, $renderBlockingTokenPresent);
+        ] + $stylesheetReview
+            + self::linkExpectReviewSummary($link, $normalized, $renderBlockingTokenPresent);
+    }
+
+    /**
+     * @param list<string> $relTokens
+     * @return array<string, mixed>
+     */
+    private static function linkStylesheetReviewSummary(\DOMElement $link, array $relTokens): array
+    {
+        $stylesheet = in_array('stylesheet', $relTokens, true);
+        $disabled = $link->hasAttribute('disabled');
+        if (!$stylesheet && !$disabled) {
+            return [];
+        }
+
+        $alternate = in_array('alternate', $relTokens, true);
+        $titleRaw = self::attributeOrNull($link, 'title');
+        $title = $titleRaw === null ? null : self::normalizedAttributeText($titleRaw);
+        $titlePresent = $title !== null && $title !== '';
+        $typeRaw = self::attributeOrNull($link, 'type');
+        $mimeType = $typeRaw === null ? null : strtolower(trim(explode(';', $typeRaw, 2)[0]));
+        $typeSupported = $typeRaw === null ? null : $mimeType === 'text/css';
+        $href = self::attributeOrNull($link, 'href');
+        $mediaRaw = self::attributeOrNull($link, 'media');
+        $media = $mediaRaw === null ? null : trim($mediaRaw);
+        $issues = [];
+
+        if (!$stylesheet && $disabled) {
+            $issues[] = ['code' => 'link-disabled-without-stylesheet'];
+        }
+        if ($stylesheet && $alternate && !$titlePresent) {
+            $issues[] = ['code' => 'alternate-stylesheet-missing-title'];
+        }
+        if ($stylesheet && $typeRaw !== null && trim($typeRaw) === '') {
+            $issues[] = ['code' => 'empty-link-stylesheet-type'];
+        } elseif ($stylesheet && $typeRaw !== null && $typeSupported === false) {
+            $issues[] = [
+                'code' => 'unsupported-link-stylesheet-type',
+                'typeRaw' => $typeRaw,
+                'mimeType' => $mimeType,
+            ];
+        }
+
+        $setKind = match (true) {
+            !$stylesheet => 'not-stylesheet',
+            $alternate && $titlePresent => 'alternate',
+            $alternate => 'alternate-missing-title',
+            $titlePresent => 'preferred',
+            default => 'persistent',
+        };
+        $activationState = match (true) {
+            !$stylesheet => 'not-stylesheet',
+            $disabled => 'disabled',
+            $alternate => 'alternate-disabled-by-default',
+            default => 'enabled',
+        };
+
+        return [
+            'linkStylesheetReviewPolicy' => 'link-stylesheet-selection-review',
+            'linkStylesheetRelPresent' => $stylesheet,
+            'linkStylesheetAlternate' => $alternate,
+            'linkStylesheetPersistent' => $stylesheet && !$alternate && !$titlePresent,
+            'linkStylesheetPreferred' => $stylesheet && !$alternate && $titlePresent,
+            'linkStylesheetDisabledRaw' => self::attributeOrNull($link, 'disabled'),
+            'linkStylesheetDisabled' => $disabled,
+            'linkStylesheetTitleRaw' => $titleRaw,
+            'linkStylesheetTitle' => $titlePresent ? $title : null,
+            'linkStylesheetTitlePresent' => $titlePresent,
+            'linkStylesheetSetKind' => $setKind,
+            'linkStylesheetActivationState' => $activationState,
+            'linkStylesheetDefaultEnabled' => $stylesheet && !$disabled && !$alternate,
+            'linkStylesheetHrefRaw' => $href,
+            'linkStylesheetHrefPresent' => $href !== null && trim($href) !== '',
+            'linkStylesheetMediaRaw' => $mediaRaw,
+            'linkStylesheetMedia' => $media === '' ? null : $media,
+            'linkStylesheetMediaDeclared' => $mediaRaw !== null,
+            'linkStylesheetTypeRaw' => $typeRaw,
+            'linkStylesheetMimeType' => $mimeType === '' ? null : $mimeType,
+            'linkStylesheetTypeSupported' => $typeSupported,
+            'linkStylesheetReviewOnlyNoCssFetch' => true,
+            'linkStylesheetIssues' => $issues,
+            'linkStylesheetIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'linkStylesheetValid' => $issues === [],
+        ];
     }
 
     /**
