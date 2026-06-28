@@ -18298,6 +18298,76 @@ XML;
         $t->true(is_string($encodedTextNodes), 'XML text-node parent metadata should encode for review');
         $t->true(!str_contains((string) $encodedTextNodes, 'parent-name-review:hidden'), 'raw XML text should not be exposed in parent metadata');
     },
+    'summarizes docx package xml text node whitespace shape without exposing text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $leadingText = '  whitespace-shape:hidden-leading';
+        $lineText = "whitespace-shape:hidden-line-a\nwhitespace-shape:hidden-line-b";
+        $trailingText = 'whitespace-shape:hidden-trailing  ';
+        $parts['customXml/text-whitespace-shape-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:review-text-whitespace">
+  <review:leading>{$leadingText}</review:leading>
+  <review:line>{$lineText}</review:line>
+  <review:trailing>{$trailingText}</review:trailing>
+</review:packet>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/text-whitespace-shape-review.xml'];
+        $textNodes = array_values(array_filter(
+            $summary['partXmlTextNodes'],
+            static fn (array $node): bool => $node['partName'] === 'customXml/text-whitespace-shape-review.xml',
+        ));
+
+        $t->same(7, $reviewPart['xmlTextNodeCount']);
+        $t->same(4, $reviewPart['xmlTextNodeWhitespaceCount']);
+        $t->same(3, $reviewPart['xmlTextNodeNonWhitespaceCount']);
+        $t->same(5, $reviewPart['xmlTextNodeLeadingWhitespaceCount']);
+        $t->same(5, $reviewPart['xmlTextNodeTrailingWhitespaceCount']);
+        $t->same(12, $reviewPart['xmlTextNodeLeadingWhitespaceByteLength']);
+        $t->same(12, $reviewPart['xmlTextNodeTrailingWhitespaceByteLength']);
+        $t->same(5, $reviewPart['xmlTextNodeLineBreakCount']);
+        $t->same(5, $reviewPart['xmlTextNodeLineBreakNodeCount']);
+        $t->true($summary['partXmlTextNodeLeadingWhitespaceCount'] >= 5, 'summary should include leading whitespace text-node counters');
+        $t->true($summary['partXmlTextNodeTrailingWhitespaceCount'] >= 5, 'summary should include trailing whitespace text-node counters');
+        $t->true($summary['partXmlTextNodeLineBreakCount'] >= 5, 'summary should include text-node line-break counters');
+
+        $t->same('/review:packet', $reviewPart['xmlTextNodes'][0]['parentPath']);
+        $t->same(true, $reviewPart['xmlTextNodes'][0]['isWhitespaceOnly']);
+        $t->same(3, $reviewPart['xmlTextNodes'][0]['leadingWhitespaceByteLength']);
+        $t->same(3, $reviewPart['xmlTextNodes'][0]['trailingWhitespaceByteLength']);
+        $t->same(true, $reviewPart['xmlTextNodes'][0]['hasLeadingWhitespace']);
+        $t->same(true, $reviewPart['xmlTextNodes'][0]['hasTrailingWhitespace']);
+        $t->same(1, $reviewPart['xmlTextNodes'][0]['lineBreakCount']);
+        $t->same(true, $reviewPart['xmlTextNodes'][0]['hasLineBreak']);
+        $t->same('/review:packet/review:leading', $reviewPart['xmlTextNodes'][1]['parentPath']);
+        $t->same(2, $reviewPart['xmlTextNodes'][1]['leadingWhitespaceByteLength']);
+        $t->same(0, $reviewPart['xmlTextNodes'][1]['trailingWhitespaceByteLength']);
+        $t->same(true, $reviewPart['xmlTextNodes'][1]['hasLeadingWhitespace']);
+        $t->same(false, $reviewPart['xmlTextNodes'][1]['hasTrailingWhitespace']);
+        $t->same(0, $reviewPart['xmlTextNodes'][1]['lineBreakCount']);
+        $t->same('/review:packet/review:line', $reviewPart['xmlTextNodes'][3]['parentPath']);
+        $t->same(0, $reviewPart['xmlTextNodes'][3]['leadingWhitespaceByteLength']);
+        $t->same(0, $reviewPart['xmlTextNodes'][3]['trailingWhitespaceByteLength']);
+        $t->same(1, $reviewPart['xmlTextNodes'][3]['lineBreakCount']);
+        $t->same(true, $reviewPart['xmlTextNodes'][3]['hasLineBreak']);
+        $t->same('/review:packet/review:trailing', $reviewPart['xmlTextNodes'][5]['parentPath']);
+        $t->same(0, $reviewPart['xmlTextNodes'][5]['leadingWhitespaceByteLength']);
+        $t->same(2, $reviewPart['xmlTextNodes'][5]['trailingWhitespaceByteLength']);
+        $t->same(false, $reviewPart['xmlTextNodes'][5]['hasLeadingWhitespace']);
+        $t->same(true, $reviewPart['xmlTextNodes'][5]['hasTrailingWhitespace']);
+        $t->same(0, $reviewPart['xmlTextNodes'][5]['lineBreakCount']);
+
+        $t->same(7, count($textNodes));
+        $t->same(2, $textNodes[1]['leadingWhitespaceByteLength']);
+        $t->same(1, $textNodes[3]['lineBreakCount']);
+        $t->same(2, $textNodes[5]['trailingWhitespaceByteLength']);
+        $encodedTextNodes = json_encode([$reviewPart['xmlTextNodes'], $textNodes]);
+        $t->true(is_string($encodedTextNodes), 'XML text-node whitespace metadata should encode for review');
+        $t->true(!str_contains((string) $encodedTextNodes, 'whitespace-shape:hidden'), 'raw XML text should not be exposed in whitespace metadata');
+    },
     'summarizes docx package xml doctype declarations without exposing subsets' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $reviewSubset = '<!ENTITY reviewer "hidden-reviewer">' . "\n";
