@@ -65,6 +65,31 @@ final class CssMinifier
         'wavy',
     ];
     private const TEXT_DECORATION_SKIP_INK_KEYWORDS = ['auto', 'none', 'all'];
+    private const FLEX_DIRECTIONS = ['row', 'row-reverse', 'column', 'column-reverse'];
+    private const FLEX_WRAPS = ['nowrap', 'wrap', 'wrap-reverse'];
+    private const FLEX_ITEM_LONGHANDS = [
+        'flex-grow',
+        'flex-shrink',
+        'flex-basis',
+    ];
+    private const PLACE_ALIGNMENT_SHORTHANDS = [
+        'place-content' => [
+            'align' => 'align-content',
+            'justify' => 'justify-content',
+        ],
+        'place-self' => [
+            'align' => 'align-self',
+            'justify' => 'justify-self',
+        ],
+        'place-items' => [
+            'align' => 'align-items',
+            'justify' => 'justify-items',
+        ],
+    ];
+    private const GAP_LONGHANDS = [
+        'row-gap',
+        'column-gap',
+    ];
 
     private bool $recoverInvalidMediaFeatureValues = false;
 
@@ -275,6 +300,7 @@ final class CssMinifier
         $css = $this->rewriteAllResetDeclarationBlocks($css);
         $css = $this->rewriteDisplayDeclarationBlocks($css);
         $css = $this->normalizeDisplayColorDeclarationOrder($css);
+        $css = $this->composeFlexAlignmentGapDeclarationBlocks($css);
         $css = $this->composeOutlineDeclarationBlocks($css);
         $css = $this->composeContainerDeclarationBlocks($css);
         $css = $this->composePositionDeclarationBlocks($css);
@@ -13492,6 +13518,801 @@ final class CssMinifier
         }
 
         return $changed ? $this->serializeDeclarationEntriesForComposition($entries) : $body;
+    }
+
+    private function composeFlexAlignmentGapDeclarationBlocks(string $css): string
+    {
+        if (preg_match('/(?:flex|align-|justify-|place-|gap)/i', $css) !== 1) {
+            return $css;
+        }
+
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $body = $this->composeFlexAlignmentGapDeclarationBlocks(substr($css, $open + 1, $close - $open - 1));
+            if (!str_contains($body, '{')) {
+                $body = $this->composeFlexAlignmentGapDeclarationList($body);
+            }
+
+            $output .= substr($css, $cursor, $open - $cursor + 1) . $body . '}';
+            $cursor = $close + 1;
+        }
+
+        return $output;
+    }
+
+    private function composeFlexAlignmentGapDeclarationList(string $body): string
+    {
+        if (preg_match('/(?:flex|align-|justify-|place-|gap)/i', $body) !== 1) {
+            return $body;
+        }
+
+        $entries = $this->parseDeclarationEntriesForComposition($body);
+        if ($entries === null) {
+            return $body;
+        }
+
+        foreach (['', '-webkit-', '-ms-'] as $prefix) {
+            $this->rewriteFlexFlowGroup($entries, $prefix);
+        }
+        foreach (['', '-webkit-'] as $prefix) {
+            $this->rewriteFlexItemGroup($entries, $prefix);
+        }
+        foreach (array_keys(self::PLACE_ALIGNMENT_SHORTHANDS) as $shorthand) {
+            $this->rewritePlaceAlignmentGroup($entries, $shorthand);
+        }
+        $this->rewriteGapGroup($entries);
+
+        return $this->serializeDeclarationEntriesForComposition($entries);
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewriteFlexFlowGroup(array &$entries, string $prefix): void
+    {
+        $flow = $prefix . 'flex-flow';
+        $directionProperty = $prefix . 'flex-direction';
+        $wrapProperty = $prefix . 'flex-wrap';
+        $direction = null;
+        $wrap = null;
+        $included = [];
+        $hasShorthand = false;
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop']) {
+                continue;
+            }
+            if (!in_array($entry['property'], [$flow, $directionProperty, $wrapProperty], true)) {
+                continue;
+            }
+            if ($entry['important'] || $this->containsCustomPropertyReference($entry['value'])) {
+                return;
+            }
+
+            $included[] = $index;
+            if ($entry['property'] === $flow) {
+                $components = $this->parseFlexFlowComponents($entry['value']);
+                if ($components === null) {
+                    return;
+                }
+                $direction = $components['direction'];
+                $wrap = $components['wrap'];
+                $hasShorthand = true;
+                continue;
+            }
+
+            if ($entry['property'] === $directionProperty) {
+                $direction = $this->normalizeFlexKeyword($entry['value'], self::FLEX_DIRECTIONS);
+                if ($direction === null) {
+                    return;
+                }
+                continue;
+            }
+
+            $wrap = $this->normalizeFlexKeyword($entry['value'], self::FLEX_WRAPS);
+            if ($wrap === null) {
+                return;
+            }
+        }
+
+        if ($included === [] || (!$hasShorthand && ($direction === null || $wrap === null))) {
+            return;
+        }
+        if ($direction === null || $wrap === null) {
+            return;
+        }
+
+        $replaceAt = min($included);
+        foreach ($included as $index) {
+            $entries[$index]['drop'] = true;
+        }
+        $entries[$replaceAt] = [
+            'property' => $flow,
+            'name' => $flow,
+            'value' => $this->serializeFlexFlowValue($direction, $wrap),
+            'important' => false,
+            'drop' => false,
+        ];
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewriteFlexItemGroup(array &$entries, string $prefix): void
+    {
+        $shorthand = $prefix . 'flex';
+        $longhands = array_map(static fn (string $longhand): string => $prefix . $longhand, self::FLEX_ITEM_LONGHANDS);
+        $components = [
+            'flex-grow' => null,
+            'flex-shrink' => null,
+            'flex-basis' => null,
+        ];
+        $included = [];
+        $hasShorthand = false;
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop']) {
+                continue;
+            }
+            if ($entry['property'] !== $shorthand && !in_array($entry['property'], $longhands, true)) {
+                continue;
+            }
+            if ($entry['important'] || $this->containsCustomPropertyReference($entry['value'])) {
+                return;
+            }
+
+            $included[] = $index;
+            if ($entry['property'] === $shorthand) {
+                $parsed = $this->parseFlexShorthandComponents($entry['value']);
+                if ($parsed === null) {
+                    return;
+                }
+                $components = $parsed;
+                $hasShorthand = true;
+                continue;
+            }
+
+            $base = substr($entry['property'], strlen($prefix));
+            $value = $this->normalizeFlexLonghandValue($base, $entry['value']);
+            if ($value === null) {
+                return;
+            }
+            $components[$base] = $value;
+        }
+
+        if ($included === [] || (!$hasShorthand && in_array(null, $components, true))) {
+            return;
+        }
+        if (in_array(null, $components, true)) {
+            return;
+        }
+
+        $replaceAt = min($included);
+        foreach ($included as $index) {
+            $entries[$index]['drop'] = true;
+        }
+        $entries[$replaceAt] = [
+            'property' => $shorthand,
+            'name' => $shorthand,
+            'value' => $this->composeFlexShorthandValue($components),
+            'important' => false,
+            'drop' => false,
+        ];
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewritePlaceAlignmentGroup(array &$entries, string $shorthand): void
+    {
+        $longhands = self::PLACE_ALIGNMENT_SHORTHANDS[$shorthand];
+        $components = [
+            'align' => null,
+            'justify' => null,
+        ];
+        $included = [];
+        $hasShorthand = false;
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop']) {
+                continue;
+            }
+            if ($entry['property'] !== $shorthand && !in_array($entry['property'], $longhands, true)) {
+                continue;
+            }
+            if ($entry['important'] || $this->containsCustomPropertyReference($entry['value'])) {
+                return;
+            }
+
+            $included[] = $index;
+            if ($entry['property'] === $shorthand) {
+                $parsed = $this->parsePlaceAlignmentComponents($shorthand, $entry['value']);
+                if ($parsed === null) {
+                    return;
+                }
+                $components = $parsed;
+                $hasShorthand = true;
+                continue;
+            }
+
+            $slot = $this->placeAlignmentLonghandSlot($shorthand, $entry['property']);
+            if ($slot === null) {
+                return;
+            }
+            $value = $this->normalizePlaceAlignmentComponent($shorthand, $slot, $entry['value']);
+            if ($value === null) {
+                return;
+            }
+            $components[$slot] = $value;
+        }
+
+        if ($included === [] || (!$hasShorthand && ($components['align'] === null || $components['justify'] === null))) {
+            return;
+        }
+        if ($components['align'] === null || $components['justify'] === null) {
+            return;
+        }
+
+        $replaceAt = min($included);
+        foreach ($included as $index) {
+            $entries[$index]['drop'] = true;
+        }
+        $entries[$replaceAt] = [
+            'property' => $shorthand,
+            'name' => $shorthand,
+            'value' => $this->serializePlaceAlignmentComponents($shorthand, $components['align'], $components['justify']),
+            'important' => false,
+            'drop' => false,
+        ];
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewriteGapGroup(array &$entries): void
+    {
+        $components = [
+            'row-gap' => null,
+            'column-gap' => null,
+        ];
+        $included = [];
+        $hasShorthand = false;
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop']) {
+                continue;
+            }
+            if ($entry['property'] !== 'gap' && !in_array($entry['property'], self::GAP_LONGHANDS, true)) {
+                continue;
+            }
+            if ($entry['important'] || $this->containsCustomPropertyReference($entry['value'])) {
+                return;
+            }
+
+            $included[] = $index;
+            if ($entry['property'] === 'gap') {
+                $parsed = $this->parseGapComponents($entry['value']);
+                if ($parsed === null) {
+                    return;
+                }
+                $components = $parsed;
+                $hasShorthand = true;
+                continue;
+            }
+
+            $components[$entry['property']] = $this->normalizeGapComponentValue($entry['value']);
+        }
+
+        if ($included === [] || (!$hasShorthand && ($components['row-gap'] === null || $components['column-gap'] === null))) {
+            return;
+        }
+        if ($components['row-gap'] === null || $components['column-gap'] === null) {
+            return;
+        }
+
+        $replaceAt = min($included);
+        foreach ($included as $index) {
+            $entries[$index]['drop'] = true;
+        }
+        $entries[$replaceAt] = [
+            'property' => 'gap',
+            'name' => 'gap',
+            'value' => $this->serializeGapComponents($components['row-gap'], $components['column-gap']),
+            'important' => false,
+            'drop' => false,
+        ];
+    }
+
+    /**
+     * @param list<string> $allowed
+     */
+    private function normalizeFlexKeyword(string $value, array $allowed): ?string
+    {
+        $keyword = strtolower(trim($value));
+
+        return in_array($keyword, $allowed, true) ? $keyword : null;
+    }
+
+    /**
+     * @return array{direction:string,wrap:string}|null
+     */
+    private function parseFlexFlowComponents(string $value): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($value));
+        if ($tokens === [] || count($tokens) > 2) {
+            return null;
+        }
+
+        $direction = null;
+        $wrap = null;
+        foreach ($tokens as $token) {
+            $lower = strtolower($token);
+            if ($direction === null && in_array($lower, self::FLEX_DIRECTIONS, true)) {
+                $direction = $lower;
+                continue;
+            }
+            if ($wrap === null && in_array($lower, self::FLEX_WRAPS, true)) {
+                $wrap = $lower;
+                continue;
+            }
+
+            return null;
+        }
+
+        return [
+            'direction' => $direction ?? 'row',
+            'wrap' => $wrap ?? 'nowrap',
+        ];
+    }
+
+    private function serializeFlexFlowValue(string $direction, string $wrap): string
+    {
+        if ($wrap === 'nowrap') {
+            return $direction;
+        }
+        if ($direction === 'row') {
+            return $wrap;
+        }
+
+        return $direction . ' ' . $wrap;
+    }
+
+    /**
+     * @return array{flex-grow:string, flex-shrink:string, flex-basis:string}|null
+     */
+    private function parseFlexShorthandComponents(string $value): ?array
+    {
+        $value = trim($value);
+        if (strcasecmp($value, 'none') === 0) {
+            return [
+                'flex-grow' => '0',
+                'flex-shrink' => '0',
+                'flex-basis' => 'auto',
+            ];
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if ($tokens === []) {
+            return null;
+        }
+
+        $grow = null;
+        $shrink = null;
+        $basis = null;
+        $count = count($tokens);
+        for ($index = 0; $index < $count; $index++) {
+            $token = $tokens[$index];
+            if ($grow === null && $this->isFlexNumberToken($token)) {
+                $grow = $this->normalizeFlexNumberValue($token);
+                if ($index + 1 < $count && $this->isFlexNumberToken($tokens[$index + 1])) {
+                    $shrink = $this->normalizeFlexNumberValue($tokens[++$index]);
+                }
+                continue;
+            }
+
+            if ($basis === null && $this->isFlexBasisToken($token)) {
+                $basis = $this->normalizeFlexBasisValue($token);
+                continue;
+            }
+
+            return null;
+        }
+
+        return [
+            'flex-grow' => $grow ?? '1',
+            'flex-shrink' => $shrink ?? '1',
+            'flex-basis' => $basis ?? '0%',
+        ];
+    }
+
+    private function normalizeFlexLonghandValue(string $base, string $value): ?string
+    {
+        return match ($base) {
+            'flex-grow', 'flex-shrink' => $this->isFlexNumberToken($value) ? $this->normalizeFlexNumberValue($value) : null,
+            'flex-basis' => $this->isFlexBasisToken($value) ? $this->normalizeFlexBasisValue($value) : null,
+            default => null,
+        };
+    }
+
+    private function isFlexNumberToken(string $value): bool
+    {
+        return preg_match('/^[+-]?(?:\d*\.\d+|\d+)(?:[eE][+-]?\d+)?$/', trim($value)) === 1;
+    }
+
+    private function normalizeFlexNumberValue(string $value): string
+    {
+        return $this->minifyNumber((float) trim($value));
+    }
+
+    private function isFlexBasisToken(string $value): bool
+    {
+        $value = trim($value);
+        if (strcasecmp($value, 'auto') === 0) {
+            return true;
+        }
+        if (preg_match('/^[+-]?(?:\d*\.\d+|\d+)(?:[eE][+-]?\d+)?%$/', $value) === 1) {
+            return true;
+        }
+        if (preg_match('/^[+-]?(?:(?:\d*\.\d+|\d+)(?:[eE][+-]?\d+)?)(?:[a-z]+)$/i', $value) === 1) {
+            return true;
+        }
+        if (preg_match('/^[+-]?(?:0+(?:\.0+)?|\.0+)(?:[eE][+-]?\d+)?$/', $value) === 1) {
+            return true;
+        }
+
+        return preg_match('/^(?:calc|min|max|clamp)\(/i', $value) === 1;
+    }
+
+    private function normalizeFlexBasisValue(string $value): string
+    {
+        $value = trim($value);
+        if (strcasecmp($value, 'auto') === 0) {
+            return 'auto';
+        }
+
+        if (preg_match('/^([+-]?(?:\d*\.\d+|\d+)(?:[eE][+-]?\d+)?)(%|[a-z]+)$/i', $value, $matches) === 1) {
+            $number = $this->normalizeFlexNumberValue($matches[1]);
+            if ($number === '0' && $matches[2] !== '%') {
+                return '0';
+            }
+
+            return $number . strtolower($matches[2]);
+        }
+
+        if ($this->isFlexNumberToken($value) && $this->flexNumberEquals($value, 0.0)) {
+            return '0';
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array{flex-grow:string, flex-shrink:string, flex-basis:string} $components
+     */
+    private function composeFlexShorthandValue(array $components): string
+    {
+        $grow = $components['flex-grow'];
+        $shrink = $components['flex-shrink'];
+        $basis = $components['flex-basis'];
+
+        if ($this->flexNumberEquals($grow, 0.0) && $this->flexNumberEquals($shrink, 0.0) && strtolower($basis) === 'auto') {
+            return 'none';
+        }
+
+        $basisKind = $this->flexBasisZeroKind($basis);
+        $parts = [];
+        if (!$this->flexNumberEquals($grow, 1.0) || !$this->flexNumberEquals($shrink, 1.0) || $basisKind !== 'nonzero') {
+            $parts[] = $grow;
+            if (!$this->flexNumberEquals($shrink, 1.0) || $basisKind === 'length') {
+                $parts[] = $shrink;
+            }
+        }
+
+        if ($basisKind !== 'percentage') {
+            $parts[] = $basis;
+        }
+
+        return implode(' ', $parts);
+    }
+
+    private function flexBasisZeroKind(string $value): string
+    {
+        $value = strtolower(trim($value));
+        if (preg_match('/^[+-]?(?:0+(?:\.0+)?|\.0+)(?:e[+-]?\d+)?%$/', $value) === 1) {
+            return 'percentage';
+        }
+        if (preg_match('/^[+-]?(?:0+(?:\.0+)?|\.0+)(?:e[+-]?\d+)?(?:[a-z]+)?$/', $value) === 1) {
+            return 'length';
+        }
+
+        return 'nonzero';
+    }
+
+    private function flexNumberEquals(string $value, float $expected): bool
+    {
+        if (!$this->isFlexNumberToken($value)) {
+            return false;
+        }
+
+        return abs(((float) $value) - $expected) < 0.0000001;
+    }
+
+    /**
+     * @return array{align:string,justify:string}|null
+     */
+    private function parsePlaceAlignmentComponents(string $shorthand, string $value): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel(strtolower(trim($value)));
+        if ($tokens === [] || count($tokens) > 4) {
+            return null;
+        }
+
+        $maxAlignLength = min(2, count($tokens));
+        for ($alignLength = 1; $alignLength <= $maxAlignLength; $alignLength++) {
+            $align = $this->normalizePlaceAlignmentComponent(
+                $shorthand,
+                'align',
+                implode(' ', array_slice($tokens, 0, $alignLength))
+            );
+            if ($align === null) {
+                continue;
+            }
+
+            $remaining = array_slice($tokens, $alignLength);
+            if ($remaining === []) {
+                return [
+                    'align' => $align,
+                    'justify' => $this->defaultPlaceAlignmentJustify($shorthand, $align),
+                ];
+            }
+            if (count($remaining) > 2) {
+                continue;
+            }
+
+            $justify = $this->normalizePlaceAlignmentComponent($shorthand, 'justify', implode(' ', $remaining));
+            if ($justify !== null) {
+                return [
+                    'align' => $align,
+                    'justify' => $justify,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizePlaceAlignmentComponent(string $shorthand, string $slot, string $value): ?string
+    {
+        $tokens = $this->splitWhitespaceTopLevel(strtolower(trim($value)));
+        if ($tokens === [] || count($tokens) > 2) {
+            return null;
+        }
+
+        $baseline = $this->normalizeBaselinePosition($tokens);
+        if ($baseline !== null) {
+            return $shorthand === 'place-content' && $slot === 'justify' ? null : $baseline;
+        }
+
+        if ($slot === 'justify' && $shorthand === 'place-items') {
+            $legacy = $this->normalizeLegacyJustify($tokens);
+            if ($legacy !== null) {
+                return $legacy;
+            }
+        }
+
+        if (count($tokens) === 1) {
+            $token = $tokens[0];
+
+            return $this->isPlaceAlignmentSingleKeyword($shorthand, $slot, $token) ? $token : null;
+        }
+
+        if (!in_array($tokens[0], ['safe', 'unsafe'], true)) {
+            return null;
+        }
+
+        return $this->isPlaceAlignmentPositionKeyword($shorthand, $slot, $tokens[1])
+            ? $tokens[0] . ' ' . $tokens[1]
+            : null;
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function normalizeBaselinePosition(array $tokens): ?string
+    {
+        if ($tokens === ['baseline'] || $tokens === ['first', 'baseline']) {
+            return 'baseline';
+        }
+        if ($tokens === ['last', 'baseline']) {
+            return 'last baseline';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function normalizeLegacyJustify(array $tokens): ?string
+    {
+        if (count($tokens) !== 2) {
+            return null;
+        }
+        if ($tokens[0] === 'legacy' && in_array($tokens[1], ['left', 'right', 'center'], true)) {
+            return 'legacy ' . $tokens[1];
+        }
+        if ($tokens[1] === 'legacy' && in_array($tokens[0], ['left', 'right', 'center'], true)) {
+            return 'legacy ' . $tokens[0];
+        }
+
+        return null;
+    }
+
+    private function isPlaceAlignmentSingleKeyword(string $shorthand, string $slot, string $token): bool
+    {
+        if ($shorthand === 'place-content') {
+            if (in_array($token, ['normal', 'space-between', 'space-around', 'space-evenly', 'stretch'], true)) {
+                return true;
+            }
+
+            return $this->isPlaceAlignmentPositionKeyword($shorthand, $slot, $token);
+        }
+
+        if ($shorthand === 'place-self' && $token === 'auto') {
+            return true;
+        }
+        if (in_array($token, ['normal', 'stretch'], true)) {
+            return true;
+        }
+
+        return $this->isPlaceAlignmentPositionKeyword($shorthand, $slot, $token);
+    }
+
+    private function isPlaceAlignmentPositionKeyword(string $shorthand, string $slot, string $token): bool
+    {
+        $contentPositions = ['center', 'start', 'end', 'flex-start', 'flex-end'];
+        $selfPositions = ['center', 'start', 'end', 'self-start', 'self-end', 'flex-start', 'flex-end'];
+
+        if ($shorthand === 'place-content') {
+            if ($slot === 'justify' && in_array($token, ['left', 'right'], true)) {
+                return true;
+            }
+
+            return in_array($token, $contentPositions, true);
+        }
+
+        if ($slot === 'justify' && in_array($token, ['left', 'right'], true)) {
+            return true;
+        }
+
+        return in_array($token, $selfPositions, true);
+    }
+
+    private function defaultPlaceAlignmentJustify(string $shorthand, string $align): string
+    {
+        if ($shorthand === 'place-content' && $this->isBaselineAlignmentValue($align)) {
+            return 'start';
+        }
+
+        return $align;
+    }
+
+    private function serializePlaceAlignmentComponents(string $shorthand, string $align, string $justify): string
+    {
+        if ($this->placeAlignmentCanOmitJustify($shorthand, $align, $justify)) {
+            return $align;
+        }
+
+        return $align . ' ' . $justify;
+    }
+
+    private function placeAlignmentCanOmitJustify(string $shorthand, string $align, string $justify): bool
+    {
+        if ($shorthand === 'place-content') {
+            return !$this->isBaselineAlignmentValue($align) && $align === $justify;
+        }
+        if ($justify === 'auto' && $shorthand === 'place-self') {
+            return true;
+        }
+        if ($justify === 'normal' && $align === 'normal') {
+            return true;
+        }
+        if ($justify === 'stretch' && $align === 'normal') {
+            return true;
+        }
+        if ($this->isBaselineAlignmentValue($justify) && $align === $justify) {
+            return true;
+        }
+
+        return $align === $justify && $this->isSelfPositionAlignmentValue($align);
+    }
+
+    private function isBaselineAlignmentValue(string $value): bool
+    {
+        return $value === 'baseline' || $value === 'last baseline';
+    }
+
+    private function isSelfPositionAlignmentValue(string $value): bool
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if (count($tokens) === 2 && in_array($tokens[0], ['safe', 'unsafe'], true)) {
+            $value = $tokens[1];
+        }
+
+        return in_array($value, ['center', 'start', 'end', 'self-start', 'self-end', 'flex-start', 'flex-end'], true);
+    }
+
+    private function placeAlignmentLonghandSlot(string $shorthand, string $property): ?string
+    {
+        foreach (self::PLACE_ALIGNMENT_SHORTHANDS[$shorthand] ?? [] as $slot => $longhand) {
+            if ($property === $longhand) {
+                return $slot;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{row-gap:string,column-gap:string}|null
+     */
+    private function parseGapComponents(string $value): ?array
+    {
+        $parts = $this->splitWhitespaceTopLevel($value);
+        if (count($parts) < 1 || count($parts) > 2) {
+            return null;
+        }
+
+        $row = $this->normalizeGapComponentValue($parts[0]);
+        $column = $this->normalizeGapComponentValue($parts[1] ?? $parts[0]);
+
+        return [
+            'row-gap' => $row,
+            'column-gap' => $column,
+        ];
+    }
+
+    private function serializeGapComponents(string $row, string $column): string
+    {
+        return $row === $column ? $row : $row . ' ' . $column;
+    }
+
+    private function normalizeGapComponentValue(string $value): string
+    {
+        $value = trim($value);
+        if (strcasecmp($value, 'normal') === 0) {
+            return 'normal';
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))([a-z]+|%)$/i', $value, $matches) === 1) {
+            $number = $this->minifyNumber((float) $matches[1]);
+            if ($number === '0') {
+                return '0';
+            }
+            if (str_starts_with($number, '.')) {
+                $number = '0' . $number;
+            } elseif (str_starts_with($number, '-.')) {
+                $number = '-0' . substr($number, 1);
+            }
+
+            return $number . strtolower($matches[2]);
+        }
+
+        if (preg_match('/^[+-]?(?:0+(?:\.0+)?|\.0+)$/', $value) === 1) {
+            return '0';
+        }
+
+        return $value;
     }
 
     private function isFallbackDisplayValue(string $value): bool
