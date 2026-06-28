@@ -6614,6 +6614,7 @@ final class OpenDocumentPackage
             'metaInfSidecarPackagePart' => ($entry['metaInfSidecarPackagePart'] ?? false) === true,
             'linkedResourcePackagePart' => ($entry['linkedResourcePackagePart'] ?? false) === true,
             'databasePackagePart' => ($entry['databasePackagePart'] ?? false) === true,
+            'versionPackagePart' => ($entry['versionPackagePart'] ?? false) === true,
             'galleryPackagePart' => ($entry['galleryPackagePart'] ?? false) === true,
             'formPackagePart' => ($entry['formPackagePart'] ?? false) === true,
             'zipModifiedAt' => $entry['zipModifiedAt'] ?? null,
