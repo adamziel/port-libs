@@ -3127,6 +3127,27 @@ CSS
             $minifier->minify('@supports (display: grid) and (not (display: inline-grid)) { .test { foo: bar; } }')
         );
     },
+    'css minifier maps upstream merge-rule residual boundaries' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_merge_rules.
+        $cases = [
+            [9867, '.foo { color: red; } .foo { background: green; }', '.foo{color:red;background:green}'],
+            [9883, '.foo { color: red; } .foo { background: green !important; }', '.foo{color:red;background:green!important}'],
+            [9930, '.foo { color: red; } .bar { background: green; }', '.foo{color:red}.bar{background:green}'],
+            [9950, '.foo { color: red; } .baz { color: blue; } .bar { color: red; }', '.foo{color:red}.baz{color:#00f}.bar{color:red}'],
+            [10100, '.a:foo(#000) { color: red; } .b { color: green; } .a:foo(#ff0) { color: pink; }', '.a:foo(#000){color:red}.b{color:green}.a:foo(#ff0){color:pink}'],
+            [10148, '.a { border-radius: 10px; } .b { color: green; } .a { -webkit-border-radius: 10px; }', '.a{border-radius:10px}.b{color:green}.a{-webkit-border-radius:10px}'],
+            [10196, '.a { border-radius: 10px; } .b { color: green; } .c { border-radius: 20px; }', '.a{border-radius:10px}.b{color:green}.c{border-radius:20px}'],
+            [10346, '.foo:-moz-read-only { color: red; }', '.foo:-moz-read-only{color:red}'],
+            [10359, '.foo:-moz-read-only { color: red; } .foo:read-only { color: red; }', '.foo:-moz-read-only{color:red}.foo:read-only{color:red}'],
+            [10700, '.foo:placeholder-shown .bar, .foo:-webkit-autofill .baz { color: red; } .foo:placeholder-shown .bar, .foo:autofill .baz { color: red; }', '.foo:placeholder-shown .bar,.foo:-webkit-autofill .baz{color:red}.foo:placeholder-shown .bar,.foo:autofill .baz{color:red}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_merge_rules line ' . $line);
+        }
+    },
     'css minifier maps upstream adjacent supports rule merging' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 @supports (flex: 1) {
