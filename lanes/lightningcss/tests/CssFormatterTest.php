@@ -254,6 +254,36 @@ CSS, $formatter->format(<<<'CSS'
 CSS));
 
         $t->same(<<<'CSS'
+@supports not (foo: bar) {
+  .test {
+    foo: bar;
+  }
+}
+
+CSS, $formatter->format(<<<'CSS'
+@supports not (foo: bar) {
+  .test {
+    foo: bar;
+  }
+}
+CSS));
+
+        $t->same(<<<'CSS'
+@supports (foo: bar) and (bar: baz) {
+  .test {
+    foo: bar;
+  }
+}
+
+CSS, $formatter->format(<<<'CSS'
+@supports (foo: bar) and (bar: baz) {
+  .test {
+    foo: bar;
+  }
+}
+CSS));
+
+        $t->same(<<<'CSS'
 @supports (foo: bar) and (bar: baz) {
   .test {
     foo: bar;
@@ -262,6 +292,81 @@ CSS));
 
 CSS, $formatter->format(<<<'CSS'
 @supports (((foo: bar) and (bar: baz))) {
+  .test {
+    foo: bar;
+  }
+}
+CSS));
+
+        $t->same(<<<'CSS'
+@supports not ((foo: bar) and (bar: baz)) {
+  .test {
+    foo: bar;
+  }
+}
+
+CSS, $formatter->format(<<<'CSS'
+@supports not (((foo: bar) and (bar: baz))) {
+  .test {
+    foo: bar;
+  }
+}
+CSS));
+
+        $t->same(<<<'CSS'
+@supports selector(a > b) {
+  .test {
+    foo: bar;
+  }
+}
+
+CSS, $formatter->format(<<<'CSS'
+@supports selector(a > b) {
+  .test {
+    foo: bar;
+  }
+}
+CSS));
+
+        $t->same(<<<'CSS'
+@supports unknown(test) {
+  .test {
+    foo: bar;
+  }
+}
+
+CSS, $formatter->format(<<<'CSS'
+@supports unknown(test) {
+  .test {
+    foo: bar;
+  }
+}
+CSS));
+
+        $t->same(<<<'CSS'
+@supports (unknown) {
+  .test {
+    foo: bar;
+  }
+}
+
+CSS, $formatter->format(<<<'CSS'
+@supports (unknown) {
+  .test {
+    foo: bar;
+  }
+}
+CSS));
+
+        $t->same(<<<'CSS'
+@supports (display: grid) and (not (display: inline-grid)) {
+  .test {
+    foo: bar;
+  }
+}
+
+CSS, $formatter->format(<<<'CSS'
+@supports (display: grid) and (not (display: inline-grid)) {
   .test {
     foo: bar;
   }
