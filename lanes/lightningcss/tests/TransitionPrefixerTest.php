@@ -3104,6 +3104,26 @@ CSS;
 
         $t->same('.foo{border-block-start-width:2px;border-block-end-width:2px}', $prefixer->prefixForTargets('.foo { border-block-width: 2px; }', ['safari' => 13]));
         $t->same('.foo{border-block-width:2px}', $prefixer->prefixForTargets('.foo { border-block-width: 2px; }', ['safari' => 15]));
+        $t->same(
+            '.foo{border-inline-start:2px solid red;border-inline-end:2px solid red}',
+            $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; border-inline-end: 2px solid red; }', ['safari' => 13]),
+            'upstream src/lib.rs::test_border row 2005'
+        );
+        $t->same(
+            '.foo{border-inline:2px solid red}',
+            $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; border-inline-end: 2px solid red; }', ['safari' => 15]),
+            'upstream src/lib.rs::test_border row 2025'
+        );
+        $t->same(
+            '.foo{border-width:22px;border-width:max(2cqw,22px)}',
+            $prefixer->prefixForTargets('.foo { border-width: 22px; border-width: max(2cqw, 22px); }', ['safari' => 14]),
+            'upstream src/lib.rs::test_border row 2044'
+        );
+        $t->same(
+            '.foo{border-width:max(2cqw,22px)}',
+            $prefixer->prefixForTargets('.foo { border-width: 22px; border-width: max(2cqw, 22px); }', ['safari' => 16]),
+            'upstream src/lib.rs::test_border row 2063'
+        );
         $t->same('.foo{border-inline-start:2px solid red;border-inline-end:2px solid red}', $prefixer->prefixForTargets('.foo { border-inline: 2px solid red; }', ['safari' => 13]));
         $t->same('.foo{border-inline:2px solid red}', $prefixer->prefixForTargets('.foo { border-inline: 2px solid red; }', ['safari' => '14.1']));
         $t->same($inlineStartFallback, $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', ['safari' => '12.0']));
@@ -3895,7 +3915,8 @@ CSS;
         );
         $t->same(
             '.foo{border-color:#4263eb;border-color:color(display-p3 0 .5 1)}',
-            $prefixer->prefixForTargets('.foo { border-color: #4263eb; border-color: color(display-p3 0 .5 1); }', ['chrome' => 99])
+            $prefixer->prefixForTargets('.foo { border-color: #4263eb; border-color: color(display-p3 0 .5 1); }', ['chrome' => 99]),
+            'upstream src/lib.rs::test_border row 2081'
         );
         $t->same(
             '.foo{border-color:color(display-p3 0 .5 1)}',
