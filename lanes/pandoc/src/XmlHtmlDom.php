@@ -27398,6 +27398,7 @@ final class XmlHtmlDom
             'tracks' => self::mediaTrackSummaries($element),
         ];
         $summary += self::mediaTextTrackReviewSummary($element);
+        $summary += self::mediaPreloadReviewSummary($element);
         $summary += self::mediaPolicyReviewSummary($element);
 
         if ($name === 'video') {
@@ -27410,6 +27411,48 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function mediaPreloadReviewSummary(\DOMElement $element): array
+    {
+        $raw = self::attributeOrNull($element, 'preload');
+        $normalized = $raw === null ? null : strtolower(trim($raw));
+        $validKeywords = ['none' => true, 'metadata' => true, 'auto' => true];
+        $keyword = $normalized !== null && isset($validKeywords[$normalized]) ? $normalized : null;
+        $valid = $raw === null ? null : ($normalized === '' || $keyword !== null);
+        $defaultReason = match (true) {
+            $raw === null => 'missing-value-default',
+            $normalized === '' => 'empty-value-default',
+            $keyword === null => 'invalid-value-default',
+            default => null,
+        };
+        $issues = [];
+
+        if ($raw !== null && $normalized !== '' && $keyword === null) {
+            $issues[] = [
+                'code' => 'invalid-media-preload-token',
+                'preloadRaw' => $raw,
+            ];
+        }
+
+        return [
+            'mediaPreloadReviewPolicy' => 'html-media-preload-metadata-review',
+            'mediaPreloadRaw' => $raw,
+            'mediaPreloadKeyword' => $keyword,
+            'mediaPreloadState' => $keyword ?? 'auto',
+            'mediaPreloadValid' => $valid,
+            'mediaPreloadDefaulted' => $defaultReason !== null,
+            'mediaPreloadDefaultReason' => $defaultReason,
+            'mediaPreloadIssues' => $issues,
+            'mediaPreloadIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'mediaPreloadIssueCount' => count($issues),
+        ];
     }
 
     /**
