@@ -32,6 +32,9 @@ final class OpenDocumentPackage
     private const MANIFEST_ROOT_STRUCTURAL_ATTRIBUTES = [
         'version' => true,
     ];
+    private const OFFICE_DOCUMENT_ROOT_STRUCTURAL_ATTRIBUTES = [
+        'version' => true,
+    ];
     private const PREFERRED_VIEW_MODE_VALUES = [
         'edit' => true,
         'presentation-slide-show' => true,
@@ -275,6 +278,7 @@ final class OpenDocumentPackage
      *     missingMediaParts:list<array{path:string, mediaType:string}>,
      *     exposableMediaPartCount:int,
      *     corePackageHandoff:array<string, mixed>,
+     *     documentPartVersions:array<string, mixed>,
      *     encryptedCount:int,
      *     encryptedParts:list<string>,
      *     manifestReview:array<string, mixed>,
@@ -416,6 +420,7 @@ final class OpenDocumentPackage
             'missingMediaParts' => $missingMediaParts,
             'exposableMediaPartCount' => $exposableMediaPartCount,
             'corePackageHandoff' => $corePackageHandoff,
+            'documentPartVersions' => $this->documentPartVersions(),
             'encryptedCount' => count($encryptedParts),
             'encryptedParts' => $encryptedParts,
             'undeclaredPackageEntryCount' => count($undeclaredPackageEntries),
@@ -580,6 +585,201 @@ final class OpenDocumentPackage
         }
 
         return ($entry['exists'] ?? false) === true ? 'undeclared' : 'not-declared';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function documentPartVersions(): array
+    {
+        $expectedRoots = [
+            'content.xml' => 'document-content',
+            'styles.xml' => 'document-styles',
+            'meta.xml' => 'document-meta',
+            'settings.xml' => 'document-settings',
+        ];
+        $items = [];
+        $versionCounts = [];
+        $missingVersionParts = [];
+        $versionMismatches = [];
+        $rootCustomAttributeCount = 0;
+        $rootCustomAttributeNames = [];
+        $rootCustomAttributeItems = [];
+        $manifestPartReferenceSuffixItems = [];
+        $byteExposurePolicyCounts = [];
+
+        foreach ($expectedRoots as $part => $expectedRoot) {
+            $manifestEntry = $this->manifestEntriesByPath[$part] ?? null;
+            if (!$this->package->has($part) && !is_array($manifestEntry)) {
+                continue;
+            }
+
+            $entry = $this->package->has($part) ? $this->package->entry($part) : null;
+            $rootName = null;
+            $officeVersion = null;
+            $validRoot = false;
+            $diagnostics = [];
+            $rootAttributeProvenance = self::emptyAttributeProvenance();
+
+            if (!$entry instanceof ZipPackageEntry) {
+                $diagnostics[] = 'odf-xml-part-missing-package-part';
+            } else {
+                $dom = self::loadXml($this->package->read($part), 'ODT ' . $part);
+                $root = $dom->documentElement;
+                if ($root instanceof \DOMElement) {
+                    $rootName = $root->localName;
+                    $validRoot = $root->namespaceURI === self::OFFICE_NAMESPACE && $root->localName === $expectedRoot;
+                    $officeVersion = self::optionalString(self::namespacedAttribute($root, self::OFFICE_NAMESPACE, 'version'));
+                    $rootAttributeProvenance = self::documentPartRootAttributeProvenance($root);
+                }
+
+                if (!$validRoot) {
+                    $diagnostics[] = 'odf-xml-part-unexpected-root';
+                }
+                if ($officeVersion === null) {
+                    $diagnostics[] = 'odf-xml-part-missing-office-version';
+                    $missingVersionParts[] = $part;
+                } else {
+                    $versionCounts[$officeVersion] = ($versionCounts[$officeVersion] ?? 0) + 1;
+                    if ($this->manifestVersion !== null && $officeVersion !== $this->manifestVersion) {
+                        $diagnostics[] = 'odf-xml-part-version-mismatch';
+                        $versionMismatches[] = [
+                            'part' => $part,
+                            'officeVersion' => $officeVersion,
+                            'manifestVersion' => $this->manifestVersion,
+                        ];
+                    }
+                }
+            }
+
+            if (!is_array($manifestEntry)) {
+                $diagnostics[] = 'odf-xml-part-undeclared-package-part';
+            }
+            if (is_array($manifestEntry) && is_string($manifestEntry['pathSuffix'] ?? null)) {
+                $manifestPartReferenceSuffixItems[] = [
+                    'part' => $part,
+                    'manifestFullPath' => $manifestEntry['path'] ?? null,
+                    'manifestPackagePath' => $manifestEntry['packagePath'] ?? null,
+                    'manifestPathReference' => $manifestEntry['pathReference'] ?? null,
+                    'manifestPathSuffix' => $manifestEntry['pathSuffix'] ?? null,
+                    'manifestPathQuery' => $manifestEntry['pathQuery'] ?? null,
+                    'manifestPathFragment' => $manifestEntry['pathFragment'] ?? null,
+                    'manifestUriEncodedPackageReference' => ($manifestEntry['uriEncodedPackageReference'] ?? false) === true,
+                ];
+            }
+            if (is_array($manifestEntry) && is_string($manifestEntry['byteExposurePolicy'] ?? null) && $manifestEntry['byteExposurePolicy'] !== '') {
+                $policy = $manifestEntry['byteExposurePolicy'];
+                $byteExposurePolicyCounts[$policy] = ($byteExposurePolicyCounts[$policy] ?? 0) + 1;
+            }
+
+            $partCustomAttributeCount = (int) ($rootAttributeProvenance['customAttributeCount'] ?? 0);
+            if ($partCustomAttributeCount > 0) {
+                $rootCustomAttributeCount += $partCustomAttributeCount;
+                foreach ($rootAttributeProvenance['customAttributeNames'] ?? [] as $attributeName) {
+                    if (is_string($attributeName) && $attributeName !== '' && !in_array($attributeName, $rootCustomAttributeNames, true)) {
+                        $rootCustomAttributeNames[] = $attributeName;
+                    }
+                }
+                $rootCustomAttributeItems[] = [
+                    'part' => $part,
+                    'expectedRoot' => $expectedRoot,
+                    'rootName' => $rootName,
+                    'rootCustomAttributeCount' => $partCustomAttributeCount,
+                    'rootCustomAttributeNames' => $rootAttributeProvenance['customAttributeNames'] ?? [],
+                    'rootCustomAttributes' => $rootAttributeProvenance['customAttributes'] ?? [],
+                    'rootCustomAttributeMap' => $rootAttributeProvenance['customAttributeMap'] ?? [],
+                    'rootNamespaceDeclarationCount' => $rootAttributeProvenance['namespaceDeclarationCount'] ?? 0,
+                    'rootNamespaceDeclarationNames' => $rootAttributeProvenance['namespaceDeclarationNames'] ?? [],
+                    'rootNamespaceDeclarations' => $rootAttributeProvenance['namespaceDeclarations'] ?? [],
+                    'rootNamespaceDeclarationMap' => $rootAttributeProvenance['namespaceDeclarationMap'] ?? [],
+                ];
+            }
+
+            $items[] = [
+                'part' => $part,
+                'expectedRoot' => $expectedRoot,
+                'rootName' => $rootName,
+                'validRoot' => $validRoot,
+                'officeVersion' => $officeVersion,
+                'rootAttributeCount' => $rootAttributeProvenance['attributeCount'] ?? 0,
+                'rootAttributeNames' => $rootAttributeProvenance['attributeNames'] ?? [],
+                'rootAttributes' => $rootAttributeProvenance['attributes'] ?? [],
+                'rootCustomAttributeCount' => $rootAttributeProvenance['customAttributeCount'] ?? 0,
+                'rootCustomAttributeNames' => $rootAttributeProvenance['customAttributeNames'] ?? [],
+                'rootCustomAttributes' => $rootAttributeProvenance['customAttributes'] ?? [],
+                'rootCustomAttributeMap' => $rootAttributeProvenance['customAttributeMap'] ?? [],
+                'rootNamespaceDeclarationCount' => $rootAttributeProvenance['namespaceDeclarationCount'] ?? 0,
+                'rootNamespaceDeclarationNames' => $rootAttributeProvenance['namespaceDeclarationNames'] ?? [],
+                'rootNamespaceDeclarations' => $rootAttributeProvenance['namespaceDeclarations'] ?? [],
+                'rootNamespaceDeclarationMap' => $rootAttributeProvenance['namespaceDeclarationMap'] ?? [],
+                'manifestVersion' => $this->manifestVersion,
+                'declaredInManifest' => is_array($manifestEntry),
+                'manifestIndex' => is_array($manifestEntry) ? ($manifestEntry['manifestIndex'] ?? null) : null,
+                'manifestFullPath' => is_array($manifestEntry) ? ($manifestEntry['path'] ?? null) : null,
+                'manifestPackagePath' => is_array($manifestEntry) ? ($manifestEntry['packagePath'] ?? null) : null,
+                'manifestPathReference' => is_array($manifestEntry) ? ($manifestEntry['pathReference'] ?? null) : null,
+                'manifestPathSuffix' => is_array($manifestEntry) ? ($manifestEntry['pathSuffix'] ?? null) : null,
+                'manifestPathQuery' => is_array($manifestEntry) ? ($manifestEntry['pathQuery'] ?? null) : null,
+                'manifestPathFragment' => is_array($manifestEntry) ? ($manifestEntry['pathFragment'] ?? null) : null,
+                'manifestUriEncodedPackageReference' => is_array($manifestEntry) && ($manifestEntry['uriEncodedPackageReference'] ?? false) === true,
+                'manifestMediaType' => is_array($manifestEntry) ? ($manifestEntry['mediaType'] ?? null) : null,
+                'manifestMediaTypeBase' => is_array($manifestEntry) ? ($manifestEntry['mediaTypeBase'] ?? null) : null,
+                'manifestMediaTypeHasParameters' => is_array($manifestEntry) && ($manifestEntry['mediaTypeHasParameters'] ?? false) === true,
+                'manifestMediaTypeParameterCount' => is_array($manifestEntry) ? ($manifestEntry['mediaTypeParameterCount'] ?? 0) : 0,
+                'manifestMediaTypeParameters' => is_array($manifestEntry) ? ($manifestEntry['mediaTypeParameters'] ?? []) : [],
+                'manifestMediaTypeParameterMap' => is_array($manifestEntry) ? ($manifestEntry['mediaTypeParameterMap'] ?? []) : [],
+                'manifestDeclaredSize' => is_array($manifestEntry) ? ($manifestEntry['declaredSize'] ?? $manifestEntry['size'] ?? null) : null,
+                'manifestDeclaredSizeRaw' => null,
+                'manifestDeclaredSizeValid' => is_array($manifestEntry) && is_int($manifestEntry['size'] ?? null),
+                'manifestDeclaredSizeInvalid' => false,
+                'manifestDeclaredSizeMismatch' => is_array($manifestEntry) && ($manifestEntry['declaredSizeMismatch'] ?? false) === true,
+                'manifestDiagnostics' => is_array($manifestEntry) ? ($manifestEntry['diagnostics'] ?? []) : [],
+                'exists' => $entry instanceof ZipPackageEntry,
+                'canExposeBytes' => is_array($manifestEntry) && ($manifestEntry['canExposeBytes'] ?? false) === true,
+                'byteExposurePolicy' => is_array($manifestEntry) ? ($manifestEntry['byteExposurePolicy'] ?? null) : null,
+                'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+                'compressedByteLength' => $entry instanceof ZipPackageEntry ? $entry->compressedSize : null,
+                'compressionMethod' => $entry instanceof ZipPackageEntry ? $entry->compressionMethod : null,
+                'compressionMethodName' => $entry instanceof ZipPackageEntry ? self::compressionMethodName($entry->compressionMethod) : null,
+                'crc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+                'diagnostics' => array_values(array_unique($diagnostics)),
+            ];
+        }
+
+        ksort($versionCounts, SORT_STRING);
+        sort($rootCustomAttributeNames, SORT_STRING);
+        ksort($byteExposurePolicyCounts, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'versionedCount' => array_sum($versionCounts),
+            'missingVersionCount' => count($missingVersionParts),
+            'missingVersionParts' => $missingVersionParts,
+            'versionMismatchCount' => count($versionMismatches),
+            'versionMismatches' => $versionMismatches,
+            'manifestVersion' => $this->manifestVersion,
+            'versionCounts' => $versionCounts,
+            'rootCustomAttributePartCount' => count($rootCustomAttributeItems),
+            'rootCustomAttributeCount' => $rootCustomAttributeCount,
+            'rootCustomAttributeNames' => $rootCustomAttributeNames,
+            'rootCustomAttributeItems' => $rootCustomAttributeItems,
+            'manifestPartReferenceSuffixCount' => count($manifestPartReferenceSuffixItems),
+            'manifestPartReferenceQueryCount' => count(array_filter(
+                $manifestPartReferenceSuffixItems,
+                static fn (array $item): bool => is_string($item['manifestPathQuery'] ?? null)
+            )),
+            'manifestPartReferenceFragmentCount' => count(array_filter(
+                $manifestPartReferenceSuffixItems,
+                static fn (array $item): bool => is_string($item['manifestPathFragment'] ?? null)
+            )),
+            'manifestUriEncodedPackageReferenceCount' => count(array_filter(
+                $manifestPartReferenceSuffixItems,
+                static fn (array $item): bool => ($item['manifestUriEncodedPackageReference'] ?? false) === true
+            )),
+            'manifestPartReferenceSuffixItems' => $manifestPartReferenceSuffixItems,
+            'byteExposurePolicyCounts' => $byteExposurePolicyCounts,
+            'items' => $items,
+        ];
     }
 
     /**
@@ -8249,6 +8449,30 @@ final class OpenDocumentPackage
 
     /**
      * @return array{
+     *     attributeCount:int,
+     *     attributeNames:list<string>,
+     *     attributes:list<array<string, mixed>>,
+     *     customAttributeCount:int,
+     *     customAttributeNames:list<string>,
+     *     customAttributes:list<array<string, mixed>>,
+     *     customAttributeMap:array<string, string>,
+     *     namespaceDeclarationCount:int,
+     *     namespaceDeclarationNames:list<string>,
+     *     namespaceDeclarations:list<array<string, mixed>>,
+     *     namespaceDeclarationMap:array<string, string>
+     * }
+     */
+    private static function documentPartRootAttributeProvenance(\DOMElement $element): array
+    {
+        return self::manifestElementAttributeProvenance(
+            $element,
+            self::OFFICE_DOCUMENT_ROOT_STRUCTURAL_ATTRIBUTES,
+            self::OFFICE_NAMESPACE
+        );
+    }
+
+    /**
+     * @return array{
      *     childElementCount:int,
      *     childElementNames:list<string>,
      *     childElements:list<array<string, mixed>>,
@@ -8323,7 +8547,11 @@ final class OpenDocumentPackage
      *     namespaceDeclarationMap:array<string, string>
      * }
      */
-    private static function manifestElementAttributeProvenance(\DOMElement $element, array $structuralAttributes): array
+    private static function manifestElementAttributeProvenance(
+        \DOMElement $element,
+        array $structuralAttributes,
+        string $structuralNamespace = self::MANIFEST_NAMESPACE
+    ): array
     {
         $attributes = [];
         $customAttributes = [];
@@ -8370,7 +8598,7 @@ final class OpenDocumentPackage
                 $name = $attribute->prefix !== ''
                     ? $attribute->prefix . ':' . $attribute->localName
                     : $attribute->name;
-                $structural = $attribute->namespaceURI === self::MANIFEST_NAMESPACE
+                $structural = $attribute->namespaceURI === $structuralNamespace
                     && isset($structuralAttributes[$attribute->localName]);
                 $record = [
                     'name' => $name,
@@ -8412,6 +8640,38 @@ final class OpenDocumentPackage
             'namespaceDeclarationNames' => array_keys($namespaceDeclarations),
             'namespaceDeclarations' => array_values($namespaceDeclarations),
             'namespaceDeclarationMap' => $namespaceDeclarationMap,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     attributeCount:int,
+     *     attributeNames:list<string>,
+     *     attributes:list<array<string, mixed>>,
+     *     customAttributeCount:int,
+     *     customAttributeNames:list<string>,
+     *     customAttributes:list<array<string, mixed>>,
+     *     customAttributeMap:array<string, string>,
+     *     namespaceDeclarationCount:int,
+     *     namespaceDeclarationNames:list<string>,
+     *     namespaceDeclarations:list<array<string, mixed>>,
+     *     namespaceDeclarationMap:array<string, string>
+     * }
+     */
+    private static function emptyAttributeProvenance(): array
+    {
+        return [
+            'attributeCount' => 0,
+            'attributeNames' => [],
+            'attributes' => [],
+            'customAttributeCount' => 0,
+            'customAttributeNames' => [],
+            'customAttributes' => [],
+            'customAttributeMap' => [],
+            'namespaceDeclarationCount' => 0,
+            'namespaceDeclarationNames' => [],
+            'namespaceDeclarations' => [],
+            'namespaceDeclarationMap' => [],
         ];
     }
 

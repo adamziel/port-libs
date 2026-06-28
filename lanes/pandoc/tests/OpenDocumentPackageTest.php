@@ -4548,6 +4548,120 @@ XML;
         $t->same(['apparently-text'], $identityTextAttribute['internalAttributeNames']);
         $t->same(['internal-text-attribute'], $identityTextAttribute['platformAttributeIssues']);
     },
+    'summarizes compact ODT XML document part versions for package review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifestWithSettings = str_replace(
+            '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml"/>',
+            '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml?rev=7"/>',
+            $manifestXml
+        );
+        $manifestWithSettings = str_replace(
+            '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="meta.xml"/>',
+            '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="meta.xml"/>'
+            . '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="settings.xml"/>',
+            $manifestWithSettings
+        );
+        $contentWithVersion = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  office:version="1.3">
+  <office:body><office:text><text:p>Versioned compact packet.</text:p></office:text></office:body>
+</office:document-content>
+XML;
+        $stylesWithVersionMismatch = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:wp="urn:wordpress:review"
+  office:version="1.2"
+  wp:origin="style-review">
+  <office:styles>
+    <style:style style:name="BodyText" style:family="paragraph"/>
+  </office:styles>
+</office:document-styles>
+XML;
+        $metaWithoutVersion = <<<'XML'
+<office:document-meta
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0">
+  <office:meta/>
+</office:document-meta>
+XML;
+        $settingsWithVersionMismatch = <<<'XML'
+<office:document-settings
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  office:version="1.4">
+  <office:settings/>
+</office:document-settings>
+XML;
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifestWithSettings,
+            content: $contentWithVersion,
+            styles: $stylesWithVersionMismatch,
+            meta: $metaWithoutVersion,
+            extraParts: [['name' => 'settings.xml', 'data' => $settingsWithVersionMismatch, 'compressionMethod' => 0]]
+        ))->summarize();
+        $report = $summary['documentPartVersions'];
+        $versionsByPart = [];
+        foreach ($report['items'] as $item) {
+            $versionsByPart[$item['part']] = $item;
+        }
+
+        $t->same('1.3', $report['manifestVersion']);
+        $t->same(4, $report['count']);
+        $t->same(3, $report['versionedCount']);
+        $t->same(1, $report['missingVersionCount']);
+        $t->same(['meta.xml'], $report['missingVersionParts']);
+        $t->same(2, $report['versionMismatchCount']);
+        $t->same([
+            ['part' => 'styles.xml', 'officeVersion' => '1.2', 'manifestVersion' => '1.3'],
+            ['part' => 'settings.xml', 'officeVersion' => '1.4', 'manifestVersion' => '1.3'],
+        ], $report['versionMismatches']);
+        $t->same(['1.2' => 1, '1.3' => 1, '1.4' => 1], $report['versionCounts']);
+        $t->same(['package-bytes-exposable' => 4], $report['byteExposurePolicyCounts']);
+
+        $t->same(1, $report['manifestPartReferenceSuffixCount']);
+        $t->same(1, $report['manifestPartReferenceQueryCount']);
+        $t->same(0, $report['manifestPartReferenceFragmentCount']);
+        $t->same(0, $report['manifestUriEncodedPackageReferenceCount']);
+        $t->same('content.xml?rev=7', $report['manifestPartReferenceSuffixItems'][0]['manifestFullPath']);
+        $t->same('content.xml', $report['manifestPartReferenceSuffixItems'][0]['manifestPathReference']);
+        $t->same('rev=7', $report['manifestPartReferenceSuffixItems'][0]['manifestPathQuery']);
+
+        $content = $versionsByPart['content.xml'];
+        $t->same('document-content', $content['rootName']);
+        $t->same(true, $content['validRoot']);
+        $t->same('1.3', $content['officeVersion']);
+        $t->same('content.xml?rev=7', $content['manifestFullPath']);
+        $t->same('content.xml', $content['manifestPackagePath']);
+        $t->same('rev=7', $content['manifestPathQuery']);
+        $t->same(['office:version'], $content['rootAttributeNames']);
+        $t->same(0, $content['rootCustomAttributeCount']);
+        $t->same([], $content['diagnostics']);
+
+        $styles = $versionsByPart['styles.xml'];
+        $t->same('1.2', $styles['officeVersion']);
+        $t->same(['office:version', 'wp:origin'], $styles['rootAttributeNames']);
+        $t->same(1, $styles['rootCustomAttributeCount']);
+        $t->same(['wp:origin'], $styles['rootCustomAttributeNames']);
+        $t->same('style-review', $styles['rootCustomAttributeMap']['wp:origin']);
+        $t->same(['odf-xml-part-version-mismatch'], $styles['diagnostics']);
+
+        $t->same(1, $report['rootCustomAttributePartCount']);
+        $t->same(1, $report['rootCustomAttributeCount']);
+        $t->same(['wp:origin'], $report['rootCustomAttributeNames']);
+        $t->same('styles.xml', $report['rootCustomAttributeItems'][0]['part']);
+
+        $meta = $versionsByPart['meta.xml'];
+        $t->same(null, $meta['officeVersion']);
+        $t->same(['odf-xml-part-missing-office-version'], $meta['diagnostics']);
+
+        $settings = $versionsByPart['settings.xml'];
+        $t->same('1.4', $settings['officeVersion']);
+        $t->same('settings.xml', $settings['manifestFullPath']);
+        $t->same(sprintf('%08x', crc32($settingsWithVersionMismatch)), $settings['crc32']);
+        $t->same(['odf-xml-part-version-mismatch'], $settings['diagnostics']);
+    },
     'renders mapped ODT content through the WordPress block writer' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $document = OpenDocumentPackage::fromPackage($buildOdtPackage())->readContentDocument();
         $blocks = (new WordPressBlockWriter())->write($document);
