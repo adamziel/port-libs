@@ -471,6 +471,19 @@ CSS
             $t->same($expected, $minifier->minify($input));
         }
     },
+    'css minifier maps upstream vertical-align value minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_vertical_align lines 6672-6673.
+        $cases = [
+            [6672, '.foo { vertical-align: middle }', '.foo{vertical-align:middle}'],
+            [6673, '.foo { vertical-align: 0.3em }', '.foo{vertical-align:.3em}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_vertical_align line ' . $line);
+        }
+    },
     'css minifier maps upstream border spacing value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
