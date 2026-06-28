@@ -703,7 +703,7 @@ CSS,
                 }
             );
 
-            $t->same('.baz{color:#00f}.bar{color:green}.foo{color:red}', $code);
+            $t->same('.baz{color:#00f}.bar{color:green}.foo{color:red}', $code, 'upstream node/test/bundle.test.mjs line 128');
             $t->same([
                 ['root:hello/world.css', $root . '/tests/testdata/foo.css'],
                 ['root:baz.css', $root . '/tests/testdata/hello/world.css'],

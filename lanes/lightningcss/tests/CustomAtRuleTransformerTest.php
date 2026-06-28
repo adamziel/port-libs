@@ -162,7 +162,8 @@ CSS;
 
         $t->same(
             '@test{.foo{background:#000}}',
-            (new CustomAtRuleTransformer())->transform($css, $customDefinitions)
+            (new CustomAtRuleTransformer())->transform($css, $customDefinitions),
+            'upstream node/test/customAtRules.mjs line 209'
         );
     },
     'custom at-rules map upstream generic custom visitor across nested rules' => static function (TestRunner $t) use ($customDefinitions): void {
@@ -6043,28 +6044,35 @@ CSS;
         ], $seen);
     },
     'custom at-rules reject upstream visitor returned invalid dashed var names' => static function (TestRunner $t): void {
-        $t->throws(InvalidArgumentException::class, static fn () => (new CustomAtRuleTransformer())->transform('.foo { background: opacity(abcdef); }', [], [
-            'Function' => static function (array $arguments, string $raw, string $name): ?array {
-                if (($arguments[0] ?? null) !== 'abcdef') {
-                    return null;
-                }
+        $exception = null;
+        try {
+            (new CustomAtRuleTransformer())->transform('.foo { background: opacity(abcdef); }', [], [
+                'Function' => static function (array $arguments, string $raw, string $name): ?array {
+                    if (($arguments[0] ?? null) !== 'abcdef') {
+                        return null;
+                    }
 
-                return [
-                    'type' => 'function',
-                    'value' => [
-                        'name' => $name,
-                        'arguments' => [[
-                            'type' => 'var',
-                            'value' => [
-                                'name' => [
-                                    'ident' => $arguments[0],
+                    return [
+                        'type' => 'function',
+                        'value' => [
+                            'name' => $name,
+                            'arguments' => [[
+                                'type' => 'var',
+                                'value' => [
+                                    'name' => [
+                                        'ident' => $arguments[0],
+                                    ],
                                 ],
-                            ],
-                        ]],
-                    ],
-                ];
-            },
-        ]));
+                            ]],
+                        ],
+                    ];
+                },
+            ]);
+        } catch (InvalidArgumentException $caught) {
+            $exception = $caught;
+        }
+
+        $t->same('Dashed idents must start with --', $exception?->getMessage(), 'upstream node/test/visitor.test.mjs line 965');
     },
     'custom at-rules apply upstream identifier visitors after parser replacements' => static function (TestRunner $t): void {
         $visitor = CustomAtRuleTransformer::composeVisitors([
