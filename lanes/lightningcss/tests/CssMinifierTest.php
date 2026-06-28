@@ -2100,13 +2100,15 @@ CSS
             '@position-try --outside-right-to-bottom{left:anchor(left);margin:0;width:auto}',
             $minifier->minify(
                 '@position-try --outside-right-to-bottom { left: anchor(left); margin: 0; width: auto; }'
-            )
+            ),
+            'upstream src/lib.rs::test_position_try line 14824'
         );
         $t->same(
             '@supports (anchor-name:--foo){@position-try --bar{top:anchor(bottom)}}',
             $minifier->minify(
                 '@supports (anchor-name: --foo) { @position-try --bar { top: anchor(bottom); } }'
-            )
+            ),
+            'upstream src/lib.rs::test_position_try line 14845'
         );
         $t->same(
             '.wp-block-popover{position-try-fallbacks:--wp-popover-below,--wp-popover-above flip-block;position-anchor:--wp-toolbar}@supports (anchor-name:--wp-toolbar){@position-try --wp-popover-above{bottom:anchor(top);margin:0}}',
