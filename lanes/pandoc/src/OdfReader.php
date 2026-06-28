@@ -16945,7 +16945,7 @@ final class OdfReader
 
         foreach ($undeclaredEntries as $entry) {
             $part = $entry['part'] ?? null;
-            if (!is_string($part) || $part === '' || !$this->isLinkedResourcePackagePartName($part)) {
+            if (!is_string($part) || $part === '' || str_ends_with($part, '/') || !$this->isLinkedResourcePackagePartName($part)) {
                 continue;
             }
 
@@ -16980,17 +16980,21 @@ final class OdfReader
         $kindCounts = [];
         foreach ($candidatesByPart as $part => $item) {
             $entry = $package->has($part) ? $package->entry($part) : null;
+            $isDirectory = str_ends_with($part, '/');
+            $exists = $isDirectory || $entry instanceof ZipPackageEntry;
             $encrypted = ($item['encrypted'] ?? false) === true;
             $declared = ($item['declared'] ?? false) === true;
             $mediaType = is_string($item['mediaType'] ?? null) && (string) $item['mediaType'] !== ''
                 ? (string) $item['mediaType']
                 : $this->linkedResourceMediaTypeFromPart($part);
             $mediaTypeReport = self::mediaTypeReport($mediaType ?? '');
-            $missingMediaType = ($mediaType ?? '') === '';
-            $mediaTypeValid = !$missingMediaType && $this->isLinkedResourceMediaType((string) $mediaType);
+            $missingMediaType = ($mediaType ?? '') === '' && !$isDirectory;
+            $mediaTypeValid = $isDirectory
+                ? $mediaTypeReport['mediaTypeBase'] === ''
+                : (!$missingMediaType && $this->isLinkedResourceMediaType((string) $mediaType));
             $kind = $this->linkedResourcePackagePartKind($part, (string) $mediaType);
             $issues = [];
-            if (!$entry instanceof ZipPackageEntry) {
+            if (!$exists) {
                 $issues[] = 'odf-linked-resource-package-missing-part';
             }
             if (!$declared) {
@@ -17016,7 +17020,7 @@ final class OdfReader
                 'partSuffix' => $item['partSuffix'] ?? null,
                 'partQuery' => $item['partQuery'] ?? null,
                 'partFragment' => $item['partFragment'] ?? null,
-                'mediaType' => $mediaType,
+                'mediaType' => ($mediaType ?? '') === '' ? null : $mediaType,
                 'mediaTypeBase' => $mediaTypeReport['mediaTypeBase'],
                 'mediaTypeHasParameters' => $mediaTypeReport['mediaTypeHasParameters'],
                 'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
@@ -17024,23 +17028,24 @@ final class OdfReader
                 'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
                 'kind' => $kind,
                 'packageRoot' => 'Links',
-                'exists' => $entry instanceof ZipPackageEntry,
+                'isDirectory' => $isDirectory,
+                'exists' => $exists,
                 'declared' => $declared,
                 'undeclared' => !$declared,
                 'encrypted' => $encrypted,
-                'valid' => $entry instanceof ZipPackageEntry && !$encrypted && $mediaTypeValid,
-                'byteLength' => !$encrypted && $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+                'valid' => $exists && !$encrypted && $mediaTypeValid,
+                'byteLength' => !$isDirectory && !$encrypted && $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
                 'compressedByteLength' => $entry instanceof ZipPackageEntry ? $entry->compressedSize : null,
                 'compressionMethod' => $entry instanceof ZipPackageEntry ? $entry->compressionMethod : null,
                 'compressionMethodName' => $entry instanceof ZipPackageEntry ? self::compressionMethodName($entry->compressionMethod) : null,
-                'crc32' => !$encrypted && $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+                'crc32' => !$isDirectory && !$encrypted && $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
                 'storedByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
                 'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
                 'declaredSize' => $item['declaredSize'] ?? null,
                 'declaredSizeMismatch' => ($item['declaredSizeMismatch'] ?? false) === true,
                 'canExposeBytes' => false,
                 'canExposeAsDocumentMedia' => false,
-                'byteExposurePolicy' => $item['byteExposurePolicy'] ?? 'linked-resource-package-bytes-blocked',
+                'byteExposurePolicy' => $item['byteExposurePolicy'] ?? ($isDirectory ? 'directory-entry-no-bytes' : 'linked-resource-package-bytes-blocked'),
                 'reviewPolicy' => 'linked-resource-package-metadata-only',
                 'encryption' => $item['encryption'] ?? null,
                 'issues' => $issues,
@@ -17059,6 +17064,7 @@ final class OdfReader
             'declaredCount' => count(array_filter($items, static fn (array $item): bool => $item['declared'] === true)),
             'undeclaredCount' => count(array_filter($items, static fn (array $item): bool => $item['undeclared'] === true)),
             'missingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] !== true)),
+            'directoryCount' => count(array_filter($items, static fn (array $item): bool => $item['isDirectory'] === true)),
             'encryptedCount' => count(array_filter($items, static fn (array $item): bool => $item['encrypted'] === true)),
             'missingMediaTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('odf-linked-resource-package-missing-media-type', $item['issues'], true))),
             'invalidMediaTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('odf-linked-resource-package-invalid-media-type', $item['issues'], true))),
@@ -17542,15 +17548,16 @@ final class OdfReader
     private function isLinkedResourcePackagePartName(string $part): bool
     {
         $normalized = strtolower(ltrim($part, '/'));
-        if (str_ends_with($normalized, '/')) {
-            return false;
-        }
 
         return str_starts_with($normalized, 'links/');
     }
 
     private function linkedResourceMediaTypeFromPart(string $part): ?string
     {
+        if (str_ends_with($part, '/')) {
+            return '';
+        }
+
         $extension = strtolower(pathinfo($part, PATHINFO_EXTENSION));
 
         return match ($extension) {
@@ -17579,6 +17586,10 @@ final class OdfReader
 
     private function linkedResourcePackagePartKind(string $part, string $mediaType): string
     {
+        if (str_ends_with($part, '/')) {
+            return 'linked-resource-directory';
+        }
+
         $basename = strtolower(basename($part));
         if (in_array($basename, ['manifest.xml', 'links.xml', 'settings.xml'], true)) {
             return 'linked-resource-manifest';
