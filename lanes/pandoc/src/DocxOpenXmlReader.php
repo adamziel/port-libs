@@ -20427,6 +20427,8 @@ final class DocxOpenXmlReader
         $xmlElementAttributeElementPathCounts = [];
         $xmlElementAttributeElementPaths = [];
         $xmlElementAttributeElementNameCounts = [];
+        $xmlElementAttributeValueShapeCounts = [];
+        $xmlElementAttributeValueShapes = [];
         $xmlElementAttributes = [];
         $validCount = 0;
         $invalidCount = 0;
@@ -22091,6 +22093,14 @@ final class DocxOpenXmlReader
                 $xmlElementAttributeElementNameCounts[$elementName] =
                     ($xmlElementAttributeElementNameCounts[$elementName] ?? 0) + (int) $count;
             }
+            foreach (($part['xmlElementAttributeValueShapeCounts'] ?? []) as $valueShape => $count) {
+                if (!is_string($valueShape) || $valueShape === '') {
+                    continue;
+                }
+                $xmlElementAttributeValueShapeCounts[$valueShape] =
+                    ($xmlElementAttributeValueShapeCounts[$valueShape] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlElementAttributeValueShapes, $valueShape);
+            }
             foreach (($part['xmlElementAttributes'] ?? []) as $attribute) {
                 if (!is_array($attribute)) {
                     continue;
@@ -22127,6 +22137,7 @@ final class DocxOpenXmlReader
                     'namespace' => is_string($attribute['namespace'] ?? null) ? $attribute['namespace'] : null,
                     'localName' => is_string($attribute['localName'] ?? null) ? $attribute['localName'] : '',
                     'valueByteLength' => (int) ($attribute['valueByteLength'] ?? 0),
+                    'valueShape' => is_string($attribute['valueShape'] ?? null) ? $attribute['valueShape'] : 'unknown',
                     'isValueEmpty' => (bool) ($attribute['isValueEmpty'] ?? false),
                     'isValueWhitespaceOnly' => (bool) ($attribute['isValueWhitespaceOnly'] ?? false),
                     'valueLeadingWhitespaceByteLength' => (int) ($attribute['valueLeadingWhitespaceByteLength'] ?? 0),
@@ -22136,6 +22147,9 @@ final class DocxOpenXmlReader
                     'valueLineBreakCount' => (int) ($attribute['valueLineBreakCount'] ?? 0),
                     'hasValueLineBreak' => (bool) ($attribute['hasValueLineBreak'] ?? false),
                     'valueTokenCount' => (int) ($attribute['valueTokenCount'] ?? 0),
+                    'valueContainsWhitespace' => (bool) ($attribute['valueContainsWhitespace'] ?? false),
+                    'valueHasLeadingWhitespace' => (bool) ($attribute['valueHasLeadingWhitespace'] ?? false),
+                    'valueHasTrailingWhitespace' => (bool) ($attribute['valueHasTrailingWhitespace'] ?? false),
                     'valueCrc32' => is_string($attribute['valueCrc32'] ?? null) ? $attribute['valueCrc32'] : null,
                     'valueSha256' => is_string($attribute['valueSha256'] ?? null) ? $attribute['valueSha256'] : null,
                 ];
@@ -22585,6 +22599,10 @@ final class DocxOpenXmlReader
                 'xmlElementAttributeElementNameCounts' => is_array($part['xmlElementAttributeElementNameCounts'] ?? null)
                     ? $part['xmlElementAttributeElementNameCounts']
                     : [],
+                'xmlElementAttributeValueShapeCounts' => is_array($part['xmlElementAttributeValueShapeCounts'] ?? null)
+                    ? $part['xmlElementAttributeValueShapeCounts']
+                    : [],
+                'xmlElementAttributeValueShapes' => array_values(array_map('strval', $part['xmlElementAttributeValueShapes'] ?? [])),
                 'xmlElementAttributes' => is_array($part['xmlElementAttributes'] ?? null)
                     ? $part['xmlElementAttributes']
                     : [],
@@ -22692,6 +22710,7 @@ final class DocxOpenXmlReader
         ksort($xmlElementAttributePrefixCounts, SORT_STRING);
         ksort($xmlElementAttributeElementPathCounts, SORT_STRING);
         ksort($xmlElementAttributeElementNameCounts, SORT_STRING);
+        ksort($xmlElementAttributeValueShapeCounts, SORT_STRING);
         sort($xmlProcessingInstructionTargets, SORT_STRING);
         sort($xmlProcessingInstructionDataAttributeNames, SORT_STRING);
         sort($invalidPartNames, SORT_STRING);
@@ -22735,6 +22754,7 @@ final class DocxOpenXmlReader
         sort($xmlElementAttributeNamespaces, SORT_STRING);
         sort($xmlElementAttributePrefixes, SORT_STRING);
         sort($xmlElementAttributeElementPaths, SORT_STRING);
+        sort($xmlElementAttributeValueShapes, SORT_STRING);
         usort(
             $xmlDoctypes,
             static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName']),
@@ -23104,6 +23124,8 @@ final class DocxOpenXmlReader
             'xmlElementAttributeElementPathCounts' => $xmlElementAttributeElementPathCounts,
             'xmlElementAttributeElementPaths' => $xmlElementAttributeElementPaths,
             'xmlElementAttributeElementNameCounts' => $xmlElementAttributeElementNameCounts,
+            'xmlElementAttributeValueShapeCounts' => $xmlElementAttributeValueShapeCounts,
+            'xmlElementAttributeValueShapes' => $xmlElementAttributeValueShapes,
             'xmlElementAttributeValueByteLength' => $xmlElementAttributeValueByteLength,
             'xmlElementAttributeEmptyValueCount' => $xmlElementAttributeEmptyValueCount,
             'xmlElementAttributeWhitespaceOnlyValueCount' => $xmlElementAttributeWhitespaceOnlyValueCount,
