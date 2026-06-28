@@ -855,6 +855,95 @@ return [
         $t->same(true, $inventory['word/media/CON']['zipEntryPresent']);
         $t->same('missing', $inventory['word/media/CON']['contentTypeSource']);
     },
+    'preserves docx array package part name normalization provenance for review handoff' => static function (TestRunner $t): void {
+        $fixtureParts = docx_openxml_reader_fixture_parts();
+        $parts = [];
+        foreach ($fixtureParts as $name => $data) {
+            if ($name === 'word/document.xml') {
+                $parts['/word/./document.xml'] = $data;
+                continue;
+            }
+            if ($name === 'word/media/review.png') {
+                $parts['word\\media\\review.png'] = $data;
+                continue;
+            }
+
+            $parts[$name] = $data;
+        }
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/customXml/item.xml" ContentType="application/xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['customXml/item.xml'] = '<first/>';
+        $parts['/customXml/./item.xml'] = '<second/>';
+        $parts['folder/../'] = 'discarded path bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $normalization = $package['partNameNormalization'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $collision = $normalization['collisionGroups'][0];
+        $changedByRawName = [];
+        foreach ($normalization['changedEntries'] as $entry) {
+            $changedByRawName[$entry['rawPartName']] = $entry;
+        }
+
+        $t->same('Imported DOCX Heading', $document->children[0]->attr('text'));
+        $t->same(count($fixtureParts) + 3, $normalization['inputPartCount']);
+        $t->same(count($fixtureParts) + 1, $normalization['normalizedPartCount']);
+        $t->same(4, $normalization['changedEntryCount']);
+        $t->same(1, $normalization['discardedEntryCount']);
+        $t->same(1, $normalization['collisionGroupCount']);
+        $t->same(2, $normalization['collisionEntryCount']);
+        $t->same(5, $normalization['reviewEntryCount']);
+        $t->same(false, $normalization['valid']);
+        $t->same([
+            'backslash',
+            'discarded-empty-normalized-name',
+            'dot-segment',
+            'leading-slash',
+            'normalized-differs',
+            'normalized-name-collision',
+            'parent-traversal-segment',
+            'trailing-slash',
+        ], $normalization['issueCodes']);
+
+        $t->same('customXml/item.xml', $collision['normalizedPartName']);
+        $t->same(['customXml/item.xml', '/customXml/./item.xml'], $collision['rawPartNames']);
+        $t->same('/customXml/./item.xml', $collision['selectedRawPartName']);
+        $t->same(strlen('<second/>'), $collision['selectedBytes']);
+
+        $t->same('word/document.xml', $changedByRawName['/word/./document.xml']['normalizedPartName']);
+        $t->same(['dot-segment', 'leading-slash', 'normalized-differs'], $changedByRawName['/word/./document.xml']['issues']);
+        $t->same('word/media/review.png', $changedByRawName['word\\media\\review.png']['normalizedPartName']);
+        $t->same(['backslash', 'normalized-differs'], $changedByRawName['word\\media\\review.png']['issues']);
+        $t->same(null, $changedByRawName['folder/../']['normalizedPartName']);
+        $t->same(true, $changedByRawName['folder/../']['discarded']);
+        $t->same([
+            'discarded-empty-normalized-name',
+            'normalized-differs',
+            'parent-traversal-segment',
+            'trailing-slash',
+        ], $changedByRawName['folder/../']['issues']);
+
+        $t->same(strlen('<second/>'), $inventory['customXml/item.xml']['bytes']);
+        $t->same(hash('sha256', '<second/>'), $inventory['customXml/item.xml']['sha256']);
+        $t->same('application/xml', $inventory['customXml/item.xml']['contentTypeBase']);
+        $t->same('image/png', $inventory['word/media/review.png']['contentTypeBase']);
+        $t->true(!isset($inventory['folder/../']), 'discarded raw package path should not survive in normalized inventory');
+
+        $t->same($normalization['inputPartCount'], $summary['partNameNormalizationInputPartCount']);
+        $t->same($normalization['normalizedPartCount'], $summary['partNameNormalizationNormalizedPartCount']);
+        $t->same(4, $summary['partNameNormalizationChangedEntryCount']);
+        $t->same(1, $summary['partNameNormalizationDiscardedEntryCount']);
+        $t->same(1, $summary['partNameNormalizationCollisionGroupCount']);
+        $t->same(2, $summary['partNameNormalizationCollisionEntryCount']);
+        $t->same(5, $summary['partNameNormalizationReviewEntryCount']);
+        $t->same($normalization['issueCodes'], $summary['partNameNormalizationIssueCodes']);
+    },
     'preserves docx package inventory CRC32 provenance for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['customXml/raw-review.bin'] = 'raw custom payload bytes';
@@ -1126,7 +1215,7 @@ return [
         );
         $parts['customXml/root-review.xml'] = <<<'XML'
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<pkg:packet xmlns:pkg="urn:example:package-root" xmlns:meta="urn:example:package-meta" review="ready">
+<pkg:packet xmlns:pkg="urn:example:package-root" xmlns:meta="urn:example:package-meta" review="ready" meta:scope="package" xml:lang="en">
   <meta:title>Package root review</meta:title>
 </pkg:packet>
 XML;
@@ -1179,6 +1268,31 @@ XML;
             'packet' => 1,
             'styles' => 1,
         ], $summary['partXmlRootLocalNameCounts']);
+        $t->same(3, $summary['partXmlRootAttributeCount']);
+        $t->same(1, $summary['partXmlRootAttributePartCount']);
+        $t->same(3, $summary['partXmlRootAttributeNameCount']);
+        $t->same([
+            'meta:scope' => 1,
+            'review' => 1,
+            'xml:lang' => 1,
+        ], $summary['partXmlRootAttributeNameCounts']);
+        $t->same(['meta:scope', 'review', 'xml:lang'], $summary['partXmlRootAttributeNames']);
+        $t->same(strlen('package') + strlen('ready') + strlen('en'), $summary['partXmlRootAttributeValueByteLength']);
+        $t->same(['customXml/root-review.xml'], $summary['partXmlRootAttributePartNames']);
+        $t->same(3, $summary['partXmlRootAttributeNamespaceCount']);
+        $t->same([
+            '(none)' => 1,
+            'http://www.w3.org/XML/1998/namespace' => 1,
+            'urn:example:package-meta' => 1,
+        ], $summary['partXmlRootAttributeNamespaceCounts']);
+        $t->same(['http://www.w3.org/XML/1998/namespace', 'urn:example:package-meta'], $summary['partXmlRootAttributeNamespaces']);
+        $t->same(3, $summary['partXmlRootAttributePrefixCount']);
+        $t->same([
+            '(none)' => 1,
+            'meta' => 1,
+            'xml' => 1,
+        ], $summary['partXmlRootAttributePrefixCounts']);
+        $t->same(['meta', 'xml'], $summary['partXmlRootAttributePrefixes']);
 
         $contentTypes = $byPartName['[Content_Types].xml'];
         $t->same(true, $contentTypes['validXml']);
@@ -1207,7 +1321,14 @@ XML;
         $t->same('packet', $custom['rootLocalName']);
         $t->same('pkg:packet', $custom['rootQualifiedName']);
         $t->same('pkg', $custom['rootPrefix']);
-        $t->same(1, $custom['rootAttributeCount']);
+        $t->same(3, $custom['rootAttributeCount']);
+        $t->same(['meta:scope', 'review', 'xml:lang'], $custom['rootAttributeNames']);
+        $t->same([
+            'meta:scope' => 1,
+            'review' => 1,
+            'xml:lang' => 1,
+        ], $custom['rootAttributeNameCounts']);
+        $t->same(strlen('package') + strlen('ready') + strlen('en'), $custom['rootAttributeValueByteLength']);
         $t->same(2, $custom['rootNamespaceDeclarationCount']);
         $t->same(['pkg', 'meta'], $custom['rootNamespacePrefixes']);
         $t->same(true, $custom['xmlDeclarationPresent']);
@@ -1217,7 +1338,29 @@ XML;
         $t->same(3, $custom['xmlDeclarationAttributeCount']);
         $t->same(hash('sha256', $parts['customXml/root-review.xml']), $inventory['customXml/root-review.xml']['sha256']);
         $t->same('pkg:packet', $inventory['customXml/root-review.xml']['rootQualifiedName']);
+        $t->same(['meta:scope', 'review', 'xml:lang'], $inventory['customXml/root-review.xml']['rootAttributeNames']);
+        $t->same(strlen('package') + strlen('ready') + strlen('en'), $inventory['customXml/root-review.xml']['rootAttributeValueByteLength']);
         $t->same(false, $inventory['customXml/root-review.xml']['xmlDeclarationStandalone']);
+
+        $attributesByName = [];
+        foreach ($summary['partXmlRootAttributes'] as $attribute) {
+            $attributesByName[$attribute['name']] = $attribute;
+        }
+        $t->same('customXml/root-review.xml', $attributesByName['review']['partName']);
+        $t->same(null, $attributesByName['review']['prefix']);
+        $t->same(null, $attributesByName['review']['namespace']);
+        $t->same('review', $attributesByName['review']['localName']);
+        $t->same(strlen('ready'), $attributesByName['review']['valueByteLength']);
+        $t->same(sprintf('%08x', crc32('ready')), $attributesByName['review']['valueCrc32']);
+        $t->same(hash('sha256', 'ready'), $attributesByName['review']['valueSha256']);
+        $t->same('meta', $attributesByName['meta:scope']['prefix']);
+        $t->same('urn:example:package-meta', $attributesByName['meta:scope']['namespace']);
+        $t->same('scope', $attributesByName['meta:scope']['localName']);
+        $t->same(strlen('package'), $attributesByName['meta:scope']['valueByteLength']);
+        $t->same('xml', $attributesByName['xml:lang']['prefix']);
+        $t->same('http://www.w3.org/XML/1998/namespace', $attributesByName['xml:lang']['namespace']);
+        $t->same('lang', $attributesByName['xml:lang']['localName']);
+        $t->same(strlen('en'), $attributesByName['xml:lang']['valueByteLength']);
 
         $broken = $byPartName['customXml/broken-root.xml'];
         $t->same(false, $broken['validXml']);
@@ -1231,6 +1374,57 @@ XML;
         $t->same(null, $inventory['customXml/raw.bin']['validXml']);
         $t->same(false, $inventory['customXml/raw.bin']['xmlDeclarationPresent']);
         $t->true(!isset($byPartName['customXml/raw.bin']), 'non-XML binary part must not appear in XML root summary');
+    },
+    'summarizes docx package part root attribute namespace buckets for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/customXml/root-attribute-policy.xml" ContentType="application/xml; profile=root-attribute-policy"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['customXml/root-attribute-policy.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:example:package-review" xmlns:meta="urn:example:package-meta" review:state="ready" meta:scope="package" meta:origin="editorial" xml:lang="en" unqualified="yes">
+  <meta:title>Root attribute policy</meta:title>
+</review:packet>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $summary = $document->attr('docx')['packageProvenance']['summary'];
+        $attributesByName = [];
+        foreach ($summary['partXmlRootAttributes'] as $attribute) {
+            if (($attribute['partName'] ?? null) === 'customXml/root-attribute-policy.xml') {
+                $attributesByName[$attribute['name']] = $attribute;
+            }
+        }
+
+        $t->same(5, $summary['partXmlRootAttributeCount']);
+        $t->same(1, $summary['partXmlRootAttributePartCount']);
+        $t->same([
+            '(none)' => 1,
+            'http://www.w3.org/XML/1998/namespace' => 1,
+            'urn:example:package-meta' => 2,
+            'urn:example:package-review' => 1,
+        ], $summary['partXmlRootAttributeNamespaceCounts']);
+        $t->same([
+            'http://www.w3.org/XML/1998/namespace',
+            'urn:example:package-meta',
+            'urn:example:package-review',
+        ], $summary['partXmlRootAttributeNamespaces']);
+        $t->same([
+            '(none)' => 1,
+            'meta' => 2,
+            'review' => 1,
+            'xml' => 1,
+        ], $summary['partXmlRootAttributePrefixCounts']);
+        $t->same(['meta', 'review', 'xml'], $summary['partXmlRootAttributePrefixes']);
+        $t->same('urn:example:package-review', $attributesByName['review:state']['namespace']);
+        $t->same('review', $attributesByName['review:state']['prefix']);
+        $t->same('urn:example:package-meta', $attributesByName['meta:origin']['namespace']);
+        $t->same('meta', $attributesByName['meta:origin']['prefix']);
+        $t->same(null, $attributesByName['unqualified']['namespace']);
+        $t->same(null, $attributesByName['unqualified']['prefix']);
     },
     'summarizes docx package part directories for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
@@ -17246,6 +17440,53 @@ XML;
         $t->same(18, $summary['selectedXmlPartCount']);
         $t->same(1, $summary['selectedXmlPartIssueCount']);
         $t->same(['webSettings'], $summary['selectedXmlPartIssueKinds']);
+        $t->same([
+            'conventional-fallback' => 11,
+            'conventional-part' => 2,
+            'relationship' => 5,
+        ], $selected['selectionSourceCounts']);
+        $t->same([
+            '/' => 2,
+            'word/document.xml' => 3,
+        ], $selected['relationshipSourcePartCounts']);
+        $t->same([
+            '_rels/.rels' => 2,
+            'word/_rels/document.xml.rels' => 3,
+        ], $selected['relationshipsPartCounts']);
+        $t->same(3, $selected['relationshipTargetReferenceSuffixCount']);
+        $t->same(2, $selected['relationshipTargetQueryCount']);
+        $t->same(3, $selected['relationshipTargetFragmentCount']);
+        $t->same([
+            '?profile=team#settings',
+            '?profile=browser#web',
+            '#theme',
+        ], $selected['relationshipTargetReferenceSuffixes']);
+        $t->same([
+            'word/document.xml',
+            'docProps/core.xml',
+            'docSettings/review-settings.xml',
+            'word/web/missing-web-settings.xml',
+            'word/theme/review-theme.xml',
+        ], $selected['relationshipSelectedPartNames']);
+        $t->same(['override' => 6], $selected['existingContentTypeSourceCounts']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.theme+xml' => 1,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml' => 1,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml' => 1,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml' => 1,
+            'application/vnd.openxmlformats-package.core-properties+xml' => 1,
+        ], $selected['existingContentTypeBaseCounts']);
+        $t->same($selected['selectionSourceCounts'], $summary['selectedXmlPartSelectionSourceCounts']);
+        $t->same($selected['relationshipSourcePartCounts'], $summary['selectedXmlPartRelationshipSourcePartCounts']);
+        $t->same($selected['relationshipsPartCounts'], $summary['selectedXmlPartRelationshipsPartCounts']);
+        $t->same($selected['relationshipTargetReferenceSuffixCount'], $summary['selectedXmlPartRelationshipTargetReferenceSuffixCount']);
+        $t->same($selected['relationshipTargetQueryCount'], $summary['selectedXmlPartRelationshipTargetQueryCount']);
+        $t->same($selected['relationshipTargetFragmentCount'], $summary['selectedXmlPartRelationshipTargetFragmentCount']);
+        $t->same($selected['relationshipTargetReferenceSuffixes'], $summary['selectedXmlPartRelationshipTargetReferenceSuffixes']);
+        $t->same($selected['relationshipSelectedPartNames'], $summary['selectedXmlPartRelationshipSelectedPartNames']);
+        $t->same($selected['existingContentTypeSourceCounts'], $summary['selectedXmlPartExistingContentTypeSourceCounts']);
+        $t->same($selected['existingContentTypeBaseCounts'], $summary['selectedXmlPartExistingContentTypeBaseCounts']);
 
         $t->same('relationship', $byKind['document']['selectionSource']);
         $t->same('rDoc', $byKind['document']['relationshipId']);
@@ -17460,6 +17701,347 @@ XML;
         $t->same(['default', 'pkg'], $defaultPart['rootNamespacePrefixes']);
         $t->same('urn:package-default', $defaultPart['rootNamespace']);
         $t->same('packet', $defaultPart['rootQualifiedName']);
+    },
+    'summarizes docx package xml namespace declarations without exposing text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $hiddenText = 'namespace-declaration:hidden-payload';
+        $reviewUri = 'urn:review-namespace-declaration';
+        $defaultUri = 'urn:review-namespace-default';
+        $localUri = 'urn:review-namespace-local';
+        $auditUri = 'urn:review-namespace-audit';
+        $settingsReviewUri = 'urn:settings-namespace-review';
+        $settingsLocalUri = 'urn:settings-namespace-local';
+        $wordUri = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+        $parts['customXml/namespace-declarations.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="{$reviewUri}">
+  <review:item xmlns="{$defaultUri}" xmlns:local="{$localUri}">{$hiddenText}</review:item>
+  <review:tail xmlns:audit="{$auditUri}"/>
+</review:packet>
+XML;
+        $parts['word/settings-namespace-declarations.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="{$wordUri}">
+  <w:docVars xmlns:review="{$settingsReviewUri}">
+    <w:docVar xmlns:local="{$settingsLocalUri}"/>
+  </w:docVars>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/namespace-declarations.xml'];
+        $settingsPart = $package['parts']['word/settings-namespace-declarations.xml'];
+        $declarations = array_values(array_filter(
+            $summary['partXmlNamespaceDeclarations'],
+            static fn (array $declaration): bool => in_array(
+                $declaration['partName'],
+                ['customXml/namespace-declarations.xml', 'word/settings-namespace-declarations.xml'],
+                true,
+            ),
+        ));
+        $reviewByteLength = strlen($reviewUri) + strlen($defaultUri) + strlen($localUri) + strlen($auditUri);
+        $settingsByteLength = strlen($wordUri) + strlen($settingsReviewUri) + strlen($settingsLocalUri);
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(4, $reviewPart['xmlNamespaceDeclarationCount']);
+        $t->same(1, $reviewPart['xmlNamespaceDeclarationDefaultCount']);
+        $t->same(3, $reviewPart['xmlNamespaceDeclarationPrefixedCount']);
+        $t->same($reviewByteLength, $reviewPart['xmlNamespaceDeclarationByteLength']);
+        $t->same(['audit' => 1, 'default' => 1, 'local' => 1, 'review' => 1], $reviewPart['xmlNamespaceDeclarationPrefixCounts']);
+        $t->same(1, $reviewPart['xmlNamespaceDeclarationUriCounts'][$reviewUri]);
+        $t->same(1, $reviewPart['xmlNamespaceDeclarationUriCounts'][$defaultUri]);
+        $t->same(1, $reviewPart['xmlNamespaceDeclarationUriCounts'][$localUri]);
+        $t->same(1, $reviewPart['xmlNamespaceDeclarationUriCounts'][$auditUri]);
+        $t->same([
+            '/review:packet' => 1,
+            '/review:packet/review:item' => 2,
+            '/review:packet/review:tail' => 1,
+        ], $reviewPart['xmlNamespaceDeclarationElementPathCounts']);
+        $t->same([
+            'review:item' => 2,
+            'review:packet' => 1,
+            'review:tail' => 1,
+        ], $reviewPart['xmlNamespaceDeclarationElementNameCounts']);
+        $t->same('review', $reviewPart['xmlNamespaceDeclarations'][0]['prefix']);
+        $t->same(false, $reviewPart['xmlNamespaceDeclarations'][0]['isDefault']);
+        $t->same($reviewUri, $reviewPart['xmlNamespaceDeclarations'][0]['namespaceUri']);
+        $t->same(strlen($reviewUri), $reviewPart['xmlNamespaceDeclarations'][0]['namespaceUriByteLength']);
+        $t->same(sprintf('%08x', crc32($reviewUri)), $reviewPart['xmlNamespaceDeclarations'][0]['namespaceUriCrc32']);
+        $t->same(hash('sha256', $reviewUri), $reviewPart['xmlNamespaceDeclarations'][0]['namespaceUriSha256']);
+        $t->same('/review:packet/review:item', $reviewPart['xmlNamespaceDeclarations'][1]['elementPath']);
+        $t->same('default', $reviewPart['xmlNamespaceDeclarations'][1]['prefix']);
+        $t->same(true, $reviewPart['xmlNamespaceDeclarations'][1]['isDefault']);
+        $t->same($defaultUri, $reviewPart['xmlNamespaceDeclarations'][1]['namespaceUri']);
+        $t->same('/review:packet/review:item', $reviewPart['xmlNamespaceDeclarations'][2]['elementPath']);
+        $t->same('local', $reviewPart['xmlNamespaceDeclarations'][2]['prefix']);
+        $t->same('/review:packet/review:tail', $reviewPart['xmlNamespaceDeclarations'][3]['elementPath']);
+        $t->same('audit', $reviewPart['xmlNamespaceDeclarations'][3]['prefix']);
+
+        $t->same(true, $settingsPart['xmlInspectable']);
+        $t->same(3, $settingsPart['xmlNamespaceDeclarationCount']);
+        $t->same(0, $settingsPart['xmlNamespaceDeclarationDefaultCount']);
+        $t->same(3, $settingsPart['xmlNamespaceDeclarationPrefixedCount']);
+        $t->same($settingsByteLength, $settingsPart['xmlNamespaceDeclarationByteLength']);
+        $t->same(['local' => 1, 'review' => 1, 'w' => 1], $settingsPart['xmlNamespaceDeclarationPrefixCounts']);
+        $t->same(1, $settingsPart['xmlNamespaceDeclarationElementPathCounts']['/w:settings/w:docVars']);
+        $t->same(1, $settingsPart['xmlNamespaceDeclarationElementPathCounts']['/w:settings/w:docVars/w:docVar']);
+
+        $t->true($summary['partXmlNamespaceDeclarationPartCount'] >= 2, 'summary namespace declaration part count should include added XML parts');
+        $t->true($summary['partXmlNamespaceDeclarationCount'] >= 7, 'summary namespace declaration count should include added XML parts');
+        $t->true($summary['partXmlNamespaceDeclarationByteLength'] >= $reviewByteLength + $settingsByteLength, 'summary namespace URI byte length should include added declarations');
+        $t->same(1, $summary['partXmlNamespaceDeclarationUriCounts'][$auditUri]);
+        $t->same(1, $summary['partXmlNamespaceDeclarationUriCounts'][$settingsLocalUri]);
+        $t->same(2, $summary['partXmlNamespaceDeclarationElementPathCounts']['/review:packet/review:item']);
+        $t->same(1, $summary['partXmlNamespaceDeclarationElementPathCounts']['/w:settings/w:docVars/w:docVar']);
+        $t->true(in_array('customXml/namespace-declarations.xml', $summary['partXmlNamespaceDeclarationPartNames'], true), 'custom XML namespace declaration part should be summarized');
+        $t->true(in_array('word/settings-namespace-declarations.xml', $summary['partXmlNamespaceDeclarationPartNames'], true), 'settings namespace declaration part should be summarized');
+        $t->same(7, count($declarations));
+        $t->same('customXml/namespace-declarations.xml', $declarations[0]['partName']);
+        $t->same('/review:packet', $declarations[0]['elementPath']);
+        $t->same('review', $declarations[0]['prefix']);
+        $t->same('word/settings-namespace-declarations.xml', $declarations[6]['partName']);
+        $t->same('/w:settings/w:docVars/w:docVar', $declarations[6]['elementPath']);
+        $t->same('local', $declarations[6]['prefix']);
+
+        $encodedDeclarations = json_encode([$reviewPart['xmlNamespaceDeclarations'], $settingsPart['xmlNamespaceDeclarations'], $declarations]);
+        $t->true(is_string($encodedDeclarations), 'XML namespace declaration metadata should encode for review');
+        $t->true(!str_contains((string) $encodedDeclarations, $hiddenText), 'raw XML text should not be exposed in namespace declaration metadata');
+    },
+    'summarizes docx package xml element structures without exposing text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $hiddenText = 'hidden-xml-structure-payload';
+        $parts['customXml/structure-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:structurePacket xmlns:review="urn:review-structure" xmlns:audit="urn:review-audit">
+  <review:branch>
+    <review:leaf>{$hiddenText}</review:leaf>
+    <audit:checkpoint/>
+  </review:branch>
+  <review:branch>
+    <review:leaf/>
+  </review:branch>
+</review:structurePacket>
+XML;
+        $parts['word/settings-structure.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:review="urn:settings-structure">
+  <w:docVars>
+    <w:docVar w:name="ReviewStructure"/>
+  </w:docVars>
+  <review:checkpoint>
+    <review:leaf/>
+  </review:checkpoint>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/structure-review.xml'];
+        $settingsPart = $package['parts']['word/settings-structure.xml'];
+        $structuresByPart = [];
+        foreach ($summary['partXmlElementStructures'] as $structure) {
+            $structuresByPart[$structure['partName']] = $structure;
+        }
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(6, $reviewPart['xmlElementCount']);
+        $t->same(3, $reviewPart['xmlElementLeafCount']);
+        $t->same(3, $reviewPart['xmlElementMaxDepth']);
+        $t->same(6, $reviewPart['xmlElementPrefixedCount']);
+        $t->same(['urn:review-audit' => 1, 'urn:review-structure' => 5], $reviewPart['xmlElementNamespaceCounts']);
+        $t->same(['branch' => 2, 'checkpoint' => 1, 'leaf' => 2, 'structurePacket' => 1], $reviewPart['xmlElementLocalNameCounts']);
+        $t->same(
+            ['audit:checkpoint' => 1, 'review:branch' => 2, 'review:leaf' => 2, 'review:structurePacket' => 1],
+            $reviewPart['xmlElementQualifiedNameCounts']
+        );
+        $t->same([1 => 1, 2 => 2, 3 => 3], $reviewPart['xmlElementDepthCounts']);
+        $t->same(['audit' => 1, 'review' => 5], $reviewPart['xmlElementPrefixCounts']);
+        $t->same(['audit', 'review'], $reviewPart['xmlElementPrefixes']);
+        $t->same([
+            '/review:structurePacket' => 1,
+            '/review:structurePacket/review:branch' => 2,
+            '/review:structurePacket/review:branch/audit:checkpoint' => 1,
+            '/review:structurePacket/review:branch/review:leaf' => 2,
+        ], $reviewPart['xmlElementPathCounts']);
+        $t->same([
+            '/review:structurePacket/review:branch/audit:checkpoint' => 1,
+            '/review:structurePacket/review:branch/review:leaf' => 2,
+        ], $reviewPart['xmlElementLeafPathCounts']);
+
+        $t->same(true, $settingsPart['xmlInspectable']);
+        $t->same(5, $settingsPart['xmlElementCount']);
+        $t->same(2, $settingsPart['xmlElementLeafCount']);
+        $t->same(3, $settingsPart['xmlElementMaxDepth']);
+        $t->same(['http://schemas.openxmlformats.org/wordprocessingml/2006/main' => 3, 'urn:settings-structure' => 2], $settingsPart['xmlElementNamespaceCounts']);
+        $t->same([1 => 1, 2 => 2, 3 => 2], $settingsPart['xmlElementDepthCounts']);
+        $t->same(['review' => 2, 'w' => 3], $settingsPart['xmlElementPrefixCounts']);
+        $t->same([
+            '/w:settings' => 1,
+            '/w:settings/review:checkpoint' => 1,
+            '/w:settings/review:checkpoint/review:leaf' => 1,
+            '/w:settings/w:docVars' => 1,
+            '/w:settings/w:docVars/w:docVar' => 1,
+        ], $settingsPart['xmlElementPathCounts']);
+
+        $t->true($summary['partXmlElementCount'] >= 11, 'summary element count should include the added structure parts');
+        $t->true($summary['partXmlElementLeafCount'] >= 5, 'summary leaf count should include the added structure parts');
+        $t->true($summary['partXmlElementMaxDepth'] >= 3, 'summary max depth should include nested structure parts');
+        $t->true(in_array('customXml/structure-review.xml', $summary['partXmlElementPartNames'], true), 'custom XML structure part should be summarized');
+        $t->true(in_array('word/settings-structure.xml', $summary['partXmlElementPartNames'], true), 'settings structure part should be summarized');
+        $t->same(5, $summary['partXmlElementNamespaceCounts']['urn:review-structure']);
+        $t->same(1, $summary['partXmlElementNamespaceCounts']['urn:review-audit']);
+        $t->same(2, $summary['partXmlElementNamespaceCounts']['urn:settings-structure']);
+        $t->same(2, $summary['partXmlElementLocalNameCounts']['branch']);
+        $t->same(1, $summary['partXmlElementLocalNameCounts']['structurePacket']);
+        $t->same(1, $summary['partXmlElementQualifiedNameCounts']['audit:checkpoint']);
+        $t->same(1, $summary['partXmlElementQualifiedNameCounts']['review:structurePacket']);
+        $t->true($summary['partXmlElementDepthCounts'][3] >= 5, 'summary element depth buckets should include nested structure leaves');
+        $t->same(1, $summary['partXmlElementPrefixCounts']['audit']);
+        $t->true($summary['partXmlElementPrefixCounts']['review'] >= 7, 'summary element prefix buckets should include review-prefixed elements');
+        $t->same(2, $summary['partXmlElementPathCounts']['/review:structurePacket/review:branch']);
+        $t->same(2, $summary['partXmlElementPathCounts']['/review:structurePacket/review:branch/review:leaf']);
+        $t->same(1, $summary['partXmlElementPathCounts']['/w:settings/w:docVars/w:docVar']);
+        $t->same(2, $summary['partXmlElementLeafPathCounts']['/review:structurePacket/review:branch/review:leaf']);
+        $t->same(1, $summary['partXmlElementLeafPathCounts']['/w:settings/review:checkpoint/review:leaf']);
+        $t->true(in_array('/review:structurePacket/review:branch/review:leaf', $summary['partXmlElementPaths'], true), 'summary element paths should include review leaf path');
+        $t->true(in_array('/w:settings/review:checkpoint/review:leaf', $summary['partXmlElementLeafPaths'], true), 'summary leaf paths should include settings review leaf path');
+
+        $t->same(6, $structuresByPart['customXml/structure-review.xml']['elementCount']);
+        $t->same(3, $structuresByPart['customXml/structure-review.xml']['leafElementCount']);
+        $t->same(['branch' => 2, 'checkpoint' => 1, 'leaf' => 2, 'structurePacket' => 1], $structuresByPart['customXml/structure-review.xml']['localNameCounts']);
+        $t->same(['audit' => 1, 'review' => 5], $structuresByPart['customXml/structure-review.xml']['prefixCounts']);
+        $t->same(2, $structuresByPart['customXml/structure-review.xml']['pathCounts']['/review:structurePacket/review:branch']);
+        $t->same(2, $structuresByPart['customXml/structure-review.xml']['leafPathCounts']['/review:structurePacket/review:branch/review:leaf']);
+        $encodedStructures = json_encode([$reviewPart, $settingsPart, $summary['partXmlElementStructures']]);
+        $t->true(is_string($encodedStructures), 'XML element structure metadata should encode for review');
+        $t->true(!str_contains((string) $encodedStructures, $hiddenText), 'raw XML element text should not be exposed in structure metadata');
+    },
+    'summarizes docx package xml element attributes without exposing values' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $rootState = 'root-state-hidden-alpha';
+        $itemCheckpoint = 'item-checkpoint-hidden-beta';
+        $plainReview = 'plain-review-hidden-gamma';
+        $leafCode = 'leaf-code-hidden-delta';
+        $leafSecret = 'leaf-secret-hidden-epsilon';
+        $settingsScope = 'settings-scope-hidden-zeta';
+        $settingsFlag = 'settings-flag-hidden-eta';
+        $parts['customXml/element-attribute-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:review-attributes" xmlns:audit="urn:attribute-audit" xml:lang="en" review:rootState="{$rootState}">
+  <review:item audit:itemCheckpoint="{$itemCheckpoint}" plainReview="{$plainReview}">
+    <review:leaf review:leafCode="{$leafCode}" data-secret="{$leafSecret}"/>
+  </review:item>
+</review:packet>
+XML;
+        $parts['word/settings-element-attributes.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:review="urn:settings-attributes" xmlns:audit="urn:settings-audit">
+  <w:docVars>
+    <w:docVar review:settingScope="{$settingsScope}" audit:settingFlag="{$settingsFlag}"/>
+  </w:docVars>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/element-attribute-review.xml'];
+        $settingsPart = $package['parts']['word/settings-element-attributes.xml'];
+        $attributes = array_values(array_filter(
+            $summary['partXmlElementAttributes'],
+            static fn (array $attribute): bool => in_array(
+                $attribute['partName'],
+                ['customXml/element-attribute-review.xml', 'word/settings-element-attributes.xml'],
+                true,
+            ),
+        ));
+        $attributesByName = [];
+        foreach ($attributes as $attribute) {
+            $attributesByName[$attribute['name']] = $attribute;
+        }
+        $attributeValueBytes =
+            strlen('en')
+            + strlen($rootState)
+            + strlen($itemCheckpoint)
+            + strlen($plainReview)
+            + strlen($leafCode)
+            + strlen($leafSecret)
+            + strlen($settingsScope)
+            + strlen($settingsFlag);
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(6, $reviewPart['xmlElementAttributeCount']);
+        $t->same(
+            [
+                'audit:itemCheckpoint' => 1,
+                'data-secret' => 1,
+                'plainReview' => 1,
+                'review:leafCode' => 1,
+                'review:rootState' => 1,
+                'xml:lang' => 1,
+            ],
+            $reviewPart['xmlElementAttributeNameCounts']
+        );
+        $t->same(
+            [
+                '/review:packet' => 2,
+                '/review:packet/review:item' => 2,
+                '/review:packet/review:item/review:leaf' => 2,
+            ],
+            $reviewPart['xmlElementAttributeElementPathCounts']
+        );
+        $t->same(
+            ['review:item' => 2, 'review:leaf' => 2, 'review:packet' => 2],
+            $reviewPart['xmlElementAttributeElementNameCounts']
+        );
+        $t->same(2, $reviewPart['xmlElementAttributePrefixCounts']['review']);
+        $t->same(1, $reviewPart['xmlElementAttributePrefixCounts']['audit']);
+        $t->same(2, $reviewPart['xmlElementAttributePrefixCounts']['(none)']);
+        $t->same(1, $reviewPart['xmlElementAttributePrefixCounts']['xml']);
+
+        $t->same(true, $settingsPart['xmlInspectable']);
+        $t->same(2, $settingsPart['xmlElementAttributeCount']);
+        $t->same(
+            ['audit:settingFlag' => 1, 'review:settingScope' => 1],
+            $settingsPart['xmlElementAttributeNameCounts']
+        );
+        $t->same(
+            ['/w:settings/w:docVars/w:docVar' => 2],
+            $settingsPart['xmlElementAttributeElementPathCounts']
+        );
+
+        $t->true($summary['partXmlElementAttributePartCount'] >= 2, 'summary element-attribute part count should include the added XML parts');
+        $t->true($summary['partXmlElementAttributeCount'] >= 8, 'summary element-attribute count should include the added attributes');
+        $t->true($summary['partXmlElementAttributeValueByteLength'] >= $attributeValueBytes, 'summary element-attribute value bytes should include the added values');
+        $t->true(in_array('customXml/element-attribute-review.xml', $summary['partXmlElementAttributePartNames'], true), 'custom XML element-attribute part should be summarized');
+        $t->true(in_array('word/settings-element-attributes.xml', $summary['partXmlElementAttributePartNames'], true), 'settings element-attribute part should be summarized');
+        $t->same(1, $summary['partXmlElementAttributeNameCounts']['review:rootState']);
+        $t->same(1, $summary['partXmlElementAttributeNameCounts']['audit:itemCheckpoint']);
+        $t->same(1, $summary['partXmlElementAttributeNameCounts']['review:settingScope']);
+        $t->same(2, $summary['partXmlElementAttributeElementPathCounts']['/review:packet/review:item/review:leaf']);
+        $t->same(2, $summary['partXmlElementAttributeElementPathCounts']['/w:settings/w:docVars/w:docVar']);
+        $t->same(2, $summary['partXmlElementAttributeElementNameCounts']['review:leaf']);
+        $t->same(2, $summary['partXmlElementAttributeElementNameCounts']['w:docVar']);
+
+        $t->same(8, count($attributes));
+        $t->same('customXml/element-attribute-review.xml', $attributesByName['review:rootState']['partName']);
+        $t->same('/review:packet', $attributesByName['review:rootState']['elementPath']);
+        $t->same(strlen($rootState), $attributesByName['review:rootState']['valueByteLength']);
+        $t->same(sprintf('%08x', crc32($rootState)), $attributesByName['review:rootState']['valueCrc32']);
+        $t->same(hash('sha256', $rootState), $attributesByName['review:rootState']['valueSha256']);
+        $t->same('/review:packet/review:item/review:leaf', $attributesByName['data-secret']['elementPath']);
+        $t->true($summary['partXmlElementAttributePrefixCounts']['(none)'] >= 2, 'unprefixed element attributes should be summarized');
+        $t->same('word/settings-element-attributes.xml', $attributesByName['review:settingScope']['partName']);
+        $t->same('/w:settings/w:docVars/w:docVar', $attributesByName['review:settingScope']['elementPath']);
+        $t->same(hash('sha256', $settingsScope), $attributesByName['review:settingScope']['valueSha256']);
+
+        $encodedAttributes = json_encode([$reviewPart['xmlElementAttributes'], $settingsPart['xmlElementAttributes'], $attributes]);
+        $t->true(is_string($encodedAttributes), 'XML element attribute metadata should encode for review');
+        $t->true(!isset($reviewPart['xmlElementAttributes'][0]['value']), 'raw XML attribute value should not be exposed on part metadata');
+        $t->true(!str_contains((string) $encodedAttributes, 'hidden-'), 'raw XML attribute values should not be exposed in summary metadata');
     },
     'summarizes docx package xml processing instructions for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
@@ -17701,6 +18283,461 @@ XML;
         $encodedSections = json_encode([$reviewPart['xmlCdataSections'], $settingsPart['xmlCdataSections'], $sections]);
         $t->true(is_string($encodedSections), 'XML CDATA metadata should encode for review');
         $t->true(!str_contains((string) $encodedSections, 'hidden-payload'), 'raw XML CDATA text should not be exposed in summary metadata');
+    },
+    'summarizes docx package xml text nodes without exposing text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $titleText = 'package-text-review:hidden-payload-alpha';
+        $itemText = 'item-text-review:hidden-payload-beta';
+        $settingsText = 'settings-text-review:hidden-payload-gamma';
+        $parts['customXml/text-node-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:review-text">
+  <review:title>{$titleText}</review:title>
+  <review:item>  {$itemText}  </review:item>
+  <review:empty/>
+</review:packet>
+XML;
+        $parts['word/settings-text-node.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docVars>
+    <w:docVar w:name="Review">{$settingsText}</w:docVar>
+  </w:docVars>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/text-node-review.xml'];
+        $settingsPart = $package['parts']['word/settings-text-node.xml'];
+        $textNodes = array_values(array_filter(
+            $summary['partXmlTextNodes'],
+            static fn (array $node): bool => in_array($node['partName'], ['customXml/text-node-review.xml', 'word/settings-text-node.xml'], true),
+        ));
+        $textByteLength =
+            strlen("\n  ")
+            + strlen($titleText)
+            + strlen("\n  ")
+            + strlen('  ' . $itemText . '  ')
+            + strlen("\n  ")
+            + strlen("\n")
+            + strlen("\n  ")
+            + strlen("\n    ")
+            + strlen($settingsText)
+            + strlen("\n  ")
+            + strlen("\n");
+        $nonWhitespaceByteLength =
+            strlen($titleText)
+            + strlen('  ' . $itemText . '  ')
+            + strlen($settingsText);
+
+        $t->same(9, $summary['partXmlInspectableCount']);
+        $t->true($summary['partXmlTextNodePartCount'] >= 2, 'summary text-node part count should include the added XML parts');
+        $t->true($summary['partXmlTextNodeCount'] >= 11, 'summary text-node count should include the added text nodes');
+        $t->true($summary['partXmlTextNodeByteLength'] >= $textByteLength, 'summary text-node bytes should include the added XML parts');
+        $t->true($summary['partXmlTextNodeWhitespaceCount'] >= 8, 'summary whitespace text-node count should include fixture indentation');
+        $t->true($summary['partXmlTextNodeNonWhitespaceCount'] >= 3, 'summary non-whitespace text-node count should include review payloads');
+        $t->true($summary['partXmlTextNodeNonWhitespaceByteLength'] >= $nonWhitespaceByteLength, 'summary non-whitespace text-node bytes should include review payload nodes');
+        $t->true(in_array('customXml/text-node-review.xml', $summary['partXmlTextNodePartNames'], true), 'custom XML text-node part should be summarized');
+        $t->true(in_array('word/settings-text-node.xml', $summary['partXmlTextNodePartNames'], true), 'settings text-node part should be summarized');
+        $t->same(1, $summary['partXmlTextNodeParentPathCounts']['/review:packet/review:title']);
+        $t->same(1, $summary['partXmlTextNodeParentPathCounts']['/review:packet/review:item']);
+        $t->same(1, $summary['partXmlTextNodeParentPathCounts']['/w:settings/w:docVars/w:docVar']);
+        $t->true(in_array('/review:packet/review:title', $summary['partXmlTextNodeParentPaths'], true), 'review title parent path missing');
+        $t->true(in_array('/w:settings/w:docVars/w:docVar', $summary['partXmlTextNodeParentPaths'], true), 'settings docVar parent path missing');
+        $t->same(6, $summary['partXmlTextNodeParentNamespaceCounts']['urn:review-text']);
+        $t->true(($summary['partXmlTextNodeParentNamespaceCounts']['http://schemas.openxmlformats.org/wordprocessingml/2006/main'] ?? 0) >= 5, 'WordprocessingML text-node parent namespace count should include settings text nodes');
+        $t->same(4, $summary['partXmlTextNodeParentQualifiedNameCounts']['review:packet']);
+        $t->same(1, $summary['partXmlTextNodeParentQualifiedNameCounts']['review:title']);
+        $t->same(1, $summary['partXmlTextNodeParentQualifiedNameCounts']['review:item']);
+        $t->true(($summary['partXmlTextNodeParentQualifiedNameCounts']['w:docVar'] ?? 0) >= 1, 'settings docVar text-node parent qualified-name count should be summarized');
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(6, $reviewPart['xmlTextNodeCount']);
+        $t->same(4, $reviewPart['xmlTextNodeWhitespaceCount']);
+        $t->same(2, $reviewPart['xmlTextNodeNonWhitespaceCount']);
+        $t->same([
+            '/review:packet' => 4,
+            '/review:packet/review:item' => 1,
+            '/review:packet/review:title' => 1,
+        ], $reviewPart['xmlTextNodeParentPathCounts']);
+        $t->same(['urn:review-text' => 6], $reviewPart['xmlTextNodeParentNamespaceCounts']);
+        $t->same(['item' => 1, 'packet' => 4, 'title' => 1], $reviewPart['xmlTextNodeParentLocalNameCounts']);
+        $t->same(['review:item' => 1, 'review:packet' => 4, 'review:title' => 1], $reviewPart['xmlTextNodeParentQualifiedNameCounts']);
+        $t->same('/review:packet', $reviewPart['xmlTextNodes'][0]['parentPath']);
+        $t->same('urn:review-text', $reviewPart['xmlTextNodes'][0]['parentNamespace']);
+        $t->same('packet', $reviewPart['xmlTextNodes'][0]['parentLocalName']);
+        $t->same('review:packet', $reviewPart['xmlTextNodes'][0]['parentQualifiedName']);
+        $t->same(true, $reviewPart['xmlTextNodes'][0]['isWhitespaceOnly']);
+        $t->same('/review:packet/review:title', $reviewPart['xmlTextNodes'][1]['parentPath']);
+        $t->same('urn:review-text', $reviewPart['xmlTextNodes'][1]['parentNamespace']);
+        $t->same('title', $reviewPart['xmlTextNodes'][1]['parentLocalName']);
+        $t->same('review:title', $reviewPart['xmlTextNodes'][1]['parentQualifiedName']);
+        $t->same(false, $reviewPart['xmlTextNodes'][1]['isWhitespaceOnly']);
+        $t->same(strlen($titleText), $reviewPart['xmlTextNodes'][1]['byteLength']);
+        $t->same(sprintf('%08x', crc32($titleText)), $reviewPart['xmlTextNodes'][1]['crc32']);
+        $t->same(hash('sha256', $titleText), $reviewPart['xmlTextNodes'][1]['sha256']);
+        $t->same('/review:packet/review:item', $reviewPart['xmlTextNodes'][3]['parentPath']);
+        $t->same(strlen('  ' . $itemText . '  '), $reviewPart['xmlTextNodes'][3]['byteLength']);
+
+        $t->same(5, $settingsPart['xmlTextNodeCount']);
+        $t->same(4, $settingsPart['xmlTextNodeWhitespaceCount']);
+        $t->same(1, $settingsPart['xmlTextNodeNonWhitespaceCount']);
+        $t->same(['http://schemas.openxmlformats.org/wordprocessingml/2006/main' => 5], $settingsPart['xmlTextNodeParentNamespaceCounts']);
+        $t->same(['docVar' => 1, 'docVars' => 2, 'settings' => 2], $settingsPart['xmlTextNodeParentLocalNameCounts']);
+        $t->same(['w:docVar' => 1, 'w:docVars' => 2, 'w:settings' => 2], $settingsPart['xmlTextNodeParentQualifiedNameCounts']);
+        $t->same('/w:settings/w:docVars/w:docVar', $settingsPart['xmlTextNodes'][2]['parentPath']);
+        $t->same(3, $settingsPart['xmlTextNodes'][2]['parentDepth']);
+        $t->same('http://schemas.openxmlformats.org/wordprocessingml/2006/main', $settingsPart['xmlTextNodes'][2]['parentNamespace']);
+        $t->same('docVar', $settingsPart['xmlTextNodes'][2]['parentLocalName']);
+        $t->same('w:docVar', $settingsPart['xmlTextNodes'][2]['parentQualifiedName']);
+        $t->same(strlen($settingsText), $settingsPart['xmlTextNodes'][2]['byteLength']);
+        $t->same(hash('sha256', $settingsText), $settingsPart['xmlTextNodes'][2]['sha256']);
+
+        $t->same('customXml/text-node-review.xml', $textNodes[0]['partName']);
+        $t->same('/review:packet', $textNodes[0]['parentPath']);
+        $t->same('review:packet', $textNodes[0]['parentQualifiedName']);
+        $t->same('customXml/text-node-review.xml', $textNodes[1]['partName']);
+        $t->same('/review:packet/review:title', $textNodes[1]['parentPath']);
+        $t->same('review:title', $textNodes[1]['parentQualifiedName']);
+        $t->same('word/settings-text-node.xml', $textNodes[8]['partName']);
+        $t->same('/w:settings/w:docVars/w:docVar', $textNodes[8]['parentPath']);
+        $t->same('w:docVar', $textNodes[8]['parentQualifiedName']);
+        $t->true(!isset($reviewPart['xmlTextNodes'][1]['data']), 'raw XML text should not be exposed on part metadata');
+        $encodedTextNodes = json_encode([$reviewPart['xmlTextNodes'], $settingsPart['xmlTextNodes'], $textNodes]);
+        $t->true(is_string($encodedTextNodes), 'XML text-node metadata should encode for review');
+        $t->true(!str_contains((string) $encodedTextNodes, 'hidden-payload'), 'raw XML text should not be exposed in summary metadata');
+    },
+    'summarizes docx package xml text node parent element names without exposing text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $titleText = 'parent-name-review:hidden-title';
+        $itemText = 'parent-name-review:hidden-item';
+        $unqualifiedText = 'parent-name-review:hidden-unqualified';
+        $parts['customXml/text-parent-name-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:review-text-parent" xmlns:local="urn:review-text-local">
+  <review:title>{$titleText}</review:title>
+  <local:item> {$itemText} </local:item>
+  <unqualified>{$unqualifiedText}</unqualified>
+</review:packet>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/text-parent-name-review.xml'];
+        $textNodes = array_values(array_filter(
+            $summary['partXmlTextNodes'],
+            static fn (array $node): bool => $node['partName'] === 'customXml/text-parent-name-review.xml',
+        ));
+
+        $t->same(7, $reviewPart['xmlTextNodeCount']);
+        $t->same([
+            '(none)' => 1,
+            'urn:review-text-local' => 1,
+            'urn:review-text-parent' => 5,
+        ], $reviewPart['xmlTextNodeParentNamespaceCounts']);
+        $t->same([
+            'item' => 1,
+            'packet' => 4,
+            'title' => 1,
+            'unqualified' => 1,
+        ], $reviewPart['xmlTextNodeParentLocalNameCounts']);
+        $t->same([
+            'local:item' => 1,
+            'review:packet' => 4,
+            'review:title' => 1,
+            'unqualified' => 1,
+        ], $reviewPart['xmlTextNodeParentQualifiedNameCounts']);
+        $t->same(5, $summary['partXmlTextNodeParentNamespaceCounts']['urn:review-text-parent']);
+        $t->same(1, $summary['partXmlTextNodeParentNamespaceCounts']['urn:review-text-local']);
+        $t->same(1, $summary['partXmlTextNodeParentQualifiedNameCounts']['unqualified']);
+        $t->same('urn:review-text-parent', $reviewPart['xmlTextNodes'][1]['parentNamespace']);
+        $t->same('title', $reviewPart['xmlTextNodes'][1]['parentLocalName']);
+        $t->same('review:title', $reviewPart['xmlTextNodes'][1]['parentQualifiedName']);
+        $t->same('urn:review-text-local', $reviewPart['xmlTextNodes'][3]['parentNamespace']);
+        $t->same('item', $reviewPart['xmlTextNodes'][3]['parentLocalName']);
+        $t->same('local:item', $reviewPart['xmlTextNodes'][3]['parentQualifiedName']);
+        $t->same(null, $reviewPart['xmlTextNodes'][5]['parentNamespace']);
+        $t->same('unqualified', $reviewPart['xmlTextNodes'][5]['parentLocalName']);
+        $t->same('unqualified', $reviewPart['xmlTextNodes'][5]['parentQualifiedName']);
+        $t->same('review:title', $textNodes[1]['parentQualifiedName']);
+        $t->same('local:item', $textNodes[3]['parentQualifiedName']);
+        $t->same('unqualified', $textNodes[5]['parentQualifiedName']);
+        $encodedTextNodes = json_encode([$reviewPart['xmlTextNodes'], $textNodes]);
+        $t->true(is_string($encodedTextNodes), 'XML text-node parent metadata should encode for review');
+        $t->true(!str_contains((string) $encodedTextNodes, 'parent-name-review:hidden'), 'raw XML text should not be exposed in parent metadata');
+    },
+    'summarizes docx package xml text node whitespace shape without exposing text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $leadingText = '  whitespace-shape:hidden-leading';
+        $lineText = "whitespace-shape:hidden-line-a\nwhitespace-shape:hidden-line-b";
+        $trailingText = 'whitespace-shape:hidden-trailing  ';
+        $parts['customXml/text-whitespace-shape-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:review-text-whitespace">
+  <review:leading>{$leadingText}</review:leading>
+  <review:line>{$lineText}</review:line>
+  <review:trailing>{$trailingText}</review:trailing>
+</review:packet>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/text-whitespace-shape-review.xml'];
+        $textNodes = array_values(array_filter(
+            $summary['partXmlTextNodes'],
+            static fn (array $node): bool => $node['partName'] === 'customXml/text-whitespace-shape-review.xml',
+        ));
+
+        $t->same(7, $reviewPart['xmlTextNodeCount']);
+        $t->same(4, $reviewPart['xmlTextNodeWhitespaceCount']);
+        $t->same(3, $reviewPart['xmlTextNodeNonWhitespaceCount']);
+        $t->same(5, $reviewPart['xmlTextNodeLeadingWhitespaceCount']);
+        $t->same(5, $reviewPart['xmlTextNodeTrailingWhitespaceCount']);
+        $t->same(12, $reviewPart['xmlTextNodeLeadingWhitespaceByteLength']);
+        $t->same(12, $reviewPart['xmlTextNodeTrailingWhitespaceByteLength']);
+        $t->same(5, $reviewPart['xmlTextNodeLineBreakCount']);
+        $t->same(5, $reviewPart['xmlTextNodeLineBreakNodeCount']);
+        $t->true($summary['partXmlTextNodeLeadingWhitespaceCount'] >= 5, 'summary should include leading whitespace text-node counters');
+        $t->true($summary['partXmlTextNodeTrailingWhitespaceCount'] >= 5, 'summary should include trailing whitespace text-node counters');
+        $t->true($summary['partXmlTextNodeLineBreakCount'] >= 5, 'summary should include text-node line-break counters');
+
+        $t->same('/review:packet', $reviewPart['xmlTextNodes'][0]['parentPath']);
+        $t->same(true, $reviewPart['xmlTextNodes'][0]['isWhitespaceOnly']);
+        $t->same(3, $reviewPart['xmlTextNodes'][0]['leadingWhitespaceByteLength']);
+        $t->same(3, $reviewPart['xmlTextNodes'][0]['trailingWhitespaceByteLength']);
+        $t->same(true, $reviewPart['xmlTextNodes'][0]['hasLeadingWhitespace']);
+        $t->same(true, $reviewPart['xmlTextNodes'][0]['hasTrailingWhitespace']);
+        $t->same(1, $reviewPart['xmlTextNodes'][0]['lineBreakCount']);
+        $t->same(true, $reviewPart['xmlTextNodes'][0]['hasLineBreak']);
+        $t->same('/review:packet/review:leading', $reviewPart['xmlTextNodes'][1]['parentPath']);
+        $t->same(2, $reviewPart['xmlTextNodes'][1]['leadingWhitespaceByteLength']);
+        $t->same(0, $reviewPart['xmlTextNodes'][1]['trailingWhitespaceByteLength']);
+        $t->same(true, $reviewPart['xmlTextNodes'][1]['hasLeadingWhitespace']);
+        $t->same(false, $reviewPart['xmlTextNodes'][1]['hasTrailingWhitespace']);
+        $t->same(0, $reviewPart['xmlTextNodes'][1]['lineBreakCount']);
+        $t->same('/review:packet/review:line', $reviewPart['xmlTextNodes'][3]['parentPath']);
+        $t->same(0, $reviewPart['xmlTextNodes'][3]['leadingWhitespaceByteLength']);
+        $t->same(0, $reviewPart['xmlTextNodes'][3]['trailingWhitespaceByteLength']);
+        $t->same(1, $reviewPart['xmlTextNodes'][3]['lineBreakCount']);
+        $t->same(true, $reviewPart['xmlTextNodes'][3]['hasLineBreak']);
+        $t->same('/review:packet/review:trailing', $reviewPart['xmlTextNodes'][5]['parentPath']);
+        $t->same(0, $reviewPart['xmlTextNodes'][5]['leadingWhitespaceByteLength']);
+        $t->same(2, $reviewPart['xmlTextNodes'][5]['trailingWhitespaceByteLength']);
+        $t->same(false, $reviewPart['xmlTextNodes'][5]['hasLeadingWhitespace']);
+        $t->same(true, $reviewPart['xmlTextNodes'][5]['hasTrailingWhitespace']);
+        $t->same(0, $reviewPart['xmlTextNodes'][5]['lineBreakCount']);
+
+        $t->same(7, count($textNodes));
+        $t->same(2, $textNodes[1]['leadingWhitespaceByteLength']);
+        $t->same(1, $textNodes[3]['lineBreakCount']);
+        $t->same(2, $textNodes[5]['trailingWhitespaceByteLength']);
+        $encodedTextNodes = json_encode([$reviewPart['xmlTextNodes'], $textNodes]);
+        $t->true(is_string($encodedTextNodes), 'XML text-node whitespace metadata should encode for review');
+        $t->true(!str_contains((string) $encodedTextNodes, 'whitespace-shape:hidden'), 'raw XML text should not be exposed in whitespace metadata');
+    },
+    'summarizes docx package xml doctype declarations without exposing subsets' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $reviewSubset = '<!ENTITY reviewer "hidden-reviewer">' . "\n";
+        $settingsSubset = '<!ENTITY settingsPayload "hidden-settings">' . "\n";
+        $parts['customXml/doctype-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE packet PUBLIC "-//Example//DTD Review Packet 1.0//EN" "https://example.test/review.dtd" [
+{$reviewSubset}<!NOTATION png SYSTEM "image/png">
+]>
+<packet xmlns="urn:review-doctype"><item>ok</item></packet>
+XML;
+        $parts['word/settings-doctype.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE w:settings SYSTEM "file:///tmp/docx-settings.dtd" [
+{$settingsSubset}]>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:updateFields w:val="true"/>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/doctype-review.xml'];
+        $settingsPart = $package['parts']['word/settings-doctype.xml'];
+        $doctypes = $summary['partXmlDoctypes'];
+
+        $t->same(9, $summary['partXmlInspectableCount']);
+        $t->same(2, $summary['partXmlDoctypePartCount']);
+        $t->same(2, $summary['partXmlDoctypeCount']);
+        $t->same(['customXml/doctype-review.xml', 'word/settings-doctype.xml'], $summary['partXmlDoctypePartNames']);
+        $t->same(['packet' => 1, 'w:settings' => 1], $summary['partXmlDoctypeNameCounts']);
+        $t->same(1, $summary['partXmlDoctypePublicIdCount']);
+        $t->same(2, $summary['partXmlDoctypeSystemIdCount']);
+        $t->same(2, $summary['partXmlDoctypeInternalSubsetCount']);
+        $t->same(strlen($reviewSubset) + strlen($settingsSubset), $summary['partXmlDoctypeInternalSubsetByteLength']);
+        $t->same(2, $summary['partXmlDoctypeEntityCount']);
+        $t->same(1, $summary['partXmlDoctypeNotationCount']);
+        $t->same(1, $summary['partXmlDoctypeAllowedSystemIdCount']);
+        $t->same(1, $summary['partXmlDoctypeUnsafeSystemIdCount']);
+        $t->same(['file' => 1, 'https' => 1], $summary['partXmlDoctypeSystemIdSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme'], $summary['partXmlDoctypeSystemIdIssueCodes']);
+
+        $t->same(true, $reviewPart['xmlDoctypePresent']);
+        $t->same('packet', $reviewPart['xmlDoctypeName']);
+        $t->same('-//Example//DTD Review Packet 1.0//EN', $reviewPart['xmlDoctypePublicId']);
+        $t->same('https://example.test/review.dtd', $reviewPart['xmlDoctypeSystemId']);
+        $t->same(true, $reviewPart['xmlDoctypeHasPublicId']);
+        $t->same(true, $reviewPart['xmlDoctypeHasSystemId']);
+        $t->same(true, $reviewPart['xmlDoctypeHasInternalSubset']);
+        $t->same(strlen($reviewSubset), $reviewPart['xmlDoctypeInternalSubsetByteLength']);
+        $t->same(sprintf('%08x', crc32($reviewSubset)), $reviewPart['xmlDoctypeInternalSubsetCrc32']);
+        $t->same(hash('sha256', $reviewSubset), $reviewPart['xmlDoctypeInternalSubsetSha256']);
+        $t->same(1, $reviewPart['xmlDoctypeEntityCount']);
+        $t->same(['reviewer'], $reviewPart['xmlDoctypeEntityNames']);
+        $t->same(1, $reviewPart['xmlDoctypeNotationCount']);
+        $t->same(['png'], $reviewPart['xmlDoctypeNotationNames']);
+        $t->same('absolute-uri', $reviewPart['xmlDoctypeSystemIdKind']);
+        $t->same('https', $reviewPart['xmlDoctypeSystemIdScheme']);
+        $t->same(true, $reviewPart['xmlDoctypeSystemIdAllowed']);
+        $t->same([], $reviewPart['xmlDoctypeSystemIdIssues']);
+
+        $t->same(true, $settingsPart['xmlDoctypePresent']);
+        $t->same('w:settings', $settingsPart['xmlDoctypeName']);
+        $t->same(null, $settingsPart['xmlDoctypePublicId']);
+        $t->same('file:///tmp/docx-settings.dtd', $settingsPart['xmlDoctypeSystemId']);
+        $t->same(false, $settingsPart['xmlDoctypeHasPublicId']);
+        $t->same(true, $settingsPart['xmlDoctypeHasInternalSubset']);
+        $t->same(strlen($settingsSubset), $settingsPart['xmlDoctypeInternalSubsetByteLength']);
+        $t->same(hash('sha256', $settingsSubset), $settingsPart['xmlDoctypeInternalSubsetSha256']);
+        $t->same(1, $settingsPart['xmlDoctypeEntityCount']);
+        $t->same(['settingsPayload'], $settingsPart['xmlDoctypeEntityNames']);
+        $t->same(0, $settingsPart['xmlDoctypeNotationCount']);
+        $t->same('absolute-uri', $settingsPart['xmlDoctypeSystemIdKind']);
+        $t->same('file', $settingsPart['xmlDoctypeSystemIdScheme']);
+        $t->same(false, $settingsPart['xmlDoctypeSystemIdAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $settingsPart['xmlDoctypeSystemIdIssues']);
+
+        $t->same('customXml/doctype-review.xml', $doctypes[0]['partName']);
+        $t->same('packet', $doctypes[0]['name']);
+        $t->same(['reviewer'], $doctypes[0]['entityNames']);
+        $t->same(['png'], $doctypes[0]['notationNames']);
+        $t->same(true, $doctypes[0]['systemIdAllowed']);
+        $t->same('word/settings-doctype.xml', $doctypes[1]['partName']);
+        $t->same('w:settings', $doctypes[1]['name']);
+        $t->same(['settingsPayload'], $doctypes[1]['entityNames']);
+        $t->same(false, $doctypes[1]['systemIdAllowed']);
+        $t->true(!isset($doctypes[0]['internalSubset']), 'raw XML DOCTYPE internal subset should not be exposed');
+        $encodedDoctypes = json_encode([$reviewPart, $settingsPart, $doctypes]);
+        $t->true(is_string($encodedDoctypes), 'XML DOCTYPE metadata should encode for review');
+        $t->true(!str_contains((string) $encodedDoctypes, 'hidden-reviewer'), 'raw XML entity values should not be exposed in summary metadata');
+        $t->true(!str_contains((string) $encodedDoctypes, 'hidden-settings'), 'raw XML entity values should not be exposed in summary metadata');
+    },
+    'summarizes docx package xml entity references without expanding replacement text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $reviewerValue = 'entity-reference:hidden-reviewer';
+        $approvalValue = 'entity-reference:hidden-approval';
+        $settingsValue = 'entity-reference:hidden-settings';
+        $parts['customXml/entity-reference-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE review:packet [
+<!ENTITY reviewer "{$reviewerValue}">
+<!ENTITY approval "{$approvalValue}">
+]>
+<review:packet xmlns:review="urn:review-entity">
+  <review:item>&reviewer;</review:item>
+  <review:item>&approval; &reviewer;</review:item>
+</review:packet>
+XML;
+        $parts['word/settings-entity-reference.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE w:settings [
+<!ENTITY settingsPayload "{$settingsValue}">
+]>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docVars>
+    <w:docVar>&settingsPayload;</w:docVar>
+  </w:docVars>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/entity-reference-review.xml'];
+        $settingsPart = $package['parts']['word/settings-entity-reference.xml'];
+        $entityReferences = array_values(array_filter(
+            $summary['partXmlEntityReferences'],
+            static fn (array $reference): bool => in_array(
+                $reference['partName'],
+                ['customXml/entity-reference-review.xml', 'word/settings-entity-reference.xml'],
+                true,
+            ),
+        ));
+
+        $t->same(9, $summary['partXmlInspectableCount']);
+        $t->same(2, $summary['partXmlEntityReferencePartCount']);
+        $t->same(4, $summary['partXmlEntityReferenceCount']);
+        $t->same(['customXml/entity-reference-review.xml', 'word/settings-entity-reference.xml'], $summary['partXmlEntityReferencePartNames']);
+        $t->same(3, $summary['partXmlEntityReferenceNameCount']);
+        $t->same(['approval' => 1, 'reviewer' => 2, 'settingsPayload' => 1], $summary['partXmlEntityReferenceNameCounts']);
+        $t->same(['approval', 'reviewer', 'settingsPayload'], $summary['partXmlEntityReferenceNames']);
+        $t->same(2, $summary['partXmlEntityReferenceParentPathCount']);
+        $t->same(
+            [
+                '/review:packet/review:item' => 3,
+                '/w:settings/w:docVars/w:docVar' => 1,
+            ],
+            $summary['partXmlEntityReferenceParentPathCounts']
+        );
+        $t->same(['/review:packet/review:item', '/w:settings/w:docVars/w:docVar'], $summary['partXmlEntityReferenceParentPaths']);
+        $t->same(
+            [
+                'http://schemas.openxmlformats.org/wordprocessingml/2006/main' => 1,
+                'urn:review-entity' => 3,
+            ],
+            $summary['partXmlEntityReferenceParentNamespaceCounts']
+        );
+        $t->same(['docVar' => 1, 'item' => 3], $summary['partXmlEntityReferenceParentLocalNameCounts']);
+        $t->same(['review:item' => 3, 'w:docVar' => 1], $summary['partXmlEntityReferenceParentQualifiedNameCounts']);
+        $t->same(3, $summary['partXmlDoctypeEntityCount']);
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(3, $reviewPart['xmlEntityReferenceCount']);
+        $t->same(['approval' => 1, 'reviewer' => 2], $reviewPart['xmlEntityReferenceNameCounts']);
+        $t->same(['approval', 'reviewer'], $reviewPart['xmlEntityReferenceNames']);
+        $t->same(['/review:packet/review:item' => 3], $reviewPart['xmlEntityReferenceParentPathCounts']);
+        $t->same(['urn:review-entity' => 3], $reviewPart['xmlEntityReferenceParentNamespaceCounts']);
+        $t->same(['item' => 3], $reviewPart['xmlEntityReferenceParentLocalNameCounts']);
+        $t->same(['review:item' => 3], $reviewPart['xmlEntityReferenceParentQualifiedNameCounts']);
+        $t->same('reviewer', $reviewPart['xmlEntityReferences'][0]['name']);
+        $t->same(strlen('reviewer'), $reviewPart['xmlEntityReferences'][0]['nameByteLength']);
+        $t->same('/review:packet/review:item', $reviewPart['xmlEntityReferences'][0]['parentPath']);
+        $t->same(2, $reviewPart['xmlEntityReferences'][0]['parentDepth']);
+        $t->same('urn:review-entity', $reviewPart['xmlEntityReferences'][0]['parentNamespace']);
+        $t->same('item', $reviewPart['xmlEntityReferences'][0]['parentLocalName']);
+        $t->same('review:item', $reviewPart['xmlEntityReferences'][0]['parentQualifiedName']);
+        $t->same('approval', $reviewPart['xmlEntityReferences'][1]['name']);
+        $t->same('reviewer', $reviewPart['xmlEntityReferences'][2]['name']);
+        $t->same(2, $reviewPart['xmlDoctypeEntityCount']);
+        $t->same(['approval', 'reviewer'], $reviewPart['xmlDoctypeEntityNames']);
+
+        $t->same(1, $settingsPart['xmlEntityReferenceCount']);
+        $t->same(['settingsPayload' => 1], $settingsPart['xmlEntityReferenceNameCounts']);
+        $t->same('/w:settings/w:docVars/w:docVar', $settingsPart['xmlEntityReferences'][0]['parentPath']);
+        $t->same('http://schemas.openxmlformats.org/wordprocessingml/2006/main', $settingsPart['xmlEntityReferences'][0]['parentNamespace']);
+        $t->same('w:docVar', $settingsPart['xmlEntityReferences'][0]['parentQualifiedName']);
+        $t->same(['settingsPayload'], $settingsPart['xmlDoctypeEntityNames']);
+
+        $t->same(4, count($entityReferences));
+        $t->same('customXml/entity-reference-review.xml', $entityReferences[0]['partName']);
+        $t->same('reviewer', $entityReferences[0]['name']);
+        $t->same('approval', $entityReferences[1]['name']);
+        $t->same('word/settings-entity-reference.xml', $entityReferences[3]['partName']);
+        $t->same('settingsPayload', $entityReferences[3]['name']);
+        $t->true(!isset($reviewPart['xmlEntityReferences'][0]['value']), 'raw XML entity replacement value should not be exposed on part metadata');
+        $encodedReferences = json_encode([$reviewPart, $settingsPart, $entityReferences]);
+        $t->true(is_string($encodedReferences), 'XML entity-reference metadata should encode for review');
+        $t->true(!str_contains((string) $encodedReferences, 'entity-reference:hidden'), 'raw XML entity replacement values should not be exposed in summary metadata');
     },
     'accepts docx main document template and macro-enabled content types' => static function (TestRunner $t): void {
         $acceptedDocumentContentTypes = [
