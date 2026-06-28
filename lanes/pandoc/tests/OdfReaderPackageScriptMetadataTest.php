@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\Pandoc\OdfReader;
 use PortLibs\Pandoc\ZipPackage;
 
+$basicLibraryXml = '<library:library xmlns:library="http://openoffice.org/2000/library" library:name="Standard"/>';
 $basicModuleXml = '<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Review">Sub Approve' . "\n" . 'End Sub</script:module>';
 $javaScript = 'function approveReview() { return false; }';
 $encryptedScript = 'encrypted macro payload';
@@ -18,6 +19,7 @@ $manifestXml = <<<'XML'
   <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
   <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>
   <manifest:file-entry manifest:full-path="Basic/" manifest:media-type=""/>
+  <manifest:file-entry manifest:full-path="Basic/Standard/script.xlb" manifest:media-type="text/xml" manifest:size="__LIBRARY_SIZE__"/>
   <manifest:file-entry manifest:full-path="Basic/Standard/Review.xml" manifest:media-type="text/xml" manifest:size="__BASIC_SIZE__"/>
   <manifest:file-entry manifest:full-path="Scripts/" manifest:media-type=""/>
   <manifest:file-entry manifest:full-path="Scripts/review.js" manifest:media-type="application/javascript" manifest:size="__JS_SIZE__"/>
@@ -29,8 +31,8 @@ $manifestXml = <<<'XML'
 XML;
 
 $manifestXml = str_replace(
-    ['__BASIC_SIZE__', '__JS_SIZE__'],
-    [(string) strlen($basicModuleXml), (string) strlen($javaScript)],
+    ['__LIBRARY_SIZE__', '__BASIC_SIZE__', '__JS_SIZE__'],
+    [(string) strlen($basicLibraryXml), (string) strlen($basicModuleXml), (string) strlen($javaScript)],
     $manifestXml
 );
 
@@ -77,6 +79,7 @@ $buildPackage = static fn (): ZipPackage => ZipPackage::fromParts([
     ['name' => 'meta.xml', 'data' => $metaXml, 'compressionMethod' => 0],
     ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
     ['name' => 'Basic/', 'data' => '', 'compressionMethod' => 0],
+    ['name' => 'Basic/Standard/script.xlb', 'data' => $basicLibraryXml, 'compressionMethod' => 0],
     ['name' => 'Basic/Standard/Review.xml', 'data' => $basicModuleXml, 'compressionMethod' => 0],
     ['name' => 'Scripts/', 'data' => '', 'compressionMethod' => 0],
     ['name' => 'Scripts/review.js', 'data' => $javaScript, 'compressionMethod' => 0],
@@ -100,6 +103,7 @@ return [
     'reports ODT script package sidecars as metadata-only package review data' => static function (TestRunner $t) use (
         $buildPackage,
         $indexBy,
+        $basicLibraryXml,
         $basicModuleXml,
         $javaScript,
         $encryptedScript,
@@ -114,12 +118,12 @@ return [
         $t->same($scripts, $result['document']->attr('packageScripts'));
         $t->same($scripts, $result['metadata']['odfPackageScripts']);
         $t->same($scripts, $result['importReport']['packageScripts']);
-        $t->same(7, $scripts['count']);
-        $t->same(5, $scripts['fileCount']);
+        $t->same(8, $scripts['count']);
+        $t->same(6, $scripts['fileCount']);
         $t->same(2, $scripts['directoryCount']);
-        $t->same(6, $scripts['storedPartCount']);
-        $t->same(3, $scripts['readableCount']);
-        $t->same(6, $scripts['declaredCount']);
+        $t->same(7, $scripts['storedPartCount']);
+        $t->same(4, $scripts['readableCount']);
+        $t->same(7, $scripts['declaredCount']);
         $t->same(1, $scripts['undeclaredCount']);
         $t->same(1, $scripts['missingCount']);
         $t->same(1, $scripts['encryptedCount']);
@@ -131,7 +135,7 @@ return [
             'odf-script-undeclared-package-part',
         ], $scripts['issueCodes']);
         $t->same(['basic', 'scripts'], $scripts['scriptContainers']);
-        $t->same(['basic-module', 'javascript', 'python', 'script-directory'], $scripts['scriptKinds']);
+        $t->same(['basic-library-index', 'basic-module', 'javascript', 'python', 'script-directory'], $scripts['scriptKinds']);
         $t->same('script-package-bytes-blocked', $scripts['byteExposurePolicy']);
         $t->same('package-script-metadata-only', $scripts['reviewPolicy']);
 
@@ -145,6 +149,19 @@ return [
         $t->same(null, $basicDirectory['byteLength']);
         $t->same(false, $basicDirectory['canExposeBytes']);
         $t->same('directory-entry-no-bytes', $basicDirectory['byteExposurePolicy']);
+
+        $basicLibraryIndex = $items['Basic/Standard/script.xlb'];
+        $t->same('basic-library-index', $basicLibraryIndex['scriptKind']);
+        $t->same('Standard', $basicLibraryIndex['scriptLibrary']);
+        $t->same('script', $basicLibraryIndex['scriptModule']);
+        $t->same('xlb', $basicLibraryIndex['extension']);
+        $t->same('text/xml', $basicLibraryIndex['mediaType']);
+        $t->same(true, $basicLibraryIndex['valid']);
+        $t->same(strlen($basicLibraryXml), $basicLibraryIndex['byteLength']);
+        $t->same(sprintf('%08x', crc32($basicLibraryXml)), $basicLibraryIndex['crc32']);
+        $t->same(false, $basicLibraryIndex['canExposeAsDocumentMedia']);
+        $t->same('script-package-bytes-blocked', $basicLibraryIndex['byteExposurePolicy']);
+        $t->same([], $basicLibraryIndex['issues']);
 
         $basicScript = $items['Basic/Standard/Review.xml'];
         $t->same('basic-module', $basicScript['scriptKind']);
