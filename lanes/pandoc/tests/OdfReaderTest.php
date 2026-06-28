@@ -1123,7 +1123,7 @@ XML;
 
         $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains("```{data-odf-preformatted=\"true\" data-odf-style-name=\"InheritedSourceCode\"}\ndefine('WP_DEBUG', true);\necho sanitize_text_field(\$title); // review\n```", $markdown);
+        $t->contains("``` {data-odf-preformatted=\"true\" data-odf-style-name=\"InheritedSourceCode\"}\ndefine('WP_DEBUG', true);\necho sanitize_text_field(\$title); // review\n```", $markdown);
         $t->contains('<pre class="wp-block-code" data-odf-preformatted="true" data-odf-style-name="InheritedSourceCode"><code>define(&#039;WP_DEBUG&#039;, true);', $blocksHtml);
         $t->contains("echo sanitize_text_field(\$title); // review</code></pre>", $blocksHtml);
         $t->contains('<p>Following review prose stays a paragraph.</p>', $blocksHtml);
@@ -3149,7 +3149,7 @@ XML;
         $t->same(1, $result['importReport']['content']['continuedListCount']);
 
         $markdown = (new MarkdownWriter())->write($result['document']);
-        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter(['preserveListAttributes' => true]))->write($result['document']);
         $t->contains('3.  Third source step', $markdown);
         $t->contains('<ol data-odf-list-id="review-list-a" data-odf-list-id-attribute="text:id"><li>First source step</li><li>Second source step</li></ol>', $blocksHtml);
         $t->contains('<ol data-odf-list-id="unrelated-list" data-odf-list-id-attribute="text:id"><li>Unrelated inserted checklist</li></ol>', $blocksHtml);
@@ -3238,7 +3238,7 @@ XML;
         $t->same(1, $result['importReport']['content']['imageListStyleCount']);
 
         $markdown = (new MarkdownWriter())->write($result['document']);
-        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter(['preserveListAttributes' => true]))->write($result['document']);
         $manifestByPath = [];
         foreach ($result['manifest'] as $item) {
             $manifestByPath[$item['fullPath']] = $item;
@@ -3340,7 +3340,7 @@ XML;
         $t->same(2, $result['importReport']['content']['listTextPropertyCount']);
 
         $markdown = (new MarkdownWriter())->write($result['document']);
-        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter(['preserveListAttributes' => true]))->write($result['document']);
         $t->contains('1.  Styled marker source item', $markdown);
         $t->contains('- Nested marker style metadata', $markdown);
         $t->contains('<ol data-odf-list-text-property-count="7" data-odf-list-text-font-name="ListMono" data-odf-list-text-font-face-name="ListMono"', $blocksHtml);
@@ -7682,7 +7682,7 @@ XML;
         $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
         $t->contains(': Table **[1]{data-odf-style-name="CaptionStrong"}**: Source media audit', $markdown);
-        $t->contains('<figcaption class="wp-element-caption odf-table-caption" data-odf-table-caption-source="following-paragraph" data-odf-table-caption-style-name="Table"><p>Table <strong><span data-odf-style-name="CaptionStrong">1</span></strong>: Source media audit</p></figcaption>', $blocksHtml);
+        $t->contains('<figcaption data-odf-table-caption-source="following-paragraph" data-odf-table-caption-style-name="Table" class="odf-table-caption wp-element-caption">Table <strong><span data-odf-style-name="CaptionStrong">1</span></strong>: Source media audit</figcaption>', $blocksHtml);
         $t->true(!str_contains($blocksHtml, '<div class="caption odf-table-caption"'), 'Following ODT table captions should not remain standalone divs after a table');
     },
     'maps ODT linked and protected sections into review div metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
