@@ -21,6 +21,7 @@ final class DocxOpenXmlReader
     private const NS_EP = 'http://schemas.openxmlformats.org/officeDocument/2006/extended-properties';
     private const NS_CUSTOM_PROPS = 'http://schemas.openxmlformats.org/officeDocument/2006/custom-properties';
     private const NS_VT = 'http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes';
+    private const NS_XML = 'http://www.w3.org/XML/1998/namespace';
     private const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
     private const NS_WP = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
     private const NS_C = 'http://schemas.openxmlformats.org/drawingml/2006/chart';
@@ -15242,6 +15243,24 @@ final class DocxOpenXmlReader
             'partXmlElementAttributeAbsoluteUriValueCount' => $partXmlRoots['xmlElementAttributeAbsoluteUriValueCount'],
             'partXmlElementAttributeFragmentReferenceValueCount' => $partXmlRoots['xmlElementAttributeFragmentReferenceValueCount'],
             'partXmlElementAttributePathReferenceValueCount' => $partXmlRoots['xmlElementAttributePathReferenceValueCount'],
+            'partXmlElementAttributeXmlReservedPartCount' => $partXmlRoots['xmlElementAttributeXmlReservedPartCount'],
+            'partXmlElementAttributeXmlReservedCount' => $partXmlRoots['xmlElementAttributeXmlReservedCount'],
+            'partXmlElementAttributeXmlReservedSpaceCount' => $partXmlRoots['xmlElementAttributeXmlReservedSpaceCount'],
+            'partXmlElementAttributeXmlReservedSpacePreserveCount' => $partXmlRoots['xmlElementAttributeXmlReservedSpacePreserveCount'],
+            'partXmlElementAttributeXmlReservedSpaceDefaultCount' => $partXmlRoots['xmlElementAttributeXmlReservedSpaceDefaultCount'],
+            'partXmlElementAttributeXmlReservedSpaceOtherCount' => $partXmlRoots['xmlElementAttributeXmlReservedSpaceOtherCount'],
+            'partXmlElementAttributeXmlReservedLangCount' => $partXmlRoots['xmlElementAttributeXmlReservedLangCount'],
+            'partXmlElementAttributeXmlReservedBaseCount' => $partXmlRoots['xmlElementAttributeXmlReservedBaseCount'],
+            'partXmlElementAttributeXmlReservedIdCount' => $partXmlRoots['xmlElementAttributeXmlReservedIdCount'],
+            'partXmlElementAttributeXmlReservedIssueCount' => $partXmlRoots['xmlElementAttributeXmlReservedIssueCount'],
+            'partXmlElementAttributeXmlReservedIssueCodes' => $partXmlRoots['xmlElementAttributeXmlReservedIssueCodes'],
+            'partXmlElementAttributeXmlReservedPartNames' => $partXmlRoots['xmlElementAttributeXmlReservedPartNames'],
+            'partXmlElementAttributeXmlReservedLocalNameCount' => count($partXmlRoots['xmlElementAttributeXmlReservedLocalNameCounts']),
+            'partXmlElementAttributeXmlReservedLocalNameCounts' => $partXmlRoots['xmlElementAttributeXmlReservedLocalNameCounts'],
+            'partXmlElementAttributeXmlReservedLocalNames' => $partXmlRoots['xmlElementAttributeXmlReservedLocalNames'],
+            'partXmlElementAttributeXmlReservedElementPathCount' => count($partXmlRoots['xmlElementAttributeXmlReservedElementPathCounts']),
+            'partXmlElementAttributeXmlReservedElementPathCounts' => $partXmlRoots['xmlElementAttributeXmlReservedElementPathCounts'],
+            'partXmlElementAttributeXmlReservedElementPaths' => $partXmlRoots['xmlElementAttributeXmlReservedElementPaths'],
             'partXmlElementAttributeIndexCount' => count($partXmlRoots['xmlElementAttributeIndexCounts']),
             'partXmlElementAttributeIndexCounts' => $partXmlRoots['xmlElementAttributeIndexCounts'],
             'partXmlElementAttributeParentAttributeCountBucketCount' => count($partXmlRoots['xmlElementAttributeParentAttributeCountBucketCounts']),
@@ -15849,6 +15868,7 @@ final class DocxOpenXmlReader
             'partXmlElementSiblingPositions' => $partXmlRoots['xmlElementSiblingPositions'],
             'partXmlElementAttributeCooccurrences' => $partXmlAttributeCooccurrences['items'],
             'partXmlElementAttributes' => $partXmlRoots['xmlElementAttributes'],
+            'partXmlElementAttributeXmlReservedAttributes' => $partXmlRoots['xmlElementAttributeXmlReservedAttributes'],
             'partXmlRelationshipReferenceAttributes' => $partXmlRelationshipReferences['items'],
             'partContentTypeSyntaxSuffixes' => $partContentTypeSyntaxSuffixes,
             'partContentTypeSources' => $partContentTypeSources,
@@ -21479,6 +21499,13 @@ final class DocxOpenXmlReader
         $xmlElementAttributeValueLengthBuckets = [];
         $xmlElementAttributeIndexCounts = [];
         $xmlElementAttributeParentAttributeCountBucketCounts = [];
+        $xmlElementAttributeXmlReservedPartNames = [];
+        $xmlElementAttributeXmlReservedLocalNameCounts = [];
+        $xmlElementAttributeXmlReservedLocalNames = [];
+        $xmlElementAttributeXmlReservedElementPathCounts = [];
+        $xmlElementAttributeXmlReservedElementPaths = [];
+        $xmlElementAttributeXmlReservedIssueCodes = [];
+        $xmlElementAttributeXmlReservedAttributes = [];
         $xmlElementAttributes = [];
         $validCount = 0;
         $invalidCount = 0;
@@ -21626,6 +21653,16 @@ final class DocxOpenXmlReader
         $xmlElementAttributeLineBreakValueCount = 0;
         $xmlElementAttributeLineBreakValueAttributeCount = 0;
         $xmlElementAttributeTokenValueCount = 0;
+        $xmlElementAttributeXmlReservedPartCount = 0;
+        $xmlElementAttributeXmlReservedCount = 0;
+        $xmlElementAttributeXmlReservedSpaceCount = 0;
+        $xmlElementAttributeXmlReservedSpacePreserveCount = 0;
+        $xmlElementAttributeXmlReservedSpaceDefaultCount = 0;
+        $xmlElementAttributeXmlReservedSpaceOtherCount = 0;
+        $xmlElementAttributeXmlReservedLangCount = 0;
+        $xmlElementAttributeXmlReservedBaseCount = 0;
+        $xmlElementAttributeXmlReservedIdCount = 0;
+        $xmlElementAttributeXmlReservedIssueCount = 0;
         $xmlElementAttributeAsciiWhitespaceValueCount = 0;
         $xmlElementAttributeAbsoluteUriValueCount = 0;
         $xmlElementAttributeFragmentReferenceValueCount = 0;
@@ -23849,6 +23886,99 @@ final class DocxOpenXmlReader
             $xmlElementAttributeFirstCount += (int) ($part['xmlElementAttributeFirstCount'] ?? 0);
             $xmlElementAttributeLastCount += (int) ($part['xmlElementAttributeLastCount'] ?? 0);
             $xmlElementAttributeOnlyCount += (int) ($part['xmlElementAttributeOnlyCount'] ?? 0);
+            $partXmlReservedAttributeCount = (int) ($part['xmlElementAttributeXmlReservedCount'] ?? 0);
+            if ($partXmlReservedAttributeCount > 0) {
+                ++$xmlElementAttributeXmlReservedPartCount;
+                $xmlElementAttributeXmlReservedCount += $partXmlReservedAttributeCount;
+                $xmlElementAttributeXmlReservedSpaceCount += (int) ($part['xmlElementAttributeXmlReservedSpaceCount'] ?? 0);
+                $xmlElementAttributeXmlReservedSpacePreserveCount += (int) ($part['xmlElementAttributeXmlReservedSpacePreserveCount'] ?? 0);
+                $xmlElementAttributeXmlReservedSpaceDefaultCount += (int) ($part['xmlElementAttributeXmlReservedSpaceDefaultCount'] ?? 0);
+                $xmlElementAttributeXmlReservedSpaceOtherCount += (int) ($part['xmlElementAttributeXmlReservedSpaceOtherCount'] ?? 0);
+                $xmlElementAttributeXmlReservedLangCount += (int) ($part['xmlElementAttributeXmlReservedLangCount'] ?? 0);
+                $xmlElementAttributeXmlReservedBaseCount += (int) ($part['xmlElementAttributeXmlReservedBaseCount'] ?? 0);
+                $xmlElementAttributeXmlReservedIdCount += (int) ($part['xmlElementAttributeXmlReservedIdCount'] ?? 0);
+                $xmlElementAttributeXmlReservedIssueCount += (int) ($part['xmlElementAttributeXmlReservedIssueCount'] ?? 0);
+                $xmlElementAttributeXmlReservedPartNames[] = $partName;
+            }
+            foreach (($part['xmlElementAttributeXmlReservedLocalNameCounts'] ?? []) as $localName => $count) {
+                if (!is_string($localName) || $localName === '') {
+                    continue;
+                }
+                $xmlElementAttributeXmlReservedLocalNameCounts[$localName] =
+                    ($xmlElementAttributeXmlReservedLocalNameCounts[$localName] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlElementAttributeXmlReservedLocalNames, $localName);
+            }
+            foreach (($part['xmlElementAttributeXmlReservedElementPathCounts'] ?? []) as $elementPath => $count) {
+                if (!is_string($elementPath) || $elementPath === '') {
+                    continue;
+                }
+                $xmlElementAttributeXmlReservedElementPathCounts[$elementPath] =
+                    ($xmlElementAttributeXmlReservedElementPathCounts[$elementPath] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlElementAttributeXmlReservedElementPaths, $elementPath);
+            }
+            foreach (($part['xmlElementAttributeXmlReservedIssueCodes'] ?? []) as $issueCode) {
+                if (!is_string($issueCode) || $issueCode === '') {
+                    continue;
+                }
+                $xmlElementAttributeXmlReservedIssueCodes[$issueCode] = true;
+            }
+            foreach (($part['xmlElementAttributeXmlReservedAttributes'] ?? []) as $reservedAttribute) {
+                if (!is_array($reservedAttribute)) {
+                    continue;
+                }
+
+                $xmlElementAttributeXmlReservedAttributes[] = [
+                    'partName' => $partName,
+                    'directory' => is_string($part['directory'] ?? null)
+                        ? $part['directory']
+                        : $this->packagePartDirectory($partName),
+                    'baseName' => is_string($part['baseName'] ?? null)
+                        ? $part['baseName']
+                        : $this->packagePartBaseName($partName),
+                    'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                    'contentTypeBase' => is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '',
+                    'contentTypeSource' => is_string($part['contentTypeSource'] ?? null) ? $part['contentTypeSource'] : 'missing',
+                    'ordinal' => is_int($reservedAttribute['ordinal'] ?? null) ? (int) $reservedAttribute['ordinal'] : 0,
+                    'elementPath' => is_string($reservedAttribute['elementPath'] ?? null)
+                        ? $reservedAttribute['elementPath']
+                        : '/',
+                    'elementDepth' => (int) ($reservedAttribute['elementDepth'] ?? 0),
+                    'elementQualifiedName' => is_string($reservedAttribute['elementQualifiedName'] ?? null)
+                        ? $reservedAttribute['elementQualifiedName']
+                        : '',
+                    'elementLocalName' => is_string($reservedAttribute['elementLocalName'] ?? null)
+                        ? $reservedAttribute['elementLocalName']
+                        : '',
+                    'elementNamespace' => is_string($reservedAttribute['elementNamespace'] ?? null)
+                        ? $reservedAttribute['elementNamespace']
+                        : null,
+                    'elementPrefix' => is_string($reservedAttribute['elementPrefix'] ?? null)
+                        ? $reservedAttribute['elementPrefix']
+                        : null,
+                    'name' => is_string($reservedAttribute['name'] ?? null) ? $reservedAttribute['name'] : '',
+                    'localName' => is_string($reservedAttribute['localName'] ?? null) ? $reservedAttribute['localName'] : '',
+                    'valueByteLength' => (int) ($reservedAttribute['valueByteLength'] ?? 0),
+                    'valueLengthBucket' => is_string($reservedAttribute['valueLengthBucket'] ?? null)
+                        ? $reservedAttribute['valueLengthBucket']
+                        : $this->xmlElementAttributeValueLengthBucket((int) ($reservedAttribute['valueByteLength'] ?? 0)),
+                    'valueShape' => is_string($reservedAttribute['valueShape'] ?? null)
+                        ? $reservedAttribute['valueShape']
+                        : 'unknown',
+                    'valueTokenCount' => (int) ($reservedAttribute['valueTokenCount'] ?? 0),
+                    'spaceValue' => is_string($reservedAttribute['spaceValue'] ?? null)
+                        ? $reservedAttribute['spaceValue']
+                        : null,
+                    'valueCrc32' => is_string($reservedAttribute['valueCrc32'] ?? null)
+                        ? $reservedAttribute['valueCrc32']
+                        : null,
+                    'valueSha256' => is_string($reservedAttribute['valueSha256'] ?? null)
+                        ? $reservedAttribute['valueSha256']
+                        : null,
+                    'issues' => is_array($reservedAttribute['issues'] ?? null)
+                        ? array_values(array_map('strval', $reservedAttribute['issues']))
+                        : [],
+                ];
+            }
             foreach (($part['xmlElementAttributes'] ?? []) as $attribute) {
                 if (!is_array($attribute)) {
                     continue;
@@ -24774,6 +24904,12 @@ final class DocxOpenXmlReader
         sort($xmlElementAttributeValueShapes, SORT_STRING);
         ksort($xmlElementAttributeValueLengthBucketCounts, SORT_STRING);
         sort($xmlElementAttributeValueLengthBuckets, SORT_STRING);
+        ksort($xmlElementAttributeXmlReservedLocalNameCounts, SORT_STRING);
+        ksort($xmlElementAttributeXmlReservedElementPathCounts, SORT_STRING);
+        ksort($xmlElementAttributeXmlReservedIssueCodes, SORT_STRING);
+        sort($xmlElementAttributeXmlReservedPartNames, SORT_STRING);
+        sort($xmlElementAttributeXmlReservedLocalNames, SORT_STRING);
+        sort($xmlElementAttributeXmlReservedElementPaths, SORT_STRING);
         usort(
             $xmlDoctypes,
             static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName']),
@@ -24864,6 +25000,11 @@ final class DocxOpenXmlReader
         );
         usort(
             $xmlElementAttributes,
+            static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName'])
+                ?: ((int) ($left['ordinal'] ?? 0) <=> (int) ($right['ordinal'] ?? 0)),
+        );
+        usort(
+            $xmlElementAttributeXmlReservedAttributes,
             static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName'])
                 ?: ((int) ($left['ordinal'] ?? 0) <=> (int) ($right['ordinal'] ?? 0)),
         );
@@ -25306,6 +25447,23 @@ final class DocxOpenXmlReader
             'xmlElementAttributeAbsoluteUriValueCount' => $xmlElementAttributeAbsoluteUriValueCount,
             'xmlElementAttributeFragmentReferenceValueCount' => $xmlElementAttributeFragmentReferenceValueCount,
             'xmlElementAttributePathReferenceValueCount' => $xmlElementAttributePathReferenceValueCount,
+            'xmlElementAttributeXmlReservedPartCount' => $xmlElementAttributeXmlReservedPartCount,
+            'xmlElementAttributeXmlReservedCount' => $xmlElementAttributeXmlReservedCount,
+            'xmlElementAttributeXmlReservedSpaceCount' => $xmlElementAttributeXmlReservedSpaceCount,
+            'xmlElementAttributeXmlReservedSpacePreserveCount' => $xmlElementAttributeXmlReservedSpacePreserveCount,
+            'xmlElementAttributeXmlReservedSpaceDefaultCount' => $xmlElementAttributeXmlReservedSpaceDefaultCount,
+            'xmlElementAttributeXmlReservedSpaceOtherCount' => $xmlElementAttributeXmlReservedSpaceOtherCount,
+            'xmlElementAttributeXmlReservedLangCount' => $xmlElementAttributeXmlReservedLangCount,
+            'xmlElementAttributeXmlReservedBaseCount' => $xmlElementAttributeXmlReservedBaseCount,
+            'xmlElementAttributeXmlReservedIdCount' => $xmlElementAttributeXmlReservedIdCount,
+            'xmlElementAttributeXmlReservedIssueCount' => $xmlElementAttributeXmlReservedIssueCount,
+            'xmlElementAttributeXmlReservedIssueCodes' => array_keys($xmlElementAttributeXmlReservedIssueCodes),
+            'xmlElementAttributeXmlReservedPartNames' => $xmlElementAttributeXmlReservedPartNames,
+            'xmlElementAttributeXmlReservedLocalNameCounts' => $xmlElementAttributeXmlReservedLocalNameCounts,
+            'xmlElementAttributeXmlReservedLocalNames' => $xmlElementAttributeXmlReservedLocalNames,
+            'xmlElementAttributeXmlReservedElementPathCounts' => $xmlElementAttributeXmlReservedElementPathCounts,
+            'xmlElementAttributeXmlReservedElementPaths' => $xmlElementAttributeXmlReservedElementPaths,
+            'xmlElementAttributeXmlReservedAttributes' => $xmlElementAttributeXmlReservedAttributes,
             'xmlElementAttributeIndexCounts' => $xmlElementAttributeIndexCounts,
             'xmlElementAttributeParentAttributeCountBucketCounts' => $xmlElementAttributeParentAttributeCountBucketCounts,
             'xmlElementAttributeFirstCount' => $xmlElementAttributeFirstCount,
@@ -30658,6 +30816,21 @@ final class DocxOpenXmlReader
             'absoluteUriValueCount' => 0,
             'fragmentReferenceValueCount' => 0,
             'pathReferenceValueCount' => 0,
+            'xmlReservedAttributeCount' => 0,
+            'xmlReservedAttributeSpaceCount' => 0,
+            'xmlReservedAttributeSpacePreserveCount' => 0,
+            'xmlReservedAttributeSpaceDefaultCount' => 0,
+            'xmlReservedAttributeSpaceOtherCount' => 0,
+            'xmlReservedAttributeLangCount' => 0,
+            'xmlReservedAttributeBaseCount' => 0,
+            'xmlReservedAttributeIdCount' => 0,
+            'xmlReservedAttributeIssueCount' => 0,
+            'xmlReservedAttributeIssueCodes' => [],
+            'xmlReservedAttributeLocalNameCounts' => [],
+            'xmlReservedAttributeLocalNames' => [],
+            'xmlReservedAttributeElementPathCounts' => [],
+            'xmlReservedAttributeElementPaths' => [],
+            'xmlReservedAttributes' => [],
             'attributeIndexCounts' => [],
             'parentAttributeCountBucketCounts' => [],
             'firstAttributeCount' => 0,
@@ -30741,6 +30914,21 @@ final class DocxOpenXmlReader
         $absoluteUriValueCount = 0;
         $fragmentReferenceValueCount = 0;
         $pathReferenceValueCount = 0;
+        $xmlReservedAttributeCount = 0;
+        $xmlReservedAttributeSpaceCount = 0;
+        $xmlReservedAttributeSpacePreserveCount = 0;
+        $xmlReservedAttributeSpaceDefaultCount = 0;
+        $xmlReservedAttributeSpaceOtherCount = 0;
+        $xmlReservedAttributeLangCount = 0;
+        $xmlReservedAttributeBaseCount = 0;
+        $xmlReservedAttributeIdCount = 0;
+        $xmlReservedAttributeIssueCount = 0;
+        $xmlReservedAttributeIssueCodes = [];
+        $xmlReservedAttributeLocalNameCounts = [];
+        $xmlReservedAttributeLocalNames = [];
+        $xmlReservedAttributeElementPathCounts = [];
+        $xmlReservedAttributeElementPaths = [];
+        $xmlReservedAttributes = [];
         $attributeIndexCounts = [];
         $parentAttributeCountBucketCounts = [];
         $firstAttributeCount = 0;
@@ -30792,6 +30980,21 @@ final class DocxOpenXmlReader
             &$absoluteUriValueCount,
             &$fragmentReferenceValueCount,
             &$pathReferenceValueCount,
+            &$xmlReservedAttributeCount,
+            &$xmlReservedAttributeSpaceCount,
+            &$xmlReservedAttributeSpacePreserveCount,
+            &$xmlReservedAttributeSpaceDefaultCount,
+            &$xmlReservedAttributeSpaceOtherCount,
+            &$xmlReservedAttributeLangCount,
+            &$xmlReservedAttributeBaseCount,
+            &$xmlReservedAttributeIdCount,
+            &$xmlReservedAttributeIssueCount,
+            &$xmlReservedAttributeIssueCodes,
+            &$xmlReservedAttributeLocalNameCounts,
+            &$xmlReservedAttributeLocalNames,
+            &$xmlReservedAttributeElementPathCounts,
+            &$xmlReservedAttributeElementPaths,
+            &$xmlReservedAttributes,
             &$attributeIndexCounts,
             &$parentAttributeCountBucketCounts,
             &$firstAttributeCount,
@@ -30933,6 +31136,9 @@ final class DocxOpenXmlReader
                 $valueLooksAbsoluteUri = $valueShapeName === 'absolute-uri';
                 $valueLooksFragmentReference = $valueShapeName === 'fragment-reference';
                 $valueLooksPathReference = in_array($valueShapeName, ['network-path-reference', 'relative-reference'], true);
+                $isXmlReservedAttribute = $namespace === self::NS_XML;
+                $xmlReservedAttributeIssues = [];
+                $xmlReservedSpaceValue = null;
 
                 $valueByteLength += $attributeValueByteLength;
                 if ($isValueEmpty) {
@@ -30996,6 +31202,61 @@ final class DocxOpenXmlReader
                 $this->appendUniqueString($valueShapes, $valueShapeName);
                 $valueLengthBucketCounts[$valueLengthBucket] = ($valueLengthBucketCounts[$valueLengthBucket] ?? 0) + 1;
                 $this->appendUniqueString($valueLengthBuckets, $valueLengthBucket);
+                if ($isXmlReservedAttribute) {
+                    ++$xmlReservedAttributeCount;
+                    $xmlReservedAttributeLocalNameCounts[$attribute->localName] =
+                        ($xmlReservedAttributeLocalNameCounts[$attribute->localName] ?? 0) + 1;
+                    $this->appendUniqueString($xmlReservedAttributeLocalNames, $attribute->localName);
+                    $xmlReservedAttributeElementPathCounts[$elementPath] =
+                        ($xmlReservedAttributeElementPathCounts[$elementPath] ?? 0) + 1;
+                    $this->appendUniqueString($xmlReservedAttributeElementPaths, $elementPath);
+
+                    if ($attribute->localName === 'space') {
+                        ++$xmlReservedAttributeSpaceCount;
+                        if ($value === 'preserve') {
+                            ++$xmlReservedAttributeSpacePreserveCount;
+                            $xmlReservedSpaceValue = 'preserve';
+                        } elseif ($value === 'default') {
+                            ++$xmlReservedAttributeSpaceDefaultCount;
+                            $xmlReservedSpaceValue = 'default';
+                        } else {
+                            ++$xmlReservedAttributeSpaceOtherCount;
+                            $xmlReservedSpaceValue = 'other';
+                            $xmlReservedAttributeIssues[] = 'unexpected-xml-space-value';
+                        }
+                    } elseif ($attribute->localName === 'lang') {
+                        ++$xmlReservedAttributeLangCount;
+                    } elseif ($attribute->localName === 'base') {
+                        ++$xmlReservedAttributeBaseCount;
+                    } elseif ($attribute->localName === 'id') {
+                        ++$xmlReservedAttributeIdCount;
+                    }
+
+                    foreach ($xmlReservedAttributeIssues as $issue) {
+                        $xmlReservedAttributeIssueCodes[$issue] = true;
+                        ++$xmlReservedAttributeIssueCount;
+                    }
+
+                    $xmlReservedAttributes[] = [
+                        'ordinal' => $ordinal,
+                        'elementPath' => $elementPath,
+                        'elementDepth' => $elementDepth,
+                        'elementQualifiedName' => $elementQualifiedName,
+                        'elementLocalName' => $elementLocalName,
+                        'elementNamespace' => $elementNamespace,
+                        'elementPrefix' => $elementPrefix,
+                        'name' => $name,
+                        'localName' => $attribute->localName,
+                        'valueByteLength' => $attributeValueByteLength,
+                        'valueLengthBucket' => $valueLengthBucket,
+                        'valueShape' => $valueShapeName,
+                        'valueTokenCount' => $attributeTokenCount,
+                        'spaceValue' => $xmlReservedSpaceValue,
+                        'valueCrc32' => $value === '' ? null : sprintf('%08x', crc32($value)),
+                        'valueSha256' => $value === '' ? null : hash('sha256', $value),
+                        'issues' => $xmlReservedAttributeIssues,
+                    ];
+                }
 
                 $items[] = [
                     'ordinal' => $ordinal,
@@ -31061,6 +31322,9 @@ final class DocxOpenXmlReader
         ksort($cooccurrenceNamespacePairCounts, SORT_STRING);
         ksort($cooccurrenceElementPathCounts, SORT_STRING);
         ksort($cooccurrenceElementNameCounts, SORT_STRING);
+        ksort($xmlReservedAttributeLocalNameCounts, SORT_STRING);
+        ksort($xmlReservedAttributeElementPathCounts, SORT_STRING);
+        ksort($xmlReservedAttributeIssueCodes, SORT_STRING);
         ksort($attributeIndexCounts, SORT_NUMERIC);
         ksort($parentAttributeCountBucketCounts, SORT_STRING);
         sort($names, SORT_STRING);
@@ -31073,6 +31337,8 @@ final class DocxOpenXmlReader
         sort($cooccurrencePrefixPairs, SORT_STRING);
         sort($cooccurrenceNamespacePairs, SORT_STRING);
         sort($cooccurrenceElementPaths, SORT_STRING);
+        sort($xmlReservedAttributeLocalNames, SORT_STRING);
+        sort($xmlReservedAttributeElementPaths, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -31091,6 +31357,21 @@ final class DocxOpenXmlReader
             'absoluteUriValueCount' => $absoluteUriValueCount,
             'fragmentReferenceValueCount' => $fragmentReferenceValueCount,
             'pathReferenceValueCount' => $pathReferenceValueCount,
+            'xmlReservedAttributeCount' => $xmlReservedAttributeCount,
+            'xmlReservedAttributeSpaceCount' => $xmlReservedAttributeSpaceCount,
+            'xmlReservedAttributeSpacePreserveCount' => $xmlReservedAttributeSpacePreserveCount,
+            'xmlReservedAttributeSpaceDefaultCount' => $xmlReservedAttributeSpaceDefaultCount,
+            'xmlReservedAttributeSpaceOtherCount' => $xmlReservedAttributeSpaceOtherCount,
+            'xmlReservedAttributeLangCount' => $xmlReservedAttributeLangCount,
+            'xmlReservedAttributeBaseCount' => $xmlReservedAttributeBaseCount,
+            'xmlReservedAttributeIdCount' => $xmlReservedAttributeIdCount,
+            'xmlReservedAttributeIssueCount' => $xmlReservedAttributeIssueCount,
+            'xmlReservedAttributeIssueCodes' => array_keys($xmlReservedAttributeIssueCodes),
+            'xmlReservedAttributeLocalNameCounts' => $xmlReservedAttributeLocalNameCounts,
+            'xmlReservedAttributeLocalNames' => $xmlReservedAttributeLocalNames,
+            'xmlReservedAttributeElementPathCounts' => $xmlReservedAttributeElementPathCounts,
+            'xmlReservedAttributeElementPaths' => $xmlReservedAttributeElementPaths,
+            'xmlReservedAttributes' => $xmlReservedAttributes,
             'attributeIndexCounts' => $attributeIndexCounts,
             'parentAttributeCountBucketCounts' => $parentAttributeCountBucketCounts,
             'firstAttributeCount' => $firstAttributeCount,
@@ -33412,6 +33693,21 @@ final class DocxOpenXmlReader
                 'xmlElementAttributeAbsoluteUriValueCount' => 0,
                 'xmlElementAttributeFragmentReferenceValueCount' => 0,
                 'xmlElementAttributePathReferenceValueCount' => 0,
+                'xmlElementAttributeXmlReservedCount' => 0,
+                'xmlElementAttributeXmlReservedSpaceCount' => 0,
+                'xmlElementAttributeXmlReservedSpacePreserveCount' => 0,
+                'xmlElementAttributeXmlReservedSpaceDefaultCount' => 0,
+                'xmlElementAttributeXmlReservedSpaceOtherCount' => 0,
+                'xmlElementAttributeXmlReservedLangCount' => 0,
+                'xmlElementAttributeXmlReservedBaseCount' => 0,
+                'xmlElementAttributeXmlReservedIdCount' => 0,
+                'xmlElementAttributeXmlReservedIssueCount' => 0,
+                'xmlElementAttributeXmlReservedIssueCodes' => [],
+                'xmlElementAttributeXmlReservedLocalNameCounts' => [],
+                'xmlElementAttributeXmlReservedLocalNames' => [],
+                'xmlElementAttributeXmlReservedElementPathCounts' => [],
+                'xmlElementAttributeXmlReservedElementPaths' => [],
+                'xmlElementAttributeXmlReservedAttributes' => [],
                 'xmlElementAttributeIndexCounts' => [],
                 'xmlElementAttributeParentAttributeCountBucketCounts' => [],
                 'xmlElementAttributeFirstCount' => 0,
@@ -33799,6 +34095,21 @@ final class DocxOpenXmlReader
             'xmlElementAttributeAbsoluteUriValueCount' => $elementAttributes['absoluteUriValueCount'],
             'xmlElementAttributeFragmentReferenceValueCount' => $elementAttributes['fragmentReferenceValueCount'],
             'xmlElementAttributePathReferenceValueCount' => $elementAttributes['pathReferenceValueCount'],
+            'xmlElementAttributeXmlReservedCount' => $elementAttributes['xmlReservedAttributeCount'],
+            'xmlElementAttributeXmlReservedSpaceCount' => $elementAttributes['xmlReservedAttributeSpaceCount'],
+            'xmlElementAttributeXmlReservedSpacePreserveCount' => $elementAttributes['xmlReservedAttributeSpacePreserveCount'],
+            'xmlElementAttributeXmlReservedSpaceDefaultCount' => $elementAttributes['xmlReservedAttributeSpaceDefaultCount'],
+            'xmlElementAttributeXmlReservedSpaceOtherCount' => $elementAttributes['xmlReservedAttributeSpaceOtherCount'],
+            'xmlElementAttributeXmlReservedLangCount' => $elementAttributes['xmlReservedAttributeLangCount'],
+            'xmlElementAttributeXmlReservedBaseCount' => $elementAttributes['xmlReservedAttributeBaseCount'],
+            'xmlElementAttributeXmlReservedIdCount' => $elementAttributes['xmlReservedAttributeIdCount'],
+            'xmlElementAttributeXmlReservedIssueCount' => $elementAttributes['xmlReservedAttributeIssueCount'],
+            'xmlElementAttributeXmlReservedIssueCodes' => $elementAttributes['xmlReservedAttributeIssueCodes'],
+            'xmlElementAttributeXmlReservedLocalNameCounts' => $elementAttributes['xmlReservedAttributeLocalNameCounts'],
+            'xmlElementAttributeXmlReservedLocalNames' => $elementAttributes['xmlReservedAttributeLocalNames'],
+            'xmlElementAttributeXmlReservedElementPathCounts' => $elementAttributes['xmlReservedAttributeElementPathCounts'],
+            'xmlElementAttributeXmlReservedElementPaths' => $elementAttributes['xmlReservedAttributeElementPaths'],
+            'xmlElementAttributeXmlReservedAttributes' => $elementAttributes['xmlReservedAttributes'],
             'xmlElementAttributeIndexCounts' => $elementAttributes['attributeIndexCounts'],
             'xmlElementAttributeParentAttributeCountBucketCounts' => $elementAttributes['parentAttributeCountBucketCounts'],
             'xmlElementAttributeFirstCount' => $elementAttributes['firstAttributeCount'],

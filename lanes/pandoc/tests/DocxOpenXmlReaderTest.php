@@ -19213,6 +19213,88 @@ XML;
         $t->true(!str_contains((string) $encodedAttributes, 'hidden-'), 'raw XML attribute values should not be exposed in value-shape metadata');
         $t->true(!str_contains((string) $encodedAttributes, $absoluteUri), 'raw XML URI attribute value should not be exposed in value-shape metadata');
     },
+    'summarizes docx package xml reserved attributes without exposing values' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $baseUri = 'https://example.test/hidden-base/';
+        $hiddenText = 'xml-reserved:hidden-text';
+        $parts['customXml/xml-reserved-attributes.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:xml-reserved-attributes" xml:lang="en-US" xml:base="{$baseUri}" xml:id="packet-1">
+  <review:item xml:space="preserve">{$hiddenText}</review:item>
+  <review:item xml:space="default"/>
+  <review:item xml:space="collapse"/>
+</review:packet>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $part = $package['parts']['customXml/xml-reserved-attributes.xml'];
+        $reserved = array_values(array_filter(
+            $summary['partXmlElementAttributeXmlReservedAttributes'],
+            static fn (array $attribute): bool => $attribute['partName'] === 'customXml/xml-reserved-attributes.xml',
+        ));
+        $reservedByKey = [];
+        foreach ($reserved as $attribute) {
+            $key = $attribute['elementPath'] . '#' . $attribute['localName'];
+            if ($attribute['localName'] === 'space') {
+                $key .= '#' . (string) ($attribute['spaceValue'] ?? '');
+            }
+            $reservedByKey[$key] = $attribute;
+        }
+
+        $t->same(6, $part['xmlElementAttributeXmlReservedCount']);
+        $t->same(3, $part['xmlElementAttributeXmlReservedSpaceCount']);
+        $t->same(1, $part['xmlElementAttributeXmlReservedSpacePreserveCount']);
+        $t->same(1, $part['xmlElementAttributeXmlReservedSpaceDefaultCount']);
+        $t->same(1, $part['xmlElementAttributeXmlReservedSpaceOtherCount']);
+        $t->same(1, $part['xmlElementAttributeXmlReservedLangCount']);
+        $t->same(1, $part['xmlElementAttributeXmlReservedBaseCount']);
+        $t->same(1, $part['xmlElementAttributeXmlReservedIdCount']);
+        $t->same(1, $part['xmlElementAttributeXmlReservedIssueCount']);
+        $t->same(['unexpected-xml-space-value'], $part['xmlElementAttributeXmlReservedIssueCodes']);
+        $t->same([
+            'base' => 1,
+            'id' => 1,
+            'lang' => 1,
+            'space' => 3,
+        ], $part['xmlElementAttributeXmlReservedLocalNameCounts']);
+        $t->same([
+            '/review:packet' => 3,
+            '/review:packet/review:item' => 3,
+        ], $part['xmlElementAttributeXmlReservedElementPathCounts']);
+
+        $t->same(6, count($reserved));
+        $t->same('absolute-uri', $reservedByKey['/review:packet#base']['valueShape']);
+        $t->same(strlen($baseUri), $reservedByKey['/review:packet#base']['valueByteLength']);
+        $t->same(hash('sha256', $baseUri), $reservedByKey['/review:packet#base']['valueSha256']);
+        $t->same('token', $reservedByKey['/review:packet#lang']['valueShape']);
+        $t->same('token', $reservedByKey['/review:packet#id']['valueShape']);
+        $t->same('preserve', $reservedByKey['/review:packet/review:item#space#preserve']['spaceValue']);
+        $t->same('default', $reservedByKey['/review:packet/review:item#space#default']['spaceValue']);
+        $t->same('other', $reservedByKey['/review:packet/review:item#space#other']['spaceValue']);
+        $t->same(['unexpected-xml-space-value'], $reservedByKey['/review:packet/review:item#space#other']['issues']);
+
+        $t->true($summary['partXmlElementAttributeXmlReservedPartCount'] >= 1, 'summary should include XML-reserved attribute parts');
+        $t->true($summary['partXmlElementAttributeXmlReservedCount'] >= 6, 'summary should include XML-reserved attributes');
+        $t->true($summary['partXmlElementAttributeXmlReservedSpaceCount'] >= 3, 'summary should include xml:space attributes');
+        $t->true($summary['partXmlElementAttributeXmlReservedSpacePreserveCount'] >= 1, 'summary should include xml:space preserve values');
+        $t->true($summary['partXmlElementAttributeXmlReservedSpaceDefaultCount'] >= 1, 'summary should include xml:space default values');
+        $t->true($summary['partXmlElementAttributeXmlReservedSpaceOtherCount'] >= 1, 'summary should include unexpected xml:space values');
+        $t->true($summary['partXmlElementAttributeXmlReservedLangCount'] >= 1, 'summary should include xml:lang attributes');
+        $t->true($summary['partXmlElementAttributeXmlReservedBaseCount'] >= 1, 'summary should include xml:base attributes');
+        $t->true($summary['partXmlElementAttributeXmlReservedIdCount'] >= 1, 'summary should include xml:id attributes');
+        $t->true(in_array('customXml/xml-reserved-attributes.xml', $summary['partXmlElementAttributeXmlReservedPartNames'], true), 'reserved attribute part should be summarized');
+        $t->true(($summary['partXmlElementAttributeXmlReservedLocalNameCounts']['space'] ?? 0) >= 3, 'summary should count xml:space attributes');
+        $t->true(in_array('unexpected-xml-space-value', $summary['partXmlElementAttributeXmlReservedIssueCodes'], true), 'reserved attribute issues should be summarized');
+
+        $encodedReserved = json_encode([$part['xmlElementAttributeXmlReservedAttributes'], $reserved]);
+        $t->true(is_string($encodedReserved), 'XML reserved attribute metadata should encode for review');
+        $t->true(!isset($part['xmlElementAttributeXmlReservedAttributes'][0]['value']), 'raw XML reserved attribute value should not be exposed on part metadata');
+        $t->true(!str_contains((string) $encodedReserved, $baseUri), 'raw xml:base value should not be exposed in reserved attribute metadata');
+        $t->true(!str_contains((string) $encodedReserved, 'collapse'), 'raw unexpected xml:space value should not be exposed in reserved attribute metadata');
+        $t->true(!str_contains((string) $encodedReserved, $hiddenText), 'raw XML text should not be exposed in reserved attribute metadata');
+    },
     'summarizes docx package xml attribute value length buckets without exposing values' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $one = 'a';
