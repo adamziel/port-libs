@@ -648,6 +648,73 @@ final class PandocFormatRegistry
         ];
     }
 
+    /**
+     * @return array{
+     *     inputParityGaps:list<string>,
+     *     outputParityGaps:list<string>,
+     *     bidirectionalParityGaps:list<string>,
+     *     inputOnlyParityGaps:list<string>,
+     *     outputOnlyParityGaps:list<string>,
+     *     inputPartialFormats:list<string>,
+     *     inputUnsupportedFormats:list<string>,
+     *     outputUnsupportedFormats:list<string>,
+     *     directReaderParityClaimed:bool,
+     *     directWriterParityClaimed:bool
+     * }
+     */
+    public static function wikiDirectParityGapSummary(): array
+    {
+        $registry = self::wikiFormatRegistry();
+        $inputParityGaps = [];
+        $outputParityGaps = [];
+        $inputPartialFormats = [];
+        $inputUnsupportedFormats = [];
+        $outputUnsupportedFormats = [];
+        $directReaderParityClaimed = true;
+        $directWriterParityClaimed = true;
+
+        foreach ($registry as $format => $entry) {
+            if ($entry['input']['status'] !== 'not-applicable') {
+                if (!$entry['directReaderParityClaimed']) {
+                    $inputParityGaps[] = $format;
+                    $directReaderParityClaimed = false;
+                }
+
+                if ($entry['input']['status'] === 'partial') {
+                    $inputPartialFormats[] = $format;
+                }
+
+                if ($entry['input']['status'] === 'unsupported') {
+                    $inputUnsupportedFormats[] = $format;
+                }
+            }
+
+            if ($entry['output']['status'] !== 'not-applicable') {
+                if (!$entry['directWriterParityClaimed']) {
+                    $outputParityGaps[] = $format;
+                    $directWriterParityClaimed = false;
+                }
+
+                if ($entry['output']['status'] === 'unsupported') {
+                    $outputUnsupportedFormats[] = $format;
+                }
+            }
+        }
+
+        return [
+            'inputParityGaps' => $inputParityGaps,
+            'outputParityGaps' => $outputParityGaps,
+            'bidirectionalParityGaps' => array_values(array_intersect($inputParityGaps, $outputParityGaps)),
+            'inputOnlyParityGaps' => array_values(array_diff($inputParityGaps, $outputParityGaps)),
+            'outputOnlyParityGaps' => array_values(array_diff($outputParityGaps, $inputParityGaps)),
+            'inputPartialFormats' => $inputPartialFormats,
+            'inputUnsupportedFormats' => $inputUnsupportedFormats,
+            'outputUnsupportedFormats' => $outputUnsupportedFormats,
+            'directReaderParityClaimed' => $directReaderParityClaimed,
+            'directWriterParityClaimed' => $directWriterParityClaimed,
+        ];
+    }
+
     public static function inferTabularDataFormatFromExtension(string $extension): ?string
     {
         $extension = strtolower(ltrim(trim($extension), '.'));

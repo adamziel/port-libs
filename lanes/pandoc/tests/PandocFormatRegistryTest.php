@@ -272,4 +272,18 @@ return [
         $t->same(false, $summary['directReaderParityClaimed']);
         $t->same(false, $summary['directWriterParityClaimed']);
     },
+    'summarizes wiki direct parity gaps without hiding partial support' => static function (TestRunner $t): void {
+        $summary = PandocFormatRegistry::wikiDirectParityGapSummary();
+
+        $t->same(['creole', 'dokuwiki', 'jira', 'mediawiki', 'tikiwiki', 'twiki', 'vimwiki'], $summary['inputParityGaps']);
+        $t->same(['dokuwiki', 'jira', 'mediawiki', 'xwiki', 'zimwiki'], $summary['outputParityGaps']);
+        $t->same(['dokuwiki', 'jira', 'mediawiki'], $summary['bidirectionalParityGaps']);
+        $t->same(['creole', 'tikiwiki', 'twiki', 'vimwiki'], $summary['inputOnlyParityGaps']);
+        $t->same(['xwiki', 'zimwiki'], $summary['outputOnlyParityGaps']);
+        $t->same(['jira'], $summary['inputPartialFormats']);
+        $t->same(['creole', 'dokuwiki', 'mediawiki', 'tikiwiki', 'twiki', 'vimwiki'], $summary['inputUnsupportedFormats']);
+        $t->same(['dokuwiki', 'jira', 'mediawiki', 'xwiki', 'zimwiki'], $summary['outputUnsupportedFormats']);
+        $t->same(false, $summary['directReaderParityClaimed']);
+        $t->same(false, $summary['directWriterParityClaimed']);
+    },
 ];
