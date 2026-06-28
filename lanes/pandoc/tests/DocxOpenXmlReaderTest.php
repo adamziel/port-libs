@@ -18265,6 +18265,97 @@ XML;
         $t->true(is_string($encodedGroups), 'XML repeated sibling metadata should encode for review');
         $t->true(!str_contains((string) $encodedGroups, $hiddenText), 'raw XML text should not be exposed in repeated sibling metadata');
     },
+    'summarizes docx package xml sibling transitions without exposing text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $hiddenBetween = 'sibling-transition:hidden-between';
+        $hiddenComment = 'sibling-transition:hidden-comment';
+        $hiddenPi = 'sibling-transition:hidden-pi';
+        $hiddenTail = 'sibling-transition:hidden-tail';
+        $parts['customXml/sibling-transitions.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:review-sibling-transition" xmlns:audit="urn:audit-sibling-transition"><review:first/>{$hiddenBetween}<review:second/><review:second/><!--{$hiddenComment}--><audit:third/><?audit token="{$hiddenPi}"?><review:group><review:member/><audit:member/><review:member/></review:group><review:textPayload>{$hiddenTail}</review:textPayload></review:packet>
+XML;
+        $parts['word/settings-sibling-transitions.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docVars><w:docVar w:name="Alpha"/><w:docVar w:name="Beta"/></w:docVars><w:compat/><w:themeFontLang/></w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/sibling-transitions.xml'];
+        $settingsPart = $package['parts']['word/settings-sibling-transitions.xml'];
+        $reviewTransitions = array_values(array_filter(
+            $summary['partXmlElementSiblingTransitions'],
+            static fn (array $transition): bool => ($transition['partName'] ?? null) === 'customXml/sibling-transitions.xml',
+        ));
+        $selectedTransitions = array_values(array_filter(
+            $summary['partXmlElementSiblingTransitions'],
+            static fn (array $transition): bool => in_array(
+                $transition['partName'] ?? null,
+                ['customXml/sibling-transitions.xml', 'word/settings-sibling-transitions.xml'],
+                true,
+            ),
+        ));
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(7, $reviewPart['xmlElementSiblingTransitionCount']);
+        $t->same(1, $reviewPart['xmlElementSiblingTransitionSameNameCount']);
+        $t->same(6, $reviewPart['xmlElementSiblingTransitionDifferentNameCount']);
+        $t->same(3, $reviewPart['xmlElementSiblingTransitionInterleavedNonElementNodeCount']);
+        $t->same(1, $reviewPart['xmlElementSiblingTransitionMaxInterleavedNonElementNodeCount']);
+        $t->same([
+            'audit:member -> review:member' => 1,
+            'audit:third -> review:group' => 1,
+            'review:first -> review:second' => 1,
+            'review:group -> review:textPayload' => 1,
+            'review:member -> audit:member' => 1,
+            'review:second -> audit:third' => 1,
+            'review:second -> review:second' => 1,
+        ], $reviewPart['xmlElementSiblingTransitionPairCounts']);
+        $t->same([
+            '/review:packet' => 5,
+            '/review:packet/review:group' => 2,
+        ], $reviewPart['xmlElementSiblingTransitionParentPathCounts']);
+        $t->same(['urn:review-sibling-transition' => 7], $reviewPart['xmlElementSiblingTransitionParentNamespaceCounts']);
+        $t->same(['group' => 2, 'packet' => 5], $reviewPart['xmlElementSiblingTransitionParentLocalNameCounts']);
+        $t->same(['review:group' => 2, 'review:packet' => 5], $reviewPart['xmlElementSiblingTransitionParentQualifiedNameCounts']);
+        $t->same(2, $reviewPart['xmlElementSiblingTransitionPreviousElementNameCounts']['review:second']);
+        $t->same(2, $reviewPart['xmlElementSiblingTransitionNextElementNameCounts']['review:second']);
+
+        $t->same('review:first -> review:second', $reviewPart['xmlElementSiblingTransitions'][0]['pair']);
+        $t->same(1, $reviewPart['xmlElementSiblingTransitions'][0]['interleavedNonElementNodeCount']);
+        $t->same(true, $reviewPart['xmlElementSiblingTransitions'][0]['hasInterleavedNonElementNodes']);
+        $t->same(false, $reviewPart['xmlElementSiblingTransitions'][0]['sameElementName']);
+        $t->same('review:second -> review:second', $reviewPart['xmlElementSiblingTransitions'][1]['pair']);
+        $t->same(true, $reviewPart['xmlElementSiblingTransitions'][1]['sameElementName']);
+        $t->same('review:member -> audit:member', $reviewPart['xmlElementSiblingTransitions'][5]['pair']);
+        $t->same('/review:packet/review:group', $reviewPart['xmlElementSiblingTransitions'][5]['parentPath']);
+        $t->same('audit', $reviewPart['xmlElementSiblingTransitions'][5]['nextElementPrefix']);
+
+        $t->same(true, $settingsPart['xmlInspectable']);
+        $t->same(3, $settingsPart['xmlElementSiblingTransitionCount']);
+        $t->same(1, $settingsPart['xmlElementSiblingTransitionSameNameCount']);
+        $t->same(2, $settingsPart['xmlElementSiblingTransitionDifferentNameCount']);
+        $t->same(1, $settingsPart['xmlElementSiblingTransitionPairCounts']['w:docVar -> w:docVar']);
+        $t->same(2, $settingsPart['xmlElementSiblingTransitionParentPathCounts']['/w:settings']);
+
+        $t->true($summary['partXmlElementSiblingTransitionPartCount'] >= 2, 'summary sibling-transition part count should include added XML parts');
+        $t->true(in_array('customXml/sibling-transitions.xml', $summary['partXmlElementSiblingTransitionPartNames'], true), 'custom XML sibling-transition part should be summarized');
+        $t->true(in_array('word/settings-sibling-transitions.xml', $summary['partXmlElementSiblingTransitionPartNames'], true), 'settings sibling-transition part should be summarized');
+        $t->true($summary['partXmlElementSiblingTransitionCount'] >= 10, 'summary sibling-transition count should include added XML transitions');
+        $t->same(1, $summary['partXmlElementSiblingTransitionPairCounts']['review:second -> review:second']);
+        $t->same(1, $summary['partXmlElementSiblingTransitionPairCounts']['w:docVar -> w:docVar']);
+        $t->same(5, $summary['partXmlElementSiblingTransitionParentPathCounts']['/review:packet']);
+        $t->same(2, $summary['partXmlElementSiblingTransitionParentPathCounts']['/w:settings']);
+        $t->true($summary['partXmlElementSiblingTransitionInterleavedNonElementNodeCount'] >= 3, 'summary should include interleaved non-element node counts');
+        $t->same(7, count($reviewTransitions));
+        $t->same(10, count($selectedTransitions));
+
+        $encodedTransitions = json_encode([$reviewPart, $settingsPart, $selectedTransitions]);
+        $t->true(is_string($encodedTransitions), 'XML sibling-transition metadata should encode for review');
+        $t->true(!str_contains((string) $encodedTransitions, 'sibling-transition:hidden'), 'raw XML text should not be exposed in sibling-transition metadata');
+    },
     'summarizes docx package xml element attributes without exposing values' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $rootState = 'root-state-hidden-alpha';
