@@ -16051,17 +16051,28 @@ final class XmlHtmlDom
     }
 
     /**
-     * @return array{contentRaw:?string, delayRaw:?string, delay:?float, urlRaw:?string, url:?string}
+     * @return array<string, mixed>
      */
     private static function metaRefreshSummary(?string $content): array
     {
         if ($content === null) {
             return [
+                'reviewPolicy' => 'meta-refresh-navigation-review',
                 'contentRaw' => null,
                 'delayRaw' => null,
                 'delay' => null,
+                'delayValid' => null,
                 'urlRaw' => null,
                 'url' => null,
+                'urlKind' => 'missing',
+                'urlScheme' => null,
+                'urlUnsafe' => false,
+                'urlPresent' => false,
+                'redirectRequested' => false,
+                'redirectFollowed' => false,
+                'issues' => [['code' => 'missing-meta-refresh-content']],
+                'issueCodes' => ['missing-meta-refresh-content'],
+                'valid' => false,
             ];
         }
 
@@ -16074,17 +16085,56 @@ final class XmlHtmlDom
 
         $urlRaw = null;
         $url = null;
+        $issues = [];
+        if ($delayRaw === '') {
+            $issues[] = ['code' => 'missing-meta-refresh-delay'];
+        } elseif ($delay === null) {
+            $issues[] = ['code' => 'invalid-meta-refresh-delay', 'delayRaw' => $delayRaw];
+        }
         if (isset($parts[1]) && preg_match('/^\s*url\s*=\s*(.*)\s*$/i', $parts[1], $matches) === 1) {
             $urlRaw = trim((string) $matches[1]);
             $url = trim($urlRaw, " \t\r\n\f\"'");
+        } elseif (isset($parts[1]) && trim($parts[1]) !== '') {
+            $issues[] = ['code' => 'invalid-meta-refresh-url-assignment', 'urlAssignmentRaw' => trim($parts[1])];
+        }
+
+        $urlSummary = self::hyperlinkUrlReviewSummary($url);
+        if ($urlRaw !== null && $urlSummary['kind'] === 'empty') {
+            $issues[] = ['code' => 'empty-meta-refresh-url'];
+        } elseif ($urlSummary['unsafe'] === true) {
+            $issues[] = [
+                'code' => 'unsafe-meta-refresh-url',
+                'url' => $url,
+                'scheme' => $urlSummary['scheme'],
+            ];
+        } elseif ($urlSummary['kind'] === 'absolute' && !in_array($urlSummary['scheme'], ['http', 'https'], true)) {
+            $issues[] = [
+                'code' => 'non-http-meta-refresh-url',
+                'url' => $url,
+                'scheme' => $urlSummary['scheme'],
+            ];
         }
 
         return [
+            'reviewPolicy' => 'meta-refresh-navigation-review',
             'contentRaw' => $content,
             'delayRaw' => $delayRaw === '' ? null : $delayRaw,
             'delay' => $delay,
+            'delayValid' => $delayRaw === '' ? false : $delay !== null,
             'urlRaw' => $urlRaw,
             'url' => $url,
+            'urlKind' => $urlSummary['kind'],
+            'urlScheme' => $urlSummary['scheme'],
+            'urlUnsafe' => $urlSummary['unsafe'],
+            'urlPresent' => $url !== null && trim($url) !== '',
+            'redirectRequested' => $url !== null && trim($url) !== '',
+            'redirectFollowed' => false,
+            'issues' => $issues,
+            'issueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'valid' => $issues === [],
         ];
     }
 
