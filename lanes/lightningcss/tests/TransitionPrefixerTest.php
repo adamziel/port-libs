@@ -2806,6 +2806,16 @@ CSS;
         $t->same('.foo{margin-block-start:2px}', $prefixer->prefixForTargets('.foo { margin-block-start: 2px; }', ['firefox' => 40]));
         $t->same('.foo{padding-inline-start:2px;padding-inline-end:2px}', $prefixer->prefixForTargets('.foo { padding-inline: 2px; }', ['safari' => 13]));
         $t->same('.foo{padding-inline:2px}', $prefixer->prefixForTargets('.foo { padding-inline: 2px; }', ['safari' => 15]));
+        $t->same(
+            '.foo{margin-inline:2px}',
+            $prefixer->prefixForTargets('.foo { margin-inline-start: 2px; margin-inline-end: 2px; }', ['safari' => 15]),
+            'upstream src/lib.rs::test_margin line 3501'
+        );
+        $t->same(
+            '.foo{padding-inline:2px}',
+            $prefixer->prefixForTargets('.foo { padding-inline-start: 2px; padding-inline-end: 2px; }', ['safari' => 15]),
+            'upstream src/lib.rs::test_padding line 3904'
+        );
         $t->same($blockStartFallback, $prefixer->prefixForTargets('.foo { margin-block-start: 2px; }', [
             'browsers' => ['chrome' => 120],
             'include' => ['LogicalProperties'],

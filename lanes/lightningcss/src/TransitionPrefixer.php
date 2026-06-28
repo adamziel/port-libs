@@ -978,6 +978,7 @@ final class TransitionPrefixer
         $gradientPrefixChanged = $this->rewriteGradientPrefixEntries($entries, $targetOptions);
         $sizingKeywordChanged = $this->rewriteSizingKeywordPrefixEntries($entries, $targetOptions);
         $logicalSizeFallbackChanged = $this->rewriteLogicalSizeFallbackEntries($entries, $targetOptions);
+        $logicalSpacingComposeChanged = $this->rewriteLogicalSpacingShorthandEntries($entries, $targetOptions);
         $clampChanged = $this->rewriteClampFallbackEntries($entries, $targetOptions);
         $colorChanged = $insideAdvancedColorSupports
             ? false
@@ -1027,7 +1028,7 @@ final class TransitionPrefixer
             return $logicalTextAlignFallback . implode('', $supportRules);
         }
         $selectorVariants = $this->selectorPrefixVariants($selectors, $targetOptions);
-        if ($transitionChanged || $displayFlexChanged || $displayGridChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $cursorPrefixChanged || $boxSizingChanged || $objectFitChanged || $shapeChanged || $unicodeBidiChanged || $textCompatibilityPrefixChanged || $scrollSnapPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $borderImageAdvancedColorChanged || $borderImageFallbackChanged || $imageSetChanged || $crossFadeChanged || $gradientPrefixChanged || $sizingKeywordChanged || $logicalSizeFallbackChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $modernColorChanged || $fontTargetChanged || $fontTypographyPrefixChanged || $imageRenderingPrefixChanged || $lengthTargetChanged || $selectorVariants !== null) {
+        if ($transitionChanged || $displayFlexChanged || $displayGridChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $cursorPrefixChanged || $boxSizingChanged || $objectFitChanged || $shapeChanged || $unicodeBidiChanged || $textCompatibilityPrefixChanged || $scrollSnapPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $borderImageAdvancedColorChanged || $borderImageFallbackChanged || $imageSetChanged || $crossFadeChanged || $gradientPrefixChanged || $sizingKeywordChanged || $logicalSizeFallbackChanged || $logicalSpacingComposeChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $modernColorChanged || $fontTargetChanged || $fontTypographyPrefixChanged || $imageRenderingPrefixChanged || $lengthTargetChanged || $selectorVariants !== null) {
             return $this->serializeRulesForSelectors($selectorVariants ?? [$selectors], $entries) . implode('', $supportRules);
         }
 
@@ -5048,6 +5049,69 @@ final class TransitionPrefixer
         }
 
         return $rules;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteLogicalSpacingShorthandEntries(array &$entries, array $targetOptions): bool
+    {
+        if (
+            ($targetOptions['logicalSpacingInlineNeedsFallback'] ?? false)
+            || ($targetOptions['logicalSpacingBlockNeedsFallback'] ?? false)
+            || ($targetOptions['logicalSpacingShorthandNeedsFallback'] ?? false)
+        ) {
+            return false;
+        }
+
+        $rewritten = [];
+        $changed = false;
+        $count = count($entries);
+        for ($index = 0; $index < $count; $index++) {
+            $shorthand = $this->logicalSpacingPairShorthandEntry($entries[$index], $entries[$index + 1] ?? null);
+            if ($shorthand !== null) {
+                $rewritten[] = $shorthand;
+                $changed = true;
+                $index++;
+                continue;
+            }
+
+            $rewritten[] = $entries[$index];
+        }
+
+        if ($changed) {
+            $entries = $rewritten;
+        }
+
+        return $changed;
+    }
+
+    /**
+     * @param array{property:string,name:string,value:string,important:bool} $start
+     * @param array{property:string,name:string,value:string,important:bool}|null $end
+     * @return array{property:string,name:string,value:string,important:bool}|null
+     */
+    private function logicalSpacingPairShorthandEntry(array $start, ?array $end): ?array
+    {
+        if ($end === null || $start['important'] !== $end['important']) {
+            return null;
+        }
+
+        if (preg_match('/^(margin|padding)-(inline|block)-start$/', $start['property'], $matches) !== 1) {
+            return null;
+        }
+
+        $property = $matches[1] . '-' . $matches[2];
+        if ($end['property'] !== $property . '-end') {
+            return null;
+        }
+
+        $value = $start['value'] === $end['value']
+            ? $start['value']
+            : $start['value'] . ' ' . $end['value'];
+
+        return $this->declarationEntry($property, $value, $start['important']);
     }
 
     /**
