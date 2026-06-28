@@ -1432,6 +1432,11 @@ final class MarkdownReader
             return new AstNode('raw_html', ['html' => trim($line)]);
         }
 
+        $closingTag = $this->tryParseRawHtmlClosingTag($line);
+        if ($closingTag !== null) {
+            return $this->readRawHtmlUntilBlankLine($lines, $index);
+        }
+
         if (
             $tag !== null
             && (
@@ -7554,6 +7559,19 @@ final class MarkdownReader
         return null;
     }
 
+    /**
+     * @return array{name:string}|null
+     */
+    private function tryParseRawHtmlClosingTag(string $line): ?array
+    {
+        $line = $this->expandTabsToSpaces($line);
+        if (preg_match('/^ {0,3}<\/([A-Za-z][A-Za-z0-9:-]*)\s*>[ \t]*$/i', $line, $match) !== 1) {
+            return null;
+        }
+
+        return ['name' => strtolower($match[1])];
+    }
+
     private function isCommonMarkParagraphInterruptingRawHtmlBlockStart(string $line): bool
     {
         $expanded = $this->expandTabsToSpaces($line);
@@ -7967,7 +7985,10 @@ final class MarkdownReader
             $indent = $this->countIndentColumns($line);
             if ($indent >= $contentIndent) {
                 $continuation = rtrim($this->stripIndentColumns($line, $contentIndent));
-                if ($this->lineCanStartRawHtmlBlock($continuation)) {
+                if (
+                    $this->lineCanStartRawHtmlBlock($continuation)
+                    || ($paragraph === [] && $this->lineCanStartRawHtmlClosingBlock($continuation))
+                ) {
                     $rawLines = $this->collectListItemIndentedContinuationLines($lines, $cursor, $baseIndent, $contentIndent);
                     $rawIndex = 0;
                     $rawHtmlBlock = $this->tryReadRawHtmlBlock($rawLines, $rawIndex);
@@ -8022,6 +8043,15 @@ final class MarkdownReader
         }
 
         return $this->tryParseRawHtmlOpeningTag($expanded) !== null;
+    }
+
+    private function lineCanStartRawHtmlClosingBlock(string $line): bool
+    {
+        if (!$this->htmlRawHtmlEnabled()) {
+            return false;
+        }
+
+        return $this->tryParseRawHtmlClosingTag($line) !== null;
     }
 
     /**
@@ -8152,7 +8182,7 @@ final class MarkdownReader
 
         $tag = $this->tryParseRawHtmlOpeningTag($expanded);
         if ($tag === null) {
-            return false;
+            return $this->tryParseRawHtmlClosingTag($expanded) !== null;
         }
 
         if ($tag['name'] === 'table') {
