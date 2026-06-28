@@ -44,7 +44,7 @@ XML;
 $manifestXml = <<<XML
 <manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
   <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text"/>
-  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml" manifest:size="__CONTENT_SIZE__"/>
+  <manifest:file-entry manifest:full-path="content.xml?handoff=core#body" manifest:media-type="text/xml;charset=UTF-8;profile=&quot;core review&quot;" manifest:size="__CONTENT_SIZE__"/>
   <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml" manifest:size="__STYLES_SIZE__"/>
 </manifest:manifest>
 XML;
@@ -121,7 +121,25 @@ return [
 
         $t->same('declared', $readerEntries['content.xml']['manifestDeclarationState']);
         $t->same(true, $readerEntries['content.xml']['manifestDeclared']);
-        $t->same('content.xml', $readerEntries['content.xml']['manifestFullPath']);
+        $t->same('content.xml?handoff=core#body', $readerEntries['content.xml']['manifestFullPath']);
+        $t->same('content.xml', $readerEntries['content.xml']['manifestPackagePath']);
+        $t->same('content.xml', $readerEntries['content.xml']['manifestPathReference']);
+        $t->same('?handoff=core#body', $readerEntries['content.xml']['manifestPathSuffix']);
+        $t->same('handoff=core', $readerEntries['content.xml']['manifestPathQuery']);
+        $t->same('body', $readerEntries['content.xml']['manifestPathFragment']);
+        $t->same(false, $readerEntries['content.xml']['manifestUriEncodedPackageReference']);
+        $t->same('text/xml;charset=UTF-8;profile="core review"', $readerEntries['content.xml']['manifestMediaType']);
+        $t->same('text/xml', $readerEntries['content.xml']['manifestMediaTypeBase']);
+        $t->same(true, $readerEntries['content.xml']['manifestMediaTypeHasParameters']);
+        $t->same(2, $readerEntries['content.xml']['manifestMediaTypeParameterCount']);
+        $t->same([
+            ['name' => 'charset', 'value' => 'UTF-8', 'raw' => 'charset=UTF-8'],
+            ['name' => 'profile', 'value' => 'core review', 'raw' => 'profile="core review"'],
+        ], $readerEntries['content.xml']['manifestMediaTypeParameters']);
+        $t->same([
+            'charset' => 'UTF-8',
+            'profile' => 'core review',
+        ], $readerEntries['content.xml']['manifestMediaTypeParameterMap']);
         $t->same(strlen($contentXml), $readerEntries['content.xml']['manifestDeclaredSize']);
         $t->same((string) strlen($contentXml), $readerEntries['content.xml']['manifestDeclaredSizeRaw']);
         $t->same(true, $readerEntries['content.xml']['manifestDeclaredSizeValid']);
@@ -153,7 +171,12 @@ return [
         $t->same('package-manifest-entry', $readerSourceSpans['META-INF/manifest.xml']['manifestDeclarationState']);
         $t->same(false, $readerSourceSpans['META-INF/manifest.xml']['manifestDeclared']);
         $t->same('declared', $readerSourceSpans['content.xml']['manifestDeclarationState']);
-        $t->same('content.xml', $readerSourceSpans['content.xml']['manifestFullPath']);
+        $t->same('content.xml?handoff=core#body', $readerSourceSpans['content.xml']['manifestFullPath']);
+        $t->same('?handoff=core#body', $readerSourceSpans['content.xml']['manifestPathSuffix']);
+        $t->same('handoff=core', $readerSourceSpans['content.xml']['manifestPathQuery']);
+        $t->same('body', $readerSourceSpans['content.xml']['manifestPathFragment']);
+        $t->same(true, $readerSourceSpans['content.xml']['manifestMediaTypeHasParameters']);
+        $t->same(2, $readerSourceSpans['content.xml']['manifestMediaTypeParameterCount']);
         $t->same(strlen($contentXml), $readerSourceSpans['content.xml']['manifestDeclaredSize']);
         $t->same((string) strlen($contentXml), $readerSourceSpans['content.xml']['manifestDeclaredSizeRaw']);
         $t->same(true, $readerSourceSpans['content.xml']['manifestDeclaredSizeValid']);
@@ -173,9 +196,15 @@ return [
         $t->same($readerEntries['content.xml']['manifestDeclaredSizeRaw'], $compactEntries['content.xml']['manifestDeclaredSizeRaw']);
         $t->same($readerEntries['content.xml']['manifestDeclaredSizeValid'], $compactEntries['content.xml']['manifestDeclaredSizeValid']);
         $t->same($readerEntries['content.xml']['manifestDeclaredSizeInvalid'], $compactEntries['content.xml']['manifestDeclaredSizeInvalid']);
+        $t->same($readerEntries['content.xml']['manifestPathSuffix'], $compactEntries['content.xml']['manifestPathSuffix']);
+        $t->same($readerEntries['content.xml']['manifestPathQuery'], $compactEntries['content.xml']['manifestPathQuery']);
+        $t->same($readerEntries['content.xml']['manifestPathFragment'], $compactEntries['content.xml']['manifestPathFragment']);
+        $t->same($readerEntries['content.xml']['manifestMediaTypeParameterMap'], $compactEntries['content.xml']['manifestMediaTypeParameterMap']);
         $t->same($readerSourceSpans['settings.xml']['manifestDeclarationState'], $compactSourceSpans['settings.xml']['manifestDeclarationState']);
         $t->same($readerSourceSpans['content.xml']['manifestDeclaredSize'], $compactSourceSpans['content.xml']['manifestDeclaredSize']);
         $t->same($readerSourceSpans['content.xml']['manifestDeclaredSizeRaw'], $compactSourceSpans['content.xml']['manifestDeclaredSizeRaw']);
         $t->same($readerSourceSpans['content.xml']['manifestDeclaredSizeValid'], $compactSourceSpans['content.xml']['manifestDeclaredSizeValid']);
+        $t->same($readerSourceSpans['content.xml']['manifestPathSuffix'], $compactSourceSpans['content.xml']['manifestPathSuffix']);
+        $t->same($readerSourceSpans['content.xml']['manifestMediaTypeParameters'], $compactSourceSpans['content.xml']['manifestMediaTypeParameters']);
     },
 ];
