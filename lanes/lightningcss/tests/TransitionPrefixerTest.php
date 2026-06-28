@@ -968,6 +968,66 @@ return [
             )
         );
     },
+    'transition prefixer maps upstream supports scoped advanced color fallback pruning' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_skip_generating_unnecessary_fallbacks lines 31302-31426.
+        $cases = [
+            [
+                31302,
+                <<<'CSS'
+@supports (color: lab(0% 0 0)) and (color: color(display-p3 0 0 0)) {
+  .foo { color: lab(40% 56.6 39); }
+  .bar { color: color(display-p3 .643308 .192455 .167712); }
+}
+CSS,
+                '@supports (color:lab(0% 0 0)) and (color:color(display-p3 0 0 0)){.foo{color:lab(40% 56.6 39)}.bar{color:color(display-p3 .643308 .192455 .167712)}}',
+            ],
+            [
+                31331,
+                '@supports (color: lab(40% 56.6 39)) { .foo { color: lab(40% 56.6 39); } }',
+                '@supports (color:lab(40% 56.6 39)){.foo{color:lab(40% 56.6 39)}}',
+            ],
+            [
+                31352,
+                '@supports (background-color: lab(40% 56.6 39)) { .foo { background-color: lab(40% 56.6 39); } }',
+                '@supports (background-color:lab(40% 56.6 39)){.foo{background-color:lab(40% 56.6 39)}}',
+            ],
+            [
+                31373,
+                '@supports (color: light-dark(#f00, #00f)) { .foo { color: light-dark(#ff0, #0ff); } }',
+                '@supports (color:light-dark(#f00,#00f)){.foo{color:light-dark(#ff0,#0ff)}}',
+            ],
+            [
+                31395,
+                <<<'CSS'
+@supports (color: lab(0% 0 0)) and (not (color: color(display-p3 0 0 0))) {
+  .foo { color: lab(40% 56.6 39); }
+  .bar { color: color(display-p3 .643308 .192455 .167712); }
+}
+CSS,
+                '@supports (color:lab(0% 0 0)) and (not (color:color(display-p3 0 0 0))){.foo{color:#b32323;color:lab(40% 56.6 39)}.bar{color:#b32323;color:color(display-p3 .643308 .192455 .167712)}}',
+            ],
+            [
+                31426,
+                <<<'CSS'
+@supports (color: lab(0% 0 0)) or (color: color(display-p3 0 0 0)) {
+  .foo { color: lab(40% 56.6 39); }
+  .bar { color: color(display-p3 .643308 .192455 .167712); }
+}
+CSS,
+                '@supports (color:lab(0% 0 0)) or (color:color(display-p3 0 0 0)){.foo{color:#b32323;color:lab(40% 56.6 39)}.bar{color:#b32323;color:color(display-p3 .643308 .192455 .167712)}}',
+            ],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same(
+                $expected,
+                $prefixer->prefixForTargets($input, ['chrome' => 4]),
+                'upstream src/lib.rs::test_skip_generating_unnecessary_fallbacks line ' . $line
+            );
+        }
+    },
     'transition prefixer maps upstream alpha color target fallbacks' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 
