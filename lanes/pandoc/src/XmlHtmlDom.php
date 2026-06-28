@@ -21478,13 +21478,23 @@ final class XmlHtmlDom
         if (array_key_exists('itemref', $attributes)) {
             $references = self::idReferenceTokenSummary($attributes['itemref']);
             $resolved = self::itemRefResolutionSummary($element, $references['values']);
+            $issueCodes = self::itemRefIssueCodes($references, $resolved);
             $summary['itemRefRaw'] = $attributes['itemref'];
+            $summary['itemRefReviewPolicy'] = 'html-microdata-itemref-idref-review';
             $summary['itemRefTokens'] = $references['tokens'];
             $summary['itemRefIds'] = $references['values'];
             $summary['invalidItemRefIds'] = $references['invalid'];
+            $summary['duplicateItemRefIds'] = $references['duplicates'];
             $summary['itemRefValid'] = $references['valid'];
             $summary['itemRefResolvedIds'] = $resolved['resolved'];
             $summary['itemRefMissingIds'] = $resolved['missing'];
+            $summary['itemRefReferenceCount'] = count($references['values']);
+            $summary['itemRefResolvedCount'] = count($resolved['resolved']);
+            $summary['itemRefMissingCount'] = count($resolved['missing']);
+            $summary['itemRefReferences'] = $resolved['references'];
+            $summary['itemRefTargetElements'] = $resolved['targetElements'];
+            $summary['itemRefIssueCodes'] = $issueCodes;
+            $summary['itemRefReferencesComplete'] = $issueCodes === [];
         }
 
         return $summary;
@@ -21575,13 +21585,14 @@ final class XmlHtmlDom
     }
 
     /**
-     * @return array{tokens:list<string>, values:list<string>, invalid:list<string>, valid:bool}
+     * @return array{tokens:list<string>, values:list<string>, invalid:list<string>, duplicates:list<string>, valid:bool}
      */
     private static function idReferenceTokenSummary(string $value): array
     {
         $tokens = self::spaceSeparatedTokens($value);
         $values = [];
         $invalid = [];
+        $duplicates = [];
         foreach ($tokens as $token) {
             if (!self::isHtmlIdReferenceToken($token)) {
                 $invalid[] = $token;
@@ -21590,6 +21601,11 @@ final class XmlHtmlDom
 
             if (!in_array($token, $values, true)) {
                 $values[] = $token;
+                continue;
+            }
+
+            if (!in_array($token, $duplicates, true)) {
+                $duplicates[] = $token;
             }
         }
 
@@ -21597,6 +21613,7 @@ final class XmlHtmlDom
             'tokens' => $tokens,
             'values' => $values,
             'invalid' => $invalid,
+            'duplicates' => $duplicates,
             'valid' => $tokens !== [] && $invalid === [],
         ];
     }
@@ -21609,25 +21626,98 @@ final class XmlHtmlDom
 
     /**
      * @param list<string> $ids
-     * @return array{resolved:list<string>, missing:list<string>}
+     * @return array{resolved:list<string>, missing:list<string>, references:list<array<string, mixed>>, targetElements:list<array<string, mixed>>}
      */
     private static function itemRefResolutionSummary(\DOMElement $element, array $ids): array
     {
         $resolved = [];
         $missing = [];
+        $references = [];
+        $targetElements = [];
         foreach ($ids as $id) {
-            if (self::htmlElementById($element, $id) instanceof \DOMElement) {
+            $target = self::htmlElementById($element, $id);
+            if ($target instanceof \DOMElement) {
+                $targetSummary = self::itemRefTargetElementSummary($target);
                 $resolved[] = $id;
+                $references[] = [
+                    'id' => $id,
+                    'status' => 'resolved',
+                    'target' => $targetSummary,
+                ];
+                $targetElements[] = $targetSummary;
                 continue;
             }
 
             $missing[] = $id;
+            $references[] = [
+                'id' => $id,
+                'status' => 'missing',
+                'target' => null,
+            ];
         }
 
         return [
             'resolved' => $resolved,
             'missing' => $missing,
+            'references' => $references,
+            'targetElements' => $targetElements,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function itemRefTargetElementSummary(\DOMElement $target): array
+    {
+        $attributes = self::htmlAttributes($target);
+        $summary = [
+            'tag' => self::htmlElementName($target),
+            'id' => self::attributeOrNull($target, 'id'),
+            'text' => self::normalizedText($target),
+            'itemScope' => array_key_exists('itemscope', $attributes),
+        ];
+
+        if (array_key_exists('itemprop', $attributes)) {
+            $properties = self::semanticMetadataTokenSummary($attributes['itemprop']);
+            $summary['itemPropRaw'] = $attributes['itemprop'];
+            $summary['itemProperties'] = $properties['values'];
+            $summary['invalidItemProperties'] = $properties['invalid'];
+            $summary['itemPropValid'] = $properties['valid'];
+        }
+
+        if (array_key_exists('itemtype', $attributes)) {
+            $types = self::semanticMetadataTokenSummary($attributes['itemtype']);
+            $summary['itemTypeRaw'] = $attributes['itemtype'];
+            $summary['itemTypes'] = $types['values'];
+            $summary['invalidItemTypes'] = $types['invalid'];
+            $summary['itemTypeValid'] = $types['valid'];
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param array{tokens:list<string>, values:list<string>, invalid:list<string>, duplicates:list<string>, valid:bool} $references
+     * @param array{resolved:list<string>, missing:list<string>, references:list<array<string, mixed>>, targetElements:list<array<string, mixed>>} $resolved
+     * @return list<string>
+     */
+    private static function itemRefIssueCodes(array $references, array $resolved): array
+    {
+        $issueCodes = [];
+        if ($references['tokens'] === []) {
+            $issueCodes[] = 'empty-itemref-token-list';
+        }
+        if ($references['invalid'] !== []) {
+            $issueCodes[] = 'invalid-itemref-id';
+        }
+        if ($references['duplicates'] !== []) {
+            $issueCodes[] = 'duplicate-itemref-id';
+        }
+        if ($resolved['missing'] !== []) {
+            $issueCodes[] = 'missing-itemref-target';
+        }
+
+        return $issueCodes;
     }
 
     private static function inputModeState(string $value): ?string
