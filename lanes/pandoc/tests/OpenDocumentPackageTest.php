@@ -1464,6 +1464,7 @@ XML;
         $linkedPreviewBytes = 'LINKED-PREVIEW';
         $attachmentPreviewBytes = 'ATTACHMENT-PREVIEW';
         $templatePreviewBytes = 'TEMPLATE-PREVIEW';
+        $dictionaryPreviewBytes = 'DICTIONARY-PREVIEW';
 
         $manifest = str_replace(
             '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
@@ -1473,7 +1474,8 @@ XML;
             . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Gallery/Theme/preview.png" manifest:size="' . strlen($galleryPreviewBytes) . '"/>'
             . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Links/cache/preview.png" manifest:size="' . strlen($linkedPreviewBytes) . '"/>'
             . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Attachments/Review/preview.png" manifest:size="' . strlen($attachmentPreviewBytes) . '"/>'
-            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Templates/Review/preview.png" manifest:size="' . strlen($templatePreviewBytes) . '"/>',
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Templates/Review/preview.png" manifest:size="' . strlen($templatePreviewBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Dictionaries/en_US/preview.png" manifest:size="' . strlen($dictionaryPreviewBytes) . '"/>',
             $manifestXml
         );
 
@@ -1484,6 +1486,7 @@ XML;
             ['name' => 'Links/cache/preview.png', 'data' => $linkedPreviewBytes, 'compressionMethod' => 0],
             ['name' => 'Attachments/Review/preview.png', 'data' => $attachmentPreviewBytes, 'compressionMethod' => 0],
             ['name' => 'Templates/Review/preview.png', 'data' => $templatePreviewBytes, 'compressionMethod' => 0],
+            ['name' => 'Dictionaries/en_US/preview.png', 'data' => $dictionaryPreviewBytes, 'compressionMethod' => 0],
         ]))->summarize();
         $mediaResources = $summary['manifestReview']['mediaResources'];
         $itemsByPart = [];
@@ -1492,22 +1495,22 @@ XML;
         }
 
         $t->same(['Pictures/hero.png', 'Media/narration.ogg'], array_column($summary['mediaParts'], 'packagePath'));
-        $t->same(7, $mediaResources['manifestDeclaredCount']);
+        $t->same(8, $mediaResources['manifestDeclaredCount']);
         $t->same(2, $mediaResources['mediaResourceCount']);
         $t->same(2, $mediaResources['mediaResourceExistingCount']);
         $t->same(0, $mediaResources['mediaResourceMissingCount']);
         $t->same(2, $mediaResources['mediaResourceCanExposeCount']);
-        $t->same(7, $mediaResources['existingCount']);
+        $t->same(8, $mediaResources['existingCount']);
         $t->same(0, $mediaResources['missingCount']);
-        $t->same(['image' => 6, 'audio' => 1, 'video' => 0, 'other' => 0], $mediaResources['familyCounts']);
+        $t->same(['image' => 7, 'audio' => 1, 'video' => 0, 'other' => 0], $mediaResources['familyCounts']);
         $t->same([
             'audio/ogg' => 1,
-            'image/png' => 6,
+            'image/png' => 7,
         ], $mediaResources['mediaTypeBaseCounts']);
         $t->same(0, $mediaResources['roleConflictCount']);
         $t->same(0, $mediaResources['resourceRoleConflictCount']);
-        $t->same(5, $mediaResources['packageRolePrecedenceCount']);
-        $t->same(['odf-media-resource-package-role-precedence' => 5], $mediaResources['issueCodeCounts']);
+        $t->same(6, $mediaResources['packageRolePrecedenceCount']);
+        $t->same(['odf-media-resource-package-role-precedence' => 6], $mediaResources['issueCodeCounts']);
 
         $t->same(true, $itemsByPart['Pictures/hero.png']['mediaResource']);
         $t->same([], $itemsByPart['Pictures/hero.png']['packageRolePrecedence'] ?? []);
@@ -1527,6 +1530,9 @@ XML;
         $t->same(['attachment-package'], $itemsByPart['Attachments/Review/preview.png']['packageRolePrecedence']);
         $t->same(false, $itemsByPart['Templates/Review/preview.png']['mediaResource']);
         $t->same(['template-package'], $itemsByPart['Templates/Review/preview.png']['packageRolePrecedence']);
+        $t->same(false, $itemsByPart['Dictionaries/en_US/preview.png']['mediaResource']);
+        $t->same(['dictionary-package'], $itemsByPart['Dictionaries/en_US/preview.png']['packageRolePrecedence']);
+        $t->same('dictionary-package-bytes-blocked', $itemsByPart['Dictionaries/en_US/preview.png']['byteExposurePolicy']);
 
         $t->same([
             'Forms/Review/preview.png',
@@ -1534,6 +1540,7 @@ XML;
             'Links/cache/preview.png',
             'Attachments/Review/preview.png',
             'Templates/Review/preview.png',
+            'Dictionaries/en_US/preview.png',
         ], array_column($mediaResources['packageRolePrecedenceItems'], 'part'));
     },
     'preserves compact ODT raw ZIP entry name provenance in package inventory' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
