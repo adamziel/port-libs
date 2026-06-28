@@ -15070,6 +15070,7 @@ final class DocxOpenXmlReader
                 (int) ($parameterValueSummary['relationshipCount'] ?? 0);
         }
         ksort($relationshipTargetContentTypeParameterValueBucketCounts, SORT_STRING);
+        $relationshipTargetQueryParameters = $this->relationshipTargetQueryParameterSummary($relationshipTargetsWithReferenceSuffix);
         $relationshipSourceTopLevelSegments = $this->relationshipSourceTopLevelSegmentSummary($relationshipSources);
         $relationshipSourceTopLevelSegmentCounts = [];
         foreach ($relationshipSourceTopLevelSegments as $sourceTopLevelSegmentSummary) {
@@ -16173,6 +16174,14 @@ final class DocxOpenXmlReader
             'relationshipTargetReferenceSuffixCount' => $relationshipTargetReferenceSuffixCount,
             'relationshipTargetQueryCount' => $relationshipTargetQueryCount,
             'relationshipTargetFragmentCount' => $relationshipTargetFragmentCount,
+            'relationshipTargetQueryParameterOccurrenceCount' => $relationshipTargetQueryParameters['occurrenceCount'],
+            'relationshipTargetQueryParameterNameCount' => count($relationshipTargetQueryParameters['nameCounts']),
+            'relationshipTargetQueryParameterValueBucketCount' => count($relationshipTargetQueryParameters['valueBucketCounts']),
+            'relationshipTargetQueryParameterNameCounts' => $relationshipTargetQueryParameters['nameCounts'],
+            'relationshipTargetQueryParameterValueBucketCounts' => $relationshipTargetQueryParameters['valueBucketCounts'],
+            'relationshipPartsWithTargetQueryParameters' => $relationshipTargetQueryParameters['relationshipParts'],
+            'relationshipTargetQueryParameterNames' => $relationshipTargetQueryParameters['names'],
+            'relationshipTargetQueryParameterValueBuckets' => $relationshipTargetQueryParameters['valueBuckets'],
             'relationshipTargetStartsAtPackageRootCount' => $relationshipTargetStartsAtPackageRootCount,
             'relationshipTargetParentTraversalCount' => count($relationshipTargetsWithParentTraversal),
             'relationshipTargetParentTraversalSegmentCount' => $relationshipTargetParentTraversalSegmentCount,
@@ -20979,6 +20988,182 @@ final class DocxOpenXmlReader
         }
 
         return array_values($parameterValues);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $relationships
+     * @return array{occurrenceCount:int, nameCounts:array<string, int>, valueBucketCounts:array<string, int>, relationshipParts:list<string>, names:list<array<string, mixed>>, valueBuckets:list<array<string, mixed>>}
+     */
+    private function relationshipTargetQueryParameterSummary(array $relationships): array
+    {
+        $nameBuckets = [];
+        $valueBuckets = [];
+        $nameRelationshipKeys = [];
+        $valueRelationshipKeys = [];
+        $relationshipPartsWithParameters = [];
+        $occurrenceCount = 0;
+
+        foreach ($relationships as $relationship) {
+            $query = is_string($relationship['targetQuery'] ?? null) ? $relationship['targetQuery'] : '';
+            if ($query === '') {
+                continue;
+            }
+
+            $relationshipsPart = is_string($relationship['relationshipsPart'] ?? null)
+                ? $relationship['relationshipsPart']
+                : '';
+            $relationshipId = is_string($relationship['id'] ?? null) ? $relationship['id'] : '';
+            $relationshipKey = $relationshipsPart . "\0" . $relationshipId . "\0" . (string) ($relationship['resolvedTarget'] ?? '');
+            $this->appendUniqueString($relationshipPartsWithParameters, $relationshipsPart);
+
+            foreach ($this->targetQueryParameters($query) as $parameter) {
+                ++$occurrenceCount;
+                $nameKey = $parameter['nameKey'];
+                $valueKey = $parameter['valueKey'];
+                $bucketKey = $nameKey . '=' . $valueKey;
+
+                if (!isset($nameBuckets[$nameKey])) {
+                    $nameBuckets[$nameKey] = [
+                        'targetQueryParameterNameKey' => $nameKey,
+                        'targetQueryParameterName' => $parameter['name'] === '' ? null : $parameter['name'],
+                        'parameterOccurrenceCount' => 0,
+                        'relationshipCount' => 0,
+                        'internalRelationshipCount' => 0,
+                        'externalRelationshipCount' => 0,
+                        'existingTargetCount' => 0,
+                        'missingTargetCount' => 0,
+                        'valueCounts' => [],
+                        'sourceParts' => [],
+                        'relationshipParts' => [],
+                        'relationshipIds' => [],
+                        'targetParts' => [],
+                        'targetQueries' => [],
+                    ];
+                    $nameRelationshipKeys[$nameKey] = [];
+                }
+                if (!isset($valueBuckets[$bucketKey])) {
+                    $valueBuckets[$bucketKey] = [
+                        'targetQueryParameterValueKey' => $bucketKey,
+                        'targetQueryParameterNameKey' => $nameKey,
+                        'targetQueryParameterName' => $parameter['name'] === '' ? null : $parameter['name'],
+                        'targetQueryParameterValue' => $parameter['value'],
+                        'targetQueryParameterValueBucket' => $valueKey,
+                        'parameterOccurrenceCount' => 0,
+                        'relationshipCount' => 0,
+                        'internalRelationshipCount' => 0,
+                        'externalRelationshipCount' => 0,
+                        'existingTargetCount' => 0,
+                        'missingTargetCount' => 0,
+                        'sourceParts' => [],
+                        'relationshipParts' => [],
+                        'relationshipIds' => [],
+                        'targetParts' => [],
+                        'targetQueries' => [],
+                    ];
+                    $valueRelationshipKeys[$bucketKey] = [];
+                }
+
+                ++$nameBuckets[$nameKey]['parameterOccurrenceCount'];
+                ++$valueBuckets[$bucketKey]['parameterOccurrenceCount'];
+                $nameBuckets[$nameKey]['valueCounts'][$valueKey] =
+                    ($nameBuckets[$nameKey]['valueCounts'][$valueKey] ?? 0) + 1;
+
+                if (!isset($nameRelationshipKeys[$nameKey][$relationshipKey])) {
+                    $nameRelationshipKeys[$nameKey][$relationshipKey] = true;
+                    $this->addRelationshipTargetQueryParameterRelationship($nameBuckets[$nameKey], $relationship, $query);
+                }
+                if (!isset($valueRelationshipKeys[$bucketKey][$relationshipKey])) {
+                    $valueRelationshipKeys[$bucketKey][$relationshipKey] = true;
+                    $this->addRelationshipTargetQueryParameterRelationship($valueBuckets[$bucketKey], $relationship, $query);
+                }
+            }
+        }
+
+        ksort($nameBuckets, SORT_STRING);
+        ksort($valueBuckets, SORT_STRING);
+        sort($relationshipPartsWithParameters, SORT_STRING);
+
+        $nameCounts = [];
+        foreach ($nameBuckets as $nameKey => &$bucket) {
+            ksort($bucket['valueCounts'], SORT_STRING);
+            sort($bucket['sourceParts'], SORT_STRING);
+            sort($bucket['relationshipParts'], SORT_STRING);
+            sort($bucket['relationshipIds'], SORT_STRING);
+            sort($bucket['targetParts'], SORT_STRING);
+            sort($bucket['targetQueries'], SORT_STRING);
+            $nameCounts[$nameKey] = (int) $bucket['parameterOccurrenceCount'];
+        }
+        unset($bucket);
+
+        $valueBucketCounts = [];
+        foreach ($valueBuckets as $bucketKey => &$bucket) {
+            sort($bucket['sourceParts'], SORT_STRING);
+            sort($bucket['relationshipParts'], SORT_STRING);
+            sort($bucket['relationshipIds'], SORT_STRING);
+            sort($bucket['targetParts'], SORT_STRING);
+            sort($bucket['targetQueries'], SORT_STRING);
+            $valueBucketCounts[$bucketKey] = (int) $bucket['parameterOccurrenceCount'];
+        }
+        unset($bucket);
+
+        return [
+            'occurrenceCount' => $occurrenceCount,
+            'nameCounts' => $nameCounts,
+            'valueBucketCounts' => $valueBucketCounts,
+            'relationshipParts' => $relationshipPartsWithParameters,
+            'names' => array_values($nameBuckets),
+            'valueBuckets' => array_values($valueBuckets),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $bucket
+     * @param array<string, mixed> $relationship
+     */
+    private function addRelationshipTargetQueryParameterRelationship(array &$bucket, array $relationship, string $query): void
+    {
+        ++$bucket['relationshipCount'];
+        if (($relationship['external'] ?? false) === true) {
+            ++$bucket['externalRelationshipCount'];
+        } else {
+            ++$bucket['internalRelationshipCount'];
+            if (($relationship['exists'] ?? false) === true) {
+                ++$bucket['existingTargetCount'];
+            } else {
+                ++$bucket['missingTargetCount'];
+            }
+        }
+
+        $this->appendUniqueString($bucket['sourceParts'], is_string($relationship['sourcePart'] ?? null) ? $relationship['sourcePart'] : null);
+        $this->appendUniqueString($bucket['relationshipParts'], is_string($relationship['relationshipsPart'] ?? null) ? $relationship['relationshipsPart'] : null);
+        $this->appendUniqueString($bucket['relationshipIds'], is_string($relationship['id'] ?? null) ? $relationship['id'] : null);
+        $this->appendUniqueString($bucket['targetParts'], is_string($relationship['targetPart'] ?? null) ? $relationship['targetPart'] : null);
+        $this->appendUniqueString($bucket['targetQueries'], $query);
+    }
+
+    /**
+     * @return list<array{name:string, nameKey:string, value:?string, valueKey:string}>
+     */
+    private function targetQueryParameters(string $query): array
+    {
+        $parameters = [];
+        foreach (explode('&', $query) as $component) {
+            if ($component === '') {
+                continue;
+            }
+
+            $pair = explode('=', $component, 2);
+            $name = $pair[0];
+            $value = array_key_exists(1, $pair) ? $pair[1] : null;
+            $parameters[] = [
+                'name' => $name,
+                'nameKey' => $name === '' ? '(empty)' : $name,
+                'value' => $value,
+                'valueKey' => $value === null ? '(no-value)' : ($value === '' ? '(empty)' : $value),
+            ];
+        }
+
+        return $parameters;
     }
 
     /**
