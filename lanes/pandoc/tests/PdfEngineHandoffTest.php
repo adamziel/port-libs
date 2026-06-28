@@ -2204,6 +2204,22 @@ return [
                 'enabled' => true,
                 'flagCount' => 2,
                 'issues' => ['open-output-side-effect-boundary'],
+                'viewers' => [
+                    [
+                        'raw' => null,
+                        'viewer' => null,
+                        'mode' => 'default-viewer',
+                        'safe' => false,
+                        'issues' => [],
+                    ],
+                    [
+                        'raw' => null,
+                        'viewer' => null,
+                        'mode' => 'default-viewer',
+                        'safe' => false,
+                        'issues' => [],
+                    ],
+                ],
             ],
         ];
 
@@ -2222,13 +2238,75 @@ return [
         $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
         $t->contains('typst-open-output:enabled', implode(',', $plan['diagnostics']));
         $t->contains('typst-open-output-flags:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-open-output-viewers:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-issues:1', implode(',', $plan['diagnostics']));
+        $openCases = [];
+        foreach ($plan['typstBoundaryMatrix']['cases'] as $case) {
+            $openCases[$case['case']] = $case;
+        }
+        $t->same(2, $openCases['open-output']['details']['viewerCount']);
+        $t->same(2, $openCases['open-output']['details']['defaultViewerCount']);
+        $t->same(0, $openCases['open-output']['details']['specificViewerCount']);
+        $t->same(0, $openCases['open-output']['details']['invalidViewerCount']);
         $t->same(true, $result['ok']);
         $t->same($expected, $result['typstBoundaryProvenance']);
         $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
         $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
         $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
+    'maps typst default open output viewer into boundary matrix without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/open-output-default-viewer.pdf',
+            'source' => '= Typst Default Open Output Viewer Packet',
+            'engineOptions' => ['--open'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst default open output viewer packet\n%%EOF\n";
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/open-output-default-viewer.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/open-output-default-viewer.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $openOutput = $plan['typstBoundaryProvenance']['openOutput'];
+        $t->same(1, $openOutput['flagCount']);
+        $t->same(false, array_key_exists('viewer', $openOutput));
+        $t->same([[
+            'raw' => null,
+            'viewer' => null,
+            'mode' => 'default-viewer',
+            'safe' => false,
+            'issues' => [],
+        ]], $openOutput['viewers']);
+
+        $cases = [];
+        foreach ($plan['typstBoundaryMatrix']['cases'] as $case) {
+            $cases[$case['case']] = $case;
+        }
+        $openCase = $cases['open-output'];
+
+        $t->same(['output-format', 'open-output'], array_column($plan['typstBoundaryMatrix']['cases'], 'case'));
+        $t->same('review', $openCase['reviewStatus']);
+        $t->same(1, $openCase['observed']);
+        $t->same(1, $openCase['details']['viewerCount']);
+        $t->same(1, $openCase['details']['defaultViewerCount']);
+        $t->same(0, $openCase['details']['specificViewerCount']);
+        $t->same(0, $openCase['details']['invalidViewerCount']);
+        $t->same(null, $openCase['details']['viewer']);
+        $t->same([], $openCase['details']['viewerNames']);
+        $t->same([], $openCase['details']['rawViewerValues']);
+        $t->same(['open-output-side-effect-boundary'], $openCase['issues']);
+        $t->same($plan['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($plan['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
     },
 
     'plans typst open output viewer provenance without executing' => static function (TestRunner $t) use ($document): void {
