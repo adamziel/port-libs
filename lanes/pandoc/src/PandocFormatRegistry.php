@@ -648,6 +648,87 @@ final class PandocFormatRegistry
         ];
     }
 
+    /**
+     * @return array{
+     *     inputFormats:list<string>,
+     *     outputFormats:list<string>,
+     *     uniqueFormats:list<string>,
+     *     directionBuckets:array<string, list<string>>,
+     *     extensionInference:array<string, string>,
+     *     unsupportedInputs:list<string>,
+     *     unsupportedOutputs:list<string>,
+     *     partialInputs:list<string>,
+     *     partialOutputs:list<string>,
+     *     directReaderParityClaimed:bool,
+     *     directWriterParityClaimed:bool,
+     *     formats:array<string, array{
+     *         label:string,
+     *         direction:string,
+     *         inputStatus:string,
+     *         inputImplementation:string,
+     *         outputStatus:string,
+     *         outputImplementation:string,
+     *         extensionInferences:list<string>,
+     *         directReaderParityClaimed:bool,
+     *         directWriterParityClaimed:bool
+     *     }>
+     * }
+     */
+    public static function wikiFormatReviewPacket(): array
+    {
+        $registry = self::wikiFormatRegistry();
+        $summary = self::wikiFormatRegistrySummary();
+        $formats = [];
+        $unsupportedInputs = [];
+        $unsupportedOutputs = [];
+        $partialInputs = [];
+        $partialOutputs = [];
+
+        foreach ($registry as $format => $entry) {
+            $inputStatus = $entry['input']['status'];
+            $outputStatus = $entry['output']['status'];
+
+            if ($inputStatus === 'unsupported') {
+                $unsupportedInputs[] = $format;
+            } elseif ($inputStatus === 'partial') {
+                $partialInputs[] = $format;
+            }
+
+            if ($outputStatus === 'unsupported') {
+                $unsupportedOutputs[] = $format;
+            } elseif ($outputStatus === 'partial') {
+                $partialOutputs[] = $format;
+            }
+
+            $formats[$format] = [
+                'label' => $entry['label'],
+                'direction' => $entry['direction'],
+                'inputStatus' => $inputStatus,
+                'inputImplementation' => $entry['input']['implementation'],
+                'outputStatus' => $outputStatus,
+                'outputImplementation' => $entry['output']['implementation'],
+                'extensionInferences' => $entry['extensionInferences'],
+                'directReaderParityClaimed' => $entry['directReaderParityClaimed'],
+                'directWriterParityClaimed' => $entry['directWriterParityClaimed'],
+            ];
+        }
+
+        return [
+            'inputFormats' => $summary['inputFormats'],
+            'outputFormats' => $summary['outputFormats'],
+            'uniqueFormats' => $summary['uniqueFormats'],
+            'directionBuckets' => $summary['directionBuckets'],
+            'extensionInference' => $summary['extensionInference'],
+            'unsupportedInputs' => $unsupportedInputs,
+            'unsupportedOutputs' => $unsupportedOutputs,
+            'partialInputs' => $partialInputs,
+            'partialOutputs' => $partialOutputs,
+            'directReaderParityClaimed' => $summary['directReaderParityClaimed'],
+            'directWriterParityClaimed' => $summary['directWriterParityClaimed'],
+            'formats' => $formats,
+        ];
+    }
+
     public static function inferTabularDataFormatFromExtension(string $extension): ?string
     {
         $extension = strtolower(ltrim(trim($extension), '.'));
