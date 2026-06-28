@@ -287,6 +287,7 @@ final class CssMinifier
         $css = $this->validatePageRules($css);
         $css = $this->normalizeScopeRuleSpacing($css);
         $css = $this->removeEmptyStartingStyleRules($css);
+        $css = $this->normalizeUnknownAtRuleFunctionStatements($css);
 
         return $this->prependLicenseComments(
             $this->compactLegacyPseudoElementColons($css),
@@ -3511,6 +3512,148 @@ final class CssMinifier
 
         return (ctype_alnum($previous) || $previous === '_' || $previous === '-' || $previous === '%')
             && (ctype_alnum($next) || $next === '_' || $next === '-' || $next === '.' || $next === '#');
+    }
+
+    private function normalizeUnknownAtRuleFunctionStatements(string $css): string
+    {
+        $output = '';
+        $quote = null;
+        $length = strlen($css);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $css[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($char !== '@') {
+                $output .= $char;
+                continue;
+            }
+
+            $token = $this->readCssIdentifierToken($css, $i + 1);
+            if ($token === null || $this->isKnownAtRuleName($token['name']) || ($css[$token['end']] ?? '') !== '(') {
+                $output .= $char;
+                continue;
+            }
+
+            [$function, $functionEnd] = $this->readFunctionRaw($css, $token['end']);
+            if (($css[$functionEnd + 1] ?? '') !== ';') {
+                $output .= $char;
+                continue;
+            }
+
+            $output .= '@' . $token['raw'] . ' ' . $this->formatUnknownAtRuleFunctionPrelude($function) . ';';
+            $i = $functionEnd + 1;
+        }
+
+        return $output;
+    }
+
+    private function isKnownAtRuleName(string $name): bool
+    {
+        static $known = [
+            '-moz-document' => true,
+            '-moz-keyframes' => true,
+            '-webkit-keyframes' => true,
+            'charset' => true,
+            'container' => true,
+            'counter-style' => true,
+            'custom-media' => true,
+            'document' => true,
+            'font-face' => true,
+            'font-feature-values' => true,
+            'font-palette-values' => true,
+            'import' => true,
+            'keyframes' => true,
+            'layer' => true,
+            'media' => true,
+            'namespace' => true,
+            'page' => true,
+            'property' => true,
+            'scope' => true,
+            'starting-style' => true,
+            'supports' => true,
+            'view-transition' => true,
+            'viewport' => true,
+        ];
+
+        return isset($known[strtolower($name)]);
+    }
+
+    private function formatUnknownAtRuleFunctionPrelude(string $function): string
+    {
+        if (!str_starts_with($function, '(') || !str_ends_with($function, ')')) {
+            return $function;
+        }
+
+        $inner = substr($function, 1, -1);
+
+        return '(' . $this->formatUnknownAtRuleFunctionInner($inner) . ')';
+    }
+
+    private function formatUnknownAtRuleFunctionInner(string $inner): string
+    {
+        $output = '';
+        $quote = null;
+        $depth = 0;
+        $length = strlen($inner);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $inner[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $inner[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                $output .= $char;
+                continue;
+            }
+            if ($char === ')') {
+                $depth = max(0, $depth - 1);
+                $output .= $char;
+                continue;
+            }
+            if ($char === ':' && $depth === 0) {
+                $output = rtrim($output) . ': ';
+                while ($i + 1 < $length && ctype_space($inner[$i + 1])) {
+                    $i++;
+                }
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
     }
 
     private function needsSpaceBeforeCssEscape(string $output, string $css, int $offset): bool
