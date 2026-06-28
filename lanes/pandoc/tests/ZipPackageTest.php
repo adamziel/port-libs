@@ -2245,6 +2245,54 @@ return [
         $t->same($descriptorPreflight['descriptorEntries'][1]['descriptorOffset'], $descriptorPreflight['descriptorEntries'][1]['valueOffset']);
     },
 
+    'summarizes zip data descriptor byte totals before package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:p>descriptor byte totals</w:p></w:document>';
+        $footnotesXml = '<w:footnotes><w:footnote>descriptor value totals</w:footnote></w:footnotes>';
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+                'descriptor' => true,
+            ],
+            [
+                'name' => 'word/footnotes.xml',
+                'data' => $footnotesXml,
+                'method' => 0,
+                'descriptor' => true,
+                'descriptorSignature' => false,
+            ],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+        $summary = $package->dataDescriptorPreflight();
+        $strict = $package->strictImportPreflight();
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 4096, 20.0, 4096);
+
+        $t->same(2, $summary['descriptorEntryCount']);
+        $t->same(28, $summary['descriptorBytes']);
+        $t->same(24, $summary['descriptorValueBytes']);
+        $t->same(28, $summary['descriptorSpanBytes']);
+        $t->same(16, $summary['signedDescriptorBytes']);
+        $t->same(12, $summary['unsignedDescriptorBytes']);
+        $t->same(0, $summary['descriptorSurplusBytes']);
+        $t->same(0, $summary['descriptorTruncatedBytes']);
+        $t->same('word/document.xml', $summary['largestDescriptorEntry']['name']);
+        $t->same(16, $summary['largestDescriptorEntry']['descriptorLength']);
+        $t->same($summary['descriptorEntries'][0], $summary['largestDescriptorEntry']);
+        $t->same($summary, $strict['dataDescriptors']);
+        $t->same(28, $raw['dataDescriptors']['descriptorBytes']);
+        $t->same(24, $raw['dataDescriptors']['descriptorValueBytes']);
+        $t->same(28, $raw['dataDescriptors']['descriptorSpanBytes']);
+        $t->same(16, $raw['dataDescriptors']['signedDescriptorBytes']);
+        $t->same(12, $raw['dataDescriptors']['unsignedDescriptorBytes']);
+        $t->same(0, $raw['dataDescriptors']['descriptorSurplusBytes']);
+        $t->same(0, $raw['dataDescriptors']['descriptorTruncatedBytes']);
+        $t->same('word/document.xml', $raw['dataDescriptors']['largestDescriptorEntry']['name']);
+        $t->same($raw['dataDescriptors']['descriptorEntries'][0], $raw['dataDescriptors']['largestDescriptorEntry']);
+        $t->same(true, $raw['dataDescriptors']['isSupportedByBoundedReader']);
+    },
+
     'reads unsigned data descriptors whose crc bytes equal the optional signature marker' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
         $reviewNote = "word comments descriptor crc-signature collision\n" . "\x71\xe1\xd2\x2b";
         $zip = $buildZipPackage([

@@ -15954,6 +15954,14 @@ final class ZipPackage
      *     signedDescriptorEntryCount:int,
      *     unsignedDescriptorEntryCount:int,
      *     zip64SizedDescriptorEntryCount:int,
+     *     descriptorBytes:int,
+     *     descriptorValueBytes:int,
+     *     descriptorSpanBytes:int,
+     *     signedDescriptorBytes:int,
+     *     unsignedDescriptorBytes:int,
+     *     descriptorSurplusBytes:int,
+     *     descriptorTruncatedBytes:int,
+     *     largestDescriptorEntry:?array<string, mixed>,
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
      *     mismatchedDescriptorEntries:list<array<string, mixed>>,
@@ -16043,6 +16051,7 @@ final class ZipPackage
         $signedDescriptorEntryCount = 0;
         $unsignedDescriptorEntryCount = 0;
         $zip64SizedDescriptorEntryCount = 0;
+        $descriptorByteSummary = self::emptyDataDescriptorByteSummary();
 
         foreach ($centralEntries as $centralEntry) {
             $localHeader = self::readLocalHeaderNameMetadata(
@@ -16125,6 +16134,8 @@ final class ZipPackage
                     $zip64SizedDescriptorEntryCount++;
                 }
 
+                self::accumulateDataDescriptorByteSummary($descriptorByteSummary, $summary);
+
                 if ($summary['descriptorValuesMatchCentral'] === true && $summary['issues'] === []) {
                     $matchedDescriptorEntryCount++;
                 } else {
@@ -16150,6 +16161,14 @@ final class ZipPackage
             'signedDescriptorEntryCount' => $signedDescriptorEntryCount,
             'unsignedDescriptorEntryCount' => $unsignedDescriptorEntryCount,
             'zip64SizedDescriptorEntryCount' => $zip64SizedDescriptorEntryCount,
+            'descriptorBytes' => $descriptorByteSummary['descriptorBytes'],
+            'descriptorValueBytes' => $descriptorByteSummary['descriptorValueBytes'],
+            'descriptorSpanBytes' => $descriptorByteSummary['descriptorSpanBytes'],
+            'signedDescriptorBytes' => $descriptorByteSummary['signedDescriptorBytes'],
+            'unsignedDescriptorBytes' => $descriptorByteSummary['unsignedDescriptorBytes'],
+            'descriptorSurplusBytes' => $descriptorByteSummary['descriptorSurplusBytes'],
+            'descriptorTruncatedBytes' => $descriptorByteSummary['descriptorTruncatedBytes'],
+            'largestDescriptorEntry' => $descriptorByteSummary['largestDescriptorEntry'],
             'isSupportedByBoundedReader' => $packageIssues === [],
             'issues' => $packageIssues,
             'mismatchedDescriptorEntries' => $mismatchedDescriptorEntries,
@@ -16165,6 +16184,14 @@ final class ZipPackage
      *     signedDescriptorEntryCount:int,
      *     unsignedDescriptorEntryCount:int,
      *     zip64SizedDescriptorEntryCount:int,
+     *     descriptorBytes:int,
+     *     descriptorValueBytes:int,
+     *     descriptorSpanBytes:int,
+     *     signedDescriptorBytes:int,
+     *     unsignedDescriptorBytes:int,
+     *     descriptorSurplusBytes:int,
+     *     descriptorTruncatedBytes:int,
+     *     largestDescriptorEntry:?array<string, mixed>,
      *     descriptorEntries:list<array<string, mixed>>,
      *     entries:list<array<string, mixed>>
      * }
@@ -16176,6 +16203,7 @@ final class ZipPackage
         $signedDescriptorEntryCount = 0;
         $unsignedDescriptorEntryCount = 0;
         $zip64SizedDescriptorEntryCount = 0;
+        $descriptorByteSummary = self::emptyDataDescriptorByteSummary();
 
         foreach ($this->entries as $entry) {
             $usesDataDescriptor = ($entry->generalPurposeFlags & 0x0008) !== 0;
@@ -16225,6 +16253,7 @@ final class ZipPackage
                 if ($descriptor['usesZip64SizedDescriptor']) {
                     $zip64SizedDescriptorEntryCount++;
                 }
+                self::accumulateDataDescriptorByteSummary($descriptorByteSummary, $summary);
             }
 
             $entries[] = $summary;
@@ -16236,9 +16265,74 @@ final class ZipPackage
             'signedDescriptorEntryCount' => $signedDescriptorEntryCount,
             'unsignedDescriptorEntryCount' => $unsignedDescriptorEntryCount,
             'zip64SizedDescriptorEntryCount' => $zip64SizedDescriptorEntryCount,
+            'descriptorBytes' => $descriptorByteSummary['descriptorBytes'],
+            'descriptorValueBytes' => $descriptorByteSummary['descriptorValueBytes'],
+            'descriptorSpanBytes' => $descriptorByteSummary['descriptorSpanBytes'],
+            'signedDescriptorBytes' => $descriptorByteSummary['signedDescriptorBytes'],
+            'unsignedDescriptorBytes' => $descriptorByteSummary['unsignedDescriptorBytes'],
+            'descriptorSurplusBytes' => $descriptorByteSummary['descriptorSurplusBytes'],
+            'descriptorTruncatedBytes' => $descriptorByteSummary['descriptorTruncatedBytes'],
+            'largestDescriptorEntry' => $descriptorByteSummary['largestDescriptorEntry'],
             'descriptorEntries' => $descriptorEntries,
             'entries' => $entries,
         ];
+    }
+
+    /**
+     * @return array{descriptorBytes:int, descriptorValueBytes:int, descriptorSpanBytes:int, signedDescriptorBytes:int, unsignedDescriptorBytes:int, descriptorSurplusBytes:int, descriptorTruncatedBytes:int, largestDescriptorEntry:?array<string, mixed>}
+     */
+    private static function emptyDataDescriptorByteSummary(): array
+    {
+        return [
+            'descriptorBytes' => 0,
+            'descriptorValueBytes' => 0,
+            'descriptorSpanBytes' => 0,
+            'signedDescriptorBytes' => 0,
+            'unsignedDescriptorBytes' => 0,
+            'descriptorSurplusBytes' => 0,
+            'descriptorTruncatedBytes' => 0,
+            'largestDescriptorEntry' => null,
+        ];
+    }
+
+    /**
+     * @param array{descriptorBytes:int, descriptorValueBytes:int, descriptorSpanBytes:int, signedDescriptorBytes:int, unsignedDescriptorBytes:int, descriptorSurplusBytes:int, descriptorTruncatedBytes:int, largestDescriptorEntry:?array<string, mixed>} $byteSummary
+     * @param array<string, mixed> $descriptorEntry
+     */
+    private static function accumulateDataDescriptorByteSummary(array &$byteSummary, array $descriptorEntry): void
+    {
+        $descriptorLength = $descriptorEntry['descriptorLength'] ?? null;
+        if (is_int($descriptorLength)) {
+            $hasSignature = ($descriptorEntry['hasSignature'] ?? null) === true;
+            $byteSummary['descriptorBytes'] += $descriptorLength;
+            $byteSummary['descriptorValueBytes'] += max(0, $descriptorLength - ($hasSignature ? 4 : 0));
+
+            if ($hasSignature) {
+                $byteSummary['signedDescriptorBytes'] += $descriptorLength;
+            } elseif (($descriptorEntry['hasSignature'] ?? null) === false) {
+                $byteSummary['unsignedDescriptorBytes'] += $descriptorLength;
+            }
+
+            $largest = $byteSummary['largestDescriptorEntry'];
+            if (!is_array($largest) || $descriptorLength > (int) ($largest['descriptorLength'] ?? -1)) {
+                $byteSummary['largestDescriptorEntry'] = $descriptorEntry;
+            }
+        }
+
+        $descriptorSpan = $descriptorEntry['descriptorSpan'] ?? null;
+        if (is_int($descriptorSpan)) {
+            $byteSummary['descriptorSpanBytes'] += $descriptorSpan;
+        }
+
+        $surplusBytes = $descriptorEntry['surplusDescriptorBytes'] ?? null;
+        if (is_int($surplusBytes)) {
+            $byteSummary['descriptorSurplusBytes'] += $surplusBytes;
+        }
+
+        $truncatedBytes = $descriptorEntry['truncatedDescriptorBytes'] ?? null;
+        if (is_int($truncatedBytes)) {
+            $byteSummary['descriptorTruncatedBytes'] += $truncatedBytes;
+        }
     }
 
     /**
