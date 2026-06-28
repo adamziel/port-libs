@@ -10935,6 +10935,26 @@ final class DocxOpenXmlReader
         $summary['zipCommentControlByteEntryCount'] = (int) ($zipComments['commentControlByteEntryCount'] ?? 0);
         $summary['zipCommentUnicodeFormatControlEntryCount'] = (int) ($zipComments['commentUnicodeFormatControlEntryCount'] ?? 0);
         $summary['zipCommentBidiControlEntryCount'] = (int) ($zipComments['commentBidiControlEntryCount'] ?? 0);
+        $zipOpcManifest = $zipPackage['opcManifest'];
+        $summary['zipOpcManifestPresent'] = $zipOpcManifest['present'];
+        $summary['zipOpcManifestValid'] = $zipOpcManifest['valid'];
+        $summary['zipOpcManifestSupportedByBoundedReader'] = $zipOpcManifest['isSupportedByBoundedReader'];
+        $summary['zipOpcManifestIssueCount'] = count($zipOpcManifest['issues']);
+        $summary['zipOpcManifestIssueCodes'] = $zipOpcManifest['issues'];
+        $summary['zipOpcManifestIssueCounts'] = $zipOpcManifest['issueCounts'];
+        $summary['zipOpcManifestRoleCounts'] = $zipOpcManifest['roleCounts'];
+        $summary['zipOpcManifestContentTypesItemCount'] = $zipOpcManifest['contentTypesItemCount'];
+        $summary['zipOpcManifestRelationshipPartCount'] = $zipOpcManifest['relationshipPartCount'];
+        $summary['zipOpcManifestRootRelationshipPartCount'] = $zipOpcManifest['rootRelationshipPartCount'];
+        $summary['zipOpcManifestPartRelationshipPartCount'] = $zipOpcManifest['partRelationshipPartCount'];
+        $summary['zipOpcManifestInvalidRelationshipPartCount'] = $zipOpcManifest['invalidRelationshipPartCount'];
+        $summary['zipOpcManifestOrphanRelationshipPartCount'] = $zipOpcManifest['orphanRelationshipPartCount'];
+        $summary['zipOpcManifestRelationshipPartSourceCount'] = $zipOpcManifest['relationshipPartSourceCount'];
+        $summary['zipOpcManifestContentTypesItemRelationshipSourceCount'] = $zipOpcManifest['contentTypesItemRelationshipSourceCount'];
+        $summary['zipOpcManifestEmbeddedPackageCandidateCount'] = $zipOpcManifest['embeddedPackageCandidateCount'];
+        $summary['zipOpcManifestMediaPartCandidateCount'] = $zipOpcManifest['mediaPartCandidateCount'];
+        $summary['zipOpcManifestXmlPayloadPartCount'] = $zipOpcManifest['xmlPayloadPartCount'];
+        $summary['zipOpcManifestBinaryPayloadPartCount'] = $zipOpcManifest['binaryPayloadPartCount'];
         $summary['partNameNormalizationInputPartCount'] = (int) ($partNameNormalization['inputPartCount'] ?? count($parts));
         $summary['partNameNormalizationNormalizedPartCount'] = (int) ($partNameNormalization['normalizedPartCount'] ?? count($partInventory));
         $summary['partNameNormalizationChangedEntryCount'] = (int) ($partNameNormalization['changedEntryCount'] ?? 0);
@@ -11008,6 +11028,7 @@ final class DocxOpenXmlReader
                 'dataDescriptors' => $this->emptyZipDataDescriptorProvenance(),
                 'namePolicy' => $this->emptyZipNamePolicyProvenance(),
                 'comments' => $this->emptyZipCommentProvenance(),
+                'opcManifest' => $this->emptyZipOpcManifestPreflight(),
                 'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
                 'canExposeBytes' => false,
                 'entries' => [],
@@ -11105,6 +11126,7 @@ final class DocxOpenXmlReader
             'dataDescriptors' => $dataDescriptors,
             'namePolicy' => $this->zipNamePolicyProvenance($sourcePackage),
             'comments' => $comments,
+            'opcManifest' => $this->zipOpcManifestPreflight($sourcePackage),
             'localHeaderOrder' => $localHeaderOrder,
             'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
             'canExposeBytes' => false,
@@ -11299,6 +11321,52 @@ final class DocxOpenXmlReader
             'nameHygieneUnicodeFormatControlEntryCount' => 0,
             'nameHygieneUnicodeBidiControlEntryCount' => 0,
             'nameHygieneReviewEntries' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyZipOpcManifestPreflight(): array
+    {
+        return [
+            'present' => false,
+            'valid' => true,
+            'isSupportedByBoundedReader' => true,
+            'entryCount' => 0,
+            'fileEntryCount' => 0,
+            'directoryEntryCount' => 0,
+            'packagePartCount' => 0,
+            'contentTypesItemCount' => 0,
+            'relationshipPartCount' => 0,
+            'rootRelationshipPartCount' => 0,
+            'partRelationshipPartCount' => 0,
+            'invalidRelationshipPartCount' => 0,
+            'orphanRelationshipPartCount' => 0,
+            'relationshipPartSourceCount' => 0,
+            'contentTypesItemRelationshipSourceCount' => 0,
+            'embeddedPackageCandidateCount' => 0,
+            'mediaPartCandidateCount' => 0,
+            'xmlPayloadPartCount' => 0,
+            'binaryPayloadPartCount' => 0,
+            'issueCounts' => [],
+            'issues' => [],
+            'roleCounts' => [],
+            'entryNamesByIssue' => [],
+            'partNamesByIssue' => [],
+            'relationshipParts' => [],
+            'entries' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function zipOpcManifestPreflight(ZipPackage $sourcePackage): array
+    {
+        return [
+            'present' => true,
+            ...OpcRelationshipGraph::preflightZipEntryManifest($sourcePackage),
         ];
     }
 
