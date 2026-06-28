@@ -3098,6 +3098,11 @@ CSS
             '@layer a,b;@import "a.css" layer(x);@layer c;@layer d{foo{color:red}}',
             $minifier->minify('@layer a; @layer b; @import "a.css" layer(x); @layer c; @layer d { foo { color: red; } }')
         );
+        $t->same(
+            '@layer one{body{background:#ff0}}body{background:red}@layer two{body{background:green}}',
+            $minifier->minify('@layer one { body { background: red; } } body { background: red; } @layer two { body { background: green; } } @layer one { body { background: yellow; } }'),
+            'upstream src/lib.rs::test_layer line 29576'
+        );
         $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@layer;'));
         $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@layer foo, bar {};'));
     },
@@ -3167,13 +3172,23 @@ CSS
 
         // Pinned upstream 22bdda3d src/lib.rs::test_merge_rules.
         $cases = [
+            [9852, '.foo { color: red; } .bar { color: red; }', '.foo,.bar{color:red}'],
             [9867, '.foo { color: red; } .foo { background: green; }', '.foo{color:red;background:green}'],
             [9883, '.foo { color: red; } .foo { background: green !important; }', '.foo{color:red;background:green!important}'],
+            [9899, '.foo { background: red; } .foo { background: green; }', '.foo{background:green}'],
+            [9914, '.foo { --foo: red; --foo: purple; } .foo { --foo: green; }', '.foo{--foo:green}'],
             [9930, '.foo { color: red; } .bar { background: green; }', '.foo{color:red}.bar{background:green}'],
             [9950, '.foo { color: red; } .baz { color: blue; } .bar { color: red; }', '.foo{color:red}.baz{color:#00f}.bar{color:red}'],
+            [10041, '[foo="bar"] { color: red; } .bar { color: red; }', '[foo=bar],.bar{color:red}'],
+            [10056, '.a { color: red; } .b { color: green; } .a { color: red; }', '.b{color:green}.a{color:red}'],
+            [10078, '.a { color: red; } .b { color: green; } .a { color: pink; }', '.b{color:green}.a{color:pink}'],
             [10100, '.a:foo(#000) { color: red; } .b { color: green; } .a:foo(#ff0) { color: pink; }', '.a:foo(#000){color:red}.b{color:green}.a:foo(#ff0){color:pink}'],
+            [10126, '.a { border-radius: 10px; } .b { color: green; } .a { border-radius: 10px; }', '.b{color:green}.a{border-radius:10px}'],
             [10148, '.a { border-radius: 10px; } .b { color: green; } .a { -webkit-border-radius: 10px; }', '.a{border-radius:10px}.b{color:green}.a{-webkit-border-radius:10px}'],
+            [10174, '.a { border-radius: 10px; } .b { color: green; } .a { border-radius: var(--foo); }', '.b{color:green}.a{border-radius:var(--foo)}'],
             [10196, '.a { border-radius: 10px; } .b { color: green; } .c { border-radius: 20px; }', '.a{border-radius:10px}.b{color:green}.c{border-radius:20px}'],
+            [10222, '@media print { .a { color: red; } .b { color: green; } .a { color: red; } }', '@media print{.b{color:green}.a{color:red}}'],
+            [10276, '.a { color: red; } .b { color: green; } .a { color: red; } .b { color: green; }', '.a{color:red}.b{color:green}'],
             [10346, '.foo:-moz-read-only { color: red; }', '.foo:-moz-read-only{color:red}'],
             [10359, '.foo:-moz-read-only { color: red; } .foo:read-only { color: red; }', '.foo:-moz-read-only{color:red}.foo:read-only{color:red}'],
             [10700, '.foo:placeholder-shown .bar, .foo:-webkit-autofill .baz { color: red; } .foo:placeholder-shown .bar, .foo:autofill .baz { color: red; }', '.foo:placeholder-shown .bar,.foo:-webkit-autofill .baz{color:red}.foo:placeholder-shown .bar,.foo:autofill .baz{color:red}'],

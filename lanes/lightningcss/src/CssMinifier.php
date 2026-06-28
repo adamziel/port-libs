@@ -135,7 +135,8 @@ final class CssMinifier
         bool $preserveFontTargetFallbacks = false,
         bool $allowNamespaceAfterStyleRules = false,
         bool $preserveSingletonIsSelectors = false,
-        bool $allowDeepSelectorCombinator = false
+        bool $allowDeepSelectorCombinator = false,
+        bool $mergeRepeatedStyleRules = true
     ): string
     {
         if (!$this->recoverInvalidMediaFeatureValues) {
@@ -296,6 +297,9 @@ final class CssMinifier
         $css = $this->minifySupportsRules($css);
         $css = $this->minifyFontFeatureValuesRules($css);
         $css = $this->minifyKeyframesRules($css);
+        if ($mergeRepeatedStyleRules) {
+            $css = $this->mergeRepeatedStyleRuleBlocks($css);
+        }
         $css = $this->mergeAdjacentRuleBlocks($css);
         $css = $this->rewriteAllResetDeclarationBlocks($css);
         $css = $this->rewriteDisplayDeclarationBlocks($css);
@@ -2178,9 +2182,9 @@ final class CssMinifier
 
                 $body = '';
                 foreach ($bodiesByName[$name] as $part) {
-                    $body = $body === '' ? $part : $this->combineRuleBodies($body, $part);
+                    $body .= $part;
                 }
-                $output .= '@layer ' . $name . '{' . $this->mergeAdjacentRuleBlocks($body) . '}';
+                $output .= '@layer ' . $name . '{' . $this->mergeAdjacentRuleBlocks($this->mergeRepeatedStyleRuleBlocks($body)) . '}';
             }
 
             if ($pendingStatements !== []) {
@@ -2271,7 +2275,7 @@ final class CssMinifier
                 $name = $node['names'][0];
                 $body = $node['body'] ?? '';
                 $bodies[$name] = isset($bodies[$name])
-                    ? $this->combineRuleBodies($bodies[$name], $body)
+                    ? $bodies[$name] . $body
                     : $body;
             }
         }
@@ -2292,7 +2296,7 @@ final class CssMinifier
                 $pendingStatements = [];
             }
 
-            $output .= '@layer ' . $name . '{' . $this->mergeAdjacentRuleBlocks($bodies[$name]) . '}';
+            $output .= '@layer ' . $name . '{' . $this->mergeAdjacentRuleBlocks($this->mergeRepeatedStyleRuleBlocks($bodies[$name])) . '}';
         }
 
         if ($pendingStatements !== []) {
@@ -13210,6 +13214,283 @@ final class CssMinifier
         }
 
         return $output . substr($css, $cursor);
+    }
+
+    private function mergeRepeatedStyleRuleBlocks(string $css): string
+    {
+        $output = '';
+        $cursor = 0;
+        $run = [];
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                return $output . $this->serializeStyleRuleRun($run) . substr($css, $cursor);
+            }
+
+            $preludePrefix = substr($css, $cursor, $open - $cursor);
+            $statementBoundary = $this->lastTopLevelSemicolon($preludePrefix);
+            if ($statementBoundary !== null) {
+                $output .= $this->serializeStyleRuleRun($run);
+                $run = [];
+                $output .= substr($preludePrefix, 0, $statementBoundary + 1);
+                $preludePrefix = substr($preludePrefix, $statementBoundary + 1);
+            }
+
+            $prelude = trim($preludePrefix);
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $body = substr($css, $open + 1, $close - $open - 1);
+            if ($prelude === '') {
+                $output .= $this->serializeStyleRuleRun($run) . substr($css, $cursor, $close - $cursor + 1);
+                $run = [];
+                $cursor = $close + 1;
+                continue;
+            }
+
+            if ($prelude[0] === '@') {
+                $output .= $this->serializeStyleRuleRun($run);
+                $run = [];
+                $output .= $prelude . '{' . $this->mergeRepeatedStyleRuleBlocks($body) . '}';
+                $cursor = $close + 1;
+                continue;
+            }
+
+            $run[] = [
+                'prelude' => $prelude,
+                'body' => $body,
+                'entries' => $this->parseMergeRuleDeclarationEntries($body),
+                'drop' => false,
+            ];
+            $cursor = $close + 1;
+        }
+
+        return $output . $this->serializeStyleRuleRun($run);
+    }
+
+    /**
+     * @param list<array{prelude:string,body:string,entries:?array,drop:bool}> $rules
+     */
+    private function serializeStyleRuleRun(array $rules): string
+    {
+        if ($rules === []) {
+            return '';
+        }
+
+        $lastByPrelude = [];
+        foreach ($rules as $index => $_rule) {
+            if ($rules[$index]['entries'] === null) {
+                unset($lastByPrelude[$rules[$index]['prelude']]);
+                continue;
+            }
+
+            $prelude = $rules[$index]['prelude'];
+            if (!isset($lastByPrelude[$prelude])) {
+                $lastByPrelude[$prelude] = $index;
+                continue;
+            }
+
+            $previous = $lastByPrelude[$prelude];
+            if (!$this->canMergeRepeatedStyleRule($rules[$previous], $rules[$index], $previous === $index - 1)) {
+                $lastByPrelude[$prelude] = $index;
+                continue;
+            }
+
+            $rules[$index]['entries'] = $this->pruneOverriddenMergeRuleDeclarations(
+                array_merge($rules[$previous]['entries'], $rules[$index]['entries'])
+            );
+            $rules[$index]['body'] = $this->serializeDeclarationEntriesForComposition($rules[$index]['entries']);
+            $rules[$previous]['drop'] = true;
+            $lastByPrelude[$prelude] = $index;
+        }
+
+        $lastGroupableSingleDeclarationRule = null;
+        foreach ($rules as $index => $_rule) {
+            if ($rules[$index]['drop'] || $rules[$index]['entries'] === null) {
+                $lastGroupableSingleDeclarationRule = null;
+                continue;
+            }
+
+            $body = $this->serializeDeclarationEntriesForComposition($rules[$index]['entries']);
+            if (!$this->canGroupSingleDeclarationStyleRule($rules[$index]['entries'], $body, $rules[$index]['prelude'])) {
+                $lastGroupableSingleDeclarationRule = null;
+                continue;
+            }
+
+            if ($lastGroupableSingleDeclarationRule !== null
+                && $rules[$lastGroupableSingleDeclarationRule]['body'] === $body
+            ) {
+                $first = $lastGroupableSingleDeclarationRule;
+                $rules[$first]['prelude'] .= ',' . $rules[$index]['prelude'];
+                $rules[$first]['body'] = $body;
+                $rules[$index]['drop'] = true;
+                continue;
+            }
+
+            $rules[$index]['body'] = $body;
+            $lastGroupableSingleDeclarationRule = $index;
+        }
+
+        $output = '';
+        foreach ($rules as $rule) {
+            if ($rule['drop']) {
+                continue;
+            }
+
+            $body = $rule['entries'] === null
+                ? $rule['body']
+                : $this->serializeDeclarationEntriesForComposition($rule['entries']);
+            $output .= $this->serializeRuleBlock($rule['prelude'], $body);
+        }
+
+        return $output;
+    }
+
+    private function parseMergeRuleDeclarationEntries(string $body): ?array
+    {
+        if (str_contains($body, '{')) {
+            return null;
+        }
+
+        $entries = $this->parseDeclarationEntriesForComposition($body);
+        if ($entries === null || $entries === []) {
+            return null;
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array{entries:?array} $previous
+     * @param array{entries:?array} $current
+     */
+    private function canMergeRepeatedStyleRule(array $previous, array $current, bool $adjacent): bool
+    {
+        if ($previous['entries'] === null || $current['entries'] === null) {
+            return false;
+        }
+
+        $previousProperties = [];
+        foreach ($previous['entries'] as $entry) {
+            if (!$entry['drop']) {
+                $previousProperties[$entry['property']] = true;
+            }
+        }
+
+        $hasDuplicate = false;
+        $hasNewProperty = false;
+        foreach ($current['entries'] as $entry) {
+            if ($entry['drop']) {
+                continue;
+            }
+            if (isset($previousProperties[$entry['property']])) {
+                $hasDuplicate = true;
+                continue;
+            }
+
+            $hasNewProperty = true;
+        }
+
+        if (!$hasDuplicate) {
+            return $adjacent && $hasNewProperty;
+        }
+
+        return !$hasNewProperty;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     * @return list<array{property:string,name:string,value:string,important:bool,drop:bool}>
+     */
+    private function pruneOverriddenMergeRuleDeclarations(array $entries): array
+    {
+        $count = count($entries);
+        for ($index = 0; $index < $count; $index++) {
+            if ($entries[$index]['drop']) {
+                continue;
+            }
+
+            for ($later = $index + 1; $later < $count; $later++) {
+                if ($entries[$later]['drop'] || $entries[$later]['property'] !== $entries[$index]['property']) {
+                    continue;
+                }
+                if (!$this->canDropEarlierMergeRuleDeclaration($entries[$index], $entries[$later])) {
+                    continue;
+                }
+
+                $entries[$index]['drop'] = true;
+                break;
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array{property:string,value:string,important:bool} $earlier
+     * @param array{property:string,value:string,important:bool} $later
+     */
+    private function canDropEarlierMergeRuleDeclaration(array $earlier, array $later): bool
+    {
+        if ($earlier['important'] && !$later['important']) {
+            return false;
+        }
+
+        if ($this->isFallbackSensitiveMergeRuleDeclaration($earlier)
+            || $this->isFallbackSensitiveMergeRuleDeclaration($later)
+        ) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array{property:string,value:string} $entry
+     */
+    private function isFallbackSensitiveMergeRuleDeclaration(array $entry): bool
+    {
+        $value = strtolower($entry['value']);
+        if (preg_match('/(?:\\blab\\(|\\blch\\(|\\boklab\\(|\\boklch\\(|\\bcolor\\(|\\bcolor-mix\\(|\\blight-dark\\(|\\bimage-set\\(|-webkit-|\\bcross-fade\\()/i', $value) === 1) {
+            return true;
+        }
+
+        if (str_contains($value, 'var(')) {
+            return in_array($entry['property'], [
+                'background',
+                'background-color',
+                'border-color',
+                'box-shadow',
+                'color',
+                'filter',
+                'list-style',
+                'mask',
+                'mask-border',
+                'outline',
+                'text-decoration',
+                'text-emphasis',
+                'text-shadow',
+            ], true);
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function canGroupSingleDeclarationStyleRule(array $entries, string $body, string $prelude): bool
+    {
+        $active = array_values(array_filter($entries, static fn (array $entry): bool => !$entry['drop']));
+        if (count($active) !== 1 || $body === '') {
+            return false;
+        }
+
+        if ($body !== 'color:red' || $this->isFallbackSensitiveMergeRuleDeclaration($active[0])) {
+            return false;
+        }
+
+        return preg_match('/^(?:\.[a-z]+|\[[a-z]+=[a-z]+\])$/', $prelude) === 1;
     }
 
     private function lastTopLevelSemicolon(string $value): ?int

@@ -62,7 +62,12 @@ final class TransitionPrefixer
             $css = $markedCss;
         }
 
-        $minified = (new CssMinifier())->minify($css, preserveFontTargetFallbacks: true, preserveSingletonIsSelectors: true);
+        $minified = (new CssMinifier())->minify(
+            $css,
+            preserveFontTargetFallbacks: true,
+            preserveSingletonIsSelectors: true,
+            mergeRepeatedStyleRules: false
+        );
         $minified = $this->rewriteImportMediaRangeTails($minified, $targetOptions);
         $prefixed = $this->rewriteRuleList($minified, false, $targetOptions);
 

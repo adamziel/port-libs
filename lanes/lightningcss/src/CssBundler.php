@@ -327,7 +327,11 @@ final class CssBundler
         $raw = (new CustomMediaTransformer())->transform($raw);
         $raw = $this->applyBundleValueVisitors($raw);
 
-        $code = (new CssMinifier())->minify($raw, false, true);
+        $code = (new CssMinifier())->minify(
+            $raw,
+            allowNamespaceAfterStyleRules: true,
+            mergeRepeatedStyleRules: false
+        );
         $this->applyPendingInputSourceMaps($code);
         $exports = $cssModules ? $this->resolvedCssModuleExports(0) : [];
 
@@ -655,7 +659,11 @@ final class CssBundler
                 $this->pendingInputSourceMaps[] = [
                     'sourceIndex' => $sourceIndex,
                     'sourceMap' => SourceMap::fromDataUrl($sourceMapUrl, $this->sourceMapProjectRoot),
-                    'generatedCss' => (new CssMinifier())->minify($source, false, true),
+                    'generatedCss' => (new CssMinifier())->minify(
+                        $source,
+                        allowNamespaceAfterStyleRules: true,
+                        mergeRepeatedStyleRules: false
+                    ),
                 ];
             } catch (\Throwable) {
                 // Upstream suppresses generated source collection for data: maps even when parsing fails.
