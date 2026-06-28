@@ -3148,6 +3148,15 @@ CSS
             $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_merge_rules line ' . $line);
         }
     },
+    'css minifier maps upstream merge-rule any selector preservation row' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo:-webkit-any(.bar,.baz):after{color:red}.foo:is(.bar,.baz):after{color:red}',
+            $minifier->minify('.foo:-webkit-any(.bar, .baz):after { color: red; } .foo:is(.bar, .baz):after { color: red; }'),
+            'upstream src/lib.rs::test_merge_rules line 11065'
+        );
+    },
     'css minifier maps upstream adjacent supports rule merging' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 @supports (flex: 1) {

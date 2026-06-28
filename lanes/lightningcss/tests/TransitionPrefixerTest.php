@@ -676,6 +676,40 @@ return [
             $prefixer->prefixForTargets('.foo::-webkit-file-upload-button { color: red; } .foo::-ms-browse { color: red; } .foo::file-selector-button { color: red; }', ['chrome' => 89, 'edge' => 19])
         );
     },
+    'transition prefixer maps upstream merge-rule residual selector prefix rows' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_merge_rules.
+        $cases = [
+            [10302, '[foo="bar"] { color: red; } .bar { color: red; }', '[foo=bar]{color:red}.bar{color:red}', ['ie' => 6]],
+            [10380, '.foo:-moz-read-only { color: red; } .foo:read-only { color: red; }', '.foo:read-only{color:red}', ['firefox' => 85]],
+            [10401, '.foo:-moz-read-only { color: red; } .bar { color: yellow; } .foo:read-only { color: red; }', '.foo:-moz-read-only{color:red}.bar{color:#ff0}.foo:read-only{color:red}', ['firefox' => 85]],
+            [10434, '.foo:-moz-read-only { color: red; } .foo:read-only { color: red; }', '.foo:-moz-read-only{color:red}.foo:read-only{color:red}', ['firefox' => 36]],
+            [10459, '.foo:read-only { color: red; }', '.foo:-moz-read-only{color:red}.foo:read-only{color:red}', ['firefox' => 36]],
+            [10480, '.foo:-webkit-full-screen { color: red; } .foo:-moz-full-screen { color: red; } .foo:-ms-fullscreen { color: red; } .foo:fullscreen { color: red; }', '.foo:fullscreen{color:red}', ['chrome' => 96]],
+            [10506, '.foo:fullscreen { color: red; }', '.foo:-webkit-full-screen{color:red}.foo:-moz-full-screen{color:red}.foo:-ms-fullscreen{color:red}.foo:fullscreen{color:red}', ['chrome' => 45, 'firefox' => 45, 'ie' => 11]],
+            [10537, '.foo::placeholder { color: red; }', '.foo::-webkit-input-placeholder{color:red}.foo::-moz-placeholder{color:red}.foo::-ms-input-placeholder{color:red}.foo::placeholder{color:red}', ['chrome' => 45, 'firefox' => 45, 'ie' => 11]],
+            [10568, '.foo::file-selector-button { color: red; }', '.foo::-webkit-file-upload-button{color:red}.foo::-ms-browse{color:red}.foo::file-selector-button{color:red}', ['chrome' => 84, 'ie' => 10]],
+            [10632, '.foo:placeholder-shown .bar { color: red; } .foo:autofill .baz { color: red; }', '.foo:placeholder-shown .bar{color:red}.foo:-webkit-autofill .baz{color:red}.foo:autofill .baz{color:red}', ['chrome' => 103]],
+            [10656, '.foo:placeholder-shown .bar,.foo:autofill .baz{color:red}', ':-webkit-any(.foo:placeholder-shown .bar,.foo:-webkit-autofill .baz){color:red}:is(.foo:placeholder-shown .bar,.foo:autofill .baz){color:red}', ['chrome' => 103]],
+            [10721, ':hover, :focus-visible { color: red; }', ':hover{color:red}:focus-visible{color:red}', ['safari' => 13]],
+            [10796, ':focus-within, :focus-visible { color: red; }', ':focus-within{color:red}:focus-visible{color:red}', ['safari' => 9]],
+            [10817, ':hover, :focus-visible { color: red; }', ':is(:hover,:focus-visible){color:red}', ['safari' => 14]],
+            [10834, 'a::after:hover, a::after:focus-visible { color: red; }', 'a:after:hover{color:red}a:after:focus-visible{color:red}', ['safari' => 14]],
+            [10855, 'a:not(:hover), a:not(:focus-visible) { color: red; }', ':is(a:not(:hover),a:not(:focus-visible)){color:red}', ['safari' => 14]],
+            [10872, 'a:has(:hover), a:has(:focus-visible) { color: red; }', ':is(a:has(:hover),a:has(:focus-visible)){color:red}', ['safari' => 14]],
+            [10889, '.foo.foo:hover, .bar:focus-visible { color: red; }', '.foo.foo:hover{color:red}.bar:focus-visible{color:red}', ['safari' => 14]],
+            [10965, '.foo::part(header), .foo::part(body) { display: none }', '.foo::part(header),.foo::part(body){display:none}', ['safari' => 14]],
+        ];
+
+        foreach ($cases as [$line, $input, $expected, $targets]) {
+            $t->same(
+                $expected,
+                $prefixer->prefixForTargets($input, $targets),
+                'upstream src/lib.rs::test_merge_rules line ' . $line
+            );
+        }
+    },
     'transition prefixer maps upstream placeholder pseudo-element target prefixes' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 
