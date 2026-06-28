@@ -771,7 +771,7 @@ return [
         $t->same('(hover) or ((min-width:100px) and (max-width:200px))', $parser->lowerRangeSyntaxList('(hover) or (100px <= width <= 200px)'));
         $t->same('(not (max-width:100px)) and (not (min-width:200px))', $parser->lowerRangeSyntaxList('(100px < width < 200px)'));
         $t->same('not ((not (max-width:100px)) and (not (min-width:200px)))', $parser->lowerRangeSyntaxList('not (100px < width < 200px)'));
-        $t->same('screen and not ((min-width:200px) and (not (min-width:500px)))', $parser->lowerRangeSyntaxList('screen and not (200px <= width < 500px)'));
+        $t->same('screen and not ((min-width:200px) and (not (min-width:500px)))', $parser->lowerRangeSyntaxList('screen and not (200px <= width < 500px)'), 'upstream src/media_query.rs::tests::test_negated_interval_parens');
         $t->same('(hover) and (not ((min-width:200px) and (not (min-width:500px))))', $parser->lowerRangeSyntaxList('(hover) and (not (200px <= width < 500px))'));
         $t->same('(hover) and (min-width:240px)', $parser->lowerRangeSyntaxList('(hover) and (not (width < 240px))'));
         $t->same('not ((not (min-width:240px)) or (hover))', $parser->lowerRangeSyntaxList('not ((width < 240px) or (hover))'));
