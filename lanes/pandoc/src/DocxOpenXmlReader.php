@@ -11466,6 +11466,16 @@ final class DocxOpenXmlReader
             return $partInventory;
         }
 
+        $opcManifestEntriesByName = [];
+        $opcManifest = is_array($zipPackage['opcManifest'] ?? null) ? $zipPackage['opcManifest'] : [];
+        foreach (($opcManifest['entries'] ?? []) as $manifestEntry) {
+            if (!is_array($manifestEntry) || !is_string($manifestEntry['entryName'] ?? null)) {
+                continue;
+            }
+
+            $opcManifestEntriesByName[$manifestEntry['entryName']] = $manifestEntry;
+        }
+
         foreach ($zipPackage['byPackagePath'] as $partName => $entry) {
             if (!is_string($partName) || !is_array($entry) || !isset($partInventory[$partName])) {
                 continue;
@@ -11499,6 +11509,39 @@ final class DocxOpenXmlReader
             $partInventory[$partName]['hasZeroLocalHeaderPlaceholders'] = $entry['hasZeroLocalHeaderPlaceholders'] ?? null;
             $partInventory[$partName]['dataDescriptorIssueCount'] = $entry['dataDescriptorIssueCount'] ?? 0;
             $partInventory[$partName]['dataDescriptorIssues'] = $entry['dataDescriptorIssues'] ?? [];
+
+            $manifestEntry = $opcManifestEntriesByName[$partName] ?? null;
+            if (is_array($manifestEntry)) {
+                $manifestIssues = array_values(array_filter(
+                    is_array($manifestEntry['issues'] ?? null) ? $manifestEntry['issues'] : [],
+                    static fn (mixed $issue): bool => is_string($issue)
+                ));
+                $partInventory[$partName]['zipOpcManifestPresent'] = true;
+                $partInventory[$partName]['zipOpcManifestEntryName'] = $manifestEntry['entryName'];
+                $partInventory[$partName]['zipOpcManifestPartName'] = $manifestEntry['partName'] ?? null;
+                $partInventory[$partName]['zipOpcManifestRole'] = is_string($manifestEntry['role'] ?? null)
+                    ? $manifestEntry['role']
+                    : null;
+                $partInventory[$partName]['zipOpcManifestHandoffKind'] = is_string($manifestEntry['handoffKind'] ?? null)
+                    ? $manifestEntry['handoffKind']
+                    : null;
+                $partInventory[$partName]['zipOpcManifestValid'] = (bool) ($manifestEntry['valid'] ?? false);
+                $partInventory[$partName]['zipOpcManifestIssueCount'] = count($manifestIssues);
+                $partInventory[$partName]['zipOpcManifestIssues'] = $manifestIssues;
+                $partInventory[$partName]['zipOpcManifestContentTypesItem'] = (bool) ($manifestEntry['contentTypesItem'] ?? false);
+                $partInventory[$partName]['zipOpcManifestRelationshipPart'] = (bool) ($manifestEntry['relationshipPart'] ?? false);
+                $partInventory[$partName]['zipOpcManifestRelationshipPartCandidate'] = (bool) ($manifestEntry['relationshipPartCandidate'] ?? false);
+                $partInventory[$partName]['zipOpcManifestRelationshipSource'] = $manifestEntry['relationshipSource'] ?? null;
+                $partInventory[$partName]['zipOpcManifestRelationshipSourceExists'] = $manifestEntry['relationshipSourceExists'] ?? null;
+                $partInventory[$partName]['zipOpcManifestCentralDirectoryIndex'] = $manifestEntry['centralDirectoryIndex'] ?? null;
+                $partInventory[$partName]['zipOpcManifestLocalHeaderOrder'] = $manifestEntry['localHeaderOrder'] ?? null;
+                $partInventory[$partName]['zipOpcManifestMatchesCentralDirectoryOrder'] = $manifestEntry['matchesCentralDirectoryOrder'] ?? null;
+                $partInventory[$partName]['zipOpcManifestByteCountsAreExact'] = $manifestEntry['byteCountsAreExact'] ?? true;
+                $partInventory[$partName]['zipOpcManifestExactCompressedSize'] =
+                    $manifestEntry['exactCompressedSize'] ?? $manifestEntry['compressedSize'] ?? null;
+                $partInventory[$partName]['zipOpcManifestExactUncompressedSize'] =
+                    $manifestEntry['exactUncompressedSize'] ?? $manifestEntry['uncompressedSize'] ?? null;
+            }
         }
 
         return $partInventory;
@@ -11537,6 +11580,15 @@ final class DocxOpenXmlReader
         $relationshipPartCount = 0;
         $relationshipPartByteLength = 0;
         $missingContentTypePartByteLength = 0;
+        $zipOpcManifestLoadedPartCount = 0;
+        $zipOpcManifestLoadedPartIssueCount = 0;
+        $zipOpcManifestLoadedRelationshipPartCount = 0;
+        $zipOpcManifestLoadedContentTypesItemCount = 0;
+        $zipOpcManifestLoadedPartRoleCounts = [];
+        $zipOpcManifestLoadedPartHandoffKindCounts = [];
+        $zipOpcManifestLoadedPartIssueCodeCounts = [];
+        $zipOpcManifestLoadedPartNamesByRole = [];
+        $zipOpcManifestLoadedPartNamesWithIssues = [];
         foreach ($partInventory as $part) {
             $bytes = (int) ($part['bytes'] ?? 0);
             $packageByteLength += $bytes;
@@ -11624,6 +11676,44 @@ final class DocxOpenXmlReader
             if ($source === 'missing') {
                 $missingContentTypePartByteLength += $bytes;
             }
+            if (($part['zipOpcManifestPresent'] ?? false) === true) {
+                ++$zipOpcManifestLoadedPartCount;
+                $partName = (string) ($part['partName'] ?? '');
+                $manifestRole = is_string($part['zipOpcManifestRole'] ?? null)
+                    ? $part['zipOpcManifestRole']
+                    : 'unknown';
+                $manifestHandoffKind = is_string($part['zipOpcManifestHandoffKind'] ?? null)
+                    ? $part['zipOpcManifestHandoffKind']
+                    : 'unknown';
+                $zipOpcManifestLoadedPartRoleCounts[$manifestRole] =
+                    ($zipOpcManifestLoadedPartRoleCounts[$manifestRole] ?? 0) + 1;
+                $zipOpcManifestLoadedPartHandoffKindCounts[$manifestHandoffKind] =
+                    ($zipOpcManifestLoadedPartHandoffKindCounts[$manifestHandoffKind] ?? 0) + 1;
+                $zipOpcManifestLoadedPartNamesByRole[$manifestRole] ??= [];
+                $this->appendUniqueString($zipOpcManifestLoadedPartNamesByRole[$manifestRole], $partName);
+
+                if (($part['zipOpcManifestRelationshipPart'] ?? false) === true) {
+                    ++$zipOpcManifestLoadedRelationshipPartCount;
+                }
+                if (($part['zipOpcManifestContentTypesItem'] ?? false) === true) {
+                    ++$zipOpcManifestLoadedContentTypesItemCount;
+                }
+
+                $manifestIssues = is_array($part['zipOpcManifestIssues'] ?? null)
+                    ? $part['zipOpcManifestIssues']
+                    : [];
+                if ($manifestIssues !== []) {
+                    ++$zipOpcManifestLoadedPartIssueCount;
+                    $this->appendUniqueString($zipOpcManifestLoadedPartNamesWithIssues, $partName);
+                    foreach ($manifestIssues as $manifestIssue) {
+                        if (!is_string($manifestIssue) || $manifestIssue === '') {
+                            continue;
+                        }
+                        $zipOpcManifestLoadedPartIssueCodeCounts[$manifestIssue] =
+                            ($zipOpcManifestLoadedPartIssueCodeCounts[$manifestIssue] ?? 0) + 1;
+                    }
+                }
+            }
         }
 
         ksort($roleCounts);
@@ -11644,6 +11734,15 @@ final class DocxOpenXmlReader
             ksort($contentTypeParameter['valueCounts']);
         }
         unset($contentTypeParameter);
+        ksort($zipOpcManifestLoadedPartRoleCounts);
+        ksort($zipOpcManifestLoadedPartHandoffKindCounts);
+        ksort($zipOpcManifestLoadedPartIssueCodeCounts);
+        ksort($zipOpcManifestLoadedPartNamesByRole);
+        foreach ($zipOpcManifestLoadedPartNamesByRole as &$manifestPartNames) {
+            sort($manifestPartNames, SORT_STRING);
+        }
+        unset($manifestPartNames);
+        sort($zipOpcManifestLoadedPartNamesWithIssues, SORT_STRING);
 
         $partDirectories = $this->packagePartDirectorySummary($partInventory);
         $partDirectoryBaseNames = $this->packagePartDirectoryBaseNameSummary($partInventory);
@@ -14653,6 +14752,15 @@ final class DocxOpenXmlReader
             'partZipUncompressedByteLength' => $partZipUncompressedByteLength,
             'partZipDataDescriptorPartCount' => $partZipDataDescriptorPartCount,
             'partZipUnsupportedCompressionPartCount' => $partZipUnsupportedCompressionPartCount,
+            'zipOpcManifestLoadedPartCount' => $zipOpcManifestLoadedPartCount,
+            'zipOpcManifestLoadedContentTypesItemCount' => $zipOpcManifestLoadedContentTypesItemCount,
+            'zipOpcManifestLoadedRelationshipPartCount' => $zipOpcManifestLoadedRelationshipPartCount,
+            'zipOpcManifestLoadedPartIssueCount' => $zipOpcManifestLoadedPartIssueCount,
+            'zipOpcManifestLoadedPartRoleCounts' => $zipOpcManifestLoadedPartRoleCounts,
+            'zipOpcManifestLoadedPartHandoffKindCounts' => $zipOpcManifestLoadedPartHandoffKindCounts,
+            'zipOpcManifestLoadedPartIssueCodeCounts' => $zipOpcManifestLoadedPartIssueCodeCounts,
+            'zipOpcManifestLoadedPartNamesByRole' => $zipOpcManifestLoadedPartNamesByRole,
+            'zipOpcManifestLoadedPartNamesWithIssues' => $zipOpcManifestLoadedPartNamesWithIssues,
             'zeroBytePartCount' => count($zeroByteParts),
             'zeroBytePartNames' => array_values(array_map(
                 static fn (array $part): string => (string) $part['partName'],
