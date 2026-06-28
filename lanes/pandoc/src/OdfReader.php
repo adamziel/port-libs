@@ -123,6 +123,7 @@ final class OdfReader
      *     packageGalleries:array<string, mixed>,
      *     packageForms:array<string, mixed>,
      *     packageAttachments:array<string, mixed>,
+     *     packageStyles:array<string, mixed>,
      *     documentPartVersions:array<string, mixed>,
      *     rdfMetadata:array<string, mixed>,
      *     signatureMetadata:array<string, mixed>,
@@ -174,6 +175,9 @@ final class OdfReader
         $packageForms = $this->packageFormMetadata($package, $manifest, $undeclaredEntries);
         $packageAttachments = $this->packageAttachmentMetadata($package, $manifest, $undeclaredEntries);
         $packageProvenance = $this->packageProvenance($package, $manifest, $mimetypeEntry, $undeclaredEntries, $styleCatalog);
+        $packageStyles = is_array($packageProvenance['stylePackageProvenance'] ?? null)
+            ? $packageProvenance['stylePackageProvenance']
+            : [];
         $documentPartVersions = $this->documentPartVersionMetadata($package, $manifest);
         if ($packageThumbnails['count'] > 0) {
             $metadata['odfPackageThumbnails'] = $packageThumbnails;
@@ -216,6 +220,9 @@ final class OdfReader
         }
         if ($packageAttachments['count'] > 0) {
             $metadata['odfPackageAttachments'] = $packageAttachments;
+        }
+        if (($packageStyles['count'] ?? 0) > 0) {
+            $metadata['odfPackageStyles'] = $packageStyles;
         }
 
         $document = new AstNode('document', [
@@ -293,6 +300,7 @@ final class OdfReader
             'packageGalleries' => $packageGalleries,
             'packageForms' => $packageForms,
             'packageAttachments' => $packageAttachments,
+            'packageStyles' => $packageStyles,
             'trackedChanges' => [
                 'count' => count($content['trackedChanges']),
                 'items' => $content['trackedChanges'],
@@ -327,6 +335,7 @@ final class OdfReader
             'packageGalleries' => $packageGalleries,
             'packageForms' => $packageForms,
             'packageAttachments' => $packageAttachments,
+            'packageStyles' => $packageStyles,
             'documentPartVersions' => $documentPartVersions,
             'rdfMetadata' => $rdfMetadata,
             'signatureMetadata' => $signatureMetadata,
@@ -419,6 +428,7 @@ final class OdfReader
                 'packageGalleries' => $packageGalleries,
                 'packageForms' => $packageForms,
                 'packageAttachments' => $packageAttachments,
+                'packageStyles' => $packageStyles,
                 'rdfMetadata' => $rdfMetadata,
                 'signatureMetadata' => $signatureMetadata,
                 'scriptMetadata' => $scriptMetadata,
