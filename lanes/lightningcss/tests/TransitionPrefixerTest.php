@@ -2170,7 +2170,8 @@ CSS;
                 'safari' => 14,
                 'firefox' => 40,
                 'ie' => 10,
-            ])
+            ]),
+            'upstream src/lib.rs::test_hyphens line 15916'
         );
         $t->same(
             '.foo{-webkit-hyphens:manual;hyphens:manual}',
@@ -2179,7 +2180,8 @@ CSS;
                 'chrome' => 88,
                 'firefox' => 88,
                 'edge' => 79,
-            ])
+            ]),
+            'upstream src/lib.rs::test_hyphens line 15933'
         );
         $t->same(
             '.foo{hyphens:manual}',
@@ -2187,7 +2189,8 @@ CSS;
                 'chrome' => 88,
                 'firefox' => 88,
                 'edge' => 79,
-            ])
+            ]),
+            'upstream src/lib.rs::test_hyphens line 15956'
         );
         $t->same(
             '.foo{-moz-tab-size:4;-o-tab-size:4;tab-size:4}',
