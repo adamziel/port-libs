@@ -3254,7 +3254,7 @@ final class OpenDocumentPackage
                 'declared' => false,
                 'declaredSize' => null,
                 'declaredSizeMismatch' => false,
-                'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? 'signature-package-bytes-blocked',
+                'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? 'font-package-bytes-blocked',
             ];
         }
 
@@ -7300,7 +7300,7 @@ final class OpenDocumentPackage
 
             $packageRolePrecedence = self::mediaResourcePackagePrecedenceRoles($entry);
             $mediaResource = $packageRolePrecedence === [] && self::isMediaResourceManifestEntry($entry);
-            if (!$mediaResource && $roleSources === []) {
+            if (!$mediaResource && $roleSources === [] && $packageRolePrecedence === []) {
                 continue;
             }
 
