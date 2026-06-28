@@ -13460,6 +13460,71 @@ return [
         $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
     },
 
+    'summarizes readable zip handoff crc32 manifests for package review' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
+        $documentXml = '<w:document><w:body><w:p>crc32 handoff</w:p></w:body></w:document>';
+        $commentsXml = '<w:comments><w:comment><w:p>crc32 note</w:p></w:comment></w:comments>';
+        $largeBytes = "blocked crc32 media bytes\n";
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => 'word/comments.xml', 'data' => $commentsXml, 'method' => 8],
+            ['name' => 'word/media/large.bin', 'data' => $largeBytes, 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => '/word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/comments.xml', 'required' => false, 'kind' => 'file', 'role' => 'comments'],
+            ['name' => 'word/media/large.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 8],
+            ['name' => 'word/missing.xml', 'required' => false, 'kind' => 'file', 'role' => 'optional-sidecar'],
+        ], 1024);
+
+        $selectedByName = [];
+        foreach ($summary['selectedCrc32Entries'] as $entry) {
+            $selectedByName[$entry['name']] = $entry;
+        }
+        $handoffByName = [];
+        foreach ($summary['handoffCrc32Entries'] as $entry) {
+            $handoffByName[$entry['name']] = $entry;
+        }
+
+        $t->same(3, $summary['selectedCrc32EntryCount']);
+        $t->same(3, $summary['selectedCrc32UniqueValueCount']);
+        $t->same(strlen($documentXml) + strlen($commentsXml) + strlen($largeBytes), $summary['selectedCrc32UncompressedBytes']);
+        $t->same(['word/document.xml', 'word/comments.xml', 'word/media/large.bin'], array_keys($selectedByName));
+        $t->same(false, isset($selectedByName['word/missing.xml']));
+        $t->same($crc32($largeBytes), $selectedByName['word/media/large.bin']['crc32']);
+        $t->same(sprintf('%08x', $crc32($largeBytes)), $selectedByName['word/media/large.bin']['crc32Hex']);
+        $t->same(null, $selectedByName['word/media/large.bin']['contentCrc32']);
+        $t->same(null, $selectedByName['word/media/large.bin']['contentCrc32MatchesCentral']);
+
+        $handoffBytes = strlen($documentXml) + strlen($commentsXml);
+        $t->same(2, $summary['handoffCrc32EntryCount']);
+        $t->same(2, $summary['handoffCrc32UniqueValueCount']);
+        $t->same(2, $summary['handoffCrc32ReadableEntryCount']);
+        $t->same(2, $summary['handoffCrc32VerifiedEntryCount']);
+        $t->same(0, $summary['handoffCrc32MismatchEntryCount']);
+        $t->same($handoffBytes, $summary['handoffCrc32BytesRead']);
+        $t->same('zip-entry-handoff-crc32-v1', $summary['handoffCrc32ManifestVersion']);
+        $expectedManifestJson = json_encode(
+            [
+                'manifestVersion' => 'zip-entry-handoff-crc32-v1',
+                'entries' => $summary['handoffCrc32Entries'],
+            ],
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        );
+        $t->same(hash('sha256', $expectedManifestJson), $summary['handoffCrc32ManifestSha256']);
+
+        $t->same(['word/document.xml', 'word/comments.xml'], array_keys($handoffByName));
+        $t->same($crc32($documentXml), $summary['entries'][0]['contentCrc32']);
+        $t->same(sprintf('%08x', $crc32($documentXml)), $summary['entries'][0]['contentCrc32Hex']);
+        $t->same(true, $summary['entries'][0]['contentCrc32MatchesCentral']);
+        $t->same($crc32($commentsXml), $summary['entries'][1]['contentCrc32']);
+        $t->same(true, $summary['entries'][1]['contentCrc32MatchesCentral']);
+        $t->same(null, $summary['entries'][2]['contentCrc32']);
+        $t->same(null, $summary['entries'][2]['contentCrc32MatchesCentral']);
+        $t->same('blocked', $summary['entries'][2]['status']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
+    },
+
     'summarizes selected zip handoff directory roots for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
         $contentTypesXml = '<Types/>';
         $packageRelsXml = '<Relationships/>';

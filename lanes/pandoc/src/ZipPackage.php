@@ -5228,6 +5228,20 @@ final class ZipPackage
      *     handoffCrc32ProvenanceEntries:list<array<string, mixed>>,
      *     selectedCrc32IssueEntries:list<array<string, mixed>>,
      *     handoffCrc32IssueEntries:list<array<string, mixed>>,
+     *     selectedCrc32EntryCount:int,
+     *     selectedCrc32UniqueValueCount:int,
+     *     selectedCrc32CompressedBytes:int,
+     *     selectedCrc32UncompressedBytes:int,
+     *     handoffCrc32EntryCount:int,
+     *     handoffCrc32UniqueValueCount:int,
+     *     handoffCrc32ReadableEntryCount:int,
+     *     handoffCrc32VerifiedEntryCount:int,
+     *     handoffCrc32MismatchEntryCount:int,
+     *     handoffCrc32BytesRead:int,
+     *     handoffCrc32ManifestVersion:string,
+     *     handoffCrc32ManifestSha256:string,
+     *     selectedCrc32Entries:list<array<string, mixed>>,
+     *     handoffCrc32Entries:list<array<string, mixed>>,
      *     selectedDataDescriptorProvenanceEntries:list<array<string, mixed>>,
      *     selectedDataDescriptorIssueEntries:list<array<string, mixed>>,
      *     missingEntries:list<array<string, mixed>>,
@@ -5410,6 +5424,7 @@ final class ZipPackage
         $selectedCentralDirectoryFixedFieldEntries = [];
         $selectedCentralDirectoryFixedFieldIssueEntries = [];
         $selectedTimestampSummaryEntries = [];
+        $selectedCrc32SummaryEntries = [];
         $selectedDataDescriptorProvenanceEntries = [];
         $selectedDataDescriptorEntryCount = 0;
         $selectedSignedDataDescriptorEntryCount = 0;
@@ -5685,6 +5700,22 @@ final class ZipPackage
             $selectedSourceByteSpanEntries[] = [
                 'name' => $entry->name,
             ] + $sourceByteSpanProvenance;
+            $selectedCrc32SummaryEntries[] = [
+                'name' => $entry->name,
+                'roles' => array_keys($selectedRolesByName[$entry->name] ?? []),
+                'isDirectory' => $isDirectory,
+                'status' => 'selected',
+                'isReadable' => false,
+                'compressionMethod' => $entry->compressionMethod,
+                'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
+                'compressedSize' => $entry->compressedSize,
+                'uncompressedSize' => $entry->uncompressedSize,
+                'crc32' => $entry->crc32,
+                'crc32Hex' => $entry->crc32Hex(),
+                'packagePartKind' => self::entryHandoffPackagePartKind($entry->name, $isDirectory),
+                'directoryRoot' => self::entryHandoffDirectoryRoot($entry->name),
+                'pathDepth' => self::entryHandoffPathDepth($entry->name),
+            ];
         }
 
         $totalUncompressedSizeExceedsLimit = $maxTotalUncompressedBytes !== null
@@ -5709,6 +5740,9 @@ final class ZipPackage
             $contentCrc32Hex = null;
             $contentCrc32MatchesCentral = null;
             $contentSha256 = null;
+            $contentCrc32 = null;
+            $contentCrc32Hex = null;
+            $contentCrc32MatchesCentral = null;
             $isReadable = false;
             $status = 'ready';
             $isDirectory = null;
@@ -6005,6 +6039,9 @@ final class ZipPackage
                 'contentCrc32Hex' => null,
                 'contentCrc32MatchesCentral' => null,
                 'contentSha256' => null,
+                'contentCrc32' => null,
+                'contentCrc32Hex' => null,
+                'contentCrc32MatchesCentral' => null,
                 'status' => 'ready',
                 'error' => null,
                 'isDuplicateRequest' => $isDuplicateRequest,
@@ -6118,6 +6155,9 @@ final class ZipPackage
                     $contentCrc32Hex = sprintf('%08x', $contentCrc32);
                     $contentCrc32MatchesCentral = $contentCrc32 === $entry->crc32;
                     $contentSha256 = hash('sha256', $contents);
+                    $contentCrc32 = self::unsignedCrc32($contents);
+                    $contentCrc32Hex = sprintf('%08x', $contentCrc32);
+                    $contentCrc32MatchesCentral = $contentCrc32 === $entry->crc32;
                     $isReadable = true;
                 } catch (\RuntimeException $exception) {
                     $entryIssues[] = 'unreadable-entry';
@@ -6137,6 +6177,9 @@ final class ZipPackage
             $summary['contentCrc32Hex'] = $contentCrc32Hex;
             $summary['contentCrc32MatchesCentral'] = $contentCrc32MatchesCentral;
             $summary['contentSha256'] = $contentSha256;
+            $summary['contentCrc32'] = $contentCrc32;
+            $summary['contentCrc32Hex'] = $contentCrc32Hex;
+            $summary['contentCrc32MatchesCentral'] = $contentCrc32MatchesCentral;
             $summary['status'] = $status;
             $summary['byteExposurePolicy'] = $isReadable ? 'readable' : 'metadata-only';
             $summary['error'] = $error;
@@ -6436,6 +6479,10 @@ final class ZipPackage
             'selectedCrc32ZeroEntryCount' => $selectedCrc32Summary['zeroCrc32EntryCount'],
             'selectedCrc32IssueEntryCount' => $selectedCrc32Summary['issueEntryCount'],
             'selectedCrc32IssueCount' => count($selectedCrc32Summary['issues']),
+            'selectedCrc32EntryCount' => $selectedCrc32Summary['entryCount'],
+            'selectedCrc32UniqueValueCount' => $selectedCrc32Summary['uniqueValueCount'],
+            'selectedCrc32CompressedBytes' => $selectedCrc32Summary['compressedBytes'],
+            'selectedCrc32UncompressedBytes' => $selectedCrc32Summary['uncompressedBytes'],
             'handoffCrc32ProvenanceEntryCount' => $handoffCrc32Summary['provenanceEntryCount'],
             'handoffCrc32LocalHeaderEntryCount' => $handoffCrc32Summary['localHeaderEntryCount'],
             'handoffCrc32CentralDirectoryEntryCount' => $handoffCrc32Summary['centralDirectoryEntryCount'],
@@ -6445,6 +6492,14 @@ final class ZipPackage
             'handoffCrc32ZeroEntryCount' => $handoffCrc32Summary['zeroCrc32EntryCount'],
             'handoffCrc32IssueEntryCount' => $handoffCrc32Summary['issueEntryCount'],
             'handoffCrc32IssueCount' => count($handoffCrc32Summary['issues']),
+            'handoffCrc32EntryCount' => $handoffCrc32Summary['entryCount'],
+            'handoffCrc32UniqueValueCount' => $handoffCrc32Summary['uniqueValueCount'],
+            'handoffCrc32ReadableEntryCount' => $handoffCrc32Summary['readableEntryCount'],
+            'handoffCrc32VerifiedEntryCount' => $handoffCrc32Summary['verifiedEntryCount'],
+            'handoffCrc32MismatchEntryCount' => $handoffCrc32Summary['mismatchEntryCount'],
+            'handoffCrc32BytesRead' => $handoffCrc32Summary['bytesRead'],
+            'handoffCrc32ManifestVersion' => $handoffCrc32Summary['manifestVersion'],
+            'handoffCrc32ManifestSha256' => $handoffCrc32Summary['manifestSha256'],
             'selectedDataDescriptorEntryCount' => $selectedDataDescriptorEntryCount,
             'selectedSignedDataDescriptorEntryCount' => $selectedSignedDataDescriptorEntryCount,
             'selectedUnsignedDataDescriptorEntryCount' => $selectedUnsignedDataDescriptorEntryCount,
@@ -6505,6 +6560,18 @@ final class ZipPackage
             'handoffContentBytesRead' => $handoffContentDigestSummary['bytesRead'],
             'handoffContentDigestManifestVersion' => $handoffContentDigestSummary['manifestVersion'],
             'handoffContentDigestManifestSha256' => $handoffContentDigestSummary['manifestSha256'],
+            'selectedCrc32EntryCount' => $selectedCrc32Summary['entryCount'],
+            'selectedCrc32UniqueValueCount' => $selectedCrc32Summary['uniqueValueCount'],
+            'selectedCrc32CompressedBytes' => $selectedCrc32Summary['compressedBytes'],
+            'selectedCrc32UncompressedBytes' => $selectedCrc32Summary['uncompressedBytes'],
+            'handoffCrc32EntryCount' => $handoffCrc32Summary['entryCount'],
+            'handoffCrc32UniqueValueCount' => $handoffCrc32Summary['uniqueValueCount'],
+            'handoffCrc32ReadableEntryCount' => $handoffCrc32Summary['readableEntryCount'],
+            'handoffCrc32VerifiedEntryCount' => $handoffCrc32Summary['verifiedEntryCount'],
+            'handoffCrc32MismatchEntryCount' => $handoffCrc32Summary['mismatchEntryCount'],
+            'handoffCrc32BytesRead' => $handoffCrc32Summary['bytesRead'],
+            'handoffCrc32ManifestVersion' => $handoffCrc32Summary['manifestVersion'],
+            'handoffCrc32ManifestSha256' => $handoffCrc32Summary['manifestSha256'],
             'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
             'maxTotalUncompressedBytes' => $maxTotalUncompressedBytes,
             'isSupportedByBoundedReader' => $issues === [],
@@ -6591,6 +6658,8 @@ final class ZipPackage
             'selectedSourceByteSpanEntries' => $selectedSourceByteSpanEntries,
             'handoffSourceByteSpanEntries' => $handoffSourceByteSpanSummary['entries'],
             'handoffContentDigestEntries' => $handoffContentDigestSummary['entries'],
+            'selectedCrc32Entries' => $selectedCrc32Summary['entries'],
+            'handoffCrc32Entries' => $handoffCrc32Summary['entries'],
             'missingEntries' => $missingEntries,
             'failedEntries' => $failedEntries,
             'handoffEntries' => $handoffEntries,
@@ -6989,18 +7058,26 @@ final class ZipPackage
 
     /**
      * @param list<array<string, mixed>> $entries
-     * @return array{provenanceEntryCount:int, localHeaderEntryCount:int, centralDirectoryEntryCount:int, dataDescriptorEntryCount:int, contentEntryCount:int, verifiedContentEntryCount:int, zeroCrc32EntryCount:int, issueEntryCount:int, issues:list<string>, provenanceEntries:list<array<string, mixed>>, issueEntries:list<array<string, mixed>>}
+     * @return array{manifestVersion:string, provenanceEntryCount:int, localHeaderEntryCount:int, centralDirectoryEntryCount:int, dataDescriptorEntryCount:int, contentEntryCount:int, verifiedContentEntryCount:int, zeroCrc32EntryCount:int, issueEntryCount:int, entryCount:int, uniqueValueCount:int, readableEntryCount:int, verifiedEntryCount:int, mismatchEntryCount:int, compressedBytes:int, uncompressedBytes:int, bytesRead:int, manifestSha256:string, issues:list<string>, provenanceEntries:list<array<string, mixed>>, issueEntries:list<array<string, mixed>>, entries:list<array<string, mixed>>}
      */
     private static function entryHandoffCrc32Summary(array $entries): array
     {
+        $manifestVersion = 'zip-entry-handoff-crc32-v1';
         $provenanceEntries = [];
         $issueEntries = [];
         $issues = [];
+        $seenCrc32Values = [];
+        $compressedBytes = 0;
+        $uncompressedBytes = 0;
+        $bytesReadTotal = 0;
+        $readableEntryCount = 0;
         $localHeaderEntryCount = 0;
         $centralDirectoryEntryCount = 0;
         $dataDescriptorEntryCount = 0;
         $contentEntryCount = 0;
         $verifiedContentEntryCount = 0;
+        $verifiedEntryCount = 0;
+        $mismatchEntryCount = 0;
         $zeroCrc32EntryCount = 0;
 
         foreach ($entries as $entry) {
@@ -7062,6 +7139,24 @@ final class ZipPackage
                 $entryIssues[] = 'content-crc32-mismatch';
             }
 
+            $isReadable = ($entry['isReadable'] ?? false) === true;
+            if ($isReadable) {
+                ++$readableEntryCount;
+                if (is_int($entry['bytesRead'] ?? null)) {
+                    $bytesReadTotal += (int) $entry['bytesRead'];
+                }
+                if ($contentCrc32MatchesCentral === true) {
+                    ++$verifiedEntryCount;
+                } elseif ($contentCrc32MatchesCentral === false) {
+                    ++$mismatchEntryCount;
+                }
+            }
+
+            $crc32Hex = is_string($entry['crc32Hex'] ?? null) ? $entry['crc32Hex'] : sprintf('%08x', $crc32);
+            $compressedBytes += (int) ($entry['compressedSize'] ?? 0);
+            $uncompressedBytes += (int) ($entry['uncompressedSize'] ?? 0);
+            $seenCrc32Values[$crc32Hex] = true;
+
             $error = is_string($entry['error'] ?? null) ? $entry['error'] : '';
             if ($error !== '' && stripos($error, 'CRC32') !== false) {
                 $entryIssues[] = 'content-crc32-verification-failed';
@@ -7080,12 +7175,15 @@ final class ZipPackage
                 'required' => ($entry['required'] ?? false) === true,
                 'expectedKind' => is_string($entry['expectedKind'] ?? null) ? $entry['expectedKind'] : null,
                 'status' => is_string($entry['status'] ?? null) ? $entry['status'] : null,
-                'isReadable' => ($entry['isReadable'] ?? false) === true,
+                'isReadable' => $isReadable,
                 'isDirectory' => ($entry['isDirectory'] ?? false) === true,
+                'bytesRead' => is_int($entry['bytesRead'] ?? null) ? (int) $entry['bytesRead'] : null,
+                'compressionMethod' => is_int($entry['compressionMethod'] ?? null) ? $entry['compressionMethod'] : null,
+                'compressionMethodName' => is_string($entry['compressionMethodName'] ?? null) ? $entry['compressionMethodName'] : null,
                 'compressedSize' => (int) ($entry['compressedSize'] ?? 0),
                 'uncompressedSize' => (int) ($entry['uncompressedSize'] ?? 0),
                 'crc32' => $crc32,
-                'crc32Hex' => is_string($entry['crc32Hex'] ?? null) ? $entry['crc32Hex'] : sprintf('%08x', $crc32),
+                'crc32Hex' => $crc32Hex,
                 'localHeaderCrc32' => $localHeaderCrc32,
                 'localHeaderCrc32Hex' => is_string($entry['localFixedHeaderCrc32Hex'] ?? null)
                     ? $entry['localFixedHeaderCrc32Hex']
@@ -7103,6 +7201,9 @@ final class ZipPackage
                     ? $entry['contentCrc32Hex']
                     : ($contentCrc32 === null ? null : sprintf('%08x', $contentCrc32)),
                 'contentCrc32MatchesCentral' => $contentCrc32MatchesCentral,
+                'packagePartKind' => is_string($entry['packagePartKind'] ?? null) ? $entry['packagePartKind'] : null,
+                'directoryRoot' => is_string($entry['directoryRoot'] ?? null) ? $entry['directoryRoot'] : null,
+                'pathDepth' => is_int($entry['pathDepth'] ?? null) ? $entry['pathDepth'] : null,
                 'crc32Issues' => $entryIssues,
             ];
             $provenanceEntries[] = $summary;
@@ -7111,7 +7212,14 @@ final class ZipPackage
             }
         }
 
+        $manifest = [
+            'manifestVersion' => $manifestVersion,
+            'entries' => $provenanceEntries,
+        ];
+        $manifestJson = json_encode($manifest, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
         return [
+            'manifestVersion' => $manifestVersion,
             'provenanceEntryCount' => count($provenanceEntries),
             'localHeaderEntryCount' => $localHeaderEntryCount,
             'centralDirectoryEntryCount' => $centralDirectoryEntryCount,
@@ -7120,9 +7228,19 @@ final class ZipPackage
             'verifiedContentEntryCount' => $verifiedContentEntryCount,
             'zeroCrc32EntryCount' => $zeroCrc32EntryCount,
             'issueEntryCount' => count($issueEntries),
+            'entryCount' => count($provenanceEntries),
+            'uniqueValueCount' => count($seenCrc32Values),
+            'readableEntryCount' => $readableEntryCount,
+            'verifiedEntryCount' => $verifiedEntryCount,
+            'mismatchEntryCount' => $mismatchEntryCount,
+            'compressedBytes' => $compressedBytes,
+            'uncompressedBytes' => $uncompressedBytes,
+            'bytesRead' => $bytesReadTotal,
+            'manifestSha256' => hash('sha256', $manifestJson),
             'issues' => $issues,
             'provenanceEntries' => $provenanceEntries,
             'issueEntries' => $issueEntries,
+            'entries' => $provenanceEntries,
         ];
     }
 
