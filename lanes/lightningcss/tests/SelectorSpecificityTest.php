@@ -21,6 +21,7 @@ return [
         $t->same($specificity(0, 1, 0), SelectorSpecificity::packed('[Foo]'));
     },
     'selector specificity maps upstream pseudo selectors' => static function (TestRunner $t) use ($specificity): void {
+        $t->same($specificity(0, 1, 0), SelectorSpecificity::packed(':empty'), 'upstream selectors/parser.rs::tests::test_empty');
         $t->same($specificity(0, 0, 1), SelectorSpecificity::packed('::before'));
         $t->same($specificity(0, 1, 1), SelectorSpecificity::packed('::before:hover'));
         $t->same($specificity(0, 2, 1), SelectorSpecificity::packed('::before:hover:hover'));
