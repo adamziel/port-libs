@@ -10963,6 +10963,92 @@ return [
         $t->same([$documentEntry, $unicodeEntry, $cp437Entry], $summary['handoffEntries']);
     },
 
+    'summarizes readable zip handoff raw comments before reader byte exposure' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>handoff raw comment summary</w:p></w:body></w:document>';
+        $documentComment = 'document reviewer note';
+        $readyName = 'word/media/commented-ready.bin';
+        $readyRawComment = "r\x82sum\x82 ready attachment";
+        $readyComment = "r\u{00e9}sum\u{00e9} ready attachment";
+        $blockedName = 'word/media/commented-blocked.bin';
+        $blockedComment = 'blocked media reviewer note';
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+                'comment' => $documentComment,
+            ],
+            [
+                'name' => $readyName,
+                'data' => "ready commented media placeholder\n",
+                'method' => 0,
+                'flags' => 0,
+                'comment' => $readyRawComment,
+            ],
+            [
+                'name' => $blockedName,
+                'data' => str_repeat('blocked commented media payload ', 3),
+                'method' => 0,
+                'comment' => $blockedComment,
+            ],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => '/word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => $readyName, 'required' => false, 'kind' => 'file', 'role' => 'attachment'],
+            [
+                'name' => $blockedName,
+                'required' => false,
+                'kind' => 'file',
+                'role' => 'attachment',
+                'maxUncompressedBytes' => 8,
+            ],
+        ], 1024);
+
+        $t->same(3, $summary['selectedUniqueEntryCount']);
+        $t->same(3, $summary['selectedCommentedEntryCount']);
+        $t->same(1, $summary['selectedRawCommentProvenanceEntryCount']);
+        $t->same(1, $summary['selectedLegacyEncodedCommentEntryCount']);
+        $t->same(0, $summary['selectedUnicodeCommentExtraEntryCount']);
+        $t->same(1, $summary['selectedDecodedCommentDiffersFromRawCommentEntryCount']);
+        $t->same(2, $summary['handoffEntryCount']);
+        $t->same(1, $summary['failedEntryCount']);
+        $t->same(1, $summary['oversizedEntryCount']);
+        $t->same(2, $summary['handoffCommentedEntryCount']);
+        $t->same(1, $summary['handoffRawCommentProvenanceEntryCount']);
+        $t->same(1, $summary['handoffLegacyEncodedCommentEntryCount']);
+        $t->same(0, $summary['handoffUnicodeCommentExtraEntryCount']);
+        $t->same(1, $summary['handoffDecodedCommentDiffersFromRawCommentEntryCount']);
+
+        $documentCommentSummary = $summary['handoffCommentedEntries'][0];
+        $readyCommentSummary = $summary['handoffCommentedEntries'][1];
+        $blockedEntry = $summary['entries'][2];
+
+        $t->same('word/document.xml', $documentCommentSummary['name']);
+        $t->same('main-document', $documentCommentSummary['role']);
+        $t->same($documentComment, $documentCommentSummary['comment']);
+        $t->same($documentComment, $documentCommentSummary['rawComment']);
+        $t->same('utf-8', $documentCommentSummary['commentEncoding']);
+        $t->same(true, $documentCommentSummary['rawCommentMatchesDecodedComment']);
+        $t->same(false, $documentCommentSummary['hasRawCommentProvenance']);
+        $t->same($readyName, $readyCommentSummary['name']);
+        $t->same('attachment', $readyCommentSummary['role']);
+        $t->same($readyComment, $readyCommentSummary['comment']);
+        $t->same($readyRawComment, $readyCommentSummary['rawComment']);
+        $t->same(bin2hex($readyRawComment), $readyCommentSummary['rawCommentHex']);
+        $t->same('cp437', $readyCommentSummary['commentEncoding']);
+        $t->same(false, $readyCommentSummary['rawCommentMatchesDecodedComment']);
+        $t->same(true, $readyCommentSummary['usesLegacyCommentEncoding']);
+        $t->same(true, $readyCommentSummary['hasRawCommentProvenance']);
+        $t->same([$readyCommentSummary], $summary['handoffRawCommentProvenanceEntries']);
+
+        $t->same($blockedName, $blockedEntry['name']);
+        $t->same($blockedComment, $blockedEntry['comment']);
+        $t->same('blocked', $blockedEntry['status']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $blockedEntry['issues']);
+        $t->same(false, in_array($blockedName, array_column($summary['handoffCommentedEntries'], 'name'), true));
+    },
+
     'preflights selected zip entry extra field provenance before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>selected extra field provenance</w:p></w:body></w:document>';
         $documentExtra = pack('vva*', 0xcafe, strlen('document-extra'), 'document-extra');

@@ -5087,6 +5087,11 @@ final class ZipPackage
      *     selectedLegacyEncodedCommentEntryCount:int,
      *     selectedUnicodeCommentExtraEntryCount:int,
      *     selectedDecodedCommentDiffersFromRawCommentEntryCount:int,
+     *     handoffCommentedEntryCount:int,
+     *     handoffRawCommentProvenanceEntryCount:int,
+     *     handoffLegacyEncodedCommentEntryCount:int,
+     *     handoffUnicodeCommentExtraEntryCount:int,
+     *     handoffDecodedCommentDiffersFromRawCommentEntryCount:int,
      *     selectedExtraFieldEntryCount:int,
      *     selectedCentralExtraFieldEntryCount:int,
      *     selectedLocalExtraFieldEntryCount:int,
@@ -5166,6 +5171,8 @@ final class ZipPackage
      *     selectedRawNameProvenanceEntries:list<array<string, mixed>>,
      *     selectedCommentedEntries:list<array<string, mixed>>,
      *     selectedRawCommentProvenanceEntries:list<array<string, mixed>>,
+     *     handoffCommentedEntries:list<array<string, mixed>>,
+     *     handoffRawCommentProvenanceEntries:list<array<string, mixed>>,
      *     selectedExtraFieldProvenanceEntries:list<array<string, mixed>>,
      *     selectedPlatformAttributeProvenanceEntries:list<array<string, mixed>>,
      *     selectedPlatformAttributeIssueEntries:list<array<string, mixed>>,
@@ -6141,6 +6148,7 @@ final class ZipPackage
         $handoffCreatorHostSystemSummaries = self::entryHandoffCreatorHostSystemSummaries($handoffEntries);
         $selectedCreatorHostSystemIssues = self::entryHandoffCreatorHostSystemIssues($selectedCreatorHostSystemSummaries);
         $handoffCreatorHostSystemIssues = self::entryHandoffCreatorHostSystemIssues($handoffCreatorHostSystemSummaries);
+        $handoffRawCommentSummary = self::entryHandoffRawCommentSummary($handoffEntries);
         $roleSummaries = self::entryHandoffRoleSummaries($entries);
         $handoffSourceByteSpanSummary = self::entryHandoffSourceByteSpanSummary($handoffEntries);
         $handoffContentDigestSummary = self::entryHandoffContentDigestSummary($handoffEntries);
@@ -6232,6 +6240,11 @@ final class ZipPackage
             'selectedLegacyEncodedCommentEntryCount' => $selectedLegacyEncodedCommentEntryCount,
             'selectedUnicodeCommentExtraEntryCount' => $selectedUnicodeCommentExtraEntryCount,
             'selectedDecodedCommentDiffersFromRawCommentEntryCount' => $selectedDecodedCommentDiffersFromRawCommentEntryCount,
+            'handoffCommentedEntryCount' => $handoffRawCommentSummary['commentedEntryCount'],
+            'handoffRawCommentProvenanceEntryCount' => $handoffRawCommentSummary['rawCommentProvenanceEntryCount'],
+            'handoffLegacyEncodedCommentEntryCount' => $handoffRawCommentSummary['legacyEncodedCommentEntryCount'],
+            'handoffUnicodeCommentExtraEntryCount' => $handoffRawCommentSummary['unicodeCommentExtraEntryCount'],
+            'handoffDecodedCommentDiffersFromRawCommentEntryCount' => $handoffRawCommentSummary['decodedCommentDiffersFromRawCommentEntryCount'],
             'selectedExtraFieldEntryCount' => count($selectedExtraFieldProvenanceEntries),
             'selectedCentralExtraFieldEntryCount' => $selectedCentralExtraFieldEntryCount,
             'selectedLocalExtraFieldEntryCount' => $selectedLocalExtraFieldEntryCount,
@@ -6383,6 +6396,8 @@ final class ZipPackage
             'selectedRawNameProvenanceEntries' => $selectedRawNameProvenanceEntries,
             'selectedCommentedEntries' => $selectedCommentedEntries,
             'selectedRawCommentProvenanceEntries' => $selectedRawCommentProvenanceEntries,
+            'handoffCommentedEntries' => $handoffRawCommentSummary['commentedEntries'],
+            'handoffRawCommentProvenanceEntries' => $handoffRawCommentSummary['rawCommentProvenanceEntries'],
             'selectedExtraFieldProvenanceEntries' => $selectedExtraFieldProvenanceEntries,
             'selectedPlatformAttributeProvenanceEntries' => $selectedPlatformAttributeProvenanceEntries,
             'selectedPlatformAttributeIssueEntries' => $selectedPlatformAttributeIssueEntries,
@@ -6411,6 +6426,84 @@ final class ZipPackage
             'failedEntries' => $failedEntries,
             'handoffEntries' => $handoffEntries,
             'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array{commentedEntryCount:int, rawCommentProvenanceEntryCount:int, legacyEncodedCommentEntryCount:int, unicodeCommentExtraEntryCount:int, decodedCommentDiffersFromRawCommentEntryCount:int, commentedEntries:list<array<string, mixed>>, rawCommentProvenanceEntries:list<array<string, mixed>>}
+     */
+    private static function entryHandoffRawCommentSummary(array $entries): array
+    {
+        $commentedEntries = [];
+        $rawCommentProvenanceEntries = [];
+        $legacyEncodedCommentEntryCount = 0;
+        $unicodeCommentExtraEntryCount = 0;
+        $decodedCommentDiffersFromRawCommentEntryCount = 0;
+
+        foreach ($entries as $entry) {
+            if (($entry['status'] ?? null) !== 'ready' || ($entry['exists'] ?? false) !== true) {
+                continue;
+            }
+
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            $rawComment = is_string($entry['rawComment'] ?? null) ? $entry['rawComment'] : '';
+            if ($name === '' || $rawComment === '') {
+                continue;
+            }
+
+            $comment = is_string($entry['comment'] ?? null) ? $entry['comment'] : '';
+            $rawCommentMatchesDecodedComment = is_bool($entry['rawCommentMatchesDecodedComment'] ?? null)
+                ? $entry['rawCommentMatchesDecodedComment']
+                : $rawComment === $comment;
+            $usesLegacyCommentEncoding = ($entry['usesLegacyCommentEncoding'] ?? false) === true;
+            $usesUnicodeCommentExtraField = ($entry['usesUnicodeCommentExtraField'] ?? false) === true;
+            $hasRawCommentProvenance = ($entry['hasRawCommentProvenance'] ?? false) === true;
+
+            if (!$rawCommentMatchesDecodedComment) {
+                ++$decodedCommentDiffersFromRawCommentEntryCount;
+            }
+            if ($usesLegacyCommentEncoding) {
+                ++$legacyEncodedCommentEntryCount;
+            }
+            if ($usesUnicodeCommentExtraField) {
+                ++$unicodeCommentExtraEntryCount;
+            }
+
+            $summary = [
+                'requestIndex' => is_int($entry['requestIndex'] ?? null) ? $entry['requestIndex'] : null,
+                'requestedName' => is_string($entry['requestedName'] ?? null) ? $entry['requestedName'] : '',
+                'name' => $name,
+                'role' => is_string($entry['role'] ?? null) ? $entry['role'] : null,
+                'required' => ($entry['required'] ?? false) === true,
+                'expectedKind' => is_string($entry['expectedKind'] ?? null) ? $entry['expectedKind'] : null,
+                'status' => 'ready',
+                'isReadable' => ($entry['isReadable'] ?? false) === true,
+                'comment' => $comment,
+                'rawComment' => $rawComment,
+                'rawCommentHex' => is_string($entry['rawCommentHex'] ?? null) ? $entry['rawCommentHex'] : bin2hex($rawComment),
+                'commentEncoding' => is_string($entry['commentEncoding'] ?? null) ? $entry['commentEncoding'] : null,
+                'rawCommentMatchesDecodedComment' => $rawCommentMatchesDecodedComment,
+                'usesLegacyCommentEncoding' => $usesLegacyCommentEncoding,
+                'usesUnicodeCommentExtraField' => $usesUnicodeCommentExtraField,
+                'hasRawCommentProvenance' => $hasRawCommentProvenance,
+                'compressedSize' => (int) ($entry['compressedSize'] ?? 0),
+                'uncompressedSize' => (int) ($entry['uncompressedSize'] ?? 0),
+            ];
+            $commentedEntries[] = $summary;
+            if ($hasRawCommentProvenance) {
+                $rawCommentProvenanceEntries[] = $summary;
+            }
+        }
+
+        return [
+            'commentedEntryCount' => count($commentedEntries),
+            'rawCommentProvenanceEntryCount' => count($rawCommentProvenanceEntries),
+            'legacyEncodedCommentEntryCount' => $legacyEncodedCommentEntryCount,
+            'unicodeCommentExtraEntryCount' => $unicodeCommentExtraEntryCount,
+            'decodedCommentDiffersFromRawCommentEntryCount' => $decodedCommentDiffersFromRawCommentEntryCount,
+            'commentedEntries' => $commentedEntries,
+            'rawCommentProvenanceEntries' => $rawCommentProvenanceEntries,
         ];
     }
 
