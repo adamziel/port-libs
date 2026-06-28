@@ -36,6 +36,23 @@ CSS;
             (new NestingTransformer())->lower($css)
         );
     },
+    'nesting transformer maps upstream repeated parent reference selectors' => static function (TestRunner $t): void {
+        $transformer = new NestingTransformer();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_nesting nesting_test lines 24569, 24587, and 24636.
+        $t->same(
+            '.foo{color:#00f}.foo .bar .foo .baz .foo .qux{color:red}',
+            $transformer->lower('.foo { color: blue; & .bar & .baz & .qux { color: red; } }')
+        );
+        $t->same(
+            '.foo{color:#00f;padding:2ch}',
+            $transformer->lower('.foo { color: blue; & { padding: 2ch; } }')
+        );
+        $t->same(
+            '.foo:is(.bar,.foo.baz){color:red}',
+            $transformer->lower('.foo { &:is(.bar, &.baz) { color: red; } }')
+        );
+    },
     'nesting transformer maps upstream nested attached selector list lowering' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 .a {

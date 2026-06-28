@@ -2239,6 +2239,15 @@ return [
         $t->throws(OutOfBoundsException::class, static function () use ($map, $style): void {
             $map->getSourceContent($style);
         });
+        $t->throws(OutOfBoundsException::class, static function () use ($map): void {
+            $map->setSourceContent(99, '.missing{}');
+        });
+
+        $emptyMap = new SourceMap();
+        $t->throws(OutOfBoundsException::class, static function () use ($emptyMap): void {
+            $emptyMap->setSourceContent(0, '.missing{}');
+        });
+        $t->same([], $emptyMap->getSourcesContent());
 
         $map->setSourceContent($style, '.theme{color:green}');
         $map->setSourceContent($virtual, '.editor{outline:0}');

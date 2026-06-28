@@ -277,6 +277,7 @@ final class CssMinifier
         $css = $this->minifyFontStretchDeclarations($css);
         $css = $this->composeListStyleDeclarationBlocks($css);
         $css = $this->composeTextEmphasisDeclarationBlocks($css);
+        $css = $this->composeTextDecorationDeclarationBlocks($css);
         $css = $this->composeTransitionDeclarationBlocks($css);
 
         $css = $this->composeAnimationDeclarationBlocks($css);
@@ -14962,6 +14963,199 @@ final class CssMinifier
             'important' => false,
             'drop' => false,
         ];
+    }
+
+    private function composeTextDecorationDeclarationBlocks(string $css): string
+    {
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $body = $this->composeTextDecorationDeclarationBlocks(substr($css, $open + 1, $close - $open - 1));
+            if (!str_contains($body, '{')) {
+                $body = $this->composeTextDecorationDeclarationList($body);
+            }
+
+            $output .= substr($css, $cursor, $open - $cursor + 1) . $body . '}';
+            $cursor = $close + 1;
+        }
+
+        return $output;
+    }
+
+    private function composeTextDecorationDeclarationList(string $body): string
+    {
+        if (stripos($body, 'text-decoration') === false) {
+            return $body;
+        }
+
+        $entries = $this->parseDeclarationEntriesForComposition($body);
+        if ($entries === null) {
+            return $body;
+        }
+
+        foreach (['-webkit-', '-moz-', ''] as $prefix) {
+            $this->rewriteTextDecorationGroup($entries, $prefix);
+        }
+
+        return $this->serializeDeclarationEntriesForComposition($entries);
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewriteTextDecorationGroup(array &$entries, string $prefix): void
+    {
+        $properties = [
+            'decoration' => $prefix . 'text-decoration',
+            'line' => $prefix . 'text-decoration-line',
+            'style' => $prefix . 'text-decoration-style',
+            'color' => $prefix . 'text-decoration-color',
+            'thickness' => $prefix . 'text-decoration-thickness',
+        ];
+        $relevantNames = array_flip($properties);
+        $relevantIndices = [];
+        $lastShorthand = null;
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop'] || !isset($relevantNames[$entry['property']])) {
+                continue;
+            }
+            if ($entry['important']) {
+                return;
+            }
+            $relevantIndices[] = $index;
+            if ($entry['property'] === $properties['decoration']) {
+                $lastShorthand = $index;
+            }
+        }
+
+        if ($relevantIndices === []) {
+            return;
+        }
+
+        if ($lastShorthand !== null) {
+            foreach ($relevantIndices as $index) {
+                if ($index < $lastShorthand) {
+                    $entries[$index]['drop'] = true;
+                }
+            }
+
+            $state = $this->parseTextDecorationComponents($entries[$lastShorthand]['value']);
+            if ($state === null) {
+                return;
+            }
+
+            $changed = false;
+            foreach ($relevantIndices as $index) {
+                if ($index <= $lastShorthand || $entries[$index]['drop']) {
+                    continue;
+                }
+
+                $component = $relevantNames[$entries[$index]['property']];
+                if ($component === 'decoration') {
+                    continue;
+                }
+
+                $value = $this->normalizeTextDecorationComponentValue($component, $entries[$index]['value']);
+                if ($value === null || $this->containsCustomPropertyReference($value)) {
+                    continue;
+                }
+
+                $state[$component] = $value;
+                $entries[$index]['drop'] = true;
+                $changed = true;
+            }
+
+            if ($changed) {
+                $entries[$lastShorthand]['value'] = $this->serializeTextDecorationComponents($state);
+            }
+
+            return;
+        }
+
+        $latest = [];
+        foreach ($relevantIndices as $index) {
+            $component = $relevantNames[$entries[$index]['property']];
+            if ($component !== 'decoration') {
+                $latest[$component] = $index;
+            }
+        }
+
+        foreach (['line', 'style', 'color', 'thickness'] as $required) {
+            if (!isset($latest[$required])) {
+                return;
+            }
+        }
+
+        $state = [
+            'styleBeforeLine' => false,
+        ];
+        foreach (['line', 'style', 'color', 'thickness'] as $component) {
+            $value = $this->normalizeTextDecorationComponentValue($component, $entries[$latest[$component]]['value']);
+            if ($value === null || $this->containsCustomPropertyReference($value)) {
+                return;
+            }
+            $state[$component] = $value;
+        }
+
+        $replaceAt = min(array_values($latest));
+        foreach ($relevantIndices as $index) {
+            $entries[$index]['drop'] = true;
+        }
+
+        $entries[$replaceAt] = [
+            'property' => $properties['decoration'],
+            'name' => $properties['decoration'],
+            'value' => $this->serializeTextDecorationComponents($state),
+            'important' => false,
+            'drop' => false,
+        ];
+    }
+
+    private function normalizeTextDecorationComponentValue(string $component, string $value): ?string
+    {
+        $value = trim($value);
+
+        return match ($component) {
+            'line' => $this->normalizeTextDecorationLineComponentValue($value),
+            'style' => in_array(strtolower($value), self::TEXT_DECORATION_STYLES, true) ? strtolower($value) : null,
+            'color' => $this->isTextDecorationColorToken($value) ? $this->normalizeTextDecorationColorValue($value) : null,
+            'thickness' => $this->isTextDecorationThicknessToken($value) ? $this->minifyTextDecorationThicknessToken($value) : null,
+            default => null,
+        };
+    }
+
+    private function normalizeTextDecorationLineComponentValue(string $value): ?string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if ($tokens === []) {
+            return null;
+        }
+        if (count($tokens) === 1 && in_array(strtolower($tokens[0]), self::TEXT_DECORATION_EXCLUSIVE_LINES, true)) {
+            return strtolower($tokens[0]);
+        }
+
+        $lines = [];
+        foreach ($tokens as $token) {
+            $lower = strtolower($token);
+            if (!in_array($lower, self::TEXT_DECORATION_LINES, true)) {
+                return null;
+            }
+            if (!in_array($lower, $lines, true)) {
+                $lines[] = $lower;
+            }
+        }
+
+        return $this->normalizeTextDecorationLineTokens($lines);
     }
 
     /**

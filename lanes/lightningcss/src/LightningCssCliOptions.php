@@ -70,6 +70,17 @@ final class LightningCssCliOptions
         return $directory === '.' ? $json : $directory . DIRECTORY_SEPARATOR . $json;
     }
 
+    /**
+     * @param array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}> $exports
+     */
+    public static function cssModulesStdoutJson(string $code, array $exports): string
+    {
+        return json_encode([
+            'code' => $code,
+            'exports' => $exports,
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
+    }
+
     public static function writeOutputFile(string $outputFile, string $contents): void
     {
         $directory = dirname($outputFile);

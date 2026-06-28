@@ -4682,6 +4682,37 @@ CSS;
             $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_text_decoration line ' . $line);
         }
     },
+    'css minifier maps upstream text-decoration composition rows' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_text_decoration test() rows.
+        $cases = [
+            [
+                16336,
+                '.foo { text-decoration-line: underline; text-decoration-style: dotted; text-decoration-color: yellow; text-decoration-thickness: 2px; }',
+                '.foo{text-decoration:underline 2px dotted #ff0}',
+            ],
+            [
+                16352,
+                '.foo { text-decoration: underline; text-decoration-style: dotted; }',
+                '.foo{text-decoration:underline dotted}',
+            ],
+            [
+                16366,
+                '.foo { text-decoration: underline; text-decoration-style: var(--style); }',
+                '.foo{text-decoration:underline;text-decoration-style:var(--style)}',
+            ],
+            [
+                16381,
+                '.foo { -webkit-text-decoration: underline; -webkit-text-decoration-style: dotted; }',
+                '.foo{-webkit-text-decoration:underline dotted}',
+            ],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_text_decoration line ' . $line);
+        }
+    },
     'css minifier maps upstream caret values' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

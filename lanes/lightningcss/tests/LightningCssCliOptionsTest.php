@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LightningCSS\CssFormatter;
 use PortLibs\LightningCSS\CssMinifier;
+use PortLibs\LightningCSS\CssModulesTransformer;
 use PortLibs\LightningCSS\LightningCssCliOptions;
 use PortLibs\LightningCSS\NestingTransformer;
 use PortLibs\LightningCSS\TransitionPrefixer;
@@ -35,6 +36,11 @@ $temporaryPath = static function (string $name): string {
 
     return $directory . DIRECTORY_SEPARATOR . $name;
 };
+$moduleExport = static fn (string $name, bool $isReferenced = false): array => [
+    'name' => $name,
+    'composes' => [],
+    'isReferenced' => $isReferenced,
+];
 
 return [
     'lightningcss cli emits formatted css for a valid input file' => static function (TestRunner $t) use ($temporaryPath): void {
@@ -195,6 +201,50 @@ return [
     'lightningcss cli honors explicit css modules json target' => static function (TestRunner $t): void {
         // Pinned upstream 22bdda3d tests/cli_integration_tests.rs::css_modules_output_target_option lines 337-354.
         $t->same('/tmp/module.json', LightningCssCliOptions::cssModulesJsonOutputPath('/tmp/module.json', '/tmp/out.css'));
+    },
+    'lightningcss cli emits css modules stdout json payload' => static function (TestRunner $t) use ($moduleExport): void {
+        // Pinned upstream 22bdda3d tests/cli_integration_tests.rs::css_modules_stdout lines 357-375.
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+.foo {
+  color: red;
+}
+
+#id {
+  animation: 2s test;
+}
+
+@keyframes test {
+  from { color: red }
+  to { color: yellow }
+}
+
+@counter-style circles {
+  symbols: A B C;
+}
+
+ul {
+  list-style: circles;
+}
+
+@keyframes fade {
+  from { opacity: 0 }
+  to { opacity: 1 }
+}
+CSS);
+
+        $stdout = LightningCssCliOptions::cssModulesStdoutJson($result['code'], $result['exports']);
+        $actual = json_decode($stdout, true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same("\n", substr($stdout, -1));
+        $t->same(['code', 'exports'], array_keys($actual));
+        $t->same('.EgL3uq_foo{color:red}#EgL3uq_id{animation:2s EgL3uq_test}@keyframes EgL3uq_test{0%{color:red}to{color:#ff0}}@counter-style EgL3uq_circles{symbols:A B C}ul{list-style:EgL3uq_circles}@keyframes EgL3uq_fade{0%{opacity:0}to{opacity:1}}', $actual['code']);
+        $t->same([
+            'foo' => $moduleExport('EgL3uq_foo'),
+            'id' => $moduleExport('EgL3uq_id'),
+            'test' => $moduleExport('EgL3uq_test', true),
+            'circles' => $moduleExport('EgL3uq_circles', true),
+            'fade' => $moduleExport('EgL3uq_fade'),
+        ], $actual['exports']);
     },
     'lightningcss cli applies browserslist defaults without discovered config' => static function (TestRunner $t) use ($resolveBrowserslist, $prefixBorderRadiusFromBrowserslist): void {
         // Pinned upstream 22bdda3d tests/cli_integration_tests.rs::browserslist_defaults lines 517-540.

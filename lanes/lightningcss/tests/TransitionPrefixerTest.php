@@ -115,14 +115,19 @@ return [
         $modern = '.foo{transition:opacity .2s}';
         $webkit = '.foo{-webkit-transition:opacity .2s;transition:opacity .2s}';
 
-        $t->same(
-            '.foo{-webkit-transition:opacity .2s;-moz-transition:opacity .2s;transition:opacity .2s}',
-            $prefixer->prefixForTargets($transition, ['safari' => 5, 'firefox' => 14])
-        );
-        $t->same(
-            $modern,
-            $prefixer->prefixForTargets('.foo { -webkit-transition: opacity 200ms; -moz-transition: opacity 200ms; transition: opacity 200ms; }', ['chrome' => 95])
-        );
+        // Pinned upstream 22bdda3d src/lib.rs::test_prefixes lines 15565 and 15584.
+        $upstreamTransitionPrefixRows = [
+            [15565, '.foo { -webkit-transition: opacity 200ms; -moz-transition: opacity 200ms; transition: opacity 200ms; }', $modern, ['chrome' => 95]],
+            [15584, '.foo{transition:opacity 200ms}', '.foo{-webkit-transition:opacity .2s;-moz-transition:opacity .2s;transition:opacity .2s}', ['safari' => 5, 'firefox' => 14]],
+        ];
+
+        foreach ($upstreamTransitionPrefixRows as [$line, $input, $expected, $targets]) {
+            $t->same(
+                $expected,
+                $prefixer->prefixForTargets($input, $targets),
+                'upstream src/lib.rs::test_prefixes line ' . $line
+            );
+        }
 
         $t->same($webkit, $prefixer->prefixForTargets($transition, ['chrome' => 25]));
         $t->same($modern, $prefixer->prefixForTargets($transition, ['chrome' => 26]));
