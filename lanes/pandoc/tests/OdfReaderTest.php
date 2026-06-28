@@ -11675,6 +11675,36 @@ XML;
             'package-thumbnail' => 1,
             'undeclared-package-entry' => 1,
         ], $provenance['undeclaredRoleCounts']);
+        $t->same(10, $provenance['roleCount']);
+        $t->same(array_keys($provenance['roleCounts']), array_keys($provenance['roleBuckets']));
+        $t->same([
+            'content.xml',
+            'styles.xml',
+            'meta.xml',
+            'Pictures/hero.png',
+        ], $provenance['roleBuckets']['manifest-declared']['parts']);
+        $t->same(
+            strlen($contentXml) + strlen($stylesXml) + strlen($metaXml) + strlen('PNGDATA'),
+            $provenance['roleBuckets']['manifest-declared']['uncompressedBytes']
+        );
+        $t->same(4, $provenance['roleBuckets']['manifest-declared']['declaredInManifestCount']);
+        $t->same(0, $provenance['roleBuckets']['manifest-declared']['undeclaredCount']);
+        $t->same(0, $provenance['roleBuckets']['manifest-declared']['directoryCount']);
+        $t->same(0, $provenance['roleBuckets']['manifest-declared']['encryptedCount']);
+        $t->same(4, $provenance['roleBuckets']['manifest-declared']['canExposeBytesCount']);
+        $t->same(1, $provenance['roleBuckets']['manifest-declared']['storedCompressionMethodCount']);
+        $t->same(3, $provenance['roleBuckets']['manifest-declared']['deflatedCompressionMethodCount']);
+        $t->same(['Pictures/hero.png'], $provenance['roleBuckets']['media-resource']['parts']);
+        $t->same(strlen('PNGDATA'), $provenance['roleBuckets']['media-resource']['compressedBytes']);
+        $t->same(strlen('PNGDATA'), $provenance['roleBuckets']['media-resource']['uncompressedBytes']);
+        $t->same(1, $provenance['roleBuckets']['media-resource']['canExposeBytesCount']);
+        $t->same(['Thumbnails/thumbnail.png'], $provenance['roleBuckets']['package-thumbnail']['parts']);
+        $t->same(1, $provenance['roleBuckets']['package-thumbnail']['undeclaredCount']);
+        $t->same(0, $provenance['roleBuckets']['package-thumbnail']['canExposeBytesCount']);
+        $t->same(strlen('THUMBNAIL'), $provenance['roleBuckets']['package-thumbnail']['uncompressedBytes']);
+        $t->same(['Pictures/'], $provenance['roleBuckets']['zip-directory']['parts']);
+        $t->same(1, $provenance['roleBuckets']['zip-directory']['directoryCount']);
+        $t->same(0, $provenance['roleBuckets']['zip-directory']['uncompressedBytes']);
         $t->same(false, $provenance['centralDirectoryOrderMatchesLocalHeaderOrder']);
         $t->same('mimetype', $provenance['mimetypeEntry']['firstLocalEntryName']);
         $t->same(true, $provenance['mimetypeEntry']['isValid']);

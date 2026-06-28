@@ -1980,6 +1980,7 @@ final class OdfReader
         $undeclaredRoleCounts = [];
         $roleByteLengths = [];
         $roleCompressedByteLengths = [];
+        $roleBuckets = [];
         $totalByteLength = 0;
         $totalCompressedByteLength = 0;
         $fileEntryCount = 0;
@@ -2233,7 +2234,7 @@ final class OdfReader
                 $fileCompressedByteLength += $entry->compressedSize;
             }
 
-            $parts[$entry->name] = [
+            $partProvenance = [
                 'part' => $entry->name,
                 'roles' => $roles,
                 'centralDirectoryIndex' => $centralDirectoryIndex,
@@ -2328,6 +2329,7 @@ final class OdfReader
                 'byteExposurePolicy' => $byteExposurePolicy,
                 'undeclared' => $isUndeclared,
             ] + $rawNameProvenance + $sourceRecordProvenance + $platformAttributeProvenance;
+            $parts[$entry->name] = $partProvenance;
 
             if (is_string($byteExposurePolicy) && $byteExposurePolicy !== '') {
                 $packagePartByteExposurePolicyCounts[$byteExposurePolicy] = ($packagePartByteExposurePolicyCounts[$byteExposurePolicy] ?? 0) + 1;
@@ -2345,6 +2347,7 @@ final class OdfReader
                 $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
                 $roleByteLengths[$role] = ($roleByteLengths[$role] ?? 0) + $entry->uncompressedSize;
                 $roleCompressedByteLengths[$role] = ($roleCompressedByteLengths[$role] ?? 0) + $entry->compressedSize;
+                self::incrementPackageRoleBucket($roleBuckets, $role, $partProvenance);
                 if ($isUndeclared) {
                     $undeclaredRoleCounts[$role] = ($undeclaredRoleCounts[$role] ?? 0) + 1;
                 }
@@ -2437,6 +2440,7 @@ final class OdfReader
         ksort($undeclaredRoleCounts, SORT_STRING);
         ksort($roleByteLengths, SORT_STRING);
         ksort($roleCompressedByteLengths, SORT_STRING);
+        ksort($roleBuckets, SORT_STRING);
         ksort($manifestByteExposurePolicyCounts, SORT_STRING);
         ksort($packagePartByteExposurePolicyCounts, SORT_STRING);
         ksort($packagePartByteExposurePolicyByteLengths, SORT_STRING);
@@ -2491,10 +2495,12 @@ final class OdfReader
             'mediaResources' => $mediaResourceSummary,
             'preferredViewModes' => $preferredViewModeSummary,
             'manifestEncryption' => $manifestEncryptionSummary,
+            'roleCount' => count($roleCounts),
             'roleCounts' => $roleCounts,
             'undeclaredRoleCounts' => $undeclaredRoleCounts,
             'roleByteLengths' => $roleByteLengths,
             'roleCompressedByteLengths' => $roleCompressedByteLengths,
+            'roleBuckets' => $roleBuckets,
             'packagePartByteExposurePolicyCounts' => $packagePartByteExposurePolicyCounts,
             'packagePartByteExposurePolicyByteLengths' => $packagePartByteExposurePolicyByteLengths,
             'packagePartByteExposurePolicyCompressedByteLengths' => $packagePartByteExposurePolicyCompressedByteLengths,
@@ -2573,6 +2579,63 @@ final class OdfReader
         $provenance['packageIdentity'] = $this->packageIdentityProvenance($provenance);
 
         return $provenance;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $buckets
+     * @param array<string, mixed> $part
+     */
+    private static function incrementPackageRoleBucket(array &$buckets, string $role, array $part): void
+    {
+        if (!isset($buckets[$role])) {
+            $buckets[$role] = [
+                'entryCount' => 0,
+                'parts' => [],
+                'declaredInManifestCount' => 0,
+                'undeclaredCount' => 0,
+                'directoryCount' => 0,
+                'encryptedCount' => 0,
+                'canExposeBytesCount' => 0,
+                'compressedBytes' => 0,
+                'uncompressedBytes' => 0,
+                'storedCompressionMethodCount' => 0,
+                'deflatedCompressionMethodCount' => 0,
+                'unsupportedCompressionMethodCount' => 0,
+            ];
+        }
+
+        ++$buckets[$role]['entryCount'];
+        $buckets[$role]['parts'][] = (string) ($part['part'] ?? '');
+        if (($part['declaredInManifest'] ?? false) === true) {
+            ++$buckets[$role]['declaredInManifestCount'];
+        }
+        if (($part['undeclared'] ?? false) === true) {
+            ++$buckets[$role]['undeclaredCount'];
+        }
+        if (($part['isDirectory'] ?? false) === true) {
+            ++$buckets[$role]['directoryCount'];
+        }
+        if (($part['encrypted'] ?? false) === true) {
+            ++$buckets[$role]['encryptedCount'];
+        }
+        if (($part['canExposeBytes'] ?? false) === true) {
+            ++$buckets[$role]['canExposeBytesCount'];
+        }
+        if (is_int($part['compressedByteLength'] ?? null)) {
+            $buckets[$role]['compressedBytes'] += $part['compressedByteLength'];
+        }
+        if (is_int($part['byteLength'] ?? null)) {
+            $buckets[$role]['uncompressedBytes'] += $part['byteLength'];
+        }
+
+        $compressionMethod = $part['compressionMethod'] ?? null;
+        if ($compressionMethod === 0) {
+            ++$buckets[$role]['storedCompressionMethodCount'];
+        } elseif ($compressionMethod === 8) {
+            ++$buckets[$role]['deflatedCompressionMethodCount'];
+        } elseif (is_int($compressionMethod)) {
+            ++$buckets[$role]['unsupportedCompressionMethodCount'];
+        }
     }
 
     /**
