@@ -3030,6 +3030,44 @@ CSS;
             $prefixer->prefixForTargets('.foo { border-inline-end: var(--border-width) solid lab(40% 56.6 39); }', ['safari' => 8])
         );
     },
+    'transition prefixer maps upstream logical border advanced color fallback rows' => static function (TestRunner $t) use ($variants): void {
+        $prefixer = new TransitionPrefixer();
+        $selector = $variants('.foo');
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_border lines 1757, 1790, 1898, and 1931.
+        $t->same(
+            $selector['ltr-webkit'] . '{border-left-color:#b32323;border-left-color:lab(40% 56.6 39)}'
+                . $selector['ltr-modern'] . '{border-left-color:#b32323;border-left-color:lab(40% 56.6 39)}'
+                . $selector['rtl-webkit'] . '{border-right-color:#b32323;border-right-color:lab(40% 56.6 39)}'
+                . $selector['rtl-modern'] . '{border-right-color:#b32323;border-right-color:lab(40% 56.6 39)}',
+            $prefixer->prefixForTargets('.foo { border-inline-start-color: lab(40% 56.6 39); }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border line 1757'
+        );
+        $t->same(
+            $selector['ltr-webkit'] . '{border-right-color:#b32323;border-right-color:lab(40% 56.6 39)}'
+                . $selector['ltr-modern'] . '{border-right-color:#b32323;border-right-color:lab(40% 56.6 39)}'
+                . $selector['rtl-webkit'] . '{border-left-color:#b32323;border-left-color:lab(40% 56.6 39)}'
+                . $selector['rtl-modern'] . '{border-left-color:#b32323;border-left-color:lab(40% 56.6 39)}',
+            $prefixer->prefixForTargets('.foo { border-inline-end-color: lab(40% 56.6 39); }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border line 1790'
+        );
+        $t->same(
+            $selector['ltr-webkit'] . '{border-left:2px solid #b32323;border-left:2px solid lab(40% 56.6 39)}'
+                . $selector['ltr-modern'] . '{border-left:2px solid #b32323;border-left:2px solid lab(40% 56.6 39)}'
+                . $selector['rtl-webkit'] . '{border-right:2px solid #b32323;border-right:2px solid lab(40% 56.6 39)}'
+                . $selector['rtl-modern'] . '{border-right:2px solid #b32323;border-right:2px solid lab(40% 56.6 39)}',
+            $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid lab(40% 56.6 39); }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border line 1898'
+        );
+        $t->same(
+            $selector['ltr-webkit'] . '{border-right:2px solid #b32323;border-right:2px solid lab(40% 56.6 39)}'
+                . $selector['ltr-modern'] . '{border-right:2px solid #b32323;border-right:2px solid lab(40% 56.6 39)}'
+                . $selector['rtl-webkit'] . '{border-left:2px solid #b32323;border-left:2px solid lab(40% 56.6 39)}'
+                . $selector['rtl-modern'] . '{border-left:2px solid #b32323;border-left:2px solid lab(40% 56.6 39)}',
+            $prefixer->prefixForTargets('.foo { border-inline-end: 2px solid lab(40% 56.6 39); }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border line 1931'
+        );
+    },
     'transition prefixer maps upstream logical border browser boundaries' => static function (TestRunner $t) use ($variants): void {
         $prefixer = new TransitionPrefixer();
         $selector = $variants('.foo');
