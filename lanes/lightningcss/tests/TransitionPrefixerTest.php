@@ -710,6 +710,24 @@ return [
             );
         }
     },
+    'transition prefixer maps upstream merge-rule any-selector residual rows' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_merge_rules.
+        $cases = [
+            [11107, '.foo:-webkit-any(.bar):after { color: red; } .foo:is(.bar, .baz):after { color: red; }', '.foo:-webkit-any(.bar):after{color:red}.foo:is(.bar,.baz):after{color:red}', ['safari' => 16]],
+            [11132, '.foo:-webkit-any(.bar, .baz):after { color: red; } .foo:is(.bar, .baz):after { color: red; }', '.foo:-webkit-any(.bar,.baz):after{color:red}.foo:is(.bar,.baz):after{color:red}', ['safari' => 12]],
+            [11157, '.foo:-webkit-any(.bar, .baz):after { color: red; } .foo:-moz-any(.bar, .baz):after { color: red; }', '.foo:-webkit-any(.bar,.baz):after{color:red}.foo:-moz-any(.bar,.baz):after{color:red}', ['safari' => 12, 'firefox' => 67]],
+        ];
+
+        foreach ($cases as [$line, $input, $expected, $targets]) {
+            $t->same(
+                $expected,
+                $prefixer->prefixForTargets($input, $targets),
+                'upstream src/lib.rs::test_merge_rules line ' . $line
+            );
+        }
+    },
     'transition prefixer maps upstream placeholder pseudo-element target prefixes' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 
