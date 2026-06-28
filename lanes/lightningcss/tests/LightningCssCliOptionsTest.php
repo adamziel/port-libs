@@ -155,6 +155,27 @@ return [
             '/tmp/in/test2.css' => '/tmp/out' . DIRECTORY_SEPARATOR . 'test2.css',
         ], $plan['outputs']);
     },
+    'lightningcss cli writes multiple input outputs into output directory' => static function (TestRunner $t) use ($temporaryPath): void {
+        // Complements already represented upstream 22bdda3d tests/cli_integration_tests.rs::multiple_input_files lines 221-244.
+        $inputFile = $temporaryPath('test.css');
+        $root = dirname($inputFile);
+        $inputFile2 = $root . DIRECTORY_SEPARATOR . 'test2.css';
+        $outputDir = $root . DIRECTORY_SEPARATOR . 'out';
+
+        file_put_contents($inputFile, ".foo {\n  border: none;\n}\n");
+        file_put_contents($inputFile2, ".foo {\n  color: yellow;\n}\n");
+
+        $plan = LightningCssCliOptions::planOutputs([$inputFile, $inputFile2], null, $outputDir);
+        foreach ($plan['outputs'] as $input => $output) {
+            LightningCssCliOptions::writeOutputFile(
+                $output ?? throw new RuntimeException('Missing planned output.'),
+                (new CssFormatter())->format((string) file_get_contents($input))
+            );
+        }
+
+        $t->contains(".foo {\n  border: none;\n}", (string) file_get_contents($outputDir . DIRECTORY_SEPARATOR . 'test.css'));
+        $t->contains(".foo {\n  color: #ff0;\n}", (string) file_get_contents($outputDir . DIRECTORY_SEPARATOR . 'test2.css'));
+    },
     'lightningcss cli rejects browserslist and targets together' => static function (TestRunner $t): void {
         // Pinned upstream 22bdda3d tests/cli_integration_tests.rs::browserslist_targets_exclusive lines 496-507.
         try {

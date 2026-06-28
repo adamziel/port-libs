@@ -3186,6 +3186,11 @@ return [
             'margin: 5px; margin-inline-start: 8px; margin-left: 10px',
             $block->setProperty('margin: 5px; margin-inline-start: 8px', 'margin-left', '10px')
         );
+        // Pinned upstream 22bdda3d src/declaration.rs::DeclarationBlock::set line 399.
+        $t->same(
+            'margin-top: 5px; margin-bottom: 6px; margin: 10px',
+            $block->setProperty('margin-top: 5px; margin-bottom: 6px', 'margin', '10px')
+        );
     },
     'declaration block parses upstream cssom set values before top level delimiters' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
@@ -4455,6 +4460,11 @@ return [
         $t->same(
             'margin-right: 10px; margin-bottom: 10px; margin-left: 10px',
             $block->removeProperty('margin: 10px', 'margin-top')
+        );
+        // Pinned upstream 22bdda3d src/declaration.rs::DeclarationBlock::remove line 444.
+        $t->same(
+            'margin-right: 10px; margin-bottom: 10px; margin-left: 10px; margin-left: 5px',
+            $block->removeProperty('margin: 10px; margin-left: 5px', 'margin-top')
         );
         $t->same('', $block->removeProperty('margin: 10px', 'margin'));
         $t->same('', $block->removeProperty('margin-top: 10px; margin-right: 10px; margin-bottom: 10px; margin-left: 10px', 'margin'));

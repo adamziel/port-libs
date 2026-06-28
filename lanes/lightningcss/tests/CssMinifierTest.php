@@ -4649,6 +4649,39 @@ CSS;
         $t->same('.foo{text-size-adjust:auto}', $minifier->minify('.foo { text-size-adjust: auto }'));
         $t->same('.foo{text-size-adjust:80%}', $minifier->minify('.foo { text-size-adjust: 80% }'));
     },
+    'css minifier maps upstream text-decoration values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_text_decoration minify_test rows.
+        $cases = [
+            [16242, '.foo { text-decoration-line: none }', '.foo{text-decoration-line:none}'],
+            [16260, '.foo { text-decoration-line: underline overline }', '.foo{text-decoration-line:underline overline}'],
+            [16264, '.foo { text-decoration-line: overline underline }', '.foo{text-decoration-line:underline overline}'],
+            [16268, '.foo { text-decoration-line: overline line-through underline }', '.foo{text-decoration-line:underline overline line-through}'],
+            [16272, '.foo { text-decoration-line: spelling-error }', '.foo{text-decoration-line:spelling-error}'],
+            [16276, '.foo { text-decoration-line: grammar-error }', '.foo{text-decoration-line:grammar-error}'],
+            [16280, '.foo { -webkit-text-decoration-line: overline underline }', '.foo{-webkit-text-decoration-line:underline overline}'],
+            [16284, '.foo { -moz-text-decoration-line: overline underline }', '.foo{-moz-text-decoration-line:underline overline}'],
+            [16289, '.foo { text-decoration-style: solid }', '.foo{text-decoration-style:solid}'],
+            [16293, '.foo { text-decoration-style: dotted }', '.foo{text-decoration-style:dotted}'],
+            [16297, '.foo { -webkit-text-decoration-style: solid }', '.foo{-webkit-text-decoration-style:solid}'],
+            [16302, '.foo { text-decoration-color: yellow }', '.foo{text-decoration-color:#ff0}'],
+            [16306, '.foo { -webkit-text-decoration-color: yellow }', '.foo{-webkit-text-decoration-color:#ff0}'],
+            [16310, '.foo { text-decoration: none }', '.foo{text-decoration:none}'],
+            [16312, '.foo { text-decoration: underline dotted }', '.foo{text-decoration:underline dotted}'],
+            [16316, '.foo { text-decoration: underline dotted yellow }', '.foo{text-decoration:underline dotted #ff0}'],
+            [16320, '.foo { text-decoration: yellow dotted underline }', '.foo{text-decoration:underline dotted #ff0}'],
+            [16324, '.foo { text-decoration: underline overline dotted yellow }', '.foo{text-decoration:underline overline dotted #ff0}'],
+            [16328, '.foo { -webkit-text-decoration: yellow dotted underline }', '.foo{-webkit-text-decoration:underline dotted #ff0}'],
+            [16332, '.foo { -moz-text-decoration: yellow dotted underline }', '.foo{-moz-text-decoration:underline dotted #ff0}'],
+            [16588, '.foo { text-decoration-skip-ink: all }', '.foo{text-decoration-skip-ink:all}'],
+            [16592, '.foo { -webkit-text-decoration-skip-ink: all }', '.foo{-webkit-text-decoration-skip-ink:all}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_text_decoration line ' . $line);
+        }
+    },
     'css minifier maps upstream caret values' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

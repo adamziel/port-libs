@@ -46,6 +46,25 @@ final class CssMinifier
         'grid',
         'ruby',
     ];
+    private const TEXT_DECORATION_LINES = [
+        'underline',
+        'overline',
+        'line-through',
+        'blink',
+    ];
+    private const TEXT_DECORATION_EXCLUSIVE_LINES = [
+        'none',
+        'spelling-error',
+        'grammar-error',
+    ];
+    private const TEXT_DECORATION_STYLES = [
+        'solid',
+        'double',
+        'dotted',
+        'dashed',
+        'wavy',
+    ];
+    private const TEXT_DECORATION_SKIP_INK_KEYWORDS = ['auto', 'none', 'all'];
 
     private bool $recoverInvalidMediaFeatureValues = false;
 
@@ -4611,6 +4630,7 @@ final class CssMinifier
         $value = $this->minifySvgValue($property, $value);
         $value = $this->minifyBoxShadowValue($property, $value);
         $value = $this->minifyTextEmphasisValue($property, $value);
+        $value = $this->minifyTextDecorationValue($property, $value);
         $value = $this->minifyCaretValue($property, $value);
         $value = $this->minifyCursorValue($property, $value);
         $value = $this->minifyListStyleValue($property, $value);
@@ -9592,6 +9612,231 @@ final class CssMinifier
             '-webkit-text-emphasis-position' => $this->minifyTextEmphasisPosition($value),
             default => $value,
         };
+    }
+
+    private function minifyTextDecorationValue(string $property, string $value): string
+    {
+        return match (strtolower($property)) {
+            'text-decoration',
+            '-webkit-text-decoration',
+            '-moz-text-decoration' => $this->minifyTextDecorationShorthand($value),
+            'text-decoration-line',
+            '-webkit-text-decoration-line',
+            '-moz-text-decoration-line' => $this->minifyTextDecorationLineValue($value),
+            'text-decoration-style',
+            '-webkit-text-decoration-style',
+            '-moz-text-decoration-style' => $this->minifySingleKeywordValue($value, self::TEXT_DECORATION_STYLES),
+            'text-decoration-color',
+            '-webkit-text-decoration-color',
+            '-moz-text-decoration-color' => $this->normalizeTextDecorationColorValue($value),
+            'text-decoration-skip-ink',
+            '-webkit-text-decoration-skip-ink' => $this->minifySingleKeywordValue($value, self::TEXT_DECORATION_SKIP_INK_KEYWORDS),
+            default => $value,
+        };
+    }
+
+    private function minifyTextDecorationShorthand(string $value): string
+    {
+        if ($this->containsCustomPropertyReference($value)) {
+            return trim($value);
+        }
+
+        $components = $this->parseTextDecorationComponents($value);
+
+        return $components === null ? trim($value) : $this->serializeTextDecorationComponents($components);
+    }
+
+    /**
+     * @return array{line:string,thickness:string,style:string,color:string,styleBeforeLine:bool}|null
+     */
+    private function parseTextDecorationComponents(string $value): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if ($tokens === []) {
+            return null;
+        }
+
+        $lineTokens = [];
+        $exclusiveLine = null;
+        $thickness = null;
+        $style = null;
+        $styleBeforeLine = false;
+        $color = null;
+
+        foreach ($tokens as $token) {
+            $lower = strtolower(trim($token));
+            if (in_array($lower, self::TEXT_DECORATION_EXCLUSIVE_LINES, true)) {
+                if ($lineTokens !== [] || $exclusiveLine !== null) {
+                    return null;
+                }
+
+                $exclusiveLine = $lower;
+                continue;
+            }
+
+            if (in_array($lower, self::TEXT_DECORATION_LINES, true)) {
+                if ($exclusiveLine !== null) {
+                    return null;
+                }
+                if (!in_array($lower, $lineTokens, true)) {
+                    $lineTokens[] = $lower;
+                }
+                continue;
+            }
+
+            if ($thickness === null && $this->isTextDecorationThicknessToken($token)) {
+                $thickness = $this->minifyTextDecorationThicknessToken($token);
+                continue;
+            }
+
+            if ($style === null && in_array($lower, self::TEXT_DECORATION_STYLES, true)) {
+                $styleBeforeLine = $lineTokens === [] && $exclusiveLine === null;
+                $style = $lower;
+                continue;
+            }
+
+            if ($color === null && $this->isTextDecorationColorToken($token)) {
+                $color = $this->normalizeTextDecorationColorValue($token);
+                continue;
+            }
+
+            return null;
+        }
+
+        $line = $exclusiveLine ?? $this->normalizeTextDecorationLineTokens($lineTokens);
+        if ($line === null) {
+            return null;
+        }
+
+        return [
+            'line' => $line,
+            'thickness' => $thickness ?? 'auto',
+            'style' => $style ?? 'solid',
+            'color' => $color ?? 'currentColor',
+            'styleBeforeLine' => $styleBeforeLine,
+        ];
+    }
+
+    /**
+     * @param array{line:string,thickness:string,style:string,color:string,styleBeforeLine:bool} $components
+     */
+    private function serializeTextDecorationComponents(array $components): string
+    {
+        $line = $components['line'];
+        if ($line === 'none') {
+            return 'none';
+        }
+        if (
+            $components['styleBeforeLine']
+            && !str_contains($line, ' ')
+            && strcasecmp($components['thickness'], 'auto') === 0
+            && strcasecmp($components['color'], 'currentColor') === 0
+            && $components['style'] !== 'solid'
+        ) {
+            return $components['style'] . ' ' . $line;
+        }
+
+        $parts = [$line];
+        if (strcasecmp($components['thickness'], 'auto') !== 0) {
+            $parts[] = $components['thickness'];
+        }
+        if ($components['style'] !== 'solid') {
+            $parts[] = $components['style'];
+        }
+        if (strcasecmp($components['color'], 'currentColor') !== 0) {
+            $parts[] = $components['color'];
+        }
+
+        return implode(' ', $parts);
+    }
+
+    private function minifyTextDecorationLineValue(string $value): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if ($tokens === []) {
+            return trim($value);
+        }
+
+        $lines = [];
+        foreach ($tokens as $token) {
+            $lower = strtolower(trim($token));
+            if (in_array($lower, self::TEXT_DECORATION_EXCLUSIVE_LINES, true)) {
+                return count($tokens) === 1 ? $lower : trim($value);
+            }
+            if (!in_array($lower, self::TEXT_DECORATION_LINES, true)) {
+                return trim($value);
+            }
+            if (!in_array($lower, $lines, true)) {
+                $lines[] = $lower;
+            }
+        }
+
+        return $this->normalizeTextDecorationLineTokens($lines) ?? trim($value);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function normalizeTextDecorationLineTokens(array $lines): ?string
+    {
+        if ($lines === []) {
+            return null;
+        }
+
+        $ordered = [];
+        foreach (self::TEXT_DECORATION_LINES as $line) {
+            if (in_array($line, $lines, true)) {
+                $ordered[] = $line;
+            }
+        }
+
+        return $ordered === [] ? null : implode(' ', $ordered);
+    }
+
+    private function isTextDecorationThicknessToken(string $token): bool
+    {
+        $token = trim($token);
+        $lower = strtolower($token);
+        if ($lower === 'auto' || $lower === 'from-font') {
+            return true;
+        }
+
+        return $this->isLengthPercentageToken($token)
+            || preg_match('/^(?:calc|clamp|min|max)\(/i', $token) === 1;
+    }
+
+    private function minifyTextDecorationThicknessToken(string $token): string
+    {
+        $token = trim($token);
+        $lower = strtolower($token);
+        if ($lower === 'auto' || $lower === 'from-font') {
+            return $lower;
+        }
+
+        return $this->isLengthPercentageToken($token) ? $this->minifyLengthToken($token) : $token;
+    }
+
+    private function isTextDecorationColorToken(string $token): bool
+    {
+        $token = trim($token);
+        if ($token === '') {
+            return false;
+        }
+        if ($token[0] === '#') {
+            return true;
+        }
+        if (preg_match('/^(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch|color)\(/i', $token) === 1) {
+            return true;
+        }
+
+        return $this->isPropertyColorKeyword($token);
+    }
+
+    private function normalizeTextDecorationColorValue(string $value): string
+    {
+        $value = trim($value);
+
+        return strcasecmp($value, 'currentcolor') === 0 ? 'currentColor' : $value;
     }
 
     private function minifyTextEmphasisShorthand(string $value): string

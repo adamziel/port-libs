@@ -953,6 +953,19 @@ return [
         $t->same('@layer blocks{@media (width>=240px){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media (width >= 240px), { .foo { color: yellow } } }'));
         $t->same('@layer blocks{@media screen and not (color){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media screen and not (color) { .foo { color: yellow } } }'));
     },
+    'css minifier maps upstream adjacent media rule merging' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_merge_media_rules lines 11211 and 11242.
+        $t->same(
+            '@media (hover){.foo{color:red;background:#fff}.baz{color:#fff}}',
+            $minifier->minify('@media (hover) { .foo { color: red; } } @media (hover) { .foo { background: #fff; } .baz { color: #fff; } }')
+        );
+        $t->same(
+            '@media (hover){.foo{color:red}}@media (width>=250px){.foo{background:#fff}.baz{color:#fff}}',
+            $minifier->minify('@media (hover) { .foo { color: red; } } @media (min-width: 250px) { .foo { background: #fff; } .baz { color: #fff; } }')
+        );
+    },
     'media query parser flattens upstream redundant boolean wrappers inside layers' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
         $minifier = new CssMinifier();
