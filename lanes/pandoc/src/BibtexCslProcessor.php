@@ -359,6 +359,9 @@ final class BibtexCslProcessor
         if (($item['article-number'] ?? '') !== '') {
             $parts[] = 'Article number: ' . (string) $item['article-number'];
         }
+        foreach ($this->legalPatentBibliographyParts($item) as $part) {
+            $parts[] = $part;
+        }
         if (($item['thesis-type'] ?? '') !== '') {
             $parts[] = 'Thesis type: ' . (string) $item['thesis-type'];
         }
@@ -814,6 +817,7 @@ final class BibtexCslProcessor
             'article-number' => ['eid', 'article-number', 'articlenumber'],
             'number-of-pages' => ['pagetotal', 'numpages', 'numberofpages', 'number-of-pages'],
             'chapter-number' => ['chapter'],
+            'number' => ['number'],
             'source' => ['source', 'sourcetitle', 'source-title'],
             'division' => ['division', 'subdivision'],
             'section' => ['section'],
@@ -871,6 +875,8 @@ final class BibtexCslProcessor
             'note' => ['note', 'addendum'],
             'name-addon' => ['nameaddon', 'name-addon'],
             'genre' => ['type', 'entrysubtype'],
+            'patent-type' => ['patenttype', 'patent-type'],
+            'jurisdiction' => ['jurisdiction'],
             'related' => ['related'],
             'related-type' => ['relatedtype', 'related-type'],
             'related-string' => ['relatedstring', 'related-string'],
@@ -900,6 +906,55 @@ final class BibtexCslProcessor
             if (count($values) > 1) {
                 $item[$target] = $values;
             }
+        }
+
+        $authorityFieldNames = [
+            'authority-list',
+            'authoritylist',
+            'issuing-authority-list',
+            'issuingauthoritylist',
+            'authority',
+            'issuing-authority',
+            'issuingauthority',
+        ];
+        if (in_array($item['type'], ['patent', 'legislation', 'legal_case'], true)) {
+            $authorityFieldNames = [
+                ...$authorityFieldNames,
+                'court',
+                'institution',
+                'organization',
+            ];
+        }
+        $authorityList = $this->literalListFromFields($fields, $authorityFieldNames);
+        if ($authorityList !== []) {
+            $item['authority'] = implode('; ', $authorityList);
+            if (count($authorityList) > 1) {
+                $item['authority-list'] = $authorityList;
+            }
+        } else {
+            $authority = $this->firstField($fields, $authorityFieldNames);
+            if ($authority !== null && $authority !== '') {
+                $item['authority'] = $authority;
+            }
+        }
+
+        if (
+            in_array($item['type'], ['patent', 'legislation', 'legal_case'], true)
+            && (($item['jurisdiction'] ?? '') === '')
+        ) {
+            $jurisdiction = $this->firstField($fields, ['location', 'address']);
+            if ($jurisdiction !== null && $jurisdiction !== '') {
+                $item['jurisdiction'] = $jurisdiction;
+            }
+        }
+
+        $patentType = (string) ($item['patent-type'] ?? '');
+        if ($patentType === '' && $item['type'] === 'patent' && (($item['genre'] ?? '') !== '')) {
+            $patentType = (string) $item['genre'];
+            $item['patent-type'] = $patentType;
+        }
+        if ($patentType !== '') {
+            $item['patent-type-label'] = $this->patentTypeLabel($patentType);
         }
 
         $this->normalizeIdentifierFields($item);
@@ -2391,6 +2446,75 @@ final class BibtexCslProcessor
             'foreword' => 'Foreword',
             'afterword' => 'Afterword',
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return list<string>
+     */
+    private function legalPatentBibliographyParts(array $item): array
+    {
+        if (!in_array((string) ($item['type'] ?? ''), ['patent', 'legislation', 'legal_case'], true)) {
+            return [];
+        }
+
+        $parts = [];
+        $number = trim((string) ($item['number'] ?? ''));
+        if ($number !== '') {
+            $parts[] = trim($this->legalPatentTypeLabel($item) . ' ' . $number);
+        }
+
+        foreach ([
+            'authority' => 'Authority',
+            'jurisdiction' => 'Jurisdiction',
+            'status' => 'Status',
+        ] as $field => $label) {
+            $value = trim((string) ($item[$field] ?? ''));
+            if ($value !== '') {
+                $parts[] = $label . ': ' . rtrim($value, '.');
+            }
+        }
+
+        return $parts;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function legalPatentTypeLabel(array $item): string
+    {
+        if (($item['type'] ?? '') === 'patent') {
+            $label = trim((string) ($item['patent-type-label'] ?? ''));
+            if ($label !== '') {
+                return $label;
+            }
+        }
+
+        $genre = trim((string) ($item['genre'] ?? ''));
+        if ($genre !== '') {
+            return ucfirst(str_replace(['_', '-'], ' ', $genre));
+        }
+
+        return ucfirst(str_replace('_', ' ', (string) ($item['type'] ?? 'legal')));
+    }
+
+    private function patentTypeLabel(string $type): string
+    {
+        return match (strtolower(trim($type))) {
+            'patent' => 'Patent',
+            'patentde' => 'German patent',
+            'patenteu' => 'European patent',
+            'patentfr' => 'French patent',
+            'patentuk', 'patentgb' => 'British patent',
+            'patentus' => 'U.S. patent',
+            'patreq' => 'Patent request',
+            'patreqde' => 'German patent request',
+            'patreqeu' => 'European patent request',
+            'patreqfr' => 'French patent request',
+            'patrequk', 'patreqgb' => 'British patent request',
+            'patrequs' => 'U.S. patent request',
+            default => trim($type),
+        };
     }
 
     /**

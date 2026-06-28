@@ -561,6 +561,104 @@ BIB;
         $t->same('Desk, Archive', $item['rawBibtex']['fields']['shortauthor']);
         $t->same('Ivy Inventor. Credit Role Patent. 2026.', $bibliography);
     },
+    'carries biblatex legal and patent authority metadata in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@patent{bounded-patent,
+  author    = {Inventor, Ivy},
+  title     = {Bounded Patent Packet},
+  type      = {patentus},
+  number    = {US-11111111},
+  authority = {USPTO and Review Board},
+  location  = {US},
+  status    = {granted},
+  year      = {2026}
+}
+
+@jurisdiction{tribunal-note,
+  title        = {Migration Tribunal Note},
+  court        = {Source Review Court},
+  jurisdiction = {CA},
+  number       = {MT-2026-04},
+  date         = {2026}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $patent = $items['bounded-patent'];
+        $case = $items['tribunal-note'];
+
+        $t->same('patent', $patent['type']);
+        $t->same('US-11111111', $patent['number']);
+        $t->same('patentus', $patent['patent-type']);
+        $t->same('U.S. patent', $patent['patent-type-label']);
+        $t->same('USPTO; Review Board', $patent['authority']);
+        $t->same(['USPTO', 'Review Board'], $patent['authority-list']);
+        $t->same('US', $patent['jurisdiction']);
+        $t->same('granted', $patent['status']);
+        $t->same('legal_case', $case['type']);
+        $t->same('MT-2026-04', $case['number']);
+        $t->same('Source Review Court', $case['authority']);
+        $t->same('CA', $case['jurisdiction']);
+        $t->same('patentus', $patent['rawBibtex']['fields']['type']);
+        $t->same('Source Review Court', $case['rawBibtex']['fields']['court']);
+        $t->same(
+            'Ivy Inventor. Bounded Patent Packet. 2026. U.S. patent US-11111111. Authority: USPTO; Review Board. Jurisdiction: US. Status: granted.',
+            $processor->renderBibliographyText($patent)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Legal Authority Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-legal-authority-review</id>
+    <updated>2026-06-28T14:25:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="patent-type-label"/>
+        <text variable="number"/>
+        <text variable="authority"/>
+        <text variable="jurisdiction"/>
+        <text variable="status"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="patent-type"/>
+      <text variable="number"/>
+      <text variable="authority-list"/>
+      <text variable="jurisdiction"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same(
+            '[Bounded Patent Packet | U.S. patent | US-11111111 | USPTO; Review Board | US | granted; Migration Tribunal Note | MT-2026-04 | Source Review Court | CA]',
+            $styled->renderCitationCluster([
+                new AstNode('citation', ['id' => 'bounded-patent', 'text' => '[@bounded-patent]']),
+                new AstNode('citation', ['id' => 'tribunal-note', 'text' => '[@tribunal-note]']),
+            ])
+        );
+        $t->same('Bounded Patent Packet :: patentus :: US-11111111 :: USPTO; Review Board :: US', $styled->renderBibliographyEntry('bounded-patent'));
+        $t->same('Migration Tribunal Note :: MT-2026-04 :: Source Review Court :: CA', $styled->renderBibliographyEntry('tribunal-note'));
+
+        $document = (new MarkdownReader())->read('Legal sources cite @bounded-patent and [@tribunal-note].');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$handoff['bibliography']]));
+
+        $t->same(['bounded-patent', 'tribunal-note'], $handoff['citedKeys']);
+        $t->same('USPTO; Review Board', $handoff['items'][0]['authority']);
+        $t->same('Source Review Court', $handoff['bibliography']->children[1]->attr('cslItem')['authority'] ?? null);
+        $t->contains('U.S. patent US-11111111', $blocks);
+        $t->contains('Authority: Source Review Court', $blocks);
+    },
     'carries biblatex event metadata in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @inproceedings{event-handoff,
