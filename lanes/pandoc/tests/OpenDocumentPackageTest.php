@@ -445,6 +445,32 @@ return [
         $t->same(3, $inventory['Pictures/hero.png']['customManifestAttributeCount']);
         $t->same('en-US', $inventory['Pictures/hero.png']['customManifestAttributeMap']['xml:lang']);
     },
+    'includes compact ODT manifest root provenance in package identity' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifest = str_replace(
+            '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">',
+            '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" xmlns:loext="urn:libreoffice:manifest" xmlns:wp="urn:wordpress:review" manifest:version="1.3" loext:generator="LibreOffice 25.2" wp:review-source="compact">',
+            $manifestXml
+        );
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $manifest))->summarize();
+        $identity = $summary['packageIdentity'];
+        $changedManifest = str_replace('wp:review-source="compact"', 'wp:review-source="changed-root"', $manifest);
+        $changedIdentity = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $changedManifest))->summarize()['packageIdentity'];
+
+        $t->same(3, $identity['manifestRootAttributeCount']);
+        $t->same(['loext:generator', 'manifest:version', 'wp:review-source'], $identity['manifestRootAttributeNames']);
+        $t->same(2, $identity['manifestRootCustomAttributeCount']);
+        $t->same(['loext:generator', 'wp:review-source'], $identity['manifestRootCustomAttributeNames']);
+        $t->same([
+            'loext:generator' => 'LibreOffice 25.2',
+            'wp:review-source' => 'compact',
+        ], $identity['manifestRootCustomAttributeMap']);
+        $t->same(3, $identity['manifestRootNamespaceDeclarationCount']);
+        $t->same('urn:wordpress:review', $identity['manifestRootNamespaceDeclarationMap']['xmlns:wp']);
+        $t->same('urn:libreoffice:manifest', $identity['manifestRootNamespaceDeclarationMap']['xmlns:loext']);
+        $t->same($summary['manifestReview']['manifestRootCustomAttributeMap'], $identity['manifestRootCustomAttributeMap']);
+        $t->true($identity['identitySha256'] !== $changedIdentity['identitySha256']);
+        $t->true($identity['identityPayloadByteLength'] !== $changedIdentity['identityPayloadByteLength']);
+    },
     'preserves compact ODT manifest file-entry child element provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifest = str_replace(
             [
@@ -1456,6 +1482,92 @@ XML;
         $t->same('Pictures/source%20hero.png', $inventoryPart['manifestPath']);
         $t->same('Pictures/source hero.png', $inventoryPart['manifestPackagePath']);
         $t->same('image/png', $inventoryPart['manifestMediaType']);
+    },
+    'summarizes compact ODT media resource sidecar role precedence' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $audioBytes = 'AUDIO-BYTES';
+        $formPreviewBytes = 'FORM-PREVIEW';
+        $galleryPreviewBytes = 'GALLERY-PREVIEW';
+        $linkedPreviewBytes = 'LINKED-PREVIEW';
+        $attachmentPreviewBytes = 'ATTACHMENT-PREVIEW';
+        $templatePreviewBytes = 'TEMPLATE-PREVIEW';
+        $dictionaryPreviewBytes = 'DICTIONARY-PREVIEW';
+
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="audio/ogg" manifest:full-path="Media/narration.ogg" manifest:size="' . strlen($audioBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Forms/Review/preview.png" manifest:size="' . strlen($formPreviewBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Gallery/Theme/preview.png" manifest:size="' . strlen($galleryPreviewBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Links/cache/preview.png" manifest:size="' . strlen($linkedPreviewBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Attachments/Review/preview.png" manifest:size="' . strlen($attachmentPreviewBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Templates/Review/preview.png" manifest:size="' . strlen($templatePreviewBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Dictionaries/en_US/preview.png" manifest:size="' . strlen($dictionaryPreviewBytes) . '"/>',
+            $manifestXml
+        );
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $manifest, extraParts: [
+            ['name' => 'Media/narration.ogg', 'data' => $audioBytes, 'compressionMethod' => 0],
+            ['name' => 'Forms/Review/preview.png', 'data' => $formPreviewBytes, 'compressionMethod' => 0],
+            ['name' => 'Gallery/Theme/preview.png', 'data' => $galleryPreviewBytes, 'compressionMethod' => 0],
+            ['name' => 'Links/cache/preview.png', 'data' => $linkedPreviewBytes, 'compressionMethod' => 0],
+            ['name' => 'Attachments/Review/preview.png', 'data' => $attachmentPreviewBytes, 'compressionMethod' => 0],
+            ['name' => 'Templates/Review/preview.png', 'data' => $templatePreviewBytes, 'compressionMethod' => 0],
+            ['name' => 'Dictionaries/en_US/preview.png', 'data' => $dictionaryPreviewBytes, 'compressionMethod' => 0],
+        ]))->summarize();
+        $mediaResources = $summary['manifestReview']['mediaResources'];
+        $itemsByPart = [];
+        foreach ($mediaResources['items'] as $item) {
+            $itemsByPart[$item['part']] = $item;
+        }
+
+        $t->same(['Pictures/hero.png', 'Media/narration.ogg'], array_column($summary['mediaParts'], 'packagePath'));
+        $t->same(8, $mediaResources['manifestDeclaredCount']);
+        $t->same(2, $mediaResources['mediaResourceCount']);
+        $t->same(2, $mediaResources['mediaResourceExistingCount']);
+        $t->same(0, $mediaResources['mediaResourceMissingCount']);
+        $t->same(2, $mediaResources['mediaResourceCanExposeCount']);
+        $t->same(8, $mediaResources['existingCount']);
+        $t->same(0, $mediaResources['missingCount']);
+        $t->same(['image' => 7, 'audio' => 1, 'video' => 0, 'other' => 0], $mediaResources['familyCounts']);
+        $t->same([
+            'audio/ogg' => 1,
+            'image/png' => 7,
+        ], $mediaResources['mediaTypeBaseCounts']);
+        $t->same(0, $mediaResources['roleConflictCount']);
+        $t->same(0, $mediaResources['resourceRoleConflictCount']);
+        $t->same(6, $mediaResources['packageRolePrecedenceCount']);
+        $t->same(['odf-media-resource-package-role-precedence' => 6], $mediaResources['issueCodeCounts']);
+
+        $t->same(true, $itemsByPart['Pictures/hero.png']['mediaResource']);
+        $t->same([], $itemsByPart['Pictures/hero.png']['packageRolePrecedence'] ?? []);
+        $t->same(true, $itemsByPart['Media/narration.ogg']['mediaResource']);
+        $t->same(['manifest-media-type', 'package-extension'], $itemsByPart['Media/narration.ogg']['roleSources']);
+        $t->same([], $itemsByPart['Media/narration.ogg']['packageRolePrecedence'] ?? []);
+        $t->same('package-bytes-exposable', $itemsByPart['Media/narration.ogg']['byteExposurePolicy']);
+
+        $t->same(false, $itemsByPart['Forms/Review/preview.png']['mediaResource']);
+        $t->same(['form-package'], $itemsByPart['Forms/Review/preview.png']['packageRolePrecedence']);
+        $t->same('form-package-bytes-blocked', $itemsByPart['Forms/Review/preview.png']['byteExposurePolicy']);
+        $t->same(false, $itemsByPart['Gallery/Theme/preview.png']['mediaResource']);
+        $t->same(['gallery-package'], $itemsByPart['Gallery/Theme/preview.png']['packageRolePrecedence']);
+        $t->same(false, $itemsByPart['Links/cache/preview.png']['mediaResource']);
+        $t->same(['linked-resource-package'], $itemsByPart['Links/cache/preview.png']['packageRolePrecedence']);
+        $t->same(false, $itemsByPart['Attachments/Review/preview.png']['mediaResource']);
+        $t->same(['attachment-package'], $itemsByPart['Attachments/Review/preview.png']['packageRolePrecedence']);
+        $t->same(false, $itemsByPart['Templates/Review/preview.png']['mediaResource']);
+        $t->same(['template-package'], $itemsByPart['Templates/Review/preview.png']['packageRolePrecedence']);
+        $t->same(false, $itemsByPart['Dictionaries/en_US/preview.png']['mediaResource']);
+        $t->same(['dictionary-package'], $itemsByPart['Dictionaries/en_US/preview.png']['packageRolePrecedence']);
+        $t->same('dictionary-package-bytes-blocked', $itemsByPart['Dictionaries/en_US/preview.png']['byteExposurePolicy']);
+
+        $t->same([
+            'Forms/Review/preview.png',
+            'Gallery/Theme/preview.png',
+            'Links/cache/preview.png',
+            'Attachments/Review/preview.png',
+            'Templates/Review/preview.png',
+            'Dictionaries/en_US/preview.png',
+        ], array_column($mediaResources['packageRolePrecedenceItems'], 'part'));
     },
     'preserves compact ODT raw ZIP entry name provenance in package inventory' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $decodedName = "Pictures/caf\xc3\xa9.png";
@@ -2907,6 +3019,7 @@ XML;
         $t->same('Object Chart/manifest.rdf', $summary['undeclaredPackageEntries'][0]['path']);
     },
     'blocks compact ODT script package bytes in package review summaries' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $basicLibraryXml = '<library:library xmlns:library="http://openoffice.org/2000/library" library:name="Standard"/>';
         $basicModuleXml = '<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Review">Sub Approve' . "\n" . 'End Sub</script:module>';
         $javaScript = 'function ReviewLinkClick() { return false; }';
         $scriptIcon = 'SCRIPTICON';
@@ -2914,6 +3027,8 @@ XML;
         $orphanScript = 'function orphan() { return true; }';
         $scriptEntries =
             '  <manifest:file-entry manifest:media-type="" manifest:full-path="Basic/"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Basic/Standard/script-lb.xml" manifest:size="' . strlen($basicLibraryXml) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Basic/Standard/script.xlb" manifest:size="' . strlen($basicLibraryXml) . '"/>' . "\n"
             . '  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Basic/Standard/Review.xml" manifest:size="' . strlen($basicModuleXml) . '"/>' . "\n"
             . '  <manifest:file-entry manifest:media-type="" manifest:full-path="Scripts/"/>' . "\n"
             . '  <manifest:file-entry manifest:media-type="application/javascript" manifest:full-path="Scripts/review-link.js" manifest:size="' . strlen($javaScript) . '"/>' . "\n"
@@ -2926,6 +3041,8 @@ XML;
             manifest: $manifest,
             extraParts: [
                 ['name' => 'Basic/', 'data' => '', 'compressionMethod' => 0],
+                ['name' => 'Basic/Standard/script-lb.xml', 'data' => $basicLibraryXml, 'compressionMethod' => 0],
+                ['name' => 'Basic/Standard/script.xlb', 'data' => $basicLibraryXml, 'compressionMethod' => 0],
                 ['name' => 'Basic/Standard/Review.xml', 'data' => $basicModuleXml, 'compressionMethod' => 0],
                 ['name' => 'Scripts/', 'data' => '', 'compressionMethod' => 0],
                 ['name' => 'Scripts/review-link.js', 'data' => $javaScript, 'compressionMethod' => 0],
@@ -2945,12 +3062,12 @@ XML;
         }
         $inventory = $summary['packageInventory'];
 
-        $t->same(8, $scripts['count']);
-        $t->same(6, $scripts['fileCount']);
+        $t->same(10, $scripts['count']);
+        $t->same(8, $scripts['fileCount']);
         $t->same(2, $scripts['directoryCount']);
-        $t->same(7, $scripts['storedPartCount']);
-        $t->same(4, $scripts['readableCount']);
-        $t->same(7, $scripts['declaredCount']);
+        $t->same(9, $scripts['storedPartCount']);
+        $t->same(6, $scripts['readableCount']);
+        $t->same(9, $scripts['declaredCount']);
         $t->same(1, $scripts['undeclaredCount']);
         $t->same(1, $scripts['missingCount']);
         $t->same(1, $scripts['encryptedCount']);
@@ -2961,13 +3078,15 @@ XML;
             'odf-script-undeclared-package-part',
         ], $scripts['issueCodes']);
         $t->same(['basic', 'scripts'], $scripts['scriptContainers']);
-        $t->same(['basic-module', 'javascript', 'script-directory', 'script-package-part'], $scripts['scriptKinds']);
+        $t->same(['basic-library-index', 'basic-module', 'javascript', 'script-directory', 'script-package-part'], $scripts['scriptKinds']);
         $t->same('script-package-bytes-blocked', $scripts['byteExposurePolicy']);
         $t->same('package-script-metadata-only', $scripts['reviewPolicy']);
 
-        $t->same(7, $summary['manifestReview']['scriptPackagePartCount']);
+        $t->same(9, $summary['manifestReview']['scriptPackagePartCount']);
         $t->same([
             'Basic/',
+            'Basic/Standard/script-lb.xml',
+            'Basic/Standard/script.xlb',
             'Basic/Standard/Review.xml',
             'Scripts/',
             'Scripts/review-link.js',
@@ -2975,8 +3094,10 @@ XML;
             'Scripts/missing.js',
             'Scripts/encrypted.js',
         ], array_column($summary['manifestReview']['scriptPackageItems'], 'path'));
-        $t->same(7, $inventory['scriptPackagePartCount']);
+        $t->same(9, $inventory['scriptPackagePartCount']);
         $t->same(['script-package', 'zip-directory', 'manifest-declared'], $inventory['parts']['Basic/']['roles']);
+        $t->same(['script-package', 'manifest-declared'], $inventory['parts']['Basic/Standard/script-lb.xml']['roles']);
+        $t->same(['script-package', 'manifest-declared'], $inventory['parts']['Basic/Standard/script.xlb']['roles']);
         $t->same(['script-package', 'manifest-declared'], $inventory['parts']['Basic/Standard/Review.xml']['roles']);
         $t->same(['script-package', 'manifest-declared'], $inventory['parts']['Scripts/review-link.js']['roles']);
         $t->same(['script-package', 'manifest-declared'], $inventory['parts']['Scripts/icon.png']['roles']);
@@ -2995,6 +3116,35 @@ XML;
         $t->same(0, $basicDirectory['storedByteLength']);
         $t->same('directory-entry-no-bytes', $basicDirectory['byteExposurePolicy']);
         $t->same([], $basicDirectory['issues']);
+
+        $basicLibraryIndex = $scriptByPath['Basic/Standard/script-lb.xml'];
+        $t->same('basic', $basicLibraryIndex['scriptContainer']);
+        $t->same('basic-library-index', $basicLibraryIndex['scriptKind']);
+        $t->same('Standard', $basicLibraryIndex['scriptLibrary']);
+        $t->same('script-lb', $basicLibraryIndex['scriptModule']);
+        $t->same('text/xml', $basicLibraryIndex['mediaType']);
+        $t->same(true, $basicLibraryIndex['declared']);
+        $t->same(true, $basicLibraryIndex['valid']);
+        $t->same(strlen($basicLibraryXml), $basicLibraryIndex['byteLength']);
+        $t->same(sprintf('%08x', crc32($basicLibraryXml)), $basicLibraryIndex['crc32']);
+        $t->same(false, $basicLibraryIndex['canExposeAsDocumentMedia']);
+        $t->same('script-package-bytes-blocked', $basicLibraryIndex['byteExposurePolicy']);
+        $t->same([], $basicLibraryIndex['issues']);
+
+        $basicLibraryIndexXlb = $scriptByPath['Basic/Standard/script.xlb'];
+        $t->same('basic', $basicLibraryIndexXlb['scriptContainer']);
+        $t->same('basic-library-index', $basicLibraryIndexXlb['scriptKind']);
+        $t->same('Standard', $basicLibraryIndexXlb['scriptLibrary']);
+        $t->same('script', $basicLibraryIndexXlb['scriptModule']);
+        $t->same('xlb', $basicLibraryIndexXlb['extension']);
+        $t->same('text/xml', $basicLibraryIndexXlb['mediaType']);
+        $t->same(true, $basicLibraryIndexXlb['declared']);
+        $t->same(true, $basicLibraryIndexXlb['valid']);
+        $t->same(strlen($basicLibraryXml), $basicLibraryIndexXlb['byteLength']);
+        $t->same(sprintf('%08x', crc32($basicLibraryXml)), $basicLibraryIndexXlb['crc32']);
+        $t->same(false, $basicLibraryIndexXlb['canExposeAsDocumentMedia']);
+        $t->same('script-package-bytes-blocked', $basicLibraryIndexXlb['byteExposurePolicy']);
+        $t->same([], $basicLibraryIndexXlb['issues']);
 
         $scriptsDirectory = $scriptByPath['Scripts/'];
         $t->same(true, $scriptsDirectory['isDirectory']);
@@ -3949,15 +4099,86 @@ XML;
         $t->same(1, $summary['undeclaredPackageEntryCount']);
         $t->same('metadata/orphan/manifest.rdf', $summary['undeclaredPackageEntries'][0]['path']);
     },
-    'rejects malformed ODT manifest size metadata before package exposure' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+    'preserves malformed ODT manifest size metadata for package diagnostics' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $leadingZeroSize = str_replace('manifest:size="7"', 'manifest:size="0007"', $manifestXml);
         $leadingZero = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $leadingZeroSize));
-        $t->same(7, $leadingZero->manifestEntry('Pictures/hero.png')['size']);
+        $leadingZeroEntry = $leadingZero->manifestEntry('Pictures/hero.png');
+        $t->same(7, $leadingZeroEntry['size']);
+        $t->same(7, $leadingZeroEntry['declaredSize']);
+        $t->same('0007', $leadingZeroEntry['declaredSizeRaw']);
+        $t->same(true, $leadingZeroEntry['declaredSizeValid']);
+        $t->same(false, $leadingZeroEntry['declaredSizeInvalid']);
+        $t->same(false, in_array('odf-manifest-invalid-declared-size', $leadingZeroEntry['diagnostics'], true));
 
         foreach (['7bytes', '-7', '+7', '7.0', '922337203685477580799'] as $size) {
             $manifest = str_replace('manifest:size="7"', 'manifest:size="' . $size . '"', $manifestXml);
-            $t->throws(\InvalidArgumentException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $manifest)));
+            $entry = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $manifest))->manifestEntry('Pictures/hero.png');
+            $t->same(null, $entry['size']);
+            $t->same(null, $entry['declaredSize']);
+            $t->same($size, $entry['declaredSizeRaw']);
+            $t->same(false, $entry['declaredSizeValid']);
+            $t->same(true, $entry['declaredSizeInvalid']);
+            $t->same(false, $entry['declaredSizeMismatch']);
+            $t->same(true, in_array('odf-manifest-invalid-declared-size', $entry['diagnostics'], true));
         }
+
+        $invalidManifest = str_replace('manifest:size="7"', 'manifest:size="7bytes"', $manifestXml);
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $invalidManifest))->summarize();
+        $reviewByPath = [];
+        foreach ($summary['manifestReview']['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $orderByPath = [];
+        foreach ($summary['manifestReview']['manifestFileEntryOrder'] as $item) {
+            $orderByPath[$item['path']] = $item;
+        }
+        $identityManifestByPath = [];
+        foreach ($summary['packageIdentity']['manifestEntries'] as $item) {
+            $identityManifestByPath[$item['path']] = $item;
+        }
+        $identityPackageByPath = [];
+        foreach ($summary['packageIdentity']['packageEntries'] as $item) {
+            $identityPackageByPath[$item['path']] = $item;
+        }
+
+        $media = $summary['mediaParts'][0];
+        $inventory = $summary['packageInventory']['parts']['Pictures/hero.png'];
+        $review = $reviewByPath['Pictures/hero.png'];
+        $order = $orderByPath['Pictures/hero.png'];
+        $identityManifest = $identityManifestByPath['Pictures/hero.png'];
+        $identityPackage = $identityPackageByPath['Pictures/hero.png'];
+
+        foreach ([$media, $inventory, $review, $order, $identityManifest] as $item) {
+            $t->same(null, $item['declaredSize'] ?? $item['manifestDeclaredSize'] ?? null);
+            $t->same('7bytes', $item['declaredSizeRaw'] ?? $item['manifestDeclaredSizeRaw'] ?? null);
+            $t->same(false, $item['declaredSizeValid'] ?? $item['manifestDeclaredSizeValid'] ?? null);
+            $t->same(true, $item['declaredSizeInvalid'] ?? $item['manifestDeclaredSizeInvalid'] ?? null);
+            $t->same(false, $item['declaredSizeMismatch'] ?? $item['manifestDeclaredSizeMismatch'] ?? null);
+        }
+        $t->same(null, $identityPackage['manifestDeclaredSize'] ?? null);
+        $t->same('7bytes', $identityPackage['manifestDeclaredSizeRaw']);
+        $t->same(false, $identityPackage['manifestDeclaredSizeValid']);
+        $t->same(true, $identityPackage['manifestDeclaredSizeInvalid']);
+        $t->same(false, $identityPackage['manifestDeclaredSizeMismatch']);
+        $t->same(1, $summary['manifestReview']['invalidDeclaredSizeCount']);
+        $t->same(['Pictures/hero.png'], array_column($summary['manifestReview']['invalidDeclaredSizeItems'], 'path'));
+        $t->same(0, $summary['manifestReview']['declaredSizeMismatchCount']);
+        $t->same(1, $summary['manifestReview']['diagnosticCodeCounts']['odf-manifest-invalid-declared-size']);
+        $t->same(true, in_array('odf-manifest-invalid-declared-size', $review['diagnostics'], true));
+
+        $invalidContentSize = str_replace('manifest:full-path="content.xml"/>', 'manifest:full-path="content.xml" manifest:size="7bytes"/>', $manifestXml);
+        $contentSummary = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $invalidContentSize))->summarize();
+        $versionsByPart = [];
+        foreach ($contentSummary['documentPartVersions']['items'] as $item) {
+            $versionsByPart[$item['part']] = $item;
+        }
+        $contentVersion = $versionsByPart['content.xml'];
+        $t->same(null, $contentVersion['manifestDeclaredSize']);
+        $t->same('7bytes', $contentVersion['manifestDeclaredSizeRaw']);
+        $t->same(false, $contentVersion['manifestDeclaredSizeValid']);
+        $t->same(true, $contentVersion['manifestDeclaredSizeInvalid']);
+        $t->same(false, $contentVersion['manifestDeclaredSizeMismatch']);
+        $t->same(true, in_array('odf-manifest-invalid-declared-size', $contentVersion['manifestDiagnostics'], true));
     },
     'maps ODT content headings paragraphs links spaces breaks and images into the shared AST' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $document = OpenDocumentPackage::fromPackage($buildOdtPackage())->readContentDocument();
@@ -4082,6 +4303,11 @@ XML;
     <dc:title>Statistic Packet</dc:title>
     <meta:editing-duration>PT1H2M3S</meta:editing-duration>
     <meta:editing-cycles>7</meta:editing-cycles>
+    <meta:modification-date>2026-06-08T19:55:00Z</meta:modification-date>
+    <meta:modification-time>PT19H55M00S</meta:modification-time>
+    <meta:printed-by>Migration Printer</meta:printed-by>
+    <meta:print-date>2026-06-08</meta:print-date>
+    <meta:print-time>PT12H34M56S</meta:print-time>
     <meta:document-statistic
       meta:page-count="12"
       meta:word-count="128"
@@ -4100,13 +4326,24 @@ XML;
         $t->same('Statistic Packet', $metadata['title']);
         $t->same('PT1H2M3S', $metadata['editingDuration']);
         $t->same('7', $metadata['editingCycles']);
+        $t->same('2026-06-08T19:55:00Z', $metadata['modificationDate']);
+        $t->same('PT19H55M00S', $metadata['modificationTime']);
+        $t->same('Migration Printer', $metadata['printedBy']);
+        $t->same('2026-06-08', $metadata['printDate']);
+        $t->same('PT12H34M56S', $metadata['printTime']);
         $t->same(12, $metadata['statistics']['pageCount']);
         $t->same(128, $metadata['statistics']['wordCount']);
         $t->same(9, $metadata['statistics']['paragraphCount']);
         $t->same(600, $metadata['statistics']['nonWhitespaceCharacterCount']);
         $t->same(210, $metadata['statistics']['syllableCount']);
         $t->same(1, $metadata['statistics']['imageCount']);
+        $t->same($metadata['modificationDate'], $summary['metadata']['modificationDate']);
+        $t->same($metadata['modificationTime'], $summary['metadata']['modificationTime']);
+        $t->same($metadata['printedBy'], $summary['metadata']['printedBy']);
+        $t->same($metadata['printDate'], $summary['metadata']['printDate']);
+        $t->same($metadata['printTime'], $summary['metadata']['printTime']);
         $t->same($metadata['statistics'], $summary['metadata']['statistics']);
+        $t->same($metadata['modificationDate'], $odt->readContentDocument()->attr('metadata')['modificationDate']);
     },
     'maps compact ODT settings XML config items into package summary metadata' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $settingsXml = <<<'XML'
@@ -4393,6 +4630,120 @@ XML;
         $t->same('0001', $identityTextAttribute['internalFileAttributesHex']);
         $t->same(['apparently-text'], $identityTextAttribute['internalAttributeNames']);
         $t->same(['internal-text-attribute'], $identityTextAttribute['platformAttributeIssues']);
+    },
+    'summarizes compact ODT XML document part versions for package review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifestWithSettings = str_replace(
+            '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml"/>',
+            '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml?rev=7"/>',
+            $manifestXml
+        );
+        $manifestWithSettings = str_replace(
+            '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="meta.xml"/>',
+            '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="meta.xml"/>'
+            . '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="settings.xml"/>',
+            $manifestWithSettings
+        );
+        $contentWithVersion = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  office:version="1.3">
+  <office:body><office:text><text:p>Versioned compact packet.</text:p></office:text></office:body>
+</office:document-content>
+XML;
+        $stylesWithVersionMismatch = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:wp="urn:wordpress:review"
+  office:version="1.2"
+  wp:origin="style-review">
+  <office:styles>
+    <style:style style:name="BodyText" style:family="paragraph"/>
+  </office:styles>
+</office:document-styles>
+XML;
+        $metaWithoutVersion = <<<'XML'
+<office:document-meta
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0">
+  <office:meta/>
+</office:document-meta>
+XML;
+        $settingsWithVersionMismatch = <<<'XML'
+<office:document-settings
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  office:version="1.4">
+  <office:settings/>
+</office:document-settings>
+XML;
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifestWithSettings,
+            content: $contentWithVersion,
+            styles: $stylesWithVersionMismatch,
+            meta: $metaWithoutVersion,
+            extraParts: [['name' => 'settings.xml', 'data' => $settingsWithVersionMismatch, 'compressionMethod' => 0]]
+        ))->summarize();
+        $report = $summary['documentPartVersions'];
+        $versionsByPart = [];
+        foreach ($report['items'] as $item) {
+            $versionsByPart[$item['part']] = $item;
+        }
+
+        $t->same('1.3', $report['manifestVersion']);
+        $t->same(4, $report['count']);
+        $t->same(3, $report['versionedCount']);
+        $t->same(1, $report['missingVersionCount']);
+        $t->same(['meta.xml'], $report['missingVersionParts']);
+        $t->same(2, $report['versionMismatchCount']);
+        $t->same([
+            ['part' => 'styles.xml', 'officeVersion' => '1.2', 'manifestVersion' => '1.3'],
+            ['part' => 'settings.xml', 'officeVersion' => '1.4', 'manifestVersion' => '1.3'],
+        ], $report['versionMismatches']);
+        $t->same(['1.2' => 1, '1.3' => 1, '1.4' => 1], $report['versionCounts']);
+        $t->same(['package-bytes-exposable' => 4], $report['byteExposurePolicyCounts']);
+
+        $t->same(1, $report['manifestPartReferenceSuffixCount']);
+        $t->same(1, $report['manifestPartReferenceQueryCount']);
+        $t->same(0, $report['manifestPartReferenceFragmentCount']);
+        $t->same(0, $report['manifestUriEncodedPackageReferenceCount']);
+        $t->same('content.xml?rev=7', $report['manifestPartReferenceSuffixItems'][0]['manifestFullPath']);
+        $t->same('content.xml', $report['manifestPartReferenceSuffixItems'][0]['manifestPathReference']);
+        $t->same('rev=7', $report['manifestPartReferenceSuffixItems'][0]['manifestPathQuery']);
+
+        $content = $versionsByPart['content.xml'];
+        $t->same('document-content', $content['rootName']);
+        $t->same(true, $content['validRoot']);
+        $t->same('1.3', $content['officeVersion']);
+        $t->same('content.xml?rev=7', $content['manifestFullPath']);
+        $t->same('content.xml', $content['manifestPackagePath']);
+        $t->same('rev=7', $content['manifestPathQuery']);
+        $t->same(['office:version'], $content['rootAttributeNames']);
+        $t->same(0, $content['rootCustomAttributeCount']);
+        $t->same([], $content['diagnostics']);
+
+        $styles = $versionsByPart['styles.xml'];
+        $t->same('1.2', $styles['officeVersion']);
+        $t->same(['office:version', 'wp:origin'], $styles['rootAttributeNames']);
+        $t->same(1, $styles['rootCustomAttributeCount']);
+        $t->same(['wp:origin'], $styles['rootCustomAttributeNames']);
+        $t->same('style-review', $styles['rootCustomAttributeMap']['wp:origin']);
+        $t->same(['odf-xml-part-version-mismatch'], $styles['diagnostics']);
+
+        $t->same(1, $report['rootCustomAttributePartCount']);
+        $t->same(1, $report['rootCustomAttributeCount']);
+        $t->same(['wp:origin'], $report['rootCustomAttributeNames']);
+        $t->same('styles.xml', $report['rootCustomAttributeItems'][0]['part']);
+
+        $meta = $versionsByPart['meta.xml'];
+        $t->same(null, $meta['officeVersion']);
+        $t->same(['odf-xml-part-missing-office-version'], $meta['diagnostics']);
+
+        $settings = $versionsByPart['settings.xml'];
+        $t->same('1.4', $settings['officeVersion']);
+        $t->same('settings.xml', $settings['manifestFullPath']);
+        $t->same(sprintf('%08x', crc32($settingsWithVersionMismatch)), $settings['crc32']);
+        $t->same(['odf-xml-part-version-mismatch'], $settings['diagnostics']);
     },
     'renders mapped ODT content through the WordPress block writer' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $document = OpenDocumentPackage::fromPackage($buildOdtPackage())->readContentDocument();
