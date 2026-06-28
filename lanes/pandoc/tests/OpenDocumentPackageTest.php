@@ -4073,15 +4073,86 @@ XML;
         $t->same(1, $summary['undeclaredPackageEntryCount']);
         $t->same('metadata/orphan/manifest.rdf', $summary['undeclaredPackageEntries'][0]['path']);
     },
-    'rejects malformed ODT manifest size metadata before package exposure' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+    'preserves malformed ODT manifest size metadata for package diagnostics' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $leadingZeroSize = str_replace('manifest:size="7"', 'manifest:size="0007"', $manifestXml);
         $leadingZero = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $leadingZeroSize));
-        $t->same(7, $leadingZero->manifestEntry('Pictures/hero.png')['size']);
+        $leadingZeroEntry = $leadingZero->manifestEntry('Pictures/hero.png');
+        $t->same(7, $leadingZeroEntry['size']);
+        $t->same(7, $leadingZeroEntry['declaredSize']);
+        $t->same('0007', $leadingZeroEntry['declaredSizeRaw']);
+        $t->same(true, $leadingZeroEntry['declaredSizeValid']);
+        $t->same(false, $leadingZeroEntry['declaredSizeInvalid']);
+        $t->same(false, in_array('odf-manifest-invalid-declared-size', $leadingZeroEntry['diagnostics'], true));
 
         foreach (['7bytes', '-7', '+7', '7.0', '922337203685477580799'] as $size) {
             $manifest = str_replace('manifest:size="7"', 'manifest:size="' . $size . '"', $manifestXml);
-            $t->throws(\InvalidArgumentException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $manifest)));
+            $entry = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $manifest))->manifestEntry('Pictures/hero.png');
+            $t->same(null, $entry['size']);
+            $t->same(null, $entry['declaredSize']);
+            $t->same($size, $entry['declaredSizeRaw']);
+            $t->same(false, $entry['declaredSizeValid']);
+            $t->same(true, $entry['declaredSizeInvalid']);
+            $t->same(false, $entry['declaredSizeMismatch']);
+            $t->same(true, in_array('odf-manifest-invalid-declared-size', $entry['diagnostics'], true));
         }
+
+        $invalidManifest = str_replace('manifest:size="7"', 'manifest:size="7bytes"', $manifestXml);
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $invalidManifest))->summarize();
+        $reviewByPath = [];
+        foreach ($summary['manifestReview']['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $orderByPath = [];
+        foreach ($summary['manifestReview']['manifestFileEntryOrder'] as $item) {
+            $orderByPath[$item['path']] = $item;
+        }
+        $identityManifestByPath = [];
+        foreach ($summary['packageIdentity']['manifestEntries'] as $item) {
+            $identityManifestByPath[$item['path']] = $item;
+        }
+        $identityPackageByPath = [];
+        foreach ($summary['packageIdentity']['packageEntries'] as $item) {
+            $identityPackageByPath[$item['path']] = $item;
+        }
+
+        $media = $summary['mediaParts'][0];
+        $inventory = $summary['packageInventory']['parts']['Pictures/hero.png'];
+        $review = $reviewByPath['Pictures/hero.png'];
+        $order = $orderByPath['Pictures/hero.png'];
+        $identityManifest = $identityManifestByPath['Pictures/hero.png'];
+        $identityPackage = $identityPackageByPath['Pictures/hero.png'];
+
+        foreach ([$media, $inventory, $review, $order, $identityManifest] as $item) {
+            $t->same(null, $item['declaredSize'] ?? $item['manifestDeclaredSize'] ?? null);
+            $t->same('7bytes', $item['declaredSizeRaw'] ?? $item['manifestDeclaredSizeRaw'] ?? null);
+            $t->same(false, $item['declaredSizeValid'] ?? $item['manifestDeclaredSizeValid'] ?? null);
+            $t->same(true, $item['declaredSizeInvalid'] ?? $item['manifestDeclaredSizeInvalid'] ?? null);
+            $t->same(false, $item['declaredSizeMismatch'] ?? $item['manifestDeclaredSizeMismatch'] ?? null);
+        }
+        $t->same(null, $identityPackage['manifestDeclaredSize'] ?? null);
+        $t->same('7bytes', $identityPackage['manifestDeclaredSizeRaw']);
+        $t->same(false, $identityPackage['manifestDeclaredSizeValid']);
+        $t->same(true, $identityPackage['manifestDeclaredSizeInvalid']);
+        $t->same(false, $identityPackage['manifestDeclaredSizeMismatch']);
+        $t->same(1, $summary['manifestReview']['invalidDeclaredSizeCount']);
+        $t->same(['Pictures/hero.png'], array_column($summary['manifestReview']['invalidDeclaredSizeItems'], 'path'));
+        $t->same(0, $summary['manifestReview']['declaredSizeMismatchCount']);
+        $t->same(1, $summary['manifestReview']['diagnosticCodeCounts']['odf-manifest-invalid-declared-size']);
+        $t->same(true, in_array('odf-manifest-invalid-declared-size', $review['diagnostics'], true));
+
+        $invalidContentSize = str_replace('manifest:full-path="content.xml"/>', 'manifest:full-path="content.xml" manifest:size="7bytes"/>', $manifestXml);
+        $contentSummary = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $invalidContentSize))->summarize();
+        $versionsByPart = [];
+        foreach ($contentSummary['documentPartVersions']['items'] as $item) {
+            $versionsByPart[$item['part']] = $item;
+        }
+        $contentVersion = $versionsByPart['content.xml'];
+        $t->same(null, $contentVersion['manifestDeclaredSize']);
+        $t->same('7bytes', $contentVersion['manifestDeclaredSizeRaw']);
+        $t->same(false, $contentVersion['manifestDeclaredSizeValid']);
+        $t->same(true, $contentVersion['manifestDeclaredSizeInvalid']);
+        $t->same(false, $contentVersion['manifestDeclaredSizeMismatch']);
+        $t->same(true, in_array('odf-manifest-invalid-declared-size', $contentVersion['manifestDiagnostics'], true));
     },
     'maps ODT content headings paragraphs links spaces breaks and images into the shared AST' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $document = OpenDocumentPackage::fromPackage($buildOdtPackage())->readContentDocument();
