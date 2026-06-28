@@ -14466,6 +14466,10 @@ final class DocxOpenXmlReader
             'partXmlElementAttributeLineBreakValueCount' => $partXmlRoots['xmlElementAttributeLineBreakValueCount'],
             'partXmlElementAttributeLineBreakValueAttributeCount' => $partXmlRoots['xmlElementAttributeLineBreakValueAttributeCount'],
             'partXmlElementAttributeTokenValueCount' => $partXmlRoots['xmlElementAttributeTokenValueCount'],
+            'partXmlElementAttributeAsciiWhitespaceValueCount' => $partXmlRoots['xmlElementAttributeAsciiWhitespaceValueCount'],
+            'partXmlElementAttributeAbsoluteUriValueCount' => $partXmlRoots['xmlElementAttributeAbsoluteUriValueCount'],
+            'partXmlElementAttributeFragmentReferenceValueCount' => $partXmlRoots['xmlElementAttributeFragmentReferenceValueCount'],
+            'partXmlElementAttributePathReferenceValueCount' => $partXmlRoots['xmlElementAttributePathReferenceValueCount'],
             'partXmlElementAttributePartNames' => $partXmlRoots['xmlElementAttributePartNames'],
             'partXmlInvalidPartNames' => $partXmlRoots['invalidPartNames'],
             'partXmlDeclarationCount' => $partXmlRoots['xmlDeclarationCount'],
@@ -20698,6 +20702,10 @@ final class DocxOpenXmlReader
         $xmlElementAttributeLineBreakValueCount = 0;
         $xmlElementAttributeLineBreakValueAttributeCount = 0;
         $xmlElementAttributeTokenValueCount = 0;
+        $xmlElementAttributeAsciiWhitespaceValueCount = 0;
+        $xmlElementAttributeAbsoluteUriValueCount = 0;
+        $xmlElementAttributeFragmentReferenceValueCount = 0;
+        $xmlElementAttributePathReferenceValueCount = 0;
 
         foreach ($partInventory as $partName => $part) {
             if (($part['xmlInspectable'] ?? false) !== true) {
@@ -22523,6 +22531,10 @@ final class DocxOpenXmlReader
                     ($xmlElementAttributeValueLengthBucketCounts[$bucket] ?? 0) + (int) $count;
                 $this->appendUniqueString($xmlElementAttributeValueLengthBuckets, $bucket);
             }
+            $xmlElementAttributeAsciiWhitespaceValueCount += (int) ($part['xmlElementAttributeAsciiWhitespaceValueCount'] ?? 0);
+            $xmlElementAttributeAbsoluteUriValueCount += (int) ($part['xmlElementAttributeAbsoluteUriValueCount'] ?? 0);
+            $xmlElementAttributeFragmentReferenceValueCount += (int) ($part['xmlElementAttributeFragmentReferenceValueCount'] ?? 0);
+            $xmlElementAttributePathReferenceValueCount += (int) ($part['xmlElementAttributePathReferenceValueCount'] ?? 0);
             foreach (($part['xmlElementAttributes'] ?? []) as $attribute) {
                 if (!is_array($attribute)) {
                     continue;
@@ -22575,6 +22587,10 @@ final class DocxOpenXmlReader
                     'valueContainsWhitespace' => (bool) ($attribute['valueContainsWhitespace'] ?? false),
                     'valueHasLeadingWhitespace' => (bool) ($attribute['valueHasLeadingWhitespace'] ?? false),
                     'valueHasTrailingWhitespace' => (bool) ($attribute['valueHasTrailingWhitespace'] ?? false),
+                    'valueHasAsciiWhitespace' => (bool) ($attribute['valueHasAsciiWhitespace'] ?? false),
+                    'valueLooksAbsoluteUri' => (bool) ($attribute['valueLooksAbsoluteUri'] ?? false),
+                    'valueLooksFragmentReference' => (bool) ($attribute['valueLooksFragmentReference'] ?? false),
+                    'valueLooksPathReference' => (bool) ($attribute['valueLooksPathReference'] ?? false),
                     'valueCrc32' => is_string($attribute['valueCrc32'] ?? null) ? $attribute['valueCrc32'] : null,
                     'valueSha256' => is_string($attribute['valueSha256'] ?? null) ? $attribute['valueSha256'] : null,
                 ];
@@ -23109,6 +23125,10 @@ final class DocxOpenXmlReader
                     ? $part['xmlElementAttributeValueLengthBucketCounts']
                     : [],
                 'xmlElementAttributeValueLengthBuckets' => array_values(array_map('strval', $part['xmlElementAttributeValueLengthBuckets'] ?? [])),
+                'xmlElementAttributeAsciiWhitespaceValueCount' => (int) ($part['xmlElementAttributeAsciiWhitespaceValueCount'] ?? 0),
+                'xmlElementAttributeAbsoluteUriValueCount' => (int) ($part['xmlElementAttributeAbsoluteUriValueCount'] ?? 0),
+                'xmlElementAttributeFragmentReferenceValueCount' => (int) ($part['xmlElementAttributeFragmentReferenceValueCount'] ?? 0),
+                'xmlElementAttributePathReferenceValueCount' => (int) ($part['xmlElementAttributePathReferenceValueCount'] ?? 0),
                 'xmlElementAttributes' => is_array($part['xmlElementAttributes'] ?? null)
                     ? $part['xmlElementAttributes']
                     : [],
@@ -23742,6 +23762,10 @@ final class DocxOpenXmlReader
             'xmlElementAttributeLineBreakValueCount' => $xmlElementAttributeLineBreakValueCount,
             'xmlElementAttributeLineBreakValueAttributeCount' => $xmlElementAttributeLineBreakValueAttributeCount,
             'xmlElementAttributeTokenValueCount' => $xmlElementAttributeTokenValueCount,
+            'xmlElementAttributeAsciiWhitespaceValueCount' => $xmlElementAttributeAsciiWhitespaceValueCount,
+            'xmlElementAttributeAbsoluteUriValueCount' => $xmlElementAttributeAbsoluteUriValueCount,
+            'xmlElementAttributeFragmentReferenceValueCount' => $xmlElementAttributeFragmentReferenceValueCount,
+            'xmlElementAttributePathReferenceValueCount' => $xmlElementAttributePathReferenceValueCount,
             'xmlElementAttributePartNames' => $xmlElementAttributePartNames,
             'xmlElementAttributes' => $xmlElementAttributes,
             'items' => $items,
@@ -28175,6 +28199,10 @@ final class DocxOpenXmlReader
             'lineBreakValueCount' => 0,
             'lineBreakValueAttributeCount' => 0,
             'tokenValueCount' => 0,
+            'asciiWhitespaceValueCount' => 0,
+            'absoluteUriValueCount' => 0,
+            'fragmentReferenceValueCount' => 0,
+            'pathReferenceValueCount' => 0,
             'nameCounts' => [],
             'names' => [],
             'namespaceCounts' => [],
@@ -28221,6 +28249,10 @@ final class DocxOpenXmlReader
         $lineBreakValueCount = 0;
         $lineBreakValueAttributeCount = 0;
         $tokenValueCount = 0;
+        $asciiWhitespaceValueCount = 0;
+        $absoluteUriValueCount = 0;
+        $fragmentReferenceValueCount = 0;
+        $pathReferenceValueCount = 0;
         $ordinal = 0;
         $walk = function (\DOMElement $element) use (
             &$walk,
@@ -28249,6 +28281,10 @@ final class DocxOpenXmlReader
             &$lineBreakValueCount,
             &$lineBreakValueAttributeCount,
             &$tokenValueCount,
+            &$asciiWhitespaceValueCount,
+            &$absoluteUriValueCount,
+            &$fragmentReferenceValueCount,
+            &$pathReferenceValueCount,
             &$ordinal,
         ): void {
             $elementPath = $this->xmlProvenanceParentPath($element);
@@ -28293,6 +28329,10 @@ final class DocxOpenXmlReader
                 $valueTrailingWhitespaceByteLength = strlen($valueTrailingWhitespace);
                 $valueShape = $this->xmlAttributeValueShape($value, $attribute);
                 $valueShapeName = $valueShape['shape'];
+                $valueHasAsciiWhitespace = preg_match('/[\x20\x09\x0D\x0A]/', $value) === 1;
+                $valueLooksAbsoluteUri = $valueShapeName === 'absolute-uri';
+                $valueLooksFragmentReference = $valueShapeName === 'fragment-reference';
+                $valueLooksPathReference = in_array($valueShapeName, ['network-path-reference', 'relative-reference'], true);
 
                 $valueByteLength += $attributeValueByteLength;
                 if ($isValueEmpty) {
@@ -28315,6 +28355,18 @@ final class DocxOpenXmlReader
                     $lineBreakValueCount += $attributeLineBreakCount;
                 }
                 $tokenValueCount += $attributeTokenCount;
+                if ($valueHasAsciiWhitespace) {
+                    ++$asciiWhitespaceValueCount;
+                }
+                if ($valueLooksAbsoluteUri) {
+                    ++$absoluteUriValueCount;
+                }
+                if ($valueLooksFragmentReference) {
+                    ++$fragmentReferenceValueCount;
+                }
+                if ($valueLooksPathReference) {
+                    ++$pathReferenceValueCount;
+                }
                 $nameCounts[$name] = ($nameCounts[$name] ?? 0) + 1;
                 $this->appendUniqueString($names, $name);
                 $namespaceCounts[$namespaceKey] = ($namespaceCounts[$namespaceKey] ?? 0) + 1;
@@ -28360,6 +28412,10 @@ final class DocxOpenXmlReader
                     'valueContainsWhitespace' => $valueShape['containsWhitespace'],
                     'valueHasLeadingWhitespace' => $valueShape['hasLeadingWhitespace'],
                     'valueHasTrailingWhitespace' => $valueShape['hasTrailingWhitespace'],
+                    'valueHasAsciiWhitespace' => $valueHasAsciiWhitespace,
+                    'valueLooksAbsoluteUri' => $valueLooksAbsoluteUri,
+                    'valueLooksFragmentReference' => $valueLooksFragmentReference,
+                    'valueLooksPathReference' => $valueLooksPathReference,
                     'valueCrc32' => $value === '' ? null : sprintf('%08x', crc32($value)),
                     'valueSha256' => $value === '' ? null : hash('sha256', $value),
                 ];
@@ -28400,6 +28456,10 @@ final class DocxOpenXmlReader
             'lineBreakValueCount' => $lineBreakValueCount,
             'lineBreakValueAttributeCount' => $lineBreakValueAttributeCount,
             'tokenValueCount' => $tokenValueCount,
+            'asciiWhitespaceValueCount' => $asciiWhitespaceValueCount,
+            'absoluteUriValueCount' => $absoluteUriValueCount,
+            'fragmentReferenceValueCount' => $fragmentReferenceValueCount,
+            'pathReferenceValueCount' => $pathReferenceValueCount,
             'nameCounts' => $nameCounts,
             'names' => $names,
             'namespaceCounts' => $namespaceCounts,
@@ -28447,6 +28507,8 @@ final class DocxOpenXmlReader
             $shape = 'absolute-uri';
         } elseif (str_starts_with($trimmed, '//')) {
             $shape = 'network-path-reference';
+        } elseif (str_starts_with($trimmed, '#')) {
+            $shape = 'fragment-reference';
         } elseif ($tokenCount > 1) {
             $shape = 'token-list';
         } elseif (str_contains($trimmed, '/') || str_contains($trimmed, '\\')) {
@@ -30635,6 +30697,10 @@ final class DocxOpenXmlReader
                 'xmlElementAttributeValueShapes' => [],
                 'xmlElementAttributeValueLengthBucketCounts' => [],
                 'xmlElementAttributeValueLengthBuckets' => [],
+                'xmlElementAttributeAsciiWhitespaceValueCount' => 0,
+                'xmlElementAttributeAbsoluteUriValueCount' => 0,
+                'xmlElementAttributeFragmentReferenceValueCount' => 0,
+                'xmlElementAttributePathReferenceValueCount' => 0,
                 'xmlElementAttributes' => [],
             ];
         }
@@ -30944,6 +31010,10 @@ final class DocxOpenXmlReader
             'xmlElementAttributeValueShapes' => $elementAttributes['valueShapes'],
             'xmlElementAttributeValueLengthBucketCounts' => $elementAttributes['valueLengthBucketCounts'],
             'xmlElementAttributeValueLengthBuckets' => $elementAttributes['valueLengthBuckets'],
+            'xmlElementAttributeAsciiWhitespaceValueCount' => $elementAttributes['asciiWhitespaceValueCount'],
+            'xmlElementAttributeAbsoluteUriValueCount' => $elementAttributes['absoluteUriValueCount'],
+            'xmlElementAttributeFragmentReferenceValueCount' => $elementAttributes['fragmentReferenceValueCount'],
+            'xmlElementAttributePathReferenceValueCount' => $elementAttributes['pathReferenceValueCount'],
             'xmlElementAttributes' => $elementAttributes['items'],
         ];
     }

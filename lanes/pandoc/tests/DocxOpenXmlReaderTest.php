@@ -18759,12 +18759,13 @@ XML;
         $tokenList = 'shape-hidden-alpha shape-hidden-beta';
         $absoluteUri = 'https://example.test/review-source.xml?packet=1#root';
         $relativeTarget = 'media/review-shape.png';
+        $fragment = '#fragment-hidden';
         $qname = 'w:body';
         $decimal = '12.50';
         $padded = ' padded-hidden-gamma ';
         $parts['customXml/attribute-value-shapes.xml'] = <<<XML
 <?xml version="1.0" encoding="UTF-8"?>
-<review:packet xmlns:review="urn:attribute-value-shapes" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xml:lang="en" review:empty="" review:tokens="{$tokenList}" review:uri="{$absoluteUri}" review:qname="{$qname}" review:decimal="{$decimal}" review:padded="{$padded}">
+<review:packet xmlns:review="urn:attribute-value-shapes" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xml:lang="en" review:empty="" review:tokens="{$tokenList}" review:uri="{$absoluteUri}" review:fragment="{$fragment}" review:qname="{$qname}" review:decimal="{$decimal}" review:padded="{$padded}">
   <review:item r:id="{$relationshipId}" count="42" flag="true" relative="{$relativeTarget}"/>
 </review:packet>
 XML;
@@ -18783,13 +18784,14 @@ XML;
         }
 
         $t->same(true, $part['xmlInspectable']);
-        $t->same(11, $part['xmlElementAttributeCount']);
+        $t->same(12, $part['xmlElementAttributeCount']);
         $t->same(
             [
                 'absolute-uri' => 1,
                 'boolean' => 1,
                 'decimal' => 1,
                 'empty' => 1,
+                'fragment-reference' => 1,
                 'integer' => 1,
                 'qname' => 1,
                 'relationship-id' => 1,
@@ -18800,15 +18802,23 @@ XML;
             $part['xmlElementAttributeValueShapeCounts']
         );
         $t->same(
-            ['absolute-uri', 'boolean', 'decimal', 'empty', 'integer', 'qname', 'relationship-id', 'relative-reference', 'token', 'token-list'],
+            ['absolute-uri', 'boolean', 'decimal', 'empty', 'fragment-reference', 'integer', 'qname', 'relationship-id', 'relative-reference', 'token', 'token-list'],
             $part['xmlElementAttributeValueShapes']
         );
+        $t->same(2, $part['xmlElementAttributeAsciiWhitespaceValueCount']);
+        $t->same(1, $part['xmlElementAttributeAbsoluteUriValueCount']);
+        $t->same(1, $part['xmlElementAttributeFragmentReferenceValueCount']);
+        $t->same(1, $part['xmlElementAttributePathReferenceValueCount']);
         $t->same('relationship-id', $attributesByName['r:id']['valueShape']);
         $t->same('integer', $attributesByName['count']['valueShape']);
         $t->same('boolean', $attributesByName['flag']['valueShape']);
         $t->same('absolute-uri', $attributesByName['review:uri']['valueShape']);
+        $t->same(true, $attributesByName['review:uri']['valueLooksAbsoluteUri']);
+        $t->same('fragment-reference', $attributesByName['review:fragment']['valueShape']);
+        $t->same(true, $attributesByName['review:fragment']['valueLooksFragmentReference']);
         $t->same('qname', $attributesByName['review:qname']['valueShape']);
         $t->same('relative-reference', $attributesByName['relative']['valueShape']);
+        $t->same(true, $attributesByName['relative']['valueLooksPathReference']);
         $t->same('token-list', $attributesByName['review:tokens']['valueShape']);
         $t->same(2, $attributesByName['review:tokens']['valueTokenCount']);
         $t->same('empty', $attributesByName['review:empty']['valueShape']);
@@ -18817,11 +18827,17 @@ XML;
         $t->same(true, $attributesByName['review:padded']['valueContainsWhitespace']);
         $t->same(true, $attributesByName['review:padded']['valueHasLeadingWhitespace']);
         $t->same(true, $attributesByName['review:padded']['valueHasTrailingWhitespace']);
+        $t->same(true, $attributesByName['review:padded']['valueHasAsciiWhitespace']);
 
         $t->true($summary['partXmlElementAttributeValueShapeCounts']['relationship-id'] >= 1, 'summary should include relationship-id attribute values');
         $t->true($summary['partXmlElementAttributeValueShapeCounts']['absolute-uri'] >= 1, 'summary should include URI-shaped attribute values');
+        $t->true($summary['partXmlElementAttributeValueShapeCounts']['fragment-reference'] >= 1, 'summary should include fragment-reference attribute values');
         $t->true($summary['partXmlElementAttributeValueShapeCounts']['token-list'] >= 1, 'summary should include token-list attribute values');
         $t->true(in_array('relationship-id', $summary['partXmlElementAttributeValueShapes'], true), 'summary should carry attribute value shape names');
+        $t->true($summary['partXmlElementAttributeAsciiWhitespaceValueCount'] >= 2, 'summary should include ASCII-whitespace attribute values');
+        $t->true($summary['partXmlElementAttributeAbsoluteUriValueCount'] >= 1, 'summary should include absolute URI attribute values');
+        $t->true($summary['partXmlElementAttributeFragmentReferenceValueCount'] >= 1, 'summary should include fragment-reference attribute values');
+        $t->true($summary['partXmlElementAttributePathReferenceValueCount'] >= 1, 'summary should include path-reference attribute values');
 
         $encodedAttributes = json_encode([$part['xmlElementAttributes'], $attributes]);
         $t->true(is_string($encodedAttributes), 'XML attribute value-shape metadata should encode for review');
