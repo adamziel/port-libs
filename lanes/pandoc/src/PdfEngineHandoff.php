@@ -12143,11 +12143,9 @@ final class PdfEngineHandoff
         if ($trimmed[0] === '{' || $trimmed[0] === '[') {
             $decoded = json_decode($trimmed, true);
             if (is_array($decoded)) {
-                if (array_is_list($decoded)) {
-                    return $decoded;
-                }
+                $this->collectJsonDiagnosticRecords($decoded, $records);
 
-                return [$decoded];
+                return $records;
             }
         }
 
@@ -12167,17 +12165,41 @@ final class PdfEngineHandoff
                 continue;
             }
 
-            if (array_is_list($decoded)) {
-                foreach ($decoded as $item) {
-                    $records[] = $item;
-                }
-                continue;
-            }
-
-            $records[] = $decoded;
+            $this->collectJsonDiagnosticRecords($decoded, $records);
         }
 
         return $records;
+    }
+
+    /**
+     * @param list<mixed> $records
+     */
+    private function collectJsonDiagnosticRecords(mixed $decoded, array &$records): void
+    {
+        if (!is_array($decoded)) {
+            return;
+        }
+
+        if (array_is_list($decoded)) {
+            foreach ($decoded as $item) {
+                $this->collectJsonDiagnosticRecords($item, $records);
+            }
+
+            return;
+        }
+
+        foreach (['severity', 'level', 'kind'] as $key) {
+            if (is_string($decoded[$key] ?? null) && $decoded[$key] !== '') {
+                $records[] = $decoded;
+                break;
+            }
+        }
+
+        foreach (['diagnostics', 'messages', 'records'] as $key) {
+            if (is_array($decoded[$key] ?? null)) {
+                $this->collectJsonDiagnosticRecords($decoded[$key], $records);
+            }
+        }
     }
 
     /**

@@ -8431,6 +8431,114 @@ return [
         $t->same($expected, $sequence['finalTypstWarningProvenance']);
     },
 
+    'fake runner preserves typst json warning envelope provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'sourcePath' => 'project/main.typ',
+            'outputPath' => 'build/json-warning-envelope.pdf',
+            'source' => '= Typst JSON Warning Envelope Packet',
+            'engineOptions' => ['--root=project', '--diagnostic-format=json'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst JSON warning envelope packet\n%%EOF\n";
+        $stderr = json_encode([
+            'diagnostics' => [
+                [
+                    'severity' => 'warning',
+                    'message' => 'font substituted from envelope',
+                    'span' => [
+                        'path' => 'project/main.typ',
+                        'start' => ['line' => 4, 'column' => 6],
+                        'end' => ['line' => 4, 'column' => 20],
+                    ],
+                    'hints' => ['install the review font before compile'],
+                ],
+            ],
+            'messages' => [
+                [
+                    'level' => 'warning',
+                    'message' => 'shared theme crosses review root',
+                    'location' => [
+                        'source' => ['path' => 'shared/theme.typ'],
+                        'start' => ['line' => 2, 'column' => 1],
+                    ],
+                    'help' => 'vendor shared theme under project/',
+                ],
+            ],
+            'records' => [
+                [
+                    'kind' => 'warning',
+                    'text' => 'warning without span from envelope',
+                    'notes' => [['message' => 'emit source spans in machine-readable diagnostics']],
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR);
+        $expected = [
+            [
+                'message' => 'font substituted from envelope',
+                'sourceFile' => 'project/main.typ',
+                'line' => 4,
+                'column' => 6,
+                'endLine' => 4,
+                'endColumn' => 20,
+                'hints' => ['install the review font before compile'],
+                'root' => 'project',
+                'insideRoot' => true,
+                'boundaryStatus' => 'inside-root',
+                'issues' => [],
+            ],
+            [
+                'message' => 'shared theme crosses review root',
+                'sourceFile' => 'shared/theme.typ',
+                'line' => 2,
+                'column' => 1,
+                'endLine' => null,
+                'endColumn' => null,
+                'hints' => ['vendor shared theme under project/'],
+                'root' => 'project',
+                'insideRoot' => false,
+                'boundaryStatus' => 'outside-root',
+                'issues' => ['warning-source-outside-root'],
+            ],
+            [
+                'message' => 'warning without span from envelope',
+                'sourceFile' => null,
+                'line' => null,
+                'column' => null,
+                'endLine' => null,
+                'endColumn' => null,
+                'hints' => ['emit source spans in machine-readable diagnostics'],
+                'root' => 'project',
+                'insideRoot' => null,
+                'boundaryStatus' => 'unknown-source',
+                'issues' => ['warning-source-missing'],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'stderr' => $stderr,
+            'files' => [
+                'build/json-warning-envelope.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'stderr' => $stderr,
+            'files' => [
+                'build/json-warning-envelope.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstWarningProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstWarningProvenance']);
+        $t->contains('typst-warning-provenance:3', implode(',', $result['diagnostics']));
+        $t->contains('typst-warning-source-outside-root:shared/theme.typ', implode(',', $result['diagnostics']));
+        $t->contains('typst-warning-source-issues:2', implode(',', $result['diagnostics']));
+        $t->contains('typst-warning-source-issues:2', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->same($expected, $sequence['finalTypstWarningProvenance']);
+    },
+
     'fake runner maps typst runtime warning provenance into boundary matrix without static options' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
