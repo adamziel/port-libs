@@ -2747,6 +2747,8 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\underoverset{a}{b}_1'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\overunderset_1 x'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left( x + y'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\right)'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left\\unknown{x}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\middle|'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left( x \\right) \\middle| y'));

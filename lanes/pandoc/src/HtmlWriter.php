@@ -1435,12 +1435,53 @@ final class HtmlWriter
         return match ($this->htmlMathMethod()) {
             'webtex' => $this->renderWebTeXMath($text, $display, $class),
             'gladtex' => $this->renderGladTeXMath($text, $display),
+            'mathml' => $this->renderMathML($node, $text, $display, $class),
             'mathjax' => '<span class="math ' . $class . '">'
                 . $this->esc(($display ? '\\[' : '\\(') . $text . ($display ? '\\]' : '\\)'))
                 . '</span>',
             'katex' => '<span class="math ' . $class . '">' . $this->esc($text) . '</span>',
             default => '<span class="math ' . $class . '">' . $this->esc($text) . '</span>',
         };
+    }
+
+    private function renderMathML(AstNode $node, string $text, bool $display, string $class): string
+    {
+        $mathml = $node->attr('mathml', $node->attr('html', ''));
+        if (is_scalar($mathml)) {
+            $mathml = trim((string) $mathml);
+            if ($this->looksLikeMathMLElement($mathml)) {
+                return $this->mathMLWithRequiredAttributes($mathml, $display);
+            }
+        }
+
+        try {
+            return (new MathTexConverter())->texToMathMl($text, $display);
+        } catch (\InvalidArgumentException) {
+            return '<span class="math ' . $class . '">' . $this->esc($text) . '</span>';
+        }
+    }
+
+    private function looksLikeMathMLElement(string $mathml): bool
+    {
+        return preg_match('/^<math(?:\s|>|\/)/i', $mathml) === 1
+            && !str_contains($mathml, '<?')
+            && stripos($mathml, '<script') === false;
+    }
+
+    private function mathMLWithRequiredAttributes(string $mathml, bool $display): string
+    {
+        return preg_replace_callback('/^<math\b([^>]*)>/i', function (array $match) use ($display): string {
+            $tail = $match[1];
+            $attrs = rtrim($tail);
+            if (preg_match('/\sxmlns\s*=/i', $tail) !== 1) {
+                $attrs .= ' xmlns="http://www.w3.org/1998/Math/MathML"';
+            }
+            if ($display && preg_match('/\sdisplay\s*=/i', $tail) !== 1) {
+                $attrs .= ' display="block"';
+            }
+
+            return '<math' . $attrs . '>';
+        }, $mathml, 1) ?? $mathml;
     }
 
     private function renderWebTeXMath(string $text, bool $display, string $class): string
@@ -1475,6 +1516,7 @@ final class HtmlWriter
         return match ($normalized) {
             'webtex' => 'webtex',
             'gladtex' => 'gladtex',
+            'mathml' => 'mathml',
             'mathjax' => 'mathjax',
             'katex' => 'katex',
             default => 'plain',

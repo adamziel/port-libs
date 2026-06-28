@@ -1570,6 +1570,10 @@ final class MathTexConverter
                 throw new \InvalidArgumentException('Unsupported TeX token at offset ' . $offset);
             }
 
+            if ($this->activeLeftFenceDepth !== 0) {
+                throw new \InvalidArgumentException('Unclosed TeX \\left fence');
+            }
+
             $displayMode = $display ? 'block' : 'inline';
             $body = $this->renderEquationBody($children, $equation);
             $mathAttributes = 'display="' . $displayMode . '"';
@@ -7999,7 +8003,9 @@ final class MathTexConverter
         $delimiter = $this->readFenceDelimiter($source, $offset);
         if ($command === 'left') {
             $this->activeLeftFenceDepth++;
-        } elseif ($this->activeLeftFenceDepth > 0) {
+        } elseif ($this->activeLeftFenceDepth <= 0) {
+            throw new \InvalidArgumentException('Expected TeX \\right inside \\left...\\right at offset ' . $offset);
+        } else {
             $this->activeLeftFenceDepth--;
         }
 

@@ -5032,6 +5032,37 @@ TEX;
         $t->contains('<span class="math inline">\(\langle post_id,media_id \rangle\)</span>', $blocks);
         $t->contains('<span class="math display">\[\alpha + \omega \times x^2\]</span>', $blocks);
     },
+    'falls back to source spans for malformed plainmath structural mathml' => static function (TestRunner $t): void {
+        $math = static fn (string $text, bool $display = false): AstNode => new AstNode('math', [
+            'text' => $text,
+            'display' => $display,
+        ]);
+        $plain = static fn (AstNode $inline): AstNode => new AstNode('document', [], [
+            new AstNode('plain', [], [$inline]),
+        ]);
+        $writer = new HtmlWriter(['htmlMathMethod' => 'mathml']);
+        $valid = $writer->write($plain($math('\frac{a}{b}', true)));
+        $cases = [
+            '\frac{a}{' => '<span class="math inline">\frac{a}{</span>',
+            '\sqrt{x' => '<span class="math inline">\sqrt{x</span>',
+            '\left( x + y' => '<span class="math display">\left( x + y</span>',
+            '\begin{pmatrix}a&b' => '<span class="math display">\begin{pmatrix}a&amp;b</span>',
+        ];
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $valid);
+        $t->contains('<mfrac><mi>a</mi><mi>b</mi></mfrac>', $valid);
+
+        foreach ($cases as $tex => $expectedHtml) {
+            $display = str_contains($tex, '\left') || str_contains($tex, '\begin');
+            $html = $writer->write($plain($math($tex, $display)));
+            $dom = new DOMDocument('1.0', 'UTF-8');
+
+            $t->same($expectedHtml, $html);
+            $t->true($dom->loadXML('<root>' . $html . '</root>', LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING));
+            $t->true(!str_contains($html, '<math'), 'Malformed PlainMath should not emit partial MathML for ' . $tex);
+            $t->true(!str_contains($html, '<mi>\\'), 'Malformed PlainMath should not expose command-token MathML for ' . $tex);
+        }
+    },
     'maps upstream html writer webtex and gladtex math outputs' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
         $math = static fn (string $text, bool $display = false): AstNode => new AstNode('math', [
