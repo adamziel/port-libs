@@ -3247,6 +3247,27 @@ CSS;
         $t->same('.foo{width:calc(1x + 2x)}', $minifier->minify('.foo { width: calc(1x + 2x) }'));
         $t->same('.foo{width:calc(var(--gap) + 2px)}', $minifier->minify('.foo { width: calc(var(--gap) + 2px) }'));
     },
+    'css minifier maps upstream residual calc unit folding rows' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_calc lines 8304 and 8332-8340.
+        $cases = [
+            [8304, '.foo { width: max(0px, 1vw) }', '.foo{width:max(0px,1vw)}'],
+            [8332, '.foo { width: calc(1vh + 2vh) }', '.foo{width:3vh}'],
+            [8333, '.foo { width: calc(1dvh + 2dvh) }', '.foo{width:3dvh}'],
+            [8334, '.foo { width: calc(1lvh + 2lvh) }', '.foo{width:3lvh}'],
+            [8335, '.foo { width: calc(1svh + 2svh) }', '.foo{width:3svh}'],
+            [8336, '.foo { width: calc(1sVmin + 2Svmin) }', '.foo{width:3svmin}'],
+            [8337, '.foo { width: calc(1ic + 2ic) }', '.foo{width:3ic}'],
+            [8338, '.foo { width: calc(1ric + 2ric) }', '.foo{width:3ric}'],
+            [8339, '.foo { width: calc(1cap + 2cap) }', '.foo{width:3cap}'],
+            [8340, '.foo { width: calc(1lh + 2lh) }', '.foo{width:3lh}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_calc line ' . $line);
+        }
+    },
     'css minifier maps upstream min max and clamp math function cluster' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
