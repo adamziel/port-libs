@@ -3394,7 +3394,11 @@ CSS;
             ],
         ]);
 
-        $t->same('.foo{-webkit-overflow-scrolling:touch;overflow:auto}', $result);
+        $t->same(
+            '.foo{-webkit-overflow-scrolling:touch;overflow:auto}',
+            $result,
+            'upstream node/test/visitor.test.mjs line 754'
+        );
         $t->same(['overflow'], $seen);
     },
     'custom at-rules clone upstream native media plain-feature visitor rules' => static function (TestRunner $t): void {
