@@ -14268,6 +14268,27 @@ final class DocxOpenXmlReader
             'partXmlElementChildShapeElementNameCounts' => $partXmlRoots['xmlElementChildShapeElementNameCounts'],
             'partXmlElementChildShapeChildKindCount' => count($partXmlRoots['xmlElementChildShapeChildKindCounts']),
             'partXmlElementChildShapeChildKindCounts' => $partXmlRoots['xmlElementChildShapeChildKindCounts'],
+            'partXmlElementSiblingPositionPartCount' => $partXmlRoots['xmlElementSiblingPositionPartCount'],
+            'partXmlElementSiblingPositionCount' => $partXmlRoots['xmlElementSiblingPositionCount'],
+            'partXmlElementSiblingPositionPartNames' => $partXmlRoots['xmlElementSiblingPositionPartNames'],
+            'partXmlElementSiblingPositionParentPathCount' => count($partXmlRoots['xmlElementSiblingPositionParentPathCounts']),
+            'partXmlElementSiblingPositionParentPathCounts' => $partXmlRoots['xmlElementSiblingPositionParentPathCounts'],
+            'partXmlElementSiblingPositionParentPaths' => $partXmlRoots['xmlElementSiblingPositionParentPaths'],
+            'partXmlElementSiblingPositionParentNamespaceCount' => count($partXmlRoots['xmlElementSiblingPositionParentNamespaceCounts']),
+            'partXmlElementSiblingPositionParentNamespaceCounts' => $partXmlRoots['xmlElementSiblingPositionParentNamespaceCounts'],
+            'partXmlElementSiblingPositionParentLocalNameCount' => count($partXmlRoots['xmlElementSiblingPositionParentLocalNameCounts']),
+            'partXmlElementSiblingPositionParentLocalNameCounts' => $partXmlRoots['xmlElementSiblingPositionParentLocalNameCounts'],
+            'partXmlElementSiblingPositionParentQualifiedNameCount' => count($partXmlRoots['xmlElementSiblingPositionParentQualifiedNameCounts']),
+            'partXmlElementSiblingPositionParentQualifiedNameCounts' => $partXmlRoots['xmlElementSiblingPositionParentQualifiedNameCounts'],
+            'partXmlElementSiblingPositionElementNameCount' => count($partXmlRoots['xmlElementSiblingPositionElementNameCounts']),
+            'partXmlElementSiblingPositionElementNameCounts' => $partXmlRoots['xmlElementSiblingPositionElementNameCounts'],
+            'partXmlElementSiblingPositionIndexCount' => count($partXmlRoots['xmlElementSiblingPositionIndexCounts']),
+            'partXmlElementSiblingPositionIndexCounts' => $partXmlRoots['xmlElementSiblingPositionIndexCounts'],
+            'partXmlElementSiblingPositionSiblingCountBucketCount' => count($partXmlRoots['xmlElementSiblingPositionSiblingCountBuckets']),
+            'partXmlElementSiblingPositionSiblingCountBuckets' => $partXmlRoots['xmlElementSiblingPositionSiblingCountBuckets'],
+            'partXmlElementSiblingPositionFirstCount' => $partXmlRoots['xmlElementSiblingPositionFirstCount'],
+            'partXmlElementSiblingPositionLastCount' => $partXmlRoots['xmlElementSiblingPositionLastCount'],
+            'partXmlElementSiblingPositionOnlyChildCount' => $partXmlRoots['xmlElementSiblingPositionOnlyChildCount'],
             'partXmlElementAttributePartCount' => $partXmlRoots['xmlElementAttributePartCount'],
             'partXmlElementAttributeCount' => $partXmlRoots['xmlElementAttributeCount'],
             'partXmlElementAttributeNameCount' => count($partXmlRoots['xmlElementAttributeNameCounts']),
@@ -14757,6 +14778,7 @@ final class DocxOpenXmlReader
             'partXmlRepeatedSiblingElements' => $partXmlRoots['xmlRepeatedSiblingElements'],
             'partXmlElementSiblingTransitions' => $partXmlRoots['xmlElementSiblingTransitions'],
             'partXmlElementChildShapes' => $partXmlRoots['xmlElementChildShapes'],
+            'partXmlElementSiblingPositions' => $partXmlRoots['xmlElementSiblingPositions'],
             'partXmlElementAttributes' => $partXmlRoots['xmlElementAttributes'],
             'partContentTypeSyntaxSuffixes' => $partContentTypeSyntaxSuffixes,
             'partContentTypeSources' => $partContentTypeSources,
@@ -20277,6 +20299,16 @@ final class DocxOpenXmlReader
         $xmlElementChildShapeElementNameCounts = [];
         $xmlElementChildShapeChildKindCounts = [];
         $xmlElementChildShapes = [];
+        $xmlElementSiblingPositionPartNames = [];
+        $xmlElementSiblingPositionParentPathCounts = [];
+        $xmlElementSiblingPositionParentPaths = [];
+        $xmlElementSiblingPositionParentNamespaceCounts = [];
+        $xmlElementSiblingPositionParentLocalNameCounts = [];
+        $xmlElementSiblingPositionParentQualifiedNameCounts = [];
+        $xmlElementSiblingPositionElementNameCounts = [];
+        $xmlElementSiblingPositionIndexCounts = [];
+        $xmlElementSiblingPositionSiblingCountBuckets = [];
+        $xmlElementSiblingPositions = [];
         $xmlElementAttributePartNames = [];
         $xmlElementAttributeNameCounts = [];
         $xmlElementAttributeNames = [];
@@ -20387,6 +20419,11 @@ final class DocxOpenXmlReader
         $xmlElementSiblingTransitionMaxInterleavedNonElementNodeCount = 0;
         $xmlElementChildShapePartCount = 0;
         $xmlElementChildShapeCount = 0;
+        $xmlElementSiblingPositionPartCount = 0;
+        $xmlElementSiblingPositionCount = 0;
+        $xmlElementSiblingPositionFirstCount = 0;
+        $xmlElementSiblingPositionLastCount = 0;
+        $xmlElementSiblingPositionOnlyChildCount = 0;
         $xmlElementAttributePartCount = 0;
         $xmlElementAttributeCount = 0;
         $xmlElementAttributeValueByteLength = 0;
@@ -21693,6 +21730,113 @@ final class DocxOpenXmlReader
                     'hasMixedContent' => (bool) ($shape['hasMixedContent'] ?? false),
                 ];
             }
+            $partElementSiblingPositionCount = (int) ($part['xmlElementSiblingPositionCount'] ?? 0);
+            if ($partElementSiblingPositionCount > 0) {
+                ++$xmlElementSiblingPositionPartCount;
+                $xmlElementSiblingPositionCount += $partElementSiblingPositionCount;
+                $xmlElementSiblingPositionPartNames[] = $partName;
+                $xmlElementSiblingPositionFirstCount += (int) ($part['xmlElementSiblingPositionFirstCount'] ?? 0);
+                $xmlElementSiblingPositionLastCount += (int) ($part['xmlElementSiblingPositionLastCount'] ?? 0);
+                $xmlElementSiblingPositionOnlyChildCount += (int) ($part['xmlElementSiblingPositionOnlyChildCount'] ?? 0);
+            }
+            foreach (($part['xmlElementSiblingPositionParentPathCounts'] ?? []) as $parentPath => $count) {
+                if (!is_string($parentPath) || $parentPath === '') {
+                    continue;
+                }
+                $xmlElementSiblingPositionParentPathCounts[$parentPath] =
+                    ($xmlElementSiblingPositionParentPathCounts[$parentPath] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlElementSiblingPositionParentPaths, $parentPath);
+            }
+            foreach (($part['xmlElementSiblingPositionParentNamespaceCounts'] ?? []) as $namespace => $count) {
+                if (!is_string($namespace) || $namespace === '') {
+                    continue;
+                }
+                $xmlElementSiblingPositionParentNamespaceCounts[$namespace] =
+                    ($xmlElementSiblingPositionParentNamespaceCounts[$namespace] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlElementSiblingPositionParentLocalNameCounts'] ?? []) as $localName => $count) {
+                if (!is_string($localName) || $localName === '') {
+                    continue;
+                }
+                $xmlElementSiblingPositionParentLocalNameCounts[$localName] =
+                    ($xmlElementSiblingPositionParentLocalNameCounts[$localName] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlElementSiblingPositionParentQualifiedNameCounts'] ?? []) as $qualifiedName => $count) {
+                if (!is_string($qualifiedName) || $qualifiedName === '') {
+                    continue;
+                }
+                $xmlElementSiblingPositionParentQualifiedNameCounts[$qualifiedName] =
+                    ($xmlElementSiblingPositionParentQualifiedNameCounts[$qualifiedName] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlElementSiblingPositionElementNameCounts'] ?? []) as $elementName => $count) {
+                if (!is_string($elementName) || $elementName === '') {
+                    continue;
+                }
+                $xmlElementSiblingPositionElementNameCounts[$elementName] =
+                    ($xmlElementSiblingPositionElementNameCounts[$elementName] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlElementSiblingPositionIndexCounts'] ?? []) as $index => $count) {
+                if (!is_int($index) && !ctype_digit((string) $index)) {
+                    continue;
+                }
+                $xmlElementSiblingPositionIndexCounts[(int) $index] =
+                    ($xmlElementSiblingPositionIndexCounts[(int) $index] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlElementSiblingPositionSiblingCountBuckets'] ?? []) as $bucket => $count) {
+                if (!is_string($bucket) || $bucket === '') {
+                    continue;
+                }
+                $xmlElementSiblingPositionSiblingCountBuckets[$bucket] =
+                    ($xmlElementSiblingPositionSiblingCountBuckets[$bucket] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlElementSiblingPositions'] ?? []) as $position) {
+                if (!is_array($position)) {
+                    continue;
+                }
+
+                $xmlElementSiblingPositions[] = [
+                    'partName' => $partName,
+                    'directory' => is_string($part['directory'] ?? null)
+                        ? $part['directory']
+                        : $this->packagePartDirectory($partName),
+                    'baseName' => is_string($part['baseName'] ?? null)
+                        ? $part['baseName']
+                        : $this->packagePartBaseName($partName),
+                    'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                    'contentTypeBase' => is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '',
+                    'contentTypeSource' => is_string($part['contentTypeSource'] ?? null) ? $part['contentTypeSource'] : 'missing',
+                    'ordinal' => is_int($position['ordinal'] ?? null) ? (int) $position['ordinal'] : 0,
+                    'elementPath' => is_string($position['elementPath'] ?? null) ? $position['elementPath'] : '/',
+                    'elementDepth' => (int) ($position['elementDepth'] ?? 0),
+                    'elementNamespace' => is_string($position['elementNamespace'] ?? null) ? $position['elementNamespace'] : null,
+                    'elementLocalName' => is_string($position['elementLocalName'] ?? null)
+                        ? $position['elementLocalName']
+                        : '',
+                    'elementQualifiedName' => is_string($position['elementQualifiedName'] ?? null)
+                        ? $position['elementQualifiedName']
+                        : '',
+                    'elementPrefix' => is_string($position['elementPrefix'] ?? null) ? $position['elementPrefix'] : null,
+                    'parentPath' => is_string($position['parentPath'] ?? null) ? $position['parentPath'] : '/',
+                    'parentDepth' => (int) ($position['parentDepth'] ?? 0),
+                    'parentNamespace' => is_string($position['parentNamespace'] ?? null)
+                        ? $position['parentNamespace']
+                        : null,
+                    'parentLocalName' => is_string($position['parentLocalName'] ?? null)
+                        ? $position['parentLocalName']
+                        : null,
+                    'parentQualifiedName' => is_string($position['parentQualifiedName'] ?? null)
+                        ? $position['parentQualifiedName']
+                        : null,
+                    'parentPrefix' => is_string($position['parentPrefix'] ?? null) ? $position['parentPrefix'] : null,
+                    'siblingIndex' => (int) ($position['siblingIndex'] ?? 0),
+                    'siblingCount' => (int) ($position['siblingCount'] ?? 0),
+                    'precedingElementSiblingCount' => (int) ($position['precedingElementSiblingCount'] ?? 0),
+                    'followingElementSiblingCount' => (int) ($position['followingElementSiblingCount'] ?? 0),
+                    'isFirstElementSibling' => (bool) ($position['isFirstElementSibling'] ?? false),
+                    'isLastElementSibling' => (bool) ($position['isLastElementSibling'] ?? false),
+                    'isOnlyElementSibling' => (bool) ($position['isOnlyElementSibling'] ?? false),
+                ];
+            }
             $partElementAttributeCount = (int) ($part['xmlElementAttributeCount'] ?? 0);
             if ($partElementAttributeCount > 0) {
                 ++$xmlElementAttributePartCount;
@@ -22143,6 +22287,35 @@ final class DocxOpenXmlReader
                 'xmlElementChildShapes' => is_array($part['xmlElementChildShapes'] ?? null)
                     ? $part['xmlElementChildShapes']
                     : [],
+                'xmlElementSiblingPositionCount' => $partElementSiblingPositionCount,
+                'xmlElementSiblingPositionFirstCount' => (int) ($part['xmlElementSiblingPositionFirstCount'] ?? 0),
+                'xmlElementSiblingPositionLastCount' => (int) ($part['xmlElementSiblingPositionLastCount'] ?? 0),
+                'xmlElementSiblingPositionOnlyChildCount' => (int) ($part['xmlElementSiblingPositionOnlyChildCount'] ?? 0),
+                'xmlElementSiblingPositionParentPathCounts' => is_array($part['xmlElementSiblingPositionParentPathCounts'] ?? null)
+                    ? $part['xmlElementSiblingPositionParentPathCounts']
+                    : [],
+                'xmlElementSiblingPositionParentPaths' => array_values(array_map('strval', $part['xmlElementSiblingPositionParentPaths'] ?? [])),
+                'xmlElementSiblingPositionParentNamespaceCounts' => is_array($part['xmlElementSiblingPositionParentNamespaceCounts'] ?? null)
+                    ? $part['xmlElementSiblingPositionParentNamespaceCounts']
+                    : [],
+                'xmlElementSiblingPositionParentLocalNameCounts' => is_array($part['xmlElementSiblingPositionParentLocalNameCounts'] ?? null)
+                    ? $part['xmlElementSiblingPositionParentLocalNameCounts']
+                    : [],
+                'xmlElementSiblingPositionParentQualifiedNameCounts' => is_array($part['xmlElementSiblingPositionParentQualifiedNameCounts'] ?? null)
+                    ? $part['xmlElementSiblingPositionParentQualifiedNameCounts']
+                    : [],
+                'xmlElementSiblingPositionElementNameCounts' => is_array($part['xmlElementSiblingPositionElementNameCounts'] ?? null)
+                    ? $part['xmlElementSiblingPositionElementNameCounts']
+                    : [],
+                'xmlElementSiblingPositionIndexCounts' => is_array($part['xmlElementSiblingPositionIndexCounts'] ?? null)
+                    ? $part['xmlElementSiblingPositionIndexCounts']
+                    : [],
+                'xmlElementSiblingPositionSiblingCountBuckets' => is_array($part['xmlElementSiblingPositionSiblingCountBuckets'] ?? null)
+                    ? $part['xmlElementSiblingPositionSiblingCountBuckets']
+                    : [],
+                'xmlElementSiblingPositions' => is_array($part['xmlElementSiblingPositions'] ?? null)
+                    ? $part['xmlElementSiblingPositions']
+                    : [],
                 'xmlElementAttributeCount' => $partElementAttributeCount,
                 'xmlElementAttributeValueByteLength' => (int) ($part['xmlElementAttributeValueByteLength'] ?? 0),
                 'xmlElementAttributeNameCounts' => is_array($part['xmlElementAttributeNameCounts'] ?? null)
@@ -22251,6 +22424,13 @@ final class DocxOpenXmlReader
         ksort($xmlElementChildShapeMixedContentPathCounts, SORT_STRING);
         ksort($xmlElementChildShapeElementNameCounts, SORT_STRING);
         ksort($xmlElementChildShapeChildKindCounts, SORT_STRING);
+        ksort($xmlElementSiblingPositionParentPathCounts, SORT_STRING);
+        ksort($xmlElementSiblingPositionParentNamespaceCounts, SORT_STRING);
+        ksort($xmlElementSiblingPositionParentLocalNameCounts, SORT_STRING);
+        ksort($xmlElementSiblingPositionParentQualifiedNameCounts, SORT_STRING);
+        ksort($xmlElementSiblingPositionElementNameCounts, SORT_STRING);
+        ksort($xmlElementSiblingPositionIndexCounts, SORT_NUMERIC);
+        ksort($xmlElementSiblingPositionSiblingCountBuckets, SORT_STRING);
         ksort($xmlElementAttributeNameCounts, SORT_STRING);
         ksort($xmlElementAttributeNamespaceCounts, SORT_STRING);
         ksort($xmlElementAttributePrefixCounts, SORT_STRING);
@@ -22292,6 +22472,8 @@ final class DocxOpenXmlReader
         sort($xmlElementSiblingTransitionPairs, SORT_STRING);
         sort($xmlElementSiblingTransitionParentPaths, SORT_STRING);
         sort($xmlElementChildShapePartNames, SORT_STRING);
+        sort($xmlElementSiblingPositionPartNames, SORT_STRING);
+        sort($xmlElementSiblingPositionParentPaths, SORT_STRING);
         sort($xmlElementAttributePartNames, SORT_STRING);
         sort($xmlElementAttributeNames, SORT_STRING);
         sort($xmlElementAttributeNamespaces, SORT_STRING);
@@ -22623,6 +22805,21 @@ final class DocxOpenXmlReader
             'xmlElementChildShapeElementNameCounts' => $xmlElementChildShapeElementNameCounts,
             'xmlElementChildShapeChildKindCounts' => $xmlElementChildShapeChildKindCounts,
             'xmlElementChildShapes' => $xmlElementChildShapes,
+            'xmlElementSiblingPositionPartCount' => $xmlElementSiblingPositionPartCount,
+            'xmlElementSiblingPositionCount' => $xmlElementSiblingPositionCount,
+            'xmlElementSiblingPositionPartNames' => $xmlElementSiblingPositionPartNames,
+            'xmlElementSiblingPositionParentPathCounts' => $xmlElementSiblingPositionParentPathCounts,
+            'xmlElementSiblingPositionParentPaths' => $xmlElementSiblingPositionParentPaths,
+            'xmlElementSiblingPositionParentNamespaceCounts' => $xmlElementSiblingPositionParentNamespaceCounts,
+            'xmlElementSiblingPositionParentLocalNameCounts' => $xmlElementSiblingPositionParentLocalNameCounts,
+            'xmlElementSiblingPositionParentQualifiedNameCounts' => $xmlElementSiblingPositionParentQualifiedNameCounts,
+            'xmlElementSiblingPositionElementNameCounts' => $xmlElementSiblingPositionElementNameCounts,
+            'xmlElementSiblingPositionIndexCounts' => $xmlElementSiblingPositionIndexCounts,
+            'xmlElementSiblingPositionSiblingCountBuckets' => $xmlElementSiblingPositionSiblingCountBuckets,
+            'xmlElementSiblingPositionFirstCount' => $xmlElementSiblingPositionFirstCount,
+            'xmlElementSiblingPositionLastCount' => $xmlElementSiblingPositionLastCount,
+            'xmlElementSiblingPositionOnlyChildCount' => $xmlElementSiblingPositionOnlyChildCount,
+            'xmlElementSiblingPositions' => $xmlElementSiblingPositions,
             'xmlElementAttributePartCount' => $xmlElementAttributePartCount,
             'xmlElementAttributeCount' => $xmlElementAttributeCount,
             'xmlElementAttributeNameCounts' => $xmlElementAttributeNameCounts,
@@ -26374,6 +26571,195 @@ final class DocxOpenXmlReader
     }
 
     /**
+     * @return array{count:int, firstCount:int, lastCount:int, onlyChildCount:int, parentPathCounts:array<string, int>, parentPaths:list<string>, parentNamespaceCounts:array<string, int>, parentLocalNameCounts:array<string, int>, parentQualifiedNameCounts:array<string, int>, elementNameCounts:array<string, int>, indexCounts:array<int, int>, siblingCountBuckets:array<string, int>, items:list<array<string, mixed>>}
+     */
+    private function xmlElementSiblingPositionProvenance(string $xml, string $partName): array
+    {
+        $empty = [
+            'count' => 0,
+            'firstCount' => 0,
+            'lastCount' => 0,
+            'onlyChildCount' => 0,
+            'parentPathCounts' => [],
+            'parentPaths' => [],
+            'parentNamespaceCounts' => [],
+            'parentLocalNameCounts' => [],
+            'parentQualifiedNameCounts' => [],
+            'elementNameCounts' => [],
+            'indexCounts' => [],
+            'siblingCountBuckets' => [],
+            'items' => [],
+        ];
+
+        $dom = $this->loadXmlForProvenance($xml, $partName);
+        if (!$dom instanceof \DOMDocument || !$dom->documentElement instanceof \DOMElement) {
+            return $empty;
+        }
+
+        $items = [];
+        $parentPathCounts = [];
+        $parentPaths = [];
+        $parentNamespaceCounts = [];
+        $parentLocalNameCounts = [];
+        $parentQualifiedNameCounts = [];
+        $elementNameCounts = [];
+        $indexCounts = [];
+        $siblingCountBuckets = [];
+        $firstCount = 0;
+        $lastCount = 0;
+        $onlyChildCount = 0;
+        $ordinal = 0;
+
+        $record = function (
+            \DOMElement $element,
+            ?\DOMElement $parent,
+            int $siblingIndex,
+            int $siblingCount
+        ) use (
+            &$items,
+            &$parentPathCounts,
+            &$parentPaths,
+            &$parentNamespaceCounts,
+            &$parentLocalNameCounts,
+            &$parentQualifiedNameCounts,
+            &$elementNameCounts,
+            &$indexCounts,
+            &$siblingCountBuckets,
+            &$firstCount,
+            &$lastCount,
+            &$onlyChildCount,
+            &$ordinal,
+        ): void {
+            ++$ordinal;
+            $elementPath = $this->xmlProvenanceParentPath($element);
+            $elementDepth = $this->xmlProvenanceParentDepth($elementPath);
+            $elementNamespace = is_string($element->namespaceURI) && $element->namespaceURI !== ''
+                ? $element->namespaceURI
+                : null;
+            $elementLocalName = $element->localName === '' ? null : $element->localName;
+            $elementQualifiedName = $element->tagName === '' ? $elementLocalName : $element->tagName;
+            $elementPrefix = $this->emptyStringToNull((string) $element->prefix);
+            $elementNameKey = $elementQualifiedName ?? '(none)';
+            $parentPath = $parent instanceof \DOMElement ? $this->xmlProvenanceParentPath($parent) : '/';
+            $parentDepth = $this->xmlProvenanceParentDepth($parentPath);
+            $parentNamespace = $parent instanceof \DOMElement && is_string($parent->namespaceURI) && $parent->namespaceURI !== ''
+                ? $parent->namespaceURI
+                : null;
+            $parentLocalName = $parent instanceof \DOMElement && $parent->localName !== ''
+                ? $parent->localName
+                : null;
+            $parentQualifiedName = $parent instanceof \DOMElement && $parent->tagName !== ''
+                ? $parent->tagName
+                : null;
+            $parentPrefix = $parent instanceof \DOMElement ? $this->emptyStringToNull((string) $parent->prefix) : null;
+            $parentNamespaceKey = $parentNamespace ?? '(document)';
+            $parentLocalNameKey = $parentLocalName ?? '(document)';
+            $parentQualifiedNameKey = $parentQualifiedName ?? '(document)';
+            $isFirst = $siblingIndex === 1;
+            $isLast = $siblingIndex === $siblingCount;
+            $isOnly = $siblingCount === 1;
+            $siblingBucket = $this->xmlElementSiblingCountBucket($siblingCount);
+
+            if ($isFirst) {
+                ++$firstCount;
+            }
+            if ($isLast) {
+                ++$lastCount;
+            }
+            if ($isOnly) {
+                ++$onlyChildCount;
+            }
+
+            $parentPathCounts[$parentPath] = ($parentPathCounts[$parentPath] ?? 0) + 1;
+            $this->appendUniqueString($parentPaths, $parentPath);
+            $parentNamespaceCounts[$parentNamespaceKey] = ($parentNamespaceCounts[$parentNamespaceKey] ?? 0) + 1;
+            $parentLocalNameCounts[$parentLocalNameKey] = ($parentLocalNameCounts[$parentLocalNameKey] ?? 0) + 1;
+            $parentQualifiedNameCounts[$parentQualifiedNameKey] =
+                ($parentQualifiedNameCounts[$parentQualifiedNameKey] ?? 0) + 1;
+            $elementNameCounts[$elementNameKey] = ($elementNameCounts[$elementNameKey] ?? 0) + 1;
+            $indexCounts[$siblingIndex] = ($indexCounts[$siblingIndex] ?? 0) + 1;
+            $siblingCountBuckets[$siblingBucket] = ($siblingCountBuckets[$siblingBucket] ?? 0) + 1;
+
+            $items[] = [
+                'ordinal' => $ordinal,
+                'elementPath' => $elementPath,
+                'elementDepth' => $elementDepth,
+                'elementNamespace' => $elementNamespace,
+                'elementLocalName' => $elementLocalName,
+                'elementQualifiedName' => $elementQualifiedName,
+                'elementPrefix' => $elementPrefix,
+                'parentPath' => $parentPath,
+                'parentDepth' => $parentDepth,
+                'parentNamespace' => $parentNamespace,
+                'parentLocalName' => $parentLocalName,
+                'parentQualifiedName' => $parentQualifiedName,
+                'parentPrefix' => $parentPrefix,
+                'siblingIndex' => $siblingIndex,
+                'siblingCount' => $siblingCount,
+                'precedingElementSiblingCount' => max(0, $siblingIndex - 1),
+                'followingElementSiblingCount' => max(0, $siblingCount - $siblingIndex),
+                'isFirstElementSibling' => $isFirst,
+                'isLastElementSibling' => $isLast,
+                'isOnlyElementSibling' => $isOnly,
+            ];
+        };
+
+        $walk = function (\DOMElement $element) use (&$walk, $record): void {
+            $elementChildren = [];
+            foreach ($element->childNodes as $child) {
+                if ($child instanceof \DOMElement) {
+                    $elementChildren[] = $child;
+                }
+            }
+
+            $siblingCount = count($elementChildren);
+            foreach ($elementChildren as $index => $child) {
+                $record($child, $element, $index + 1, $siblingCount);
+                $walk($child);
+            }
+        };
+
+        $record($dom->documentElement, null, 1, 1);
+        $walk($dom->documentElement);
+
+        ksort($parentPathCounts, SORT_STRING);
+        ksort($parentNamespaceCounts, SORT_STRING);
+        ksort($parentLocalNameCounts, SORT_STRING);
+        ksort($parentQualifiedNameCounts, SORT_STRING);
+        ksort($elementNameCounts, SORT_STRING);
+        ksort($indexCounts, SORT_NUMERIC);
+        ksort($siblingCountBuckets, SORT_STRING);
+        sort($parentPaths, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'firstCount' => $firstCount,
+            'lastCount' => $lastCount,
+            'onlyChildCount' => $onlyChildCount,
+            'parentPathCounts' => $parentPathCounts,
+            'parentPaths' => $parentPaths,
+            'parentNamespaceCounts' => $parentNamespaceCounts,
+            'parentLocalNameCounts' => $parentLocalNameCounts,
+            'parentQualifiedNameCounts' => $parentQualifiedNameCounts,
+            'elementNameCounts' => $elementNameCounts,
+            'indexCounts' => $indexCounts,
+            'siblingCountBuckets' => $siblingCountBuckets,
+            'items' => $items,
+        ];
+    }
+
+    private function xmlElementSiblingCountBucket(int $siblingCount): string
+    {
+        return match (true) {
+            $siblingCount <= 1 => '1',
+            $siblingCount <= 3 => '2-3',
+            $siblingCount <= 7 => '4-7',
+            $siblingCount <= 15 => '8-15',
+            default => '16+',
+        };
+    }
+
+    /**
      * @return array{count:int, valueByteLength:int, nameCounts:array<string, int>, names:list<string>, namespaceCounts:array<string, int>, namespaces:list<string>, prefixCounts:array<string, int>, prefixes:list<string>, elementPathCounts:array<string, int>, elementPaths:list<string>, elementNameCounts:array<string, int>, items:list<array<string, mixed>>}
      */
     private function xmlElementAttributeProvenance(string $xml, string $partName): array
@@ -28436,6 +28822,19 @@ final class DocxOpenXmlReader
                 'xmlElementChildShapeElementNameCounts' => [],
                 'xmlElementChildShapeChildKindCounts' => [],
                 'xmlElementChildShapes' => [],
+                'xmlElementSiblingPositionCount' => 0,
+                'xmlElementSiblingPositionFirstCount' => 0,
+                'xmlElementSiblingPositionLastCount' => 0,
+                'xmlElementSiblingPositionOnlyChildCount' => 0,
+                'xmlElementSiblingPositionParentPathCounts' => [],
+                'xmlElementSiblingPositionParentPaths' => [],
+                'xmlElementSiblingPositionParentNamespaceCounts' => [],
+                'xmlElementSiblingPositionParentLocalNameCounts' => [],
+                'xmlElementSiblingPositionParentQualifiedNameCounts' => [],
+                'xmlElementSiblingPositionElementNameCounts' => [],
+                'xmlElementSiblingPositionIndexCounts' => [],
+                'xmlElementSiblingPositionSiblingCountBuckets' => [],
+                'xmlElementSiblingPositions' => [],
                 'xmlElementAttributeCount' => 0,
                 'xmlElementAttributeValueByteLength' => 0,
                 'xmlElementAttributeNameCounts' => [],
@@ -28466,6 +28865,7 @@ final class DocxOpenXmlReader
         $repeatedSiblingElements = $this->xmlRepeatedSiblingElementProvenance($contents, $partName);
         $siblingTransitions = $this->xmlElementSiblingTransitionProvenance($contents, $partName);
         $elementChildShapes = $this->xmlElementChildShapeProvenance($contents, $partName);
+        $elementSiblingPositions = $this->xmlElementSiblingPositionProvenance($contents, $partName);
         $elementAttributes = $this->xmlElementAttributeProvenance($contents, $partName);
         $root = $this->xmlRootProvenance($contents, $partName);
 
@@ -28664,6 +29064,19 @@ final class DocxOpenXmlReader
             'xmlElementChildShapeElementNameCounts' => $elementChildShapes['elementNameCounts'],
             'xmlElementChildShapeChildKindCounts' => $elementChildShapes['childKindCounts'],
             'xmlElementChildShapes' => $elementChildShapes['items'],
+            'xmlElementSiblingPositionCount' => $elementSiblingPositions['count'],
+            'xmlElementSiblingPositionFirstCount' => $elementSiblingPositions['firstCount'],
+            'xmlElementSiblingPositionLastCount' => $elementSiblingPositions['lastCount'],
+            'xmlElementSiblingPositionOnlyChildCount' => $elementSiblingPositions['onlyChildCount'],
+            'xmlElementSiblingPositionParentPathCounts' => $elementSiblingPositions['parentPathCounts'],
+            'xmlElementSiblingPositionParentPaths' => $elementSiblingPositions['parentPaths'],
+            'xmlElementSiblingPositionParentNamespaceCounts' => $elementSiblingPositions['parentNamespaceCounts'],
+            'xmlElementSiblingPositionParentLocalNameCounts' => $elementSiblingPositions['parentLocalNameCounts'],
+            'xmlElementSiblingPositionParentQualifiedNameCounts' => $elementSiblingPositions['parentQualifiedNameCounts'],
+            'xmlElementSiblingPositionElementNameCounts' => $elementSiblingPositions['elementNameCounts'],
+            'xmlElementSiblingPositionIndexCounts' => $elementSiblingPositions['indexCounts'],
+            'xmlElementSiblingPositionSiblingCountBuckets' => $elementSiblingPositions['siblingCountBuckets'],
+            'xmlElementSiblingPositions' => $elementSiblingPositions['items'],
             'xmlElementAttributeCount' => $elementAttributes['count'],
             'xmlElementAttributeValueByteLength' => $elementAttributes['valueByteLength'],
             'xmlElementAttributeNameCounts' => $elementAttributes['nameCounts'],

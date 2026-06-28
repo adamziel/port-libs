@@ -19400,6 +19400,122 @@ XML;
         $t->true(is_string($encodedShapes), 'XML child-node shape metadata should encode for review');
         $t->true(!str_contains((string) $encodedShapes, 'child-node:hidden'), 'raw XML child text should not be exposed in child-node shape metadata');
     },
+    'summarizes docx package xml element sibling positions without exposing text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $hiddenItem = 'sibling-position:hidden-item';
+        $hiddenTail = 'sibling-position:hidden-tail';
+        $parts['customXml/sibling-position-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:review-sibling-position" xmlns:audit="urn:review-sibling-audit">
+  <review:front/>
+  <review:group>
+    <review:item>{$hiddenItem}</review:item>
+    <review:item/>
+    <review:tail>{$hiddenTail}</review:tail>
+  </review:group>
+  <audit:note/>
+  <review:solo><review:only/></review:solo>
+</review:packet>
+XML;
+        $parts['word/settings-sibling-position.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docVars>
+    <w:docVar w:name="First"/>
+    <w:docVar w:name="Second"/>
+    <w:docVar w:name="Third"/>
+  </w:docVars>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/sibling-position-review.xml'];
+        $settingsPart = $package['parts']['word/settings-sibling-position.xml'];
+        $positions = array_values(array_filter(
+            $summary['partXmlElementSiblingPositions'],
+            static fn (array $position): bool => in_array(
+                $position['partName'],
+                ['customXml/sibling-position-review.xml', 'word/settings-sibling-position.xml'],
+                true,
+            ),
+        ));
+        $reviewPositionsByPath = [];
+        foreach ($reviewPart['xmlElementSiblingPositions'] as $position) {
+            $reviewPositionsByPath[$position['elementPath']][] = $position;
+        }
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(9, $reviewPart['xmlElementSiblingPositionCount']);
+        $t->same(4, $reviewPart['xmlElementSiblingPositionFirstCount']);
+        $t->same(4, $reviewPart['xmlElementSiblingPositionLastCount']);
+        $t->same(2, $reviewPart['xmlElementSiblingPositionOnlyChildCount']);
+        $t->same([
+            '/' => 1,
+            '/review:packet' => 4,
+            '/review:packet/review:group' => 3,
+            '/review:packet/review:solo' => 1,
+        ], $reviewPart['xmlElementSiblingPositionParentPathCounts']);
+        $t->same([
+            '(document)' => 1,
+            'urn:review-sibling-position' => 8,
+        ], $reviewPart['xmlElementSiblingPositionParentNamespaceCounts']);
+        $t->same([
+            'audit:note' => 1,
+            'review:front' => 1,
+            'review:group' => 1,
+            'review:item' => 2,
+            'review:only' => 1,
+            'review:packet' => 1,
+            'review:solo' => 1,
+            'review:tail' => 1,
+        ], $reviewPart['xmlElementSiblingPositionElementNameCounts']);
+        $t->same([1 => 4, 2 => 2, 3 => 2, 4 => 1], $reviewPart['xmlElementSiblingPositionIndexCounts']);
+        $t->same(['1' => 2, '2-3' => 3, '4-7' => 4], $reviewPart['xmlElementSiblingPositionSiblingCountBuckets']);
+
+        $t->same('/', $reviewPart['xmlElementSiblingPositions'][0]['parentPath']);
+        $t->same(1, $reviewPart['xmlElementSiblingPositions'][0]['siblingIndex']);
+        $t->same(1, $reviewPart['xmlElementSiblingPositions'][0]['siblingCount']);
+        $t->same(true, $reviewPart['xmlElementSiblingPositions'][0]['isOnlyElementSibling']);
+        $t->same('/review:packet/review:front', $reviewPositionsByPath['/review:packet/review:front'][0]['elementPath']);
+        $t->same(1, $reviewPositionsByPath['/review:packet/review:front'][0]['siblingIndex']);
+        $t->same(4, $reviewPositionsByPath['/review:packet/review:front'][0]['siblingCount']);
+        $t->same(true, $reviewPositionsByPath['/review:packet/review:front'][0]['isFirstElementSibling']);
+        $t->same(false, $reviewPositionsByPath['/review:packet/review:front'][0]['isLastElementSibling']);
+        $t->same(2, $reviewPositionsByPath['/review:packet/review:group'][0]['siblingIndex']);
+        $t->same(1, $reviewPositionsByPath['/review:packet/review:group/review:item'][0]['siblingIndex']);
+        $t->same(2, $reviewPositionsByPath['/review:packet/review:group/review:item'][1]['siblingIndex']);
+        $t->same(3, $reviewPositionsByPath['/review:packet/review:group/review:tail'][0]['siblingIndex']);
+        $t->same(true, $reviewPositionsByPath['/review:packet/review:group/review:tail'][0]['isLastElementSibling']);
+        $t->same(4, $reviewPositionsByPath['/review:packet/review:solo'][0]['siblingIndex']);
+        $t->same(true, $reviewPositionsByPath['/review:packet/review:solo/review:only'][0]['isOnlyElementSibling']);
+
+        $t->same(true, $settingsPart['xmlInspectable']);
+        $t->same(5, $settingsPart['xmlElementSiblingPositionCount']);
+        $t->same(3, $settingsPart['xmlElementSiblingPositionFirstCount']);
+        $t->same(3, $settingsPart['xmlElementSiblingPositionLastCount']);
+        $t->same(2, $settingsPart['xmlElementSiblingPositionOnlyChildCount']);
+        $t->same(['1' => 2, '2-3' => 3], $settingsPart['xmlElementSiblingPositionSiblingCountBuckets']);
+        $t->same(3, $settingsPart['xmlElementSiblingPositionElementNameCounts']['w:docVar']);
+
+        $t->true($summary['partXmlElementSiblingPositionPartCount'] >= 2, 'summary sibling-position part count should include added XML parts');
+        $t->true($summary['partXmlElementSiblingPositionCount'] >= 14, 'summary sibling-position count should include added XML elements');
+        $t->true(in_array('customXml/sibling-position-review.xml', $summary['partXmlElementSiblingPositionPartNames'], true), 'custom XML sibling-position part should be summarized');
+        $t->true(in_array('word/settings-sibling-position.xml', $summary['partXmlElementSiblingPositionPartNames'], true), 'settings sibling-position part should be summarized');
+        $t->same(4, $summary['partXmlElementSiblingPositionParentPathCounts']['/review:packet']);
+        $t->same(3, $summary['partXmlElementSiblingPositionParentPathCounts']['/review:packet/review:group']);
+        $t->same(3, $summary['partXmlElementSiblingPositionElementNameCounts']['w:docVar']);
+        $t->same(14, count($positions));
+        $t->same('customXml/sibling-position-review.xml', $positions[0]['partName']);
+        $t->same('/review:packet', $positions[0]['elementPath']);
+        $t->same('word/settings-sibling-position.xml', $positions[13]['partName']);
+        $t->same('/w:settings/w:docVars/w:docVar', $positions[13]['elementPath']);
+
+        $encodedPositions = json_encode([$reviewPart['xmlElementSiblingPositions'], $settingsPart['xmlElementSiblingPositions'], $positions]);
+        $t->true(is_string($encodedPositions), 'XML sibling-position metadata should encode for review');
+        $t->true(!str_contains((string) $encodedPositions, 'sibling-position:hidden'), 'raw XML text should not be exposed in sibling-position metadata');
+    },
     'accepts docx main document template and macro-enabled content types' => static function (TestRunner $t): void {
         $acceptedDocumentContentTypes = [
             ['application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'],
