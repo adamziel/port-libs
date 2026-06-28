@@ -1269,6 +1269,16 @@ CSS)
             '@-moz-document url-prefix(){h1{color:#ff0}}',
             $minifier->minify('@-moz-document url-prefix("") { h1 { color: yellow; } }')
         );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $minifier->minify('@-moz-document url-prefix(foo) {}'),
+            'upstream src/lib.rs::test_moz_document line 23553'
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $minifier->minify('@-moz-document url-prefix("foo") {}'),
+            'upstream src/lib.rs::test_moz_document line 23557'
+        );
         $t->same('@foo;', $minifier->minify('@foo;'));
         $t->same('@foo bar;', $minifier->minify('@foo bar;'));
         $t->same('@foo (bar: baz);', $minifier->minify('@foo (bar: baz);'), 'upstream src/lib.rs::test_unknown_at_rules line 30674');

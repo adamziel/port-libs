@@ -1652,6 +1652,13 @@ final class CssMinifier
             }
 
             $prelude = substr($css, $document, $open - $document);
+            if (preg_match_all('/\burl-prefix\(\s*([^)]+?)\s*\)/i', $prelude, $matches) > 0) {
+                foreach ($matches[1] as $argument) {
+                    if (preg_match('/^(["\'])\1$/', trim($argument)) !== 1) {
+                        throw new \InvalidArgumentException('Unexpected token in @-moz-document url-prefix');
+                    }
+                }
+            }
             $prelude = preg_replace('/\burl-prefix\(\s*(["\'])\1\s*\)/i', 'url-prefix()', $prelude) ?? $prelude;
             $output .= $prelude . '{';
             $cursor = $open + 1;
