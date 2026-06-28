@@ -19064,6 +19064,137 @@ XML;
         $t->true(!isset($part['xmlElementAttributes'][0]['value']), 'raw XML attribute value should not be exposed on position metadata');
         $t->true(!str_contains((string) $encodedAttributes, 'hidden-'), 'raw XML attribute values should not be exposed in position metadata');
     },
+    'summarizes docx package xml element attribute sets without exposing values' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $rootValue = 'attribute-set:hidden-root';
+        $itemCheckpoint = 'attribute-set:hidden-checkpoint';
+        $itemPlain = 'attribute-set:hidden-plain';
+        $itemFlag = 'attribute-set:hidden-flag';
+        $repeatValue = 'attribute-set:hidden-repeat';
+        $settingsName = 'attribute-set:hidden-settings-name';
+        $settingsValue = 'attribute-set:hidden-settings-value';
+        $parts['customXml/attribute-set-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:attribute-sets" xmlns:audit="urn:attribute-set-audit" packet="{$rootValue}" review:state="ready">
+  <review:item audit:checkpoint="{$itemCheckpoint}" plain="{$itemPlain}" review:flag="{$itemFlag}"/>
+  <review:repeat plain="{$repeatValue}"/>
+</review:packet>
+XML;
+        $parts['word/settings-attribute-sets.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:review="urn:settings-attribute-sets">
+  <w:docVars>
+    <w:docVar review:name="{$settingsName}" w:val="{$settingsValue}"/>
+  </w:docVars>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/attribute-set-review.xml'];
+        $settingsPart = $package['parts']['word/settings-attribute-sets.xml'];
+        $sets = array_values(array_filter(
+            $summary['partXmlElementAttributeSets'],
+            static fn (array $set): bool => in_array(
+                $set['partName'],
+                ['customXml/attribute-set-review.xml', 'word/settings-attribute-sets.xml'],
+                true,
+            ),
+        ));
+        $setsByPath = [];
+        foreach ($sets as $set) {
+            $setsByPath[$set['partName'] . '#' . $set['elementPath']] = $set;
+        }
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(3, $reviewPart['xmlElementAttributeSetCount']);
+        $t->same(6, $reviewPart['xmlElementAttributeSetAttributeCount']);
+        $t->same(3, $reviewPart['xmlElementAttributeSetMaxAttributeCount']);
+        $t->same(2, $reviewPart['xmlElementAttributeSetNamespacedElementCount']);
+        $t->same(3, $reviewPart['xmlElementAttributeSetUnqualifiedElementCount']);
+        $t->same(2, $reviewPart['xmlElementAttributeSetMixedNamespaceElementCount']);
+        $t->same(['1' => 1, '2-3' => 2], $reviewPart['xmlElementAttributeSetCountBucketCounts']);
+        $t->same([
+            '/review:packet' => 1,
+            '/review:packet/review:item' => 1,
+            '/review:packet/review:repeat' => 1,
+        ], $reviewPart['xmlElementAttributeSetElementPathCounts']);
+        $t->same([
+            'review:item' => 1,
+            'review:packet' => 1,
+            'review:repeat' => 1,
+        ], $reviewPart['xmlElementAttributeSetElementNameCounts']);
+        $t->same(['urn:attribute-sets' => 3], $reviewPart['xmlElementAttributeSetNamespaceCounts']);
+        $t->same(['review' => 3], $reviewPart['xmlElementAttributeSetPrefixCounts']);
+        $t->same([
+            'audit:checkpoint plain review:flag' => 1,
+            'packet review:state' => 1,
+            'plain' => 1,
+        ], $reviewPart['xmlElementAttributeSetSignatureCounts']);
+
+        $rootSet = $reviewPart['xmlElementAttributeSets'][0];
+        $itemSet = $reviewPart['xmlElementAttributeSets'][1];
+        $repeatSet = $reviewPart['xmlElementAttributeSets'][2];
+        $t->same('/review:packet', $rootSet['elementPath']);
+        $t->same(2, $rootSet['attributeCount']);
+        $t->same(['packet', 'review:state'], $rootSet['attributeNames']);
+        $t->same('packet review:state', $rootSet['attributeSignature']);
+        $t->same('packet', $rootSet['firstAttributeName']);
+        $t->same('review:state', $rootSet['lastAttributeName']);
+        $t->same(true, $rootSet['hasNamespacedAttributes']);
+        $t->same(true, $rootSet['hasUnqualifiedAttributes']);
+        $t->same('mixed', $rootSet['namespaceMix']);
+        $t->same('/review:packet/review:item', $itemSet['elementPath']);
+        $t->same(3, $itemSet['attributeCount']);
+        $t->same(['audit:checkpoint', 'plain', 'review:flag'], $itemSet['attributeNames']);
+        $t->same(['checkpoint', 'flag', 'plain'], $itemSet['attributeLocalNames']);
+        $t->same(['urn:attribute-set-audit', 'urn:attribute-sets'], $itemSet['attributeNamespaces']);
+        $t->same(['audit', 'review'], $itemSet['attributePrefixes']);
+        $t->same('audit:checkpoint plain review:flag', $itemSet['attributeSignature']);
+        $t->same('mixed', $itemSet['namespaceMix']);
+        $t->same('/review:packet/review:repeat', $repeatSet['elementPath']);
+        $t->same(['plain'], $repeatSet['attributeNames']);
+        $t->same(false, $repeatSet['hasNamespacedAttributes']);
+        $t->same(true, $repeatSet['hasUnqualifiedAttributes']);
+        $t->same('unqualified-only', $repeatSet['namespaceMix']);
+
+        $t->same(true, $settingsPart['xmlInspectable']);
+        $t->same(1, $settingsPart['xmlElementAttributeSetCount']);
+        $t->same(2, $settingsPart['xmlElementAttributeSetAttributeCount']);
+        $t->same(1, $settingsPart['xmlElementAttributeSetNamespacedElementCount']);
+        $t->same(0, $settingsPart['xmlElementAttributeSetUnqualifiedElementCount']);
+        $t->same(0, $settingsPart['xmlElementAttributeSetMixedNamespaceElementCount']);
+        $t->same(['2-3' => 1], $settingsPart['xmlElementAttributeSetCountBucketCounts']);
+        $t->same(['review:name w:val' => 1], $settingsPart['xmlElementAttributeSetSignatureCounts']);
+        $t->same('/w:settings/w:docVars/w:docVar', $settingsPart['xmlElementAttributeSets'][0]['elementPath']);
+        $t->same(['review:name', 'w:val'], $settingsPart['xmlElementAttributeSets'][0]['attributeNames']);
+        $t->same('namespaced-only', $settingsPart['xmlElementAttributeSets'][0]['namespaceMix']);
+
+        $t->true($summary['partXmlElementAttributeSetPartCount'] >= 2, 'summary attribute-set part count should include added XML parts');
+        $t->true($summary['partXmlElementAttributeSetCount'] >= 4, 'summary attribute-set count should include added XML elements');
+        $t->true($summary['partXmlElementAttributeSetAttributeCount'] >= 8, 'summary attribute-set attribute count should include added XML attributes');
+        $t->true($summary['partXmlElementAttributeSetMaxAttributeCount'] >= 3, 'summary attribute-set max should include dense XML elements');
+        $t->true($summary['partXmlElementAttributeSetNamespacedElementCount'] >= 3, 'summary should include namespaced attribute-set elements');
+        $t->true($summary['partXmlElementAttributeSetUnqualifiedElementCount'] >= 3, 'summary should include unqualified attribute-set elements');
+        $t->true($summary['partXmlElementAttributeSetMixedNamespaceElementCount'] >= 2, 'summary should include mixed namespace attribute sets');
+        $t->true($summary['partXmlElementAttributeSetCountBucketCounts']['2-3'] >= 3, 'summary should include 2-3 attribute-set buckets');
+        $t->same(1, $summary['partXmlElementAttributeSetElementPathCounts']['/review:packet/review:repeat']);
+        $t->same(1, $summary['partXmlElementAttributeSetSignatureCounts']['audit:checkpoint plain review:flag']);
+        $t->true(in_array('customXml/attribute-set-review.xml', $summary['partXmlElementAttributeSetPartNames'], true), 'custom XML attribute-set part should be summarized');
+        $t->true(in_array('word/settings-attribute-sets.xml', $summary['partXmlElementAttributeSetPartNames'], true), 'settings attribute-set part should be summarized');
+        $t->same(4, count($sets));
+        $t->same('customXml/attribute-set-review.xml', $sets[0]['partName']);
+        $t->same('/review:packet', $sets[0]['elementPath']);
+        $t->same('word/settings-attribute-sets.xml', $sets[3]['partName']);
+        $t->same('/w:settings/w:docVars/w:docVar', $sets[3]['elementPath']);
+        $t->same('review:name w:val', $setsByPath['word/settings-attribute-sets.xml#/w:settings/w:docVars/w:docVar']['attributeSignature']);
+
+        $encodedSets = json_encode([$reviewPart['xmlElementAttributeSets'], $settingsPart['xmlElementAttributeSets'], $sets]);
+        $t->true(is_string($encodedSets), 'XML attribute-set metadata should encode for review');
+        $t->true(!isset($reviewPart['xmlElementAttributeSets'][0]['value']), 'raw XML attribute values should not be exposed on attribute-set metadata');
+        $t->true(!str_contains((string) $encodedSets, 'attribute-set:hidden'), 'raw XML attribute values should not be exposed in attribute-set metadata');
+    },
     'summarizes docx package xml relationship references without exposing text' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $hiddenText = 'relationship-reference:hidden-payload';

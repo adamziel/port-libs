@@ -14584,6 +14584,28 @@ final class DocxOpenXmlReader
             'partXmlElementAttributeLastCount' => $partXmlRoots['xmlElementAttributeLastCount'],
             'partXmlElementAttributeOnlyCount' => $partXmlRoots['xmlElementAttributeOnlyCount'],
             'partXmlElementAttributePartNames' => $partXmlRoots['xmlElementAttributePartNames'],
+            'partXmlElementAttributeSetPartCount' => $partXmlRoots['xmlElementAttributeSetPartCount'],
+            'partXmlElementAttributeSetCount' => $partXmlRoots['xmlElementAttributeSetCount'],
+            'partXmlElementAttributeSetAttributeCount' => $partXmlRoots['xmlElementAttributeSetAttributeCount'],
+            'partXmlElementAttributeSetMaxAttributeCount' => $partXmlRoots['xmlElementAttributeSetMaxAttributeCount'],
+            'partXmlElementAttributeSetNamespacedElementCount' => $partXmlRoots['xmlElementAttributeSetNamespacedElementCount'],
+            'partXmlElementAttributeSetUnqualifiedElementCount' => $partXmlRoots['xmlElementAttributeSetUnqualifiedElementCount'],
+            'partXmlElementAttributeSetMixedNamespaceElementCount' => $partXmlRoots['xmlElementAttributeSetMixedNamespaceElementCount'],
+            'partXmlElementAttributeSetCountBucketCount' => count($partXmlRoots['xmlElementAttributeSetCountBucketCounts']),
+            'partXmlElementAttributeSetCountBucketCounts' => $partXmlRoots['xmlElementAttributeSetCountBucketCounts'],
+            'partXmlElementAttributeSetElementPathCount' => count($partXmlRoots['xmlElementAttributeSetElementPathCounts']),
+            'partXmlElementAttributeSetElementPathCounts' => $partXmlRoots['xmlElementAttributeSetElementPathCounts'],
+            'partXmlElementAttributeSetElementPaths' => $partXmlRoots['xmlElementAttributeSetElementPaths'],
+            'partXmlElementAttributeSetElementNameCount' => count($partXmlRoots['xmlElementAttributeSetElementNameCounts']),
+            'partXmlElementAttributeSetElementNameCounts' => $partXmlRoots['xmlElementAttributeSetElementNameCounts'],
+            'partXmlElementAttributeSetNamespaceCount' => count($partXmlRoots['xmlElementAttributeSetNamespaceCounts']),
+            'partXmlElementAttributeSetNamespaceCounts' => $partXmlRoots['xmlElementAttributeSetNamespaceCounts'],
+            'partXmlElementAttributeSetPrefixCount' => count($partXmlRoots['xmlElementAttributeSetPrefixCounts']),
+            'partXmlElementAttributeSetPrefixCounts' => $partXmlRoots['xmlElementAttributeSetPrefixCounts'],
+            'partXmlElementAttributeSetSignatureCount' => count($partXmlRoots['xmlElementAttributeSetSignatureCounts']),
+            'partXmlElementAttributeSetSignatureCounts' => $partXmlRoots['xmlElementAttributeSetSignatureCounts'],
+            'partXmlElementAttributeSetSignatures' => $partXmlRoots['xmlElementAttributeSetSignatures'],
+            'partXmlElementAttributeSetPartNames' => $partXmlRoots['xmlElementAttributeSetPartNames'],
             'partXmlRelationshipReferenceAttributePartCount' => $partXmlRelationshipReferences['partCount'],
             'partXmlRelationshipReferenceAttributeCount' => $partXmlRelationshipReferences['count'],
             'partXmlRelationshipReferenceMatchedCount' => $partXmlRelationshipReferences['matchedCount'],
@@ -15138,6 +15160,7 @@ final class DocxOpenXmlReader
             'partXmlElementSiblingTransitions' => $partXmlRoots['xmlElementSiblingTransitions'],
             'partXmlElementChildShapes' => $partXmlRoots['xmlElementChildShapes'],
             'partXmlElementSiblingPositions' => $partXmlRoots['xmlElementSiblingPositions'],
+            'partXmlElementAttributeSets' => $partXmlRoots['xmlElementAttributeSets'],
             'partXmlElementAttributes' => $partXmlRoots['xmlElementAttributes'],
             'partXmlRelationshipReferenceAttributes' => $partXmlRelationshipReferences['items'],
             'partContentTypeSyntaxSuffixes' => $partContentTypeSyntaxSuffixes,
@@ -20739,6 +20762,16 @@ final class DocxOpenXmlReader
         $xmlElementAttributeValueLengthBuckets = [];
         $xmlElementAttributeIndexCounts = [];
         $xmlElementAttributeParentAttributeCountBucketCounts = [];
+        $xmlElementAttributeSetPartNames = [];
+        $xmlElementAttributeSetCountBucketCounts = [];
+        $xmlElementAttributeSetElementPathCounts = [];
+        $xmlElementAttributeSetElementPaths = [];
+        $xmlElementAttributeSetElementNameCounts = [];
+        $xmlElementAttributeSetNamespaceCounts = [];
+        $xmlElementAttributeSetPrefixCounts = [];
+        $xmlElementAttributeSetSignatureCounts = [];
+        $xmlElementAttributeSetSignatures = [];
+        $xmlElementAttributeSets = [];
         $xmlElementAttributes = [];
         $validCount = 0;
         $invalidCount = 0;
@@ -20881,6 +20914,13 @@ final class DocxOpenXmlReader
         $xmlElementAttributeFirstCount = 0;
         $xmlElementAttributeLastCount = 0;
         $xmlElementAttributeOnlyCount = 0;
+        $xmlElementAttributeSetPartCount = 0;
+        $xmlElementAttributeSetCount = 0;
+        $xmlElementAttributeSetAttributeCount = 0;
+        $xmlElementAttributeSetMaxAttributeCount = 0;
+        $xmlElementAttributeSetNamespacedElementCount = 0;
+        $xmlElementAttributeSetUnqualifiedElementCount = 0;
+        $xmlElementAttributeSetMixedNamespaceElementCount = 0;
 
         foreach ($partInventory as $partName => $part) {
             if (($part['xmlInspectable'] ?? false) !== true) {
@@ -22838,6 +22878,123 @@ final class DocxOpenXmlReader
             $xmlElementAttributeFirstCount += (int) ($part['xmlElementAttributeFirstCount'] ?? 0);
             $xmlElementAttributeLastCount += (int) ($part['xmlElementAttributeLastCount'] ?? 0);
             $xmlElementAttributeOnlyCount += (int) ($part['xmlElementAttributeOnlyCount'] ?? 0);
+            $partAttributeSetCount = (int) ($part['xmlElementAttributeSetCount'] ?? 0);
+            if ($partAttributeSetCount > 0) {
+                ++$xmlElementAttributeSetPartCount;
+                $this->appendUniqueString($xmlElementAttributeSetPartNames, $partName);
+                $xmlElementAttributeSetCount += $partAttributeSetCount;
+                $xmlElementAttributeSetAttributeCount += (int) ($part['xmlElementAttributeSetAttributeCount'] ?? 0);
+                $xmlElementAttributeSetMaxAttributeCount = max(
+                    $xmlElementAttributeSetMaxAttributeCount,
+                    (int) ($part['xmlElementAttributeSetMaxAttributeCount'] ?? 0),
+                );
+                $xmlElementAttributeSetNamespacedElementCount += (int) ($part['xmlElementAttributeSetNamespacedElementCount'] ?? 0);
+                $xmlElementAttributeSetUnqualifiedElementCount += (int) ($part['xmlElementAttributeSetUnqualifiedElementCount'] ?? 0);
+                $xmlElementAttributeSetMixedNamespaceElementCount += (int) ($part['xmlElementAttributeSetMixedNamespaceElementCount'] ?? 0);
+            }
+            foreach (($part['xmlElementAttributeSetCountBucketCounts'] ?? []) as $bucket => $count) {
+                if (!is_string($bucket) && !is_int($bucket)) {
+                    continue;
+                }
+                $bucket = (string) $bucket;
+                if ($bucket === '') {
+                    continue;
+                }
+                $xmlElementAttributeSetCountBucketCounts[$bucket] =
+                    ($xmlElementAttributeSetCountBucketCounts[$bucket] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlElementAttributeSetElementPathCounts'] ?? []) as $elementPath => $count) {
+                if (!is_string($elementPath) || $elementPath === '') {
+                    continue;
+                }
+                $xmlElementAttributeSetElementPathCounts[$elementPath] =
+                    ($xmlElementAttributeSetElementPathCounts[$elementPath] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlElementAttributeSetElementPaths, $elementPath);
+            }
+            foreach (($part['xmlElementAttributeSetElementNameCounts'] ?? []) as $elementName => $count) {
+                if (!is_string($elementName) || $elementName === '') {
+                    continue;
+                }
+                $xmlElementAttributeSetElementNameCounts[$elementName] =
+                    ($xmlElementAttributeSetElementNameCounts[$elementName] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlElementAttributeSetNamespaceCounts'] ?? []) as $namespace => $count) {
+                if (!is_string($namespace) || $namespace === '') {
+                    continue;
+                }
+                $xmlElementAttributeSetNamespaceCounts[$namespace] =
+                    ($xmlElementAttributeSetNamespaceCounts[$namespace] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlElementAttributeSetPrefixCounts'] ?? []) as $prefix => $count) {
+                if (!is_string($prefix) || $prefix === '') {
+                    continue;
+                }
+                $xmlElementAttributeSetPrefixCounts[$prefix] =
+                    ($xmlElementAttributeSetPrefixCounts[$prefix] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlElementAttributeSetSignatureCounts'] ?? []) as $signature => $count) {
+                if (!is_string($signature) || $signature === '') {
+                    continue;
+                }
+                $xmlElementAttributeSetSignatureCounts[$signature] =
+                    ($xmlElementAttributeSetSignatureCounts[$signature] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlElementAttributeSetSignatures, $signature);
+            }
+            foreach (($part['xmlElementAttributeSets'] ?? []) as $attributeSet) {
+                if (!is_array($attributeSet)) {
+                    continue;
+                }
+
+                $xmlElementAttributeSets[] = [
+                    'partName' => $partName,
+                    'directory' => is_string($part['directory'] ?? null)
+                        ? $part['directory']
+                        : $this->packagePartDirectory($partName),
+                    'baseName' => is_string($part['baseName'] ?? null)
+                        ? $part['baseName']
+                        : $this->packagePartBaseName($partName),
+                    'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                    'contentTypeBase' => is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '',
+                    'contentTypeSource' => is_string($part['contentTypeSource'] ?? null) ? $part['contentTypeSource'] : 'missing',
+                    'ordinal' => (int) ($attributeSet['ordinal'] ?? 0),
+                    'elementPath' => is_string($attributeSet['elementPath'] ?? null) ? $attributeSet['elementPath'] : '/',
+                    'elementDepth' => (int) ($attributeSet['elementDepth'] ?? 0),
+                    'elementQualifiedName' => is_string($attributeSet['elementQualifiedName'] ?? null)
+                        ? $attributeSet['elementQualifiedName']
+                        : '',
+                    'elementLocalName' => is_string($attributeSet['elementLocalName'] ?? null)
+                        ? $attributeSet['elementLocalName']
+                        : '',
+                    'elementNamespace' => is_string($attributeSet['elementNamespace'] ?? null)
+                        ? $attributeSet['elementNamespace']
+                        : null,
+                    'elementPrefix' => is_string($attributeSet['elementPrefix'] ?? null)
+                        ? $attributeSet['elementPrefix']
+                        : null,
+                    'attributeCount' => (int) ($attributeSet['attributeCount'] ?? 0),
+                    'attributeCountBucket' => is_string($attributeSet['attributeCountBucket'] ?? null)
+                        ? $attributeSet['attributeCountBucket']
+                        : $this->xmlElementAttributeCountBucket((int) ($attributeSet['attributeCount'] ?? 0)),
+                    'attributeNames' => array_values(array_map('strval', $attributeSet['attributeNames'] ?? [])),
+                    'attributeLocalNames' => array_values(array_map('strval', $attributeSet['attributeLocalNames'] ?? [])),
+                    'attributeNamespaces' => array_values(array_map('strval', $attributeSet['attributeNamespaces'] ?? [])),
+                    'attributePrefixes' => array_values(array_map('strval', $attributeSet['attributePrefixes'] ?? [])),
+                    'attributeSignature' => is_string($attributeSet['attributeSignature'] ?? null)
+                        ? $attributeSet['attributeSignature']
+                        : '',
+                    'firstAttributeName' => is_string($attributeSet['firstAttributeName'] ?? null)
+                        ? $attributeSet['firstAttributeName']
+                        : null,
+                    'lastAttributeName' => is_string($attributeSet['lastAttributeName'] ?? null)
+                        ? $attributeSet['lastAttributeName']
+                        : null,
+                    'hasNamespacedAttributes' => (bool) ($attributeSet['hasNamespacedAttributes'] ?? false),
+                    'hasUnqualifiedAttributes' => (bool) ($attributeSet['hasUnqualifiedAttributes'] ?? false),
+                    'namespaceMix' => is_string($attributeSet['namespaceMix'] ?? null)
+                        ? $attributeSet['namespaceMix']
+                        : 'unqualified-only',
+                ];
+            }
             foreach (($part['xmlElementAttributes'] ?? []) as $attribute) {
                 if (!is_array($attribute)) {
                     continue;
@@ -23488,6 +23645,35 @@ final class DocxOpenXmlReader
                 'xmlElementAttributeFirstCount' => (int) ($part['xmlElementAttributeFirstCount'] ?? 0),
                 'xmlElementAttributeLastCount' => (int) ($part['xmlElementAttributeLastCount'] ?? 0),
                 'xmlElementAttributeOnlyCount' => (int) ($part['xmlElementAttributeOnlyCount'] ?? 0),
+                'xmlElementAttributeSetCount' => (int) ($part['xmlElementAttributeSetCount'] ?? 0),
+                'xmlElementAttributeSetAttributeCount' => (int) ($part['xmlElementAttributeSetAttributeCount'] ?? 0),
+                'xmlElementAttributeSetMaxAttributeCount' => (int) ($part['xmlElementAttributeSetMaxAttributeCount'] ?? 0),
+                'xmlElementAttributeSetNamespacedElementCount' => (int) ($part['xmlElementAttributeSetNamespacedElementCount'] ?? 0),
+                'xmlElementAttributeSetUnqualifiedElementCount' => (int) ($part['xmlElementAttributeSetUnqualifiedElementCount'] ?? 0),
+                'xmlElementAttributeSetMixedNamespaceElementCount' => (int) ($part['xmlElementAttributeSetMixedNamespaceElementCount'] ?? 0),
+                'xmlElementAttributeSetCountBucketCounts' => is_array($part['xmlElementAttributeSetCountBucketCounts'] ?? null)
+                    ? $part['xmlElementAttributeSetCountBucketCounts']
+                    : [],
+                'xmlElementAttributeSetElementPathCounts' => is_array($part['xmlElementAttributeSetElementPathCounts'] ?? null)
+                    ? $part['xmlElementAttributeSetElementPathCounts']
+                    : [],
+                'xmlElementAttributeSetElementPaths' => array_values(array_map('strval', $part['xmlElementAttributeSetElementPaths'] ?? [])),
+                'xmlElementAttributeSetElementNameCounts' => is_array($part['xmlElementAttributeSetElementNameCounts'] ?? null)
+                    ? $part['xmlElementAttributeSetElementNameCounts']
+                    : [],
+                'xmlElementAttributeSetNamespaceCounts' => is_array($part['xmlElementAttributeSetNamespaceCounts'] ?? null)
+                    ? $part['xmlElementAttributeSetNamespaceCounts']
+                    : [],
+                'xmlElementAttributeSetPrefixCounts' => is_array($part['xmlElementAttributeSetPrefixCounts'] ?? null)
+                    ? $part['xmlElementAttributeSetPrefixCounts']
+                    : [],
+                'xmlElementAttributeSetSignatureCounts' => is_array($part['xmlElementAttributeSetSignatureCounts'] ?? null)
+                    ? $part['xmlElementAttributeSetSignatureCounts']
+                    : [],
+                'xmlElementAttributeSetSignatures' => array_values(array_map('strval', $part['xmlElementAttributeSetSignatures'] ?? [])),
+                'xmlElementAttributeSets' => is_array($part['xmlElementAttributeSets'] ?? null)
+                    ? $part['xmlElementAttributeSets']
+                    : [],
                 'xmlElementAttributes' => is_array($part['xmlElementAttributes'] ?? null)
                     ? $part['xmlElementAttributes']
                     : [],
@@ -23628,6 +23814,12 @@ final class DocxOpenXmlReader
         ksort($xmlElementAttributeValueShapeCounts, SORT_STRING);
         ksort($xmlElementAttributeIndexCounts, SORT_NUMERIC);
         ksort($xmlElementAttributeParentAttributeCountBucketCounts, SORT_STRING);
+        ksort($xmlElementAttributeSetCountBucketCounts, SORT_STRING);
+        ksort($xmlElementAttributeSetElementPathCounts, SORT_STRING);
+        ksort($xmlElementAttributeSetElementNameCounts, SORT_STRING);
+        ksort($xmlElementAttributeSetNamespaceCounts, SORT_STRING);
+        ksort($xmlElementAttributeSetPrefixCounts, SORT_STRING);
+        ksort($xmlElementAttributeSetSignatureCounts, SORT_STRING);
         sort($xmlProcessingInstructionTargets, SORT_STRING);
         sort($xmlProcessingInstructionDataAttributeNames, SORT_STRING);
         sort($xmlProcessingInstructionDataAttributeValueShapes, SORT_STRING);
@@ -23687,6 +23879,9 @@ final class DocxOpenXmlReader
         sort($xmlElementAttributeValueShapes, SORT_STRING);
         ksort($xmlElementAttributeValueLengthBucketCounts, SORT_STRING);
         sort($xmlElementAttributeValueLengthBuckets, SORT_STRING);
+        sort($xmlElementAttributeSetPartNames, SORT_STRING);
+        sort($xmlElementAttributeSetElementPaths, SORT_STRING);
+        sort($xmlElementAttributeSetSignatures, SORT_STRING);
         usort(
             $xmlDoctypes,
             static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName']),
@@ -23762,6 +23957,11 @@ final class DocxOpenXmlReader
         );
         usort(
             $xmlElementChildShapes,
+            static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName'])
+                ?: ((int) ($left['ordinal'] ?? 0) <=> (int) ($right['ordinal'] ?? 0)),
+        );
+        usort(
+            $xmlElementAttributeSets,
             static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName'])
                 ?: ((int) ($left['ordinal'] ?? 0) <=> (int) ($right['ordinal'] ?? 0)),
         );
@@ -24165,6 +24365,23 @@ final class DocxOpenXmlReader
             'xmlElementAttributeLastCount' => $xmlElementAttributeLastCount,
             'xmlElementAttributeOnlyCount' => $xmlElementAttributeOnlyCount,
             'xmlElementAttributePartNames' => $xmlElementAttributePartNames,
+            'xmlElementAttributeSetPartCount' => $xmlElementAttributeSetPartCount,
+            'xmlElementAttributeSetCount' => $xmlElementAttributeSetCount,
+            'xmlElementAttributeSetAttributeCount' => $xmlElementAttributeSetAttributeCount,
+            'xmlElementAttributeSetMaxAttributeCount' => $xmlElementAttributeSetMaxAttributeCount,
+            'xmlElementAttributeSetNamespacedElementCount' => $xmlElementAttributeSetNamespacedElementCount,
+            'xmlElementAttributeSetUnqualifiedElementCount' => $xmlElementAttributeSetUnqualifiedElementCount,
+            'xmlElementAttributeSetMixedNamespaceElementCount' => $xmlElementAttributeSetMixedNamespaceElementCount,
+            'xmlElementAttributeSetCountBucketCounts' => $xmlElementAttributeSetCountBucketCounts,
+            'xmlElementAttributeSetElementPathCounts' => $xmlElementAttributeSetElementPathCounts,
+            'xmlElementAttributeSetElementPaths' => $xmlElementAttributeSetElementPaths,
+            'xmlElementAttributeSetElementNameCounts' => $xmlElementAttributeSetElementNameCounts,
+            'xmlElementAttributeSetNamespaceCounts' => $xmlElementAttributeSetNamespaceCounts,
+            'xmlElementAttributeSetPrefixCounts' => $xmlElementAttributeSetPrefixCounts,
+            'xmlElementAttributeSetSignatureCounts' => $xmlElementAttributeSetSignatureCounts,
+            'xmlElementAttributeSetSignatures' => $xmlElementAttributeSetSignatures,
+            'xmlElementAttributeSetPartNames' => $xmlElementAttributeSetPartNames,
+            'xmlElementAttributeSets' => $xmlElementAttributeSets,
             'xmlElementAttributes' => $xmlElementAttributes,
             'items' => $items,
         ];
