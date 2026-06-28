@@ -17566,6 +17566,113 @@ XML;
         $t->same('urn:package-default', $defaultPart['rootNamespace']);
         $t->same('packet', $defaultPart['rootQualifiedName']);
     },
+    'summarizes docx package xml namespace declarations without exposing text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $hiddenText = 'namespace-declaration:hidden-payload';
+        $reviewUri = 'urn:review-namespace-declaration';
+        $defaultUri = 'urn:review-namespace-default';
+        $localUri = 'urn:review-namespace-local';
+        $auditUri = 'urn:review-namespace-audit';
+        $settingsReviewUri = 'urn:settings-namespace-review';
+        $settingsLocalUri = 'urn:settings-namespace-local';
+        $wordUri = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+        $parts['customXml/namespace-declarations.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="{$reviewUri}">
+  <review:item xmlns="{$defaultUri}" xmlns:local="{$localUri}">{$hiddenText}</review:item>
+  <review:tail xmlns:audit="{$auditUri}"/>
+</review:packet>
+XML;
+        $parts['word/settings-namespace-declarations.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="{$wordUri}">
+  <w:docVars xmlns:review="{$settingsReviewUri}">
+    <w:docVar xmlns:local="{$settingsLocalUri}"/>
+  </w:docVars>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/namespace-declarations.xml'];
+        $settingsPart = $package['parts']['word/settings-namespace-declarations.xml'];
+        $declarations = array_values(array_filter(
+            $summary['partXmlNamespaceDeclarations'],
+            static fn (array $declaration): bool => in_array(
+                $declaration['partName'],
+                ['customXml/namespace-declarations.xml', 'word/settings-namespace-declarations.xml'],
+                true,
+            ),
+        ));
+        $reviewByteLength = strlen($reviewUri) + strlen($defaultUri) + strlen($localUri) + strlen($auditUri);
+        $settingsByteLength = strlen($wordUri) + strlen($settingsReviewUri) + strlen($settingsLocalUri);
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(4, $reviewPart['xmlNamespaceDeclarationCount']);
+        $t->same(1, $reviewPart['xmlNamespaceDeclarationDefaultCount']);
+        $t->same(3, $reviewPart['xmlNamespaceDeclarationPrefixedCount']);
+        $t->same($reviewByteLength, $reviewPart['xmlNamespaceDeclarationByteLength']);
+        $t->same(['audit' => 1, 'default' => 1, 'local' => 1, 'review' => 1], $reviewPart['xmlNamespaceDeclarationPrefixCounts']);
+        $t->same(1, $reviewPart['xmlNamespaceDeclarationUriCounts'][$reviewUri]);
+        $t->same(1, $reviewPart['xmlNamespaceDeclarationUriCounts'][$defaultUri]);
+        $t->same(1, $reviewPart['xmlNamespaceDeclarationUriCounts'][$localUri]);
+        $t->same(1, $reviewPart['xmlNamespaceDeclarationUriCounts'][$auditUri]);
+        $t->same([
+            '/review:packet' => 1,
+            '/review:packet/review:item' => 2,
+            '/review:packet/review:tail' => 1,
+        ], $reviewPart['xmlNamespaceDeclarationElementPathCounts']);
+        $t->same([
+            'review:item' => 2,
+            'review:packet' => 1,
+            'review:tail' => 1,
+        ], $reviewPart['xmlNamespaceDeclarationElementNameCounts']);
+        $t->same('review', $reviewPart['xmlNamespaceDeclarations'][0]['prefix']);
+        $t->same(false, $reviewPart['xmlNamespaceDeclarations'][0]['isDefault']);
+        $t->same($reviewUri, $reviewPart['xmlNamespaceDeclarations'][0]['namespaceUri']);
+        $t->same(strlen($reviewUri), $reviewPart['xmlNamespaceDeclarations'][0]['namespaceUriByteLength']);
+        $t->same(sprintf('%08x', crc32($reviewUri)), $reviewPart['xmlNamespaceDeclarations'][0]['namespaceUriCrc32']);
+        $t->same(hash('sha256', $reviewUri), $reviewPart['xmlNamespaceDeclarations'][0]['namespaceUriSha256']);
+        $t->same('/review:packet/review:item', $reviewPart['xmlNamespaceDeclarations'][1]['elementPath']);
+        $t->same('default', $reviewPart['xmlNamespaceDeclarations'][1]['prefix']);
+        $t->same(true, $reviewPart['xmlNamespaceDeclarations'][1]['isDefault']);
+        $t->same($defaultUri, $reviewPart['xmlNamespaceDeclarations'][1]['namespaceUri']);
+        $t->same('/review:packet/review:item', $reviewPart['xmlNamespaceDeclarations'][2]['elementPath']);
+        $t->same('local', $reviewPart['xmlNamespaceDeclarations'][2]['prefix']);
+        $t->same('/review:packet/review:tail', $reviewPart['xmlNamespaceDeclarations'][3]['elementPath']);
+        $t->same('audit', $reviewPart['xmlNamespaceDeclarations'][3]['prefix']);
+
+        $t->same(true, $settingsPart['xmlInspectable']);
+        $t->same(3, $settingsPart['xmlNamespaceDeclarationCount']);
+        $t->same(0, $settingsPart['xmlNamespaceDeclarationDefaultCount']);
+        $t->same(3, $settingsPart['xmlNamespaceDeclarationPrefixedCount']);
+        $t->same($settingsByteLength, $settingsPart['xmlNamespaceDeclarationByteLength']);
+        $t->same(['local' => 1, 'review' => 1, 'w' => 1], $settingsPart['xmlNamespaceDeclarationPrefixCounts']);
+        $t->same(1, $settingsPart['xmlNamespaceDeclarationElementPathCounts']['/w:settings/w:docVars']);
+        $t->same(1, $settingsPart['xmlNamespaceDeclarationElementPathCounts']['/w:settings/w:docVars/w:docVar']);
+
+        $t->true($summary['partXmlNamespaceDeclarationPartCount'] >= 2, 'summary namespace declaration part count should include added XML parts');
+        $t->true($summary['partXmlNamespaceDeclarationCount'] >= 7, 'summary namespace declaration count should include added XML parts');
+        $t->true($summary['partXmlNamespaceDeclarationByteLength'] >= $reviewByteLength + $settingsByteLength, 'summary namespace URI byte length should include added declarations');
+        $t->same(1, $summary['partXmlNamespaceDeclarationUriCounts'][$auditUri]);
+        $t->same(1, $summary['partXmlNamespaceDeclarationUriCounts'][$settingsLocalUri]);
+        $t->same(2, $summary['partXmlNamespaceDeclarationElementPathCounts']['/review:packet/review:item']);
+        $t->same(1, $summary['partXmlNamespaceDeclarationElementPathCounts']['/w:settings/w:docVars/w:docVar']);
+        $t->true(in_array('customXml/namespace-declarations.xml', $summary['partXmlNamespaceDeclarationPartNames'], true), 'custom XML namespace declaration part should be summarized');
+        $t->true(in_array('word/settings-namespace-declarations.xml', $summary['partXmlNamespaceDeclarationPartNames'], true), 'settings namespace declaration part should be summarized');
+        $t->same(7, count($declarations));
+        $t->same('customXml/namespace-declarations.xml', $declarations[0]['partName']);
+        $t->same('/review:packet', $declarations[0]['elementPath']);
+        $t->same('review', $declarations[0]['prefix']);
+        $t->same('word/settings-namespace-declarations.xml', $declarations[6]['partName']);
+        $t->same('/w:settings/w:docVars/w:docVar', $declarations[6]['elementPath']);
+        $t->same('local', $declarations[6]['prefix']);
+
+        $encodedDeclarations = json_encode([$reviewPart['xmlNamespaceDeclarations'], $settingsPart['xmlNamespaceDeclarations'], $declarations]);
+        $t->true(is_string($encodedDeclarations), 'XML namespace declaration metadata should encode for review');
+        $t->true(!str_contains((string) $encodedDeclarations, $hiddenText), 'raw XML text should not be exposed in namespace declaration metadata');
+    },
     'summarizes docx package xml element structures without exposing text' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $hiddenText = 'hidden-xml-structure-payload';
