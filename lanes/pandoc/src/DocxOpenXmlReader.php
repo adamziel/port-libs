@@ -15517,6 +15517,38 @@ final class DocxOpenXmlReader
             'partXmlNamespaceDeclarationElementNameCount' => count($partXmlRoots['xmlNamespaceDeclarationElementNameCounts']),
             'partXmlNamespaceDeclarationElementNameCounts' => $partXmlRoots['xmlNamespaceDeclarationElementNameCounts'],
             'partXmlNamespaceDeclarations' => $partXmlRoots['xmlNamespaceDeclarations'],
+            'partXmlNamespaceUsagePartCount' => $partXmlRoots['xmlNamespaceUsagePartCount'],
+            'partXmlNamespaceUsageOccurrenceCount' => $partXmlRoots['xmlNamespaceUsageOccurrenceCount'],
+            'partXmlNamespaceUsageElementOccurrenceCount' => $partXmlRoots['xmlNamespaceUsageElementOccurrenceCount'],
+            'partXmlNamespaceUsageAttributeOccurrenceCount' => $partXmlRoots['xmlNamespaceUsageAttributeOccurrenceCount'],
+            'partXmlNamespaceUsageDeclaredOccurrenceCount' => $partXmlRoots['xmlNamespaceUsageDeclaredOccurrenceCount'],
+            'partXmlNamespaceUsageImplicitOccurrenceCount' => $partXmlRoots['xmlNamespaceUsageImplicitOccurrenceCount'],
+            'partXmlNamespaceUsageUndeclaredOccurrenceCount' => $partXmlRoots['xmlNamespaceUsageUndeclaredOccurrenceCount'],
+            'partXmlNamespaceUsageUnusedDeclarationCount' => $partXmlRoots['xmlNamespaceUsageUnusedDeclarationCount'],
+            'partXmlNamespaceUsagePartNames' => $partXmlRoots['xmlNamespaceUsagePartNames'],
+            'partXmlNamespaceUsageUriCount' => count($partXmlRoots['xmlNamespaceUsageUriCounts']),
+            'partXmlNamespaceUsageUriCounts' => $partXmlRoots['xmlNamespaceUsageUriCounts'],
+            'partXmlNamespaceUsageUris' => $partXmlRoots['xmlNamespaceUsageUris'],
+            'partXmlNamespaceUsageElementUriCounts' => $partXmlRoots['xmlNamespaceUsageElementUriCounts'],
+            'partXmlNamespaceUsageAttributeUriCounts' => $partXmlRoots['xmlNamespaceUsageAttributeUriCounts'],
+            'partXmlNamespaceUsageDeclaredUriCount' => count($partXmlRoots['xmlNamespaceUsageDeclaredUriCounts']),
+            'partXmlNamespaceUsageDeclaredUriCounts' => $partXmlRoots['xmlNamespaceUsageDeclaredUriCounts'],
+            'partXmlNamespaceUsageDeclaredUris' => $partXmlRoots['xmlNamespaceUsageDeclaredUris'],
+            'partXmlNamespaceUsageImplicitUriCount' => count($partXmlRoots['xmlNamespaceUsageImplicitUriCounts']),
+            'partXmlNamespaceUsageImplicitUriCounts' => $partXmlRoots['xmlNamespaceUsageImplicitUriCounts'],
+            'partXmlNamespaceUsageImplicitUris' => $partXmlRoots['xmlNamespaceUsageImplicitUris'],
+            'partXmlNamespaceUsageUndeclaredUriCount' => count($partXmlRoots['xmlNamespaceUsageUndeclaredUriCounts']),
+            'partXmlNamespaceUsageUndeclaredUriCounts' => $partXmlRoots['xmlNamespaceUsageUndeclaredUriCounts'],
+            'partXmlNamespaceUsageUndeclaredUris' => $partXmlRoots['xmlNamespaceUsageUndeclaredUris'],
+            'partXmlNamespaceUsageUnusedDeclarationUriCount' => count($partXmlRoots['xmlNamespaceUsageUnusedDeclarationUriCounts']),
+            'partXmlNamespaceUsageUnusedDeclarationUriCounts' => $partXmlRoots['xmlNamespaceUsageUnusedDeclarationUriCounts'],
+            'partXmlNamespaceUsageUnusedDeclarationUris' => $partXmlRoots['xmlNamespaceUsageUnusedDeclarationUris'],
+            'partXmlNamespaceUsagePrefixCount' => count($partXmlRoots['xmlNamespaceUsagePrefixCounts']),
+            'partXmlNamespaceUsagePrefixCounts' => $partXmlRoots['xmlNamespaceUsagePrefixCounts'],
+            'partXmlNamespaceUsagePrefixes' => $partXmlRoots['xmlNamespaceUsagePrefixes'],
+            'partXmlNamespaceUsageElementPrefixCounts' => $partXmlRoots['xmlNamespaceUsageElementPrefixCounts'],
+            'partXmlNamespaceUsageAttributePrefixCounts' => $partXmlRoots['xmlNamespaceUsageAttributePrefixCounts'],
+            'partXmlNamespaceUsageDeclarationCoverageComplete' => $partXmlRoots['xmlNamespaceUsageUndeclaredOccurrenceCount'] === 0,
             'partXmlMarkupCompatibilityDeclarationPartCount' => $partXmlRoots['xmlMarkupCompatibilityDeclarationPartCount'],
             'partXmlMarkupCompatibilityDeclarationCount' => $partXmlRoots['xmlMarkupCompatibilityDeclarationCount'],
             'partXmlMarkupCompatibilityTokenCount' => $partXmlRoots['xmlMarkupCompatibilityTokenCount'],
@@ -21400,6 +21432,23 @@ final class DocxOpenXmlReader
         $xmlNamespaceDeclarationElementDepths = [];
         $xmlNamespaceDeclarationElementNameCounts = [];
         $xmlNamespaceDeclarations = [];
+        $xmlNamespaceUsagePartNames = [];
+        $xmlNamespaceUsageUriCounts = [];
+        $xmlNamespaceUsageUris = [];
+        $xmlNamespaceUsageElementUriCounts = [];
+        $xmlNamespaceUsageAttributeUriCounts = [];
+        $xmlNamespaceUsageDeclaredUriCounts = [];
+        $xmlNamespaceUsageDeclaredUris = [];
+        $xmlNamespaceUsageImplicitUriCounts = [];
+        $xmlNamespaceUsageImplicitUris = [];
+        $xmlNamespaceUsageUndeclaredUriCounts = [];
+        $xmlNamespaceUsageUndeclaredUris = [];
+        $xmlNamespaceUsageUnusedDeclarationUriCounts = [];
+        $xmlNamespaceUsageUnusedDeclarationUris = [];
+        $xmlNamespaceUsagePrefixCounts = [];
+        $xmlNamespaceUsagePrefixes = [];
+        $xmlNamespaceUsageElementPrefixCounts = [];
+        $xmlNamespaceUsageAttributePrefixCounts = [];
         $xmlMarkupCompatibilityDeclarationPartNames = [];
         $xmlMarkupCompatibilityDeclarationNameCounts = [];
         $xmlMarkupCompatibilityDeclarationNames = [];
@@ -21621,6 +21670,14 @@ final class DocxOpenXmlReader
         $xmlNamespaceDeclarationDefaultCount = 0;
         $xmlNamespaceDeclarationPrefixedCount = 0;
         $xmlNamespaceDeclarationByteLength = 0;
+        $xmlNamespaceUsagePartCount = 0;
+        $xmlNamespaceUsageOccurrenceCount = 0;
+        $xmlNamespaceUsageElementOccurrenceCount = 0;
+        $xmlNamespaceUsageAttributeOccurrenceCount = 0;
+        $xmlNamespaceUsageDeclaredOccurrenceCount = 0;
+        $xmlNamespaceUsageImplicitOccurrenceCount = 0;
+        $xmlNamespaceUsageUndeclaredOccurrenceCount = 0;
+        $xmlNamespaceUsageUnusedDeclarationCount = 0;
         $xmlMarkupCompatibilityDeclarationPartCount = 0;
         $xmlMarkupCompatibilityDeclarationCount = 0;
         $xmlMarkupCompatibilityTokenCount = 0;
@@ -22712,6 +22769,97 @@ final class DocxOpenXmlReader
                     'namespaceUriCrc32' => is_string($declaration['namespaceUriCrc32'] ?? null) ? $declaration['namespaceUriCrc32'] : null,
                     'namespaceUriSha256' => is_string($declaration['namespaceUriSha256'] ?? null) ? $declaration['namespaceUriSha256'] : null,
                 ];
+            }
+            $partNamespaceUsageCount = (int) ($part['xmlNamespaceUsageOccurrenceCount'] ?? 0);
+            $partNamespaceUnusedDeclarationCount = (int) ($part['xmlNamespaceUsageUnusedDeclarationCount'] ?? 0);
+            if ($partNamespaceUsageCount > 0 || $partNamespaceUnusedDeclarationCount > 0) {
+                ++$xmlNamespaceUsagePartCount;
+                $xmlNamespaceUsageOccurrenceCount += $partNamespaceUsageCount;
+                $xmlNamespaceUsageElementOccurrenceCount += (int) ($part['xmlNamespaceUsageElementOccurrenceCount'] ?? 0);
+                $xmlNamespaceUsageAttributeOccurrenceCount += (int) ($part['xmlNamespaceUsageAttributeOccurrenceCount'] ?? 0);
+                $xmlNamespaceUsageDeclaredOccurrenceCount += (int) ($part['xmlNamespaceUsageDeclaredOccurrenceCount'] ?? 0);
+                $xmlNamespaceUsageImplicitOccurrenceCount += (int) ($part['xmlNamespaceUsageImplicitOccurrenceCount'] ?? 0);
+                $xmlNamespaceUsageUndeclaredOccurrenceCount += (int) ($part['xmlNamespaceUsageUndeclaredOccurrenceCount'] ?? 0);
+                $xmlNamespaceUsageUnusedDeclarationCount += $partNamespaceUnusedDeclarationCount;
+                $xmlNamespaceUsagePartNames[] = $partName;
+            }
+            foreach (($part['xmlNamespaceUsageUriCounts'] ?? []) as $namespaceUri => $count) {
+                if (!is_string($namespaceUri) || $namespaceUri === '') {
+                    continue;
+                }
+                $xmlNamespaceUsageUriCounts[$namespaceUri] =
+                    ($xmlNamespaceUsageUriCounts[$namespaceUri] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlNamespaceUsageUris, $namespaceUri);
+            }
+            foreach (($part['xmlNamespaceUsageElementUriCounts'] ?? []) as $namespaceUri => $count) {
+                if (!is_string($namespaceUri) || $namespaceUri === '') {
+                    continue;
+                }
+                $xmlNamespaceUsageElementUriCounts[$namespaceUri] =
+                    ($xmlNamespaceUsageElementUriCounts[$namespaceUri] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlNamespaceUsageAttributeUriCounts'] ?? []) as $namespaceUri => $count) {
+                if (!is_string($namespaceUri) || $namespaceUri === '') {
+                    continue;
+                }
+                $xmlNamespaceUsageAttributeUriCounts[$namespaceUri] =
+                    ($xmlNamespaceUsageAttributeUriCounts[$namespaceUri] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlNamespaceUsageDeclaredUriCounts'] ?? []) as $namespaceUri => $count) {
+                if (!is_string($namespaceUri) || $namespaceUri === '') {
+                    continue;
+                }
+                $xmlNamespaceUsageDeclaredUriCounts[$namespaceUri] =
+                    ($xmlNamespaceUsageDeclaredUriCounts[$namespaceUri] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlNamespaceUsageDeclaredUris, $namespaceUri);
+            }
+            foreach (($part['xmlNamespaceUsageImplicitUriCounts'] ?? []) as $namespaceUri => $count) {
+                if (!is_string($namespaceUri) || $namespaceUri === '') {
+                    continue;
+                }
+                $xmlNamespaceUsageImplicitUriCounts[$namespaceUri] =
+                    ($xmlNamespaceUsageImplicitUriCounts[$namespaceUri] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlNamespaceUsageImplicitUris, $namespaceUri);
+            }
+            foreach (($part['xmlNamespaceUsageUndeclaredUriCounts'] ?? []) as $namespaceUri => $count) {
+                if (!is_string($namespaceUri) || $namespaceUri === '') {
+                    continue;
+                }
+                $xmlNamespaceUsageUndeclaredUriCounts[$namespaceUri] =
+                    ($xmlNamespaceUsageUndeclaredUriCounts[$namespaceUri] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlNamespaceUsageUndeclaredUris, $namespaceUri);
+            }
+            foreach (($part['xmlNamespaceUsageUnusedDeclarationUriCounts'] ?? []) as $namespaceUri => $count) {
+                if (!is_string($namespaceUri) || $namespaceUri === '') {
+                    continue;
+                }
+                $xmlNamespaceUsageUnusedDeclarationUriCounts[$namespaceUri] =
+                    ($xmlNamespaceUsageUnusedDeclarationUriCounts[$namespaceUri] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlNamespaceUsageUnusedDeclarationUris, $namespaceUri);
+            }
+            foreach (($part['xmlNamespaceUsagePrefixCounts'] ?? []) as $prefix => $count) {
+                if (!is_string($prefix) || $prefix === '') {
+                    continue;
+                }
+                $xmlNamespaceUsagePrefixCounts[$prefix] =
+                    ($xmlNamespaceUsagePrefixCounts[$prefix] ?? 0) + (int) $count;
+                if ($prefix !== '(none)') {
+                    $this->appendUniqueString($xmlNamespaceUsagePrefixes, $prefix);
+                }
+            }
+            foreach (($part['xmlNamespaceUsageElementPrefixCounts'] ?? []) as $prefix => $count) {
+                if (!is_string($prefix) || $prefix === '') {
+                    continue;
+                }
+                $xmlNamespaceUsageElementPrefixCounts[$prefix] =
+                    ($xmlNamespaceUsageElementPrefixCounts[$prefix] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlNamespaceUsageAttributePrefixCounts'] ?? []) as $prefix => $count) {
+                if (!is_string($prefix) || $prefix === '') {
+                    continue;
+                }
+                $xmlNamespaceUsageAttributePrefixCounts[$prefix] =
+                    ($xmlNamespaceUsageAttributePrefixCounts[$prefix] ?? 0) + (int) $count;
             }
             $partMarkupCompatibilityDeclarationCount = (int) ($part['xmlMarkupCompatibilityDeclarationCount'] ?? 0);
             if ($partMarkupCompatibilityDeclarationCount > 0) {
@@ -24788,6 +24936,16 @@ final class DocxOpenXmlReader
         ksort($xmlNamespaceDeclarationElementPathCounts, SORT_STRING);
         ksort($xmlNamespaceDeclarationElementDepthCounts, SORT_NUMERIC);
         ksort($xmlNamespaceDeclarationElementNameCounts, SORT_STRING);
+        ksort($xmlNamespaceUsageUriCounts, SORT_STRING);
+        ksort($xmlNamespaceUsageElementUriCounts, SORT_STRING);
+        ksort($xmlNamespaceUsageAttributeUriCounts, SORT_STRING);
+        ksort($xmlNamespaceUsageDeclaredUriCounts, SORT_STRING);
+        ksort($xmlNamespaceUsageImplicitUriCounts, SORT_STRING);
+        ksort($xmlNamespaceUsageUndeclaredUriCounts, SORT_STRING);
+        ksort($xmlNamespaceUsageUnusedDeclarationUriCounts, SORT_STRING);
+        ksort($xmlNamespaceUsagePrefixCounts, SORT_STRING);
+        ksort($xmlNamespaceUsageElementPrefixCounts, SORT_STRING);
+        ksort($xmlNamespaceUsageAttributePrefixCounts, SORT_STRING);
         ksort($xmlMarkupCompatibilityDeclarationNameCounts, SORT_STRING);
         ksort($xmlMarkupCompatibilityPrefixCounts, SORT_STRING);
         ksort($xmlMarkupCompatibilityNamespaceCounts, SORT_STRING);
@@ -24900,6 +25058,13 @@ final class DocxOpenXmlReader
         sort($xmlNamespaceDeclarationUris, SORT_STRING);
         sort($xmlNamespaceDeclarationElementPaths, SORT_STRING);
         sort($xmlNamespaceDeclarationElementDepths, SORT_NUMERIC);
+        sort($xmlNamespaceUsagePartNames, SORT_STRING);
+        sort($xmlNamespaceUsageUris, SORT_STRING);
+        sort($xmlNamespaceUsageDeclaredUris, SORT_STRING);
+        sort($xmlNamespaceUsageImplicitUris, SORT_STRING);
+        sort($xmlNamespaceUsageUndeclaredUris, SORT_STRING);
+        sort($xmlNamespaceUsageUnusedDeclarationUris, SORT_STRING);
+        sort($xmlNamespaceUsagePrefixes, SORT_STRING);
         sort($xmlMarkupCompatibilityDeclarationPartNames, SORT_STRING);
         sort($xmlMarkupCompatibilityDeclarationNames, SORT_STRING);
         sort($xmlMarkupCompatibilityPrefixes, SORT_STRING);
@@ -25254,6 +25419,31 @@ final class DocxOpenXmlReader
             'xmlNamespaceDeclarationElementDepths' => array_values(array_map('intval', $xmlNamespaceDeclarationElementDepths)),
             'xmlNamespaceDeclarationElementNameCounts' => $xmlNamespaceDeclarationElementNameCounts,
             'xmlNamespaceDeclarations' => $xmlNamespaceDeclarations,
+            'xmlNamespaceUsagePartCount' => $xmlNamespaceUsagePartCount,
+            'xmlNamespaceUsageOccurrenceCount' => $xmlNamespaceUsageOccurrenceCount,
+            'xmlNamespaceUsageElementOccurrenceCount' => $xmlNamespaceUsageElementOccurrenceCount,
+            'xmlNamespaceUsageAttributeOccurrenceCount' => $xmlNamespaceUsageAttributeOccurrenceCount,
+            'xmlNamespaceUsageDeclaredOccurrenceCount' => $xmlNamespaceUsageDeclaredOccurrenceCount,
+            'xmlNamespaceUsageImplicitOccurrenceCount' => $xmlNamespaceUsageImplicitOccurrenceCount,
+            'xmlNamespaceUsageUndeclaredOccurrenceCount' => $xmlNamespaceUsageUndeclaredOccurrenceCount,
+            'xmlNamespaceUsageUnusedDeclarationCount' => $xmlNamespaceUsageUnusedDeclarationCount,
+            'xmlNamespaceUsagePartNames' => $xmlNamespaceUsagePartNames,
+            'xmlNamespaceUsageUriCounts' => $xmlNamespaceUsageUriCounts,
+            'xmlNamespaceUsageUris' => $xmlNamespaceUsageUris,
+            'xmlNamespaceUsageElementUriCounts' => $xmlNamespaceUsageElementUriCounts,
+            'xmlNamespaceUsageAttributeUriCounts' => $xmlNamespaceUsageAttributeUriCounts,
+            'xmlNamespaceUsageDeclaredUriCounts' => $xmlNamespaceUsageDeclaredUriCounts,
+            'xmlNamespaceUsageDeclaredUris' => $xmlNamespaceUsageDeclaredUris,
+            'xmlNamespaceUsageImplicitUriCounts' => $xmlNamespaceUsageImplicitUriCounts,
+            'xmlNamespaceUsageImplicitUris' => $xmlNamespaceUsageImplicitUris,
+            'xmlNamespaceUsageUndeclaredUriCounts' => $xmlNamespaceUsageUndeclaredUriCounts,
+            'xmlNamespaceUsageUndeclaredUris' => $xmlNamespaceUsageUndeclaredUris,
+            'xmlNamespaceUsageUnusedDeclarationUriCounts' => $xmlNamespaceUsageUnusedDeclarationUriCounts,
+            'xmlNamespaceUsageUnusedDeclarationUris' => $xmlNamespaceUsageUnusedDeclarationUris,
+            'xmlNamespaceUsagePrefixCounts' => $xmlNamespaceUsagePrefixCounts,
+            'xmlNamespaceUsagePrefixes' => $xmlNamespaceUsagePrefixes,
+            'xmlNamespaceUsageElementPrefixCounts' => $xmlNamespaceUsageElementPrefixCounts,
+            'xmlNamespaceUsageAttributePrefixCounts' => $xmlNamespaceUsageAttributePrefixCounts,
             'xmlMarkupCompatibilityDeclarationPartCount' => $xmlMarkupCompatibilityDeclarationPartCount,
             'xmlMarkupCompatibilityDeclarationCount' => $xmlMarkupCompatibilityDeclarationCount,
             'xmlMarkupCompatibilityTokenCount' => $xmlMarkupCompatibilityTokenCount,
@@ -28658,6 +28848,150 @@ final class DocxOpenXmlReader
             'parentQualifiedNameCounts' => $parentQualifiedNameCounts,
             'items' => $items,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $namespaceDeclarations
+     * @param array<string, mixed> $elements
+     * @param array<string, mixed> $elementAttributes
+     * @return array<string, mixed>
+     */
+    private function xmlNamespaceUsageProvenance(
+        array $namespaceDeclarations,
+        array $elements,
+        array $elementAttributes,
+    ): array {
+        $xmlNamespaceUri = 'http://www.w3.org/XML/1998/namespace';
+        $elementUriCounts = $this->xmlNamespaceUsageCounts(
+            is_array($elements['namespaceCounts'] ?? null) ? $elements['namespaceCounts'] : [],
+        );
+        $attributeUriCounts = $this->xmlNamespaceUsageCounts(
+            is_array($elementAttributes['namespaceCounts'] ?? null) ? $elementAttributes['namespaceCounts'] : [],
+        );
+        $declaredUriCounts = $this->xmlNamespaceUsageCounts(
+            is_array($namespaceDeclarations['uriCounts'] ?? null) ? $namespaceDeclarations['uriCounts'] : [],
+        );
+        $elementPrefixCounts = is_array($elements['prefixCounts'] ?? null)
+            ? $this->xmlNamespaceUsageCounts($elements['prefixCounts'], includeNone: true)
+            : [];
+        $attributePrefixCounts = is_array($elementAttributes['prefixCounts'] ?? null)
+            ? $this->xmlNamespaceUsageCounts($elementAttributes['prefixCounts'], includeNone: true)
+            : [];
+        $uriCounts = $this->mergeIntCounts($elementUriCounts, $attributeUriCounts);
+        $prefixCounts = $this->mergeIntCounts($elementPrefixCounts, $attributePrefixCounts);
+        $declaredUsageUriCounts = [];
+        $implicitUriCounts = [];
+        $undeclaredUriCounts = [];
+        foreach ($uriCounts as $uri => $count) {
+            if (isset($declaredUriCounts[$uri])) {
+                $declaredUsageUriCounts[$uri] = $count;
+                continue;
+            }
+
+            if ($uri === $xmlNamespaceUri) {
+                $implicitUriCounts[$uri] = $count;
+                continue;
+            }
+
+            $undeclaredUriCounts[$uri] = $count;
+        }
+
+        $unusedDeclarationUriCounts = [];
+        foreach ($declaredUriCounts as $uri => $count) {
+            if (!isset($uriCounts[$uri])) {
+                $unusedDeclarationUriCounts[$uri] = $count;
+            }
+        }
+
+        ksort($uriCounts, SORT_STRING);
+        ksort($elementUriCounts, SORT_STRING);
+        ksort($attributeUriCounts, SORT_STRING);
+        ksort($declaredUsageUriCounts, SORT_STRING);
+        ksort($implicitUriCounts, SORT_STRING);
+        ksort($undeclaredUriCounts, SORT_STRING);
+        ksort($unusedDeclarationUriCounts, SORT_STRING);
+        ksort($prefixCounts, SORT_STRING);
+        ksort($elementPrefixCounts, SORT_STRING);
+        ksort($attributePrefixCounts, SORT_STRING);
+
+        return [
+            'occurrenceCount' => array_sum($uriCounts),
+            'elementOccurrenceCount' => array_sum($elementUriCounts),
+            'attributeOccurrenceCount' => array_sum($attributeUriCounts),
+            'declaredOccurrenceCount' => array_sum($declaredUsageUriCounts),
+            'implicitOccurrenceCount' => array_sum($implicitUriCounts),
+            'undeclaredOccurrenceCount' => array_sum($undeclaredUriCounts),
+            'unusedDeclarationCount' => (int) array_sum($unusedDeclarationUriCounts),
+            'uriCounts' => $uriCounts,
+            'uris' => array_keys($uriCounts),
+            'elementUriCounts' => $elementUriCounts,
+            'attributeUriCounts' => $attributeUriCounts,
+            'declaredUriCounts' => $declaredUsageUriCounts,
+            'declaredUris' => array_keys($declaredUsageUriCounts),
+            'implicitUriCounts' => $implicitUriCounts,
+            'implicitUris' => array_keys($implicitUriCounts),
+            'undeclaredUriCounts' => $undeclaredUriCounts,
+            'undeclaredUris' => array_keys($undeclaredUriCounts),
+            'unusedDeclarationUriCounts' => $unusedDeclarationUriCounts,
+            'unusedDeclarationUris' => array_keys($unusedDeclarationUriCounts),
+            'prefixCounts' => $prefixCounts,
+            'prefixes' => array_keys(array_filter(
+                $prefixCounts,
+                static fn (mixed $count, mixed $prefix): bool => (int) $count > 0 && (string) $prefix !== '(none)',
+                ARRAY_FILTER_USE_BOTH,
+            )),
+            'elementPrefixCounts' => $elementPrefixCounts,
+            'attributePrefixCounts' => $attributePrefixCounts,
+            'declarationCoverageComplete' => $undeclaredUriCounts === [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $counts
+     * @return array<string, int>
+     */
+    private function xmlNamespaceUsageCounts(array $counts, bool $includeNone = false): array
+    {
+        $normalized = [];
+        foreach ($counts as $key => $count) {
+            if (!is_string($key) && !is_int($key)) {
+                continue;
+            }
+
+            $key = (string) $key;
+            if ($key === '' || $key === '(empty)' || (!$includeNone && $key === '(none)')) {
+                continue;
+            }
+
+            $count = (int) $count;
+            if ($count <= 0) {
+                continue;
+            }
+
+            $normalized[$key] = ($normalized[$key] ?? 0) + $count;
+        }
+
+        ksort($normalized, SORT_STRING);
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<string, int> ...$counts
+     * @return array<string, int>
+     */
+    private function mergeIntCounts(array ...$counts): array
+    {
+        $merged = [];
+        foreach ($counts as $bucket) {
+            foreach ($bucket as $key => $count) {
+                $merged[$key] = ($merged[$key] ?? 0) + (int) $count;
+            }
+        }
+
+        ksort($merged, SORT_STRING);
+
+        return $merged;
     }
 
     /**
@@ -33930,6 +34264,30 @@ final class DocxOpenXmlReader
                 'xmlNamespaceDeclarationElementDepths' => [],
                 'xmlNamespaceDeclarationElementNameCounts' => [],
                 'xmlNamespaceDeclarations' => [],
+                'xmlNamespaceUsageOccurrenceCount' => 0,
+                'xmlNamespaceUsageElementOccurrenceCount' => 0,
+                'xmlNamespaceUsageAttributeOccurrenceCount' => 0,
+                'xmlNamespaceUsageDeclaredOccurrenceCount' => 0,
+                'xmlNamespaceUsageImplicitOccurrenceCount' => 0,
+                'xmlNamespaceUsageUndeclaredOccurrenceCount' => 0,
+                'xmlNamespaceUsageUnusedDeclarationCount' => 0,
+                'xmlNamespaceUsageUriCounts' => [],
+                'xmlNamespaceUsageUris' => [],
+                'xmlNamespaceUsageElementUriCounts' => [],
+                'xmlNamespaceUsageAttributeUriCounts' => [],
+                'xmlNamespaceUsageDeclaredUriCounts' => [],
+                'xmlNamespaceUsageDeclaredUris' => [],
+                'xmlNamespaceUsageImplicitUriCounts' => [],
+                'xmlNamespaceUsageImplicitUris' => [],
+                'xmlNamespaceUsageUndeclaredUriCounts' => [],
+                'xmlNamespaceUsageUndeclaredUris' => [],
+                'xmlNamespaceUsageUnusedDeclarationUriCounts' => [],
+                'xmlNamespaceUsageUnusedDeclarationUris' => [],
+                'xmlNamespaceUsagePrefixCounts' => [],
+                'xmlNamespaceUsagePrefixes' => [],
+                'xmlNamespaceUsageElementPrefixCounts' => [],
+                'xmlNamespaceUsageAttributePrefixCounts' => [],
+                'xmlNamespaceUsageDeclarationCoverageComplete' => true,
                 'xmlMarkupCompatibilityDeclarationCount' => 0,
                 'xmlMarkupCompatibilityTokenCount' => 0,
                 'xmlMarkupCompatibilityResolvedTokenCount' => 0,
@@ -34187,6 +34545,11 @@ final class DocxOpenXmlReader
         $elementChildShapes = $this->xmlElementChildShapeProvenance($contents, $partName);
         $elementSiblingPositions = $this->xmlElementSiblingPositionProvenance($contents, $partName);
         $elementAttributes = $this->xmlElementAttributeProvenance($contents, $partName);
+        $namespaceUsage = $this->xmlNamespaceUsageProvenance(
+            $namespaceDeclarations,
+            $elements,
+            $elementAttributes,
+        );
         $root = $this->xmlRootProvenance($contents, $partName);
 
         return [
@@ -34348,6 +34711,30 @@ final class DocxOpenXmlReader
             'xmlNamespaceDeclarationElementDepths' => $namespaceDeclarations['elementDepths'],
             'xmlNamespaceDeclarationElementNameCounts' => $namespaceDeclarations['elementNameCounts'],
             'xmlNamespaceDeclarations' => $namespaceDeclarations['items'],
+            'xmlNamespaceUsageOccurrenceCount' => $namespaceUsage['occurrenceCount'],
+            'xmlNamespaceUsageElementOccurrenceCount' => $namespaceUsage['elementOccurrenceCount'],
+            'xmlNamespaceUsageAttributeOccurrenceCount' => $namespaceUsage['attributeOccurrenceCount'],
+            'xmlNamespaceUsageDeclaredOccurrenceCount' => $namespaceUsage['declaredOccurrenceCount'],
+            'xmlNamespaceUsageImplicitOccurrenceCount' => $namespaceUsage['implicitOccurrenceCount'],
+            'xmlNamespaceUsageUndeclaredOccurrenceCount' => $namespaceUsage['undeclaredOccurrenceCount'],
+            'xmlNamespaceUsageUnusedDeclarationCount' => $namespaceUsage['unusedDeclarationCount'],
+            'xmlNamespaceUsageUriCounts' => $namespaceUsage['uriCounts'],
+            'xmlNamespaceUsageUris' => $namespaceUsage['uris'],
+            'xmlNamespaceUsageElementUriCounts' => $namespaceUsage['elementUriCounts'],
+            'xmlNamespaceUsageAttributeUriCounts' => $namespaceUsage['attributeUriCounts'],
+            'xmlNamespaceUsageDeclaredUriCounts' => $namespaceUsage['declaredUriCounts'],
+            'xmlNamespaceUsageDeclaredUris' => $namespaceUsage['declaredUris'],
+            'xmlNamespaceUsageImplicitUriCounts' => $namespaceUsage['implicitUriCounts'],
+            'xmlNamespaceUsageImplicitUris' => $namespaceUsage['implicitUris'],
+            'xmlNamespaceUsageUndeclaredUriCounts' => $namespaceUsage['undeclaredUriCounts'],
+            'xmlNamespaceUsageUndeclaredUris' => $namespaceUsage['undeclaredUris'],
+            'xmlNamespaceUsageUnusedDeclarationUriCounts' => $namespaceUsage['unusedDeclarationUriCounts'],
+            'xmlNamespaceUsageUnusedDeclarationUris' => $namespaceUsage['unusedDeclarationUris'],
+            'xmlNamespaceUsagePrefixCounts' => $namespaceUsage['prefixCounts'],
+            'xmlNamespaceUsagePrefixes' => $namespaceUsage['prefixes'],
+            'xmlNamespaceUsageElementPrefixCounts' => $namespaceUsage['elementPrefixCounts'],
+            'xmlNamespaceUsageAttributePrefixCounts' => $namespaceUsage['attributePrefixCounts'],
+            'xmlNamespaceUsageDeclarationCoverageComplete' => $namespaceUsage['declarationCoverageComplete'],
             'xmlMarkupCompatibilityDeclarationCount' => $markupCompatibilityDeclarations['count'],
             'xmlMarkupCompatibilityTokenCount' => $markupCompatibilityDeclarations['tokenCount'],
             'xmlMarkupCompatibilityResolvedTokenCount' => $markupCompatibilityDeclarations['resolvedTokenCount'],

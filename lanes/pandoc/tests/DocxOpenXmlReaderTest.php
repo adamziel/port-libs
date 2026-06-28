@@ -18289,6 +18289,94 @@ XML;
         $t->true(is_string($encodedDeclarations), 'XML namespace declaration metadata should encode for review');
         $t->true(!str_contains((string) $encodedDeclarations, $hiddenText), 'raw XML text should not be exposed in namespace declaration metadata');
     },
+    'summarizes docx package xml namespace usage against declarations' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $reviewUri = 'urn:review-namespace-usage';
+        $defaultUri = 'urn:review-namespace-default';
+        $attrUri = 'urn:review-namespace-attribute';
+        $unusedUri = 'urn:review-namespace-unused';
+        $unusedOnlyUri = 'urn:review-namespace-unused-only';
+        $xmlUri = 'http://www.w3.org/XML/1998/namespace';
+        $hiddenText = 'namespace-usage:hidden-payload';
+        $parts['customXml/namespace-usage.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="{$reviewUri}" xmlns="{$defaultUri}" xmlns:attr="{$attrUri}" xmlns:unused="{$unusedUri}">
+  <review:item attr:state="approved" xml:lang="en">
+    <child>{$hiddenText}</child>
+  </review:item>
+</review:packet>
+XML;
+        $parts['customXml/unused-namespace-declaration.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<plain xmlns:unused="{$unusedOnlyUri}">
+  <child>{$hiddenText}</child>
+</plain>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $part = $package['parts']['customXml/namespace-usage.xml'];
+        $unusedOnlyPart = $package['parts']['customXml/unused-namespace-declaration.xml'];
+
+        $t->same(5, $part['xmlNamespaceUsageOccurrenceCount']);
+        $t->same(3, $part['xmlNamespaceUsageElementOccurrenceCount']);
+        $t->same(2, $part['xmlNamespaceUsageAttributeOccurrenceCount']);
+        $t->same(4, $part['xmlNamespaceUsageDeclaredOccurrenceCount']);
+        $t->same(1, $part['xmlNamespaceUsageImplicitOccurrenceCount']);
+        $t->same(0, $part['xmlNamespaceUsageUndeclaredOccurrenceCount']);
+        $t->same(1, $part['xmlNamespaceUsageUnusedDeclarationCount']);
+        $t->same(true, $part['xmlNamespaceUsageDeclarationCoverageComplete']);
+        $t->same([
+            $xmlUri => 1,
+            $attrUri => 1,
+            $defaultUri => 1,
+            $reviewUri => 2,
+        ], $part['xmlNamespaceUsageUriCounts']);
+        $t->same([
+            $defaultUri => 1,
+            $reviewUri => 2,
+        ], $part['xmlNamespaceUsageElementUriCounts']);
+        $t->same([
+            $xmlUri => 1,
+            $attrUri => 1,
+        ], $part['xmlNamespaceUsageAttributeUriCounts']);
+        $t->same([
+            $attrUri => 1,
+            $defaultUri => 1,
+            $reviewUri => 2,
+        ], $part['xmlNamespaceUsageDeclaredUriCounts']);
+        $t->same([$xmlUri => 1], $part['xmlNamespaceUsageImplicitUriCounts']);
+        $t->same([], $part['xmlNamespaceUsageUndeclaredUriCounts']);
+        $t->same([$unusedUri => 1], $part['xmlNamespaceUsageUnusedDeclarationUriCounts']);
+        $t->same([
+            '(none)' => 1,
+            'attr' => 1,
+            'review' => 2,
+            'xml' => 1,
+        ], $part['xmlNamespaceUsagePrefixCounts']);
+        $t->same(['attr', 'review', 'xml'], $part['xmlNamespaceUsagePrefixes']);
+        $t->same(0, $unusedOnlyPart['xmlNamespaceUsageOccurrenceCount']);
+        $t->same(1, $unusedOnlyPart['xmlNamespaceUsageUnusedDeclarationCount']);
+        $t->same([$unusedOnlyUri => 1], $unusedOnlyPart['xmlNamespaceUsageUnusedDeclarationUriCounts']);
+
+        $t->true(in_array('customXml/namespace-usage.xml', $summary['partXmlNamespaceUsagePartNames'], true), 'namespace usage part should be summarized');
+        $t->true(in_array('customXml/unused-namespace-declaration.xml', $summary['partXmlNamespaceUsagePartNames'], true), 'unused namespace declaration part should be summarized');
+        $t->true($summary['partXmlNamespaceUsageOccurrenceCount'] >= 5, 'summary should include namespace usage occurrences');
+        $t->true(($summary['partXmlNamespaceUsageImplicitUriCounts'][$xmlUri] ?? 0) >= 1, 'summary should include implicit xml namespace usage');
+        $t->same(1, $summary['partXmlNamespaceUsageUnusedDeclarationUriCounts'][$unusedUri]);
+        $t->same(1, $summary['partXmlNamespaceUsageUnusedDeclarationUriCounts'][$unusedOnlyUri]);
+        $t->same(true, $summary['partXmlNamespaceUsageDeclarationCoverageComplete']);
+
+        $encodedUsage = json_encode([
+            $part['xmlNamespaceUsageUriCounts'],
+            $part['xmlNamespaceUsageUnusedDeclarationUriCounts'],
+            $unusedOnlyPart['xmlNamespaceUsageUnusedDeclarationUriCounts'],
+            $summary['partXmlNamespaceUsageImplicitUriCounts'],
+        ]);
+        $t->true(is_string($encodedUsage), 'XML namespace usage metadata should encode for review');
+        $t->true(!str_contains((string) $encodedUsage, $hiddenText), 'raw XML text should not be exposed in namespace usage metadata');
+    },
     'summarizes docx package xml element structures without exposing text' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $hiddenText = 'hidden-xml-structure-payload';
