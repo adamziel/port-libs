@@ -7392,8 +7392,8 @@ final class PdfEngineHandoff
             ];
             if ($openOutputViewers !== []) {
                 $provenance['openOutput']['viewer'] = $openOutputViewers[count($openOutputViewers) - 1];
-                $provenance['openOutput']['viewers'] = $openOutputViewers;
             }
+            $provenance['openOutput']['viewers'] = $openOutputEntries;
         }
         if ($pageSelection !== null || $ppi !== null || $noPdfTagsCount > 0 || $prettyOutputCount > 0) {
             $pdfExportIssues = $pdfTagIssues;
@@ -8356,7 +8356,7 @@ final class PdfEngineHandoff
                 } elseif (($viewer['mode'] ?? null) === 'specific-viewer') {
                     ++$specificViewerCount;
                 }
-                if (($viewer['safe'] ?? false) !== true) {
+                if (($viewer['issues'] ?? []) !== []) {
                     ++$invalidViewerCount;
                 }
                 if (is_string($viewer['viewer'] ?? null) && $viewer['viewer'] !== '') {
