@@ -6898,7 +6898,7 @@ final class PdfEngineHandoff
                 'raw' => null,
                 'viewer' => null,
                 'mode' => 'default-viewer',
-                'safe' => false,
+                'safe' => true,
                 'issues' => [],
             ];
         }
@@ -7477,19 +7477,13 @@ final class PdfEngineHandoff
             }
         }
         if ($openOutputCount > 0) {
-            $openOutputViewers = array_values(array_filter(
-                $openOutputEntries,
-                fn (array $entry): bool => ($entry['viewer'] ?? null) !== null
-            ));
             $provenance['openOutput'] = [
                 'enabled' => true,
                 'flagCount' => $openOutputCount,
                 'issues' => array_values(array_unique($openOutputIssues)),
+                'viewer' => $openOutputEntries[$openOutputCount - 1],
+                'viewers' => $openOutputEntries,
             ];
-            if ($openOutputViewers !== []) {
-                $provenance['openOutput']['viewer'] = $openOutputViewers[count($openOutputViewers) - 1];
-            }
-            $provenance['openOutput']['viewers'] = $openOutputEntries;
         }
         if ($pageSelection !== null || $ppi !== null || $noPdfTagsCount > 0 || $prettyOutputCount > 0) {
             $pdfExportIssues = $pdfTagIssues;
