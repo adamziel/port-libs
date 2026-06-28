@@ -2,6 +2,10 @@
     "schemaVersion": 1,
     "lane": "pandoc",
     "priority": 6,
+    "mappedOdfManifestMissingMediaTypeCases": 1,
+    "odfManifestMissingMediaTypeAssertions": 22,
+    "mappedOdfManifestNamespaceDeclarationCases": 1,
+    "odfManifestNamespaceDeclarationAssertions": 34,
     "upstream": {
         "name": "jgm/pandoc",
         "url": "https://github.com/jgm/pandoc",
