@@ -118,6 +118,7 @@ final class OdfReader
      *     packageConfigurations:array<string, mixed>,
      *     packageObjectReplacements:array<string, mixed>,
      *     packageLayoutCaches:array<string, mixed>,
+     *     packageDocumentParts:array<string, mixed>,
      *     documentPartVersions:array<string, mixed>,
      *     rdfMetadata:array<string, mixed>,
      *     signatureMetadata:array<string, mixed>,
@@ -162,6 +163,7 @@ final class OdfReader
         $packageObjectReplacements = $this->packageObjectReplacementMetadata($package, $manifest, $undeclaredEntries);
         $packageLayoutCaches = $this->packageLayoutCacheMetadata($package, $manifest, $undeclaredEntries);
         $packageProvenance = $this->packageProvenance($package, $manifest, $mimetypeEntry, $undeclaredEntries, $styleCatalog);
+        $packageDocumentParts = self::packageDocumentPartProvenance($packageProvenance);
         $documentPartVersions = $this->documentPartVersionMetadata($package, $manifest);
         if ($packageThumbnails['count'] > 0) {
             $metadata['odfPackageThumbnails'] = $packageThumbnails;
@@ -180,6 +182,9 @@ final class OdfReader
         }
         if ($packageLayoutCaches['count'] > 0) {
             $metadata['odfPackageLayoutCaches'] = $packageLayoutCaches;
+        }
+        if ($packageDocumentParts['count'] > 0) {
+            $metadata['odfPackageDocumentParts'] = $packageDocumentParts;
         }
 
         $document = new AstNode('document', [
@@ -252,6 +257,7 @@ final class OdfReader
             'packageConfigurations' => $packageConfigurations,
             'packageObjectReplacements' => $packageObjectReplacements,
             'packageLayoutCaches' => $packageLayoutCaches,
+            'packageDocumentParts' => $packageDocumentParts,
             'trackedChanges' => [
                 'count' => count($content['trackedChanges']),
                 'items' => $content['trackedChanges'],
@@ -278,6 +284,7 @@ final class OdfReader
             'packageConfigurations' => $packageConfigurations,
             'packageObjectReplacements' => $packageObjectReplacements,
             'packageLayoutCaches' => $packageLayoutCaches,
+            'packageDocumentParts' => $packageDocumentParts,
             'documentPartVersions' => $documentPartVersions,
             'rdfMetadata' => $rdfMetadata,
             'signatureMetadata' => $signatureMetadata,
@@ -365,6 +372,7 @@ final class OdfReader
                 'packageConfigurations' => $packageConfigurations,
                 'packageObjectReplacements' => $packageObjectReplacements,
                 'packageLayoutCaches' => $packageLayoutCaches,
+                'packageDocumentParts' => $packageDocumentParts,
                 'rdfMetadata' => $rdfMetadata,
                 'signatureMetadata' => $signatureMetadata,
                 'scriptMetadata' => $scriptMetadata,
@@ -1957,6 +1965,126 @@ final class OdfReader
         $provenance['packageIdentity'] = $this->packageIdentityProvenance($provenance);
 
         return $provenance;
+    }
+
+    /**
+     * @param array<string, mixed> $packageProvenance
+     * @return array<string, mixed>
+     */
+    private static function packageDocumentPartProvenance(array $packageProvenance): array
+    {
+        $parts = is_array($packageProvenance['parts'] ?? null) ? $packageProvenance['parts'] : [];
+        $orderedParts = ['content.xml', 'styles.xml', 'meta.xml', 'settings.xml'];
+        $items = [];
+        $kindCounts = [];
+        $roleCounts = [];
+        $packageByteExposurePolicyCounts = [];
+        $storedByteLength = 0;
+        $compressedByteLength = 0;
+        $declaredCount = 0;
+        $undeclaredCount = 0;
+
+        foreach ($orderedParts as $partName) {
+            $part = $parts[$partName] ?? null;
+            if (!is_array($part)) {
+                continue;
+            }
+
+            $kind = self::documentPackagePartKind($partName);
+            if ($kind === null) {
+                continue;
+            }
+
+            $role = 'odf-' . $kind;
+            $roles = is_array($part['roles'] ?? null) ? $part['roles'] : [];
+            $declared = ($part['declaredInManifest'] ?? false) === true;
+            $undeclared = ($part['undeclared'] ?? false) === true;
+            $packagePolicy = is_string($part['byteExposurePolicy'] ?? null)
+                ? $part['byteExposurePolicy']
+                : null;
+
+            $items[] = self::withoutEmpty([
+                'fullPath' => $part['manifestFullPath'] ?? $partName,
+                'part' => $partName,
+                'documentPartKind' => $kind,
+                'packageRole' => $role,
+                'roles' => $roles,
+                'declaredInManifest' => $declared,
+                'undeclared' => $undeclared,
+                'manifestIndex' => $part['manifestIndex'] ?? null,
+                'manifestPartReference' => $part['manifestPartReference'] ?? null,
+                'manifestPartSuffix' => $part['manifestPartSuffix'] ?? null,
+                'manifestPartQuery' => $part['manifestPartQuery'] ?? null,
+                'manifestPartFragment' => $part['manifestPartFragment'] ?? null,
+                'manifestMediaType' => $part['manifestMediaType'] ?? null,
+                'manifestMediaTypeBase' => $part['manifestMediaTypeBase'] ?? null,
+                'manifestVersion' => $part['manifestVersion'] ?? null,
+                'manifestPreferredViewMode' => $part['manifestPreferredViewMode'] ?? null,
+                'manifestDeclaredSize' => $part['manifestDeclaredSize'] ?? null,
+                'manifestDeclaredSizeMismatch' => ($part['manifestDeclaredSizeInvalid'] ?? false) === true
+                    || ($part['manifestDeclaredSizeMismatch'] ?? false) === true,
+                'storedByteLength' => $part['byteLength'] ?? null,
+                'compressedByteLength' => $part['compressedByteLength'] ?? null,
+                'compressionMethod' => $part['compressionMethod'] ?? null,
+                'compressionMethodName' => $part['compressionMethodName'] ?? null,
+                'storedCrc32' => $part['crc32'] ?? null,
+                'byteSha256' => $part['byteSha256'] ?? null,
+                'packageByteExposurePolicy' => $packagePolicy,
+                'canExposePackageBytes' => ($part['canExposeBytes'] ?? false) === true,
+                'canExposeBytes' => false,
+                'byteExposurePolicy' => 'odf-document-part-package-metadata-only',
+                'reviewPolicy' => 'odf-document-part-package-metadata-only',
+            ]);
+
+            $kindCounts[$kind] = ($kindCounts[$kind] ?? 0) + 1;
+            $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
+            if ($packagePolicy !== null && $packagePolicy !== '') {
+                $packageByteExposurePolicyCounts[$packagePolicy] = ($packageByteExposurePolicyCounts[$packagePolicy] ?? 0) + 1;
+            }
+            if (is_int($part['byteLength'] ?? null)) {
+                $storedByteLength += $part['byteLength'];
+            }
+            if (is_int($part['compressedByteLength'] ?? null)) {
+                $compressedByteLength += $part['compressedByteLength'];
+            }
+            if ($declared) {
+                ++$declaredCount;
+            }
+            if ($undeclared) {
+                ++$undeclaredCount;
+            }
+        }
+
+        ksort($kindCounts, SORT_STRING);
+        ksort($roleCounts, SORT_STRING);
+        ksort($packageByteExposurePolicyCounts, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'declaredCount' => $declaredCount,
+            'undeclaredCount' => $undeclaredCount,
+            'storedByteLength' => $storedByteLength,
+            'compressedByteLength' => $compressedByteLength,
+            'documentPartKinds' => array_keys($kindCounts),
+            'kindCounts' => $kindCounts,
+            'packageRoleCounts' => $roleCounts,
+            'packageByteExposurePolicyCounts' => $packageByteExposurePolicyCounts,
+            'byteExposurePolicy' => 'odf-document-part-package-metadata-only',
+            'reviewPolicy' => 'odf-document-part-package-metadata-only',
+            'canExposeBytes' => false,
+            'items' => $items,
+        ];
+    }
+
+    private static function documentPackagePartKind(string $part): ?string
+    {
+        return match ($part) {
+            'content.xml' => 'content',
+            'styles.xml' => 'styles',
+            'meta.xml' => 'meta',
+            'settings.xml' => 'settings',
+            default => null,
+        };
     }
 
     /**

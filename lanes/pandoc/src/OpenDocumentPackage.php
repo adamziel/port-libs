@@ -314,6 +314,7 @@ final class OpenDocumentPackage
         $packageConfigurations = self::packageConfigurationMetadata($this->package, $this->manifestEntries, $undeclaredPackageEntries);
         $packageFonts = self::packageFontMetadata($this->package, $this->manifestEntries, $undeclaredPackageEntries);
         $packageLayoutCaches = self::packageLayoutCacheMetadata($this->package, $this->manifestEntries, $undeclaredPackageEntries);
+        $packageDocumentParts = self::packageDocumentPartProvenance($packageInventory);
         $packageStyles = $this->packageStyleProvenance($packageInventory);
         foreach ($this->manifestEntries as $entry) {
             if (self::isMediaResourceManifestEntry($entry)) {
@@ -407,6 +408,7 @@ final class OpenDocumentPackage
             'packageConfigurations' => $packageConfigurations,
             'packageFonts' => $packageFonts,
             'packageLayoutCaches' => $packageLayoutCaches,
+            'packageDocumentParts' => $packageDocumentParts,
             'packageStyles' => $packageStyles,
             'rdfMetadata' => $this->rdfMetadata,
             'manifestEncryption' => self::manifestEncryptionSummary($this->manifestEntries),
@@ -468,6 +470,125 @@ final class OpenDocumentPackage
             'canExposeBytes' => false,
             'items' => $items,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $packageInventory
+     * @return array<string, mixed>
+     */
+    private static function packageDocumentPartProvenance(array $packageInventory): array
+    {
+        $parts = is_array($packageInventory['parts'] ?? null) ? $packageInventory['parts'] : [];
+        $orderedParts = ['content.xml', 'styles.xml', 'meta.xml', 'settings.xml'];
+        $items = [];
+        $kindCounts = [];
+        $roleCounts = [];
+        $packageByteExposurePolicyCounts = [];
+        $storedByteLength = 0;
+        $compressedByteLength = 0;
+        $declaredCount = 0;
+        $undeclaredCount = 0;
+
+        foreach ($orderedParts as $path) {
+            $part = $parts[$path] ?? null;
+            if (!is_array($part)) {
+                continue;
+            }
+
+            $kind = self::documentPackagePartKind($path);
+            if ($kind === null) {
+                continue;
+            }
+
+            $role = 'odf-' . $kind;
+            $roles = is_array($part['roles'] ?? null) ? $part['roles'] : [];
+            $declared = ($part['declaredInManifest'] ?? false) === true;
+            $undeclared = ($part['undeclared'] ?? false) === true;
+            $packagePolicy = is_string($part['byteExposurePolicy'] ?? null)
+                ? $part['byteExposurePolicy']
+                : null;
+
+            $items[] = self::withoutEmptyValues([
+                'path' => $path,
+                'packagePath' => $path,
+                'part' => $path,
+                'documentPartKind' => $kind,
+                'packageRole' => $role,
+                'roles' => $roles,
+                'declaredInManifest' => $declared,
+                'undeclared' => $undeclared,
+                'manifestIndex' => $part['manifestIndex'] ?? null,
+                'manifestPath' => $part['manifestPath'] ?? null,
+                'manifestPackagePath' => $part['manifestPackagePath'] ?? null,
+                'manifestMediaType' => $part['manifestMediaType'] ?? null,
+                'manifestMediaTypeBase' => $part['manifestMediaTypeBase'] ?? null,
+                'manifestMediaFamily' => $part['manifestMediaFamily'] ?? null,
+                'manifestVersion' => $part['manifestVersion'] ?? null,
+                'manifestPreferredViewMode' => $part['manifestPreferredViewMode'] ?? null,
+                'manifestDeclaredSize' => $part['manifestDeclaredSize'] ?? null,
+                'manifestDeclaredSizeMismatch' => ($part['manifestDeclaredSizeMismatch'] ?? false) === true,
+                'storedByteLength' => $part['byteLength'] ?? null,
+                'compressedByteLength' => $part['compressedByteLength'] ?? null,
+                'compressionMethod' => $part['compressionMethod'] ?? null,
+                'compressionMethodName' => $part['compressionMethodName'] ?? null,
+                'storedCrc32' => $part['crc32'] ?? null,
+                'byteSha256' => $part['byteSha256'] ?? null,
+                'packageByteExposurePolicy' => $packagePolicy,
+                'canExposePackageBytes' => ($part['canExposeBytes'] ?? false) === true,
+                'canExposeBytes' => false,
+                'byteExposurePolicy' => 'odf-document-part-package-metadata-only',
+                'reviewPolicy' => 'odf-document-part-package-metadata-only',
+            ]);
+
+            $kindCounts[$kind] = ($kindCounts[$kind] ?? 0) + 1;
+            $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
+            if ($packagePolicy !== null && $packagePolicy !== '') {
+                $packageByteExposurePolicyCounts[$packagePolicy] = ($packageByteExposurePolicyCounts[$packagePolicy] ?? 0) + 1;
+            }
+            if (is_int($part['byteLength'] ?? null)) {
+                $storedByteLength += $part['byteLength'];
+            }
+            if (is_int($part['compressedByteLength'] ?? null)) {
+                $compressedByteLength += $part['compressedByteLength'];
+            }
+            if ($declared) {
+                ++$declaredCount;
+            }
+            if ($undeclared) {
+                ++$undeclaredCount;
+            }
+        }
+
+        ksort($kindCounts, SORT_STRING);
+        ksort($roleCounts, SORT_STRING);
+        ksort($packageByteExposurePolicyCounts, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'declaredCount' => $declaredCount,
+            'undeclaredCount' => $undeclaredCount,
+            'storedByteLength' => $storedByteLength,
+            'compressedByteLength' => $compressedByteLength,
+            'documentPartKinds' => array_keys($kindCounts),
+            'kindCounts' => $kindCounts,
+            'packageRoleCounts' => $roleCounts,
+            'packageByteExposurePolicyCounts' => $packageByteExposurePolicyCounts,
+            'byteExposurePolicy' => 'odf-document-part-package-metadata-only',
+            'reviewPolicy' => 'odf-document-part-package-metadata-only',
+            'canExposeBytes' => false,
+            'items' => $items,
+        ];
+    }
+
+    private static function documentPackagePartKind(string $path): ?string
+    {
+        return match ($path) {
+            'content.xml' => 'content',
+            'styles.xml' => 'styles',
+            'meta.xml' => 'meta',
+            'settings.xml' => 'settings',
+            default => null,
+        };
     }
 
     /**
