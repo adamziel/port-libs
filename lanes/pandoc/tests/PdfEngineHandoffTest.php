@@ -13417,6 +13417,79 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfViewerPreferencePolicy']);
     },
 
+    'fake runner summarizes unresolved enforced pdf viewer preferences from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/viewer-enforce-gaps.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-2.0',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /ViewerPreferences << /DisplayDocTitle true /PrintScaling /None /Enforce [/PrintScaling /HideToolbar /Direction /UnlistedPreference] >> >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/viewer-enforce-gaps.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/viewer-enforce-gaps.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            'reviewStatus' => 'review',
+            'preferenceCount' => 3,
+            'uiPreferences' => [
+                'DisplayDocTitle' => true,
+            ],
+            'printPreferences' => [
+                'PrintScaling' => 'None',
+            ],
+            'enforcedPreferences' => ['PrintScaling', 'HideToolbar', 'Direction', 'UnlistedPreference'],
+            'enforcedUiPreferences' => [],
+            'enforcedPrintPreferences' => ['PrintScaling'],
+            'printPageRangePairs' => 0,
+            'printPageRanges' => [],
+            'issues' => [
+                'enforces-viewer-preferences',
+                'non-default-print-scaling',
+                'unresolved-enforced-viewer-preference',
+            ],
+            'unresolvedEnforcedPreferences' => ['HideToolbar', 'Direction', 'UnlistedPreference'],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same([
+            'DisplayDocTitle' => true,
+            'PrintScaling' => 'None',
+            'Enforce' => ['PrintScaling', 'HideToolbar', 'Direction', 'UnlistedPreference'],
+        ], $result['pdfViewerPreferences']);
+        $t->same($expected, $result['pdfViewerPreferencePolicy']);
+        $t->contains('pdf-byte-viewer-preference-policy:review', $diagnostics);
+        $t->contains('pdf-byte-viewer-preference-policy-enforced:4', $diagnostics);
+        $t->contains('pdf-byte-viewer-preference-policy-enforced-print:1', $diagnostics);
+        $t->contains('pdf-byte-viewer-preference-policy-unresolved-enforced:3', $diagnostics);
+        $t->contains('pdf-byte-viewer-preference-policy-issues:3', $diagnostics);
+        $t->contains('pdf-byte-viewer-preference-policy-issue:unresolved-enforced-viewer-preference:1', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfViewerPreferencePolicy']);
+    },
+
     'fake runner extracts bounded pdf catalog requirements and rendering policy from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/requirements.pdf']);

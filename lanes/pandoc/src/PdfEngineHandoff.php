@@ -3054,6 +3054,7 @@ final class PdfEngineHandoff
                         'enforcedPreferences' => 'enforced',
                         'enforcedUiPreferences' => 'enforced-ui',
                         'enforcedPrintPreferences' => 'enforced-print',
+                        'unresolvedEnforcedPreferences' => 'unresolved-enforced',
                     ] as $policyKey => $diagnosticName) {
                         if (isset($pdfViewerPreferencePolicy[$policyKey]) && is_array($pdfViewerPreferencePolicy[$policyKey]) && $pdfViewerPreferencePolicy[$policyKey] !== []) {
                             $diagnostics[] = 'pdf-byte-viewer-preference-policy-' . $diagnosticName . ':' . count($pdfViewerPreferencePolicy[$policyKey]);
@@ -19204,6 +19205,32 @@ final class PdfEngineHandoff
 
     /**
      * @param array{kind:string, value:string, next:int}|null $value
+     * @param array<string, string> $objects
+     */
+    private function pdfArrayForValue(?array $value, array $objects): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        if ($value['kind'] === 'array') {
+            return $value['value'];
+        }
+        if ($value['kind'] === 'reference') {
+            $body = $objects[$this->pdfReferenceKey($value['value'])] ?? null;
+            if ($body === null) {
+                return null;
+            }
+
+            $resolved = $this->parsePdfValueAt($body, 0);
+
+            return $resolved !== null && $resolved['kind'] === 'array' ? $resolved['value'] : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{kind:string, value:string, next:int}|null $value
      */
     private function pdfReferenceObjectForValue(?array $value): ?string
     {
@@ -19450,34 +19477,41 @@ final class PdfEngineHandoff
             return [];
         }
 
+        $entries = [];
+        foreach ($this->extractPdfTopLevelDictionaryEntries($dictionary) as $entry) {
+            if (!array_key_exists($entry['key'], $entries)) {
+                $entries[$entry['key']] = $entry['value'];
+            }
+        }
+
         $preferences = [];
         foreach (['HideToolbar', 'HideMenubar', 'HideWindowUI', 'FitWindow', 'CenterWindow', 'DisplayDocTitle', 'PickTrayByPDFSize'] as $key) {
-            $value = $this->extractPdfBooleanToken($dictionary, $key);
-            if ($value !== null) {
-                $preferences[$key] = $value;
+            $value = $entries[$key] ?? null;
+            if ($value !== null && $value['kind'] === 'keyword' && in_array($value['value'], ['true', 'false'], true)) {
+                $preferences[$key] = $value['value'] === 'true';
             }
         }
 
         foreach (['NonFullScreenPageMode', 'Direction', 'ViewArea', 'ViewClip', 'PrintArea', 'PrintClip', 'PrintScaling', 'Duplex'] as $key) {
-            $value = $this->extractPdfNameToken($dictionary, $key);
-            if ($value !== null && $value !== '') {
-                $preferences[$key] = $value;
+            $value = $entries[$key] ?? null;
+            if ($value !== null && $value['kind'] === 'name' && $value['value'] !== '') {
+                $preferences[$key] = $value['value'];
             }
         }
 
         foreach (['NumCopies'] as $key) {
-            $value = $this->extractPdfIntegerToken($dictionary, $key);
-            if ($value !== null) {
-                $preferences[$key] = $value;
+            $value = $entries[$key] ?? null;
+            if ($value !== null && $value['kind'] === 'number' && preg_match('/\A[-+]?\d+\z/', $value['value']) === 1) {
+                $preferences[$key] = (int) $value['value'];
             }
         }
 
-        $printPageRange = $this->extractPdfArrayOrReferenceValue($dictionary, 'PrintPageRange', $objects);
+        $printPageRange = $this->pdfArrayForValue($entries['PrintPageRange'] ?? null, $objects);
         if ($printPageRange !== null && preg_match_all('/-?\d+/', $printPageRange, $matches) > 0) {
             $preferences['PrintPageRange'] = array_map('intval', $matches[0]);
         }
 
-        $enforceValue = $this->extractPdfValueForName($dictionary, 'Enforce');
+        $enforceValue = $entries['Enforce'] ?? null;
         if ($enforceValue !== null) {
             $enforcedPreferences = $this->collectPdfNamesFromValue($enforceValue, $objects);
             if ($enforcedPreferences !== []) {
@@ -19498,6 +19532,7 @@ final class PdfEngineHandoff
      *     enforcedPreferences:list<string>,
      *     enforcedUiPreferences:list<string>,
      *     enforcedPrintPreferences:list<string>,
+     *     unresolvedEnforcedPreferences?:list<string>,
      *     printPageRangePairs:int,
      *     printPageRanges:list<array{start:int, end:int}>,
      *     issues:list<string>
@@ -19534,12 +19569,16 @@ final class PdfEngineHandoff
 
         $enforcedUiPreferences = [];
         $enforcedPrintPreferences = [];
+        $unresolvedEnforcedPreferences = [];
         foreach ($enforcedPreferences as $preference) {
             if (array_key_exists($preference, $uiPreferences)) {
                 $enforcedUiPreferences[] = $preference;
             }
             if (array_key_exists($preference, $printPreferences)) {
                 $enforcedPrintPreferences[] = $preference;
+            }
+            if (!array_key_exists($preference, $uiPreferences) && !array_key_exists($preference, $printPreferences)) {
+                $unresolvedEnforcedPreferences[] = $preference;
             }
         }
 
@@ -19581,13 +19620,16 @@ final class PdfEngineHandoff
         if (($preferences['Direction'] ?? null) === 'R2L') {
             $issues[] = 'right-to-left-viewer-direction';
         }
+        if ($unresolvedEnforcedPreferences !== []) {
+            $issues[] = 'unresolved-enforced-viewer-preference';
+        }
         if ($printPageRange !== [] && count($printPageRange) % 2 !== 0) {
             $issues[] = 'odd-print-page-range-bound';
         }
         $issues = array_values(array_unique($issues));
         sort($issues, SORT_STRING);
 
-        return [
+        $policy = [
             'reviewStatus' => $issues === [] ? 'ok' : 'review',
             'preferenceCount' => count($preferences),
             'uiPreferences' => $uiPreferences,
@@ -19599,6 +19641,12 @@ final class PdfEngineHandoff
             'printPageRanges' => $printPageRanges,
             'issues' => $issues,
         ];
+
+        if ($unresolvedEnforcedPreferences !== []) {
+            $policy['unresolvedEnforcedPreferences'] = $unresolvedEnforcedPreferences;
+        }
+
+        return $policy;
     }
 
     private function extractPdfNeedsRendering(?string $catalog): ?bool
