@@ -4812,6 +4812,7 @@ CSS;
         $t->same('.foo{width:calc(var(--test))}', $result);
     },
     'custom at-rules compose upstream Declaration all-property visitors' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/composeVisitors.test.mjs::all property handlers lines 361-390.
         $visitor = CustomAtRuleTransformer::composeVisitors([
             [
                 'Declaration' => static function (array $declaration): ?array {
@@ -4853,9 +4854,10 @@ CSS;
 
         $result = (new CustomAtRuleTransformer())->transform('.foo { width: test; height: test; }', [], $visitor);
 
-        $t->same('.foo{width:32px;height:32px}', $result);
+        $t->same('.foo{width:32px;height:32px}', $result, 'upstream node/test/composeVisitors.test.mjs lines 361-390');
     },
     'custom at-rules compose upstream DeclarationExit all-property visitors' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/composeVisitors.test.mjs::all property handlers (exit) lines 392-421.
         $visitor = CustomAtRuleTransformer::composeVisitors([
             [
                 'DeclarationExit' => static function (array $declaration): ?array {
@@ -4897,7 +4899,7 @@ CSS;
 
         $result = (new CustomAtRuleTransformer())->transform('.foo { width: test; height: test; }', [], $visitor);
 
-        $t->same('.foo{width:32px;height:32px}', $result);
+        $t->same('.foo{width:32px;height:32px}', $result, 'upstream node/test/composeVisitors.test.mjs lines 392-421');
     },
     'custom at-rules compose upstream StyleSheet and StyleSheetExit visitors' => static function (TestRunner $t): void {
         $seen = [];
