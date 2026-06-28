@@ -12336,6 +12336,7 @@ final class DocxOpenXmlReader
         $partCaseFoldBaseNames = $this->packagePartCaseFoldBaseNameSummary($partInventory);
         $partNameCharacters = $this->packagePartNameCharacterSummary($partInventory);
         $partXmlRoots = $this->packagePartXmlRootSummary($partInventory);
+        $partXmlAttributeCooccurrences = $this->packagePartXmlElementAttributeCooccurrenceSummary($partInventory);
         $partXmlRelationshipReferences = $this->packagePartXmlRelationshipReferenceSummary($partInventory);
         $partContentTypeSyntaxSuffixes = $this->packagePartContentTypeSyntaxSuffixSummary($partInventory);
         $partContentTypeSyntaxSuffixCounts = [];
@@ -15094,6 +15095,26 @@ final class DocxOpenXmlReader
             'partXmlElementAttributeLastCount' => $partXmlRoots['xmlElementAttributeLastCount'],
             'partXmlElementAttributeOnlyCount' => $partXmlRoots['xmlElementAttributeOnlyCount'],
             'partXmlElementAttributePartNames' => $partXmlRoots['xmlElementAttributePartNames'],
+            'partXmlElementAttributeCooccurrencePartCount' => $partXmlAttributeCooccurrences['partCount'],
+            'partXmlElementAttributeCooccurrenceGroupCount' => $partXmlAttributeCooccurrences['groupCount'],
+            'partXmlElementAttributeCooccurrencePairCount' => $partXmlAttributeCooccurrences['pairCount'],
+            'partXmlElementAttributeCooccurrenceSamePrefixPairCount' => $partXmlAttributeCooccurrences['samePrefixPairCount'],
+            'partXmlElementAttributeCooccurrenceSameNamespacePairCount' => $partXmlAttributeCooccurrences['sameNamespacePairCount'],
+            'partXmlElementAttributeCooccurrencePartNames' => $partXmlAttributeCooccurrences['partNames'],
+            'partXmlElementAttributeCooccurrencePairNameCount' => count($partXmlAttributeCooccurrences['pairNameCounts']),
+            'partXmlElementAttributeCooccurrencePairNameCounts' => $partXmlAttributeCooccurrences['pairNameCounts'],
+            'partXmlElementAttributeCooccurrencePairNames' => $partXmlAttributeCooccurrences['pairNames'],
+            'partXmlElementAttributeCooccurrencePrefixPairCount' => count($partXmlAttributeCooccurrences['prefixPairCounts']),
+            'partXmlElementAttributeCooccurrencePrefixPairCounts' => $partXmlAttributeCooccurrences['prefixPairCounts'],
+            'partXmlElementAttributeCooccurrencePrefixPairs' => $partXmlAttributeCooccurrences['prefixPairs'],
+            'partXmlElementAttributeCooccurrenceNamespacePairCount' => count($partXmlAttributeCooccurrences['namespacePairCounts']),
+            'partXmlElementAttributeCooccurrenceNamespacePairCounts' => $partXmlAttributeCooccurrences['namespacePairCounts'],
+            'partXmlElementAttributeCooccurrenceNamespacePairs' => $partXmlAttributeCooccurrences['namespacePairs'],
+            'partXmlElementAttributeCooccurrenceElementPathCount' => count($partXmlAttributeCooccurrences['elementPathCounts']),
+            'partXmlElementAttributeCooccurrenceElementPathCounts' => $partXmlAttributeCooccurrences['elementPathCounts'],
+            'partXmlElementAttributeCooccurrenceElementPaths' => $partXmlAttributeCooccurrences['elementPaths'],
+            'partXmlElementAttributeCooccurrenceElementNameCount' => count($partXmlAttributeCooccurrences['elementNameCounts']),
+            'partXmlElementAttributeCooccurrenceElementNameCounts' => $partXmlAttributeCooccurrences['elementNameCounts'],
             'partXmlRelationshipReferenceAttributePartCount' => $partXmlRelationshipReferences['partCount'],
             'partXmlRelationshipReferenceAttributeCount' => $partXmlRelationshipReferences['count'],
             'partXmlRelationshipReferenceMatchedCount' => $partXmlRelationshipReferences['matchedCount'],
@@ -15649,6 +15670,7 @@ final class DocxOpenXmlReader
             'partXmlElementSiblingTransitions' => $partXmlRoots['xmlElementSiblingTransitions'],
             'partXmlElementChildShapes' => $partXmlRoots['xmlElementChildShapes'],
             'partXmlElementSiblingPositions' => $partXmlRoots['xmlElementSiblingPositions'],
+            'partXmlElementAttributeCooccurrences' => $partXmlAttributeCooccurrences['items'],
             'partXmlElementAttributes' => $partXmlRoots['xmlElementAttributes'],
             'partXmlRelationshipReferenceAttributes' => $partXmlRelationshipReferences['items'],
             'partContentTypeSyntaxSuffixes' => $partContentTypeSyntaxSuffixes,
@@ -29918,6 +29940,20 @@ final class DocxOpenXmlReader
             'valueShapes' => [],
             'valueLengthBucketCounts' => [],
             'valueLengthBuckets' => [],
+            'cooccurrenceGroupCount' => 0,
+            'cooccurrencePairCount' => 0,
+            'cooccurrencePairNameCounts' => [],
+            'cooccurrencePairNames' => [],
+            'cooccurrencePrefixPairCounts' => [],
+            'cooccurrencePrefixPairs' => [],
+            'cooccurrenceNamespacePairCounts' => [],
+            'cooccurrenceNamespacePairs' => [],
+            'cooccurrenceElementPathCounts' => [],
+            'cooccurrenceElementPaths' => [],
+            'cooccurrenceElementNameCounts' => [],
+            'cooccurrenceSamePrefixPairCount' => 0,
+            'cooccurrenceSameNamespacePairCount' => 0,
+            'cooccurrences' => [],
             'items' => [],
         ];
 
@@ -29940,6 +29976,20 @@ final class DocxOpenXmlReader
         $valueShapes = [];
         $valueLengthBucketCounts = [];
         $valueLengthBuckets = [];
+        $cooccurrencePairNameCounts = [];
+        $cooccurrencePairNames = [];
+        $cooccurrencePrefixPairCounts = [];
+        $cooccurrencePrefixPairs = [];
+        $cooccurrenceNamespacePairCounts = [];
+        $cooccurrenceNamespacePairs = [];
+        $cooccurrenceElementPathCounts = [];
+        $cooccurrenceElementPaths = [];
+        $cooccurrenceElementNameCounts = [];
+        $cooccurrences = [];
+        $cooccurrenceGroupCount = 0;
+        $cooccurrencePairCount = 0;
+        $cooccurrenceSamePrefixPairCount = 0;
+        $cooccurrenceSameNamespacePairCount = 0;
         $valueByteLength = 0;
         $emptyValueCount = 0;
         $whitespaceOnlyValueCount = 0;
@@ -29977,6 +30027,20 @@ final class DocxOpenXmlReader
             &$valueShapes,
             &$valueLengthBucketCounts,
             &$valueLengthBuckets,
+            &$cooccurrencePairNameCounts,
+            &$cooccurrencePairNames,
+            &$cooccurrencePrefixPairCounts,
+            &$cooccurrencePrefixPairs,
+            &$cooccurrenceNamespacePairCounts,
+            &$cooccurrenceNamespacePairs,
+            &$cooccurrenceElementPathCounts,
+            &$cooccurrenceElementPaths,
+            &$cooccurrenceElementNameCounts,
+            &$cooccurrences,
+            &$cooccurrenceGroupCount,
+            &$cooccurrencePairCount,
+            &$cooccurrenceSamePrefixPairCount,
+            &$cooccurrenceSameNamespacePairCount,
             &$valueByteLength,
             &$emptyValueCount,
             &$whitespaceOnlyValueCount,
@@ -30020,6 +30084,81 @@ final class DocxOpenXmlReader
 
             $attributeCountForElement = count($elementAttributes);
             $attributeCountBucket = $this->xmlElementAttributeCountBucket($attributeCountForElement);
+            if ($attributeCountForElement > 1) {
+                ++$cooccurrenceGroupCount;
+                for ($leftOffset = 0; $leftOffset < $attributeCountForElement - 1; ++$leftOffset) {
+                    $leftAttribute = $elementAttributes[$leftOffset];
+                    $leftName = $this->qualifiedDomAttributeName($leftAttribute);
+                    for ($rightOffset = $leftOffset + 1; $rightOffset < $attributeCountForElement; ++$rightOffset) {
+                        $rightAttribute = $elementAttributes[$rightOffset];
+                        $rightName = $this->qualifiedDomAttributeName($rightAttribute);
+                        $normalizedNames = [$leftName, $rightName];
+                        sort($normalizedNames, SORT_STRING);
+                        $pairName = $normalizedNames[0] . ' + ' . $normalizedNames[1];
+                        $leftPrefix = $this->emptyStringToNull((string) $leftAttribute->prefix);
+                        $rightPrefix = $this->emptyStringToNull((string) $rightAttribute->prefix);
+                        $leftPrefixKey = $leftPrefix ?? '(none)';
+                        $rightPrefixKey = $rightPrefix ?? '(none)';
+                        $normalizedPrefixes = [$leftPrefixKey, $rightPrefixKey];
+                        sort($normalizedPrefixes, SORT_STRING);
+                        $prefixPairName = $normalizedPrefixes[0] . ' + ' . $normalizedPrefixes[1];
+                        $leftNamespace = $leftAttribute->namespaceURI;
+                        $rightNamespace = $rightAttribute->namespaceURI;
+                        $leftNamespaceKey = $leftNamespace === null || $leftNamespace === '' ? '(none)' : $leftNamespace;
+                        $rightNamespaceKey = $rightNamespace === null || $rightNamespace === '' ? '(none)' : $rightNamespace;
+                        $normalizedNamespaces = [$leftNamespaceKey, $rightNamespaceKey];
+                        sort($normalizedNamespaces, SORT_STRING);
+                        $namespacePairName = $normalizedNamespaces[0] . ' + ' . $normalizedNamespaces[1];
+                        $samePrefix = $leftPrefixKey === $rightPrefixKey;
+                        $sameNamespace = $leftNamespaceKey === $rightNamespaceKey;
+                        ++$cooccurrencePairCount;
+                        $cooccurrencePairNameCounts[$pairName] = ($cooccurrencePairNameCounts[$pairName] ?? 0) + 1;
+                        $this->appendUniqueString($cooccurrencePairNames, $pairName);
+                        $cooccurrencePrefixPairCounts[$prefixPairName] =
+                            ($cooccurrencePrefixPairCounts[$prefixPairName] ?? 0) + 1;
+                        $this->appendUniqueString($cooccurrencePrefixPairs, $prefixPairName);
+                        $cooccurrenceNamespacePairCounts[$namespacePairName] =
+                            ($cooccurrenceNamespacePairCounts[$namespacePairName] ?? 0) + 1;
+                        $this->appendUniqueString($cooccurrenceNamespacePairs, $namespacePairName);
+                        if ($samePrefix) {
+                            ++$cooccurrenceSamePrefixPairCount;
+                        }
+                        if ($sameNamespace) {
+                            ++$cooccurrenceSameNamespacePairCount;
+                        }
+                        $cooccurrenceElementPathCounts[$elementPath] = ($cooccurrenceElementPathCounts[$elementPath] ?? 0) + 1;
+                        $this->appendUniqueString($cooccurrenceElementPaths, $elementPath);
+                        $cooccurrenceElementNameCounts[$elementQualifiedName] =
+                            ($cooccurrenceElementNameCounts[$elementQualifiedName] ?? 0) + 1;
+                        $cooccurrences[] = [
+                            'ordinal' => $cooccurrencePairCount,
+                            'elementPath' => $elementPath,
+                            'elementDepth' => $elementDepth,
+                            'elementQualifiedName' => $elementQualifiedName,
+                            'elementLocalName' => $elementLocalName,
+                            'elementNamespace' => $elementNamespace,
+                            'elementPrefix' => $elementPrefix,
+                            'attributeCount' => $attributeCountForElement,
+                            'attributeCountBucket' => $attributeCountBucket,
+                            'pairName' => $pairName,
+                            'prefixPairName' => $prefixPairName,
+                            'namespacePairName' => $namespacePairName,
+                            'samePrefix' => $samePrefix,
+                            'sameNamespace' => $sameNamespace,
+                            'firstAttributeIndex' => $leftOffset + 1,
+                            'firstAttributeName' => $leftName,
+                            'firstAttributePrefix' => $leftPrefix,
+                            'firstAttributeNamespace' => $leftNamespace,
+                            'firstAttributeLocalName' => $leftAttribute->localName,
+                            'secondAttributeIndex' => $rightOffset + 1,
+                            'secondAttributeName' => $rightName,
+                            'secondAttributePrefix' => $rightPrefix,
+                            'secondAttributeNamespace' => $rightNamespace,
+                            'secondAttributeLocalName' => $rightAttribute->localName,
+                        ];
+                    }
+                }
+            }
             foreach ($elementAttributes as $attributeOffset => $attribute) {
                 ++$ordinal;
                 $attributeIndex = $attributeOffset + 1;
@@ -30181,6 +30320,11 @@ final class DocxOpenXmlReader
         ksort($elementNameCounts, SORT_STRING);
         ksort($valueShapeCounts, SORT_STRING);
         ksort($valueLengthBucketCounts, SORT_STRING);
+        ksort($cooccurrencePairNameCounts, SORT_STRING);
+        ksort($cooccurrencePrefixPairCounts, SORT_STRING);
+        ksort($cooccurrenceNamespacePairCounts, SORT_STRING);
+        ksort($cooccurrenceElementPathCounts, SORT_STRING);
+        ksort($cooccurrenceElementNameCounts, SORT_STRING);
         ksort($attributeIndexCounts, SORT_NUMERIC);
         ksort($parentAttributeCountBucketCounts, SORT_STRING);
         sort($names, SORT_STRING);
@@ -30189,6 +30333,10 @@ final class DocxOpenXmlReader
         sort($elementPaths, SORT_STRING);
         sort($valueShapes, SORT_STRING);
         sort($valueLengthBuckets, SORT_STRING);
+        sort($cooccurrencePairNames, SORT_STRING);
+        sort($cooccurrencePrefixPairs, SORT_STRING);
+        sort($cooccurrenceNamespacePairs, SORT_STRING);
+        sort($cooccurrenceElementPaths, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -30225,6 +30373,20 @@ final class DocxOpenXmlReader
             'valueShapes' => $valueShapes,
             'valueLengthBucketCounts' => $valueLengthBucketCounts,
             'valueLengthBuckets' => $valueLengthBuckets,
+            'cooccurrenceGroupCount' => $cooccurrenceGroupCount,
+            'cooccurrencePairCount' => $cooccurrencePairCount,
+            'cooccurrencePairNameCounts' => $cooccurrencePairNameCounts,
+            'cooccurrencePairNames' => $cooccurrencePairNames,
+            'cooccurrencePrefixPairCounts' => $cooccurrencePrefixPairCounts,
+            'cooccurrencePrefixPairs' => $cooccurrencePrefixPairs,
+            'cooccurrenceNamespacePairCounts' => $cooccurrenceNamespacePairCounts,
+            'cooccurrenceNamespacePairs' => $cooccurrenceNamespacePairs,
+            'cooccurrenceElementPathCounts' => $cooccurrenceElementPathCounts,
+            'cooccurrenceElementPaths' => $cooccurrenceElementPaths,
+            'cooccurrenceElementNameCounts' => $cooccurrenceElementNameCounts,
+            'cooccurrenceSamePrefixPairCount' => $cooccurrenceSamePrefixPairCount,
+            'cooccurrenceSameNamespacePairCount' => $cooccurrenceSameNamespacePairCount,
+            'cooccurrences' => $cooccurrences,
             'items' => $items,
         ];
     }
@@ -32495,6 +32657,20 @@ final class DocxOpenXmlReader
                 'xmlElementAttributeFirstCount' => 0,
                 'xmlElementAttributeLastCount' => 0,
                 'xmlElementAttributeOnlyCount' => 0,
+                'xmlElementAttributeCooccurrenceGroupCount' => 0,
+                'xmlElementAttributeCooccurrencePairCount' => 0,
+                'xmlElementAttributeCooccurrencePairNameCounts' => [],
+                'xmlElementAttributeCooccurrencePairNames' => [],
+                'xmlElementAttributeCooccurrencePrefixPairCounts' => [],
+                'xmlElementAttributeCooccurrencePrefixPairs' => [],
+                'xmlElementAttributeCooccurrenceNamespacePairCounts' => [],
+                'xmlElementAttributeCooccurrenceNamespacePairs' => [],
+                'xmlElementAttributeCooccurrenceElementPathCounts' => [],
+                'xmlElementAttributeCooccurrenceElementPaths' => [],
+                'xmlElementAttributeCooccurrenceElementNameCounts' => [],
+                'xmlElementAttributeCooccurrenceSamePrefixPairCount' => 0,
+                'xmlElementAttributeCooccurrenceSameNamespacePairCount' => 0,
+                'xmlElementAttributeCooccurrences' => [],
                 'xmlElementAttributes' => [],
             ];
         }
@@ -32843,7 +33019,197 @@ final class DocxOpenXmlReader
             'xmlElementAttributeFirstCount' => $elementAttributes['firstAttributeCount'],
             'xmlElementAttributeLastCount' => $elementAttributes['lastAttributeCount'],
             'xmlElementAttributeOnlyCount' => $elementAttributes['onlyAttributeCount'],
+            'xmlElementAttributeCooccurrenceGroupCount' => $elementAttributes['cooccurrenceGroupCount'],
+            'xmlElementAttributeCooccurrencePairCount' => $elementAttributes['cooccurrencePairCount'],
+            'xmlElementAttributeCooccurrencePairNameCounts' => $elementAttributes['cooccurrencePairNameCounts'],
+            'xmlElementAttributeCooccurrencePairNames' => $elementAttributes['cooccurrencePairNames'],
+            'xmlElementAttributeCooccurrencePrefixPairCounts' => $elementAttributes['cooccurrencePrefixPairCounts'],
+            'xmlElementAttributeCooccurrencePrefixPairs' => $elementAttributes['cooccurrencePrefixPairs'],
+            'xmlElementAttributeCooccurrenceNamespacePairCounts' => $elementAttributes['cooccurrenceNamespacePairCounts'],
+            'xmlElementAttributeCooccurrenceNamespacePairs' => $elementAttributes['cooccurrenceNamespacePairs'],
+            'xmlElementAttributeCooccurrenceElementPathCounts' => $elementAttributes['cooccurrenceElementPathCounts'],
+            'xmlElementAttributeCooccurrenceElementPaths' => $elementAttributes['cooccurrenceElementPaths'],
+            'xmlElementAttributeCooccurrenceElementNameCounts' => $elementAttributes['cooccurrenceElementNameCounts'],
+            'xmlElementAttributeCooccurrenceSamePrefixPairCount' => $elementAttributes['cooccurrenceSamePrefixPairCount'],
+            'xmlElementAttributeCooccurrenceSameNamespacePairCount' => $elementAttributes['cooccurrenceSameNamespacePairCount'],
+            'xmlElementAttributeCooccurrences' => $elementAttributes['cooccurrences'],
             'xmlElementAttributes' => $elementAttributes['items'],
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return array<string, mixed>
+     */
+    private function packagePartXmlElementAttributeCooccurrenceSummary(array $partInventory): array
+    {
+        $partNames = [];
+        $pairNameCounts = [];
+        $pairNames = [];
+        $prefixPairCounts = [];
+        $prefixPairs = [];
+        $namespacePairCounts = [];
+        $namespacePairs = [];
+        $elementPathCounts = [];
+        $elementPaths = [];
+        $elementNameCounts = [];
+        $items = [];
+        $partCount = 0;
+        $groupCount = 0;
+        $pairCount = 0;
+        $samePrefixPairCount = 0;
+        $sameNamespacePairCount = 0;
+
+        foreach ($partInventory as $partName => $part) {
+            $partName = (string) ($part['partName'] ?? $partName);
+            $partPairCount = (int) ($part['xmlElementAttributeCooccurrencePairCount'] ?? 0);
+            if ($partPairCount <= 0) {
+                continue;
+            }
+
+            ++$partCount;
+            $pairCount += $partPairCount;
+            $groupCount += (int) ($part['xmlElementAttributeCooccurrenceGroupCount'] ?? 0);
+            $samePrefixPairCount += (int) ($part['xmlElementAttributeCooccurrenceSamePrefixPairCount'] ?? 0);
+            $sameNamespacePairCount += (int) ($part['xmlElementAttributeCooccurrenceSameNamespacePairCount'] ?? 0);
+            $this->appendUniqueString($partNames, $partName);
+
+            foreach (($part['xmlElementAttributeCooccurrencePairNameCounts'] ?? []) as $pairName => $count) {
+                if (!is_string($pairName) || $pairName === '') {
+                    continue;
+                }
+                $pairNameCounts[$pairName] = ($pairNameCounts[$pairName] ?? 0) + (int) $count;
+                $this->appendUniqueString($pairNames, $pairName);
+            }
+            foreach (($part['xmlElementAttributeCooccurrencePrefixPairCounts'] ?? []) as $prefixPair => $count) {
+                if (!is_string($prefixPair) || $prefixPair === '') {
+                    continue;
+                }
+                $prefixPairCounts[$prefixPair] = ($prefixPairCounts[$prefixPair] ?? 0) + (int) $count;
+                $this->appendUniqueString($prefixPairs, $prefixPair);
+            }
+            foreach (($part['xmlElementAttributeCooccurrenceNamespacePairCounts'] ?? []) as $namespacePair => $count) {
+                if (!is_string($namespacePair) || $namespacePair === '') {
+                    continue;
+                }
+                $namespacePairCounts[$namespacePair] = ($namespacePairCounts[$namespacePair] ?? 0) + (int) $count;
+                $this->appendUniqueString($namespacePairs, $namespacePair);
+            }
+            foreach (($part['xmlElementAttributeCooccurrenceElementPathCounts'] ?? []) as $elementPath => $count) {
+                if (!is_string($elementPath) || $elementPath === '') {
+                    continue;
+                }
+                $elementPathCounts[$elementPath] = ($elementPathCounts[$elementPath] ?? 0) + (int) $count;
+                $this->appendUniqueString($elementPaths, $elementPath);
+            }
+            foreach (($part['xmlElementAttributeCooccurrenceElementNameCounts'] ?? []) as $elementName => $count) {
+                if (!is_string($elementName) || $elementName === '') {
+                    continue;
+                }
+                $elementNameCounts[$elementName] = ($elementNameCounts[$elementName] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlElementAttributeCooccurrences'] ?? []) as $cooccurrence) {
+                if (!is_array($cooccurrence)) {
+                    continue;
+                }
+
+                $items[] = [
+                    'partName' => $partName,
+                    'directory' => is_string($part['directory'] ?? null)
+                        ? $part['directory']
+                        : $this->packagePartDirectory($partName),
+                    'baseName' => is_string($part['baseName'] ?? null)
+                        ? $part['baseName']
+                        : $this->packagePartBaseName($partName),
+                    'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                    'contentTypeBase' => is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '',
+                    'contentTypeSource' => is_string($part['contentTypeSource'] ?? null) ? $part['contentTypeSource'] : 'missing',
+                    'ordinal' => (int) ($cooccurrence['ordinal'] ?? 0),
+                    'elementPath' => is_string($cooccurrence['elementPath'] ?? null) ? $cooccurrence['elementPath'] : '/',
+                    'elementDepth' => (int) ($cooccurrence['elementDepth'] ?? 0),
+                    'elementQualifiedName' => is_string($cooccurrence['elementQualifiedName'] ?? null)
+                        ? $cooccurrence['elementQualifiedName']
+                        : '',
+                    'elementLocalName' => is_string($cooccurrence['elementLocalName'] ?? null)
+                        ? $cooccurrence['elementLocalName']
+                        : '',
+                    'elementNamespace' => is_string($cooccurrence['elementNamespace'] ?? null)
+                        ? $cooccurrence['elementNamespace']
+                        : null,
+                    'elementPrefix' => is_string($cooccurrence['elementPrefix'] ?? null)
+                        ? $cooccurrence['elementPrefix']
+                        : null,
+                    'attributeCount' => (int) ($cooccurrence['attributeCount'] ?? 0),
+                    'attributeCountBucket' => is_string($cooccurrence['attributeCountBucket'] ?? null)
+                        ? $cooccurrence['attributeCountBucket']
+                        : '',
+                    'pairName' => is_string($cooccurrence['pairName'] ?? null) ? $cooccurrence['pairName'] : '',
+                    'prefixPairName' => is_string($cooccurrence['prefixPairName'] ?? null)
+                        ? $cooccurrence['prefixPairName']
+                        : '',
+                    'namespacePairName' => is_string($cooccurrence['namespacePairName'] ?? null)
+                        ? $cooccurrence['namespacePairName']
+                        : '',
+                    'samePrefix' => (bool) ($cooccurrence['samePrefix'] ?? false),
+                    'sameNamespace' => (bool) ($cooccurrence['sameNamespace'] ?? false),
+                    'firstAttributeIndex' => (int) ($cooccurrence['firstAttributeIndex'] ?? 0),
+                    'firstAttributeName' => is_string($cooccurrence['firstAttributeName'] ?? null)
+                        ? $cooccurrence['firstAttributeName']
+                        : '',
+                    'firstAttributePrefix' => is_string($cooccurrence['firstAttributePrefix'] ?? null)
+                        ? $cooccurrence['firstAttributePrefix']
+                        : null,
+                    'firstAttributeNamespace' => is_string($cooccurrence['firstAttributeNamespace'] ?? null)
+                        ? $cooccurrence['firstAttributeNamespace']
+                        : null,
+                    'firstAttributeLocalName' => is_string($cooccurrence['firstAttributeLocalName'] ?? null)
+                        ? $cooccurrence['firstAttributeLocalName']
+                        : '',
+                    'secondAttributeIndex' => (int) ($cooccurrence['secondAttributeIndex'] ?? 0),
+                    'secondAttributeName' => is_string($cooccurrence['secondAttributeName'] ?? null)
+                        ? $cooccurrence['secondAttributeName']
+                        : '',
+                    'secondAttributePrefix' => is_string($cooccurrence['secondAttributePrefix'] ?? null)
+                        ? $cooccurrence['secondAttributePrefix']
+                        : null,
+                    'secondAttributeNamespace' => is_string($cooccurrence['secondAttributeNamespace'] ?? null)
+                        ? $cooccurrence['secondAttributeNamespace']
+                        : null,
+                    'secondAttributeLocalName' => is_string($cooccurrence['secondAttributeLocalName'] ?? null)
+                        ? $cooccurrence['secondAttributeLocalName']
+                        : '',
+                ];
+            }
+        }
+
+        ksort($pairNameCounts, SORT_STRING);
+        ksort($prefixPairCounts, SORT_STRING);
+        ksort($namespacePairCounts, SORT_STRING);
+        ksort($elementPathCounts, SORT_STRING);
+        ksort($elementNameCounts, SORT_STRING);
+        sort($partNames, SORT_STRING);
+        sort($pairNames, SORT_STRING);
+        sort($prefixPairs, SORT_STRING);
+        sort($namespacePairs, SORT_STRING);
+        sort($elementPaths, SORT_STRING);
+
+        return [
+            'partCount' => $partCount,
+            'groupCount' => $groupCount,
+            'pairCount' => $pairCount,
+            'samePrefixPairCount' => $samePrefixPairCount,
+            'sameNamespacePairCount' => $sameNamespacePairCount,
+            'partNames' => $partNames,
+            'pairNameCounts' => $pairNameCounts,
+            'pairNames' => $pairNames,
+            'prefixPairCounts' => $prefixPairCounts,
+            'prefixPairs' => $prefixPairs,
+            'namespacePairCounts' => $namespacePairCounts,
+            'namespacePairs' => $namespacePairs,
+            'elementPathCounts' => $elementPathCounts,
+            'elementPaths' => $elementPaths,
+            'elementNameCounts' => $elementNameCounts,
+            'items' => $items,
         ];
     }
 

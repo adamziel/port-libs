@@ -20706,6 +20706,131 @@ XML;
         $t->true(is_string($encodedPositions), 'XML sibling-position metadata should encode for review');
         $t->true(!str_contains((string) $encodedPositions, 'sibling-position:hidden'), 'raw XML text should not be exposed in sibling-position metadata');
     },
+    'summarizes docx package xml element attribute cooccurrences without exposing values' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $rootState = 'cooccurrence:hidden-root';
+        $firstId = 'cooccurrence:hidden-first-id';
+        $firstRole = 'cooccurrence:hidden-first-role';
+        $firstPlain = 'cooccurrence:hidden-first-plain';
+        $secondId = 'cooccurrence:hidden-second-id';
+        $secondRole = 'cooccurrence:hidden-second-role';
+        $singleValue = 'cooccurrence:hidden-single';
+        $settingsName = 'cooccurrence:hidden-settings-name';
+        $settingsScope = 'cooccurrence:hidden-settings-scope';
+        $settingsFlag = 'cooccurrence:hidden-settings-flag';
+        $parts['customXml/attribute-cooccurrences.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:attribute-cooccurrence" xmlns:audit="urn:attribute-cooccurrence-audit" review:state="{$rootState}" xml:lang="en">
+  <review:item review:id="{$firstId}" audit:role="{$firstRole}" plain="{$firstPlain}"/>
+  <review:item review:id="{$secondId}" audit:role="{$secondRole}"/>
+  <review:single lone="{$singleValue}"/>
+</review:packet>
+XML;
+        $parts['word/settings-attribute-cooccurrences.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:review="urn:settings-attribute-cooccurrence">
+  <w:docVars>
+    <w:docVar w:name="{$settingsName}" review:scope="{$settingsScope}" review:flag="{$settingsFlag}"/>
+    <w:docVar w:name="Beta" review:scope="second"/>
+  </w:docVars>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/attribute-cooccurrences.xml'];
+        $settingsPart = $package['parts']['word/settings-attribute-cooccurrences.xml'];
+        $cooccurrences = array_values(array_filter(
+            $summary['partXmlElementAttributeCooccurrences'],
+            static fn (array $cooccurrence): bool => in_array(
+                $cooccurrence['partName'],
+                ['customXml/attribute-cooccurrences.xml', 'word/settings-attribute-cooccurrences.xml'],
+                true,
+            ),
+        ));
+        $reviewByPairName = [];
+        foreach ($reviewPart['xmlElementAttributeCooccurrences'] as $cooccurrence) {
+            $reviewByPairName[$cooccurrence['pairName']][] = $cooccurrence;
+        }
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(3, $reviewPart['xmlElementAttributeCooccurrenceGroupCount']);
+        $t->same(5, $reviewPart['xmlElementAttributeCooccurrencePairCount']);
+        $t->same([
+            'audit:role + plain' => 1,
+            'audit:role + review:id' => 2,
+            'plain + review:id' => 1,
+            'review:state + xml:lang' => 1,
+        ], $reviewPart['xmlElementAttributeCooccurrencePairNameCounts']);
+        $t->same([
+            '/review:packet' => 1,
+            '/review:packet/review:item' => 4,
+        ], $reviewPart['xmlElementAttributeCooccurrenceElementPathCounts']);
+        $t->same([
+            'review:item' => 4,
+            'review:packet' => 1,
+        ], $reviewPart['xmlElementAttributeCooccurrenceElementNameCounts']);
+        $t->same([
+            '(none) + audit' => 1,
+            '(none) + review' => 1,
+            'audit + review' => 2,
+            'review + xml' => 1,
+        ], $reviewPart['xmlElementAttributeCooccurrencePrefixPairCounts']);
+        $t->same(0, $reviewPart['xmlElementAttributeCooccurrenceSamePrefixPairCount']);
+        $t->same(0, $reviewPart['xmlElementAttributeCooccurrenceSameNamespacePairCount']);
+        $t->same('review:state + xml:lang', $reviewPart['xmlElementAttributeCooccurrences'][0]['pairName']);
+        $t->same('review + xml', $reviewPart['xmlElementAttributeCooccurrences'][0]['prefixPairName']);
+        $t->same('http://www.w3.org/XML/1998/namespace + urn:attribute-cooccurrence', $reviewPart['xmlElementAttributeCooccurrences'][0]['namespacePairName']);
+        $t->same(false, $reviewPart['xmlElementAttributeCooccurrences'][0]['samePrefix']);
+        $t->same(false, $reviewPart['xmlElementAttributeCooccurrences'][0]['sameNamespace']);
+        $t->same('/review:packet', $reviewPart['xmlElementAttributeCooccurrences'][0]['elementPath']);
+        $t->same(1, $reviewPart['xmlElementAttributeCooccurrences'][0]['firstAttributeIndex']);
+        $t->same('review:state', $reviewPart['xmlElementAttributeCooccurrences'][0]['firstAttributeName']);
+        $t->same(2, $reviewPart['xmlElementAttributeCooccurrences'][0]['secondAttributeIndex']);
+        $t->same('xml:lang', $reviewPart['xmlElementAttributeCooccurrences'][0]['secondAttributeName']);
+        $t->same(2, count($reviewByPairName['audit:role + review:id']));
+        $t->same('/review:packet/review:item', $reviewByPairName['audit:role + review:id'][0]['elementPath']);
+
+        $t->same(true, $settingsPart['xmlInspectable']);
+        $t->same(2, $settingsPart['xmlElementAttributeCooccurrenceGroupCount']);
+        $t->same(4, $settingsPart['xmlElementAttributeCooccurrencePairCount']);
+        $t->same(2, $settingsPart['xmlElementAttributeCooccurrencePairNameCounts']['review:scope + w:name']);
+        $t->same(1, $settingsPart['xmlElementAttributeCooccurrencePairNameCounts']['review:flag + w:name']);
+        $t->same(1, $settingsPart['xmlElementAttributeCooccurrencePrefixPairCounts']['review + review']);
+        $t->same(3, $settingsPart['xmlElementAttributeCooccurrencePrefixPairCounts']['review + w']);
+        $t->same(1, $settingsPart['xmlElementAttributeCooccurrenceSamePrefixPairCount']);
+        $t->same(1, $settingsPart['xmlElementAttributeCooccurrenceSameNamespacePairCount']);
+        $t->same(4, $settingsPart['xmlElementAttributeCooccurrenceElementPathCounts']['/w:settings/w:docVars/w:docVar']);
+
+        $t->true($summary['partXmlElementAttributeCooccurrencePartCount'] >= 2, 'summary cooccurrence part count should include added XML parts');
+        $t->true($summary['partXmlElementAttributeCooccurrenceGroupCount'] >= 5, 'summary cooccurrence group count should include added XML parts');
+        $t->true($summary['partXmlElementAttributeCooccurrencePairCount'] >= 9, 'summary cooccurrence pair count should include added XML parts');
+        $t->true(in_array('customXml/attribute-cooccurrences.xml', $summary['partXmlElementAttributeCooccurrencePartNames'], true), 'custom XML cooccurrence part should be summarized');
+        $t->true(in_array('word/settings-attribute-cooccurrences.xml', $summary['partXmlElementAttributeCooccurrencePartNames'], true), 'settings cooccurrence part should be summarized');
+        $t->same(2, $summary['partXmlElementAttributeCooccurrencePairNameCounts']['audit:role + review:id']);
+        $t->same(2, $summary['partXmlElementAttributeCooccurrencePairNameCounts']['review:scope + w:name']);
+        $t->same(2, $summary['partXmlElementAttributeCooccurrencePrefixPairCounts']['audit + review']);
+        $t->same(3, $summary['partXmlElementAttributeCooccurrencePrefixPairCounts']['review + w']);
+        $t->true($summary['partXmlElementAttributeCooccurrenceSamePrefixPairCount'] >= 1, 'summary should include same-prefix attribute cooccurrences');
+        $t->true($summary['partXmlElementAttributeCooccurrenceSameNamespacePairCount'] >= 1, 'summary should include same-namespace attribute cooccurrences');
+        $t->true(in_array('review + w', $summary['partXmlElementAttributeCooccurrencePrefixPairs'], true), 'summary should carry prefix pair labels');
+        $t->true(in_array('http://www.w3.org/XML/1998/namespace + urn:attribute-cooccurrence', $summary['partXmlElementAttributeCooccurrenceNamespacePairs'], true), 'summary should carry namespace pair labels');
+        $t->same(4, $summary['partXmlElementAttributeCooccurrenceElementPathCounts']['/review:packet/review:item']);
+        $t->same(4, $summary['partXmlElementAttributeCooccurrenceElementPathCounts']['/w:settings/w:docVars/w:docVar']);
+        $t->same(9, count($cooccurrences));
+        $t->same('customXml/attribute-cooccurrences.xml', $cooccurrences[0]['partName']);
+        $t->same('word/settings-attribute-cooccurrences.xml', $cooccurrences[8]['partName']);
+        $t->same('/w:settings/w:docVars/w:docVar', $cooccurrences[8]['elementPath']);
+
+        $encodedCooccurrences = json_encode([
+            $reviewPart['xmlElementAttributeCooccurrences'],
+            $settingsPart['xmlElementAttributeCooccurrences'],
+            $cooccurrences,
+        ]);
+        $t->true(is_string($encodedCooccurrences), 'XML attribute cooccurrence metadata should encode for review');
+        $t->true(!str_contains((string) $encodedCooccurrences, 'cooccurrence:hidden'), 'raw XML attribute values should not be exposed in cooccurrence metadata');
+    },
     'accepts docx main document template and macro-enabled content types' => static function (TestRunner $t): void {
         $acceptedDocumentContentTypes = [
             ['application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'],
