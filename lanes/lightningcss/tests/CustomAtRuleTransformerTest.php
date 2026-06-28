@@ -6128,7 +6128,7 @@ CSS;
         $t->same('.foo{--theme-foo:#ff0;color:var(--theme-foo)}', $result);
         $t->same(['--foo', '--prefix-foo', '--foo', '--prefix-foo'], $seen);
     },
-    'custom at-rules map upstream CustomIdent visitors for keyframes and animation names' => static function (TestRunner $t): void {
+    'custom at-rules map upstream visitor CustomIdent row 890 for keyframes and animation names' => static function (TestRunner $t): void {
         $seen = [];
         $visitor = CustomAtRuleTransformer::composeVisitors([
             [
@@ -6153,8 +6153,8 @@ CSS;
 
         $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
 
-        $t->same('@keyframes prefix-test{0%{color:red}to{color:green}}.foo{animation:prefix-test}', $result);
-        $t->same(['test', 'test'], $seen);
+        $t->same('@keyframes prefix-test{0%{color:red}to{color:green}}.foo{animation:prefix-test}', $result, 'upstream node/test/visitor.test.mjs line 890');
+        $t->same(['test', 'test'], $seen, 'upstream node/test/visitor.test.mjs line 890 visits keyframes and animation names');
     },
     'custom at-rules map upstream Rule keyframes visitors for native keyframes' => static function (TestRunner $t): void {
         $seen = [];
