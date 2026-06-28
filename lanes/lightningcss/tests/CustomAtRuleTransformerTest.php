@@ -4490,6 +4490,34 @@ CSS;
         $t->same('.foo{width:16px;height:16px;background-color:#ff0}', $result);
         $t->same(['length', 'color'], $seenTokenTypes);
     },
+    'custom at-rules map upstream Declaration custom size visitor' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::size line 781.
+        $seenTokenTypes = [];
+        $result = (new CustomAtRuleTransformer())->transform('.foo { size: 12px; }', [], [
+            'Declaration' => [
+                'custom' => [
+                    'size' => static function (array $property) use (&$seenTokenTypes): array {
+                        $seenTokenTypes[] = $property['value'][0]['type'];
+                        $value = [
+                            'type' => 'length-percentage',
+                            'value' => [
+                                'type' => 'dimension',
+                                'value' => $property['value'][0]['value'],
+                            ],
+                        ];
+
+                        return [
+                            ['property' => 'width', 'value' => $value],
+                            ['property' => 'height', 'value' => $value],
+                        ];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.foo{width:12px;height:12px}', $result);
+        $t->same(['length'], $seenTokenTypes);
+    },
     'custom at-rules compose upstream Declaration replacements with Length visitors' => static function (TestRunner $t): void {
         $visitor = CustomAtRuleTransformer::composeVisitors([
             [

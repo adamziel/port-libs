@@ -3143,6 +3143,21 @@ CSS;
         $css = '.asset { background: url("/yellow/blue.svg"); content: "yellow"; --brand-color: yellow; color: var(--yellow); width: calc(100% + 8px); }';
         $t->same('.asset{background:url("/yellow/blue.svg");content:"yellow";--brand-color:yellow;color:var(--yellow);width:calc(100% + 8px)}', (new CssMinifier())->minify($css));
     },
+    'css minifier maps upstream residual simple calc rows' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_calc lines 8064, 8065, 8067, and 8069.
+        $cases = [
+            [8064, '.foo { width: calc(20px * 2) }', '.foo{width:40px}'],
+            [8065, '.foo { font-size: calc(100vw / 35) }', '.foo{font-size:2.85714vw}'],
+            [8067, '.foo { width: calc(20px + 30px) }', '.foo{width:50px}'],
+            [8069, '.foo { width: calc(100% - 30px) }', '.foo{width:calc(100% - 30px)}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_calc line ' . $line);
+        }
+    },
     'css minifier maps upstream linear calc arithmetic cluster' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
