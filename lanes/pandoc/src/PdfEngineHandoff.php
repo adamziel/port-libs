@@ -809,6 +809,7 @@ final class PdfEngineHandoff
      *     pdfNameTrees: list<array{category:string, source:string, entryCount:int, names:list<string>, valueKinds:array<string, int>, valueReferences:list<string>, kidCount:int, limits:list<string>}>,
      *     pdfNameTreePolicies: list<array{category:string, source:string, reviewStatus:string, entryCount:int, kidCount:int, limits:list<string>, issues:list<string>, nodes:list<array{source:string, object:string|null, kind:string, entryCount:int, names:list<string>, kidCount:int, limits:list<string>, reviewStatus:string, issues:list<string>}>}>,
      *     pdfUriBase: string|null,
+     *     pdfUriBasePolicy: array{reviewStatus:string, base:string, baseScheme:string|null, baseKind:string, linkTargetCount:int, relativeLinkTargetCount:int, remoteLinkTargetCount:int, fileLinkTargetCount:int, targetSchemes:array<string, int>, issues:list<string>}|array{},
      *     pdfViewerPreferences: array<string, bool|int|string|list<int>|list<string>>,
      *     pdfViewerPreferencePolicy: array<string, mixed>,
      *     pdfNeedsRendering: bool|null,
@@ -1556,6 +1557,7 @@ final class PdfEngineHandoff
         $pdfNameTrees = [];
         $pdfNameTreePolicies = [];
         $pdfUriBase = null;
+        $pdfUriBasePolicy = [];
         $pdfViewerPreferences = [];
         $pdfViewerPreferencePolicy = [];
         $pdfNeedsRendering = null;
@@ -1710,6 +1712,7 @@ final class PdfEngineHandoff
                 $pdfNameTrees = $pdfInspection['nameTrees'];
                 $pdfNameTreePolicies = $pdfInspection['nameTreePolicies'];
                 $pdfUriBase = $pdfInspection['uriBase'];
+                $pdfUriBasePolicy = $pdfInspection['uriBasePolicy'];
                 $pdfViewerPreferences = $pdfInspection['viewerPreferences'];
                 $pdfViewerPreferencePolicy = $pdfInspection['viewerPreferencePolicy'];
                 $pdfNeedsRendering = $pdfInspection['needsRendering'];
@@ -3033,6 +3036,23 @@ final class PdfEngineHandoff
                 }
                 if ($pdfUriBase !== null) {
                     $diagnostics[] = 'pdf-byte-uri-base:' . $pdfUriBase;
+                }
+                if ($pdfUriBasePolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-uri-base-policy:' . $pdfUriBasePolicy['reviewStatus'];
+                    $diagnostics[] = 'pdf-byte-uri-base-kind:' . $pdfUriBasePolicy['baseKind'];
+                    $diagnostics[] = 'pdf-byte-uri-base-policy-targets:' . $pdfUriBasePolicy['linkTargetCount'];
+                    if ($pdfUriBasePolicy['relativeLinkTargetCount'] > 0) {
+                        $diagnostics[] = 'pdf-byte-uri-base-policy-relative-targets:' . $pdfUriBasePolicy['relativeLinkTargetCount'];
+                    }
+                    foreach ($pdfUriBasePolicy['targetSchemes'] as $scheme => $count) {
+                        $diagnostics[] = 'pdf-byte-uri-base-policy-target-scheme:' . $scheme . ':' . $count;
+                    }
+                    if ($pdfUriBasePolicy['issues'] !== []) {
+                        $diagnostics[] = 'pdf-byte-uri-base-policy-issues:' . count($pdfUriBasePolicy['issues']);
+                        foreach ($pdfUriBasePolicy['issues'] as $issue) {
+                            $diagnostics[] = 'pdf-byte-uri-base-policy-issue:' . $issue . ':1';
+                        }
+                    }
                 }
                 if ($pdfViewerPreferences !== []) {
                     $diagnostics[] = 'pdf-byte-viewer-preferences:' . count($pdfViewerPreferences);
@@ -5284,6 +5304,7 @@ final class PdfEngineHandoff
             'pdfNameTrees' => $pdfNameTrees,
             'pdfNameTreePolicies' => $pdfNameTreePolicies,
             'pdfUriBase' => $pdfUriBase,
+            'pdfUriBasePolicy' => $pdfUriBasePolicy,
             'pdfViewerPreferences' => $pdfViewerPreferences,
             'pdfViewerPreferencePolicy' => $pdfViewerPreferencePolicy,
             'pdfNeedsRendering' => $pdfNeedsRendering,
@@ -5459,6 +5480,7 @@ final class PdfEngineHandoff
      *     finalPdfNameTrees: list<array{category:string, source:string, entryCount:int, names:list<string>, valueKinds:array<string, int>, valueReferences:list<string>, kidCount:int, limits:list<string>}>,
      *     finalPdfNameTreePolicies: list<array{category:string, source:string, reviewStatus:string, entryCount:int, kidCount:int, limits:list<string>, issues:list<string>, nodes:list<array{source:string, object:string|null, kind:string, entryCount:int, names:list<string>, kidCount:int, limits:list<string>, reviewStatus:string, issues:list<string>}>}>,
      *     finalPdfUriBase: string|null,
+     *     finalPdfUriBasePolicy: array{reviewStatus:string, base:string, baseScheme:string|null, baseKind:string, linkTargetCount:int, relativeLinkTargetCount:int, remoteLinkTargetCount:int, fileLinkTargetCount:int, targetSchemes:array<string, int>, issues:list<string>}|array{},
      *     finalPdfViewerPreferences: array<string, bool|int|string|list<int>|list<string>>,
      *     finalPdfViewerPreferencePolicy: array<string, mixed>,
      *     finalPdfNeedsRendering: bool|null,
@@ -5791,6 +5813,7 @@ final class PdfEngineHandoff
             'finalPdfNameTrees' => is_array($finalRun) && is_array($finalRun['pdfNameTrees'] ?? null) ? $finalRun['pdfNameTrees'] : [],
             'finalPdfNameTreePolicies' => is_array($finalRun) && is_array($finalRun['pdfNameTreePolicies'] ?? null) ? $finalRun['pdfNameTreePolicies'] : [],
             'finalPdfUriBase' => is_array($finalRun) && is_string($finalRun['pdfUriBase'] ?? null) ? $finalRun['pdfUriBase'] : null,
+            'finalPdfUriBasePolicy' => is_array($finalRun) && is_array($finalRun['pdfUriBasePolicy'] ?? null) ? $finalRun['pdfUriBasePolicy'] : [],
             'finalPdfViewerPreferences' => is_array($finalRun) && is_array($finalRun['pdfViewerPreferences'] ?? null) ? $finalRun['pdfViewerPreferences'] : [],
             'finalPdfViewerPreferencePolicy' => is_array($finalRun) && is_array($finalRun['pdfViewerPreferencePolicy'] ?? null) ? $finalRun['pdfViewerPreferencePolicy'] : [],
             'finalPdfNeedsRendering' => is_array($finalRun) && is_bool($finalRun['pdfNeedsRendering'] ?? null) ? $finalRun['pdfNeedsRendering'] : null,
@@ -12646,6 +12669,8 @@ final class PdfEngineHandoff
         $outputIntents = $this->extractPdfOutputIntents($pdfBytes, $catalog);
         $pageOutputIntents = $this->extractPdfPageOutputIntents($pdfBytes, $catalog);
         $language = $this->extractPdfCatalogLanguage($pdfBytes, $catalog);
+        $uriBase = $this->extractPdfUriBase($pdfBytes, $catalog);
+        $linkTargets = $this->extractPdfLinkTargets($pdfBytes);
         $viewerPreferences = $this->extractPdfViewerPreferences($pdfBytes, $catalog);
         $needsRendering = $this->extractPdfNeedsRendering($catalog);
         $catalogRequirements = $this->extractPdfCatalogRequirements($pdfBytes, $catalog);
@@ -12748,7 +12773,8 @@ final class PdfEngineHandoff
             'destinationOptions' => $this->extractPdfDestinationOptions($pdfBytes, $catalog),
             'nameTrees' => $this->extractPdfNameTrees($pdfBytes, $catalog),
             'nameTreePolicies' => $this->extractPdfNameTreePolicies($pdfBytes, $catalog),
-            'uriBase' => $this->extractPdfUriBase($pdfBytes, $catalog),
+            'uriBase' => $uriBase,
+            'uriBasePolicy' => $this->summarizePdfUriBasePolicy($uriBase, $linkTargets),
             'viewerPreferences' => $viewerPreferences,
             'viewerPreferencePolicy' => $this->summarizePdfViewerPreferencePolicy($viewerPreferences),
             'needsRendering' => $needsRendering,
@@ -12809,7 +12835,7 @@ final class PdfEngineHandoff
             'annotationAppearances' => $annotationAppearances,
             'annotationAppearancePolicy' => $annotationAppearancePolicy,
             'annotationTypes' => $this->extractPdfAnnotationTypes($pdfBytes),
-            'linkTargets' => $this->extractPdfLinkTargets($pdfBytes),
+            'linkTargets' => $linkTargets,
             'embeddedFileNames' => $embeddedFileNames,
             'embeddedFiles' => $embeddedFiles,
             'formFields' => $formFields,
@@ -20147,6 +20173,92 @@ final class PdfEngineHandoff
         $base = trim($base);
 
         return $base === '' ? null : $base;
+    }
+
+    /**
+     * @param list<string> $linkTargets
+     * @return array{reviewStatus:string, base:string, baseScheme:string|null, baseKind:string, linkTargetCount:int, relativeLinkTargetCount:int, remoteLinkTargetCount:int, fileLinkTargetCount:int, targetSchemes:array<string, int>, issues:list<string>}|array{}
+     */
+    private function summarizePdfUriBasePolicy(?string $uriBase, array $linkTargets): array
+    {
+        if ($uriBase === null || $uriBase === '') {
+            return [];
+        }
+
+        $baseScheme = $this->pdfActionTargetScheme($uriBase);
+        $baseKind = $this->pdfUriBaseKind($baseScheme);
+        $targetSchemes = [];
+        $relativeLinkTargetCount = 0;
+        $remoteLinkTargetCount = 0;
+        $fileLinkTargetCount = 0;
+
+        foreach ($linkTargets as $target) {
+            if ($target === '') {
+                continue;
+            }
+
+            $scheme = $this->pdfActionTargetScheme($target) ?? 'relative';
+            $targetSchemes[$scheme] = ($targetSchemes[$scheme] ?? 0) + 1;
+            if ($scheme === 'relative') {
+                ++$relativeLinkTargetCount;
+            } elseif ($scheme === 'file') {
+                ++$fileLinkTargetCount;
+            } elseif (in_array($scheme, ['ftp', 'ftps', 'http', 'https'], true)) {
+                ++$remoteLinkTargetCount;
+            }
+        }
+
+        $issues = [];
+        if ($baseKind === 'remote') {
+            $issues[] = 'remote-uri-base';
+        } elseif ($baseKind === 'file') {
+            $issues[] = 'file-uri-base';
+        } elseif ($baseKind === 'relative') {
+            $issues[] = 'relative-uri-base';
+        } elseif ($baseKind === 'uri') {
+            $issues[] = 'non-web-uri-base';
+        }
+        if ($relativeLinkTargetCount > 0) {
+            $issues[] = 'uri-base-applies-to-relative-targets';
+        }
+        if ($fileLinkTargetCount > 0) {
+            $issues[] = 'file-link-target';
+        }
+        if ($remoteLinkTargetCount > 0) {
+            $issues[] = 'remote-link-target';
+        }
+
+        ksort($targetSchemes);
+        $issues = $this->uniqueStrings($issues);
+        sort($issues, SORT_STRING);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'base' => $uriBase,
+            'baseScheme' => $baseScheme,
+            'baseKind' => $baseKind,
+            'linkTargetCount' => array_sum($targetSchemes),
+            'relativeLinkTargetCount' => $relativeLinkTargetCount,
+            'remoteLinkTargetCount' => $remoteLinkTargetCount,
+            'fileLinkTargetCount' => $fileLinkTargetCount,
+            'targetSchemes' => $targetSchemes,
+            'issues' => $issues,
+        ];
+    }
+
+    private function pdfUriBaseKind(?string $scheme): string
+    {
+        if ($scheme === null) {
+            return 'relative';
+        }
+        if (in_array($scheme, ['ftp', 'ftps', 'http', 'https'], true)) {
+            return 'remote';
+        }
+        if ($scheme === 'file') {
+            return 'file';
+        }
+
+        return 'uri';
     }
 
     /**
