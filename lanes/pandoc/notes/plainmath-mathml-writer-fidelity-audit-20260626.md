@@ -1,6 +1,7 @@
 # PlainMath MathML Writer Fidelity Audit
 
 Date: 2026-06-26 UTC
+Last refreshed: 2026-06-28 UTC on `origin/main` `02ed92f8f`
 Bead: `plib-wj70q.17`
 
 ## Scope
@@ -13,6 +14,15 @@ This is a report-only lane. No runtime code was changed and no `knownGaps`
 entry was updated. The repository does not have a single `knownGaps` file for
 this lane; current gap tracking is distributed through Pandoc notes and lane
 status text. This note is the gap matrix for the assigned slice.
+
+2026-06-28 refresh: current main has landed additional PlainMath parser and
+fixture work after the original audit (`94671fe37`, `7ecbfe32a`, `8a1306482`,
+`868d87104`, and `02ed92f8f`). Those commits improve static TexMath fixture
+coverage, recursive text-mode groups, atom-category metadata, and malformed
+MathML fallback behavior. They do not add MathML `form` attributes, per-cell
+alignment placement, per-cell `style="text-align: ..."` metadata, or the
+remaining styled-symbol Unicode conversions below, so the fixture priorities
+remain unchanged.
 
 ## Source Truth
 
@@ -54,6 +64,40 @@ Relevant upstream writer facts:
 | Double-struck Greek/symbol Unicode | Probe `\mathbb{\pi\gamma\Gamma\Pi\sum}` currently leaves base glyphs inside a double-struck `mstyle`. | Upstream `ToUnicode` maps double-struck pi/gamma/Gamma/Pi/sum to dedicated Unicode codepoints. | Writer Unicode gap. |
 | Styled operator/symbol Unicode | Probe `\mathbfit{\nabla\partial...}` leaves `nabla` and `partial` as base operators inside `mstyle`. | Upstream `ToUnicode` has styled math symbol rows for several non-letter symbols. | Writer Unicode gap once the parser emits known symbols. |
 | `\varkappa` / `\varpi` | Probe `\varkappa + \varpi` renders literal identifiers `<mi>\varkappa</mi>` and `<mi>\varpi</mi>`. | These must be recognized before writer-level styled Unicode conversion can apply. | Parser command-table blocker, not a MathML writer-only gap. |
+
+## 2026-06-28 Current-Base Refresh
+
+The original matrix still matches current main at `02ed92f8f`:
+
+- `\left(a\middle|b\right)` still emits local fence/stretch/separator
+  metadata and still does not emit upstream-style `form="prefix|infix|postfix"`
+  attributes.
+- `\begin{array}{lcr}a&b&c\\x&y&z\end{array}` still emits table-level
+  `mtable columnalign="left center right"` and still does not emit per-cell
+  `mtd columnalign` or `style="text-align: ..."` metadata.
+- `\multicolumn` remains the exception with bounded cell-level span/alignment
+  and provenance metadata.
+- Styled Latin/digit and the already-covered Greek families still rewrite to
+  Unicode mathematical alphanumeric codepoints.
+- Double-struck Greek/symbol probes and styled operator probes still leave
+  base `pi`, `gamma`, `Gamma`, `Pi`, `sum`, `nabla`, and `partial` glyphs
+  inside styled wrappers; `\varkappa` and `\varpi` still require parser alias
+  work before writer-level styled Unicode fidelity can be measured.
+
+Current-base classification stays:
+
+| Priority | Fixture/gap | Current-base status |
+| --- | --- | --- |
+| P1 | Delimiter `form` attributes for `\left...\middle...\right` | Writer-only gap still open. |
+| P1 | Per-cell `mtd columnalign` for arrays/environments | Writer-only gap still open. |
+| P1 | Per-cell `style="text-align: ..."` for arrays/environments | Writer/layout gap still open. |
+| P2 | Right-left sequence padding style | Still depends on the P1 per-cell style path. |
+| P2 | Styled Unicode for double-struck Greek/symbols and parsed operators | Writer Unicode gap still open. |
+| P3 | `\varkappa` / `\varpi` aliases before styled writer assertions | Parser command-table blocker still open. |
+
+No `knownGaps` update is needed for the refresh because the repository still
+tracks this slice through notes and lane status rather than a dedicated
+PlainMath `knownGaps` manifest.
 
 ## Prioritized Fixtures And Gaps
 
@@ -253,3 +297,76 @@ php lanes/pandoc/examples/wordpress-math-tex-handoff.php --self-test
 
 Result: failed in the same paired-delimiter macro-definition path before any
 audit file edits.
+
+2026-06-28 refresh commands run from
+`port_libs/polecats/moonstone/port_libs`:
+
+```text
+git log --oneline -- lanes/pandoc/src/MathTexConverter.php lanes/pandoc/tests/MathTexConverterTest.php lanes/pandoc/tests/PlainMathStaticTexmathFixtureTest.php lanes/pandoc/notes/plainmath-mathml-writer-fidelity-audit-20260626.md
+```
+
+Relevant current-base PlainMath commits inspected:
+
+```text
+02ed92f8f fix: fall back malformed PlainMath MathML (plib-wj70q.11)
+868d87104 test: add PlainMath atom coercion fixtures (plib-wj70q.13)
+8a1306482 feat: add PlainMath atom category prototype (plib-wj70q.12)
+7ecbfe32a fix: recurse PlainMath text-mode groups (plib-wj70q.16)
+94671fe37 test: add plainmath texmath fixture corpus (plib-wj70q.18)
+9fd15a080 docs: audit PlainMath MathML writer gaps (plib-wj70q.17)
+```
+
+```text
+git ls-remote https://github.com/jgm/texmath.git HEAD
+170899673ee31de9096e178605e8da31a36e4185	HEAD
+git ls-remote https://github.com/jgm/pandoc.git HEAD
+c568a0e66599384fdabc08ad656fd5beeac39ae1	HEAD
+```
+
+```text
+rg -n 'form="|style="text-align|text-align' lanes/pandoc/src/MathTexConverter.php lanes/pandoc/tests/MathTexConverterTest.php lanes/pandoc/tests/PlainMathStaticTexmathFixtureTest.php lanes/pandoc/tests/MathTexCustomEnvironmentTest.php
+```
+
+Result: no matches.
+
+Local current-base probes:
+
+```text
+php -r 'require "tools/bootstrap.php"; $c=new PortLibs\Pandoc\MathTexConverter(); foreach (["\\left(a\\middle|b\\right)", "\\begin{array}{lcr}a&b&c\\\\x&y&z\\end{array}", "\\begin{array}{lcr}a&\\multicolumn{2}{|r|}{bc}\\\\x&y&z\\end{array}", "\\mathbb{AZ09} + \\mathcal{FLO} + \\mathbfit{\\Gamma\\alpha}"] as $tex) { echo "--- ".$tex."\n"; echo $c->texToMathMl($tex, true)."\n"; }'
+```
+
+Observed on `02ed92f8f`: same writer gaps as the original audit. Delimiters
+lack `form`, normal cells lack per-cell `columnalign` and `style`, multicolumn
+keeps cell-level alignment/provenance, and covered Latin/digit plus covered
+Greek variants rewrite to Unicode mathematical alphanumerics.
+
+```text
+php -r 'require "tools/bootstrap.php"; $c=new PortLibs\Pandoc\MathTexConverter(); foreach (["\\mathbb{\\pi\\gamma\\Gamma\\Pi\\sum}", "\\mathbfit{\\nabla\\partial\\epsilon\\vartheta\\varkappa\\phi\\varrho\\varpi}", "\\mathbfsfup{\\nabla\\partial}", "\\mathsfit{\\Gamma\\alpha}", "\\varkappa + \\varpi", "\\nabla + \\partial + \\epsilon + \\vartheta + \\phi + \\varrho"] as $tex) { echo "--- ".$tex."\n"; echo $c->texToMathMl($tex, true)."\n"; }'
+```
+
+Observed on `02ed92f8f`: double-struck Greek/symbols remain base glyphs inside
+`mstyle`; `nabla` and `partial` remain base operators inside styled wrappers;
+`\varkappa` and `\varpi` remain literal command identifiers.
+
+Focused gates:
+
+```text
+php tools/run-tests.php lanes/pandoc/tests/PlainMathStaticTexmathFixtureTest.php lanes/pandoc/tests/MathTexCustomEnvironmentTest.php
+2 test files, 79 assertions, 0 failures
+```
+
+```text
+php tools/run-tests.php lanes/pandoc/tests/MathTexConverterTest.php
+1 test files, 1387 assertions, 6 failures
+```
+
+The six `MathTexConverterTest.php` failures are the existing macro
+capture/paired-delimiter and LaTeX writer source-handoff baseline failures,
+not branch-only failures from this report refresh.
+
+```text
+php lanes/pandoc/examples/wordpress-math-tex-handoff.php --self-test
+```
+
+Result on `02ed92f8f`: still fails in the paired-delimiter X macro-definition
+path before any audit refresh edits.
