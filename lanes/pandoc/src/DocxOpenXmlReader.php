@@ -15295,6 +15295,10 @@ final class DocxOpenXmlReader
             'partXmlElementAncestorChainAncestorQualifiedNameCounts' => $partXmlRoots['xmlElementAncestorChainAncestorQualifiedNameCounts'],
             'partXmlElementParentChildPairPartCount' => $partXmlRoots['xmlElementParentChildPairPartCount'],
             'partXmlElementParentChildPairCount' => $partXmlRoots['xmlElementParentChildPairCount'],
+            'partXmlElementParentChildPairSameNamespaceCount' => $partXmlRoots['xmlElementParentChildPairSameNamespaceCount'],
+            'partXmlElementParentChildPairDifferentNamespaceCount' => $partXmlRoots['xmlElementParentChildPairDifferentNamespaceCount'],
+            'partXmlElementParentChildPairSamePrefixCount' => $partXmlRoots['xmlElementParentChildPairSamePrefixCount'],
+            'partXmlElementParentChildPairDifferentPrefixCount' => $partXmlRoots['xmlElementParentChildPairDifferentPrefixCount'],
             'partXmlElementParentChildPairPartNames' => $partXmlRoots['xmlElementParentChildPairPartNames'],
             'partXmlElementParentChildPairNameCount' => $partXmlRoots['xmlElementParentChildPairNameCount'],
             'partXmlElementParentChildPairNameCounts' => $partXmlRoots['xmlElementParentChildPairNameCounts'],
@@ -15323,6 +15327,12 @@ final class DocxOpenXmlReader
             'partXmlElementParentChildPairChildPrefixCount' => $partXmlRoots['xmlElementParentChildPairChildPrefixCount'],
             'partXmlElementParentChildPairChildPrefixCounts' => $partXmlRoots['xmlElementParentChildPairChildPrefixCounts'],
             'partXmlElementParentChildPairChildPrefixes' => $partXmlRoots['xmlElementParentChildPairChildPrefixes'],
+            'partXmlElementParentChildPairNamespaceTransitionCount' => $partXmlRoots['xmlElementParentChildPairNamespaceTransitionCount'],
+            'partXmlElementParentChildPairNamespaceTransitionCounts' => $partXmlRoots['xmlElementParentChildPairNamespaceTransitionCounts'],
+            'partXmlElementParentChildPairNamespaceTransitions' => $partXmlRoots['xmlElementParentChildPairNamespaceTransitions'],
+            'partXmlElementParentChildPairPrefixTransitionCount' => $partXmlRoots['xmlElementParentChildPairPrefixTransitionCount'],
+            'partXmlElementParentChildPairPrefixTransitionCounts' => $partXmlRoots['xmlElementParentChildPairPrefixTransitionCounts'],
+            'partXmlElementParentChildPairPrefixTransitions' => $partXmlRoots['xmlElementParentChildPairPrefixTransitions'],
             'partXmlElementChildProfilePartCount' => $partXmlRoots['xmlElementChildProfilePartCount'],
             'partXmlElementChildProfileCount' => $partXmlRoots['xmlElementChildProfileCount'],
             'partXmlElementChildProfileEmptyElementCount' => $partXmlRoots['xmlElementChildProfileEmptyElementCount'],
@@ -21751,6 +21761,10 @@ final class DocxOpenXmlReader
         $xmlElementParentChildPairChildQualifiedNameCounts = [];
         $xmlElementParentChildPairChildPrefixCounts = [];
         $xmlElementParentChildPairChildPrefixes = [];
+        $xmlElementParentChildPairNamespaceTransitionCounts = [];
+        $xmlElementParentChildPairNamespaceTransitions = [];
+        $xmlElementParentChildPairPrefixTransitionCounts = [];
+        $xmlElementParentChildPairPrefixTransitions = [];
         $xmlElementParentChildPairs = [];
         $xmlElementChildProfilePartNames = [];
         $xmlElementChildProfileContentModelCounts = [];
@@ -21941,6 +21955,10 @@ final class DocxOpenXmlReader
         $xmlElementAncestorChainParentedElementCount = 0;
         $xmlElementParentChildPairPartCount = 0;
         $xmlElementParentChildPairCount = 0;
+        $xmlElementParentChildPairSameNamespaceCount = 0;
+        $xmlElementParentChildPairDifferentNamespaceCount = 0;
+        $xmlElementParentChildPairSamePrefixCount = 0;
+        $xmlElementParentChildPairDifferentPrefixCount = 0;
         $xmlElementChildProfilePartCount = 0;
         $xmlElementChildProfileCount = 0;
         $xmlElementChildProfileEmptyElementCount = 0;
@@ -23487,6 +23505,10 @@ final class DocxOpenXmlReader
             if ($partElementParentChildPairCount > 0) {
                 ++$xmlElementParentChildPairPartCount;
                 $xmlElementParentChildPairCount += $partElementParentChildPairCount;
+                $xmlElementParentChildPairSameNamespaceCount += (int) ($part['xmlElementParentChildPairSameNamespaceCount'] ?? 0);
+                $xmlElementParentChildPairDifferentNamespaceCount += (int) ($part['xmlElementParentChildPairDifferentNamespaceCount'] ?? 0);
+                $xmlElementParentChildPairSamePrefixCount += (int) ($part['xmlElementParentChildPairSamePrefixCount'] ?? 0);
+                $xmlElementParentChildPairDifferentPrefixCount += (int) ($part['xmlElementParentChildPairDifferentPrefixCount'] ?? 0);
                 $xmlElementParentChildPairPartNames[] = $partName;
             }
             foreach (($part['xmlElementParentChildPairNameCounts'] ?? []) as $pairName => $count) {
@@ -23575,6 +23597,22 @@ final class DocxOpenXmlReader
                     $this->appendUniqueString($xmlElementParentChildPairChildPrefixes, $prefix);
                 }
             }
+            foreach (($part['xmlElementParentChildPairNamespaceTransitionCounts'] ?? []) as $transition => $count) {
+                if (!is_string($transition) || $transition === '') {
+                    continue;
+                }
+                $xmlElementParentChildPairNamespaceTransitionCounts[$transition] =
+                    ($xmlElementParentChildPairNamespaceTransitionCounts[$transition] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlElementParentChildPairNamespaceTransitions, $transition);
+            }
+            foreach (($part['xmlElementParentChildPairPrefixTransitionCounts'] ?? []) as $transition => $count) {
+                if (!is_string($transition) || $transition === '') {
+                    continue;
+                }
+                $xmlElementParentChildPairPrefixTransitionCounts[$transition] =
+                    ($xmlElementParentChildPairPrefixTransitionCounts[$transition] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlElementParentChildPairPrefixTransitions, $transition);
+            }
             foreach (($part['xmlElementParentChildPairs'] ?? []) as $pair) {
                 if (!is_array($pair)) {
                     continue;
@@ -23609,6 +23647,14 @@ final class DocxOpenXmlReader
                         : '',
                     'childPrefix' => is_string($pair['childPrefix'] ?? null) ? $pair['childPrefix'] : null,
                     'pairName' => is_string($pair['pairName'] ?? null) ? $pair['pairName'] : '',
+                    'namespaceTransition' => is_string($pair['namespaceTransition'] ?? null)
+                        ? $pair['namespaceTransition']
+                        : '',
+                    'prefixTransition' => is_string($pair['prefixTransition'] ?? null)
+                        ? $pair['prefixTransition']
+                        : '',
+                    'sameNamespace' => (bool) ($pair['sameNamespace'] ?? false),
+                    'samePrefix' => (bool) ($pair['samePrefix'] ?? false),
                     'childElementIndex' => (int) ($pair['childElementIndex'] ?? 0),
                     'childElementCount' => (int) ($pair['childElementCount'] ?? 0),
                     'childNodeIndex' => (int) ($pair['childNodeIndex'] ?? 0),
@@ -24876,6 +24922,18 @@ final class DocxOpenXmlReader
                     ? $part['xmlElementParentChildPairChildPrefixCounts']
                     : [],
                 'xmlElementParentChildPairChildPrefixes' => array_values(array_map('strval', $part['xmlElementParentChildPairChildPrefixes'] ?? [])),
+                'xmlElementParentChildPairNamespaceTransitionCounts' => is_array($part['xmlElementParentChildPairNamespaceTransitionCounts'] ?? null)
+                    ? $part['xmlElementParentChildPairNamespaceTransitionCounts']
+                    : [],
+                'xmlElementParentChildPairNamespaceTransitions' => array_values(array_map('strval', $part['xmlElementParentChildPairNamespaceTransitions'] ?? [])),
+                'xmlElementParentChildPairPrefixTransitionCounts' => is_array($part['xmlElementParentChildPairPrefixTransitionCounts'] ?? null)
+                    ? $part['xmlElementParentChildPairPrefixTransitionCounts']
+                    : [],
+                'xmlElementParentChildPairPrefixTransitions' => array_values(array_map('strval', $part['xmlElementParentChildPairPrefixTransitions'] ?? [])),
+                'xmlElementParentChildPairSameNamespaceCount' => (int) ($part['xmlElementParentChildPairSameNamespaceCount'] ?? 0),
+                'xmlElementParentChildPairDifferentNamespaceCount' => (int) ($part['xmlElementParentChildPairDifferentNamespaceCount'] ?? 0),
+                'xmlElementParentChildPairSamePrefixCount' => (int) ($part['xmlElementParentChildPairSamePrefixCount'] ?? 0),
+                'xmlElementParentChildPairDifferentPrefixCount' => (int) ($part['xmlElementParentChildPairDifferentPrefixCount'] ?? 0),
                 'xmlElementParentChildPairs' => is_array($part['xmlElementParentChildPairs'] ?? null)
                     ? $part['xmlElementParentChildPairs']
                     : [],
@@ -25223,6 +25281,8 @@ final class DocxOpenXmlReader
         ksort($xmlElementParentChildPairChildLocalNameCounts, SORT_STRING);
         ksort($xmlElementParentChildPairChildQualifiedNameCounts, SORT_STRING);
         ksort($xmlElementParentChildPairChildPrefixCounts, SORT_STRING);
+        ksort($xmlElementParentChildPairNamespaceTransitionCounts, SORT_STRING);
+        ksort($xmlElementParentChildPairPrefixTransitionCounts, SORT_STRING);
         ksort($xmlElementChildProfileContentModelCounts, SORT_STRING);
         ksort($xmlElementChildProfilePathCounts, SORT_STRING);
         ksort($xmlElementChildProfileNamespaceCounts, SORT_STRING);
@@ -25328,6 +25388,8 @@ final class DocxOpenXmlReader
         sort($xmlElementParentChildPairChildPaths, SORT_STRING);
         sort($xmlElementParentChildPairParentPrefixes, SORT_STRING);
         sort($xmlElementParentChildPairChildPrefixes, SORT_STRING);
+        sort($xmlElementParentChildPairNamespaceTransitions, SORT_STRING);
+        sort($xmlElementParentChildPairPrefixTransitions, SORT_STRING);
         sort($xmlElementChildProfilePartNames, SORT_STRING);
         sort($xmlElementChildProfilePaths, SORT_STRING);
         sort($xmlRepeatedSiblingElementPartNames, SORT_STRING);
@@ -25759,6 +25821,10 @@ final class DocxOpenXmlReader
             'xmlElementAncestorChains' => $xmlElementAncestorChains,
             'xmlElementParentChildPairPartCount' => $xmlElementParentChildPairPartCount,
             'xmlElementParentChildPairCount' => $xmlElementParentChildPairCount,
+            'xmlElementParentChildPairSameNamespaceCount' => $xmlElementParentChildPairSameNamespaceCount,
+            'xmlElementParentChildPairDifferentNamespaceCount' => $xmlElementParentChildPairDifferentNamespaceCount,
+            'xmlElementParentChildPairSamePrefixCount' => $xmlElementParentChildPairSamePrefixCount,
+            'xmlElementParentChildPairDifferentPrefixCount' => $xmlElementParentChildPairDifferentPrefixCount,
             'xmlElementParentChildPairPartNames' => $xmlElementParentChildPairPartNames,
             'xmlElementParentChildPairNameCount' => count($xmlElementParentChildPairNameCounts),
             'xmlElementParentChildPairNameCounts' => $xmlElementParentChildPairNameCounts,
@@ -25787,6 +25853,12 @@ final class DocxOpenXmlReader
             'xmlElementParentChildPairChildPrefixCount' => count($xmlElementParentChildPairChildPrefixCounts),
             'xmlElementParentChildPairChildPrefixCounts' => $xmlElementParentChildPairChildPrefixCounts,
             'xmlElementParentChildPairChildPrefixes' => $xmlElementParentChildPairChildPrefixes,
+            'xmlElementParentChildPairNamespaceTransitionCount' => count($xmlElementParentChildPairNamespaceTransitionCounts),
+            'xmlElementParentChildPairNamespaceTransitionCounts' => $xmlElementParentChildPairNamespaceTransitionCounts,
+            'xmlElementParentChildPairNamespaceTransitions' => $xmlElementParentChildPairNamespaceTransitions,
+            'xmlElementParentChildPairPrefixTransitionCount' => count($xmlElementParentChildPairPrefixTransitionCounts),
+            'xmlElementParentChildPairPrefixTransitionCounts' => $xmlElementParentChildPairPrefixTransitionCounts,
+            'xmlElementParentChildPairPrefixTransitions' => $xmlElementParentChildPairPrefixTransitions,
             'xmlElementParentChildPairs' => $xmlElementParentChildPairs,
             'xmlElementChildProfilePartCount' => $xmlElementChildProfilePartCount,
             'xmlElementChildProfileCount' => $xmlElementChildProfileCount,
@@ -30283,6 +30355,14 @@ final class DocxOpenXmlReader
             'childQualifiedNameCounts' => [],
             'childPrefixCounts' => [],
             'childPrefixes' => [],
+            'namespaceTransitionCounts' => [],
+            'namespaceTransitions' => [],
+            'prefixTransitionCounts' => [],
+            'prefixTransitions' => [],
+            'sameNamespacePairCount' => 0,
+            'differentNamespacePairCount' => 0,
+            'samePrefixPairCount' => 0,
+            'differentPrefixPairCount' => 0,
             'items' => [],
         ];
 
@@ -30308,6 +30388,14 @@ final class DocxOpenXmlReader
         $childQualifiedNameCounts = [];
         $childPrefixCounts = [];
         $childPrefixes = [];
+        $namespaceTransitionCounts = [];
+        $namespaceTransitions = [];
+        $prefixTransitionCounts = [];
+        $prefixTransitions = [];
+        $sameNamespacePairCount = 0;
+        $differentNamespacePairCount = 0;
+        $samePrefixPairCount = 0;
+        $differentPrefixPairCount = 0;
         $ordinal = 0;
 
         $walk = function (\DOMElement $parent) use (
@@ -30329,6 +30417,14 @@ final class DocxOpenXmlReader
             &$childQualifiedNameCounts,
             &$childPrefixCounts,
             &$childPrefixes,
+            &$namespaceTransitionCounts,
+            &$namespaceTransitions,
+            &$prefixTransitionCounts,
+            &$prefixTransitions,
+            &$sameNamespacePairCount,
+            &$differentNamespacePairCount,
+            &$samePrefixPairCount,
+            &$differentPrefixPairCount,
             &$ordinal,
         ): void {
             $children = [];
@@ -30385,6 +30481,10 @@ final class DocxOpenXmlReader
                     $childNamespaceKey = $childNamespace ?? '(none)';
                     $childPrefixKey = $childPrefix ?? '(none)';
                     $pairName = $parentQualifiedName . ' -> ' . $childQualifiedName;
+                    $namespaceTransition = $parentNamespaceKey . ' -> ' . $childNamespaceKey;
+                    $prefixTransition = $parentPrefixKey . ' -> ' . $childPrefixKey;
+                    $sameNamespace = $parentNamespaceKey === $childNamespaceKey;
+                    $samePrefix = $parentPrefixKey === $childPrefixKey;
 
                     $pairNameCounts[$pairName] = ($pairNameCounts[$pairName] ?? 0) + 1;
                     $this->appendUniqueString($pairNames, $pairName);
@@ -30408,6 +30508,22 @@ final class DocxOpenXmlReader
                     if ($childPrefix !== null) {
                         $this->appendUniqueString($childPrefixes, $childPrefix);
                     }
+                    $namespaceTransitionCounts[$namespaceTransition] =
+                        ($namespaceTransitionCounts[$namespaceTransition] ?? 0) + 1;
+                    $this->appendUniqueString($namespaceTransitions, $namespaceTransition);
+                    $prefixTransitionCounts[$prefixTransition] =
+                        ($prefixTransitionCounts[$prefixTransition] ?? 0) + 1;
+                    $this->appendUniqueString($prefixTransitions, $prefixTransition);
+                    if ($sameNamespace) {
+                        ++$sameNamespacePairCount;
+                    } else {
+                        ++$differentNamespacePairCount;
+                    }
+                    if ($samePrefix) {
+                        ++$samePrefixPairCount;
+                    } else {
+                        ++$differentPrefixPairCount;
+                    }
 
                     $items[] = [
                         'ordinal' => $ordinal,
@@ -30424,6 +30540,10 @@ final class DocxOpenXmlReader
                         'childQualifiedName' => $childQualifiedName,
                         'childPrefix' => $childPrefix,
                         'pairName' => $pairName,
+                        'namespaceTransition' => $namespaceTransition,
+                        'prefixTransition' => $prefixTransition,
+                        'sameNamespace' => $sameNamespace,
+                        'samePrefix' => $samePrefix,
                         'childElementIndex' => (int) ($child['childElementIndex'] ?? 0),
                         'childElementCount' => $childElementCount,
                         'childNodeIndex' => (int) ($child['childNodeIndex'] ?? 0),
@@ -30450,11 +30570,15 @@ final class DocxOpenXmlReader
         ksort($childLocalNameCounts, SORT_STRING);
         ksort($childQualifiedNameCounts, SORT_STRING);
         ksort($childPrefixCounts, SORT_STRING);
+        ksort($namespaceTransitionCounts, SORT_STRING);
+        ksort($prefixTransitionCounts, SORT_STRING);
         sort($pairNames, SORT_STRING);
         sort($parentPaths, SORT_STRING);
         sort($childPaths, SORT_STRING);
         sort($parentPrefixes, SORT_STRING);
         sort($childPrefixes, SORT_STRING);
+        sort($namespaceTransitions, SORT_STRING);
+        sort($prefixTransitions, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -30474,6 +30598,14 @@ final class DocxOpenXmlReader
             'childQualifiedNameCounts' => $childQualifiedNameCounts,
             'childPrefixCounts' => $childPrefixCounts,
             'childPrefixes' => $childPrefixes,
+            'namespaceTransitionCounts' => $namespaceTransitionCounts,
+            'namespaceTransitions' => $namespaceTransitions,
+            'prefixTransitionCounts' => $prefixTransitionCounts,
+            'prefixTransitions' => $prefixTransitions,
+            'sameNamespacePairCount' => $sameNamespacePairCount,
+            'differentNamespacePairCount' => $differentNamespacePairCount,
+            'samePrefixPairCount' => $samePrefixPairCount,
+            'differentPrefixPairCount' => $differentPrefixPairCount,
             'items' => $items,
         ];
     }
@@ -34615,6 +34747,14 @@ final class DocxOpenXmlReader
                 'xmlElementParentChildPairChildQualifiedNameCounts' => [],
                 'xmlElementParentChildPairChildPrefixCounts' => [],
                 'xmlElementParentChildPairChildPrefixes' => [],
+                'xmlElementParentChildPairNamespaceTransitionCounts' => [],
+                'xmlElementParentChildPairNamespaceTransitions' => [],
+                'xmlElementParentChildPairPrefixTransitionCounts' => [],
+                'xmlElementParentChildPairPrefixTransitions' => [],
+                'xmlElementParentChildPairSameNamespaceCount' => 0,
+                'xmlElementParentChildPairDifferentNamespaceCount' => 0,
+                'xmlElementParentChildPairSamePrefixCount' => 0,
+                'xmlElementParentChildPairDifferentPrefixCount' => 0,
                 'xmlElementParentChildPairs' => [],
                 'xmlElementChildProfileCount' => 0,
                 'xmlElementChildProfileEmptyElementCount' => 0,
@@ -35062,6 +35202,14 @@ final class DocxOpenXmlReader
             'xmlElementParentChildPairChildQualifiedNameCounts' => $elementParentChildPairs['childQualifiedNameCounts'],
             'xmlElementParentChildPairChildPrefixCounts' => $elementParentChildPairs['childPrefixCounts'],
             'xmlElementParentChildPairChildPrefixes' => $elementParentChildPairs['childPrefixes'],
+            'xmlElementParentChildPairNamespaceTransitionCounts' => $elementParentChildPairs['namespaceTransitionCounts'],
+            'xmlElementParentChildPairNamespaceTransitions' => $elementParentChildPairs['namespaceTransitions'],
+            'xmlElementParentChildPairPrefixTransitionCounts' => $elementParentChildPairs['prefixTransitionCounts'],
+            'xmlElementParentChildPairPrefixTransitions' => $elementParentChildPairs['prefixTransitions'],
+            'xmlElementParentChildPairSameNamespaceCount' => $elementParentChildPairs['sameNamespacePairCount'],
+            'xmlElementParentChildPairDifferentNamespaceCount' => $elementParentChildPairs['differentNamespacePairCount'],
+            'xmlElementParentChildPairSamePrefixCount' => $elementParentChildPairs['samePrefixPairCount'],
+            'xmlElementParentChildPairDifferentPrefixCount' => $elementParentChildPairs['differentPrefixPairCount'],
             'xmlElementParentChildPairs' => $elementParentChildPairs['items'],
             'xmlElementChildProfileCount' => $elementChildProfiles['count'],
             'xmlElementChildProfileEmptyElementCount' => $elementChildProfiles['emptyElementCount'],

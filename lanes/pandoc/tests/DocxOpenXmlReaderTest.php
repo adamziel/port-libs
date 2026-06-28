@@ -20974,6 +20974,74 @@ XML;
         $t->true(is_string($encodedPairs), 'XML parent-child pair metadata should encode for review');
         $t->true(!str_contains((string) $encodedPairs, $hiddenText), 'raw XML text should not be exposed in parent-child pair metadata');
     },
+    'summarizes docx package xml namespace transitions without exposing text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $hiddenText = 'namespace-transition:hidden-text';
+        $parts['customXml/namespace-transition-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:review-ns-transition" xmlns:audit="urn:audit-ns-transition" xmlns:local="urn:local-ns-transition">
+  <review:same><review:item>{$hiddenText}</review:item></review:same>
+  <audit:cross><review:item/><local:item/></audit:cross>
+  <plain xmlns=""><child/></plain>
+</review:packet>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/namespace-transition-review.xml'];
+        $pairs = array_values(array_filter(
+            $summary['partXmlElementParentChildPairs'],
+            static fn (array $pair): bool => $pair['partName'] === 'customXml/namespace-transition-review.xml',
+        ));
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(7, $reviewPart['xmlElementParentChildPairCount']);
+        $t->same(3, $reviewPart['xmlElementParentChildPairSameNamespaceCount']);
+        $t->same(4, $reviewPart['xmlElementParentChildPairDifferentNamespaceCount']);
+        $t->same(3, $reviewPart['xmlElementParentChildPairSamePrefixCount']);
+        $t->same(4, $reviewPart['xmlElementParentChildPairDifferentPrefixCount']);
+        $t->same([
+            '(none) -> (none)' => 1,
+            'urn:audit-ns-transition -> urn:local-ns-transition' => 1,
+            'urn:audit-ns-transition -> urn:review-ns-transition' => 1,
+            'urn:review-ns-transition -> (none)' => 1,
+            'urn:review-ns-transition -> urn:audit-ns-transition' => 1,
+            'urn:review-ns-transition -> urn:review-ns-transition' => 2,
+        ], $reviewPart['xmlElementParentChildPairNamespaceTransitionCounts']);
+        $t->same([
+            '(none) -> (none)' => 1,
+            'audit -> local' => 1,
+            'audit -> review' => 1,
+            'review -> (none)' => 1,
+            'review -> audit' => 1,
+            'review -> review' => 2,
+        ], $reviewPart['xmlElementParentChildPairPrefixTransitionCounts']);
+        $t->same('urn:review-ns-transition -> urn:review-ns-transition', $reviewPart['xmlElementParentChildPairs'][0]['namespaceTransition']);
+        $t->same('review -> audit', $reviewPart['xmlElementParentChildPairs'][1]['prefixTransition']);
+        $t->same(false, $reviewPart['xmlElementParentChildPairs'][1]['sameNamespace']);
+        $t->same('(none) -> (none)', $reviewPart['xmlElementParentChildPairs'][6]['namespaceTransition']);
+        $t->same(true, $reviewPart['xmlElementParentChildPairs'][6]['samePrefix']);
+
+        $t->true($summary['partXmlElementParentChildPairNamespaceTransitionCount'] >= 6, 'summary namespace transition buckets should include custom XML');
+        $t->true($summary['partXmlElementParentChildPairPrefixTransitionCount'] >= 6, 'summary prefix transition buckets should include custom XML');
+        $t->same(2, $summary['partXmlElementParentChildPairNamespaceTransitionCounts']['urn:review-ns-transition -> urn:review-ns-transition']);
+        $t->same(1, $summary['partXmlElementParentChildPairNamespaceTransitionCounts']['urn:audit-ns-transition -> urn:local-ns-transition']);
+        $t->same(2, $summary['partXmlElementParentChildPairPrefixTransitionCounts']['review -> review']);
+        $t->same(1, $summary['partXmlElementParentChildPairPrefixTransitionCounts']['audit -> local']);
+        $t->true($summary['partXmlElementParentChildPairSameNamespaceCount'] >= 3, 'summary same-namespace count should include custom XML');
+        $t->true($summary['partXmlElementParentChildPairDifferentPrefixCount'] >= 4, 'summary different-prefix count should include custom XML');
+        $t->same(7, count($pairs));
+        $t->same('customXml/namespace-transition-review.xml', $pairs[0]['partName']);
+        $t->same('review:packet -> review:same', $pairs[0]['pairName']);
+        $t->same('review -> review', $pairs[0]['prefixTransition']);
+        $t->same('audit -> local', $pairs[5]['prefixTransition']);
+        $t->same('(none) -> (none)', $pairs[6]['prefixTransition']);
+
+        $encodedPairs = json_encode([$reviewPart['xmlElementParentChildPairs'], $pairs]);
+        $t->true(is_string($encodedPairs), 'XML namespace transition metadata should encode for review');
+        $t->true(!str_contains((string) $encodedPairs, $hiddenText), 'raw XML text should not be exposed in namespace transition metadata');
+    },
     'summarizes docx package xml element sibling positions without exposing text' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $hiddenItem = 'sibling-position:hidden-item';
