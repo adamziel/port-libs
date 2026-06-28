@@ -3271,6 +3271,7 @@ CSS,
         }
 
         $importReadRejected = false;
+        $importReadLocationRow = 'upstream node/test/bundle.test.mjs::read throw with location info lines 231-255';
         try {
             (new CssBundler())->bundleWithReader('foo.css', static function (string $file): string {
                 if ($file === 'foo.css') {
@@ -3280,11 +3281,11 @@ CSS,
                 throw new RuntimeException("Oh noes! Failed to read `{$file}`.");
             });
         } catch (CssBundleException $exception) {
-            $t->same('resolver-error', $exception->kind);
-            $t->same('Oh noes! Failed to read `bar.css`.', $exception->getMessage());
-            $t->same('foo.css', $exception->sourceFile);
-            $t->same(1, $exception->sourceLine);
-            $t->same(1, $exception->sourceColumn);
+            $t->same('resolver-error', $exception->kind, $importReadLocationRow . ' kind');
+            $t->same('Oh noes! Failed to read `bar.css`.', $exception->getMessage(), $importReadLocationRow . ' message');
+            $t->same('foo.css', $exception->sourceFile, $importReadLocationRow . ' fileName');
+            $t->same(1, $exception->sourceLine, $importReadLocationRow . ' loc.line');
+            $t->same(1, $exception->sourceColumn, $importReadLocationRow . ' loc.column');
             $importReadRejected = true;
         }
 
