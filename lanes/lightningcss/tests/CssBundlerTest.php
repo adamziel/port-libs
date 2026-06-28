@@ -3271,6 +3271,25 @@ CSS,
             throw new RuntimeException('Expected entry read callback exception');
         }
 
+        $asyncInitialReadRejected = false;
+        $asyncInitialReadRow = 'upstream node/test/bundle.test.mjs::async read throw lines 211-229';
+        try {
+            (new CssBundler())->bundleWithReader('foo.css', static function (string $file): string {
+                throw new RuntimeException("Oh noes! Failed to read `{$file}`.");
+            });
+        } catch (CssBundleException $exception) {
+            $t->same('resolver-error', $exception->kind, $asyncInitialReadRow . ' kind');
+            $t->same('Oh noes! Failed to read `foo.css`.', $exception->getMessage(), $asyncInitialReadRow . ' message');
+            $t->same(null, $exception->sourceFile, $asyncInitialReadRow . ' fileName');
+            $t->same(null, $exception->sourceLine, $asyncInitialReadRow . ' loc.line');
+            $t->same(null, $exception->sourceColumn, $asyncInitialReadRow . ' loc.column');
+            $asyncInitialReadRejected = true;
+        }
+
+        if (!$asyncInitialReadRejected) {
+            throw new RuntimeException('Expected async entry read callback exception');
+        }
+
         $importReadRejected = false;
         $importReadLocationRow = 'upstream node/test/bundle.test.mjs::read throw with location info lines 231-255';
         try {
