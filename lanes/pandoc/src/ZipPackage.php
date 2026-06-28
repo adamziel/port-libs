@@ -5439,7 +5439,7 @@ final class ZipPackage
                 'creatorVersionMeetsNeeded' => $entry->madeByVersion() >= $entry->neededToExtractVersion(),
                 'compressedSize' => $entry->compressedSize,
                 'uncompressedSize' => $entry->uncompressedSize,
-            ];
+            ] + self::entryPlatformMetadataHandoffProvenance($entry->name);
             if ($entry->compressionMethod === 0) {
                 ++$selectedStoredEntryCount;
             } elseif ($entry->compressionMethod === 8) {
@@ -5702,6 +5702,17 @@ final class ZipPackage
                 'directoryRoot' => null,
                 'parentDirectory' => null,
                 'packagePartKind' => null,
+                'platformMetadataPath' => null,
+                'platformMetadataSegments' => [],
+                'platformMetadataPlatform' => null,
+                'isPlatformMetadata' => false,
+                'isMacosSidecar' => false,
+                'isAppleDouble' => false,
+                'isFinderMetadata' => false,
+                'isWindowsSidecar' => false,
+                'isWindowsThumbnailCache' => false,
+                'isWindowsDesktopIni' => false,
+                'platformMetadataIssues' => [],
                 'centralDirectoryIndex' => null,
                 'localHeaderOrder' => null,
                 'pathDepth' => null,
@@ -5996,6 +6007,7 @@ final class ZipPackage
             $summary['directoryRoot'] = self::entryHandoffDirectoryRoot($entry->name);
             $summary['parentDirectory'] = self::entryHandoffParentDirectory($entry->name);
             $summary['packagePartKind'] = self::entryHandoffPackagePartKind($entry->name, $isDirectory);
+            $summary = array_merge($summary, self::entryPlatformMetadataHandoffProvenance($entry->name));
             $summary['centralDirectoryIndex'] = $centralDirectoryIndexByName[$entry->name] ?? null;
             $summary['localHeaderOrder'] = $localHeaderOrderByName[$entry->name] ?? null;
             $summary['pathDepth'] = self::entryHandoffPathDepth($entry->name);
@@ -6054,6 +6066,15 @@ final class ZipPackage
             if ($totalUncompressedSizeExceedsLimit && !$isDirectory) {
                 $entryIssues[] = 'total-uncompressed-size-exceeds-limit';
                 $totalUncompressedSizeExceedsLimitEntryCount++;
+            }
+
+            if ($summary['isPlatformMetadata']) {
+                foreach ($summary['platformMetadataIssues'] as $platformMetadataIssue) {
+                    if (is_string($platformMetadataIssue)) {
+                        $entryIssues[] = $platformMetadataIssue;
+                        self::appendUniqueIssue($issues, $platformMetadataIssue);
+                    }
+                }
             }
 
             if ($entryIssues === []) {
@@ -6154,6 +6175,8 @@ final class ZipPackage
         $handoffPathDepthSummaries = self::entryHandoffPathDepthSummaries($handoffEntries);
         $selectedParentDirectorySummaries = self::entryHandoffParentDirectorySummaries($selectedDirectoryRootSummaryEntries);
         $handoffParentDirectorySummaries = self::entryHandoffParentDirectorySummaries($handoffEntries);
+        $selectedPlatformMetadataSummary = self::entryHandoffPlatformMetadataSummary($selectedDirectoryRootSummaryEntries);
+        $handoffPlatformMetadataSummary = self::entryHandoffPlatformMetadataSummary($handoffEntries);
         $selectedNameHygieneIssueSummaries = self::entryHandoffNameHygieneIssueSummaries($selectedNameHygieneReviewEntries);
         $handoffNameHygieneIssueSummaries = self::entryHandoffNameHygieneIssueSummaries($handoffEntries);
         $handoffNameHygieneReviewEntries = self::entryHandoffNameHygieneReviewEntries($handoffEntries);
@@ -6203,6 +6226,14 @@ final class ZipPackage
             'selectedPathDepthBucketCount' => count($selectedPathDepthSummaries),
             'selectedMaxPathDepth' => self::entryHandoffMaxPathDepth($selectedPathDepthSummaries),
             'selectedParentDirectoryCount' => count($selectedParentDirectorySummaries),
+            'selectedPlatformMetadataEntryCount' => $selectedPlatformMetadataSummary['entryCount'],
+            'selectedMacosSidecarEntryCount' => $selectedPlatformMetadataSummary['macosSidecarEntryCount'],
+            'selectedAppleDoubleEntryCount' => $selectedPlatformMetadataSummary['appleDoubleEntryCount'],
+            'selectedFinderMetadataEntryCount' => $selectedPlatformMetadataSummary['finderMetadataEntryCount'],
+            'selectedWindowsSidecarEntryCount' => $selectedPlatformMetadataSummary['windowsSidecarEntryCount'],
+            'selectedWindowsThumbnailCacheEntryCount' => $selectedPlatformMetadataSummary['windowsThumbnailCacheEntryCount'],
+            'selectedWindowsDesktopIniEntryCount' => $selectedPlatformMetadataSummary['windowsDesktopIniEntryCount'],
+            'selectedPlatformMetadataIssueCount' => count($selectedPlatformMetadataSummary['issues']),
             'selectedFileEntryCount' => $selectedFileEntryCount,
             'selectedDirectoryEntryCount' => $selectedDirectoryEntryCount,
             'selectedZeroByteEntryCount' => count($selectedZeroByteEntries),
@@ -6237,6 +6268,14 @@ final class ZipPackage
             'handoffPathDepthBucketCount' => count($handoffPathDepthSummaries),
             'handoffMaxPathDepth' => self::entryHandoffMaxPathDepth($handoffPathDepthSummaries),
             'handoffParentDirectoryCount' => count($handoffParentDirectorySummaries),
+            'handoffPlatformMetadataEntryCount' => $handoffPlatformMetadataSummary['entryCount'],
+            'handoffMacosSidecarEntryCount' => $handoffPlatformMetadataSummary['macosSidecarEntryCount'],
+            'handoffAppleDoubleEntryCount' => $handoffPlatformMetadataSummary['appleDoubleEntryCount'],
+            'handoffFinderMetadataEntryCount' => $handoffPlatformMetadataSummary['finderMetadataEntryCount'],
+            'handoffWindowsSidecarEntryCount' => $handoffPlatformMetadataSummary['windowsSidecarEntryCount'],
+            'handoffWindowsThumbnailCacheEntryCount' => $handoffPlatformMetadataSummary['windowsThumbnailCacheEntryCount'],
+            'handoffWindowsDesktopIniEntryCount' => $handoffPlatformMetadataSummary['windowsDesktopIniEntryCount'],
+            'handoffPlatformMetadataIssueCount' => count($handoffPlatformMetadataSummary['issues']),
             'readableEntryCount' => count($handoffEntries),
             'handoffZeroByteEntryCount' => count($handoffZeroByteEntries),
             'handoffZeroByteFileCount' => $handoffZeroByteFileCount,
@@ -6431,6 +6470,14 @@ final class ZipPackage
             'handoffPathDepthSummaries' => $handoffPathDepthSummaries,
             'selectedParentDirectorySummaries' => $selectedParentDirectorySummaries,
             'handoffParentDirectorySummaries' => $handoffParentDirectorySummaries,
+            'selectedPlatformMetadataIssues' => $selectedPlatformMetadataSummary['issues'],
+            'handoffPlatformMetadataIssues' => $handoffPlatformMetadataSummary['issues'],
+            'selectedPlatformMetadataSummaries' => $selectedPlatformMetadataSummary['platformSummaries'],
+            'handoffPlatformMetadataSummaries' => $handoffPlatformMetadataSummary['platformSummaries'],
+            'selectedPlatformMetadataIssueSummaries' => $selectedPlatformMetadataSummary['issueSummaries'],
+            'handoffPlatformMetadataIssueSummaries' => $handoffPlatformMetadataSummary['issueSummaries'],
+            'selectedPlatformMetadataEntries' => $selectedPlatformMetadataSummary['entries'],
+            'handoffPlatformMetadataEntries' => $handoffPlatformMetadataSummary['entries'],
             'selectedCompressionMethodBuckets' => self::compressionMethodBuckets($selectedCompressionMethodBuckets),
             'handoffCompressionMethodBuckets' => self::compressionMethodBuckets($handoffCompressionMethodBuckets),
             'selectedUnsupportedCompressionMethodEntries' => $selectedUnsupportedCompressionMethodEntries,
@@ -7196,6 +7243,198 @@ final class ZipPackage
         }
 
         return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function entryPlatformMetadataHandoffProvenance(string $name): array
+    {
+        $classification = self::classifyPlatformMetadataName($name);
+
+        return [
+            'platformMetadataPath' => $classification['path'],
+            'platformMetadataSegments' => $classification['segments'],
+            'platformMetadataPlatform' => $classification['platform'],
+            'isPlatformMetadata' => $classification['issues'] !== [],
+            'isMacosSidecar' => $classification['isMacosSidecar'],
+            'isAppleDouble' => $classification['isAppleDouble'],
+            'isFinderMetadata' => $classification['isFinderMetadata'],
+            'isWindowsSidecar' => $classification['isWindowsSidecar'],
+            'isWindowsThumbnailCache' => $classification['isWindowsThumbnailCache'],
+            'isWindowsDesktopIni' => $classification['isWindowsDesktopIni'],
+            'platformMetadataIssues' => $classification['issues'],
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array{entryCount:int,macosSidecarEntryCount:int,appleDoubleEntryCount:int,finderMetadataEntryCount:int,windowsSidecarEntryCount:int,windowsThumbnailCacheEntryCount:int,windowsDesktopIniEntryCount:int,issues:list<string>,platformSummaries:list<array<string, mixed>>,issueSummaries:list<array<string, mixed>>,entries:list<array<string, mixed>>}
+     */
+    private static function entryHandoffPlatformMetadataSummary(array $entries): array
+    {
+        $platformEntries = [];
+        $platformSummaries = [];
+        $issueSummaries = [];
+        $issues = [];
+        $macosSidecarEntryCount = 0;
+        $appleDoubleEntryCount = 0;
+        $finderMetadataEntryCount = 0;
+        $windowsSidecarEntryCount = 0;
+        $windowsThumbnailCacheEntryCount = 0;
+        $windowsDesktopIniEntryCount = 0;
+
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            $entryIssues = array_values(array_filter(
+                is_array($entry['platformMetadataIssues'] ?? null) ? $entry['platformMetadataIssues'] : [],
+                'is_string'
+            ));
+            if ($name === '' || $entryIssues === []) {
+                continue;
+            }
+
+            $isDirectory = ($entry['isDirectory'] ?? false) === true;
+            $roles = self::entryHandoffRolesForSummary($entry);
+            $compressedBytes = (int) ($entry['compressedSize'] ?? 0);
+            $uncompressedBytes = (int) ($entry['uncompressedSize'] ?? 0);
+            $platform = is_string($entry['platformMetadataPlatform'] ?? null)
+                ? $entry['platformMetadataPlatform']
+                : 'unknown';
+
+            if (($entry['isMacosSidecar'] ?? false) === true) {
+                ++$macosSidecarEntryCount;
+            }
+            if (($entry['isAppleDouble'] ?? false) === true) {
+                ++$appleDoubleEntryCount;
+            }
+            if (($entry['isFinderMetadata'] ?? false) === true) {
+                ++$finderMetadataEntryCount;
+            }
+            if (($entry['isWindowsSidecar'] ?? false) === true) {
+                ++$windowsSidecarEntryCount;
+            }
+            if (($entry['isWindowsThumbnailCache'] ?? false) === true) {
+                ++$windowsThumbnailCacheEntryCount;
+            }
+            if (($entry['isWindowsDesktopIni'] ?? false) === true) {
+                ++$windowsDesktopIniEntryCount;
+            }
+
+            if (!isset($platformSummaries[$platform])) {
+                $platformSummaries[$platform] = [
+                    'platform' => $platform === 'unknown' ? null : $platform,
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'roles' => [],
+                    'entryNames' => [],
+                    'issues' => [],
+                    'issueCounts' => [],
+                ];
+            }
+            ++$platformSummaries[$platform]['entryCount'];
+            if ($isDirectory) {
+                ++$platformSummaries[$platform]['directoryEntryCount'];
+            } else {
+                ++$platformSummaries[$platform]['fileEntryCount'];
+            }
+            $platformSummaries[$platform]['compressedBytes'] += $compressedBytes;
+            $platformSummaries[$platform]['uncompressedBytes'] += $uncompressedBytes;
+            $platformSummaries[$platform]['entryNames'][] = $name;
+            foreach ($roles as $role) {
+                if (!in_array($role, $platformSummaries[$platform]['roles'], true)) {
+                    $platformSummaries[$platform]['roles'][] = $role;
+                }
+            }
+
+            foreach ($entryIssues as $issue) {
+                self::appendUniqueIssue($issues, $issue);
+                if (!in_array($issue, $platformSummaries[$platform]['issues'], true)) {
+                    $platformSummaries[$platform]['issues'][] = $issue;
+                }
+                $platformSummaries[$platform]['issueCounts'][$issue] = (
+                    $platformSummaries[$platform]['issueCounts'][$issue] ?? 0
+                ) + 1;
+
+                if (!isset($issueSummaries[$issue])) {
+                    $issueSummaries[$issue] = [
+                        'issue' => $issue,
+                        'entryCount' => 0,
+                        'fileEntryCount' => 0,
+                        'directoryEntryCount' => 0,
+                        'compressedBytes' => 0,
+                        'uncompressedBytes' => 0,
+                        'roles' => [],
+                        'entryNames' => [],
+                    ];
+                }
+                ++$issueSummaries[$issue]['entryCount'];
+                if ($isDirectory) {
+                    ++$issueSummaries[$issue]['directoryEntryCount'];
+                } else {
+                    ++$issueSummaries[$issue]['fileEntryCount'];
+                }
+                $issueSummaries[$issue]['compressedBytes'] += $compressedBytes;
+                $issueSummaries[$issue]['uncompressedBytes'] += $uncompressedBytes;
+                $issueSummaries[$issue]['entryNames'][] = $name;
+                foreach ($roles as $role) {
+                    if (!in_array($role, $issueSummaries[$issue]['roles'], true)) {
+                        $issueSummaries[$issue]['roles'][] = $role;
+                    }
+                }
+            }
+
+            $platformEntries[] = [
+                'name' => $name,
+                'path' => is_string($entry['platformMetadataPath'] ?? null) ? $entry['platformMetadataPath'] : rtrim($name, '/'),
+                'isDirectory' => $isDirectory,
+                'segments' => is_array($entry['platformMetadataSegments'] ?? null) ? $entry['platformMetadataSegments'] : [],
+                'platform' => $platform === 'unknown' ? null : $platform,
+                'isMacosSidecar' => ($entry['isMacosSidecar'] ?? false) === true,
+                'isAppleDouble' => ($entry['isAppleDouble'] ?? false) === true,
+                'isFinderMetadata' => ($entry['isFinderMetadata'] ?? false) === true,
+                'isWindowsSidecar' => ($entry['isWindowsSidecar'] ?? false) === true,
+                'isWindowsThumbnailCache' => ($entry['isWindowsThumbnailCache'] ?? false) === true,
+                'isWindowsDesktopIni' => ($entry['isWindowsDesktopIni'] ?? false) === true,
+                'issues' => $entryIssues,
+                'roles' => $roles,
+                'compressedSize' => $compressedBytes,
+                'uncompressedSize' => $uncompressedBytes,
+            ];
+        }
+
+        foreach ($platformSummaries as &$summary) {
+            sort($summary['roles'], SORT_STRING);
+            sort($summary['issues'], SORT_STRING);
+            ksort($summary['issueCounts'], SORT_STRING);
+        }
+        unset($summary);
+
+        foreach ($issueSummaries as &$summary) {
+            sort($summary['roles'], SORT_STRING);
+        }
+        unset($summary);
+
+        sort($issues, SORT_STRING);
+        ksort($platformSummaries, SORT_STRING);
+        ksort($issueSummaries, SORT_STRING);
+
+        return [
+            'entryCount' => count($platformEntries),
+            'macosSidecarEntryCount' => $macosSidecarEntryCount,
+            'appleDoubleEntryCount' => $appleDoubleEntryCount,
+            'finderMetadataEntryCount' => $finderMetadataEntryCount,
+            'windowsSidecarEntryCount' => $windowsSidecarEntryCount,
+            'windowsThumbnailCacheEntryCount' => $windowsThumbnailCacheEntryCount,
+            'windowsDesktopIniEntryCount' => $windowsDesktopIniEntryCount,
+            'issues' => $issues,
+            'platformSummaries' => array_values($platformSummaries),
+            'issueSummaries' => array_values($issueSummaries),
+            'entries' => $platformEntries,
+        ];
     }
 
     /**

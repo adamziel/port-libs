@@ -14154,6 +14154,113 @@ return [
         $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
     },
 
+    'summarizes selected zip handoff platform metadata before reader byte exposure' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>platform metadata handoff</w:p></w:body></w:document>';
+        $macResource = "appledouble resource fork metadata\n";
+        $finderMetadata = "finder desktop metadata\n";
+        $thumbnailCache = "windows thumbnail cache\n";
+        $desktopIni = "[.ShellClassInfo]\nLocalizedResourceName=Review\n";
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => '__MACOSX/word/media/._preview.png', 'data' => $macResource, 'method' => 0],
+            ['name' => 'word/media/.DS_Store', 'data' => $finderMetadata, 'method' => 0],
+            ['name' => 'word/media/Thumbs.db', 'data' => $thumbnailCache, 'method' => 0],
+            ['name' => 'word/media/desktop.ini', 'data' => $desktopIni, 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => '__MACOSX/word/media/._preview.png', 'required' => false, 'kind' => 'file', 'role' => 'platform-sidecar'],
+            ['name' => 'word/media/.DS_Store', 'required' => false, 'kind' => 'file', 'role' => 'platform-sidecar'],
+            ['name' => 'word/media/Thumbs.db', 'required' => false, 'kind' => 'file', 'role' => 'platform-sidecar'],
+            ['name' => 'word/media/desktop.ini', 'required' => false, 'kind' => 'file', 'role' => 'platform-sidecar'],
+        ], 2048);
+
+        $platformByName = [];
+        foreach ($summary['selectedPlatformMetadataEntries'] as $entry) {
+            $platformByName[$entry['name']] = $entry;
+        }
+        $platformByKind = [];
+        foreach ($summary['selectedPlatformMetadataSummaries'] as $platformSummary) {
+            $platformByKind[$platformSummary['platform']] = $platformSummary;
+        }
+        $issueByName = [];
+        foreach ($summary['selectedPlatformMetadataIssueSummaries'] as $issueSummary) {
+            $issueByName[$issueSummary['issue']] = $issueSummary;
+        }
+
+        $t->same(5, $summary['selectedUniqueEntryCount']);
+        $t->same(1, $summary['handoffEntryCount']);
+        $t->same(1, $summary['readableEntryCount']);
+        $t->same(4, $summary['failedEntryCount']);
+        $t->same(4, $summary['selectedPlatformMetadataEntryCount']);
+        $t->same(1, $summary['selectedMacosSidecarEntryCount']);
+        $t->same(1, $summary['selectedAppleDoubleEntryCount']);
+        $t->same(1, $summary['selectedFinderMetadataEntryCount']);
+        $t->same(2, $summary['selectedWindowsSidecarEntryCount']);
+        $t->same(1, $summary['selectedWindowsThumbnailCacheEntryCount']);
+        $t->same(1, $summary['selectedWindowsDesktopIniEntryCount']);
+        $t->same(5, $summary['selectedPlatformMetadataIssueCount']);
+        $t->same(0, $summary['handoffPlatformMetadataEntryCount']);
+        $t->same([], $summary['handoffPlatformMetadataIssues']);
+        $t->same([
+            'appledouble-resource-entry',
+            'finder-metadata-entry',
+            'macos-sidecar-entry',
+            'windows-desktop-ini-entry',
+            'windows-thumbnail-cache-entry',
+        ], $summary['selectedPlatformMetadataIssues']);
+        $t->same([
+            'macos-sidecar-entry',
+            'appledouble-resource-entry',
+            'finder-metadata-entry',
+            'windows-thumbnail-cache-entry',
+            'windows-desktop-ini-entry',
+        ], $summary['issues']);
+
+        $documentEntry = $summary['entries'][0];
+        $macEntry = $summary['entries'][1];
+        $desktopEntry = $summary['entries'][4];
+        $t->same(false, $documentEntry['isPlatformMetadata']);
+        $t->same('ready', $documentEntry['status']);
+        $t->same(hash('sha256', $documentXml), $documentEntry['contentSha256']);
+        $t->same(true, $macEntry['isPlatformMetadata']);
+        $t->same('macos', $macEntry['platformMetadataPlatform']);
+        $t->same(['__MACOSX', 'word', 'media', '._preview.png'], $macEntry['platformMetadataSegments']);
+        $t->same(['macos-sidecar-entry', 'appledouble-resource-entry'], $macEntry['platformMetadataIssues']);
+        $t->same('blocked', $macEntry['status']);
+        $t->same('metadata-only', $macEntry['byteExposurePolicy']);
+        $t->same(false, $macEntry['isReadable']);
+        $t->same(null, $macEntry['contentSha256']);
+        $t->same(true, $desktopEntry['isWindowsDesktopIni']);
+        $t->same(['windows-desktop-ini-entry'], $desktopEntry['issues']);
+
+        $t->same(['macos', 'windows'], array_keys($platformByKind));
+        $t->same(2, $platformByKind['macos']['entryCount']);
+        $t->same(strlen($macResource) + strlen($finderMetadata), $platformByKind['macos']['uncompressedBytes']);
+        $t->same(['platform-sidecar'], $platformByKind['macos']['roles']);
+        $t->same([
+            '__MACOSX/word/media/._preview.png',
+            'word/media/.DS_Store',
+        ], $platformByKind['macos']['entryNames']);
+        $t->same(2, $platformByKind['windows']['entryCount']);
+        $t->same(strlen($thumbnailCache) + strlen($desktopIni), $platformByKind['windows']['uncompressedBytes']);
+        $t->same([
+            'word/media/Thumbs.db',
+            'word/media/desktop.ini',
+        ], $platformByKind['windows']['entryNames']);
+
+        $t->same('__MACOSX/word/media/._preview.png', $platformByName['__MACOSX/word/media/._preview.png']['path']);
+        $t->same(['macos-sidecar-entry', 'appledouble-resource-entry'], $platformByName['__MACOSX/word/media/._preview.png']['issues']);
+        $t->same(['finder-metadata-entry'], $platformByName['word/media/.DS_Store']['issues']);
+        $t->same(['windows-thumbnail-cache-entry'], $platformByName['word/media/Thumbs.db']['issues']);
+        $t->same(['windows-desktop-ini-entry'], $platformByName['word/media/desktop.ini']['issues']);
+        $t->same(['__MACOSX/word/media/._preview.png'], $issueByName['appledouble-resource-entry']['entryNames']);
+        $t->same(['word/media/Thumbs.db'], $issueByName['windows-thumbnail-cache-entry']['entryNames']);
+        $t->same([$documentEntry], $summary['handoffEntries']);
+    },
+
     'preflights aggregate zip package expansion before exposing media bytes' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>aggregate package preflight</w:p></w:body></w:document>';
         $mediaBytes = str_repeat("review media bytes\n", 24);
