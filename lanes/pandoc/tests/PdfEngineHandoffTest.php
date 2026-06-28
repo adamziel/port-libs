@@ -20855,7 +20855,7 @@ MARKDOWN);
             [
                 'source' => 'annotation:12 0 R.A',
                 'type' => 'Rendition',
-                'target' => null,
+                'target' => 'OP=4',
                 'scriptBytes' => null,
                 'scriptSha256' => null,
             ],
@@ -20911,6 +20911,126 @@ MARKDOWN);
         $t->same(true, $sequence['ok']);
         $t->same($expected, $sequence['finalPdfActiveActions']);
         $t->same($result['pdfActiveActionTypes'], $sequence['finalPdfActiveActionTypes']);
+    },
+
+    'fake runner surfaces bounded pdf media active action targets from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/media-actions.pdf']);
+        $soundBytes = 'beep';
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /OpenAction 8 0 R /AA << /WS 9 0 R /DS 10 0 R >> >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Annots [4 0 R] >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Annot /Subtype /Screen /Rect [72 320 540 560] /T (Review media screen) >>',
+            'endobj',
+            '8 0 obj',
+            '<< /S /Rendition /OP 4 /AN 4 0 R /R 11 0 R >>',
+            'endobj',
+            '9 0 obj',
+            '<< /S /Movie /Operation /Play /T (Reviewer intro) /Annotation 4 0 R >>',
+            'endobj',
+            '10 0 obj',
+            '<< /S /Sound /Sound 14 0 R /Volume 0.75 /Repeat true /Mix false >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /Rendition /S /MR /N (Intro video rendition) /C 12 0 R >>',
+            'endobj',
+            '12 0 obj',
+            '<< /Type /MediaClip /S /MCD /N (Intro video clip) /CT (video/mp4) /D 13 0 R >>',
+            'endobj',
+            '13 0 obj',
+            '<< /Type /Filespec /F (media/intro.mp4) /UF (media/intro-hd.mp4) >>',
+            'endobj',
+            '14 0 obj',
+            '<< /R 44100 /C 2 /B 16 /E /Signed /Length ' . strlen($soundBytes) . ' >>',
+            'stream',
+            $soundBytes,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/media-actions.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/media-actions.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expectedActions = [
+            [
+                'source' => 'catalog.AA.DS',
+                'type' => 'Sound',
+                'target' => 'Sound=14 0 R:R=44100,C=2,B=16,E=Signed;Volume=0.75;Repeat=true;Mix=false',
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+            [
+                'source' => 'catalog.AA.WS',
+                'type' => 'Movie',
+                'target' => 'Operation=Play;T=Reviewer intro;Annotation=4 0 R',
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+            [
+                'source' => 'catalog.OpenAction',
+                'type' => 'Rendition',
+                'target' => 'OP=4;AN=4 0 R;R=11 0 R:N=Intro video rendition,S=MR,C=12 0 R:N=Intro video clip,S=MCD,CT=video/mp4,D=media/intro-hd.mp4',
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+        ];
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'actionCount' => 3,
+            'sourceCount' => 3,
+            'sourceCategories' => ['catalog' => 3],
+            'actionTypes' => [
+                'Movie' => 1,
+                'Rendition' => 1,
+                'Sound' => 1,
+            ],
+            'chainedActionCount' => 0,
+            'maxNextDepth' => 0,
+            'scriptActionCount' => 0,
+            'remoteTargetCount' => 0,
+            'launchActionCount' => 0,
+            'formActionCount' => 0,
+            'mediaActionCount' => 3,
+            'issues' => ['media-action'],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expectedActions, $result['pdfActiveActions']);
+        $t->same([
+            'Movie' => 1,
+            'Rendition' => 1,
+            'Sound' => 1,
+        ], $result['pdfActiveActionTypes']);
+        $t->same($expectedPolicy, $result['pdfActiveActionPolicy'] ?? null);
+        $t->contains('pdf-byte-active-action-policy-media-actions:3', $diagnostics);
+        $t->contains('pdf-byte-active-action-policy-issue:media-action:1', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expectedActions, $sequence['finalPdfActiveActions']);
+        $t->same($expectedPolicy, $sequence['finalPdfActiveActionPolicy'] ?? null);
     },
 
     'fake runner surfaces bounded pdf uri active actions from produced bytes' => static function (TestRunner $t) use ($document): void {
@@ -21525,7 +21645,7 @@ MARKDOWN);
             [
                 'source' => 'annotation:14 0 R.A',
                 'type' => 'Rendition',
-                'target' => null,
+                'target' => 'OP=4',
                 'scriptBytes' => null,
                 'scriptSha256' => null,
             ],
@@ -21622,9 +21742,11 @@ MARKDOWN);
             'remoteTargetCount' => 1,
             'launchActionCount' => 1,
             'formActionCount' => 2,
+            'mediaActionCount' => 1,
             'issues' => [
                 'deep-next-action-chain',
                 'launch-action',
+                'media-action',
                 'next-action-chain',
                 'remote-action-target',
                 'reset-form-action',
