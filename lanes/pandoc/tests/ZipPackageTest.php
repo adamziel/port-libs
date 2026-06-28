@@ -13267,6 +13267,77 @@ return [
         $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
     },
 
+    'summarizes selected zip handoff crc32 provenance before reader byte exposure' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
+        $documentXml = '<w:document><w:body><w:p>crc32 handoff</w:p></w:body></w:document>';
+        $relsXml = '<Relationships><Relationship Id="rId1" Target="media/image.png"/></Relationships>';
+        $largeBytes = "blocked crc32 media bytes\n";
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 8, 'descriptor' => true],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $relsXml, 'method' => 0],
+            ['name' => 'word/media/large.bin', 'data' => $largeBytes, 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/_rels/document.xml.rels', 'required' => false, 'kind' => 'file', 'role' => 'document-relationships'],
+            ['name' => 'word/media/large.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 8],
+            ['name' => 'word/missing.xml', 'required' => false, 'kind' => 'file', 'role' => 'optional-sidecar'],
+        ], 1024);
+
+        $selectedByName = [];
+        foreach ($summary['selectedCrc32ProvenanceEntries'] as $entry) {
+            $selectedByName[$entry['name']] = $entry;
+        }
+        $handoffByName = [];
+        foreach ($summary['handoffCrc32ProvenanceEntries'] as $entry) {
+            $handoffByName[$entry['name']] = $entry;
+        }
+
+        $documentCrc32 = $crc32($documentXml);
+        $relsCrc32 = $crc32($relsXml);
+        $largeCrc32 = $crc32($largeBytes);
+
+        $t->same(3, $summary['selectedCrc32ProvenanceEntryCount']);
+        $t->same(3, $summary['selectedCrc32LocalHeaderEntryCount']);
+        $t->same(3, $summary['selectedCrc32CentralDirectoryEntryCount']);
+        $t->same(1, $summary['selectedCrc32DataDescriptorEntryCount']);
+        $t->same(2, $summary['selectedCrc32ContentEntryCount']);
+        $t->same(2, $summary['selectedCrc32VerifiedContentEntryCount']);
+        $t->same(0, $summary['selectedCrc32IssueEntryCount']);
+        $t->same([], $summary['selectedCrc32Issues']);
+        $t->same(2, $summary['handoffCrc32ProvenanceEntryCount']);
+        $t->same(2, $summary['handoffCrc32LocalHeaderEntryCount']);
+        $t->same(2, $summary['handoffCrc32CentralDirectoryEntryCount']);
+        $t->same(1, $summary['handoffCrc32DataDescriptorEntryCount']);
+        $t->same(2, $summary['handoffCrc32ContentEntryCount']);
+        $t->same(2, $summary['handoffCrc32VerifiedContentEntryCount']);
+        $t->same(0, $summary['handoffCrc32IssueEntryCount']);
+        $t->same([], $summary['handoffCrc32Issues']);
+
+        $t->same($documentCrc32, $summary['entries'][0]['crc32']);
+        $t->same($documentCrc32, $summary['entries'][0]['contentCrc32']);
+        $t->same(sprintf('%08x', $documentCrc32), $summary['entries'][0]['contentCrc32Hex']);
+        $t->same(true, $summary['entries'][0]['contentCrc32MatchesCentral']);
+        $t->same(null, $summary['entries'][2]['contentCrc32']);
+        $t->same(null, $summary['entries'][2]['contentCrc32MatchesCentral']);
+        $t->same($documentCrc32, $selectedByName['word/document.xml']['crc32']);
+        $t->same(0, $selectedByName['word/document.xml']['localHeaderCrc32']);
+        $t->same($documentCrc32, $selectedByName['word/document.xml']['centralDirectoryCrc32']);
+        $t->same($documentCrc32, $selectedByName['word/document.xml']['dataDescriptorCrc32']);
+        $t->same($documentCrc32, $selectedByName['word/document.xml']['contentCrc32']);
+        $t->same(true, $selectedByName['word/document.xml']['contentCrc32MatchesCentral']);
+        $t->same([], $selectedByName['word/document.xml']['crc32Issues']);
+        $t->same($relsCrc32, $selectedByName['word/_rels/document.xml.rels']['localHeaderCrc32']);
+        $t->same(null, $selectedByName['word/_rels/document.xml.rels']['dataDescriptorCrc32']);
+        $t->same($relsCrc32, $handoffByName['word/_rels/document.xml.rels']['contentCrc32']);
+        $t->same($largeCrc32, $selectedByName['word/media/large.bin']['crc32']);
+        $t->same('blocked', $selectedByName['word/media/large.bin']['status']);
+        $t->same(false, $selectedByName['word/media/large.bin']['isReadable']);
+        $t->same(null, $selectedByName['word/media/large.bin']['contentCrc32']);
+        $t->same(false, isset($handoffByName['word/media/large.bin']));
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
+    },
+
     'summarizes selected zip handoff directory roots for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
         $contentTypesXml = '<Types/>';
         $packageRelsXml = '<Relationships/>';
