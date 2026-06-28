@@ -747,6 +747,16 @@ final class DocxOpenXmlReader
         ]);
         $packageProvenance['selectedXmlParts'] = $selectedXmlParts;
         $packageProvenance['summary']['selectedXmlPartCount'] = $selectedXmlParts['count'];
+        $packageProvenance['summary']['selectedXmlPartSelectionSourceCounts'] = $selectedXmlParts['selectionSourceCounts'];
+        $packageProvenance['summary']['selectedXmlPartRelationshipSourcePartCounts'] = $selectedXmlParts['relationshipSourcePartCounts'];
+        $packageProvenance['summary']['selectedXmlPartRelationshipsPartCounts'] = $selectedXmlParts['relationshipsPartCounts'];
+        $packageProvenance['summary']['selectedXmlPartRelationshipTargetReferenceSuffixCount'] = $selectedXmlParts['relationshipTargetReferenceSuffixCount'];
+        $packageProvenance['summary']['selectedXmlPartRelationshipTargetQueryCount'] = $selectedXmlParts['relationshipTargetQueryCount'];
+        $packageProvenance['summary']['selectedXmlPartRelationshipTargetFragmentCount'] = $selectedXmlParts['relationshipTargetFragmentCount'];
+        $packageProvenance['summary']['selectedXmlPartRelationshipTargetReferenceSuffixes'] = $selectedXmlParts['relationshipTargetReferenceSuffixes'];
+        $packageProvenance['summary']['selectedXmlPartRelationshipSelectedPartNames'] = $selectedXmlParts['relationshipSelectedPartNames'];
+        $packageProvenance['summary']['selectedXmlPartExistingContentTypeSourceCounts'] = $selectedXmlParts['existingContentTypeSourceCounts'];
+        $packageProvenance['summary']['selectedXmlPartExistingContentTypeBaseCounts'] = $selectedXmlParts['existingContentTypeBaseCounts'];
         $packageProvenance['summary']['selectedXmlPartByteDigestCount'] = $selectedXmlParts['byteDigestCount'];
         $packageProvenance['summary']['selectedXmlPartIssueCount'] = $selectedXmlParts['issueCount'];
         $packageProvenance['summary']['selectedXmlPartInvalidXmlCount'] = $selectedXmlParts['invalidXmlCount'];
