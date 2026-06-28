@@ -19370,6 +19370,69 @@ MARKDOWN);
         $t->same($result['pdfFormFieldTypes'], $sequence['finalPdfFormFieldTypes']);
     },
 
+    'fake runner extracts nested pdf acroform child field metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/nested-form-fields.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /AcroForm 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Annots [6 0 R] >>',
+            'endobj',
+            '6 0 obj',
+            '<< /Type /Annot /Subtype /Widget /T (queue) /V (Archive) /Opt [(Migration) (Archive)] /Ff 131072 >>',
+            'endobj',
+            '7 0 obj',
+            '<< /FT /Ch /T (routing) /Kids [6 0 R] >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Fields [7 0 R] /NeedAppearances true >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/nested-form-fields.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'packets/nested-form-fields.pdf' => $pdfBytes,
+            ],
+        ]]);
+        $expected = [[
+            'name' => 'routing.queue',
+            'type' => 'Ch',
+            'typeLabel' => 'choice',
+            'alternateName' => null,
+            'mappingName' => null,
+            'value' => 'Archive',
+            'defaultValue' => null,
+            'flags' => 131072,
+            'flagNames' => ['combo'],
+            'options' => ['Migration', 'Archive'],
+        ]];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfFormFields']);
+        $t->same(['choice' => 1], $result['pdfFormFieldTypes']);
+        $t->contains('pdf-byte-form-fields:1', $diagnostics);
+        $t->contains('pdf-byte-form-field-types:1', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfFormFields']);
+        $t->same(['choice' => 1], $sequence['finalPdfFormFieldTypes']);
+    },
+
     'fake runner extracts bounded pdf acroform field actions from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/form-actions.pdf']);

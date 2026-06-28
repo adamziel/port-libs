@@ -34385,21 +34385,32 @@ final class PdfEngineHandoff
         $acroForm = $this->extractPdfAcroFormDictionary($pdfBytes, $catalog);
 
         if ($acroForm !== null) {
-            foreach ($this->extractPdfReferenceArray($acroForm, 'Fields') as $reference) {
-                if (isset($objects[$reference])) {
-                    $fieldBodies[$reference] = $objects[$reference];
-                }
-            }
-        }
-
-        if ($fieldBodies === []) {
-            foreach ($this->pdfObjectBodies($pdfBytes) as $index => $body) {
-                if (!str_contains($body, '/FT') || !preg_match('/\/(?:T|TU|TM)\b/s', $body)) {
+            $fields = [];
+            foreach ($this->pdfFormFieldActionCandidates($pdfBytes, $catalog, $objects) as $candidate) {
+                if (!$this->pdfFormFieldCandidateShouldBeSummarized($candidate)) {
                     continue;
                 }
 
-                $fieldBodies[(string) $index] = $body;
+                $field = $this->summarizePdfFormFieldCandidate($candidate);
+                if ($field === null) {
+                    continue;
+                }
+
+                $fields[$field['name'] . "\0" . $field['type']] = $field;
             }
+
+            $fields = array_values($fields);
+            usort($fields, static fn (array $a, array $b): int => [$a['name'], $a['type']] <=> [$b['name'], $b['type']]);
+
+            return $fields;
+        }
+
+        foreach ($this->pdfObjectBodies($pdfBytes) as $index => $body) {
+            if (!str_contains($body, '/FT') || !preg_match('/\/(?:T|TU|TM)\b/s', $body)) {
+                continue;
+            }
+
+            $fieldBodies[(string) $index] = $body;
         }
 
         $fields = [];
@@ -34416,6 +34427,56 @@ final class PdfEngineHandoff
         usort($fields, static fn (array $a, array $b): int => [$a['name'], $a['type']] <=> [$b['name'], $b['type']]);
 
         return $fields;
+    }
+
+    /**
+     * @param array{dictionary:string, fieldObject:string|null, fieldName:string|null, fieldType:string|null, fieldTypeLabel:string|null} $candidate
+     */
+    private function pdfFormFieldCandidateShouldBeSummarized(array $candidate): bool
+    {
+        $dictionary = $candidate['dictionary'];
+        if ($this->extractPdfReferenceArray($dictionary, 'Kids') === []) {
+            return true;
+        }
+        if (str_contains($dictionary, '/Subtype /Widget')) {
+            return true;
+        }
+
+        return preg_match('/\/(?:V|DV|Opt|Ff)\b/s', $dictionary) === 1;
+    }
+
+    /**
+     * @param array{dictionary:string, fieldObject:string|null, fieldName:string|null, fieldType:string|null, fieldTypeLabel:string|null} $candidate
+     * @return array{name:string, type:string, typeLabel:string, alternateName:string|null, mappingName:string|null, value:string|null, defaultValue:string|null, flags:int, flagNames:list<string>, options:list<string>}|null
+     */
+    private function summarizePdfFormFieldCandidate(array $candidate): ?array
+    {
+        $fieldDictionary = $candidate['dictionary'];
+        $type = $candidate['fieldType'] ?? null;
+        $type = is_string($type) && $type !== '' ? $type : 'unknown';
+        $name = $candidate['fieldName'] ?? null;
+        if (!is_string($name) || $name === '') {
+            $name = $this->extractPdfStringOrNameValue($fieldDictionary, 'TU')
+                ?? $this->extractPdfStringOrNameValue($fieldDictionary, 'TM');
+        }
+        if (!is_string($name) || $name === '') {
+            return null;
+        }
+
+        $flags = $this->extractPdfIntegerToken($fieldDictionary, 'Ff') ?? 0;
+
+        return [
+            'name' => $name,
+            'type' => $type,
+            'typeLabel' => $this->pdfFormFieldTypeLabel($type),
+            'alternateName' => $this->extractPdfStringOrNameValue($fieldDictionary, 'TU'),
+            'mappingName' => $this->extractPdfStringOrNameValue($fieldDictionary, 'TM'),
+            'value' => $this->extractPdfStringOrNameValue($fieldDictionary, 'V'),
+            'defaultValue' => $this->extractPdfStringOrNameValue($fieldDictionary, 'DV'),
+            'flags' => $flags,
+            'flagNames' => $this->pdfFormFieldFlagNames($type, $flags),
+            'options' => $this->extractPdfStringArrayValue($fieldDictionary, 'Opt'),
+        ];
     }
 
     private function extractPdfAcroFormDictionary(string $pdfBytes, ?string $catalog): ?string
