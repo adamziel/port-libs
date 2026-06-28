@@ -18647,6 +18647,88 @@ XML;
         $t->true(is_string($encodedTextNodes), 'XML text-node parent metadata should encode for review');
         $t->true(!str_contains((string) $encodedTextNodes, 'parent-name-review:hidden'), 'raw XML text should not be exposed in parent metadata');
     },
+    'summarizes docx package xml leaf text elements without exposing text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $titleText = 'leaf-text-review:hidden-title';
+        $itemText = " leaf-text-review:hidden-item\n";
+        $cdataText = 'leaf-text-review:hidden-cdata';
+        $childText = 'leaf-text-review:hidden-child';
+        $whitespaceText = " \t\n";
+        $expectedByteLength = strlen($titleText) + strlen($itemText) + strlen($cdataText) + strlen($childText) + strlen($whitespaceText);
+        $parts['customXml/leaf-text-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:review-leaf-text" xmlns:meta="urn:review-leaf-meta">
+  <review:title>{$titleText}</review:title>
+  <review:item meta:kind="primary">{$itemText}</review:item>
+  <review:item><![CDATA[{$cdataText}]]></review:item>
+  <review:mixed><review:child>{$childText}</review:child></review:mixed>
+  <review:whitespace>{$whitespaceText}</review:whitespace>
+  <review:empty/>
+</review:packet>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/leaf-text-review.xml'];
+        $leafTextElements = array_values(array_filter(
+            $summary['partXmlLeafTextElements'],
+            static fn (array $element): bool => $element['partName'] === 'customXml/leaf-text-review.xml',
+        ));
+
+        $t->same(5, $reviewPart['xmlLeafTextElementCount']);
+        $t->same($expectedByteLength, $reviewPart['xmlLeafTextElementByteLength']);
+        $t->same(4, $reviewPart['xmlLeafTextElementNonWhitespaceCount']);
+        $t->same(1, $reviewPart['xmlLeafTextElementWhitespaceOnlyCount']);
+        $t->same($expectedByteLength - strlen($whitespaceText), $reviewPart['xmlLeafTextElementNonWhitespaceByteLength']);
+        $t->same(5, $reviewPart['xmlLeafTextElementTextNodeCount']);
+        $t->same(1, $reviewPart['xmlLeafTextElementCdataNodeCount']);
+        $t->same(2, $reviewPart['xmlLeafTextElementLeadingWhitespaceCount']);
+        $t->same(2, $reviewPart['xmlLeafTextElementTrailingWhitespaceCount']);
+        $t->same(4, $reviewPart['xmlLeafTextElementLeadingWhitespaceByteLength']);
+        $t->same(4, $reviewPart['xmlLeafTextElementTrailingWhitespaceByteLength']);
+        $t->same(2, $reviewPart['xmlLeafTextElementLineBreakCount']);
+        $t->same(2, $reviewPart['xmlLeafTextElementLineBreakElementCount']);
+        $t->same(['review' => 5], $reviewPart['xmlLeafTextElementPrefixCounts']);
+        $t->same(['review'], $reviewPart['xmlLeafTextElementPrefixes']);
+        $t->same(['urn:review-leaf-text' => 5], $reviewPart['xmlLeafTextElementNamespaceCounts']);
+        $t->same([
+            'child' => 1,
+            'item' => 2,
+            'title' => 1,
+            'whitespace' => 1,
+        ], $reviewPart['xmlLeafTextElementLocalNameCounts']);
+        $t->same(2, $reviewPart['xmlLeafTextElementPathCounts']['/review:packet/review:item']);
+        $t->same(1, $reviewPart['xmlLeafTextElementPathCounts']['/review:packet/review:mixed/review:child']);
+        $t->same(5, count($reviewPart['xmlLeafTextElements']));
+        $t->same('/review:packet/review:title', $reviewPart['xmlLeafTextElements'][0]['elementPath']);
+        $t->same(strlen($titleText), $reviewPart['xmlLeafTextElements'][0]['byteLength']);
+        $t->same(hash('sha256', $titleText), $reviewPart['xmlLeafTextElements'][0]['sha256']);
+        $t->same('/review:packet/review:item', $reviewPart['xmlLeafTextElements'][1]['elementPath']);
+        $t->same(1, $reviewPart['xmlLeafTextElements'][1]['leadingWhitespaceByteLength']);
+        $t->same(1, $reviewPart['xmlLeafTextElements'][1]['trailingWhitespaceByteLength']);
+        $t->same(true, $reviewPart['xmlLeafTextElements'][1]['hasLineBreak']);
+        $t->same(1, $reviewPart['xmlLeafTextElements'][2]['cdataNodeCount']);
+        $t->same('/review:packet/review:mixed/review:child', $reviewPart['xmlLeafTextElements'][3]['elementPath']);
+        $t->same(true, $reviewPart['xmlLeafTextElements'][4]['isWhitespaceOnly']);
+        $t->same(3, $reviewPart['xmlLeafTextElements'][4]['leadingWhitespaceByteLength']);
+        $t->same(3, $reviewPart['xmlLeafTextElements'][4]['trailingWhitespaceByteLength']);
+
+        $t->true($summary['partXmlLeafTextElementPartCount'] >= 1, 'summary leaf-text part count should include custom XML');
+        $t->true($summary['partXmlLeafTextElementCount'] >= 5, 'summary leaf-text count should include custom XML');
+        $t->true($summary['partXmlLeafTextElementCdataNodeCount'] >= 1, 'summary leaf-text CDATA count should include custom XML');
+        $t->true(in_array('customXml/leaf-text-review.xml', $summary['partXmlLeafTextElementPartNames'], true), 'custom XML leaf-text part should be summarized');
+        $t->true(in_array('/review:packet/review:item', $summary['partXmlLeafTextElementPaths'], true), 'leaf-text paths should include repeated item leaves');
+        $t->true(($summary['partXmlLeafTextElementLocalNameCounts']['item'] ?? 0) >= 2, 'summary leaf-text local-name counts should include item leaves');
+        $t->same('customXml/leaf-text-review.xml', $leafTextElements[0]['partName']);
+        $t->same('/review:packet/review:title', $leafTextElements[0]['elementPath']);
+        $t->same('customXml/leaf-text-review.xml', $leafTextElements[4]['partName']);
+        $t->same('/review:packet/review:whitespace', $leafTextElements[4]['elementPath']);
+        $t->true(!isset($reviewPart['xmlLeafTextElements'][0]['text']), 'raw XML leaf text should not be exposed on part metadata');
+        $encodedLeafTextElements = json_encode([$reviewPart['xmlLeafTextElements'], $leafTextElements]);
+        $t->true(is_string($encodedLeafTextElements), 'XML leaf text metadata should encode for review');
+        $t->true(!str_contains((string) $encodedLeafTextElements, 'leaf-text-review:hidden'), 'raw XML leaf text should not be exposed in summary metadata');
+    },
     'summarizes docx package xml text node whitespace shape without exposing text' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $leadingText = '  whitespace-shape:hidden-leading';
