@@ -11623,6 +11623,36 @@ HTML;
         $t->contains('<p>&lt;/ div&gt;&lt;/.div&gt;</p>', $blocks);
         $t->contains('<!-- pandoc --help -->', $blocks);
     },
+    'maps commonmark paragraph raw html starts to blank-line boundaries' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '<p data-source="commonmark-raw-paragraph">',
+            '**raw paragraph** import copy.',
+            '',
+            'After **paragraph** boundary.',
+            '',
+            '<p>Structured <em>closed</em> paragraph.</p>',
+        ]));
+        $rawParagraph = $document->children[0];
+        $paragraph = $document->children[1];
+        $closedParagraph = $document->children[2];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(3, count($document->children));
+        $t->same('raw_html', $rawParagraph->type);
+        $t->same(
+            '<p data-source="commonmark-raw-paragraph">' . "\n" . '**raw paragraph** import copy.',
+            $rawParagraph->attr('html')
+        );
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'strong', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('paragraph', $closedParagraph->type);
+        $t->same(['text', 'emph', 'text'], array_map(static fn (AstNode $node): string => $node->type, $closedParagraph->children));
+        $t->same('closed', $closedParagraph->children[1]->children[0]->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . '<p data-source="commonmark-raw-paragraph">' . "\n" . '**raw paragraph** import copy.', $blocks);
+        $t->contains('<p>After <strong>paragraph</strong> boundary.</p>', $blocks);
+        $t->contains('<p>Structured <em>closed</em> paragraph.</p>', $blocks);
+        $t->true(!str_contains($blocks, '<p>**raw paragraph** import copy.'), 'Unclosed CommonMark p start should stay raw instead of merging as structured HTML paragraph text');
+    },
     'maps upstream markdown raw email and emoji extension cases' => static function (TestRunner $t): void {
         $rawEmailDocument = (new MarkdownReader())->read('**@user**');
         $emojiDocument = (new MarkdownReader())->read(':smile: and :+1:');
