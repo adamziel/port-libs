@@ -3443,6 +3443,10 @@ XML;
         foreach ($thumbnails['items'] as $item) {
             $itemsByPath[$item['packagePath']] = $item;
         }
+        $manifestReviewByPath = [];
+        foreach ($summary['manifestReview']['items'] as $item) {
+            $manifestReviewByPath[$item['path']] = $item;
+        }
         $inventory = $summary['packageInventory']['parts'];
 
         $t->same(5, $thumbnails['count']);
@@ -3469,9 +3473,22 @@ XML;
         $t->same(true, $declared['valid']);
         $t->same(strlen($thumbnailBytes), $declared['byteLength']);
         $t->same(sprintf('%08x', crc32($thumbnailBytes)), $declared['crc32']);
+        $t->same(false, $declared['canExposeBytes']);
         $t->same(false, $declared['canExposeAsDocumentMedia']);
+        $t->same('package-thumbnail-bytes-blocked', $declared['byteExposurePolicy']);
         $t->same('package-thumbnail-metadata-only', $declared['reviewPolicy']);
         $t->same([], $declared['issues']);
+
+        $manifestDeclared = $manifestReviewByPath['Thumbnails/thumbnail.png'];
+        $t->same(true, $manifestDeclared['thumbnailPackagePart']);
+        $t->same('thumbnail', $manifestDeclared['manifestMediaFamily']);
+        $t->same(false, $manifestDeclared['canExposeBytes']);
+        $t->same(null, $manifestDeclared['byteLength']);
+        $t->same(strlen($thumbnailBytes), $manifestDeclared['storedByteLength']);
+        $t->same(null, $manifestDeclared['crc32']);
+        $t->same(sprintf('%08x', crc32($thumbnailBytes)), $manifestDeclared['storedCrc32']);
+        $t->same(null, $manifestDeclared['byteSha256']);
+        $t->same('package-thumbnail-bytes-blocked', $manifestDeclared['byteExposurePolicy']);
 
         $missing = $itemsByPath['Thumbnails/missing.jpg'];
         $t->same(false, $missing['exists']);
@@ -3501,8 +3518,13 @@ XML;
         $t->same(['odf-thumbnail-undeclared-package-part'], $orphan['issues']);
 
         $t->same(['package-thumbnail', 'manifest-declared'], $inventory['Thumbnails/thumbnail.png']['roles']);
+        $t->same(true, $inventory['Thumbnails/thumbnail.png']['thumbnailPackagePart']);
+        $t->same(false, $inventory['Thumbnails/thumbnail.png']['canExposeBytes']);
+        $t->same('package-thumbnail-bytes-blocked', $inventory['Thumbnails/thumbnail.png']['byteExposurePolicy']);
         $t->same(['package-thumbnail', 'manifest-declared'], $inventory['Thumbnails/not-image.png']['roles']);
         $t->same(['package-thumbnail', 'undeclared-package-entry'], $inventory['Thumbnails/orphan.webp']['roles']);
+        $t->same(4, $summary['packageInventory']['packageThumbnailPartCount']);
+        $t->same(4, $summary['packageIdentity']['packageThumbnailPartCount']);
         $t->same(1, $summary['undeclaredPackageEntryCount']);
         $t->same('Thumbnails/orphan.webp', $summary['undeclaredPackageEntries'][0]['path']);
     },
