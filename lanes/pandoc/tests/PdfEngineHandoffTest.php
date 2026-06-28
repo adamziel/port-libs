@@ -22985,7 +22985,7 @@ MARKDOWN);
         $pdfBytes = implode("\n", [
             '%PDF-1.5',
             '1 0 obj',
-            '<< /Type /Catalog /Pages 2 0 R /Version /1.7 /Extensions << /ADBE << /BaseVersion /1.7 /ExtensionLevel 8 >> /ESIC 8 0 R >> >>',
+            '<< /Type /Catalog /Pages 2 0 R /Version /1.7 /Extensions << /ADBE << /BaseVersion /1.7 /ExtensionLevel 8 >> /ESIC 8 0 R /WPDB 9 0 R >> >>',
             'endobj',
             '2 0 obj',
             '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
@@ -22995,6 +22995,9 @@ MARKDOWN);
             'endobj',
             '8 0 obj',
             '<< /BaseVersion /2.0 /ExtensionLevel 32000 >>',
+            'endobj',
+            '9 0 obj',
+            '<< /ExtensionLevel 65535 >>',
             'endobj',
             'trailer',
             '<< /Root 1 0 R >>',
@@ -23026,6 +23029,60 @@ MARKDOWN);
                 'baseVersion' => '2.0',
                 'extensionLevel' => 32000,
             ],
+            [
+                'prefix' => 'WPDB',
+                'baseVersion' => null,
+                'extensionLevel' => 65535,
+            ],
+        ];
+        $expectedExtensionPolicy = [
+            'reviewStatus' => 'review',
+            'extensionCount' => 3,
+            'okCount' => 1,
+            'reviewCount' => 2,
+            'maxExtensionLevel' => 65535,
+            'baseVersionCounts' => [
+                '1.7' => 1,
+                '2.0' => 1,
+            ],
+            'issueCounts' => [
+                'extension-base-version-above-effective-version' => 1,
+                'extension-base-version-missing' => 1,
+                'extension-level-high-boundary' => 1,
+            ],
+            'issues' => [
+                'extension-base-version-above-effective-version',
+                'extension-base-version-missing',
+                'extension-level-high-boundary',
+            ],
+            'entries' => [
+                [
+                    'prefix' => 'ADBE',
+                    'baseVersion' => '1.7',
+                    'extensionLevel' => 8,
+                    'reviewStatus' => 'ok',
+                    'issues' => [],
+                ],
+                [
+                    'prefix' => 'ESIC',
+                    'baseVersion' => '2.0',
+                    'extensionLevel' => 32000,
+                    'reviewStatus' => 'review',
+                    'issues' => [
+                        'extension-base-version-above-effective-version',
+                    ],
+                ],
+                [
+                    'prefix' => 'WPDB',
+                    'baseVersion' => null,
+                    'extensionLevel' => 65535,
+                    'reviewStatus' => 'review',
+                    'issues' => [
+                        'extension-base-version-missing',
+                        'extension-level-high-boundary',
+                    ],
+                ],
+            ],
         ];
 
         $t->same(true, $result['ok']);
@@ -23033,15 +23090,25 @@ MARKDOWN);
         $t->same('1.7', $result['pdfCatalogVersion']);
         $t->same('1.7', $result['pdfEffectiveVersion']);
         $t->same($expectedExtensions, $result['pdfExtensionMetadata']);
+        $t->same($expectedExtensionPolicy, $result['pdfExtensionMetadataPolicy']);
         $t->contains('pdf-byte-header-version:1.5', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-catalog-version:1.7', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-effective-version:1.7', implode(',', $result['diagnostics']));
-        $t->contains('pdf-byte-extension-metadata:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-extension-metadata:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-extension-policy:review', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-extension-policy-reviews:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-extension-policy-max-level:65535', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-extension-base-version:1.7:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-extension-base-version:2.0:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-extension-policy-issue:extension-base-version-above-effective-version:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-extension-policy-issue:extension-base-version-missing:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-extension-policy-issue:extension-level-high-boundary:1', implode(',', $result['diagnostics']));
         $t->same(true, $sequence['ok']);
         $t->same('1.5', $sequence['finalPdfHeaderVersion']);
         $t->same('1.7', $sequence['finalPdfCatalogVersion']);
         $t->same('1.7', $sequence['finalPdfEffectiveVersion']);
         $t->same($expectedExtensions, $sequence['finalPdfExtensionMetadata']);
+        $t->same($expectedExtensionPolicy, $sequence['finalPdfExtensionMetadataPolicy']);
     },
 
     'fake runner extracts bounded pdf linearization dictionary metadata' => static function (TestRunner $t) use ($document): void {

@@ -752,6 +752,7 @@ final class PdfEngineHandoff
      *     pdfEffectiveVersion: string|null,
      *     pdfLinearization: array{object:string|null, linearizedVersion:float|null, fileLength:int|null, primaryHintOffset:int|null, primaryHintLength:int|null, firstPageObject:int|null, firstPageEndOffset:int|null, pageCount:int|null, mainXrefOffset:int|null, hintTables:list<array{offset:int, length:int}>, lengthMatches:bool|null}|array{},
      *     pdfExtensionMetadata: list<array{prefix:string, baseVersion:string|null, extensionLevel:int|null}>,
+     *     pdfExtensionMetadataPolicy: array<string, mixed>,
      *     pdfTrailerComplete: bool,
      *     pdfTrailerCount: int,
      *     pdfTrailerRevisions: list<array{revision:int, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, startxref:int|null, id:list<string>}>,
@@ -1515,6 +1516,7 @@ final class PdfEngineHandoff
         $pdfEffectiveVersion = null;
         $pdfLinearization = [];
         $pdfExtensionMetadata = [];
+        $pdfExtensionMetadataPolicy = [];
         $pdfTrailerCount = 0;
         $pdfTrailerRevisions = [];
         $pdfTrailerIdPolicy = [];
@@ -1670,6 +1672,7 @@ final class PdfEngineHandoff
                 $pdfEffectiveVersion = $pdfInspection['effectiveVersion'];
                 $pdfLinearization = $pdfInspection['linearization'];
                 $pdfExtensionMetadata = $pdfInspection['extensionMetadata'];
+                $pdfExtensionMetadataPolicy = $pdfInspection['extensionMetadataPolicy'];
                 $pdfTrailerCount = $pdfInspection['trailerCount'];
                 $pdfTrailerRevisions = $pdfInspection['trailerRevisions'];
                 $pdfTrailerIdPolicy = $pdfInspection['trailerIdPolicy'];
@@ -1842,6 +1845,32 @@ final class PdfEngineHandoff
                 }
                 if ($pdfExtensionMetadata !== []) {
                     $diagnostics[] = 'pdf-byte-extension-metadata:' . count($pdfExtensionMetadata);
+                }
+                if ($pdfExtensionMetadataPolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-extension-policy:' . $pdfExtensionMetadataPolicy['reviewStatus'];
+                    if (is_int($pdfExtensionMetadataPolicy['extensionCount'] ?? null)) {
+                        $diagnostics[] = 'pdf-byte-extension-policy-extensions:' . $pdfExtensionMetadataPolicy['extensionCount'];
+                    }
+                    if (is_int($pdfExtensionMetadataPolicy['reviewCount'] ?? null) && $pdfExtensionMetadataPolicy['reviewCount'] > 0) {
+                        $diagnostics[] = 'pdf-byte-extension-policy-reviews:' . $pdfExtensionMetadataPolicy['reviewCount'];
+                    }
+                    if (is_int($pdfExtensionMetadataPolicy['maxExtensionLevel'] ?? null)) {
+                        $diagnostics[] = 'pdf-byte-extension-policy-max-level:' . $pdfExtensionMetadataPolicy['maxExtensionLevel'];
+                    }
+                    if (isset($pdfExtensionMetadataPolicy['baseVersionCounts']) && is_array($pdfExtensionMetadataPolicy['baseVersionCounts'])) {
+                        foreach ($pdfExtensionMetadataPolicy['baseVersionCounts'] as $baseVersion => $count) {
+                            if (is_string($baseVersion) && is_int($count)) {
+                                $diagnostics[] = 'pdf-byte-extension-base-version:' . $baseVersion . ':' . $count;
+                            }
+                        }
+                    }
+                    if (isset($pdfExtensionMetadataPolicy['issueCounts']) && is_array($pdfExtensionMetadataPolicy['issueCounts'])) {
+                        foreach ($pdfExtensionMetadataPolicy['issueCounts'] as $issue => $count) {
+                            if (is_string($issue) && is_int($count)) {
+                                $diagnostics[] = 'pdf-byte-extension-policy-issue:' . $issue . ':' . $count;
+                            }
+                        }
+                    }
                 }
                 if ($pdfPageCount !== null) {
                     $diagnostics[] = 'pdf-byte-page-count:' . $pdfPageCount;
@@ -5263,6 +5292,7 @@ final class PdfEngineHandoff
             'pdfEffectiveVersion' => $pdfEffectiveVersion,
             'pdfLinearization' => $pdfLinearization,
             'pdfExtensionMetadata' => $pdfExtensionMetadata,
+            'pdfExtensionMetadataPolicy' => $pdfExtensionMetadataPolicy,
             'pdfTrailerComplete' => $pdfTrailerComplete,
             'pdfTrailerCount' => $pdfTrailerCount,
             'pdfTrailerRevisions' => $pdfTrailerRevisions,
@@ -5773,6 +5803,7 @@ final class PdfEngineHandoff
             'finalPdfEffectiveVersion' => is_array($finalRun) && is_string($finalRun['pdfEffectiveVersion'] ?? null) ? $finalRun['pdfEffectiveVersion'] : null,
             'finalPdfLinearization' => is_array($finalRun) && is_array($finalRun['pdfLinearization'] ?? null) ? $finalRun['pdfLinearization'] : [],
             'finalPdfExtensionMetadata' => is_array($finalRun) && is_array($finalRun['pdfExtensionMetadata'] ?? null) ? $finalRun['pdfExtensionMetadata'] : [],
+            'finalPdfExtensionMetadataPolicy' => is_array($finalRun) && is_array($finalRun['pdfExtensionMetadataPolicy'] ?? null) ? $finalRun['pdfExtensionMetadataPolicy'] : [],
             'finalPdfPageCount' => is_array($finalRun) && is_int($finalRun['pdfPageCount'] ?? null) ? $finalRun['pdfPageCount'] : null,
             'finalPdfPageBoxes' => is_array($finalRun) && is_array($finalRun['pdfPageBoxes'] ?? null) ? $finalRun['pdfPageBoxes'] : [],
             'finalPdfPageRotations' => is_array($finalRun) && is_array($finalRun['pdfPageRotations'] ?? null) ? $finalRun['pdfPageRotations'] : [],
@@ -12912,7 +12943,8 @@ final class PdfEngineHandoff
      *     catalogVersion:string|null,
      *     effectiveVersion:string|null,
      *     linearization:array{object:string|null, linearizedVersion:float|null, fileLength:int|null, primaryHintOffset:int|null, primaryHintLength:int|null, firstPageObject:int|null, firstPageEndOffset:int|null, pageCount:int|null, mainXrefOffset:int|null, hintTables:list<array{offset:int, length:int}>, lengthMatches:bool|null}|array{},
-     *     extensionMetadata:list<array{prefix:string, baseVersion:string|null, extensionLevel:int|null}>
+     *     extensionMetadata:list<array{prefix:string, baseVersion:string|null, extensionLevel:int|null}>,
+     *     extensionMetadataPolicy:array<string, mixed>
      * }
      */
     private function inspectPdfOutput(string $pdfBytes): array
@@ -12920,6 +12952,8 @@ final class PdfEngineHandoff
         $catalog = $this->extractPdfCatalogDictionary($pdfBytes);
         $headerVersion = $this->extractPdfHeaderVersion($pdfBytes);
         $catalogVersion = $this->extractPdfCatalogName($catalog, 'Version');
+        $effectiveVersion = $this->effectivePdfVersion($headerVersion, $catalogVersion);
+        $extensionMetadata = $this->extractPdfExtensionMetadata($pdfBytes, $catalog);
         $formFields = $this->extractPdfFormFields($pdfBytes, $catalog);
         $formFieldActions = $this->extractPdfFormFieldActions($pdfBytes, $catalog);
         $formFieldActionTargets = $this->extractPdfFormFieldActionTargets($pdfBytes, $catalog);
@@ -13157,9 +13191,10 @@ final class PdfEngineHandoff
             'encryption' => $encryption,
             'headerVersion' => $headerVersion,
             'catalogVersion' => $catalogVersion,
-            'effectiveVersion' => $this->effectivePdfVersion($headerVersion, $catalogVersion),
+            'effectiveVersion' => $effectiveVersion,
             'linearization' => $this->extractPdfLinearizationMetadata($pdfBytes),
-            'extensionMetadata' => $this->extractPdfExtensionMetadata($pdfBytes, $catalog),
+            'extensionMetadata' => $extensionMetadata,
+            'extensionMetadataPolicy' => $this->summarizePdfExtensionMetadataPolicy($extensionMetadata, $effectiveVersion),
         ];
     }
 
@@ -13267,6 +13302,113 @@ final class PdfEngineHandoff
         usort($metadata, static fn (array $a, array $b): int => $a['prefix'] <=> $b['prefix']);
 
         return $metadata;
+    }
+
+    /**
+     * @param list<array{prefix:string, baseVersion:string|null, extensionLevel:int|null}> $metadata
+     * @return array{reviewStatus:string, extensionCount:int, okCount:int, reviewCount:int, maxExtensionLevel:int|null, baseVersionCounts:array<string, int>, issueCounts:array<string, int>, issues:list<string>, entries:list<array{prefix:string, baseVersion:string|null, extensionLevel:int|null, reviewStatus:string, issues:list<string>}>}|array{}
+     */
+    private function summarizePdfExtensionMetadataPolicy(array $metadata, ?string $effectiveVersion): array
+    {
+        if ($metadata === []) {
+            return [];
+        }
+
+        $entries = [];
+        $prefixCounts = [];
+        $baseVersionCounts = [];
+        $maxExtensionLevel = null;
+
+        foreach ($metadata as $extension) {
+            $prefix = is_string($extension['prefix'] ?? null) ? $extension['prefix'] : '';
+            $baseVersion = is_string($extension['baseVersion'] ?? null) && $extension['baseVersion'] !== ''
+                ? $extension['baseVersion']
+                : null;
+            $extensionLevel = is_int($extension['extensionLevel'] ?? null) ? $extension['extensionLevel'] : null;
+
+            if ($prefix !== '') {
+                $prefixCounts[$prefix] = ($prefixCounts[$prefix] ?? 0) + 1;
+            }
+            if ($baseVersion !== null) {
+                $baseVersionCounts[$baseVersion] = ($baseVersionCounts[$baseVersion] ?? 0) + 1;
+            }
+            if ($extensionLevel !== null && ($maxExtensionLevel === null || $extensionLevel > $maxExtensionLevel)) {
+                $maxExtensionLevel = $extensionLevel;
+            }
+
+            $issues = [];
+            if ($prefix === '') {
+                $issues[] = 'extension-prefix-missing';
+            } elseif (preg_match('/\A[A-Za-z][A-Za-z0-9_.-]*\z/', $prefix) !== 1) {
+                $issues[] = 'extension-prefix-invalid';
+            }
+
+            if ($baseVersion === null) {
+                $issues[] = 'extension-base-version-missing';
+            } elseif (preg_match('/\A\d+(?:\.\d+)?\z/', $baseVersion) !== 1) {
+                $issues[] = 'extension-base-version-invalid';
+            } elseif ($effectiveVersion !== null && version_compare($baseVersion, $effectiveVersion, '>')) {
+                $issues[] = 'extension-base-version-above-effective-version';
+            }
+
+            if ($extensionLevel === null) {
+                $issues[] = 'extension-level-missing';
+            } elseif ($extensionLevel <= 0) {
+                $issues[] = 'extension-level-nonpositive';
+            } elseif ($extensionLevel > 32000) {
+                $issues[] = 'extension-level-high-boundary';
+            }
+
+            $entries[] = [
+                'prefix' => $prefix,
+                'baseVersion' => $baseVersion,
+                'extensionLevel' => $extensionLevel,
+                'reviewStatus' => $issues === [] ? 'ok' : 'review',
+                'issues' => $issues,
+            ];
+        }
+
+        foreach ($entries as &$entry) {
+            $prefix = $entry['prefix'];
+            if ($prefix !== '' && ($prefixCounts[$prefix] ?? 0) > 1) {
+                $entry['issues'][] = 'extension-prefix-duplicate';
+            }
+
+            $entry['issues'] = array_values(array_unique($entry['issues']));
+            sort($entry['issues']);
+            $entry['reviewStatus'] = $entry['issues'] === [] ? 'ok' : 'review';
+        }
+        unset($entry);
+
+        $issueCounts = [];
+        $okCount = 0;
+        $reviewCount = 0;
+        foreach ($entries as $entry) {
+            if ($entry['reviewStatus'] === 'ok') {
+                $okCount++;
+            } else {
+                $reviewCount++;
+            }
+
+            foreach ($entry['issues'] as $issue) {
+                $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+            }
+        }
+
+        ksort($baseVersionCounts);
+        ksort($issueCounts);
+
+        return [
+            'reviewStatus' => $issueCounts === [] ? 'ok' : 'review',
+            'extensionCount' => count($entries),
+            'okCount' => $okCount,
+            'reviewCount' => $reviewCount,
+            'maxExtensionLevel' => $maxExtensionLevel,
+            'baseVersionCounts' => $baseVersionCounts,
+            'issueCounts' => $issueCounts,
+            'issues' => array_keys($issueCounts),
+            'entries' => $entries,
+        ];
     }
 
     /**
