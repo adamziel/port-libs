@@ -2186,6 +2186,16 @@ CSS;
         $prefixer = new TransitionPrefixer();
 
         $t->same(
+            '.foo{-webkit-text-size-adjust:none;-moz-text-size-adjust:none;-ms-text-size-adjust:none;text-size-adjust:none}',
+            $prefixer->prefixForTargets('.foo { text-size-adjust: none; }', ['ios_saf' => 16, 'edge' => 15, 'firefox' => 20]),
+            'upstream src/lib.rs::test_text_size_adjust line 16198'
+        );
+        $t->same(
+            '.foo{text-size-adjust:none}',
+            $prefixer->prefixForTargets('.foo { -webkit-text-size-adjust: none; -moz-text-size-adjust: none; -ms-text-size-adjust: none; text-size-adjust: none; }', ['chrome' => 110]),
+            'upstream src/lib.rs::test_text_size_adjust line 16219'
+        );
+        $t->same(
             '.foo{text-size-adjust:none}',
             $prefixer->prefixForTargets('.foo { text-size-adjust: none; }', ['ios_saf' => '4.3'])
         );
