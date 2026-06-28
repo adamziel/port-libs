@@ -10923,6 +10923,28 @@ final class DocxOpenXmlReader
         $summary['zipDataDescriptorIssueCount'] = $zipDataDescriptors['issueCount'];
         $summary['zipDataDescriptorIssueCodes'] = $zipDataDescriptors['issueCodes'];
         $summary['zipDataDescriptorByteLength'] = $zipDataDescriptors['descriptorByteLength'];
+        $zipComments = is_array($zipPackage['comments'] ?? null)
+            ? $zipPackage['comments']
+            : $this->emptyZipCommentProvenance();
+        $summary['zipCommentPreflightPresent'] = (bool) ($zipComments['present'] ?? false);
+        $summary['zipHasComments'] = (bool) ($zipComments['hasComments'] ?? false);
+        $summary['zipHasPackageComment'] = (bool) ($zipComments['hasPackageComment'] ?? false);
+        $summary['zipHasEntryComments'] = (bool) ($zipComments['hasEntryComments'] ?? false);
+        $summary['zipPackageCommentLength'] = (int) ($zipComments['packageCommentLength'] ?? 0);
+        $summary['zipPackageCommentEncoding'] = $zipComments['packageCommentEncoding'] ?? null;
+        $summary['zipEntryCommentCount'] = (int) ($zipComments['entryCommentCount'] ?? 0);
+        $summary['zipCommentedEntryNames'] = is_array($zipComments['commentedEntryNames'] ?? null)
+            ? $zipComments['commentedEntryNames']
+            : [];
+        $summary['zipCommentControlByteEntryCount'] = (int) ($zipComments['commentControlByteEntryCount'] ?? 0);
+        $summary['zipCommentUnicodeFormatControlEntryCount'] =
+            (int) ($zipComments['commentUnicodeFormatControlEntryCount'] ?? 0);
+        $summary['zipCommentBidiControlEntryCount'] = (int) ($zipComments['commentBidiControlEntryCount'] ?? 0);
+        $summary['zipCommentIssueCount'] = (int) ($zipComments['issueCount'] ?? 0);
+        $summary['zipCommentIssueCodes'] = is_array($zipComments['issueCodes'] ?? null)
+            ? $zipComments['issueCodes']
+            : [];
+        $summary['zipCommentReviewPolicy'] = $zipComments['reviewPolicy'] ?? 'docx-zip-comment-metadata-only';
         $zipNamePolicy = $zipPackage['namePolicy'];
         $summary['zipNamePolicyValid'] = $zipNamePolicy['valid'];
         $summary['zipNamePolicyIssueCount'] = $zipNamePolicy['issueCount'];
@@ -11199,6 +11221,7 @@ final class DocxOpenXmlReader
                     'entries' => [],
                 ],
                 'dataDescriptors' => $this->emptyZipDataDescriptorProvenance(),
+                'comments' => $this->emptyZipCommentProvenance(),
                 'namePolicy' => $this->emptyZipNamePolicyProvenance(),
                 'opcManifest' => $this->emptyZipOpcManifestPreflight(),
                 'platformMetadata' => $this->emptyZipPlatformMetadataPreflight(),
@@ -11241,6 +11264,7 @@ final class DocxOpenXmlReader
         }
         $compressionMethods = $sourcePackage->compressionMethodPreflight();
         $dataDescriptors = $this->zipDataDescriptorProvenance($sourcePackage->dataDescriptorPreflight());
+        $comments = $this->zipCommentProvenance($sourcePackage->commentPreflight());
         $platformMetadata = $sourcePackage->platformMetadataPreflight();
         $permissions = $sourcePackage->permissionPreflight();
         $creatorHostSystems = $sourcePackage->creatorHostSystemPreflight();
@@ -11258,6 +11282,12 @@ final class DocxOpenXmlReader
         foreach ($dataDescriptors['entries'] as $descriptorEntry) {
             if (is_array($descriptorEntry) && is_string($descriptorEntry['name'] ?? null)) {
                 $dataDescriptorByName[$descriptorEntry['name']] = $descriptorEntry;
+            }
+        }
+        $commentByName = [];
+        foreach (($comments['entries'] ?? []) as $commentEntry) {
+            if (is_array($commentEntry) && is_string($commentEntry['name'] ?? null)) {
+                $commentByName[$commentEntry['name']] = $commentEntry;
             }
         }
         $localOrderByName = [];
@@ -11289,6 +11319,7 @@ final class DocxOpenXmlReader
             $localOrder = $localOrderByName[$entry->name] ?? null;
             $manifestEntry = $packageManifestByName[$entry->name] ?? [];
             $localHeaderEntry = $localHeaderByName[$entry->name] ?? [];
+            $commentEntry = $commentByName[$entry->name] ?? null;
             $summary = [
                 'packagePath' => $entry->name,
                 'partName' => $isDirectory ? null : $entry->name,
@@ -11347,6 +11378,22 @@ final class DocxOpenXmlReader
                 'localHeaderUncompressedSize' => $localHeaderEntry['localHeaderUncompressedSize'] ?? null,
                 'isDirectory' => $isDirectory,
                 'loadedPart' => $loadedPart,
+                'hasZipEntryComment' => is_array($commentEntry) && ($commentEntry['hasComment'] ?? false) === true,
+                'zipEntryCommentLength' => is_array($commentEntry) ? (int) ($commentEntry['commentLength'] ?? 0) : 0,
+                'zipEntryCommentEncoding' => is_array($commentEntry) ? ($commentEntry['commentEncoding'] ?? null) : null,
+                'zipEntryCommentHasControlBytes' => is_array($commentEntry)
+                    ? (bool) ($commentEntry['hasControlBytes'] ?? false)
+                    : false,
+                'zipEntryCommentHasUnicodeFormatControls' => is_array($commentEntry)
+                    ? (bool) ($commentEntry['hasUnicodeFormatControls'] ?? false)
+                    : false,
+                'zipEntryCommentHasBidiControls' => is_array($commentEntry)
+                    ? (bool) ($commentEntry['hasBidiControls'] ?? false)
+                    : false,
+                'zipEntryCommentIssues' => is_array($commentEntry) && is_array($commentEntry['issues'] ?? null)
+                    ? $commentEntry['issues']
+                    : [],
+                'zipCommentReviewPolicy' => 'docx-zip-comment-metadata-only',
                 'canExposeBytes' => false,
                 'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
             ]
@@ -11374,6 +11421,7 @@ final class DocxOpenXmlReader
             'packageManifest' => $packageManifest,
             'localHeaders' => $localHeaders,
             'dataDescriptors' => $dataDescriptors,
+            'comments' => $comments,
             'namePolicy' => $this->zipNamePolicyProvenance($sourcePackage),
             'opcManifest' => $this->zipOpcManifestPreflight($sourcePackage),
             'platformMetadata' => $platformMetadata,
@@ -11512,6 +11560,188 @@ final class DocxOpenXmlReader
             'issueEntries' => [],
             'entries' => [],
             'byPackagePath' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyZipCommentProvenance(): array
+    {
+        return [
+            'present' => false,
+            'entryCount' => 0,
+            'hasPackageComment' => false,
+            'hasEntryComments' => false,
+            'hasComments' => false,
+            'hasCommentControlBytes' => false,
+            'hasCommentUnicodeFormatControls' => false,
+            'hasCommentBidiControls' => false,
+            'packageCommentLength' => 0,
+            'packageCommentEncoding' => null,
+            'packageCommentHasControlBytes' => false,
+            'packageCommentControlByteOffsets' => [],
+            'packageCommentHasUnicodeFormatControls' => false,
+            'packageCommentHasBidiControls' => false,
+            'packageCommentUnicodeFormatControlNames' => [],
+            'packageCommentBidiControlNames' => [],
+            'packageCommentIssues' => [],
+            'entryCommentCount' => 0,
+            'commentControlByteEntryCount' => 0,
+            'commentUnicodeFormatControlEntryCount' => 0,
+            'commentBidiControlEntryCount' => 0,
+            'commentedEntryNames' => [],
+            'issueCount' => 0,
+            'issueCodes' => [],
+            'reviewPolicy' => 'docx-zip-comment-metadata-only',
+            'commentedEntries' => [],
+            'commentControlByteEntries' => [],
+            'commentUnicodeFormatControlEntries' => [],
+            'commentBidiControlEntries' => [],
+            'entries' => [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $comments
+     * @return array<string, mixed>
+     */
+    private function zipCommentProvenance(array $comments): array
+    {
+        $entries = [];
+        foreach (($comments['entries'] ?? []) as $entry) {
+            if (is_array($entry)) {
+                $entries[] = $this->zipCommentEntryProvenance($entry);
+            }
+        }
+
+        $commentedEntries = [];
+        $commentControlByteEntries = [];
+        $commentUnicodeFormatControlEntries = [];
+        $commentBidiControlEntries = [];
+        $issueCodes = [];
+
+        if (($comments['hasComments'] ?? false) === true) {
+            $issueCodes['package-or-entry-comments'] = true;
+        }
+        if (($comments['hasCommentControlBytes'] ?? false) === true) {
+            $issueCodes['comment-control-bytes'] = true;
+        }
+        if (($comments['hasCommentUnicodeFormatControls'] ?? false) === true) {
+            $issueCodes['comment-unicode-format-controls'] = true;
+        }
+        if (($comments['hasCommentBidiControls'] ?? false) === true) {
+            $issueCodes['comment-bidi-format-controls'] = true;
+        }
+
+        foreach (is_array($comments['packageCommentIssues'] ?? null) ? $comments['packageCommentIssues'] : [] as $issue) {
+            if (is_string($issue) && $issue !== '') {
+                $issueCodes[$issue] = true;
+            }
+        }
+
+        foreach ($entries as $entry) {
+            if ($entry['hasComment'] === true) {
+                $commentedEntries[] = $entry;
+            }
+            if ($entry['hasControlBytes'] === true) {
+                $commentControlByteEntries[] = $entry;
+            }
+            if ($entry['hasUnicodeFormatControls'] === true) {
+                $commentUnicodeFormatControlEntries[] = $entry;
+            }
+            if ($entry['hasBidiControls'] === true) {
+                $commentBidiControlEntries[] = $entry;
+            }
+            foreach ($entry['issues'] as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issueCodes[$issue] = true;
+                }
+            }
+        }
+
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'present' => true,
+            'entryCount' => count($entries),
+            'hasPackageComment' => (bool) ($comments['hasPackageComment'] ?? false),
+            'hasEntryComments' => (bool) ($comments['hasEntryComments'] ?? false),
+            'hasComments' => (bool) ($comments['hasComments'] ?? false),
+            'hasCommentControlBytes' => (bool) ($comments['hasCommentControlBytes'] ?? false),
+            'hasCommentUnicodeFormatControls' => (bool) ($comments['hasCommentUnicodeFormatControls'] ?? false),
+            'hasCommentBidiControls' => (bool) ($comments['hasCommentBidiControls'] ?? false),
+            'packageCommentLength' => (int) ($comments['packageCommentLength'] ?? 0),
+            'packageCommentEncoding' => is_string($comments['packageCommentEncoding'] ?? null)
+                ? $comments['packageCommentEncoding']
+                : null,
+            'packageCommentHasControlBytes' => (bool) ($comments['packageCommentHasControlBytes'] ?? false),
+            'packageCommentControlByteOffsets' => is_array($comments['packageCommentControlByteOffsets'] ?? null)
+                ? $comments['packageCommentControlByteOffsets']
+                : [],
+            'packageCommentHasUnicodeFormatControls' =>
+                (bool) ($comments['packageCommentHasUnicodeFormatControls'] ?? false),
+            'packageCommentHasBidiControls' => (bool) ($comments['packageCommentHasBidiControls'] ?? false),
+            'packageCommentUnicodeFormatControlNames' =>
+                is_array($comments['packageCommentUnicodeFormatControlNames'] ?? null)
+                    ? $comments['packageCommentUnicodeFormatControlNames']
+                    : [],
+            'packageCommentBidiControlNames' => is_array($comments['packageCommentBidiControlNames'] ?? null)
+                ? $comments['packageCommentBidiControlNames']
+                : [],
+            'packageCommentIssues' => is_array($comments['packageCommentIssues'] ?? null)
+                ? $comments['packageCommentIssues']
+                : [],
+            'entryCommentCount' => count($commentedEntries),
+            'commentControlByteEntryCount' => count($commentControlByteEntries),
+            'commentUnicodeFormatControlEntryCount' => count($commentUnicodeFormatControlEntries),
+            'commentBidiControlEntryCount' => count($commentBidiControlEntries),
+            'commentedEntryNames' => array_values(array_map(
+                static fn (array $entry): string => $entry['name'],
+                $commentedEntries
+            )),
+            'issueCount' => count($issueCodes),
+            'issueCodes' => array_keys($issueCodes),
+            'reviewPolicy' => 'docx-zip-comment-metadata-only',
+            'commentedEntries' => $commentedEntries,
+            'commentControlByteEntries' => $commentControlByteEntries,
+            'commentUnicodeFormatControlEntries' => $commentUnicodeFormatControlEntries,
+            'commentBidiControlEntries' => $commentBidiControlEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @return array<string, mixed>
+     */
+    private function zipCommentEntryProvenance(array $entry): array
+    {
+        $commentLength = (int) ($entry['commentLength'] ?? 0);
+        $issues = is_array($entry['issues'] ?? null) ? array_values(array_filter(
+            $entry['issues'],
+            static fn (mixed $issue): bool => is_string($issue)
+        )) : [];
+
+        return [
+            'name' => is_string($entry['name'] ?? null) ? $entry['name'] : '',
+            'hasComment' => $commentLength > 0,
+            'commentLength' => $commentLength,
+            'commentEncoding' => is_string($entry['commentEncoding'] ?? null) ? $entry['commentEncoding'] : null,
+            'hasControlBytes' => (bool) ($entry['hasControlBytes'] ?? false),
+            'commentControlByteOffsets' => is_array($entry['commentControlByteOffsets'] ?? null)
+                ? $entry['commentControlByteOffsets']
+                : [],
+            'hasUnicodeFormatControls' => (bool) ($entry['hasUnicodeFormatControls'] ?? false),
+            'hasBidiControls' => (bool) ($entry['hasBidiControls'] ?? false),
+            'unicodeFormatControlNames' => is_array($entry['unicodeFormatControlNames'] ?? null)
+                ? $entry['unicodeFormatControlNames']
+                : [],
+            'bidiControlNames' => is_array($entry['bidiControlNames'] ?? null)
+                ? $entry['bidiControlNames']
+                : [],
+            'issues' => $issues,
+            'reviewPolicy' => 'docx-zip-comment-metadata-only',
         ];
     }
 
@@ -12108,6 +12338,18 @@ final class DocxOpenXmlReader
                 $entry['localHeaderUncompressedSize'] ?? null;
             $partInventory[$partName]['zipByteExposurePolicy'] = $entry['byteExposurePolicy'] ?? null;
             $partInventory[$partName]['zipCanExposeBytes'] = $entry['canExposeBytes'] ?? null;
+            $partInventory[$partName]['zipEntryCommentPresent'] = $entry['hasZipEntryComment'] ?? false;
+            $partInventory[$partName]['zipEntryCommentLength'] = $entry['zipEntryCommentLength'] ?? 0;
+            $partInventory[$partName]['zipEntryCommentEncoding'] = $entry['zipEntryCommentEncoding'] ?? null;
+            $partInventory[$partName]['zipEntryCommentHasControlBytes'] =
+                $entry['zipEntryCommentHasControlBytes'] ?? false;
+            $partInventory[$partName]['zipEntryCommentHasUnicodeFormatControls'] =
+                $entry['zipEntryCommentHasUnicodeFormatControls'] ?? false;
+            $partInventory[$partName]['zipEntryCommentHasBidiControls'] =
+                $entry['zipEntryCommentHasBidiControls'] ?? false;
+            $partInventory[$partName]['zipEntryCommentIssues'] = $entry['zipEntryCommentIssues'] ?? [];
+            $partInventory[$partName]['zipCommentReviewPolicy'] =
+                $entry['zipCommentReviewPolicy'] ?? 'docx-zip-comment-metadata-only';
             foreach ([
                 'madeByHostSystem',
                 'madeByHostSystemName',

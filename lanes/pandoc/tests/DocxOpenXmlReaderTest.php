@@ -26692,6 +26692,70 @@ XML;
         $t->same(['apparently-text'], $textPart['internalAttributeNames']);
         $t->same(['internal-text-attribute'], $textPart['platformAttributeIssues']);
     },
+    'summarizes docx source zip comments without exposing comment text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $packageComment = 'hidden package review comment';
+        $entryComment = 'hidden document entry review comment';
+        $zipParts = docx_openxml_reader_zip_parts($parts);
+        foreach ($zipParts as &$zipPart) {
+            if ($zipPart['name'] === 'word/document.xml') {
+                $zipPart['comment'] = $entryComment;
+            }
+        }
+        unset($zipPart);
+
+        $sourcePackage = ZipPackage::fromParts($zipParts, $packageComment);
+        $document = (new DocxOpenXmlReader())->readZipPackage($sourcePackage);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $comments = $package['zipPackage']['comments'];
+        $documentEntry = $package['zipPackage']['byPackagePath']['word/document.xml'];
+        $documentPart = $package['parts']['word/document.xml'];
+
+        $t->same('Imported DOCX Heading', $document->children[0]->attr('text'));
+        $t->same(true, $comments['present']);
+        $t->same(count($zipParts), $comments['entryCount']);
+        $t->same(true, $comments['hasComments']);
+        $t->same(true, $comments['hasPackageComment']);
+        $t->same(true, $comments['hasEntryComments']);
+        $t->same(strlen($packageComment), $comments['packageCommentLength']);
+        $t->same('utf-8', $comments['packageCommentEncoding']);
+        $t->same(1, $comments['entryCommentCount']);
+        $t->same(['word/document.xml'], $comments['commentedEntryNames']);
+        $t->same(['package-or-entry-comments'], $comments['issueCodes']);
+        $t->same('docx-zip-comment-metadata-only', $comments['reviewPolicy']);
+
+        $t->same('word/document.xml', $comments['commentedEntries'][0]['name']);
+        $t->same(true, $comments['commentedEntries'][0]['hasComment']);
+        $t->same(strlen($entryComment), $comments['commentedEntries'][0]['commentLength']);
+        $t->same('utf-8', $comments['commentedEntries'][0]['commentEncoding']);
+        $t->same([], $comments['commentedEntries'][0]['issues']);
+
+        $t->same(true, $summary['zipCommentPreflightPresent']);
+        $t->same(true, $summary['zipHasComments']);
+        $t->same(true, $summary['zipHasPackageComment']);
+        $t->same(true, $summary['zipHasEntryComments']);
+        $t->same(strlen($packageComment), $summary['zipPackageCommentLength']);
+        $t->same('utf-8', $summary['zipPackageCommentEncoding']);
+        $t->same(1, $summary['zipEntryCommentCount']);
+        $t->same(['word/document.xml'], $summary['zipCommentedEntryNames']);
+        $t->same(1, $summary['zipCommentIssueCount']);
+        $t->same(['package-or-entry-comments'], $summary['zipCommentIssueCodes']);
+
+        $t->same(true, $documentEntry['hasZipEntryComment']);
+        $t->same(strlen($entryComment), $documentEntry['zipEntryCommentLength']);
+        $t->same('utf-8', $documentEntry['zipEntryCommentEncoding']);
+        $t->same('docx-zip-comment-metadata-only', $documentEntry['zipCommentReviewPolicy']);
+        $t->same(true, $documentPart['zipEntryCommentPresent']);
+        $t->same(strlen($entryComment), $documentPart['zipEntryCommentLength']);
+        $t->same('utf-8', $documentPart['zipEntryCommentEncoding']);
+        $t->same('docx-zip-comment-metadata-only', $documentPart['zipCommentReviewPolicy']);
+
+        $encoded = json_encode($package);
+        $t->true(is_string($encoded), 'comment metadata should encode for review');
+        $t->true(!str_contains((string) $encoded, $packageComment), 'package comment text should not be exposed');
+        $t->true(!str_contains((string) $encoded, $entryComment), 'entry comment text should not be exposed');
+    },
     'reads a native zip docx package without shelling out' => static function (TestRunner $t): void {
         $path = docx_openxml_reader_temp_docx(docx_openxml_reader_fixture_parts());
         try {
