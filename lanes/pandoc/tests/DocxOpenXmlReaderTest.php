@@ -21148,6 +21148,73 @@ XML;
         $t->true(is_string($encodedCooccurrences), 'XML attribute cooccurrence metadata should encode for review');
         $t->true(!str_contains((string) $encodedCooccurrences, 'cooccurrence:hidden'), 'raw XML attribute values should not be exposed in cooccurrence metadata');
     },
+    'summarizes docx relationship id topology without exposing targets' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/customXml/id-topology.xml" ContentType="application/xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rShared" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/relationship-id-topology-hidden.png?token=relationship-id-topology:hidden-target#frag"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['customXml/id-topology.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<review xmlns="urn:relationship-id-topology">relationship-id-topology:hidden-payload</review>
+XML;
+        $parts['customXml/_rels/id-topology.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId7" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps" Target="itemProps1.xml"/>
+  <Relationship Id="rShared" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps" Target="itemProps1.xml?token=relationship-id-topology:hidden-target#props"/>
+  <Relationship Id="alpha99" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" TargetMode="External" Target="https://relationship-id-topology.hidden.example/source"/>
+</Relationships>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $summary = $document->attr('docx')['packageProvenance']['summary'];
+        $topology = $summary['relationshipIdTopology'];
+        $reusedGroups = array_values(array_filter(
+            $summary['relationshipIdScopeReuseGroups'],
+            static fn (array $group): bool => ($group['id'] ?? '') === 'rShared',
+        ));
+        $sharedGroup = $reusedGroups[0] ?? [];
+
+        $t->true($summary['relationshipIdRecordCount'] >= 6, 'relationship ID topology should count loaded relationship records');
+        $t->true($summary['relationshipIdUniqueCount'] >= 5, 'relationship ID topology should count unique IDs');
+        $t->true($summary['relationshipIdPartCount'] >= 3, 'relationship ID topology should count relationship sidecars');
+        $t->true(($summary['relationshipIdShapeCounts']['rId-number'] ?? 0) >= 1, 'rId numeric IDs should be bucketed');
+        $t->true(($summary['relationshipIdShapeCounts']['xml-name-number'] ?? 0) >= 1, 'non-rId numeric XML IDs should be bucketed');
+        $t->true(($summary['relationshipIdPrefixCounts']['rId'] ?? 0) >= 1, 'rId prefix should be counted');
+        $t->true(($summary['relationshipIdPrefixCounts']['alpha'] ?? 0) >= 1, 'alpha prefix should be counted');
+        $t->true(($summary['relationshipIdNumericSuffixWidthCounts']['1-digit'] ?? 0) >= 1, 'single-digit suffix width should be counted');
+        $t->true(($summary['relationshipIdNumericSuffixWidthCounts']['2-digit'] ?? 0) >= 1, 'two-digit suffix width should be counted');
+        $t->true($summary['relationshipIdScopeReuseCount'] >= 1, 'package-wide ID reuse should be summarized');
+        $t->true(in_array('rShared', $summary['relationshipIdScopeReuseIds'], true), 'reused relationship ID should be listed');
+        $t->same(2, $sharedGroup['relationshipPartCount']);
+        $t->same(2, $sharedGroup['recordCount']);
+        $t->same([
+            'customXml/_rels/id-topology.xml.rels',
+            'word/_rels/document.xml.rels',
+        ], $sharedGroup['relationshipParts']);
+        $t->same([
+            'customXml/id-topology.xml',
+            'word/document.xml',
+        ], $sharedGroup['sourceParts']);
+        $t->same(['(implicit-internal)' => 2], $sharedGroup['targetModeCounts']);
+        $t->same(['package-part' => 2], $sharedGroup['sourceKindCounts']);
+        $t->same($summary['relationshipIdRecordCount'], $topology['idRecordCount']);
+        $t->same($summary['relationshipIdScopeReuseGroups'], $topology['scopeReuseGroups']);
+
+        $encodedTopology = json_encode([$topology, $summary['relationshipIdScopeReuseGroups']]);
+        $t->true(is_string($encodedTopology), 'relationship ID topology should encode for review');
+        $t->true(!str_contains((string) $encodedTopology, 'relationship-id-topology:hidden'), 'relationship ID topology should not expose XML text or target query values');
+        $t->true(!str_contains((string) $encodedTopology, 'hidden.example'), 'relationship ID topology should not expose external targets');
+    },
     'accepts docx main document template and macro-enabled content types' => static function (TestRunner $t): void {
         $acceptedDocumentContentTypes = [
             ['application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'],

@@ -12480,6 +12480,7 @@ final class DocxOpenXmlReader
         $partXmlRoots = $this->packagePartXmlRootSummary($partInventory);
         $partXmlAttributeCooccurrences = $this->packagePartXmlElementAttributeCooccurrenceSummary($partInventory);
         $partXmlRelationshipReferences = $this->packagePartXmlRelationshipReferenceSummary($partInventory);
+        $relationshipIdTopology = $this->relationshipIdTopologySummary($relationshipParts);
         $partContentTypeSyntaxSuffixes = $this->packagePartContentTypeSyntaxSuffixSummary($partInventory);
         $partContentTypeSyntaxSuffixCounts = [];
         $partContentTypeStructuredSyntaxPartCount = 0;
@@ -15618,6 +15619,18 @@ final class DocxOpenXmlReader
             'relationshipRecordExplicitInternalTargetModeCount' => $relationshipRecordExplicitInternalTargetModeCount,
             'relationshipRecordExplicitExternalTargetModeCount' => $relationshipRecordExplicitExternalTargetModeCount,
             'relationshipRecordUnexpectedTargetModeCount' => $relationshipRecordUnexpectedTargetModeCount,
+            'relationshipIdRecordCount' => $relationshipIdTopology['idRecordCount'],
+            'relationshipIdEmptyRecordCount' => $relationshipIdTopology['emptyIdRecordCount'],
+            'relationshipIdUniqueCount' => $relationshipIdTopology['uniqueIdCount'],
+            'relationshipIdPartCount' => $relationshipIdTopology['partCount'],
+            'relationshipIdShapeCounts' => $relationshipIdTopology['shapeCounts'],
+            'relationshipIdPrefixCounts' => $relationshipIdTopology['prefixCounts'],
+            'relationshipIdNumericSuffixWidthCounts' => $relationshipIdTopology['numericSuffixWidthCounts'],
+            'relationshipIdScopeReuseCount' => $relationshipIdTopology['scopeReuseCount'],
+            'relationshipIdScopeReuseRecordCount' => $relationshipIdTopology['scopeReuseRecordCount'],
+            'relationshipIdScopeReuseIds' => $relationshipIdTopology['scopeReuseIds'],
+            'relationshipIdScopeReuseGroups' => $relationshipIdTopology['scopeReuseGroups'],
+            'relationshipIdTopology' => $relationshipIdTopology,
             'relationshipSourceCount' => $relationshipSourceCount,
             'relationshipSourcePackageRootCount' => $relationshipSourcePackageRootCount,
             'relationshipSourcePackagePartCount' => $relationshipSourcePackagePartCount,
@@ -32048,6 +32061,193 @@ final class DocxOpenXmlReader
         }
 
         return 'package-part';
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $relationshipParts
+     * @return array<string, mixed>
+     */
+    private function relationshipIdTopologySummary(array $relationshipParts): array
+    {
+        $recordCount = 0;
+        $idRecordCount = 0;
+        $emptyIdRecordCount = 0;
+        $partsWithIds = [];
+        $shapeCounts = [];
+        $prefixCounts = [];
+        $numericSuffixWidthCounts = [];
+        $byId = [];
+
+        foreach ($relationshipParts as $relationshipsPart => $relationshipPart) {
+            $records = is_array($relationshipPart['relationshipRecords'] ?? null)
+                ? $relationshipPart['relationshipRecords']
+                : [];
+            if ($records === [] && is_array($relationshipPart['relationships'] ?? null)) {
+                $records = array_values($relationshipPart['relationships']);
+            }
+
+            foreach ($records as $record) {
+                if (!is_array($record)) {
+                    continue;
+                }
+
+                ++$recordCount;
+                $id = is_string($record['id'] ?? null) ? $record['id'] : '';
+                if ($id === '') {
+                    ++$emptyIdRecordCount;
+                    continue;
+                }
+
+                ++$idRecordCount;
+                $relationshipsPartName = is_string($record['relationshipsPart'] ?? null)
+                    ? $record['relationshipsPart']
+                    : (string) $relationshipsPart;
+                $sourcePart = is_string($record['sourcePart'] ?? null)
+                    ? $record['sourcePart']
+                    : (is_string($relationshipPart['sourcePart'] ?? null) ? $relationshipPart['sourcePart'] : '');
+                $sourceKind = is_string($record['relationshipSourceKind'] ?? null)
+                    ? $record['relationshipSourceKind']
+                    : (is_string($relationshipPart['relationshipSourceKind'] ?? null) ? $relationshipPart['relationshipSourceKind'] : 'unknown');
+                $targetMode = is_string($record['targetMode'] ?? null) ? $record['targetMode'] : '';
+                $targetModeKey = $targetMode === '' ? '(implicit-internal)' : $targetMode;
+                $type = is_string($record['type'] ?? null) ? $record['type'] : '';
+                $shape = $this->relationshipIdShape($id);
+                $prefix = $this->relationshipIdPrefixKey($id);
+                $suffixWidth = $this->relationshipIdNumericSuffixWidth($id);
+
+                $partsWithIds[$relationshipsPartName] = true;
+                $shapeCounts[$shape] = ($shapeCounts[$shape] ?? 0) + 1;
+                $prefixCounts[$prefix] = ($prefixCounts[$prefix] ?? 0) + 1;
+                if ($suffixWidth !== null) {
+                    $numericSuffixWidthCounts[$suffixWidth] = ($numericSuffixWidthCounts[$suffixWidth] ?? 0) + 1;
+                }
+
+                if (!isset($byId[$id])) {
+                    $byId[$id] = [
+                        'id' => $id,
+                        'recordCount' => 0,
+                        'relationshipParts' => [],
+                        'sourceParts' => [],
+                        'relationshipTypes' => [],
+                        'targetModeCounts' => [],
+                        'sourceKindCounts' => [],
+                        'ordinalsByRelationshipPart' => [],
+                    ];
+                }
+
+                ++$byId[$id]['recordCount'];
+                $this->appendUniqueString($byId[$id]['relationshipParts'], $relationshipsPartName);
+                $this->appendUniqueString($byId[$id]['sourceParts'], $sourcePart);
+                $this->appendUniqueString($byId[$id]['relationshipTypes'], $type);
+                $byId[$id]['targetModeCounts'][$targetModeKey] =
+                    ($byId[$id]['targetModeCounts'][$targetModeKey] ?? 0) + 1;
+                $byId[$id]['sourceKindCounts'][$sourceKind] =
+                    ($byId[$id]['sourceKindCounts'][$sourceKind] ?? 0) + 1;
+                $byId[$id]['ordinalsByRelationshipPart'][$relationshipsPartName] ??= [];
+                if (is_int($record['ordinal'] ?? null)) {
+                    $byId[$id]['ordinalsByRelationshipPart'][$relationshipsPartName][] = $record['ordinal'];
+                }
+            }
+        }
+
+        ksort($shapeCounts, SORT_STRING);
+        ksort($prefixCounts, SORT_STRING);
+        ksort($numericSuffixWidthCounts, SORT_STRING);
+        ksort($byId, SORT_STRING);
+
+        $scopeReuseGroups = [];
+        $scopeReuseIds = [];
+        $scopeReuseRecordCount = 0;
+        foreach ($byId as $id => $summary) {
+            sort($summary['relationshipParts'], SORT_STRING);
+            sort($summary['sourceParts'], SORT_STRING);
+            sort($summary['relationshipTypes'], SORT_STRING);
+            ksort($summary['targetModeCounts'], SORT_STRING);
+            ksort($summary['sourceKindCounts'], SORT_STRING);
+            ksort($summary['ordinalsByRelationshipPart'], SORT_STRING);
+            foreach ($summary['ordinalsByRelationshipPart'] as &$ordinals) {
+                sort($ordinals, SORT_NUMERIC);
+            }
+            unset($ordinals);
+
+            $summary['relationshipPartCount'] = count($summary['relationshipParts']);
+            $summary['sourcePartCount'] = count($summary['sourceParts']);
+            if ($summary['relationshipPartCount'] < 2) {
+                continue;
+            }
+
+            $scopeReuseIds[] = (string) $id;
+            $scopeReuseRecordCount += (int) $summary['recordCount'];
+            $scopeReuseGroups[] = $summary;
+        }
+
+        sort($scopeReuseIds, SORT_STRING);
+
+        return [
+            'recordCount' => $recordCount,
+            'idRecordCount' => $idRecordCount,
+            'emptyIdRecordCount' => $emptyIdRecordCount,
+            'uniqueIdCount' => count($byId),
+            'partCount' => count($partsWithIds),
+            'shapeCounts' => $shapeCounts,
+            'prefixCounts' => $prefixCounts,
+            'numericSuffixWidthCounts' => $numericSuffixWidthCounts,
+            'scopeReuseCount' => count($scopeReuseGroups),
+            'scopeReuseRecordCount' => $scopeReuseRecordCount,
+            'scopeReuseIds' => $scopeReuseIds,
+            'scopeReuseGroups' => $scopeReuseGroups,
+        ];
+    }
+
+    private function relationshipIdShape(string $id): string
+    {
+        if ($id === '') {
+            return '(empty)';
+        }
+        if (preg_match('/^rId\d+$/', $id) === 1) {
+            return 'rId-number';
+        }
+        if (preg_match('/^[A-Za-z_][A-Za-z0-9_.:-]*\d+$/', $id) === 1) {
+            return 'xml-name-number';
+        }
+        if (preg_match('/^\d+$/', $id) === 1) {
+            return 'numeric';
+        }
+        if (preg_match('/^[A-Za-z_][A-Za-z0-9_.:-]*$/', $id) === 1) {
+            return 'xml-name';
+        }
+
+        return 'other';
+    }
+
+    private function relationshipIdPrefixKey(string $id): string
+    {
+        if ($id === '') {
+            return '(empty)';
+        }
+        if (preg_match('/^(rId)\d+$/', $id, $matches) === 1) {
+            return $matches[1];
+        }
+        if (preg_match('/^([A-Za-z_][A-Za-z0-9_.:-]*?)\d+$/', $id, $matches) === 1) {
+            return $matches[1];
+        }
+        if (preg_match('/^\d+$/', $id) === 1) {
+            return '(numeric)';
+        }
+        if (preg_match('/^[A-Za-z_][A-Za-z0-9_.:-]*$/', $id) === 1) {
+            return '(non-numeric)';
+        }
+
+        return '(other)';
+    }
+
+    private function relationshipIdNumericSuffixWidth(string $id): ?string
+    {
+        if (preg_match('/(\d+)$/', $id, $matches) !== 1) {
+            return null;
+        }
+
+        return strlen($matches[1]) . '-digit';
     }
 
     /**
