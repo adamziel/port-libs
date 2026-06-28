@@ -5761,7 +5761,7 @@ CSS;
 
         $result = (new CustomAtRuleTransformer())->transform('a:nth-child(even of a) { color: red; }', [], $visitor);
 
-        $t->same('a:nth-of-type(2n){color:red}', $result);
+        $t->same('a:nth-of-type(2n){color:red}', $result, 'upstream node/test/visitor.test.mjs line 1062');
         $t->same('2n', $seenNth['formula'] ?? null);
         $t->same('type', $seenNth['of'][0][0]['type'] ?? null);
         $t->same('a', $seenNth['of'][0][0]['name'] ?? null);
@@ -6032,7 +6032,7 @@ CSS;
             },
         ]);
 
-        $t->same('.foo{color:currentColor}', $result);
+        $t->same('.foo{color:currentColor}', $result, 'upstream node/test/visitor.test.mjs line 1043');
         $t->same([
             [
                 'type' => 'style',
@@ -6133,7 +6133,7 @@ CSS;
             }
         );
 
-        $t->same('height:12px', $result['code']);
+        $t->same('height:12px', $result['code'], 'upstream node/test/visitor.test.mjs line 1207');
         $t->same([
             ['type' => 'file', 'filePath' => 'test.json'],
         ], $result['dependencies']);
