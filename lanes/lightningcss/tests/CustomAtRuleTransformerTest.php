@@ -3874,6 +3874,7 @@ CSS;
         ], $seenTokenList);
     },
     'custom at-rules compose upstream Color and Length value visitors' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/composeVisitors.test.mjs::different types line 21.
         $seenColors = [];
         $seenLengths = [];
         $visitor = CustomAtRuleTransformer::composeVisitors([
@@ -3906,7 +3907,7 @@ CSS;
 
         $result = (new CustomAtRuleTransformer())->transform('.foo { width: 16px; color: red; }', [], $visitor);
 
-        $t->same('.foo{width:1rem;color:#0f0}', $result);
+        $t->same('.foo{color:#0f0;width:1rem}', $result, 'upstream node/test/composeVisitors.test.mjs line 21');
         $t->same([['unit' => 'px', 'value' => 16.0]], $seenLengths);
         $t->same([['type' => 'rgb', 'r' => 255, 'g' => 0, 'b' => 0, 'alpha' => 1]], $seenColors);
     },

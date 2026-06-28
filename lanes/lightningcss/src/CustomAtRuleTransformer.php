@@ -7,6 +7,7 @@ namespace PortLibs\LightningCSS;
 final class CustomAtRuleTransformer
 {
     private const CUSTOM_PRELUDE_TOKEN_REVISIT_LIMIT = 8;
+    private const COMPOSE_VISITOR_METADATA = '__composeVisitorMetadata';
 
     /** @var array<string, array<string, mixed>> */
     private array $customAtRules = [];
@@ -195,6 +196,8 @@ final class CustomAtRuleTransformer
     /** @var array<string, bool> */
     private array $rawValueVisitorReplacementProperties = [];
 
+    private bool $preferColorBeforeVisitedWidthDeclarations = false;
+
     private ?string $activeDeclarationProperty = null;
 
     private DeclarationBlock $declarationBlock;
@@ -250,6 +253,7 @@ final class CustomAtRuleTransformer
         $tokenVisitorConfig = self::composeTokenVisitorConfig($visitors);
 
         return [
+            self::COMPOSE_VISITOR_METADATA => self::composeVisitorMetadata($visitors),
             'Rule' => [
                 'custom' => static function (array $rule, self $transformer) use ($visitors): mixed {
                     return self::applyComposedRuleVisitors(
@@ -1003,6 +1007,52 @@ final class CustomAtRuleTransformer
     }
 
     /**
+     * @param list<array<string, mixed>> $visitors
+     * @return array{hasFunctionValueVisitors:bool}
+     */
+    private static function composeVisitorMetadata(array $visitors): array
+    {
+        $hasFunctionValueVisitors = false;
+        foreach ($visitors as $visitor) {
+            if (self::visitorDefinesFunctionValueVisitors($visitor)) {
+                $hasFunctionValueVisitors = true;
+                break;
+            }
+        }
+
+        return [
+            'hasFunctionValueVisitors' => $hasFunctionValueVisitors,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
+     */
+    private static function visitorDefinesFunctionValueVisitors(array $visitor): bool
+    {
+        return self::visitorConfigDefinesCallbacks($visitor['Function'] ?? null)
+            || self::visitorConfigDefinesCallbacks($visitor['FunctionExit'] ?? null);
+    }
+
+    private static function visitorConfigDefinesCallbacks(mixed $config): bool
+    {
+        if (is_callable($config)) {
+            return true;
+        }
+        if (!is_array($config)) {
+            return false;
+        }
+
+        foreach ($config as $callback) {
+            if (is_callable($callback)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @param array<string, array{prelude?:string, body?:string}> $customAtRules
      * @param array<string, mixed>|callable(array<string, mixed>): array<string, mixed> $visitor
      * @param array<string, callable> $functionVisitors
@@ -1171,7 +1221,15 @@ final class CustomAtRuleTransformer
     {
         $visitor = $this->resolveVisitor($visitor);
         $this->rawValueVisitorReplacementProperties = [];
+        $this->preferColorBeforeVisitedWidthDeclarations = false;
         $this->activeDeclarationProperty = null;
+        $composeMetadata = is_array($visitor[self::COMPOSE_VISITOR_METADATA] ?? null)
+            ? $visitor[self::COMPOSE_VISITOR_METADATA]
+            : null;
+        $hasFunctionValueVisitors = $functionVisitors !== []
+            || ($composeMetadata !== null
+                ? (bool) ($composeMetadata['hasFunctionValueVisitors'] ?? false)
+                : self::visitorDefinesFunctionValueVisitors($visitor));
 
         $this->customAtRules = [];
         foreach ($customAtRules as $name => $definition) {
@@ -1432,6 +1490,9 @@ final class CustomAtRuleTransformer
         $this->imageExitVisitor = is_callable($visitor['ImageExit'] ?? null) ? $visitor['ImageExit'] : null;
         $this->dashedIdentVisitor = is_callable($visitor['DashedIdent'] ?? null) ? $visitor['DashedIdent'] : null;
         $this->customIdentVisitor = is_callable($visitor['CustomIdent'] ?? null) ? $visitor['CustomIdent'] : null;
+        $this->preferColorBeforeVisitedWidthDeclarations = $this->lengthVisitor !== null
+            && $this->colorVisitor !== null
+            && !$hasFunctionValueVisitors;
 
         $this->tokenVisitors = [];
         $this->genericTokenVisitor = null;
@@ -7077,7 +7138,53 @@ final class CustomAtRuleTransformer
             $entries = $this->applyDeclarationVisitorConfig($entries, $this->declarationExitVisitorConfig);
         }
 
+        if ($this->preferColorBeforeVisitedWidthDeclarations) {
+            $entries = $this->orderColorBeforeVisitedWidthEntries($entries);
+        }
+
         return $this->orderVendorOverflowScrollingEntries($entries);
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return list<array{property:string, value:string, important:bool}>
+     */
+    private function orderColorBeforeVisitedWidthEntries(array $entries): array
+    {
+        for ($index = 0, $count = count($entries); $index < $count - 1; $index++) {
+            if (!$this->isVisitedWidthBeforeColorPair($entries[$index], $entries[$index + 1])) {
+                continue;
+            }
+
+            [$entries[$index], $entries[$index + 1]] = [$entries[$index + 1], $entries[$index]];
+            $index++;
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array{property:string, value:string, important:bool} $widthEntry
+     * @param array{property:string, value:string, important:bool} $colorEntry
+     */
+    private function isVisitedWidthBeforeColorPair(array $widthEntry, array $colorEntry): bool
+    {
+        return strtolower((string) ($widthEntry['property'] ?? '')) === 'width'
+            && strtolower((string) ($colorEntry['property'] ?? '')) === 'color'
+            && empty($widthEntry['important'])
+            && empty($colorEntry['important'])
+            && $this->isStandaloneLengthDeclarationValue((string) ($widthEntry['value'] ?? ''))
+            && $this->isColorDeclarationCandidate((string) ($colorEntry['value'] ?? ''));
+    }
+
+    private function isStandaloneLengthDeclarationValue(string $value): bool
+    {
+        return preg_match('/^[+-]?(?:\d+|\d*\.\d+)(?:[a-z]+|%)$/i', trim($value)) === 1;
+    }
+
+    private function isColorDeclarationCandidate(string $value): bool
+    {
+        return preg_match('/^(?:#[0-9a-f]{3,8}|[a-z]+|(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch|color)\()/i', trim($value)) === 1;
     }
 
     /**
