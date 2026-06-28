@@ -14884,6 +14884,28 @@ final class DocxOpenXmlReader
             'partXmlElementLeafPathCount' => count($partXmlRoots['xmlElementLeafPathCounts']),
             'partXmlElementLeafPathCounts' => $partXmlRoots['xmlElementLeafPathCounts'],
             'partXmlElementLeafPaths' => $partXmlRoots['xmlElementLeafPaths'],
+            'partXmlElementAncestorChainPartCount' => $partXmlRoots['xmlElementAncestorChainPartCount'],
+            'partXmlElementAncestorChainCount' => $partXmlRoots['xmlElementAncestorChainCount'],
+            'partXmlElementAncestorChainMaxAncestorDepth' => $partXmlRoots['xmlElementAncestorChainMaxAncestorDepth'],
+            'partXmlElementAncestorChainRootElementCount' => $partXmlRoots['xmlElementAncestorChainRootElementCount'],
+            'partXmlElementAncestorChainParentedElementCount' => $partXmlRoots['xmlElementAncestorChainParentedElementCount'],
+            'partXmlElementAncestorChainPartNames' => $partXmlRoots['xmlElementAncestorChainPartNames'],
+            'partXmlElementAncestorChainAncestorDepthCount' => $partXmlRoots['xmlElementAncestorChainAncestorDepthCount'],
+            'partXmlElementAncestorChainAncestorDepthCounts' => $partXmlRoots['xmlElementAncestorChainAncestorDepthCounts'],
+            'partXmlElementAncestorChainAncestorPathCount' => $partXmlRoots['xmlElementAncestorChainAncestorPathCount'],
+            'partXmlElementAncestorChainAncestorPathCounts' => $partXmlRoots['xmlElementAncestorChainAncestorPathCounts'],
+            'partXmlElementAncestorChainAncestorPaths' => $partXmlRoots['xmlElementAncestorChainAncestorPaths'],
+            'partXmlElementAncestorChainParentPathCount' => $partXmlRoots['xmlElementAncestorChainParentPathCount'],
+            'partXmlElementAncestorChainParentPathCounts' => $partXmlRoots['xmlElementAncestorChainParentPathCounts'],
+            'partXmlElementAncestorChainParentPaths' => $partXmlRoots['xmlElementAncestorChainParentPaths'],
+            'partXmlElementAncestorChainRootQualifiedNameCount' => $partXmlRoots['xmlElementAncestorChainRootQualifiedNameCount'],
+            'partXmlElementAncestorChainRootQualifiedNameCounts' => $partXmlRoots['xmlElementAncestorChainRootQualifiedNameCounts'],
+            'partXmlElementAncestorChainParentQualifiedNameCount' => $partXmlRoots['xmlElementAncestorChainParentQualifiedNameCount'],
+            'partXmlElementAncestorChainParentQualifiedNameCounts' => $partXmlRoots['xmlElementAncestorChainParentQualifiedNameCounts'],
+            'partXmlElementAncestorChainElementQualifiedNameCount' => $partXmlRoots['xmlElementAncestorChainElementQualifiedNameCount'],
+            'partXmlElementAncestorChainElementQualifiedNameCounts' => $partXmlRoots['xmlElementAncestorChainElementQualifiedNameCounts'],
+            'partXmlElementAncestorChainAncestorQualifiedNameCount' => $partXmlRoots['xmlElementAncestorChainAncestorQualifiedNameCount'],
+            'partXmlElementAncestorChainAncestorQualifiedNameCounts' => $partXmlRoots['xmlElementAncestorChainAncestorQualifiedNameCounts'],
             'partXmlElementParentChildPairPartCount' => $partXmlRoots['xmlElementParentChildPairPartCount'],
             'partXmlElementParentChildPairCount' => $partXmlRoots['xmlElementParentChildPairCount'],
             'partXmlElementParentChildPairPartNames' => $partXmlRoots['xmlElementParentChildPairPartNames'],
@@ -15620,6 +15642,7 @@ final class DocxOpenXmlReader
             'partXmlChildNodeShapes' => $partXmlRoots['xmlChildNodeShapes'],
             'partXmlEntityReferences' => $partXmlRoots['xmlEntityReferences'],
             'partXmlElementStructures' => $partXmlRoots['xmlElementStructures'],
+            'partXmlElementAncestorChains' => $partXmlRoots['xmlElementAncestorChains'],
             'partXmlElementParentChildPairs' => $partXmlRoots['xmlElementParentChildPairs'],
             'partXmlElementChildProfiles' => $partXmlRoots['xmlElementChildProfiles'],
             'partXmlRepeatedSiblingElements' => $partXmlRoots['xmlRepeatedSiblingElements'],
@@ -21143,6 +21166,17 @@ final class DocxOpenXmlReader
         $xmlElementLeafPathCounts = [];
         $xmlElementLeafPaths = [];
         $xmlElementStructures = [];
+        $xmlElementAncestorChainPartNames = [];
+        $xmlElementAncestorChainAncestorDepthCounts = [];
+        $xmlElementAncestorChainAncestorPathCounts = [];
+        $xmlElementAncestorChainAncestorPaths = [];
+        $xmlElementAncestorChainParentPathCounts = [];
+        $xmlElementAncestorChainParentPaths = [];
+        $xmlElementAncestorChainRootQualifiedNameCounts = [];
+        $xmlElementAncestorChainParentQualifiedNameCounts = [];
+        $xmlElementAncestorChainElementQualifiedNameCounts = [];
+        $xmlElementAncestorChainAncestorQualifiedNameCounts = [];
+        $xmlElementAncestorChains = [];
         $xmlElementParentChildPairPartNames = [];
         $xmlElementParentChildPairNameCounts = [];
         $xmlElementParentChildPairNames = [];
@@ -21313,6 +21347,11 @@ final class DocxOpenXmlReader
         $xmlElementLeafCount = 0;
         $xmlElementMaxDepth = 0;
         $xmlElementPrefixedCount = 0;
+        $xmlElementAncestorChainPartCount = 0;
+        $xmlElementAncestorChainCount = 0;
+        $xmlElementAncestorChainMaxAncestorDepth = 0;
+        $xmlElementAncestorChainRootElementCount = 0;
+        $xmlElementAncestorChainParentedElementCount = 0;
         $xmlElementParentChildPairPartCount = 0;
         $xmlElementParentChildPairCount = 0;
         $xmlElementChildProfilePartCount = 0;
@@ -22545,6 +22584,123 @@ final class DocxOpenXmlReader
                         ? $part['xmlElementLeafPathCounts']
                         : [],
                     'leafPaths' => array_values(array_map('strval', $part['xmlElementLeafPaths'] ?? [])),
+                ];
+            }
+            $partElementAncestorChainCount = (int) ($part['xmlElementAncestorChainCount'] ?? 0);
+            if ($partElementAncestorChainCount > 0) {
+                ++$xmlElementAncestorChainPartCount;
+                $xmlElementAncestorChainCount += $partElementAncestorChainCount;
+                $xmlElementAncestorChainMaxAncestorDepth = max(
+                    $xmlElementAncestorChainMaxAncestorDepth,
+                    (int) ($part['xmlElementAncestorChainMaxAncestorDepth'] ?? 0),
+                );
+                $xmlElementAncestorChainRootElementCount += (int) ($part['xmlElementAncestorChainRootElementCount'] ?? 0);
+                $xmlElementAncestorChainParentedElementCount += (int) ($part['xmlElementAncestorChainParentedElementCount'] ?? 0);
+                $xmlElementAncestorChainPartNames[] = $partName;
+            }
+            foreach (($part['xmlElementAncestorChainAncestorDepthCounts'] ?? []) as $depth => $count) {
+                if (!is_int($depth) && !ctype_digit((string) $depth)) {
+                    continue;
+                }
+
+                $depth = (int) $depth;
+                $xmlElementAncestorChainAncestorDepthCounts[$depth] =
+                    ($xmlElementAncestorChainAncestorDepthCounts[$depth] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlElementAncestorChainAncestorPathCounts'] ?? []) as $ancestorPath => $count) {
+                if (!is_string($ancestorPath) || $ancestorPath === '') {
+                    continue;
+                }
+
+                $xmlElementAncestorChainAncestorPathCounts[$ancestorPath] =
+                    ($xmlElementAncestorChainAncestorPathCounts[$ancestorPath] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlElementAncestorChainAncestorPaths, $ancestorPath);
+            }
+            foreach (($part['xmlElementAncestorChainParentPathCounts'] ?? []) as $parentPath => $count) {
+                if (!is_string($parentPath) || $parentPath === '') {
+                    continue;
+                }
+
+                $xmlElementAncestorChainParentPathCounts[$parentPath] =
+                    ($xmlElementAncestorChainParentPathCounts[$parentPath] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlElementAncestorChainParentPaths, $parentPath);
+            }
+            foreach (($part['xmlElementAncestorChainRootQualifiedNameCounts'] ?? []) as $qualifiedName => $count) {
+                if (!is_string($qualifiedName) || $qualifiedName === '') {
+                    continue;
+                }
+
+                $xmlElementAncestorChainRootQualifiedNameCounts[$qualifiedName] =
+                    ($xmlElementAncestorChainRootQualifiedNameCounts[$qualifiedName] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlElementAncestorChainParentQualifiedNameCounts'] ?? []) as $qualifiedName => $count) {
+                if (!is_string($qualifiedName) || $qualifiedName === '') {
+                    continue;
+                }
+
+                $xmlElementAncestorChainParentQualifiedNameCounts[$qualifiedName] =
+                    ($xmlElementAncestorChainParentQualifiedNameCounts[$qualifiedName] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlElementAncestorChainElementQualifiedNameCounts'] ?? []) as $qualifiedName => $count) {
+                if (!is_string($qualifiedName) || $qualifiedName === '') {
+                    continue;
+                }
+
+                $xmlElementAncestorChainElementQualifiedNameCounts[$qualifiedName] =
+                    ($xmlElementAncestorChainElementQualifiedNameCounts[$qualifiedName] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlElementAncestorChainAncestorQualifiedNameCounts'] ?? []) as $qualifiedName => $count) {
+                if (!is_string($qualifiedName) || $qualifiedName === '') {
+                    continue;
+                }
+
+                $xmlElementAncestorChainAncestorQualifiedNameCounts[$qualifiedName] =
+                    ($xmlElementAncestorChainAncestorQualifiedNameCounts[$qualifiedName] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlElementAncestorChains'] ?? []) as $chain) {
+                if (!is_array($chain)) {
+                    continue;
+                }
+
+                $xmlElementAncestorChains[] = [
+                    'partName' => $partName,
+                    'directory' => is_string($part['directory'] ?? null)
+                        ? $part['directory']
+                        : $this->packagePartDirectory($partName),
+                    'baseName' => is_string($part['baseName'] ?? null)
+                        ? $part['baseName']
+                        : $this->packagePartBaseName($partName),
+                    'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                    'contentTypeBase' => is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '',
+                    'contentTypeSource' => is_string($part['contentTypeSource'] ?? null) ? $part['contentTypeSource'] : 'missing',
+                    'ordinal' => is_int($chain['ordinal'] ?? null) ? (int) $chain['ordinal'] : 0,
+                    'elementPath' => is_string($chain['elementPath'] ?? null) ? $chain['elementPath'] : '/',
+                    'elementDepth' => (int) ($chain['elementDepth'] ?? 0),
+                    'elementNamespace' => is_string($chain['elementNamespace'] ?? null) ? $chain['elementNamespace'] : null,
+                    'elementLocalName' => is_string($chain['elementLocalName'] ?? null) ? $chain['elementLocalName'] : '',
+                    'elementQualifiedName' => is_string($chain['elementQualifiedName'] ?? null) ? $chain['elementQualifiedName'] : '',
+                    'elementPrefix' => is_string($chain['elementPrefix'] ?? null) ? $chain['elementPrefix'] : null,
+                    'ancestorDepth' => (int) ($chain['ancestorDepth'] ?? 0),
+                    'ancestorPath' => is_string($chain['ancestorPath'] ?? null) ? $chain['ancestorPath'] : '/',
+                    'parentPath' => is_string($chain['parentPath'] ?? null) ? $chain['parentPath'] : '/',
+                    'parentNamespace' => is_string($chain['parentNamespace'] ?? null) ? $chain['parentNamespace'] : null,
+                    'parentLocalName' => is_string($chain['parentLocalName'] ?? null) ? $chain['parentLocalName'] : null,
+                    'parentQualifiedName' => is_string($chain['parentQualifiedName'] ?? null) ? $chain['parentQualifiedName'] : null,
+                    'parentPrefix' => is_string($chain['parentPrefix'] ?? null) ? $chain['parentPrefix'] : null,
+                    'rootNamespace' => is_string($chain['rootNamespace'] ?? null) ? $chain['rootNamespace'] : null,
+                    'rootLocalName' => is_string($chain['rootLocalName'] ?? null) ? $chain['rootLocalName'] : '',
+                    'rootQualifiedName' => is_string($chain['rootQualifiedName'] ?? null) ? $chain['rootQualifiedName'] : '',
+                    'rootPrefix' => is_string($chain['rootPrefix'] ?? null) ? $chain['rootPrefix'] : null,
+                    'ancestorQualifiedNames' => array_values(array_map('strval', $chain['ancestorQualifiedNames'] ?? [])),
+                    'ancestorLocalNames' => array_values(array_map('strval', $chain['ancestorLocalNames'] ?? [])),
+                    'ancestorNamespaces' => array_values(array_map(
+                        static fn ($namespace): ?string => is_string($namespace) ? $namespace : null,
+                        $chain['ancestorNamespaces'] ?? [],
+                    )),
+                    'ancestorPrefixes' => array_values(array_map(
+                        static fn ($prefix): ?string => is_string($prefix) ? $prefix : null,
+                        $chain['ancestorPrefixes'] ?? [],
+                    )),
                 ];
             }
             $partElementParentChildPairCount = (int) ($part['xmlElementParentChildPairCount'] ?? 0);
@@ -24063,6 +24219,13 @@ final class DocxOpenXmlReader
         ksort($xmlElementPrefixCounts, SORT_STRING);
         ksort($xmlElementPathCounts, SORT_STRING);
         ksort($xmlElementLeafPathCounts, SORT_STRING);
+        ksort($xmlElementAncestorChainAncestorDepthCounts, SORT_NUMERIC);
+        ksort($xmlElementAncestorChainAncestorPathCounts, SORT_STRING);
+        ksort($xmlElementAncestorChainParentPathCounts, SORT_STRING);
+        ksort($xmlElementAncestorChainRootQualifiedNameCounts, SORT_STRING);
+        ksort($xmlElementAncestorChainParentQualifiedNameCounts, SORT_STRING);
+        ksort($xmlElementAncestorChainElementQualifiedNameCounts, SORT_STRING);
+        ksort($xmlElementAncestorChainAncestorQualifiedNameCounts, SORT_STRING);
         ksort($xmlElementParentChildPairNameCounts, SORT_STRING);
         ksort($xmlElementParentChildPairParentPathCounts, SORT_STRING);
         ksort($xmlElementParentChildPairChildPathCounts, SORT_STRING);
@@ -24150,6 +24313,9 @@ final class DocxOpenXmlReader
         sort($xmlElementPrefixes, SORT_STRING);
         sort($xmlElementPaths, SORT_STRING);
         sort($xmlElementLeafPaths, SORT_STRING);
+        sort($xmlElementAncestorChainPartNames, SORT_STRING);
+        sort($xmlElementAncestorChainAncestorPaths, SORT_STRING);
+        sort($xmlElementAncestorChainParentPaths, SORT_STRING);
         sort($xmlElementParentChildPairPartNames, SORT_STRING);
         sort($xmlElementParentChildPairNames, SORT_STRING);
         sort($xmlElementParentChildPairParentPaths, SORT_STRING);
@@ -24227,6 +24393,11 @@ final class DocxOpenXmlReader
         usort(
             $xmlElementStructures,
             static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName']),
+        );
+        usort(
+            $xmlElementAncestorChains,
+            static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName'])
+                ?: ((int) ($left['ordinal'] ?? 0) <=> (int) ($right['ordinal'] ?? 0)),
         );
         usort(
             $xmlElementParentChildPairs,
@@ -24497,6 +24668,29 @@ final class DocxOpenXmlReader
             'xmlElementLeafPathCounts' => $xmlElementLeafPathCounts,
             'xmlElementLeafPaths' => $xmlElementLeafPaths,
             'xmlElementStructures' => $xmlElementStructures,
+            'xmlElementAncestorChainPartCount' => $xmlElementAncestorChainPartCount,
+            'xmlElementAncestorChainCount' => $xmlElementAncestorChainCount,
+            'xmlElementAncestorChainMaxAncestorDepth' => $xmlElementAncestorChainMaxAncestorDepth,
+            'xmlElementAncestorChainRootElementCount' => $xmlElementAncestorChainRootElementCount,
+            'xmlElementAncestorChainParentedElementCount' => $xmlElementAncestorChainParentedElementCount,
+            'xmlElementAncestorChainPartNames' => $xmlElementAncestorChainPartNames,
+            'xmlElementAncestorChainAncestorDepthCount' => count($xmlElementAncestorChainAncestorDepthCounts),
+            'xmlElementAncestorChainAncestorDepthCounts' => $xmlElementAncestorChainAncestorDepthCounts,
+            'xmlElementAncestorChainAncestorPathCount' => count($xmlElementAncestorChainAncestorPathCounts),
+            'xmlElementAncestorChainAncestorPathCounts' => $xmlElementAncestorChainAncestorPathCounts,
+            'xmlElementAncestorChainAncestorPaths' => $xmlElementAncestorChainAncestorPaths,
+            'xmlElementAncestorChainParentPathCount' => count($xmlElementAncestorChainParentPathCounts),
+            'xmlElementAncestorChainParentPathCounts' => $xmlElementAncestorChainParentPathCounts,
+            'xmlElementAncestorChainParentPaths' => $xmlElementAncestorChainParentPaths,
+            'xmlElementAncestorChainRootQualifiedNameCount' => count($xmlElementAncestorChainRootQualifiedNameCounts),
+            'xmlElementAncestorChainRootQualifiedNameCounts' => $xmlElementAncestorChainRootQualifiedNameCounts,
+            'xmlElementAncestorChainParentQualifiedNameCount' => count($xmlElementAncestorChainParentQualifiedNameCounts),
+            'xmlElementAncestorChainParentQualifiedNameCounts' => $xmlElementAncestorChainParentQualifiedNameCounts,
+            'xmlElementAncestorChainElementQualifiedNameCount' => count($xmlElementAncestorChainElementQualifiedNameCounts),
+            'xmlElementAncestorChainElementQualifiedNameCounts' => $xmlElementAncestorChainElementQualifiedNameCounts,
+            'xmlElementAncestorChainAncestorQualifiedNameCount' => count($xmlElementAncestorChainAncestorQualifiedNameCounts),
+            'xmlElementAncestorChainAncestorQualifiedNameCounts' => $xmlElementAncestorChainAncestorQualifiedNameCounts,
+            'xmlElementAncestorChains' => $xmlElementAncestorChains,
             'xmlElementParentChildPairPartCount' => $xmlElementParentChildPairPartCount,
             'xmlElementParentChildPairCount' => $xmlElementParentChildPairCount,
             'xmlElementParentChildPairPartNames' => $xmlElementParentChildPairPartNames,
@@ -28197,6 +28391,216 @@ final class DocxOpenXmlReader
             'paths' => $paths,
             'leafPathCounts' => $leafPathCounts,
             'leafPaths' => $leafPaths,
+        ];
+    }
+
+    /**
+     * @return array{count:int, maxAncestorDepth:int, rootElementCount:int, parentedElementCount:int, ancestorDepthCounts:array<int, int>, ancestorPathCounts:array<string, int>, ancestorPaths:list<string>, parentPathCounts:array<string, int>, parentPaths:list<string>, rootQualifiedNameCounts:array<string, int>, parentQualifiedNameCounts:array<string, int>, elementQualifiedNameCounts:array<string, int>, ancestorQualifiedNameCounts:array<string, int>, items:list<array<string, mixed>>}
+     */
+    private function xmlElementAncestorChainProvenance(string $xml, string $partName): array
+    {
+        $empty = [
+            'count' => 0,
+            'maxAncestorDepth' => 0,
+            'rootElementCount' => 0,
+            'parentedElementCount' => 0,
+            'ancestorDepthCounts' => [],
+            'ancestorPathCounts' => [],
+            'ancestorPaths' => [],
+            'parentPathCounts' => [],
+            'parentPaths' => [],
+            'rootQualifiedNameCounts' => [],
+            'parentQualifiedNameCounts' => [],
+            'elementQualifiedNameCounts' => [],
+            'ancestorQualifiedNameCounts' => [],
+            'items' => [],
+        ];
+
+        $dom = $this->loadXmlForProvenance($xml, $partName);
+        if (!$dom instanceof \DOMDocument || !$dom->documentElement instanceof \DOMElement) {
+            return $empty;
+        }
+
+        $items = [];
+        $ancestorDepthCounts = [];
+        $ancestorPathCounts = [];
+        $ancestorPaths = [];
+        $parentPathCounts = [];
+        $parentPaths = [];
+        $rootQualifiedNameCounts = [];
+        $parentQualifiedNameCounts = [];
+        $elementQualifiedNameCounts = [];
+        $ancestorQualifiedNameCounts = [];
+        $rootElementCount = 0;
+        $parentedElementCount = 0;
+        $maxAncestorDepth = 0;
+        $ordinal = 0;
+        $root = $dom->documentElement;
+        $rootNamespace = is_string($root->namespaceURI) && $root->namespaceURI !== '' ? $root->namespaceURI : null;
+        $rootLocalName = $root->localName === '' ? null : $root->localName;
+        $rootQualifiedName = $root->tagName === '' ? $rootLocalName : $root->tagName;
+        $rootPrefix = $this->emptyStringToNull((string) $root->prefix);
+        $rootQualifiedNameKey = $rootQualifiedName ?? '(none)';
+
+        $walk = function (\DOMElement $element) use (
+            &$walk,
+            &$items,
+            &$ancestorDepthCounts,
+            &$ancestorPathCounts,
+            &$ancestorPaths,
+            &$parentPathCounts,
+            &$parentPaths,
+            &$rootQualifiedNameCounts,
+            &$parentQualifiedNameCounts,
+            &$elementQualifiedNameCounts,
+            &$ancestorQualifiedNameCounts,
+            &$rootElementCount,
+            &$parentedElementCount,
+            &$maxAncestorDepth,
+            &$ordinal,
+            $rootNamespace,
+            $rootLocalName,
+            $rootQualifiedName,
+            $rootPrefix,
+            $rootQualifiedNameKey,
+        ): void {
+            ++$ordinal;
+
+            $ancestors = [];
+            $ancestor = $element->parentNode;
+            while ($ancestor instanceof \DOMNode && !$ancestor instanceof \DOMDocument) {
+                if ($ancestor instanceof \DOMElement) {
+                    array_unshift($ancestors, $ancestor);
+                }
+                $ancestor = $ancestor->parentNode;
+            }
+
+            $ancestorDepth = count($ancestors);
+            $maxAncestorDepth = max($maxAncestorDepth, $ancestorDepth);
+            $elementPath = $this->xmlProvenanceParentPath($element);
+            $elementDepth = $ancestorDepth + 1;
+            $ancestorPath = '/';
+            if ($ancestorDepth > 0) {
+                $ancestorPath = '/' . implode(
+                    '/',
+                    array_map(
+                        static fn (\DOMElement $ancestorElement): string => $ancestorElement->tagName === ''
+                            ? ($ancestorElement->localName === '' ? '(none)' : $ancestorElement->localName)
+                            : $ancestorElement->tagName,
+                        $ancestors,
+                    ),
+                );
+            }
+            $parent = $ancestorDepth > 0 ? $ancestors[$ancestorDepth - 1] : null;
+            $parentPath = $parent instanceof \DOMElement ? $this->xmlProvenanceParentPath($parent) : '/';
+            $parentNamespace = $parent instanceof \DOMElement && is_string($parent->namespaceURI) && $parent->namespaceURI !== ''
+                ? $parent->namespaceURI
+                : null;
+            $parentLocalName = $parent instanceof \DOMElement && $parent->localName !== '' ? $parent->localName : null;
+            $parentQualifiedName = $parent instanceof \DOMElement
+                ? ($parent->tagName === '' ? $parentLocalName : $parent->tagName)
+                : null;
+            $parentPrefix = $parent instanceof \DOMElement ? $this->emptyStringToNull((string) $parent->prefix) : null;
+            $parentQualifiedNameKey = $parentQualifiedName ?? '(document)';
+            $elementNamespace = is_string($element->namespaceURI) && $element->namespaceURI !== '' ? $element->namespaceURI : null;
+            $elementLocalName = $element->localName === '' ? null : $element->localName;
+            $elementQualifiedName = $element->tagName === '' ? $elementLocalName : $element->tagName;
+            $elementPrefix = $this->emptyStringToNull((string) $element->prefix);
+            $elementQualifiedNameKey = $elementQualifiedName ?? '(none)';
+            $ancestorQualifiedNames = [];
+            $ancestorLocalNames = [];
+            $ancestorNamespaces = [];
+            $ancestorPrefixes = [];
+            foreach ($ancestors as $ancestorElement) {
+                $ancestorNamespace = is_string($ancestorElement->namespaceURI) && $ancestorElement->namespaceURI !== ''
+                    ? $ancestorElement->namespaceURI
+                    : null;
+                $ancestorLocalName = $ancestorElement->localName === '' ? null : $ancestorElement->localName;
+                $ancestorQualifiedName = $ancestorElement->tagName === '' ? $ancestorLocalName : $ancestorElement->tagName;
+                $ancestorPrefix = $this->emptyStringToNull((string) $ancestorElement->prefix);
+                $ancestorQualifiedNames[] = $ancestorQualifiedName;
+                $ancestorLocalNames[] = $ancestorLocalName;
+                $ancestorNamespaces[] = $ancestorNamespace;
+                $ancestorPrefixes[] = $ancestorPrefix;
+                $ancestorQualifiedNameKey = $ancestorQualifiedName ?? '(none)';
+                $ancestorQualifiedNameCounts[$ancestorQualifiedNameKey] =
+                    ($ancestorQualifiedNameCounts[$ancestorQualifiedNameKey] ?? 0) + 1;
+            }
+
+            $ancestorDepthCounts[$ancestorDepth] = ($ancestorDepthCounts[$ancestorDepth] ?? 0) + 1;
+            $ancestorPathCounts[$ancestorPath] = ($ancestorPathCounts[$ancestorPath] ?? 0) + 1;
+            $parentPathCounts[$parentPath] = ($parentPathCounts[$parentPath] ?? 0) + 1;
+            $rootQualifiedNameCounts[$rootQualifiedNameKey] = ($rootQualifiedNameCounts[$rootQualifiedNameKey] ?? 0) + 1;
+            $parentQualifiedNameCounts[$parentQualifiedNameKey] =
+                ($parentQualifiedNameCounts[$parentQualifiedNameKey] ?? 0) + 1;
+            $elementQualifiedNameCounts[$elementQualifiedNameKey] =
+                ($elementQualifiedNameCounts[$elementQualifiedNameKey] ?? 0) + 1;
+            $this->appendUniqueString($ancestorPaths, $ancestorPath);
+            $this->appendUniqueString($parentPaths, $parentPath);
+            if ($ancestorDepth === 0) {
+                ++$rootElementCount;
+            } else {
+                ++$parentedElementCount;
+            }
+
+            $items[] = [
+                'ordinal' => $ordinal,
+                'elementPath' => $elementPath,
+                'elementDepth' => $elementDepth,
+                'elementNamespace' => $elementNamespace,
+                'elementLocalName' => $elementLocalName,
+                'elementQualifiedName' => $elementQualifiedName,
+                'elementPrefix' => $elementPrefix,
+                'ancestorDepth' => $ancestorDepth,
+                'ancestorPath' => $ancestorPath,
+                'parentPath' => $parentPath,
+                'parentNamespace' => $parentNamespace,
+                'parentLocalName' => $parentLocalName,
+                'parentQualifiedName' => $parentQualifiedName,
+                'parentPrefix' => $parentPrefix,
+                'rootNamespace' => $rootNamespace,
+                'rootLocalName' => $rootLocalName,
+                'rootQualifiedName' => $rootQualifiedName,
+                'rootPrefix' => $rootPrefix,
+                'ancestorQualifiedNames' => $ancestorQualifiedNames,
+                'ancestorLocalNames' => $ancestorLocalNames,
+                'ancestorNamespaces' => $ancestorNamespaces,
+                'ancestorPrefixes' => $ancestorPrefixes,
+            ];
+
+            foreach ($element->childNodes as $child) {
+                if ($child instanceof \DOMElement) {
+                    $walk($child);
+                }
+            }
+        };
+        $walk($dom->documentElement);
+
+        ksort($ancestorDepthCounts, SORT_NUMERIC);
+        ksort($ancestorPathCounts, SORT_STRING);
+        ksort($parentPathCounts, SORT_STRING);
+        ksort($rootQualifiedNameCounts, SORT_STRING);
+        ksort($parentQualifiedNameCounts, SORT_STRING);
+        ksort($elementQualifiedNameCounts, SORT_STRING);
+        ksort($ancestorQualifiedNameCounts, SORT_STRING);
+        sort($ancestorPaths, SORT_STRING);
+        sort($parentPaths, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'maxAncestorDepth' => $maxAncestorDepth,
+            'rootElementCount' => $rootElementCount,
+            'parentedElementCount' => $parentedElementCount,
+            'ancestorDepthCounts' => $ancestorDepthCounts,
+            'ancestorPathCounts' => $ancestorPathCounts,
+            'ancestorPaths' => $ancestorPaths,
+            'parentPathCounts' => $parentPathCounts,
+            'parentPaths' => $parentPaths,
+            'rootQualifiedNameCounts' => $rootQualifiedNameCounts,
+            'parentQualifiedNameCounts' => $parentQualifiedNameCounts,
+            'elementQualifiedNameCounts' => $elementQualifiedNameCounts,
+            'ancestorQualifiedNameCounts' => $ancestorQualifiedNameCounts,
+            'items' => $items,
         ];
     }
 
@@ -31951,6 +32355,20 @@ final class DocxOpenXmlReader
                 'xmlElementPaths' => [],
                 'xmlElementLeafPathCounts' => [],
                 'xmlElementLeafPaths' => [],
+                'xmlElementAncestorChainCount' => 0,
+                'xmlElementAncestorChainMaxAncestorDepth' => 0,
+                'xmlElementAncestorChainRootElementCount' => 0,
+                'xmlElementAncestorChainParentedElementCount' => 0,
+                'xmlElementAncestorChainAncestorDepthCounts' => [],
+                'xmlElementAncestorChainAncestorPathCounts' => [],
+                'xmlElementAncestorChainAncestorPaths' => [],
+                'xmlElementAncestorChainParentPathCounts' => [],
+                'xmlElementAncestorChainParentPaths' => [],
+                'xmlElementAncestorChainRootQualifiedNameCounts' => [],
+                'xmlElementAncestorChainParentQualifiedNameCounts' => [],
+                'xmlElementAncestorChainElementQualifiedNameCounts' => [],
+                'xmlElementAncestorChainAncestorQualifiedNameCounts' => [],
+                'xmlElementAncestorChains' => [],
                 'xmlElementParentChildPairCount' => 0,
                 'xmlElementParentChildPairNameCounts' => [],
                 'xmlElementParentChildPairNames' => [],
@@ -32093,6 +32511,7 @@ final class DocxOpenXmlReader
         $namespaceDeclarations = $this->xmlNamespaceDeclarationProvenance($contents, $partName);
         $entityReferences = $this->xmlEntityReferenceProvenance($contents, $partName);
         $elements = $this->xmlElementStructureProvenance($contents, $partName);
+        $elementAncestorChains = $this->xmlElementAncestorChainProvenance($contents, $partName);
         $elementParentChildPairs = $this->xmlElementParentChildPairProvenance($contents, $partName);
         $elementChildProfiles = $this->xmlElementChildProfileProvenance($contents, $partName);
         $repeatedSiblingElements = $this->xmlRepeatedSiblingElementProvenance($contents, $partName);
@@ -32284,6 +32703,20 @@ final class DocxOpenXmlReader
             'xmlElementPaths' => $elements['paths'],
             'xmlElementLeafPathCounts' => $elements['leafPathCounts'],
             'xmlElementLeafPaths' => $elements['leafPaths'],
+            'xmlElementAncestorChainCount' => $elementAncestorChains['count'],
+            'xmlElementAncestorChainMaxAncestorDepth' => $elementAncestorChains['maxAncestorDepth'],
+            'xmlElementAncestorChainRootElementCount' => $elementAncestorChains['rootElementCount'],
+            'xmlElementAncestorChainParentedElementCount' => $elementAncestorChains['parentedElementCount'],
+            'xmlElementAncestorChainAncestorDepthCounts' => $elementAncestorChains['ancestorDepthCounts'],
+            'xmlElementAncestorChainAncestorPathCounts' => $elementAncestorChains['ancestorPathCounts'],
+            'xmlElementAncestorChainAncestorPaths' => $elementAncestorChains['ancestorPaths'],
+            'xmlElementAncestorChainParentPathCounts' => $elementAncestorChains['parentPathCounts'],
+            'xmlElementAncestorChainParentPaths' => $elementAncestorChains['parentPaths'],
+            'xmlElementAncestorChainRootQualifiedNameCounts' => $elementAncestorChains['rootQualifiedNameCounts'],
+            'xmlElementAncestorChainParentQualifiedNameCounts' => $elementAncestorChains['parentQualifiedNameCounts'],
+            'xmlElementAncestorChainElementQualifiedNameCounts' => $elementAncestorChains['elementQualifiedNameCounts'],
+            'xmlElementAncestorChainAncestorQualifiedNameCounts' => $elementAncestorChains['ancestorQualifiedNameCounts'],
+            'xmlElementAncestorChains' => $elementAncestorChains['items'],
             'xmlElementParentChildPairCount' => $elementParentChildPairs['count'],
             'xmlElementParentChildPairNameCounts' => $elementParentChildPairs['pairNameCounts'],
             'xmlElementParentChildPairNames' => $elementParentChildPairs['pairNames'],

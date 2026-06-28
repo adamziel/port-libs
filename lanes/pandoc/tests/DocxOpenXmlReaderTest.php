@@ -18276,6 +18276,117 @@ XML;
         $t->true(is_string($encodedStructures), 'XML element structure metadata should encode for review');
         $t->true(!str_contains((string) $encodedStructures, $hiddenText), 'raw XML element text should not be exposed in structure metadata');
     },
+    'summarizes docx package xml element ancestor chains without exposing text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $hiddenText = 'ancestor-chain:hidden-text';
+        $parts['customXml/ancestor-chain-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:review-ancestor" xmlns:audit="urn:review-ancestor-audit">
+  <review:front/>
+  <review:group>
+    <review:item><review:leaf>{$hiddenText}</review:leaf></review:item>
+    <audit:item/>
+  </review:group>
+</review:packet>
+XML;
+        $parts['word/settings-ancestor-chain.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docVars>
+    <w:docVar w:name="First"/>
+    <w:docVar w:name="Second"/>
+  </w:docVars>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/ancestor-chain-review.xml'];
+        $settingsPart = $package['parts']['word/settings-ancestor-chain.xml'];
+        $chains = array_values(array_filter(
+            $summary['partXmlElementAncestorChains'],
+            static fn (array $chain): bool => in_array(
+                $chain['partName'],
+                ['customXml/ancestor-chain-review.xml', 'word/settings-ancestor-chain.xml'],
+                true,
+            ),
+        ));
+        $reviewChainsByPath = [];
+        foreach ($reviewPart['xmlElementAncestorChains'] as $chain) {
+            $reviewChainsByPath[$chain['elementPath']][] = $chain;
+        }
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(6, $reviewPart['xmlElementAncestorChainCount']);
+        $t->same(3, $reviewPart['xmlElementAncestorChainMaxAncestorDepth']);
+        $t->same(1, $reviewPart['xmlElementAncestorChainRootElementCount']);
+        $t->same(5, $reviewPart['xmlElementAncestorChainParentedElementCount']);
+        $t->same([0 => 1, 1 => 2, 2 => 2, 3 => 1], $reviewPart['xmlElementAncestorChainAncestorDepthCounts']);
+        $t->same([
+            '/' => 1,
+            '/review:packet' => 2,
+            '/review:packet/review:group' => 2,
+            '/review:packet/review:group/review:item' => 1,
+        ], $reviewPart['xmlElementAncestorChainAncestorPathCounts']);
+        $t->same([
+            '/' => 1,
+            '/review:packet' => 2,
+            '/review:packet/review:group' => 2,
+            '/review:packet/review:group/review:item' => 1,
+        ], $reviewPart['xmlElementAncestorChainParentPathCounts']);
+        $t->same(['review:packet' => 6], $reviewPart['xmlElementAncestorChainRootQualifiedNameCounts']);
+        $t->same([
+            '(document)' => 1,
+            'review:group' => 2,
+            'review:item' => 1,
+            'review:packet' => 2,
+        ], $reviewPart['xmlElementAncestorChainParentQualifiedNameCounts']);
+        $t->same([
+            'audit:item' => 1,
+            'review:front' => 1,
+            'review:group' => 1,
+            'review:item' => 1,
+            'review:leaf' => 1,
+            'review:packet' => 1,
+        ], $reviewPart['xmlElementAncestorChainElementQualifiedNameCounts']);
+        $t->same([
+            'review:group' => 3,
+            'review:item' => 1,
+            'review:packet' => 5,
+        ], $reviewPart['xmlElementAncestorChainAncestorQualifiedNameCounts']);
+        $t->same('/', $reviewPart['xmlElementAncestorChains'][0]['ancestorPath']);
+        $t->same(0, $reviewPart['xmlElementAncestorChains'][0]['ancestorDepth']);
+        $leaf = $reviewChainsByPath['/review:packet/review:group/review:item/review:leaf'][0];
+        $t->same(4, $leaf['elementDepth']);
+        $t->same(3, $leaf['ancestorDepth']);
+        $t->same('/review:packet/review:group/review:item', $leaf['ancestorPath']);
+        $t->same('review:item', $leaf['parentQualifiedName']);
+        $t->same('review:packet', $leaf['rootQualifiedName']);
+        $t->same(['review:packet', 'review:group', 'review:item'], $leaf['ancestorQualifiedNames']);
+
+        $t->same(true, $settingsPart['xmlInspectable']);
+        $t->same(4, $settingsPart['xmlElementAncestorChainCount']);
+        $t->same(2, $settingsPart['xmlElementAncestorChainMaxAncestorDepth']);
+        $t->same([0 => 1, 1 => 1, 2 => 2], $settingsPart['xmlElementAncestorChainAncestorDepthCounts']);
+        $t->same(2, $settingsPart['xmlElementAncestorChainElementQualifiedNameCounts']['w:docVar']);
+
+        $t->true($summary['partXmlElementAncestorChainPartCount'] >= 2, 'summary ancestor-chain part count should include added XML parts');
+        $t->true($summary['partXmlElementAncestorChainCount'] >= 10, 'summary ancestor-chain count should include added XML elements');
+        $t->true(in_array('customXml/ancestor-chain-review.xml', $summary['partXmlElementAncestorChainPartNames'], true), 'custom XML ancestor-chain part should be summarized');
+        $t->true(in_array('word/settings-ancestor-chain.xml', $summary['partXmlElementAncestorChainPartNames'], true), 'settings ancestor-chain part should be summarized');
+        $t->same(2, $summary['partXmlElementAncestorChainElementQualifiedNameCounts']['w:docVar']);
+        $t->same(1, $summary['partXmlElementAncestorChainAncestorPathCounts']['/review:packet/review:group/review:item']);
+        $t->same(10, count($chains));
+        $t->same('customXml/ancestor-chain-review.xml', $chains[0]['partName']);
+        $t->same('/review:packet', $chains[0]['elementPath']);
+        $t->same('word/settings-ancestor-chain.xml', $chains[9]['partName']);
+        $t->same('/w:settings/w:docVars/w:docVar', $chains[9]['elementPath']);
+
+        $encodedChains = json_encode([$reviewPart['xmlElementAncestorChains'], $settingsPart['xmlElementAncestorChains'], $chains]);
+        $t->true(is_string($encodedChains), 'XML ancestor-chain metadata should encode for review');
+        $t->true(!str_contains((string) $encodedChains, $hiddenText), 'raw XML text should not be exposed in ancestor-chain metadata');
+    },
     'summarizes docx package xml element child profiles without exposing text' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $textPayload = 'child-profile:hidden-text';
