@@ -152,4 +152,39 @@ return [
             }
         }
     },
+    'promotes unbraced texmath atom coercion tokens into plainmath conformance corpus' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $tex = '\\mathop\\sum_i + x \\mathrel= y \\mathbin+ z \\mathord+ \\mathopen( q \\mathclose) \\mathpunct, r';
+        $mathml = $converter->texToMathMl($tex, true);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+
+        $t->true(
+            $dom->loadXML($mathml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING),
+            'unbraced atom coercion tokens emit well-formed MathML'
+        );
+        $t->contains('<msub><mrow data-tex-math-class="operator"><mo>∑</mo></mrow><mi>i</mi></msub>', $mathml);
+        $t->contains('<mrow data-tex-math-class="relation"><mo>=</mo></mrow>', $mathml);
+        $t->contains('<mrow data-tex-math-class="binary"><mo>+</mo></mrow>', $mathml);
+        $t->contains('<mrow data-tex-math-class="ordinary"><mo>+</mo></mrow>', $mathml);
+        $t->contains('<mrow data-tex-math-class="open"><mo>(</mo></mrow>', $mathml);
+        $t->contains('<mrow data-tex-math-class="close"><mo>)</mo></mrow>', $mathml);
+        $t->contains('<mrow data-tex-math-class="punctuation"><mo>,</mo></mrow>', $mathml);
+        $t->contains('<annotation encoding="application/x-tex">\\mathop\\sum_i + x \\mathrel= y \\mathbin+ z \\mathord+ \\mathopen( q \\mathclose) \\mathpunct, r</annotation>', $mathml);
+        $t->true(!str_contains($mathml, '<mi>\\'), 'unbraced atom coercions leave no literal TeX command identifiers in MathML');
+
+        $explicitAtoms = [];
+        foreach ($converter->texAtomCategorySummary($tex, true)['atoms'] as $atom) {
+            if ($atom['source'] === 'explicit-math-class') {
+                $explicitAtoms[$atom['category']][] = $atom['text'];
+            }
+        }
+
+        $t->same(['∑'], $explicitAtoms['Op'] ?? []);
+        $t->same(['='], $explicitAtoms['Rel'] ?? []);
+        $t->same(['+'], $explicitAtoms['Bin'] ?? []);
+        $t->same(['+'], $explicitAtoms['Ord'] ?? []);
+        $t->same(['('], $explicitAtoms['Open'] ?? []);
+        $t->same([')'], $explicitAtoms['Close'] ?? []);
+        $t->same([','], $explicitAtoms['Pun'] ?? []);
+    },
 ];
