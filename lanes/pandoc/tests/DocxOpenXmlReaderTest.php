@@ -19172,6 +19172,93 @@ XML;
         $t->true(is_string($encodedShapes), 'XML child-shape metadata should encode for review');
         $t->true(!str_contains((string) $encodedShapes, 'child-shape:hidden'), 'raw XML text should not be exposed in child-shape metadata');
     },
+    'summarizes docx package xml child node shape without exposing child text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $entityValue = 'child-node:hidden-entity';
+        $cdataValue = 'child-node:hidden-cdata';
+        $commentValue = 'child-node:hidden-comment';
+        $piValue = 'child-node:hidden-pi';
+        $parts['customXml/child-node-shape-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE review:packet [
+<!ENTITY reviewer "{$entityValue}">
+]>
+<review:packet xmlns:review="urn:review-child-node">
+  <review:item>alpha<review:mark/>beta<![CDATA[{$cdataValue}]]>&reviewer;<?audit state="{$piValue}"?><!--{$commentValue}--></review:item>
+  <review:plain>plain</review:plain>
+</review:packet>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/child-node-shape-review.xml'];
+        $shapes = array_values(array_filter(
+            $summary['partXmlChildNodeShapes'],
+            static fn (array $shape): bool => $shape['partName'] === 'customXml/child-node-shape-review.xml',
+        ));
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(4, $reviewPart['xmlChildNodeParentCount']);
+        $t->same(13, $reviewPart['xmlChildNodeChildCount']);
+        $t->same(1, $reviewPart['xmlChildNodeMixedParentCount']);
+        $t->same([
+            'cdata' => 1,
+            'comment' => 1,
+            'element' => 3,
+            'entity-reference' => 1,
+            'processing-instruction' => 1,
+            'text' => 3,
+            'whitespace-text' => 3,
+        ], $reviewPart['xmlChildNodeTypeCounts']);
+        $t->same([
+            '/review:packet' => 1,
+            '/review:packet/review:item' => 1,
+            '/review:packet/review:item/review:mark' => 1,
+            '/review:packet/review:plain' => 1,
+        ], $reviewPart['xmlChildNodeParentPathCounts']);
+        $t->same(['urn:review-child-node' => 4], $reviewPart['xmlChildNodeParentNamespaceCounts']);
+        $t->same(['item' => 1, 'mark' => 1, 'packet' => 1, 'plain' => 1], $reviewPart['xmlChildNodeParentLocalNameCounts']);
+        $t->same([
+            'review:item' => 1,
+            'review:mark' => 1,
+            'review:packet' => 1,
+            'review:plain' => 1,
+        ], $reviewPart['xmlChildNodeParentQualifiedNameCounts']);
+
+        $t->same(4, count($shapes));
+        $t->same('customXml/child-node-shape-review.xml', $shapes[0]['partName']);
+        $t->same('/review:packet', $shapes[0]['parentPath']);
+        $t->same(5, $shapes[0]['childCount']);
+        $t->same(2, $shapes[0]['elementChildCount']);
+        $t->same(3, $shapes[0]['whitespaceTextChildCount']);
+        $t->same(false, $shapes[0]['hasMixedContent']);
+        $t->same(['whitespace-text', 'element', 'whitespace-text', 'element', 'whitespace-text'], $shapes[0]['childTypeSequence']);
+        $t->same('/review:packet/review:item', $shapes[1]['parentPath']);
+        $t->same(7, $shapes[1]['childCount']);
+        $t->same(1, $shapes[1]['elementChildCount']);
+        $t->same(2, $shapes[1]['textChildCount']);
+        $t->same(1, $shapes[1]['cdataChildCount']);
+        $t->same(1, $shapes[1]['entityReferenceChildCount']);
+        $t->same(1, $shapes[1]['processingInstructionChildCount']);
+        $t->same(1, $shapes[1]['commentChildCount']);
+        $t->same(true, $shapes[1]['hasMixedContent']);
+        $t->same(['text', 'element', 'text', 'cdata', 'entity-reference', 'processing-instruction', 'comment'], $shapes[1]['childTypeSequence']);
+        $t->same('/review:packet/review:item/review:mark', $shapes[2]['parentPath']);
+        $t->same(0, $shapes[2]['childCount']);
+        $t->same('/review:packet/review:plain', $shapes[3]['parentPath']);
+        $t->same(['text'], $shapes[3]['childTypeSequence']);
+
+        $t->true(in_array('customXml/child-node-shape-review.xml', $summary['partXmlChildNodePartNames'], true), 'child-node shape part should be summarized');
+        $t->true($summary['partXmlChildNodeMixedParentCount'] >= 1, 'summary should include mixed-content parent count');
+        $t->true($summary['partXmlChildNodeTypeCounts']['cdata'] >= 1, 'summary should include CDATA child-node count');
+        $t->true($summary['partXmlChildNodeTypeCounts']['entity-reference'] >= 1, 'summary should include entity-reference child-node count');
+        $t->same(1, $summary['partXmlChildNodeParentPathCounts']['/review:packet/review:item']);
+
+        $encodedShapes = json_encode([$reviewPart['xmlChildNodeShapes'], $shapes]);
+        $t->true(is_string($encodedShapes), 'XML child-node shape metadata should encode for review');
+        $t->true(!str_contains((string) $encodedShapes, 'child-node:hidden'), 'raw XML child text should not be exposed in child-node shape metadata');
+    },
     'accepts docx main document template and macro-enabled content types' => static function (TestRunner $t): void {
         $acceptedDocumentContentTypes = [
             ['application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'],
