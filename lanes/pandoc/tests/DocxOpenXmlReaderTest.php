@@ -401,6 +401,80 @@ return [
         $t->same(2, $methodBuckets[0]['entryCount']);
         $t->same(count($parts) - 1, $methodBuckets[8]['entryCount']);
     },
+    'carries docx opc zip entry manifest preflight through package provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/_rels/orphan.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rOrphanImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/orphan.png"/>
+</Relationships>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readZipPackage(docx_openxml_reader_zip_package($parts));
+        $package = $document->attr('docx')['packageProvenance'];
+        $manifest = $package['zipPackage']['opcManifest'];
+        $summary = $package['summary'];
+        $manifestRelationshipParts = [];
+        foreach ($manifest['relationshipParts'] as $relationshipPart) {
+            $manifestRelationshipParts[$relationshipPart['partName']] = $relationshipPart;
+        }
+        $manifestEntries = [];
+        foreach ($manifest['entries'] as $entry) {
+            $manifestEntries[$entry['entryName']] = $entry;
+        }
+
+        $t->same('Imported DOCX Heading', $document->children[0]->attr('text'));
+        $t->same(true, $manifest['present']);
+        $t->same(false, $manifest['valid']);
+        $t->same(false, $manifest['isSupportedByBoundedReader']);
+        $t->same(count($parts), $manifest['entryCount']);
+        $t->same(count($parts), $manifest['fileEntryCount']);
+        $t->same(0, $manifest['directoryEntryCount']);
+        $t->same(count($parts), $manifest['packagePartCount']);
+        $t->same(1, $manifest['contentTypesItemCount']);
+        $t->same(3, $manifest['relationshipPartCount']);
+        $t->same(1, $manifest['rootRelationshipPartCount']);
+        $t->same(2, $manifest['partRelationshipPartCount']);
+        $t->same(0, $manifest['invalidRelationshipPartCount']);
+        $t->same(1, $manifest['orphanRelationshipPartCount']);
+        $t->same(1, $manifest['mediaPartCandidateCount']);
+        $t->same(0, $manifest['embeddedPackageCandidateCount']);
+        $t->same(['orphan-relationship-part' => 1], $manifest['issueCounts']);
+        $t->same(['orphan-relationship-part'], $manifest['issues']);
+        $t->same(['word/_rels/orphan.xml.rels'], $manifest['entryNamesByIssue']['orphan-relationship-part']);
+        $t->same(['/word/_rels/orphan.xml.rels'], $manifest['partNamesByIssue']['orphan-relationship-part']);
+        $t->same(2, $manifest['roleCounts']['part-relationships']);
+        $t->same(1, $manifest['roleCounts']['package-relationships']);
+        $t->same(1, $manifest['roleCounts']['media']);
+
+        $orphanRelationshipPart = $manifestRelationshipParts['/word/_rels/orphan.xml.rels'];
+        $t->same('/word/orphan.xml', $orphanRelationshipPart['relationshipSource']);
+        $t->same(false, $orphanRelationshipPart['relationshipSourceExists']);
+        $t->same(['orphan-relationship-part'], $orphanRelationshipPart['issues']);
+        $t->same('/word/orphan.xml', $manifestEntries['word/_rels/orphan.xml.rels']['relationshipSource']);
+        $t->same(false, $manifestEntries['word/_rels/orphan.xml.rels']['relationshipSourceExists']);
+        $t->same(['orphan-relationship-part'], $manifestEntries['word/_rels/orphan.xml.rels']['issues']);
+
+        $t->same(true, $summary['zipOpcManifestPresent']);
+        $t->same(false, $summary['zipOpcManifestValid']);
+        $t->same(false, $summary['zipOpcManifestSupportedByBoundedReader']);
+        $t->same(count($parts), $summary['zipOpcManifestEntryCount']);
+        $t->same(count($parts), $summary['zipOpcManifestFileEntryCount']);
+        $t->same(0, $summary['zipOpcManifestDirectoryEntryCount']);
+        $t->same(count($parts), $summary['zipOpcManifestPackagePartCount']);
+        $t->same(1, $summary['zipOpcManifestIssueCount']);
+        $t->same(['orphan-relationship-part'], $summary['zipOpcManifestIssueCodes']);
+        $t->same(['orphan-relationship-part' => 1], $summary['zipOpcManifestIssueCounts']);
+        $t->same(1, $summary['zipOpcManifestContentTypesItemCount']);
+        $t->same(3, $summary['zipOpcManifestRelationshipPartCount']);
+        $t->same(1, $summary['zipOpcManifestRootRelationshipPartCount']);
+        $t->same(2, $summary['zipOpcManifestPartRelationshipPartCount']);
+        $t->same(0, $summary['zipOpcManifestInvalidRelationshipPartCount']);
+        $t->same(1, $summary['zipOpcManifestOrphanRelationshipPartCount']);
+        $t->same(0, $summary['zipOpcManifestEmbeddedPackageCandidateCount']);
+        $t->same(1, $summary['zipOpcManifestMediaPartCandidateCount']);
+        $t->same(2, $summary['zipOpcManifestRoleCounts']['part-relationships']);
+    },
     'preserves docx unsupported zip compression provenance without aborting ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $unsupportedPart = 'word/media/review-bzip2.bin';

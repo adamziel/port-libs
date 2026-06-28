@@ -10939,6 +10939,10 @@ final class DocxOpenXmlReader
         $summary['zipOpcManifestPresent'] = $zipOpcManifest['present'];
         $summary['zipOpcManifestValid'] = $zipOpcManifest['valid'];
         $summary['zipOpcManifestSupportedByBoundedReader'] = $zipOpcManifest['isSupportedByBoundedReader'];
+        $summary['zipOpcManifestEntryCount'] = $zipOpcManifest['entryCount'];
+        $summary['zipOpcManifestFileEntryCount'] = $zipOpcManifest['fileEntryCount'];
+        $summary['zipOpcManifestDirectoryEntryCount'] = $zipOpcManifest['directoryEntryCount'];
+        $summary['zipOpcManifestPackagePartCount'] = $zipOpcManifest['packagePartCount'];
         $summary['zipOpcManifestIssueCount'] = count($zipOpcManifest['issues']);
         $summary['zipOpcManifestIssueCodes'] = $zipOpcManifest['issues'];
         $summary['zipOpcManifestIssueCounts'] = $zipOpcManifest['issueCounts'];
