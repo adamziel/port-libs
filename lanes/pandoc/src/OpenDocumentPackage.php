@@ -1720,7 +1720,21 @@ final class OpenDocumentPackage
 
     private static function isConfigurationPackagePartName(string $path): bool
     {
-        return str_starts_with(strtolower(ltrim($path, '/')), 'configurations2/');
+        $normalized = strtolower(ltrim($path, '/'));
+
+        return str_starts_with($normalized, 'configurations2/')
+            || str_starts_with($normalized, 'configurations/');
+    }
+
+    private static function configurationPackageRoot(string $path): ?string
+    {
+        $root = strtolower((string) (explode('/', trim($path, '/'), 2)[0] ?? ''));
+
+        return match ($root) {
+            'configurations2' => 'Configurations2',
+            'configurations' => 'Configurations',
+            default => null,
+        };
     }
 
     private static function isDatabasePackagePartName(string $path): bool
@@ -6005,6 +6019,7 @@ final class OpenDocumentPackage
                 'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
                 'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
                 'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
+                'packageRoot' => $pathInfo['packageRoot'] ?? null,
                 'configurationArea' => $pathInfo['configurationArea'] ?? null,
                 'configurationKind' => $pathInfo['configurationKind'] ?? null,
                 'configurationPath' => $pathInfo['configurationPath'] ?? null,
@@ -6127,6 +6142,7 @@ final class OpenDocumentPackage
         }
 
         return [
+            'packageRoot' => self::configurationPackageRoot($path),
             'configurationArea' => $area === '' ? null : $area,
             'configurationKind' => $kind,
             'configurationPath' => $configurationPath,
