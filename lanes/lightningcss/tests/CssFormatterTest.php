@@ -340,7 +340,7 @@ CSS, $formatter->format(<<<'CSS'
     foo: bar;
   }
 }
-CSS));
+CSS), 'upstream src/lib.rs::test_supports_rule line 15177');
 
         $t->same(<<<'CSS'
 @supports not ((foo: bar) and (bar: baz)) {
