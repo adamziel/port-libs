@@ -406,32 +406,50 @@ final class WordPressBlockWriter
         } elseif ($this->listIsTaskList($node)) {
             $tagAttrs = ' class="task-list"';
         }
+        if (!$ordered) {
+            $tagAttrs .= $this->renderListSourceAttrs($node, $tagAttrs === '' ? [] : ['class']);
+        }
         $items = [];
+        $headerBlocks = [];
 
         foreach ($node->children as $item) {
             if ($item->type !== 'list_item') {
                 continue;
             }
+            if ($this->isListHeaderItem($item)) {
+                $headerBlocks[] = $this->renderListHeaderBlock($item);
+                continue;
+            }
             $items[] = $this->renderListItem($item);
         }
 
-        return $comment
+        $listBlock = $comment
             . "\n" . '<' . $tag . $tagAttrs . '>' . implode('', $items) . '</' . $tag . '>'
             . "\n" . '<!-- /wp:list -->';
+
+        return implode("\n\n", [...$headerBlocks, $listBlock]);
     }
 
     private function renderListHtml(AstNode $node, bool $ordered): string
     {
         $tag = $ordered ? 'ol' : 'ul';
         $tagAttrs = $ordered ? $this->renderOrderedListTagAttrs($node) : ($this->listIsTaskList($node) ? ' class="task-list"' : '');
+        if (!$ordered) {
+            $tagAttrs .= $this->renderListSourceAttrs($node, $tagAttrs === '' ? [] : ['class']);
+        }
         $items = [];
+        $headerHtml = '';
         foreach ($node->children as $item) {
+            if ($item->type === 'list_item' && $this->isListHeaderItem($item)) {
+                $headerHtml .= $this->renderListHeaderHtml($item);
+                continue;
+            }
             if ($item->type === 'list_item') {
                 $items[] = $this->renderListItem($item);
             }
         }
 
-        return '<' . $tag . $tagAttrs . '>' . implode('', $items) . '</' . $tag . '>';
+        return $headerHtml . '<' . $tag . $tagAttrs . '>' . implode('', $items) . '</' . $tag . '>';
     }
 
     private function renderOrderedListTagAttrs(AstNode $node): string
@@ -448,6 +466,8 @@ final class WordPressBlockWriter
         }
 
         if ((bool) ($this->options['preserveListAttributes'] ?? false)) {
+            $attrs .= $this->renderListSourceAttrs($node, ['start', 'type']);
+
             $style = (string) $node->attr('style', 'default');
             $styleIsSourceSpecific = !in_array($style, ['', 'default', 'decimal'], true);
             if ($styleIsSourceSpecific) {
@@ -464,6 +484,47 @@ final class WordPressBlockWriter
         }
 
         return $attrs;
+    }
+
+    /**
+     * @param list<string> $skip
+     */
+    private function renderListSourceAttrs(AstNode $node, array $skip = []): string
+    {
+        if (!(bool) ($this->options['preserveListAttributes'] ?? false)) {
+            return '';
+        }
+
+        $attrs = '';
+        foreach ($this->inlineHtmlAttributes($node) as $name => $value) {
+            $name = strtolower((string) $name);
+            if (in_array($name, $skip, true) || !$this->isAllowedBlockHtmlAttr($name)) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+
+        return $attrs;
+    }
+
+    private function isListHeaderItem(AstNode $item): bool
+    {
+        return $item->type === 'list_item' && $item->attr('listHeader') === true;
+    }
+
+    private function renderListHeaderBlock(AstNode $item): string
+    {
+        return '<!-- wp:html -->'
+            . "\n" . $this->renderListHeaderHtml($item)
+            . "\n" . '<!-- /wp:html -->';
+    }
+
+    private function renderListHeaderHtml(AstNode $item): string
+    {
+        return '<div' . $this->renderDivAttrs(new AstNode('div', $item->attrs)) . '>'
+            . $this->renderBlocksAsHtml($item->children)
+            . '</div>';
     }
 
     private function renderHeadingAttrs(AstNode $node): string
@@ -1515,6 +1576,17 @@ final class WordPressBlockWriter
         if (is_array($attributes) && isset($attributes['latex-placement'])) {
             $attrs .= ' data-pandoc-latex-placement="' . $this->esc((string) $attributes['latex-placement']) . '"';
         }
+        foreach ($this->inlineHtmlAttributes($node) as $name => $value) {
+            $name = strtolower((string) $name);
+            if (
+                in_array($name, ['id', 'class', 'latex-placement'], true)
+                || !$this->isAllowedBlockHtmlAttr($name)
+            ) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
 
         return $attrs;
     }
@@ -1608,8 +1680,21 @@ final class WordPressBlockWriter
     private function renderBlockQuote(AstNode $node): string
     {
         return '<!-- wp:quote -->'
-            . "\n" . '<blockquote class="wp-block-quote">' . $this->renderBlocksAsHtml($node->children) . '</blockquote>'
+            . "\n" . '<blockquote' . $this->renderBlockQuoteAttrs($node) . '>' . $this->renderBlocksAsHtml($node->children) . '</blockquote>'
             . "\n" . '<!-- /wp:quote -->';
+    }
+
+    private function renderBlockQuoteAttrs(AstNode $node): string
+    {
+        $htmlAttributes = $this->inlineHtmlAttributes($node);
+        $classes = ['wp-block-quote'];
+        $sourceClass = trim((string) ($htmlAttributes['class'] ?? ''));
+        if ($sourceClass !== '') {
+            array_push($classes, ...preg_split('/\s+/', $sourceClass, -1, PREG_SPLIT_NO_EMPTY));
+        }
+        $htmlAttributes['class'] = implode(' ', array_values(array_unique($classes)));
+
+        return $this->renderBlockHtmlAttrs(new AstNode('blockquote', ['htmlAttributes' => $htmlAttributes]));
     }
 
     private function renderLineBlockBlock(AstNode $node): string
@@ -2874,6 +2959,10 @@ final class WordPressBlockWriter
         $open = $node->attr('display') === true ? '\\[' : '\\(';
         $close = $node->attr('display') === true ? '\\]' : '\\)';
         $class = $node->attr('display') === true ? 'display' : 'inline';
+        $mathml = $node->attr('mathml', null);
+        if (is_scalar($mathml) && trim((string) $mathml) !== '') {
+            return '<span class="math ' . $class . '">' . (string) $mathml . '</span>';
+        }
 
         return '<span class="math ' . $class . '">'
             . $this->esc($open . (string) $node->attr('text', '') . $close)
