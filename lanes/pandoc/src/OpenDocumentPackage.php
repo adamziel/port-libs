@@ -7611,6 +7611,8 @@ final class OpenDocumentPackage
             'zipTimestampItems' => [],
             'zipInvalidDosTimestampEntryCount' => 0,
             'zipInvalidDosTimestampItems' => [],
+            'packageThumbnailPartCount' => 0,
+            'packageThumbnailItems' => [],
             'embeddedObjectPackagePartCount' => 0,
             'embeddedObjectRootCount' => 0,
             'embeddedObjectContainedPartCount' => 0,
@@ -7753,6 +7755,10 @@ final class OpenDocumentPackage
             if (($entry['zipIsDosTimestampValid'] ?? true) !== true) {
                 ++$summary['zipInvalidDosTimestampEntryCount'];
                 $summary['zipInvalidDosTimestampItems'][] = $item;
+            }
+            if (($entry['thumbnailPackagePart'] ?? false) === true) {
+                ++$summary['packageThumbnailPartCount'];
+                $summary['packageThumbnailItems'][] = $item;
             }
             if (($entry['embeddedObjectPackagePart'] ?? false) === true) {
                 ++$summary['embeddedObjectPackagePartCount'];
