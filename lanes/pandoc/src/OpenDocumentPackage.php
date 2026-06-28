@@ -2773,6 +2773,9 @@ final class OpenDocumentPackage
             foreach ($issues as $issue) {
                 $issueCodes[$issue] = true;
             }
+            $byteExposurePolicy = is_string($entry['byteExposurePolicy'] ?? null) && $entry['byteExposurePolicy'] !== ''
+                ? $entry['byteExposurePolicy']
+                : ($encrypted ? 'encrypted-resource-bytes-blocked' : 'font-package-bytes-blocked');
             $fontFormatCounts[$fontFormat['fontFormat']] = ($fontFormatCounts[$fontFormat['fontFormat']] ?? 0) + 1;
             $fontFormatSourceCounts[$fontFormat['fontFormatSource']] = ($fontFormatSourceCounts[$fontFormat['fontFormatSource']] ?? 0) + 1;
             $fontFormatFamilyCounts[$fontFormat['fontFormatFamily']] = ($fontFormatFamilyCounts[$fontFormat['fontFormatFamily']] ?? 0) + 1;
@@ -2814,7 +2817,9 @@ final class OpenDocumentPackage
                 'storedCrc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
                 'declaredSize' => $entry['declaredSize'] ?? $entry['size'] ?? null,
                 'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
+                'canExposeBytes' => false,
                 'canExposeAsDocumentMedia' => false,
+                'byteExposurePolicy' => $byteExposurePolicy,
                 'reviewPolicy' => 'package-font-metadata-only',
                 'issues' => $issues,
             ];
@@ -2849,6 +2854,8 @@ final class OpenDocumentPackage
             'fontFileExtensionCounts' => $fontFileExtensionCounts,
             'recognizedFontFormatCount' => count(array_filter($items, static fn (array $item): bool => $item['recognizedFontFormat'] === true)),
             'unknownFontFormatCount' => count(array_filter($items, static fn (array $item): bool => $item['recognizedFontFormat'] !== true)),
+            'byteExposurePolicy' => 'font-package-bytes-blocked',
+            'reviewPolicy' => 'package-font-metadata-only',
             'items' => $items,
         ];
     }
