@@ -3313,6 +3313,29 @@ CSS,
             throw new RuntimeException('Expected imported read callback exception');
         }
 
+        $asyncImportReadRejected = false;
+        $asyncImportReadLocationRow = 'upstream node/test/bundle.test.mjs::async read throw with location info lines 258-283';
+        try {
+            (new CssBundler())->bundleWithReader('foo.css', static function (string $file): string {
+                if ($file === 'foo.css') {
+                    return '@import "bar.css"';
+                }
+
+                throw new RuntimeException("Oh noes! Failed to read `{$file}`.");
+            });
+        } catch (CssBundleException $exception) {
+            $t->same('resolver-error', $exception->kind, $asyncImportReadLocationRow . ' kind');
+            $t->same('Oh noes! Failed to read `bar.css`.', $exception->getMessage(), $asyncImportReadLocationRow . ' message');
+            $t->same('foo.css', $exception->sourceFile, $asyncImportReadLocationRow . ' fileName');
+            $t->same(1, $exception->sourceLine, $asyncImportReadLocationRow . ' loc.line');
+            $t->same(1, $exception->sourceColumn, $asyncImportReadLocationRow . ' loc.column');
+            $asyncImportReadRejected = true;
+        }
+
+        if (!$asyncImportReadRejected) {
+            throw new RuntimeException('Expected async imported read callback exception');
+        }
+
         $syntaxRejected = false;
         try {
             (new CssBundler())->bundleWithReader('foo.css', static fn (): string => '.foo');
