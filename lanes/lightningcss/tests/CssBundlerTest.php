@@ -3406,6 +3406,8 @@ CSS,
     },
     'css bundler maps upstream length visitor replacements across imports' => static function (TestRunner $t): void {
         $seen = [];
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::works with async bundler lines 851-868.
+        // PHP exposes one native bundler visitor path; this fixtures the same imported Length visitor output.
         $code = (new CssBundler())->bundleWithVisitor('tests/testdata/a.css', [
             'tests/testdata/a.css' => <<<'CSS'
 @import "b.css";
@@ -3433,7 +3435,11 @@ CSS,
             },
         ]);
 
-        $t->same('.b{height:calc(100vh - 4rem)}.a{width:2rem}', $code);
+        $t->same(
+            '.b{height:calc(100vh - 4rem)}.a{width:2rem}',
+            $code,
+            'upstream async bundler Length visitor output'
+        );
         $t->same([
             ['unit' => 'vh', 'value' => 100.0],
             ['unit' => 'px', 'value' => 64.0],
