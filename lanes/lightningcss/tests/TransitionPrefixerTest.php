@@ -3888,6 +3888,26 @@ CSS;
             $prefixer->prefixForTargets('.foo { border-color: #4263eb; border-color: color(display-p3 0 .5 1); }', ['chrome' => 99])
         );
         $t->same(
+            '.foo{border-color:color(display-p3 0 .5 1)}',
+            $prefixer->prefixForTargets('.foo { border-color: #4263eb; border-color: color(display-p3 0 .5 1); }', ['safari' => 16]),
+            'upstream src/lib.rs::test_border row 2100'
+        );
+        $t->same(
+            '.foo{border:1px solid #4263eb;border-color:color(display-p3 0 .5 1)}',
+            $prefixer->prefixForTargets('.foo { border: 1px solid #4263eb; border-color: color(display-p3 0 .5 1); }', ['chrome' => 99]),
+            'upstream src/lib.rs::test_border row 2118'
+        );
+        $t->same(
+            '.foo{border:1px solid color(display-p3 0 .5 1)}',
+            $prefixer->prefixForTargets('.foo { border: 1px solid #4263eb; border-color: color(display-p3 0 .5 1); }', ['safari' => 16]),
+            'upstream src/lib.rs::test_border row 2137'
+        );
+        $t->same(
+            '.foo{border-color:var(--fallback);border-color:color(display-p3 0 .5 1)}',
+            $prefixer->prefixForTargets('.foo { border-color: var(--fallback); border-color: color(display-p3 0 .5 1); }', ['chrome' => 99]),
+            'upstream src/lib.rs::test_border row 2155'
+        );
+        $t->same(
             '.foo{color:var(--foo,color(display-p3 .643308 .192455 .167712))}@supports (color:lab(0% 0 0)){.foo{color:var(--foo,lab(40% 56.6 39))}}',
             $prefixer->prefixForTargets('.foo { color: red; color: var(--foo, lab(40% 56.6 39)); }', ['safari' => 14])
         );

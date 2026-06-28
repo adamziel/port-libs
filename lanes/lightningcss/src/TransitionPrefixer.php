@@ -11435,6 +11435,14 @@ final class TransitionPrefixer
             $hasCustomPropertyReference = $this->containsCustomPropertyReference($normalized);
             $hasEnvironmentReference = $this->containsEnvironmentReference($normalized);
             if ($supportsNative && !$needsSrgbFallback && !$usesP3Fallback && !$needsLabFallback) {
+                if ($entry['property'] === 'border-color') {
+                    [$rewritten, $replacedBorderColor] = $this->replacePreviousBorderShorthandFallbackColor($rewritten, $normalized);
+                    if ($replacedBorderColor) {
+                        $changed = true;
+                        continue;
+                    }
+                }
+
                 [$rewritten, $dropped] = $this->dropPreviousSamePropertyFallbacks($rewritten, $entry['property']);
                 $rewritten[] = $this->entryWithValue($entry, $normalized);
                 $changed = $changed || $dropped || $normalized !== $entry['value'];
@@ -11483,7 +11491,7 @@ final class TransitionPrefixer
                 continue;
             }
 
-            if (!$this->hasPreviousSamePropertyAuthoredFallback($rewritten, $entry['property'])) {
+            if (!$this->hasPreviousAdvancedColorAuthoredFallback($rewritten, $entry['property'], $srgbFallback)) {
                 $rewritten[] = $this->entryWithValue($entry, $srgbFallback);
             }
             $changed = true;
@@ -11711,6 +11719,113 @@ final class TransitionPrefixer
         }
 
         return false;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     */
+    private function hasPreviousAdvancedColorAuthoredFallback(array $entries, string $property, string $fallbackValue): bool
+    {
+        if ($this->hasPreviousSamePropertyAuthoredFallback($entries, $property)) {
+            return true;
+        }
+
+        return $property === 'border-color'
+            && $this->hasPreviousBorderShorthandFallbackColor($entries, $fallbackValue);
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     */
+    private function hasPreviousBorderShorthandFallbackColor(array $entries, string $fallbackValue): bool
+    {
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            $entry = $entries[$index];
+            if ($entry['important']) {
+                if ($this->isBorderAdvancedColorFallbackProperty($entry['property'])) {
+                    return false;
+                }
+
+                continue;
+            }
+
+            if ($entry['property'] === 'border') {
+                return $this->borderShorthandHasColorToken($entry['value'], $fallbackValue);
+            }
+
+            if ($this->isBorderAdvancedColorFallbackProperty($entry['property'])) {
+                return false;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @return array{0:list<array{property:string,name:string,value:string,important:bool}>,1:bool}
+     */
+    private function replacePreviousBorderShorthandFallbackColor(array $entries, string $advancedColorValue): array
+    {
+        $fallbackValue = $this->advancedColorFallbackValue($advancedColorValue);
+        if ($fallbackValue === null) {
+            return [$entries, false];
+        }
+
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            $entry = $entries[$index];
+            if ($entry['important']) {
+                if ($this->isBorderAdvancedColorFallbackProperty($entry['property'])) {
+                    return [$entries, false];
+                }
+
+                continue;
+            }
+
+            if ($entry['property'] === 'border') {
+                $value = $this->replaceBorderShorthandColorToken($entry['value'], $fallbackValue, $advancedColorValue);
+                if ($value === null) {
+                    return [$entries, false];
+                }
+
+                $entries[$index]['value'] = $value;
+
+                return [$entries, true];
+            }
+
+            if ($this->isBorderAdvancedColorFallbackProperty($entry['property'])) {
+                return [$entries, false];
+            }
+        }
+
+        return [$entries, false];
+    }
+
+    private function borderShorthandHasColorToken(string $value, string $color): bool
+    {
+        foreach ($this->splitWhitespaceTopLevel($value) as $token) {
+            if (strcasecmp($token, $color) === 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function replaceBorderShorthandColorToken(string $value, string $fallbackColor, string $replacementColor): ?string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        foreach ($tokens as $index => $token) {
+            if (strcasecmp($token, $fallbackColor) !== 0) {
+                continue;
+            }
+
+            $tokens[$index] = $replacementColor;
+
+            return implode(' ', $tokens);
+        }
+
+        return null;
     }
 
     /**
