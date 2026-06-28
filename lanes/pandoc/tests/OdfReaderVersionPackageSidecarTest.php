@@ -206,6 +206,7 @@ return [
         $compactVersions = $compactSummary['packageVersions'];
         $compactItems = $indexBy($compactVersions['items'], 'packagePath');
         $reviewByPath = $indexBy($compactSummary['manifestReview']['items'], 'path');
+        $manifestOrderByPath = $indexBy($compactSummary['manifestReview']['manifestFileEntryOrder'], 'path');
         $inventory = $compactSummary['packageInventory'];
 
         $t->same(8, $compactVersions['count']);
@@ -233,6 +234,7 @@ return [
         $t->same(['Pictures/hero.png'], array_column($compactSummary['mediaParts'], 'path'));
         $t->same(7, $compactSummary['manifestReview']['versionPackagePartCount']);
         $t->same(true, $reviewByPath['Versions/v1/preview.png']['versionPackagePart']);
+        $t->same(true, $manifestOrderByPath['Versions/v1/preview.png']['versionPackagePart']);
         $t->same(false, $reviewByPath['Versions/v1/preview.png']['canExposeBytes']);
         $t->same(null, $reviewByPath['Versions/v1/preview.png']['byteLength']);
         $t->same(strlen($versionPreviewBytes), $reviewByPath['Versions/v1/preview.png']['storedByteLength']);
