@@ -1282,52 +1282,60 @@ CSS));
     'css formatter maps upstream property rule printer cases' => static function (TestRunner $t): void {
         $formatter = new CssFormatter();
 
-        $t->same(<<<'CSS'
+        $cases = [
+            29617 => [
+                <<<'CSS'
 @property --property-name {
   syntax: "*";
   inherits: false;
   initial-value: ;
 }
 
-CSS, $formatter->format(<<<'CSS'
+CSS,
+                <<<'CSS'
 @property --property-name {
   syntax: '*';
   inherits: false;
   initial-value: ;
 }
-CSS));
-
-        $t->same(<<<'CSS'
+CSS,
+            ],
+            29645 => [
+                <<<'CSS'
 @property --property-name {
   syntax: "*";
   inherits: false;
   initial-value: ;
 }
 
-CSS, $formatter->format(<<<'CSS'
+CSS,
+                <<<'CSS'
 @property --property-name {
   syntax: '*';
   inherits: false;
   initial-value:;
 }
-CSS));
-
-        $t->same(<<<'CSS'
+CSS,
+            ],
+            29845 => [
+                <<<'CSS'
 @property --property-name {
   syntax: "<length> | none";
   inherits: false;
   initial-value: none;
 }
 
-CSS, $formatter->format(<<<'CSS'
+CSS,
+                <<<'CSS'
 @property --property-name {
   syntax: '<length>|none';
   inherits: false;
   initial-value: none;
 }
-CSS));
-
-        $t->same(<<<'CSS'
+CSS,
+            ],
+            29901 => [
+                <<<'CSS'
 @media (width < 800px) {
   @property --property-name {
     syntax: "*";
@@ -1335,16 +1343,18 @@ CSS));
   }
 }
 
-CSS, $formatter->format(<<<'CSS'
+CSS,
+                <<<'CSS'
 @media (width < 800px) {
   @property --property-name {
     syntax: '*';
     inherits: false;
   }
 }
-CSS));
-
-        $t->same(<<<'CSS'
+CSS,
+            ],
+            29920 => [
+                <<<'CSS'
 @layer foo {
   @property --property-name {
     syntax: "*";
@@ -1352,14 +1362,21 @@ CSS));
   }
 }
 
-CSS, $formatter->format(<<<'CSS'
+CSS,
+                <<<'CSS'
 @layer foo {
   @property --property-name {
     syntax: '*';
     inherits: false;
   }
 }
-CSS));
+CSS,
+            ],
+        ];
+
+        foreach ($cases as $line => [$expected, $input]) {
+            $t->same($expected, $formatter->format($input), 'upstream src/lib.rs::test_property line ' . $line);
+        }
     },
     'css formatter maps upstream margin and padding shorthand printer cases' => static function (TestRunner $t): void {
         $formatter = new CssFormatter();
