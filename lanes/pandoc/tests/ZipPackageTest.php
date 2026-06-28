@@ -12157,6 +12157,109 @@ return [
         $t->same([$documentEntry, $mediaEntry], $summary['handoffEntries']);
     },
 
+    'summarizes readable zip fixed header provenance before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>readable fixed header</w:p></w:body></w:document>';
+        $commentsXml = '<w:comments><w:comment>descriptor fixed header</w:comment></w:comments>';
+        $blockedMedia = "blocked fixed-header media bytes\n";
+        $commentsExtra = pack('vva*', 0xf11d, strlen('comments-fixed'), 'comments-fixed');
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 0,
+                'modifiedTime' => 0x1111,
+                'modifiedDate' => 0x2222,
+            ],
+            [
+                'name' => 'word/comments.xml',
+                'data' => $commentsXml,
+                'method' => 8,
+                'descriptor' => true,
+                'localExtra' => $commentsExtra,
+                'centralExtra' => $commentsExtra,
+                'modifiedTime' => 0x3333,
+                'modifiedDate' => 0x4444,
+            ],
+            [
+                'name' => 'word/media/raw.bin',
+                'data' => $blockedMedia,
+                'method' => 0,
+                'modifiedTime' => 0x5555,
+                'modifiedDate' => 0x6666,
+            ],
+        ]);
+        $package = ZipPackage::fromString($zip);
+        $commentsCompressed = gzdeflate($commentsXml);
+        if ($commentsCompressed === false) {
+            throw new RuntimeException('Unable to deflate comments fixed-header fixture');
+        }
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/comments.xml', 'required' => false, 'kind' => 'file', 'role' => 'comments'],
+            ['name' => 'word/media/raw.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 8],
+        ], 2048);
+
+        $t->same(3, $summary['selectedLocalHeaderFixedFieldEntryCount']);
+        $t->same(0, $summary['selectedLocalHeaderFixedFieldIssueEntryCount']);
+        $t->same(2, $summary['handoffLocalHeaderFixedFieldEntryCount']);
+        $t->same(0, $summary['handoffLocalHeaderFixedFieldIssueEntryCount']);
+        $t->same(3, $summary['selectedCentralDirectoryFixedFieldEntryCount']);
+        $t->same(0, $summary['selectedCentralDirectoryFixedFieldIssueEntryCount']);
+        $t->same(2, $summary['handoffCentralDirectoryFixedFieldEntryCount']);
+        $t->same(0, $summary['handoffCentralDirectoryFixedFieldIssueEntryCount']);
+        $t->same([], $summary['handoffLocalHeaderFixedFieldIssueEntries']);
+        $t->same([], $summary['handoffCentralDirectoryFixedFieldIssueEntries']);
+
+        $t->same([
+            'word/document.xml',
+            'word/comments.xml',
+            'word/media/raw.bin',
+        ], array_column($summary['selectedLocalHeaderFixedFieldEntries'], 'name'));
+        $t->same([
+            'word/document.xml',
+            'word/comments.xml',
+        ], array_column($summary['handoffLocalHeaderFixedFieldEntries'], 'name'));
+        $t->same([
+            'word/document.xml',
+            'word/comments.xml',
+            'word/media/raw.bin',
+        ], array_column($summary['selectedCentralDirectoryFixedFieldEntries'], 'name'));
+        $t->same([
+            'word/document.xml',
+            'word/comments.xml',
+        ], array_column($summary['handoffCentralDirectoryFixedFieldEntries'], 'name'));
+        $t->same(
+            array_slice($summary['selectedLocalHeaderFixedFieldEntries'], 0, 2),
+            $summary['handoffLocalHeaderFixedFieldEntries']
+        );
+        $t->same(
+            array_slice($summary['selectedCentralDirectoryFixedFieldEntries'], 0, 2),
+            $summary['handoffCentralDirectoryFixedFieldEntries']
+        );
+
+        $documentEntry = $summary['entries'][0];
+        $commentsEntry = $summary['entries'][1];
+        $blockedEntry = $summary['entries'][2];
+        $commentsLocal = $summary['handoffLocalHeaderFixedFieldEntries'][1];
+        $commentsCentral = $summary['handoffCentralDirectoryFixedFieldEntries'][1];
+        $blockedLocal = $summary['selectedLocalHeaderFixedFieldEntries'][2];
+        $blockedCentral = $summary['selectedCentralDirectoryFixedFieldEntries'][2];
+
+        $t->same(true, $commentsLocal['localFixedHeaderHasZeroDataDescriptorPlaceholders']);
+        $t->same(0, $commentsLocal['localFixedHeaderCrc32']);
+        $t->same(0, $commentsLocal['localFixedHeaderCompressedSize']);
+        $t->same(0, $commentsLocal['localFixedHeaderUncompressedSize']);
+        $t->same(strlen($commentsCompressed), $commentsCentral['centralDirectoryCompressedSize']);
+        $t->same(strlen($commentsXml), $commentsCentral['centralDirectoryUncompressedSize']);
+        $t->same($commentsEntry['centralDirectoryRecordOffset'], $commentsCentral['centralDirectoryFixedHeaderOffset']);
+        $t->same(strlen($blockedMedia), $blockedLocal['localFixedHeaderUncompressedSize']);
+        $t->same(strlen($blockedMedia), $blockedCentral['centralDirectoryUncompressedSize']);
+        $t->same('blocked', $blockedEntry['status']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $blockedEntry['issues']);
+        $t->same([$documentEntry, $commentsEntry], $summary['handoffEntries']);
+    },
+
     'preflights selected zip central directory variable fields before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>selected central directory fields</w:p></w:body></w:document>';
         $mediaBytes = "selected central directory media bytes\n";

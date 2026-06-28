@@ -5115,8 +5115,14 @@ final class ZipPackage
      *     handoffUnknownCreatorHostSystemEntryCount:int,
      *     handoffCreatorVersionBelowNeededEntryCount:int,
      *     handoffCreatorHostSystemIssueCount:int,
+     *     selectedLocalHeaderFixedFieldEntryCount:int,
+     *     selectedLocalHeaderFixedFieldIssueEntryCount:int,
+     *     handoffLocalHeaderFixedFieldEntryCount:int,
+     *     handoffLocalHeaderFixedFieldIssueEntryCount:int,
      *     selectedCentralDirectoryFixedFieldEntryCount:int,
      *     selectedCentralDirectoryFixedFieldIssueEntryCount:int,
+     *     handoffCentralDirectoryFixedFieldEntryCount:int,
+     *     handoffCentralDirectoryFixedFieldIssueEntryCount:int,
      *     selectedTimestampProvenanceEntryCount:int,
      *     selectedTimestampEntryCount:int,
      *     selectedDosTimestampEntryCount:int,
@@ -5180,8 +5186,14 @@ final class ZipPackage
      *     handoffCreatorHostSystemIssues:list<string>,
      *     selectedCreatorHostSystemSummaries:list<array<string, mixed>>,
      *     handoffCreatorHostSystemSummaries:list<array<string, mixed>>,
+     *     selectedLocalHeaderFixedFieldEntries:list<array<string, mixed>>,
+     *     selectedLocalHeaderFixedFieldIssueEntries:list<array<string, mixed>>,
+     *     handoffLocalHeaderFixedFieldEntries:list<array<string, mixed>>,
+     *     handoffLocalHeaderFixedFieldIssueEntries:list<array<string, mixed>>,
      *     selectedCentralDirectoryFixedFieldEntries:list<array<string, mixed>>,
      *     selectedCentralDirectoryFixedFieldIssueEntries:list<array<string, mixed>>,
+     *     handoffCentralDirectoryFixedFieldEntries:list<array<string, mixed>>,
+     *     handoffCentralDirectoryFixedFieldIssueEntries:list<array<string, mixed>>,
      *     selectedTimestampIssues:list<string>,
      *     handoffTimestampIssues:list<string>,
      *     selectedTimestampSourceSummaries:list<array<string, mixed>>,
@@ -6148,6 +6160,16 @@ final class ZipPackage
         $handoffCreatorHostSystemSummaries = self::entryHandoffCreatorHostSystemSummaries($handoffEntries);
         $selectedCreatorHostSystemIssues = self::entryHandoffCreatorHostSystemIssues($selectedCreatorHostSystemSummaries);
         $handoffCreatorHostSystemIssues = self::entryHandoffCreatorHostSystemIssues($handoffCreatorHostSystemSummaries);
+        $handoffLocalHeaderFixedFieldSummary = self::entryHandoffFixedFieldSummary(
+            $handoffEntries,
+            self::localHeaderFixedFieldHandoffKeys(),
+            'localHeaderFixedFieldIssues'
+        );
+        $handoffCentralDirectoryFixedFieldSummary = self::entryHandoffFixedFieldSummary(
+            $handoffEntries,
+            self::centralDirectoryFixedFieldHandoffKeys(),
+            'centralDirectoryFixedFieldIssues'
+        );
         $handoffRawCommentSummary = self::entryHandoffRawCommentSummary($handoffEntries);
         $roleSummaries = self::entryHandoffRoleSummaries($entries);
         $handoffSourceByteSpanSummary = self::entryHandoffSourceByteSpanSummary($handoffEntries);
@@ -6282,8 +6304,12 @@ final class ZipPackage
             'handoffCreatorHostSystemIssueCount' => count($handoffCreatorHostSystemIssues),
             'selectedLocalHeaderFixedFieldEntryCount' => count($selectedLocalHeaderFixedFieldEntries),
             'selectedLocalHeaderFixedFieldIssueEntryCount' => count($selectedLocalHeaderFixedFieldIssueEntries),
+            'handoffLocalHeaderFixedFieldEntryCount' => $handoffLocalHeaderFixedFieldSummary['entryCount'],
+            'handoffLocalHeaderFixedFieldIssueEntryCount' => $handoffLocalHeaderFixedFieldSummary['issueEntryCount'],
             'selectedCentralDirectoryFixedFieldEntryCount' => count($selectedCentralDirectoryFixedFieldEntries),
             'selectedCentralDirectoryFixedFieldIssueEntryCount' => count($selectedCentralDirectoryFixedFieldIssueEntries),
+            'handoffCentralDirectoryFixedFieldEntryCount' => $handoffCentralDirectoryFixedFieldSummary['entryCount'],
+            'handoffCentralDirectoryFixedFieldIssueEntryCount' => $handoffCentralDirectoryFixedFieldSummary['issueEntryCount'],
             'selectedTimestampProvenanceEntryCount' => $selectedTimestampSummary['provenanceEntryCount'],
             'selectedTimestampEntryCount' => $selectedTimestampSummary['timestampEntryCount'],
             'selectedDosTimestampEntryCount' => $selectedTimestampSummary['dosTimestampEntryCount'],
@@ -6407,8 +6433,12 @@ final class ZipPackage
             'handoffCreatorHostSystemSummaries' => $handoffCreatorHostSystemSummaries,
             'selectedLocalHeaderFixedFieldEntries' => $selectedLocalHeaderFixedFieldEntries,
             'selectedLocalHeaderFixedFieldIssueEntries' => $selectedLocalHeaderFixedFieldIssueEntries,
+            'handoffLocalHeaderFixedFieldEntries' => $handoffLocalHeaderFixedFieldSummary['entries'],
+            'handoffLocalHeaderFixedFieldIssueEntries' => $handoffLocalHeaderFixedFieldSummary['issueEntries'],
             'selectedCentralDirectoryFixedFieldEntries' => $selectedCentralDirectoryFixedFieldEntries,
             'selectedCentralDirectoryFixedFieldIssueEntries' => $selectedCentralDirectoryFixedFieldIssueEntries,
+            'handoffCentralDirectoryFixedFieldEntries' => $handoffCentralDirectoryFixedFieldSummary['entries'],
+            'handoffCentralDirectoryFixedFieldIssueEntries' => $handoffCentralDirectoryFixedFieldSummary['issueEntries'],
             'selectedTimestampIssues' => $selectedTimestampSummary['issues'],
             'handoffTimestampIssues' => $handoffTimestampSummary['issues'],
             'selectedTimestampSourceSummaries' => $selectedTimestampSummary['sourceSummaries'],
@@ -6426,6 +6456,143 @@ final class ZipPackage
             'failedEntries' => $failedEntries,
             'handoffEntries' => $handoffEntries,
             'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @param list<string> $fieldKeys
+     * @return array{entryCount:int, issueEntryCount:int, entries:list<array<string, mixed>>, issueEntries:list<array<string, mixed>>}
+     */
+    private static function entryHandoffFixedFieldSummary(array $entries, array $fieldKeys, string $issueKey): array
+    {
+        $handoffEntries = [];
+        $issueEntries = [];
+
+        foreach ($entries as $entry) {
+            if (($entry['exists'] ?? false) !== true || ($entry['status'] ?? null) !== 'ready') {
+                continue;
+            }
+
+            $summary = ['name' => is_string($entry['name'] ?? null) ? $entry['name'] : ''];
+            foreach ($fieldKeys as $fieldKey) {
+                $summary[$fieldKey] = $entry[$fieldKey] ?? null;
+            }
+
+            if (!is_array($summary[$issueKey] ?? null)) {
+                $summary[$issueKey] = [];
+            }
+            $summary[$issueKey] = array_values(array_filter($summary[$issueKey], 'is_string'));
+
+            $handoffEntries[] = $summary;
+            if ($summary[$issueKey] !== []) {
+                $issueEntries[] = $summary;
+            }
+        }
+
+        return [
+            'entryCount' => count($handoffEntries),
+            'issueEntryCount' => count($issueEntries),
+            'entries' => $handoffEntries,
+            'issueEntries' => $issueEntries,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function localHeaderFixedFieldHandoffKeys(): array
+    {
+        return [
+            'localFixedHeaderOffset',
+            'localFixedHeaderLength',
+            'localFixedHeaderEnd',
+            'localSignatureOffset',
+            'localSignatureLength',
+            'localVersionNeededToExtractOffset',
+            'localGeneralPurposeFlagsOffset',
+            'localCompressionMethodOffset',
+            'localModifiedDosTimeOffset',
+            'localModifiedDosDateOffset',
+            'localCrc32Offset',
+            'localCompressedSizeOffset',
+            'localUncompressedSizeOffset',
+            'localNameLengthOffset',
+            'localExtraFieldLengthOffset',
+            'centralVersionNeededToExtract',
+            'localVersionNeededToExtract',
+            'centralGeneralPurposeFlags',
+            'localGeneralPurposeFlags',
+            'centralCompressionMethod',
+            'localCompressionMethod',
+            'centralModifiedDosTime',
+            'localModifiedDosTime',
+            'centralModifiedDosDate',
+            'localModifiedDosDate',
+            'centralCrc32',
+            'centralCrc32Hex',
+            'localFixedHeaderCrc32',
+            'localFixedHeaderCrc32Hex',
+            'centralCompressedSize',
+            'localFixedHeaderCompressedSize',
+            'centralUncompressedSize',
+            'localFixedHeaderUncompressedSize',
+            'localFixedHeaderNameLength',
+            'localFixedHeaderExtraFieldLength',
+            'localFixedHeaderHasZeroDataDescriptorPlaceholders',
+            'localHeaderFixedFieldsMatchCentralDirectory',
+            'localHeaderFixedFieldIssues',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function centralDirectoryFixedFieldHandoffKeys(): array
+    {
+        return [
+            'centralDirectoryFixedHeaderOffset',
+            'centralDirectoryFixedHeaderLength',
+            'centralDirectoryFixedHeaderEnd',
+            'centralDirectorySignatureOffset',
+            'centralDirectorySignatureLength',
+            'centralDirectoryVersionMadeByOffset',
+            'centralDirectoryVersionNeededToExtractOffset',
+            'centralDirectoryGeneralPurposeFlagsOffset',
+            'centralDirectoryCompressionMethodOffset',
+            'centralDirectoryModifiedDosTimeOffset',
+            'centralDirectoryModifiedDosDateOffset',
+            'centralDirectoryCrc32Offset',
+            'centralDirectoryCompressedSizeOffset',
+            'centralDirectoryUncompressedSizeOffset',
+            'centralDirectoryNameLengthOffset',
+            'centralDirectoryExtraFieldLengthOffset',
+            'centralDirectoryCommentLengthOffset',
+            'centralDirectoryDiskStartOffset',
+            'centralDirectoryInternalAttributesOffset',
+            'centralDirectoryExternalAttributesOffset',
+            'centralDirectoryLocalHeaderOffsetFieldOffset',
+            'centralDirectoryVersionMadeBy',
+            'centralDirectoryCreatorHostSystem',
+            'centralDirectoryCreatorVersion',
+            'centralDirectoryVersionNeededToExtract',
+            'centralDirectoryGeneralPurposeFlags',
+            'centralDirectoryCompressionMethod',
+            'centralDirectoryModifiedDosTime',
+            'centralDirectoryModifiedDosDate',
+            'centralDirectoryCrc32',
+            'centralDirectoryCrc32Hex',
+            'centralDirectoryCompressedSize',
+            'centralDirectoryUncompressedSize',
+            'centralDirectoryRawNameLength',
+            'centralDirectoryExtraFieldLength',
+            'centralDirectoryRawCommentLength',
+            'centralDirectoryDiskStart',
+            'centralDirectoryInternalAttributes',
+            'centralDirectoryExternalAttributes',
+            'centralDirectoryLocalHeaderOffset',
+            'centralDirectoryFixedFieldsMatchEntryMetadata',
+            'centralDirectoryFixedFieldIssues',
         ];
     }
 
