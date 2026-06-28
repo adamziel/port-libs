@@ -40,6 +40,36 @@ return [
         $t->same('(width>=1e-7px)', $parser->minifyList('(width >= 1e-7px)'));
         $t->same('(width>=1000px)', $parser->minifyList('(width >= +1E3px)'));
     },
+    'media query parser maps upstream media query conjunctions' => static function (TestRunner $t): void {
+        $parser = new MediaQueryParser();
+
+        $cases = [
+            ['(min-width: 250px)', '(color)', '(width>=250px) and (color)'],
+            ['(min-width: 250px) or (color)', '(orientation: landscape)', '((width>=250px) or (color)) and (orientation:landscape)'],
+            ['(min-width: 250px) and (color)', '(orientation: landscape)', '(width>=250px) and (color) and (orientation:landscape)'],
+            ['all', 'print', 'print'],
+            ['print', 'all', 'print'],
+            ['all', 'not print', 'not print'],
+            ['not print', 'all', 'not print'],
+            ['not all', 'print', 'not all'],
+            ['print', 'not all', 'not all'],
+            ['print', 'screen', 'not all'],
+            ['not print', 'screen', 'screen'],
+            ['print', 'not screen', 'print'],
+            ['not screen', 'print', 'print'],
+            ['not screen', 'not all', 'not all'],
+            ['print', '(min-width: 250px)', 'print and (width>=250px)'],
+            ['(min-width: 250px)', 'print', 'print and (width>=250px)'],
+            ['print and (min-width: 250px)', '(color)', 'print and (width>=250px) and (color)'],
+            ['all', 'only screen', 'only screen'],
+            ['only screen', 'all', 'only screen'],
+            ['print', 'print', 'print'],
+        ];
+
+        foreach ($cases as [$left, $right, $expected]) {
+            $t->same($expected, $parser->andQuery($left, $right), 'upstream src/media_query.rs::tests::test_and');
+        }
+    },
     'media query parser maps upstream negated simple range normalization' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
 
