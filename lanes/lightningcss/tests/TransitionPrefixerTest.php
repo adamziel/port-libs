@@ -2960,47 +2960,55 @@ CSS;
 
         $t->same(
             '.foo{border-top:2px solid red;border-bottom:2px solid red}',
-            $prefixer->prefixForTargets('.foo { border-block: 2px solid red; }', ['safari' => 8])
+            $prefixer->prefixForTargets('.foo { border-block: 2px solid red; }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border row 1174'
         );
         $t->same(
             '.foo{border-top:2px solid red}',
-            $prefixer->prefixForTargets('.foo { border-block-start: 2px solid red; }', ['safari' => 8])
+            $prefixer->prefixForTargets('.foo { border-block-start: 2px solid red; }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border row 1193'
         );
         $t->same(
             '.foo{border-bottom:2px solid red}',
-            $prefixer->prefixForTargets('.foo { border-block-end: 2px solid red; }', ['safari' => 8])
+            $prefixer->prefixForTargets('.foo { border-block-end: 2px solid red; }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border row 1211'
         );
         $t->same(
             '.foo{border-left:2px solid red;border-right:2px solid red}',
-            $prefixer->prefixForTargets('.foo { border-inline: 2px solid red; }', ['safari' => 8])
+            $prefixer->prefixForTargets('.foo { border-inline: 2px solid red; }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border row 1229'
         );
         $t->same(
             $selector['ltr-webkit'] . '{border-left:2px solid red}'
                 . $selector['ltr-modern'] . '{border-left:2px solid red}'
                 . $selector['rtl-webkit'] . '{border-right:2px solid red}'
                 . $selector['rtl-modern'] . '{border-right:2px solid red}',
-            $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', ['safari' => 8])
+            $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border row 1285'
         );
         $t->same(
             $selector['ltr-webkit'] . '{border-left-width:2px}'
                 . $selector['ltr-modern'] . '{border-left-width:2px}'
                 . $selector['rtl-webkit'] . '{border-right-width:2px}'
                 . $selector['rtl-modern'] . '{border-right-width:2px}',
-            $prefixer->prefixForTargets('.foo { border-inline-start-width: 2px; }', ['safari' => 8])
+            $prefixer->prefixForTargets('.foo { border-inline-start-width: 2px; }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border row 1315'
         );
         $t->same(
             $selector['ltr-webkit'] . '{border-right:2px solid red}'
                 . $selector['ltr-modern'] . '{border-right:2px solid red}'
                 . $selector['rtl-webkit'] . '{border-left:2px solid red}'
                 . $selector['rtl-modern'] . '{border-left:2px solid red}',
-            $prefixer->prefixForTargets('.foo { border-inline-end: 2px solid red; }', ['safari' => 8])
+            $prefixer->prefixForTargets('.foo { border-inline-end: 2px solid red; }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border row 1345'
         );
         $t->same(
             $selector['ltr-webkit'] . '{border-left:2px solid red;border-right:5px solid green}'
                 . $selector['ltr-modern'] . '{border-left:2px solid red;border-right:5px solid green}'
                 . $selector['rtl-webkit'] . '{border-left:5px solid green;border-right:2px solid red}'
                 . $selector['rtl-modern'] . '{border-left:5px solid green;border-right:2px solid red}',
-            $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; border-inline-end: 5px solid green; }', ['safari' => 8])
+            $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; border-inline-end: 5px solid green; }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border row 1375'
         );
         $barSelector = $variants('.bar');
         $t->same(
@@ -3016,22 +3024,26 @@ CSS;
         );
         $t->same(
             '.foo{border-left-width:2px;border-right-width:2px}',
-            $prefixer->prefixForTargets('.foo { border-inline-width: 2px; }', ['safari' => 8])
+            $prefixer->prefixForTargets('.foo { border-inline-width: 2px; }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border rows 1470 and 1489'
         );
         $t->same(
             '.foo{border-left-style:solid;border-right-style:solid}',
-            $prefixer->prefixForTargets('.foo { border-inline-style: solid; }', ['safari' => 8])
+            $prefixer->prefixForTargets('.foo { border-inline-style: solid; }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border row 1508'
         );
         $t->same(
             '.foo{border-left-color:red;border-right-color:red}',
-            $prefixer->prefixForTargets('.foo { border-inline-color: red; }', ['safari' => 8])
+            $prefixer->prefixForTargets('.foo { border-inline-color: red; }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border row 1527'
         );
         $t->same(
             $selector['ltr-webkit'] . '{border-right:var(--test)}'
                 . $selector['ltr-modern'] . '{border-right:var(--test)}'
                 . $selector['rtl-webkit'] . '{border-left:var(--test)}'
                 . $selector['rtl-modern'] . '{border-left:var(--test)}',
-            $prefixer->prefixForTargets('.foo { border-inline-end: var(--test); }', ['safari' => 8])
+            $prefixer->prefixForTargets('.foo { border-inline-end: var(--test); }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border row 1546'
         );
         $t->same(
             $selector['ltr-webkit'] . '{border-left:var(--start);border-right:var(--end)}'
@@ -3169,8 +3181,8 @@ CSS;
         $inlineStartFallbackModern = $selector['ltr-modern'] . '{border-left:2px solid red}'
             . $selector['rtl-modern'] . '{border-right:2px solid red}';
 
-        $t->same('.foo{border-block-start-width:2px;border-block-end-width:2px}', $prefixer->prefixForTargets('.foo { border-block-width: 2px; }', ['safari' => 13]));
-        $t->same('.foo{border-block-width:2px}', $prefixer->prefixForTargets('.foo { border-block-width: 2px; }', ['safari' => 15]));
+        $t->same('.foo{border-block-start-width:2px;border-block-end-width:2px}', $prefixer->prefixForTargets('.foo { border-block-width: 2px; }', ['safari' => 13]), 'upstream src/lib.rs::test_border row 1248');
+        $t->same('.foo{border-block-width:2px}', $prefixer->prefixForTargets('.foo { border-block-width: 2px; }', ['safari' => 15]), 'upstream src/lib.rs::test_border row 1267');
         $t->same(
             '.foo{border-inline-start:2px solid red;border-inline-end:2px solid red}',
             $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; border-inline-end: 2px solid red; }', ['safari' => 13]),
