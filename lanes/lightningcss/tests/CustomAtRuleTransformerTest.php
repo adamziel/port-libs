@@ -3583,7 +3583,7 @@ CSS;
             ],
         ]);
 
-        $t->same('.foo{transform:translate(50px)}.foo:dir(rtl){transform:translate(-50px)}.bar{transform:translate(20%)}.bar:dir(rtl){transform:translate(-20%)}.baz{transform:translate(calc(100vw - 20px))}.baz:dir(rtl){transform:translate(-1*calc(100vw - 20px))}', $result);
+        $t->same('.foo{transform:translate(50px)}.foo:dir(rtl){transform:translate(-50px)}.bar{transform:translate(20%)}.bar:dir(rtl){transform:translate(-20%)}.baz{transform:translate(calc(100vw - 20px))}.baz:dir(rtl){transform:translate(-1*calc(100vw - 20px))}', $result, 'upstream node/test/visitor.test.mjs line 639');
         $t->same([
             ['function' => 'translateX', 'argument' => 'dimension'],
             ['function' => 'translateX', 'argument' => 'percentage'],
