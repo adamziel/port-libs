@@ -110,6 +110,7 @@ return [
         $readerDatabases = $result['packageDatabases'];
         $readerItems = $indexBy($readerDatabases['items'], 'part');
         $manifestByPart = $indexBy($result['manifest'], 'part');
+        $undeclaredByPart = $indexBy($result['importReport']['manifest']['undeclaredEntries'], 'part');
         $readerProvenance = $result['importReport']['manifest']['packageProvenance'];
 
         $t->same($readerDatabases, $result['document']->attr('packageDatabases'));
@@ -185,6 +186,10 @@ return [
         $t->same(['database-package', 'manifest-declared'], $readerProvenance['parts']['database/data']['roles']);
         $t->same(['database-package', 'undeclared-package-entry'], $readerProvenance['parts']['database/log']['roles']);
         $t->same(true, $readerProvenance['parts']['database/data']['databasePackagePart']);
+        $t->same(true, $readerProvenance['parts']['database/log']['databasePackagePart']);
+        $t->same('database-package-bytes-blocked', $readerProvenance['parts']['database/log']['byteExposurePolicy']);
+        $t->same(true, $undeclaredByPart['database/log']['databasePackagePart']);
+        $t->same('database-package-bytes-blocked', $undeclaredByPart['database/log']['byteExposurePolicy']);
         $t->same(true, $readerProvenance['packageIdentity']['manifestEntries'][6]['databasePackagePart']);
         $t->same(true, $readerProvenance['packageIdentity']['packageEntries'][8]['databasePackagePart']);
 
@@ -192,6 +197,7 @@ return [
         $compactDatabases = $compactSummary['packageDatabases'];
         $compactItems = $indexBy($compactDatabases['items'], 'packagePath');
         $reviewByPath = $indexBy($compactSummary['manifestReview']['items'], 'path');
+        $compactUndeclaredByPath = $indexBy($compactSummary['undeclaredPackageEntries'], 'path');
         $inventory = $compactSummary['packageInventory'];
 
         $t->same(7, $compactDatabases['count']);
@@ -228,6 +234,10 @@ return [
         $t->same(['database-package', 'manifest-declared'], $inventory['parts']['database/data']['roles']);
         $t->same(['database-package', 'undeclared-package-entry'], $inventory['parts']['database/log']['roles']);
         $t->same(true, $inventory['parts']['database/data']['databasePackagePart']);
+        $t->same(true, $inventory['parts']['database/log']['databasePackagePart']);
+        $t->same('database-package-bytes-blocked', $inventory['parts']['database/log']['byteExposurePolicy']);
+        $t->same(true, $compactUndeclaredByPath['database/log']['databasePackagePart']);
+        $t->same('database-package-bytes-blocked', $compactUndeclaredByPath['database/log']['byteExposurePolicy']);
         $t->same(false, $inventory['parts']['database/data']['canExposeBytes']);
     },
 ];

@@ -624,7 +624,7 @@ final class OpenDocumentPackage
             if (is_array($manifestEntry)) {
                 $byteExposurePolicy = $manifestEntry['byteExposurePolicy'] ?? null;
             } elseif ($isUndeclared) {
-                $byteExposurePolicy = 'undeclared-package-entry-no-bytes';
+                $byteExposurePolicy = self::undeclaredPackageEntryByteExposurePolicy($entry->name);
             } elseif (is_array($embeddedObjectPackage)) {
                 $byteExposurePolicy = 'embedded-object-package-bytes-blocked';
             }
@@ -2278,6 +2278,8 @@ final class OpenDocumentPackage
                 'byteSha256' => null,
                 'scriptPackagePart' => self::isScriptPackagePartName($path),
                 'configurationPackagePart' => self::isConfigurationPackagePartName($path),
+                'thumbnailPackagePart' => self::isThumbnailPackagePartName($path),
+                'signaturePackagePart' => self::isSignaturePackagePartName($path),
                 'fontPackagePart' => self::isFontPackagePartName($path),
                 'rdfMetadataPart' => self::isRdfPartName($path),
                 'objectReplacementPackagePart' => self::isObjectReplacementPackagePartName($path),
@@ -2299,6 +2301,45 @@ final class OpenDocumentPackage
 
     private static function undeclaredPackageEntryByteExposurePolicy(string $path): string
     {
+        if (str_ends_with($path, '/')) {
+            return 'directory-entry-no-bytes';
+        }
+        if (self::isScriptPackagePartName($path)) {
+            return 'script-package-bytes-blocked';
+        }
+        if (self::isConfigurationPackagePartName($path)) {
+            return 'configuration-package-bytes-blocked';
+        }
+        if (self::isThumbnailPackagePartName($path)) {
+            return 'package-thumbnail-bytes-blocked';
+        }
+        if (self::isSignaturePackagePartName($path)) {
+            return 'signature-package-bytes-blocked';
+        }
+        if (self::isFontPackagePartName($path)) {
+            return 'font-package-bytes-blocked';
+        }
+        if (self::isRdfPartName($path)) {
+            return 'rdf-metadata-bytes-blocked';
+        }
+        if (self::isObjectReplacementPackagePartName($path)) {
+            return 'object-replacement-package-bytes-blocked';
+        }
+        if (self::isLayoutCachePackagePartName($path)) {
+            return 'layout-cache-package-bytes-blocked';
+        }
+        if (self::isMetaInfSidecarPackagePartName($path)) {
+            return 'meta-inf-sidecar-package-bytes-blocked';
+        }
+        if (self::isLinkedResourcePackagePartName($path)) {
+            return 'linked-resource-package-bytes-blocked';
+        }
+        if (self::isDatabasePackagePartName($path)) {
+            return 'database-package-bytes-blocked';
+        }
+        if (self::isVersionPackagePartName($path)) {
+            return 'version-package-bytes-blocked';
+        }
         if (self::isGalleryPackagePartName($path)) {
             return 'gallery-package-bytes-blocked';
         }
@@ -2741,6 +2782,7 @@ final class OpenDocumentPackage
                 'declared' => false,
                 'declaredSize' => null,
                 'declaredSizeMismatch' => false,
+                'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? 'signature-package-bytes-blocked',
             ];
         }
 

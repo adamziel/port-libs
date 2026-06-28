@@ -16187,7 +16187,7 @@ final class OdfReader
                 'declared' => false,
                 'declaredSize' => null,
                 'declaredSizeMismatch' => false,
-                'byteExposurePolicy' => 'undeclared-package-entry-no-bytes',
+                'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? 'signature-package-bytes-blocked',
             ];
         }
 
@@ -18715,8 +18715,17 @@ final class OdfReader
                 'compressionMethod' => $entry->compressionMethod,
                 'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
                 'crc32' => $entry->crc32Hex(),
+                'scriptPackagePart' => $this->isScriptPackagePartName($entry->name),
+                'configurationPackagePart' => self::isConfigurationPackagePartName($entry->name),
+                'thumbnailPackagePart' => $this->isThumbnailPackagePartName($entry->name),
+                'signaturePackagePart' => $this->isPackageSignaturePartName($entry->name),
+                'fontPackagePart' => $this->isFontPackagePartName($entry->name),
+                'rdfMetadataPart' => $this->isRdfPartName($entry->name),
+                'objectReplacementPackagePart' => $this->isObjectReplacementPackagePartName($entry->name),
+                'layoutCachePackagePart' => $this->isLayoutCachePackagePartName($entry->name),
                 'metaInfSidecarPackagePart' => $this->isMetaInfSidecarPackagePartName($entry->name),
                 'linkedResourcePackagePart' => $this->isLinkedResourcePackagePartName($entry->name),
+                'databasePackagePart' => $this->isDatabasePackagePartName($entry->name),
                 'versionPackagePart' => $this->isVersionPackagePartName($entry->name),
                 'galleryPackagePart' => $this->isGalleryPackagePartName($entry->name),
                 'formPackagePart' => $this->isFormPackagePartName($entry->name),
@@ -18731,6 +18740,45 @@ final class OdfReader
 
     private function undeclaredPackageEntryByteExposurePolicy(string $part): string
     {
+        if (str_ends_with($part, '/')) {
+            return 'directory-entry-no-bytes';
+        }
+        if ($this->isScriptPackagePartName($part)) {
+            return 'script-package-bytes-blocked';
+        }
+        if (self::isConfigurationPackagePartName($part)) {
+            return 'configuration-package-bytes-blocked';
+        }
+        if ($this->isThumbnailPackagePartName($part)) {
+            return 'package-thumbnail-bytes-blocked';
+        }
+        if ($this->isPackageSignaturePartName($part)) {
+            return 'signature-package-bytes-blocked';
+        }
+        if ($this->isFontPackagePartName($part)) {
+            return 'font-package-bytes-blocked';
+        }
+        if ($this->isRdfPartName($part)) {
+            return 'rdf-metadata-bytes-blocked';
+        }
+        if ($this->isObjectReplacementPackagePartName($part)) {
+            return 'object-replacement-package-bytes-blocked';
+        }
+        if ($this->isLayoutCachePackagePartName($part)) {
+            return 'layout-cache-package-bytes-blocked';
+        }
+        if ($this->isMetaInfSidecarPackagePartName($part)) {
+            return 'meta-inf-sidecar-package-bytes-blocked';
+        }
+        if ($this->isLinkedResourcePackagePartName($part)) {
+            return 'linked-resource-package-bytes-blocked';
+        }
+        if ($this->isDatabasePackagePartName($part)) {
+            return 'database-package-bytes-blocked';
+        }
+        if ($this->isVersionPackagePartName($part)) {
+            return 'version-package-bytes-blocked';
+        }
         if ($this->isGalleryPackagePartName($part)) {
             return 'gallery-package-bytes-blocked';
         }

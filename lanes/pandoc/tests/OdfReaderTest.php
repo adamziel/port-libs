@@ -10464,9 +10464,9 @@ XML;
         $t->same([
             'encrypted-resource-bytes-blocked' => 1,
             'missing-media-type-bytes-blocked' => 1,
+            'object-replacement-package-bytes-blocked' => 1,
             'package-bytes-exposable' => 3,
             'script-package-bytes-blocked' => 1,
-            'undeclared-package-entry-no-bytes' => 1,
         ], $provenance['packagePartByteExposurePolicyCounts']);
         $t->same(7, $provenance['packagePartByteExposurePolicyItemCount']);
         $t->same(
@@ -10486,8 +10486,8 @@ XML;
         $t->same(['odf-manifest-file-entry-missing-media-type'], $manifestByPart['Pictures/nameless.bin']['diagnostics']);
         $t->same('script-package-bytes-blocked', $manifestByPart['Basic/Standard/Module1.xml']['byteExposurePolicy']);
         $t->same('script-package-bytes-blocked', $parts['Basic/Standard/Module1.xml']['byteExposurePolicy']);
-        $t->same('undeclared-package-entry-no-bytes', $undeclared['byteExposurePolicy']);
-        $t->same('undeclared-package-entry-no-bytes', $parts['ObjectReplacements/object1.bin']['byteExposurePolicy']);
+        $t->same('object-replacement-package-bytes-blocked', $undeclared['byteExposurePolicy']);
+        $t->same('object-replacement-package-bytes-blocked', $parts['ObjectReplacements/object1.bin']['byteExposurePolicy']);
         $t->same(['odf-manifest-undeclared-package-entry'], $undeclared['diagnostics']);
     },
     'preserves ODT sidecar blocked-byte provenance and package ordering' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $stylesXml, $metaXml): void {
@@ -10994,7 +10994,7 @@ XML;
         $t->same(true, $orphan['undeclared']);
         $t->same(null, $orphan['mediaType']);
         $t->same(strlen($orphanBytes), $orphan['byteLength']);
-        $t->same('undeclared-package-entry-no-bytes', $orphan['byteExposurePolicy']);
+        $t->same('signature-package-bytes-blocked', $orphan['byteExposurePolicy']);
         $t->same(['odf-signature-undeclared-package-part'], $orphan['issues']);
 
         $t->same(true, $manifestByPart['META-INF/documentsignatures.xml']['signaturePackagePart']);
@@ -11014,6 +11014,7 @@ XML;
         $t->same('signature-package-bytes-blocked', $inventory['META-INF/documentsignatures.xml']['byteExposurePolicy']);
         $t->same(1, $result['importReport']['manifest']['undeclaredEntryCount']);
         $t->same('META-INF/orphan-signatures.xml', $result['importReport']['manifest']['undeclaredEntries'][0]['part']);
+        $t->same('signature-package-bytes-blocked', $result['importReport']['manifest']['undeclaredEntries'][0]['byteExposurePolicy']);
         $t->same(1, $mediaResources['packageRolePrecedenceCount']);
         $t->same(['package-signature'], $mediaResources['packageRolePrecedenceItems'][0]['packageRolePrecedence']);
     },
@@ -11824,18 +11825,19 @@ XML;
 
         $t->same([
             'package-bytes-exposable' => 5,
+            'package-thumbnail-bytes-blocked' => 1,
             'script-package-bytes-blocked' => 1,
-            'undeclared-package-entry-no-bytes' => 1,
             'unsupported-compression-bytes-blocked' => 1,
         ], $provenance['packagePartByteExposurePolicyCounts']);
         $t->same($exposableBytes, $provenance['packagePartByteExposurePolicyByteLengths']['package-bytes-exposable']);
         $t->same($exposableCompressedBytes, $provenance['packagePartByteExposurePolicyCompressedByteLengths']['package-bytes-exposable']);
+        $t->same(strlen($thumbnail), $provenance['packagePartByteExposurePolicyByteLengths']['package-thumbnail-bytes-blocked']);
         $t->same(strlen($scriptXml), $provenance['packagePartByteExposurePolicyByteLengths']['script-package-bytes-blocked']);
         $t->same(strlen($unsupportedImage), $provenance['packagePartByteExposurePolicyByteLengths']['unsupported-compression-bytes-blocked']);
-        $t->same(strlen($thumbnail), $provenance['packagePartByteExposurePolicyByteLengths']['undeclared-package-entry-no-bytes']);
         $t->same(['manifest-declared', 'media-resource'], $provenance['parts']['Pictures/unsupported.webp']['roles']);
         $t->same('unsupported-compression-bytes-blocked', $provenance['parts']['Pictures/unsupported.webp']['byteExposurePolicy']);
         $t->same(['package-thumbnail', 'undeclared-package-entry'], $provenance['parts']['Thumbnails/thumbnail.png']['roles']);
+        $t->same('package-thumbnail-bytes-blocked', $provenance['parts']['Thumbnails/thumbnail.png']['byteExposurePolicy']);
     },
     'reports ODT package media SHA-256 provenance without exposing blocked sidecars' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $reviewImage = 'REVIEWPNG';

@@ -1410,7 +1410,8 @@ XML;
 
         $settings = $undeclaredByPath['Configurations2/status.xml'];
         $t->same(strlen($settingsBytes), $settings['storedByteLength']);
-        $t->same('undeclared-package-entry-no-bytes', $settings['byteExposurePolicy']);
+        $t->same(true, $settings['configurationPackagePart']);
+        $t->same('configuration-package-bytes-blocked', $settings['byteExposurePolicy']);
     },
     'resolves compact ODT URI encoded manifest paths to ZIP package parts' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $sourceBytes = 'SRCIMAGE';
@@ -1797,6 +1798,8 @@ XML;
         $t->same(1, $inventory['undeclaredEntryCount']);
         $t->same(1, $summary['undeclaredPackageEntryCount']);
         $t->same('Thumbnails/thumbnail.png', $summary['undeclaredPackageEntries'][0]['path']);
+        $t->same(true, $summary['undeclaredPackageEntries'][0]['thumbnailPackagePart']);
+        $t->same('package-thumbnail-bytes-blocked', $summary['undeclaredPackageEntries'][0]['byteExposurePolicy']);
         $t->same(1, $inventory['packageDirectoryCount']);
         $t->same(true, $inventory['centralDirectoryOrderMatchesLocalHeaderOrder']);
         $t->same([
@@ -2660,7 +2663,7 @@ XML;
         $t->same('Configurations2/statusbar/standardbar.xml', $orphan['path']);
         $t->same(true, $orphan['configurationPackagePart']);
         $t->same(false, $orphan['canExposeBytes']);
-        $t->same('undeclared-package-entry-no-bytes', $orphan['byteExposurePolicy']);
+        $t->same('configuration-package-bytes-blocked', $orphan['byteExposurePolicy']);
 
         $orphanConfiguration = $configurationByPath['Configurations2/statusbar/standardbar.xml'];
         $t->same(false, $orphanConfiguration['declared']);
@@ -3151,7 +3154,7 @@ XML;
         $t->same('Scripts/orphan.js', $orphan['path']);
         $t->same(true, $orphan['scriptPackagePart']);
         $t->same(false, $orphan['canExposeBytes']);
-        $t->same('undeclared-package-entry-no-bytes', $orphan['byteExposurePolicy']);
+        $t->same('script-package-bytes-blocked', $orphan['byteExposurePolicy']);
 
         $t->same(['Pictures/hero.png'], array_column($summary['mediaParts'], 'path'));
         $t->same(1, $summary['exposableMediaPartCount']);
@@ -3527,6 +3530,8 @@ XML;
         $t->same(4, $summary['packageIdentity']['packageThumbnailPartCount']);
         $t->same(1, $summary['undeclaredPackageEntryCount']);
         $t->same('Thumbnails/orphan.webp', $summary['undeclaredPackageEntries'][0]['path']);
+        $t->same(true, $summary['undeclaredPackageEntries'][0]['thumbnailPackagePart']);
+        $t->same('package-thumbnail-bytes-blocked', $summary['undeclaredPackageEntries'][0]['byteExposurePolicy']);
     },
     'reports compact ODT package signatures as metadata-only package review items' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $documentSignatureBytes = '<dsig:document-signatures xmlns:dsig="http://www.w3.org/2000/09/xmldsig#"/>';
@@ -3632,6 +3637,8 @@ XML;
         $t->same(['package-signature', 'undeclared-package-entry'], $inventory['META-INF/orphan-signatures.xml']['roles']);
         $t->same(1, $summary['undeclaredPackageEntryCount']);
         $t->same('META-INF/orphan-signatures.xml', $summary['undeclaredPackageEntries'][0]['path']);
+        $t->same(true, $summary['undeclaredPackageEntries'][0]['signaturePackagePart']);
+        $t->same('signature-package-bytes-blocked', $summary['undeclaredPackageEntries'][0]['byteExposurePolicy']);
     },
     'blocks compact ODT signature sidecar bytes in package exposure policy' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $signatureXml = '<dsig:document-signatures xmlns:dsig="http://www.w3.org/2000/09/xmldsig#"><dsig:Signature Id="review-signature"/></dsig:document-signatures>';
