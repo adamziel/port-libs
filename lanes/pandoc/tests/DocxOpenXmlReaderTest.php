@@ -18829,6 +18829,71 @@ XML;
         $t->true(!str_contains((string) $encodedAttributes, 'hidden-'), 'raw XML attribute values should not be exposed in value-shape metadata');
         $t->true(!str_contains((string) $encodedAttributes, $absoluteUri), 'raw XML URI attribute value should not be exposed in value-shape metadata');
     },
+    'summarizes docx package xml attribute value length buckets without exposing values' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $one = 'a';
+        $eight = str_repeat('b', 8);
+        $nine = str_repeat('c', 9);
+        $thirtyTwo = str_repeat('d', 32);
+        $thirtyThree = str_repeat('e', 33);
+        $oneTwentyEight = str_repeat('f', 128);
+        $oneTwentyNine = str_repeat('g', 129);
+        $parts['customXml/attribute-length-buckets.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:attribute-length-buckets" empty="" one="{$one}" eight="{$eight}" nine="{$nine}" thirtyTwo="{$thirtyTwo}" thirtyThree="{$thirtyThree}" oneTwentyEight="{$oneTwentyEight}">
+  <review:item oneTwentyNine="{$oneTwentyNine}"/>
+</review:packet>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $part = $package['parts']['customXml/attribute-length-buckets.xml'];
+        $attributes = array_values(array_filter(
+            $summary['partXmlElementAttributes'],
+            static fn (array $attribute): bool => $attribute['partName'] === 'customXml/attribute-length-buckets.xml',
+        ));
+        $attributesByName = [];
+        foreach ($attributes as $attribute) {
+            $attributesByName[$attribute['name']] = $attribute;
+        }
+        $xmlRootRows = array_values(array_filter(
+            $summary['partXmlRoots'],
+            static fn (array $root): bool => $root['partName'] === 'customXml/attribute-length-buckets.xml',
+        ));
+
+        $t->same(8, $part['xmlElementAttributeCount']);
+        $t->same(1, $part['xmlElementAttributeValueLengthBucketCounts']['0']);
+        $t->same(2, $part['xmlElementAttributeValueLengthBucketCounts']['1-8']);
+        $t->same(2, $part['xmlElementAttributeValueLengthBucketCounts']['9-32']);
+        $t->same(2, $part['xmlElementAttributeValueLengthBucketCounts']['33-128']);
+        $t->same(1, $part['xmlElementAttributeValueLengthBucketCounts']['129+']);
+        $t->same(['0', '1-8', '129+', '33-128', '9-32'], $part['xmlElementAttributeValueLengthBuckets']);
+
+        $t->same('0', $attributesByName['empty']['valueLengthBucket']);
+        $t->same('1-8', $attributesByName['one']['valueLengthBucket']);
+        $t->same('1-8', $attributesByName['eight']['valueLengthBucket']);
+        $t->same('9-32', $attributesByName['nine']['valueLengthBucket']);
+        $t->same('9-32', $attributesByName['thirtyTwo']['valueLengthBucket']);
+        $t->same('33-128', $attributesByName['thirtyThree']['valueLengthBucket']);
+        $t->same('33-128', $attributesByName['oneTwentyEight']['valueLengthBucket']);
+        $t->same('129+', $attributesByName['oneTwentyNine']['valueLengthBucket']);
+        $t->same(strlen($oneTwentyNine), $attributesByName['oneTwentyNine']['valueByteLength']);
+        $t->same(hash('sha256', $oneTwentyNine), $attributesByName['oneTwentyNine']['valueSha256']);
+
+        $t->true($summary['partXmlElementAttributeValueLengthBucketCounts']['0'] >= 1, 'summary should include empty attribute bucket');
+        $t->true($summary['partXmlElementAttributeValueLengthBucketCounts']['1-8'] >= 2, 'summary should include short attribute bucket');
+        $t->true($summary['partXmlElementAttributeValueLengthBucketCounts']['9-32'] >= 2, 'summary should include medium attribute bucket');
+        $t->true($summary['partXmlElementAttributeValueLengthBucketCounts']['33-128'] >= 2, 'summary should include long attribute bucket');
+        $t->true($summary['partXmlElementAttributeValueLengthBucketCounts']['129+'] >= 1, 'summary should include oversized attribute bucket');
+        $t->true(in_array('129+', $summary['partXmlElementAttributeValueLengthBuckets'], true), 'summary should carry length bucket labels');
+        $t->same($part['xmlElementAttributeValueLengthBucketCounts'], $xmlRootRows[0]['xmlElementAttributeValueLengthBucketCounts']);
+
+        $encodedAttributes = json_encode([$part['xmlElementAttributes'], $attributes, $summary['partXmlElementAttributeValueLengthBucketCounts']]);
+        $t->true(is_string($encodedAttributes), 'XML attribute value-length bucket metadata should encode for review');
+        $t->true(!str_contains((string) $encodedAttributes, $oneTwentyNine), 'raw XML long attribute value should not be exposed in length bucket metadata');
+        $t->true(!isset($part['xmlElementAttributes'][0]['value']), 'raw XML attribute value should not be exposed on length bucket metadata');
+    },
     'summarizes docx package xml processing instructions for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['customXml/pi-review.xml'] = <<<'XML'
