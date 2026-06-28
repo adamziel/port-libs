@@ -176,7 +176,7 @@ return [
         $t->same(true, $orphan['undeclared']);
         $t->same(null, $orphan['mediaType']);
         $t->same(strlen($orphanCertificateBytes), $orphan['byteLength']);
-        $t->same('undeclared-package-entry-no-bytes', $orphan['byteExposurePolicy']);
+        $t->same('signature-package-bytes-blocked', $orphan['byteExposurePolicy']);
         $t->same(['odf-signature-undeclared-package-part'], $orphan['issues']);
 
         $manifestCertificate = $manifestByPart['META-INF/certificates/signing.cer'];
