@@ -1571,15 +1571,16 @@ final class OpenDocumentPackage
     private static function isLinkedResourcePackagePartName(string $path): bool
     {
         $normalized = strtolower(ltrim($path, '/'));
-        if (str_ends_with($normalized, '/')) {
-            return false;
-        }
 
         return str_starts_with($normalized, 'links/');
     }
 
     private static function linkedResourceMediaTypeFromPart(string $path): ?string
     {
+        if (str_ends_with($path, '/')) {
+            return '';
+        }
+
         $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
 
         return match ($extension) {
@@ -1608,6 +1609,10 @@ final class OpenDocumentPackage
 
     private static function linkedResourcePackagePartKind(string $path, string $mediaType): string
     {
+        if (str_ends_with($path, '/')) {
+            return 'linked-resource-directory';
+        }
+
         $basename = strtolower(basename($path));
         if (in_array($basename, ['manifest.xml', 'links.xml', 'settings.xml'], true)) {
             return 'linked-resource-manifest';
@@ -3688,7 +3693,7 @@ final class OpenDocumentPackage
 
         foreach ($undeclaredPackageEntries as $entry) {
             $packagePath = $entry['path'] ?? null;
-            if (!is_string($packagePath) || $packagePath === '' || !self::isLinkedResourcePackagePartName($packagePath)) {
+            if (!is_string($packagePath) || $packagePath === '' || str_ends_with($packagePath, '/') || !self::isLinkedResourcePackagePartName($packagePath)) {
                 continue;
             }
 
@@ -3721,17 +3726,21 @@ final class OpenDocumentPackage
         $kindCounts = [];
         foreach ($candidatesByPath as $packagePath => $entry) {
             $zipEntry = $package->has($packagePath) ? $package->entry($packagePath) : null;
+            $isDirectory = str_ends_with($packagePath, '/');
+            $exists = $isDirectory || $zipEntry instanceof ZipPackageEntry;
             $encrypted = ($entry['encrypted'] ?? false) === true;
             $declared = ($entry['declared'] ?? false) === true;
             $mediaType = is_string($entry['mediaType'] ?? null) && $entry['mediaType'] !== ''
                 ? (string) $entry['mediaType']
                 : self::linkedResourceMediaTypeFromPart($packagePath);
             $mediaTypeReport = self::mediaTypeReport($mediaType ?? '');
-            $missingMediaType = ($mediaType ?? '') === '';
-            $mediaTypeValid = !$missingMediaType && self::isLinkedResourceMediaType((string) $mediaType);
+            $missingMediaType = ($mediaType ?? '') === '' && !$isDirectory;
+            $mediaTypeValid = $isDirectory
+                ? $mediaTypeReport['mediaTypeBase'] === ''
+                : (!$missingMediaType && self::isLinkedResourceMediaType((string) $mediaType));
             $kind = self::linkedResourcePackagePartKind($packagePath, (string) $mediaType);
             $issues = [];
-            if (!$zipEntry instanceof ZipPackageEntry) {
+            if (!$exists) {
                 $issues[] = 'odf-linked-resource-package-missing-part';
             }
             if (!$declared) {
@@ -3759,7 +3768,7 @@ final class OpenDocumentPackage
                 'pathSuffix' => $entry['pathSuffix'] ?? null,
                 'pathQuery' => $entry['pathQuery'] ?? null,
                 'pathFragment' => $entry['pathFragment'] ?? null,
-                'mediaType' => $mediaType,
+                'mediaType' => ($mediaType ?? '') === '' ? null : $mediaType,
                 'mediaTypeBase' => $mediaTypeReport['mediaTypeBase'],
                 'mediaTypeHasParameters' => $mediaTypeReport['mediaTypeHasParameters'],
                 'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
@@ -3767,23 +3776,24 @@ final class OpenDocumentPackage
                 'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
                 'kind' => $kind,
                 'packageRoot' => 'Links',
-                'exists' => $zipEntry instanceof ZipPackageEntry,
+                'isDirectory' => $isDirectory,
+                'exists' => $exists,
                 'declared' => $declared,
                 'undeclared' => !$declared,
                 'encrypted' => $encrypted,
-                'valid' => $zipEntry instanceof ZipPackageEntry && !$encrypted && $mediaTypeValid,
-                'byteLength' => !$encrypted && $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
+                'valid' => $exists && !$encrypted && $mediaTypeValid,
+                'byteLength' => !$isDirectory && !$encrypted && $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
                 'compressedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressedSize : null,
                 'compressionMethod' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressionMethod : null,
                 'compressionMethodName' => $zipEntry instanceof ZipPackageEntry ? self::compressionMethodName($zipEntry->compressionMethod) : null,
-                'crc32' => !$encrypted && $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
+                'crc32' => !$isDirectory && !$encrypted && $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
                 'storedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
                 'storedCrc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
                 'declaredSize' => $entry['declaredSize'] ?? $entry['size'] ?? null,
                 'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
                 'canExposeBytes' => false,
                 'canExposeAsDocumentMedia' => false,
-                'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? 'linked-resource-package-bytes-blocked',
+                'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? ($isDirectory ? 'directory-entry-no-bytes' : 'linked-resource-package-bytes-blocked'),
                 'reviewPolicy' => 'linked-resource-package-metadata-only',
                 'encryption' => $entry['encryption'] ?? null,
                 'issues' => $issues,
@@ -3802,6 +3812,7 @@ final class OpenDocumentPackage
             'declaredCount' => count(array_filter($items, static fn (array $item): bool => $item['declared'] === true)),
             'undeclaredCount' => count(array_filter($items, static fn (array $item): bool => $item['undeclared'] === true)),
             'missingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] !== true)),
+            'directoryCount' => count(array_filter($items, static fn (array $item): bool => $item['isDirectory'] === true)),
             'encryptedCount' => count(array_filter($items, static fn (array $item): bool => $item['encrypted'] === true)),
             'missingMediaTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('odf-linked-resource-package-missing-media-type', $item['issues'], true))),
             'invalidMediaTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('odf-linked-resource-package-invalid-media-type', $item['issues'], true))),
