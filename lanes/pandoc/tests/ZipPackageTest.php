@@ -14263,6 +14263,114 @@ return [
         $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
     },
 
+    'summarizes selected zip handoff leaf names for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $contentTypesXml = '<Types/>';
+        $documentXml = '<w:document><w:body><w:p>leaf document</w:p></w:body></w:document>';
+        $customXml = '<item><value>custom leaf</value></item>';
+        $imageBytes = "leaf image bytes\n";
+        $largeImageBytes = "blocked duplicate image leaf bytes\n";
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'method' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => 'customXml/document.xml', 'data' => $customXml, 'method' => 0],
+            ['name' => 'word/media/image.png', 'data' => $imageBytes, 'method' => 0],
+            ['name' => 'ppt/media/image.png', 'data' => $largeImageBytes, 'method' => 0],
+            ['name' => 'word/media/', 'data' => '', 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => '[Content_Types].xml', 'required' => true, 'kind' => 'file', 'role' => 'content-types'],
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'customXml/document.xml', 'required' => false, 'kind' => 'file', 'role' => 'custom-xml'],
+            ['name' => 'word/media/image.png', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'ppt/media/image.png', 'required' => false, 'kind' => 'file', 'role' => 'preview', 'maxUncompressedBytes' => 8],
+            ['name' => 'word/media/', 'required' => false, 'kind' => 'directory', 'role' => 'media-directory'],
+            ['name' => 'word/missing/document.xml', 'required' => false, 'kind' => 'file', 'role' => 'optional-sidecar'],
+        ], 1024);
+
+        $selectedByLeaf = [];
+        foreach ($summary['selectedLeafNameSummaries'] as $leafSummary) {
+            $selectedByLeaf[$leafSummary['leafName']] = $leafSummary;
+        }
+        $handoffByLeaf = [];
+        foreach ($summary['handoffLeafNameSummaries'] as $leafSummary) {
+            $handoffByLeaf[$leafSummary['leafName']] = $leafSummary;
+        }
+        $selectedSharedByLeaf = [];
+        foreach ($summary['selectedSharedLeafNameSummaries'] as $leafSummary) {
+            $selectedSharedByLeaf[$leafSummary['leafName']] = $leafSummary;
+        }
+        $handoffSharedByLeaf = [];
+        foreach ($summary['handoffSharedLeafNameSummaries'] as $leafSummary) {
+            $handoffSharedByLeaf[$leafSummary['leafName']] = $leafSummary;
+        }
+        $selectedCollisionByLeaf = [];
+        foreach ($summary['selectedLeafNameCollisionSummaries'] as $leafSummary) {
+            $selectedCollisionByLeaf[$leafSummary['leafName']] = $leafSummary;
+        }
+        $handoffCollisionByLeaf = [];
+        foreach ($summary['handoffLeafNameCollisionSummaries'] as $leafSummary) {
+            $handoffCollisionByLeaf[$leafSummary['leafName']] = $leafSummary;
+        }
+
+        $t->same(4, $summary['selectedLeafNameCount']);
+        $t->same(2, $summary['selectedSharedLeafNameCount']);
+        $t->same(4, $summary['selectedSharedLeafNameEntryCount']);
+        $t->same(4, $summary['handoffLeafNameCount']);
+        $t->same(1, $summary['handoffSharedLeafNameCount']);
+        $t->same(2, $summary['handoffSharedLeafNameEntryCount']);
+        $t->same($selectedSharedByLeaf, $selectedCollisionByLeaf);
+        $t->same($handoffSharedByLeaf, $handoffCollisionByLeaf);
+
+        $t->same([
+            'leafName' => 'document.xml',
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'parentDirectories' => ['customXml/', 'word/'],
+            'compressedBytes' => strlen($documentXml) + strlen($customXml),
+            'uncompressedBytes' => strlen($documentXml) + strlen($customXml),
+            'roles' => ['custom-xml', 'main-document'],
+            'entryNames' => ['word/document.xml', 'customXml/document.xml'],
+        ], $selectedByLeaf['document.xml']);
+        $t->same($selectedByLeaf['document.xml'], $handoffByLeaf['document.xml']);
+        $t->same($selectedByLeaf['document.xml'], $selectedSharedByLeaf['document.xml']);
+        $t->same($selectedByLeaf['document.xml'], $handoffSharedByLeaf['document.xml']);
+
+        $t->same([
+            'leafName' => 'image.png',
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'parentDirectories' => ['ppt/media/', 'word/media/'],
+            'compressedBytes' => strlen($imageBytes) + strlen($largeImageBytes),
+            'uncompressedBytes' => strlen($imageBytes) + strlen($largeImageBytes),
+            'roles' => ['media', 'preview'],
+            'entryNames' => ['word/media/image.png', 'ppt/media/image.png'],
+        ], $selectedByLeaf['image.png']);
+        $t->same($selectedByLeaf['image.png'], $selectedSharedByLeaf['image.png']);
+        $t->same([
+            'leafName' => 'image.png',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'parentDirectories' => ['word/media/'],
+            'compressedBytes' => strlen($imageBytes),
+            'uncompressedBytes' => strlen($imageBytes),
+            'roles' => ['media'],
+            'entryNames' => ['word/media/image.png'],
+        ], $handoffByLeaf['image.png']);
+        $t->same(false, isset($handoffSharedByLeaf['image.png']));
+
+        $t->same('media', $selectedByLeaf['media']['leafName']);
+        $t->same(1, $selectedByLeaf['media']['directoryEntryCount']);
+        $t->same(false, isset($selectedByLeaf['missing.xml']));
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
+        $t->same('blocked', $summary['entries'][4]['status']);
+        $t->same('missing-optional', $summary['entries'][6]['status']);
+    },
+
     'summarizes selected zip handoff path prefixes for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
         $contentTypesXml = '<Types/>';
         $packageRelsXml = '<Relationships/>';

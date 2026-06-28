@@ -6363,8 +6363,12 @@ final class ZipPackage
         $handoffPathPrefixSummaries = self::entryHandoffPathPrefixSummaries($handoffEntries);
         $selectedParentDirectorySummaries = self::entryHandoffParentDirectorySummaries($selectedDirectoryRootSummaryEntries);
         $handoffParentDirectorySummaries = self::entryHandoffParentDirectorySummaries($handoffEntries);
-        $selectedLeafNameCollisionSummaries = self::entryHandoffLeafNameCollisionSummaries($selectedDirectoryRootSummaryEntries);
-        $handoffLeafNameCollisionSummaries = self::entryHandoffLeafNameCollisionSummaries($handoffEntries);
+        $selectedLeafNameSummaries = self::entryHandoffLeafNameSummaries($selectedDirectoryRootSummaryEntries);
+        $handoffLeafNameSummaries = self::entryHandoffLeafNameSummaries($handoffEntries);
+        $selectedSharedLeafNameSummaries = self::entryHandoffSharedLeafNameSummaries($selectedLeafNameSummaries);
+        $handoffSharedLeafNameSummaries = self::entryHandoffSharedLeafNameSummaries($handoffLeafNameSummaries);
+        $selectedLeafNameCollisionSummaries = $selectedSharedLeafNameSummaries;
+        $handoffLeafNameCollisionSummaries = $handoffSharedLeafNameSummaries;
         $selectedPlatformMetadataSummary = self::entryHandoffPlatformMetadataSummary($selectedDirectoryRootSummaryEntries);
         $handoffPlatformMetadataSummary = self::entryHandoffPlatformMetadataSummary($handoffEntries);
         $selectedSizeBucketSummaries = self::entryHandoffSizeBucketSummaries($selectedDirectoryRootSummaryEntries);
@@ -6430,6 +6434,9 @@ final class ZipPackage
             'selectedMaxPathDepth' => self::entryHandoffMaxPathDepth($selectedPathDepthSummaries),
             'selectedPathPrefixCount' => count($selectedPathPrefixSummaries),
             'selectedParentDirectoryCount' => count($selectedParentDirectorySummaries),
+            'selectedLeafNameCount' => count($selectedLeafNameSummaries),
+            'selectedSharedLeafNameCount' => count($selectedSharedLeafNameSummaries),
+            'selectedSharedLeafNameEntryCount' => self::entryHandoffSummaryTotal($selectedSharedLeafNameSummaries, 'entryCount'),
             'selectedLeafNameCollisionCount' => count($selectedLeafNameCollisionSummaries),
             'selectedLeafNameCollisionEntryCount' => self::entryHandoffSummaryTotal(
                 $selectedLeafNameCollisionSummaries,
@@ -6479,6 +6486,9 @@ final class ZipPackage
             'handoffMaxPathDepth' => self::entryHandoffMaxPathDepth($handoffPathDepthSummaries),
             'handoffPathPrefixCount' => count($handoffPathPrefixSummaries),
             'handoffParentDirectoryCount' => count($handoffParentDirectorySummaries),
+            'handoffLeafNameCount' => count($handoffLeafNameSummaries),
+            'handoffSharedLeafNameCount' => count($handoffSharedLeafNameSummaries),
+            'handoffSharedLeafNameEntryCount' => self::entryHandoffSummaryTotal($handoffSharedLeafNameSummaries, 'entryCount'),
             'handoffLeafNameCollisionCount' => count($handoffLeafNameCollisionSummaries),
             'handoffLeafNameCollisionEntryCount' => self::entryHandoffSummaryTotal(
                 $handoffLeafNameCollisionSummaries,
@@ -6778,6 +6788,10 @@ final class ZipPackage
             'handoffPathPrefixSummaries' => $handoffPathPrefixSummaries,
             'selectedParentDirectorySummaries' => $selectedParentDirectorySummaries,
             'handoffParentDirectorySummaries' => $handoffParentDirectorySummaries,
+            'selectedLeafNameSummaries' => $selectedLeafNameSummaries,
+            'handoffLeafNameSummaries' => $handoffLeafNameSummaries,
+            'selectedSharedLeafNameSummaries' => $selectedSharedLeafNameSummaries,
+            'handoffSharedLeafNameSummaries' => $handoffSharedLeafNameSummaries,
             'selectedLeafNameCollisionSummaries' => $selectedLeafNameCollisionSummaries,
             'handoffLeafNameCollisionSummaries' => $handoffLeafNameCollisionSummaries,
             'selectedPlatformMetadataIssues' => $selectedPlatformMetadataSummary['issues'],
@@ -9691,7 +9705,7 @@ final class ZipPackage
      * @param list<array<string, mixed>> $entries
      * @return list<array<string, mixed>>
      */
-    private static function entryHandoffLeafNameCollisionSummaries(array $entries): array
+    private static function entryHandoffLeafNameSummaries(array $entries): array
     {
         $summaries = [];
         foreach ($entries as $entry) {
@@ -9728,16 +9742,16 @@ final class ZipPackage
                 ++$summaries[$leafName]['fileEntryCount'];
             }
 
+            $summaries[$leafName]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$leafName]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$leafName]['entryNames'][] = $name;
+
             $parentDirectory = is_string($entry['parentDirectory'] ?? null) && $entry['parentDirectory'] !== ''
                 ? $entry['parentDirectory']
                 : self::entryHandoffParentDirectory($name);
             if (!in_array($parentDirectory, $summaries[$leafName]['parentDirectories'], true)) {
                 $summaries[$leafName]['parentDirectories'][] = $parentDirectory;
             }
-
-            $summaries[$leafName]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
-            $summaries[$leafName]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
-            $summaries[$leafName]['entryNames'][] = $name;
 
             foreach (self::entryHandoffRolesForSummary($entry) as $role) {
                 if (!in_array($role, $summaries[$leafName]['roles'], true)) {
@@ -9746,20 +9760,27 @@ final class ZipPackage
             }
         }
 
-        $collisions = array_filter(
-            $summaries,
-            static fn (array $summary): bool => (int) ($summary['entryCount'] ?? 0) > 1
-        );
-
-        foreach ($collisions as &$summary) {
-            sort($summary['parentDirectories'], SORT_STRING);
+        foreach ($summaries as &$summary) {
             sort($summary['roles'], SORT_STRING);
+            sort($summary['parentDirectories'], SORT_STRING);
         }
         unset($summary);
 
-        ksort($collisions, SORT_STRING);
+        ksort($summaries, SORT_STRING);
 
-        return array_values($collisions);
+        return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $leafNameSummaries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffSharedLeafNameSummaries(array $leafNameSummaries): array
+    {
+        return array_values(array_filter(
+            $leafNameSummaries,
+            static fn (array $summary): bool => (int) ($summary['entryCount'] ?? 0) > 1
+        ));
     }
 
     private static function entryHandoffLeafName(string $name): string
