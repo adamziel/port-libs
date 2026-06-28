@@ -18993,6 +18993,77 @@ XML;
         $t->true(!str_contains((string) $encodedAttributes, $oneTwentyNine), 'raw XML long attribute value should not be exposed in length bucket metadata');
         $t->true(!isset($part['xmlElementAttributes'][0]['value']), 'raw XML attribute value should not be exposed on length bucket metadata');
     },
+    'summarizes docx package xml element attribute positions without exposing values' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $rootValue = 'hidden-root-value';
+        $singleValue = 'hidden-single-value';
+        $lastValue = 'hidden-last-value';
+        $parts['customXml/attribute-positions.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:attribute-positions" packet="{$rootValue}" review:kind="bundle" xml:lang="en">
+  <review:item alpha="{$singleValue}"/>
+  <review:item first="one" second="two"/>
+  <review:item a="1" b="2" c="3" d="{$lastValue}"/>
+</review:packet>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $part = $package['parts']['customXml/attribute-positions.xml'];
+        $attributes = array_values(array_filter(
+            $summary['partXmlElementAttributes'],
+            static fn (array $attribute): bool => $attribute['partName'] === 'customXml/attribute-positions.xml',
+        ));
+        $attributesByName = [];
+        foreach ($attributes as $attribute) {
+            $attributesByName[$attribute['elementPath'] . '#' . $attribute['name']] = $attribute;
+        }
+        $xmlRootRows = array_values(array_filter(
+            $summary['partXmlRoots'],
+            static fn (array $root): bool => $root['partName'] === 'customXml/attribute-positions.xml',
+        ));
+
+        $t->same(10, $part['xmlElementAttributeCount']);
+        $t->same([1 => 4, 2 => 3, 3 => 2, 4 => 1], $part['xmlElementAttributeIndexCounts']);
+        $t->same(['1' => 1, '2-3' => 5, '4-7' => 4], $part['xmlElementAttributeParentAttributeCountBucketCounts']);
+        $t->same(4, $part['xmlElementAttributeFirstCount']);
+        $t->same(4, $part['xmlElementAttributeLastCount']);
+        $t->same(1, $part['xmlElementAttributeOnlyCount']);
+
+        $t->same(1, $attributesByName['/review:packet#packet']['attributeIndex']);
+        $t->same(3, $attributesByName['/review:packet#packet']['attributeCount']);
+        $t->same('2-3', $attributesByName['/review:packet#packet']['attributeCountBucket']);
+        $t->same(true, $attributesByName['/review:packet#packet']['isFirstAttribute']);
+        $t->same(false, $attributesByName['/review:packet#packet']['isLastAttribute']);
+        $t->same(false, $attributesByName['/review:packet#packet']['isOnlyAttribute']);
+        $t->same(1, $attributesByName['/review:packet/review:item#alpha']['attributeIndex']);
+        $t->same(1, $attributesByName['/review:packet/review:item#alpha']['attributeCount']);
+        $t->same('1', $attributesByName['/review:packet/review:item#alpha']['attributeCountBucket']);
+        $t->same(true, $attributesByName['/review:packet/review:item#alpha']['isFirstAttribute']);
+        $t->same(true, $attributesByName['/review:packet/review:item#alpha']['isLastAttribute']);
+        $t->same(true, $attributesByName['/review:packet/review:item#alpha']['isOnlyAttribute']);
+        $t->same(4, $attributesByName['/review:packet/review:item#d']['attributeIndex']);
+        $t->same(4, $attributesByName['/review:packet/review:item#d']['attributeCount']);
+        $t->same(3, $attributesByName['/review:packet/review:item#d']['precedingAttributeCount']);
+        $t->same(0, $attributesByName['/review:packet/review:item#d']['followingAttributeCount']);
+        $t->same('4-7', $attributesByName['/review:packet/review:item#d']['attributeCountBucket']);
+        $t->same(false, $attributesByName['/review:packet/review:item#d']['isFirstAttribute']);
+        $t->same(true, $attributesByName['/review:packet/review:item#d']['isLastAttribute']);
+
+        $t->same($part['xmlElementAttributeIndexCounts'], $xmlRootRows[0]['xmlElementAttributeIndexCounts']);
+        $t->same($part['xmlElementAttributeParentAttributeCountBucketCounts'], $xmlRootRows[0]['xmlElementAttributeParentAttributeCountBucketCounts']);
+        $t->true($summary['partXmlElementAttributeIndexCounts'][4] >= 1, 'summary should include fourth-position XML attributes');
+        $t->true($summary['partXmlElementAttributeParentAttributeCountBucketCounts']['4-7'] >= 4, 'summary should include attributes on dense XML elements');
+        $t->true($summary['partXmlElementAttributeFirstCount'] >= 4, 'summary should include first-attribute counters');
+        $t->true($summary['partXmlElementAttributeLastCount'] >= 4, 'summary should include last-attribute counters');
+        $t->true($summary['partXmlElementAttributeOnlyCount'] >= 1, 'summary should include only-attribute counters');
+
+        $encodedAttributes = json_encode([$part['xmlElementAttributes'], $attributes, $summary['partXmlElementAttributeIndexCounts']]);
+        $t->true(is_string($encodedAttributes), 'XML attribute position metadata should encode for review');
+        $t->true(!isset($part['xmlElementAttributes'][0]['value']), 'raw XML attribute value should not be exposed on position metadata');
+        $t->true(!str_contains((string) $encodedAttributes, 'hidden-'), 'raw XML attribute values should not be exposed in position metadata');
+    },
     'summarizes docx package xml processing instructions for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['customXml/pi-review.xml'] = <<<'XML'
