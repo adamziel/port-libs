@@ -21,7 +21,7 @@ CSS, $formatter->format(<<<'CSS'
     margin: 10pt;
   }
 }
-CSS));
+CSS), 'upstream src/lib.rs::test_page_rule line 15013');
 
         $t->same(<<<'CSS'
 @page :right {
@@ -43,7 +43,7 @@ CSS, $formatter->format(<<<'CSS'
   @bottom-left-corner { content: "Foo"; }
   @bottom-right-corner { content: "Bar"; }
 }
-CSS));
+CSS), 'upstream src/lib.rs::test_page_rule line 15030');
     },
     'css formatter rejects invalid upstream page nested at rules' => static function (TestRunner $t): void {
         $formatter = new CssFormatter();
