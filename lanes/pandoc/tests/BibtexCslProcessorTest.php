@@ -1305,6 +1305,100 @@ BIB;
         $t->same('320', $item['number-of-pages']);
         $t->same('Casey Chapter. Extent Review Chapter. Migration Extent Handbook 2. 2026. 101-120.', $bibliography);
     },
+    'carries biblatex division part printing and supplement numbers in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{production-review,
+  author             = {Ng, Nia},
+  title              = {Production Review Manual},
+  date               = {2026},
+  division           = {appendix},
+  partnumber         = {3},
+  printing-number    = {2},
+  supplementnumber   = {1}
+}
+
+@report{subdivision-review,
+  author             = {Roe, Pat},
+  title              = {Subdivision Review Packet},
+  date               = {2025},
+  subdivision        = {field report},
+  part               = {A},
+  printnumber        = {advance},
+  supplement-number  = {S-2}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $production = $items['production-review'];
+        $subdivision = $items['subdivision-review'];
+
+        $t->same('appendix', $production['division']);
+        $t->same('3', $production['part']);
+        $t->same('2', $production['printing-number']);
+        $t->same('1', $production['supplement-number']);
+        $t->same('field report', $subdivision['division']);
+        $t->same('A', $subdivision['part']);
+        $t->same('advance', $subdivision['printing-number']);
+        $t->same('S-2', $subdivision['supplement-number']);
+        $t->same('3', $production['rawBibtex']['fields']['partnumber']);
+        $t->same('2', $production['rawBibtex']['fields']['printing-number']);
+        $t->same('field report', $subdivision['rawBibtex']['fields']['subdivision']);
+        $t->same('S-2', $subdivision['rawBibtex']['fields']['supplement-number']);
+        $t->same(
+            'Nia Ng. Production Review Manual. 2026. Division: appendix. Part: 3. Printing number: 2. Supplement number: 1.',
+            $processor->renderBibliographyText($production)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="division"/>
+        <text variable="part-number"/>
+        <text variable="printing-number"/>
+        <text variable="supplement-number"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="division"/>
+      <text variable="part-number"/>
+      <text variable="printing-number"/>
+      <text variable="supplement-number"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledProduction = $styled->item('production-review');
+        $t->same('appendix', $styledProduction['division'] ?? null);
+        $t->same('3', $styledProduction['part'] ?? null);
+        $t->same('2', $styledProduction['printingNumber'] ?? null);
+        $t->same('1', $styledProduction['supplementNumber'] ?? null);
+        $t->same('[Production Review Manual | appendix | 3 | 2 | 1; Subdivision Review Packet | field report | A | advance | S-2]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'production-review', 'text' => '[@production-review]']),
+            new AstNode('citation', ['id' => 'subdivision-review', 'text' => '[@subdivision-review]']),
+        ]));
+        $t->same('Production Review Manual :: appendix :: 3 :: 2 :: 1', $styled->renderBibliographyEntry('production-review'));
+        $t->same('Subdivision Review Packet :: field report :: A :: advance :: S-2', $styled->renderBibliographyEntry('subdivision-review'));
+
+        $document = (new MarkdownReader())->read('Legacy production metadata [@production-review; @subdivision-review] stays visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['production-review', 'subdivision-review'], $handoff['citedKeys']);
+        $t->same('2', $handoff['items'][0]['printing-number']);
+        $t->same('S-2', $handoff['items'][1]['supplement-number']);
+        $t->contains('<p>Legacy production metadata [Production Review Manual | appendix | 3 | 2 | 1; Subdivision Review Packet | field report | A | advance | S-2] stays visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Production Review Manual :: appendix :: 3 :: 2 :: 1</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Subdivision Review Packet :: field report :: A :: advance :: S-2</dd>', $blocks);
+    },
     'carries biblatex pagination unit metadata in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @article{legacy-pagination-review,
