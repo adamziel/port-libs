@@ -14598,10 +14598,28 @@ final class DocxOpenXmlReader
             'partXmlCommentCount' => $partXmlRoots['xmlCommentCount'],
             'partXmlCommentByteLength' => $partXmlRoots['xmlCommentByteLength'],
             'partXmlCommentPartNames' => $partXmlRoots['xmlCommentPartNames'],
+            'partXmlCommentParentPathCount' => $partXmlRoots['xmlCommentParentPathCount'],
+            'partXmlCommentParentPathCounts' => $partXmlRoots['xmlCommentParentPathCounts'],
+            'partXmlCommentParentPaths' => $partXmlRoots['xmlCommentParentPaths'],
+            'partXmlCommentParentNamespaceCount' => count($partXmlRoots['xmlCommentParentNamespaceCounts']),
+            'partXmlCommentParentNamespaceCounts' => $partXmlRoots['xmlCommentParentNamespaceCounts'],
+            'partXmlCommentParentLocalNameCount' => count($partXmlRoots['xmlCommentParentLocalNameCounts']),
+            'partXmlCommentParentLocalNameCounts' => $partXmlRoots['xmlCommentParentLocalNameCounts'],
+            'partXmlCommentParentQualifiedNameCount' => count($partXmlRoots['xmlCommentParentQualifiedNameCounts']),
+            'partXmlCommentParentQualifiedNameCounts' => $partXmlRoots['xmlCommentParentQualifiedNameCounts'],
             'partXmlCdataSectionPartCount' => $partXmlRoots['xmlCdataSectionPartCount'],
             'partXmlCdataSectionCount' => $partXmlRoots['xmlCdataSectionCount'],
             'partXmlCdataSectionByteLength' => $partXmlRoots['xmlCdataSectionByteLength'],
             'partXmlCdataSectionPartNames' => $partXmlRoots['xmlCdataSectionPartNames'],
+            'partXmlCdataSectionParentPathCount' => $partXmlRoots['xmlCdataSectionParentPathCount'],
+            'partXmlCdataSectionParentPathCounts' => $partXmlRoots['xmlCdataSectionParentPathCounts'],
+            'partXmlCdataSectionParentPaths' => $partXmlRoots['xmlCdataSectionParentPaths'],
+            'partXmlCdataSectionParentNamespaceCount' => count($partXmlRoots['xmlCdataSectionParentNamespaceCounts']),
+            'partXmlCdataSectionParentNamespaceCounts' => $partXmlRoots['xmlCdataSectionParentNamespaceCounts'],
+            'partXmlCdataSectionParentLocalNameCount' => count($partXmlRoots['xmlCdataSectionParentLocalNameCounts']),
+            'partXmlCdataSectionParentLocalNameCounts' => $partXmlRoots['xmlCdataSectionParentLocalNameCounts'],
+            'partXmlCdataSectionParentQualifiedNameCount' => count($partXmlRoots['xmlCdataSectionParentQualifiedNameCounts']),
+            'partXmlCdataSectionParentQualifiedNameCounts' => $partXmlRoots['xmlCdataSectionParentQualifiedNameCounts'],
             'partXmlTextNodePartCount' => $partXmlRoots['xmlTextNodePartCount'],
             'partXmlTextNodeCount' => $partXmlRoots['xmlTextNodeCount'],
             'partXmlTextNodeByteLength' => $partXmlRoots['xmlTextNodeByteLength'],
@@ -20496,8 +20514,18 @@ final class DocxOpenXmlReader
         $xmlProcessingInstructionDataAttributeValueShapes = [];
         $xmlProcessingInstructions = [];
         $xmlCommentPartNames = [];
+        $xmlCommentParentPathCounts = [];
+        $xmlCommentParentPaths = [];
+        $xmlCommentParentNamespaceCounts = [];
+        $xmlCommentParentLocalNameCounts = [];
+        $xmlCommentParentQualifiedNameCounts = [];
         $xmlComments = [];
         $xmlCdataSectionPartNames = [];
+        $xmlCdataSectionParentPathCounts = [];
+        $xmlCdataSectionParentPaths = [];
+        $xmlCdataSectionParentNamespaceCounts = [];
+        $xmlCdataSectionParentLocalNameCounts = [];
+        $xmlCdataSectionParentQualifiedNameCounts = [];
         $xmlCdataSections = [];
         $xmlTextNodePartNames = [];
         $xmlTextNodeParentPathCounts = [];
@@ -21172,6 +21200,39 @@ final class DocxOpenXmlReader
                 $xmlCommentByteLength += (int) ($part['xmlCommentByteLength'] ?? 0);
                 $xmlCommentPartNames[] = $partName;
             }
+            foreach (($part['xmlCommentParentPathCounts'] ?? []) as $parentPath => $count) {
+                if (!is_string($parentPath) || $parentPath === '') {
+                    continue;
+                }
+
+                $xmlCommentParentPathCounts[$parentPath] =
+                    ($xmlCommentParentPathCounts[$parentPath] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlCommentParentPaths, $parentPath);
+            }
+            foreach (($part['xmlCommentParentNamespaceCounts'] ?? []) as $namespace => $count) {
+                if (!is_string($namespace) || $namespace === '') {
+                    continue;
+                }
+
+                $xmlCommentParentNamespaceCounts[$namespace] =
+                    ($xmlCommentParentNamespaceCounts[$namespace] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlCommentParentLocalNameCounts'] ?? []) as $localName => $count) {
+                if (!is_string($localName) || $localName === '') {
+                    continue;
+                }
+
+                $xmlCommentParentLocalNameCounts[$localName] =
+                    ($xmlCommentParentLocalNameCounts[$localName] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlCommentParentQualifiedNameCounts'] ?? []) as $qualifiedName => $count) {
+                if (!is_string($qualifiedName) || $qualifiedName === '') {
+                    continue;
+                }
+
+                $xmlCommentParentQualifiedNameCounts[$qualifiedName] =
+                    ($xmlCommentParentQualifiedNameCounts[$qualifiedName] ?? 0) + (int) $count;
+            }
             foreach (($part['xmlComments'] ?? []) as $comment) {
                 if (!is_array($comment)) {
                     continue;
@@ -21191,6 +21252,11 @@ final class DocxOpenXmlReader
                     'ordinal' => is_int($comment['ordinal'] ?? null) ? (int) $comment['ordinal'] : 0,
                     'parentPath' => is_string($comment['parentPath'] ?? null) ? $comment['parentPath'] : '/',
                     'parentDepth' => (int) ($comment['parentDepth'] ?? 0),
+                    'parentNamespace' => is_string($comment['parentNamespace'] ?? null) ? $comment['parentNamespace'] : null,
+                    'parentLocalName' => is_string($comment['parentLocalName'] ?? null) ? $comment['parentLocalName'] : null,
+                    'parentQualifiedName' => is_string($comment['parentQualifiedName'] ?? null)
+                        ? $comment['parentQualifiedName']
+                        : null,
                     'byteLength' => (int) ($comment['byteLength'] ?? 0),
                     'crc32' => is_string($comment['crc32'] ?? null) ? $comment['crc32'] : null,
                     'sha256' => is_string($comment['sha256'] ?? null) ? $comment['sha256'] : null,
@@ -21202,6 +21268,39 @@ final class DocxOpenXmlReader
                 $xmlCdataSectionCount += $partCdataSectionCount;
                 $xmlCdataSectionByteLength += (int) ($part['xmlCdataSectionByteLength'] ?? 0);
                 $xmlCdataSectionPartNames[] = $partName;
+            }
+            foreach (($part['xmlCdataSectionParentPathCounts'] ?? []) as $parentPath => $count) {
+                if (!is_string($parentPath) || $parentPath === '') {
+                    continue;
+                }
+
+                $xmlCdataSectionParentPathCounts[$parentPath] =
+                    ($xmlCdataSectionParentPathCounts[$parentPath] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlCdataSectionParentPaths, $parentPath);
+            }
+            foreach (($part['xmlCdataSectionParentNamespaceCounts'] ?? []) as $namespace => $count) {
+                if (!is_string($namespace) || $namespace === '') {
+                    continue;
+                }
+
+                $xmlCdataSectionParentNamespaceCounts[$namespace] =
+                    ($xmlCdataSectionParentNamespaceCounts[$namespace] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlCdataSectionParentLocalNameCounts'] ?? []) as $localName => $count) {
+                if (!is_string($localName) || $localName === '') {
+                    continue;
+                }
+
+                $xmlCdataSectionParentLocalNameCounts[$localName] =
+                    ($xmlCdataSectionParentLocalNameCounts[$localName] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlCdataSectionParentQualifiedNameCounts'] ?? []) as $qualifiedName => $count) {
+                if (!is_string($qualifiedName) || $qualifiedName === '') {
+                    continue;
+                }
+
+                $xmlCdataSectionParentQualifiedNameCounts[$qualifiedName] =
+                    ($xmlCdataSectionParentQualifiedNameCounts[$qualifiedName] ?? 0) + (int) $count;
             }
             foreach (($part['xmlCdataSections'] ?? []) as $section) {
                 if (!is_array($section)) {
@@ -21222,6 +21321,11 @@ final class DocxOpenXmlReader
                     'ordinal' => is_int($section['ordinal'] ?? null) ? (int) $section['ordinal'] : 0,
                     'parentPath' => is_string($section['parentPath'] ?? null) ? $section['parentPath'] : '/',
                     'parentDepth' => (int) ($section['parentDepth'] ?? 0),
+                    'parentNamespace' => is_string($section['parentNamespace'] ?? null) ? $section['parentNamespace'] : null,
+                    'parentLocalName' => is_string($section['parentLocalName'] ?? null) ? $section['parentLocalName'] : null,
+                    'parentQualifiedName' => is_string($section['parentQualifiedName'] ?? null)
+                        ? $section['parentQualifiedName']
+                        : null,
                     'byteLength' => (int) ($section['byteLength'] ?? 0),
                     'crc32' => is_string($section['crc32'] ?? null) ? $section['crc32'] : null,
                     'sha256' => is_string($section['sha256'] ?? null) ? $section['sha256'] : null,
@@ -22779,11 +22883,37 @@ final class DocxOpenXmlReader
                     : [],
                 'xmlCommentCount' => $partCommentCount,
                 'xmlCommentByteLength' => (int) ($part['xmlCommentByteLength'] ?? 0),
+                'xmlCommentParentPathCounts' => is_array($part['xmlCommentParentPathCounts'] ?? null)
+                    ? $part['xmlCommentParentPathCounts']
+                    : [],
+                'xmlCommentParentPaths' => array_values(array_map('strval', $part['xmlCommentParentPaths'] ?? [])),
+                'xmlCommentParentNamespaceCounts' => is_array($part['xmlCommentParentNamespaceCounts'] ?? null)
+                    ? $part['xmlCommentParentNamespaceCounts']
+                    : [],
+                'xmlCommentParentLocalNameCounts' => is_array($part['xmlCommentParentLocalNameCounts'] ?? null)
+                    ? $part['xmlCommentParentLocalNameCounts']
+                    : [],
+                'xmlCommentParentQualifiedNameCounts' => is_array($part['xmlCommentParentQualifiedNameCounts'] ?? null)
+                    ? $part['xmlCommentParentQualifiedNameCounts']
+                    : [],
                 'xmlComments' => is_array($part['xmlComments'] ?? null)
                     ? $part['xmlComments']
                     : [],
                 'xmlCdataSectionCount' => $partCdataSectionCount,
                 'xmlCdataSectionByteLength' => (int) ($part['xmlCdataSectionByteLength'] ?? 0),
+                'xmlCdataSectionParentPathCounts' => is_array($part['xmlCdataSectionParentPathCounts'] ?? null)
+                    ? $part['xmlCdataSectionParentPathCounts']
+                    : [],
+                'xmlCdataSectionParentPaths' => array_values(array_map('strval', $part['xmlCdataSectionParentPaths'] ?? [])),
+                'xmlCdataSectionParentNamespaceCounts' => is_array($part['xmlCdataSectionParentNamespaceCounts'] ?? null)
+                    ? $part['xmlCdataSectionParentNamespaceCounts']
+                    : [],
+                'xmlCdataSectionParentLocalNameCounts' => is_array($part['xmlCdataSectionParentLocalNameCounts'] ?? null)
+                    ? $part['xmlCdataSectionParentLocalNameCounts']
+                    : [],
+                'xmlCdataSectionParentQualifiedNameCounts' => is_array($part['xmlCdataSectionParentQualifiedNameCounts'] ?? null)
+                    ? $part['xmlCdataSectionParentQualifiedNameCounts']
+                    : [],
                 'xmlCdataSections' => is_array($part['xmlCdataSections'] ?? null)
                     ? $part['xmlCdataSections']
                     : [],
@@ -23246,6 +23376,14 @@ final class DocxOpenXmlReader
         ksort($xmlProcessingInstructionParentQualifiedNameCounts, SORT_STRING);
         ksort($xmlProcessingInstructionDataAttributeNameCounts, SORT_STRING);
         ksort($xmlProcessingInstructionDataAttributeValueShapeCounts, SORT_STRING);
+        ksort($xmlCommentParentPathCounts, SORT_STRING);
+        ksort($xmlCommentParentNamespaceCounts, SORT_STRING);
+        ksort($xmlCommentParentLocalNameCounts, SORT_STRING);
+        ksort($xmlCommentParentQualifiedNameCounts, SORT_STRING);
+        ksort($xmlCdataSectionParentPathCounts, SORT_STRING);
+        ksort($xmlCdataSectionParentNamespaceCounts, SORT_STRING);
+        ksort($xmlCdataSectionParentLocalNameCounts, SORT_STRING);
+        ksort($xmlCdataSectionParentQualifiedNameCounts, SORT_STRING);
         ksort($xmlTextNodeParentPathCounts, SORT_STRING);
         ksort($xmlTextNodeParentNamespaceCounts, SORT_STRING);
         ksort($xmlTextNodeParentLocalNameCounts, SORT_STRING);
@@ -23341,7 +23479,9 @@ final class DocxOpenXmlReader
         sort($xmlProcessingInstructionPartNames, SORT_STRING);
         sort($xmlProcessingInstructionParentPaths, SORT_STRING);
         sort($xmlCommentPartNames, SORT_STRING);
+        sort($xmlCommentParentPaths, SORT_STRING);
         sort($xmlCdataSectionPartNames, SORT_STRING);
+        sort($xmlCdataSectionParentPaths, SORT_STRING);
         sort($xmlTextNodePartNames, SORT_STRING);
         sort($xmlTextNodeParentPaths, SORT_STRING);
         sort($xmlLeafTextElementPartNames, SORT_STRING);
@@ -23566,11 +23706,23 @@ final class DocxOpenXmlReader
             'xmlCommentCount' => $xmlCommentCount,
             'xmlCommentByteLength' => $xmlCommentByteLength,
             'xmlCommentPartNames' => $xmlCommentPartNames,
+            'xmlCommentParentPathCount' => count($xmlCommentParentPathCounts),
+            'xmlCommentParentPathCounts' => $xmlCommentParentPathCounts,
+            'xmlCommentParentPaths' => $xmlCommentParentPaths,
+            'xmlCommentParentNamespaceCounts' => $xmlCommentParentNamespaceCounts,
+            'xmlCommentParentLocalNameCounts' => $xmlCommentParentLocalNameCounts,
+            'xmlCommentParentQualifiedNameCounts' => $xmlCommentParentQualifiedNameCounts,
             'xmlComments' => $xmlComments,
             'xmlCdataSectionPartCount' => $xmlCdataSectionPartCount,
             'xmlCdataSectionCount' => $xmlCdataSectionCount,
             'xmlCdataSectionByteLength' => $xmlCdataSectionByteLength,
             'xmlCdataSectionPartNames' => $xmlCdataSectionPartNames,
+            'xmlCdataSectionParentPathCount' => count($xmlCdataSectionParentPathCounts),
+            'xmlCdataSectionParentPathCounts' => $xmlCdataSectionParentPathCounts,
+            'xmlCdataSectionParentPaths' => $xmlCdataSectionParentPaths,
+            'xmlCdataSectionParentNamespaceCounts' => $xmlCdataSectionParentNamespaceCounts,
+            'xmlCdataSectionParentLocalNameCounts' => $xmlCdataSectionParentLocalNameCounts,
+            'xmlCdataSectionParentQualifiedNameCounts' => $xmlCdataSectionParentQualifiedNameCounts,
             'xmlCdataSections' => $xmlCdataSections,
             'xmlTextNodePartCount' => $xmlTextNodePartCount,
             'xmlTextNodeCount' => $xmlTextNodeCount,
@@ -25744,7 +25896,7 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{count:int, byteLength:int, items:list<array<string, mixed>>}
+     * @return array{count:int, byteLength:int, parentPathCounts:array<string, int>, parentPaths:list<string>, parentNamespaceCounts:array<string, int>, parentLocalNameCounts:array<string, int>, parentQualifiedNameCounts:array<string, int>, items:list<array<string, mixed>>}
      */
     private function xmlCommentProvenance(string $xml, string $partName): array
     {
@@ -25753,26 +25905,67 @@ final class DocxOpenXmlReader
             return [
                 'count' => 0,
                 'byteLength' => 0,
+                'parentPathCounts' => [],
+                'parentPaths' => [],
+                'parentNamespaceCounts' => [],
+                'parentLocalNameCounts' => [],
+                'parentQualifiedNameCounts' => [],
                 'items' => [],
             ];
         }
 
         $items = [];
+        $parentPathCounts = [];
+        $parentPaths = [];
+        $parentNamespaceCounts = [];
+        $parentLocalNameCounts = [];
+        $parentQualifiedNameCounts = [];
         $ordinal = 0;
         $byteLength = 0;
-        $walk = function (\DOMNode $node) use (&$walk, &$items, &$ordinal, &$byteLength): void {
+        $walk = function (\DOMNode $node) use (
+            &$walk,
+            &$items,
+            &$parentPathCounts,
+            &$parentPaths,
+            &$parentNamespaceCounts,
+            &$parentLocalNameCounts,
+            &$parentQualifiedNameCounts,
+            &$ordinal,
+            &$byteLength,
+        ): void {
             foreach ($node->childNodes as $child) {
                 if ($child instanceof \DOMComment) {
                     $data = $child->data;
                     $commentParentPath = $this->xmlProvenanceParentPath($child->parentNode);
                     $parentDepth = $this->xmlProvenanceParentDepth($commentParentPath);
+                    $parentElement = $child->parentNode instanceof \DOMElement ? $child->parentNode : null;
+                    $parentNamespace = $parentElement instanceof \DOMElement && is_string($parentElement->namespaceURI) && $parentElement->namespaceURI !== ''
+                        ? $parentElement->namespaceURI
+                        : null;
+                    $parentLocalName = $parentElement instanceof \DOMElement && $parentElement->localName !== ''
+                        ? $parentElement->localName
+                        : null;
+                    $parentQualifiedName = $parentElement instanceof \DOMElement && $parentElement->nodeName !== ''
+                        ? $parentElement->nodeName
+                        : null;
+                    $parentNamespaceKey = $parentNamespace ?? '(none)';
+                    $parentLocalNameKey = $parentLocalName ?? '(none)';
+                    $parentQualifiedNameKey = $parentQualifiedName ?? '(none)';
                     ++$ordinal;
                     $commentByteLength = strlen($data);
                     $byteLength += $commentByteLength;
+                    $parentPathCounts[$commentParentPath] = ($parentPathCounts[$commentParentPath] ?? 0) + 1;
+                    $this->appendUniqueString($parentPaths, $commentParentPath);
+                    $parentNamespaceCounts[$parentNamespaceKey] = ($parentNamespaceCounts[$parentNamespaceKey] ?? 0) + 1;
+                    $parentLocalNameCounts[$parentLocalNameKey] = ($parentLocalNameCounts[$parentLocalNameKey] ?? 0) + 1;
+                    $parentQualifiedNameCounts[$parentQualifiedNameKey] = ($parentQualifiedNameCounts[$parentQualifiedNameKey] ?? 0) + 1;
                     $items[] = [
                         'ordinal' => $ordinal,
                         'parentPath' => $commentParentPath,
                         'parentDepth' => $parentDepth,
+                        'parentNamespace' => $parentNamespace,
+                        'parentLocalName' => $parentLocalName,
+                        'parentQualifiedName' => $parentQualifiedName,
                         'byteLength' => $commentByteLength,
                         'crc32' => $data === '' ? null : sprintf('%08x', crc32($data)),
                         'sha256' => $data === '' ? null : hash('sha256', $data),
@@ -25786,15 +25979,26 @@ final class DocxOpenXmlReader
         };
         $walk($dom);
 
+        ksort($parentPathCounts, SORT_STRING);
+        ksort($parentNamespaceCounts, SORT_STRING);
+        ksort($parentLocalNameCounts, SORT_STRING);
+        ksort($parentQualifiedNameCounts, SORT_STRING);
+        sort($parentPaths, SORT_STRING);
+
         return [
             'count' => count($items),
             'byteLength' => $byteLength,
+            'parentPathCounts' => $parentPathCounts,
+            'parentPaths' => $parentPaths,
+            'parentNamespaceCounts' => $parentNamespaceCounts,
+            'parentLocalNameCounts' => $parentLocalNameCounts,
+            'parentQualifiedNameCounts' => $parentQualifiedNameCounts,
             'items' => $items,
         ];
     }
 
     /**
-     * @return array{count:int, byteLength:int, items:list<array<string, mixed>>}
+     * @return array{count:int, byteLength:int, parentPathCounts:array<string, int>, parentPaths:list<string>, parentNamespaceCounts:array<string, int>, parentLocalNameCounts:array<string, int>, parentQualifiedNameCounts:array<string, int>, items:list<array<string, mixed>>}
      */
     private function xmlCdataSectionProvenance(string $xml, string $partName): array
     {
@@ -25803,26 +26007,67 @@ final class DocxOpenXmlReader
             return [
                 'count' => 0,
                 'byteLength' => 0,
+                'parentPathCounts' => [],
+                'parentPaths' => [],
+                'parentNamespaceCounts' => [],
+                'parentLocalNameCounts' => [],
+                'parentQualifiedNameCounts' => [],
                 'items' => [],
             ];
         }
 
         $items = [];
+        $parentPathCounts = [];
+        $parentPaths = [];
+        $parentNamespaceCounts = [];
+        $parentLocalNameCounts = [];
+        $parentQualifiedNameCounts = [];
         $ordinal = 0;
         $byteLength = 0;
-        $walk = function (\DOMNode $node) use (&$walk, &$items, &$ordinal, &$byteLength): void {
+        $walk = function (\DOMNode $node) use (
+            &$walk,
+            &$items,
+            &$parentPathCounts,
+            &$parentPaths,
+            &$parentNamespaceCounts,
+            &$parentLocalNameCounts,
+            &$parentQualifiedNameCounts,
+            &$ordinal,
+            &$byteLength,
+        ): void {
             foreach ($node->childNodes as $child) {
                 if ($child instanceof \DOMCdataSection) {
                     $data = $child->data;
                     $sectionParentPath = $this->xmlProvenanceParentPath($child->parentNode);
                     $parentDepth = $this->xmlProvenanceParentDepth($sectionParentPath);
+                    $parentElement = $child->parentNode instanceof \DOMElement ? $child->parentNode : null;
+                    $parentNamespace = $parentElement instanceof \DOMElement && is_string($parentElement->namespaceURI) && $parentElement->namespaceURI !== ''
+                        ? $parentElement->namespaceURI
+                        : null;
+                    $parentLocalName = $parentElement instanceof \DOMElement && $parentElement->localName !== ''
+                        ? $parentElement->localName
+                        : null;
+                    $parentQualifiedName = $parentElement instanceof \DOMElement && $parentElement->nodeName !== ''
+                        ? $parentElement->nodeName
+                        : null;
+                    $parentNamespaceKey = $parentNamespace ?? '(none)';
+                    $parentLocalNameKey = $parentLocalName ?? '(none)';
+                    $parentQualifiedNameKey = $parentQualifiedName ?? '(none)';
                     ++$ordinal;
                     $sectionByteLength = strlen($data);
                     $byteLength += $sectionByteLength;
+                    $parentPathCounts[$sectionParentPath] = ($parentPathCounts[$sectionParentPath] ?? 0) + 1;
+                    $this->appendUniqueString($parentPaths, $sectionParentPath);
+                    $parentNamespaceCounts[$parentNamespaceKey] = ($parentNamespaceCounts[$parentNamespaceKey] ?? 0) + 1;
+                    $parentLocalNameCounts[$parentLocalNameKey] = ($parentLocalNameCounts[$parentLocalNameKey] ?? 0) + 1;
+                    $parentQualifiedNameCounts[$parentQualifiedNameKey] = ($parentQualifiedNameCounts[$parentQualifiedNameKey] ?? 0) + 1;
                     $items[] = [
                         'ordinal' => $ordinal,
                         'parentPath' => $sectionParentPath,
                         'parentDepth' => $parentDepth,
+                        'parentNamespace' => $parentNamespace,
+                        'parentLocalName' => $parentLocalName,
+                        'parentQualifiedName' => $parentQualifiedName,
                         'byteLength' => $sectionByteLength,
                         'crc32' => $data === '' ? null : sprintf('%08x', crc32($data)),
                         'sha256' => $data === '' ? null : hash('sha256', $data),
@@ -25836,9 +26081,20 @@ final class DocxOpenXmlReader
         };
         $walk($dom);
 
+        ksort($parentPathCounts, SORT_STRING);
+        ksort($parentNamespaceCounts, SORT_STRING);
+        ksort($parentLocalNameCounts, SORT_STRING);
+        ksort($parentQualifiedNameCounts, SORT_STRING);
+        sort($parentPaths, SORT_STRING);
+
         return [
             'count' => count($items),
             'byteLength' => $byteLength,
+            'parentPathCounts' => $parentPathCounts,
+            'parentPaths' => $parentPaths,
+            'parentNamespaceCounts' => $parentNamespaceCounts,
+            'parentLocalNameCounts' => $parentLocalNameCounts,
+            'parentQualifiedNameCounts' => $parentQualifiedNameCounts,
             'items' => $items,
         ];
     }
@@ -30553,9 +30809,19 @@ final class DocxOpenXmlReader
                 'xmlProcessingInstructions' => [],
                 'xmlCommentCount' => 0,
                 'xmlCommentByteLength' => 0,
+                'xmlCommentParentPathCounts' => [],
+                'xmlCommentParentPaths' => [],
+                'xmlCommentParentNamespaceCounts' => [],
+                'xmlCommentParentLocalNameCounts' => [],
+                'xmlCommentParentQualifiedNameCounts' => [],
                 'xmlComments' => [],
                 'xmlCdataSectionCount' => 0,
                 'xmlCdataSectionByteLength' => 0,
+                'xmlCdataSectionParentPathCounts' => [],
+                'xmlCdataSectionParentPaths' => [],
+                'xmlCdataSectionParentNamespaceCounts' => [],
+                'xmlCdataSectionParentLocalNameCounts' => [],
+                'xmlCdataSectionParentQualifiedNameCounts' => [],
                 'xmlCdataSections' => [],
                 'xmlTextNodeCount' => 0,
                 'xmlTextNodeByteLength' => 0,
@@ -30866,9 +31132,19 @@ final class DocxOpenXmlReader
             'xmlProcessingInstructions' => $processingInstructions['items'],
             'xmlCommentCount' => $comments['count'],
             'xmlCommentByteLength' => $comments['byteLength'],
+            'xmlCommentParentPathCounts' => $comments['parentPathCounts'],
+            'xmlCommentParentPaths' => $comments['parentPaths'],
+            'xmlCommentParentNamespaceCounts' => $comments['parentNamespaceCounts'],
+            'xmlCommentParentLocalNameCounts' => $comments['parentLocalNameCounts'],
+            'xmlCommentParentQualifiedNameCounts' => $comments['parentQualifiedNameCounts'],
             'xmlComments' => $comments['items'],
             'xmlCdataSectionCount' => $cdataSections['count'],
             'xmlCdataSectionByteLength' => $cdataSections['byteLength'],
+            'xmlCdataSectionParentPathCounts' => $cdataSections['parentPathCounts'],
+            'xmlCdataSectionParentPaths' => $cdataSections['parentPaths'],
+            'xmlCdataSectionParentNamespaceCounts' => $cdataSections['parentNamespaceCounts'],
+            'xmlCdataSectionParentLocalNameCounts' => $cdataSections['parentLocalNameCounts'],
+            'xmlCdataSectionParentQualifiedNameCounts' => $cdataSections['parentQualifiedNameCounts'],
             'xmlCdataSections' => $cdataSections['items'],
             'xmlTextNodeCount' => $textNodes['count'],
             'xmlTextNodeByteLength' => $textNodes['byteLength'],
