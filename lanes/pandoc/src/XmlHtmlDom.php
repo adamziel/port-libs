@@ -156,6 +156,20 @@ final class XmlHtmlDom
     ];
 
     /** @var array<string, true> */
+    private const HTML_FORM_REL_TOKENS = [
+        'external' => true,
+        'help' => true,
+        'license' => true,
+        'next' => true,
+        'nofollow' => true,
+        'noopener' => true,
+        'noreferrer' => true,
+        'opener' => true,
+        'prev' => true,
+        'search' => true,
+    ];
+
+    /** @var array<string, true> */
     private const HTML_IFRAME_SANDBOX_TOKENS = [
         'allow-downloads' => true,
         'allow-forms' => true,
@@ -24075,6 +24089,7 @@ final class XmlHtmlDom
     private static function formSubmissionSummary(\DOMElement $form): array
     {
         $acceptCharsetRaw = self::attributeOrNull($form, 'accept-charset');
+        $relRaw = self::attributeOrNull($form, 'rel');
         $controls = self::formOwnedControlSummaries($form);
 
         return [
@@ -24094,7 +24109,75 @@ final class XmlHtmlDom
             )),
             'controls' => $controls,
             'controlNames' => self::formOwnedControlNames($controls),
-        ] + self::formAcceptCharsetReviewSummary($acceptCharsetRaw);
+        ] + self::formAcceptCharsetReviewSummary($acceptCharsetRaw)
+            + self::formRelReviewSummary($relRaw);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function formRelReviewSummary(?string $relRaw): array
+    {
+        $rel = self::hyperlinkRelTokenReviewSummary($relRaw);
+        $known = [];
+        $unknown = [];
+        foreach ($rel['tokens'] as $token) {
+            if (isset(self::HTML_FORM_REL_TOKENS[$token])) {
+                $known[] = $token;
+                continue;
+            }
+
+            $unknown[] = $token;
+        }
+
+        $issues = [];
+        foreach ($rel['invalid'] as $token) {
+            $issues[] = ['code' => 'invalid-form-rel-token', 'token' => $token];
+        }
+        foreach ($rel['duplicates'] as $token) {
+            $issues[] = [
+                'code' => 'duplicate-form-rel-token',
+                'token' => $token,
+                'count' => $rel['counts'][$token] ?? 0,
+            ];
+        }
+        foreach ($unknown as $token) {
+            $issues[] = ['code' => 'unknown-form-rel-token', 'token' => $token];
+        }
+
+        $requestsOpener = in_array('opener', $known, true);
+        $requestsNoopener = in_array('noopener', $known, true);
+        $requestsNoreferrer = in_array('noreferrer', $known, true);
+        $effectiveNoopener = $requestsNoopener || $requestsNoreferrer;
+        if ($requestsOpener && $effectiveNoopener) {
+            $issues[] = ['code' => 'conflicting-form-rel-opener-policy'];
+        }
+
+        return [
+            'formRelReviewPolicy' => 'form-rel-token-review',
+            'formRelRaw' => $relRaw,
+            'formRelPresent' => $relRaw !== null,
+            'formRelTokens' => $rel['tokens'],
+            'formRelKnownTokens' => $known,
+            'formRelUnknownTokens' => $unknown,
+            'formRelTokenCounts' => $rel['counts'],
+            'duplicateFormRelTokens' => $rel['duplicates'],
+            'invalidFormRelTokens' => $rel['invalid'],
+            'formRelRequestsOpener' => $requestsOpener,
+            'formRelRequestsNoopener' => $requestsNoopener,
+            'formRelRequestsNoreferrer' => $requestsNoreferrer,
+            'formRelEffectiveNoopener' => $effectiveNoopener,
+            'formRelNavigationHints' => array_values(array_intersect(
+                $known,
+                ['external', 'nofollow', 'noopener', 'noreferrer', 'opener']
+            )),
+            'formRelIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'formRelIssues' => $issues,
+            'formRelValid' => $issues === [],
+        ];
     }
 
     /**
