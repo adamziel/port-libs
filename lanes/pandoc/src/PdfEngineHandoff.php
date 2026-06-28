@@ -7558,7 +7558,7 @@ final class PdfEngineHandoff
         if ($this->typstBoundaryHistoryHasIssues($featureGateHistory)) {
             $provenance['featureGateHistory'] = $featureGateHistory;
         }
-        if ($this->typstBoundaryHistoryHasIssues($jobsHistory)) {
+        if (count($jobsHistory) > 1 || $this->typstBoundaryHistoryHasIssues($jobsHistory)) {
             $provenance['jobsHistory'] = $jobsHistory;
         }
         if ($this->typstBoundaryHistoryHasIssues($dependencyOutputHistory)) {
