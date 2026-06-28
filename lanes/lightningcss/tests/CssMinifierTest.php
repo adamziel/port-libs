@@ -1395,6 +1395,11 @@ CSS
         $t->same('.foo{z-index:999999}', $minifier->minify('.foo { z-index: 999999 }'));
         $t->same('.foo{z-index:9999999}', $minifier->minify('.foo { z-index: 9999999 }'));
         $t->same('.foo{z-index:-9999999}', $minifier->minify('.foo { z-index: -9999999 }'));
+        $t->same(
+            '.foo{z-index:100}',
+            $minifier->minify('.foo { z-index: max(100,    20); }'),
+            'upstream src/lib.rs::test_math_fn line 609'
+        );
     },
     'css minifier maps upstream srgb color-mix value normalization' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
@@ -3493,10 +3498,12 @@ CSS;
     'css minifier maps upstream pi trigonometric math rows' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
-        // Pinned upstream 22bdda3d src/lib.rs::test_trig lines 8426 and 8431.
+        // Pinned upstream 22bdda3d src/lib.rs::test_trig lines 8426, 8431, 8432, and 8436.
         $cases = [
             [8426, '.foo { width: calc(2px * pi); }', '.foo{width:6.28319px}'],
             [8431, '.foo { width: calc(2px / pi); }', '.foo{width:.63662px}'],
+            [8432, '.foo { width: calc(2px * infinity); }', '.foo{width:calc(2px*infinity)}'],
+            [8436, '.foo { width: calc(2px * -infinity); }', '.foo{width:calc(2px*-infinity)}'],
         ];
 
         foreach ($cases as [$line, $input, $expected]) {

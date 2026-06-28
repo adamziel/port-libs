@@ -52,4 +52,13 @@ return [
             $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_transform line ' . $line);
         }
     },
+    'css minifier maps residual upstream rotate zero unit row' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo{rotate:y 0deg}',
+            $minifier->minify('.foo { rotate: y 0turn }'),
+            'upstream src/lib.rs::test_transform line 13220'
+        );
+    },
 ];
