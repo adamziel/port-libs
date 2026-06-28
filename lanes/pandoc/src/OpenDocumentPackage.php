@@ -1353,6 +1353,7 @@ final class OpenDocumentPackage
      */
     private function packageIdentity(array $packageInventory): array
     {
+        $manifestRootAttributes = $this->manifestRootAttributes;
         $manifestEntries = [];
         foreach ($this->manifestEntries as $entry) {
             $manifestEntries[] = self::withoutEmptyValues([
@@ -1517,6 +1518,17 @@ final class OpenDocumentPackage
             'manifestRootExtensionElements' => $this->manifestRootExtensionElements['extensionElements'] ?? [],
             'manifestPaths' => array_column($manifestEntries, 'path'),
             'packagePaths' => array_column($packageEntries, 'path'),
+            'manifestRootAttributeCount' => $manifestRootAttributes['attributeCount'] ?? 0,
+            'manifestRootAttributeNames' => $manifestRootAttributes['attributeNames'] ?? [],
+            'manifestRootAttributes' => $manifestRootAttributes['attributes'] ?? [],
+            'manifestRootCustomAttributeCount' => $manifestRootAttributes['customAttributeCount'] ?? 0,
+            'manifestRootCustomAttributeNames' => $manifestRootAttributes['customAttributeNames'] ?? [],
+            'manifestRootCustomAttributes' => $manifestRootAttributes['customAttributes'] ?? [],
+            'manifestRootCustomAttributeMap' => $manifestRootAttributes['customAttributeMap'] ?? [],
+            'manifestRootNamespaceDeclarationCount' => $manifestRootAttributes['namespaceDeclarationCount'] ?? 0,
+            'manifestRootNamespaceDeclarationNames' => $manifestRootAttributes['namespaceDeclarationNames'] ?? [],
+            'manifestRootNamespaceDeclarations' => $manifestRootAttributes['namespaceDeclarations'] ?? [],
+            'manifestRootNamespaceDeclarationMap' => $manifestRootAttributes['namespaceDeclarationMap'] ?? [],
             'manifestEntries' => $manifestEntries,
             'packageEntries' => $packageEntries,
             'manifestMediaFamilyCounts' => $packageInventory['manifestMediaFamilyCounts'] ?? [],

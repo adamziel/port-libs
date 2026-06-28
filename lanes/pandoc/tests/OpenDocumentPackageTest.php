@@ -445,6 +445,32 @@ return [
         $t->same(3, $inventory['Pictures/hero.png']['customManifestAttributeCount']);
         $t->same('en-US', $inventory['Pictures/hero.png']['customManifestAttributeMap']['xml:lang']);
     },
+    'includes compact ODT manifest root provenance in package identity' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifest = str_replace(
+            '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">',
+            '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" xmlns:loext="urn:libreoffice:manifest" xmlns:wp="urn:wordpress:review" manifest:version="1.3" loext:generator="LibreOffice 25.2" wp:review-source="compact">',
+            $manifestXml
+        );
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $manifest))->summarize();
+        $identity = $summary['packageIdentity'];
+        $changedManifest = str_replace('wp:review-source="compact"', 'wp:review-source="changed-root"', $manifest);
+        $changedIdentity = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $changedManifest))->summarize()['packageIdentity'];
+
+        $t->same(3, $identity['manifestRootAttributeCount']);
+        $t->same(['loext:generator', 'manifest:version', 'wp:review-source'], $identity['manifestRootAttributeNames']);
+        $t->same(2, $identity['manifestRootCustomAttributeCount']);
+        $t->same(['loext:generator', 'wp:review-source'], $identity['manifestRootCustomAttributeNames']);
+        $t->same([
+            'loext:generator' => 'LibreOffice 25.2',
+            'wp:review-source' => 'compact',
+        ], $identity['manifestRootCustomAttributeMap']);
+        $t->same(3, $identity['manifestRootNamespaceDeclarationCount']);
+        $t->same('urn:wordpress:review', $identity['manifestRootNamespaceDeclarationMap']['xmlns:wp']);
+        $t->same('urn:libreoffice:manifest', $identity['manifestRootNamespaceDeclarationMap']['xmlns:loext']);
+        $t->same($summary['manifestReview']['manifestRootCustomAttributeMap'], $identity['manifestRootCustomAttributeMap']);
+        $t->true($identity['identitySha256'] !== $changedIdentity['identitySha256']);
+        $t->true($identity['identityPayloadByteLength'] !== $changedIdentity['identityPayloadByteLength']);
+    },
     'preserves compact ODT manifest file-entry child element provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifest = str_replace(
             [
