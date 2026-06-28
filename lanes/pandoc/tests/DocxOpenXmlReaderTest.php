@@ -19212,6 +19212,97 @@ XML;
         $t->true(!isset($reviewPart['xmlElementAttributes'][0]['value']), 'raw XML attribute value should not be exposed on part metadata');
         $t->true(!str_contains((string) $encodedAttributes, 'hidden-'), 'raw XML attribute values should not be exposed in summary metadata');
     },
+    'summarizes docx package xml element attribute groups without exposing values' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['customXml/attribute-groups.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:review-attribute-groups" xmlns:meta="urn:meta-attribute-groups" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xml:lang="en" review:state="hidden-root-state" meta:scope="hidden-scope">
+  <review:item id="item-1" review:kind="hidden-item-kind" r:id="rAttributeGroup"/>
+  <review:single flag="hidden-single-flag"/>
+  <review:empty/>
+</review:packet>
+XML;
+        $parts['word/settings-attribute-groups.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:review="urn:settings-attribute-groups" xmlns:audit="urn:settings-audit" review:mode="hidden-settings-mode">
+  <w:docVars>
+    <w:docVar review:name="hidden-settings-name" w:val="hidden-settings-value" audit:flag="hidden-settings-flag"/>
+  </w:docVars>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/attribute-groups.xml'];
+        $settingsPart = $package['parts']['word/settings-attribute-groups.xml'];
+        $groups = array_values(array_filter(
+            $summary['partXmlElementAttributeGroups'],
+            static fn (array $group): bool => in_array(
+                $group['partName'],
+                ['customXml/attribute-groups.xml', 'word/settings-attribute-groups.xml'],
+                true,
+            ),
+        ));
+        $groupsByKey = [];
+        foreach ($groups as $group) {
+            $groupsByKey[$group['partName'] . '#' . $group['elementPath']] = $group;
+        }
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(3, $reviewPart['xmlElementAttributeGroupCount']);
+        $t->same(7, $reviewPart['xmlElementAttributeGroupAttributeCount']);
+        $t->same(3, $reviewPart['xmlElementAttributeGroupMaxAttributeCount']);
+        $t->same(2, $reviewPart['xmlElementAttributeGroupMultiAttributeCount']);
+        $t->same(['1' => 1, '2-3' => 2], $reviewPart['xmlElementAttributeGroupAttributeCountBuckets']);
+        $t->same(
+            [
+                '/review:packet' => 1,
+                '/review:packet/review:item' => 1,
+                '/review:packet/review:single' => 1,
+            ],
+            $reviewPart['xmlElementAttributeGroupElementPathCounts']
+        );
+        $t->same(2, $settingsPart['xmlElementAttributeGroupCount']);
+        $t->same(4, $settingsPart['xmlElementAttributeGroupAttributeCount']);
+        $t->same(3, $settingsPart['xmlElementAttributeGroupMaxAttributeCount']);
+        $t->same(['1' => 1, '2-3' => 1], $settingsPart['xmlElementAttributeGroupAttributeCountBuckets']);
+
+        $itemGroup = $groupsByKey['customXml/attribute-groups.xml#/review:packet/review:item'];
+        $docVarGroup = $groupsByKey['word/settings-attribute-groups.xml#/w:settings/w:docVars/w:docVar'];
+        $rootGroup = $groupsByKey['customXml/attribute-groups.xml#/review:packet'];
+
+        $t->same(3, $itemGroup['attributeCount']);
+        $t->same('2-3', $itemGroup['attributeCountBucket']);
+        $t->true(in_array('id', $itemGroup['attributeNames'], true), 'unqualified attribute name should be present');
+        $t->true(in_array('review:kind', $itemGroup['attributeNames'], true), 'review namespaced attribute name should be present');
+        $t->true(in_array('r:id', $itemGroup['attributeNames'], true), 'relationship attribute name should be present');
+        $t->same(true, $itemGroup['hasRelationshipAttribute']);
+        $t->same(true, $itemGroup['hasUnqualifiedAttribute']);
+        $t->same(true, $itemGroup['hasNamespacedAttribute']);
+        $t->same(2, $itemGroup['attributeNamespaceCount']);
+        $t->same(hash('sha256', implode(' ', $itemGroup['attributeNames'])), $itemGroup['attributeNameSequenceSha256']);
+        $t->same(true, $rootGroup['hasXmlLang']);
+        $t->same(3, $docVarGroup['attributeCount']);
+        $t->true(in_array('w:val', $docVarGroup['attributeNames'], true), 'WordprocessingML attribute group should preserve w:val name');
+        $t->true(in_array('audit:flag', $docVarGroup['attributeNames'], true), 'settings audit attribute group should preserve audit flag name');
+
+        $t->true($summary['partXmlElementAttributeGroupPartCount'] >= 2, 'summary attribute-group part count should include added XML parts');
+        $t->true($summary['partXmlElementAttributeGroupCount'] >= 5, 'summary attribute-group count should include added XML groups');
+        $t->true($summary['partXmlElementAttributeGroupAttributeCount'] >= 11, 'summary attribute-group attribute total should include added attributes');
+        $t->true($summary['partXmlElementAttributeGroupMaxAttributeCount'] >= 3, 'summary attribute-group max should include three-attribute elements');
+        $t->true(in_array('customXml/attribute-groups.xml', $summary['partXmlElementAttributeGroupPartNames'], true), 'custom XML attribute-group part should be summarized');
+        $t->true(in_array('word/settings-attribute-groups.xml', $summary['partXmlElementAttributeGroupPartNames'], true), 'settings attribute-group part should be summarized');
+        $t->same(1, $summary['partXmlElementAttributeGroupElementPathCounts']['/review:packet/review:item']);
+        $t->same(1, $summary['partXmlElementAttributeGroupElementPathCounts']['/w:settings/w:docVars/w:docVar']);
+        $t->same(1, $summary['partXmlElementAttributeGroupFirstAttributeNameCounts']['review:mode']);
+        $t->same(1, $summary['partXmlElementAttributeGroupLastAttributeNameCounts']['audit:flag']);
+
+        $encodedGroups = json_encode([$reviewPart['xmlElementAttributeGroups'], $settingsPart['xmlElementAttributeGroups'], $groups]);
+        $t->true(is_string($encodedGroups), 'XML attribute-group metadata should encode for review');
+        $t->true(!str_contains((string) $encodedGroups, 'hidden-'), 'raw XML attribute values should not be exposed in attribute-group metadata');
+        $t->true(!isset($reviewPart['xmlElementAttributeGroups'][0]['attributeValues']), 'raw XML attribute values should not be exposed on part metadata');
+    },
     'summarizes docx package xml element attribute value shapes without exposing values' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $leadingValue = '  value-shape:hidden-leading';
