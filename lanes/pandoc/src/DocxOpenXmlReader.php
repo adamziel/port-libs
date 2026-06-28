@@ -14055,6 +14055,12 @@ final class DocxOpenXmlReader
             'partXmlTextNodeParentPathCount' => $partXmlRoots['xmlTextNodeParentPathCount'],
             'partXmlTextNodeParentPathCounts' => $partXmlRoots['xmlTextNodeParentPathCounts'],
             'partXmlTextNodeParentPaths' => $partXmlRoots['xmlTextNodeParentPaths'],
+            'partXmlTextNodeParentNamespaceCount' => count($partXmlRoots['xmlTextNodeParentNamespaceCounts']),
+            'partXmlTextNodeParentNamespaceCounts' => $partXmlRoots['xmlTextNodeParentNamespaceCounts'],
+            'partXmlTextNodeParentLocalNameCount' => count($partXmlRoots['xmlTextNodeParentLocalNameCounts']),
+            'partXmlTextNodeParentLocalNameCounts' => $partXmlRoots['xmlTextNodeParentLocalNameCounts'],
+            'partXmlTextNodeParentQualifiedNameCount' => count($partXmlRoots['xmlTextNodeParentQualifiedNameCounts']),
+            'partXmlTextNodeParentQualifiedNameCounts' => $partXmlRoots['xmlTextNodeParentQualifiedNameCounts'],
             'partXmlRootAttributes' => $partXmlRoots['rootAttributes'],
             'partContentTypeSyntaxSuffixCount' => count($partContentTypeSyntaxSuffixes),
             'partContentTypeSyntaxSuffixCounts' => $partContentTypeSyntaxSuffixCounts,
@@ -19796,6 +19802,9 @@ final class DocxOpenXmlReader
         $xmlTextNodePartNames = [];
         $xmlTextNodeParentPathCounts = [];
         $xmlTextNodeParentPaths = [];
+        $xmlTextNodeParentNamespaceCounts = [];
+        $xmlTextNodeParentLocalNameCounts = [];
+        $xmlTextNodeParentQualifiedNameCounts = [];
         $xmlTextNodes = [];
         $xmlElementPartNames = [];
         $xmlElementNamespaceCounts = [];
@@ -20201,6 +20210,30 @@ final class DocxOpenXmlReader
                     ($xmlTextNodeParentPathCounts[$parentPath] ?? 0) + (int) $count;
                 $this->appendUniqueString($xmlTextNodeParentPaths, $parentPath);
             }
+            foreach (($part['xmlTextNodeParentNamespaceCounts'] ?? []) as $namespace => $count) {
+                if (!is_string($namespace) || $namespace === '') {
+                    continue;
+                }
+
+                $xmlTextNodeParentNamespaceCounts[$namespace] =
+                    ($xmlTextNodeParentNamespaceCounts[$namespace] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlTextNodeParentLocalNameCounts'] ?? []) as $localName => $count) {
+                if (!is_string($localName) || $localName === '') {
+                    continue;
+                }
+
+                $xmlTextNodeParentLocalNameCounts[$localName] =
+                    ($xmlTextNodeParentLocalNameCounts[$localName] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlTextNodeParentQualifiedNameCounts'] ?? []) as $qualifiedName => $count) {
+                if (!is_string($qualifiedName) || $qualifiedName === '') {
+                    continue;
+                }
+
+                $xmlTextNodeParentQualifiedNameCounts[$qualifiedName] =
+                    ($xmlTextNodeParentQualifiedNameCounts[$qualifiedName] ?? 0) + (int) $count;
+            }
             foreach (($part['xmlTextNodes'] ?? []) as $node) {
                 if (!is_array($node)) {
                     continue;
@@ -20220,6 +20253,9 @@ final class DocxOpenXmlReader
                     'ordinal' => is_int($node['ordinal'] ?? null) ? (int) $node['ordinal'] : 0,
                     'parentPath' => is_string($node['parentPath'] ?? null) ? $node['parentPath'] : '/',
                     'parentDepth' => (int) ($node['parentDepth'] ?? 0),
+                    'parentNamespace' => is_string($node['parentNamespace'] ?? null) ? $node['parentNamespace'] : null,
+                    'parentLocalName' => is_string($node['parentLocalName'] ?? null) ? $node['parentLocalName'] : null,
+                    'parentQualifiedName' => is_string($node['parentQualifiedName'] ?? null) ? $node['parentQualifiedName'] : null,
                     'byteLength' => (int) ($node['byteLength'] ?? 0),
                     'isWhitespaceOnly' => (bool) ($node['isWhitespaceOnly'] ?? false),
                     'crc32' => is_string($node['crc32'] ?? null) ? $node['crc32'] : null,
@@ -20455,6 +20491,15 @@ final class DocxOpenXmlReader
                     ? $part['xmlTextNodeParentPathCounts']
                     : [],
                 'xmlTextNodeParentPaths' => array_values(array_map('strval', $part['xmlTextNodeParentPaths'] ?? [])),
+                'xmlTextNodeParentNamespaceCounts' => is_array($part['xmlTextNodeParentNamespaceCounts'] ?? null)
+                    ? $part['xmlTextNodeParentNamespaceCounts']
+                    : [],
+                'xmlTextNodeParentLocalNameCounts' => is_array($part['xmlTextNodeParentLocalNameCounts'] ?? null)
+                    ? $part['xmlTextNodeParentLocalNameCounts']
+                    : [],
+                'xmlTextNodeParentQualifiedNameCounts' => is_array($part['xmlTextNodeParentQualifiedNameCounts'] ?? null)
+                    ? $part['xmlTextNodeParentQualifiedNameCounts']
+                    : [],
                 'xmlTextNodes' => is_array($part['xmlTextNodes'] ?? null)
                     ? $part['xmlTextNodes']
                     : [],
@@ -20521,6 +20566,9 @@ final class DocxOpenXmlReader
         ksort($xmlProcessingInstructionTargetCounts, SORT_STRING);
         ksort($xmlProcessingInstructionDataAttributeNameCounts, SORT_STRING);
         ksort($xmlTextNodeParentPathCounts, SORT_STRING);
+        ksort($xmlTextNodeParentNamespaceCounts, SORT_STRING);
+        ksort($xmlTextNodeParentLocalNameCounts, SORT_STRING);
+        ksort($xmlTextNodeParentQualifiedNameCounts, SORT_STRING);
         ksort($xmlElementNamespaceCounts, SORT_STRING);
         ksort($xmlElementLocalNameCounts, SORT_STRING);
         ksort($xmlElementQualifiedNameCounts, SORT_STRING);
@@ -20664,6 +20712,9 @@ final class DocxOpenXmlReader
             'xmlTextNodeParentPathCount' => count($xmlTextNodeParentPathCounts),
             'xmlTextNodeParentPathCounts' => $xmlTextNodeParentPathCounts,
             'xmlTextNodeParentPaths' => $xmlTextNodeParentPaths,
+            'xmlTextNodeParentNamespaceCounts' => $xmlTextNodeParentNamespaceCounts,
+            'xmlTextNodeParentLocalNameCounts' => $xmlTextNodeParentLocalNameCounts,
+            'xmlTextNodeParentQualifiedNameCounts' => $xmlTextNodeParentQualifiedNameCounts,
             'xmlTextNodes' => $xmlTextNodes,
             'xmlElementPartCount' => $xmlElementPartCount,
             'xmlElementCount' => $xmlElementCount,
@@ -22529,7 +22580,7 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{count:int, byteLength:int, whitespaceCount:int, nonWhitespaceCount:int, nonWhitespaceByteLength:int, parentPathCounts:array<string, int>, parentPaths:list<string>, items:list<array<string, mixed>>}
+     * @return array{count:int, byteLength:int, whitespaceCount:int, nonWhitespaceCount:int, nonWhitespaceByteLength:int, parentPathCounts:array<string, int>, parentPaths:list<string>, parentNamespaceCounts:array<string, int>, parentLocalNameCounts:array<string, int>, parentQualifiedNameCounts:array<string, int>, items:list<array<string, mixed>>}
      */
     private function xmlTextNodeProvenance(string $xml, string $partName): array
     {
@@ -22543,6 +22594,9 @@ final class DocxOpenXmlReader
                 'nonWhitespaceByteLength' => 0,
                 'parentPathCounts' => [],
                 'parentPaths' => [],
+                'parentNamespaceCounts' => [],
+                'parentLocalNameCounts' => [],
+                'parentQualifiedNameCounts' => [],
                 'items' => [],
             ];
         }
@@ -22550,6 +22604,9 @@ final class DocxOpenXmlReader
         $items = [];
         $parentPathCounts = [];
         $parentPaths = [];
+        $parentNamespaceCounts = [];
+        $parentLocalNameCounts = [];
+        $parentQualifiedNameCounts = [];
         $ordinal = 0;
         $byteLength = 0;
         $whitespaceCount = 0;
@@ -22560,6 +22617,9 @@ final class DocxOpenXmlReader
             &$items,
             &$parentPathCounts,
             &$parentPaths,
+            &$parentNamespaceCounts,
+            &$parentLocalNameCounts,
+            &$parentQualifiedNameCounts,
             &$ordinal,
             &$byteLength,
             &$whitespaceCount,
@@ -22571,12 +22631,28 @@ final class DocxOpenXmlReader
                     $data = $child->data;
                     $textParentPath = $this->xmlProvenanceParentPath($child->parentNode);
                     $parentDepth = $this->xmlProvenanceParentDepth($textParentPath);
+                    $parentElement = $child->parentNode instanceof \DOMElement ? $child->parentNode : null;
+                    $parentNamespace = $parentElement instanceof \DOMElement && is_string($parentElement->namespaceURI) && $parentElement->namespaceURI !== ''
+                        ? $parentElement->namespaceURI
+                        : null;
+                    $parentLocalName = $parentElement instanceof \DOMElement && $parentElement->localName !== ''
+                        ? $parentElement->localName
+                        : null;
+                    $parentQualifiedName = $parentElement instanceof \DOMElement && $parentElement->nodeName !== ''
+                        ? $parentElement->nodeName
+                        : null;
+                    $parentNamespaceKey = $parentNamespace ?? '(none)';
+                    $parentLocalNameKey = $parentLocalName ?? '(none)';
+                    $parentQualifiedNameKey = $parentQualifiedName ?? '(none)';
                     $textByteLength = strlen($data);
                     $isWhitespaceOnly = preg_match('/[^\x20\x09\x0D\x0A]/', $data) !== 1;
                     ++$ordinal;
                     $byteLength += $textByteLength;
                     $parentPathCounts[$textParentPath] = ($parentPathCounts[$textParentPath] ?? 0) + 1;
                     $this->appendUniqueString($parentPaths, $textParentPath);
+                    $parentNamespaceCounts[$parentNamespaceKey] = ($parentNamespaceCounts[$parentNamespaceKey] ?? 0) + 1;
+                    $parentLocalNameCounts[$parentLocalNameKey] = ($parentLocalNameCounts[$parentLocalNameKey] ?? 0) + 1;
+                    $parentQualifiedNameCounts[$parentQualifiedNameKey] = ($parentQualifiedNameCounts[$parentQualifiedNameKey] ?? 0) + 1;
                     if ($isWhitespaceOnly) {
                         ++$whitespaceCount;
                     } else {
@@ -22587,6 +22663,9 @@ final class DocxOpenXmlReader
                         'ordinal' => $ordinal,
                         'parentPath' => $textParentPath,
                         'parentDepth' => $parentDepth,
+                        'parentNamespace' => $parentNamespace,
+                        'parentLocalName' => $parentLocalName,
+                        'parentQualifiedName' => $parentQualifiedName,
                         'byteLength' => $textByteLength,
                         'isWhitespaceOnly' => $isWhitespaceOnly,
                         'crc32' => $data === '' ? null : sprintf('%08x', crc32($data)),
@@ -22602,6 +22681,9 @@ final class DocxOpenXmlReader
         $walk($dom);
 
         ksort($parentPathCounts, SORT_STRING);
+        ksort($parentNamespaceCounts, SORT_STRING);
+        ksort($parentLocalNameCounts, SORT_STRING);
+        ksort($parentQualifiedNameCounts, SORT_STRING);
         sort($parentPaths, SORT_STRING);
 
         return [
@@ -22612,6 +22694,9 @@ final class DocxOpenXmlReader
             'nonWhitespaceByteLength' => $nonWhitespaceByteLength,
             'parentPathCounts' => $parentPathCounts,
             'parentPaths' => $parentPaths,
+            'parentNamespaceCounts' => $parentNamespaceCounts,
+            'parentLocalNameCounts' => $parentLocalNameCounts,
+            'parentQualifiedNameCounts' => $parentQualifiedNameCounts,
             'items' => $items,
         ];
     }
@@ -24624,6 +24709,9 @@ final class DocxOpenXmlReader
                 'xmlTextNodeNonWhitespaceByteLength' => 0,
                 'xmlTextNodeParentPathCounts' => [],
                 'xmlTextNodeParentPaths' => [],
+                'xmlTextNodeParentNamespaceCounts' => [],
+                'xmlTextNodeParentLocalNameCounts' => [],
+                'xmlTextNodeParentQualifiedNameCounts' => [],
                 'xmlTextNodes' => [],
                 'xmlElementCount' => 0,
                 'xmlElementLeafCount' => 0,
@@ -24713,6 +24801,9 @@ final class DocxOpenXmlReader
             'xmlTextNodeNonWhitespaceByteLength' => $textNodes['nonWhitespaceByteLength'],
             'xmlTextNodeParentPathCounts' => $textNodes['parentPathCounts'],
             'xmlTextNodeParentPaths' => $textNodes['parentPaths'],
+            'xmlTextNodeParentNamespaceCounts' => $textNodes['parentNamespaceCounts'],
+            'xmlTextNodeParentLocalNameCounts' => $textNodes['parentLocalNameCounts'],
+            'xmlTextNodeParentQualifiedNameCounts' => $textNodes['parentQualifiedNameCounts'],
             'xmlTextNodes' => $textNodes['items'],
             'xmlElementCount' => $elements['count'],
             'xmlElementLeafCount' => $elements['leafCount'],
