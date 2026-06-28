@@ -10,7 +10,7 @@ final class WordPressBlockWriter
     private array $footnotes = [];
 
     /**
-     * @param array{includeMetadata?: bool, preserveListAttributes?: bool, preserveEmptyParagraphs?: bool, taskGlyphsAsCheckboxes?: bool, markEmptyTableCells?: bool} $options
+     * @param array{includeMetadata?: bool, preserveListAttributes?: bool, preserveEmptyParagraphs?: bool, taskGlyphsAsCheckboxes?: bool, markEmptyTableCells?: bool, highlightCodeBlocks?: bool, highlightStyle?: string, highlightThemeJson?: string} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -1211,6 +1211,10 @@ final class WordPressBlockWriter
 
     private function renderCodeBlock(AstNode $node): string
     {
+        if ((bool) ($this->options['highlightCodeBlocks'] ?? false)) {
+            return $this->renderHighlightedCodeBlock($node);
+        }
+
         return '<!-- wp:code -->'
             . "\n" . $this->renderCodeBlockHtml($node)
             . "\n" . '<!-- /wp:code -->';
@@ -1218,12 +1222,48 @@ final class WordPressBlockWriter
 
     private function renderCodeBlockHtml(AstNode $node): string
     {
-        $classes = $node->attr('classes', []);
-        $language = is_array($classes) && isset($classes[0]) ? $this->sanitizeCodeClass((string) $classes[0]) : '';
+        $language = $this->sanitizeCodeClass(SyntaxHighlighter::languageFromCodeBlock($node));
         $codeAttrs = $language === '' ? '' : ' class="language-' . $this->esc($language) . '"';
+        $preClassAttr = $this->renderCodeBlockPreClassAttr($node);
         $preAttrs = $this->renderCodeBlockPreAttrs($node);
 
-        return '<pre class="wp-block-code"' . $preAttrs . '><code' . $codeAttrs . '>' . $this->esc((string) $node->attr('text', '')) . '</code></pre>';
+        return '<pre' . $preClassAttr . $preAttrs . '><code' . $codeAttrs . '>' . $this->esc((string) $node->attr('text', '')) . '</code></pre>';
+    }
+
+    private function renderHighlightedCodeBlock(AstNode $node): string
+    {
+        $options = [];
+        if (isset($this->options['highlightThemeJson']) && is_string($this->options['highlightThemeJson'])) {
+            $options['themeJson'] = $this->options['highlightThemeJson'];
+        }
+
+        return (new SyntaxHighlighter())->wordpressHtmlBlock(
+            $node,
+            (string) ($this->options['highlightStyle'] ?? 'pygments'),
+            $options
+        );
+    }
+
+    private function renderCodeBlockPreClassAttr(AstNode $node): string
+    {
+        $classes = ['wp-block-code'];
+        $extraClasses = [];
+        $hasReviewClass = false;
+        $htmlClass = $this->inlineHtmlAttributes($node)['class'] ?? '';
+        foreach (preg_split('/\s+/', (string) $htmlClass, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $class) {
+            $rawClass = trim((string) $class);
+            $class = $this->sanitizeCodeClass($rawClass);
+            if ($class === '' || $class === 'sourceCode' || $class === 'wp-block-code') {
+                continue;
+            }
+
+            $extraClasses[] = $class;
+            if (SyntaxHighlighter::normalizeLanguage($rawClass) === null) {
+                $hasReviewClass = true;
+            }
+        }
+
+        return $this->renderClassAttr($hasReviewClass ? array_merge($classes, $extraClasses) : $classes);
     }
 
     private function renderCodeBlockPreAttrs(AstNode $node): string
