@@ -922,6 +922,128 @@ return [
         $t->same($manifest, $raw['strictImport']['packageManifest']);
     },
 
+    'profiles zip package part buckets without exposing payload bytes' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types/>',
+                'method' => 0,
+            ],
+            [
+                'name' => '_rels/.rels',
+                'data' => '<Relationships/>',
+                'method' => 0,
+            ],
+            [
+                'name' => 'docProps/core.xml',
+                'data' => '<cp:coreProperties/>',
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document/>',
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/_rels/document.xml.rels',
+                'data' => '<Relationships/>',
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/image.PNG',
+                'data' => 'PNG',
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 0,
+            ],
+            [
+                'name' => 'customXml/item1.dat',
+                'data' => 'custom bytes',
+                'method' => 8,
+            ],
+            [
+                'name' => 'mimetype',
+                'data' => 'application/epub+zip',
+                'method' => 0,
+            ],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+        $profile = $package->packagePartProfilePreflight();
+        $strict = $package->strictImportPreflight(2048, 100.0, 2048);
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+
+        $kinds = array_column($profile['packagePartKindSummaries'], null, 'packagePartKind');
+        $extensions = [];
+        foreach ($profile['extensionSummaries'] as $extensionSummary) {
+            $extensions[$extensionSummary['extension'] ?? ''] = $extensionSummary;
+        }
+        $roots = array_column($profile['directoryRootSummaries'], null, 'directoryRoot');
+        $parents = array_column($profile['parentDirectorySummaries'], null, 'parentDirectory');
+        $depths = array_column($profile['pathDepthSummaries'], null, 'pathDepth');
+
+        $t->same(9, $profile['entryCount']);
+        $t->same(8, $profile['fileEntryCount']);
+        $t->same(1, $profile['directoryEntryCount']);
+        $t->same(5, $profile['directoryRootCount']);
+        $t->same(7, $profile['parentDirectoryCount']);
+        $t->same(9, $profile['packagePartKindCount']);
+        $t->same(1, $profile['mediaPartEntryCount']);
+        $t->same(1, $profile['relationshipPartEntryCount']);
+        $t->same(1, $profile['markupPartEntryCount']);
+        $t->same(1, $profile['metadataPartEntryCount']);
+        $t->same(5, $profile['extensionBucketCount']);
+        $t->same(1, $profile['extensionlessFileEntryCount']);
+        $t->same(3, $profile['pathDepthBucketCount']);
+        $t->same(3, $profile['maxPathDepth']);
+
+        $t->same(1, $kinds['content-types']['entryCount']);
+        $t->same(1, $kinds['root-relationships']['entryCount']);
+        $t->same(1, $kinds['metadata']['entryCount']);
+        $t->same(1, $kinds['markup-part']['entryCount']);
+        $t->same(1, $kinds['relationship-part']['entryCount']);
+        $t->same(1, $kinds['media']['entryCount']);
+        $t->same(1, $kinds['directory']['directoryEntryCount']);
+        $t->same(1, $kinds['mimetype']['entryCount']);
+
+        $t->same(3, $extensions['xml']['entryCount']);
+        $t->same(2, $extensions['rels']['entryCount']);
+        $t->same(1, $extensions['png']['entryCount']);
+        $t->same(1, $extensions['dat']['entryCount']);
+        $t->same(1, $extensions['']['entryCount']);
+        $t->same(['mimetype'], $extensions['']['entryNames']);
+
+        $t->same(2, $roots['/']['entryCount']);
+        $t->same(4, $roots['word/']['entryCount']);
+        $t->same(1, $roots['word/']['directoryEntryCount']);
+        $t->same(2, $parents['/']['entryCount']);
+        $t->same(1, $parents['word/']['directoryEntryCount']);
+        $t->same(1, $parents['word/media/']['fileEntryCount']);
+        $t->same(2, $depths[1]['entryCount']);
+        $t->same(5, $depths[2]['entryCount']);
+        $t->same(2, $depths[3]['entryCount']);
+
+        $t->same([
+            'name' => 'word/media/image.PNG',
+            'isDirectory' => false,
+            'centralDirectoryIndex' => 5,
+            'localHeaderOrder' => 5,
+            'directoryRoot' => 'word/',
+            'parentDirectory' => 'word/media/',
+            'pathDepth' => 3,
+            'extension' => 'png',
+            'packagePartKind' => 'media',
+            'compressedSize' => 3,
+            'uncompressedSize' => 3,
+        ], $profile['entries'][5]);
+        $t->same($profile, $strict['packagePartProfile']);
+        $t->same($profile, $raw['packagePartProfile']);
+        $t->same($profile, $raw['strictImport']['packagePartProfile']);
+    },
+
     'preflights zip local header spans for stored and streamed package entries' => static function (TestRunner $t) use ($buildZipPackage): void {
         $mimetype = 'application/epub+zip';
         $documentXml = '<w:document><w:p>local header span inventory</w:p></w:document>';

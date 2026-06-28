@@ -15354,6 +15354,8 @@ final class ZipPackage
      *     centralDirectoryFixedHeaders:?array<string, mixed>,
      *     centralDirectoryVariableFields:?array<string, mixed>,
      *     centralDirectoryRepairPlan:?array<string, mixed>,
+     *     packageManifest:?array<string, mixed>,
+     *     packagePartProfile:?array<string, mixed>,
      *     localHeaderNames:?array<string, mixed>,
      *     localHeaderVariableFields:?array<string, mixed>,
      *     localHeaderMetadata:?array<string, mixed>,
@@ -15484,6 +15486,7 @@ final class ZipPackage
                 'centralDirectoryVariableFields' => null,
                 'centralDirectoryRepairPlan' => null,
                 'packageManifest' => null,
+                'packagePartProfile' => null,
                 'localHeaderNames' => null,
                 'localHeaderVariableFields' => null,
                 'localHeaderMetadata' => null,
@@ -15531,6 +15534,7 @@ final class ZipPackage
         $centralDirectoryVariableFields = null;
         $centralDirectoryRepairPlan = null;
         $packageManifest = null;
+        $packagePartProfile = null;
         $localHeaderNames = null;
         $localHeaderVariableFields = null;
         $localHeaderMetadata = null;
@@ -15896,6 +15900,7 @@ final class ZipPackage
             $package = self::fromString($bytes);
             $canInstantiate = true;
             $packageManifest = $package->packageManifestPreflight();
+            $packagePartProfile = $package->packagePartProfilePreflight();
             $strictImport = $package->strictImportPreflight(
                 $maxTotalUncompressedBytes,
                 $maxExpansionRatio,
@@ -15914,6 +15919,7 @@ final class ZipPackage
             ?? $centralDirectoryInventory['entryCount']
             ?? $centralDirectoryRepairPlan['scannedEntryCount']
             ?? $packageManifest['entryCount']
+            ?? $packagePartProfile['entryCount']
             ?? $localHeaderNames['entryCount']
             ?? $localHeaderVariableFields['entryCount']
             ?? $localHeaderMetadata['entryCount']
@@ -15973,6 +15979,7 @@ final class ZipPackage
             'centralDirectoryVariableFields' => $centralDirectoryVariableFields,
             'centralDirectoryRepairPlan' => $centralDirectoryRepairPlan,
             'packageManifest' => $packageManifest,
+            'packagePartProfile' => $packagePartProfile,
             'localHeaderNames' => $localHeaderNames,
             'localHeaderVariableFields' => $localHeaderVariableFields,
             'localHeaderMetadata' => $localHeaderMetadata,
@@ -16155,6 +16162,80 @@ final class ZipPackage
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function packagePartProfilePreflight(): array
+    {
+        $localOrderByName = [];
+        foreach ($this->localEntries() as $localHeaderOrder => $entry) {
+            $localOrderByName[$entry->name] = $localHeaderOrder;
+        }
+
+        $entries = [];
+        $fileEntryCount = 0;
+        $directoryEntryCount = 0;
+        $compressedBytes = 0;
+        $uncompressedBytes = 0;
+
+        foreach ($this->entries as $centralDirectoryIndex => $entry) {
+            $isDirectory = $entry->isDirectory();
+            if ($isDirectory) {
+                ++$directoryEntryCount;
+            } else {
+                ++$fileEntryCount;
+            }
+
+            $compressedBytes += $entry->compressedSize;
+            $uncompressedBytes += $entry->uncompressedSize;
+
+            $entries[] = [
+                'name' => $entry->name,
+                'isDirectory' => $isDirectory,
+                'centralDirectoryIndex' => $centralDirectoryIndex,
+                'localHeaderOrder' => $localOrderByName[$entry->name] ?? null,
+                'directoryRoot' => self::entryHandoffDirectoryRoot($entry->name),
+                'parentDirectory' => self::entryHandoffParentDirectory($entry->name),
+                'pathDepth' => self::entryHandoffPathDepth($entry->name),
+                'extension' => $isDirectory ? null : self::entryHandoffFileExtension($entry->name),
+                'packagePartKind' => self::entryHandoffPackagePartKind($entry->name, $isDirectory),
+                'compressedSize' => $entry->compressedSize,
+                'uncompressedSize' => $entry->uncompressedSize,
+            ];
+        }
+
+        $directoryRootSummaries = self::entryHandoffDirectoryRootSummaries($entries);
+        $parentDirectorySummaries = self::entryHandoffParentDirectorySummaries($entries);
+        $packagePartKindSummaries = self::entryHandoffPackagePartKindSummaries($entries);
+        $extensionSummaries = self::entryHandoffExtensionSummaries($entries);
+        $pathDepthSummaries = self::entryHandoffPathDepthSummaries($entries);
+
+        return [
+            'entryCount' => count($entries),
+            'fileEntryCount' => $fileEntryCount,
+            'directoryEntryCount' => $directoryEntryCount,
+            'compressedBytes' => $compressedBytes,
+            'uncompressedBytes' => $uncompressedBytes,
+            'directoryRootCount' => count($directoryRootSummaries),
+            'parentDirectoryCount' => count($parentDirectorySummaries),
+            'packagePartKindCount' => count($packagePartKindSummaries),
+            'mediaPartEntryCount' => self::entryHandoffKindEntryCount($packagePartKindSummaries, 'media'),
+            'relationshipPartEntryCount' => self::entryHandoffKindEntryCount($packagePartKindSummaries, 'relationship-part'),
+            'markupPartEntryCount' => self::entryHandoffKindEntryCount($packagePartKindSummaries, 'markup-part'),
+            'metadataPartEntryCount' => self::entryHandoffKindEntryCount($packagePartKindSummaries, 'metadata'),
+            'extensionBucketCount' => count($extensionSummaries),
+            'extensionlessFileEntryCount' => self::entryHandoffExtensionlessFileEntryCount($extensionSummaries),
+            'pathDepthBucketCount' => count($pathDepthSummaries),
+            'maxPathDepth' => self::entryHandoffMaxPathDepth($pathDepthSummaries),
+            'directoryRootSummaries' => $directoryRootSummaries,
+            'parentDirectorySummaries' => $parentDirectorySummaries,
+            'packagePartKindSummaries' => $packagePartKindSummaries,
+            'extensionSummaries' => $extensionSummaries,
+            'pathDepthSummaries' => $pathDepthSummaries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
      * @return array{
      *     entryCount:int,
      *     isValid:bool,
@@ -16171,6 +16252,7 @@ final class ZipPackage
      *     packageByteLayout:array<string, mixed>,
      *     contentPresence:array<string, mixed>,
      *     packageManifest:array<string, mixed>,
+     *     packagePartProfile:array<string, mixed>,
      *     size:array<string, mixed>,
      *     generalPurposeFlags:array<string, mixed>,
      *     compressionMethods:array<string, mixed>,
@@ -16217,6 +16299,7 @@ final class ZipPackage
         $packageByteLayout = self::packageByteLayoutPreflight($this->bytes);
         $contentPresence = $this->contentPresencePreflight();
         $packageManifest = $this->packageManifestPreflight();
+        $packagePartProfile = $this->packagePartProfilePreflight();
         $size = $this->sizePreflight();
         $generalPurposeFlags = $this->generalPurposeFlagPreflight();
         $compressionMethods = $this->compressionMethodPreflight();
@@ -16412,6 +16495,7 @@ final class ZipPackage
             'packageByteLayout' => $packageByteLayout,
             'contentPresence' => $contentPresence,
             'packageManifest' => $packageManifest,
+            'packagePartProfile' => $packagePartProfile,
             'size' => $size,
             'generalPurposeFlags' => $generalPurposeFlags,
             'compressionMethods' => $compressionMethods,
