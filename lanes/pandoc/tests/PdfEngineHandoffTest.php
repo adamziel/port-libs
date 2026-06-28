@@ -13631,13 +13631,39 @@ MARKDOWN);
                 ],
             ],
         ]);
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'base' => 'https://example.test/review/',
+            'baseScheme' => 'https',
+            'baseKind' => 'remote',
+            'linkTargetCount' => 1,
+            'relativeLinkTargetCount' => 1,
+            'remoteLinkTargetCount' => 0,
+            'fileLinkTargetCount' => 0,
+            'targetSchemes' => ['relative' => 1],
+            'issues' => [
+                'remote-uri-base',
+                'uri-base-applies-to-relative-targets',
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
 
         $t->same(true, $result['ok']);
         $t->same('https://example.test/review/', $result['pdfUriBase']);
+        $t->same($expectedPolicy, $result['pdfUriBasePolicy']);
         $t->same(['assets/review-chart.png'], $result['pdfLinkTargets']);
-        $t->contains('pdf-byte-uri-base:https://example.test/review/', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-uri-base:https://example.test/review/', $diagnostics);
+        $t->contains('pdf-byte-uri-base-policy:review', $diagnostics);
+        $t->contains('pdf-byte-uri-base-kind:remote', $diagnostics);
+        $t->contains('pdf-byte-uri-base-policy-targets:1', $diagnostics);
+        $t->contains('pdf-byte-uri-base-policy-relative-targets:1', $diagnostics);
+        $t->contains('pdf-byte-uri-base-policy-target-scheme:relative:1', $diagnostics);
+        $t->contains('pdf-byte-uri-base-policy-issues:2', $diagnostics);
+        $t->contains('pdf-byte-uri-base-policy-issue:remote-uri-base:1', $diagnostics);
+        $t->contains('pdf-byte-uri-base-policy-issue:uri-base-applies-to-relative-targets:1', $diagnostics);
         $t->same(true, $sequence['ok']);
         $t->same('https://example.test/review/', $sequence['finalPdfUriBase']);
+        $t->same($expectedPolicy, $sequence['finalPdfUriBasePolicy']);
     },
 
     'fake runner extracts bounded pdf named destination name trees from produced bytes' => static function (TestRunner $t) use ($document): void {
