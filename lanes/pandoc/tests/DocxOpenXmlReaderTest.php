@@ -19226,6 +19226,84 @@ XML;
         $t->true(!isset($part['xmlElementAttributes'][0]['value']), 'raw XML attribute value should not be exposed on position metadata');
         $t->true(!str_contains((string) $encodedAttributes, 'hidden-'), 'raw XML attribute values should not be exposed in position metadata');
     },
+    'summarizes docx package xml markup compatibility declarations without exposing raw values' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['customXml/markup-compatibility-review.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:review-mc" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:ext="urn:review-ext" xmlns:keep="urn:review-keep" mc:Ignorable="ext missing" mc:ProcessContent="ext:payload" mc:PreserveElements="keep:* ext:shadow" mc:PreserveAttributes="ext:flag">
+  <ext:payload mc:Ignorable="keep" mc:PreserveAttributes="missing:ghost">
+    <ext:item/>
+  </ext:payload>
+</review:packet>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $part = $package['parts']['customXml/markup-compatibility-review.xml'];
+        $declarations = array_values(array_filter(
+            $summary['partXmlMarkupCompatibilityDeclarations'],
+            static fn (array $declaration): bool => $declaration['partName'] === 'customXml/markup-compatibility-review.xml',
+        ));
+
+        $t->same(true, $part['xmlInspectable']);
+        $t->same(6, $part['xmlMarkupCompatibilityDeclarationCount']);
+        $t->same(8, $part['xmlMarkupCompatibilityTokenCount']);
+        $t->same(6, $part['xmlMarkupCompatibilityResolvedTokenCount']);
+        $t->same(2, $part['xmlMarkupCompatibilityUnresolvedTokenCount']);
+        $t->same(1, $part['xmlMarkupCompatibilityWildcardTokenCount']);
+        $t->same(2, $part['xmlMarkupCompatibilityIssueCount']);
+        $t->same(['undeclared-mc-prefix'], $part['xmlMarkupCompatibilityIssueCodes']);
+        $t->same([
+            'Ignorable' => 2,
+            'PreserveAttributes' => 2,
+            'PreserveElements' => 1,
+            'ProcessContent' => 1,
+        ], $part['xmlMarkupCompatibilityDeclarationNameCounts']);
+        $t->same(['ext' => 4, 'keep' => 2, 'missing' => 2], $part['xmlMarkupCompatibilityPrefixCounts']);
+        $t->same([
+            '(unresolved)' => 2,
+            'urn:review-ext' => 4,
+            'urn:review-keep' => 2,
+        ], $part['xmlMarkupCompatibilityNamespaceCounts']);
+        $t->same([
+            '/review:packet' => 4,
+            '/review:packet/ext:payload' => 2,
+        ], $part['xmlMarkupCompatibilityElementPathCounts']);
+
+        $t->same(6, count($declarations));
+        $t->same('mc:Ignorable', $declarations[0]['name']);
+        $t->same(2, $declarations[0]['tokenCount']);
+        $t->same(1, $declarations[0]['resolvedTokenCount']);
+        $t->same(1, $declarations[0]['unresolvedTokenCount']);
+        $t->same('ext', $declarations[0]['tokens'][0]['prefix']);
+        $t->same('urn:review-ext', $declarations[0]['tokens'][0]['namespace']);
+        $t->same(true, $declarations[0]['tokens'][0]['resolved']);
+        $t->same('missing', $declarations[0]['tokens'][1]['prefix']);
+        $t->same(false, $declarations[0]['tokens'][1]['resolved']);
+        $t->same(['undeclared-mc-prefix'], $declarations[0]['tokens'][1]['issueCodes']);
+        $t->same('mc:PreserveElements', $declarations[2]['name']);
+        $t->same(true, $declarations[2]['tokens'][0]['wildcard']);
+        $t->same('keep', $declarations[2]['tokens'][0]['prefix']);
+        $t->same('*', $declarations[2]['tokens'][0]['name']);
+        $t->same('ext:payload', $declarations[4]['elementQualifiedName']);
+        $t->same('/review:packet/ext:payload', $declarations[5]['elementPath']);
+        $t->same(['undeclared-mc-prefix'], $declarations[5]['issueCodes']);
+
+        $t->true($summary['partXmlMarkupCompatibilityDeclarationCount'] >= 6, 'summary should include MC declarations');
+        $t->true($summary['partXmlMarkupCompatibilityResolvedTokenCount'] >= 6, 'summary should include resolved MC tokens');
+        $t->true($summary['partXmlMarkupCompatibilityUnresolvedTokenCount'] >= 2, 'summary should include unresolved MC tokens');
+        $t->same(2, $summary['partXmlMarkupCompatibilityElementPathCounts']['/review:packet/ext:payload']);
+        $t->true(in_array('customXml/markup-compatibility-review.xml', $summary['partXmlMarkupCompatibilityDeclarationPartNames'], true), 'MC declaration part should be summarized');
+        $t->true(in_array('urn:review-ext', $summary['partXmlMarkupCompatibilityNamespaces'], true), 'resolved MC namespaces should be summarized');
+        $t->true(in_array('undeclared-mc-prefix', $summary['partXmlMarkupCompatibilityIssueCodes'], true), 'MC declaration issues should be summarized');
+
+        $encodedDeclarations = json_encode([$part['xmlMarkupCompatibilityDeclarations'], $declarations]);
+        $t->true(is_string($encodedDeclarations), 'MC declaration metadata should encode for review');
+        $t->true(!isset($part['xmlMarkupCompatibilityDeclarations'][0]['value']), 'raw MC declaration value should not be exposed on part metadata');
+        $t->true(!str_contains((string) $encodedDeclarations, 'ext missing'), 'raw MC declaration values should not be exposed in summary metadata');
+        $t->true(!str_contains((string) $encodedDeclarations, 'missing:ghost'), 'raw MC declaration values should not be exposed in summary metadata');
+    },
     'summarizes docx package xml relationship references without exposing text' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $hiddenText = 'relationship-reference:hidden-payload';
