@@ -12973,6 +12973,8 @@ final class PdfEngineHandoff
         }
         $embeddedFileNames = array_values(array_unique($embeddedFileNames));
         sort($embeddedFileNames);
+        $pageLayout = $this->extractPdfCatalogName($catalog, 'PageLayout');
+        $pageMode = $this->extractPdfCatalogName($catalog, 'PageMode');
 
         return [
             'trailerCount' => count($trailerRevisions),
@@ -13032,8 +13034,8 @@ final class PdfEngineHandoff
             'conformancePolicy' => $this->summarizePdfConformancePolicy($xmpMetadata, $outputIntents, $language, $taggingMetadata, $encryption),
             'associatedFilePolicy' => $this->summarizePdfAssociatedFilePolicy($xmpMetadata, $embeddedFiles),
             'language' => $language,
-            'pageLayout' => $this->extractPdfCatalogName($catalog, 'PageLayout'),
-            'pageMode' => $this->extractPdfCatalogName($catalog, 'PageMode'),
+            'pageLayout' => $pageLayout,
+            'pageMode' => $pageMode,
             'openAction' => $this->extractPdfOpenAction($pdfBytes, $catalog),
             'namedDestinations' => $this->extractPdfNamedDestinations($pdfBytes, $catalog),
             'destinationOptions' => $this->extractPdfDestinationOptions($pdfBytes, $catalog),
@@ -13042,7 +13044,7 @@ final class PdfEngineHandoff
             'uriBase' => $uriBase,
             'uriBasePolicy' => $this->summarizePdfUriBasePolicy($uriBase, $linkTargets),
             'viewerPreferences' => $viewerPreferences,
-            'viewerPreferencePolicy' => $this->summarizePdfViewerPreferencePolicy($viewerPreferences),
+            'viewerPreferencePolicy' => $this->summarizePdfViewerPreferencePolicy($viewerPreferences, $pageMode),
             'needsRendering' => $needsRendering,
             'catalogRequirements' => $catalogRequirements,
             'catalogRequirementPolicy' => $this->summarizePdfCatalogRequirementPolicy($needsRendering, $catalogRequirements),
@@ -20106,6 +20108,10 @@ final class PdfEngineHandoff
      * @return array{
      *     reviewStatus:string,
      *     preferenceCount:int,
+     *     pageMode:string|null,
+     *     fullScreenRequested:bool,
+     *     nonFullScreenPageMode:string|null,
+     *     nonFullScreenPageModePresent:bool,
      *     uiPreferences:array<string, bool|int|string|list<int>|list<string>>,
      *     printPreferences:array<string, bool|int|string|list<int>|list<string>>,
      *     enforcedPreferences:list<string>,
@@ -20117,11 +20123,16 @@ final class PdfEngineHandoff
      *     issues:list<string>
      * }|array{}
      */
-    private function summarizePdfViewerPreferencePolicy(array $preferences): array
+    private function summarizePdfViewerPreferencePolicy(array $preferences, ?string $pageMode = null): array
     {
         if ($preferences === []) {
             return [];
         }
+
+        $catalogPageMode = is_string($pageMode) && $pageMode !== '' ? $pageMode : null;
+        $nonFullScreenPageMode = is_string($preferences['NonFullScreenPageMode'] ?? null) && $preferences['NonFullScreenPageMode'] !== ''
+            ? $preferences['NonFullScreenPageMode']
+            : null;
 
         $uiPreferences = [];
         foreach (['HideToolbar', 'HideMenubar', 'HideWindowUI', 'FitWindow', 'CenterWindow', 'DisplayDocTitle', 'NonFullScreenPageMode', 'Direction'] as $key) {
@@ -20187,6 +20198,9 @@ final class PdfEngineHandoff
         if (($preferences['HideToolbar'] ?? false) === true || ($preferences['HideMenubar'] ?? false) === true || ($preferences['HideWindowUI'] ?? false) === true) {
             $issues[] = 'hides-viewer-ui';
         }
+        if ($nonFullScreenPageMode !== null && $catalogPageMode !== 'FullScreen') {
+            $issues[] = 'non-fullscreen-page-mode-without-fullscreen';
+        }
         if (isset($preferences['NumCopies']) && is_int($preferences['NumCopies']) && $preferences['NumCopies'] > 1) {
             $issues[] = 'multiple-print-copies';
         }
@@ -20211,6 +20225,10 @@ final class PdfEngineHandoff
         $policy = [
             'reviewStatus' => $issues === [] ? 'ok' : 'review',
             'preferenceCount' => count($preferences),
+            'pageMode' => $catalogPageMode,
+            'fullScreenRequested' => $catalogPageMode === 'FullScreen',
+            'nonFullScreenPageMode' => $nonFullScreenPageMode,
+            'nonFullScreenPageModePresent' => $nonFullScreenPageMode !== null,
             'uiPreferences' => $uiPreferences,
             'printPreferences' => $printPreferences,
             'enforcedPreferences' => $enforcedPreferences,

@@ -13760,6 +13760,10 @@ MARKDOWN);
         $expected = [
             'reviewStatus' => 'review',
             'preferenceCount' => 9,
+            'pageMode' => null,
+            'fullScreenRequested' => false,
+            'nonFullScreenPageMode' => null,
+            'nonFullScreenPageModePresent' => false,
             'uiPreferences' => [
                 'HideToolbar' => true,
                 'DisplayDocTitle' => true,
@@ -13843,6 +13847,10 @@ MARKDOWN);
         $expected = [
             'reviewStatus' => 'review',
             'preferenceCount' => 3,
+            'pageMode' => null,
+            'fullScreenRequested' => false,
+            'nonFullScreenPageMode' => null,
+            'nonFullScreenPageModePresent' => false,
             'uiPreferences' => [
                 'DisplayDocTitle' => true,
             ],
@@ -13876,6 +13884,74 @@ MARKDOWN);
         $t->contains('pdf-byte-viewer-preference-policy-unresolved-enforced:3', $diagnostics);
         $t->contains('pdf-byte-viewer-preference-policy-issues:3', $diagnostics);
         $t->contains('pdf-byte-viewer-preference-policy-issue:unresolved-enforced-viewer-preference:1', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfViewerPreferencePolicy']);
+    },
+
+    'fake runner flags nonfullscreen fallback viewer preference outside fullscreen mode' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'typst', 'outputPath' => 'packets/nonfullscreen-viewer-policy.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-2.0',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /PageMode /UseOutlines /ViewerPreferences << /NonFullScreenPageMode /UseThumbs /DisplayDocTitle true /Direction /L2R >> >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/nonfullscreen-viewer-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/nonfullscreen-viewer-policy.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            'reviewStatus' => 'review',
+            'preferenceCount' => 3,
+            'pageMode' => 'UseOutlines',
+            'fullScreenRequested' => false,
+            'nonFullScreenPageMode' => 'UseThumbs',
+            'nonFullScreenPageModePresent' => true,
+            'uiPreferences' => [
+                'DisplayDocTitle' => true,
+                'NonFullScreenPageMode' => 'UseThumbs',
+                'Direction' => 'L2R',
+            ],
+            'printPreferences' => [],
+            'enforcedPreferences' => [],
+            'enforcedUiPreferences' => [],
+            'enforcedPrintPreferences' => [],
+            'printPageRangePairs' => 0,
+            'printPageRanges' => [],
+            'issues' => ['non-fullscreen-page-mode-without-fullscreen'],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same('UseOutlines', $result['pdfPageMode']);
+        $t->same($expected, $result['pdfViewerPreferencePolicy']);
+        $t->contains('pdf-byte-page-mode:UseOutlines', $diagnostics);
+        $t->contains('pdf-byte-viewer-preferences:3', $diagnostics);
+        $t->contains('pdf-byte-viewer-preference-policy:review', $diagnostics);
+        $t->contains('pdf-byte-viewer-preference-policy-ui:3', $diagnostics);
+        $t->contains('pdf-byte-viewer-preference-policy-issues:1', $diagnostics);
+        $t->contains('pdf-byte-viewer-preference-policy-issue:non-fullscreen-page-mode-without-fullscreen:1', $diagnostics);
         $t->same(true, $sequence['ok']);
         $t->same($expected, $sequence['finalPdfViewerPreferencePolicy']);
     },
