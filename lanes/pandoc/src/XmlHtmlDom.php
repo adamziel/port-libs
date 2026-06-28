@@ -15360,12 +15360,14 @@ final class XmlHtmlDom
         }
 
         $content = self::attributeOrNull($element, 'content');
+        $nameAttributeRaw = self::attributeOrNull($element, 'name');
+        $metadataName = $nameAttributeRaw === null ? null : strtolower(trim($nameAttributeRaw));
         $httpEquivRaw = self::attributeOrNull($element, 'http-equiv');
         $httpEquiv = $httpEquivRaw === null ? null : strtolower(trim($httpEquivRaw));
         $summary = [
             'documentMetadata' => 'meta',
             'charset' => self::attributeOrNull($element, 'charset'),
-            'nameAttribute' => self::attributeOrNull($element, 'name'),
+            'nameAttribute' => $nameAttributeRaw,
             'property' => self::attributeOrNull($element, 'property'),
             'itemprop' => self::attributeOrNull($element, 'itemprop'),
             'httpEquivRaw' => $httpEquivRaw,
@@ -15373,6 +15375,12 @@ final class XmlHtmlDom
             'content' => $content,
         ];
 
+        if ($metadataName === 'theme-color') {
+            $summary += self::metaThemeColorSummary($content, self::attributeOrNull($element, 'media'));
+        }
+        if ($metadataName === 'color-scheme') {
+            $summary += self::metaColorSchemeSummary($content);
+        }
         if ($httpEquiv === 'refresh') {
             $summary['refresh'] = self::metaRefreshSummary($content);
         }
@@ -15974,6 +15982,194 @@ final class XmlHtmlDom
             'delay' => $delay,
             'urlRaw' => $urlRaw,
             'url' => $url,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function metaThemeColorSummary(?string $content, ?string $media): array
+    {
+        $color = self::themeColorValueSummary($content);
+        $mediaCondition = $media === null ? null : trim($media);
+        $mediaValid = $media === null
+            ? null
+            : $mediaCondition !== '' && self::isSafeThemeColorMediaCondition($mediaCondition);
+        $issues = [];
+
+        foreach ($color['issueCodes'] as $code) {
+            $issues[] = ['code' => $code];
+        }
+        if ($media !== null && $mediaCondition === '') {
+            $issues[] = ['code' => 'empty-theme-color-media-condition'];
+        } elseif ($mediaValid === false) {
+            $issues[] = ['code' => 'unsafe-theme-color-media-condition'];
+        }
+
+        return [
+            'themeColorReviewPolicy' => 'meta-theme-color-review',
+            'themeColorRaw' => $content,
+            'themeColorNormalized' => $color['normalized'],
+            'themeColorKind' => $color['kind'],
+            'themeColorPresent' => $content !== null && trim($content) !== '',
+            'themeColorMediaRaw' => $media,
+            'themeColorMediaCondition' => $mediaCondition === '' ? null : $mediaCondition,
+            'themeColorMediaValid' => $mediaValid,
+            'themeColorBrowserColorEvaluation' => false,
+            'themeColorNetworkFetch' => false,
+            'themeColorIssues' => $issues,
+            'themeColorIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'themeColorValid' => $issues === [],
+        ];
+    }
+
+    /**
+     * @return array{normalized:?string, kind:?string, issueCodes:list<string>}
+     */
+    private static function themeColorValueSummary(?string $content): array
+    {
+        if ($content === null) {
+            return [
+                'normalized' => null,
+                'kind' => null,
+                'issueCodes' => ['missing-theme-color-content'],
+            ];
+        }
+
+        $raw = trim($content);
+        if ($raw === '') {
+            return [
+                'normalized' => null,
+                'kind' => null,
+                'issueCodes' => ['empty-theme-color-content'],
+            ];
+        }
+
+        if (!self::isSafeThemeColorValue($raw)) {
+            return [
+                'normalized' => $raw,
+                'kind' => 'invalid',
+                'issueCodes' => ['unsafe-theme-color-value'],
+            ];
+        }
+
+        if (preg_match('/^#[0-9A-Fa-f]{3}(?:[0-9A-Fa-f]{3})?(?:[0-9A-Fa-f]{2})?$/', $raw) === 1) {
+            return [
+                'normalized' => strtoupper($raw),
+                'kind' => 'hex',
+                'issueCodes' => [],
+            ];
+        }
+
+        if (preg_match('/^(?:rgb|rgba|hsl|hsla)\(([-+0-9.,% \t]+)\)$/i', $raw) === 1) {
+            $normalized = preg_replace('/\s*,\s*/', ', ', strtolower($raw)) ?? strtolower($raw);
+            $normalized = preg_replace('/\s+/', ' ', $normalized) ?? $normalized;
+
+            return [
+                'normalized' => $normalized,
+                'kind' => 'function',
+                'issueCodes' => [],
+            ];
+        }
+
+        if (preg_match('/^[A-Za-z][A-Za-z0-9-]{0,63}$/', $raw) === 1) {
+            return [
+                'normalized' => strtolower($raw),
+                'kind' => 'keyword',
+                'issueCodes' => [],
+            ];
+        }
+
+        return [
+            'normalized' => $raw,
+            'kind' => 'invalid',
+            'issueCodes' => ['invalid-theme-color-value'],
+        ];
+    }
+
+    private static function isSafeThemeColorValue(string $value): bool
+    {
+        return preg_match('/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}<>"`]|url\s*\(|expression\s*\(|javascript\s*:/iu', $value) !== 1;
+    }
+
+    private static function isSafeThemeColorMediaCondition(string $media): bool
+    {
+        return preg_match('/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}<>"`]|url\s*\(|expression\s*\(|javascript\s*:/iu', $media) !== 1;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function metaColorSchemeSummary(?string $content): array
+    {
+        $tokens = $content === null ? [] : self::spaceSeparatedTokens($content);
+        $supported = [];
+        $invalid = [];
+        $duplicates = [];
+        $counts = [];
+        $issues = [];
+
+        foreach ($tokens as $token) {
+            $normalized = strtolower($token);
+            if (!in_array($normalized, ['normal', 'light', 'dark', 'only'], true)) {
+                $invalid[] = $token;
+                $issues[] = [
+                    'code' => 'unsupported-color-scheme-token',
+                    'token' => $token,
+                ];
+                continue;
+            }
+
+            if (!isset($counts[$normalized])) {
+                $counts[$normalized] = 0;
+                $supported[] = $normalized;
+            }
+            ++$counts[$normalized];
+            if ($counts[$normalized] > 1 && !in_array($normalized, $duplicates, true)) {
+                $duplicates[] = $normalized;
+                $issues[] = [
+                    'code' => 'duplicate-color-scheme-token',
+                    'token' => $normalized,
+                ];
+            }
+        }
+
+        if ($content === null) {
+            $issues[] = ['code' => 'missing-color-scheme-content'];
+        } elseif (trim($content) === '') {
+            $issues[] = ['code' => 'empty-color-scheme-content'];
+        }
+        if (in_array('normal', $supported, true) && count($supported) > 1) {
+            $issues[] = ['code' => 'normal-color-scheme-with-other-tokens'];
+        }
+        if (in_array('only', $supported, true) && !in_array('light', $supported, true) && !in_array('dark', $supported, true)) {
+            $issues[] = ['code' => 'only-color-scheme-without-scheme'];
+        }
+
+        return [
+            'colorSchemeReviewPolicy' => 'meta-color-scheme-review',
+            'colorSchemeRaw' => $content,
+            'colorSchemeTokens' => $tokens,
+            'colorSchemeSupportedTokens' => $supported,
+            'colorSchemePreferredSchemes' => array_values(array_filter(
+                $supported,
+                static fn (string $token): bool => $token === 'light' || $token === 'dark'
+            )),
+            'colorSchemeNormal' => in_array('normal', $supported, true),
+            'colorSchemeOnly' => in_array('only', $supported, true),
+            'invalidColorSchemeTokens' => $invalid,
+            'duplicateColorSchemeTokens' => $duplicates,
+            'colorSchemeBrowserEvaluation' => false,
+            'colorSchemeNetworkFetch' => false,
+            'colorSchemeIssues' => $issues,
+            'colorSchemeIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'colorSchemeValid' => $issues === [],
         ];
     }
 
