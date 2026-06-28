@@ -3831,6 +3831,70 @@ CSS;
             $prefixer->prefixForTargets('.foo { --custom: oklab(59.686% 0.1009 0.1192); }', ['chrome' => 111, 'safari' => 15])
         );
     },
+    'transition prefixer maps upstream custom property advanced color residual boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $cases = [
+            [
+                23663,
+                '.foo { --custom: lab(40% 56.6 39); }',
+                ['chrome' => 90],
+                '.foo{--custom:#b32323}@supports (color:lab(0% 0 0)){.foo{--custom:lab(40% 56.6 39)}}',
+            ],
+            [
+                23686,
+                '@supports (color: lab(0% 0 0)) { .foo { --custom: lab(40% 56.6 39); } }',
+                ['chrome' => 90],
+                '@supports (color:lab(0% 0 0)){.foo{--custom:lab(40% 56.6 39)}}',
+            ],
+            [
+                23730,
+                '@supports (color: lab(0% 0 0)) { .foo { --custom: lab(40% 56.6 39) !important; } }',
+                ['chrome' => 90],
+                '@supports (color:lab(0% 0 0)){.foo{--custom:lab(40% 56.6 39)!important}}',
+            ],
+            [
+                23751,
+                '.foo { --custom: lab(40% 56.6 39); }',
+                ['chrome' => 90, 'safari' => 14],
+                '.foo{--custom:#b32323}@supports (color:color(display-p3 0 0 0)){.foo{--custom:color(display-p3 .643308 .192455 .167712)}}@supports (color:lab(0% 0 0)){.foo{--custom:lab(40% 56.6 39)}}',
+            ],
+            [
+                23781,
+                '@supports (color: color(display-p3 0 0 0)) { .foo { --custom: color(display-p3 .643308 .192455 .167712); } } @supports (color: lab(0% 0 0)) { .foo { --custom: lab(40% 56.6 39); } }',
+                ['chrome' => 90, 'safari' => 14],
+                '@supports (color:color(display-p3 0 0 0)){.foo{--custom:color(display-p3 .643308 .192455 .167712)}}@supports (color:lab(0% 0 0)){.foo{--custom:lab(40% 56.6 39)}}',
+            ],
+            [
+                23838,
+                '.foo { --custom: lab(40% 56.6 39); }',
+                ['safari' => 15],
+                '.foo{--custom:lab(40% 56.6 39)}',
+            ],
+            [
+                23983,
+                '@supports (color: color(display-p3 0 0 0)) { .foo { --foo: color(display-p3 0 1 0); } }',
+                ['safari' => 14, 'chrome' => 90],
+                '@supports (color:color(display-p3 0 0 0)){.foo{--foo:color(display-p3 0 1 0)}}',
+            ],
+            [
+                24005,
+                '.foo { --foo: color(display-p3 0 1 0); }',
+                ['safari' => 14],
+                '.foo{--foo:color(display-p3 0 1 0)}',
+            ],
+            [
+                24022,
+                '.foo { --foo: color(display-p3 0 1 0); }',
+                ['safari' => 15, 'chrome' => 90],
+                '.foo{--foo:#00f942}@supports (color:color(display-p3 0 0 0)){.foo{--foo:color(display-p3 0 1 0)}}',
+            ],
+        ];
+
+        foreach ($cases as [$line, $input, $targets, $expected]) {
+            $t->same($expected, $prefixer->prefixForTargets($input, $targets), 'upstream src/lib.rs::test_custom_properties line ' . $line);
+        }
+    },
     'transition prefixer maps upstream environment advanced color supports' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 
