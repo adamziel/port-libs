@@ -9,12 +9,14 @@ use PortLibs\Pandoc\ZipPackage;
 
 $attachmentManifestXml = '<attachments xmlns="urn:example:attachments"><item name="source.pdf"/></attachments>';
 $sourcePdfBytes = '%PDF-ATTACHMENT-DATA';
+$sourceOdtBytes = 'ODT-ATTACHMENT-DATA';
 $previewBytes = 'ATTACHMENT-PREVIEW-PNG';
 $encryptedBytes = 'ENCRYPTED-ATTACHMENT-BYTES';
-$orphanBytes = 'ORPHAN-ATTACHMENT-DATA';
+$orphanBytes = 'ORPHAN-ODT-ATTACHMENT-DATA';
 
 $attachmentManifestSize = strlen($attachmentManifestXml);
 $sourcePdfSize = strlen($sourcePdfBytes);
+$sourceOdtSize = strlen($sourceOdtBytes);
 $previewSize = strlen($previewBytes);
 $encryptedSize = strlen($encryptedBytes);
 
@@ -28,6 +30,7 @@ $manifestXml = <<<XML
   <manifest:file-entry manifest:full-path="Attachments/Review/" manifest:media-type=""/>
   <manifest:file-entry manifest:full-path="Attachments/Review/manifest.xml" manifest:media-type="text/xml" manifest:size="{$attachmentManifestSize}"/>
   <manifest:file-entry manifest:full-path="Attachments/Review/source.pdf" manifest:media-type="application/pdf" manifest:size="{$sourcePdfSize}"/>
+  <manifest:file-entry manifest:full-path="Attachments/Review/source.odt" manifest:media-type="application/vnd.oasis.opendocument.text" manifest:size="{$sourceOdtSize}"/>
   <manifest:file-entry manifest:full-path="Attachments/Review/preview.png" manifest:media-type="image/png" manifest:size="{$previewSize}"/>
   <manifest:file-entry manifest:full-path="Attachments/Review/missing.dat" manifest:media-type="application/octet-stream" manifest:size="21"/>
   <manifest:file-entry manifest:full-path="Attachments/Review/encrypted.dat" manifest:media-type="application/octet-stream" manifest:size="{$encryptedSize}">
@@ -81,9 +84,10 @@ $buildPackage = static fn (): ZipPackage => ZipPackage::fromParts([
     ['name' => 'Attachments/Review/', 'data' => '', 'compressionMethod' => 0],
     ['name' => 'Attachments/Review/manifest.xml', 'data' => $attachmentManifestXml, 'compressionMethod' => 0],
     ['name' => 'Attachments/Review/source.pdf', 'data' => $sourcePdfBytes, 'compressionMethod' => 0],
+    ['name' => 'Attachments/Review/source.odt', 'data' => $sourceOdtBytes, 'compressionMethod' => 0],
     ['name' => 'Attachments/Review/preview.png', 'data' => $previewBytes, 'compressionMethod' => 0],
     ['name' => 'Attachments/Review/encrypted.dat', 'data' => $encryptedBytes, 'compressionMethod' => 0],
-    ['name' => 'Attachments/Review/orphan.dat', 'data' => $orphanBytes, 'compressionMethod' => 0],
+    ['name' => 'Attachments/Review/orphan.odt', 'data' => $orphanBytes, 'compressionMethod' => 0],
 ], 'odt attachment package sidecars');
 
 $indexBy = static function (array $items, string $key): array {
@@ -103,6 +107,7 @@ return [
         $buildPackage,
         $attachmentManifestXml,
         $sourcePdfBytes,
+        $sourceOdtBytes,
         $previewBytes,
         $orphanBytes,
         $indexBy
@@ -117,9 +122,9 @@ return [
         $t->same($readerAttachments, $result['document']->attr('packageAttachments'));
         $t->same($readerAttachments, $result['metadata']['odfPackageAttachments']);
         $t->same($readerAttachments, $result['importReport']['packageAttachments']);
-        $t->same(7, $readerAttachments['count']);
-        $t->same(4, $readerAttachments['readableCount']);
-        $t->same(6, $readerAttachments['declaredCount']);
+        $t->same(8, $readerAttachments['count']);
+        $t->same(5, $readerAttachments['readableCount']);
+        $t->same(7, $readerAttachments['declaredCount']);
         $t->same(1, $readerAttachments['undeclaredCount']);
         $t->same(1, $readerAttachments['missingCount']);
         $t->same(1, $readerAttachments['directoryCount']);
@@ -133,13 +138,13 @@ return [
             'odf-attachment-package-undeclared-part',
         ], $readerAttachments['issueCodes']);
         $t->same([
-            'attachment-binary-resource' => 3,
+            'attachment-binary-resource' => 2,
             'attachment-directory' => 1,
-            'attachment-document-resource' => 1,
+            'attachment-document-resource' => 3,
             'attachment-manifest' => 1,
             'attachment-media-resource' => 1,
         ], $readerAttachments['kindCounts']);
-        $t->same(['review' => 7], $readerAttachments['groupCounts']);
+        $t->same(['review' => 8], $readerAttachments['groupCounts']);
         $t->same('attachment-package-bytes-blocked', $readerAttachments['byteExposurePolicy']);
         $t->same('attachment-package-metadata-only', $readerAttachments['reviewPolicy']);
 
@@ -164,6 +169,13 @@ return [
         $t->same(strlen($sourcePdfBytes), $sourcePdf['byteLength']);
         $t->same(false, $sourcePdf['canExposeAsDocumentMedia']);
 
+        $sourceOdt = $readerItems['Attachments/Review/source.odt'];
+        $t->same('attachment-document-resource', $sourceOdt['kind']);
+        $t->same('application/vnd.oasis.opendocument.text', $sourceOdt['mediaTypeBase']);
+        $t->same(strlen($sourceOdtBytes), $sourceOdt['byteLength']);
+        $t->same(false, $sourceOdt['canExposeBytes']);
+        $t->same(false, $sourceOdt['canExposeAsDocumentMedia']);
+
         $preview = $readerItems['Attachments/Review/preview.png'];
         $t->same('attachment-media-resource', $preview['kind']);
         $t->same('image/png', $preview['mediaTypeBase']);
@@ -182,10 +194,11 @@ return [
         $t->same(['odf-attachment-package-encrypted-part'], $encrypted['issues']);
         $t->same('encrypted-resource-bytes-blocked', $encrypted['byteExposurePolicy']);
 
-        $orphan = $readerItems['Attachments/Review/orphan.dat'];
+        $orphan = $readerItems['Attachments/Review/orphan.odt'];
         $t->same(false, $orphan['declared']);
         $t->same(true, $orphan['undeclared']);
-        $t->same('attachment-binary-resource', $orphan['kind']);
+        $t->same('attachment-document-resource', $orphan['kind']);
+        $t->same('application/vnd.oasis.opendocument.text', $orphan['mediaTypeBase']);
         $t->same(strlen($orphanBytes), $orphan['byteLength']);
         $t->same(['odf-attachment-package-undeclared-part'], $orphan['issues']);
         $t->same('attachment-package-bytes-blocked', $orphan['byteExposurePolicy']);
@@ -198,15 +211,15 @@ return [
         $t->same(null, $manifestPreview['byteSha256']);
         $t->same('attachment-package-bytes-blocked', $manifestPreview['byteExposurePolicy']);
         $t->same(['Pictures/hero.png'], array_column($result['media'], 'part'));
-        $t->same(6, $readerProvenance['attachmentPackagePartCount']);
-        $t->same(6, $readerProvenance['roleCounts']['attachment-package']);
+        $t->same(7, $readerProvenance['attachmentPackagePartCount']);
+        $t->same(7, $readerProvenance['roleCounts']['attachment-package']);
         $t->same(1, $readerProvenance['undeclaredRoleCounts']['attachment-package']);
         $t->same(['attachment-package', 'manifest-declared'], $readerProvenance['parts']['Attachments/Review/preview.png']['roles']);
-        $t->same(['attachment-package', 'undeclared-package-entry'], $readerProvenance['parts']['Attachments/Review/orphan.dat']['roles']);
+        $t->same(['attachment-package', 'undeclared-package-entry'], $readerProvenance['parts']['Attachments/Review/orphan.odt']['roles']);
         $t->same(true, $readerProvenance['parts']['Attachments/Review/preview.png']['attachmentPackagePart']);
-        $t->same(true, $readerProvenance['packageIdentity']['manifestEntries'][8]['attachmentPackagePart']);
-        $t->same(true, $readerProvenance['packageIdentity']['packageEntries'][9]['attachmentPackagePart']);
-        $t->same(6, $readerProvenance['packageIdentity']['attachmentPackagePartCount']);
+        $t->same(true, $readerProvenance['packageIdentity']['manifestEntries'][9]['attachmentPackagePart']);
+        $t->same(true, $readerProvenance['packageIdentity']['packageEntries'][10]['attachmentPackagePart']);
+        $t->same(7, $readerProvenance['packageIdentity']['attachmentPackagePartCount']);
 
         $blocks = (new WordPressBlockWriter())->write($result['document']);
         $t->contains('Attachment package sidecars.', $blocks);
@@ -221,9 +234,9 @@ return [
         $reviewByPath = $indexBy($compactSummary['manifestReview']['items'], 'path');
         $inventory = $compactSummary['packageInventory'];
 
-        $t->same(7, $compactAttachments['count']);
-        $t->same(4, $compactAttachments['readableCount']);
-        $t->same(6, $compactAttachments['declaredCount']);
+        $t->same(8, $compactAttachments['count']);
+        $t->same(5, $compactAttachments['readableCount']);
+        $t->same(7, $compactAttachments['declaredCount']);
         $t->same(1, $compactAttachments['undeclaredCount']);
         $t->same(1, $compactAttachments['missingCount']);
         $t->same(1, $compactAttachments['directoryCount']);
@@ -238,29 +251,33 @@ return [
         $t->same(strlen($attachmentManifestXml), $compactItems['Attachments/Review/manifest.xml']['byteLength']);
         $t->same(sprintf('%08x', crc32($attachmentManifestXml)), $compactItems['Attachments/Review/manifest.xml']['crc32']);
         $t->same('attachment-document-resource', $compactItems['Attachments/Review/source.pdf']['kind']);
+        $t->same('attachment-document-resource', $compactItems['Attachments/Review/source.odt']['kind']);
+        $t->same('application/vnd.oasis.opendocument.text', $compactItems['Attachments/Review/source.odt']['mediaTypeBase']);
         $t->same('attachment-media-resource', $compactItems['Attachments/Review/preview.png']['kind']);
         $t->same(['odf-attachment-package-missing-part'], $compactItems['Attachments/Review/missing.dat']['issues']);
         $t->same(['odf-attachment-package-encrypted-part'], $compactItems['Attachments/Review/encrypted.dat']['issues']);
-        $t->same(['odf-attachment-package-undeclared-part'], $compactItems['Attachments/Review/orphan.dat']['issues']);
+        $t->same(['odf-attachment-package-undeclared-part'], $compactItems['Attachments/Review/orphan.odt']['issues']);
+        $t->same('attachment-document-resource', $compactItems['Attachments/Review/orphan.odt']['kind']);
+        $t->same('application/vnd.oasis.opendocument.text', $compactItems['Attachments/Review/orphan.odt']['mediaTypeBase']);
 
         $t->same(['Pictures/hero.png'], array_column($compactSummary['mediaParts'], 'path'));
-        $t->same(6, $compactSummary['manifestReview']['attachmentPackagePartCount']);
+        $t->same(7, $compactSummary['manifestReview']['attachmentPackagePartCount']);
         $t->same(true, $reviewByPath['Attachments/Review/preview.png']['attachmentPackagePart']);
         $t->same(false, $reviewByPath['Attachments/Review/preview.png']['canExposeBytes']);
         $t->same(null, $reviewByPath['Attachments/Review/preview.png']['byteLength']);
         $t->same(strlen($previewBytes), $reviewByPath['Attachments/Review/preview.png']['storedByteLength']);
         $t->same('attachment-package-bytes-blocked', $reviewByPath['Attachments/Review/preview.png']['byteExposurePolicy']);
         $t->same('attachment', $reviewByPath['Attachments/Review/preview.png']['manifestMediaFamily']);
-        $t->same(5, $compactSummary['manifestReview']['manifestMediaFamilyCounts']['attachment']);
-        $t->same(6, $inventory['attachmentPackagePartCount']);
-        $t->same(6, $inventory['roleCounts']['attachment-package']);
+        $t->same(6, $compactSummary['manifestReview']['manifestMediaFamilyCounts']['attachment']);
+        $t->same(7, $inventory['attachmentPackagePartCount']);
+        $t->same(7, $inventory['roleCounts']['attachment-package']);
         $t->same(1, $inventory['undeclaredRoleCounts']['attachment-package']);
         $t->same(['attachment-package', 'manifest-declared'], $inventory['parts']['Attachments/Review/preview.png']['roles']);
-        $t->same(['attachment-package', 'undeclared-package-entry'], $inventory['parts']['Attachments/Review/orphan.dat']['roles']);
+        $t->same(['attachment-package', 'undeclared-package-entry'], $inventory['parts']['Attachments/Review/orphan.odt']['roles']);
         $t->same(true, $inventory['parts']['Attachments/Review/preview.png']['attachmentPackagePart']);
         $t->same(false, $inventory['parts']['Attachments/Review/preview.png']['canExposeBytes']);
-        $t->same(true, $compactSummary['packageIdentity']['manifestEntries'][8]['attachmentPackagePart']);
-        $t->same(true, $compactSummary['packageIdentity']['packageEntries'][9]['attachmentPackagePart']);
-        $t->same(6, $compactSummary['packageIdentity']['attachmentPackagePartCount']);
+        $t->same(true, $compactSummary['packageIdentity']['manifestEntries'][9]['attachmentPackagePart']);
+        $t->same(true, $compactSummary['packageIdentity']['packageEntries'][10]['attachmentPackagePart']);
+        $t->same(7, $compactSummary['packageIdentity']['attachmentPackagePartCount']);
     },
 ];
