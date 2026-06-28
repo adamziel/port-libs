@@ -1030,6 +1030,8 @@
         "mappedMarkdownReaderRawHtmlListIssueCases": 5,
         "markdownReaderCommonMarkRawClosingBoundaryCases": 5,
         "mappedMarkdownReaderCommonMarkRawClosingBoundaryCases": 5,
+        "markdownReaderCommonMarkRawPrecedenceCases": 5,
+        "mappedMarkdownReaderCommonMarkRawPrecedenceCases": 5,
         "mappedTestsuiteDefinitionListSectionCases": 2,
         "mappedTestsuiteHtmlBlocksCases": 3,
         "mappedTestsuiteInlineMarkupCases": 5,

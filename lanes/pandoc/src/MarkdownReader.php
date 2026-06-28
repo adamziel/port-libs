@@ -208,6 +208,13 @@ final class MarkdownReader
                 $blocks[] = $nestedHtmlTable;
                 continue;
             }
+            $commonMarkRawHtmlBlock = $paragraph === [] && $listStack === []
+                ? $this->tryReadCommonMarkPrecedenceRawHtmlBlock($lines, $index)
+                : null;
+            if ($commonMarkRawHtmlBlock !== null) {
+                $blocks[] = $commonMarkRawHtmlBlock;
+                continue;
+            }
             $htmlCodeBlock = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlPreCodeBlock($lines, $index) : null;
             if ($htmlCodeBlock !== null) {
                 $blocks[] = $htmlCodeBlock;
@@ -1448,6 +1455,23 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadCommonMarkPrecedenceRawHtmlBlock(array $lines, int &$index): ?AstNode
+    {
+        if (!$this->commonMarkRawHtmlBlockPrecedenceEnabled()) {
+            return null;
+        }
+
+        $tag = $this->tryParseRawHtmlOpeningTag($lines[$index] ?? '');
+        if ($tag === null || !in_array($tag['name'], ['pre', 'noscript', 'figure', 'details'], true)) {
+            return null;
+        }
+
+        return $this->tryReadRawHtmlBlock($lines, $index);
     }
 
     /**
@@ -10055,6 +10079,14 @@ final class MarkdownReader
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
 
         return in_array($canonical, ['markdown', 'commonmark_x'], true);
+    }
+
+    private function commonMarkRawHtmlBlockPrecedenceEnabled(): bool
+    {
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['commonmark', 'commonmark_x', 'gfm'], true);
     }
 
     private function markdownFormatWithExtensionOption(): string
