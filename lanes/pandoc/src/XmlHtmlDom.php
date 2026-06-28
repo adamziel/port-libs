@@ -26080,9 +26080,20 @@ final class XmlHtmlDom
         $fragmentTarget = self::hyperlinkFragmentTargetSummary($element, $href);
         $pingUrls = $pingRaw === null ? [] : self::spaceSeparatedTokens($pingRaw);
         $pingRecords = [];
+        $pingUrlCounts = [];
+        $duplicatePingUrls = [];
         $unsafePingUrls = [];
         $nonHttpPingUrls = [];
         $issues = [];
+
+        foreach ($pingUrls as $url) {
+            $pingUrlCounts[$url] = ($pingUrlCounts[$url] ?? 0) + 1;
+        }
+        foreach ($pingUrlCounts as $url => $count) {
+            if ($count > 1) {
+                $duplicatePingUrls[] = $url;
+            }
+        }
 
         if (($hrefSummary['unsafe'] ?? false) === true) {
             $issues[] = [
@@ -26118,6 +26129,7 @@ final class XmlHtmlDom
                 'kind' => $urlSummary['kind'],
                 'scheme' => $urlSummary['scheme'],
                 'unsafe' => $urlSummary['unsafe'],
+                'duplicate' => ($pingUrlCounts[$url] ?? 0) > 1,
             ];
             $pingRecords[] = $record;
             if ($urlSummary['unsafe'] === true) {
@@ -26138,6 +26150,26 @@ final class XmlHtmlDom
                 ];
             }
         }
+
+        foreach ($duplicatePingUrls as $url) {
+            $issues[] = [
+                'code' => 'duplicate-ping-url',
+                'url' => $url,
+                'count' => $pingUrlCounts[$url],
+            ];
+        }
+        $navigationIssueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+        $pingIssueCodes = array_values(array_filter(
+            $navigationIssueCodes,
+            static fn (string $code): bool => in_array($code, [
+                'unsafe-ping-url',
+                'non-http-ping-url',
+                'duplicate-ping-url',
+            ], true)
+        ));
 
         return [
             'hyperlinkNavigationReview' => $name,
@@ -26165,12 +26197,18 @@ final class XmlHtmlDom
             'referrerPolicyRaw' => $referrerPolicyRaw,
             'referrerPolicy' => $referrerPolicy,
             'referrerPolicyValid' => $referrerPolicyRaw === null ? null : $referrerPolicy !== null,
+            'pingReviewPolicy' => 'hyperlink-ping-side-effect-review',
             'pingSideEffect' => $pingUrls !== [],
             'pingUrlCount' => count($pingUrls),
+            'pingUrlTokenCounts' => $pingUrlCounts,
             'pingUrlRecords' => $pingRecords,
             'unsafePingUrls' => $unsafePingUrls,
             'nonHttpPingUrls' => $nonHttpPingUrls,
+            'duplicatePingUrls' => $duplicatePingUrls,
+            'pingIssueCodes' => $pingIssueCodes,
+            'pingValid' => $pingUrls === [] ? null : $pingIssueCodes === [],
             'navigationIssues' => $issues,
+            'navigationIssueCodes' => $navigationIssueCodes,
         ] + $fragmentTarget;
     }
 
