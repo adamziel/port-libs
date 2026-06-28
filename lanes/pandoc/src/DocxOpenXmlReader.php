@@ -22360,7 +22360,69 @@ final class DocxOpenXmlReader
         $xmlStandaloneDeclarationCount = 0;
         $xmlStandaloneYesCount = 0;
         $xmlStandaloneNoCount = 0;
+        $selectionSourceCounts = [];
+        $relationshipSourcePartCounts = [];
+        $relationshipsPartCounts = [];
+        $relationshipTargetReferenceSuffixes = [];
+        $relationshipTargetReferenceSuffixCount = 0;
+        $relationshipTargetQueryCount = 0;
+        $relationshipTargetFragmentCount = 0;
+        $relationshipSelectedPartNames = [];
+        $existingContentTypeSourceCounts = [];
+        $existingContentTypeBaseCounts = [];
         foreach ($items as $item) {
+            $selectionSource = is_string($item['selectionSource'] ?? null) ? $item['selectionSource'] : 'unknown';
+            $selectionSourceCounts[$selectionSource] = ($selectionSourceCounts[$selectionSource] ?? 0) + 1;
+
+            if (($item['exists'] ?? false) === true) {
+                $contentTypeSource = is_string($item['contentTypeSource'] ?? null) ? $item['contentTypeSource'] : 'missing';
+                if ($contentTypeSource === '') {
+                    $contentTypeSource = 'missing';
+                }
+                $existingContentTypeSourceCounts[$contentTypeSource] = ($existingContentTypeSourceCounts[$contentTypeSource] ?? 0) + 1;
+
+                $contentTypeBase = is_string($item['contentTypeBase'] ?? null) ? $item['contentTypeBase'] : '';
+                $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+                $existingContentTypeBaseCounts[$contentTypeBaseKey] = ($existingContentTypeBaseCounts[$contentTypeBaseKey] ?? 0) + 1;
+            }
+
+            if (($item['relationshipId'] ?? null) !== null) {
+                $this->appendUniqueString(
+                    $relationshipSelectedPartNames,
+                    is_string($item['partName'] ?? null) ? $item['partName'] : null,
+                );
+
+                $relationshipSourcePart = is_string($item['relationshipSourcePart'] ?? null)
+                    ? $item['relationshipSourcePart']
+                    : '';
+                if ($relationshipSourcePart !== '') {
+                    $relationshipSourcePartCounts[$relationshipSourcePart] =
+                        ($relationshipSourcePartCounts[$relationshipSourcePart] ?? 0) + 1;
+                }
+
+                $relationshipsPart = is_string($item['relationshipsPart'] ?? null)
+                    ? $item['relationshipsPart']
+                    : '';
+                if ($relationshipsPart !== '') {
+                    $relationshipsPartCounts[$relationshipsPart] =
+                        ($relationshipsPartCounts[$relationshipsPart] ?? 0) + 1;
+                }
+
+                $targetReferenceSuffix = is_string($item['targetReferenceSuffix'] ?? null)
+                    ? $item['targetReferenceSuffix']
+                    : '';
+                if ($targetReferenceSuffix !== '') {
+                    ++$relationshipTargetReferenceSuffixCount;
+                    $this->appendUniqueString($relationshipTargetReferenceSuffixes, $targetReferenceSuffix);
+                }
+                if (($item['targetQuery'] ?? null) !== null) {
+                    ++$relationshipTargetQueryCount;
+                }
+                if (($item['targetFragment'] ?? null) !== null) {
+                    ++$relationshipTargetFragmentCount;
+                }
+            }
+
             $rootAttributeCount += (int) ($item['rootAttributeCount'] ?? 0);
             $rootNamespaceDeclarationCount += (int) ($item['rootNamespaceDeclarationCount'] ?? 0);
             if (($item['rootPrefix'] ?? null) !== null) {
@@ -22387,12 +22449,27 @@ final class DocxOpenXmlReader
                 }
             }
         }
+        ksort($selectionSourceCounts, SORT_STRING);
+        ksort($relationshipSourcePartCounts, SORT_STRING);
+        ksort($relationshipsPartCounts, SORT_STRING);
+        ksort($existingContentTypeSourceCounts, SORT_STRING);
+        ksort($existingContentTypeBaseCounts, SORT_STRING);
         ksort($xmlDeclarationEncodingCounts, SORT_STRING);
 
         return [
             'count' => count($items),
             'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] === true)),
             'relationshipSelectedCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipId'] !== null)),
+            'selectionSourceCounts' => $selectionSourceCounts,
+            'relationshipSourcePartCounts' => $relationshipSourcePartCounts,
+            'relationshipsPartCounts' => $relationshipsPartCounts,
+            'relationshipTargetReferenceSuffixCount' => $relationshipTargetReferenceSuffixCount,
+            'relationshipTargetQueryCount' => $relationshipTargetQueryCount,
+            'relationshipTargetFragmentCount' => $relationshipTargetFragmentCount,
+            'relationshipTargetReferenceSuffixes' => $relationshipTargetReferenceSuffixes,
+            'relationshipSelectedPartNames' => $relationshipSelectedPartNames,
+            'existingContentTypeSourceCounts' => $existingContentTypeSourceCounts,
+            'existingContentTypeBaseCounts' => $existingContentTypeBaseCounts,
             'byteDigestCount' => count(array_filter($items, static fn (array $item): bool => is_string($item['sha256'] ?? null))),
             'missingRequiredOrReferencedCount' => count(array_filter(
                 $items,
