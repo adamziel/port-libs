@@ -78,4 +78,78 @@ return [
             $t->true(!str_contains($mathml, '<mi>\\'), $path . ' leaves no literal TeX command identifiers in MathML');
         }
     },
+    'promotes texmath atom coercion fixtures into plainmath conformance corpus' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $fixtures = [
+            'test/reader/tex/mathrel_text_coercion.test' => [
+                'tex' => 'a > b \\mathrel{\\text{or}} a > c',
+                'fragments' => [
+                    '<mi>a</mi><mo>&gt;</mo><mi>b</mi><mrow data-tex-math-class="relation"><mtext>or</mtext></mrow><mi>a</mi><mo>&gt;</mo><mi>c</mi>',
+                    '<annotation encoding="application/x-tex">a &gt; b \\mathrel{\\text{or}} a &gt; c</annotation>',
+                ],
+                'explicitAtoms' => [
+                    'Rel' => ['or'],
+                ],
+            ],
+            'test/reader/tex/mathbin_mathord_coercion.test' => [
+                'tex' => 'x \\mathbin{*} y + \\mathord{+}',
+                'fragments' => [
+                    '<mi>x</mi><mrow data-tex-math-class="binary"><mo>*</mo></mrow><mi>y</mi><mo>+</mo><mrow data-tex-math-class="ordinary"><mo>+</mo></mrow>',
+                    '<annotation encoding="application/x-tex">x \\mathbin{*} y + \\mathord{+}</annotation>',
+                ],
+                'explicitAtoms' => [
+                    'Bin' => ['*'],
+                    'Ord' => ['+'],
+                ],
+            ],
+            'test/reader/tex/mathopen_mathclose_mathpunct_coercion.test' => [
+                'tex' => '\\mathopen{[}x\\mathclose{]}\\mathpunct{,}y',
+                'fragments' => [
+                    '<mrow data-tex-math-class="open"><mo>[</mo></mrow><mi>x</mi><mrow data-tex-math-class="close"><mo>]</mo></mrow><mrow data-tex-math-class="punctuation"><mo>,</mo></mrow><mi>y</mi>',
+                    '<annotation encoding="application/x-tex">\\mathopen{[}x\\mathclose{]}\\mathpunct{,}y</annotation>',
+                ],
+                'explicitAtoms' => [
+                    'Open' => ['['],
+                    'Close' => [']'],
+                    'Pun' => [','],
+                ],
+            ],
+            'test/reader/tex/mathop_styled_operator_name.test' => [
+                'tex' => '\\mathop{\\mathrm{lim}} x_n',
+                'fragments' => [
+                    '<mrow data-tex-math-class="operator"><mstyle mathvariant="normal"><mrow><mi>l</mi><mi>i</mi><mi>m</mi></mrow></mstyle></mrow><msub><mi>x</mi><mi>n</mi></msub>',
+                    '<annotation encoding="application/x-tex">\\mathop{\\mathrm{lim}} x_n</annotation>',
+                ],
+                'explicitAtoms' => [
+                    'Op' => ['lim'],
+                ],
+            ],
+        ];
+
+        foreach ($fixtures as $path => $fixture) {
+            $mathml = $converter->texToMathMl($fixture['tex'], true);
+            $dom = new \DOMDocument('1.0', 'UTF-8');
+
+            $t->true(
+                $dom->loadXML($mathml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING),
+                $path . ' emits well-formed MathML'
+            );
+            $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $mathml);
+            foreach ($fixture['fragments'] as $fragment) {
+                $t->contains($fragment, $mathml);
+            }
+            $t->true(!str_contains($mathml, '<mi>\\'), $path . ' leaves no literal TeX command identifiers in MathML');
+
+            $explicitAtoms = [];
+            foreach ($converter->texAtomCategorySummary($fixture['tex'], true)['atoms'] as $atom) {
+                if ($atom['source'] === 'explicit-math-class') {
+                    $explicitAtoms[$atom['category']][] = $atom['text'];
+                }
+            }
+
+            foreach ($fixture['explicitAtoms'] as $category => $texts) {
+                $t->same($texts, $explicitAtoms[$category] ?? [], $path . ' records explicit ' . $category . ' atom coercions');
+            }
+        }
+    },
 ];
