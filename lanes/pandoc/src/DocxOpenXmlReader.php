@@ -30275,7 +30275,12 @@ final class DocxOpenXmlReader
     private function relationshipTargetInventoryRole(string $relationshipType): ?string
     {
         return match ($relationshipType) {
+            self::CORE_PROPERTIES_REL => 'core-properties',
+            self::EXTENDED_PROPERTIES_REL => 'extended-properties',
+            self::CUSTOM_PROPERTIES_REL => 'custom-properties',
+            self::STYLES_REL => 'styles',
             self::STYLES_WITH_EFFECTS_REL => 'styles-with-effects',
+            self::NUMBERING_REL => 'numbering',
             self::FOOTNOTES_REL => 'footnotes',
             self::ENDNOTES_REL => 'endnotes',
             self::COMMENTS_REL => 'comments',
@@ -30283,12 +30288,14 @@ final class DocxOpenXmlReader
             self::COMMENTS_IDS_REL => 'comments-ids',
             self::PEOPLE_REL => 'people',
             self::SETTINGS_REL => 'settings',
+            self::WEB_SETTINGS_REL => 'web-settings',
             self::ATTACHED_TEMPLATE_REL => 'attached-template',
             self::MAIL_MERGE_SOURCE_REL => 'mail-merge-source',
             self::MAIL_MERGE_HEADER_SOURCE_REL => 'mail-merge-header-source',
             self::MAIL_MERGE_RECIPIENT_DATA_REL, self::MAIL_MERGE_RECIPIENT_DATA_COMPAT_REL => 'mail-merge-recipient-data',
             self::FONT_TABLE_REL => 'font-table',
             self::FONT_REL => 'embedded-font',
+            self::THEME_REL => 'theme',
             self::HEADER_REL => 'header-part',
             self::FOOTER_REL => 'footer-part',
             self::SUBDOCUMENT_REL => 'subdocument',
@@ -30309,6 +30316,9 @@ final class DocxOpenXmlReader
             self::VBA_PROJECT_REL => 'vba-project',
             self::VBA_PROJECT_SIGNATURE_REL => 'vba-project-signature',
             self::VBA_DATA_REL => 'vba-data',
+            self::THUMBNAIL_REL => 'package-thumbnail',
+            self::DIGITAL_SIGNATURE_ORIGIN_REL => 'digital-signature-origin',
+            self::DIGITAL_SIGNATURE_SIGNATURE_REL => 'digital-signature-signature',
             default => null,
         };
     }
