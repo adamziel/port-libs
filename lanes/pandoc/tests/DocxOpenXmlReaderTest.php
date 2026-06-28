@@ -18335,6 +18335,15 @@ XML;
         );
         $t->same(['mso-application', 'review-audit', 'xml-stylesheet'], $summary['partXmlProcessingInstructionTargets']);
         $t->same(['customXml/pi-review.xml', 'word/settings-pi.xml'], $summary['partXmlProcessingInstructionPartNames']);
+        $t->same(2, $summary['partXmlProcessingInstructionParentPathCount']);
+        $t->same(['/' => 2, '/review:packet' => 1], $summary['partXmlProcessingInstructionParentPathCounts']);
+        $t->same(['/', '/review:packet'], $summary['partXmlProcessingInstructionParentPaths']);
+        $t->same(
+            ['(none)' => 2, 'urn:review-pi' => 1],
+            $summary['partXmlProcessingInstructionParentNamespaceCounts']
+        );
+        $t->same(['(none)' => 2, 'packet' => 1], $summary['partXmlProcessingInstructionParentLocalNameCounts']);
+        $t->same(['(none)' => 2, 'review:packet' => 1], $summary['partXmlProcessingInstructionParentQualifiedNameCounts']);
         $t->same(4, $summary['partXmlProcessingInstructionDataAttributeCount']);
         $t->same(4, $summary['partXmlProcessingInstructionDataAttributeNameCount']);
         $t->same(
@@ -18348,28 +18357,45 @@ XML;
         $t->same(2, $reviewPart['xmlProcessingInstructionCount']);
         $t->same(['review-audit', 'xml-stylesheet'], $reviewPart['xmlProcessingInstructionTargets']);
         $t->same(['review-audit' => 1, 'xml-stylesheet' => 1], $reviewPart['xmlProcessingInstructionTargetCounts']);
+        $t->same(['/' => 1, '/review:packet' => 1], $reviewPart['xmlProcessingInstructionParentPathCounts']);
+        $t->same(['/', '/review:packet'], $reviewPart['xmlProcessingInstructionParentPaths']);
+        $t->same(['(none)' => 1, 'urn:review-pi' => 1], $reviewPart['xmlProcessingInstructionParentNamespaceCounts']);
+        $t->same(['(none)' => 1, 'packet' => 1], $reviewPart['xmlProcessingInstructionParentLocalNameCounts']);
+        $t->same(['(none)' => 1, 'review:packet' => 1], $reviewPart['xmlProcessingInstructionParentQualifiedNameCounts']);
         $t->same('xml-stylesheet', $reviewPart['xmlProcessingInstructions'][0]['targetKey']);
+        $t->same('/', $reviewPart['xmlProcessingInstructions'][0]['parentPath']);
+        $t->same(0, $reviewPart['xmlProcessingInstructions'][0]['parentDepth']);
+        $t->same(null, $reviewPart['xmlProcessingInstructions'][0]['parentNamespace']);
         $t->same(strlen($stylesheetData), $reviewPart['xmlProcessingInstructions'][0]['dataByteLength']);
         $t->same(sprintf('%08x', crc32($stylesheetData)), $reviewPart['xmlProcessingInstructions'][0]['dataCrc32']);
         $t->same(hash('sha256', $stylesheetData), $reviewPart['xmlProcessingInstructions'][0]['dataSha256']);
         $t->same(2, $reviewPart['xmlProcessingInstructions'][0]['dataAttributeCount']);
         $t->same(['href', 'type'], $reviewPart['xmlProcessingInstructions'][0]['dataAttributeNames']);
         $t->same('review-audit', $reviewPart['xmlProcessingInstructions'][1]['targetKey']);
+        $t->same('/review:packet', $reviewPart['xmlProcessingInstructions'][1]['parentPath']);
+        $t->same(1, $reviewPart['xmlProcessingInstructions'][1]['parentDepth']);
+        $t->same('urn:review-pi', $reviewPart['xmlProcessingInstructions'][1]['parentNamespace']);
+        $t->same('packet', $reviewPart['xmlProcessingInstructions'][1]['parentLocalName']);
+        $t->same('review:packet', $reviewPart['xmlProcessingInstructions'][1]['parentQualifiedName']);
         $t->same(['checkpoint'], $reviewPart['xmlProcessingInstructions'][1]['dataAttributeNames']);
 
         $t->same(1, $settingsPart['xmlProcessingInstructionCount']);
         $t->same(['mso-application'], $settingsPart['xmlProcessingInstructionTargets']);
+        $t->same(['/' => 1], $settingsPart['xmlProcessingInstructionParentPathCounts']);
         $t->same(strlen($msoData), $settingsPart['xmlProcessingInstructions'][0]['dataByteLength']);
         $t->same(hash('sha256', $msoData), $settingsPart['xmlProcessingInstructions'][0]['dataSha256']);
         $t->same(['progid'], $settingsPart['xmlProcessingInstructions'][0]['dataAttributeNames']);
 
         $t->same('customXml/pi-review.xml', $processingInstructions[0]['partName']);
         $t->same('xml-stylesheet', $processingInstructions[0]['targetKey']);
+        $t->same('/', $processingInstructions[0]['parentPath']);
         $t->same(['href', 'type'], $processingInstructions[0]['dataAttributeNames']);
         $t->same('customXml/pi-review.xml', $processingInstructions[1]['partName']);
         $t->same('review-audit', $processingInstructions[1]['targetKey']);
+        $t->same('/review:packet', $processingInstructions[1]['parentPath']);
         $t->same('word/settings-pi.xml', $processingInstructions[2]['partName']);
         $t->same('mso-application', $processingInstructions[2]['targetKey']);
+        $t->same('/', $processingInstructions[2]['parentPath']);
         $t->same(['progid'], $processingInstructions[2]['dataAttributeNames']);
     },
     'summarizes docx package xml processing instruction pseudo attributes for package review' => static function (TestRunner $t): void {
