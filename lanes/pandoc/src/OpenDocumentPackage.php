@@ -9680,6 +9680,11 @@ final class OpenDocumentPackage
             'date' => [self::DC_NAMESPACE, 'date'],
             'editingDuration' => [self::META_NAMESPACE, 'editing-duration'],
             'editingCycles' => [self::META_NAMESPACE, 'editing-cycles'],
+            'modificationDate' => [self::META_NAMESPACE, 'modification-date'],
+            'modificationTime' => [self::META_NAMESPACE, 'modification-time'],
+            'printedBy' => [self::META_NAMESPACE, 'printed-by'],
+            'printDate' => [self::META_NAMESPACE, 'print-date'],
+            'printTime' => [self::META_NAMESPACE, 'print-time'],
         ];
 
         foreach ($fields as $key => [$namespace, $localName]) {

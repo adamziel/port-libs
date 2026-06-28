@@ -4303,6 +4303,11 @@ XML;
     <dc:title>Statistic Packet</dc:title>
     <meta:editing-duration>PT1H2M3S</meta:editing-duration>
     <meta:editing-cycles>7</meta:editing-cycles>
+    <meta:modification-date>2026-06-08T19:55:00Z</meta:modification-date>
+    <meta:modification-time>PT19H55M00S</meta:modification-time>
+    <meta:printed-by>Migration Printer</meta:printed-by>
+    <meta:print-date>2026-06-08</meta:print-date>
+    <meta:print-time>PT12H34M56S</meta:print-time>
     <meta:document-statistic
       meta:page-count="12"
       meta:word-count="128"
@@ -4321,13 +4326,24 @@ XML;
         $t->same('Statistic Packet', $metadata['title']);
         $t->same('PT1H2M3S', $metadata['editingDuration']);
         $t->same('7', $metadata['editingCycles']);
+        $t->same('2026-06-08T19:55:00Z', $metadata['modificationDate']);
+        $t->same('PT19H55M00S', $metadata['modificationTime']);
+        $t->same('Migration Printer', $metadata['printedBy']);
+        $t->same('2026-06-08', $metadata['printDate']);
+        $t->same('PT12H34M56S', $metadata['printTime']);
         $t->same(12, $metadata['statistics']['pageCount']);
         $t->same(128, $metadata['statistics']['wordCount']);
         $t->same(9, $metadata['statistics']['paragraphCount']);
         $t->same(600, $metadata['statistics']['nonWhitespaceCharacterCount']);
         $t->same(210, $metadata['statistics']['syllableCount']);
         $t->same(1, $metadata['statistics']['imageCount']);
+        $t->same($metadata['modificationDate'], $summary['metadata']['modificationDate']);
+        $t->same($metadata['modificationTime'], $summary['metadata']['modificationTime']);
+        $t->same($metadata['printedBy'], $summary['metadata']['printedBy']);
+        $t->same($metadata['printDate'], $summary['metadata']['printDate']);
+        $t->same($metadata['printTime'], $summary['metadata']['printTime']);
         $t->same($metadata['statistics'], $summary['metadata']['statistics']);
+        $t->same($metadata['modificationDate'], $odt->readContentDocument()->attr('metadata')['modificationDate']);
     },
     'maps compact ODT settings XML config items into package summary metadata' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $settingsXml = <<<'XML'
