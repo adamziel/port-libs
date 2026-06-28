@@ -988,6 +988,9 @@ final class OdfReader
             'manifestVersion' => is_array($manifestEntry) ? ($manifestEntry['version'] ?? null) : null,
             'manifestPreferredViewMode' => is_array($manifestEntry) ? ($manifestEntry['preferredViewMode'] ?? null) : null,
             'manifestDeclaredSize' => is_array($manifestEntry) ? ($manifestEntry['declaredSize'] ?? null) : null,
+            'manifestDeclaredSizeRaw' => is_array($manifestEntry) ? ($manifestEntry['declaredSizeRaw'] ?? null) : null,
+            'manifestDeclaredSizeValid' => is_array($manifestEntry) && ($manifestEntry['declaredSizeValid'] ?? false) === true,
+            'manifestDeclaredSizeInvalid' => is_array($manifestEntry) && ($manifestEntry['declaredSizeInvalid'] ?? false) === true,
             'manifestDeclaredSizeMismatch' => is_array($manifestEntry) && ($manifestEntry['declaredSizeMismatch'] ?? false) === true,
         ];
     }

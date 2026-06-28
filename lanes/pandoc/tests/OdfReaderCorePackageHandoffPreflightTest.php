@@ -123,11 +123,18 @@ return [
         $t->same(true, $readerEntries['content.xml']['manifestDeclared']);
         $t->same('content.xml', $readerEntries['content.xml']['manifestFullPath']);
         $t->same(strlen($contentXml), $readerEntries['content.xml']['manifestDeclaredSize']);
+        $t->same((string) strlen($contentXml), $readerEntries['content.xml']['manifestDeclaredSizeRaw']);
+        $t->same(true, $readerEntries['content.xml']['manifestDeclaredSizeValid']);
+        $t->same(false, $readerEntries['content.xml']['manifestDeclaredSizeInvalid']);
+        $t->same(false, $readerEntries['content.xml']['manifestDeclaredSizeMismatch']);
         $t->same(strlen($contentXml), $readerEntries['content.xml']['bytesRead']);
         $t->same(hash('sha256', $contentXml), $readerEntries['content.xml']['contentSha256']);
 
         $t->same('declared', $readerEntries['styles.xml']['manifestDeclarationState']);
         $t->same(strlen($stylesXml), $readerEntries['styles.xml']['manifestDeclaredSize']);
+        $t->same((string) strlen($stylesXml), $readerEntries['styles.xml']['manifestDeclaredSizeRaw']);
+        $t->same(true, $readerEntries['styles.xml']['manifestDeclaredSizeValid']);
+        $t->same(false, $readerEntries['styles.xml']['manifestDeclaredSizeInvalid']);
         $t->same(strlen($stylesXml), $readerEntries['styles.xml']['bytesRead']);
 
         $t->same('not-declared', $readerEntries['meta.xml']['manifestDeclarationState']);
@@ -148,18 +155,27 @@ return [
         $t->same('declared', $readerSourceSpans['content.xml']['manifestDeclarationState']);
         $t->same('content.xml', $readerSourceSpans['content.xml']['manifestFullPath']);
         $t->same(strlen($contentXml), $readerSourceSpans['content.xml']['manifestDeclaredSize']);
+        $t->same((string) strlen($contentXml), $readerSourceSpans['content.xml']['manifestDeclaredSizeRaw']);
+        $t->same(true, $readerSourceSpans['content.xml']['manifestDeclaredSizeValid']);
         $t->same('undeclared', $readerSourceSpans['settings.xml']['manifestDeclarationState']);
         $t->same(false, $readerSourceSpans['settings.xml']['manifestDeclared']);
         $t->same(true, $readerSourceSpans['settings.xml']['hasSourceByteSpanProvenance']);
         $t->same('declared', $readerLocalFixedFields['styles.xml']['manifestDeclarationState']);
         $t->same(strlen($stylesXml), $readerLocalFixedFields['styles.xml']['manifestDeclaredSize']);
+        $t->same((string) strlen($stylesXml), $readerLocalFixedFields['styles.xml']['manifestDeclaredSizeRaw']);
+        $t->same(true, $readerLocalFixedFields['styles.xml']['manifestDeclaredSizeValid']);
         $t->same('undeclared', $readerCentralFixedFields['settings.xml']['manifestDeclarationState']);
         $t->same(false, $readerCentralFixedFields['settings.xml']['manifestDeclared']);
 
         $t->same($readerHandoff['manifestDeclarationStateCounts'], $compactHandoff['manifestDeclarationStateCounts']);
         $t->same($readerEntries['settings.xml']['manifestDeclarationState'], $compactEntries['settings.xml']['manifestDeclarationState']);
         $t->same($readerEntries['content.xml']['manifestDeclaredSize'], $compactEntries['content.xml']['manifestDeclaredSize']);
+        $t->same($readerEntries['content.xml']['manifestDeclaredSizeRaw'], $compactEntries['content.xml']['manifestDeclaredSizeRaw']);
+        $t->same($readerEntries['content.xml']['manifestDeclaredSizeValid'], $compactEntries['content.xml']['manifestDeclaredSizeValid']);
+        $t->same($readerEntries['content.xml']['manifestDeclaredSizeInvalid'], $compactEntries['content.xml']['manifestDeclaredSizeInvalid']);
         $t->same($readerSourceSpans['settings.xml']['manifestDeclarationState'], $compactSourceSpans['settings.xml']['manifestDeclarationState']);
         $t->same($readerSourceSpans['content.xml']['manifestDeclaredSize'], $compactSourceSpans['content.xml']['manifestDeclaredSize']);
+        $t->same($readerSourceSpans['content.xml']['manifestDeclaredSizeRaw'], $compactSourceSpans['content.xml']['manifestDeclaredSizeRaw']);
+        $t->same($readerSourceSpans['content.xml']['manifestDeclaredSizeValid'], $compactSourceSpans['content.xml']['manifestDeclaredSizeValid']);
     },
 ];
