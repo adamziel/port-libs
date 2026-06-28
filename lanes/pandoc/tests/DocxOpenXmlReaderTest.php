@@ -19032,6 +19032,7 @@ XML;
 <review:packet xmlns:review="urn:review-attributes" xmlns:audit="urn:attribute-audit" xml:lang="en" review:rootState="{$rootState}">
   <review:item audit:itemCheckpoint="{$itemCheckpoint}" plainReview="{$plainReview}">
     <review:leaf review:leafCode="{$leafCode}" data-secret="{$leafSecret}"/>
+    <review:empty/>
   </review:item>
 </review:packet>
 XML;
@@ -19057,9 +19058,21 @@ XML;
                 true,
             ),
         ));
+        $attributeSets = array_values(array_filter(
+            $summary['partXmlElementAttributeSets'],
+            static fn (array $set): bool => in_array(
+                $set['partName'],
+                ['customXml/element-attribute-review.xml', 'word/settings-element-attributes.xml'],
+                true,
+            ),
+        ));
         $attributesByName = [];
         foreach ($attributes as $attribute) {
             $attributesByName[$attribute['name']] = $attribute;
+        }
+        $attributeSetsByKey = [];
+        foreach ($attributeSets as $set) {
+            $attributeSetsByKey[$set['partName'] . '|' . $set['elementPath']] = $set;
         }
         $attributeValueBytes =
             strlen('en')
@@ -19100,6 +19113,34 @@ XML;
         $t->same(1, $reviewPart['xmlElementAttributePrefixCounts']['audit']);
         $t->same(2, $reviewPart['xmlElementAttributePrefixCounts']['(none)']);
         $t->same(1, $reviewPart['xmlElementAttributePrefixCounts']['xml']);
+        $t->same(4, $reviewPart['xmlElementAttributeSetCount']);
+        $t->same(3, $reviewPart['xmlElementAttributeSetAttributedElementCount']);
+        $t->same(1, $reviewPart['xmlElementAttributeSetUnattributedElementCount']);
+        $t->same(2, $reviewPart['xmlElementAttributeSetMaxAttributeCount']);
+        $t->same(['0' => 1, '2-3' => 3], $reviewPart['xmlElementAttributeSetAttributeCountBuckets']);
+        $t->same(
+            [
+                '/review:packet' => 1,
+                '/review:packet/review:item' => 1,
+                '/review:packet/review:item/review:empty' => 1,
+                '/review:packet/review:item/review:leaf' => 1,
+            ],
+            $reviewPart['xmlElementAttributeSetElementPathCounts']
+        );
+        $t->same(['urn:review-attributes' => 4], $reviewPart['xmlElementAttributeSetElementNamespaceCounts']);
+        $t->same(
+            ['empty' => 1, 'item' => 1, 'leaf' => 1, 'packet' => 1],
+            $reviewPart['xmlElementAttributeSetElementLocalNameCounts']
+        );
+        $t->same(
+            ['review:empty' => 1, 'review:item' => 1, 'review:leaf' => 1, 'review:packet' => 1],
+            $reviewPart['xmlElementAttributeSetElementQualifiedNameCounts']
+        );
+        $t->same(2, $reviewPart['xmlElementAttributeSets'][0]['attributeCount']);
+        $t->same(['review:rootState', 'xml:lang'], $reviewPart['xmlElementAttributeSets'][0]['attributeNames']);
+        $t->same(0, $reviewPart['xmlElementAttributeSets'][3]['attributeCount']);
+        $t->same(false, $reviewPart['xmlElementAttributeSets'][3]['hasNamespacedAttributes']);
+        $t->same(false, $reviewPart['xmlElementAttributeSets'][3]['hasUnqualifiedAttributes']);
 
         $t->same(true, $settingsPart['xmlInspectable']);
         $t->same(2, $settingsPart['xmlElementAttributeCount']);
@@ -19111,6 +19152,11 @@ XML;
             ['/w:settings/w:docVars/w:docVar' => 2],
             $settingsPart['xmlElementAttributeElementPathCounts']
         );
+        $t->same(3, $settingsPart['xmlElementAttributeSetCount']);
+        $t->same(1, $settingsPart['xmlElementAttributeSetAttributedElementCount']);
+        $t->same(2, $settingsPart['xmlElementAttributeSetUnattributedElementCount']);
+        $t->same(2, $settingsPart['xmlElementAttributeSetMaxAttributeCount']);
+        $t->same(['0' => 2, '2-3' => 1], $settingsPart['xmlElementAttributeSetAttributeCountBuckets']);
 
         $t->true($summary['partXmlElementAttributePartCount'] >= 2, 'summary element-attribute part count should include the added XML parts');
         $t->true($summary['partXmlElementAttributeCount'] >= 8, 'summary element-attribute count should include the added attributes');
@@ -19124,8 +19170,19 @@ XML;
         $t->same(2, $summary['partXmlElementAttributeElementPathCounts']['/w:settings/w:docVars/w:docVar']);
         $t->same(2, $summary['partXmlElementAttributeElementNameCounts']['review:leaf']);
         $t->same(2, $summary['partXmlElementAttributeElementNameCounts']['w:docVar']);
+        $t->true($summary['partXmlElementAttributeSetPartCount'] >= 2, 'summary element-attribute-set part count should include the added XML parts');
+        $t->true($summary['partXmlElementAttributeSetCount'] >= 7, 'summary element-attribute-set count should include the added XML elements');
+        $t->true($summary['partXmlElementAttributeSetAttributedElementCount'] >= 4, 'summary attributed element count should include the added XML elements');
+        $t->true($summary['partXmlElementAttributeSetUnattributedElementCount'] >= 3, 'summary unattributed element count should include the added XML elements');
+        $t->true($summary['partXmlElementAttributeSetMaxAttributeCount'] >= 2, 'summary max attributes per element should include added XML');
+        $t->true(in_array('customXml/element-attribute-review.xml', $summary['partXmlElementAttributeSetPartNames'], true), 'custom XML element-attribute-set part should be summarized');
+        $t->true(in_array('word/settings-element-attributes.xml', $summary['partXmlElementAttributeSetPartNames'], true), 'settings element-attribute-set part should be summarized');
+        $t->same(1, $summary['partXmlElementAttributeSetElementPathCounts']['/review:packet/review:item/review:empty']);
+        $t->same(1, $summary['partXmlElementAttributeSetElementQualifiedNameCounts']['review:empty']);
+        $t->same(1, $summary['partXmlElementAttributeSetElementPathCounts']['/w:settings/w:docVars/w:docVar']);
 
         $t->same(8, count($attributes));
+        $t->same(7, count($attributeSets));
         $t->same('customXml/element-attribute-review.xml', $attributesByName['review:rootState']['partName']);
         $t->same('/review:packet', $attributesByName['review:rootState']['elementPath']);
         $t->same(strlen($rootState), $attributesByName['review:rootState']['valueByteLength']);
@@ -19136,8 +19193,21 @@ XML;
         $t->same('word/settings-element-attributes.xml', $attributesByName['review:settingScope']['partName']);
         $t->same('/w:settings/w:docVars/w:docVar', $attributesByName['review:settingScope']['elementPath']);
         $t->same(hash('sha256', $settingsScope), $attributesByName['review:settingScope']['valueSha256']);
+        $t->same(0, $attributeSetsByKey['customXml/element-attribute-review.xml|/review:packet/review:item/review:empty']['attributeCount']);
+        $t->same('0', $attributeSetsByKey['customXml/element-attribute-review.xml|/review:packet/review:item/review:empty']['attributeCountBucket']);
+        $t->same(2, $attributeSetsByKey['word/settings-element-attributes.xml|/w:settings/w:docVars/w:docVar']['attributeCount']);
+        $t->same(['audit:settingFlag', 'review:settingScope'], $attributeSetsByKey['word/settings-element-attributes.xml|/w:settings/w:docVars/w:docVar']['attributeNames']);
+        $t->same(true, $attributeSetsByKey['word/settings-element-attributes.xml|/w:settings/w:docVars/w:docVar']['hasNamespacedAttributes']);
+        $t->same(false, $attributeSetsByKey['word/settings-element-attributes.xml|/w:settings/w:docVars/w:docVar']['hasUnqualifiedAttributes']);
 
-        $encodedAttributes = json_encode([$reviewPart['xmlElementAttributes'], $settingsPart['xmlElementAttributes'], $attributes]);
+        $encodedAttributes = json_encode([
+            $reviewPart['xmlElementAttributes'],
+            $settingsPart['xmlElementAttributes'],
+            $attributes,
+            $reviewPart['xmlElementAttributeSets'],
+            $settingsPart['xmlElementAttributeSets'],
+            $attributeSets,
+        ]);
         $t->true(is_string($encodedAttributes), 'XML element attribute metadata should encode for review');
         $t->true(!isset($reviewPart['xmlElementAttributes'][0]['value']), 'raw XML attribute value should not be exposed on part metadata');
         $t->true(!str_contains((string) $encodedAttributes, 'hidden-'), 'raw XML attribute values should not be exposed in summary metadata');
