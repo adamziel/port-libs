@@ -17362,6 +17362,24 @@ final class CssMinifier
 
             return $value;
         }
+        if ($token['type'] === 'ident' && in_array($token['value'], ['sin', 'cos', 'tan'], true) && ($tokens[$offset]['type'] ?? null) === '(') {
+            $offset++;
+            $argument = $this->parseLinearCalcExpression($tokens, $offset);
+            if ($argument === null || ($tokens[$offset]['type'] ?? null) !== ')') {
+                return null;
+            }
+            $offset++;
+
+            $value = $this->linearCalcTrigFunction($token['value'], $argument);
+            if ($value === null) {
+                return null;
+            }
+
+            return [
+                'terms' => ['' => $value],
+                'order' => [''],
+            ];
+        }
         if ($token['type'] === 'ident') {
             $constant = $this->mathConstant($token['value']);
             if ($constant !== null) {
@@ -17384,6 +17402,63 @@ final class CssMinifier
             'terms' => [$unit => (float) $token['value']],
             'order' => [$unit],
         ];
+    }
+
+    /**
+     * @param array{terms:array<string,float>,order:list<string>} $argument
+     */
+    private function linearCalcTrigFunction(string $name, array $argument): ?float
+    {
+        $radians = $this->linearCalcTrigArgumentRadians($argument);
+        if ($radians === null) {
+            return null;
+        }
+
+        $value = match ($name) {
+            'sin' => sin($radians),
+            'cos' => cos($radians),
+            'tan' => tan($radians),
+            default => null,
+        };
+
+        return $value !== null && is_finite($value) ? $value : null;
+    }
+
+    /**
+     * @param array{terms:array<string,float>,order:list<string>} $argument
+     */
+    private function linearCalcTrigArgumentRadians(array $argument): ?float
+    {
+        $units = $this->nonZeroLinearCalcUnits($argument);
+        if ($units === []) {
+            $zeroUnit = $this->zeroLinearCalcUnit($argument);
+            if ($zeroUnit === null) {
+                return 0.0;
+            }
+
+            $comparison = $this->mathComparison(0.0, $zeroUnit);
+
+            return $comparison !== null && $comparison['group'] === 'angle' ? 0.0 : null;
+        }
+
+        if ($units === ['']) {
+            return $argument['terms'][''] ?? 0.0;
+        }
+
+        $degrees = 0.0;
+        foreach ($units as $unit) {
+            if ($unit === '') {
+                return null;
+            }
+
+            $comparison = $this->mathComparison($argument['terms'][$unit], $unit);
+            if ($comparison === null || $comparison['group'] !== 'angle') {
+                return null;
+            }
+            $degrees += $comparison['canonical'];
+        }
+
+        return $degrees * M_PI / 180.0;
     }
 
     private function isFoldableCalcUnit(string $unit): bool

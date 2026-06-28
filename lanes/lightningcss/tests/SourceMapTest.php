@@ -3444,6 +3444,13 @@ return [
             [".wp-block-cover {}\n\n.wp-block-button {}\n", "--wp--preset--color--primary: #06c;\n:root {}\n"],
             $data['sourcesContent']
         );
+
+        // Pinned parcel_sourcemap 2.1.1 SourceMap::add_empty_map empty-content branch.
+        $emptyContent = new SourceMap();
+        $emptyContent->addEmptyMap('empty.css', '', 4);
+        $t->same('', $emptyContent->writeVlq());
+        $t->same(['empty.css'], $emptyContent->getSources());
+        $t->same([''], $emptyContent->getSourcesContent());
     },
     'source map empty maps keep upstream lone carriage returns inside lines' => static function (TestRunner $t): void {
         $map = new SourceMap();

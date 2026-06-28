@@ -2143,6 +2143,35 @@ CSS,
         $t->same('.foo{color:red}.foo.bar{color:#ff0}', $result);
         $t->contains('&.bar', $mixins['color']);
     },
+    'custom at-rules map upstream Length visitors in declarations and custom values' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::px to rem lines 41-66.
+        $seen = [];
+        $css = <<<'CSS'
+.foo {
+  width: 32px;
+  height: calc(100vh - 64px);
+  --custom: calc(var(--foo) + 32px);
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'Length' => static function (array $length) use (&$seen): ?array {
+                $seen[] = [$length['unit'], $length['value']];
+
+                return $length['unit'] === 'px'
+                    ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                    : null;
+            },
+        ]);
+
+        $t->same('.foo{width:2rem;height:calc(100vh - 4rem);--custom:calc(var(--foo) + 2rem)}', $result);
+        $t->same([
+            ['px', 32.0],
+            ['vh', 100.0],
+            ['px', 64.0],
+            ['px', 32.0],
+        ], $seen);
+    },
     'custom at-rules map upstream Length visitors through bundler' => static function (TestRunner $t): void {
         // Pinned upstream 22bdda3d node/test/visitor.test.mjs::works with bundler lines 832-849.
         $seen = [];
