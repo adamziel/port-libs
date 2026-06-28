@@ -20168,7 +20168,8 @@ final class XmlHtmlDom
     {
         $anchorTarget = trim($anchorRaw);
         $anchorTargetValid = $anchorTarget !== '' && self::isHtmlIdReferenceToken($anchorTarget);
-        $target = $anchorTargetValid ? self::htmlElementById($element, $anchorTarget) : null;
+        $targets = $anchorTargetValid ? self::htmlElementsById($element, $anchorTarget) : [];
+        $target = $targets[0] ?? null;
         $issues = [];
 
         if ($anchorTarget === '') {
@@ -20183,6 +20184,12 @@ final class XmlHtmlDom
                 'code' => 'missing-html-anchor-positioning-target-element',
                 'anchorTarget' => $anchorTarget,
             ];
+        } elseif (count($targets) > 1) {
+            $issues[] = [
+                'code' => 'duplicate-html-anchor-positioning-target-id',
+                'anchorTarget' => $anchorTarget,
+                'count' => count($targets),
+            ];
         }
 
         $issueCodes = array_values(array_unique(array_map(
@@ -20196,8 +20203,14 @@ final class XmlHtmlDom
             'anchorTarget' => $anchorTarget === '' ? null : $anchorTarget,
             'anchorTargetValid' => $anchorTargetValid,
             'anchorTargetFound' => $target instanceof \DOMElement,
-            'anchorTargetKind' => self::anchorPositioningTargetKind($target, $anchorTarget, $anchorTargetValid),
+            'anchorTargetCount' => count($targets),
+            'anchorTargetDuplicateCount' => max(0, count($targets) - 1),
+            'anchorTargetKind' => self::anchorPositioningTargetKind($target, $anchorTarget, $anchorTargetValid, count($targets)),
             'anchorTargetElement' => $target instanceof \DOMElement ? self::anchorPositioningTargetSummary($target) : null,
+            'anchorTargetElements' => array_map(
+                static fn (\DOMElement $target): array => self::anchorPositioningTargetSummary($target),
+                $targets
+            ),
             'anchorIssues' => $issues,
             'anchorIssueCodes' => $issueCodes,
             'anchorReferencesTarget' => $issues === [],
@@ -20207,8 +20220,12 @@ final class XmlHtmlDom
     private static function anchorPositioningTargetKind(
         ?\DOMElement $target,
         string $anchorTarget,
-        bool $anchorTargetValid
+        bool $anchorTargetValid,
+        int $targetCount = 0
     ): string {
+        if ($targetCount > 1) {
+            return 'duplicate-target-id';
+        }
         if ($target instanceof \DOMElement) {
             return 'element';
         }
