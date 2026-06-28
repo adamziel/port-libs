@@ -31,7 +31,7 @@ $manifestXml = <<<XML
   <manifest:file-entry manifest:full-path="Reports/Quarterly/manifest.xml" manifest:media-type="text/xml" manifest:size="{$reportManifestSize}"/>
   <manifest:file-entry manifest:full-path="Reports/Quarterly/report.odt" manifest:media-type="application/vnd.oasis.opendocument.text" manifest:size="{$reportDocumentSize}"/>
   <manifest:file-entry manifest:full-path="Reports/Quarterly/preview.png" manifest:media-type="image/png" manifest:size="{$previewSize}"/>
-  <manifest:file-entry manifest:full-path="Reports/Quarterly/export.pdf" manifest:media-type="application/pdf" manifest:size="{$exportSize}"/>
+  <manifest:file-entry manifest:full-path="Reports/Quarterly/export.pdf" manifest:media-type="application/pdf" manifest:size="{$exportSize}bytes"/>
   <manifest:file-entry manifest:full-path="Reports/Quarterly/missing.pdf" manifest:media-type="application/pdf" manifest:size="21"/>
   <manifest:file-entry manifest:full-path="Reports/Quarterly/encrypted.pdf" manifest:media-type="application/pdf" manifest:size="{$encryptedSize}">
     <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="report-checksum"/>
@@ -109,6 +109,7 @@ return [
         $reportDocumentBytes,
         $previewBytes,
         $exportBytes,
+        $exportSize,
         $orphanBytes,
         $indexBy
     ): void {
@@ -134,9 +135,11 @@ return [
         $t->same(1, $readerReports['encryptedCount']);
         $t->same(0, $readerReports['missingMediaTypeCount']);
         $t->same(0, $readerReports['invalidMediaTypeCount']);
-        $t->same(3, $readerReports['issueCount']);
+        $t->same(1, $readerReports['invalidDeclaredSizeCount']);
+        $t->same(4, $readerReports['issueCount']);
         $t->same([
             'odf-report-package-encrypted-part',
+            'odf-report-package-invalid-declared-size',
             'odf-report-package-missing-part',
             'odf-report-package-undeclared-part',
         ], $readerReports['issueCodes']);
@@ -183,6 +186,11 @@ return [
         $export = $readerItems['Reports/Quarterly/export.pdf'];
         $t->same('report-output-resource', $export['kind']);
         $t->same(strlen($exportBytes), $export['byteLength']);
+        $t->same(null, $export['declaredSize']);
+        $t->same($exportSize . 'bytes', $export['declaredSizeRaw']);
+        $t->same(false, $export['declaredSizeValid']);
+        $t->same(true, $export['declaredSizeInvalid']);
+        $t->same(['odf-report-package-invalid-declared-size'], $export['issues']);
 
         $missing = $readerItems['Reports/Quarterly/missing.pdf'];
         $t->same(false, $missing['exists']);
@@ -262,7 +270,8 @@ return [
         $t->same(1, $compactReports['missingCount']);
         $t->same(1, $compactReports['directoryCount']);
         $t->same(1, $compactReports['encryptedCount']);
-        $t->same(3, $compactReports['issueCount']);
+        $t->same(1, $compactReports['invalidDeclaredSizeCount']);
+        $t->same(4, $compactReports['issueCount']);
         $t->same($readerReports['issueCodes'], $compactReports['issueCodes']);
         $t->same('report-package-bytes-blocked', $compactReports['byteExposurePolicy']);
         $t->same('report-package-metadata-only', $compactReports['reviewPolicy']);
@@ -270,6 +279,11 @@ return [
         $t->same('report-document', $compactItems['Reports/Quarterly/report.odt']['kind']);
         $t->same('report-preview-media', $compactItems['Reports/Quarterly/preview.png']['kind']);
         $t->same('report-output-resource', $compactItems['Reports/Quarterly/export.pdf']['kind']);
+        $t->same(null, $compactItems['Reports/Quarterly/export.pdf']['declaredSize']);
+        $t->same($exportSize . 'bytes', $compactItems['Reports/Quarterly/export.pdf']['declaredSizeRaw']);
+        $t->same(false, $compactItems['Reports/Quarterly/export.pdf']['declaredSizeValid']);
+        $t->same(true, $compactItems['Reports/Quarterly/export.pdf']['declaredSizeInvalid']);
+        $t->same(['odf-report-package-invalid-declared-size'], $compactItems['Reports/Quarterly/export.pdf']['issues']);
         $t->same(['odf-report-package-missing-part'], $compactItems['Reports/Quarterly/missing.pdf']['issues']);
         $t->same(['odf-report-package-encrypted-part'], $compactItems['Reports/Quarterly/encrypted.pdf']['issues']);
         $t->same(['odf-report-package-undeclared-part'], $compactItems['Reports/Quarterly/orphan.pdf']['issues']);
