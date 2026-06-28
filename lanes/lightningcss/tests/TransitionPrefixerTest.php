@@ -2194,22 +2194,26 @@ CSS;
             $prefixer->prefixForTargets('.foo { tab-size: 4; }', [
                 'firefox' => 50,
                 'opera' => 12,
-            ])
+            ]),
+            'upstream src/lib.rs::test_tab_size line 15845'
         );
         $t->same(
             '.foo{tab-size:4}',
             $prefixer->prefixForTargets('.foo { -moz-tab-size: 4; -o-tab-size: 4; tab-size: 4; }', [
                 'firefox' => 94,
                 'opera' => 30,
-            ])
+            ]),
+            'upstream src/lib.rs::test_tab_size line 15861'
         );
         $t->same(
             '.foo{-moz-text-align-last:left;text-align-last:left}',
-            $prefixer->prefixForTargets('.foo { text-align-last: left; }', ['firefox' => 40])
+            $prefixer->prefixForTargets('.foo { text-align-last: left; }', ['firefox' => 40]),
+            'upstream src/lib.rs::test_text_align_last line 16119'
         );
         $t->same(
             '.foo{text-align-last:left}',
-            $prefixer->prefixForTargets('.foo { -moz-text-align-last: left; text-align-last: left; }', ['firefox' => 88])
+            $prefixer->prefixForTargets('.foo { -moz-text-align-last: left; text-align-last: left; }', ['firefox' => 88]),
+            'upstream src/lib.rs::test_text_align_last line 16132'
         );
         $t->same(
             '.foo{-o-text-overflow:ellipsis;text-overflow:ellipsis}',
