@@ -3253,7 +3253,7 @@ CSS;
             ],
         ]);
 
-        $t->same('.hoverable .foo{color:red}', $result);
+        $t->same('.hoverable .foo{color:red}', $result, 'upstream node/test/visitor.test.mjs line 714');
         $t->same('all', $seenQuery['mediaType']);
         $t->same('hover', $seenQuery['condition']['value']['name'] ?? null);
     },
@@ -3349,7 +3349,7 @@ CSS;
             ],
         ]);
 
-        $t->same('@media (prefers-color-scheme:dark){html:not([theme=light]) body{background:#000}}html[theme=dark] body{background:#000}', $result);
+        $t->same('@media (prefers-color-scheme:dark){html:not([theme=light]) body{background:#000}}html[theme=dark] body{background:#000}', $result, 'upstream node/test/visitor.test.mjs line 527');
         $t->same('prefers-color-scheme', $seenFeature['name'] ?? null);
         $t->same('dark', $seenFeature['value']['value'] ?? null);
     },
@@ -5164,7 +5164,7 @@ CSS;
             ],
         ]);
 
-        $t->same('.foo{color:red;height:100vh}@supports (-webkit-touch-callout:none){.foo{height:-webkit-fill-available}}', $result);
+        $t->same('.foo{color:red;height:100vh}@supports (-webkit-touch-callout:none){.foo{height:-webkit-fill-available}}', $result, 'upstream node/test/visitor.test.mjs line 584');
         $t->same('100vh', $seenHeight);
     },
     'custom at-rules emit upstream returned supports rules from custom parser bodies' => static function (TestRunner $t): void {
