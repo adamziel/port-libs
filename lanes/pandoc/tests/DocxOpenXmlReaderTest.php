@@ -17573,6 +17573,81 @@ XML;
         $t->same('urn:package-default', $defaultPart['rootNamespace']);
         $t->same('packet', $defaultPart['rootQualifiedName']);
     },
+    'summarizes docx package xml element structures without exposing text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $hiddenText = 'hidden-xml-structure-payload';
+        $parts['customXml/structure-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:structurePacket xmlns:review="urn:review-structure" xmlns:audit="urn:review-audit">
+  <review:branch>
+    <review:leaf>{$hiddenText}</review:leaf>
+    <audit:checkpoint/>
+  </review:branch>
+  <review:branch>
+    <review:leaf/>
+  </review:branch>
+</review:structurePacket>
+XML;
+        $parts['word/settings-structure.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:review="urn:settings-structure">
+  <w:docVars>
+    <w:docVar w:name="ReviewStructure"/>
+  </w:docVars>
+  <review:checkpoint>
+    <review:leaf/>
+  </review:checkpoint>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/structure-review.xml'];
+        $settingsPart = $package['parts']['word/settings-structure.xml'];
+        $structuresByPart = [];
+        foreach ($summary['partXmlElementStructures'] as $structure) {
+            $structuresByPart[$structure['partName']] = $structure;
+        }
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(6, $reviewPart['xmlElementCount']);
+        $t->same(3, $reviewPart['xmlElementLeafCount']);
+        $t->same(3, $reviewPart['xmlElementMaxDepth']);
+        $t->same(6, $reviewPart['xmlElementPrefixedCount']);
+        $t->same(['urn:review-audit' => 1, 'urn:review-structure' => 5], $reviewPart['xmlElementNamespaceCounts']);
+        $t->same(['branch' => 2, 'checkpoint' => 1, 'leaf' => 2, 'structurePacket' => 1], $reviewPart['xmlElementLocalNameCounts']);
+        $t->same(
+            ['audit:checkpoint' => 1, 'review:branch' => 2, 'review:leaf' => 2, 'review:structurePacket' => 1],
+            $reviewPart['xmlElementQualifiedNameCounts']
+        );
+
+        $t->same(true, $settingsPart['xmlInspectable']);
+        $t->same(5, $settingsPart['xmlElementCount']);
+        $t->same(2, $settingsPart['xmlElementLeafCount']);
+        $t->same(3, $settingsPart['xmlElementMaxDepth']);
+        $t->same(['http://schemas.openxmlformats.org/wordprocessingml/2006/main' => 3, 'urn:settings-structure' => 2], $settingsPart['xmlElementNamespaceCounts']);
+
+        $t->true($summary['partXmlElementCount'] >= 11, 'summary element count should include the added structure parts');
+        $t->true($summary['partXmlElementLeafCount'] >= 5, 'summary leaf count should include the added structure parts');
+        $t->true($summary['partXmlElementMaxDepth'] >= 3, 'summary max depth should include nested structure parts');
+        $t->true(in_array('customXml/structure-review.xml', $summary['partXmlElementPartNames'], true), 'custom XML structure part should be summarized');
+        $t->true(in_array('word/settings-structure.xml', $summary['partXmlElementPartNames'], true), 'settings structure part should be summarized');
+        $t->same(5, $summary['partXmlElementNamespaceCounts']['urn:review-structure']);
+        $t->same(1, $summary['partXmlElementNamespaceCounts']['urn:review-audit']);
+        $t->same(2, $summary['partXmlElementNamespaceCounts']['urn:settings-structure']);
+        $t->same(2, $summary['partXmlElementLocalNameCounts']['branch']);
+        $t->same(1, $summary['partXmlElementLocalNameCounts']['structurePacket']);
+        $t->same(1, $summary['partXmlElementQualifiedNameCounts']['audit:checkpoint']);
+        $t->same(1, $summary['partXmlElementQualifiedNameCounts']['review:structurePacket']);
+
+        $t->same(6, $structuresByPart['customXml/structure-review.xml']['elementCount']);
+        $t->same(3, $structuresByPart['customXml/structure-review.xml']['leafElementCount']);
+        $t->same(['branch' => 2, 'checkpoint' => 1, 'leaf' => 2, 'structurePacket' => 1], $structuresByPart['customXml/structure-review.xml']['localNameCounts']);
+        $encodedStructures = json_encode([$reviewPart, $settingsPart, $summary['partXmlElementStructures']]);
+        $t->true(is_string($encodedStructures), 'XML element structure metadata should encode for review');
+        $t->true(!str_contains((string) $encodedStructures, $hiddenText), 'raw XML element text should not be exposed in structure metadata');
+    },
     'summarizes docx package xml processing instructions for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['customXml/pi-review.xml'] = <<<'XML'
