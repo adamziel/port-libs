@@ -2318,7 +2318,7 @@ CSS;
             ],
         ]);
 
-        $t->same('.m-1{margin:10px}@media (width>=500px){.sm\\:m-1{margin:10px}}', $result);
+        $t->same('.m-1{margin:10px}@media (width>=500px){.sm\\:m-1{margin:10px}}', $result, 'upstream node/test/visitor.test.mjs line 1087');
         $t->same('style', $seenBodyRules[0]['type']);
         $t->same('m-1', $seenBodyRules[0]['value']['selectors'][0][0]['name']);
     },
@@ -4946,6 +4946,33 @@ CSS;
 
         $t->same('.bar{width:80px}.foo{width:32px}', $result);
         $t->same(['enter-a:2', 'enter-b:2', 'exit-a:2', 'exit-b:2'], $seen);
+    },
+    'custom at-rules map upstream direct StyleSheetExit visitor sorting' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.foo {
+  width: 32px;
+}
+
+.bar {
+  width: 80px;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'StyleSheetExit' => static function (array $stylesheet): array {
+                usort(
+                    $stylesheet['rules'],
+                    static fn (array $left, array $right): int => strcmp(
+                        (string) ($left['value']['selectors'][0][0]['name'] ?? ''),
+                        (string) ($right['value']['selectors'][0][0]['name'] ?? '')
+                    )
+                );
+
+                return $stylesheet;
+            },
+        ]);
+
+        $t->same('.bar{width:80px}.foo{width:32px}', $result, 'upstream node/test/visitor.test.mjs line 1149');
     },
     'custom at-rules apply upstream StyleSheet enter replacements before child visitors' => static function (TestRunner $t): void {
         $seen = [];
