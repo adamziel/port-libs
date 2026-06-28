@@ -27149,6 +27149,18 @@ final class XmlHtmlDom
         $crossorigin = $crossoriginRaw === null ? null : self::htmlCorsSettingsAttributeState($crossoriginRaw);
         $referrerPolicyRaw = self::attributeOrNull($image, 'referrerpolicy');
         $referrerPolicy = $referrerPolicyRaw === null ? null : self::referrerPolicyState($referrerPolicyRaw);
+        $policyAttributes = [];
+        foreach ([
+            'loading' => $loadingRaw,
+            'decoding' => $decodingRaw,
+            'fetchpriority' => $fetchPriorityRaw,
+            'crossorigin' => $crossoriginRaw,
+            'referrerpolicy' => $referrerPolicyRaw,
+        ] as $attribute => $raw) {
+            if ($raw !== null) {
+                $policyAttributes[] = $attribute;
+            }
+        }
         $issueCodes = [];
 
         if ($loadingRaw !== null && $loading === null) {
@@ -27169,16 +27181,23 @@ final class XmlHtmlDom
 
         return [
             'imageLoadingReviewPolicy' => 'image-loading-metadata-review',
+            'imageLoadingPolicyAttributes' => $policyAttributes,
+            'imageLoadingRaw' => $loadingRaw,
             'imageLoadingState' => $loading,
             'imageLoadingValid' => $loadingRaw === null ? null : $loading !== null,
+            'imageDecodingRaw' => $decodingRaw,
             'imageDecodingState' => $decoding,
             'imageDecodingValid' => $decodingRaw === null ? null : $decoding !== null,
+            'imageFetchPriorityRaw' => $fetchPriorityRaw,
             'imageFetchPriority' => $fetchPriority,
             'imageFetchPriorityValid' => $fetchPriorityRaw === null ? null : $fetchPriority !== null,
+            'imageCrossoriginRaw' => $crossoriginRaw,
             'imageCrossoriginState' => $crossorigin,
             'imageCrossoriginValid' => $crossoriginRaw === null ? null : $crossorigin !== null,
+            'imageReferrerPolicyRaw' => $referrerPolicyRaw,
             'imageReferrerPolicy' => $referrerPolicy,
             'imageReferrerPolicyValid' => $referrerPolicyRaw === null ? null : $referrerPolicy !== null,
+            'imageLoadingReviewOnlyNoResourceFetch' => true,
             'imageLoadingIssueCodes' => $issueCodes,
             'imageLoadingIssueCount' => count($issueCodes),
         ];
