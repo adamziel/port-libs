@@ -5110,6 +5110,24 @@ final class ZipPackage
      *     selectedExtraFieldRecordCount:int,
      *     selectedCentralExtraFieldRecordCount:int,
      *     selectedLocalExtraFieldRecordCount:int,
+     *     selectedExtraFieldIdCount:int,
+     *     selectedCentralExtraFieldIdCount:int,
+     *     selectedLocalExtraFieldIdCount:int,
+     *     selectedSharedExtraFieldIdCount:int,
+     *     selectedCentralOnlyExtraFieldIdCount:int,
+     *     selectedLocalOnlyExtraFieldIdCount:int,
+     *     handoffExtraFieldEntryCount:int,
+     *     handoffCentralExtraFieldEntryCount:int,
+     *     handoffLocalExtraFieldEntryCount:int,
+     *     handoffExtraFieldRecordCount:int,
+     *     handoffCentralExtraFieldRecordCount:int,
+     *     handoffLocalExtraFieldRecordCount:int,
+     *     handoffExtraFieldIdCount:int,
+     *     handoffCentralExtraFieldIdCount:int,
+     *     handoffLocalExtraFieldIdCount:int,
+     *     handoffSharedExtraFieldIdCount:int,
+     *     handoffCentralOnlyExtraFieldIdCount:int,
+     *     handoffLocalOnlyExtraFieldIdCount:int,
      *     selectedPlatformAttributeProvenanceEntryCount:int,
      *     selectedExternalAttributeEntryCount:int,
      *     selectedInternalAttributeEntryCount:int,
@@ -5228,6 +5246,9 @@ final class ZipPackage
      *     handoffCommentedEntries:list<array<string, mixed>>,
      *     handoffRawCommentProvenanceEntries:list<array<string, mixed>>,
      *     selectedExtraFieldProvenanceEntries:list<array<string, mixed>>,
+     *     selectedExtraFieldIdUsage:list<array<string, mixed>>,
+     *     handoffExtraFieldProvenanceEntries:list<array<string, mixed>>,
+     *     handoffExtraFieldIdUsage:list<array<string, mixed>>,
      *     selectedPlatformAttributeProvenanceEntries:list<array<string, mixed>>,
      *     selectedPlatformAttributeIssueEntries:list<array<string, mixed>>,
      *     selectedCreatorHostSystemIssues:list<string>,
@@ -6360,6 +6381,8 @@ final class ZipPackage
             'centralDirectoryFixedFieldIssues'
         );
         $handoffRawCommentSummary = self::entryHandoffRawCommentSummary($handoffEntries);
+        $selectedExtraFieldIdUsage = self::extraFieldIdUsageSummary($selectedExtraFieldProvenanceEntries);
+        $handoffExtraFieldSummary = self::entryHandoffExtraFieldSummary($handoffEntries);
         $roleSummaries = self::entryHandoffRoleSummaries($entries);
         $handoffDataDescriptorSummary = self::entryHandoffDataDescriptorSummary($handoffEntries);
         $handoffSourceByteSpanSummary = self::entryHandoffSourceByteSpanSummary($handoffEntries);
@@ -6501,6 +6524,24 @@ final class ZipPackage
             'selectedExtraFieldRecordCount' => $selectedCentralExtraFieldRecordCount + $selectedLocalExtraFieldRecordCount,
             'selectedCentralExtraFieldRecordCount' => $selectedCentralExtraFieldRecordCount,
             'selectedLocalExtraFieldRecordCount' => $selectedLocalExtraFieldRecordCount,
+            'selectedExtraFieldIdCount' => $selectedExtraFieldIdUsage['extraFieldIdCount'],
+            'selectedCentralExtraFieldIdCount' => $selectedExtraFieldIdUsage['centralExtraFieldIdCount'],
+            'selectedLocalExtraFieldIdCount' => $selectedExtraFieldIdUsage['localExtraFieldIdCount'],
+            'selectedSharedExtraFieldIdCount' => $selectedExtraFieldIdUsage['sharedExtraFieldIdCount'],
+            'selectedCentralOnlyExtraFieldIdCount' => $selectedExtraFieldIdUsage['centralOnlyExtraFieldIdCount'],
+            'selectedLocalOnlyExtraFieldIdCount' => $selectedExtraFieldIdUsage['localOnlyExtraFieldIdCount'],
+            'handoffExtraFieldEntryCount' => $handoffExtraFieldSummary['extraFieldEntryCount'],
+            'handoffCentralExtraFieldEntryCount' => $handoffExtraFieldSummary['centralExtraFieldEntryCount'],
+            'handoffLocalExtraFieldEntryCount' => $handoffExtraFieldSummary['localExtraFieldEntryCount'],
+            'handoffExtraFieldRecordCount' => $handoffExtraFieldSummary['extraFieldRecordCount'],
+            'handoffCentralExtraFieldRecordCount' => $handoffExtraFieldSummary['centralExtraFieldRecordCount'],
+            'handoffLocalExtraFieldRecordCount' => $handoffExtraFieldSummary['localExtraFieldRecordCount'],
+            'handoffExtraFieldIdCount' => $handoffExtraFieldSummary['extraFieldIdCount'],
+            'handoffCentralExtraFieldIdCount' => $handoffExtraFieldSummary['centralExtraFieldIdCount'],
+            'handoffLocalExtraFieldIdCount' => $handoffExtraFieldSummary['localExtraFieldIdCount'],
+            'handoffSharedExtraFieldIdCount' => $handoffExtraFieldSummary['sharedExtraFieldIdCount'],
+            'handoffCentralOnlyExtraFieldIdCount' => $handoffExtraFieldSummary['centralOnlyExtraFieldIdCount'],
+            'handoffLocalOnlyExtraFieldIdCount' => $handoffExtraFieldSummary['localOnlyExtraFieldIdCount'],
             'selectedPlatformAttributeProvenanceEntryCount' => count($selectedPlatformAttributeProvenanceEntries),
             'selectedExternalAttributeEntryCount' => $selectedExternalAttributeEntryCount,
             'selectedInternalAttributeEntryCount' => $selectedInternalAttributeEntryCount,
@@ -6733,6 +6774,9 @@ final class ZipPackage
             'handoffCommentedEntries' => $handoffRawCommentSummary['commentedEntries'],
             'handoffRawCommentProvenanceEntries' => $handoffRawCommentSummary['rawCommentProvenanceEntries'],
             'selectedExtraFieldProvenanceEntries' => $selectedExtraFieldProvenanceEntries,
+            'selectedExtraFieldIdUsage' => $selectedExtraFieldIdUsage['extraFieldIdUsage'],
+            'handoffExtraFieldProvenanceEntries' => $handoffExtraFieldSummary['extraFieldProvenanceEntries'],
+            'handoffExtraFieldIdUsage' => $handoffExtraFieldSummary['extraFieldIdUsage'],
             'selectedPlatformAttributeProvenanceEntries' => $selectedPlatformAttributeProvenanceEntries,
             'selectedPlatformAttributeIssueEntries' => $selectedPlatformAttributeIssueEntries,
             'selectedCreatorHostSystemIssues' => $selectedCreatorHostSystemIssues,
@@ -7537,6 +7581,108 @@ final class ZipPackage
             'issues' => $issues,
             'provenanceEntries' => $provenanceEntries,
             'issueEntries' => $issueEntries,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array{extraFieldEntryCount:int, centralExtraFieldEntryCount:int, localExtraFieldEntryCount:int, extraFieldRecordCount:int, centralExtraFieldRecordCount:int, localExtraFieldRecordCount:int, extraFieldIdCount:int, centralExtraFieldIdCount:int, localExtraFieldIdCount:int, sharedExtraFieldIdCount:int, centralOnlyExtraFieldIdCount:int, localOnlyExtraFieldIdCount:int, extraFieldIdUsage:list<array<string, mixed>>, extraFieldProvenanceEntries:list<array<string, mixed>>}
+     */
+    private static function entryHandoffExtraFieldSummary(array $entries): array
+    {
+        $provenanceEntries = [];
+        $centralExtraFieldEntryCount = 0;
+        $localExtraFieldEntryCount = 0;
+        $centralExtraFieldRecordCount = 0;
+        $localExtraFieldRecordCount = 0;
+
+        foreach ($entries as $entry) {
+            if (($entry['status'] ?? null) !== 'ready' || ($entry['exists'] ?? false) !== true) {
+                continue;
+            }
+
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $centralExtraFieldIds = is_array($entry['centralExtraFieldIds'] ?? null)
+                ? array_values(array_filter($entry['centralExtraFieldIds'], 'is_int'))
+                : [];
+            $localExtraFieldIds = is_array($entry['localExtraFieldIds'] ?? null)
+                ? array_values(array_filter($entry['localExtraFieldIds'], 'is_int'))
+                : [];
+            $centralRecordCount = is_int($entry['centralExtraFieldRecordCount'] ?? null)
+                ? $entry['centralExtraFieldRecordCount']
+                : count($centralExtraFieldIds);
+            $localRecordCount = is_int($entry['localExtraFieldRecordCount'] ?? null)
+                ? $entry['localExtraFieldRecordCount']
+                : count($localExtraFieldIds);
+            $hasCentralExtraFields = ($entry['hasCentralExtraFields'] ?? false) === true || $centralRecordCount > 0;
+            $hasLocalExtraFields = ($entry['hasLocalExtraFields'] ?? false) === true || $localRecordCount > 0;
+            $hasExtraFieldProvenance = ($entry['hasExtraFieldProvenance'] ?? false) === true
+                || $hasCentralExtraFields
+                || $hasLocalExtraFields;
+            if (!$hasExtraFieldProvenance) {
+                continue;
+            }
+
+            if ($hasCentralExtraFields) {
+                ++$centralExtraFieldEntryCount;
+            }
+            if ($hasLocalExtraFields) {
+                ++$localExtraFieldEntryCount;
+            }
+            $centralExtraFieldRecordCount += $centralRecordCount;
+            $localExtraFieldRecordCount += $localRecordCount;
+
+            $provenanceEntries[] = [
+                'requestIndex' => is_int($entry['requestIndex'] ?? null) ? $entry['requestIndex'] : null,
+                'requestedName' => is_string($entry['requestedName'] ?? null) ? $entry['requestedName'] : '',
+                'name' => $name,
+                'role' => is_string($entry['role'] ?? null) ? $entry['role'] : null,
+                'required' => ($entry['required'] ?? false) === true,
+                'expectedKind' => is_string($entry['expectedKind'] ?? null) ? $entry['expectedKind'] : null,
+                'status' => 'ready',
+                'isReadable' => ($entry['isReadable'] ?? false) === true,
+                'centralExtraFieldLength' => is_int($entry['centralExtraFieldLength'] ?? null)
+                    ? $entry['centralExtraFieldLength']
+                    : 0,
+                'centralExtraFieldRecordCount' => $centralRecordCount,
+                'centralExtraFieldIds' => $centralExtraFieldIds,
+                'hasCentralExtraFields' => $hasCentralExtraFields,
+                'localExtraFieldLength' => is_int($entry['localExtraFieldLength'] ?? null)
+                    ? $entry['localExtraFieldLength']
+                    : 0,
+                'localExtraFieldRecordCount' => $localRecordCount,
+                'localExtraFieldIds' => $localExtraFieldIds,
+                'hasLocalExtraFields' => $hasLocalExtraFields,
+                'centralLocalExtraFieldIdsMatch' => is_bool($entry['centralLocalExtraFieldIdsMatch'] ?? null)
+                    ? $entry['centralLocalExtraFieldIdsMatch']
+                    : null,
+                'hasExtraFieldProvenance' => true,
+                'compressedSize' => (int) ($entry['compressedSize'] ?? 0),
+                'uncompressedSize' => (int) ($entry['uncompressedSize'] ?? 0),
+            ];
+        }
+
+        $idUsage = self::extraFieldIdUsageSummary($provenanceEntries);
+
+        return [
+            'extraFieldEntryCount' => count($provenanceEntries),
+            'centralExtraFieldEntryCount' => $centralExtraFieldEntryCount,
+            'localExtraFieldEntryCount' => $localExtraFieldEntryCount,
+            'extraFieldRecordCount' => $centralExtraFieldRecordCount + $localExtraFieldRecordCount,
+            'centralExtraFieldRecordCount' => $centralExtraFieldRecordCount,
+            'localExtraFieldRecordCount' => $localExtraFieldRecordCount,
+            'extraFieldIdCount' => $idUsage['extraFieldIdCount'],
+            'centralExtraFieldIdCount' => $idUsage['centralExtraFieldIdCount'],
+            'localExtraFieldIdCount' => $idUsage['localExtraFieldIdCount'],
+            'sharedExtraFieldIdCount' => $idUsage['sharedExtraFieldIdCount'],
+            'centralOnlyExtraFieldIdCount' => $idUsage['centralOnlyExtraFieldIdCount'],
+            'localOnlyExtraFieldIdCount' => $idUsage['localOnlyExtraFieldIdCount'],
+            'extraFieldIdUsage' => $idUsage['extraFieldIdUsage'],
+            'extraFieldProvenanceEntries' => $provenanceEntries,
         ];
     }
 

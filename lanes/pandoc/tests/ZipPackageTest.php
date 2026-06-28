@@ -11426,6 +11426,105 @@ return [
         $t->same([$documentEntry, $localOnlyEntry], $summary['handoffEntries']);
     },
 
+    'summarizes readable zip handoff extra field ids before reader byte exposure' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>handoff extra fields</w:p></w:body></w:document>';
+        $commentsXml = '<w:comments><w:comment>handoff extra field sidecar</w:comment></w:comments>';
+        $largeBytes = "oversized media with selected-only extra field metadata\n";
+        $timestampExtra = pack('vvCV', 0x5455, 5, 0x01, 1780479017);
+        $reviewExtra = pack('vva*', 0xcafe, strlen('review-metadata'), 'review-metadata');
+        $centralOnlyExtra = pack('vva*', 0x1111, strlen('central-only'), 'central-only');
+        $localOnlyExtra = pack('vva*', 0x2222, strlen('local-only'), 'local-only');
+        $blockedExtra = pack('vva*', 0x3333, strlen('blocked-media'), 'blocked-media');
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+                'centralExtra' => $timestampExtra . $reviewExtra,
+                'localExtra' => $timestampExtra . $reviewExtra,
+            ],
+            [
+                'name' => 'word/comments.xml',
+                'data' => $commentsXml,
+                'method' => 0,
+                'centralExtra' => $centralOnlyExtra,
+                'localExtra' => $localOnlyExtra,
+            ],
+            [
+                'name' => 'word/media/large.bin',
+                'data' => $largeBytes,
+                'method' => 0,
+                'centralExtra' => $blockedExtra,
+                'localExtra' => $blockedExtra,
+            ],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => '/word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => '/word/comments.xml', 'required' => false, 'kind' => 'file', 'role' => 'comments'],
+            ['name' => '/word/media/large.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 4],
+            ['name' => '/word/media/missing.bin', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+        ], 2048);
+
+        $selectedUsageById = [];
+        foreach ($summary['selectedExtraFieldIdUsage'] as $row) {
+            $selectedUsageById[$row['id']] = $row;
+        }
+        $handoffUsageById = [];
+        foreach ($summary['handoffExtraFieldIdUsage'] as $row) {
+            $handoffUsageById[$row['id']] = $row;
+        }
+
+        $t->same(3, $summary['selectedExtraFieldEntryCount']);
+        $t->same(3, $summary['selectedCentralExtraFieldEntryCount']);
+        $t->same(3, $summary['selectedLocalExtraFieldEntryCount']);
+        $t->same(8, $summary['selectedExtraFieldRecordCount']);
+        $t->same(4, $summary['selectedCentralExtraFieldRecordCount']);
+        $t->same(4, $summary['selectedLocalExtraFieldRecordCount']);
+        $t->same(5, $summary['selectedExtraFieldIdCount']);
+        $t->same(4, $summary['selectedCentralExtraFieldIdCount']);
+        $t->same(4, $summary['selectedLocalExtraFieldIdCount']);
+        $t->same(3, $summary['selectedSharedExtraFieldIdCount']);
+        $t->same(1, $summary['selectedCentralOnlyExtraFieldIdCount']);
+        $t->same(1, $summary['selectedLocalOnlyExtraFieldIdCount']);
+        $t->same([0x1111, 0x2222, 0x3333, 0x5455, 0xcafe], array_column($summary['selectedExtraFieldIdUsage'], 'id'));
+
+        $t->same(2, $summary['handoffEntryCount']);
+        $t->same(2, $summary['handoffExtraFieldEntryCount']);
+        $t->same(2, $summary['handoffCentralExtraFieldEntryCount']);
+        $t->same(2, $summary['handoffLocalExtraFieldEntryCount']);
+        $t->same(6, $summary['handoffExtraFieldRecordCount']);
+        $t->same(3, $summary['handoffCentralExtraFieldRecordCount']);
+        $t->same(3, $summary['handoffLocalExtraFieldRecordCount']);
+        $t->same(4, $summary['handoffExtraFieldIdCount']);
+        $t->same(3, $summary['handoffCentralExtraFieldIdCount']);
+        $t->same(3, $summary['handoffLocalExtraFieldIdCount']);
+        $t->same(2, $summary['handoffSharedExtraFieldIdCount']);
+        $t->same(1, $summary['handoffCentralOnlyExtraFieldIdCount']);
+        $t->same(1, $summary['handoffLocalOnlyExtraFieldIdCount']);
+        $t->same([0x1111, 0x2222, 0x5455, 0xcafe], array_column($summary['handoffExtraFieldIdUsage'], 'id'));
+
+        $t->same(['word/media/large.bin'], $selectedUsageById[0x3333]['centralEntryNames']);
+        $t->same(['word/media/large.bin'], $selectedUsageById[0x3333]['localEntryNames']);
+        $t->same(false, isset($handoffUsageById[0x3333]));
+        $t->same(true, $handoffUsageById[0x1111]['appearsOnlyInCentral']);
+        $t->same(true, $handoffUsageById[0x2222]['appearsOnlyInLocal']);
+        $t->same(['word/document.xml'], $handoffUsageById[0x5455]['centralEntryNames']);
+        $t->same(['word/document.xml'], $handoffUsageById[0xcafe]['localEntryNames']);
+
+        $documentEntry = $summary['handoffExtraFieldProvenanceEntries'][0];
+        $commentsEntry = $summary['handoffExtraFieldProvenanceEntries'][1];
+        $t->same('word/document.xml', $documentEntry['name']);
+        $t->same([0x5455, 0xcafe], $documentEntry['centralExtraFieldIds']);
+        $t->same([0x5455, 0xcafe], $documentEntry['localExtraFieldIds']);
+        $t->same(true, $documentEntry['centralLocalExtraFieldIdsMatch']);
+        $t->same('word/comments.xml', $commentsEntry['name']);
+        $t->same([0x1111], $commentsEntry['centralExtraFieldIds']);
+        $t->same([0x2222], $commentsEntry['localExtraFieldIds']);
+        $t->same(false, $commentsEntry['centralLocalExtraFieldIdsMatch']);
+        $t->same(false, in_array('word/media/large.bin', array_column($summary['handoffExtraFieldProvenanceEntries'], 'name'), true));
+    },
+
     'preflights selected zip entry platform attribute provenance before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>selected platform attributes</w:p></w:body></w:document>';
         $macroBytes = "selected executable sidecar bytes\n";
