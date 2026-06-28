@@ -17215,6 +17215,8 @@ final class OdfReader
         $issueCodes = [];
         foreach ($candidatesByPart as $part => $item) {
             $entry = $package->has($part) ? $package->entry($part) : null;
+            $isDirectory = str_ends_with($part, '/');
+            $exists = $isDirectory || $entry instanceof ZipPackageEntry;
             $encrypted = ($item['encrypted'] ?? false) === true;
             $declared = ($item['declared'] ?? false) === true;
             $mediaType = (string) ($item['mediaType'] ?? '');
@@ -17222,9 +17224,12 @@ final class OdfReader
                 $mediaType = $this->objectReplacementMediaTypeFromPart($part) ?? '';
             }
             $mediaTypeReport = self::mediaTypeReport($mediaType);
-            $mediaTypeValid = $mediaType !== '' && $this->isObjectReplacementMediaType($mediaType);
+            $mediaTypeValid = $isDirectory
+                ? $mediaTypeReport['mediaTypeBase'] === ''
+                : ($mediaType !== '' && $this->isObjectReplacementMediaType($mediaType));
+            $kind = $this->objectReplacementPackagePartKind($part, $mediaType, $isDirectory);
             $issues = [];
-            if (!$entry instanceof ZipPackageEntry) {
+            if (!$exists) {
                 $issues[] = 'odf-object-replacement-missing-package-part';
             }
             if (!$declared) {
@@ -17254,28 +17259,38 @@ final class OdfReader
                 'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
                 'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
                 'expectedMediaTypePrefix' => 'image/',
-                'exists' => $entry instanceof ZipPackageEntry,
+                'kind' => $kind,
+                'isDirectory' => $isDirectory,
+                'exists' => $exists,
                 'declared' => $declared,
                 'undeclared' => !$declared,
                 'encrypted' => $encrypted,
-                'valid' => $entry instanceof ZipPackageEntry && !$encrypted && $mediaTypeValid,
-                'byteLength' => !$encrypted && $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+                'valid' => $exists && !$encrypted && $mediaTypeValid,
+                'byteLength' => !$isDirectory && !$encrypted && $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
                 'compressedByteLength' => $entry instanceof ZipPackageEntry ? $entry->compressedSize : null,
                 'compressionMethod' => $entry instanceof ZipPackageEntry ? $entry->compressionMethod : null,
                 'compressionMethodName' => $entry instanceof ZipPackageEntry ? self::compressionMethodName($entry->compressionMethod) : null,
-                'crc32' => !$encrypted && $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+                'crc32' => !$isDirectory && !$encrypted && $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
                 'storedByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
                 'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
                 'declaredSize' => $item['declaredSize'] ?? null,
                 'declaredSizeMismatch' => ($item['declaredSizeMismatch'] ?? false) === true,
+                'canExposeBytes' => false,
                 'canExposeAsDocumentMedia' => false,
-                'byteExposurePolicy' => $item['byteExposurePolicy'] ?? 'object-replacement-package-bytes-blocked',
+                'byteExposurePolicy' => $item['byteExposurePolicy'] ?? ($isDirectory ? 'directory-entry-no-bytes' : 'object-replacement-package-bytes-blocked'),
                 'reviewPolicy' => 'object-replacement-metadata-only',
                 'issues' => $issues,
             ];
         }
 
         ksort($issueCodes, SORT_STRING);
+        $kindCounts = [];
+        foreach ($items as $item) {
+            if (is_string($item['kind'] ?? null)) {
+                $kindCounts[$item['kind']] = ($kindCounts[$item['kind']] ?? 0) + 1;
+            }
+        }
+        ksort($kindCounts, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -17286,6 +17301,7 @@ final class OdfReader
             'declaredCount' => count(array_filter($items, static fn (array $item): bool => $item['declared'] === true)),
             'undeclaredCount' => count(array_filter($items, static fn (array $item): bool => $item['undeclared'] === true)),
             'missingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] !== true)),
+            'directoryCount' => count(array_filter($items, static fn (array $item): bool => $item['isDirectory'] === true)),
             'encryptedCount' => count(array_filter($items, static fn (array $item): bool => $item['encrypted'] === true)),
             'invalidMediaTypeCount' => count(array_filter(
                 $items,
@@ -17294,6 +17310,9 @@ final class OdfReader
             )),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'issueCodes' => array_keys($issueCodes),
+            'kindCounts' => $kindCounts,
+            'byteExposurePolicy' => 'object-replacement-package-bytes-blocked',
+            'reviewPolicy' => 'object-replacement-metadata-only',
             'items' => $items,
         ];
     }
@@ -19416,21 +19435,33 @@ final class OdfReader
     private function isObjectReplacementPackagePartName(string $part): bool
     {
         $normalized = strtolower(ltrim($part, '/'));
-        if (str_ends_with($normalized, '/')) {
-            return false;
-        }
 
         return str_starts_with($normalized, 'objectreplacements/');
     }
 
     private function objectReplacementMediaTypeFromPart(string $part): ?string
     {
+        if (str_ends_with($part, '/')) {
+            return '';
+        }
+
         return $this->thumbnailMediaTypeFromPart($part);
     }
 
     private function isObjectReplacementMediaType(string $mediaType): bool
     {
         return str_starts_with(self::mediaTypeReport($mediaType)['mediaTypeBase'], 'image/');
+    }
+
+    private function objectReplacementPackagePartKind(string $part, string $mediaType, bool $isDirectory): string
+    {
+        if ($isDirectory) {
+            return 'object-replacement-directory';
+        }
+
+        return $this->isObjectReplacementMediaType($mediaType)
+            ? 'object-replacement-preview'
+            : 'object-replacement-resource';
     }
 
     private function isLayoutCachePackagePartName(string $part): bool

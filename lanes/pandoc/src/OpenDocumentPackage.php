@@ -1862,9 +1862,6 @@ final class OpenDocumentPackage
     private static function isObjectReplacementPackagePartName(string $path): bool
     {
         $normalized = strtolower(ltrim($path, '/'));
-        if (str_ends_with($normalized, '/')) {
-            return false;
-        }
 
         return str_starts_with($normalized, 'objectreplacements/');
     }
@@ -1896,12 +1893,27 @@ final class OpenDocumentPackage
 
     private static function objectReplacementMediaTypeFromPart(string $path): ?string
     {
+        if (str_ends_with($path, '/')) {
+            return '';
+        }
+
         return self::thumbnailMediaTypeFromPart($path);
     }
 
     private static function isObjectReplacementMediaType(string $mediaType): bool
     {
         return str_starts_with(self::mediaTypeReport($mediaType)['mediaTypeBase'], 'image/');
+    }
+
+    private static function objectReplacementPackagePartKind(string $path, string $mediaType, bool $isDirectory): string
+    {
+        if ($isDirectory) {
+            return 'object-replacement-directory';
+        }
+
+        return self::isObjectReplacementMediaType($mediaType)
+            ? 'object-replacement-preview'
+            : 'object-replacement-resource';
     }
 
     private static function isFontMediaType(string $mediaType): bool
@@ -3620,6 +3632,8 @@ final class OpenDocumentPackage
         $issueCodes = [];
         foreach ($candidatesByPath as $packagePath => $entry) {
             $zipEntry = $package->has($packagePath) ? $package->entry($packagePath) : null;
+            $isDirectory = str_ends_with($packagePath, '/');
+            $exists = $isDirectory || $zipEntry instanceof ZipPackageEntry;
             $encrypted = ($entry['encrypted'] ?? false) === true;
             $declared = ($entry['declared'] ?? false) === true;
             $mediaType = (string) ($entry['mediaType'] ?? '');
@@ -3628,9 +3642,12 @@ final class OpenDocumentPackage
             }
 
             $mediaTypeReport = self::mediaTypeReport($mediaType);
-            $mediaTypeValid = $mediaType !== '' && self::isObjectReplacementMediaType($mediaType);
+            $mediaTypeValid = $isDirectory
+                ? $mediaTypeReport['mediaTypeBase'] === ''
+                : ($mediaType !== '' && self::isObjectReplacementMediaType($mediaType));
+            $kind = self::objectReplacementPackagePartKind($packagePath, $mediaType, $isDirectory);
             $issues = [];
-            if (!$zipEntry instanceof ZipPackageEntry) {
+            if (!$exists) {
                 $issues[] = 'odf-object-replacement-missing-package-part';
             }
             if (!$declared) {
@@ -3662,28 +3679,38 @@ final class OpenDocumentPackage
                 'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
                 'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
                 'expectedMediaTypePrefix' => 'image/',
-                'exists' => $zipEntry instanceof ZipPackageEntry,
+                'kind' => $kind,
+                'isDirectory' => $isDirectory,
+                'exists' => $exists,
                 'declared' => $declared,
                 'undeclared' => !$declared,
                 'encrypted' => $encrypted,
-                'valid' => $zipEntry instanceof ZipPackageEntry && !$encrypted && $mediaTypeValid,
-                'byteLength' => !$encrypted && $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
+                'valid' => $exists && !$encrypted && $mediaTypeValid,
+                'byteLength' => !$isDirectory && !$encrypted && $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
                 'compressedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressedSize : null,
                 'compressionMethod' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressionMethod : null,
                 'compressionMethodName' => $zipEntry instanceof ZipPackageEntry ? self::compressionMethodName($zipEntry->compressionMethod) : null,
-                'crc32' => !$encrypted && $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
+                'crc32' => !$isDirectory && !$encrypted && $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
                 'storedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
                 'storedCrc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
                 'declaredSize' => $entry['declaredSize'] ?? $entry['size'] ?? null,
                 'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
+                'canExposeBytes' => false,
                 'canExposeAsDocumentMedia' => false,
-                'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? 'object-replacement-package-bytes-blocked',
+                'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? ($isDirectory ? 'directory-entry-no-bytes' : 'object-replacement-package-bytes-blocked'),
                 'reviewPolicy' => 'object-replacement-metadata-only',
                 'issues' => $issues,
             ];
         }
 
         ksort($issueCodes, SORT_STRING);
+        $kindCounts = [];
+        foreach ($items as $item) {
+            if (is_string($item['kind'] ?? null)) {
+                $kindCounts[$item['kind']] = ($kindCounts[$item['kind']] ?? 0) + 1;
+            }
+        }
+        ksort($kindCounts, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -3694,6 +3721,7 @@ final class OpenDocumentPackage
             'declaredCount' => count(array_filter($items, static fn (array $item): bool => $item['declared'] === true)),
             'undeclaredCount' => count(array_filter($items, static fn (array $item): bool => $item['undeclared'] === true)),
             'missingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] !== true)),
+            'directoryCount' => count(array_filter($items, static fn (array $item): bool => $item['isDirectory'] === true)),
             'encryptedCount' => count(array_filter($items, static fn (array $item): bool => $item['encrypted'] === true)),
             'invalidMediaTypeCount' => count(array_filter(
                 $items,
@@ -3702,6 +3730,9 @@ final class OpenDocumentPackage
             )),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'issueCodes' => array_keys($issueCodes),
+            'kindCounts' => $kindCounts,
+            'byteExposurePolicy' => 'object-replacement-package-bytes-blocked',
+            'reviewPolicy' => 'object-replacement-metadata-only',
             'items' => $items,
         ];
     }
