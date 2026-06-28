@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\OdfReader;
+use PortLibs\Pandoc\OpenDocumentPackage;
 use PortLibs\Pandoc\ZipPackage;
 
 $manifestXml = <<<'XML'
@@ -156,5 +157,154 @@ return [
         $t->same('undeclared-package-entry-no-bytes', $private['byteExposurePolicy']);
         $t->same(null, $private['byteSha256'] ?? null);
         $t->same(sprintf('%08x', crc32('PRIVATE-NOTE')), $private['crc32']);
+    },
+    'carries ODT package sidecar role counts in rich and compact identities' => static function (TestRunner $t): void {
+        $contentXml = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Identity role counts.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+        $stylesXml = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0">
+  <office:styles>
+    <style:style style:name="BodyText" style:family="paragraph"/>
+  </office:styles>
+</office:document-styles>
+XML;
+        $metaXml = <<<'XML'
+<office:document-meta
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <office:meta>
+    <dc:title>Identity Role Counts</dc:title>
+  </office:meta>
+</office:document-meta>
+XML;
+        $rdfXml = <<<'XML'
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <rdf:Description rdf:about="content.xml">
+    <dc:title>Identity RDF sidecar</dc:title>
+  </rdf:Description>
+</rdf:RDF>
+XML;
+        $signatureXml = <<<'XML'
+<dsig:document-signatures xmlns:dsig="http://www.w3.org/2000/09/xmldsig#">
+  <dsig:Signature Id="identity-signature"/>
+</dsig:document-signatures>
+XML;
+        $manifestXml = <<<'XML'
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+  <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Basic/Standard/Review.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="META-INF/documentsignatures.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Configurations2/accelerator/current.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Fonts/source.otf" manifest:media-type="font/otf"/>
+  <manifest:file-entry manifest:full-path="manifest.rdf" manifest:media-type="application/rdf+xml"/>
+  <manifest:file-entry manifest:full-path="ObjectReplacements/preview.png" manifest:media-type="image/png"/>
+  <manifest:file-entry manifest:full-path="layout-cache" manifest:media-type="application/octet-stream"/>
+  <manifest:file-entry manifest:full-path="META-INF/review-state.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Links/cache/preview.png" manifest:media-type="image/png"/>
+  <manifest:file-entry manifest:full-path="database/script" manifest:media-type="text/plain"/>
+  <manifest:file-entry manifest:full-path="Versions/1/content.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Gallery/theme/preview.png" manifest:media-type="image/png"/>
+  <manifest:file-entry manifest:full-path="Forms/review/form.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Attachments/review/source.pdf" manifest:media-type="application/pdf"/>
+  <manifest:file-entry manifest:full-path="Templates/review/letter.ott" manifest:media-type="application/vnd.oasis.opendocument.text-template"/>
+  <manifest:file-entry manifest:full-path="Dictionaries/en_US/en_US.dic" manifest:media-type="text/plain"/>
+  <manifest:file-entry manifest:full-path="Object 1/" manifest:media-type="application/vnd.oasis.opendocument.chart"/>
+  <manifest:file-entry manifest:full-path="Object 1/content.xml" manifest:media-type="text/xml"/>
+</manifest:manifest>
+XML;
+        $package = ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml, 'compressionMethod' => 0],
+            ['name' => 'content.xml', 'data' => $contentXml, 'compressionMethod' => 0],
+            ['name' => 'styles.xml', 'data' => $stylesXml, 'compressionMethod' => 0],
+            ['name' => 'meta.xml', 'data' => $metaXml, 'compressionMethod' => 0],
+            ['name' => 'Basic/Standard/Review.xml', 'data' => '<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Review"/>', 'compressionMethod' => 0],
+            ['name' => 'META-INF/documentsignatures.xml', 'data' => $signatureXml, 'compressionMethod' => 0],
+            ['name' => 'Configurations2/accelerator/current.xml', 'data' => '<accel:item command="review"/>', 'compressionMethod' => 0],
+            ['name' => 'Fonts/source.otf', 'data' => 'FONT-BYTES', 'compressionMethod' => 0],
+            ['name' => 'manifest.rdf', 'data' => $rdfXml, 'compressionMethod' => 0],
+            ['name' => 'ObjectReplacements/preview.png', 'data' => 'REPLACEMENT-PNG', 'compressionMethod' => 0],
+            ['name' => 'layout-cache', 'data' => 'LAYOUT-CACHE', 'compressionMethod' => 0],
+            ['name' => 'META-INF/review-state.xml', 'data' => '<review-state/>', 'compressionMethod' => 0],
+            ['name' => 'Links/cache/preview.png', 'data' => 'LINKED-PNG', 'compressionMethod' => 0],
+            ['name' => 'database/script', 'data' => 'CREATE TABLE identity_role_counts (id INTEGER);', 'compressionMethod' => 0],
+            ['name' => 'Versions/1/content.xml', 'data' => '<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"/>', 'compressionMethod' => 0],
+            ['name' => 'Gallery/theme/preview.png', 'data' => 'GALLERY-PNG', 'compressionMethod' => 0],
+            ['name' => 'Forms/review/form.xml', 'data' => '<form/>', 'compressionMethod' => 0],
+            ['name' => 'Attachments/review/source.pdf', 'data' => '%PDF-IDENTITY', 'compressionMethod' => 0],
+            ['name' => 'Templates/review/letter.ott', 'data' => 'TEMPLATE-BYTES', 'compressionMethod' => 0],
+            ['name' => 'Dictionaries/en_US/en_US.dic', 'data' => "identity\n", 'compressionMethod' => 0],
+            ['name' => 'Object 1/', 'data' => '', 'compressionMethod' => 0],
+            ['name' => 'Object 1/content.xml', 'data' => '<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"/>', 'compressionMethod' => 0],
+        ], 'odt identity role count review');
+
+        $richIdentity = (new OdfReader())->readPackage($package)['importReport']['manifest']['packageProvenance']['packageIdentity'];
+        $compactIdentity = OpenDocumentPackage::fromPackage($package)->summarize()['packageIdentity'];
+
+        foreach ([
+            'scriptPackagePartCount',
+            'packageSignaturePartCount',
+            'packageThumbnailPartCount',
+            'configurationPackagePartCount',
+            'packageFontPartCount',
+            'rdfMetadataPartCount',
+            'objectReplacementPartCount',
+            'layoutCachePartCount',
+            'metaInfSidecarPartCount',
+            'linkedResourcePackagePartCount',
+            'databasePackagePartCount',
+            'versionPackagePartCount',
+            'galleryPackagePartCount',
+            'formPackagePartCount',
+            'attachmentPackagePartCount',
+            'templatePackagePartCount',
+            'dictionaryPackagePartCount',
+        ] as $key) {
+            $expected = $key === 'packageThumbnailPartCount' ? 0 : 1;
+            $t->same($expected, $richIdentity[$key], "rich {$key}");
+        }
+
+        foreach ([
+            'scriptPackagePartCount',
+            'packageSignaturePartCount',
+            'embeddedObjectPackageRootCount',
+            'embeddedObjectPackagePartCount',
+            'objectReplacementPartCount',
+            'configurationPackagePartCount',
+            'fontPackagePartCount',
+            'rdfMetadataPartCount',
+            'layoutCachePartCount',
+            'metaInfSidecarPartCount',
+            'linkedResourcePackagePartCount',
+            'databasePackagePartCount',
+            'versionPackagePartCount',
+            'galleryPackagePartCount',
+            'formPackagePartCount',
+            'attachmentPackagePartCount',
+            'templatePackagePartCount',
+            'dictionaryPackagePartCount',
+        ] as $key) {
+            $t->same(1, $compactIdentity[$key], "compact {$key}");
+        }
+
+        $t->same(0, $compactIdentity['packageThumbnailPartCount']);
+        $t->same(1, $richIdentity['roleCounts']['database-package']);
+        $t->same(1, $compactIdentity['roleCounts']['database-package']);
+        $t->same(1, $richIdentity['packagePartByteExposurePolicyCounts']['database-package-bytes-blocked']);
+        $t->same(1, $compactIdentity['byteExposurePolicyCounts']['database-package-bytes-blocked']);
     },
 ];
