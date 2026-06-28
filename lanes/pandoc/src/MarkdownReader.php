@@ -8128,7 +8128,43 @@ final class MarkdownReader
 
     private function isListItemBlockHtmlStart(string $text): bool
     {
-        return preg_match('/^<(?:div|button)(?:\s+[^>]*)?>/i', $text) === 1;
+        if (preg_match('/^<(?:div|button)(?:\s+[^>]*)?>/i', $text) === 1) {
+            return true;
+        }
+
+        if (!$this->htmlRawHtmlEnabled()) {
+            return false;
+        }
+
+        $expanded = $this->expandTabsToSpaces($text);
+        if (
+            preg_match('/^ {0,3}<!--/', $expanded) === 1
+            || preg_match('/^ {0,3}<\?/', $expanded) === 1
+            || preg_match('/^ {0,3}<![A-Za-z]/', $expanded) === 1
+            || preg_match('/^ {0,3}<!\[CDATA\[/', $expanded) === 1
+        ) {
+            return true;
+        }
+
+        if (preg_match('/^ {0,3}<(?:script|pre|style|textarea|noscript|xmp)(?:[ \t>]|\/>)/i', $expanded) === 1) {
+            return true;
+        }
+
+        $tag = $this->tryParseRawHtmlOpeningTag($expanded);
+        if ($tag === null) {
+            return false;
+        }
+
+        if ($tag['name'] === 'table') {
+            return true;
+        }
+
+        if ($tag['name'] === 'hr' && preg_match('/^ {0,3}<hr(?:\s+[^>]*)?\/?>[ \t]*$/i', $expanded) === 1) {
+            return true;
+        }
+
+        return $this->isCommonMarkBlankTerminatedRawHtmlTag($tag['name'])
+            || $this->isRawHtmlCustomTagName($tag['name']);
     }
 
     /**
