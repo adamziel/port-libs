@@ -458,6 +458,15 @@ final class BibtexCslProcessor
         if (($item['entrySetSummary'] ?? '') !== '') {
             $parts[] = 'BibLaTeX entry set: ' . (string) $item['entrySetSummary'];
         }
+        if (($item['relatedSummary'] ?? '') !== '') {
+            $relatedLabel = (string) ($item['related-string'] ?? '');
+            $relatedType = (string) ($item['related-type'] ?? '');
+            $relatedPrefix = 'BibLaTeX related sources';
+            if ($relatedLabel !== '') {
+                $relatedPrefix .= ': ' . $relatedLabel . ($relatedType !== '' ? ' (' . $relatedType . ')' : '');
+            }
+            $parts[] = $relatedPrefix . ': ' . (string) $item['relatedSummary'];
+        }
         if (($item['crossrefSummary'] ?? '') !== '') {
             $parts[] = 'BibLaTeX crossref parent: ' . (string) $item['crossrefSummary'];
         }
@@ -1140,6 +1149,19 @@ final class BibtexCslProcessor
             $item['entrySetSummary'] = $this->summarizedReferenceValues($entrySetItems, $missing);
             if ($missing !== []) {
                 $item['missingEntrySetKeys'] = $missing;
+            }
+        }
+
+        $related = $this->fieldKeyList($this->firstRawField($fields, ['related', 'related-keys', 'relatedkeys']));
+        if ($related !== []) {
+            $relatedItems = $this->referencedEntrySummaries($related, $entriesByKey);
+            $missing = $this->missingReferenceKeys($related, $entriesByKey);
+
+            $item['relatedKeys'] = $related;
+            $item['relatedItems'] = $relatedItems;
+            $item['relatedSummary'] = $this->summarizedReferenceValues($relatedItems, $missing);
+            if ($missing !== []) {
+                $item['missingRelatedKeys'] = $missing;
             }
         }
 

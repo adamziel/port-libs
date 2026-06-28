@@ -2690,6 +2690,98 @@ BIB;
         $t->same('005 explicit relation list', $handoff['bibliography']->children[0]->attr('cslItem')['shorthand-list-sort-key'] ?? null);
         $t->same('source-proceedings', $handoff['bibliography']->children[0]->attr('cslItem')['xref'] ?? null);
     },
+    'carries biblatex related entry provenance in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{source-packet,
+  author = {Roe, Pat},
+  title  = {Source Packet},
+  date   = {2025-04-01}
+}
+
+@book{license-packet,
+  options = {dataonly},
+  title   = {License Packet},
+  date    = {2024}
+}
+
+@book{related-review,
+  author         = {Mapper, Mia},
+  title          = {Related Review Manual},
+  date           = {2026},
+  related        = {source-packet, license-packet, missing-related},
+  relatedtype    = {reviewof},
+  relatedstring  = {Reviews source packet},
+  relatedoptions = {skipbib=true, dataonly=false}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $item = $items['related-review'];
+
+        $t->same(['source-packet', 'license-packet', 'missing-related'], $item['relatedKeys']);
+        $t->same('Source Packet', $item['relatedItems'][0]['title'] ?? null);
+        $t->same([2025, 4, 1], $item['relatedItems'][0]['issued']['date-parts'][0] ?? null);
+        $t->same('license-packet', $item['relatedItems'][1]['id'] ?? null);
+        $t->same(true, $item['relatedItems'][1]['dataOnly'] ?? null);
+        $t->same(['missing-related'], $item['missingRelatedKeys']);
+        $t->same('Source Packet (2025-04-01); License Packet (2024); missing: missing-related', $item['relatedSummary']);
+        $t->same('reviewof', $item['related-type']);
+        $t->same('Reviews source packet', $item['related-string']);
+        $t->same('skipbib=true, dataonly=false', $item['related-options']);
+        $t->same('source-packet, license-packet, missing-related', $item['rawBibtex']['fields']['related']);
+        $t->same(
+            'Mia Mapper. Related Review Manual. 2026. BibLaTeX related sources: Reviews source packet (reviewof): Source Packet (2025-04-01); License Packet (2024); missing: missing-related.',
+            $processor->renderBibliographyText($item)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Related Entry Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-related-entry-review</id>
+    <updated>2026-06-28T14:30:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="related-type"/>
+        <text variable="related"/>
+        <text variable="related-options"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="related-summary"/>
+      <text variable="related-options"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledItem = $styled->item('related-review');
+        $t->same(['source-packet', 'license-packet', 'missing-related'], $styledItem['relatedKeys'] ?? null);
+        $t->same(['skipbib=true', 'dataonly=false'], $styledItem['relatedOptions'] ?? null);
+        $t->same('License Packet', $styledItem['relatedItems'][1]['title'] ?? null);
+        $t->same('License Packet (2024)', $styledItem['relatedItems'][1]['display'] ?? null);
+        $t->same('[Related Review Manual | reviewof | Source Packet (2025-04-01); License Packet (2024); missing: missing-related | skipbib=true, dataonly=false]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'related-review', 'text' => '[@related-review]']),
+        ]));
+        $t->same('Related Review Manual :: Reviews source packet (reviewof): Source Packet (2025-04-01); License Packet (2024); missing: missing-related :: skipbib=true, dataonly=false', $styled->renderBibliographyEntry('related-review'));
+
+        $document = (new MarkdownReader())->read('Related legacy source [@related-review] stays reviewable.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$handoff['bibliography']]));
+
+        $t->same(['related-review'], $handoff['citedKeys']);
+        $t->same('Source Packet (2025-04-01); License Packet (2024); missing: missing-related', $handoff['items'][0]['relatedSummary'] ?? null);
+        $t->same(['missing-related'], $handoff['bibliography']->children[0]->attr('cslItem')['missingRelatedKeys'] ?? null);
+        $t->contains('BibLaTeX related sources: Reviews source packet (reviewof): Source Packet (2025-04-01); License Packet (2024); missing: missing-related', $blocks);
+    },
     'carries biblatex literal publisher language and event lists in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @book{literal-list-review,
