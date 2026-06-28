@@ -19688,7 +19688,7 @@ final class XmlHtmlDom
         }
 
         if (array_key_exists('hidden', $attributes)) {
-            $summary += self::hiddenAttributeSummary($attributes['hidden']);
+            $summary += self::hiddenAttributeSummary($element, $attributes['hidden']);
         }
 
         $summary += self::effectiveHiddenSummary($element, $attributes);
@@ -20935,7 +20935,7 @@ final class XmlHtmlDom
     /**
      * @return array<string, mixed>
      */
-    private static function hiddenAttributeSummary(string $raw): array
+    private static function hiddenAttributeSummary(\DOMElement $element, string $raw): array
     {
         $keyword = self::htmlHiddenKeyword($raw);
         $issues = [];
@@ -20946,20 +20946,38 @@ final class XmlHtmlDom
             ];
         }
 
-        return [
+        $untilFound = $keyword === 'until-found';
+        $summary = [
+            'hiddenAttributeReviewPolicy' => 'html-hidden-state-review',
             'hiddenReviewPolicy' => 'html-hidden-state-review',
             'hiddenRaw' => $raw,
             'hiddenKeyword' => $keyword,
             'hiddenState' => $keyword ?? 'hidden',
-            'hiddenUntilFound' => $keyword === 'until-found',
+            'hidden' => true,
+            'hiddenUntilFound' => $untilFound,
+            'hiddenFindInPageDiscoverable' => $untilFound,
+            'hiddenBeforeMatchRevealCandidate' => $untilFound,
             'hiddenValid' => $keyword !== null,
             'hiddenInvalidValueDefaulted' => $keyword === null,
+            'hiddenRevealMode' => $untilFound
+                ? 'beforematch-fragment-reveal'
+                : ($keyword === null ? 'not-rendered-invalid-default' : 'not-rendered'),
+            'hiddenBrowserEventDispatch' => false,
+            'hiddenReviewHandoffPolicy' => 'metadata-only-no-browser-beforematch',
+            'hiddenElement' => self::htmlElementName($element),
             'hiddenIssueCodes' => array_values(array_map(
                 static fn (array $issue): string => (string) $issue['code'],
                 $issues
             )),
             'hiddenIssues' => $issues,
         ];
+
+        $elementId = self::attributeOrNull($element, 'id');
+        if ($elementId !== null && $elementId !== '') {
+            $summary['hiddenElementId'] = $elementId;
+        }
+
+        return $summary;
     }
 
     private static function htmlHiddenKeyword(string $raw): ?string
