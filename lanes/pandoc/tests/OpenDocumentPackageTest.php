@@ -3058,6 +3058,7 @@ XML;
         $scriptEntries =
             '  <manifest:file-entry manifest:media-type="" manifest:full-path="Basic/"/>' . "\n"
             . '  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Basic/Standard/script-lb.xml" manifest:size="' . strlen($basicLibraryXml) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Basic/Standard/script.xlb" manifest:size="' . strlen($basicLibraryXml) . '"/>' . "\n"
             . '  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Basic/Standard/Review.xml" manifest:size="' . strlen($basicModuleXml) . '"/>' . "\n"
             . '  <manifest:file-entry manifest:media-type="" manifest:full-path="Scripts/"/>' . "\n"
             . '  <manifest:file-entry manifest:media-type="application/javascript" manifest:full-path="Scripts/review-link.js" manifest:size="' . strlen($javaScript) . '"/>' . "\n"
@@ -3071,6 +3072,7 @@ XML;
             extraParts: [
                 ['name' => 'Basic/', 'data' => '', 'compressionMethod' => 0],
                 ['name' => 'Basic/Standard/script-lb.xml', 'data' => $basicLibraryXml, 'compressionMethod' => 0],
+                ['name' => 'Basic/Standard/script.xlb', 'data' => $basicLibraryXml, 'compressionMethod' => 0],
                 ['name' => 'Basic/Standard/Review.xml', 'data' => $basicModuleXml, 'compressionMethod' => 0],
                 ['name' => 'Scripts/', 'data' => '', 'compressionMethod' => 0],
                 ['name' => 'Scripts/review-link.js', 'data' => $javaScript, 'compressionMethod' => 0],
@@ -3090,12 +3092,12 @@ XML;
         }
         $inventory = $summary['packageInventory'];
 
-        $t->same(9, $scripts['count']);
-        $t->same(7, $scripts['fileCount']);
+        $t->same(10, $scripts['count']);
+        $t->same(8, $scripts['fileCount']);
         $t->same(2, $scripts['directoryCount']);
-        $t->same(8, $scripts['storedPartCount']);
-        $t->same(5, $scripts['readableCount']);
-        $t->same(8, $scripts['declaredCount']);
+        $t->same(9, $scripts['storedPartCount']);
+        $t->same(6, $scripts['readableCount']);
+        $t->same(9, $scripts['declaredCount']);
         $t->same(1, $scripts['undeclaredCount']);
         $t->same(1, $scripts['missingCount']);
         $t->same(1, $scripts['encryptedCount']);
@@ -3110,10 +3112,11 @@ XML;
         $t->same('script-package-bytes-blocked', $scripts['byteExposurePolicy']);
         $t->same('package-script-metadata-only', $scripts['reviewPolicy']);
 
-        $t->same(8, $summary['manifestReview']['scriptPackagePartCount']);
+        $t->same(9, $summary['manifestReview']['scriptPackagePartCount']);
         $t->same([
             'Basic/',
             'Basic/Standard/script-lb.xml',
+            'Basic/Standard/script.xlb',
             'Basic/Standard/Review.xml',
             'Scripts/',
             'Scripts/review-link.js',
@@ -3121,9 +3124,10 @@ XML;
             'Scripts/missing.js',
             'Scripts/encrypted.js',
         ], array_column($summary['manifestReview']['scriptPackageItems'], 'path'));
-        $t->same(8, $inventory['scriptPackagePartCount']);
+        $t->same(9, $inventory['scriptPackagePartCount']);
         $t->same(['script-package', 'zip-directory', 'manifest-declared'], $inventory['parts']['Basic/']['roles']);
         $t->same(['script-package', 'manifest-declared'], $inventory['parts']['Basic/Standard/script-lb.xml']['roles']);
+        $t->same(['script-package', 'manifest-declared'], $inventory['parts']['Basic/Standard/script.xlb']['roles']);
         $t->same(['script-package', 'manifest-declared'], $inventory['parts']['Basic/Standard/Review.xml']['roles']);
         $t->same(['script-package', 'manifest-declared'], $inventory['parts']['Scripts/review-link.js']['roles']);
         $t->same(['script-package', 'manifest-declared'], $inventory['parts']['Scripts/icon.png']['roles']);
@@ -3156,6 +3160,21 @@ XML;
         $t->same(false, $basicLibraryIndex['canExposeAsDocumentMedia']);
         $t->same('script-package-bytes-blocked', $basicLibraryIndex['byteExposurePolicy']);
         $t->same([], $basicLibraryIndex['issues']);
+
+        $basicLibraryIndexXlb = $scriptByPath['Basic/Standard/script.xlb'];
+        $t->same('basic', $basicLibraryIndexXlb['scriptContainer']);
+        $t->same('basic-library-index', $basicLibraryIndexXlb['scriptKind']);
+        $t->same('Standard', $basicLibraryIndexXlb['scriptLibrary']);
+        $t->same('script', $basicLibraryIndexXlb['scriptModule']);
+        $t->same('xlb', $basicLibraryIndexXlb['extension']);
+        $t->same('text/xml', $basicLibraryIndexXlb['mediaType']);
+        $t->same(true, $basicLibraryIndexXlb['declared']);
+        $t->same(true, $basicLibraryIndexXlb['valid']);
+        $t->same(strlen($basicLibraryXml), $basicLibraryIndexXlb['byteLength']);
+        $t->same(sprintf('%08x', crc32($basicLibraryXml)), $basicLibraryIndexXlb['crc32']);
+        $t->same(false, $basicLibraryIndexXlb['canExposeAsDocumentMedia']);
+        $t->same('script-package-bytes-blocked', $basicLibraryIndexXlb['byteExposurePolicy']);
+        $t->same([], $basicLibraryIndexXlb['issues']);
 
         $scriptsDirectory = $scriptByPath['Scripts/'];
         $t->same(true, $scriptsDirectory['isDirectory']);

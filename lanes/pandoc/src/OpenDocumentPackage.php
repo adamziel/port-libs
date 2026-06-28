@@ -6397,7 +6397,7 @@ final class OpenDocumentPackage
             'jar' => 'application/java-archive',
             'js', 'mjs' => 'application/javascript',
             'py' => 'text/x-python',
-            'xba', 'xdl', 'xml' => 'text/xml',
+            'xba', 'xdl', 'xlb', 'xml' => 'text/xml',
             default => null,
         };
     }
@@ -6453,6 +6453,7 @@ final class OpenDocumentPackage
             'py' => 'python',
             'xba' => 'basic-module',
             'xdl' => $container === 'dialogs' ? 'basic-dialog' : 'script-xml',
+            'xlb' => 'basic-library-index',
             'xml' => in_array($basename, ['script-lb.xml', 'script-lc.xml', 'dialog-lb.xml', 'dialog-lc.xml'], true)
                 ? 'basic-library-index'
                 : match ($container) {

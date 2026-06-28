@@ -16,6 +16,7 @@ $manifestXml = <<<'XML'
   <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>
   <manifest:file-entry manifest:full-path="Dialogs/" manifest:media-type=""/>
   <manifest:file-entry manifest:full-path="Dialogs/Standard/dialog-lb.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Dialogs/Standard/dialog.xlb" manifest:media-type="text/xml"/>
   <manifest:file-entry manifest:full-path="Dialogs/Standard/ReviewDialog.xdl" manifest:media-type="text/xml" manifest:size="77"/>
 </manifest:manifest>
 XML;
@@ -56,6 +57,7 @@ $metaXml = <<<'XML'
 XML;
 
 $dialogIndexXml = '<library:library xmlns:library="http://openoffice.org/2000/library" library:name="Standard"/>';
+$dialogLibraryXml = '<library:libraries xmlns:library="http://openoffice.org/2000/library"><library:library library:name="Standard"/></library:libraries>';
 $dialogXml = '<dlg:window xmlns:dlg="http://openoffice.org/2000/dialog" dlg:id="ReviewDialog"><dlg:button dlg:id="Approve"/></dlg:window>';
 $orphanDialogXml = '<dlg:window xmlns:dlg="http://openoffice.org/2000/dialog" dlg:id="OrphanDialog"/>';
 
@@ -68,12 +70,13 @@ $parts = [
     ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
     ['name' => 'Dialogs/', 'data' => '', 'compressionMethod' => 0],
     ['name' => 'Dialogs/Standard/dialog-lb.xml', 'data' => $dialogIndexXml, 'compressionMethod' => 0],
+    ['name' => 'Dialogs/Standard/dialog.xlb', 'data' => $dialogLibraryXml, 'compressionMethod' => 0],
     ['name' => 'Dialogs/Standard/ReviewDialog.xdl', 'data' => $dialogXml, 'compressionMethod' => 0],
     ['name' => 'Dialogs/Standard/OrphanDialog.xdl', 'data' => $orphanDialogXml, 'compressionMethod' => 0],
 ];
 
 return [
-    'blocks compact ODT dialog package sidecars as script provenance' => static function (TestRunner $t) use ($parts, $dialogIndexXml, $dialogXml, $orphanDialogXml): void {
+    'blocks compact ODT dialog package sidecars as script provenance' => static function (TestRunner $t) use ($parts, $dialogIndexXml, $dialogLibraryXml, $dialogXml, $orphanDialogXml): void {
         $summary = OpenDocumentPackage::fromPackage(ZipPackage::fromParts($parts, 'compact odt dialog sidecars'))->summarize();
         $scripts = $summary['packageScripts'];
         $scriptByPath = [];
@@ -86,12 +89,12 @@ return [
         }
         $inventory = $summary['packageInventory'];
 
-        $t->same(4, $scripts['count']);
-        $t->same(3, $scripts['fileCount']);
+        $t->same(5, $scripts['count']);
+        $t->same(4, $scripts['fileCount']);
         $t->same(1, $scripts['directoryCount']);
-        $t->same(4, $scripts['storedPartCount']);
-        $t->same(3, $scripts['readableCount']);
-        $t->same(3, $scripts['declaredCount']);
+        $t->same(5, $scripts['storedPartCount']);
+        $t->same(4, $scripts['readableCount']);
+        $t->same(4, $scripts['declaredCount']);
         $t->same(1, $scripts['undeclaredCount']);
         $t->same(0, $scripts['missingCount']);
         $t->same(0, $scripts['encryptedCount']);
@@ -104,6 +107,7 @@ return [
 
         $directory = $scriptByPath['Dialogs/'];
         $index = $scriptByPath['Dialogs/Standard/dialog-lb.xml'];
+        $library = $scriptByPath['Dialogs/Standard/dialog.xlb'];
         $dialog = $scriptByPath['Dialogs/Standard/ReviewDialog.xdl'];
         $orphan = $scriptByPath['Dialogs/Standard/OrphanDialog.xdl'];
 
@@ -124,6 +128,18 @@ return [
         $t->same('script-package-bytes-blocked', $index['byteExposurePolicy']);
         $t->same([], $index['issues']);
 
+        $t->same('dialogs', $library['scriptContainer']);
+        $t->same('basic-library-index', $library['scriptKind']);
+        $t->same('Standard', $library['scriptLibrary']);
+        $t->same('dialog', $library['scriptModule']);
+        $t->same('xlb', $library['extension']);
+        $t->same('text/xml', $library['mediaType']);
+        $t->same(strlen($dialogLibraryXml), $library['byteLength']);
+        $t->same(sprintf('%08x', crc32($dialogLibraryXml)), $library['crc32']);
+        $t->same(false, $library['canExposeAsDocumentMedia']);
+        $t->same('script-package-bytes-blocked', $library['byteExposurePolicy']);
+        $t->same([], $library['issues']);
+
         $t->same('dialogs', $dialog['scriptContainer']);
         $t->same('basic-dialog', $dialog['scriptKind']);
         $t->same('Standard', $dialog['scriptLibrary']);
@@ -142,20 +158,24 @@ return [
         $t->same(strlen($orphanDialogXml), $orphan['byteLength']);
         $t->same(['odf-script-undeclared-package-part'], $orphan['issues']);
 
-        $t->same(4, $inventory['scriptPackagePartCount']);
+        $t->same(5, $inventory['scriptPackagePartCount']);
         $t->same(1, $inventory['undeclaredRoleCounts']['script-package']);
         $t->same(['script-package', 'zip-directory', 'manifest-declared'], $inventory['parts']['Dialogs/']['roles']);
         $t->same(['script-package', 'manifest-declared'], $inventory['parts']['Dialogs/Standard/dialog-lb.xml']['roles']);
+        $t->same(['script-package', 'manifest-declared'], $inventory['parts']['Dialogs/Standard/dialog.xlb']['roles']);
         $t->same(['script-package', 'manifest-declared'], $inventory['parts']['Dialogs/Standard/ReviewDialog.xdl']['roles']);
         $t->same(['script-package', 'undeclared-package-entry'], $inventory['parts']['Dialogs/Standard/OrphanDialog.xdl']['roles']);
-        $t->same(3, $summary['manifestReview']['scriptPackagePartCount']);
+        $t->same(4, $summary['manifestReview']['scriptPackagePartCount']);
+        $t->same('script-package-bytes-blocked', $reviewByPath['Dialogs/Standard/dialog.xlb']['byteExposurePolicy']);
+        $t->same(false, $reviewByPath['Dialogs/Standard/dialog.xlb']['canExposeBytes']);
+        $t->same(null, $reviewByPath['Dialogs/Standard/dialog.xlb']['byteSha256']);
         $t->same('script-package-bytes-blocked', $reviewByPath['Dialogs/Standard/ReviewDialog.xdl']['byteExposurePolicy']);
         $t->same(false, $reviewByPath['Dialogs/Standard/ReviewDialog.xdl']['canExposeBytes']);
         $t->same(null, $reviewByPath['Dialogs/Standard/ReviewDialog.xdl']['byteSha256']);
         $t->same(['Pictures/hero.png'], array_column($summary['mediaParts'], 'path'));
         $t->same('Dialogs/Standard/OrphanDialog.xdl', $summary['undeclaredPackageEntries'][0]['path']);
     },
-    'blocks rich ODT dialog package sidecars before WordPress handoff' => static function (TestRunner $t) use ($parts, $dialogIndexXml, $dialogXml, $orphanDialogXml): void {
+    'blocks rich ODT dialog package sidecars before WordPress handoff' => static function (TestRunner $t) use ($parts, $dialogIndexXml, $dialogLibraryXml, $dialogXml, $orphanDialogXml): void {
         $result = (new OdfReader())->readPackage(ZipPackage::fromParts($parts, 'rich odt dialog sidecars'));
         $scripts = $result['scriptMetadata'];
         $partsByPart = [];
@@ -172,19 +192,20 @@ return [
 
         $t->same($scripts, $result['document']->attr('scriptMetadata'));
         $t->same($scripts, $result['importReport']['scriptMetadata']);
-        $t->same(3, $scripts['partCount']);
+        $t->same(4, $scripts['partCount']);
         $t->same(1, $scripts['directoryCount']);
-        $t->same(2, $scripts['declaredPartCount']);
+        $t->same(3, $scripts['declaredPartCount']);
         $t->same(1, $scripts['undeclaredPartCount']);
         $t->same(0, $scripts['missingPartCount']);
         $t->same(0, $scripts['encryptedPartCount']);
         $t->same(0, $scripts['referenceCount']);
         $t->same(['Dialogs/' => 'Dialogs/'], array_column($scripts['directories'], 'part', 'part'));
         $t->same(2, $scripts['kindCounts']['basic-dialog']);
-        $t->same(1, $scripts['kindCounts']['basic-library-index']);
-        $t->same(3, $scripts['languageCounts']['Basic']);
+        $t->same(2, $scripts['kindCounts']['basic-library-index']);
+        $t->same(4, $scripts['languageCounts']['Basic']);
 
         $index = $partsByPart['Dialogs/Standard/dialog-lb.xml'];
+        $library = $partsByPart['Dialogs/Standard/dialog.xlb'];
         $dialog = $partsByPart['Dialogs/Standard/ReviewDialog.xdl'];
         $orphan = $partsByPart['Dialogs/Standard/OrphanDialog.xdl'];
 
@@ -195,6 +216,14 @@ return [
         $t->same(strlen($dialogIndexXml), $index['storedByteLength']);
         $t->same(null, $index['byteLength']);
         $t->same([], $index['diagnostics']);
+
+        $t->same('basic-library-index', $library['kind']);
+        $t->same('Basic', $library['language']);
+        $t->same('Standard', $library['libraryName']);
+        $t->same('dialog', $library['moduleName']);
+        $t->same(strlen($dialogLibraryXml), $library['storedByteLength']);
+        $t->same(null, $library['byteLength']);
+        $t->same([], $library['diagnostics']);
 
         $t->same('basic-dialog', $dialog['kind']);
         $t->same('Basic', $dialog['language']);
@@ -215,12 +244,13 @@ return [
         $t->same(false, $manifestByPart['Dialogs/Standard/ReviewDialog.xdl']['canExposeBytes']);
         $t->same('script-package-bytes-blocked', $manifestByPart['Dialogs/Standard/ReviewDialog.xdl']['byteExposurePolicy']);
         $t->same(null, $manifestByPart['Dialogs/Standard/ReviewDialog.xdl']['byteSha256']);
-        $t->same(4, $provenance['scriptPackagePartCount']);
+        $t->same(5, $provenance['scriptPackagePartCount']);
         $t->same([
             'script-package' => 1,
             'undeclared-package-entry' => 1,
         ], $provenance['undeclaredRoleCounts']);
         $t->same(['manifest-declared', 'script-package'], $provenance['parts']['Dialogs/Standard/ReviewDialog.xdl']['roles']);
+        $t->same(['manifest-declared', 'script-package'], $provenance['parts']['Dialogs/Standard/dialog.xlb']['roles']);
         $t->same(['script-package', 'undeclared-package-entry'], $provenance['parts']['Dialogs/Standard/OrphanDialog.xdl']['roles']);
         $t->same(1, count($result['media']));
         $t->same('Pictures/hero.png', $result['media'][0]['part']);

@@ -15052,7 +15052,7 @@ final class OdfReader
             'jar' => 'application/java-archive',
             'js', 'mjs' => 'application/javascript',
             'py' => 'text/x-python',
-            'xba', 'xdl', 'xml' => 'text/xml',
+            'xba', 'xdl', 'xlb', 'xml' => 'text/xml',
             default => null,
         };
     }
@@ -15108,6 +15108,7 @@ final class OdfReader
             'py' => 'python',
             'xba' => 'basic-module',
             'xdl' => $container === 'dialogs' ? 'basic-dialog' : 'script-xml',
+            'xlb' => 'basic-library-index',
             'xml' => in_array($basename, ['dialog-lb.xml', 'dialog-lc.xml', 'script-lb.xml', 'script-lc.xml'], true)
                 ? 'basic-library-index'
                 : match ($container) {
@@ -15369,7 +15370,7 @@ final class OdfReader
         $normalized = strtolower(ltrim($part, '/'));
         $basename = strtolower(basename($normalized));
         $mediaType = strtolower(trim(explode(';', $mediaType, 2)[0]));
-        if (in_array($basename, ['script-lc.xml', 'script-lb.xml', 'dialog-lc.xml', 'dialog-lb.xml'], true)) {
+        if (in_array($basename, ['script-lc.xml', 'script-lb.xml', 'script.xlb', 'dialog-lc.xml', 'dialog-lb.xml', 'dialog.xlb'], true)) {
             return 'basic-library-index';
         }
         if (str_starts_with($normalized, 'basic/')) {
