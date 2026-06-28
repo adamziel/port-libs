@@ -1,7 +1,7 @@
 # PlainMath MathML Writer Fidelity Audit
 
 Date: 2026-06-26 UTC
-Last refreshed: 2026-06-28 UTC on `origin/main` `02ed92f8f`
+Last refreshed: 2026-06-28 UTC on `origin/main` `e16da2791`
 Bead: `plib-wj70q.17`
 
 ## Scope
@@ -17,12 +17,12 @@ status text. This note is the gap matrix for the assigned slice.
 
 2026-06-28 refresh: current main has landed additional PlainMath parser and
 fixture work after the original audit (`94671fe37`, `7ecbfe32a`, `8a1306482`,
-`868d87104`, and `02ed92f8f`). Those commits improve static TexMath fixture
-coverage, recursive text-mode groups, atom-category metadata, and malformed
-MathML fallback behavior. They do not add MathML `form` attributes, per-cell
-alignment placement, per-cell `style="text-align: ..."` metadata, or the
-remaining styled-symbol Unicode conversions below, so the fixture priorities
-remain unchanged.
+`868d87104`, `02ed92f8f`, and `e16da2791`). Those commits improve static
+TexMath fixture coverage, recursive text-mode groups, atom-category metadata,
+malformed MathML fallback behavior, and unbraced atom-coercion token coverage.
+They do not add MathML `form` attributes, per-cell alignment placement,
+per-cell `style="text-align: ..."` metadata, or the remaining styled-symbol
+Unicode conversions below, so the fixture priorities remain unchanged.
 
 ## Source Truth
 
@@ -54,7 +54,7 @@ Relevant upstream writer facts:
 | --- | --- | --- | --- |
 | Math root/display wrapper | `MathTexConverter` emits `<math xmlns="http://www.w3.org/1998/Math/MathML" display="block|inline">` and preserves source TeX in a `semantics` annotation. | Source annotation is a local review extension; display/xmlns are aligned. | Covered; local annotation is intentional. |
 | Stretchy delimiter positions | `\left(a\middle\|b\right)` parses and renders as fenced/stretchy operators, with the middle delimiter marked `separator="true"`. | Upstream also emits `form="prefix"`, `form="infix"`, and `form="postfix"` on delimiter operators. PHP currently emits no `form` attributes. | Writer-only fidelity gap. Parser parity is present for this fixture. |
-| Plain open/close symbol form | Local ordinary open/close tokens do not expose upstream-style `form` metadata. | Upstream `makeFence` adds `form` and `stretchy="false"` for `ESymbol Open` and `ESymbol Close`. | Writer-only fidelity gap; lower priority than `\left...\middle...\right`. |
+| Plain open/close symbol form | Local ordinary open/close tokens do not expose upstream-style `form` metadata; `\mathopen(` and `\mathclose)` now have direct unbraced parser fixture coverage through explicit atom metadata. | Upstream `makeFence` adds `form` and `stretchy="false"` for `ESymbol Open` and `ESymbol Close`. | Writer-only fidelity gap; lower priority than `\left...\middle...\right`. |
 | Array column alignment | `array`, matrix, AMS row environments, `alignedat`, `flalign`, `multline`, `subarray`, repeated preambles, width columns, line metadata, hooks, and `\multicolumn` are covered with `mtable columnalign` and selected `mtd` metadata for multicolumn cells. | Upstream `makeArray` writes `columnalign` on each `mtd`; PHP normally writes it once on `mtable`. | Writer fidelity gap. Parser parity is mostly present for core `l/c/r` arrays. |
 | Per-cell `style="text-align"` | PHP MathML currently does not write per-cell `style` text alignment for arrays. | Upstream writes `style="text-align: left|right|center"` on every aligned cell. | Writer/layout fidelity gap. This is an accepted semantic-layout difference if consumers honor `mtable columnalign`, but it matters for browser/HTML parity. |
 | Right-left alignment padding | No local equivalent of upstream right-left sequence padding metadata was found. | Upstream adds `padding-left: 0` or `padding-right: 0` when `isRLSequence` applies. | Low-priority layout gap; useful only after per-cell style is implemented. |
@@ -67,7 +67,7 @@ Relevant upstream writer facts:
 
 ## 2026-06-28 Current-Base Refresh
 
-The original matrix still matches current main at `02ed92f8f`:
+The original matrix still matches current main at `e16da2791`:
 
 - `\left(a\middle|b\right)` still emits local fence/stretch/separator
   metadata and still does not emit upstream-style `form="prefix|infix|postfix"`
@@ -77,6 +77,10 @@ The original matrix still matches current main at `02ed92f8f`:
   `mtd columnalign` or `style="text-align: ..."` metadata.
 - `\multicolumn` remains the exception with bounded cell-level span/alignment
   and provenance metadata.
+- `\mathop\sum`, `\mathopen(`, `\mathclose)`, and the other unbraced atom
+  coercion commands now have focused parser fixture coverage, but the writer
+  still emits local `data-tex-math-class` wrappers rather than upstream-style
+  `form` attributes on the resulting open/close operator tokens.
 - Styled Latin/digit and the already-covered Greek families still rewrite to
   Unicode mathematical alphanumeric codepoints.
 - Double-struck Greek/symbol probes and styled operator probes still leave
@@ -308,6 +312,8 @@ git log --oneline -- lanes/pandoc/src/MathTexConverter.php lanes/pandoc/tests/Ma
 Relevant current-base PlainMath commits inspected:
 
 ```text
+e16da2791 test: cover plainmath atom coercion tokens (plib-wj70q.13)
+bf4ec4e7c docs: refresh PlainMath MathML writer audit (plib-wj70q.17)
 02ed92f8f fix: fall back malformed PlainMath MathML (plib-wj70q.11)
 868d87104 test: add PlainMath atom coercion fixtures (plib-wj70q.13)
 8a1306482 feat: add PlainMath atom category prototype (plib-wj70q.12)
@@ -370,3 +376,60 @@ php lanes/pandoc/examples/wordpress-math-tex-handoff.php --self-test
 
 Result on `02ed92f8f`: still fails in the paired-delimiter X macro-definition
 path before any audit refresh edits.
+
+Latest parser-fixture refresh check on current `origin/main` `e16da2791`:
+
+```text
+git log --oneline -- lanes/pandoc/src/MathTexConverter.php lanes/pandoc/tests/MathTexConverterTest.php lanes/pandoc/tests/PlainMathStaticTexmathFixtureTest.php lanes/pandoc/notes/plainmath-mathml-writer-fidelity-audit-20260626.md
+```
+
+Relevant new current-base entries:
+
+```text
+e16da2791 test: cover plainmath atom coercion tokens (plib-wj70q.13)
+bf4ec4e7c docs: refresh PlainMath MathML writer audit (plib-wj70q.17)
+```
+
+```text
+rg -n 'form="|style="text-align|text-align' lanes/pandoc/src/MathTexConverter.php lanes/pandoc/tests/MathTexConverterTest.php lanes/pandoc/tests/PlainMathStaticTexmathFixtureTest.php lanes/pandoc/tests/MathTexCustomEnvironmentTest.php
+```
+
+Result: no matches, so no newly landed writer path or fixture asserts MathML
+`form` attributes or per-cell CSS text alignment.
+
+```text
+php -r 'require "tools/bootstrap.php"; $c=new PortLibs\Pandoc\MathTexConverter(); $cases=["fence"=>"\\left(a\\middle|b\\right)","array"=>"\\begin{array}{lcr}a&b&c\\\\x&y&z\\end{array}","atoms"=>"\\mathop\\sum_i + x \\mathrel= y \\mathbin+ z \\mathord+ \\mathopen( q \\mathclose) \\mathpunct, r"]; foreach($cases as $name=>$tex){$m=$c->texToMathMl($tex,true); echo "--- $name\n"; echo (str_contains($m,"form=")?"has-form":"no-form")."\n"; echo (str_contains($m,"style=\"text-align")?"has-text-align":"no-text-align")."\n"; echo (str_contains($m,"<mtd columnalign")?"has-mtd-columnalign":"no-mtd-columnalign")."\n"; }'
+--- fence
+no-form
+no-text-align
+no-mtd-columnalign
+--- array
+no-form
+no-text-align
+no-mtd-columnalign
+--- atoms
+no-form
+no-text-align
+no-mtd-columnalign
+```
+
+```text
+php -r 'require "tools/bootstrap.php"; $c=new PortLibs\Pandoc\MathTexConverter(); foreach(["\\mathbb{\\pi\\gamma\\Gamma\\Pi\\sum}","\\mathbfit{\\nabla\\partial\\epsilon\\vartheta\\varkappa\\phi\\varrho\\varpi}","\\varkappa + \\varpi"] as $tex){$m=$c->texToMathMl($tex,true); echo "--- $tex\n"; echo (str_contains($m,"\\varkappa")||str_contains($m,"\\varpi")?"literal-command-present":"no-literal-command")."\n"; echo (str_contains($m,"<mo>∇</mo>")||str_contains($m,"<mo>∂</mo>")?"base-operator-present":"no-base-operator")."\n"; }'
+--- \mathbb{\pi\gamma\Gamma\Pi\sum}
+no-literal-command
+no-base-operator
+--- \mathbfit{\nabla\partial\epsilon\vartheta\varkappa\phi\varrho\varpi}
+literal-command-present
+base-operator-present
+--- \varkappa + \varpi
+literal-command-present
+no-base-operator
+```
+
+```text
+php tools/run-tests.php lanes/pandoc/tests/PlainMathStaticTexmathFixtureTest.php lanes/pandoc/tests/MathTexCustomEnvironmentTest.php
+2 test files, 96 assertions, 0 failures
+```
+
+The new unbraced atom-coercion fixture strengthens parser parity for explicit
+atom categories, but it does not change the writer-gap ordering above.
