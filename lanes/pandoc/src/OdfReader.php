@@ -15339,7 +15339,21 @@ final class OdfReader
 
     private static function isConfigurationPackagePartName(string $part): bool
     {
-        return str_starts_with(strtolower(ltrim($part, '/')), 'configurations2/');
+        $normalized = strtolower(ltrim($part, '/'));
+
+        return str_starts_with($normalized, 'configurations2/')
+            || str_starts_with($normalized, 'configurations/');
+    }
+
+    private static function configurationPackageRoot(string $part): ?string
+    {
+        $root = strtolower((string) (explode('/', trim($part, '/'), 2)[0] ?? ''));
+
+        return match ($root) {
+            'configurations2' => 'Configurations2',
+            'configurations' => 'Configurations',
+            default => null,
+        };
     }
 
     private function scriptPartKind(string $part, string $mediaType): string
@@ -16448,7 +16462,7 @@ final class OdfReader
                 'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
                 'kind' => $kind,
                 'group' => $group,
-                'packageRoot' => 'Configurations2',
+                'packageRoot' => self::configurationPackageRoot($part),
                 'isDirectory' => $isDirectory,
                 'exists' => $exists,
                 'declared' => $declared,
