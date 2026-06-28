@@ -18644,8 +18644,30 @@ XML;
         $t->same(['review:group' => 2, 'review:packet' => 5], $reviewPart['xmlElementSiblingTransitionParentQualifiedNameCounts']);
         $t->same(2, $reviewPart['xmlElementSiblingTransitionPreviousElementNameCounts']['review:second']);
         $t->same(2, $reviewPart['xmlElementSiblingTransitionNextElementNameCounts']['review:second']);
+        $t->same([
+            'urn:audit-sibling-transition' => 2,
+            'urn:review-sibling-transition' => 5,
+        ], $reviewPart['xmlElementSiblingTransitionPreviousElementNamespaceCounts']);
+        $t->same([
+            'urn:audit-sibling-transition' => 2,
+            'urn:review-sibling-transition' => 5,
+        ], $reviewPart['xmlElementSiblingTransitionNextElementNamespaceCounts']);
+        $t->same([
+            'urn:audit-sibling-transition -> urn:review-sibling-transition' => 2,
+            'urn:review-sibling-transition -> urn:audit-sibling-transition' => 2,
+            'urn:review-sibling-transition -> urn:review-sibling-transition' => 3,
+        ], $reviewPart['xmlElementSiblingTransitionNamespacePairCounts']);
+        $t->same(['audit' => 2, 'review' => 5], $reviewPart['xmlElementSiblingTransitionPreviousElementPrefixCounts']);
+        $t->same(['audit' => 2, 'review' => 5], $reviewPart['xmlElementSiblingTransitionNextElementPrefixCounts']);
+        $t->same([
+            'audit -> review' => 2,
+            'review -> audit' => 2,
+            'review -> review' => 3,
+        ], $reviewPart['xmlElementSiblingTransitionPrefixPairCounts']);
 
         $t->same('review:first -> review:second', $reviewPart['xmlElementSiblingTransitions'][0]['pair']);
+        $t->same('urn:review-sibling-transition -> urn:review-sibling-transition', $reviewPart['xmlElementSiblingTransitions'][0]['namespacePair']);
+        $t->same('review -> review', $reviewPart['xmlElementSiblingTransitions'][0]['prefixPair']);
         $t->same(1, $reviewPart['xmlElementSiblingTransitions'][0]['interleavedNonElementNodeCount']);
         $t->same(true, $reviewPart['xmlElementSiblingTransitions'][0]['hasInterleavedNonElementNodes']);
         $t->same(false, $reviewPart['xmlElementSiblingTransitions'][0]['sameElementName']);
@@ -18653,13 +18675,17 @@ XML;
         $t->same(true, $reviewPart['xmlElementSiblingTransitions'][1]['sameElementName']);
         $t->same('review:member -> audit:member', $reviewPart['xmlElementSiblingTransitions'][5]['pair']);
         $t->same('/review:packet/review:group', $reviewPart['xmlElementSiblingTransitions'][5]['parentPath']);
+        $t->same('urn:review-sibling-transition -> urn:audit-sibling-transition', $reviewPart['xmlElementSiblingTransitions'][5]['namespacePair']);
         $t->same('audit', $reviewPart['xmlElementSiblingTransitions'][5]['nextElementPrefix']);
+        $t->same('review -> audit', $reviewPart['xmlElementSiblingTransitions'][5]['prefixPair']);
 
         $t->same(true, $settingsPart['xmlInspectable']);
         $t->same(3, $settingsPart['xmlElementSiblingTransitionCount']);
         $t->same(1, $settingsPart['xmlElementSiblingTransitionSameNameCount']);
         $t->same(2, $settingsPart['xmlElementSiblingTransitionDifferentNameCount']);
         $t->same(1, $settingsPart['xmlElementSiblingTransitionPairCounts']['w:docVar -> w:docVar']);
+        $t->same(3, $settingsPart['xmlElementSiblingTransitionNamespacePairCounts']['http://schemas.openxmlformats.org/wordprocessingml/2006/main -> http://schemas.openxmlformats.org/wordprocessingml/2006/main']);
+        $t->same(3, $settingsPart['xmlElementSiblingTransitionPrefixPairCounts']['w -> w']);
         $t->same(2, $settingsPart['xmlElementSiblingTransitionParentPathCounts']['/w:settings']);
 
         $t->true($summary['partXmlElementSiblingTransitionPartCount'] >= 2, 'summary sibling-transition part count should include added XML parts');
@@ -18668,6 +18694,14 @@ XML;
         $t->true($summary['partXmlElementSiblingTransitionCount'] >= 10, 'summary sibling-transition count should include added XML transitions');
         $t->same(1, $summary['partXmlElementSiblingTransitionPairCounts']['review:second -> review:second']);
         $t->same(1, $summary['partXmlElementSiblingTransitionPairCounts']['w:docVar -> w:docVar']);
+        $t->same(2, $summary['partXmlElementSiblingTransitionNamespacePairCounts']['urn:audit-sibling-transition -> urn:review-sibling-transition']);
+        $t->same(2, $summary['partXmlElementSiblingTransitionNamespacePairCounts']['urn:review-sibling-transition -> urn:audit-sibling-transition']);
+        $t->same(3, $summary['partXmlElementSiblingTransitionNamespacePairCounts']['urn:review-sibling-transition -> urn:review-sibling-transition']);
+        $t->same(2, $summary['partXmlElementSiblingTransitionPrefixPairCounts']['audit -> review']);
+        $t->same(2, $summary['partXmlElementSiblingTransitionPrefixPairCounts']['review -> audit']);
+        $t->same(3, $summary['partXmlElementSiblingTransitionPrefixPairCounts']['review -> review']);
+        $t->true(in_array('urn:review-sibling-transition -> urn:audit-sibling-transition', $summary['partXmlElementSiblingTransitionNamespacePairs'], true), 'summary namespace pairs should include custom transition');
+        $t->true(in_array('review -> audit', $summary['partXmlElementSiblingTransitionPrefixPairs'], true), 'summary prefix pairs should include custom transition');
         $t->same(5, $summary['partXmlElementSiblingTransitionParentPathCounts']['/review:packet']);
         $t->same(2, $summary['partXmlElementSiblingTransitionParentPathCounts']['/w:settings']);
         $t->true($summary['partXmlElementSiblingTransitionInterleavedNonElementNodeCount'] >= 3, 'summary should include interleaved non-element node counts');

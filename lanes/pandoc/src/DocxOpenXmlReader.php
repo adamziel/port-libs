@@ -15011,6 +15011,20 @@ final class DocxOpenXmlReader
             'partXmlElementSiblingTransitionPreviousElementNameCounts' => $partXmlRoots['xmlElementSiblingTransitionPreviousElementNameCounts'],
             'partXmlElementSiblingTransitionNextElementNameCount' => count($partXmlRoots['xmlElementSiblingTransitionNextElementNameCounts']),
             'partXmlElementSiblingTransitionNextElementNameCounts' => $partXmlRoots['xmlElementSiblingTransitionNextElementNameCounts'],
+            'partXmlElementSiblingTransitionPreviousElementNamespaceCount' => count($partXmlRoots['xmlElementSiblingTransitionPreviousElementNamespaceCounts']),
+            'partXmlElementSiblingTransitionPreviousElementNamespaceCounts' => $partXmlRoots['xmlElementSiblingTransitionPreviousElementNamespaceCounts'],
+            'partXmlElementSiblingTransitionNextElementNamespaceCount' => count($partXmlRoots['xmlElementSiblingTransitionNextElementNamespaceCounts']),
+            'partXmlElementSiblingTransitionNextElementNamespaceCounts' => $partXmlRoots['xmlElementSiblingTransitionNextElementNamespaceCounts'],
+            'partXmlElementSiblingTransitionNamespacePairCount' => count($partXmlRoots['xmlElementSiblingTransitionNamespacePairCounts']),
+            'partXmlElementSiblingTransitionNamespacePairCounts' => $partXmlRoots['xmlElementSiblingTransitionNamespacePairCounts'],
+            'partXmlElementSiblingTransitionNamespacePairs' => $partXmlRoots['xmlElementSiblingTransitionNamespacePairs'],
+            'partXmlElementSiblingTransitionPreviousElementPrefixCount' => count($partXmlRoots['xmlElementSiblingTransitionPreviousElementPrefixCounts']),
+            'partXmlElementSiblingTransitionPreviousElementPrefixCounts' => $partXmlRoots['xmlElementSiblingTransitionPreviousElementPrefixCounts'],
+            'partXmlElementSiblingTransitionNextElementPrefixCount' => count($partXmlRoots['xmlElementSiblingTransitionNextElementPrefixCounts']),
+            'partXmlElementSiblingTransitionNextElementPrefixCounts' => $partXmlRoots['xmlElementSiblingTransitionNextElementPrefixCounts'],
+            'partXmlElementSiblingTransitionPrefixPairCount' => count($partXmlRoots['xmlElementSiblingTransitionPrefixPairCounts']),
+            'partXmlElementSiblingTransitionPrefixPairCounts' => $partXmlRoots['xmlElementSiblingTransitionPrefixPairCounts'],
+            'partXmlElementSiblingTransitionPrefixPairs' => $partXmlRoots['xmlElementSiblingTransitionPrefixPairs'],
             'partXmlElementChildShapePartCount' => $partXmlRoots['xmlElementChildShapePartCount'],
             'partXmlElementChildShapeCount' => $partXmlRoots['xmlElementChildShapeCount'],
             'partXmlElementChildShapePartNames' => $partXmlRoots['xmlElementChildShapePartNames'],
@@ -21247,6 +21261,14 @@ final class DocxOpenXmlReader
         $xmlElementSiblingTransitionParentQualifiedNameCounts = [];
         $xmlElementSiblingTransitionPreviousElementNameCounts = [];
         $xmlElementSiblingTransitionNextElementNameCounts = [];
+        $xmlElementSiblingTransitionPreviousElementNamespaceCounts = [];
+        $xmlElementSiblingTransitionNextElementNamespaceCounts = [];
+        $xmlElementSiblingTransitionNamespacePairCounts = [];
+        $xmlElementSiblingTransitionNamespacePairs = [];
+        $xmlElementSiblingTransitionPreviousElementPrefixCounts = [];
+        $xmlElementSiblingTransitionNextElementPrefixCounts = [];
+        $xmlElementSiblingTransitionPrefixPairCounts = [];
+        $xmlElementSiblingTransitionPrefixPairs = [];
         $xmlElementSiblingTransitions = [];
         $xmlElementChildShapePartNames = [];
         $xmlElementChildShapeCounts = [];
@@ -23127,6 +23149,50 @@ final class DocxOpenXmlReader
                 $xmlElementSiblingTransitionNextElementNameCounts[$qualifiedName] =
                     ($xmlElementSiblingTransitionNextElementNameCounts[$qualifiedName] ?? 0) + (int) $count;
             }
+            foreach (($part['xmlElementSiblingTransitionPreviousElementNamespaceCounts'] ?? []) as $namespace => $count) {
+                if (!is_string($namespace) || $namespace === '') {
+                    continue;
+                }
+                $xmlElementSiblingTransitionPreviousElementNamespaceCounts[$namespace] =
+                    ($xmlElementSiblingTransitionPreviousElementNamespaceCounts[$namespace] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlElementSiblingTransitionNextElementNamespaceCounts'] ?? []) as $namespace => $count) {
+                if (!is_string($namespace) || $namespace === '') {
+                    continue;
+                }
+                $xmlElementSiblingTransitionNextElementNamespaceCounts[$namespace] =
+                    ($xmlElementSiblingTransitionNextElementNamespaceCounts[$namespace] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlElementSiblingTransitionNamespacePairCounts'] ?? []) as $pair => $count) {
+                if (!is_string($pair) || $pair === '') {
+                    continue;
+                }
+                $xmlElementSiblingTransitionNamespacePairCounts[$pair] =
+                    ($xmlElementSiblingTransitionNamespacePairCounts[$pair] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlElementSiblingTransitionNamespacePairs, $pair);
+            }
+            foreach (($part['xmlElementSiblingTransitionPreviousElementPrefixCounts'] ?? []) as $prefix => $count) {
+                if (!is_string($prefix) || $prefix === '') {
+                    continue;
+                }
+                $xmlElementSiblingTransitionPreviousElementPrefixCounts[$prefix] =
+                    ($xmlElementSiblingTransitionPreviousElementPrefixCounts[$prefix] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlElementSiblingTransitionNextElementPrefixCounts'] ?? []) as $prefix => $count) {
+                if (!is_string($prefix) || $prefix === '') {
+                    continue;
+                }
+                $xmlElementSiblingTransitionNextElementPrefixCounts[$prefix] =
+                    ($xmlElementSiblingTransitionNextElementPrefixCounts[$prefix] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlElementSiblingTransitionPrefixPairCounts'] ?? []) as $pair => $count) {
+                if (!is_string($pair) || $pair === '') {
+                    continue;
+                }
+                $xmlElementSiblingTransitionPrefixPairCounts[$pair] =
+                    ($xmlElementSiblingTransitionPrefixPairCounts[$pair] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlElementSiblingTransitionPrefixPairs, $pair);
+            }
             foreach (($part['xmlElementSiblingTransitions'] ?? []) as $transition) {
                 if (!is_array($transition)) {
                     continue;
@@ -23177,6 +23243,12 @@ final class DocxOpenXmlReader
                     'nextElementPrefix' => is_string($transition['nextElementPrefix'] ?? null)
                         ? $transition['nextElementPrefix']
                         : null,
+                    'namespacePair' => is_string($transition['namespacePair'] ?? null)
+                        ? $transition['namespacePair']
+                        : '(none) -> (none)',
+                    'prefixPair' => is_string($transition['prefixPair'] ?? null)
+                        ? $transition['prefixPair']
+                        : '(none) -> (none)',
                     'previousSiblingIndex' => (int) ($transition['previousSiblingIndex'] ?? 0),
                     'nextSiblingIndex' => (int) ($transition['nextSiblingIndex'] ?? 0),
                     'previousChildNodeIndex' => (int) ($transition['previousChildNodeIndex'] ?? 0),
@@ -24044,6 +24116,26 @@ final class DocxOpenXmlReader
                 'xmlElementSiblingTransitionNextElementNameCounts' => is_array($part['xmlElementSiblingTransitionNextElementNameCounts'] ?? null)
                     ? $part['xmlElementSiblingTransitionNextElementNameCounts']
                     : [],
+                'xmlElementSiblingTransitionPreviousElementNamespaceCounts' => is_array($part['xmlElementSiblingTransitionPreviousElementNamespaceCounts'] ?? null)
+                    ? $part['xmlElementSiblingTransitionPreviousElementNamespaceCounts']
+                    : [],
+                'xmlElementSiblingTransitionNextElementNamespaceCounts' => is_array($part['xmlElementSiblingTransitionNextElementNamespaceCounts'] ?? null)
+                    ? $part['xmlElementSiblingTransitionNextElementNamespaceCounts']
+                    : [],
+                'xmlElementSiblingTransitionNamespacePairCounts' => is_array($part['xmlElementSiblingTransitionNamespacePairCounts'] ?? null)
+                    ? $part['xmlElementSiblingTransitionNamespacePairCounts']
+                    : [],
+                'xmlElementSiblingTransitionNamespacePairs' => array_values(array_map('strval', $part['xmlElementSiblingTransitionNamespacePairs'] ?? [])),
+                'xmlElementSiblingTransitionPreviousElementPrefixCounts' => is_array($part['xmlElementSiblingTransitionPreviousElementPrefixCounts'] ?? null)
+                    ? $part['xmlElementSiblingTransitionPreviousElementPrefixCounts']
+                    : [],
+                'xmlElementSiblingTransitionNextElementPrefixCounts' => is_array($part['xmlElementSiblingTransitionNextElementPrefixCounts'] ?? null)
+                    ? $part['xmlElementSiblingTransitionNextElementPrefixCounts']
+                    : [],
+                'xmlElementSiblingTransitionPrefixPairCounts' => is_array($part['xmlElementSiblingTransitionPrefixPairCounts'] ?? null)
+                    ? $part['xmlElementSiblingTransitionPrefixPairCounts']
+                    : [],
+                'xmlElementSiblingTransitionPrefixPairs' => array_values(array_map('strval', $part['xmlElementSiblingTransitionPrefixPairs'] ?? [])),
                 'xmlElementSiblingTransitions' => is_array($part['xmlElementSiblingTransitions'] ?? null)
                     ? $part['xmlElementSiblingTransitions']
                     : [],
@@ -24279,6 +24371,14 @@ final class DocxOpenXmlReader
         ksort($xmlElementSiblingTransitionParentQualifiedNameCounts, SORT_STRING);
         ksort($xmlElementSiblingTransitionPreviousElementNameCounts, SORT_STRING);
         ksort($xmlElementSiblingTransitionNextElementNameCounts, SORT_STRING);
+        ksort($xmlElementSiblingTransitionPreviousElementNamespaceCounts, SORT_STRING);
+        ksort($xmlElementSiblingTransitionNextElementNamespaceCounts, SORT_STRING);
+        ksort($xmlElementSiblingTransitionNamespacePairCounts, SORT_STRING);
+        ksort($xmlElementSiblingTransitionPreviousElementPrefixCounts, SORT_STRING);
+        ksort($xmlElementSiblingTransitionNextElementPrefixCounts, SORT_STRING);
+        ksort($xmlElementSiblingTransitionPrefixPairCounts, SORT_STRING);
+        sort($xmlElementSiblingTransitionNamespacePairs, SORT_STRING);
+        sort($xmlElementSiblingTransitionPrefixPairs, SORT_STRING);
         ksort($xmlElementChildShapeCounts, SORT_STRING);
         ksort($xmlElementChildShapePathCounts, SORT_STRING);
         ksort($xmlElementChildShapeMixedContentPathCounts, SORT_STRING);
@@ -24805,6 +24905,14 @@ final class DocxOpenXmlReader
             'xmlElementSiblingTransitionParentQualifiedNameCounts' => $xmlElementSiblingTransitionParentQualifiedNameCounts,
             'xmlElementSiblingTransitionPreviousElementNameCounts' => $xmlElementSiblingTransitionPreviousElementNameCounts,
             'xmlElementSiblingTransitionNextElementNameCounts' => $xmlElementSiblingTransitionNextElementNameCounts,
+            'xmlElementSiblingTransitionPreviousElementNamespaceCounts' => $xmlElementSiblingTransitionPreviousElementNamespaceCounts,
+            'xmlElementSiblingTransitionNextElementNamespaceCounts' => $xmlElementSiblingTransitionNextElementNamespaceCounts,
+            'xmlElementSiblingTransitionNamespacePairCounts' => $xmlElementSiblingTransitionNamespacePairCounts,
+            'xmlElementSiblingTransitionNamespacePairs' => $xmlElementSiblingTransitionNamespacePairs,
+            'xmlElementSiblingTransitionPreviousElementPrefixCounts' => $xmlElementSiblingTransitionPreviousElementPrefixCounts,
+            'xmlElementSiblingTransitionNextElementPrefixCounts' => $xmlElementSiblingTransitionNextElementPrefixCounts,
+            'xmlElementSiblingTransitionPrefixPairCounts' => $xmlElementSiblingTransitionPrefixPairCounts,
+            'xmlElementSiblingTransitionPrefixPairs' => $xmlElementSiblingTransitionPrefixPairs,
             'xmlElementSiblingTransitions' => $xmlElementSiblingTransitions,
             'xmlElementChildShapePartCount' => $xmlElementChildShapePartCount,
             'xmlElementChildShapeCount' => $xmlElementChildShapeCount,
@@ -29273,7 +29381,7 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{count:int, sameNameCount:int, differentNameCount:int, interleavedNonElementNodeCount:int, maxInterleavedNonElementNodeCount:int, pairCounts:array<string, int>, pairs:list<string>, parentPathCounts:array<string, int>, parentPaths:list<string>, parentNamespaceCounts:array<string, int>, parentLocalNameCounts:array<string, int>, parentQualifiedNameCounts:array<string, int>, previousElementNameCounts:array<string, int>, nextElementNameCounts:array<string, int>, items:list<array<string, mixed>>}
+     * @return array{count:int, sameNameCount:int, differentNameCount:int, interleavedNonElementNodeCount:int, maxInterleavedNonElementNodeCount:int, pairCounts:array<string, int>, pairs:list<string>, parentPathCounts:array<string, int>, parentPaths:list<string>, parentNamespaceCounts:array<string, int>, parentLocalNameCounts:array<string, int>, parentQualifiedNameCounts:array<string, int>, previousElementNameCounts:array<string, int>, nextElementNameCounts:array<string, int>, previousElementNamespaceCounts:array<string, int>, nextElementNamespaceCounts:array<string, int>, namespacePairCounts:array<string, int>, namespacePairs:list<string>, previousElementPrefixCounts:array<string, int>, nextElementPrefixCounts:array<string, int>, prefixPairCounts:array<string, int>, prefixPairs:list<string>, items:list<array<string, mixed>>}
      */
     private function xmlElementSiblingTransitionProvenance(string $xml, string $partName): array
     {
@@ -29292,6 +29400,14 @@ final class DocxOpenXmlReader
             'parentQualifiedNameCounts' => [],
             'previousElementNameCounts' => [],
             'nextElementNameCounts' => [],
+            'previousElementNamespaceCounts' => [],
+            'nextElementNamespaceCounts' => [],
+            'namespacePairCounts' => [],
+            'namespacePairs' => [],
+            'previousElementPrefixCounts' => [],
+            'nextElementPrefixCounts' => [],
+            'prefixPairCounts' => [],
+            'prefixPairs' => [],
             'items' => [],
         ];
 
@@ -29310,6 +29426,14 @@ final class DocxOpenXmlReader
         $parentQualifiedNameCounts = [];
         $previousElementNameCounts = [];
         $nextElementNameCounts = [];
+        $previousElementNamespaceCounts = [];
+        $nextElementNamespaceCounts = [];
+        $namespacePairCounts = [];
+        $namespacePairs = [];
+        $previousElementPrefixCounts = [];
+        $nextElementPrefixCounts = [];
+        $prefixPairCounts = [];
+        $prefixPairs = [];
         $sameNameCount = 0;
         $differentNameCount = 0;
         $interleavedNonElementNodeCount = 0;
@@ -29328,6 +29452,14 @@ final class DocxOpenXmlReader
             &$parentQualifiedNameCounts,
             &$previousElementNameCounts,
             &$nextElementNameCounts,
+            &$previousElementNamespaceCounts,
+            &$nextElementNamespaceCounts,
+            &$namespacePairCounts,
+            &$namespacePairs,
+            &$previousElementPrefixCounts,
+            &$nextElementPrefixCounts,
+            &$prefixPairCounts,
+            &$prefixPairs,
             &$sameNameCount,
             &$differentNameCount,
             &$interleavedNonElementNodeCount,
@@ -29377,7 +29509,21 @@ final class DocxOpenXmlReader
                     $next = $children[$index + 1];
                     $previousQualifiedName = (string) $previous['qualifiedName'];
                     $nextQualifiedName = (string) $next['qualifiedName'];
+                    $previousNamespaceKey = is_string($previous['namespace'] ?? null)
+                        ? (string) $previous['namespace']
+                        : '(none)';
+                    $nextNamespaceKey = is_string($next['namespace'] ?? null)
+                        ? (string) $next['namespace']
+                        : '(none)';
+                    $previousPrefixKey = is_string($previous['prefix'] ?? null)
+                        ? (string) $previous['prefix']
+                        : '(none)';
+                    $nextPrefixKey = is_string($next['prefix'] ?? null)
+                        ? (string) $next['prefix']
+                        : '(none)';
                     $pair = $previousQualifiedName . ' -> ' . $nextQualifiedName;
+                    $namespacePair = $previousNamespaceKey . ' -> ' . $nextNamespaceKey;
+                    $prefixPair = $previousPrefixKey . ' -> ' . $nextPrefixKey;
                     $interleavedCount = max(0, (int) $next['childNodeIndex'] - (int) $previous['childNodeIndex'] - 1);
                     $sameElementName = $previousQualifiedName === $nextQualifiedName;
 
@@ -29402,6 +29548,18 @@ final class DocxOpenXmlReader
                         ($previousElementNameCounts[$previousQualifiedName] ?? 0) + 1;
                     $nextElementNameCounts[$nextQualifiedName] =
                         ($nextElementNameCounts[$nextQualifiedName] ?? 0) + 1;
+                    $previousElementNamespaceCounts[$previousNamespaceKey] =
+                        ($previousElementNamespaceCounts[$previousNamespaceKey] ?? 0) + 1;
+                    $nextElementNamespaceCounts[$nextNamespaceKey] =
+                        ($nextElementNamespaceCounts[$nextNamespaceKey] ?? 0) + 1;
+                    $namespacePairCounts[$namespacePair] = ($namespacePairCounts[$namespacePair] ?? 0) + 1;
+                    $this->appendUniqueString($namespacePairs, $namespacePair);
+                    $previousElementPrefixCounts[$previousPrefixKey] =
+                        ($previousElementPrefixCounts[$previousPrefixKey] ?? 0) + 1;
+                    $nextElementPrefixCounts[$nextPrefixKey] =
+                        ($nextElementPrefixCounts[$nextPrefixKey] ?? 0) + 1;
+                    $prefixPairCounts[$prefixPair] = ($prefixPairCounts[$prefixPair] ?? 0) + 1;
+                    $this->appendUniqueString($prefixPairs, $prefixPair);
 
                     $items[] = [
                         'ordinal' => $ordinal,
@@ -29420,6 +29578,8 @@ final class DocxOpenXmlReader
                         'nextElementLocalName' => (string) ($next['localName'] ?? ''),
                         'nextElementQualifiedName' => $nextQualifiedName,
                         'nextElementPrefix' => is_string($next['prefix'] ?? null) ? $next['prefix'] : null,
+                        'namespacePair' => $namespacePair,
+                        'prefixPair' => $prefixPair,
                         'previousSiblingIndex' => (int) ($previous['siblingIndex'] ?? 0),
                         'nextSiblingIndex' => (int) ($next['siblingIndex'] ?? 0),
                         'previousChildNodeIndex' => (int) ($previous['childNodeIndex'] ?? 0),
@@ -29446,8 +29606,16 @@ final class DocxOpenXmlReader
         ksort($parentQualifiedNameCounts, SORT_STRING);
         ksort($previousElementNameCounts, SORT_STRING);
         ksort($nextElementNameCounts, SORT_STRING);
+        ksort($previousElementNamespaceCounts, SORT_STRING);
+        ksort($nextElementNamespaceCounts, SORT_STRING);
+        ksort($namespacePairCounts, SORT_STRING);
+        ksort($previousElementPrefixCounts, SORT_STRING);
+        ksort($nextElementPrefixCounts, SORT_STRING);
+        ksort($prefixPairCounts, SORT_STRING);
         sort($pairs, SORT_STRING);
         sort($parentPaths, SORT_STRING);
+        sort($namespacePairs, SORT_STRING);
+        sort($prefixPairs, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -29464,6 +29632,14 @@ final class DocxOpenXmlReader
             'parentQualifiedNameCounts' => $parentQualifiedNameCounts,
             'previousElementNameCounts' => $previousElementNameCounts,
             'nextElementNameCounts' => $nextElementNameCounts,
+            'previousElementNamespaceCounts' => $previousElementNamespaceCounts,
+            'nextElementNamespaceCounts' => $nextElementNamespaceCounts,
+            'namespacePairCounts' => $namespacePairCounts,
+            'namespacePairs' => $namespacePairs,
+            'previousElementPrefixCounts' => $previousElementPrefixCounts,
+            'nextElementPrefixCounts' => $nextElementPrefixCounts,
+            'prefixPairCounts' => $prefixPairCounts,
+            'prefixPairs' => $prefixPairs,
             'items' => $items,
         ];
     }
@@ -32599,6 +32775,14 @@ final class DocxOpenXmlReader
                 'xmlElementSiblingTransitionParentQualifiedNameCounts' => [],
                 'xmlElementSiblingTransitionPreviousElementNameCounts' => [],
                 'xmlElementSiblingTransitionNextElementNameCounts' => [],
+                'xmlElementSiblingTransitionPreviousElementNamespaceCounts' => [],
+                'xmlElementSiblingTransitionNextElementNamespaceCounts' => [],
+                'xmlElementSiblingTransitionNamespacePairCounts' => [],
+                'xmlElementSiblingTransitionNamespacePairs' => [],
+                'xmlElementSiblingTransitionPreviousElementPrefixCounts' => [],
+                'xmlElementSiblingTransitionNextElementPrefixCounts' => [],
+                'xmlElementSiblingTransitionPrefixPairCounts' => [],
+                'xmlElementSiblingTransitionPrefixPairs' => [],
                 'xmlElementSiblingTransitions' => [],
                 'xmlElementChildShapeCount' => 0,
                 'xmlElementChildShapeCounts' => [],
@@ -32961,6 +33145,14 @@ final class DocxOpenXmlReader
             'xmlElementSiblingTransitionParentQualifiedNameCounts' => $siblingTransitions['parentQualifiedNameCounts'],
             'xmlElementSiblingTransitionPreviousElementNameCounts' => $siblingTransitions['previousElementNameCounts'],
             'xmlElementSiblingTransitionNextElementNameCounts' => $siblingTransitions['nextElementNameCounts'],
+            'xmlElementSiblingTransitionPreviousElementNamespaceCounts' => $siblingTransitions['previousElementNamespaceCounts'],
+            'xmlElementSiblingTransitionNextElementNamespaceCounts' => $siblingTransitions['nextElementNamespaceCounts'],
+            'xmlElementSiblingTransitionNamespacePairCounts' => $siblingTransitions['namespacePairCounts'],
+            'xmlElementSiblingTransitionNamespacePairs' => $siblingTransitions['namespacePairs'],
+            'xmlElementSiblingTransitionPreviousElementPrefixCounts' => $siblingTransitions['previousElementPrefixCounts'],
+            'xmlElementSiblingTransitionNextElementPrefixCounts' => $siblingTransitions['nextElementPrefixCounts'],
+            'xmlElementSiblingTransitionPrefixPairCounts' => $siblingTransitions['prefixPairCounts'],
+            'xmlElementSiblingTransitionPrefixPairs' => $siblingTransitions['prefixPairs'],
             'xmlElementSiblingTransitions' => $siblingTransitions['items'],
             'xmlElementChildShapeCount' => $elementChildShapes['count'],
             'xmlElementChildShapeCounts' => $elementChildShapes['shapeCounts'],
