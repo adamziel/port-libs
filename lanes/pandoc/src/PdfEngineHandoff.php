@@ -161,8 +161,11 @@ final class PdfEngineHandoff
         }
 
         $profile = self::ENGINE_PROFILES[$engine];
-        $outputFile = $this->normalizeRelativePath((string) ($options['outputPath'] ?? $options['output'] ?? 'document.pdf'), 'PDF output path');
-        if (!preg_match('/\.pdf\z/i', $outputFile)) {
+        $outputFile = $this->normalizePdfOutputPath(
+            $this->requireString($options['outputPath'] ?? $options['output'] ?? 'document.pdf', 'PDF output path'),
+            $engine
+        );
+        if ($outputFile !== '-' && !preg_match('/\.pdf\z/i', $outputFile)) {
             throw new \InvalidArgumentException('PDF output path must end with .pdf');
         }
 
@@ -272,6 +275,9 @@ final class PdfEngineHandoff
             }
             if ($typstOutputFormatPolicy['issues'] !== []) {
                 $diagnostics[] = 'typst-output-format-issues:' . count($typstOutputFormatPolicy['issues']);
+            }
+            if (($typstOutputFormatPolicy['outputDestination'] ?? null) === 'stdout') {
+                $diagnostics[] = 'typst-output-stdout-boundary';
             }
         }
         if ($engineLogFile !== null) {
@@ -1493,6 +1499,10 @@ final class PdfEngineHandoff
         }
 
         $pdfBytes = array_key_exists($outputFile, $files) ? $files[$outputFile] : null;
+        if ($pdfBytes === null && $outputFile === '-' && array_key_exists('stdout', $result)) {
+            $pdfBytes = (string) $result['stdout'];
+            $diagnostics[] = 'pdf-output-from-stdout';
+        }
         $pdfTrailerComplete = is_string($pdfBytes) && $this->hasCompletePdfTrailer($pdfBytes);
         $pdfHeaderVersion = null;
         $pdfCatalogVersion = null;
@@ -6244,6 +6254,10 @@ final class PdfEngineHandoff
 
     private function deriveSourcePath(string $outputFile, string $extension): string
     {
+        if ($outputFile === '-') {
+            return 'document.' . $extension;
+        }
+
         $lastSlash = strrpos($outputFile, '/');
         $directory = $lastSlash === false ? '' : substr($outputFile, 0, $lastSlash + 1);
         $basename = $lastSlash === false ? $outputFile : substr($outputFile, $lastSlash + 1);
@@ -6522,7 +6536,7 @@ final class PdfEngineHandoff
 
     /**
      * @param list<string> $engineOptions
-     * @return array{reviewStatus:string, declaredOutputFile:string, inferredOutputFormat:string, explicitFormat:string|null, formatOptions:list<string>, issues:list<string>}|array{}
+     * @return array{reviewStatus:string, declaredOutputFile:string, inferredOutputFormat:string, explicitFormat:string|null, formatOptions:list<string>, issues:list<string>, outputDestination?:string}|array{}
      */
     private function typstOutputFormatPolicyFor(string $engine, string $outputFile, array $engineOptions): array
     {
@@ -6547,16 +6561,22 @@ final class PdfEngineHandoff
             $formatOptions[] = $entry['format'];
         }
 
-        $inferredOutputFormat = strtolower((string) pathinfo($outputFile, PATHINFO_EXTENSION));
-        if ($inferredOutputFormat === '') {
-            $inferredOutputFormat = 'unknown';
-        }
-
-        if ($inferredOutputFormat !== 'pdf') {
-            $issues[] = 'output-extension-not-pdf:' . $inferredOutputFormat;
-        }
-
         $explicitFormat = $formatOptions === [] ? null : $formatOptions[count($formatOptions) - 1];
+        $stdoutOutput = $outputFile === '-';
+        if ($stdoutOutput) {
+            $inferredOutputFormat = $explicitFormat ?? 'pdf';
+            $issues[] = 'output-stdout-boundary';
+        } else {
+            $inferredOutputFormat = strtolower((string) pathinfo($outputFile, PATHINFO_EXTENSION));
+            if ($inferredOutputFormat === '') {
+                $inferredOutputFormat = 'unknown';
+            }
+
+            if ($inferredOutputFormat !== 'pdf') {
+                $issues[] = 'output-extension-not-pdf:' . $inferredOutputFormat;
+            }
+        }
+
         $distinctFormats = array_values(array_unique($formatOptions));
         $overrides = [];
         if (count($distinctFormats) > 1) {
@@ -6584,6 +6604,9 @@ final class PdfEngineHandoff
             'formatOptions' => $formatOptions,
             'issues' => array_values(array_unique($issues)),
         ];
+        if ($stdoutOutput) {
+            $policy['outputDestination'] = 'stdout';
+        }
         if (count($formatValues) > 1 || in_array('', $formatValues, true)) {
             $policy['formatHistory'] = $formatHistory;
         }
@@ -34945,6 +34968,16 @@ final class PdfEngineHandoff
         }
 
         return implode('/', $parts);
+    }
+
+    private function normalizePdfOutputPath(string $path, string $engine): string
+    {
+        $path = str_replace('\\', '/', trim($path));
+        if ($engine === 'typst' && $path === '-') {
+            return '-';
+        }
+
+        return $this->normalizeRelativePath($path, 'PDF output path');
     }
 
     private function normalizeRelativeDirectory(string $path, string $label): string
