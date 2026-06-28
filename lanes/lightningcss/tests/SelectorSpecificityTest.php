@@ -22,7 +22,9 @@ return [
     },
     'selector specificity maps upstream pseudo selectors' => static function (TestRunner $t) use ($specificity): void {
         $t->same($specificity(0, 1, 0), SelectorSpecificity::packed(':empty'), 'upstream selectors/parser.rs::tests::test_empty');
-        $t->same($specificity(0, 0, 1), SelectorSpecificity::packed('::before'));
+        $t->same($specificity(0, 0, 2), SelectorSpecificity::packed('q::before'), 'upstream selectors/parser.rs::tests::test_pseudo_iter lines 3955-3965');
+        $t->same($specificity(0, 0, 1), SelectorSpecificity::packed('*|*::before'), 'upstream selectors/parser.rs::tests::test_universal lines 3969-3976');
+        $t->same($specificity(0, 0, 1), SelectorSpecificity::packed('::before'), 'upstream selectors/parser.rs::tests::test_empty_pseudo_iter lines 3980-3988');
         $t->same($specificity(0, 1, 1), SelectorSpecificity::packed('::before:hover'));
         $t->same($specificity(0, 2, 1), SelectorSpecificity::packed('::before:hover:hover'));
         $t->same($specificity(0, 1, 0), SelectorSpecificity::packed(':not(.cl)'));
