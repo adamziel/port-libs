@@ -424,6 +424,27 @@ CSS
         $t->same('.foo{border-spacing:6px 8px}', $minifier->minify('.foo { border-spacing: calc(3px * 2) max(0px, 8px); }'));
         $t->same('.foo{border-spacing:-20px}', $minifier->minify('.foo { border-spacing: -20px; }'));
     },
+    'css minifier maps upstream math function declaration rows' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_math_fn lines 507-607.
+        $cases = [
+            [507, '.foo { color: rgb(max(255, 100), 0, 0); }', '.foo{color:red}'],
+            [517, '.foo { color: rgb(min(255, 500), 0, 0); }', '.foo{color:red}'],
+            [527, '.foo { color: rgb(abs(-255), 0, 0); }', '.foo{color:red}'],
+            [537, '.foo { flex: clamp(1, 5.20, 20); color: rgb(clamp(0, 255, 300), 0, 0); }', '.foo{flex:5.2;color:red}'],
+            [548, '.round-color { color: rgb(round(down, 255.6, 1), 0, 0); }', '.round-color{color:red}'],
+            [558, '.hypot-color { color: rgb(hypot(255, 0), 0, 0); }', '.hypot-color{color:red}'],
+            [568, '.sign-color { color: rgb(sign(50), 0, 0); }', '.sign-color{color:#010000}'],
+            [578, '.rem-color { color: rgb(rem(21, 2), 0, 0); }', '.rem-color{color:#010000}'],
+            [588, '.foo { width: max(200px,   5px); }', '.foo{width:200px}'],
+            [598, '.foo { opacity: max(1, 0.2); filter: invert(min(1, 0.5)); }', '.foo{opacity:1;filter:invert(.5)}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_math_fn line ' . $line);
+        }
+    },
     'css minifier maps upstream border shorthand none style omission' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -2971,6 +2992,28 @@ CSS;
         $t->same(
             '@supports (flex:1){.foo{color:red;background:#fff}.baz{color:#fff}}',
             (new CssMinifier())->minify($css)
+        );
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_merge_supports line 11299.
+        $differentConditions = <<<'CSS'
+@supports (flex: 1) {
+  .foo {
+    color: red;
+  }
+}
+@supports (display: grid) {
+  .foo {
+    background: #fff;
+  }
+  .baz {
+    color: #fff;
+  }
+}
+CSS;
+
+        $t->same(
+            '@supports (flex:1){.foo{color:red}}@supports (display:grid){.foo{background:#fff}.baz{color:#fff}}',
+            (new CssMinifier())->minify($differentConditions)
         );
     },
     'css minifier maps upstream supports rule declaration value minification boundary' => static function (TestRunner $t): void {

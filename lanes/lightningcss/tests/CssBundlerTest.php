@@ -784,6 +784,34 @@ CSS,
 
         throw new RuntimeException('Expected upstream resolve throw source provider exception');
     },
+    'css bundler maps upstream async resolve throw source provider row' => static function (TestRunner $t) use ($bundle): void {
+        $resolved = [];
+
+        try {
+            $bundle([
+                'tests/testdata/foo.css' => <<<'CSS'
+@import 'root:hello/world.css';
+
+.foo { color: red; }
+CSS,
+            ], 'tests/testdata/foo.css', static function (string $specifier, string $originatingFile) use (&$resolved): string {
+                $resolved[] = [$specifier, $originatingFile];
+
+                throw new RuntimeException("Oh noes! Failed to resolve `{$specifier}` from `{$originatingFile}`.");
+            });
+        } catch (CssBundleException $exception) {
+            $t->same('resolver-error', $exception->kind);
+            $t->same('Oh noes! Failed to resolve `root:hello/world.css` from `tests/testdata/foo.css`.', $exception->getMessage());
+            $t->same('tests/testdata/foo.css', $exception->sourceFile);
+            $t->same(1, $exception->sourceLine);
+            $t->same(1, $exception->sourceColumn);
+            $t->same([['root:hello/world.css', 'tests/testdata/foo.css']], $resolved);
+
+            return;
+        }
+
+        throw new RuntimeException('Expected upstream async resolve throw source provider exception');
+    },
     'css bundler maps upstream custom source provider prefix resolution' => static function (TestRunner $t) use ($bundle): void {
         $resolved = [];
         $resolveFoo = static function (string $specifier, string $originatingFile) use (&$resolved): string {

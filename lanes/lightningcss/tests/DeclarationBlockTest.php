@@ -3176,6 +3176,7 @@ return [
         $t->same('color: green', $block->setProperty('color: red !important', 'color', 'green'));
         $t->same('color: green !important', $block->setProperty('color: red', 'color', 'green', true));
         $t->same('color: green !important', $block->setProperty('color: red !important', 'color', 'green', true));
+        $t->same('color: red; color: green', $block->setProperty('color: red; color: blue', 'color', 'green'));
         $t->same('color: red; background-color: #00f', $block->setProperty('color: red', 'background-color', 'blue'));
         $t->same('margin: 10px', $block->setProperty('margin: 5px', 'margin', '10px'));
         $t->same('margin: 8px 5px 5px', $block->setProperty('margin: 5px', 'margin-top', '8px'));

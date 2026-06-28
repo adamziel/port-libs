@@ -2431,6 +2431,34 @@ return [
             $map->offsetLines(1, -2);
         });
     },
+    'source map drains leading generated lines with upstream negative line offsets' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d Cargo.lock parcel_sourcemap 2.1.1 lines 985-994,
+        // parcel_sourcemap-2.1.1/src/lib.rs::offset_lines lines 615-646.
+        $map = new SourceMap();
+        $sourceIndex = $map->addSource('leading-drain.css');
+        $map->setSourceContent($sourceIndex, ".drained{}\n.kept{}\n");
+        $map->addGeneratedMapping(0, 0);
+        $map->addMapping(1, 1, $sourceIndex, 1, 0, 'drainedRule');
+        $map->addGeneratedMapping(2, 4);
+        $map->addMapping(3, 2, $sourceIndex, 3, 1, 'keptRule');
+
+        $map->offsetLines(2, -2);
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+        $roundTrip = SourceMap::fromBuffer('/', $map->toBuffer());
+        $data = $map->toArray(null, false);
+
+        $t->same('I;EAGCC', $map->writeVlq());
+        $t->same([0, 1], array_column($decoded, 'generatedLine'));
+        $t->same([4, 2], array_column($decoded, 'generatedColumn'));
+        $t->same([null, 0], array_column($decoded, 'sourceIndex'));
+        $t->same([null, 3], array_column($decoded, 'originalLine'));
+        $t->same([null, 1], array_column($decoded, 'originalColumn'));
+        $t->same([null, 1], array_column($decoded, 'nameIndex'));
+        $t->same(['leading-drain.css'], $data['sources']);
+        $t->same([".drained{}\n.kept{}\n"], $data['sourcesContent']);
+        $t->same(['drainedRule', 'keptRule'], $data['names']);
+        $t->same('I;EAGCC', $roundTrip->writeVlq());
+    },
     'source map rejects negative line offsets beyond upstream generated span' => static function (TestRunner $t): void {
         $map = new SourceMap();
         $sourceIndex = $map->addSource('theme.css');
