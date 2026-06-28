@@ -18284,6 +18284,101 @@ XML;
         $t->true(is_string($encodedTransitions), 'XML sibling-transition metadata should encode for review');
         $t->true(!str_contains((string) $encodedTransitions, 'sibling-transition:hidden'), 'raw XML text should not be exposed in sibling-transition metadata');
     },
+    'summarizes docx package xml root child elements without exposing text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $hiddenText = 'root-child:hidden-payload';
+        $parts['customXml/root-child-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:review-root-child" xmlns:audit="urn:audit-root-child">
+  <review:front/>
+  <audit:checkpoint/>
+  <review:item/>
+  <review:item/>
+  <review:payload>{$hiddenText}</review:payload>
+</review:packet>
+XML;
+        $parts['word/settings-root-child.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:review="urn:settings-root-child">
+  <review:settingsAlpha/>
+  <review:settingsBeta/>
+  <review:settingsBeta/>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/root-child-review.xml'];
+        $settingsPart = $package['parts']['word/settings-root-child.xml'];
+        $rootChildElements = array_values(array_filter(
+            $summary['partXmlRootChildElements'],
+            static fn (array $child): bool => in_array(
+                $child['partName'],
+                ['customXml/root-child-review.xml', 'word/settings-root-child.xml'],
+                true,
+            ),
+        ));
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(5, $reviewPart['rootChildElementCount']);
+        $t->same(['audit:checkpoint', 'review:front', 'review:item', 'review:payload'], $reviewPart['rootChildElementNames']);
+        $t->same([
+            'audit:checkpoint' => 1,
+            'review:front' => 1,
+            'review:item' => 2,
+            'review:payload' => 1,
+        ], $reviewPart['rootChildElementNameCounts']);
+        $t->same([
+            'urn:audit-root-child' => 1,
+            'urn:review-root-child' => 4,
+        ], $reviewPart['rootChildElementNamespaceCounts']);
+        $t->same(['checkpoint' => 1, 'front' => 1, 'item' => 2, 'payload' => 1], $reviewPart['rootChildElementLocalNameCounts']);
+        $t->same(['audit' => 1, 'review' => 4], $reviewPart['rootChildElementPrefixCounts']);
+        $t->same('review:front', $reviewPart['rootChildElementFirstName']);
+        $t->same('review:payload', $reviewPart['rootChildElementLastName']);
+        $t->same('review:front', $reviewPart['rootChildElements'][0]['qualifiedName']);
+        $t->same(1, $reviewPart['rootChildElements'][0]['index']);
+        $t->same('audit:checkpoint', $reviewPart['rootChildElements'][1]['qualifiedName']);
+        $t->same(2, $reviewPart['rootChildElements'][1]['index']);
+        $t->same('review:payload', $reviewPart['rootChildElements'][4]['qualifiedName']);
+
+        $t->same(true, $settingsPart['xmlInspectable']);
+        $t->same(3, $settingsPart['rootChildElementCount']);
+        $t->same(['review:settingsAlpha', 'review:settingsBeta'], $settingsPart['rootChildElementNames']);
+        $t->same(['review:settingsAlpha' => 1, 'review:settingsBeta' => 2], $settingsPart['rootChildElementNameCounts']);
+        $t->same(['urn:settings-root-child' => 3], $settingsPart['rootChildElementNamespaceCounts']);
+        $t->same('review:settingsAlpha', $settingsPart['rootChildElementFirstName']);
+        $t->same('review:settingsBeta', $settingsPart['rootChildElementLastName']);
+
+        $t->true($summary['partXmlRootChildElementPartCount'] >= 2, 'summary root-child part count should include added XML parts');
+        $t->true($summary['partXmlRootChildElementCount'] >= 8, 'summary root-child count should include added XML children');
+        $t->true($summary['partXmlRootChildElementMaxCount'] >= 5, 'summary root-child max count should include custom XML children');
+        $t->true(in_array('customXml/root-child-review.xml', $summary['partXmlRootChildElementPartNames'], true), 'custom XML root-child part should be summarized');
+        $t->true(in_array('word/settings-root-child.xml', $summary['partXmlRootChildElementPartNames'], true), 'settings root-child part should be summarized');
+        $t->same(1, $summary['partXmlRootChildElementNameCounts']['audit:checkpoint']);
+        $t->same(2, $summary['partXmlRootChildElementNameCounts']['review:item']);
+        $t->same(2, $summary['partXmlRootChildElementNameCounts']['review:settingsBeta']);
+        $t->same(4, $summary['partXmlRootChildElementNamespaceCounts']['urn:review-root-child']);
+        $t->same(3, $summary['partXmlRootChildElementNamespaceCounts']['urn:settings-root-child']);
+        $t->same(7, $summary['partXmlRootChildElementPrefixCounts']['review']);
+
+        $t->same(8, count($rootChildElements));
+        $t->same('customXml/root-child-review.xml', $rootChildElements[0]['partName']);
+        $t->same('review:front', $rootChildElements[0]['qualifiedName']);
+        $t->same(1, $rootChildElements[0]['index']);
+        $t->same('audit:checkpoint', $rootChildElements[1]['qualifiedName']);
+        $t->same(2, $rootChildElements[1]['index']);
+        $t->same('word/settings-root-child.xml', $rootChildElements[5]['partName']);
+        $t->same('review:settingsAlpha', $rootChildElements[5]['qualifiedName']);
+        $t->same(1, $rootChildElements[5]['index']);
+        $t->same('review:settingsBeta', $rootChildElements[7]['qualifiedName']);
+        $t->same(3, $rootChildElements[7]['index']);
+
+        $encodedChildren = json_encode([$reviewPart['rootChildElements'], $settingsPart['rootChildElements'], $rootChildElements]);
+        $t->true(is_string($encodedChildren), 'XML root-child metadata should encode for review');
+        $t->true(!str_contains((string) $encodedChildren, 'root-child:hidden'), 'raw XML text should not be exposed in root-child metadata');
+    },
     'summarizes docx package xml element attributes without exposing values' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $rootState = 'root-state-hidden-alpha';
