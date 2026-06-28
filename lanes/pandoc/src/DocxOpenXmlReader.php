@@ -12478,6 +12478,7 @@ final class DocxOpenXmlReader
         $partCaseFoldBaseNames = $this->packagePartCaseFoldBaseNameSummary($partInventory);
         $partNameCharacters = $this->packagePartNameCharacterSummary($partInventory);
         $partXmlRoots = $this->packagePartXmlRootSummary($partInventory);
+        $partXmlNamespaceShadows = $this->packagePartXmlNamespaceShadowSummary($partInventory);
         $partXmlAttributeCooccurrences = $this->packagePartXmlElementAttributeCooccurrenceSummary($partInventory);
         $partXmlRelationshipReferences = $this->packagePartXmlRelationshipReferenceSummary($partInventory);
         $relationshipIdTopology = $this->relationshipIdTopologySummary($relationshipParts);
@@ -15310,6 +15311,28 @@ final class DocxOpenXmlReader
             'partXmlRelationshipReferenceRelationshipTypeCounts' => $partXmlRelationshipReferences['relationshipTypeCounts'],
             'partXmlRelationshipReferenceTargetPartCounts' => $partXmlRelationshipReferences['targetPartCounts'],
             'partXmlRelationshipReferenceTargetParts' => $partXmlRelationshipReferences['targetParts'],
+            'partXmlNamespaceShadowPartCount' => $partXmlNamespaceShadows['partCount'],
+            'partXmlNamespaceShadowCount' => $partXmlNamespaceShadows['count'],
+            'partXmlNamespaceShadowReboundCount' => $partXmlNamespaceShadows['reboundCount'],
+            'partXmlNamespaceShadowCompatibleRedeclarationCount' => $partXmlNamespaceShadows['compatibleRedeclarationCount'],
+            'partXmlNamespaceShadowDefaultCount' => $partXmlNamespaceShadows['defaultCount'],
+            'partXmlNamespaceShadowPrefixedCount' => $partXmlNamespaceShadows['prefixedCount'],
+            'partXmlNamespaceShadowPartNames' => $partXmlNamespaceShadows['partNames'],
+            'partXmlNamespaceShadowPrefixCount' => count($partXmlNamespaceShadows['prefixCounts']),
+            'partXmlNamespaceShadowPrefixCounts' => $partXmlNamespaceShadows['prefixCounts'],
+            'partXmlNamespaceShadowPrefixes' => $partXmlNamespaceShadows['prefixes'],
+            'partXmlNamespaceShadowUriCount' => count($partXmlNamespaceShadows['uriCounts']),
+            'partXmlNamespaceShadowUriCounts' => $partXmlNamespaceShadows['uriCounts'],
+            'partXmlNamespaceShadowUris' => $partXmlNamespaceShadows['uris'],
+            'partXmlNamespaceShadowPreviousUriCount' => count($partXmlNamespaceShadows['previousUriCounts']),
+            'partXmlNamespaceShadowPreviousUriCounts' => $partXmlNamespaceShadows['previousUriCounts'],
+            'partXmlNamespaceShadowPreviousUris' => $partXmlNamespaceShadows['previousUris'],
+            'partXmlNamespaceShadowElementPathCount' => count($partXmlNamespaceShadows['elementPathCounts']),
+            'partXmlNamespaceShadowElementPathCounts' => $partXmlNamespaceShadows['elementPathCounts'],
+            'partXmlNamespaceShadowElementPaths' => $partXmlNamespaceShadows['elementPaths'],
+            'partXmlNamespaceShadowElementNameCount' => count($partXmlNamespaceShadows['elementNameCounts']),
+            'partXmlNamespaceShadowElementNameCounts' => $partXmlNamespaceShadows['elementNameCounts'],
+            'partXmlNamespaceShadows' => $partXmlNamespaceShadows['items'],
             'partXmlInvalidPartNames' => $partXmlRoots['invalidPartNames'],
             'partXmlDeclarationCount' => $partXmlRoots['xmlDeclarationCount'],
             'partXmlDeclarationPartNames' => $partXmlRoots['xmlDeclarationPartNames'],
@@ -29018,6 +29041,202 @@ final class DocxOpenXmlReader
     }
 
     /**
+     * @return array{count:int, reboundCount:int, compatibleRedeclarationCount:int, defaultCount:int, prefixedCount:int, prefixCounts:array<string, int>, prefixes:list<string>, uriCounts:array<string, int>, uris:list<string>, previousUriCounts:array<string, int>, previousUris:list<string>, elementPathCounts:array<string, int>, elementPaths:list<string>, elementNameCounts:array<string, int>, items:list<array<string, mixed>>}
+     */
+    private function xmlNamespaceShadowProvenance(string $xml, string $partName): array
+    {
+        $empty = [
+            'count' => 0,
+            'reboundCount' => 0,
+            'compatibleRedeclarationCount' => 0,
+            'defaultCount' => 0,
+            'prefixedCount' => 0,
+            'prefixCounts' => [],
+            'prefixes' => [],
+            'uriCounts' => [],
+            'uris' => [],
+            'previousUriCounts' => [],
+            'previousUris' => [],
+            'elementPathCounts' => [],
+            'elementPaths' => [],
+            'elementNameCounts' => [],
+            'items' => [],
+        ];
+
+        if ($xml === '' || !class_exists(\XMLReader::class)) {
+            return $empty;
+        }
+
+        $reader = new \XMLReader();
+        $previous = libxml_use_internal_errors(true);
+        $ok = $reader->XML($xml, null, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+        if (!$ok) {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+
+            return $empty;
+        }
+
+        $items = [];
+        $prefixCounts = [];
+        $prefixes = [];
+        $uriCounts = [];
+        $uris = [];
+        $previousUriCounts = [];
+        $previousUris = [];
+        $elementPathCounts = [];
+        $elementPaths = [];
+        $elementNameCounts = [];
+        $ordinal = 0;
+        $reboundCount = 0;
+        $compatibleRedeclarationCount = 0;
+        $defaultCount = 0;
+        $prefixedCount = 0;
+        $elementStack = [];
+        $bindingsByDepth = [[]];
+
+        while ($reader->read()) {
+            if ($reader->nodeType !== \XMLReader::ELEMENT) {
+                continue;
+            }
+
+            $depth = max(0, $reader->depth);
+            $elementStack = array_slice($elementStack, 0, $depth);
+            $bindingsByDepth = array_slice($bindingsByDepth, 0, $depth + 1);
+            $inheritedBindings = is_array($bindingsByDepth[$depth] ?? null) ? $bindingsByDepth[$depth] : [];
+            $nextBindings = $inheritedBindings;
+            $elementQualifiedName = $reader->name === '' ? $reader->localName : $reader->name;
+            $elementStack[] = $elementQualifiedName;
+            $elementPath = '/' . implode('/', $elementStack);
+            $elementDepth = $depth + 1;
+            $elementNamespace = $reader->namespaceURI === '' ? null : $reader->namespaceURI;
+            $elementLocalName = $reader->localName === '' ? null : $reader->localName;
+            $elementPrefix = $reader->prefix === '' ? null : $reader->prefix;
+
+            if ($reader->moveToFirstAttribute()) {
+                do {
+                    if ($reader->namespaceURI !== 'http://www.w3.org/2000/xmlns/' && $reader->name !== 'xmlns') {
+                        continue;
+                    }
+
+                    $prefix = $reader->name === 'xmlns' ? 'default' : $reader->localName;
+                    if ($prefix === '') {
+                        $prefix = 'default';
+                    }
+
+                    $namespaceUri = $reader->value;
+                    $previousBinding = is_array($inheritedBindings[$prefix] ?? null)
+                        ? $inheritedBindings[$prefix]
+                        : null;
+                    if ($previousBinding !== null) {
+                        $previousUri = is_string($previousBinding['namespaceUri'] ?? null)
+                            ? $previousBinding['namespaceUri']
+                            : '';
+                        $rebound = $previousUri !== $namespaceUri;
+                        if ($rebound) {
+                            ++$reboundCount;
+                        } else {
+                            ++$compatibleRedeclarationCount;
+                        }
+
+                        ++$ordinal;
+                        if ($prefix === 'default') {
+                            ++$defaultCount;
+                        } else {
+                            ++$prefixedCount;
+                        }
+                        $namespaceUriKey = $namespaceUri === '' ? '(empty)' : $namespaceUri;
+                        $previousUriKey = $previousUri === '' ? '(empty)' : $previousUri;
+                        $prefixCounts[$prefix] = ($prefixCounts[$prefix] ?? 0) + 1;
+                        $uriCounts[$namespaceUriKey] = ($uriCounts[$namespaceUriKey] ?? 0) + 1;
+                        $previousUriCounts[$previousUriKey] = ($previousUriCounts[$previousUriKey] ?? 0) + 1;
+                        $elementPathCounts[$elementPath] = ($elementPathCounts[$elementPath] ?? 0) + 1;
+                        $elementNameCounts[$elementQualifiedName] = ($elementNameCounts[$elementQualifiedName] ?? 0) + 1;
+                        $this->appendUniqueString($prefixes, $prefix);
+                        if ($namespaceUri !== '') {
+                            $this->appendUniqueString($uris, $namespaceUri);
+                        }
+                        if ($previousUri !== '') {
+                            $this->appendUniqueString($previousUris, $previousUri);
+                        }
+                        $this->appendUniqueString($elementPaths, $elementPath);
+
+                        $items[] = [
+                            'ordinal' => $ordinal,
+                            'elementPath' => $elementPath,
+                            'elementDepth' => $elementDepth,
+                            'elementNamespace' => $elementNamespace,
+                            'elementLocalName' => $elementLocalName,
+                            'elementQualifiedName' => $elementQualifiedName,
+                            'elementPrefix' => $elementPrefix,
+                            'prefix' => $prefix,
+                            'isDefault' => $prefix === 'default',
+                            'namespaceUri' => $namespaceUri,
+                            'namespaceUriByteLength' => strlen($namespaceUri),
+                            'namespaceUriCrc32' => $namespaceUri === '' ? null : sprintf('%08x', crc32($namespaceUri)),
+                            'namespaceUriSha256' => $namespaceUri === '' ? null : hash('sha256', $namespaceUri),
+                            'previousNamespaceUri' => $previousUri,
+                            'previousNamespaceUriByteLength' => strlen($previousUri),
+                            'previousNamespaceUriCrc32' => $previousUri === '' ? null : sprintf('%08x', crc32($previousUri)),
+                            'previousNamespaceUriSha256' => $previousUri === '' ? null : hash('sha256', $previousUri),
+                            'previousElementPath' => is_string($previousBinding['elementPath'] ?? null)
+                                ? $previousBinding['elementPath']
+                                : null,
+                            'previousElementDepth' => is_int($previousBinding['elementDepth'] ?? null)
+                                ? $previousBinding['elementDepth']
+                                : null,
+                            'rebound' => $rebound,
+                            'compatibleRedeclaration' => !$rebound,
+                            'reviewPolicy' => 'xml-namespace-shadow-metadata-only',
+                        ];
+                    }
+
+                    $nextBindings[$prefix] = [
+                        'namespaceUri' => $namespaceUri,
+                        'elementPath' => $elementPath,
+                        'elementDepth' => $elementDepth,
+                    ];
+                } while ($reader->moveToNextAttribute());
+                $reader->moveToElement();
+            }
+
+            $bindingsByDepth[$depth + 1] = $nextBindings;
+        }
+
+        $reader->close();
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        ksort($prefixCounts, SORT_STRING);
+        ksort($uriCounts, SORT_STRING);
+        ksort($previousUriCounts, SORT_STRING);
+        ksort($elementPathCounts, SORT_STRING);
+        ksort($elementNameCounts, SORT_STRING);
+        sort($prefixes, SORT_STRING);
+        sort($uris, SORT_STRING);
+        sort($previousUris, SORT_STRING);
+        sort($elementPaths, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'reboundCount' => $reboundCount,
+            'compatibleRedeclarationCount' => $compatibleRedeclarationCount,
+            'defaultCount' => $defaultCount,
+            'prefixedCount' => $prefixedCount,
+            'prefixCounts' => $prefixCounts,
+            'prefixes' => $prefixes,
+            'uriCounts' => $uriCounts,
+            'uris' => $uris,
+            'previousUriCounts' => $previousUriCounts,
+            'previousUris' => $previousUris,
+            'elementPathCounts' => $elementPathCounts,
+            'elementPaths' => $elementPaths,
+            'elementNameCounts' => $elementNameCounts,
+            'items' => $items,
+        ];
+    }
+
+    /**
      * @return array{count:int, nameCounts:array<string, int>, names:list<string>, parentPathCounts:array<string, int>, parentPaths:list<string>, parentNamespaceCounts:array<string, int>, parentLocalNameCounts:array<string, int>, parentQualifiedNameCounts:array<string, int>, items:list<array<string, mixed>>}
      */
     private function xmlEntityReferenceProvenance(string $xml, string $partName): array
@@ -33727,6 +33946,21 @@ final class DocxOpenXmlReader
                 'xmlMarkupCompatibilityElementPathCounts' => [],
                 'xmlMarkupCompatibilityElementPaths' => [],
                 'xmlMarkupCompatibilityDeclarations' => [],
+                'xmlNamespaceShadowCount' => 0,
+                'xmlNamespaceShadowReboundCount' => 0,
+                'xmlNamespaceShadowCompatibleRedeclarationCount' => 0,
+                'xmlNamespaceShadowDefaultCount' => 0,
+                'xmlNamespaceShadowPrefixedCount' => 0,
+                'xmlNamespaceShadowPrefixCounts' => [],
+                'xmlNamespaceShadowPrefixes' => [],
+                'xmlNamespaceShadowUriCounts' => [],
+                'xmlNamespaceShadowUris' => [],
+                'xmlNamespaceShadowPreviousUriCounts' => [],
+                'xmlNamespaceShadowPreviousUris' => [],
+                'xmlNamespaceShadowElementPathCounts' => [],
+                'xmlNamespaceShadowElementPaths' => [],
+                'xmlNamespaceShadowElementNameCounts' => [],
+                'xmlNamespaceShadows' => [],
                 'xmlEntityReferenceCount' => 0,
                 'xmlEntityReferenceNameCounts' => [],
                 'xmlEntityReferenceNames' => [],
@@ -33942,6 +34176,7 @@ final class DocxOpenXmlReader
         $childNodes = $this->xmlChildNodeShapeProvenance($contents, $partName);
         $namespaceDeclarations = $this->xmlNamespaceDeclarationProvenance($contents, $partName);
         $markupCompatibilityDeclarations = $this->xmlMarkupCompatibilityDeclarationProvenance($contents, $partName);
+        $namespaceShadows = $this->xmlNamespaceShadowProvenance($contents, $partName);
         $entityReferences = $this->xmlEntityReferenceProvenance($contents, $partName);
         $elements = $this->xmlElementStructureProvenance($contents, $partName);
         $elementAncestorChains = $this->xmlElementAncestorChainProvenance($contents, $partName);
@@ -34129,6 +34364,21 @@ final class DocxOpenXmlReader
             'xmlMarkupCompatibilityElementPathCounts' => $markupCompatibilityDeclarations['elementPathCounts'],
             'xmlMarkupCompatibilityElementPaths' => $markupCompatibilityDeclarations['elementPaths'],
             'xmlMarkupCompatibilityDeclarations' => $markupCompatibilityDeclarations['items'],
+            'xmlNamespaceShadowCount' => $namespaceShadows['count'],
+            'xmlNamespaceShadowReboundCount' => $namespaceShadows['reboundCount'],
+            'xmlNamespaceShadowCompatibleRedeclarationCount' => $namespaceShadows['compatibleRedeclarationCount'],
+            'xmlNamespaceShadowDefaultCount' => $namespaceShadows['defaultCount'],
+            'xmlNamespaceShadowPrefixedCount' => $namespaceShadows['prefixedCount'],
+            'xmlNamespaceShadowPrefixCounts' => $namespaceShadows['prefixCounts'],
+            'xmlNamespaceShadowPrefixes' => $namespaceShadows['prefixes'],
+            'xmlNamespaceShadowUriCounts' => $namespaceShadows['uriCounts'],
+            'xmlNamespaceShadowUris' => $namespaceShadows['uris'],
+            'xmlNamespaceShadowPreviousUriCounts' => $namespaceShadows['previousUriCounts'],
+            'xmlNamespaceShadowPreviousUris' => $namespaceShadows['previousUris'],
+            'xmlNamespaceShadowElementPathCounts' => $namespaceShadows['elementPathCounts'],
+            'xmlNamespaceShadowElementPaths' => $namespaceShadows['elementPaths'],
+            'xmlNamespaceShadowElementNameCounts' => $namespaceShadows['elementNameCounts'],
+            'xmlNamespaceShadows' => $namespaceShadows['items'],
             'xmlEntityReferenceCount' => $entityReferences['count'],
             'xmlEntityReferenceNameCounts' => $entityReferences['nameCounts'],
             'xmlEntityReferenceNames' => $entityReferences['names'],
@@ -34330,6 +34580,180 @@ final class DocxOpenXmlReader
             'xmlElementAttributeCooccurrenceSameNamespacePairCount' => $elementAttributes['cooccurrenceSameNamespacePairCount'],
             'xmlElementAttributeCooccurrences' => $elementAttributes['cooccurrences'],
             'xmlElementAttributes' => $elementAttributes['items'],
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return array<string, mixed>
+     */
+    private function packagePartXmlNamespaceShadowSummary(array $partInventory): array
+    {
+        $partNames = [];
+        $prefixCounts = [];
+        $prefixes = [];
+        $uriCounts = [];
+        $uris = [];
+        $previousUriCounts = [];
+        $previousUris = [];
+        $elementPathCounts = [];
+        $elementPaths = [];
+        $elementNameCounts = [];
+        $items = [];
+        $partCount = 0;
+        $shadowCount = 0;
+        $reboundCount = 0;
+        $compatibleRedeclarationCount = 0;
+        $defaultCount = 0;
+        $prefixedCount = 0;
+
+        foreach ($partInventory as $partName => $part) {
+            $partName = (string) ($part['partName'] ?? $partName);
+            $partShadowCount = (int) ($part['xmlNamespaceShadowCount'] ?? 0);
+            if ($partShadowCount <= 0) {
+                continue;
+            }
+
+            ++$partCount;
+            $shadowCount += $partShadowCount;
+            $reboundCount += (int) ($part['xmlNamespaceShadowReboundCount'] ?? 0);
+            $compatibleRedeclarationCount += (int) ($part['xmlNamespaceShadowCompatibleRedeclarationCount'] ?? 0);
+            $defaultCount += (int) ($part['xmlNamespaceShadowDefaultCount'] ?? 0);
+            $prefixedCount += (int) ($part['xmlNamespaceShadowPrefixedCount'] ?? 0);
+            $this->appendUniqueString($partNames, $partName);
+
+            foreach (($part['xmlNamespaceShadowPrefixCounts'] ?? []) as $prefix => $count) {
+                if (!is_string($prefix) || $prefix === '') {
+                    continue;
+                }
+                $prefixCounts[$prefix] = ($prefixCounts[$prefix] ?? 0) + (int) $count;
+                $this->appendUniqueString($prefixes, $prefix);
+            }
+            foreach (($part['xmlNamespaceShadowUriCounts'] ?? []) as $namespaceUri => $count) {
+                if (!is_string($namespaceUri) || $namespaceUri === '') {
+                    continue;
+                }
+                $uriCounts[$namespaceUri] = ($uriCounts[$namespaceUri] ?? 0) + (int) $count;
+                if ($namespaceUri !== '(empty)') {
+                    $this->appendUniqueString($uris, $namespaceUri);
+                }
+            }
+            foreach (($part['xmlNamespaceShadowPreviousUriCounts'] ?? []) as $namespaceUri => $count) {
+                if (!is_string($namespaceUri) || $namespaceUri === '') {
+                    continue;
+                }
+                $previousUriCounts[$namespaceUri] = ($previousUriCounts[$namespaceUri] ?? 0) + (int) $count;
+                if ($namespaceUri !== '(empty)') {
+                    $this->appendUniqueString($previousUris, $namespaceUri);
+                }
+            }
+            foreach (($part['xmlNamespaceShadowElementPathCounts'] ?? []) as $elementPath => $count) {
+                if (!is_string($elementPath) || $elementPath === '') {
+                    continue;
+                }
+                $elementPathCounts[$elementPath] = ($elementPathCounts[$elementPath] ?? 0) + (int) $count;
+                $this->appendUniqueString($elementPaths, $elementPath);
+            }
+            foreach (($part['xmlNamespaceShadowElementNameCounts'] ?? []) as $elementName => $count) {
+                if (!is_string($elementName) || $elementName === '') {
+                    continue;
+                }
+                $elementNameCounts[$elementName] = ($elementNameCounts[$elementName] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlNamespaceShadows'] ?? []) as $shadow) {
+                if (!is_array($shadow)) {
+                    continue;
+                }
+
+                $items[] = [
+                    'partName' => $partName,
+                    'directory' => is_string($part['directory'] ?? null)
+                        ? $part['directory']
+                        : $this->packagePartDirectory($partName),
+                    'baseName' => is_string($part['baseName'] ?? null)
+                        ? $part['baseName']
+                        : $this->packagePartBaseName($partName),
+                    'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                    'contentTypeBase' => is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '',
+                    'contentTypeSource' => is_string($part['contentTypeSource'] ?? null) ? $part['contentTypeSource'] : 'missing',
+                    'ordinal' => (int) ($shadow['ordinal'] ?? 0),
+                    'elementPath' => is_string($shadow['elementPath'] ?? null) ? $shadow['elementPath'] : '/',
+                    'elementDepth' => (int) ($shadow['elementDepth'] ?? 0),
+                    'elementNamespace' => is_string($shadow['elementNamespace'] ?? null) ? $shadow['elementNamespace'] : null,
+                    'elementLocalName' => is_string($shadow['elementLocalName'] ?? null) ? $shadow['elementLocalName'] : null,
+                    'elementQualifiedName' => is_string($shadow['elementQualifiedName'] ?? null)
+                        ? $shadow['elementQualifiedName']
+                        : null,
+                    'elementPrefix' => is_string($shadow['elementPrefix'] ?? null) ? $shadow['elementPrefix'] : null,
+                    'prefix' => is_string($shadow['prefix'] ?? null) ? $shadow['prefix'] : '',
+                    'isDefault' => (bool) ($shadow['isDefault'] ?? false),
+                    'namespaceUri' => is_string($shadow['namespaceUri'] ?? null) ? $shadow['namespaceUri'] : '',
+                    'namespaceUriByteLength' => (int) ($shadow['namespaceUriByteLength'] ?? 0),
+                    'namespaceUriCrc32' => is_string($shadow['namespaceUriCrc32'] ?? null)
+                        ? $shadow['namespaceUriCrc32']
+                        : null,
+                    'namespaceUriSha256' => is_string($shadow['namespaceUriSha256'] ?? null)
+                        ? $shadow['namespaceUriSha256']
+                        : null,
+                    'previousNamespaceUri' => is_string($shadow['previousNamespaceUri'] ?? null)
+                        ? $shadow['previousNamespaceUri']
+                        : '',
+                    'previousNamespaceUriByteLength' => (int) ($shadow['previousNamespaceUriByteLength'] ?? 0),
+                    'previousNamespaceUriCrc32' => is_string($shadow['previousNamespaceUriCrc32'] ?? null)
+                        ? $shadow['previousNamespaceUriCrc32']
+                        : null,
+                    'previousNamespaceUriSha256' => is_string($shadow['previousNamespaceUriSha256'] ?? null)
+                        ? $shadow['previousNamespaceUriSha256']
+                        : null,
+                    'previousElementPath' => is_string($shadow['previousElementPath'] ?? null)
+                        ? $shadow['previousElementPath']
+                        : null,
+                    'previousElementDepth' => is_int($shadow['previousElementDepth'] ?? null)
+                        ? (int) $shadow['previousElementDepth']
+                        : null,
+                    'rebound' => (bool) ($shadow['rebound'] ?? false),
+                    'compatibleRedeclaration' => (bool) ($shadow['compatibleRedeclaration'] ?? false),
+                    'reviewPolicy' => is_string($shadow['reviewPolicy'] ?? null)
+                        ? $shadow['reviewPolicy']
+                        : 'xml-namespace-shadow-metadata-only',
+                ];
+            }
+        }
+
+        ksort($prefixCounts, SORT_STRING);
+        ksort($uriCounts, SORT_STRING);
+        ksort($previousUriCounts, SORT_STRING);
+        ksort($elementPathCounts, SORT_STRING);
+        ksort($elementNameCounts, SORT_STRING);
+        sort($partNames, SORT_STRING);
+        sort($prefixes, SORT_STRING);
+        sort($uris, SORT_STRING);
+        sort($previousUris, SORT_STRING);
+        sort($elementPaths, SORT_STRING);
+        usort(
+            $items,
+            static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName'])
+                ?: ((int) ($left['ordinal'] ?? 0) <=> (int) ($right['ordinal'] ?? 0)),
+        );
+
+        return [
+            'partCount' => $partCount,
+            'count' => $shadowCount,
+            'reboundCount' => $reboundCount,
+            'compatibleRedeclarationCount' => $compatibleRedeclarationCount,
+            'defaultCount' => $defaultCount,
+            'prefixedCount' => $prefixedCount,
+            'partNames' => $partNames,
+            'prefixCounts' => $prefixCounts,
+            'prefixes' => $prefixes,
+            'uriCounts' => $uriCounts,
+            'uris' => $uris,
+            'previousUriCounts' => $previousUriCounts,
+            'previousUris' => $previousUris,
+            'elementPathCounts' => $elementPathCounts,
+            'elementPaths' => $elementPaths,
+            'elementNameCounts' => $elementNameCounts,
+            'items' => $items,
         ];
     }
 

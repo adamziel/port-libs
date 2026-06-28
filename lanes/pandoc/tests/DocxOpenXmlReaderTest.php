@@ -26230,6 +26230,97 @@ XML;
         $t->true(in_array('embedded-package', $inventory['word/embeddings/loose-diagram-model.xlsx']['roles'], true), 'loose diagram workbook inventory role missing');
         $t->true(!isset($docx['media']['word/embeddings/loose-diagram-model.xlsx']), 'Loose diagram workbook package should not be exposed as document media');
     },
+    'summarizes docx xml namespace shadow provenance without exposing XML text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $hiddenText = 'namespace-shadow:hidden-text';
+        $parts['customXml/namespace-shadow-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<shadow:package xmlns:shadow="urn:shadow-root" xmlns="urn:default-root" xmlns:a="urn:a-root">
+  <section xmlns="urn:default-child">
+    <a:item xmlns:a="urn:a-child">{$hiddenText}
+      <a:repeat xmlns:a="urn:a-child"/>
+      <nested xmlns=""/>
+    </a:item>
+  </section>
+  <shadow:again xmlns:shadow="urn:shadow-root"/>
+</shadow:package>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/namespace-shadow-review.xml'];
+        $shadows = array_values(array_filter(
+            $summary['partXmlNamespaceShadows'],
+            static fn (array $shadow): bool => $shadow['partName'] === 'customXml/namespace-shadow-review.xml',
+        ));
+
+        $t->same(5, $reviewPart['xmlNamespaceShadowCount']);
+        $t->same(3, $reviewPart['xmlNamespaceShadowReboundCount']);
+        $t->same(2, $reviewPart['xmlNamespaceShadowCompatibleRedeclarationCount']);
+        $t->same(2, $reviewPart['xmlNamespaceShadowDefaultCount']);
+        $t->same(3, $reviewPart['xmlNamespaceShadowPrefixedCount']);
+        $t->same(['a' => 2, 'default' => 2, 'shadow' => 1], $reviewPart['xmlNamespaceShadowPrefixCounts']);
+        $t->same([
+            '(empty)' => 1,
+            'urn:a-child' => 2,
+            'urn:default-child' => 1,
+            'urn:shadow-root' => 1,
+        ], $reviewPart['xmlNamespaceShadowUriCounts']);
+        $t->same([
+            'urn:a-child' => 1,
+            'urn:a-root' => 1,
+            'urn:default-child' => 1,
+            'urn:default-root' => 1,
+            'urn:shadow-root' => 1,
+        ], $reviewPart['xmlNamespaceShadowPreviousUriCounts']);
+        $t->same([
+            '/shadow:package/section' => 1,
+            '/shadow:package/section/a:item' => 1,
+            '/shadow:package/section/a:item/a:repeat' => 1,
+            '/shadow:package/section/a:item/nested' => 1,
+            '/shadow:package/shadow:again' => 1,
+        ], $reviewPart['xmlNamespaceShadowElementPathCounts']);
+
+        $t->same('default', $shadows[0]['prefix']);
+        $t->same('urn:default-child', $shadows[0]['namespaceUri']);
+        $t->same('urn:default-root', $shadows[0]['previousNamespaceUri']);
+        $t->same(true, $shadows[0]['rebound']);
+        $t->same('/shadow:package', $shadows[0]['previousElementPath']);
+        $t->same('a', $shadows[1]['prefix']);
+        $t->same('urn:a-child', $shadows[1]['namespaceUri']);
+        $t->same('urn:a-root', $shadows[1]['previousNamespaceUri']);
+        $t->same(true, $shadows[1]['rebound']);
+        $t->same('xml-namespace-shadow-metadata-only', $shadows[1]['reviewPolicy']);
+        $t->same('a', $shadows[2]['prefix']);
+        $t->same('urn:a-child', $shadows[2]['namespaceUri']);
+        $t->same('urn:a-child', $shadows[2]['previousNamespaceUri']);
+        $t->same(false, $shadows[2]['rebound']);
+        $t->same(true, $shadows[2]['compatibleRedeclaration']);
+        $t->same('default', $shadows[3]['prefix']);
+        $t->same('', $shadows[3]['namespaceUri']);
+        $t->same('urn:default-child', $shadows[3]['previousNamespaceUri']);
+        $t->same(true, $shadows[3]['rebound']);
+        $t->same('shadow', $shadows[4]['prefix']);
+        $t->same('urn:shadow-root', $shadows[4]['namespaceUri']);
+        $t->same('urn:shadow-root', $shadows[4]['previousNamespaceUri']);
+        $t->same(false, $shadows[4]['rebound']);
+        $t->same(true, $shadows[4]['compatibleRedeclaration']);
+
+        $t->true($summary['partXmlNamespaceShadowPartCount'] >= 1, 'summary namespace shadow part count should include custom XML');
+        $t->true($summary['partXmlNamespaceShadowCount'] >= 5, 'summary namespace shadow count should include custom XML');
+        $t->true($summary['partXmlNamespaceShadowReboundCount'] >= 3, 'summary rebound count should include custom XML');
+        $t->true($summary['partXmlNamespaceShadowCompatibleRedeclarationCount'] >= 2, 'summary compatible redeclaration count should include custom XML');
+        $t->true(in_array('customXml/namespace-shadow-review.xml', $summary['partXmlNamespaceShadowPartNames'], true), 'custom XML namespace shadow part should be summarized');
+        $t->same(2, $summary['partXmlNamespaceShadowPrefixCounts']['a'] ?? 0);
+        $t->same(2, $summary['partXmlNamespaceShadowPrefixCounts']['default'] ?? 0);
+        $t->true(in_array('urn:a-child', $summary['partXmlNamespaceShadowUris'], true), 'rebound namespace URI should be summarized');
+        $t->true(in_array('urn:a-root', $summary['partXmlNamespaceShadowPreviousUris'], true), 'previous namespace URI should be summarized');
+
+        $encodedShadows = json_encode([$reviewPart['xmlNamespaceShadows'], $shadows]);
+        $t->true(is_string($encodedShadows), 'namespace shadow metadata should encode for review');
+        $t->true(!str_contains((string) $encodedShadows, $hiddenText), 'raw XML text should not be exposed in namespace shadow metadata');
+    },
     'summarizes docx xml relationship reference attributes without exposing XML text' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $packageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
