@@ -17882,6 +17882,107 @@ XML;
         $t->true(is_string($encodedSections), 'XML CDATA metadata should encode for review');
         $t->true(!str_contains((string) $encodedSections, 'hidden-payload'), 'raw XML CDATA text should not be exposed in summary metadata');
     },
+    'summarizes docx package xml text nodes without exposing text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $titleText = 'package-text-review:hidden-payload-alpha';
+        $itemText = 'item-text-review:hidden-payload-beta';
+        $settingsText = 'settings-text-review:hidden-payload-gamma';
+        $parts['customXml/text-node-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:review-text">
+  <review:title>{$titleText}</review:title>
+  <review:item>  {$itemText}  </review:item>
+  <review:empty/>
+</review:packet>
+XML;
+        $parts['word/settings-text-node.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docVars>
+    <w:docVar w:name="Review">{$settingsText}</w:docVar>
+  </w:docVars>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/text-node-review.xml'];
+        $settingsPart = $package['parts']['word/settings-text-node.xml'];
+        $textNodes = array_values(array_filter(
+            $summary['partXmlTextNodes'],
+            static fn (array $node): bool => in_array($node['partName'], ['customXml/text-node-review.xml', 'word/settings-text-node.xml'], true),
+        ));
+        $textByteLength =
+            strlen("\n  ")
+            + strlen($titleText)
+            + strlen("\n  ")
+            + strlen('  ' . $itemText . '  ')
+            + strlen("\n  ")
+            + strlen("\n")
+            + strlen("\n  ")
+            + strlen("\n    ")
+            + strlen($settingsText)
+            + strlen("\n  ")
+            + strlen("\n");
+        $nonWhitespaceByteLength =
+            strlen($titleText)
+            + strlen('  ' . $itemText . '  ')
+            + strlen($settingsText);
+
+        $t->same(9, $summary['partXmlInspectableCount']);
+        $t->true($summary['partXmlTextNodePartCount'] >= 2, 'summary text-node part count should include the added XML parts');
+        $t->true($summary['partXmlTextNodeCount'] >= 11, 'summary text-node count should include the added text nodes');
+        $t->true($summary['partXmlTextNodeByteLength'] >= $textByteLength, 'summary text-node bytes should include the added XML parts');
+        $t->true($summary['partXmlTextNodeWhitespaceCount'] >= 8, 'summary whitespace text-node count should include fixture indentation');
+        $t->true($summary['partXmlTextNodeNonWhitespaceCount'] >= 3, 'summary non-whitespace text-node count should include review payloads');
+        $t->true($summary['partXmlTextNodeNonWhitespaceByteLength'] >= $nonWhitespaceByteLength, 'summary non-whitespace text-node bytes should include review payload nodes');
+        $t->true(in_array('customXml/text-node-review.xml', $summary['partXmlTextNodePartNames'], true), 'custom XML text-node part should be summarized');
+        $t->true(in_array('word/settings-text-node.xml', $summary['partXmlTextNodePartNames'], true), 'settings text-node part should be summarized');
+        $t->same(1, $summary['partXmlTextNodeParentPathCounts']['/review:packet/review:title']);
+        $t->same(1, $summary['partXmlTextNodeParentPathCounts']['/review:packet/review:item']);
+        $t->same(1, $summary['partXmlTextNodeParentPathCounts']['/w:settings/w:docVars/w:docVar']);
+        $t->true(in_array('/review:packet/review:title', $summary['partXmlTextNodeParentPaths'], true), 'review title parent path missing');
+        $t->true(in_array('/w:settings/w:docVars/w:docVar', $summary['partXmlTextNodeParentPaths'], true), 'settings docVar parent path missing');
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(6, $reviewPart['xmlTextNodeCount']);
+        $t->same(4, $reviewPart['xmlTextNodeWhitespaceCount']);
+        $t->same(2, $reviewPart['xmlTextNodeNonWhitespaceCount']);
+        $t->same([
+            '/review:packet' => 4,
+            '/review:packet/review:item' => 1,
+            '/review:packet/review:title' => 1,
+        ], $reviewPart['xmlTextNodeParentPathCounts']);
+        $t->same('/review:packet', $reviewPart['xmlTextNodes'][0]['parentPath']);
+        $t->same(true, $reviewPart['xmlTextNodes'][0]['isWhitespaceOnly']);
+        $t->same('/review:packet/review:title', $reviewPart['xmlTextNodes'][1]['parentPath']);
+        $t->same(false, $reviewPart['xmlTextNodes'][1]['isWhitespaceOnly']);
+        $t->same(strlen($titleText), $reviewPart['xmlTextNodes'][1]['byteLength']);
+        $t->same(sprintf('%08x', crc32($titleText)), $reviewPart['xmlTextNodes'][1]['crc32']);
+        $t->same(hash('sha256', $titleText), $reviewPart['xmlTextNodes'][1]['sha256']);
+        $t->same('/review:packet/review:item', $reviewPart['xmlTextNodes'][3]['parentPath']);
+        $t->same(strlen('  ' . $itemText . '  '), $reviewPart['xmlTextNodes'][3]['byteLength']);
+
+        $t->same(5, $settingsPart['xmlTextNodeCount']);
+        $t->same(4, $settingsPart['xmlTextNodeWhitespaceCount']);
+        $t->same(1, $settingsPart['xmlTextNodeNonWhitespaceCount']);
+        $t->same('/w:settings/w:docVars/w:docVar', $settingsPart['xmlTextNodes'][2]['parentPath']);
+        $t->same(3, $settingsPart['xmlTextNodes'][2]['parentDepth']);
+        $t->same(strlen($settingsText), $settingsPart['xmlTextNodes'][2]['byteLength']);
+        $t->same(hash('sha256', $settingsText), $settingsPart['xmlTextNodes'][2]['sha256']);
+
+        $t->same('customXml/text-node-review.xml', $textNodes[0]['partName']);
+        $t->same('/review:packet', $textNodes[0]['parentPath']);
+        $t->same('customXml/text-node-review.xml', $textNodes[1]['partName']);
+        $t->same('/review:packet/review:title', $textNodes[1]['parentPath']);
+        $t->same('word/settings-text-node.xml', $textNodes[8]['partName']);
+        $t->same('/w:settings/w:docVars/w:docVar', $textNodes[8]['parentPath']);
+        $t->true(!isset($reviewPart['xmlTextNodes'][1]['data']), 'raw XML text should not be exposed on part metadata');
+        $encodedTextNodes = json_encode([$reviewPart['xmlTextNodes'], $settingsPart['xmlTextNodes'], $textNodes]);
+        $t->true(is_string($encodedTextNodes), 'XML text-node metadata should encode for review');
+        $t->true(!str_contains((string) $encodedTextNodes, 'hidden-payload'), 'raw XML text should not be exposed in summary metadata');
+    },
     'summarizes docx package xml doctype declarations without exposing subsets' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $reviewSubset = '<!ENTITY reviewer "hidden-reviewer">' . "\n";
