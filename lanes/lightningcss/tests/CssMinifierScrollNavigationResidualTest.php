@@ -30,4 +30,11 @@ return [
             static fn () => $minifier->minify('a::before:target-current { color: green }')
         );
     },
+    'css minifier maps upstream node transform scroll navigation draft syntax row' => static function (TestRunner $t): void {
+        $t->same(
+            'a:target-current{color:red}',
+            (new CssMinifier())->minify('a:target-current { color: red }'),
+            'upstream node/test/transform.test.mjs line 32'
+        );
+    },
 ];

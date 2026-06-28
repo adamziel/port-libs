@@ -2202,6 +2202,8 @@ final class TransitionPrefixer
         $browserTargets = isset($targets['browsers']) && is_array($targets['browsers'])
             ? $targets['browsers']
             : $targets;
+        $colorsExcluded = $this->featureListContains($targets['exclude'] ?? [], 'colors');
+        $vendorPrefixesExcluded = $this->featureListContains($targets['exclude'] ?? [], 'vendor-prefixes');
         $lightDarkExcluded = $this->featureListContains($targets['exclude'] ?? [], 'light-dark');
         $mediaRangeIncluded = $this->featureListContains($targets['include'] ?? [], 'media-range-syntax')
             || $this->featureListContains($targets['include'] ?? [], 'media-queries');
@@ -2365,19 +2367,19 @@ final class TransitionPrefixer
             || (isset($normalized['safari']) && !$this->targetAtLeast($normalized, 'safari', [9]))
             || (isset($normalized['samsung']) && !$this->targetAtLeast($normalized, 'samsung', [7]));
 
-        return [
+        $options = [
             'boxShadowNeedsWebkit' => $needsWebkitBoxShadow,
             'boxShadowNeedsMoz' => $needsMozBoxShadow,
             'boxShadowDropLegacyPrefixes' => !$needsWebkitBoxShadow && !$needsMozBoxShadow && (
                 $this->targetAtLeast($normalized, 'chrome', [95])
                 || $this->targetAtLeast($normalized, 'safari', [16])
             ),
-            'boxShadowSupportsAdvancedColor' => $supportsAdvancedColor,
-            'boxShadowDropOverriddenFallbacks' => $supportsAdvancedColor,
-            'advancedColorSupportsNative' => $supportsAdvancedColor,
-            'advancedColorNeedsSrgbFallback' => $needsSrgbFallback,
-            'advancedColorUsesP3Fallback' => $usesP3Fallback,
-            'advancedColorNeedsLabFallback' => $needsLabFallback,
+            'boxShadowSupportsAdvancedColor' => !$colorsExcluded && $supportsAdvancedColor,
+            'boxShadowDropOverriddenFallbacks' => !$colorsExcluded && $supportsAdvancedColor,
+            'advancedColorSupportsNative' => !$colorsExcluded && $supportsAdvancedColor,
+            'advancedColorNeedsSrgbFallback' => !$colorsExcluded && $needsSrgbFallback,
+            'advancedColorUsesP3Fallback' => !$colorsExcluded && $usesP3Fallback,
+            'advancedColorNeedsLabFallback' => !$colorsExcluded && $needsLabFallback,
             'alphaHexNeedsRgbaFallback' => $alphaHexNeedsRgbaFallback,
             'modernColorNeedsLegacySyntax' => $modernColorNeedsLegacySyntax,
             'modernColorNeedsCanonicalization' => $modernColorNeedsCanonicalization,
@@ -3014,6 +3016,23 @@ final class TransitionPrefixer
             'transitionNeedsMoz' => $this->targetInRange($normalized, 'firefox', [4], [15]),
             'transitionNeedsO' => $this->targetInRange($normalized, 'opera', [10], [12]),
         ];
+
+        return $vendorPrefixesExcluded ? $this->withoutVendorPrefixOptions($options) : $options;
+    }
+
+    /**
+     * @param array<string, bool> $options
+     * @return array<string, bool>
+     */
+    private function withoutVendorPrefixOptions(array $options): array
+    {
+        foreach (array_keys($options) as $name) {
+            if (preg_match('/Needs(?:Old)?(?:Webkit|Moz|Ms|O)(?:Prefix)?$/', $name) === 1) {
+                $options[$name] = false;
+            }
+        }
+
+        return $options;
     }
 
     /**

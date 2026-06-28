@@ -478,4 +478,13 @@ CSS;
             (new NestingTransformer())->lower($css)
         );
     },
+    'nesting transformer maps upstream node transform include nesting row' => static function (TestRunner $t): void {
+        $t->same(
+            '.foo .bar{color:red}',
+            (new NestingTransformer())->transformForTargets('.foo { .bar { color: red }}', [
+                'include' => ['Nesting'],
+            ]),
+            'upstream node/test/transform.test.mjs line 46'
+        );
+    },
 ];

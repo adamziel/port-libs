@@ -6437,4 +6437,29 @@ CSS;
             (new TransitionPrefixer())->prefixLegacySafari($css)
         );
     },
+    'transition prefixer maps upstream node transform feature exclusion rows' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{color:lch(50.998% 135.363 338)}',
+            $prefixer->prefixForTargets('.foo { color: lch(50.998% 135.363 338) }', [
+                'browsers' => ['chrome' => 80],
+                'exclude' => ['Colors'],
+            ]),
+            'upstream node/test/transform.test.mjs line 57'
+        );
+        $t->same(
+            '.foo{user-select:none}',
+            $prefixer->prefixForTargets('.foo { user-select: none }', [
+                'browsers' => ['safari' => 15],
+                'exclude' => ['VendorPrefixes'],
+            ]),
+            'upstream node/test/transform.test.mjs line 71'
+        );
+        $t->same(
+            '.foo{color:#0000}',
+            $prefixer->prefixForTargets('.foo { color: transparent; }', ['android' => 95]),
+            'upstream node/test/transform.test.mjs line 85'
+        );
+    },
 ];
