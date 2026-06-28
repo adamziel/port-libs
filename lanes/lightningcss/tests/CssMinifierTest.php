@@ -1170,6 +1170,26 @@ CSS)
             $minifier->minify('.foo { color: lch(from currentColor l c sin(h)); }')
         );
     },
+    'css minifier maps upstream residual relative color rows' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+        $cases = [
+            [19258, 'rgb(from indianred 255 g b)', '#ff5c5c'],
+            [19259, 'rgb(from indianred r g b / .5)', '#cd5c5c80'],
+            [19260, 'rgb(from rgba(205, 92, 92, .5) r g b / calc(alpha + .2))', '#cd5c5cb3'],
+            [19264, 'rgb(from rgba(205, 92, 92, .5) r g b / calc(alpha + .2))', '#cd5c5cb3'],
+            [19564, 'hsl(from rebeccapurple h s none / alpha)', '#000'],
+            [19581, 'hsl(from hsl(none none none / none) h s l / alpha)', '#0000'],
+            [19714, 'hwb(from rebeccapurple h w none / alpha)', '#93f'],
+        ];
+
+        foreach ($cases as [$line, $input, $expectedColor]) {
+            $t->same(
+                '.foo{color:' . $expectedColor . '}',
+                $minifier->minify('.foo { color: ' . $input . '; }'),
+                'upstream src/lib.rs::test_relative_color line ' . $line
+            );
+        }
+    },
     'css minifier maps upstream color calc components in custom property values' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
