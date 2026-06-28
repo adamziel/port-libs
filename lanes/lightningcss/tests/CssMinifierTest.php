@@ -487,12 +487,19 @@ CSS
     'css minifier maps upstream border spacing value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
-        $t->same('.foo{border-spacing:0}', $minifier->minify('.foo { border-spacing: 0px; }'));
-        $t->same('.foo{border-spacing:0}', $minifier->minify('.foo { border-spacing: 0px 0px; }'));
-        $t->same('.foo{border-spacing:12px 0}', $minifier->minify('.foo { border-spacing: 12px   0px; }'));
-        $t->same('.foo{border-spacing:6px 0}', $minifier->minify('.foo { border-spacing: calc(3px * 2) calc(5px * 0); }'));
-        $t->same('.foo{border-spacing:6px 8px}', $minifier->minify('.foo { border-spacing: calc(3px * 2) max(0px, 8px); }'));
-        $t->same('.foo{border-spacing:-20px}', $minifier->minify('.foo { border-spacing: -20px; }'));
+        // Pinned upstream 22bdda3d src/lib.rs::test_border_spacing lines 438-502.
+        $cases = [
+            [439, '.foo { border-spacing: 0px; }', '.foo{border-spacing:0}'],
+            [443, '.foo { border-spacing: 0px 0px; }', '.foo{border-spacing:0}'],
+            [447, '.foo { border-spacing: 12px   0px; }', '.foo{border-spacing:12px 0}'],
+            [451, '.foo { border-spacing: calc(3px * 2) calc(5px * 0); }', '.foo{border-spacing:6px 0}'],
+            [457, '.foo { border-spacing: calc(3px * 2) max(0px, 8px); }', '.foo{border-spacing:6px 8px}'],
+            [496, '.foo { border-spacing: -20px; }', '.foo{border-spacing:-20px}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_border_spacing line ' . $line);
+        }
     },
     'css minifier maps upstream math function declaration rows' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
