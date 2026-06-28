@@ -7485,6 +7485,9 @@ final class OpenDocumentPackage
         if (self::isTemplatePackagePartName($part)) {
             $roles[] = 'template-package';
         }
+        if (self::isDictionaryPackagePartName($part)) {
+            $roles[] = 'dictionary-package';
+        }
 
         return array_values(array_unique($roles));
     }
