@@ -252,6 +252,70 @@ return [
         $t->same(null, $plain['uriReferenceFragment']);
         $t->same(false, $plain['hasUriReferenceSuffix']);
     },
+    'summarizes OPC relationship target query and fragment manifests before package handoff' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml?revision=42"/>
+  <Relationship Id="rIdFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml#notes"/>
+  <Relationship Id="rIdImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png?crop=hero#source"/>
+  <Relationship Id="rIdExternalAudit" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/audit?packet=1#source" TargetMode="External"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/styles.xml', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/footnotes.xml', 'data' => '<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/media/image.png', 'data' => 'PNG'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $summary = $graph->relationshipTargetSummary();
+        $targets = [];
+        foreach ($summary['targets'] as $target) {
+            $targets[$target['source'] . ':' . $target['id']] = $target;
+        }
+
+        $t->same(2, $summary['queryTargetCount']);
+        $t->same(2, $summary['fragmentTargetCount']);
+        $t->same([
+            '/word/document.xml:rIdImage',
+            '/word/document.xml:rIdStyles',
+        ], $summary['queryTargetKeys']);
+        $t->same([
+            '/word/document.xml:rIdFootnotes',
+            '/word/document.xml:rIdImage',
+        ], $summary['fragmentTargetKeys']);
+        $t->same([
+            '/word/media/image.png?crop=hero#source',
+            '/word/styles.xml?revision=42',
+        ], $summary['queryTargets']);
+        $t->same([
+            '/word/footnotes.xml#notes',
+            '/word/media/image.png?crop=hero#source',
+        ], $summary['fragmentTargets']);
+        $t->same([
+            '/word/media/image.png',
+            '/word/styles.xml',
+        ], $summary['queryTargetParts']);
+        $t->same([
+            '/word/footnotes.xml',
+            '/word/media/image.png',
+        ], $summary['fragmentTargetParts']);
+
+        $t->same('revision=42', $targets['/word/document.xml:rIdStyles']['targetQuery']);
+        $t->same(null, $targets['/word/document.xml:rIdStyles']['targetFragment']);
+        $t->same(null, $targets['/word/document.xml:rIdFootnotes']['targetQuery']);
+        $t->same('notes', $targets['/word/document.xml:rIdFootnotes']['targetFragment']);
+        $t->same('crop=hero', $targets['/word/document.xml:rIdImage']['targetQuery']);
+        $t->same('source', $targets['/word/document.xml:rIdImage']['targetFragment']);
+        $t->same(true, $targets['/word/document.xml:rIdExternalAudit']['external']);
+        $t->same(null, $targets['/word/document.xml:rIdExternalAudit']['targetQuery']);
+        $t->same(null, $targets['/word/document.xml:rIdExternalAudit']['targetFragment']);
+    },
     'preflights OPC ZIP entry manifest before XML package handoff' => static function (TestRunner $t): void {
         $package = ZipPackage::fromParts([
             ['name' => '[Content_Types].xml', 'data' => '<Types/>'],
