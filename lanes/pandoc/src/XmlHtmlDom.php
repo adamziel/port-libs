@@ -27223,6 +27223,8 @@ final class XmlHtmlDom
             'allow' => self::attributeOrNull($iframe, 'allow'),
             'sandboxTokens' => $iframe->hasAttribute('sandbox') ? self::spaceSeparatedTokens($iframe->getAttribute('sandbox')) : [],
             'allowFullscreen' => $iframe->hasAttribute('allowfullscreen'),
+            'credentialless' => $iframe->hasAttribute('credentialless'),
+            'credentiallessRaw' => self::attributeOrNull($iframe, 'credentialless'),
         ];
 
         $fallbackText = self::normalizedText($iframe);
@@ -27284,6 +27286,14 @@ final class XmlHtmlDom
             $summary += $loading;
             if (($loading['loadingValid'] ?? true) !== true) {
                 $summary['iframePolicyIssueCodes'][] = 'invalid-iframe-loading-state';
+            }
+        }
+
+        if ($iframe->hasAttribute('credentialless')) {
+            $credentialless = self::iframeCredentiallessPolicySummary($iframe->getAttribute('credentialless'));
+            $summary += $credentialless;
+            foreach ($credentialless['iframeCredentiallessIssueCodes'] as $issueCode) {
+                self::appendUniqueString($summary['iframePolicyIssueCodes'], $issueCode);
             }
         }
 
@@ -27437,6 +27447,35 @@ final class XmlHtmlDom
             'loadingRaw' => $value,
             'loadingState' => $valid ? $loading : null,
             'loadingValid' => $valid,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function iframeCredentiallessPolicySummary(string $value): array
+    {
+        $normalized = strtolower(trim($value));
+        $canonical = $normalized === '' || $normalized === 'credentialless';
+        $issueCodes = $canonical ? [] : ['noncanonical-iframe-credentialless-value'];
+        $issues = [];
+
+        if (!$canonical) {
+            $issues[] = [
+                'code' => 'noncanonical-iframe-credentialless-value',
+                'credentiallessRaw' => $value,
+            ];
+        }
+
+        return [
+            'iframeCredentiallessReviewPolicy' => 'iframe-credentialless-network-isolation-review',
+            'iframeCredentialless' => true,
+            'iframeCredentiallessRaw' => $value,
+            'iframeCredentiallessState' => 'enabled',
+            'iframeCredentiallessBooleanAttribute' => true,
+            'iframeCredentiallessCanonical' => $canonical,
+            'iframeCredentiallessIssueCodes' => $issueCodes,
+            'iframeCredentiallessIssues' => $issues,
         ];
     }
 
