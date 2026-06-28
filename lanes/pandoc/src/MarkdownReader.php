@@ -305,7 +305,9 @@ final class MarkdownReader
                 $blocks[] = $latexTableBlock;
                 continue;
             }
-            $rawTexBlock = $paragraph === [] && $listStack === [] ? $this->tryReadRawTexBlock($lines, $index) : null;
+            $rawTexBlock = $paragraph === [] && $listStack === [] && $this->rawTexEnabled()
+                ? $this->tryReadRawTexBlock($lines, $index)
+                : null;
             if ($rawTexBlock !== null) {
                 $blocks[] = $rawTexBlock;
                 continue;
@@ -9097,7 +9099,7 @@ final class MarkdownReader
                 continue;
             }
 
-            $rawTex = $this->tryParseRawTexInline($text, $offset);
+            $rawTex = $this->rawTexEnabled() ? $this->tryParseRawTexInline($text, $offset) : null;
             if ($rawTex !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $rawTex['node'];
@@ -10333,6 +10335,14 @@ final class MarkdownReader
             'format' => $format,
             'text' => $text,
         ]);
+    }
+
+    private function rawTexEnabled(): bool
+    {
+        $options = $this->options;
+        $options['format'] = $this->markdownFormatWithExtensionOption();
+
+        return MarkdownFormatProfile::rawTexEnabled($options, true);
     }
 
     /**

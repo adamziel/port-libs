@@ -57,6 +57,8 @@ final class MarkdownFormatProfile
         'inline_attribute' => 'inline_attributes',
         'markdown_attribute' => 'inline_attributes',
         'line_block' => 'line_blocks',
+        'raw_latex' => 'raw_tex',
+        'latex_macros' => 'raw_tex',
         'subscripts' => 'subscript',
         'superscripts' => 'superscript',
         'task_list' => 'task_lists',
