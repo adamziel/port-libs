@@ -118,6 +118,9 @@ return [
         $readerItems = $indexBy($readerReports['items'], 'part');
         $manifestByPart = $indexBy($result['manifest'], 'part');
         $readerProvenance = $result['importReport']['manifest']['packageProvenance'];
+        $readerMediaResources = $readerProvenance['mediaResources'];
+        $readerMediaResourceByPart = $indexBy($readerMediaResources['items'], 'part');
+        $readerMediaResourcePrecedenceByPart = $indexBy($readerMediaResources['packageRolePrecedenceItems'], 'part');
 
         $t->same($readerReports, $result['document']->attr('packageReports'));
         $t->same($readerReports, $result['metadata']['odfPackageReports']);
@@ -207,6 +210,20 @@ return [
         $t->same(null, $manifestPreview['byteSha256']);
         $t->same('report-package-bytes-blocked', $manifestPreview['byteExposurePolicy']);
         $t->same(['Pictures/hero.png'], array_column($result['media'], 'part'));
+        $t->same(1, $readerMediaResources['mediaResourceCount']);
+        $t->same(5, $readerMediaResources['packageRolePrecedenceCount']);
+        $t->same([
+            'Pictures/hero.png',
+            'Reports/Quarterly/report.odt',
+            'Reports/Quarterly/preview.png',
+            'Reports/Quarterly/export.pdf',
+            'Reports/Quarterly/missing.pdf',
+            'Reports/Quarterly/encrypted.pdf',
+        ], array_column($readerMediaResources['items'], 'part'));
+        $t->same(['report-package'], $readerMediaResourceByPart['Reports/Quarterly/preview.png']['packageRolePrecedence']);
+        $t->same(false, $readerMediaResourceByPart['Reports/Quarterly/preview.png']['mediaResource']);
+        $t->same(['odf-media-resource-package-role-precedence'], $readerMediaResourceByPart['Reports/Quarterly/preview.png']['issues']);
+        $t->same('report-package-bytes-blocked', $readerMediaResourcePrecedenceByPart['Reports/Quarterly/preview.png']['byteExposurePolicy']);
         $t->same(7, $readerProvenance['reportPackagePartCount']);
         $t->same(7, $readerProvenance['roleCounts']['report-package']);
         $t->same(1, $readerProvenance['undeclaredRoleCounts']['report-package']);
@@ -231,6 +248,9 @@ return [
         $compactReports = $compactSummary['packageReports'];
         $compactItems = $indexBy($compactReports['items'], 'packagePath');
         $reviewByPath = $indexBy($compactSummary['manifestReview']['items'], 'path');
+        $compactMediaResources = $compactSummary['manifestReview']['mediaResources'];
+        $compactMediaResourceByPart = $indexBy($compactMediaResources['items'], 'part');
+        $compactMediaResourcePrecedenceByPart = $indexBy($compactMediaResources['packageRolePrecedenceItems'], 'part');
         $inventory = $compactSummary['packageInventory'];
 
         $t->same(0, $compactSummary['packageForms']['count']);
@@ -264,6 +284,20 @@ return [
         $t->same(strlen($previewBytes), $reviewByPath['Reports/Quarterly/preview.png']['storedByteLength']);
         $t->same('report-package-bytes-blocked', $reviewByPath['Reports/Quarterly/preview.png']['byteExposurePolicy']);
         $t->same('report', $reviewByPath['Reports/Quarterly/preview.png']['manifestMediaFamily']);
+        $t->same(1, $compactMediaResources['mediaResourceCount']);
+        $t->same(5, $compactMediaResources['packageRolePrecedenceCount']);
+        $t->same([
+            'Pictures/hero.png',
+            'Reports/Quarterly/report.odt',
+            'Reports/Quarterly/preview.png',
+            'Reports/Quarterly/export.pdf',
+            'Reports/Quarterly/missing.pdf',
+            'Reports/Quarterly/encrypted.pdf',
+        ], array_column($compactMediaResources['items'], 'part'));
+        $t->same(['report-package'], $compactMediaResourceByPart['Reports/Quarterly/preview.png']['packageRolePrecedence']);
+        $t->same(false, $compactMediaResourceByPart['Reports/Quarterly/preview.png']['mediaResource']);
+        $t->same(['odf-media-resource-package-role-precedence'], $compactMediaResourceByPart['Reports/Quarterly/preview.png']['issues']);
+        $t->same('report-package-bytes-blocked', $compactMediaResourcePrecedenceByPart['Reports/Quarterly/preview.png']['byteExposurePolicy']);
         $t->same(6, $compactSummary['manifestReview']['manifestMediaFamilyCounts']['report']);
         $t->same(7, $inventory['reportPackagePartCount']);
         $t->same(0, $inventory['formPackagePartCount']);
