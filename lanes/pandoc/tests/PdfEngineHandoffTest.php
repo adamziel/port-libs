@@ -7725,6 +7725,96 @@ return [
         $t->same($expectedPolicy, $sequence['finalTypstOutputFormatPolicy']);
     },
 
+    'fake runner flags typst bundle output as multi file boundary provenance' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/bundle-format.pdf',
+            'source' => '= Typst Bundle Boundary Packet',
+            'engineOptions' => ['--format=bundle'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst bundle boundary packet\n%%EOF\n";
+        $expectedIssues = [
+            'explicit-format-not-pdf:bundle',
+            'output-format-bundle-multi-file-boundary',
+        ];
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'declaredOutputFile' => 'build/bundle-format.pdf',
+            'inferredOutputFormat' => 'pdf',
+            'explicitFormat' => 'bundle',
+            'formatOptions' => ['bundle'],
+            'issues' => $expectedIssues,
+        ];
+        $expectedProvenance = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => $expectedIssues,
+            'outputFormat' => [
+                'raw' => 'bundle',
+                'value' => 'bundle',
+                'format' => 'bundle',
+                'safe' => false,
+                'issues' => $expectedIssues,
+            ],
+            'outputFormatPolicy' => [
+                'reviewStatus' => 'review',
+                'explicitFormat' => 'bundle',
+                'formatOptions' => ['bundle'],
+                'distinctFormats' => ['bundle'],
+                'formatEntryCount' => 1,
+                'issues' => $expectedIssues,
+            ],
+        ];
+        $expectedOutputFormatCase = [
+            'case' => 'output-format',
+            'reviewStatus' => 'review',
+            'observed' => 1,
+            'details' => [
+                'inferredOutputFormat' => 'pdf',
+                'explicitFormat' => 'bundle',
+                'distinctFormats' => ['bundle'],
+            ],
+            'issues' => $expectedIssues,
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/bundle-format.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/bundle-format.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expectedPolicy, $plan['typstOutputFormatPolicy']);
+        $t->same($expectedProvenance, $plan['typstBoundaryProvenance']);
+        $t->same([$expectedOutputFormatCase], $plan['typstBoundaryMatrix']['cases']);
+        $t->contains('typst-output-format-policy:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-output-format-explicit:bundle', implode(',', $plan['diagnostics']));
+        $t->contains('typst-output-format-bundle-boundary', implode(',', $plan['diagnostics']));
+        $t->contains('typst-output-format-boundary-bundle', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expectedPolicy, $result['typstOutputFormatPolicy']);
+        $t->same($expectedPolicy, $result['artifactProvenanceReview']['typstOutputFormatPolicy']);
+        $t->same($expectedProvenance, $result['typstBoundaryProvenance']);
+        $t->same($expectedProvenance, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same([$expectedOutputFormatCase], $result['typstBoundaryMatrix']['cases']);
+        $t->contains('output-format:output-format-bundle-multi-file-boundary', implode(',', $result['typstBoundaryMatrix']['issues']));
+        $t->same($result['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-output-format-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expectedPolicy, $sequence['finalTypstOutputFormatPolicy']);
+        $t->same($expectedProvenance, $sequence['finalTypstBoundaryProvenance']);
+        $t->same($result['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
+    },
+
     'fake runner preserves typst stdout pdf output boundary provenance' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

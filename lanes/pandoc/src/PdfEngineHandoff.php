@@ -279,6 +279,9 @@ final class PdfEngineHandoff
             if ($typstOutputFormatPolicy['issues'] !== []) {
                 $diagnostics[] = 'typst-output-format-issues:' . count($typstOutputFormatPolicy['issues']);
             }
+            if (in_array('output-format-bundle-multi-file-boundary', $typstOutputFormatPolicy['issues'], true)) {
+                $diagnostics[] = 'typst-output-format-bundle-boundary';
+            }
             if (($typstOutputFormatPolicy['outputDestination'] ?? null) === 'stdout') {
                 $diagnostics[] = 'typst-output-stdout-boundary';
             }
@@ -511,6 +514,9 @@ final class PdfEngineHandoff
                     }
                     if (is_array($outputFormatPolicy) && ($outputFormatPolicy['issues'] ?? []) !== []) {
                         $diagnostics[] = 'typst-output-format-boundary-issues:' . count($outputFormatPolicy['issues']);
+                        if (in_array('output-format-bundle-multi-file-boundary', $outputFormatPolicy['issues'], true)) {
+                            $diagnostics[] = 'typst-output-format-boundary-bundle';
+                        }
                     }
                 }
             }
@@ -6712,12 +6718,17 @@ final class PdfEngineHandoff
             ];
         }
 
+        $issues = $value === 'pdf' ? [] : ['explicit-format-not-pdf:' . $value];
+        if ($value === 'bundle') {
+            $issues[] = 'output-format-bundle-multi-file-boundary';
+        }
+
         return [
             'raw' => $raw,
             'value' => $value,
             'format' => $value,
             'safe' => $value === 'pdf',
-            'issues' => $value === 'pdf' ? [] : ['explicit-format-not-pdf:' . $value],
+            'issues' => $issues,
         ];
     }
 
