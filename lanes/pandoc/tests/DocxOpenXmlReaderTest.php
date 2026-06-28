@@ -15217,7 +15217,7 @@ XML;
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rSafeVbaSignature" Type="{$signatureRel}" Target="https://example.test/macros/vbaProjectSignature.bin?download=1#signature" TargetMode="External"/>
   <Relationship Id="rUnsafeVbaSignature" Type="{$signatureRel}" Target="javascript:signature()" TargetMode="External"/>
-  <Relationship Id="rSafeVbaData" Type="{$dataRel}" Target="https://example.test/macros/vbaData.xml?download=1#data" TargetMode="External"/>
+  <Relationship Id="rSafeVbaData" Type="{$dataRel}" Target="//cdn.example.test/macros/vbaData.xml?download=1#data" TargetMode="External"/>
   <Relationship Id="rUnsafeVbaData" Type="{$dataRel}" Target="javascript:data()" TargetMode="External"/>
 </Relationships>
 XML;
@@ -15248,8 +15248,16 @@ XML;
         $t->same(1, $vba['allowedExternalDataPartCount']);
         $t->same(1, $vba['unsafeExternalDataPartCount']);
         $t->same(['javascript:signature()', 'javascript:data()', 'javascript:alert(1)'], $vba['unsafeExternalTargets']);
+        $t->same(['absolute-uri' => 5, 'network-path-reference' => 1], $vba['externalTargetKindCounts']);
+        $t->same(['(none)' => 1, 'https' => 2, 'javascript' => 3], $vba['externalTargetSchemeCounts']);
+        $t->same(['absolute-uri' => 2], $vba['projectExternalTargetKindCounts']);
+        $t->same(['https' => 1, 'javascript' => 1], $vba['projectExternalTargetSchemeCounts']);
         $t->same(['external-target-unsafe-scheme'], $vba['projectExternalTargetIssueCodes']);
+        $t->same(['absolute-uri' => 2], $vba['signatureExternalTargetKindCounts']);
+        $t->same(['https' => 1, 'javascript' => 1], $vba['signatureExternalTargetSchemeCounts']);
         $t->same(['external-target-unsafe-scheme'], $vba['signatureExternalTargetIssueCodes']);
+        $t->same(['absolute-uri' => 1, 'network-path-reference' => 1], $vba['dataPartExternalTargetKindCounts']);
+        $t->same(['(none)' => 1, 'javascript' => 1], $vba['dataPartExternalTargetSchemeCounts']);
         $t->same(['external-target-unsafe-scheme'], $vba['dataPartExternalTargetIssueCodes']);
 
         $t->same(false, $project['external']);
@@ -15271,6 +15279,8 @@ XML;
         $t->same(1, $signatureParts['allowedExternalTargetCount']);
         $t->same(1, $signatureParts['unsafeExternalTargetCount']);
         $t->same(['javascript:signature()'], $signatureParts['unsafeExternalTargets']);
+        $t->same(['absolute-uri' => 2], $signatureParts['externalTargetKindCounts']);
+        $t->same(['https' => 1, 'javascript' => 1], $signatureParts['externalTargetSchemeCounts']);
         $t->same(['external-target-unsafe-scheme'], $signatureParts['externalTargetIssueCodes']);
         $t->same('https', $safeSignature['externalTargetScheme']);
         $t->same(true, $safeSignature['externalTargetAllowed']);
@@ -15285,8 +15295,11 @@ XML;
         $t->same(1, $dataParts['allowedExternalTargetCount']);
         $t->same(1, $dataParts['unsafeExternalTargetCount']);
         $t->same(['javascript:data()'], $dataParts['unsafeExternalTargets']);
+        $t->same(['absolute-uri' => 1, 'network-path-reference' => 1], $dataParts['externalTargetKindCounts']);
+        $t->same(['(none)' => 1, 'javascript' => 1], $dataParts['externalTargetSchemeCounts']);
         $t->same(['external-target-unsafe-scheme'], $dataParts['externalTargetIssueCodes']);
-        $t->same('https', $safeData['externalTargetScheme']);
+        $t->same('network-path-reference', $safeData['externalTargetKind']);
+        $t->same(null, $safeData['externalTargetScheme']);
         $t->same(true, $safeData['externalTargetAllowed']);
         $t->same([], $safeData['externalTargetIssues']);
         $t->same(['external-vba-data'], $safeData['issues']);
@@ -15298,28 +15311,37 @@ XML;
         $t->same(2, $summary['vbaProjectExternalCount']);
         $t->same(1, $summary['vbaProjectAllowedExternalCount']);
         $t->same(1, $summary['vbaProjectUnsafeExternalCount']);
+        $t->same(['absolute-uri' => 2], $summary['vbaProjectExternalTargetKindCounts']);
+        $t->same(['https' => 1, 'javascript' => 1], $summary['vbaProjectExternalTargetSchemeCounts']);
         $t->same(['external-target-unsafe-scheme'], $summary['vbaProjectExternalTargetIssueCodes']);
         $t->same(2, $summary['vbaProjectExternalSignatureCount']);
         $t->same(1, $summary['vbaProjectSignatureAllowedExternalCount']);
         $t->same(1, $summary['vbaProjectSignatureUnsafeExternalCount']);
+        $t->same(['absolute-uri' => 2], $summary['vbaProjectSignatureExternalTargetKindCounts']);
+        $t->same(['https' => 1, 'javascript' => 1], $summary['vbaProjectSignatureExternalTargetSchemeCounts']);
         $t->same(['external-target-unsafe-scheme'], $summary['vbaProjectSignatureExternalTargetIssueCodes']);
         $t->same(2, $summary['vbaDataExternalCount']);
         $t->same(1, $summary['vbaDataAllowedExternalCount']);
         $t->same(1, $summary['vbaDataUnsafeExternalCount']);
+        $t->same(['absolute-uri' => 1, 'network-path-reference' => 1], $summary['vbaDataExternalTargetKindCounts']);
+        $t->same(['(none)' => 1, 'javascript' => 1], $summary['vbaDataExternalTargetSchemeCounts']);
         $t->same(['external-target-unsafe-scheme'], $summary['vbaDataExternalTargetIssueCodes']);
 
         $t->same(2, $projectType['externalCount']);
         $t->same(1, $projectType['allowedExternalTargetCount']);
         $t->same(1, $projectType['unsafeExternalTargetCount']);
+        $t->same(['absolute-uri' => 2], $projectType['externalTargetKindCounts']);
         $t->same(['https' => 1, 'javascript' => 1], $projectType['externalTargetSchemeCounts']);
         $t->same(2, $signatureType['externalCount']);
         $t->same(1, $signatureType['allowedExternalTargetCount']);
         $t->same(1, $signatureType['unsafeExternalTargetCount']);
+        $t->same(['absolute-uri' => 2], $signatureType['externalTargetKindCounts']);
         $t->same(['https' => 1, 'javascript' => 1], $signatureType['externalTargetSchemeCounts']);
         $t->same(2, $dataType['externalCount']);
         $t->same(1, $dataType['allowedExternalTargetCount']);
         $t->same(1, $dataType['unsafeExternalTargetCount']);
-        $t->same(['https' => 1, 'javascript' => 1], $dataType['externalTargetSchemeCounts']);
+        $t->same(['absolute-uri' => 1, 'network-path-reference' => 1], $dataType['externalTargetKindCounts']);
+        $t->same(['(none)' => 1, 'javascript' => 1], $dataType['externalTargetSchemeCounts']);
     },
     'preflights docx vba data xml roots for package review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
