@@ -20778,6 +20778,110 @@ XML;
         $t->true(is_string($encodedShapes), 'XML child-shape metadata should encode for review');
         $t->true(!str_contains((string) $encodedShapes, 'child-shape:hidden'), 'raw XML text should not be exposed in child-shape metadata');
     },
+    'summarizes docx package xml element subtrees without exposing text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $leafPayload = 'subtree:hidden-leaf';
+        $settingsPayload = 'subtree:hidden-settings';
+        $parts['customXml/subtree-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:review-subtree">
+  <review:section>
+    <review:item><review:leaf>{$leafPayload}</review:leaf></review:item>
+    <review:item/>
+  </review:section>
+  <review:single/>
+</review:packet>
+XML;
+        $parts['word/settings-subtree.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docVars>
+    <w:docVar>
+      <w:name>Reviewer</w:name>
+      <w:val>{$settingsPayload}</w:val>
+    </w:docVar>
+  </w:docVars>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/subtree-review.xml'];
+        $settingsPart = $package['parts']['word/settings-subtree.xml'];
+        $subtrees = array_values(array_filter(
+            $summary['partXmlElementSubtrees'],
+            static fn (array $subtree): bool => in_array(
+                $subtree['partName'],
+                ['customXml/subtree-review.xml', 'word/settings-subtree.xml'],
+                true,
+            ),
+        ));
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(6, $reviewPart['xmlElementSubtreeCount']);
+        $t->same(9, $reviewPart['xmlElementSubtreeDescendantCount']);
+        $t->same(5, $reviewPart['xmlElementSubtreeMaxDescendantCount']);
+        $t->same(6, $reviewPart['xmlElementSubtreeLeafDescendantCount']);
+        $t->same(3, $reviewPart['xmlElementSubtreeMaxLeafDescendantCount']);
+        $t->same(3, $reviewPart['xmlElementSubtreeMaxDepthSpan']);
+        $t->same([0 => 3, 1 => 1, 3 => 1, 5 => 1], $reviewPart['xmlElementSubtreeDescendantCountCounts']);
+        $t->same([0 => 3, 1 => 1, 2 => 1, 3 => 1], $reviewPart['xmlElementSubtreeLeafDescendantCountCounts']);
+        $t->same([0 => 3, 1 => 1, 2 => 1, 3 => 1], $reviewPart['xmlElementSubtreeDepthSpanCounts']);
+        $t->same(2, $reviewPart['xmlElementSubtreePathCounts']['/review:packet/review:section/review:item']);
+        $t->same(2, $reviewPart['xmlElementSubtreeElementNameCounts']['review:item']);
+
+        $packet = $reviewPart['xmlElementSubtrees'][0];
+        $section = $reviewPart['xmlElementSubtrees'][1];
+        $nestedItem = $reviewPart['xmlElementSubtrees'][2];
+        $leaf = $reviewPart['xmlElementSubtrees'][3];
+
+        $t->same('/review:packet', $packet['elementPath']);
+        $t->same(2, $packet['childElementCount']);
+        $t->same(5, $packet['descendantElementCount']);
+        $t->same(6, $packet['subtreeElementCount']);
+        $t->same(3, $packet['leafDescendantElementCount']);
+        $t->same(3, $packet['subtreeLeafElementCount']);
+        $t->same(4, $packet['subtreeMaxDepth']);
+        $t->same(3, $packet['descendantDepthSpan']);
+        $t->same(false, $packet['isLeafElement']);
+        $t->same(true, $packet['hasDescendantElements']);
+        $t->same(true, $packet['hasLeafDescendants']);
+        $t->same(3, $section['descendantElementCount']);
+        $t->same(2, $section['leafDescendantElementCount']);
+        $t->same(1, $nestedItem['descendantElementCount']);
+        $t->same(1, $nestedItem['leafDescendantElementCount']);
+        $t->same(0, $leaf['descendantElementCount']);
+        $t->same(1, $leaf['subtreeLeafElementCount']);
+        $t->same(true, $leaf['isLeafElement']);
+
+        $t->same(true, $settingsPart['xmlInspectable']);
+        $t->same(5, $settingsPart['xmlElementSubtreeCount']);
+        $t->same(9, $settingsPart['xmlElementSubtreeDescendantCount']);
+        $t->same(4, $settingsPart['xmlElementSubtreeMaxDescendantCount']);
+        $t->same(6, $settingsPart['xmlElementSubtreeLeafDescendantCount']);
+        $t->same(2, $settingsPart['xmlElementSubtreeMaxLeafDescendantCount']);
+        $t->same(3, $settingsPart['xmlElementSubtreeMaxDepthSpan']);
+
+        $t->true($summary['partXmlElementSubtreePartCount'] >= 2, 'summary subtree part count should include added XML parts');
+        $t->true($summary['partXmlElementSubtreeCount'] >= 11, 'summary subtree count should include added XML elements');
+        $t->true(in_array('customXml/subtree-review.xml', $summary['partXmlElementSubtreePartNames'], true), 'custom XML subtree part should be summarized');
+        $t->true(in_array('word/settings-subtree.xml', $summary['partXmlElementSubtreePartNames'], true), 'settings subtree part should be summarized');
+        $t->same(1, $summary['partXmlElementSubtreePathCounts']['/review:packet/review:section/review:item/review:leaf']);
+        $t->same(2, $summary['partXmlElementSubtreeElementNameCounts']['review:item']);
+        $t->true(($summary['partXmlElementSubtreeElementNameCounts']['w:docVar'] ?? 0) >= 1, 'settings subtree element names should include docVar');
+        $t->true(($summary['partXmlElementSubtreeMaxDescendantCount'] ?? 0) >= 5, 'summary should preserve max subtree descendant count');
+        $t->true(($summary['partXmlElementSubtreeMaxDepthSpan'] ?? 0) >= 3, 'summary should preserve max subtree depth span');
+        $t->same(11, count($subtrees));
+        $t->same('customXml/subtree-review.xml', $subtrees[0]['partName']);
+        $t->same('/review:packet', $subtrees[0]['elementPath']);
+        $t->same('word/settings-subtree.xml', $subtrees[6]['partName']);
+        $t->same('/w:settings', $subtrees[6]['elementPath']);
+
+        $encodedSubtrees = json_encode([$reviewPart['xmlElementSubtrees'], $settingsPart['xmlElementSubtrees'], $subtrees]);
+        $t->true(is_string($encodedSubtrees), 'XML subtree metadata should encode for review');
+        $t->true(!str_contains((string) $encodedSubtrees, 'subtree:hidden'), 'raw XML text should not be exposed in subtree metadata');
+    },
     'summarizes docx package xml child node shape without exposing child text' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $entityValue = 'child-node:hidden-entity';

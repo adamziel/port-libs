@@ -15361,6 +15361,25 @@ final class DocxOpenXmlReader
             'partXmlElementChildProfileLocalNameCounts' => $partXmlRoots['xmlElementChildProfileLocalNameCounts'],
             'partXmlElementChildProfileQualifiedNameCount' => $partXmlRoots['xmlElementChildProfileQualifiedNameCount'],
             'partXmlElementChildProfileQualifiedNameCounts' => $partXmlRoots['xmlElementChildProfileQualifiedNameCounts'],
+            'partXmlElementSubtreePartCount' => $partXmlRoots['xmlElementSubtreePartCount'],
+            'partXmlElementSubtreeCount' => $partXmlRoots['xmlElementSubtreeCount'],
+            'partXmlElementSubtreeDescendantCount' => $partXmlRoots['xmlElementSubtreeDescendantCount'],
+            'partXmlElementSubtreeMaxDescendantCount' => $partXmlRoots['xmlElementSubtreeMaxDescendantCount'],
+            'partXmlElementSubtreeLeafDescendantCount' => $partXmlRoots['xmlElementSubtreeLeafDescendantCount'],
+            'partXmlElementSubtreeMaxLeafDescendantCount' => $partXmlRoots['xmlElementSubtreeMaxLeafDescendantCount'],
+            'partXmlElementSubtreeMaxDepthSpan' => $partXmlRoots['xmlElementSubtreeMaxDepthSpan'],
+            'partXmlElementSubtreePartNames' => $partXmlRoots['xmlElementSubtreePartNames'],
+            'partXmlElementSubtreeDescendantCountBucketCount' => count($partXmlRoots['xmlElementSubtreeDescendantCountCounts']),
+            'partXmlElementSubtreeDescendantCountCounts' => $partXmlRoots['xmlElementSubtreeDescendantCountCounts'],
+            'partXmlElementSubtreeLeafDescendantCountBucketCount' => count($partXmlRoots['xmlElementSubtreeLeafDescendantCountCounts']),
+            'partXmlElementSubtreeLeafDescendantCountCounts' => $partXmlRoots['xmlElementSubtreeLeafDescendantCountCounts'],
+            'partXmlElementSubtreeDepthSpanBucketCount' => count($partXmlRoots['xmlElementSubtreeDepthSpanCounts']),
+            'partXmlElementSubtreeDepthSpanCounts' => $partXmlRoots['xmlElementSubtreeDepthSpanCounts'],
+            'partXmlElementSubtreePathCount' => $partXmlRoots['xmlElementSubtreePathCount'],
+            'partXmlElementSubtreePathCounts' => $partXmlRoots['xmlElementSubtreePathCounts'],
+            'partXmlElementSubtreePaths' => $partXmlRoots['xmlElementSubtreePaths'],
+            'partXmlElementSubtreeElementNameCount' => count($partXmlRoots['xmlElementSubtreeElementNameCounts']),
+            'partXmlElementSubtreeElementNameCounts' => $partXmlRoots['xmlElementSubtreeElementNameCounts'],
             'partXmlRepeatedSiblingElementPartCount' => $partXmlRoots['xmlRepeatedSiblingElementPartCount'],
             'partXmlRepeatedSiblingElementGroupCount' => $partXmlRoots['xmlRepeatedSiblingElementGroupCount'],
             'partXmlRepeatedSiblingElementCount' => $partXmlRoots['xmlRepeatedSiblingElementCount'],
@@ -16182,6 +16201,7 @@ final class DocxOpenXmlReader
             'partXmlElementAncestorChains' => $partXmlRoots['xmlElementAncestorChains'],
             'partXmlElementParentChildPairs' => $partXmlRoots['xmlElementParentChildPairs'],
             'partXmlElementChildProfiles' => $partXmlRoots['xmlElementChildProfiles'],
+            'partXmlElementSubtrees' => $partXmlRoots['xmlElementSubtrees'],
             'partXmlRepeatedSiblingElements' => $partXmlRoots['xmlRepeatedSiblingElements'],
             'partXmlElementSiblingTransitions' => $partXmlRoots['xmlElementSiblingTransitions'],
             'partXmlElementChildShapes' => $partXmlRoots['xmlElementChildShapes'],
@@ -21774,6 +21794,14 @@ final class DocxOpenXmlReader
         $xmlElementChildProfileLocalNameCounts = [];
         $xmlElementChildProfileQualifiedNameCounts = [];
         $xmlElementChildProfiles = [];
+        $xmlElementSubtreePartNames = [];
+        $xmlElementSubtreeDescendantCountCounts = [];
+        $xmlElementSubtreeLeafDescendantCountCounts = [];
+        $xmlElementSubtreeDepthSpanCounts = [];
+        $xmlElementSubtreePathCounts = [];
+        $xmlElementSubtreePaths = [];
+        $xmlElementSubtreeElementNameCounts = [];
+        $xmlElementSubtrees = [];
         $xmlRepeatedSiblingElementPartNames = [];
         $xmlRepeatedSiblingElementParentPathCounts = [];
         $xmlRepeatedSiblingElementParentPaths = [];
@@ -21975,6 +22003,13 @@ final class DocxOpenXmlReader
         $xmlElementChildProfileCommentChildCount = 0;
         $xmlElementChildProfileProcessingInstructionChildCount = 0;
         $xmlElementChildProfileEntityReferenceChildCount = 0;
+        $xmlElementSubtreePartCount = 0;
+        $xmlElementSubtreeCount = 0;
+        $xmlElementSubtreeDescendantCount = 0;
+        $xmlElementSubtreeMaxDescendantCount = 0;
+        $xmlElementSubtreeLeafDescendantCount = 0;
+        $xmlElementSubtreeMaxLeafDescendantCount = 0;
+        $xmlElementSubtreeMaxDepthSpan = 0;
         $xmlRepeatedSiblingElementPartCount = 0;
         $xmlRepeatedSiblingElementGroupCount = 0;
         $xmlRepeatedSiblingElementCount = 0;
@@ -23760,6 +23795,105 @@ final class DocxOpenXmlReader
                     'hasMixedContent' => (bool) ($profile['hasMixedContent'] ?? false),
                 ];
             }
+            $partElementSubtreeCount = (int) ($part['xmlElementSubtreeCount'] ?? 0);
+            if ($partElementSubtreeCount > 0) {
+                ++$xmlElementSubtreePartCount;
+                $xmlElementSubtreeCount += $partElementSubtreeCount;
+                $xmlElementSubtreeDescendantCount += (int) ($part['xmlElementSubtreeDescendantCount'] ?? 0);
+                $xmlElementSubtreeMaxDescendantCount = max(
+                    $xmlElementSubtreeMaxDescendantCount,
+                    (int) ($part['xmlElementSubtreeMaxDescendantCount'] ?? 0),
+                );
+                $xmlElementSubtreeLeafDescendantCount += (int) ($part['xmlElementSubtreeLeafDescendantCount'] ?? 0);
+                $xmlElementSubtreeMaxLeafDescendantCount = max(
+                    $xmlElementSubtreeMaxLeafDescendantCount,
+                    (int) ($part['xmlElementSubtreeMaxLeafDescendantCount'] ?? 0),
+                );
+                $xmlElementSubtreeMaxDepthSpan = max(
+                    $xmlElementSubtreeMaxDepthSpan,
+                    (int) ($part['xmlElementSubtreeMaxDepthSpan'] ?? 0),
+                );
+                $xmlElementSubtreePartNames[] = $partName;
+            }
+            foreach (($part['xmlElementSubtreeDescendantCountCounts'] ?? []) as $descendantCount => $count) {
+                $descendantCount = (int) $descendantCount;
+                if ($descendantCount < 0) {
+                    continue;
+                }
+
+                $xmlElementSubtreeDescendantCountCounts[$descendantCount] =
+                    ($xmlElementSubtreeDescendantCountCounts[$descendantCount] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlElementSubtreeLeafDescendantCountCounts'] ?? []) as $leafDescendantCount => $count) {
+                $leafDescendantCount = (int) $leafDescendantCount;
+                if ($leafDescendantCount < 0) {
+                    continue;
+                }
+
+                $xmlElementSubtreeLeafDescendantCountCounts[$leafDescendantCount] =
+                    ($xmlElementSubtreeLeafDescendantCountCounts[$leafDescendantCount] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlElementSubtreeDepthSpanCounts'] ?? []) as $depthSpan => $count) {
+                $depthSpan = (int) $depthSpan;
+                if ($depthSpan < 0) {
+                    continue;
+                }
+
+                $xmlElementSubtreeDepthSpanCounts[$depthSpan] =
+                    ($xmlElementSubtreeDepthSpanCounts[$depthSpan] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlElementSubtreePathCounts'] ?? []) as $elementPath => $count) {
+                if (!is_string($elementPath) || $elementPath === '') {
+                    continue;
+                }
+
+                $xmlElementSubtreePathCounts[$elementPath] =
+                    ($xmlElementSubtreePathCounts[$elementPath] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlElementSubtreePaths, $elementPath);
+            }
+            foreach (($part['xmlElementSubtreeElementNameCounts'] ?? []) as $elementName => $count) {
+                if (!is_string($elementName) || $elementName === '') {
+                    continue;
+                }
+
+                $xmlElementSubtreeElementNameCounts[$elementName] =
+                    ($xmlElementSubtreeElementNameCounts[$elementName] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlElementSubtrees'] ?? []) as $subtree) {
+                if (!is_array($subtree)) {
+                    continue;
+                }
+
+                $xmlElementSubtrees[] = [
+                    'partName' => $partName,
+                    'directory' => is_string($part['directory'] ?? null)
+                        ? $part['directory']
+                        : $this->packagePartDirectory($partName),
+                    'baseName' => is_string($part['baseName'] ?? null)
+                        ? $part['baseName']
+                        : $this->packagePartBaseName($partName),
+                    'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                    'contentTypeBase' => is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '',
+                    'contentTypeSource' => is_string($part['contentTypeSource'] ?? null) ? $part['contentTypeSource'] : 'missing',
+                    'ordinal' => is_int($subtree['ordinal'] ?? null) ? (int) $subtree['ordinal'] : 0,
+                    'elementPath' => is_string($subtree['elementPath'] ?? null) ? $subtree['elementPath'] : '/',
+                    'elementDepth' => (int) ($subtree['elementDepth'] ?? 0),
+                    'elementNamespace' => is_string($subtree['elementNamespace'] ?? null) ? $subtree['elementNamespace'] : null,
+                    'elementLocalName' => is_string($subtree['elementLocalName'] ?? null) ? $subtree['elementLocalName'] : '',
+                    'elementQualifiedName' => is_string($subtree['elementQualifiedName'] ?? null) ? $subtree['elementQualifiedName'] : '',
+                    'elementPrefix' => is_string($subtree['elementPrefix'] ?? null) ? $subtree['elementPrefix'] : null,
+                    'childElementCount' => (int) ($subtree['childElementCount'] ?? 0),
+                    'descendantElementCount' => (int) ($subtree['descendantElementCount'] ?? 0),
+                    'subtreeElementCount' => (int) ($subtree['subtreeElementCount'] ?? 0),
+                    'leafDescendantElementCount' => (int) ($subtree['leafDescendantElementCount'] ?? 0),
+                    'subtreeLeafElementCount' => (int) ($subtree['subtreeLeafElementCount'] ?? 0),
+                    'subtreeMaxDepth' => (int) ($subtree['subtreeMaxDepth'] ?? 0),
+                    'descendantDepthSpan' => (int) ($subtree['descendantDepthSpan'] ?? 0),
+                    'isLeafElement' => (bool) ($subtree['isLeafElement'] ?? false),
+                    'hasDescendantElements' => (bool) ($subtree['hasDescendantElements'] ?? false),
+                    'hasLeafDescendants' => (bool) ($subtree['hasLeafDescendants'] ?? false),
+                ];
+            }
             $partRepeatedSiblingElementGroupCount = (int) ($part['xmlRepeatedSiblingElementGroupCount'] ?? 0);
             if ($partRepeatedSiblingElementGroupCount > 0) {
                 ++$xmlRepeatedSiblingElementPartCount;
@@ -24971,6 +25105,31 @@ final class DocxOpenXmlReader
                 'xmlElementChildProfiles' => is_array($part['xmlElementChildProfiles'] ?? null)
                     ? $part['xmlElementChildProfiles']
                     : [],
+                'xmlElementSubtreeCount' => $partElementSubtreeCount,
+                'xmlElementSubtreeDescendantCount' => (int) ($part['xmlElementSubtreeDescendantCount'] ?? 0),
+                'xmlElementSubtreeMaxDescendantCount' => (int) ($part['xmlElementSubtreeMaxDescendantCount'] ?? 0),
+                'xmlElementSubtreeLeafDescendantCount' => (int) ($part['xmlElementSubtreeLeafDescendantCount'] ?? 0),
+                'xmlElementSubtreeMaxLeafDescendantCount' => (int) ($part['xmlElementSubtreeMaxLeafDescendantCount'] ?? 0),
+                'xmlElementSubtreeMaxDepthSpan' => (int) ($part['xmlElementSubtreeMaxDepthSpan'] ?? 0),
+                'xmlElementSubtreeDescendantCountCounts' => is_array($part['xmlElementSubtreeDescendantCountCounts'] ?? null)
+                    ? $part['xmlElementSubtreeDescendantCountCounts']
+                    : [],
+                'xmlElementSubtreeLeafDescendantCountCounts' => is_array($part['xmlElementSubtreeLeafDescendantCountCounts'] ?? null)
+                    ? $part['xmlElementSubtreeLeafDescendantCountCounts']
+                    : [],
+                'xmlElementSubtreeDepthSpanCounts' => is_array($part['xmlElementSubtreeDepthSpanCounts'] ?? null)
+                    ? $part['xmlElementSubtreeDepthSpanCounts']
+                    : [],
+                'xmlElementSubtreePathCounts' => is_array($part['xmlElementSubtreePathCounts'] ?? null)
+                    ? $part['xmlElementSubtreePathCounts']
+                    : [],
+                'xmlElementSubtreePaths' => array_values(array_map('strval', $part['xmlElementSubtreePaths'] ?? [])),
+                'xmlElementSubtreeElementNameCounts' => is_array($part['xmlElementSubtreeElementNameCounts'] ?? null)
+                    ? $part['xmlElementSubtreeElementNameCounts']
+                    : [],
+                'xmlElementSubtrees' => is_array($part['xmlElementSubtrees'] ?? null)
+                    ? $part['xmlElementSubtrees']
+                    : [],
                 'xmlRepeatedSiblingElementGroupCount' => $partRepeatedSiblingElementGroupCount,
                 'xmlRepeatedSiblingElementCount' => (int) ($part['xmlRepeatedSiblingElementCount'] ?? 0),
                 'xmlRepeatedSiblingElementMaxCount' => (int) ($part['xmlRepeatedSiblingElementMaxCount'] ?? 0),
@@ -25288,6 +25447,11 @@ final class DocxOpenXmlReader
         ksort($xmlElementChildProfileNamespaceCounts, SORT_STRING);
         ksort($xmlElementChildProfileLocalNameCounts, SORT_STRING);
         ksort($xmlElementChildProfileQualifiedNameCounts, SORT_STRING);
+        ksort($xmlElementSubtreeDescendantCountCounts, SORT_NUMERIC);
+        ksort($xmlElementSubtreeLeafDescendantCountCounts, SORT_NUMERIC);
+        ksort($xmlElementSubtreeDepthSpanCounts, SORT_NUMERIC);
+        ksort($xmlElementSubtreePathCounts, SORT_STRING);
+        ksort($xmlElementSubtreeElementNameCounts, SORT_STRING);
         ksort($xmlRepeatedSiblingElementParentPathCounts, SORT_STRING);
         ksort($xmlRepeatedSiblingElementParentNamespaceCounts, SORT_STRING);
         ksort($xmlRepeatedSiblingElementParentLocalNameCounts, SORT_STRING);
@@ -25391,6 +25555,8 @@ final class DocxOpenXmlReader
         sort($xmlElementParentChildPairNamespaceTransitions, SORT_STRING);
         sort($xmlElementParentChildPairPrefixTransitions, SORT_STRING);
         sort($xmlElementChildProfilePartNames, SORT_STRING);
+        sort($xmlElementSubtreePartNames, SORT_STRING);
+        sort($xmlElementSubtreePaths, SORT_STRING);
         sort($xmlElementChildProfilePaths, SORT_STRING);
         sort($xmlRepeatedSiblingElementPartNames, SORT_STRING);
         sort($xmlRepeatedSiblingElementParentPaths, SORT_STRING);
@@ -25485,6 +25651,11 @@ final class DocxOpenXmlReader
         );
         usort(
             $xmlElementChildProfiles,
+            static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName'])
+                ?: ((int) ($left['ordinal'] ?? 0) <=> (int) ($right['ordinal'] ?? 0)),
+        );
+        usort(
+            $xmlElementSubtrees,
             static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName'])
                 ?: ((int) ($left['ordinal'] ?? 0) <=> (int) ($right['ordinal'] ?? 0)),
         );
@@ -25889,6 +26060,22 @@ final class DocxOpenXmlReader
             'xmlElementChildProfileQualifiedNameCount' => count($xmlElementChildProfileQualifiedNameCounts),
             'xmlElementChildProfileQualifiedNameCounts' => $xmlElementChildProfileQualifiedNameCounts,
             'xmlElementChildProfiles' => $xmlElementChildProfiles,
+            'xmlElementSubtreePartCount' => $xmlElementSubtreePartCount,
+            'xmlElementSubtreeCount' => $xmlElementSubtreeCount,
+            'xmlElementSubtreeDescendantCount' => $xmlElementSubtreeDescendantCount,
+            'xmlElementSubtreeMaxDescendantCount' => $xmlElementSubtreeMaxDescendantCount,
+            'xmlElementSubtreeLeafDescendantCount' => $xmlElementSubtreeLeafDescendantCount,
+            'xmlElementSubtreeMaxLeafDescendantCount' => $xmlElementSubtreeMaxLeafDescendantCount,
+            'xmlElementSubtreeMaxDepthSpan' => $xmlElementSubtreeMaxDepthSpan,
+            'xmlElementSubtreePartNames' => $xmlElementSubtreePartNames,
+            'xmlElementSubtreeDescendantCountCounts' => $xmlElementSubtreeDescendantCountCounts,
+            'xmlElementSubtreeLeafDescendantCountCounts' => $xmlElementSubtreeLeafDescendantCountCounts,
+            'xmlElementSubtreeDepthSpanCounts' => $xmlElementSubtreeDepthSpanCounts,
+            'xmlElementSubtreePathCount' => count($xmlElementSubtreePathCounts),
+            'xmlElementSubtreePathCounts' => $xmlElementSubtreePathCounts,
+            'xmlElementSubtreePaths' => $xmlElementSubtreePaths,
+            'xmlElementSubtreeElementNameCounts' => $xmlElementSubtreeElementNameCounts,
+            'xmlElementSubtrees' => $xmlElementSubtrees,
             'xmlRepeatedSiblingElementPartCount' => $xmlRepeatedSiblingElementPartCount,
             'xmlRepeatedSiblingElementGroupCount' => $xmlRepeatedSiblingElementGroupCount,
             'xmlRepeatedSiblingElementCount' => $xmlRepeatedSiblingElementCount,
@@ -30611,6 +30798,173 @@ final class DocxOpenXmlReader
     }
 
     /**
+     * @return array{count:int, descendantCount:int, maxDescendantCount:int, leafDescendantCount:int, maxLeafDescendantCount:int, maxDepthSpan:int, descendantCountCounts:array<int, int>, leafDescendantCountCounts:array<int, int>, depthSpanCounts:array<int, int>, pathCounts:array<string, int>, paths:list<string>, elementNameCounts:array<string, int>, items:list<array<string, mixed>>}
+     */
+    private function xmlElementSubtreeProvenance(string $xml, string $partName): array
+    {
+        $empty = [
+            'count' => 0,
+            'descendantCount' => 0,
+            'maxDescendantCount' => 0,
+            'leafDescendantCount' => 0,
+            'maxLeafDescendantCount' => 0,
+            'maxDepthSpan' => 0,
+            'descendantCountCounts' => [],
+            'leafDescendantCountCounts' => [],
+            'depthSpanCounts' => [],
+            'pathCounts' => [],
+            'paths' => [],
+            'elementNameCounts' => [],
+            'items' => [],
+        ];
+
+        $dom = $this->loadXmlForProvenance($xml, $partName);
+        if (!$dom instanceof \DOMDocument || !$dom->documentElement instanceof \DOMElement) {
+            return $empty;
+        }
+
+        $items = [];
+        $descendantCountCounts = [];
+        $leafDescendantCountCounts = [];
+        $depthSpanCounts = [];
+        $pathCounts = [];
+        $paths = [];
+        $elementNameCounts = [];
+        $descendantCount = 0;
+        $maxDescendantCount = 0;
+        $leafDescendantCount = 0;
+        $maxLeafDescendantCount = 0;
+        $maxDepthSpan = 0;
+        $ordinal = 0;
+
+        $walk = function (\DOMElement $element, int $depth) use (
+            &$walk,
+            &$items,
+            &$descendantCountCounts,
+            &$leafDescendantCountCounts,
+            &$depthSpanCounts,
+            &$pathCounts,
+            &$paths,
+            &$elementNameCounts,
+            &$descendantCount,
+            &$maxDescendantCount,
+            &$leafDescendantCount,
+            &$maxLeafDescendantCount,
+            &$maxDepthSpan,
+            &$ordinal,
+        ): array {
+            ++$ordinal;
+            $itemIndex = count($items);
+            $elementPath = $this->xmlProvenanceParentPath($element);
+            $qualifiedName = $element->tagName === '' ? $element->localName : $element->tagName;
+            $localName = $element->localName === '' ? '(none)' : $element->localName;
+            $namespace = is_string($element->namespaceURI) && $element->namespaceURI !== ''
+                ? $element->namespaceURI
+                : null;
+            $prefix = $this->emptyStringToNull((string) $element->prefix);
+            $childElementCount = 0;
+            $subtreeElementCount = 1;
+            $subtreeLeafElementCount = 0;
+            $subtreeMaxDepth = $depth;
+
+            $items[$itemIndex] = [
+                'ordinal' => $ordinal,
+                'elementPath' => $elementPath,
+                'elementDepth' => $depth,
+                'elementNamespace' => $namespace,
+                'elementLocalName' => $localName,
+                'elementQualifiedName' => $qualifiedName,
+                'elementPrefix' => $prefix,
+                'childElementCount' => 0,
+                'descendantElementCount' => 0,
+                'subtreeElementCount' => 1,
+                'leafDescendantElementCount' => 0,
+                'subtreeLeafElementCount' => 0,
+                'subtreeMaxDepth' => $depth,
+                'descendantDepthSpan' => 0,
+                'isLeafElement' => false,
+                'hasDescendantElements' => false,
+                'hasLeafDescendants' => false,
+            ];
+
+            foreach ($element->childNodes as $child) {
+                if (!$child instanceof \DOMElement) {
+                    continue;
+                }
+
+                ++$childElementCount;
+                $childSummary = $walk($child, $depth + 1);
+                $subtreeElementCount += (int) $childSummary['subtreeElementCount'];
+                $subtreeLeafElementCount += (int) $childSummary['subtreeLeafElementCount'];
+                $subtreeMaxDepth = max($subtreeMaxDepth, (int) $childSummary['subtreeMaxDepth']);
+            }
+
+            $isLeafElement = $childElementCount === 0;
+            if ($isLeafElement) {
+                $subtreeLeafElementCount = 1;
+            }
+            $elementDescendantCount = $subtreeElementCount - 1;
+            $elementLeafDescendantCount = $isLeafElement ? 0 : $subtreeLeafElementCount;
+            $depthSpan = max(0, $subtreeMaxDepth - $depth);
+
+            $descendantCount += $elementDescendantCount;
+            $maxDescendantCount = max($maxDescendantCount, $elementDescendantCount);
+            $leafDescendantCount += $elementLeafDescendantCount;
+            $maxLeafDescendantCount = max($maxLeafDescendantCount, $elementLeafDescendantCount);
+            $maxDepthSpan = max($maxDepthSpan, $depthSpan);
+            $descendantCountCounts[$elementDescendantCount] =
+                ($descendantCountCounts[$elementDescendantCount] ?? 0) + 1;
+            $leafDescendantCountCounts[$elementLeafDescendantCount] =
+                ($leafDescendantCountCounts[$elementLeafDescendantCount] ?? 0) + 1;
+            $depthSpanCounts[$depthSpan] = ($depthSpanCounts[$depthSpan] ?? 0) + 1;
+            $pathCounts[$elementPath] = ($pathCounts[$elementPath] ?? 0) + 1;
+            $this->appendUniqueString($paths, $elementPath);
+            $elementNameCounts[$qualifiedName] = ($elementNameCounts[$qualifiedName] ?? 0) + 1;
+
+            $items[$itemIndex]['childElementCount'] = $childElementCount;
+            $items[$itemIndex]['descendantElementCount'] = $elementDescendantCount;
+            $items[$itemIndex]['subtreeElementCount'] = $subtreeElementCount;
+            $items[$itemIndex]['leafDescendantElementCount'] = $elementLeafDescendantCount;
+            $items[$itemIndex]['subtreeLeafElementCount'] = $subtreeLeafElementCount;
+            $items[$itemIndex]['subtreeMaxDepth'] = $subtreeMaxDepth;
+            $items[$itemIndex]['descendantDepthSpan'] = $depthSpan;
+            $items[$itemIndex]['isLeafElement'] = $isLeafElement;
+            $items[$itemIndex]['hasDescendantElements'] = $elementDescendantCount > 0;
+            $items[$itemIndex]['hasLeafDescendants'] = $elementLeafDescendantCount > 0;
+
+            return [
+                'subtreeElementCount' => $subtreeElementCount,
+                'subtreeLeafElementCount' => $subtreeLeafElementCount,
+                'subtreeMaxDepth' => $subtreeMaxDepth,
+            ];
+        };
+        $walk($dom->documentElement, 1);
+
+        ksort($descendantCountCounts, SORT_NUMERIC);
+        ksort($leafDescendantCountCounts, SORT_NUMERIC);
+        ksort($depthSpanCounts, SORT_NUMERIC);
+        ksort($pathCounts, SORT_STRING);
+        ksort($elementNameCounts, SORT_STRING);
+        sort($paths, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'descendantCount' => $descendantCount,
+            'maxDescendantCount' => $maxDescendantCount,
+            'leafDescendantCount' => $leafDescendantCount,
+            'maxLeafDescendantCount' => $maxLeafDescendantCount,
+            'maxDepthSpan' => $maxDepthSpan,
+            'descendantCountCounts' => $descendantCountCounts,
+            'leafDescendantCountCounts' => $leafDescendantCountCounts,
+            'depthSpanCounts' => $depthSpanCounts,
+            'pathCounts' => $pathCounts,
+            'paths' => $paths,
+            'elementNameCounts' => $elementNameCounts,
+            'items' => $items,
+        ];
+    }
+
+    /**
      * @return array{count:int, emptyElementCount:int, elementOnlyCount:int, textOnlyCount:int, mixedContentCount:int, metadataOnlyCount:int, whitespaceOnlyCount:int, elementChildCount:int, textNodeChildCount:int, whitespaceTextNodeChildCount:int, nonWhitespaceTextNodeChildCount:int, cdataSectionChildCount:int, commentChildCount:int, processingInstructionChildCount:int, entityReferenceChildCount:int, contentModelCounts:array<string, int>, pathCounts:array<string, int>, paths:list<string>, namespaceCounts:array<string, int>, localNameCounts:array<string, int>, qualifiedNameCounts:array<string, int>, items:list<array<string, mixed>>}
      */
     private function xmlElementChildProfileProvenance(string $xml, string $partName): array
@@ -34778,6 +35132,19 @@ final class DocxOpenXmlReader
                 'xmlElementChildProfileLocalNameCounts' => [],
                 'xmlElementChildProfileQualifiedNameCounts' => [],
                 'xmlElementChildProfiles' => [],
+                'xmlElementSubtreeCount' => 0,
+                'xmlElementSubtreeDescendantCount' => 0,
+                'xmlElementSubtreeMaxDescendantCount' => 0,
+                'xmlElementSubtreeLeafDescendantCount' => 0,
+                'xmlElementSubtreeMaxLeafDescendantCount' => 0,
+                'xmlElementSubtreeMaxDepthSpan' => 0,
+                'xmlElementSubtreeDescendantCountCounts' => [],
+                'xmlElementSubtreeLeafDescendantCountCounts' => [],
+                'xmlElementSubtreeDepthSpanCounts' => [],
+                'xmlElementSubtreePathCounts' => [],
+                'xmlElementSubtreePaths' => [],
+                'xmlElementSubtreeElementNameCounts' => [],
+                'xmlElementSubtrees' => [],
                 'xmlRepeatedSiblingElementGroupCount' => 0,
                 'xmlRepeatedSiblingElementCount' => 0,
                 'xmlRepeatedSiblingElementMaxCount' => 0,
@@ -34922,6 +35289,7 @@ final class DocxOpenXmlReader
         $elementAncestorChains = $this->xmlElementAncestorChainProvenance($contents, $partName);
         $elementParentChildPairs = $this->xmlElementParentChildPairProvenance($contents, $partName);
         $elementChildProfiles = $this->xmlElementChildProfileProvenance($contents, $partName);
+        $elementSubtrees = $this->xmlElementSubtreeProvenance($contents, $partName);
         $repeatedSiblingElements = $this->xmlRepeatedSiblingElementProvenance($contents, $partName);
         $siblingTransitions = $this->xmlElementSiblingTransitionProvenance($contents, $partName);
         $elementChildShapes = $this->xmlElementChildShapeProvenance($contents, $partName);
@@ -35233,6 +35601,19 @@ final class DocxOpenXmlReader
             'xmlElementChildProfileLocalNameCounts' => $elementChildProfiles['localNameCounts'],
             'xmlElementChildProfileQualifiedNameCounts' => $elementChildProfiles['qualifiedNameCounts'],
             'xmlElementChildProfiles' => $elementChildProfiles['items'],
+            'xmlElementSubtreeCount' => $elementSubtrees['count'],
+            'xmlElementSubtreeDescendantCount' => $elementSubtrees['descendantCount'],
+            'xmlElementSubtreeMaxDescendantCount' => $elementSubtrees['maxDescendantCount'],
+            'xmlElementSubtreeLeafDescendantCount' => $elementSubtrees['leafDescendantCount'],
+            'xmlElementSubtreeMaxLeafDescendantCount' => $elementSubtrees['maxLeafDescendantCount'],
+            'xmlElementSubtreeMaxDepthSpan' => $elementSubtrees['maxDepthSpan'],
+            'xmlElementSubtreeDescendantCountCounts' => $elementSubtrees['descendantCountCounts'],
+            'xmlElementSubtreeLeafDescendantCountCounts' => $elementSubtrees['leafDescendantCountCounts'],
+            'xmlElementSubtreeDepthSpanCounts' => $elementSubtrees['depthSpanCounts'],
+            'xmlElementSubtreePathCounts' => $elementSubtrees['pathCounts'],
+            'xmlElementSubtreePaths' => $elementSubtrees['paths'],
+            'xmlElementSubtreeElementNameCounts' => $elementSubtrees['elementNameCounts'],
+            'xmlElementSubtrees' => $elementSubtrees['items'],
             'xmlRepeatedSiblingElementGroupCount' => $repeatedSiblingElements['groupCount'],
             'xmlRepeatedSiblingElementCount' => $repeatedSiblingElements['elementCount'],
             'xmlRepeatedSiblingElementMaxCount' => $repeatedSiblingElements['maxCount'],
