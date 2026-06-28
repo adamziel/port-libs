@@ -575,6 +575,7 @@ final class OpenDocumentPackage
         $versionPackagePartCount = 0;
         $galleryPackagePartCount = 0;
         $formPackagePartCount = 0;
+        $previewPackagePartCount = 0;
         $unsupportedCompressionMethodCount = 0;
         $totalByteLength = 0;
         $totalCompressedByteLength = 0;
@@ -716,6 +717,7 @@ final class OpenDocumentPackage
                 'versionPackagePart' => self::isVersionPackagePartName($entry->name),
                 'galleryPackagePart' => self::isGalleryPackagePartName($entry->name),
                 'formPackagePart' => self::isFormPackagePartName($entry->name),
+                'previewPackagePart' => self::isPreviewPackagePartName($entry->name),
                 'encrypted' => is_array($manifestEntry) && ($manifestEntry['encrypted'] ?? false) === true,
                 'canExposeBytes' => is_array($manifestEntry) && ($manifestEntry['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $byteExposurePolicy,
@@ -821,6 +823,9 @@ final class OpenDocumentPackage
             if (in_array('form-package', $roles, true)) {
                 ++$formPackagePartCount;
             }
+            if (in_array('preview-package', $roles, true)) {
+                ++$previewPackagePartCount;
+            }
             if ($rawNameProvenance['hasRawNameProvenance']) {
                 ++$rawNameProvenanceEntryCount;
                 $rawNameProvenanceEntries[] = [
@@ -880,6 +885,7 @@ final class OpenDocumentPackage
             'versionPackagePartCount' => $versionPackagePartCount,
             'galleryPackagePartCount' => $galleryPackagePartCount,
             'formPackagePartCount' => $formPackagePartCount,
+            'previewPackagePartCount' => $previewPackagePartCount,
             'unsupportedCompressionMethodCount' => $unsupportedCompressionMethodCount,
             'totalByteLength' => $totalByteLength,
             'totalCompressedByteLength' => $totalCompressedByteLength,
@@ -980,6 +986,7 @@ final class OpenDocumentPackage
                 'versionPackagePart' => ($entry['versionPackagePart'] ?? false) === true,
                 'galleryPackagePart' => ($entry['galleryPackagePart'] ?? false) === true,
                 'formPackagePart' => ($entry['formPackagePart'] ?? false) === true,
+                'previewPackagePart' => ($entry['previewPackagePart'] ?? false) === true,
                 'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? null,
                 'storedByteLength' => $entry['storedByteLength'] ?? null,
@@ -1080,6 +1087,7 @@ final class OpenDocumentPackage
                 'versionPackagePart' => ($part['versionPackagePart'] ?? false) === true,
                 'galleryPackagePart' => ($part['galleryPackagePart'] ?? false) === true,
                 'formPackagePart' => ($part['formPackagePart'] ?? false) === true,
+                'previewPackagePart' => ($part['previewPackagePart'] ?? false) === true,
                 'canExposeBytes' => ($part['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $part['byteExposurePolicy'] ?? null,
                 'undeclared' => ($part['undeclared'] ?? false) === true,
@@ -1113,6 +1121,7 @@ final class OpenDocumentPackage
             'packageThumbnailPartCount' => $packageInventory['packageThumbnailPartCount'] ?? 0,
             'galleryPackagePartCount' => $packageInventory['galleryPackagePartCount'] ?? 0,
             'formPackagePartCount' => $packageInventory['formPackagePartCount'] ?? 0,
+            'previewPackagePartCount' => $packageInventory['previewPackagePartCount'] ?? 0,
             'unixModeEntryCount' => $packageInventory['unixModeEntryCount'] ?? 0,
             'executableFileCount' => $packageInventory['executableFileCount'] ?? 0,
             'writablePermissionEntryCount' => $packageInventory['writablePermissionEntryCount'] ?? 0,
@@ -1521,6 +1530,9 @@ final class OpenDocumentPackage
         if (self::isFormPackagePartName($entry->name)) {
             $roles[] = 'form-package';
         }
+        if (self::isPreviewPackagePartName($entry->name)) {
+            $roles[] = 'preview-package';
+        }
         if (is_array($manifestEntry)) {
             $roles[] = 'manifest-declared';
             if (!$entry->isDirectory() && self::isMediaResourceManifestEntry($manifestEntry)) {
@@ -1566,6 +1578,11 @@ final class OpenDocumentPackage
     private static function isFormPackagePartName(string $path): bool
     {
         return str_starts_with(strtolower(ltrim($path, '/')), 'forms/');
+    }
+
+    private static function isPreviewPackagePartName(string $path): bool
+    {
+        return str_starts_with(strtolower(ltrim($path, '/')), 'preview/');
     }
 
     private static function isLinkedResourcePackagePartName(string $path): bool
@@ -1862,6 +1879,9 @@ final class OpenDocumentPackage
         if (is_string($packagePath) && self::isFormPackagePartName($packagePath)) {
             return false;
         }
+        if (is_string($packagePath) && self::isPreviewPackagePartName($packagePath)) {
+            return false;
+        }
 
         $mediaTypeBase = (string) ($entry['mediaTypeBase'] ?? $entry['mediaType'] ?? '');
         if (
@@ -1909,6 +1929,7 @@ final class OpenDocumentPackage
             $versionPackagePart = is_string($packagePath) && self::isVersionPackagePartName($packagePath);
             $galleryPackagePart = is_string($packagePath) && self::isGalleryPackagePartName($packagePath);
             $formPackagePart = is_string($packagePath) && self::isFormPackagePartName($packagePath);
+            $previewPackagePart = is_string($packagePath) && self::isPreviewPackagePartName($packagePath);
             $zipEntry = (!$isRoot && is_string($packagePath) && $package->has($packagePath))
                 ? $package->entry($packagePath)
                 : null;
@@ -1940,6 +1961,7 @@ final class OpenDocumentPackage
                 && !$versionPackagePart
                 && !$galleryPackagePart
                 && !$formPackagePart
+                && !$previewPackagePart
                 && !$missingMediaType
                 && $hasSupportedCompression;
             $declaredSize = is_int($entry['size'] ?? null) ? $entry['size'] : null;
@@ -1980,7 +2002,8 @@ final class OpenDocumentPackage
                 $databasePackagePart,
                 $versionPackagePart,
                 $galleryPackagePart,
-                $formPackagePart
+                $formPackagePart,
+                $previewPackagePart
             );
 
             $hydrated[] = array_merge($entry, [
@@ -2018,6 +2041,7 @@ final class OpenDocumentPackage
                 'versionPackagePart' => $versionPackagePart,
                 'galleryPackagePart' => $galleryPackagePart,
                 'formPackagePart' => $formPackagePart,
+                'previewPackagePart' => $previewPackagePart,
                 'canExposeBytes' => $canExposeBytes,
                 'byteExposurePolicy' => self::byteExposurePolicy(
                     $isRoot,
@@ -2039,6 +2063,7 @@ final class OpenDocumentPackage
                     $versionPackagePart,
                     $galleryPackagePart,
                     $formPackagePart,
+                    $previewPackagePart,
                     $missingMediaType,
                     $hasSupportedCompression
                 ),
@@ -2069,6 +2094,7 @@ final class OpenDocumentPackage
         bool $versionPackagePart,
         bool $galleryPackagePart,
         bool $formPackagePart,
+        bool $previewPackagePart,
         bool $missingMediaType,
         bool $hasSupportedCompression
     ): string {
@@ -2126,6 +2152,9 @@ final class OpenDocumentPackage
         if ($formPackagePart) {
             return 'form-package-bytes-blocked';
         }
+        if ($previewPackagePart) {
+            return 'preview-package-bytes-blocked';
+        }
         if ($missingMediaType) {
             return 'missing-media-type-bytes-blocked';
         }
@@ -2156,7 +2185,8 @@ final class OpenDocumentPackage
         bool $databasePackagePart,
         bool $versionPackagePart,
         bool $galleryPackagePart,
-        bool $formPackagePart
+        bool $formPackagePart,
+        bool $previewPackagePart
     ): string {
         if ($isRoot) {
             return 'opendocument-text-package';
@@ -2206,6 +2236,9 @@ final class OpenDocumentPackage
         }
         if ($formPackagePart) {
             return 'form';
+        }
+        if ($previewPackagePart) {
+            return 'preview';
         }
         if ($fontPackagePart || ($mediaTypeBase !== '' && self::isFontMediaType($mediaTypeBase))) {
             return 'font';
@@ -2288,6 +2321,7 @@ final class OpenDocumentPackage
                 'versionPackagePart' => self::isVersionPackagePartName($path),
                 'galleryPackagePart' => self::isGalleryPackagePartName($path),
                 'formPackagePart' => self::isFormPackagePartName($path),
+                'previewPackagePart' => self::isPreviewPackagePartName($path),
                 'canExposeBytes' => false,
                 'byteExposurePolicy' => self::undeclaredPackageEntryByteExposurePolicy($path),
                 'diagnostics' => ['odf-manifest-undeclared-package-entry'],
@@ -2304,6 +2338,9 @@ final class OpenDocumentPackage
         }
         if (self::isFormPackagePartName($path)) {
             return 'form-package-bytes-blocked';
+        }
+        if (self::isPreviewPackagePartName($path)) {
+            return 'preview-package-bytes-blocked';
         }
 
         return 'undeclared-package-entry-no-bytes';
@@ -5756,6 +5793,8 @@ final class OpenDocumentPackage
             'galleryPackageItems' => [],
             'formPackagePartCount' => 0,
             'formPackageItems' => [],
+            'previewPackagePartCount' => 0,
+            'previewPackageItems' => [],
             'missingMediaTypeCount' => 0,
             'missingMediaTypeItems' => [],
             'diagnosticCount' => 0,
@@ -5917,6 +5956,10 @@ final class OpenDocumentPackage
             if (($entry['formPackagePart'] ?? false) === true) {
                 ++$summary['formPackagePartCount'];
                 $summary['formPackageItems'][] = $item;
+            }
+            if (($entry['previewPackagePart'] ?? false) === true) {
+                ++$summary['previewPackagePartCount'];
+                $summary['previewPackageItems'][] = $item;
             }
             if (($entry['missingMediaType'] ?? false) === true) {
                 ++$summary['missingMediaTypeCount'];
@@ -6529,6 +6572,7 @@ final class OpenDocumentPackage
             'versionPackagePart' => ($entry['versionPackagePart'] ?? false) === true,
             'galleryPackagePart' => ($entry['galleryPackagePart'] ?? false) === true,
             'formPackagePart' => ($entry['formPackagePart'] ?? false) === true,
+            'previewPackagePart' => ($entry['previewPackagePart'] ?? false) === true,
             'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
             'byteLength' => $entry['byteLength'] ?? null,
             'storedByteLength' => $entry['storedByteLength'] ?? null,
@@ -6617,6 +6661,7 @@ final class OpenDocumentPackage
             'versionPackagePart' => ($entry['versionPackagePart'] ?? false) === true,
             'galleryPackagePart' => ($entry['galleryPackagePart'] ?? false) === true,
             'formPackagePart' => ($entry['formPackagePart'] ?? false) === true,
+            'previewPackagePart' => ($entry['previewPackagePart'] ?? false) === true,
             'zipModifiedAt' => $entry['zipModifiedAt'] ?? null,
             'zipTimestampSource' => $entry['zipTimestampSource'] ?? null,
             'zipLocalModifiedAt' => $entry['zipLocalModifiedAt'] ?? null,

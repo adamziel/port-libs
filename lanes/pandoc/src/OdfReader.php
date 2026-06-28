@@ -702,6 +702,7 @@ final class OdfReader
             $versionPackagePart = is_string($part) && $this->isVersionPackagePartName($part);
             $galleryPackagePart = is_string($part) && $this->isGalleryPackagePartName($part);
             $formPackagePart = is_string($part) && $this->isFormPackagePartName($part);
+            $previewPackagePart = is_string($part) && $this->isPreviewPackagePartName($part);
             $canExposeBytes = !$encrypted
                 && !$isDirectory
                 && !$embeddedObjectPackagePart
@@ -719,6 +720,7 @@ final class OdfReader
                 && !$versionPackagePart
                 && !$galleryPackagePart
                 && !$formPackagePart
+                && !$previewPackagePart
                 && !$missingFileMediaType
                 && $zipEntry instanceof ZipPackageEntry
                 && $hasSupportedCompression;
@@ -742,6 +744,7 @@ final class OdfReader
                 $versionPackagePart,
                 $galleryPackagePart,
                 $formPackagePart,
+                $previewPackagePart,
                 $missingFileMediaType,
                 $hasSupportedCompression
             );
@@ -778,6 +781,7 @@ final class OdfReader
                 'versionPackagePart' => $versionPackagePart,
                 'galleryPackagePart' => $galleryPackagePart,
                 'formPackagePart' => $formPackagePart,
+                'previewPackagePart' => $previewPackagePart,
                 'canExposeBytes' => $canExposeBytes,
                 'byteExposurePolicy' => $byteExposurePolicy,
             ];
@@ -1644,6 +1648,7 @@ final class OdfReader
         bool $versionPackagePart,
         bool $galleryPackagePart,
         bool $formPackagePart,
+        bool $previewPackagePart,
         bool $missingFileMediaType,
         bool $hasSupportedCompression
     ): string {
@@ -1700,6 +1705,9 @@ final class OdfReader
         }
         if ($formPackagePart) {
             return 'form-package-bytes-blocked';
+        }
+        if ($previewPackagePart) {
+            return 'preview-package-bytes-blocked';
         }
         if ($missingFileMediaType) {
             return 'missing-media-type-bytes-blocked';
@@ -1785,6 +1793,7 @@ final class OdfReader
         $versionPackagePartCount = 0;
         $galleryPackagePartCount = 0;
         $formPackagePartCount = 0;
+        $previewPackagePartCount = 0;
         $rawNameProvenanceEntryCount = 0;
         $legacyEncodedNameEntryCount = 0;
         $unicodePathExtraEntryCount = 0;
@@ -1850,6 +1859,7 @@ final class OdfReader
                 'versionPackagePart' => ($item['versionPackagePart'] ?? false) === true,
                 'galleryPackagePart' => ($item['galleryPackagePart'] ?? false) === true,
                 'formPackagePart' => ($item['formPackagePart'] ?? false) === true,
+                'previewPackagePart' => ($item['previewPackagePart'] ?? false) === true,
                 'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $item['byteExposurePolicy'] ?? null,
                 'diagnostics' => $item['diagnostics'] ?? [],
@@ -2088,6 +2098,7 @@ final class OdfReader
                 'versionPackagePart' => $this->isVersionPackagePartName($entry->name),
                 'galleryPackagePart' => $this->isGalleryPackagePartName($entry->name),
                 'formPackagePart' => $this->isFormPackagePartName($entry->name),
+                'previewPackagePart' => $this->isPreviewPackagePartName($entry->name),
                 'encrypted' => is_array($manifestItem) && ($manifestItem['encrypted'] ?? false) === true,
                 'canExposeBytes' => is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $byteExposurePolicy,
@@ -2165,6 +2176,9 @@ final class OdfReader
             }
             if (in_array('form-package', $roles, true)) {
                 ++$formPackagePartCount;
+            }
+            if (in_array('preview-package', $roles, true)) {
+                ++$previewPackagePartCount;
             }
             if ($rawNameProvenance['hasRawNameProvenance']) {
                 ++$rawNameProvenanceEntryCount;
@@ -2269,6 +2283,7 @@ final class OdfReader
             'versionPackagePartCount' => $versionPackagePartCount,
             'galleryPackagePartCount' => $galleryPackagePartCount,
             'formPackagePartCount' => $formPackagePartCount,
+            'previewPackagePartCount' => $previewPackagePartCount,
             'stylePackageProvenance' => $stylePackageProvenance,
             'embeddedObjectPackageCount' => $embeddedObjectPackages['count'],
             'embeddedObjectPackageExistingCount' => $embeddedObjectPackages['existingCount'],
@@ -2373,6 +2388,7 @@ final class OdfReader
                 'versionPackagePart' => ($item['versionPackagePart'] ?? false) === true,
                 'galleryPackagePart' => ($item['galleryPackagePart'] ?? false) === true,
                 'formPackagePart' => ($item['formPackagePart'] ?? false) === true,
+                'previewPackagePart' => ($item['previewPackagePart'] ?? false) === true,
                 'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $item['byteExposurePolicy'] ?? null,
                 'diagnostics' => $item['diagnostics'] ?? [],
@@ -2474,6 +2490,7 @@ final class OdfReader
                 'versionPackagePart' => ($item['versionPackagePart'] ?? false) === true,
                 'galleryPackagePart' => ($item['galleryPackagePart'] ?? false) === true,
                 'formPackagePart' => ($item['formPackagePart'] ?? false) === true,
+                'previewPackagePart' => ($item['previewPackagePart'] ?? false) === true,
                 'encrypted' => ($item['encrypted'] ?? false) === true,
                 'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $item['byteExposurePolicy'] ?? null,
@@ -2533,6 +2550,7 @@ final class OdfReader
             'versionPackagePartCount' => $provenance['versionPackagePartCount'] ?? 0,
             'galleryPackagePartCount' => $provenance['galleryPackagePartCount'] ?? 0,
             'formPackagePartCount' => $provenance['formPackagePartCount'] ?? 0,
+            'previewPackagePartCount' => $provenance['previewPackagePartCount'] ?? 0,
             'stylePackageProvenance' => $provenance['stylePackageProvenance'] ?? [],
             'centralDirectoryOrderMatchesLocalHeaderOrder' => ($provenance['centralDirectoryOrderMatchesLocalHeaderOrder'] ?? false) === true,
         ];
@@ -2580,6 +2598,7 @@ final class OdfReader
             'versionPackagePartCount' => $provenance['versionPackagePartCount'] ?? 0,
             'galleryPackagePartCount' => $provenance['galleryPackagePartCount'] ?? 0,
             'formPackagePartCount' => $provenance['formPackagePartCount'] ?? 0,
+            'previewPackagePartCount' => $provenance['previewPackagePartCount'] ?? 0,
             'stylePackageProvenance' => $provenance['stylePackageProvenance'] ?? [],
             'undeclaredEntryCount' => $provenance['undeclaredEntryCount'] ?? 0,
             'identitySha256' => hash('sha256', $identityJson),
@@ -3477,6 +3496,9 @@ final class OdfReader
         }
         if ($this->isFormPackagePartName($entry->name)) {
             $roles[] = 'form-package';
+        }
+        if ($this->isPreviewPackagePartName($entry->name)) {
+            $roles[] = 'preview-package';
         }
         if ($entry->isDirectory()) {
             $roles[] = 'zip-directory';
@@ -15051,6 +15073,9 @@ final class OdfReader
             if ($this->isFormPackagePartName($part)) {
                 continue;
             }
+            if ($this->isPreviewPackagePartName($part)) {
+                continue;
+            }
             if (in_array($part, ['content.xml', 'styles.xml', 'meta.xml', 'settings.xml'], true)) {
                 continue;
             }
@@ -15740,6 +15765,9 @@ final class OdfReader
         }
         if ($this->isFormPackagePartName($part)) {
             $roles[] = 'form-package';
+        }
+        if ($this->isPreviewPackagePartName($part)) {
+            $roles[] = 'preview-package';
         }
 
         return array_values(array_unique($roles));
@@ -18009,6 +18037,11 @@ final class OdfReader
         return str_starts_with(strtolower(ltrim($part, '/')), 'forms/');
     }
 
+    private function isPreviewPackagePartName(string $part): bool
+    {
+        return str_starts_with(strtolower(ltrim($part, '/')), 'preview/');
+    }
+
     private function galleryMediaTypeFromPart(string $part): ?string
     {
         if (str_ends_with($part, '/')) {
@@ -18720,6 +18753,7 @@ final class OdfReader
                 'versionPackagePart' => $this->isVersionPackagePartName($entry->name),
                 'galleryPackagePart' => $this->isGalleryPackagePartName($entry->name),
                 'formPackagePart' => $this->isFormPackagePartName($entry->name),
+                'previewPackagePart' => $this->isPreviewPackagePartName($entry->name),
                 'canExposeBytes' => false,
                 'byteExposurePolicy' => $this->undeclaredPackageEntryByteExposurePolicy($entry->name),
                 'diagnostics' => ['odf-manifest-undeclared-package-entry'],
@@ -18736,6 +18770,9 @@ final class OdfReader
         }
         if ($this->isFormPackagePartName($part)) {
             return 'form-package-bytes-blocked';
+        }
+        if ($this->isPreviewPackagePartName($part)) {
+            return 'preview-package-bytes-blocked';
         }
 
         return 'undeclared-package-entry-no-bytes';
