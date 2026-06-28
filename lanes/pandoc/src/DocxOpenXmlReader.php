@@ -10968,6 +10968,42 @@ final class DocxOpenXmlReader
         $summary['zipOpcManifestMediaPartCandidateCount'] = $zipOpcManifest['mediaPartCandidateCount'];
         $summary['zipOpcManifestXmlPayloadPartCount'] = $zipOpcManifest['xmlPayloadPartCount'];
         $summary['zipOpcManifestBinaryPayloadPartCount'] = $zipOpcManifest['binaryPayloadPartCount'];
+        $zipPackageManifest = $zipPackage['packageManifest'];
+        $summary['zipPackageManifestPresent'] = (bool) ($zipPackageManifest['present'] ?? false);
+        $summary['zipPackageManifestVersion'] = $zipPackageManifest['manifestVersion'] ?? null;
+        $summary['zipPackageManifestSha256'] = $zipPackageManifest['manifestSha256'] ?? null;
+        $summary['zipPackageManifestEntryCount'] = (int) ($zipPackageManifest['entryCount'] ?? 0);
+        $summary['zipPackageManifestFileEntryCount'] = (int) ($zipPackageManifest['fileEntryCount'] ?? 0);
+        $summary['zipPackageManifestDirectoryEntryCount'] = (int) ($zipPackageManifest['directoryEntryCount'] ?? 0);
+        $summary['zipPackageManifestCompressedByteLength'] = (int) ($zipPackageManifest['compressedBytes'] ?? 0);
+        $summary['zipPackageManifestUncompressedByteLength'] = (int) ($zipPackageManifest['uncompressedBytes'] ?? 0);
+        $summary['zipPackageManifestStoredEntryCount'] = (int) ($zipPackageManifest['storedEntryCount'] ?? 0);
+        $summary['zipPackageManifestDeflatedEntryCount'] = (int) ($zipPackageManifest['deflatedEntryCount'] ?? 0);
+        $summary['zipPackageManifestUnsupportedCompressionMethodCount'] =
+            (int) ($zipPackageManifest['unsupportedCompressionMethodCount'] ?? 0);
+        $summary['zipPackageManifestCentralDirectoryOrderMatchesLocalHeaderOrder'] =
+            $zipPackageManifest['centralDirectoryOrderMatchesLocalHeaderOrder'] ?? null;
+        $zipPackageManifestLocalHeaderSha256Count = 0;
+        $zipPackageManifestCompressedDataSha256Count = 0;
+        $zipPackageManifestCentralDirectoryRecordSha256Count = 0;
+        foreach (($zipPackageManifest['entries'] ?? []) as $zipPackageManifestEntry) {
+            if (!is_array($zipPackageManifestEntry)) {
+                continue;
+            }
+            if (is_string($zipPackageManifestEntry['localHeaderSha256'] ?? null)) {
+                ++$zipPackageManifestLocalHeaderSha256Count;
+            }
+            if (is_string($zipPackageManifestEntry['compressedDataSha256'] ?? null)) {
+                ++$zipPackageManifestCompressedDataSha256Count;
+            }
+            if (is_string($zipPackageManifestEntry['centralDirectoryRecordSha256'] ?? null)) {
+                ++$zipPackageManifestCentralDirectoryRecordSha256Count;
+            }
+        }
+        $summary['zipPackageManifestLocalHeaderSha256Count'] = $zipPackageManifestLocalHeaderSha256Count;
+        $summary['zipPackageManifestCompressedDataSha256Count'] = $zipPackageManifestCompressedDataSha256Count;
+        $summary['zipPackageManifestCentralDirectoryRecordSha256Count'] =
+            $zipPackageManifestCentralDirectoryRecordSha256Count;
         $summary['partNameNormalizationInputPartCount'] = (int) ($partNameNormalization['inputPartCount'] ?? count($parts));
         $summary['partNameNormalizationNormalizedPartCount'] = (int) ($partNameNormalization['normalizedPartCount'] ?? count($partInventory));
         $summary['partNameNormalizationChangedEntryCount'] = (int) ($partNameNormalization['changedEntryCount'] ?? 0);
@@ -11039,6 +11075,23 @@ final class DocxOpenXmlReader
                     'mismatchedEntries' => [],
                     'entries' => [],
                 ],
+                'packageManifest' => [
+                    'present' => false,
+                    'manifestVersion' => null,
+                    'manifestSha256' => null,
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'storedEntryCount' => 0,
+                    'deflatedEntryCount' => 0,
+                    'unsupportedCompressionMethodCount' => 0,
+                    'centralDirectoryOrderNames' => [],
+                    'localHeaderOrderNames' => [],
+                    'centralDirectoryOrderMatchesLocalHeaderOrder' => null,
+                    'entries' => [],
+                ],
                 'dataDescriptors' => $this->emptyZipDataDescriptorProvenance(),
                 'namePolicy' => $this->emptyZipNamePolicyProvenance(),
                 'opcManifest' => $this->emptyZipOpcManifestPreflight(),
@@ -11050,6 +11103,18 @@ final class DocxOpenXmlReader
         }
 
         $localHeaderOrder = $sourcePackage->localHeaderOrderPreflight();
+        $packageManifest = [
+            'present' => true,
+            ...$sourcePackage->packageManifestPreflight(),
+        ];
+        $packageManifestByName = [];
+        foreach (($packageManifest['entries'] ?? []) as $manifestEntry) {
+            if (!is_array($manifestEntry) || !is_string($manifestEntry['name'] ?? null)) {
+                continue;
+            }
+
+            $packageManifestByName[$manifestEntry['name']] = $manifestEntry;
+        }
         $compressionMethods = $sourcePackage->compressionMethodPreflight();
         $dataDescriptors = $this->zipDataDescriptorProvenance($sourcePackage->dataDescriptorPreflight());
         $dataDescriptorByName = [];
@@ -11085,6 +11150,7 @@ final class DocxOpenXmlReader
             }
 
             $localOrder = $localOrderByName[$entry->name] ?? null;
+            $manifestEntry = $packageManifestByName[$entry->name] ?? [];
             $summary = [
                 'packagePath' => $entry->name,
                 'partName' => $isDirectory ? null : $entry->name,
@@ -11101,6 +11167,17 @@ final class DocxOpenXmlReader
                 'byteLength' => $entry->uncompressedSize,
                 'compressedByteLength' => $entry->compressedSize,
                 'crc32' => $entry->crc32Hex(),
+                'packageManifestPresent' => $manifestEntry !== [],
+                'packageManifestVersion' => $packageManifest['manifestVersion'] ?? null,
+                'packageManifestSha256' => $packageManifest['manifestSha256'] ?? null,
+                'localHeaderLength' => $manifestEntry['localHeaderLength'] ?? null,
+                'localHeaderSha256' => $manifestEntry['localHeaderSha256'] ?? null,
+                'compressedDataOffset' => $manifestEntry['compressedDataOffset'] ?? null,
+                'compressedDataEnd' => $manifestEntry['compressedDataEnd'] ?? null,
+                'compressedDataSha256' => $manifestEntry['compressedDataSha256'] ?? null,
+                'centralDirectoryRecordOffset' => $manifestEntry['centralDirectoryRecordOffset'] ?? null,
+                'centralDirectoryRecordEnd' => $manifestEntry['centralDirectoryRecordEnd'] ?? null,
+                'centralDirectoryRecordSha256' => $manifestEntry['centralDirectoryRecordSha256'] ?? null,
                 'isDirectory' => $isDirectory,
                 'loadedPart' => $loadedPart,
                 'canExposeBytes' => false,
@@ -11123,6 +11200,7 @@ final class DocxOpenXmlReader
             'directoryPackagePaths' => $directoryPackagePaths,
             'loadedPartNames' => $loadedPartNames,
             'compressionMethods' => $compressionMethods,
+            'packageManifest' => $packageManifest,
             'dataDescriptors' => $dataDescriptors,
             'namePolicy' => $this->zipNamePolicyProvenance($sourcePackage),
             'opcManifest' => $this->zipOpcManifestPreflight($sourcePackage),
@@ -11450,6 +11528,17 @@ final class DocxOpenXmlReader
             $partInventory[$partName]['compressionSupported'] = $entry['compressionSupported'] ?? null;
             $partInventory[$partName]['compressedByteLength'] = $entry['compressedByteLength'] ?? null;
             $partInventory[$partName]['zipCrc32'] = $entry['crc32'] ?? null;
+            $partInventory[$partName]['zipPackageManifestPresent'] = $entry['packageManifestPresent'] ?? false;
+            $partInventory[$partName]['zipPackageManifestVersion'] = $entry['packageManifestVersion'] ?? null;
+            $partInventory[$partName]['zipPackageManifestSha256'] = $entry['packageManifestSha256'] ?? null;
+            $partInventory[$partName]['zipLocalHeaderLength'] = $entry['localHeaderLength'] ?? null;
+            $partInventory[$partName]['zipLocalHeaderSha256'] = $entry['localHeaderSha256'] ?? null;
+            $partInventory[$partName]['zipCompressedDataOffset'] = $entry['compressedDataOffset'] ?? null;
+            $partInventory[$partName]['zipCompressedDataEnd'] = $entry['compressedDataEnd'] ?? null;
+            $partInventory[$partName]['zipCompressedDataSha256'] = $entry['compressedDataSha256'] ?? null;
+            $partInventory[$partName]['zipCentralDirectoryRecordOffset'] = $entry['centralDirectoryRecordOffset'] ?? null;
+            $partInventory[$partName]['zipCentralDirectoryRecordEnd'] = $entry['centralDirectoryRecordEnd'] ?? null;
+            $partInventory[$partName]['zipCentralDirectoryRecordSha256'] = $entry['centralDirectoryRecordSha256'] ?? null;
             $partInventory[$partName]['zipByteExposurePolicy'] = $entry['byteExposurePolicy'] ?? null;
             $partInventory[$partName]['zipCanExposeBytes'] = $entry['canExposeBytes'] ?? null;
             $partInventory[$partName]['usesDataDescriptor'] = $entry['usesDataDescriptor'] ?? false;

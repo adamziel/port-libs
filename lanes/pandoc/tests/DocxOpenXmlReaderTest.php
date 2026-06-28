@@ -1029,6 +1029,95 @@ XML;
         $t->same([], $summary['zipDataDescriptorIssueCodes']);
         $t->same(28, $summary['zipDataDescriptorByteLength']);
     },
+    'carries docx zip package manifest digests into package inventory provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $documentExtra = pack('vva*', 0xcafe, strlen('docx-package-manifest'), 'docx-package-manifest');
+        $zipParts = docx_openxml_reader_zip_parts($parts);
+        foreach ($zipParts as &$zipPart) {
+            if ($zipPart['name'] === 'word/document.xml') {
+                $zipPart['compressionMethod'] = 8;
+                $zipPart['extraFieldData'] = $documentExtra;
+            }
+            if ($zipPart['name'] === 'word/media/review.png') {
+                $zipPart['compressionMethod'] = 0;
+            }
+        }
+        unset($zipPart);
+
+        $zip = ZipPackage::fromParts($zipParts);
+        $manifest = $zip->packageManifestPreflight();
+        $manifestByName = [];
+        foreach ($manifest['entries'] as $manifestEntry) {
+            $manifestByName[$manifestEntry['name']] = $manifestEntry;
+        }
+
+        $document = (new DocxOpenXmlReader())->readZipPackage($zip);
+        $package = $document->attr('docx')['packageProvenance'];
+        $zipPackage = $package['zipPackage'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $documentEntry = $zipPackage['byPackagePath']['word/document.xml'];
+        $mediaEntry = $zipPackage['byPackagePath']['word/media/review.png'];
+        $documentManifest = $manifestByName['word/document.xml'];
+        $mediaManifest = $manifestByName['word/media/review.png'];
+
+        $t->same('Imported DOCX Heading', $document->children[0]->attr('text'));
+        $t->same(true, $zipPackage['packageManifest']['present']);
+        $t->same($manifest['manifestVersion'], $zipPackage['packageManifest']['manifestVersion']);
+        $t->same($manifest['manifestSha256'], $zipPackage['packageManifest']['manifestSha256']);
+        $t->same($manifest['entryCount'], $zipPackage['packageManifest']['entryCount']);
+        $t->same($manifest['entries'], $zipPackage['packageManifest']['entries']);
+
+        $t->same(true, $summary['zipPackageManifestPresent']);
+        $t->same('zip-package-manifest-v1', $summary['zipPackageManifestVersion']);
+        $t->same($manifest['manifestSha256'], $summary['zipPackageManifestSha256']);
+        $t->same(count($parts), $summary['zipPackageManifestEntryCount']);
+        $t->same(count($parts), $summary['zipPackageManifestFileEntryCount']);
+        $t->same(0, $summary['zipPackageManifestDirectoryEntryCount']);
+        $t->same($manifest['compressedBytes'], $summary['zipPackageManifestCompressedByteLength']);
+        $t->same($manifest['uncompressedBytes'], $summary['zipPackageManifestUncompressedByteLength']);
+        $t->same($manifest['storedEntryCount'], $summary['zipPackageManifestStoredEntryCount']);
+        $t->same($manifest['deflatedEntryCount'], $summary['zipPackageManifestDeflatedEntryCount']);
+        $t->same(0, $summary['zipPackageManifestUnsupportedCompressionMethodCount']);
+        $t->same(true, $summary['zipPackageManifestCentralDirectoryOrderMatchesLocalHeaderOrder']);
+        $t->same(count($parts), $summary['zipPackageManifestLocalHeaderSha256Count']);
+        $t->same(count($parts), $summary['zipPackageManifestCompressedDataSha256Count']);
+        $t->same(count($parts), $summary['zipPackageManifestCentralDirectoryRecordSha256Count']);
+
+        $t->same(true, $documentEntry['packageManifestPresent']);
+        $t->same($manifest['manifestSha256'], $documentEntry['packageManifestSha256']);
+        $t->same($documentManifest['localHeaderLength'], $documentEntry['localHeaderLength']);
+        $t->same(30 + strlen('word/document.xml') + strlen($documentExtra), $documentEntry['localHeaderLength']);
+        $t->same($documentManifest['localHeaderSha256'], $documentEntry['localHeaderSha256']);
+        $t->same($documentManifest['compressedDataOffset'], $documentEntry['compressedDataOffset']);
+        $t->same($documentManifest['compressedDataEnd'], $documentEntry['compressedDataEnd']);
+        $t->same($documentEntry['compressedDataOffset'] + $documentEntry['compressedByteLength'], $documentEntry['compressedDataEnd']);
+        $t->same($documentManifest['compressedDataSha256'], $documentEntry['compressedDataSha256']);
+        $t->same($documentManifest['centralDirectoryRecordOffset'], $documentEntry['centralDirectoryRecordOffset']);
+        $t->same($documentManifest['centralDirectoryRecordEnd'], $documentEntry['centralDirectoryRecordEnd']);
+        $t->same($documentManifest['centralDirectoryRecordSha256'], $documentEntry['centralDirectoryRecordSha256']);
+        $t->same('docx-zip-entry-metadata-only', $documentEntry['byteExposurePolicy']);
+        $t->same(false, $documentEntry['canExposeBytes']);
+
+        $t->same($mediaManifest['localHeaderSha256'], $mediaEntry['localHeaderSha256']);
+        $t->same($mediaManifest['compressedDataSha256'], $mediaEntry['compressedDataSha256']);
+        $t->same($mediaManifest['centralDirectoryRecordSha256'], $mediaEntry['centralDirectoryRecordSha256']);
+        $t->same(0, $mediaEntry['compressionMethod']);
+        $t->same('stored', $mediaEntry['compressionMethodName']);
+
+        $t->same(true, $inventory['word/document.xml']['zipPackageManifestPresent']);
+        $t->same($manifest['manifestSha256'], $inventory['word/document.xml']['zipPackageManifestSha256']);
+        $t->same($documentEntry['localHeaderLength'], $inventory['word/document.xml']['zipLocalHeaderLength']);
+        $t->same($documentEntry['localHeaderSha256'], $inventory['word/document.xml']['zipLocalHeaderSha256']);
+        $t->same($documentEntry['compressedDataOffset'], $inventory['word/document.xml']['zipCompressedDataOffset']);
+        $t->same($documentEntry['compressedDataEnd'], $inventory['word/document.xml']['zipCompressedDataEnd']);
+        $t->same($documentEntry['compressedDataSha256'], $inventory['word/document.xml']['zipCompressedDataSha256']);
+        $t->same($documentEntry['centralDirectoryRecordOffset'], $inventory['word/document.xml']['zipCentralDirectoryRecordOffset']);
+        $t->same($documentEntry['centralDirectoryRecordEnd'], $inventory['word/document.xml']['zipCentralDirectoryRecordEnd']);
+        $t->same($documentEntry['centralDirectoryRecordSha256'], $inventory['word/document.xml']['zipCentralDirectoryRecordSha256']);
+        $t->same('docx-zip-entry-metadata-only', $inventory['word/document.xml']['zipByteExposurePolicy']);
+        $t->same(false, $inventory['word/document.xml']['zipCanExposeBytes']);
+    },
     'preserves docx zip entry name policy provenance for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $zipParts = docx_openxml_reader_zip_parts($parts);
