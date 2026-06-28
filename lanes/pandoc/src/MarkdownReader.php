@@ -9173,6 +9173,14 @@ final class MarkdownReader
                 continue;
             }
 
+            $mark = $this->markExtensionEnabled() ? $this->tryParseMark($text, $offset) : null;
+            if ($mark !== null) {
+                $this->flushText($buffer, $nodes);
+                $nodes[] = $mark['node'];
+                $offset = $mark['next'];
+                continue;
+            }
+
             $strikeout = $this->tryParseStrikeout($text, $offset);
             if ($strikeout !== null) {
                 $this->flushText($buffer, $nodes);
@@ -10034,6 +10042,19 @@ final class MarkdownReader
     private function markdownExtensionOverrides(): array
     {
         return MarkdownFormatProfile::markdownExtensionOverrides($this->markdownFormatWithExtensionOption());
+    }
+
+    private function markExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('mark', $overrides)) {
+            return $overrides['mark'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x'], true);
     }
 
     private function markdownFormatWithExtensionOption(): string
@@ -11678,6 +11699,32 @@ final class MarkdownReader
 
         return [
             'node' => new AstNode('strikeout', [], $this->parseInlines($inner)),
+            'next' => $end + 2,
+        ];
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseMark(string $text, int $offset): ?array
+    {
+        if (substr($text, $offset, 2) !== '==' || $this->isEscapedInlinePosition($text, $offset)) {
+            return null;
+        }
+
+        $end = strpos($text, '==', $offset + 2);
+        if ($end === false || $end === $offset + 2) {
+            return null;
+        }
+
+        $inner = substr($text, $offset + 2, $end - $offset - 2);
+
+        return [
+            'node' => new AstNode(
+                'span',
+                ['classes' => ['mark']],
+                $this->parseInlines($inner)
+            ),
             'next' => $end + 2,
         ];
     }

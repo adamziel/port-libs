@@ -1273,6 +1273,7 @@
         "mappedMarkdownReaderRawEmailAddressCases": 1,
         "markdownReaderEmojiExtensionCases": 1,
         "mappedMarkdownReaderEmojiExtensionCases": 1,
+        "mappedMarkdownReaderMarkExtensionProfileCases": 13,
         "markdownReaderGithubWikiLinkCases": 6,
         "mappedMarkdownReaderGithubWikiLinkCases": 6,
         "markdownWriterWikilinkCommandFixtures": 2,
