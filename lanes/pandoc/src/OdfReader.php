@@ -15654,7 +15654,7 @@ final class OdfReader
 
             $packageRolePrecedence = $this->mediaResourcePackagePrecedenceRoles($item);
             $mediaResource = $packageRolePrecedence === [] && self::isManifestMediaResourceCandidate($part, $mediaTypeBase);
-            if (!$mediaResource && $roleSources === []) {
+            if (!$mediaResource && $roleSources === [] && $packageRolePrecedence === []) {
                 continue;
             }
 
