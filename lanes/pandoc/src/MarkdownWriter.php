@@ -3308,7 +3308,7 @@ final class MarkdownWriter
             return $this->prefixLines($this->renderPipeTable($node), $indent);
         }
 
-        if (!$isSimpleTable && $this->rawHtmlEnabled() && $this->tableNeedsRawHtmlFallback($node)) {
+        if (!$isSimpleTable && $this->rawHtmlEnabled() && $this->hasNativeTableProvenance($node) && $this->tableNeedsRawHtmlFallback($node)) {
             return $this->prefixLines($this->renderRawHtmlTableLines($node), $indent);
         }
 
@@ -4993,6 +4993,12 @@ final class MarkdownWriter
         return false;
     }
 
+    private function hasNativeTableProvenance(AstNode $table): bool
+    {
+        return $table->attr('constructor') === 'Table'
+            || $table->attr('native') !== null;
+    }
+
     private function cellHasOnlyInlineChildren(AstNode $cell): bool
     {
         foreach ($cell->children as $child) {
@@ -5153,6 +5159,10 @@ final class MarkdownWriter
     private function allInlineNodes(array $nodes): bool
     {
         foreach ($nodes as $node) {
+            if ($node->type === 'space') {
+                continue;
+            }
+
             if (!$this->isInlineNode($node)) {
                 return false;
             }
@@ -7103,7 +7113,7 @@ final class MarkdownWriter
         if (
             $this->isRawHtmlFormat($format)
             && $this->rawHtmlEnabled()
-            && $this->isCompleteRawHtmlInlineElement($text)
+            && $this->shouldRenderRawHtmlInlineLiterally($node, $text)
         ) {
             return $text;
         }
@@ -7129,10 +7139,28 @@ final class MarkdownWriter
     private function shouldSuppressUnsupportedNativeRawInline(AstNode $node, string $format): bool
     {
         return $node->type === 'raw_inline'
-            && ($node->attr('constructor') === 'RawInline' || $node->attr('native') !== null)
+            && $this->hasNativeRawInlineProvenance($node)
             && !$this->isRawMarkdownFormat($format)
             && !$this->isRawHtmlFormat($format)
             && !in_array($format, ['latex', 'tex'], true);
+    }
+
+    private function hasNativeRawInlineProvenance(AstNode $node): bool
+    {
+        return $node->attr('constructor') === 'RawInline'
+            || $node->attr('native') !== null
+            || $node->attr('formatNative') !== null;
+    }
+
+    private function shouldRenderRawHtmlInlineLiterally(AstNode $node, string $text): bool
+    {
+        if (!$this->isCompleteRawHtmlInlineElement($text)) {
+            return false;
+        }
+
+        return $this->hasNativeRawInlineProvenance($node)
+            || $node->type === 'raw_inline'
+            || $this->rawHtmlInlineElementTag($text) === 'span';
     }
 
     private function isCompleteRawHtmlInlineElement(string $text): bool
@@ -7143,6 +7171,15 @@ final class MarkdownWriter
         }
 
         return preg_match('/^<([A-Za-z][A-Za-z0-9:-]*)(?:\s[^<>]*)?>.*<\/\1>$/s', $trimmed) === 1;
+    }
+
+    private function rawHtmlInlineElementTag(string $text): string
+    {
+        $trimmed = trim($text);
+
+        return preg_match('/^<([A-Za-z][A-Za-z0-9:-]*)(?:\s[^<>]*)?>.*<\/\1>$/s', $trimmed, $match) === 1
+            ? strtolower($match[1])
+            : '';
     }
 
     /**

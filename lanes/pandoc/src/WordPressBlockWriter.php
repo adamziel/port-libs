@@ -942,7 +942,7 @@ final class WordPressBlockWriter
     private function renderCaptionInlines(AstNode $node): string
     {
         $blocks = $node->attr('captionBlocks', null);
-        if (is_array($blocks) && $this->allAstNodes($blocks)) {
+        if ($this->hasNativeTableConstructor($node) && is_array($blocks) && $this->allAstNodes($blocks)) {
             return $this->renderBlocksAsHtml($blocks, true);
         }
 
@@ -1161,17 +1161,19 @@ final class WordPressBlockWriter
      */
     private function renderStoredHtmlAttrs(AstNode $node, bool $includeIdentity, array $skip): string
     {
-        $htmlAttributes = $this->inlineHtmlAttributes($node);
+        $htmlAttributes = $this->hasNativeTableConstructor($node)
+            ? $this->inlineHtmlAttributes($node)
+            : $this->storedHtmlAttributesOnly($node);
 
         $attrs = '';
         if ($includeIdentity) {
-            $id = (string) ($htmlAttributes['id'] ?? $node->attr('id', ''));
+            $id = (string) ($htmlAttributes['id'] ?? ($this->hasNativeTableConstructor($node) ? $node->attr('id', '') : ''));
             if ($id !== '') {
                 $attrs .= ' id="' . $this->esc($id) . '"';
             }
 
             $class = (string) ($htmlAttributes['class'] ?? '');
-            if ($class === '') {
+            if ($class === '' && $this->hasNativeTableConstructor($node)) {
                 $classes = $node->attr('classes', []);
                 if (is_array($classes) && $classes !== []) {
                     $class = implode(' ', array_map(static fn (mixed $value): string => (string) $value, $classes));
@@ -1194,6 +1196,29 @@ final class WordPressBlockWriter
             }
 
             $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+
+        return $attrs;
+    }
+
+    private function hasNativeTableConstructor(AstNode $node): bool
+    {
+        return $node->attr('constructor') === 'Table';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function storedHtmlAttributesOnly(AstNode $node): array
+    {
+        $htmlAttributes = $node->attr('htmlAttributes', []);
+        if (!is_array($htmlAttributes)) {
+            return [];
+        }
+
+        $attrs = [];
+        foreach ($htmlAttributes as $name => $value) {
+            $attrs[strtolower((string) $name)] = $value;
         }
 
         return $attrs;
@@ -1310,6 +1335,10 @@ final class WordPressBlockWriter
         $text = (string) $node->attr('text', '');
         $formatToken = $this->rawFormatToken($format);
 
+        if ($this->shouldSuppressUnsupportedNativeRawInline($node, $format)) {
+            return '';
+        }
+
         if (strtolower($format) === 'openxml') {
             $bookmark = $this->parseOpenXmlBookmark($text);
             if ($bookmark !== null) {
@@ -1329,6 +1358,36 @@ final class WordPressBlockWriter
         return '<span class="pandoc-raw-' . $this->esc($formatToken) . '" data-pandoc-raw-format="' . $this->esc($format) . '">'
             . $this->esc($text)
             . '</span>';
+    }
+
+    private function shouldSuppressUnsupportedNativeRawInline(AstNode $node, string $format): bool
+    {
+        if ($node->type !== 'raw_inline') {
+            return false;
+        }
+
+        $normalized = strtolower($format);
+        if (
+            in_array($normalized, ['html', 'html4', 'html5', 'xhtml', 'latex', 'tex', 'markdown', 'commonmark'], true)
+            || str_starts_with($normalized, 'markdown')
+        ) {
+            return false;
+        }
+
+        $native = $node->attr('native');
+        $hasReviewSidecar = $node->attr('reviewQueue') !== null
+            || $node->attr('sourcepos') !== null
+            || (
+                is_array($native)
+                && (array_key_exists('reviewQueue', $native) || array_key_exists('sourcepos', $native))
+            );
+        if ($hasReviewSidecar) {
+            return false;
+        }
+
+        return $node->attr('constructor') === 'RawInline'
+            || $node->attr('native') !== null
+            || $node->attr('formatNative') !== null;
     }
 
     private function rawFormatToken(string $format): string
@@ -1551,6 +1610,7 @@ final class WordPressBlockWriter
             if (
                 in_array($name, ['id', 'class', 'latex-placement', 'data-pandoc-latex-placement', 'style'], true)
                 || !$this->isAllowedBlockHtmlAttr($name)
+                || !$this->hasNativeFigureConstructor($node)
             ) {
                 continue;
             }
@@ -1563,6 +1623,11 @@ final class WordPressBlockWriter
         }
 
         return $attrs;
+    }
+
+    private function hasNativeFigureConstructor(AstNode $node): bool
+    {
+        return $node->attr('constructor') === 'Figure';
     }
 
     private function renderImageHtml(AstNode $node): string

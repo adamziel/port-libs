@@ -54,6 +54,7 @@ final class LatexWriter
             'blockquote' => $this->renderBlockQuote($node),
             'horizontal_rule' => ['\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}'],
             'figure' => $this->renderFigure($node),
+            'table' => $this->renderTable($node),
             'raw_tex' => $this->renderRawTexBlock($node),
             'raw_block' => $this->renderRawBlock($node),
             default => [],
@@ -220,6 +221,305 @@ final class LatexWriter
         }
 
         return $this->escapeText((string) $node->attr('caption', ''));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderTable(AstNode $node): array
+    {
+        $rows = $this->tableRows($node);
+        $columnCount = $this->tableColumnCount($node, $rows);
+        $lines = ['\begin{table}', '\centering'];
+
+        $caption = $this->renderTableCaption($node);
+        if ($caption !== '') {
+            $lines[] = $caption;
+        }
+
+        $lines[] = '\begin{tabular}{' . $this->tableColumnSpec($node, $columnCount) . '}';
+        foreach ($rows as $row) {
+            $line = $this->renderTableRow($row, $columnCount);
+            if ($line !== '') {
+                $lines[] = $line;
+            }
+        }
+        $lines[] = '\end{tabular}';
+        $lines[] = '\end{table}';
+
+        return $lines;
+    }
+
+    private function renderTableCaption(AstNode $node): string
+    {
+        $caption = $this->renderTableLongCaption($node);
+        if ($caption === '') {
+            return '';
+        }
+
+        $shortCaption = $this->renderTableShortCaption($node);
+        $line = '\caption' . ($shortCaption === '' ? '' : '[' . $shortCaption . ']') . '{' . $caption . '}';
+        $id = (string) $node->attr('id', '');
+
+        return $id === ''
+            ? $line . '\\\\'
+            : $line . '\label{' . $this->escapeLinkTarget($id) . '}';
+    }
+
+    private function renderTableLongCaption(AstNode $node): string
+    {
+        $captionInlines = $node->attr('captionInlines', []);
+        if ($captionInlines !== [] && is_array($captionInlines) && $this->isAstNodeList($captionInlines)) {
+            return $this->renderInlines($captionInlines, true);
+        }
+
+        $captionBlocks = $node->attr('captionBlocks', []);
+        if (is_array($captionBlocks) && $this->isAstNodeList($captionBlocks)) {
+            return $this->renderTableCaptionBlocks($captionBlocks);
+        }
+
+        $caption = (string) $node->attr('caption', '');
+
+        return $caption === '' ? '' : $this->escapeText($caption);
+    }
+
+    private function renderTableShortCaption(AstNode $node): string
+    {
+        $captionInlines = $node->attr('shortCaptionInlines', []);
+        if ($captionInlines !== [] && is_array($captionInlines) && $this->isAstNodeList($captionInlines)) {
+            return $this->renderInlines($captionInlines, true);
+        }
+
+        $captionBlocks = $node->attr('shortCaptionBlocks', []);
+        if (is_array($captionBlocks) && $this->isAstNodeList($captionBlocks)) {
+            return $this->renderTableCaptionBlocks($captionBlocks);
+        }
+
+        $caption = (string) $node->attr('shortCaption', '');
+
+        return $caption === '' ? '' : $this->escapeText($caption);
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     */
+    private function renderTableCaptionBlocks(array $blocks): string
+    {
+        $parts = [];
+        foreach ($blocks as $block) {
+            $part = $this->renderTableCaptionBlock($block);
+            if ($part !== '') {
+                $parts[] = $part;
+            }
+        }
+
+        return implode('\\\\', $parts);
+    }
+
+    private function renderTableCaptionBlock(AstNode $block): string
+    {
+        if ($block->children !== [] && $this->allInlineNodes($block->children)) {
+            return $this->renderInlines($block->children, true);
+        }
+
+        $text = (string) $block->attr('text', '');
+        if ($text !== '') {
+            return $this->escapeText($text);
+        }
+
+        $lines = $this->renderBlock($block);
+
+        return trim(implode(' ', $lines));
+    }
+
+    /**
+     * @param list<AstNode> $rows
+     */
+    private function tableColumnCount(AstNode $table, array $rows): int
+    {
+        $count = max(1, count($this->tableAlignments($table, 0)));
+        foreach ($rows as $row) {
+            $logicalColumns = 0;
+            foreach ($row->children as $cell) {
+                if ($cell->type === 'table_cell') {
+                    $logicalColumns += max(1, (int) $cell->attr('colspan', 1));
+                }
+            }
+            $count = max($count, $logicalColumns);
+        }
+
+        return $count;
+    }
+
+    private function tableColumnSpec(AstNode $table, int $columnCount): string
+    {
+        $columns = [];
+        foreach ($this->tableAlignments($table, $columnCount) as $alignment) {
+            $columns[] = match ($alignment) {
+                'right' => 'r',
+                'center' => 'c',
+                default => 'l',
+            };
+        }
+
+        return implode('', $columns);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableRows(AstNode $table): array
+    {
+        return [
+            ...$this->tableHeadRows($table),
+            ...$this->tableBodyRows($table, true),
+            ...$this->tableFootRows($table),
+        ];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableHeadRows(AstNode $table): array
+    {
+        $head = $this->tableSection($table, 'table_head');
+
+        return $head instanceof AstNode ? $this->tableRowsFromChildren($head->children) : [];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableFootRows(AstNode $table): array
+    {
+        $foot = $this->tableSection($table, 'table_foot');
+
+        return $foot instanceof AstNode ? $this->tableRowsFromChildren($foot->children) : [];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableBodyRows(AstNode $table, bool $includeHeadRows): array
+    {
+        $rows = [];
+        foreach ($table->children as $child) {
+            if ($child->type !== 'table_body') {
+                continue;
+            }
+
+            if ($includeHeadRows) {
+                array_push($rows, ...$this->tableBodyHeadRows($child));
+            }
+            array_push($rows, ...$this->tableRowsFromChildren($child->children));
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableBodyHeadRows(AstNode $body): array
+    {
+        $headRows = $body->attr('headRows', []);
+        if (!is_array($headRows)) {
+            return [];
+        }
+
+        return array_values(array_filter($headRows, static fn (mixed $row): bool => $row instanceof AstNode && $row->type === 'table_row'));
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<AstNode>
+     */
+    private function tableRowsFromChildren(array $children): array
+    {
+        return array_values(array_filter($children, static fn (AstNode $node): bool => $node->type === 'table_row'));
+    }
+
+    private function tableSection(AstNode $table, string $type): ?AstNode
+    {
+        foreach ($table->children as $child) {
+            if ($child->type === $type) {
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function tableAlignments(AstNode $table, int $columnCount): array
+    {
+        $alignments = $table->attr('alignments', []);
+        if (!is_array($alignments)) {
+            $alignments = [];
+        }
+
+        $normalized = [];
+        foreach ($alignments as $alignment) {
+            $normalized[] = in_array($alignment, ['left', 'right', 'center'], true) ? (string) $alignment : 'default';
+        }
+
+        while ($columnCount > 0 && count($normalized) < $columnCount) {
+            $normalized[] = 'default';
+        }
+
+        return $columnCount > 0 ? array_slice($normalized, 0, $columnCount) : $normalized;
+    }
+
+    private function renderTableRow(AstNode $row, int $columnCount): string
+    {
+        $cells = [];
+        foreach ($row->children as $cell) {
+            if ($cell->type !== 'table_cell') {
+                continue;
+            }
+
+            $cells[] = $this->renderTableCell($cell);
+        }
+
+        while (count($cells) < $columnCount) {
+            $cells[] = '';
+        }
+
+        return implode(' & ', array_slice($cells, 0, $columnCount)) . ' \\\\';
+    }
+
+    private function renderTableCell(AstNode $cell): string
+    {
+        if ($cell->children === []) {
+            return $this->escapeText((string) $cell->attr('text', ''));
+        }
+
+        if ($this->allInlineNodes($cell->children)) {
+            return $this->renderInlines($cell->children, true);
+        }
+
+        $parts = [];
+        foreach ($cell->children as $child) {
+            if ($child->children !== [] && $this->allInlineNodes($child->children)) {
+                $parts[] = $this->renderInlines($child->children, true);
+                continue;
+            }
+
+            $lines = $this->renderBlock($child);
+            if ($lines !== []) {
+                $parts[] = trim(implode(' ', $lines));
+                continue;
+            }
+
+            $text = (string) $child->attr('text', '');
+            if ($text !== '') {
+                $parts[] = $this->escapeText($text);
+            }
+        }
+
+        return implode(' ', array_filter($parts, static fn (string $part): bool => $part !== ''));
     }
 
     /**
@@ -724,6 +1024,7 @@ final class LatexWriter
                 'text' => $escapeText
                     ? $this->escapeText((string) $node->attr('text', ''))
                     : (string) $node->attr('text', ''),
+                'space' => ' ',
                 'softbreak', 'linebreak' => "\n",
                 'code' => $this->renderCode($node, in_array('strikeout', $styles, true)),
                 'math' => $this->renderMath($node),
@@ -1119,6 +1420,48 @@ final class LatexWriter
         }
 
         return true;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function allInlineNodes(array $nodes): bool
+    {
+        foreach ($nodes as $node) {
+            if (!$this->isTableInlineNode($node)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function isTableInlineNode(AstNode $node): bool
+    {
+        return in_array($node->type, [
+            'text',
+            'emph',
+            'strong',
+            'underline',
+            'strikeout',
+            'small_caps',
+            'superscript',
+            'subscript',
+            'span',
+            'quoted',
+            'space',
+            'softbreak',
+            'linebreak',
+            'code',
+            'math',
+            'link',
+            'image',
+            'note',
+            'raw_tex',
+            'raw_tex_inline',
+            'raw_inline',
+            'citation',
+        ], true);
     }
 
     private function isInlineNode(AstNode $node): bool

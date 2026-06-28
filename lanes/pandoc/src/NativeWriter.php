@@ -120,8 +120,16 @@ final class NativeWriter
             || (is_array($meta) && $this->valueHasTaggedNativeMeta($meta))
             || $this->hasGeneratedNoteLabel($document)
             || $this->hasJsonNativeProvenance($document)
-            || $this->hasJsonNativeInlineCompletenessNeed($document)
+            || ($this->allowsJsonNativeInlineCompleteness($document) && $this->hasJsonNativeInlineCompletenessNeed($document))
             || $this->hasMixedBlockContainerContent($document);
+    }
+
+    private function allowsJsonNativeInlineCompleteness(AstNode $document): bool
+    {
+        $sourceFormat = $document->attr('sourceFormat', null);
+
+        return $sourceFormat === null
+            || in_array((string) $sourceFormat, ['markdown', 'commonmark'], true);
     }
 
     private function hasJsonNativeInlineCompletenessNeed(AstNode $node): bool
