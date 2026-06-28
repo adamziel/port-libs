@@ -2580,6 +2580,33 @@ CSS;
             ['type' => 'file', 'filePath' => 'tokens.json'],
         ], $result['dependencies']);
     },
+    'custom at-rules map upstream direct static vars visitor demo' => static function (TestRunner $t): void {
+        $declared = [];
+        $css = <<<'CSS'
+@blue #056ef0;
+
+.menu_link {
+  background: @blue;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'Rule' => [
+                'unknown' => static function (array $rule) use (&$declared): array {
+                    $declared[$rule['name']] = $rule['prelude'];
+
+                    return [];
+                },
+            ],
+            'Token' => [
+                'at-keyword' => static function (array $token) use (&$declared): ?string {
+                    return $declared[$token['value']] ?? null;
+                },
+            ],
+        ]);
+
+        $t->same('.menu_link{background:#056ef0}', $result, 'upstream node/test/visitor.test.mjs line 335');
+    },
     'custom at-rules map upstream composed unknown rules and token visitors' => static function (TestRunner $t): void {
         $declared = [];
         $visitor = CustomAtRuleTransformer::composeVisitors([
@@ -3353,6 +3380,56 @@ CSS;
         $t->same('prefers-color-scheme', $seenFeature['name'] ?? null);
         $t->same('dark', $seenFeature['value']['value'] ?? null);
     },
+    'custom at-rules map upstream direct property lookup visitor demo' => static function (TestRunner $t): void {
+        $result = (new CustomAtRuleTransformer())->transform('.test { margin-left: 20px; margin-right: @margin-left; }', [], [
+            'Rule' => [
+                'style' => static function (array $rule): array {
+                    $valuesByProperty = [];
+                    foreach ($rule['declarations'] as $declaration) {
+                        $valuesByProperty[$declaration['property']] = $declaration['value'];
+                    }
+
+                    foreach ($rule['declarations'] as $index => $declaration) {
+                        if (str_starts_with($declaration['value'], '@')) {
+                            $referenced = substr($declaration['value'], 1);
+                            if (isset($valuesByProperty[$referenced])) {
+                                $rule['declarations'][$index]['value'] = $valuesByProperty[$referenced];
+                            }
+                        }
+                    }
+
+                    return $rule;
+                },
+            ],
+        ]);
+
+        $t->same('.test{margin-left:20px;margin-right:20px}', $result, 'upstream node/test/visitor.test.mjs line 438');
+    },
+    'custom at-rules map upstream direct focus-visible visitor demo' => static function (TestRunner $t): void {
+        $result = (new CustomAtRuleTransformer())->transform('.test:focus-visible { color: red; }', [], [
+            'Rule' => [
+                'style' => static function (array $rule): ?array {
+                    $fallbackSelectors = [];
+                    foreach ($rule['selectors'] as $selector) {
+                        if (!str_contains($selector, ':focus-visible')) {
+                            continue;
+                        }
+                        $fallbackSelectors[] = str_replace(':focus-visible', '.focus-visible', $selector);
+                    }
+                    if ($fallbackSelectors === []) {
+                        return null;
+                    }
+
+                    return [
+                        array_replace($rule, ['selectors' => $fallbackSelectors]),
+                        $rule,
+                    ];
+                },
+            ],
+        ]);
+
+        $t->same('.test.focus-visible{color:red}.test:focus-visible{color:red}', $result, 'upstream node/test/visitor.test.mjs line 487');
+    },
     'custom at-rules compose upstream known style rule visitors' => static function (TestRunner $t): void {
         $visitor = CustomAtRuleTransformer::composeVisitors([
             [
@@ -3577,7 +3654,7 @@ CSS;
             ],
         ]);
 
-        $t->same('.toolbar{color:#fff;border:1px solid green}', $result);
+        $t->same('.toolbar{color:#fff;border:1px solid green}', $result, 'upstream node/test/visitor.test.mjs line 388');
         $t->same([
             ['selectorType' => 'type', 'selectorName' => '--toolbar-theme', 'childRules' => 0],
             ['selectorType' => 'class', 'selectorName' => 'toolbar', 'childRules' => 1],
@@ -5767,7 +5844,7 @@ CSS;
 
         $result = (new CustomAtRuleTransformer())->transform('.a, .b { color: red; }', [], $visitor);
 
-        $t->same('.prefix .a,.prefix .b{color:red}', $result);
+        $t->same('.prefix .a,.prefix .b{color:red}', $result, 'upstream node/test/visitor.test.mjs line 368');
         $t->same([['class'], ['class']], $seenSelectorTypes);
     },
     'custom at-rules expose upstream nth-of-S selectors to Selector visitors' => static function (TestRunner $t): void {
