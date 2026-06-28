@@ -3158,9 +3158,10 @@ final class OpenDocumentPackage
             $declared = ($entry['declared'] ?? false) === true;
             $mediaType = is_string($entry['mediaType'] ?? null) ? (string) $entry['mediaType'] : null;
             $mediaTypeReport = self::mediaTypeReport($mediaType ?? '');
+            $kind = self::signaturePackagePartKind($packagePath);
+            $expectedMediaTypes = self::signatureExpectedMediaTypes($kind);
             $mediaTypeValid = $mediaType === null
-                || $mediaTypeReport['mediaTypeBase'] === 'text/xml'
-                || $mediaTypeReport['mediaTypeBase'] === 'application/xml';
+                || self::isSignaturePackageMediaType($kind, $mediaTypeReport['mediaTypeBase']);
             $issues = [];
             if (!$zipEntry instanceof ZipPackageEntry) {
                 $issues[] = 'odf-signature-missing-package-part';
@@ -3193,7 +3194,8 @@ final class OpenDocumentPackage
                 'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
                 'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
                 'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
-                'expectedMediaTypes' => ['text/xml', 'application/xml'],
+                'kind' => $kind,
+                'expectedMediaTypes' => $expectedMediaTypes,
                 'exists' => $zipEntry instanceof ZipPackageEntry,
                 'declared' => $declared,
                 'undeclared' => !$declared,
@@ -3209,6 +3211,7 @@ final class OpenDocumentPackage
                 'declaredSize' => $entry['declaredSize'] ?? $entry['size'] ?? null,
                 'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
                 'canExposeAsDocumentMedia' => false,
+                'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? ($declared ? 'signature-package-bytes-blocked' : 'undeclared-package-entry-no-bytes'),
                 'reviewPolicy' => 'package-signature-metadata-only',
                 'issues' => $issues,
             ];
@@ -3229,7 +3232,10 @@ final class OpenDocumentPackage
             'invalidMediaTypeCount' => count(array_filter(
                 $items,
                 static fn (array $item): bool => $item['mediaType'] !== null
-                    && !in_array($item['mediaTypeBase'], ['text/xml', 'application/xml'], true),
+                    && !self::isSignaturePackageMediaType(
+                        (string) ($item['kind'] ?? 'xml-signature'),
+                        (string) ($item['mediaTypeBase'] ?? '')
+                    ),
             )),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'issueCodes' => array_keys($issueCodes),
@@ -5570,8 +5576,51 @@ final class OpenDocumentPackage
         $normalized = strtolower(ltrim($path, '/'));
 
         return str_starts_with($normalized, 'meta-inf/')
-            && str_ends_with($normalized, 'signatures.xml')
+            && !str_ends_with($normalized, '/')
+            && (
+                str_ends_with($normalized, 'signatures.xml')
+                || self::isSignatureCertificatePackagePartName($normalized)
+            );
+    }
+
+    private static function isSignatureCertificatePackagePartName(string $path): bool
+    {
+        $normalized = strtolower(ltrim($path, '/'));
+
+        return str_starts_with($normalized, 'meta-inf/certificates/')
             && !str_ends_with($normalized, '/');
+    }
+
+    private static function signaturePackagePartKind(string $path): string
+    {
+        return self::isSignatureCertificatePackagePartName($path)
+            ? 'signature-certificate'
+            : 'xml-signature';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function signatureExpectedMediaTypes(string $kind): array
+    {
+        if ($kind === 'signature-certificate') {
+            return [
+                'application/pkix-cert',
+                'application/x-x509-ca-cert',
+                'application/x-x509-user-cert',
+                'application/x-pem-file',
+                'application/pem-certificate-chain',
+                'application/octet-stream',
+                'application/binary',
+            ];
+        }
+
+        return ['text/xml', 'application/xml'];
+    }
+
+    private static function isSignaturePackageMediaType(string $kind, string $mediaTypeBase): bool
+    {
+        return in_array($mediaTypeBase, self::signatureExpectedMediaTypes($kind), true);
     }
 
     /**

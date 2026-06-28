@@ -689,7 +689,7 @@ final class OdfReader
                 : null;
             $embeddedObjectPackagePart = is_array($embeddedObjectPackage);
             $scriptPackagePart = is_string($part) && $this->isScriptPackagePartName($part);
-            $signaturePackagePart = is_string($part) && $this->isSignaturePartName($part);
+            $signaturePackagePart = is_string($part) && $this->isPackageSignaturePartName($part);
             $configurationPackagePart = is_string($part) && self::isConfigurationPackagePartName($part);
             $fontPackagePart = is_string($part) && $this->isFontPackagePart($part, $mediaType);
             $rdfMetadataPart = is_string($part) && $this->isRdfPackagePart($part, $mediaType);
@@ -2067,7 +2067,7 @@ final class OdfReader
                 'embeddedObjectMediaType' => is_array($embeddedObjectPackage) ? $embeddedObjectPackage['mediaType'] : null,
                 'scriptPackagePart' => $this->isScriptPackagePartName($entry->name),
                 'configurationPackagePart' => self::isConfigurationPackagePartName($entry->name),
-                'signaturePackagePart' => $this->isSignaturePartName($entry->name),
+                'signaturePackagePart' => $this->isPackageSignaturePartName($entry->name),
                 'fontPackagePart' => is_array($manifestItem) && ($manifestItem['fontPackagePart'] ?? false) === true,
                 'rdfMetadataPart' => $this->isRdfPackagePart($entry->name, is_array($manifestItem) ? (string) ($manifestItem['mediaType'] ?? '') : null),
                 'objectReplacementPackagePart' => $this->isObjectReplacementPackagePartName($entry->name),
@@ -3427,7 +3427,7 @@ final class OdfReader
         if ($this->isThumbnailPackagePartName($entry->name)) {
             $roles[] = 'package-thumbnail';
         }
-        if ($this->isSignaturePartName($entry->name)) {
+        if ($this->isPackageSignaturePartName($entry->name)) {
             $roles[] = 'package-signature';
         }
         if (self::isConfigurationPackagePartName($entry->name)) {
@@ -14063,6 +14063,52 @@ final class OdfReader
             && str_ends_with($normalized, 'signatures.xml');
     }
 
+    private function isPackageSignaturePartName(string $part): bool
+    {
+        return $this->isSignaturePartName($part)
+            || self::isSignatureCertificatePackagePartName($part);
+    }
+
+    private static function isSignatureCertificatePackagePartName(string $part): bool
+    {
+        $normalized = strtolower(ltrim($part, '/'));
+
+        return str_starts_with($normalized, 'meta-inf/certificates/')
+            && !str_ends_with($normalized, '/');
+    }
+
+    private function signaturePackagePartKind(string $part): string
+    {
+        return self::isSignatureCertificatePackagePartName($part)
+            ? 'signature-certificate'
+            : 'xml-signature';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function signatureExpectedMediaTypes(string $kind): array
+    {
+        if ($kind === 'signature-certificate') {
+            return [
+                'application/pkix-cert',
+                'application/x-x509-ca-cert',
+                'application/x-x509-user-cert',
+                'application/x-pem-file',
+                'application/pem-certificate-chain',
+                'application/octet-stream',
+                'application/binary',
+            ];
+        }
+
+        return ['text/xml', 'application/xml'];
+    }
+
+    private static function isSignaturePackageMediaType(string $kind, string $mediaTypeBase): bool
+    {
+        return in_array($mediaTypeBase, self::signatureExpectedMediaTypes($kind), true);
+    }
+
     /**
      * @return array<string, mixed>
      * @param array<string, array<string, mixed>> $manifestByPart
@@ -14958,7 +15004,7 @@ final class OdfReader
             if ($this->isThumbnailPackagePartName($part)) {
                 continue;
             }
-            if ($this->isSignaturePartName($part)) {
+            if ($this->isPackageSignaturePartName($part)) {
                 continue;
             }
             if ($this->isFontPackagePart($part, $mediaType)) {
@@ -15648,7 +15694,7 @@ final class OdfReader
         if ($this->isThumbnailPackagePartName($part)) {
             $roles[] = 'package-thumbnail';
         }
-        if ($this->isSignaturePartName($part)) {
+        if ($this->isPackageSignaturePartName($part)) {
             $roles[] = 'package-signature';
         }
         if ($this->isFontPackagePart($part, $mediaType)) {
@@ -16092,7 +16138,7 @@ final class OdfReader
         $candidatesByPart = [];
         foreach ($manifest as $item) {
             $part = $item['part'] ?? null;
-            if (!is_string($part) || $part === '' || !$this->isSignaturePartName($part)) {
+            if (!is_string($part) || $part === '' || !$this->isPackageSignaturePartName($part)) {
                 continue;
             }
 
@@ -16102,7 +16148,7 @@ final class OdfReader
 
         foreach ($undeclaredEntries as $entry) {
             $part = $entry['part'] ?? null;
-            if (!is_string($part) || $part === '' || !$this->isSignaturePartName($part)) {
+            if (!is_string($part) || $part === '' || !$this->isPackageSignaturePartName($part)) {
                 continue;
             }
 
@@ -16139,7 +16185,10 @@ final class OdfReader
                 ? (string) $item['mediaType']
                 : null;
             $mediaTypeReport = self::mediaTypeReport($mediaType ?? '');
-            $mediaTypeValid = $mediaType === null || in_array($mediaTypeReport['mediaTypeBase'], ['text/xml', 'application/xml'], true);
+            $kind = $this->signaturePackagePartKind($part);
+            $expectedMediaTypes = self::signatureExpectedMediaTypes($kind);
+            $mediaTypeValid = $mediaType === null
+                || self::isSignaturePackageMediaType($kind, $mediaTypeReport['mediaTypeBase']);
             $issues = [];
             if (!$entry instanceof ZipPackageEntry) {
                 $issues[] = 'odf-signature-missing-package-part';
@@ -16170,7 +16219,8 @@ final class OdfReader
                 'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
                 'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
                 'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
-                'expectedMediaTypes' => ['text/xml', 'application/xml'],
+                'kind' => $kind,
+                'expectedMediaTypes' => $expectedMediaTypes,
                 'exists' => $entry instanceof ZipPackageEntry,
                 'declared' => $declared,
                 'undeclared' => !$declared,
@@ -16207,7 +16257,10 @@ final class OdfReader
             'invalidMediaTypeCount' => count(array_filter(
                 $items,
                 static fn (array $item): bool => $item['mediaType'] !== null
-                    && !in_array($item['mediaTypeBase'], ['text/xml', 'application/xml'], true),
+                    && !self::isSignaturePackageMediaType(
+                        (string) ($item['kind'] ?? 'xml-signature'),
+                        (string) ($item['mediaTypeBase'] ?? '')
+                    ),
             )),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'issueCodes' => array_keys($issueCodes),
@@ -18083,7 +18136,7 @@ final class OdfReader
 
         return str_starts_with($normalized, 'meta-inf/')
             && $normalized !== 'meta-inf/manifest.xml'
-            && !$this->isSignaturePartName($part)
+            && !$this->isPackageSignaturePartName($part)
             && !str_ends_with($normalized, '/');
     }
 
