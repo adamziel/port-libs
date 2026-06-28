@@ -197,7 +197,7 @@ XML);
         <a:tblPr firstRow="1" bandRow="1"><a:tableStyleId>{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}</a:tableStyleId></a:tblPr>
         <a:tblGrid><a:gridCol w="1828800"/><a:gridCol w="1828800"/><a:gridCol w="1828800"/></a:tblGrid>
         <a:tr><a:tc><a:txBody><a:p><a:r><a:t>Col1</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Col2</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Col3</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
-        <a:tr><a:tc gridSpan="2"><a:txBody><a:p><a:r><a:t>Name</a:t></a:r></a:p></a:txBody><a:tcPr anchor="ctr" marL="120"><a:solidFill><a:srgbClr val="D9EAF7"/></a:solidFill><a:lnB><a:solidFill><a:schemeClr val="accent1"/></a:solidFill></a:lnB></a:tcPr></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Anton</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Antich</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+        <a:tr><a:tc gridSpan="2"><a:txBody><a:p><a:r><a:t>Name</a:t></a:r></a:p></a:txBody><a:tcPr anchor="ctr" marL="120"><a:solidFill><a:srgbClr val="D9EAF7"/></a:solidFill><a:lnB w="12700" cap="flat"><a:solidFill><a:schemeClr val="accent1"/></a:solidFill><a:prstDash val="solid"/></a:lnB></a:tcPr></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Anton</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Antich</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
         <a:tr><a:tc rowSpan="2"><a:txBody><a:p><a:r><a:t>Age</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>23</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>years</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
       </a:tbl></a:graphicData></a:graphic>
     </p:graphicFrame>
@@ -216,13 +216,23 @@ XML . $slideClose);
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image1.png"/>
   <Relationship Id="rIdChart" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="../charts/chart1.xml"/>
+  <Relationship Id="rIdLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>
 </Relationships>
 XML);
     $zip->addFromString('ppt/media/image1.png', 'fake-png-bytes');
     $zip->addFromString('ppt/tableStyles.xml', <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
 <a:tblStyleLst xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" def="{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}">
-  <a:tblStyle styleId="{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}" styleName="Medium Style 2 - Accent 1"/>
+  <a:tblStyle styleId="{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}" styleName="Medium Style 2 - Accent 1">
+    <a:wholeTbl>
+      <a:tcTxStyle b="1"><a:fontRef idx="minor"><a:schemeClr val="tx1"/></a:fontRef></a:tcTxStyle>
+      <a:tcStyle>
+        <a:fill><a:solidFill><a:schemeClr val="accent2"/></a:solidFill></a:fill>
+        <a:lnB w="12700"><a:solidFill><a:schemeClr val="accent1"/></a:solidFill><a:prstDash val="solid"/></a:lnB>
+      </a:tcStyle>
+    </a:wholeTbl>
+    <a:firstRow><a:tcTxStyle b="1"/></a:firstRow>
+  </a:tblStyle>
 </a:tblStyleLst>
 XML);
     $zip->addFromString('ppt/charts/chart1.xml', <<<'XML'
@@ -241,11 +251,39 @@ XML);
           <c:cat><c:strRef><c:strCache><c:pt idx="0"><c:v>Q1</c:v></c:pt><c:pt idx="1"><c:v>Q2</c:v></c:pt></c:strCache></c:strRef></c:cat>
           <c:val><c:numRef><c:numCache><c:pt idx="0"><c:v>12</c:v></c:pt><c:pt idx="1"><c:v>18</c:v></c:pt></c:numCache></c:numRef></c:val>
         </c:ser>
+        <c:axId val="10"/><c:axId val="20"/>
       </c:barChart>
+      <c:lineChart>
+        <c:grouping val="standard"/>
+        <c:ser>
+          <c:idx val="1"/><c:order val="1"/>
+          <c:tx><c:strRef><c:strCache><c:pt idx="0"><c:v>South</c:v></c:pt></c:strCache></c:strRef></c:tx>
+          <c:cat><c:strRef><c:strCache><c:pt idx="0"><c:v>Q1</c:v></c:pt><c:pt idx="1"><c:v>Q2</c:v></c:pt></c:strCache></c:strRef></c:cat>
+          <c:val><c:numRef><c:numCache><c:pt idx="0"><c:v>9</c:v></c:pt><c:pt idx="1"><c:v>13</c:v></c:pt></c:numCache></c:numRef></c:val>
+        </c:ser>
+        <c:axId val="10"/><c:axId val="20"/>
+      </c:lineChart>
+      <c:catAx>
+        <c:axId val="10"/><c:axPos val="b"/>
+        <c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Quarter</a:t></a:r></a:p></c:rich></c:tx></c:title>
+        <c:crossAx val="20"/>
+      </c:catAx>
+      <c:valAx>
+        <c:axId val="20"/><c:axPos val="l"/>
+        <c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Revenue</a:t></a:r></a:p></c:rich></c:tx></c:title>
+        <c:numFmt formatCode="$#,##0" sourceLinked="0"/>
+        <c:crossAx val="10"/>
+      </c:valAx>
     </c:plotArea>
   </c:chart>
   <c:externalData r:id="rIdWorkbook"/>
 </c:chartSpace>
+XML);
+    $zip->addFromString('ppt/charts/_rels/chart1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="../embeddings/Microsoft_Excel_Worksheet1.xlsx"/>
+</Relationships>
 XML);
 
     $zip->addFromString('ppt/slides/slide4.xml', $slideOpen . $titleShape('Smart Art') . <<<'XML'
@@ -462,6 +500,10 @@ return [
         $t->same('{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}', $review['tableStyles']['defaultStyleId'] ?? null);
         $t->same(1, $review['tableStyles']['styleCount'] ?? null);
         $t->same('Medium Style 2 - Accent 1', $review['tableStyles']['styles']['{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}']['name'] ?? null);
+        $t->same(true, $review['tableStyles']['styles']['{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}']['parts']['wholeTbl']['text']['bold'] ?? null);
+        $t->same('minor', $review['tableStyles']['styles']['{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}']['parts']['wholeTbl']['text']['fontRef'] ?? null);
+        $t->same('theme:accent2', $review['tableStyles']['styles']['{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}']['parts']['wholeTbl']['cell']['fillColor'] ?? null);
+        $t->same(12700, $review['tableStyles']['styles']['{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}']['parts']['wholeTbl']['cell']['borderStyles']['bottom']['width'] ?? null);
 
         $t->same('heading', $document->children[0]->type);
         $t->same('slide-1', $document->children[0]->attr('id'));
@@ -482,6 +524,34 @@ return [
             'name' => 'Medium Style 2 - Accent 1',
             'sourcePart' => 'ppt/tableStyles.xml',
             'relationshipId' => 'rIdStyles',
+            'parts' => [
+                'wholeTbl' => [
+                    'text' => [
+                        'bold' => true,
+                        'fontRef' => 'minor',
+                        'fontRefColor' => 'theme:tx1',
+                        'textColor' => 'theme:tx1',
+                    ],
+                    'cell' => [
+                        'fillColor' => 'theme:accent2',
+                        'borders' => [
+                            'bottom' => 'theme:accent1',
+                        ],
+                        'borderStyles' => [
+                            'bottom' => [
+                                'color' => 'theme:accent1',
+                                'width' => 12700,
+                                'dash' => 'solid',
+                            ],
+                        ],
+                    ],
+                ],
+                'firstRow' => [
+                    'text' => [
+                        'bold' => true,
+                    ],
+                ],
+            ],
             'default' => true,
         ], $tables[0]->attr('pptxTableStyle'));
         $t->same([1828800, 1828800, 1828800], $tables[0]->attr('columnWidths'));
@@ -491,6 +561,10 @@ return [
         $t->same('D9EAF7', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['fillColor'] ?? null);
         $t->same('ctr', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['verticalAlign'] ?? null);
         $t->same('theme:accent1', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['borders']['bottom'] ?? null);
+        $t->same('4472C4', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['resolvedBorders']['bottom'] ?? null);
+        $t->same(12700, $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['borderStyles']['bottom']['width'] ?? null);
+        $t->same('solid', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['borderStyles']['bottom']['dash'] ?? null);
+        $t->same('4472C4', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['borderStyles']['bottom']['resolvedColor'] ?? null);
         $t->same(2, $tables[0]->children[1]->children[1]->children[0]->attr('rowspan'));
         $t->same('23', $tables[0]->children[1]->children[1]->children[1]->attr('text'));
         $t->same(1, count($images));
@@ -501,11 +575,27 @@ return [
         $t->same(['pptx-chart', 'pptx-chart-bar'], $chartDivs[0]->attr('classes'));
         $t->same('ppt/charts/chart1.xml', $chartDivs[0]->attr('attributes')['src'] ?? null);
         $t->same('Quarterly Revenue', $chartDivs[0]->attr('attributes')['title'] ?? null);
+        $t->same('2', $chartDivs[0]->attr('attributes')['series-count'] ?? null);
+        $t->same('2', $chartDivs[0]->attr('attributes')['plot-count'] ?? null);
         $t->same('bar', $chartDivs[0]->attr('pptxChart')['chartType'] ?? null);
+        $t->same(['bar', 'line'], $chartDivs[0]->attr('pptxChart')['chartTypes'] ?? null);
+        $t->same(2, $chartDivs[0]->attr('pptxChart')['chartTypeCount'] ?? null);
+        $t->same('col', $chartDivs[0]->attr('pptxChart')['plots'][0]['barDirection'] ?? null);
+        $t->same(['10', '20'], $chartDivs[0]->attr('pptxChart')['plots'][0]['axisIds'] ?? null);
+        $t->same('line', $chartDivs[0]->attr('pptxChart')['plots'][1]['type'] ?? null);
+        $t->same('standard', $chartDivs[0]->attr('pptxChart')['plots'][1]['grouping'] ?? null);
         $t->same(['Q1', 'Q2'], $chartDivs[0]->attr('pptxChart')['series'][0]['categories'] ?? null);
         $t->same(['12', '18'], $chartDivs[0]->attr('pptxChart')['series'][0]['values'] ?? null);
+        $t->same('line', $chartDivs[0]->attr('pptxChart')['series'][1]['plotType'] ?? null);
+        $t->same(['9', '13'], $chartDivs[0]->attr('pptxChart')['series'][1]['values'] ?? null);
+        $t->same('Quarter', $chartDivs[0]->attr('pptxChart')['axes'][0]['title'] ?? null);
+        $t->same('Revenue', $chartDivs[0]->attr('pptxChart')['axes'][1]['title'] ?? null);
+        $t->same('$#,##0', $chartDivs[0]->attr('pptxChart')['axes'][1]['numberFormat'] ?? null);
+        $t->same(false, $chartDivs[0]->attr('pptxChart')['axes'][1]['sourceLinked'] ?? null);
         $t->same(['rIdWorkbook'], $chartDivs[0]->attr('pptxChart')['externalDataRelationshipIds'] ?? null);
+        $t->same('ppt/embeddings/Microsoft_Excel_Worksheet1.xlsx', $chartDivs[0]->attr('pptxChart')['externalDataRelationships'][0]['partName'] ?? null);
         $t->same('North: Q1=12; Q2=18', $chartDivs[0]->children[1]->attr('text'));
+        $t->same('South: Q1=9; Q2=13', $chartDivs[0]->children[2]->attr('text'));
 
         $t->same(1, count($smartArtDivs));
         $t->same(['smartart', 'chevron2'], $smartArtDivs[0]->attr('classes'));
