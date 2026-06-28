@@ -5628,6 +5628,9 @@ final class OpenDocumentPackage
             'ots' => 'application/vnd.oasis.opendocument.spreadsheet-template',
             'otp' => 'application/vnd.oasis.opendocument.presentation-template',
             'otg' => 'application/vnd.oasis.opendocument.graphics-template',
+            'dotx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.template',
+            'xltx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.template',
+            'potx' => 'application/vnd.openxmlformats-officedocument.presentationml.template',
             'xml', 'xhtml', 'html' => 'text/xml',
             'png' => 'image/png',
             'jpg', 'jpeg' => 'image/jpeg',
@@ -5664,7 +5667,9 @@ final class OpenDocumentPackage
         if (in_array($basename, ['manifest.xml', 'metadata.xml'], true) || self::isXmlMediaTypeBase($base)) {
             return 'template-manifest';
         }
-        if (str_starts_with($base, 'application/vnd.oasis.opendocument.')) {
+        if (str_starts_with($base, 'application/vnd.oasis.opendocument.')
+            || str_starts_with($base, 'application/vnd.openxmlformats-officedocument.')
+        ) {
             return 'template-document';
         }
         if (self::mediaResourceFamilyFromMediaTypeBase($base) !== null) {
