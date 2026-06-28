@@ -551,6 +551,7 @@ XML;
         $package = $document->attr('docx')['packageProvenance'];
         $manifest = $package['zipPackage']['opcManifest'];
         $summary = $package['summary'];
+        $inventory = $package['parts'];
         $manifestRelationshipParts = [];
         foreach ($manifest['relationshipParts'] as $relationshipPart) {
             $manifestRelationshipParts[$relationshipPart['partName']] = $relationshipPart;
@@ -591,6 +592,24 @@ XML;
         $t->same('/word/orphan.xml', $manifestEntries['word/_rels/orphan.xml.rels']['relationshipSource']);
         $t->same(false, $manifestEntries['word/_rels/orphan.xml.rels']['relationshipSourceExists']);
         $t->same(['orphan-relationship-part'], $manifestEntries['word/_rels/orphan.xml.rels']['issues']);
+        $t->same(true, $inventory['[Content_Types].xml']['zipOpcManifestPresent']);
+        $t->same('/[Content_Types].xml', $inventory['[Content_Types].xml']['zipOpcManifestPartName']);
+        $t->same('content-types', $inventory['[Content_Types].xml']['zipOpcManifestRole']);
+        $t->same('content-types+xml', $inventory['[Content_Types].xml']['zipOpcManifestHandoffKind']);
+        $t->same(true, $inventory['[Content_Types].xml']['zipOpcManifestContentTypesItem']);
+        $t->same(true, $inventory['[Content_Types].xml']['zipOpcManifestValid']);
+        $t->same(0, $inventory['[Content_Types].xml']['zipOpcManifestIssueCount']);
+        $t->same('part-relationships', $inventory['word/_rels/orphan.xml.rels']['zipOpcManifestRole']);
+        $t->same('relationships+xml', $inventory['word/_rels/orphan.xml.rels']['zipOpcManifestHandoffKind']);
+        $t->same(true, $inventory['word/_rels/orphan.xml.rels']['zipOpcManifestRelationshipPart']);
+        $t->same('/word/orphan.xml', $inventory['word/_rels/orphan.xml.rels']['zipOpcManifestRelationshipSource']);
+        $t->same(false, $inventory['word/_rels/orphan.xml.rels']['zipOpcManifestRelationshipSourceExists']);
+        $t->same(false, $inventory['word/_rels/orphan.xml.rels']['zipOpcManifestValid']);
+        $t->same(1, $inventory['word/_rels/orphan.xml.rels']['zipOpcManifestIssueCount']);
+        $t->same(['orphan-relationship-part'], $inventory['word/_rels/orphan.xml.rels']['zipOpcManifestIssues']);
+        $t->same('media', $inventory['word/media/review.png']['zipOpcManifestRole']);
+        $t->same('media', $inventory['word/media/review.png']['zipOpcManifestHandoffKind']);
+        $t->same(strlen($parts['word/media/review.png']), $inventory['word/media/review.png']['zipOpcManifestExactUncompressedSize']);
 
         $t->same(true, $summary['zipOpcManifestPresent']);
         $t->same(false, $summary['zipOpcManifestValid']);
@@ -611,6 +630,31 @@ XML;
         $t->same(0, $summary['zipOpcManifestEmbeddedPackageCandidateCount']);
         $t->same(1, $summary['zipOpcManifestMediaPartCandidateCount']);
         $t->same(2, $summary['zipOpcManifestRoleCounts']['part-relationships']);
+        $t->same(count($parts), $summary['zipOpcManifestLoadedPartCount']);
+        $t->same(1, $summary['zipOpcManifestLoadedContentTypesItemCount']);
+        $t->same(3, $summary['zipOpcManifestLoadedRelationshipPartCount']);
+        $t->same(1, $summary['zipOpcManifestLoadedPartIssueCount']);
+        $t->same([
+            'content-types' => 1,
+            'document-properties' => 1,
+            'media' => 1,
+            'package-relationships' => 1,
+            'part-relationships' => 2,
+            'xml-part' => 3,
+        ], $summary['zipOpcManifestLoadedPartRoleCounts']);
+        $t->same([
+            'content-types+xml' => 1,
+            'media' => 1,
+            'relationships+xml' => 3,
+            'xml' => 4,
+        ], $summary['zipOpcManifestLoadedPartHandoffKindCounts']);
+        $t->same(['orphan-relationship-part' => 1], $summary['zipOpcManifestLoadedPartIssueCodeCounts']);
+        $t->same(['word/media/review.png'], $summary['zipOpcManifestLoadedPartNamesByRole']['media']);
+        $t->same([
+            'word/_rels/document.xml.rels',
+            'word/_rels/orphan.xml.rels',
+        ], $summary['zipOpcManifestLoadedPartNamesByRole']['part-relationships']);
+        $t->same(['word/_rels/orphan.xml.rels'], $summary['zipOpcManifestLoadedPartNamesWithIssues']);
     },
     'preserves docx unsupported zip compression provenance without aborting ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
