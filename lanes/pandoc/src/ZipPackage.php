@@ -5034,6 +5034,7 @@ final class ZipPackage
      *     selectedDirectoryRootCount:int,
      *     selectedExtensionBucketCount:int,
      *     selectedExtensionlessFileEntryCount:int,
+     *     selectedSizeBucketCount:int,
      *     selectedFileEntryCount:int,
      *     selectedDirectoryEntryCount:int,
      *     selectedZeroByteEntryCount:int,
@@ -5057,6 +5058,7 @@ final class ZipPackage
      *     handoffDirectoryRootCount:int,
      *     handoffExtensionBucketCount:int,
      *     handoffExtensionlessFileEntryCount:int,
+     *     handoffSizeBucketCount:int,
      *     handoffCompressionMethodBucketCount:int,
      *     readableEntryCount:int,
      *     handoffZeroByteEntryCount:int,
@@ -5226,6 +5228,8 @@ final class ZipPackage
      *     handoffDeclaredContentTypeSummaries:list<array<string, mixed>>,
      *     selectedDirectoryRootSummaries:list<array<string, mixed>>,
      *     handoffDirectoryRootSummaries:list<array<string, mixed>>,
+     *     selectedSizeBucketSummaries:list<array<string, mixed>>,
+     *     handoffSizeBucketSummaries:list<array<string, mixed>>,
      *     selectedExtensionSummaries:list<array<string, mixed>>,
      *     handoffExtensionSummaries:list<array<string, mixed>>,
      *     selectedCompressionMethodBuckets:list<array{compressionMethod:int,compressionMethodName:string,entryCount:int,compressedBytes:int,uncompressedBytes:int,isSupported:bool}>,
@@ -6358,6 +6362,8 @@ final class ZipPackage
         $handoffParentDirectorySummaries = self::entryHandoffParentDirectorySummaries($handoffEntries);
         $selectedPlatformMetadataSummary = self::entryHandoffPlatformMetadataSummary($selectedDirectoryRootSummaryEntries);
         $handoffPlatformMetadataSummary = self::entryHandoffPlatformMetadataSummary($handoffEntries);
+        $selectedSizeBucketSummaries = self::entryHandoffSizeBucketSummaries($selectedDirectoryRootSummaryEntries);
+        $handoffSizeBucketSummaries = self::entryHandoffSizeBucketSummaries($handoffEntries);
         $selectedNameHygieneIssueSummaries = self::entryHandoffNameHygieneIssueSummaries($selectedNameHygieneReviewEntries);
         $handoffNameHygieneIssueSummaries = self::entryHandoffNameHygieneIssueSummaries($handoffEntries);
         $handoffNameHygieneReviewEntries = self::entryHandoffNameHygieneReviewEntries($handoffEntries);
@@ -6410,6 +6416,7 @@ final class ZipPackage
             'selectedRelationshipPartEntryCount' => self::entryHandoffKindEntryCount($selectedPackagePartKindSummaries, 'relationship-part'),
             'selectedExtensionBucketCount' => count($selectedExtensionSummaries),
             'selectedExtensionlessFileEntryCount' => self::entryHandoffExtensionlessFileEntryCount($selectedExtensionSummaries),
+            'selectedSizeBucketCount' => count($selectedSizeBucketSummaries),
             'selectedOrderMismatchEntryCount' => $selectedOrderSummary['mismatchEntryCount'],
             'selectedCentralDirectoryOrderMatchesLocalHeaderOrder' => $selectedOrderSummary['centralDirectoryOrderMatchesLocalHeaderOrder'],
             'selectedRequestOrderMatchesCentralDirectoryOrder' => $selectedOrderSummary['requestOrderMatchesCentralDirectoryOrder'],
@@ -6452,6 +6459,7 @@ final class ZipPackage
             'handoffRelationshipPartEntryCount' => self::entryHandoffKindEntryCount($handoffPackagePartKindSummaries, 'relationship-part'),
             'handoffExtensionBucketCount' => count($handoffExtensionSummaries),
             'handoffExtensionlessFileEntryCount' => self::entryHandoffExtensionlessFileEntryCount($handoffExtensionSummaries),
+            'handoffSizeBucketCount' => count($handoffSizeBucketSummaries),
             'handoffCompressionMethodBucketCount' => count($handoffCompressionMethodBuckets),
             'handoffOrderMismatchEntryCount' => $handoffOrderSummary['mismatchEntryCount'],
             'handoffCentralDirectoryOrderMatchesLocalHeaderOrder' => $handoffOrderSummary['centralDirectoryOrderMatchesLocalHeaderOrder'],
@@ -6741,6 +6749,8 @@ final class ZipPackage
             'handoffDeclaredContentTypeSummaries' => $handoffDeclaredContentTypeSummaries,
             'selectedDirectoryRootSummaries' => $selectedDirectoryRootSummaries,
             'handoffDirectoryRootSummaries' => $handoffDirectoryRootSummaries,
+            'selectedSizeBucketSummaries' => $selectedSizeBucketSummaries,
+            'handoffSizeBucketSummaries' => $handoffSizeBucketSummaries,
             'selectedPackagePartKindSummaries' => $selectedPackagePartKindSummaries,
             'handoffPackagePartKindSummaries' => $handoffPackagePartKindSummaries,
             'selectedExtensionSummaries' => $selectedExtensionSummaries,
@@ -9658,6 +9668,124 @@ final class ZipPackage
         $separator = strrpos($trimmedName, '/');
 
         return $separator === false ? '/' : substr($trimmedName, 0, $separator + 1);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffSizeBucketSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $uncompressedSize = (int) ($entry['uncompressedSize'] ?? 0);
+            $bucket = self::entryHandoffSizeBucket($uncompressedSize);
+            $key = $bucket['sizeBucket'];
+            if (!isset($summaries[$key])) {
+                $summaries[$key] = [
+                    'sizeBucket' => $bucket['sizeBucket'],
+                    'minUncompressedBytes' => $bucket['minUncompressedBytes'],
+                    'maxUncompressedBytes' => $bucket['maxUncompressedBytes'],
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'roles' => [],
+                    'entryNames' => [],
+                    'largestEntryName' => null,
+                    'largestUncompressedBytes' => null,
+                ];
+            }
+
+            ++$summaries[$key]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$summaries[$key]['directoryEntryCount'];
+            } else {
+                ++$summaries[$key]['fileEntryCount'];
+            }
+
+            $summaries[$key]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$key]['uncompressedBytes'] += $uncompressedSize;
+            $summaries[$key]['entryNames'][] = $name;
+
+            if (
+                !is_int($summaries[$key]['largestUncompressedBytes'])
+                || $uncompressedSize > $summaries[$key]['largestUncompressedBytes']
+            ) {
+                $summaries[$key]['largestEntryName'] = $name;
+                $summaries[$key]['largestUncompressedBytes'] = $uncompressedSize;
+            }
+
+            foreach (self::entryHandoffRolesForSummary($entry) as $role) {
+                if (!in_array($role, $summaries[$key]['roles'], true)) {
+                    $summaries[$key]['roles'][] = $role;
+                }
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['roles'], SORT_STRING);
+        }
+        unset($summary);
+
+        $ordered = [];
+        foreach (['zero-byte', 'tiny', 'small', 'medium', 'large'] as $bucket) {
+            if (isset($summaries[$bucket])) {
+                $ordered[] = $summaries[$bucket];
+            }
+        }
+
+        return $ordered;
+    }
+
+    /**
+     * @return array{sizeBucket:string,minUncompressedBytes:int,maxUncompressedBytes:?int}
+     */
+    private static function entryHandoffSizeBucket(int $uncompressedSize): array
+    {
+        if ($uncompressedSize <= 0) {
+            return [
+                'sizeBucket' => 'zero-byte',
+                'minUncompressedBytes' => 0,
+                'maxUncompressedBytes' => 0,
+            ];
+        }
+
+        if ($uncompressedSize <= 1024) {
+            return [
+                'sizeBucket' => 'tiny',
+                'minUncompressedBytes' => 1,
+                'maxUncompressedBytes' => 1024,
+            ];
+        }
+
+        if ($uncompressedSize <= 65536) {
+            return [
+                'sizeBucket' => 'small',
+                'minUncompressedBytes' => 1025,
+                'maxUncompressedBytes' => 65536,
+            ];
+        }
+
+        if ($uncompressedSize <= 1048576) {
+            return [
+                'sizeBucket' => 'medium',
+                'minUncompressedBytes' => 65537,
+                'maxUncompressedBytes' => 1048576,
+            ];
+        }
+
+        return [
+            'sizeBucket' => 'large',
+            'minUncompressedBytes' => 1048577,
+            'maxUncompressedBytes' => null,
+        ];
     }
 
     /**

@@ -13073,6 +13073,116 @@ return [
         $t->same([], $summary['failedEntries']);
     },
 
+    'summarizes selected zip handoff file size buckets before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $contentTypesXml = '<Types/>';
+        $documentXml = str_repeat('D', 2048);
+        $previewBytes = str_repeat('P', 70000);
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => $contentTypesXml,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/empty.bin',
+                'data' => '',
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/empty-dir/',
+                'data' => '',
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/preview.bin',
+                'data' => $previewBytes,
+                'method' => 0,
+            ],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => '[Content_Types].xml', 'required' => true, 'kind' => 'file', 'role' => 'content-types'],
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/media/empty.bin', 'required' => false, 'kind' => 'file', 'role' => 'attachment'],
+            ['name' => 'word/media/empty-dir/', 'required' => false, 'kind' => 'directory', 'role' => 'media-directory'],
+            ['name' => 'word/media/preview.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 16],
+            ['name' => 'word/media/missing.bin', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+        ], 131072);
+
+        $zeroBucket = [
+            'sizeBucket' => 'zero-byte',
+            'minUncompressedBytes' => 0,
+            'maxUncompressedBytes' => 0,
+            'entryCount' => 2,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 1,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+            'roles' => ['attachment', 'media-directory'],
+            'entryNames' => ['word/media/empty.bin', 'word/media/empty-dir/'],
+            'largestEntryName' => 'word/media/empty.bin',
+            'largestUncompressedBytes' => 0,
+        ];
+        $tinyBucket = [
+            'sizeBucket' => 'tiny',
+            'minUncompressedBytes' => 1,
+            'maxUncompressedBytes' => 1024,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($contentTypesXml),
+            'uncompressedBytes' => strlen($contentTypesXml),
+            'roles' => ['content-types'],
+            'entryNames' => ['[Content_Types].xml'],
+            'largestEntryName' => '[Content_Types].xml',
+            'largestUncompressedBytes' => strlen($contentTypesXml),
+        ];
+        $smallBucket = [
+            'sizeBucket' => 'small',
+            'minUncompressedBytes' => 1025,
+            'maxUncompressedBytes' => 65536,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($documentXml),
+            'uncompressedBytes' => strlen($documentXml),
+            'roles' => ['main-document'],
+            'entryNames' => ['word/document.xml'],
+            'largestEntryName' => 'word/document.xml',
+            'largestUncompressedBytes' => strlen($documentXml),
+        ];
+        $mediumBucket = [
+            'sizeBucket' => 'medium',
+            'minUncompressedBytes' => 65537,
+            'maxUncompressedBytes' => 1048576,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($previewBytes),
+            'uncompressedBytes' => strlen($previewBytes),
+            'roles' => ['media'],
+            'entryNames' => ['word/media/preview.bin'],
+            'largestEntryName' => 'word/media/preview.bin',
+            'largestUncompressedBytes' => strlen($previewBytes),
+        ];
+
+        $t->same(5, $summary['selectedUniqueEntryCount']);
+        $t->same(4, $summary['selectedSizeBucketCount']);
+        $t->same([$zeroBucket, $tinyBucket, $smallBucket, $mediumBucket], $summary['selectedSizeBucketSummaries']);
+        $t->same(3, $summary['handoffSizeBucketCount']);
+        $t->same([$zeroBucket, $tinyBucket, $smallBucket], $summary['handoffSizeBucketSummaries']);
+        $t->same(4, $summary['handoffEntryCount']);
+        $t->same(1, $summary['oversizedEntryCount']);
+        $t->same('metadata-only', $summary['entries'][4]['byteExposurePolicy']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['entries'][4]['issues']);
+        $t->same('missing-optional', $summary['entries'][5]['status']);
+    },
+
     'preflights selected zip package expansion before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>selected expansion review</w:p></w:body></w:document>';
         $zeroCompressedName = 'word/media/zero-compressed.bin';
