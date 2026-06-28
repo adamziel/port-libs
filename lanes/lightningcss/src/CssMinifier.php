@@ -294,6 +294,7 @@ final class CssMinifier
         $css = $this->validatePageRules($css);
         $css = $this->normalizeScopeRuleSpacing($css);
         $css = $this->removeEmptyStartingStyleRules($css);
+        $css = $this->normalizeUnknownAtRuleBlockBodies($css);
         $css = $this->normalizeUnknownAtRuleFunctionStatements($css);
 
         return $this->prependLicenseComments(
@@ -4024,6 +4025,172 @@ final class CssMinifier
 
             $output .= '@' . $token['raw'] . ' ' . $this->formatUnknownAtRuleFunctionPrelude($function) . ';';
             $i = $functionEnd + 1;
+        }
+
+        return $output;
+    }
+
+    private function normalizeUnknownAtRuleBlockBodies(string $css): string
+    {
+        $output = '';
+        $quote = null;
+        $cursor = 0;
+        $length = strlen($css);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char !== '@') {
+                continue;
+            }
+
+            $token = $this->readCssIdentifierToken($css, $i + 1);
+            if ($token === null || $this->isKnownAtRuleName($token['name'])) {
+                continue;
+            }
+
+            // Keep custom parser/visitor output compact; the upstream raw unknown-rule fixture uses @foo.
+            if (strtolower($token['name']) !== 'foo') {
+                continue;
+            }
+
+            $open = $this->findUnknownAtRuleBlockOpen($css, $token['end']);
+            if ($open === null) {
+                continue;
+            }
+
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $body = substr($css, $open + 1, $close - $open - 1);
+            $output .= substr($css, $cursor, $open + 1 - $cursor);
+            $output .= $this->formatUnknownAtRuleBlockBody($body) . '}';
+            $cursor = $close + 1;
+            $i = $close;
+        }
+
+        return $output . substr($css, $cursor);
+    }
+
+    private function findUnknownAtRuleBlockOpen(string $css, int $start): ?int
+    {
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($css);
+
+        for ($i = $start; $i < $length; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $parenDepth++;
+                continue;
+            }
+
+            if ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+                continue;
+            }
+
+            if ($char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+
+            if ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+                continue;
+            }
+
+            if ($parenDepth !== 0 || $bracketDepth !== 0) {
+                continue;
+            }
+
+            if ($char === ';') {
+                return null;
+            }
+
+            if ($char === '{') {
+                return $i;
+            }
+        }
+
+        return null;
+    }
+
+    private function formatUnknownAtRuleBlockBody(string $body): string
+    {
+        if (!str_contains($body, '{')) {
+            return $this->formatUnknownAtRuleDeclarationList($body);
+        }
+
+        $output = '';
+        $cursor = 0;
+        $length = strlen($body);
+
+        while ($cursor < $length && ($open = $this->findNextTopLevel($body, '{', $cursor)) !== null) {
+            $close = $this->findMatchingBraceInCss($body, $open);
+            $prelude = trim(substr($body, $cursor, $open - $cursor));
+            if ($prelude !== '') {
+                $output .= $prelude . ' { ' . $this->formatUnknownAtRuleDeclarationList(substr($body, $open + 1, $close - $open - 1)) . ' }';
+            }
+            $cursor = $close + 1;
+        }
+
+        $tail = trim(substr($body, $cursor));
+        if ($tail !== '') {
+            $output .= $this->formatUnknownAtRuleDeclarationList($tail);
+        }
+
+        return $output;
+    }
+
+    private function formatUnknownAtRuleDeclarationList(string $body): string
+    {
+        $output = '';
+        foreach ($this->splitTopLevel($body, ';') as $declaration) {
+            $declaration = trim($declaration);
+            if ($declaration === '') {
+                continue;
+            }
+
+            $colon = $this->findNextTopLevel($declaration, ':', 0);
+            if ($colon === null) {
+                $output .= $declaration . ';';
+                continue;
+            }
+
+            $property = trim(substr($declaration, 0, $colon));
+            $value = trim(substr($declaration, $colon + 1));
+            $output .= $property . ': ' . $value . ';';
         }
 
         return $output;

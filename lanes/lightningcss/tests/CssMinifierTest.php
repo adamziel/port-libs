@@ -1259,6 +1259,41 @@ CSS)
         $t->same('@foo;', $minifier->minify('@foo;'));
         $t->same('@foo bar;', $minifier->minify('@foo bar;'));
         $t->same('@foo (bar: baz);', $minifier->minify('@foo (bar: baz);'), 'upstream src/lib.rs::test_unknown_at_rules line 30674');
+        $t->same(
+            '@foo test{div { color: red; }}',
+            $minifier->minify(
+                <<<'CSS'
+@foo test {
+  div {
+    color: red;
+  }
+}
+CSS
+            ),
+            'upstream src/lib.rs::test_unknown_at_rules line 30688'
+        );
+        $t->same(
+            '@foo test{foo: bar;}',
+            $minifier->minify(
+                <<<'CSS'
+@foo test {
+  foo: bar;
+}
+CSS
+            ),
+            'upstream src/lib.rs::test_unknown_at_rules line 30696'
+        );
+        $t->same(
+            '@foo{foo: bar;}',
+            $minifier->minify(
+                <<<'CSS'
+@foo {
+  foo: bar;
+}
+CSS
+            ),
+            'upstream src/lib.rs::test_unknown_at_rules line 30712'
+        );
     },
     'css minifier maps upstream custom property substitution fallbacks and cycles' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
