@@ -11751,6 +11751,7 @@ final class DocxOpenXmlReader
         $partCaseFoldBaseNames = $this->packagePartCaseFoldBaseNameSummary($partInventory);
         $partNameCharacters = $this->packagePartNameCharacterSummary($partInventory);
         $partXmlRoots = $this->packagePartXmlRootSummary($partInventory);
+        $partXmlRelationshipReferences = $this->packagePartXmlRelationshipReferenceSummary($partInventory);
         $partContentTypeSyntaxSuffixes = $this->packagePartContentTypeSyntaxSuffixSummary($partInventory);
         $partContentTypeSyntaxSuffixCounts = [];
         $partContentTypeStructuredSyntaxPartCount = 0;
@@ -14474,6 +14475,26 @@ final class DocxOpenXmlReader
             'partXmlElementAttributeFragmentReferenceValueCount' => $partXmlRoots['xmlElementAttributeFragmentReferenceValueCount'],
             'partXmlElementAttributePathReferenceValueCount' => $partXmlRoots['xmlElementAttributePathReferenceValueCount'],
             'partXmlElementAttributePartNames' => $partXmlRoots['xmlElementAttributePartNames'],
+            'partXmlRelationshipReferenceAttributePartCount' => $partXmlRelationshipReferences['partCount'],
+            'partXmlRelationshipReferenceAttributeCount' => $partXmlRelationshipReferences['count'],
+            'partXmlRelationshipReferenceMatchedCount' => $partXmlRelationshipReferences['matchedCount'],
+            'partXmlRelationshipReferenceMissingCount' => $partXmlRelationshipReferences['missingCount'],
+            'partXmlRelationshipReferenceInternalCount' => $partXmlRelationshipReferences['internalCount'],
+            'partXmlRelationshipReferenceExternalCount' => $partXmlRelationshipReferences['externalCount'],
+            'partXmlRelationshipReferenceExistingTargetCount' => $partXmlRelationshipReferences['existingTargetCount'],
+            'partXmlRelationshipReferenceMissingTargetCount' => $partXmlRelationshipReferences['missingTargetCount'],
+            'partXmlRelationshipReferenceMissingContentTypeCount' => $partXmlRelationshipReferences['missingContentTypeCount'],
+            'partXmlRelationshipReferencePartNames' => $partXmlRelationshipReferences['partNames'],
+            'partXmlRelationshipReferenceAttributeNameCounts' => $partXmlRelationshipReferences['attributeNameCounts'],
+            'partXmlRelationshipReferenceAttributeNames' => $partXmlRelationshipReferences['attributeNames'],
+            'partXmlRelationshipReferenceElementPathCounts' => $partXmlRelationshipReferences['elementPathCounts'],
+            'partXmlRelationshipReferenceElementPaths' => $partXmlRelationshipReferences['elementPaths'],
+            'partXmlRelationshipReferenceElementNameCounts' => $partXmlRelationshipReferences['elementNameCounts'],
+            'partXmlRelationshipReferenceRelationshipIdCounts' => $partXmlRelationshipReferences['relationshipIdCounts'],
+            'partXmlRelationshipReferenceRelationshipIds' => $partXmlRelationshipReferences['relationshipIds'],
+            'partXmlRelationshipReferenceRelationshipTypeCounts' => $partXmlRelationshipReferences['relationshipTypeCounts'],
+            'partXmlRelationshipReferenceTargetPartCounts' => $partXmlRelationshipReferences['targetPartCounts'],
+            'partXmlRelationshipReferenceTargetParts' => $partXmlRelationshipReferences['targetParts'],
             'partXmlInvalidPartNames' => $partXmlRoots['invalidPartNames'],
             'partXmlDeclarationCount' => $partXmlRoots['xmlDeclarationCount'],
             'partXmlDeclarationPartNames' => $partXmlRoots['xmlDeclarationPartNames'],
@@ -15006,6 +15027,7 @@ final class DocxOpenXmlReader
             'partXmlElementChildShapes' => $partXmlRoots['xmlElementChildShapes'],
             'partXmlElementSiblingPositions' => $partXmlRoots['xmlElementSiblingPositions'],
             'partXmlElementAttributes' => $partXmlRoots['xmlElementAttributes'],
+            'partXmlRelationshipReferenceAttributes' => $partXmlRelationshipReferences['items'],
             'partContentTypeSyntaxSuffixes' => $partContentTypeSyntaxSuffixes,
             'partContentTypeSources' => $partContentTypeSources,
             'partContentTypes' => $partContentTypes,
@@ -30588,6 +30610,14 @@ final class DocxOpenXmlReader
             }
             $partNameCharacterFlags = $this->packagePartNameCharacterFlags($partName);
             $xmlRoot = $this->packagePartXmlRootInventory($contents, $partName, $contentTypeResolution, $partExtension);
+            $xmlRelationshipReferences = $this->packagePartXmlRelationshipReferenceInventory(
+                $contents,
+                $partName,
+                $contentTypeResolution,
+                $partExtension,
+                $parts,
+                $contentTypes,
+            );
 
             $entry = [
                 'partName' => $partName,
@@ -30626,7 +30656,7 @@ final class DocxOpenXmlReader
                 'partNameHasWhitespace' => in_array('whitespace', $partNameCharacterFlags, true),
                 'partNameHasPercentEncodedOctet' => in_array('percent-encoded-octet', $partNameCharacterFlags, true),
                 'partNameHasNonAscii' => in_array('non-ascii', $partNameCharacterFlags, true),
-            ] + $xmlRoot;
+            ] + $xmlRoot + $xmlRelationshipReferences;
             if ($entry['isRelationshipPart']) {
                 $relationshipSourcePart = $this->relationshipSourcePartForInventory($partName);
                 $entry['relationshipSourcePart'] = $relationshipSourcePart;
@@ -31294,6 +31324,425 @@ final class DocxOpenXmlReader
             'xmlElementAttributeFragmentReferenceValueCount' => $elementAttributes['fragmentReferenceValueCount'],
             'xmlElementAttributePathReferenceValueCount' => $elementAttributes['pathReferenceValueCount'],
             'xmlElementAttributes' => $elementAttributes['items'],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $contentTypeResolution
+     * @param array<string, string> $parts
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function packagePartXmlRelationshipReferenceInventory(
+        string $contents,
+        string $partName,
+        array $contentTypeResolution,
+        ?string $partExtension,
+        array $parts,
+        array $contentTypes,
+    ): array {
+        $empty = [
+            'xmlRelationshipReferenceAttributeCount' => 0,
+            'xmlRelationshipReferenceMatchedCount' => 0,
+            'xmlRelationshipReferenceMissingCount' => 0,
+            'xmlRelationshipReferenceInternalCount' => 0,
+            'xmlRelationshipReferenceExternalCount' => 0,
+            'xmlRelationshipReferenceExistingTargetCount' => 0,
+            'xmlRelationshipReferenceMissingTargetCount' => 0,
+            'xmlRelationshipReferenceMissingContentTypeCount' => 0,
+            'xmlRelationshipReferenceAttributeNameCounts' => [],
+            'xmlRelationshipReferenceAttributeNames' => [],
+            'xmlRelationshipReferenceElementPathCounts' => [],
+            'xmlRelationshipReferenceElementPaths' => [],
+            'xmlRelationshipReferenceElementNameCounts' => [],
+            'xmlRelationshipReferenceRelationshipIdCounts' => [],
+            'xmlRelationshipReferenceRelationshipIds' => [],
+            'xmlRelationshipReferenceRelationshipTypeCounts' => [],
+            'xmlRelationshipReferenceTargetPartCounts' => [],
+            'xmlRelationshipReferenceTargetParts' => [],
+            'xmlRelationshipReferenceAttributes' => [],
+        ];
+
+        if ($this->packagePartXmlInspectionReason($partName, $contentTypeResolution, $partExtension) === null) {
+            return $empty;
+        }
+
+        $dom = $this->loadXmlForProvenance($contents, $partName);
+        if (!$dom instanceof \DOMDocument || !$dom->documentElement instanceof \DOMElement) {
+            return $empty;
+        }
+
+        $relationshipsPart = $this->relationshipsPartFor($partName);
+        $relationships = $this->readRelationshipsPart($parts, $relationshipsPart);
+        $items = [];
+        $attributeNameCounts = [];
+        $attributeNames = [];
+        $elementPathCounts = [];
+        $elementPaths = [];
+        $elementNameCounts = [];
+        $relationshipIdCounts = [];
+        $relationshipIds = [];
+        $relationshipTypeCounts = [];
+        $targetPartCounts = [];
+        $targetParts = [];
+        $matchedCount = 0;
+        $missingCount = 0;
+        $internalCount = 0;
+        $externalCount = 0;
+        $existingTargetCount = 0;
+        $missingTargetCount = 0;
+        $missingContentTypeCount = 0;
+        $ordinal = 0;
+
+        $walk = function (\DOMElement $element) use (
+            &$walk,
+            &$items,
+            &$attributeNameCounts,
+            &$attributeNames,
+            &$elementPathCounts,
+            &$elementPaths,
+            &$elementNameCounts,
+            &$relationshipIdCounts,
+            &$relationshipIds,
+            &$relationshipTypeCounts,
+            &$targetPartCounts,
+            &$targetParts,
+            &$matchedCount,
+            &$missingCount,
+            &$internalCount,
+            &$externalCount,
+            &$existingTargetCount,
+            &$missingTargetCount,
+            &$missingContentTypeCount,
+            &$ordinal,
+            $relationships,
+            $relationshipsPart,
+            $partName,
+            $parts,
+            $contentTypes,
+        ): void {
+            foreach ($element->attributes as $attribute) {
+                if (!$attribute instanceof \DOMAttr || $attribute->namespaceURI !== self::NS_R) {
+                    continue;
+                }
+
+                $relationshipId = trim($attribute->value);
+                if ($relationshipId === '') {
+                    continue;
+                }
+
+                ++$ordinal;
+                $attributeName = $attribute->nodeName;
+                $attributeLocalName = $attribute->localName;
+                $attributePrefix = $this->emptyStringToNull((string) $attribute->prefix);
+                $elementPath = $this->xmlProvenanceParentPath($element);
+                $elementNamespace = is_string($element->namespaceURI) && $element->namespaceURI !== ''
+                    ? $element->namespaceURI
+                    : null;
+                $elementLocalName = $element->localName === '' ? null : $element->localName;
+                $elementQualifiedName = $element->tagName === '' ? $elementLocalName : $element->tagName;
+                $elementNameKey = $elementQualifiedName ?? '(none)';
+                $relationship = $relationships[$relationshipId] ?? null;
+                $matched = is_array($relationship);
+                $relationshipType = $matched && is_string($relationship['type'] ?? null) ? $relationship['type'] : null;
+                $targetMode = $matched && is_string($relationship['targetMode'] ?? null) ? $relationship['targetMode'] : null;
+                $target = $matched && is_string($relationship['target'] ?? null) ? $relationship['target'] : null;
+                $resolvedTarget = $matched && is_string($relationship['resolvedTarget'] ?? null) ? $relationship['resolvedTarget'] : null;
+                $external = $matched ? $this->isExternalRelationshipTarget($relationship) : false;
+                $targetPart = null;
+                $targetExists = false;
+                $targetQuery = null;
+                $targetFragment = null;
+                $targetReferenceSuffix = '';
+                $contentType = null;
+                $contentTypeBase = null;
+                $contentTypeSource = null;
+
+                if ($matched) {
+                    ++$matchedCount;
+                    $relationshipTypeCounts[$relationshipType ?? '(none)'] =
+                        ($relationshipTypeCounts[$relationshipType ?? '(none)'] ?? 0) + 1;
+                    $targetReference = $this->targetReferenceSuffix((string) $resolvedTarget);
+                    $targetQuery = $targetReference['query'];
+                    $targetFragment = $targetReference['fragment'];
+                    $targetReferenceSuffix = $targetReference['suffix'];
+                    if ($external) {
+                        ++$externalCount;
+                    } else {
+                        ++$internalCount;
+                        $targetPart = $this->stripQueryAndFragment((string) $resolvedTarget);
+                        $targetExists = isset($parts[$targetPart]);
+                        $targetContentType = $this->contentTypeResolutionForPart($targetPart, $contentTypes);
+                        $contentType = is_string($targetContentType['contentType'] ?? null) ? $targetContentType['contentType'] : null;
+                        $contentTypeBase = is_string($targetContentType['contentTypeBase'] ?? null) ? $targetContentType['contentTypeBase'] : null;
+                        $contentTypeSource = is_string($targetContentType['contentTypeSource'] ?? null) ? $targetContentType['contentTypeSource'] : null;
+                        $targetPartCounts[$targetPart] = ($targetPartCounts[$targetPart] ?? 0) + 1;
+                        $this->appendUniqueString($targetParts, $targetPart);
+                        if ($targetExists) {
+                            ++$existingTargetCount;
+                        } else {
+                            ++$missingTargetCount;
+                        }
+                        if ($contentTypeSource === 'missing') {
+                            ++$missingContentTypeCount;
+                        }
+                    }
+                } else {
+                    ++$missingCount;
+                }
+
+                $attributeNameCounts[$attributeName] = ($attributeNameCounts[$attributeName] ?? 0) + 1;
+                $this->appendUniqueString($attributeNames, $attributeName);
+                $elementPathCounts[$elementPath] = ($elementPathCounts[$elementPath] ?? 0) + 1;
+                $this->appendUniqueString($elementPaths, $elementPath);
+                $elementNameCounts[$elementNameKey] = ($elementNameCounts[$elementNameKey] ?? 0) + 1;
+                $relationshipIdCounts[$relationshipId] = ($relationshipIdCounts[$relationshipId] ?? 0) + 1;
+                $this->appendUniqueString($relationshipIds, $relationshipId);
+                $items[] = [
+                    'ordinal' => $ordinal,
+                    'relationshipsPart' => $relationshipsPart,
+                    'sourcePart' => $partName,
+                    'elementPath' => $elementPath,
+                    'elementDepth' => $this->xmlProvenanceParentDepth($elementPath),
+                    'elementNamespace' => $elementNamespace,
+                    'elementLocalName' => $elementLocalName,
+                    'elementQualifiedName' => $elementQualifiedName,
+                    'attributeName' => $attributeName,
+                    'attributeLocalName' => $attributeLocalName,
+                    'attributePrefix' => $attributePrefix,
+                    'relationshipId' => $relationshipId,
+                    'matchedRelationship' => $matched,
+                    'relationshipType' => $relationshipType,
+                    'targetMode' => $targetMode,
+                    'target' => $target,
+                    'resolvedTarget' => $resolvedTarget,
+                    'external' => $external,
+                    'targetPart' => $targetPart,
+                    'targetQuery' => $targetQuery,
+                    'targetFragment' => $targetFragment,
+                    'targetReferenceSuffix' => $targetReferenceSuffix,
+                    'targetExists' => $targetExists,
+                    'contentType' => $contentType,
+                    'contentTypeBase' => $contentTypeBase,
+                    'contentTypeSource' => $contentTypeSource,
+                ];
+            }
+
+            foreach ($element->childNodes as $child) {
+                if ($child instanceof \DOMElement) {
+                    $walk($child);
+                }
+            }
+        };
+        $walk($dom->documentElement);
+
+        ksort($attributeNameCounts, SORT_STRING);
+        ksort($elementPathCounts, SORT_STRING);
+        ksort($elementNameCounts, SORT_STRING);
+        ksort($relationshipIdCounts, SORT_STRING);
+        ksort($relationshipTypeCounts, SORT_STRING);
+        ksort($targetPartCounts, SORT_STRING);
+        sort($attributeNames, SORT_STRING);
+        sort($elementPaths, SORT_STRING);
+        sort($relationshipIds, SORT_STRING);
+        sort($targetParts, SORT_STRING);
+
+        return [
+            'xmlRelationshipReferenceAttributeCount' => count($items),
+            'xmlRelationshipReferenceMatchedCount' => $matchedCount,
+            'xmlRelationshipReferenceMissingCount' => $missingCount,
+            'xmlRelationshipReferenceInternalCount' => $internalCount,
+            'xmlRelationshipReferenceExternalCount' => $externalCount,
+            'xmlRelationshipReferenceExistingTargetCount' => $existingTargetCount,
+            'xmlRelationshipReferenceMissingTargetCount' => $missingTargetCount,
+            'xmlRelationshipReferenceMissingContentTypeCount' => $missingContentTypeCount,
+            'xmlRelationshipReferenceAttributeNameCounts' => $attributeNameCounts,
+            'xmlRelationshipReferenceAttributeNames' => $attributeNames,
+            'xmlRelationshipReferenceElementPathCounts' => $elementPathCounts,
+            'xmlRelationshipReferenceElementPaths' => $elementPaths,
+            'xmlRelationshipReferenceElementNameCounts' => $elementNameCounts,
+            'xmlRelationshipReferenceRelationshipIdCounts' => $relationshipIdCounts,
+            'xmlRelationshipReferenceRelationshipIds' => $relationshipIds,
+            'xmlRelationshipReferenceRelationshipTypeCounts' => $relationshipTypeCounts,
+            'xmlRelationshipReferenceTargetPartCounts' => $targetPartCounts,
+            'xmlRelationshipReferenceTargetParts' => $targetParts,
+            'xmlRelationshipReferenceAttributes' => $items,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return array<string, mixed>
+     */
+    private function packagePartXmlRelationshipReferenceSummary(array $partInventory): array
+    {
+        $partNames = [];
+        $attributeNameCounts = [];
+        $attributeNames = [];
+        $elementPathCounts = [];
+        $elementPaths = [];
+        $elementNameCounts = [];
+        $relationshipIdCounts = [];
+        $relationshipIds = [];
+        $relationshipTypeCounts = [];
+        $targetPartCounts = [];
+        $targetParts = [];
+        $items = [];
+        $partCount = 0;
+        $count = 0;
+        $matchedCount = 0;
+        $missingCount = 0;
+        $internalCount = 0;
+        $externalCount = 0;
+        $existingTargetCount = 0;
+        $missingTargetCount = 0;
+        $missingContentTypeCount = 0;
+
+        foreach ($partInventory as $partName => $part) {
+            $partName = (string) ($part['partName'] ?? $partName);
+            $partReferenceCount = (int) ($part['xmlRelationshipReferenceAttributeCount'] ?? 0);
+            if ($partReferenceCount <= 0) {
+                continue;
+            }
+
+            ++$partCount;
+            $count += $partReferenceCount;
+            $matchedCount += (int) ($part['xmlRelationshipReferenceMatchedCount'] ?? 0);
+            $missingCount += (int) ($part['xmlRelationshipReferenceMissingCount'] ?? 0);
+            $internalCount += (int) ($part['xmlRelationshipReferenceInternalCount'] ?? 0);
+            $externalCount += (int) ($part['xmlRelationshipReferenceExternalCount'] ?? 0);
+            $existingTargetCount += (int) ($part['xmlRelationshipReferenceExistingTargetCount'] ?? 0);
+            $missingTargetCount += (int) ($part['xmlRelationshipReferenceMissingTargetCount'] ?? 0);
+            $missingContentTypeCount += (int) ($part['xmlRelationshipReferenceMissingContentTypeCount'] ?? 0);
+            $this->appendUniqueString($partNames, $partName);
+
+            foreach (($part['xmlRelationshipReferenceAttributeNameCounts'] ?? []) as $attributeName => $attributeCount) {
+                if (!is_string($attributeName) || $attributeName === '') {
+                    continue;
+                }
+
+                $attributeNameCounts[$attributeName] = ($attributeNameCounts[$attributeName] ?? 0) + (int) $attributeCount;
+                $this->appendUniqueString($attributeNames, $attributeName);
+            }
+            foreach (($part['xmlRelationshipReferenceElementPathCounts'] ?? []) as $elementPath => $pathCount) {
+                if (!is_string($elementPath) || $elementPath === '') {
+                    continue;
+                }
+
+                $elementPathCounts[$elementPath] = ($elementPathCounts[$elementPath] ?? 0) + (int) $pathCount;
+                $this->appendUniqueString($elementPaths, $elementPath);
+            }
+            foreach (($part['xmlRelationshipReferenceElementNameCounts'] ?? []) as $elementName => $elementNameCount) {
+                if (!is_string($elementName) || $elementName === '') {
+                    continue;
+                }
+
+                $elementNameCounts[$elementName] = ($elementNameCounts[$elementName] ?? 0) + (int) $elementNameCount;
+            }
+            foreach (($part['xmlRelationshipReferenceRelationshipIdCounts'] ?? []) as $relationshipId => $relationshipIdCount) {
+                if (!is_string($relationshipId) || $relationshipId === '') {
+                    continue;
+                }
+
+                $relationshipIdCounts[$relationshipId] = ($relationshipIdCounts[$relationshipId] ?? 0) + (int) $relationshipIdCount;
+                $this->appendUniqueString($relationshipIds, $relationshipId);
+            }
+            foreach (($part['xmlRelationshipReferenceRelationshipTypeCounts'] ?? []) as $relationshipType => $relationshipTypeCount) {
+                if (!is_string($relationshipType) || $relationshipType === '') {
+                    continue;
+                }
+
+                $relationshipTypeCounts[$relationshipType] = ($relationshipTypeCounts[$relationshipType] ?? 0) + (int) $relationshipTypeCount;
+            }
+            foreach (($part['xmlRelationshipReferenceTargetPartCounts'] ?? []) as $targetPart => $targetPartCount) {
+                if (!is_string($targetPart) || $targetPart === '') {
+                    continue;
+                }
+
+                $targetPartCounts[$targetPart] = ($targetPartCounts[$targetPart] ?? 0) + (int) $targetPartCount;
+                $this->appendUniqueString($targetParts, $targetPart);
+            }
+            foreach (($part['xmlRelationshipReferenceAttributes'] ?? []) as $reference) {
+                if (!is_array($reference)) {
+                    continue;
+                }
+
+                $items[] = [
+                    'partName' => $partName,
+                    'directory' => is_string($part['directory'] ?? null) ? $part['directory'] : $this->packagePartDirectory($partName),
+                    'baseName' => is_string($part['baseName'] ?? null) ? $part['baseName'] : $this->packagePartBaseName($partName),
+                    'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                    'contentTypeBase' => is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '',
+                    'contentTypeSource' => is_string($part['contentTypeSource'] ?? null) ? $part['contentTypeSource'] : 'missing',
+                    'ordinal' => (int) ($reference['ordinal'] ?? 0),
+                    'relationshipsPart' => is_string($reference['relationshipsPart'] ?? null) ? $reference['relationshipsPart'] : $this->relationshipsPartFor($partName),
+                    'sourcePart' => is_string($reference['sourcePart'] ?? null) ? $reference['sourcePart'] : $partName,
+                    'elementPath' => is_string($reference['elementPath'] ?? null) ? $reference['elementPath'] : '/',
+                    'elementDepth' => (int) ($reference['elementDepth'] ?? 0),
+                    'elementNamespace' => is_string($reference['elementNamespace'] ?? null) ? $reference['elementNamespace'] : null,
+                    'elementLocalName' => is_string($reference['elementLocalName'] ?? null) ? $reference['elementLocalName'] : null,
+                    'elementQualifiedName' => is_string($reference['elementQualifiedName'] ?? null) ? $reference['elementQualifiedName'] : null,
+                    'attributeName' => is_string($reference['attributeName'] ?? null) ? $reference['attributeName'] : '',
+                    'attributeLocalName' => is_string($reference['attributeLocalName'] ?? null) ? $reference['attributeLocalName'] : '',
+                    'attributePrefix' => is_string($reference['attributePrefix'] ?? null) ? $reference['attributePrefix'] : null,
+                    'relationshipId' => is_string($reference['relationshipId'] ?? null) ? $reference['relationshipId'] : '',
+                    'matchedRelationship' => (bool) ($reference['matchedRelationship'] ?? false),
+                    'relationshipType' => is_string($reference['relationshipType'] ?? null) ? $reference['relationshipType'] : null,
+                    'targetMode' => is_string($reference['targetMode'] ?? null) ? $reference['targetMode'] : null,
+                    'target' => is_string($reference['target'] ?? null) ? $reference['target'] : null,
+                    'resolvedTarget' => is_string($reference['resolvedTarget'] ?? null) ? $reference['resolvedTarget'] : null,
+                    'external' => (bool) ($reference['external'] ?? false),
+                    'targetPart' => is_string($reference['targetPart'] ?? null) ? $reference['targetPart'] : null,
+                    'targetQuery' => is_string($reference['targetQuery'] ?? null) ? $reference['targetQuery'] : null,
+                    'targetFragment' => is_string($reference['targetFragment'] ?? null) ? $reference['targetFragment'] : null,
+                    'targetReferenceSuffix' => is_string($reference['targetReferenceSuffix'] ?? null) ? $reference['targetReferenceSuffix'] : '',
+                    'targetExists' => (bool) ($reference['targetExists'] ?? false),
+                    'targetContentType' => is_string($reference['contentType'] ?? null) ? $reference['contentType'] : null,
+                    'targetContentTypeBase' => is_string($reference['contentTypeBase'] ?? null) ? $reference['contentTypeBase'] : null,
+                    'targetContentTypeSource' => is_string($reference['contentTypeSource'] ?? null) ? $reference['contentTypeSource'] : null,
+                ];
+            }
+        }
+
+        ksort($attributeNameCounts, SORT_STRING);
+        ksort($elementPathCounts, SORT_STRING);
+        ksort($elementNameCounts, SORT_STRING);
+        ksort($relationshipIdCounts, SORT_STRING);
+        ksort($relationshipTypeCounts, SORT_STRING);
+        ksort($targetPartCounts, SORT_STRING);
+        sort($partNames, SORT_STRING);
+        sort($attributeNames, SORT_STRING);
+        sort($elementPaths, SORT_STRING);
+        sort($relationshipIds, SORT_STRING);
+        sort($targetParts, SORT_STRING);
+        usort(
+            $items,
+            static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName'])
+                ?: ((int) ($left['ordinal'] ?? 0) <=> (int) ($right['ordinal'] ?? 0)),
+        );
+
+        return [
+            'partCount' => $partCount,
+            'count' => $count,
+            'matchedCount' => $matchedCount,
+            'missingCount' => $missingCount,
+            'internalCount' => $internalCount,
+            'externalCount' => $externalCount,
+            'existingTargetCount' => $existingTargetCount,
+            'missingTargetCount' => $missingTargetCount,
+            'missingContentTypeCount' => $missingContentTypeCount,
+            'partNames' => $partNames,
+            'attributeNameCounts' => $attributeNameCounts,
+            'attributeNames' => $attributeNames,
+            'elementPathCounts' => $elementPathCounts,
+            'elementPaths' => $elementPaths,
+            'elementNameCounts' => $elementNameCounts,
+            'relationshipIdCounts' => $relationshipIdCounts,
+            'relationshipIds' => $relationshipIds,
+            'relationshipTypeCounts' => $relationshipTypeCounts,
+            'targetPartCounts' => $targetPartCounts,
+            'targetParts' => $targetParts,
+            'items' => $items,
         ];
     }
 
