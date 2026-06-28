@@ -110,6 +110,7 @@ final class CssMinifier
         if (!$this->recoverInvalidMediaFeatureValues) {
             $this->validateAuthoredMediaQueryPreludes($css);
         }
+        $this->validateMalformedFunctionTokens($css);
 
         [$css, $licenseComments] = $this->stripComments($css);
         $this->validateViewTransitionPseudoElementSelectorPreludes($css);
@@ -598,6 +599,191 @@ final class CssMinifier
                 $parser->minifyList($prelude, allowCompactedNegation: false);
             }
         }
+    }
+
+    private function validateMalformedFunctionTokens(string $css): void
+    {
+        $quote = null;
+        $length = strlen($css);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '/' && ($css[$i + 1] ?? '') === '*') {
+                $end = strpos($css, '*/', $i + 2);
+                if ($end === false) {
+                    return;
+                }
+                $i = $end + 1;
+                continue;
+            }
+
+            if (!ctype_alpha($char) && $char !== '_' && $char !== '-') {
+                continue;
+            }
+
+            $token = $this->readCssIdentifierToken($css, $i);
+            if ($token === null) {
+                continue;
+            }
+
+            $open = $token['end'];
+            if (($css[$open] ?? '') !== '(') {
+                $i = $open - 1;
+                continue;
+            }
+
+            $name = strtolower($token['name']);
+            if ($this->isColorFunctionName($name) && !$this->functionClosesBeforeDeclarationTerminator($css, $open)) {
+                throw new \InvalidArgumentException('Unexpected token CloseCurlyBracket');
+            }
+
+            if ($name === 'url' && $this->hasBadUnquotedUrlToken($css, $open)) {
+                throw new \InvalidArgumentException('Unexpected token BadUrl');
+            }
+
+            $i = $open;
+        }
+    }
+
+    private function isColorFunctionName(string $name): bool
+    {
+        return in_array($name, ['rgb', 'rgba', 'hsl', 'hsla', 'hwb', 'lab', 'lch', 'oklab', 'oklch', 'color'], true);
+    }
+
+    private function functionClosesBeforeDeclarationTerminator(string $css, int $open): bool
+    {
+        $quote = null;
+        $depth = 0;
+        $length = strlen($css);
+
+        for ($i = $open; $i < $length; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '/' && ($css[$i + 1] ?? '') === '*') {
+                $end = strpos($css, '*/', $i + 2);
+                if ($end === false) {
+                    return false;
+                }
+                $i = $end + 1;
+                continue;
+            }
+
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    return true;
+                }
+                continue;
+            }
+            if (($char === ';' || $char === '}') && $depth > 0) {
+                return false;
+            }
+        }
+
+        return false;
+    }
+
+    private function hasBadUnquotedUrlToken(string $css, int $open): bool
+    {
+        $body = $this->readUrlFunctionBody($css, $open);
+        if ($body === null) {
+            return false;
+        }
+
+        $trimmed = trim($body);
+        if ($trimmed === '' || $trimmed[0] === '"' || $trimmed[0] === "'") {
+            return false;
+        }
+
+        return preg_match('/\\\\\)\s+\S/', $trimmed) === 1;
+    }
+
+    private function readUrlFunctionBody(string $css, int $open): ?string
+    {
+        $body = '';
+        $quote = null;
+        $depth = 1;
+        $length = strlen($css);
+
+        for ($i = $open + 1; $i < $length; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                $body .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $body .= $css[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $body .= $char;
+                continue;
+            }
+
+            if ($char === '\\' && $i + 1 < $length) {
+                $body .= $char . $css[++$i];
+                continue;
+            }
+
+            if ($char === '(') {
+                $depth++;
+                $body .= $char;
+                continue;
+            }
+
+            if ($char === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    return $body;
+                }
+                $body .= $char;
+                continue;
+            }
+
+            $body .= $char;
+        }
+
+        return null;
     }
 
     private function findNextCssBlockOpen(string $css, int $start): ?int

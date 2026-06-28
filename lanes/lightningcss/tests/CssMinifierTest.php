@@ -42,6 +42,20 @@ CSS
             )
         );
     },
+    'css minifier rejects upstream invalid residual rows' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $minifier->minify('.a{color: hsla(120, 62.32%;}'),
+            'upstream src/lib.rs::test_invalid line 30189'
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $minifier->minify('.a{--foo: url(foo\\) b\\)ar)}'),
+            'upstream src/lib.rs::test_invalid line 30193'
+        );
+    },
     'css minifier preserves descendant spaces before functional pseudo classes' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
         $css = '.scope :is(.title, .summary) { color: blue; } .scope:not(.is-hidden) { color: red; }';
