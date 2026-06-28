@@ -14458,6 +14458,11 @@ final class DocxOpenXmlReader
             'partXmlElementSiblingPositionIndexCounts' => $partXmlRoots['xmlElementSiblingPositionIndexCounts'],
             'partXmlElementSiblingPositionSiblingCountBucketCount' => count($partXmlRoots['xmlElementSiblingPositionSiblingCountBuckets']),
             'partXmlElementSiblingPositionSiblingCountBuckets' => $partXmlRoots['xmlElementSiblingPositionSiblingCountBuckets'],
+            'partXmlElementSiblingPositionRepeatedSameNameCount' => $partXmlRoots['xmlElementSiblingPositionRepeatedSameNameCount'],
+            'partXmlElementSiblingPositionSameNameIndexCount' => count($partXmlRoots['xmlElementSiblingPositionSameNameIndexCounts']),
+            'partXmlElementSiblingPositionSameNameIndexCounts' => $partXmlRoots['xmlElementSiblingPositionSameNameIndexCounts'],
+            'partXmlElementSiblingPositionSameNameSiblingCountBucketCount' => count($partXmlRoots['xmlElementSiblingPositionSameNameSiblingCountBuckets']),
+            'partXmlElementSiblingPositionSameNameSiblingCountBuckets' => $partXmlRoots['xmlElementSiblingPositionSameNameSiblingCountBuckets'],
             'partXmlElementSiblingPositionFirstCount' => $partXmlRoots['xmlElementSiblingPositionFirstCount'],
             'partXmlElementSiblingPositionLastCount' => $partXmlRoots['xmlElementSiblingPositionLastCount'],
             'partXmlElementSiblingPositionOnlyChildCount' => $partXmlRoots['xmlElementSiblingPositionOnlyChildCount'],
@@ -20642,6 +20647,8 @@ final class DocxOpenXmlReader
         $xmlElementSiblingPositionElementNameCounts = [];
         $xmlElementSiblingPositionIndexCounts = [];
         $xmlElementSiblingPositionSiblingCountBuckets = [];
+        $xmlElementSiblingPositionSameNameIndexCounts = [];
+        $xmlElementSiblingPositionSameNameSiblingCountBuckets = [];
         $xmlElementSiblingPositions = [];
         $xmlElementAttributePartNames = [];
         $xmlElementAttributeNameCounts = [];
@@ -20780,6 +20787,7 @@ final class DocxOpenXmlReader
         $xmlElementSiblingPositionFirstCount = 0;
         $xmlElementSiblingPositionLastCount = 0;
         $xmlElementSiblingPositionOnlyChildCount = 0;
+        $xmlElementSiblingPositionRepeatedSameNameCount = 0;
         $xmlElementAttributePartCount = 0;
         $xmlElementAttributeCount = 0;
         $xmlElementAttributeValueByteLength = 0;
@@ -22532,6 +22540,7 @@ final class DocxOpenXmlReader
                 $xmlElementSiblingPositionFirstCount += (int) ($part['xmlElementSiblingPositionFirstCount'] ?? 0);
                 $xmlElementSiblingPositionLastCount += (int) ($part['xmlElementSiblingPositionLastCount'] ?? 0);
                 $xmlElementSiblingPositionOnlyChildCount += (int) ($part['xmlElementSiblingPositionOnlyChildCount'] ?? 0);
+                $xmlElementSiblingPositionRepeatedSameNameCount += (int) ($part['xmlElementSiblingPositionRepeatedSameNameCount'] ?? 0);
             }
             foreach (($part['xmlElementSiblingPositionParentPathCounts'] ?? []) as $parentPath => $count) {
                 if (!is_string($parentPath) || $parentPath === '') {
@@ -22583,6 +22592,20 @@ final class DocxOpenXmlReader
                 $xmlElementSiblingPositionSiblingCountBuckets[$bucket] =
                     ($xmlElementSiblingPositionSiblingCountBuckets[$bucket] ?? 0) + (int) $count;
             }
+            foreach (($part['xmlElementSiblingPositionSameNameIndexCounts'] ?? []) as $index => $count) {
+                if (!is_int($index) && !ctype_digit((string) $index)) {
+                    continue;
+                }
+                $xmlElementSiblingPositionSameNameIndexCounts[(int) $index] =
+                    ($xmlElementSiblingPositionSameNameIndexCounts[(int) $index] ?? 0) + (int) $count;
+            }
+            foreach (($part['xmlElementSiblingPositionSameNameSiblingCountBuckets'] ?? []) as $bucket => $count) {
+                if (!is_string($bucket) || $bucket === '') {
+                    continue;
+                }
+                $xmlElementSiblingPositionSameNameSiblingCountBuckets[$bucket] =
+                    ($xmlElementSiblingPositionSameNameSiblingCountBuckets[$bucket] ?? 0) + (int) $count;
+            }
             foreach (($part['xmlElementSiblingPositions'] ?? []) as $position) {
                 if (!is_array($position)) {
                     continue;
@@ -22624,6 +22647,8 @@ final class DocxOpenXmlReader
                     'parentPrefix' => is_string($position['parentPrefix'] ?? null) ? $position['parentPrefix'] : null,
                     'siblingIndex' => (int) ($position['siblingIndex'] ?? 0),
                     'siblingCount' => (int) ($position['siblingCount'] ?? 0),
+                    'sameNameSiblingIndex' => (int) ($position['sameNameSiblingIndex'] ?? 0),
+                    'sameNameSiblingCount' => (int) ($position['sameNameSiblingCount'] ?? 0),
                     'precedingElementSiblingCount' => (int) ($position['precedingElementSiblingCount'] ?? 0),
                     'followingElementSiblingCount' => (int) ($position['followingElementSiblingCount'] ?? 0),
                     'isFirstElementSibling' => (bool) ($position['isFirstElementSibling'] ?? false),
@@ -23328,6 +23353,13 @@ final class DocxOpenXmlReader
                 'xmlElementSiblingPositionSiblingCountBuckets' => is_array($part['xmlElementSiblingPositionSiblingCountBuckets'] ?? null)
                     ? $part['xmlElementSiblingPositionSiblingCountBuckets']
                     : [],
+                'xmlElementSiblingPositionRepeatedSameNameCount' => (int) ($part['xmlElementSiblingPositionRepeatedSameNameCount'] ?? 0),
+                'xmlElementSiblingPositionSameNameIndexCounts' => is_array($part['xmlElementSiblingPositionSameNameIndexCounts'] ?? null)
+                    ? $part['xmlElementSiblingPositionSameNameIndexCounts']
+                    : [],
+                'xmlElementSiblingPositionSameNameSiblingCountBuckets' => is_array($part['xmlElementSiblingPositionSameNameSiblingCountBuckets'] ?? null)
+                    ? $part['xmlElementSiblingPositionSameNameSiblingCountBuckets']
+                    : [],
                 'xmlElementSiblingPositions' => is_array($part['xmlElementSiblingPositions'] ?? null)
                     ? $part['xmlElementSiblingPositions']
                     : [],
@@ -23513,6 +23545,8 @@ final class DocxOpenXmlReader
         ksort($xmlElementSiblingPositionElementNameCounts, SORT_STRING);
         ksort($xmlElementSiblingPositionIndexCounts, SORT_NUMERIC);
         ksort($xmlElementSiblingPositionSiblingCountBuckets, SORT_STRING);
+        ksort($xmlElementSiblingPositionSameNameIndexCounts, SORT_NUMERIC);
+        ksort($xmlElementSiblingPositionSameNameSiblingCountBuckets, SORT_STRING);
         ksort($xmlElementAttributeNameCounts, SORT_STRING);
         ksort($xmlElementAttributeNamespaceCounts, SORT_STRING);
         ksort($xmlElementAttributePrefixCounts, SORT_STRING);
@@ -24015,6 +24049,9 @@ final class DocxOpenXmlReader
             'xmlElementSiblingPositionElementNameCounts' => $xmlElementSiblingPositionElementNameCounts,
             'xmlElementSiblingPositionIndexCounts' => $xmlElementSiblingPositionIndexCounts,
             'xmlElementSiblingPositionSiblingCountBuckets' => $xmlElementSiblingPositionSiblingCountBuckets,
+            'xmlElementSiblingPositionRepeatedSameNameCount' => $xmlElementSiblingPositionRepeatedSameNameCount,
+            'xmlElementSiblingPositionSameNameIndexCounts' => $xmlElementSiblingPositionSameNameIndexCounts,
+            'xmlElementSiblingPositionSameNameSiblingCountBuckets' => $xmlElementSiblingPositionSameNameSiblingCountBuckets,
             'xmlElementSiblingPositionFirstCount' => $xmlElementSiblingPositionFirstCount,
             'xmlElementSiblingPositionLastCount' => $xmlElementSiblingPositionLastCount,
             'xmlElementSiblingPositionOnlyChildCount' => $xmlElementSiblingPositionOnlyChildCount,
@@ -28632,7 +28669,7 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{count:int, firstCount:int, lastCount:int, onlyChildCount:int, parentPathCounts:array<string, int>, parentPaths:list<string>, parentNamespaceCounts:array<string, int>, parentLocalNameCounts:array<string, int>, parentQualifiedNameCounts:array<string, int>, elementNameCounts:array<string, int>, indexCounts:array<int, int>, siblingCountBuckets:array<string, int>, items:list<array<string, mixed>>}
+     * @return array{count:int, firstCount:int, lastCount:int, onlyChildCount:int, repeatedSameNameCount:int, parentPathCounts:array<string, int>, parentPaths:list<string>, parentNamespaceCounts:array<string, int>, parentLocalNameCounts:array<string, int>, parentQualifiedNameCounts:array<string, int>, elementNameCounts:array<string, int>, indexCounts:array<int, int>, siblingCountBuckets:array<string, int>, sameNameIndexCounts:array<int, int>, sameNameSiblingCountBuckets:array<string, int>, items:list<array<string, mixed>>}
      */
     private function xmlElementSiblingPositionProvenance(string $xml, string $partName): array
     {
@@ -28641,6 +28678,7 @@ final class DocxOpenXmlReader
             'firstCount' => 0,
             'lastCount' => 0,
             'onlyChildCount' => 0,
+            'repeatedSameNameCount' => 0,
             'parentPathCounts' => [],
             'parentPaths' => [],
             'parentNamespaceCounts' => [],
@@ -28649,6 +28687,8 @@ final class DocxOpenXmlReader
             'elementNameCounts' => [],
             'indexCounts' => [],
             'siblingCountBuckets' => [],
+            'sameNameIndexCounts' => [],
+            'sameNameSiblingCountBuckets' => [],
             'items' => [],
         ];
 
@@ -28666,16 +28706,21 @@ final class DocxOpenXmlReader
         $elementNameCounts = [];
         $indexCounts = [];
         $siblingCountBuckets = [];
+        $sameNameIndexCounts = [];
+        $sameNameSiblingCountBuckets = [];
         $firstCount = 0;
         $lastCount = 0;
         $onlyChildCount = 0;
+        $repeatedSameNameCount = 0;
         $ordinal = 0;
 
         $record = function (
             \DOMElement $element,
             ?\DOMElement $parent,
             int $siblingIndex,
-            int $siblingCount
+            int $siblingCount,
+            int $sameNameSiblingIndex,
+            int $sameNameSiblingCount
         ) use (
             &$items,
             &$parentPathCounts,
@@ -28686,9 +28731,12 @@ final class DocxOpenXmlReader
             &$elementNameCounts,
             &$indexCounts,
             &$siblingCountBuckets,
+            &$sameNameIndexCounts,
+            &$sameNameSiblingCountBuckets,
             &$firstCount,
             &$lastCount,
             &$onlyChildCount,
+            &$repeatedSameNameCount,
             &$ordinal,
         ): void {
             ++$ordinal;
@@ -28720,6 +28768,7 @@ final class DocxOpenXmlReader
             $isLast = $siblingIndex === $siblingCount;
             $isOnly = $siblingCount === 1;
             $siblingBucket = $this->xmlElementSiblingCountBucket($siblingCount);
+            $sameNameSiblingBucket = $this->xmlElementSiblingCountBucket($sameNameSiblingCount);
 
             if ($isFirst) {
                 ++$firstCount;
@@ -28729,6 +28778,9 @@ final class DocxOpenXmlReader
             }
             if ($isOnly) {
                 ++$onlyChildCount;
+            }
+            if ($sameNameSiblingCount > 1) {
+                ++$repeatedSameNameCount;
             }
 
             $parentPathCounts[$parentPath] = ($parentPathCounts[$parentPath] ?? 0) + 1;
@@ -28740,6 +28792,10 @@ final class DocxOpenXmlReader
             $elementNameCounts[$elementNameKey] = ($elementNameCounts[$elementNameKey] ?? 0) + 1;
             $indexCounts[$siblingIndex] = ($indexCounts[$siblingIndex] ?? 0) + 1;
             $siblingCountBuckets[$siblingBucket] = ($siblingCountBuckets[$siblingBucket] ?? 0) + 1;
+            $sameNameIndexCounts[$sameNameSiblingIndex] =
+                ($sameNameIndexCounts[$sameNameSiblingIndex] ?? 0) + 1;
+            $sameNameSiblingCountBuckets[$sameNameSiblingBucket] =
+                ($sameNameSiblingCountBuckets[$sameNameSiblingBucket] ?? 0) + 1;
 
             $items[] = [
                 'ordinal' => $ordinal,
@@ -28757,6 +28813,8 @@ final class DocxOpenXmlReader
                 'parentPrefix' => $parentPrefix,
                 'siblingIndex' => $siblingIndex,
                 'siblingCount' => $siblingCount,
+                'sameNameSiblingIndex' => $sameNameSiblingIndex,
+                'sameNameSiblingCount' => $sameNameSiblingCount,
                 'precedingElementSiblingCount' => max(0, $siblingIndex - 1),
                 'followingElementSiblingCount' => max(0, $siblingCount - $siblingIndex),
                 'isFirstElementSibling' => $isFirst,
@@ -28774,13 +28832,33 @@ final class DocxOpenXmlReader
             }
 
             $siblingCount = count($elementChildren);
+            $sameNameSiblingCounts = [];
+            foreach ($elementChildren as $child) {
+                $childName = $child->tagName === ''
+                    ? ($child->localName === '' ? '(none)' : $child->localName)
+                    : $child->tagName;
+                $sameNameSiblingCounts[$childName] = ($sameNameSiblingCounts[$childName] ?? 0) + 1;
+            }
+
+            $sameNameSiblingIndexes = [];
             foreach ($elementChildren as $index => $child) {
-                $record($child, $element, $index + 1, $siblingCount);
+                $childName = $child->tagName === ''
+                    ? ($child->localName === '' ? '(none)' : $child->localName)
+                    : $child->tagName;
+                $sameNameSiblingIndexes[$childName] = ($sameNameSiblingIndexes[$childName] ?? 0) + 1;
+                $record(
+                    $child,
+                    $element,
+                    $index + 1,
+                    $siblingCount,
+                    $sameNameSiblingIndexes[$childName],
+                    $sameNameSiblingCounts[$childName],
+                );
                 $walk($child);
             }
         };
 
-        $record($dom->documentElement, null, 1, 1);
+        $record($dom->documentElement, null, 1, 1, 1, 1);
         $walk($dom->documentElement);
 
         ksort($parentPathCounts, SORT_STRING);
@@ -28790,6 +28868,8 @@ final class DocxOpenXmlReader
         ksort($elementNameCounts, SORT_STRING);
         ksort($indexCounts, SORT_NUMERIC);
         ksort($siblingCountBuckets, SORT_STRING);
+        ksort($sameNameIndexCounts, SORT_NUMERIC);
+        ksort($sameNameSiblingCountBuckets, SORT_STRING);
         sort($parentPaths, SORT_STRING);
 
         return [
@@ -28797,6 +28877,7 @@ final class DocxOpenXmlReader
             'firstCount' => $firstCount,
             'lastCount' => $lastCount,
             'onlyChildCount' => $onlyChildCount,
+            'repeatedSameNameCount' => $repeatedSameNameCount,
             'parentPathCounts' => $parentPathCounts,
             'parentPaths' => $parentPaths,
             'parentNamespaceCounts' => $parentNamespaceCounts,
@@ -28805,6 +28886,8 @@ final class DocxOpenXmlReader
             'elementNameCounts' => $elementNameCounts,
             'indexCounts' => $indexCounts,
             'siblingCountBuckets' => $siblingCountBuckets,
+            'sameNameIndexCounts' => $sameNameIndexCounts,
+            'sameNameSiblingCountBuckets' => $sameNameSiblingCountBuckets,
             'items' => $items,
         ];
     }
@@ -31395,6 +31478,9 @@ final class DocxOpenXmlReader
                 'xmlElementSiblingPositionElementNameCounts' => [],
                 'xmlElementSiblingPositionIndexCounts' => [],
                 'xmlElementSiblingPositionSiblingCountBuckets' => [],
+                'xmlElementSiblingPositionRepeatedSameNameCount' => 0,
+                'xmlElementSiblingPositionSameNameIndexCounts' => [],
+                'xmlElementSiblingPositionSameNameSiblingCountBuckets' => [],
                 'xmlElementSiblingPositions' => [],
                 'xmlElementAttributeCount' => 0,
                 'xmlElementAttributeValueByteLength' => 0,
@@ -31725,6 +31811,9 @@ final class DocxOpenXmlReader
             'xmlElementSiblingPositionElementNameCounts' => $elementSiblingPositions['elementNameCounts'],
             'xmlElementSiblingPositionIndexCounts' => $elementSiblingPositions['indexCounts'],
             'xmlElementSiblingPositionSiblingCountBuckets' => $elementSiblingPositions['siblingCountBuckets'],
+            'xmlElementSiblingPositionRepeatedSameNameCount' => $elementSiblingPositions['repeatedSameNameCount'],
+            'xmlElementSiblingPositionSameNameIndexCounts' => $elementSiblingPositions['sameNameIndexCounts'],
+            'xmlElementSiblingPositionSameNameSiblingCountBuckets' => $elementSiblingPositions['sameNameSiblingCountBuckets'],
             'xmlElementSiblingPositions' => $elementSiblingPositions['items'],
             'xmlElementAttributeCount' => $elementAttributes['count'],
             'xmlElementAttributeValueByteLength' => $elementAttributes['valueByteLength'],
