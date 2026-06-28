@@ -66,6 +66,35 @@ CSS));
 }
 CSS));
     },
+    'css formatter maps upstream unknown at-rule block printer cases' => static function (TestRunner $t): void {
+        $formatter = new CssFormatter();
+
+        $t->same(<<<'CSS'
+@foo test {
+      div {
+            color: red;
+          }
+    }
+
+CSS, $formatter->format(<<<'CSS'
+@foo test {
+      div {
+        color: red;
+      }
+    }
+CSS), 'upstream src/lib.rs::test_unknown_at_rules line 30675');
+
+        $t->same(<<<'CSS'
+@foo {
+  foo: bar;
+}
+
+CSS, $formatter->format(<<<'CSS'
+@foo {
+        foo: bar;
+      }
+CSS), 'upstream src/lib.rs::test_unknown_at_rules line 30702');
+    },
     'css formatter maps upstream namespace printer cases' => static function (TestRunner $t): void {
         $formatter = new CssFormatter();
 

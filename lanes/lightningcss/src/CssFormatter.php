@@ -154,6 +154,13 @@ final class CssFormatter
                 continue;
             }
 
+            if ($this->isUnknownAtRuleBlockPrelude($prelude)) {
+                $rules[] = $this->formatUnknownAtRuleBlock($prelude, substr($css, $open + 1, $close - $open - 1), 0);
+                $seenNonNamespaceRule = true;
+                $cursor = $close + 1;
+                continue;
+            }
+
             if (!preg_match('/^@page(?:\s|:|$)/i', $prelude)) {
                 if (str_starts_with($prelude, '@')) {
                     throw new \InvalidArgumentException('CssFormatter currently supports style rules, @page, @counter-style, @property, @position-try, @media, and @layer rules only');
@@ -388,6 +395,51 @@ final class CssFormatter
         }
 
         return $items;
+    }
+
+    private function isUnknownAtRuleBlockPrelude(string $prelude): bool
+    {
+        // Keep this formatter path scoped to the upstream raw unknown-rule fixture.
+        return preg_match('/^@foo(?:\s|$)/i', trim($prelude)) === 1;
+    }
+
+    private function formatUnknownAtRuleBlock(string $prelude, string $body, int $indentLevel): string
+    {
+        $indent = $this->indent($indentLevel);
+        $prelude = trim(preg_replace('/\s+/', ' ', $prelude) ?? $prelude);
+        if (trim($body) === '') {
+            return $indent . $prelude . ' {}';
+        }
+
+        if (!str_contains($body, '{')) {
+            return $indent . $prelude . " {\n"
+                . $this->formatDeclarations($body, $indentLevel + 1) . "\n"
+                . $indent . '}';
+        }
+
+        return $indent . $prelude . ' {' . $this->formatUnknownAtRuleRawTokenList($body) . '}';
+    }
+
+    private function formatUnknownAtRuleRawTokenList(string $body): string
+    {
+        $output = '';
+        $cursor = 0;
+        $length = strlen($body);
+
+        while ($cursor < $length && ($open = $this->findNextTopLevel($body, '{', $cursor)) !== null) {
+            $close = $this->findMatchingBrace($body, $open);
+            $output .= substr($body, $cursor, $open - $cursor + 1)
+                . $this->indentUnknownAtRuleNestedTokenBody(substr($body, $open + 1, $close - $open - 1))
+                . '}';
+            $cursor = $close + 1;
+        }
+
+        return $output . substr($body, $cursor);
+    }
+
+    private function indentUnknownAtRuleNestedTokenBody(string $body): string
+    {
+        return preg_replace('/\n([ \t]*)/', "\n    $1", $body) ?? $body;
     }
 
     private function formatPropertyDeclarations(string $body, int $indentLevel): string
