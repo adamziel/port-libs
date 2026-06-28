@@ -18992,6 +18992,87 @@ XML;
         $t->true(!isset($part['xmlElementAttributes'][0]['value']), 'raw XML attribute value should not be exposed on position metadata');
         $t->true(!str_contains((string) $encodedAttributes, 'hidden-'), 'raw XML attribute values should not be exposed in position metadata');
     },
+    'summarizes docx package xml relationship references without exposing text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $hiddenText = 'relationship-reference:hidden-payload';
+        $parts['customXml/relationship-reference.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:relationship-reference" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <review:item r:id="rPayload"/>
+  <review:image r:embed="rMissingTarget"/>
+  <review:link r:link="rRemote"/>
+  <review:unknown r:id="rUnknown">relationship-reference:hidden-payload</review:unknown>
+</review:packet>
+XML;
+        $parts['customXml/_rels/relationship-reference.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rPayload" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="payload.xml"/>
+  <Relationship Id="rMissingTarget" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../word/media/missing-review.png"/>
+  <Relationship Id="rRemote" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/relationship-review?slot=1#remote" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['customXml/payload.xml'] = '<payload/>';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $references = $package['xmlRelationshipReferences'];
+        $items = array_values(array_filter(
+            $references['items'],
+            static fn (array $item): bool => $item['partName'] === 'customXml/relationship-reference.xml',
+        ));
+        $byId = [];
+        foreach ($items as $item) {
+            $byId[$item['relationshipId']] = $item;
+        }
+
+        $t->same(4, count($items));
+        $t->same(3, count(array_filter($items, static fn (array $item): bool => $item['resolved'] === true)));
+        $t->same('customXml/_rels/relationship-reference.xml.rels', $byId['rPayload']['relationshipsPart']);
+        $t->same(true, $byId['rPayload']['relationshipPartExists']);
+        $t->same(true, $byId['rPayload']['resolved']);
+        $t->same(false, $byId['rPayload']['external']);
+        $t->same(true, $byId['rPayload']['targetExists']);
+        $t->same('customXml/payload.xml', $byId['rPayload']['targetPart']);
+        $t->same('application/xml', $byId['rPayload']['contentTypeBase']);
+        $t->same('/review:packet/review:item', $byId['rPayload']['elementPath']);
+        $t->same('r:id', $byId['rPayload']['attributeName']);
+        $t->same('review:item', $byId['rPayload']['elementQualifiedName']);
+
+        $t->same(true, $byId['rMissingTarget']['resolved']);
+        $t->same(false, $byId['rMissingTarget']['targetExists']);
+        $t->same('word/media/missing-review.png', $byId['rMissingTarget']['targetPart']);
+        $t->same(['missing-relationship-target'], $byId['rMissingTarget']['issues']);
+        $t->same('r:embed', $byId['rMissingTarget']['attributeName']);
+
+        $t->same(true, $byId['rRemote']['resolved']);
+        $t->same(true, $byId['rRemote']['external']);
+        $t->same('slot=1', $byId['rRemote']['targetQuery']);
+        $t->same('remote', $byId['rRemote']['targetFragment']);
+        $t->same(['external-relationship-target'], $byId['rRemote']['issues']);
+        $t->same('r:link', $byId['rRemote']['attributeName']);
+
+        $t->same(false, $byId['rUnknown']['resolved']);
+        $t->same(['unresolved-relationship-id'], $byId['rUnknown']['issues']);
+        $t->true(in_array('rUnknown', $references['unresolvedRelationshipIds'], true), 'unresolved relationship IDs should be summarized');
+
+        $t->true($summary['partXmlRelationshipReferenceCount'] >= 4, 'summary should include XML relationship references');
+        $t->true($summary['partXmlRelationshipReferenceResolvedCount'] >= 3, 'summary should include resolved XML relationship references');
+        $t->true($summary['partXmlRelationshipReferenceUnresolvedCount'] >= 1, 'summary should include unresolved XML relationship references');
+        $t->true($summary['partXmlRelationshipReferenceExternalCount'] >= 1, 'summary should include external XML relationship references');
+        $t->true($summary['partXmlRelationshipReferenceMissingTargetCount'] >= 1, 'summary should include missing XML relationship targets');
+        $t->true($summary['partXmlRelationshipReferenceAttributeNameCounts']['r:embed'] >= 1, 'summary should include embed relationship attributes');
+        $t->true($summary['partXmlRelationshipReferenceAttributeNameCounts']['r:link'] >= 1, 'summary should include link relationship attributes');
+        $t->true($summary['partXmlRelationshipReferenceAttributeNameCounts']['r:id'] >= 2, 'summary should include id relationship attributes');
+        $t->same(1, $summary['partXmlRelationshipReferenceElementPathCounts']['/review:packet/review:unknown']);
+        $t->true(in_array('customXml/relationship-reference.xml', $summary['partXmlRelationshipReferencePartNames'], true), 'relationship reference part should be summarized');
+        $t->true(in_array('customXml/payload.xml', $summary['partXmlRelationshipReferenceTargetParts'], true), 'relationship reference target part should be summarized');
+
+        $encodedReferences = json_encode([$items, $references, $summary['partXmlRelationshipReferences']]);
+        $t->true(is_string($encodedReferences), 'XML relationship-reference metadata should encode for review');
+        $t->true(!str_contains((string) $encodedReferences, $hiddenText), 'raw XML text should not be exposed in relationship-reference metadata');
+    },
     'summarizes docx package xml processing instructions for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['customXml/pi-review.xml'] = <<<'XML'
