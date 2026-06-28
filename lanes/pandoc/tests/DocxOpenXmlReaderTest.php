@@ -17919,6 +17919,82 @@ XML;
         $t->true(is_string($encodedStructures), 'XML element structure metadata should encode for review');
         $t->true(!str_contains((string) $encodedStructures, $hiddenText), 'raw XML element text should not be exposed in structure metadata');
     },
+    'summarizes docx package xml element child shapes without exposing text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $hiddenText = 'child-shape-hidden-text';
+        $hiddenCdata = 'child-shape-hidden-cdata';
+        $hiddenComment = 'child-shape-hidden-comment';
+        $hiddenEntity = 'child-shape-hidden-entity';
+        $parts['customXml/child-shape-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE review:packet [<!ENTITY reviewer "{$hiddenEntity}">]><review:packet xmlns:review="urn:review-child-shape"><review:mixed>{$hiddenText}<review:inline/><review:inline/>tail<![CDATA[{$hiddenCdata}]]>&reviewer;</review:mixed><review:container><review:leaf/><!--{$hiddenComment}--><?audit stage="hidden-pi"?></review:container></review:packet>
+XML;
+        $parts['word/settings-child-shape.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?><w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docVars><w:docVar>setting-text<w:child/></w:docVar></w:docVars></w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/child-shape-review.xml'];
+        $settingsPart = $package['parts']['word/settings-child-shape.xml'];
+        $structuresByPart = [];
+        foreach ($summary['partXmlElementStructures'] as $structure) {
+            $structuresByPart[$structure['partName']] = $structure;
+        }
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(6, $reviewPart['xmlElementCount']);
+        $t->same(3, $reviewPart['xmlElementLeafCount']);
+        $t->same(5, $reviewPart['xmlElementChildElementCount']);
+        $t->same(2, $reviewPart['xmlElementTextChildCount']);
+        $t->same(2, $reviewPart['xmlElementNonWhitespaceTextChildCount']);
+        $t->same(1, $reviewPart['xmlElementCdataChildCount']);
+        $t->same(1, $reviewPart['xmlElementCommentChildCount']);
+        $t->same(1, $reviewPart['xmlElementProcessingInstructionChildCount']);
+        $t->same(1, $reviewPart['xmlElementEntityReferenceChildCount']);
+        $t->same(1, $reviewPart['xmlElementMixedContentCount']);
+        $t->same([0 => 3, 1 => 1, 2 => 2], $reviewPart['xmlElementChildElementCountCounts']);
+        $t->same(['/review:packet/review:mixed' => 1], $reviewPart['xmlElementMixedContentPathCounts']);
+        $t->same(['/review:packet/review:mixed'], $reviewPart['xmlElementMixedContentPaths']);
+
+        $t->same(true, $settingsPart['xmlInspectable']);
+        $t->same(4, $settingsPart['xmlElementCount']);
+        $t->same(1, $settingsPart['xmlElementLeafCount']);
+        $t->same(3, $settingsPart['xmlElementChildElementCount']);
+        $t->same(1, $settingsPart['xmlElementTextChildCount']);
+        $t->same(1, $settingsPart['xmlElementNonWhitespaceTextChildCount']);
+        $t->same(0, $settingsPart['xmlElementCdataChildCount']);
+        $t->same(0, $settingsPart['xmlElementCommentChildCount']);
+        $t->same(0, $settingsPart['xmlElementProcessingInstructionChildCount']);
+        $t->same(0, $settingsPart['xmlElementEntityReferenceChildCount']);
+        $t->same(1, $settingsPart['xmlElementMixedContentCount']);
+        $t->same([0 => 1, 1 => 3], $settingsPart['xmlElementChildElementCountCounts']);
+        $t->same(['/w:settings/w:docVars/w:docVar' => 1], $settingsPart['xmlElementMixedContentPathCounts']);
+        $t->same(['/w:settings/w:docVars/w:docVar'], $settingsPart['xmlElementMixedContentPaths']);
+
+        $t->true($summary['partXmlElementChildElementCount'] >= 8, 'summary child-element count should include the added XML parts');
+        $t->true($summary['partXmlElementTextChildCount'] >= 3, 'summary text-child count should include the added XML parts');
+        $t->true($summary['partXmlElementNonWhitespaceTextChildCount'] >= 3, 'summary non-whitespace text-child count should include the added XML parts');
+        $t->true($summary['partXmlElementCdataChildCount'] >= 1, 'summary CDATA child count should include the review packet');
+        $t->true($summary['partXmlElementCommentChildCount'] >= 1, 'summary comment child count should include the review packet');
+        $t->true($summary['partXmlElementProcessingInstructionChildCount'] >= 1, 'summary PI child count should include the review packet');
+        $t->true($summary['partXmlElementEntityReferenceChildCount'] >= 1, 'summary entity-reference child count should include the review packet');
+        $t->true($summary['partXmlElementMixedContentCount'] >= 2, 'summary mixed-content count should include the added XML parts');
+        $t->true(($summary['partXmlElementChildElementCountCounts'][2] ?? 0) >= 2, 'summary child-count buckets should include two-child review elements');
+        $t->same(1, $summary['partXmlElementMixedContentPathCounts']['/review:packet/review:mixed']);
+        $t->same(1, $summary['partXmlElementMixedContentPathCounts']['/w:settings/w:docVars/w:docVar']);
+        $t->true(in_array('/review:packet/review:mixed', $summary['partXmlElementMixedContentPaths'], true), 'review mixed-content path should be summarized');
+        $t->true(in_array('/w:settings/w:docVars/w:docVar', $summary['partXmlElementMixedContentPaths'], true), 'settings mixed-content path should be summarized');
+
+        $t->same(5, $structuresByPart['customXml/child-shape-review.xml']['childElementCount']);
+        $t->same(1, $structuresByPart['customXml/child-shape-review.xml']['mixedContentElementCount']);
+        $t->same(['/review:packet/review:mixed'], $structuresByPart['customXml/child-shape-review.xml']['mixedContentPaths']);
+        $t->same(3, $structuresByPart['word/settings-child-shape.xml']['childElementCount']);
+        $t->same(['/w:settings/w:docVars/w:docVar'], $structuresByPart['word/settings-child-shape.xml']['mixedContentPaths']);
+        $encodedShapes = json_encode([$reviewPart, $settingsPart, $summary['partXmlElementStructures']]);
+        $t->true(is_string($encodedShapes), 'XML child-shape metadata should encode for review');
+        $t->true(!str_contains((string) $encodedShapes, 'child-shape-hidden'), 'raw XML child text should not be exposed in child-shape metadata');
+    },
     'summarizes docx package xml element attributes without exposing values' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $rootState = 'root-state-hidden-alpha';
