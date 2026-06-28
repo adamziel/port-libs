@@ -148,7 +148,12 @@ final class NativeReader
             $children = $this->coalesceJsonNativeInlineText($children);
         }
 
-        return new AstNode($node->type, $this->normalizeJsonNativeAttrs($node->attrs), $children);
+        $attrs = $this->normalizeJsonNativeAttrs($node->attrs);
+        if ($node->type === 'softbreak' && $node->attr('constructor') === 'SoftBreak') {
+            $attrs['preserveNativeSoftbreak'] = true;
+        }
+
+        return new AstNode($node->type, $attrs, $children);
     }
 
     /**
@@ -182,6 +187,7 @@ final class NativeReader
             'paragraph',
             'heading',
             'term',
+            'definition_term',
             'line',
             'emph',
             'strong',

@@ -793,11 +793,40 @@ final class PandocJsonWriter
     {
         $encoded = [];
         foreach ($lines as $line) {
-            $inlines = $this->writeInlines($this->inlineChildrenOrText($line));
+            $inlines = $this->writeInlines($this->lineInlineChildrenOrText($line));
             $encoded[] = $this->reusableInlineListPayload($line->attr('lineNative'), $inlines) ?? $inlines;
         }
 
         return $encoded;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function lineInlineChildrenOrText(AstNode $line): array
+    {
+        if ($line->children !== []) {
+            return $line->children;
+        }
+
+        $text = (string) $line->attr('text', '');
+        if ($text === '') {
+            return [];
+        }
+
+        $parts = preg_split('/(\s+)/u', $text, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
+        if ($parts === false) {
+            return [new AstNode('text', ['text' => $text])];
+        }
+
+        $inlines = [];
+        foreach ($parts as $part) {
+            $inlines[] = preg_match('/^\s+$/u', $part) === 1
+                ? new AstNode('space')
+                : new AstNode('text', ['text' => $part]);
+        }
+
+        return $inlines;
     }
 
     /**

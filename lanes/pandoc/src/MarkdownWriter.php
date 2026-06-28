@@ -3308,6 +3308,10 @@ final class MarkdownWriter
             return $this->prefixLines($this->renderPipeTable($node), $indent);
         }
 
+        if (!$isSimpleTable && $this->rawHtmlEnabled() && $this->tableNeedsRawHtmlFallback($node)) {
+            return $this->prefixLines($this->renderRawHtmlTableLines($node), $indent);
+        }
+
         if ($canUseMultilineTable) {
             return $this->prefixLines($this->renderMultilineTable($node, $columnCount), $indent);
         }
@@ -4556,12 +4560,15 @@ final class MarkdownWriter
 
     private function renderTableCaptionMarkdown(AstNode $table): string
     {
-        $inlines = $this->tableCaptionInlines($table);
-        if ($inlines === []) {
+        $caption = $this->tableCaptionMarkdown($table);
+        $shortCaption = $this->tableShortCaptionMarkdown($table);
+        if ($shortCaption !== '') {
+            $caption = '[' . $shortCaption . ']' . ($caption === '' ? '' : ' ' . $caption);
+        }
+        if ($caption === '') {
             return '';
         }
 
-        $caption = $this->renderBlockInlines($inlines);
         $attrs = $this->renderAttributesTuple($this->linkAttrTuple($table));
 
         return $caption . ($attrs === '' ? '' : ' ' . $attrs);
@@ -4588,9 +4595,9 @@ final class MarkdownWriter
     private function renderRawHtmlTableLines(AstNode $table): array
     {
         $lines = ['<table' . $this->renderNodeHtmlAttributes($table) . '>'];
-        $caption = $this->tableCaptionInlines($table);
-        if ($caption !== []) {
-            $lines[] = '<caption>' . $this->renderHtmlInlines($caption) . '</caption>';
+        $caption = $this->renderRawHtmlTableCaption($table);
+        if ($caption !== '') {
+            $lines[] = '<caption' . $this->renderRawHtmlTableCaptionAttributes($table) . '>' . $caption . '</caption>';
         }
 
         $colgroup = $this->renderHtmlTableColgroup($table);
@@ -4617,9 +4624,10 @@ final class MarkdownWriter
             foreach ($this->tableBodyHeadRows($body) as $row) {
                 $lines[] = $this->renderRawHtmlTableRow($row, $table, true);
             }
+            $rowHeadColumns = max(0, (int) $body->attr('rowHeadColumns', 0));
             foreach ($body->children as $row) {
                 if ($row->type === 'table_row') {
-                    $lines[] = $this->renderRawHtmlTableRow($row, $table, false);
+                    $lines[] = $this->renderRawHtmlTableRow($row, $table, false, $rowHeadColumns);
                 }
             }
             $lines[] = '</tbody>';
@@ -4639,18 +4647,22 @@ final class MarkdownWriter
         return $lines;
     }
 
-    private function renderRawHtmlTableRow(AstNode $row, AstNode $table, bool $header): string
+    private function renderRawHtmlTableRow(AstNode $row, AstNode $table, bool $header, int $rowHeadColumns = 0): string
     {
         $html = '<tr' . $this->renderNodeHtmlAttributes($row) . '>';
+        $logicalColumn = 0;
         foreach ($row->children as $index => $cell) {
             if ($cell->type !== 'table_cell') {
                 continue;
             }
 
-            $tag = $header || $cell->attr('header') === true ? 'th' : 'td';
-            $html .= '<' . $tag . $this->renderRawHtmlTableCellAttributes($table, $index, $cell) . '>'
+            $colspan = max(1, (int) $cell->attr('colspan', 1));
+            $rowHeader = !$header && $logicalColumn < $rowHeadColumns && $logicalColumn + $colspan <= $rowHeadColumns;
+            $tag = $header || $cell->attr('header') === true || $rowHeader ? 'th' : 'td';
+            $html .= '<' . $tag . $this->renderRawHtmlTableCellAttributes($table, $index, $cell, $rowHeader) . '>'
                 . $this->renderRawHtmlTableCellContent($cell)
                 . '</' . $tag . '>';
+            $logicalColumn += $colspan;
         }
 
         return $html . '</tr>';
@@ -4675,9 +4687,73 @@ final class MarkdownWriter
             : $this->renderHtmlInlines($cell->children);
     }
 
-    private function renderRawHtmlTableCellAttributes(AstNode $table, int $column, AstNode $cell): string
+    private function renderRawHtmlTableCaption(AstNode $table): string
+    {
+        $captionBlocks = $table->attr('captionBlocks', []);
+        if (is_array($captionBlocks) && $this->arrayIsAstNodeList($captionBlocks)) {
+            return $this->renderBlocksAsHtmlFragments($captionBlocks);
+        }
+
+        $caption = $this->tableCaptionInlines($table);
+        if ($caption !== []) {
+            return $this->renderHtmlInlines($caption);
+        }
+
+        return '';
+    }
+
+    private function renderRawHtmlTableCaptionAttributes(AstNode $table): string
+    {
+        $shortCaption = $this->tableShortCaptionPlainText($table);
+
+        return $shortCaption === ''
+            ? ''
+            : ' data-pandoc-short-caption="' . $this->escapeHtml($shortCaption) . '"';
+    }
+
+    private function tableShortCaptionPlainText(AstNode $table): string
+    {
+        $shortCaptionInlines = $table->attr('shortCaptionInlines', []);
+        if (is_array($shortCaptionInlines) && $this->arrayIsAstNodeList($shortCaptionInlines)) {
+            return $this->plainInlineText($shortCaptionInlines);
+        }
+
+        $shortCaptionBlocks = $table->attr('shortCaptionBlocks', []);
+        if (is_array($shortCaptionBlocks) && $this->arrayIsAstNodeList($shortCaptionBlocks)) {
+            return $this->captionBlocksPlainText($shortCaptionBlocks);
+        }
+
+        return trim((string) $table->attr('shortCaption', ''));
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     */
+    private function captionBlocksPlainText(array $blocks): string
+    {
+        $parts = [];
+        foreach ($blocks as $block) {
+            if ($block->children !== [] && $this->allInlineNodes($block->children)) {
+                $parts[] = $this->plainInlineText($block->children);
+                continue;
+            }
+
+            $text = trim((string) $block->attr('text', ''));
+            if ($text !== '') {
+                $parts[] = $text;
+            }
+        }
+
+        return trim(implode(' ', array_filter($parts, static fn (string $part): bool => $part !== '')));
+    }
+
+    private function renderRawHtmlTableCellAttributes(AstNode $table, int $column, AstNode $cell, bool $rowHeader = false): string
     {
         $attrs = $this->renderNodeHtmlAttributes($cell, ['style']);
+        if ($rowHeader && !str_contains($attrs, ' scope=')) {
+            $attrs .= ' scope="row"';
+        }
+
         $colspan = (int) $cell->attr('colspan', 1);
         if ($colspan > 1) {
             $attrs .= ' colspan="' . $colspan . '"';
@@ -4882,6 +4958,41 @@ final class MarkdownWriter
         return false;
     }
 
+    private function tableNeedsRawHtmlFallback(AstNode $table): bool
+    {
+        if ($this->renderNodeHtmlAttributes($table) !== '') {
+            return true;
+        }
+
+        foreach ($this->tableBodies($table) as $body) {
+            if ((int) $body->attr('rowHeadColumns', 0) > 0 || $this->renderNodeHtmlAttributes($body) !== '') {
+                return true;
+            }
+        }
+
+        foreach ([
+            $this->tableSection($table, 'table_head'),
+            $this->tableSection($table, 'table_foot'),
+        ] as $section) {
+            if ($section instanceof AstNode && $this->renderNodeHtmlAttributes($section) !== '') {
+                return true;
+            }
+        }
+
+        foreach ($this->tableAllRows($table) as $row) {
+            if ($this->renderNodeHtmlAttributes($row) !== '') {
+                return true;
+            }
+            foreach ($row->children as $cell) {
+                if ($cell->type === 'table_cell' && $this->renderNodeHtmlAttributes($cell, ['style']) !== '') {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     private function cellHasOnlyInlineChildren(AstNode $cell): bool
     {
         foreach ($cell->children as $child) {
@@ -4972,6 +5083,82 @@ final class MarkdownWriter
         $caption = (string) $table->attr('caption', '');
 
         return $caption === '' ? [] : [new AstNode('text', ['text' => $caption])];
+    }
+
+    private function tableCaptionMarkdown(AstNode $table): string
+    {
+        $captionInlines = $table->attr('captionInlines', []);
+        if (is_array($captionInlines) && $this->arrayIsAstNodeList($captionInlines)) {
+            return $this->renderBlockInlines($captionInlines);
+        }
+
+        $captionBlocks = $table->attr('captionBlocks', []);
+        if (is_array($captionBlocks) && $this->arrayIsAstNodeList($captionBlocks)) {
+            return $this->renderTableCaptionBlocksMarkdown($captionBlocks);
+        }
+
+        return $this->renderBlockInlines($this->tableCaptionInlines($table));
+    }
+
+    private function tableShortCaptionMarkdown(AstNode $table): string
+    {
+        $shortCaptionInlines = $table->attr('shortCaptionInlines', []);
+        if (is_array($shortCaptionInlines) && $this->arrayIsAstNodeList($shortCaptionInlines)) {
+            return $this->renderBlockInlines($shortCaptionInlines);
+        }
+
+        $shortCaptionBlocks = $table->attr('shortCaptionBlocks', []);
+        if (is_array($shortCaptionBlocks) && $this->arrayIsAstNodeList($shortCaptionBlocks)) {
+            return $this->renderTableCaptionBlocksMarkdown($shortCaptionBlocks);
+        }
+
+        $shortCaption = (string) $table->attr('shortCaption', '');
+
+        return $shortCaption === '' ? '' : $this->renderBlockInlines([new AstNode('text', ['text' => $shortCaption])]);
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     */
+    private function renderTableCaptionBlocksMarkdown(array $blocks): string
+    {
+        $parts = [];
+        foreach ($blocks as $block) {
+            $part = $this->renderTableCaptionBlockMarkdown($block);
+            if ($part !== '') {
+                $parts[] = $part;
+            }
+        }
+
+        return implode('<br />', $parts);
+    }
+
+    private function renderTableCaptionBlockMarkdown(AstNode $block): string
+    {
+        if ($block->children !== [] && $this->allInlineNodes($block->children)) {
+            return $this->renderBlockInlines($block->children);
+        }
+
+        $text = (string) $block->attr('text', '');
+        if ($text !== '') {
+            return $this->renderBlockInlines([new AstNode('text', ['text' => $text])]);
+        }
+
+        return '';
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function allInlineNodes(array $nodes): bool
+    {
+        foreach ($nodes as $node) {
+            if (!$this->isInlineNode($node)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -6146,7 +6333,7 @@ final class MarkdownWriter
                 $escapeInitialPlainMarker,
                 (bool) $node->attr('preserveSmartPunctuation', false)
             ),
-            'softbreak' => $this->renderSoftBreak($following),
+            'softbreak' => $this->renderSoftBreak($following, $node),
             'space' => ' ',
             'linebreak' => $this->renderLineBreak(),
             'code' => $this->renderCode($node),
@@ -6332,8 +6519,12 @@ final class MarkdownWriter
     /**
      * @param list<AstNode> $following
      */
-    private function renderSoftBreak(array $following = []): string
+    private function renderSoftBreak(array $following = [], ?AstNode $node = null): string
     {
+        if ($node instanceof AstNode && $node->attr('preserveNativeSoftbreak') === true) {
+            return "\n";
+        }
+
         $next = $following[0] ?? null;
         if (
             $this->opmlNoteMarkdownEnabled()
@@ -6909,7 +7100,15 @@ final class MarkdownWriter
             return $text;
         }
 
-        if ($this->rawAttributeEnabled()) {
+        if (
+            $this->isRawHtmlFormat($format)
+            && $this->rawHtmlEnabled()
+            && $this->isCompleteRawHtmlInlineElement($text)
+        ) {
+            return $text;
+        }
+
+        if ($this->rawAttributeEnabled() && !$this->shouldSuppressUnsupportedNativeRawInline($node, $format)) {
             return $this->renderRawAttributeInline(new AstNode($node->type, [
                 'format' => $format,
                 'text' => $text,
@@ -6925,6 +7124,25 @@ final class MarkdownWriter
         }
 
         return '';
+    }
+
+    private function shouldSuppressUnsupportedNativeRawInline(AstNode $node, string $format): bool
+    {
+        return $node->type === 'raw_inline'
+            && ($node->attr('constructor') === 'RawInline' || $node->attr('native') !== null)
+            && !$this->isRawMarkdownFormat($format)
+            && !$this->isRawHtmlFormat($format)
+            && !in_array($format, ['latex', 'tex'], true);
+    }
+
+    private function isCompleteRawHtmlInlineElement(string $text): bool
+    {
+        $trimmed = trim($text);
+        if ($trimmed === '') {
+            return false;
+        }
+
+        return preg_match('/^<([A-Za-z][A-Za-z0-9:-]*)(?:\s[^<>]*)?>.*<\/\1>$/s', $trimmed) === 1;
     }
 
     /**

@@ -684,6 +684,16 @@ final class LatexWriter
     {
         $tokens = [];
         foreach ($nodes as $node) {
+            $nativeCommand = $this->renderNativeInlineCommand($node, $escapeText, $protectImages);
+            if ($nativeCommand !== null) {
+                $tokens[] = [
+                    'kind' => 'text',
+                    'text' => $nativeCommand,
+                    'styles' => $styles,
+                ];
+                continue;
+            }
+
             if (in_array($node->type, ['emph', 'strong', 'underline', 'strikeout'], true)) {
                 array_push($tokens, ...$this->inlineTokens(
                     $node->children,
@@ -737,6 +747,42 @@ final class LatexWriter
         }
 
         return $tokens;
+    }
+
+    private function renderNativeInlineCommand(AstNode $node, bool $escapeText, bool $protectImages): ?string
+    {
+        if (!$this->hasNativeConstructorProvenance($node)) {
+            return null;
+        }
+
+        return match ($node->type) {
+            'underline' => '\underline{' . $this->renderInlines($node->children, $escapeText, $protectImages) . '}',
+            'strikeout' => '\sout{' . $this->renderInlines($node->children, $escapeText, $protectImages) . '}',
+            'superscript' => '\textsuperscript{' . $this->renderInlines($node->children, $escapeText, $protectImages) . '}',
+            'subscript' => '\textsubscript{' . $this->renderInlines($node->children, $escapeText, $protectImages) . '}',
+            'small_caps' => '\textsc{' . $this->renderInlines($node->children, $escapeText, $protectImages) . '}',
+            'quoted' => $this->renderNativeQuotedInline($node, $escapeText, $protectImages),
+            default => null,
+        };
+    }
+
+    private function hasNativeConstructorProvenance(AstNode $node): bool
+    {
+        return $node->attr('constructor') !== null
+            || $node->attr('native') !== null
+            || $node->attr('quoteTypeConstructor') !== null
+            || $node->attr('quoteTypeNative') !== null;
+    }
+
+    private function renderNativeQuotedInline(AstNode $node, bool $escapeText, bool $protectImages): string
+    {
+        $inner = $this->renderInlines($node->children, $escapeText, $protectImages);
+        $quoteType = (string) $node->attr('quoteTypeConstructor', $node->attr('quoteType', ''));
+        if ($quoteType === 'SingleQuote' || strtolower($quoteType) === 'single') {
+            return '`' . $inner . "'";
+        }
+
+        return '``' . $inner . "''";
     }
 
     /**
@@ -880,6 +926,12 @@ final class LatexWriter
     private function renderMath(AstNode $node): string
     {
         $text = (string) $node->attr('text', '');
+        if (
+            $node->attr('display') !== true
+            && ($node->attr('mathTypeConstructor') !== null || $node->attr('mathTypeNative') !== null)
+        ) {
+            return '$' . $text . '$';
+        }
 
         return $node->attr('display') === true
             ? '\\[' . $text . '\\]'

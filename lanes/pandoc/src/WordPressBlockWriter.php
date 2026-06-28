@@ -941,6 +941,11 @@ final class WordPressBlockWriter
 
     private function renderCaptionInlines(AstNode $node): string
     {
+        $blocks = $node->attr('captionBlocks', null);
+        if (is_array($blocks) && $this->allAstNodes($blocks)) {
+            return $this->renderBlocksAsHtml($blocks, true);
+        }
+
         $inlines = $node->attr('captionInlines', null);
         if (!is_array($inlines)) {
             return $this->esc((string) $node->attr('caption', ''));
@@ -1050,6 +1055,20 @@ final class WordPressBlockWriter
         ], true);
     }
 
+    /**
+     * @param array<mixed> $nodes
+     */
+    private function allAstNodes(array $nodes): bool
+    {
+        foreach ($nodes as $node) {
+            if (!$node instanceof AstNode) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private function renderTableCellAttrs(AstNode $table, int $index, AstNode $cell): string
     {
         $attrs = $this->renderStoredHtmlAttrs($cell, true, ['style']);
@@ -1142,10 +1161,7 @@ final class WordPressBlockWriter
      */
     private function renderStoredHtmlAttrs(AstNode $node, bool $includeIdentity, array $skip): string
     {
-        $htmlAttributes = $node->attr('htmlAttributes', []);
-        if (!is_array($htmlAttributes) || $htmlAttributes === []) {
-            return '';
-        }
+        $htmlAttributes = $this->inlineHtmlAttributes($node);
 
         $attrs = '';
         if ($includeIdentity) {
@@ -1206,7 +1222,7 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
-            || in_array($name, ['abbr', 'bgcolor', 'border', 'class', 'dir', 'headers', 'id', 'lang', 'role', 'scope', 'style', 'title', 'valign'], true);
+            || in_array($name, ['abbr', 'bgcolor', 'border', 'class', 'dir', 'headers', 'id', 'lang', 'role', 'scope', 'style', 'title', 'valign', 'xml:lang'], true);
     }
 
     private function renderCodeBlock(AstNode $node): string
@@ -1487,6 +1503,11 @@ final class WordPressBlockWriter
 
     private function renderFigureCaption(AstNode $node, ?AstNode $image = null): string
     {
+        $caption = (string) $node->attr('caption', '');
+        if ($node->attr('constructor') === 'Figure' && $caption !== '') {
+            return $this->esc($caption);
+        }
+
         $inlines = $node->attr('captionInlines', null);
         if (is_array($inlines)) {
             $html = '';
@@ -1524,9 +1545,21 @@ final class WordPressBlockWriter
             $attrs .= ' id="' . $this->esc($id) . '"';
         }
 
-        $attributes = $node->attr('attributes', []);
-        if (is_array($attributes) && isset($attributes['latex-placement'])) {
-            $attrs .= ' data-pandoc-latex-placement="' . $this->esc((string) $attributes['latex-placement']) . '"';
+        $sourceAttrs = $this->inlineHtmlAttributes($node);
+        foreach ($sourceAttrs as $name => $value) {
+            $name = strtolower((string) $name);
+            if (
+                in_array($name, ['id', 'class', 'latex-placement', 'data-pandoc-latex-placement', 'style'], true)
+                || !$this->isAllowedBlockHtmlAttr($name)
+            ) {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+
+        if (isset($sourceAttrs['latex-placement'])) {
+            $attrs .= ' data-pandoc-latex-placement="' . $this->esc((string) $sourceAttrs['latex-placement']) . '"';
         }
 
         return $attrs;
@@ -2860,7 +2893,7 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
-            || in_array($name, ['cite', 'class', 'dir', 'id', 'lang', 'title'], true);
+            || in_array($name, ['cite', 'class', 'dir', 'id', 'lang', 'title', 'xml:lang'], true);
     }
 
     private function isAllowedBlockHtmlAttr(string $name): bool
@@ -2871,7 +2904,7 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
-            || in_array($name, ['class', 'dir', 'id', 'lang', 'role', 'title'], true);
+            || in_array($name, ['class', 'dir', 'id', 'lang', 'role', 'title', 'xml:lang'], true);
     }
 
     private function isAllowedImageHtmlAttr(string $name): bool
@@ -2882,7 +2915,7 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
-            || in_array($name, ['class', 'decoding', 'dir', 'fetchpriority', 'id', 'lang', 'loading', 'sizes', 'srcset'], true);
+            || in_array($name, ['class', 'decoding', 'dir', 'fetchpriority', 'id', 'lang', 'loading', 'sizes', 'srcset', 'xml:lang'], true);
     }
 
     private function renderMathInline(AstNode $node): string
