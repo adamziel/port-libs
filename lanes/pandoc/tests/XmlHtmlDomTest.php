@@ -10339,11 +10339,22 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same('refresh', $refreshMeta['httpEquiv']);
         $t->same('5; url=https://example.test/next?stage=review', $refreshMeta['content']);
         $t->same([
+            'reviewPolicy' => 'meta-refresh-navigation-review',
             'contentRaw' => '5; url=https://example.test/next?stage=review',
             'delayRaw' => '5',
             'delay' => 5.0,
+            'delayValid' => true,
             'urlRaw' => 'https://example.test/next?stage=review',
             'url' => 'https://example.test/next?stage=review',
+            'urlKind' => 'absolute',
+            'urlScheme' => 'https',
+            'urlUnsafe' => false,
+            'urlPresent' => true,
+            'redirectRequested' => true,
+            'redirectFollowed' => false,
+            'issues' => [],
+            'issueCodes' => [],
+            'valid' => true,
         ], $refreshMeta['refresh']);
         $t->same('Body', $paragraph['text']);
         $t->same('<base href="https://example.test/docs/" target="_blank"><link as="style" crossorigin="anonymous" fetchpriority="high" href="review.css" hreflang="en" imagesizes="100vw" imagesrcset="cover.avif 1x, cover@2x.avif 2x" integrity="sha384-review" media="screen and (min-width: 40em)" referrerpolicy="no-referrer" rel="preload stylesheet modulepreload" sizes="any" type="text/css"><meta charset="UTF-8"><meta content="width=device-width, initial-scale=1" name="viewport"><meta content="Review Packet" property="og:title"><meta content="5; url=https://example.test/next?stage=review" http-equiv="refresh"><p>Body</p>', $html);
