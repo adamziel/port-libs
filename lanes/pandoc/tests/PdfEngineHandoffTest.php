@@ -7606,6 +7606,74 @@ return [
         $t->same($expectedPolicy, $sequence['finalTypstOutputFormatPolicy']);
     },
 
+    'fake runner preserves typst stdout pdf output boundary provenance' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'sourcePath' => 'workspace/stdout.typ',
+            'outputPath' => '-',
+            'source' => '= Typst Stdout PDF Packet',
+            'engineOptions' => ['--format=pdf'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst stdout PDF packet\n%%EOF\n";
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'declaredOutputFile' => '-',
+            'inferredOutputFormat' => 'pdf',
+            'explicitFormat' => 'pdf',
+            'formatOptions' => ['pdf'],
+            'issues' => ['output-stdout-boundary'],
+            'outputDestination' => 'stdout',
+        ];
+        $expectedOutputFormatCase = [
+            'case' => 'output-format',
+            'reviewStatus' => 'review',
+            'observed' => 1,
+            'details' => [
+                'inferredOutputFormat' => 'pdf',
+                'explicitFormat' => 'pdf',
+                'distinctFormats' => ['pdf'],
+                'declaredOutputFile' => '-',
+                'outputDestination' => 'stdout',
+            ],
+            'issues' => ['output-stdout-boundary'],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'stdout' => $pdfBytes,
+            'stderr' => "typst stdout target reviewed\n",
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'stdout' => $pdfBytes,
+            'stderr' => "typst stdout target reviewed\n",
+        ]]);
+
+        $t->same('-', $plan['outputFile']);
+        $t->same('workspace/stdout.typ', $plan['sourceFile']);
+        $t->same(['typst', 'compile', '--format=pdf', 'workspace/stdout.typ', '-'], $plan['argv']);
+        $t->same($expectedPolicy, $plan['typstOutputFormatPolicy']);
+        $t->contains('typst-output-format-policy:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-output-destination:stdout', implode(',', $plan['diagnostics']));
+        $t->contains('typst-output-format-explicit:pdf', implode(',', $plan['diagnostics']));
+        $t->contains('typst-output-format-issues:1', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same(strlen($pdfBytes), $result['bytes']);
+        $t->same(hash('sha256', $pdfBytes), $result['pdfSha256']);
+        $t->same($expectedPolicy, $result['typstOutputFormatPolicy']);
+        $t->same($expectedPolicy, $result['artifactProvenanceReview']['typstOutputFormatPolicy']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-output-format-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same([], $result['engineTranscriptInputFiles']);
+        $t->same([], $result['missingEngineTranscriptInputFiles']);
+        $t->same(['output-format'], array_column($result['typstBoundaryMatrix']['cases'], 'case'));
+        $t->same($expectedOutputFormatCase, $result['typstBoundaryMatrix']['cases'][0]);
+        $t->contains('output-format:output-stdout-boundary', implode(',', $result['typstBoundaryMatrix']['issues']));
+        $t->same($result['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($expectedPolicy, $sequence['finalTypstOutputFormatPolicy']);
+        $t->same(hash('sha256', $pdfBytes), $sequence['finalPdfSha256']);
+        $t->same($result['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
+    },
+
     'preserves typst output format in boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

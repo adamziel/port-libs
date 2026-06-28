@@ -171,7 +171,7 @@ final class PdfEngineHandoff
 
         $sourceFile = isset($options['sourcePath'])
             ? $this->normalizeRelativePath($this->requireString($options['sourcePath'], 'PDF source path'), 'PDF source path')
-            : $this->deriveSourcePath($outputFile, $profile['extension']);
+            : ($outputFile === '-' ? 'document.' . $profile['extension'] : $this->deriveSourcePath($outputFile, $profile['extension']));
         $sourceInput = $this->sourceInputFor($engine, $sourceFile);
         $engineOptions = $this->normalizeStringList($options['engineOptions'] ?? []);
         $engineEnvironment = $this->normalizeEngineEnvironment($options['engineEnvironment'] ?? []);
@@ -264,6 +264,9 @@ final class PdfEngineHandoff
         }
         if ($typstOutputFormatPolicy !== []) {
             $diagnostics[] = 'typst-output-format-policy:' . $typstOutputFormatPolicy['reviewStatus'];
+            if (($typstOutputFormatPolicy['outputDestination'] ?? null) === 'stdout') {
+                $diagnostics[] = 'typst-output-destination:stdout';
+            }
             if ($typstOutputFormatPolicy['explicitFormat'] !== null) {
                 $diagnostics[] = 'typst-output-format-explicit:' . $typstOutputFormatPolicy['explicitFormat'];
             }
@@ -1362,8 +1365,10 @@ final class PdfEngineHandoff
             $diagnostics[] = 'source-map-source-missing:' . $sourceFile;
         }
 
+        $stdoutBytes = array_key_exists('stdout', $result) ? (string) $result['stdout'] : null;
+        $stdoutIsPdfOutput = $outputFile === '-' && is_string($stdoutBytes) && str_starts_with($stdoutBytes, '%PDF-');
         $engineTexts = array_merge(
-            [(string) ($result['stdout'] ?? ''), (string) ($result['stderr'] ?? '')],
+            [$stdoutIsPdfOutput ? '' : (string) ($result['stdout'] ?? ''), (string) ($result['stderr'] ?? '')],
             $engineLogTexts
         );
         try {
@@ -1498,9 +1503,10 @@ final class PdfEngineHandoff
             $diagnostics[] = 'engine-output-bytes:' . $declaredOutput['bytes'];
         }
 
-        $pdfBytes = array_key_exists($outputFile, $files) ? $files[$outputFile] : null;
-        if ($pdfBytes === null && $outputFile === '-' && array_key_exists('stdout', $result)) {
-            $pdfBytes = (string) $result['stdout'];
+        $pdfBytes = $outputFile === '-'
+            ? $stdoutBytes
+            : (array_key_exists($outputFile, $files) ? $files[$outputFile] : null);
+        if ($outputFile === '-' && $stdoutBytes !== null) {
             $diagnostics[] = 'pdf-output-from-stdout';
         }
         $pdfTrailerComplete = is_string($pdfBytes) && $this->hasCompletePdfTrailer($pdfBytes);
@@ -6562,19 +6568,18 @@ final class PdfEngineHandoff
         }
 
         $explicitFormat = $formatOptions === [] ? null : $formatOptions[count($formatOptions) - 1];
-        $stdoutOutput = $outputFile === '-';
-        if ($stdoutOutput) {
-            $inferredOutputFormat = $explicitFormat ?? 'pdf';
-            $issues[] = 'output-stdout-boundary';
-        } else {
-            $inferredOutputFormat = strtolower((string) pathinfo($outputFile, PATHINFO_EXTENSION));
-            if ($inferredOutputFormat === '') {
-                $inferredOutputFormat = 'unknown';
-            }
+        $isStdoutOutput = $outputFile === '-';
+        $inferredOutputFormat = $isStdoutOutput
+            ? ($explicitFormat ?? 'pdf')
+            : strtolower((string) pathinfo($outputFile, PATHINFO_EXTENSION));
+        if ($inferredOutputFormat === '') {
+            $inferredOutputFormat = 'unknown';
+        }
 
-            if ($inferredOutputFormat !== 'pdf') {
-                $issues[] = 'output-extension-not-pdf:' . $inferredOutputFormat;
-            }
+        if ($isStdoutOutput) {
+            $issues[] = 'output-stdout-boundary';
+        } elseif ($inferredOutputFormat !== 'pdf') {
+            $issues[] = 'output-extension-not-pdf:' . $inferredOutputFormat;
         }
 
         $distinctFormats = array_values(array_unique($formatOptions));
@@ -6604,7 +6609,7 @@ final class PdfEngineHandoff
             'formatOptions' => $formatOptions,
             'issues' => array_values(array_unique($issues)),
         ];
-        if ($stdoutOutput) {
+        if ($isStdoutOutput) {
             $policy['outputDestination'] = 'stdout';
         }
         if (count($formatValues) > 1 || in_array('', $formatValues, true)) {
@@ -8058,11 +8063,16 @@ final class PdfEngineHandoff
                 $distinctFormats = array_values(array_unique($formatOptions));
                 sort($distinctFormats);
             }
-            $appendCase('output-format', ($formatPolicy['reviewStatus'] ?? 'ok') === 'ok' && $formatIssues === [] ? 'ok' : 'review', is_int($formatPolicy['formatEntryCount'] ?? null) ? $formatPolicy['formatEntryCount'] : count(is_array($formatPolicy['formatOptions'] ?? null) ? $formatPolicy['formatOptions'] : []), [
+            $outputFormatDetails = [
                 'inferredOutputFormat' => is_string($formatPolicy['inferredOutputFormat'] ?? null) ? $formatPolicy['inferredOutputFormat'] : null,
                 'explicitFormat' => is_string($formatPolicy['explicitFormat'] ?? null) ? $formatPolicy['explicitFormat'] : null,
                 'distinctFormats' => $distinctFormats,
-            ], $formatIssues);
+            ];
+            if (($formatPolicy['outputDestination'] ?? null) === 'stdout') {
+                $outputFormatDetails['declaredOutputFile'] = is_string($formatPolicy['declaredOutputFile'] ?? null) ? $formatPolicy['declaredOutputFile'] : null;
+                $outputFormatDetails['outputDestination'] = 'stdout';
+            }
+            $appendCase('output-format', ($formatPolicy['reviewStatus'] ?? 'ok') === 'ok' && $formatIssues === [] ? 'ok' : 'review', is_int($formatPolicy['formatEntryCount'] ?? null) ? $formatPolicy['formatEntryCount'] : count(is_array($formatPolicy['formatOptions'] ?? null) ? $formatPolicy['formatOptions'] : []), $outputFormatDetails, $formatIssues);
         }
 
         $pdfExport = is_array($provenance['pdfExport'] ?? null) ? $provenance['pdfExport'] : [];
