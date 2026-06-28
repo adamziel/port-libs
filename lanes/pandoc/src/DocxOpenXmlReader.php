@@ -167,6 +167,7 @@ final class DocxOpenXmlReader
      */
     public function readPackage(array $parts, ?ZipPackage $sourcePackage = null): AstNode
     {
+        $partNameNormalization = $this->packagePartNameNormalizationProvenance($parts);
         $parts = $this->normalizeParts($parts);
         $contentTypes = $this->readContentTypes($parts);
         $rootRelationships = $this->readRelationshipsPart($parts, '_rels/.rels');
@@ -186,6 +187,7 @@ final class DocxOpenXmlReader
             $documentRelationshipsPart,
             $documentRelationships,
             $sourcePackage,
+            $partNameNormalization,
         );
         $packageThumbnails = $this->packageThumbnailProvenance($parts, $rootRelationships, $contentTypes);
         $packageProvenance['packageThumbnails'] = $packageThumbnails;
@@ -1478,6 +1480,166 @@ final class DocxOpenXmlReader
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @return array<string, mixed>
+     */
+    private function packagePartNameNormalizationProvenance(array $parts): array
+    {
+        $entries = [];
+        $byNormalizedPartName = [];
+
+        foreach ($parts as $rawPartName => $contents) {
+            $rawPartName = (string) $rawPartName;
+            $normalizedPartName = $this->normalizePartName($rawPartName);
+            $entryIndex = count($entries);
+            $entry = [
+                'ordinal' => $entryIndex,
+                'rawPartName' => $rawPartName,
+                'normalizedPartName' => $normalizedPartName === '' ? null : $normalizedPartName,
+                'bytes' => strlen($contents),
+                'changed' => $rawPartName !== $normalizedPartName,
+                'discarded' => $normalizedPartName === '',
+                'collides' => false,
+                'issues' => $this->packagePartNameNormalizationIssues($rawPartName, $normalizedPartName),
+            ];
+
+            $entries[] = $entry;
+            if ($normalizedPartName !== '') {
+                $byNormalizedPartName[$normalizedPartName][] = $entryIndex;
+            }
+        }
+
+        $collisionGroups = [];
+        $collisionEntries = [];
+        foreach ($byNormalizedPartName as $normalizedPartName => $entryIndexes) {
+            if (count($entryIndexes) < 2) {
+                continue;
+            }
+
+            $rawPartNames = [];
+            $ordinals = [];
+            foreach ($entryIndexes as $entryIndex) {
+                $entries[$entryIndex]['collides'] = true;
+                if (!in_array('normalized-name-collision', $entries[$entryIndex]['issues'], true)) {
+                    $entries[$entryIndex]['issues'][] = 'normalized-name-collision';
+                    sort($entries[$entryIndex]['issues'], SORT_STRING);
+                }
+                $rawPartNames[] = $entries[$entryIndex]['rawPartName'];
+                $ordinals[] = $entries[$entryIndex]['ordinal'];
+                $collisionEntries[] = $entries[$entryIndex];
+            }
+
+            $selectedEntry = $entries[end($entryIndexes)];
+            $collisionGroups[] = [
+                'normalizedPartName' => $normalizedPartName,
+                'entryCount' => count($entryIndexes),
+                'rawPartNames' => $rawPartNames,
+                'ordinals' => $ordinals,
+                'selectedRawPartName' => $selectedEntry['rawPartName'],
+                'selectedOrdinal' => $selectedEntry['ordinal'],
+                'selectedBytes' => $selectedEntry['bytes'],
+            ];
+        }
+
+        usort(
+            $collisionGroups,
+            static fn (array $left, array $right): int => strcmp((string) $left['normalizedPartName'], (string) $right['normalizedPartName']),
+        );
+        usort(
+            $collisionEntries,
+            static fn (array $left, array $right): int => [$left['normalizedPartName'] ?? '', $left['ordinal']]
+                <=> [$right['normalizedPartName'] ?? '', $right['ordinal']],
+        );
+
+        $issueCodes = [];
+        $changedEntries = [];
+        $discardedEntries = [];
+        $reviewEntries = [];
+        foreach ($entries as $entry) {
+            foreach ($entry['issues'] as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issueCodes[$issue] = true;
+                }
+            }
+            if (($entry['changed'] ?? false) === true) {
+                $changedEntries[] = $entry;
+            }
+            if (($entry['discarded'] ?? false) === true) {
+                $discardedEntries[] = $entry;
+            }
+            if (($entry['issues'] ?? []) !== []) {
+                $reviewEntries[] = $entry;
+            }
+        }
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'present' => true,
+            'inputPartCount' => count($entries),
+            'normalizedPartCount' => count($byNormalizedPartName),
+            'changedEntryCount' => count($changedEntries),
+            'discardedEntryCount' => count($discardedEntries),
+            'collisionGroupCount' => count($collisionGroups),
+            'collisionEntryCount' => count($collisionEntries),
+            'reviewEntryCount' => count($reviewEntries),
+            'issueCount' => count($issueCodes),
+            'issueCodes' => array_keys($issueCodes),
+            'valid' => $issueCodes === [],
+            'entries' => $entries,
+            'changedEntries' => $changedEntries,
+            'discardedEntries' => $discardedEntries,
+            'collisionGroups' => $collisionGroups,
+            'collisionEntries' => $collisionEntries,
+            'reviewEntries' => $reviewEntries,
+            'reviewPolicy' => 'docx-array-part-name-normalization-metadata-only',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function packagePartNameNormalizationIssues(string $rawPartName, string $normalizedPartName): array
+    {
+        $issues = [];
+        $slashPath = str_replace('\\', '/', $rawPartName);
+        if ($rawPartName === '') {
+            $issues[] = 'empty-name';
+        }
+        if ($rawPartName !== $normalizedPartName) {
+            $issues[] = 'normalized-differs';
+        }
+        if ($normalizedPartName === '') {
+            $issues[] = 'discarded-empty-normalized-name';
+        }
+        if (str_contains($rawPartName, '\\')) {
+            $issues[] = 'backslash';
+        }
+        if (str_starts_with($rawPartName, '/')) {
+            $issues[] = 'leading-slash';
+        }
+        if (str_ends_with($rawPartName, '/')) {
+            $issues[] = 'trailing-slash';
+        }
+        if (str_contains($slashPath, '//')) {
+            $issues[] = 'empty-segment';
+        }
+        if (preg_match('~(^|/)\.(?:/|$)~', $slashPath) === 1) {
+            $issues[] = 'dot-segment';
+        }
+        if (preg_match('~(^|/)\.\.(?:/|$)~', $slashPath) === 1) {
+            $issues[] = 'parent-traversal-segment';
+        }
+        if (str_contains($rawPartName, '?') || str_contains($rawPartName, '#')) {
+            $issues[] = 'query-or-fragment';
+        }
+
+        $issues = array_values(array_unique($issues));
+        sort($issues, SORT_STRING);
+
+        return $issues;
     }
 
     /**
@@ -10652,6 +10814,7 @@ final class DocxOpenXmlReader
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
      * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $rootRelationships
      * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $documentRelationships
+     * @param array<string, mixed> $partNameNormalization
      * @return array<string, mixed>
      */
     private function packageProvenance(
@@ -10662,6 +10825,7 @@ final class DocxOpenXmlReader
         string $documentRelationshipsPart,
         array $documentRelationships,
         ?ZipPackage $sourcePackage = null,
+        array $partNameNormalization = [],
     ): array {
         $contentTypesPart = $this->contentTypesPartProvenance($parts, $contentTypes);
         $relationshipParts = $this->packageRelationshipPartsProvenance(
@@ -10754,6 +10918,17 @@ final class DocxOpenXmlReader
         $summary['zipNameHygieneWindowsAlternateDataStreamEntryCount'] = $zipNamePolicy['nameHygieneWindowsAlternateDataStreamEntryCount'];
         $summary['zipNameHygieneUnicodeFormatControlEntryCount'] = $zipNamePolicy['nameHygieneUnicodeFormatControlEntryCount'];
         $summary['zipNameHygieneUnicodeBidiControlEntryCount'] = $zipNamePolicy['nameHygieneUnicodeBidiControlEntryCount'];
+        $summary['partNameNormalizationInputPartCount'] = (int) ($partNameNormalization['inputPartCount'] ?? count($parts));
+        $summary['partNameNormalizationNormalizedPartCount'] = (int) ($partNameNormalization['normalizedPartCount'] ?? count($partInventory));
+        $summary['partNameNormalizationChangedEntryCount'] = (int) ($partNameNormalization['changedEntryCount'] ?? 0);
+        $summary['partNameNormalizationDiscardedEntryCount'] = (int) ($partNameNormalization['discardedEntryCount'] ?? 0);
+        $summary['partNameNormalizationCollisionGroupCount'] = (int) ($partNameNormalization['collisionGroupCount'] ?? 0);
+        $summary['partNameNormalizationCollisionEntryCount'] = (int) ($partNameNormalization['collisionEntryCount'] ?? 0);
+        $summary['partNameNormalizationReviewEntryCount'] = (int) ($partNameNormalization['reviewEntryCount'] ?? 0);
+        $summary['partNameNormalizationIssueCount'] = (int) ($partNameNormalization['issueCount'] ?? 0);
+        $summary['partNameNormalizationIssueCodes'] = is_array($partNameNormalization['issueCodes'] ?? null)
+            ? $partNameNormalization['issueCodes']
+            : [];
 
         return [
             'contentTypesPart' => $contentTypesPart,
@@ -10763,6 +10938,7 @@ final class DocxOpenXmlReader
             'documentRelationshipsPart' => $documentRelationshipsPart,
             'parts' => $partInventory,
             'zipPackage' => $zipPackage,
+            'partNameNormalization' => $partNameNormalization,
             'summary' => $summary,
         ];
     }

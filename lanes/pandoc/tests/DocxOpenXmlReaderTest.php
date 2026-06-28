@@ -855,6 +855,95 @@ return [
         $t->same(true, $inventory['word/media/CON']['zipEntryPresent']);
         $t->same('missing', $inventory['word/media/CON']['contentTypeSource']);
     },
+    'preserves docx array package part name normalization provenance for review handoff' => static function (TestRunner $t): void {
+        $fixtureParts = docx_openxml_reader_fixture_parts();
+        $parts = [];
+        foreach ($fixtureParts as $name => $data) {
+            if ($name === 'word/document.xml') {
+                $parts['/word/./document.xml'] = $data;
+                continue;
+            }
+            if ($name === 'word/media/review.png') {
+                $parts['word\\media\\review.png'] = $data;
+                continue;
+            }
+
+            $parts[$name] = $data;
+        }
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/customXml/item.xml" ContentType="application/xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['customXml/item.xml'] = '<first/>';
+        $parts['/customXml/./item.xml'] = '<second/>';
+        $parts['folder/../'] = 'discarded path bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $normalization = $package['partNameNormalization'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $collision = $normalization['collisionGroups'][0];
+        $changedByRawName = [];
+        foreach ($normalization['changedEntries'] as $entry) {
+            $changedByRawName[$entry['rawPartName']] = $entry;
+        }
+
+        $t->same('Imported DOCX Heading', $document->children[0]->attr('text'));
+        $t->same(count($fixtureParts) + 3, $normalization['inputPartCount']);
+        $t->same(count($fixtureParts) + 1, $normalization['normalizedPartCount']);
+        $t->same(4, $normalization['changedEntryCount']);
+        $t->same(1, $normalization['discardedEntryCount']);
+        $t->same(1, $normalization['collisionGroupCount']);
+        $t->same(2, $normalization['collisionEntryCount']);
+        $t->same(5, $normalization['reviewEntryCount']);
+        $t->same(false, $normalization['valid']);
+        $t->same([
+            'backslash',
+            'discarded-empty-normalized-name',
+            'dot-segment',
+            'leading-slash',
+            'normalized-differs',
+            'normalized-name-collision',
+            'parent-traversal-segment',
+            'trailing-slash',
+        ], $normalization['issueCodes']);
+
+        $t->same('customXml/item.xml', $collision['normalizedPartName']);
+        $t->same(['customXml/item.xml', '/customXml/./item.xml'], $collision['rawPartNames']);
+        $t->same('/customXml/./item.xml', $collision['selectedRawPartName']);
+        $t->same(strlen('<second/>'), $collision['selectedBytes']);
+
+        $t->same('word/document.xml', $changedByRawName['/word/./document.xml']['normalizedPartName']);
+        $t->same(['dot-segment', 'leading-slash', 'normalized-differs'], $changedByRawName['/word/./document.xml']['issues']);
+        $t->same('word/media/review.png', $changedByRawName['word\\media\\review.png']['normalizedPartName']);
+        $t->same(['backslash', 'normalized-differs'], $changedByRawName['word\\media\\review.png']['issues']);
+        $t->same(null, $changedByRawName['folder/../']['normalizedPartName']);
+        $t->same(true, $changedByRawName['folder/../']['discarded']);
+        $t->same([
+            'discarded-empty-normalized-name',
+            'normalized-differs',
+            'parent-traversal-segment',
+            'trailing-slash',
+        ], $changedByRawName['folder/../']['issues']);
+
+        $t->same(strlen('<second/>'), $inventory['customXml/item.xml']['bytes']);
+        $t->same(hash('sha256', '<second/>'), $inventory['customXml/item.xml']['sha256']);
+        $t->same('application/xml', $inventory['customXml/item.xml']['contentTypeBase']);
+        $t->same('image/png', $inventory['word/media/review.png']['contentTypeBase']);
+        $t->true(!isset($inventory['folder/../']), 'discarded raw package path should not survive in normalized inventory');
+
+        $t->same($normalization['inputPartCount'], $summary['partNameNormalizationInputPartCount']);
+        $t->same($normalization['normalizedPartCount'], $summary['partNameNormalizationNormalizedPartCount']);
+        $t->same(4, $summary['partNameNormalizationChangedEntryCount']);
+        $t->same(1, $summary['partNameNormalizationDiscardedEntryCount']);
+        $t->same(1, $summary['partNameNormalizationCollisionGroupCount']);
+        $t->same(2, $summary['partNameNormalizationCollisionEntryCount']);
+        $t->same(5, $summary['partNameNormalizationReviewEntryCount']);
+        $t->same($normalization['issueCodes'], $summary['partNameNormalizationIssueCodes']);
+    },
     'preserves docx package inventory CRC32 provenance for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['customXml/raw-review.bin'] = 'raw custom payload bytes';
