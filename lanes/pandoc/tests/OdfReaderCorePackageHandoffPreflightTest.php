@@ -80,6 +80,10 @@ return [
         $compactHandoff = OpenDocumentPackage::fromPackage($package)->summarize()['corePackageHandoff'];
         $readerEntries = $indexByName($readerHandoff['entries']);
         $compactEntries = $indexByName($compactHandoff['entries']);
+        $readerSourceSpans = $indexByName($readerHandoff['selectedSourceByteSpanEntries']);
+        $compactSourceSpans = $indexByName($compactHandoff['selectedSourceByteSpanEntries']);
+        $readerLocalFixedFields = $indexByName($readerHandoff['selectedLocalHeaderFixedFieldEntries']);
+        $readerCentralFixedFields = $indexByName($readerHandoff['selectedCentralDirectoryFixedFieldEntries']);
 
         $t->same($readerHandoff, $readerResult['document']->attr('manifest')['corePackageHandoff']);
         $t->same($readerHandoff, $readerResult['importReport']['manifest']['corePackageHandoff']);
@@ -136,8 +140,26 @@ return [
         $t->same(strlen($settingsXml), $readerEntries['settings.xml']['bytesRead']);
         $t->same(hash('sha256', $settingsXml), $readerEntries['settings.xml']['contentSha256']);
 
+        $t->same('package-mimetype-entry', $readerSourceSpans['mimetype']['manifestDeclarationState']);
+        $t->same('/', $readerSourceSpans['mimetype']['manifestFullPath']);
+        $t->same(OpenDocumentPackage::TEXT_MIMETYPE, $readerSourceSpans['mimetype']['manifestMediaType']);
+        $t->same('package-manifest-entry', $readerSourceSpans['META-INF/manifest.xml']['manifestDeclarationState']);
+        $t->same(false, $readerSourceSpans['META-INF/manifest.xml']['manifestDeclared']);
+        $t->same('declared', $readerSourceSpans['content.xml']['manifestDeclarationState']);
+        $t->same('content.xml', $readerSourceSpans['content.xml']['manifestFullPath']);
+        $t->same(strlen($contentXml), $readerSourceSpans['content.xml']['manifestDeclaredSize']);
+        $t->same('undeclared', $readerSourceSpans['settings.xml']['manifestDeclarationState']);
+        $t->same(false, $readerSourceSpans['settings.xml']['manifestDeclared']);
+        $t->same(true, $readerSourceSpans['settings.xml']['hasSourceByteSpanProvenance']);
+        $t->same('declared', $readerLocalFixedFields['styles.xml']['manifestDeclarationState']);
+        $t->same(strlen($stylesXml), $readerLocalFixedFields['styles.xml']['manifestDeclaredSize']);
+        $t->same('undeclared', $readerCentralFixedFields['settings.xml']['manifestDeclarationState']);
+        $t->same(false, $readerCentralFixedFields['settings.xml']['manifestDeclared']);
+
         $t->same($readerHandoff['manifestDeclarationStateCounts'], $compactHandoff['manifestDeclarationStateCounts']);
         $t->same($readerEntries['settings.xml']['manifestDeclarationState'], $compactEntries['settings.xml']['manifestDeclarationState']);
         $t->same($readerEntries['content.xml']['manifestDeclaredSize'], $compactEntries['content.xml']['manifestDeclaredSize']);
+        $t->same($readerSourceSpans['settings.xml']['manifestDeclarationState'], $compactSourceSpans['settings.xml']['manifestDeclarationState']);
+        $t->same($readerSourceSpans['content.xml']['manifestDeclaredSize'], $compactSourceSpans['content.xml']['manifestDeclaredSize']);
     },
 ];

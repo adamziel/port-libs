@@ -468,6 +468,24 @@ final class OpenDocumentPackage
                 $summary[$listKey]
             ));
         }
+        foreach ([
+            'selectedSourceByteSpanEntries',
+            'selectedLocalHeaderFixedFieldEntries',
+            'selectedLocalHeaderFixedFieldIssueEntries',
+            'selectedCentralDirectoryFixedFieldEntries',
+            'selectedCentralDirectoryFixedFieldIssueEntries',
+            'selectedDataDescriptorProvenanceEntries',
+            'selectedDataDescriptorIssueEntries',
+        ] as $listKey) {
+            if (!is_array($summary[$listKey] ?? null)) {
+                continue;
+            }
+
+            $summary[$listKey] = array_values(array_map(
+                fn (array $entry): array => $this->corePackageHandoffEntryWithManifestState(['exists' => true] + $entry),
+                $summary[$listKey]
+            ));
+        }
 
         $manifestDeclarationStateCounts = [];
         $manifestDeclaredSelectedEntryCount = 0;
