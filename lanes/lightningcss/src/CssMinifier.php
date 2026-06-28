@@ -17071,6 +17071,10 @@ final class CssMinifier
         if (abs($number) < 0.0000001) {
             return '0';
         }
+        $rounded = round($number);
+        if (abs($number - $rounded) < 0.000001) {
+            $number = (float) $rounded;
+        }
 
         $serialized = str_replace('E', 'e', sprintf('%.6G', $number));
         if (str_starts_with($serialized, '0.')) {
@@ -17084,7 +17088,7 @@ final class CssMinifier
 
     private function serializeLinearCalcTerm(float $coefficient, string $unit): string
     {
-        $number = $this->minifyNumber($coefficient);
+        $number = $this->serializeComputedMathNumberWithUnit($coefficient, '');
         if ($number === '0' || $unit === '') {
             return $number;
         }

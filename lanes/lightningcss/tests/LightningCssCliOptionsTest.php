@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
+use PortLibs\LightningCSS\CssFormatter;
+use PortLibs\LightningCSS\CssMinifier;
 use PortLibs\LightningCSS\LightningCssCliOptions;
+use PortLibs\LightningCSS\NestingTransformer;
 use PortLibs\LightningCSS\TransitionPrefixer;
 
 $resolveBrowserslist = static function (
@@ -24,7 +27,99 @@ $prefixBorderRadiusFromBrowserslist = static function (array $resolution, string
     return (new TransitionPrefixer())->prefixForTargets($css, $targets);
 };
 
+$temporaryPath = static function (string $name): string {
+    $directory = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'port-libs-lightningcss-cli-' . bin2hex(random_bytes(6));
+    if (!mkdir($directory, 0777, true) && !is_dir($directory)) {
+        throw new RuntimeException('Unable to create temporary directory.');
+    }
+
+    return $directory . DIRECTORY_SEPARATOR . $name;
+};
+
 return [
+    'lightningcss cli emits formatted css for a valid input file' => static function (TestRunner $t) use ($temporaryPath): void {
+        // Pinned upstream 22bdda3d tests/cli_integration_tests.rs::valid_input_file lines 149-168.
+        $inputFile = $temporaryPath('test.css');
+        file_put_contents($inputFile, ".foo {\n  border: none;\n}\n");
+
+        $plan = LightningCssCliOptions::planOutputs([$inputFile]);
+        $output = (new CssFormatter())->format((string) file_get_contents($plan['inputs'][0]));
+
+        $t->same(null, $plan['outputs'][$inputFile]);
+        $t->contains(".foo {\n  border: none;\n}", $output);
+    },
+    'lightningcss cli accepts an empty input file' => static function (TestRunner $t) use ($temporaryPath): void {
+        // Pinned upstream 22bdda3d tests/cli_integration_tests.rs::empty_input_file lines 170-180.
+        $inputFile = $temporaryPath('test.css');
+        file_put_contents($inputFile, '');
+
+        $plan = LightningCssCliOptions::planOutputs([$inputFile]);
+
+        $t->same([$inputFile], $plan['inputs']);
+        $t->same('', (new CssFormatter())->format((string) file_get_contents($inputFile)));
+    },
+    'lightningcss cli writes formatted css to output file' => static function (TestRunner $t) use ($temporaryPath): void {
+        // Pinned upstream 22bdda3d tests/cli_integration_tests.rs::output_file_option lines 182-196.
+        $inputFile = $temporaryPath('test.css');
+        $outputFile = $temporaryPath('test.out');
+        file_put_contents($inputFile, ".foo {\n  border: none;\n}\n");
+        $plan = LightningCssCliOptions::planOutputs([$inputFile], $outputFile);
+
+        LightningCssCliOptions::writeOutputFile(
+            $plan['outputs'][$inputFile] ?? throw new RuntimeException('Missing planned output.'),
+            (new CssFormatter())->format((string) file_get_contents($inputFile))
+        );
+
+        $t->contains(".foo {\n  border: none;\n}", (string) file_get_contents($outputFile));
+    },
+    'lightningcss cli creates missing output file directories' => static function (TestRunner $t) use ($temporaryPath): void {
+        // Pinned upstream 22bdda3d tests/cli_integration_tests.rs::output_file_option_create_missing_directories lines 198-218.
+        $inputFile = $temporaryPath('test.css');
+        $outputFile = dirname($inputFile) . DIRECTORY_SEPARATOR . 'missing' . DIRECTORY_SEPARATOR . 'out.css';
+        file_put_contents($inputFile, ".foo {\n  border: none;\n}\n");
+        $plan = LightningCssCliOptions::planOutputs([$inputFile], $outputFile);
+
+        LightningCssCliOptions::writeOutputFile(
+            $plan['outputs'][$inputFile] ?? throw new RuntimeException('Missing planned output.'),
+            (new CssFormatter())->format((string) file_get_contents($inputFile))
+        );
+
+        $t->true(is_file($outputFile));
+        $t->contains(".foo {\n  border: none;\n}", (string) file_get_contents($outputFile));
+    },
+    'lightningcss cli minify option emits compact css' => static function (TestRunner $t) use ($temporaryPath): void {
+        // Pinned upstream 22bdda3d tests/cli_integration_tests.rs::minify_option lines 272-284.
+        $inputFile = $temporaryPath('test.css');
+        file_put_contents($inputFile, ".foo {\n  border: none;\n}\n");
+        $plan = LightningCssCliOptions::planOutputs([$inputFile]);
+
+        $t->same('.foo{border:none}', (new CssMinifier())->minify((string) file_get_contents($plan['inputs'][0])));
+    },
+    'lightningcss cli nesting option lowers nested parent selectors' => static function (TestRunner $t) use ($temporaryPath): void {
+        // Pinned upstream 22bdda3d tests/cli_integration_tests.rs::nesting_option lines 287-313.
+        $inputFile = $temporaryPath('test.css');
+        file_put_contents($inputFile, '.foo { color: blue; & > .bar { color: red; } }');
+        $plan = LightningCssCliOptions::planOutputs([$inputFile], null, null, false, 'defaults');
+
+        $t->same(
+            '.foo{color:#00f}.foo>.bar{color:red}',
+            (new NestingTransformer())->lower((string) file_get_contents($plan['inputs'][0]))
+        );
+    },
+    'lightningcss cli output file preserves checked input is selector' => static function (TestRunner $t) use ($temporaryPath): void {
+        // Pinned upstream 22bdda3d tests/cli_integration_tests.rs::next_66191 lines 794-812.
+        $inputFile = $temporaryPath('test.css');
+        $outputFile = $temporaryPath('test.out');
+        file_put_contents($inputFile, '.cb:is(input:checked) { margin: 3rem; }');
+        $plan = LightningCssCliOptions::planOutputs([$inputFile], $outputFile);
+
+        LightningCssCliOptions::writeOutputFile(
+            $plan['outputs'][$inputFile] ?? throw new RuntimeException('Missing planned output.'),
+            (new CssMinifier())->minify((string) file_get_contents($inputFile))
+        );
+
+        $t->contains('.cb:is(input:checked)', (string) file_get_contents($outputFile));
+    },
     'lightningcss cli rejects multiple inputs with one output file' => static function (TestRunner $t): void {
         // Pinned upstream 22bdda3d tests/cli_integration_tests.rs::multiple_input_files_out_file lines 247-258.
         try {

@@ -1683,18 +1683,27 @@ return [
             $dataUrl
         );
 
-        $roundTrip = SourceMap::fromDataUrl($dataUrl);
-        $t->same(';C', $roundTrip->writeVlq());
-        $t->same(
-            [['generatedLine' => 1, 'generatedColumn' => 1, 'sourceIndex' => null, 'originalLine' => null, 'originalColumn' => null, 'nameIndex' => null]],
-            SourceMap::decodeVlq($roundTrip->writeVlq())
-        );
-
         $percentEncoded = 'data:application/json,' . rawurlencode('{"version":3,"sourceRoot":"/","mappings":";C","sources":[],"sourcesContent":[],"names":[]}');
         $t->same(';C', SourceMap::fromDataUrl($percentEncoded)->writeVlq());
         $t->throws(InvalidArgumentException::class, static function () use ($dataUrl): void {
             SourceMap::fromDataUrl(str_replace('application/json', 'text/plain', $dataUrl));
         });
+    },
+    'source map imports upstream data urls into generated-only mappings' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d Cargo.lock parcel_sourcemap 2.1.1 lines 985-994,
+        // parcel_sourcemap-2.1.1/src/lib.rs::test_from_data_url lines 842-854.
+        $map = SourceMap::fromDataUrl(
+            'data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VSb290IjoiLyIsIm1hcHBpbmdzIjoiO0MiLCJzb3VyY2VzIjpbXSwic291cmNlc0NvbnRlbnQiOltdLCJuYW1lcyI6W119'
+        );
+
+        $t->same(';C', $map->writeVlq());
+        $t->same(
+            [['generatedLine' => 1, 'generatedColumn' => 1, 'sourceIndex' => null, 'originalLine' => null, 'originalColumn' => null, 'nameIndex' => null]],
+            $map->getMappings()
+        );
+        $t->same([], $map->getSources());
+        $t->same([], $map->getSourcesContent());
+        $t->same([], $map->getNames());
     },
     'source map applies upstream json sourcesContent defaults to duplicate sources in order' => static function (TestRunner $t): void {
         $laterMissing = SourceMap::fromJson(

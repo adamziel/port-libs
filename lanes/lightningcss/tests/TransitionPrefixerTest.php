@@ -5047,6 +5047,25 @@ CSS;
             );
         }
     },
+    'transition prefixer maps upstream top-level resolution media target prefixes' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_media lines 9396, 9414, 9432, and 9487.
+        $cases = [
+            [9396, '@media (min-resolution: 2dppx) { .foo { color: yellow; } }', '@media (-webkit-min-device-pixel-ratio:2),(min-resolution:2dppx){.foo{color:#ff0}}', ['safari' => 15]],
+            [9414, '@media (min-resolution: 2dppx) { .foo { color: yellow; } }', '@media (min--moz-device-pixel-ratio:2),(min-resolution:2dppx){.foo{color:#ff0}}', ['firefox' => 10]],
+            [9432, '@media (resolution > 2dppx) { .foo { color: yellow; } }', '@media not (-webkit-max-device-pixel-ratio:2),not (max-resolution:2dppx){.foo{color:#ff0}}', ['safari' => 15]],
+            [9487, '@media (color) and (min-resolution: 2dppx) { .foo { color: yellow; } }', '@media (color) and (-webkit-min-device-pixel-ratio:2),(color) and (min-resolution:2dppx){.foo{color:#ff0}}', ['safari' => 15]],
+        ];
+
+        foreach ($cases as [$line, $input, $expected, $targets]) {
+            $t->same(
+                $expected,
+                $prefixer->prefixForTargets($input, $targets),
+                'upstream src/lib.rs::test_media line ' . $line
+            );
+        }
+    },
     'transition prefixer maps upstream residual top-level media range target fallbacks' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

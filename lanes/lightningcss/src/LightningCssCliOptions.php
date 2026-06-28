@@ -70,6 +70,18 @@ final class LightningCssCliOptions
         return $directory === '.' ? $json : $directory . DIRECTORY_SEPARATOR . $json;
     }
 
+    public static function writeOutputFile(string $outputFile, string $contents): void
+    {
+        $directory = dirname($outputFile);
+        if ($directory !== '.' && !is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
+            throw new \RuntimeException("Unable to create output directory: {$directory}");
+        }
+
+        if (file_put_contents($outputFile, $contents) === false) {
+            throw new \RuntimeException("Unable to write output file: {$outputFile}");
+        }
+    }
+
     /**
      * @param array<string, string> $environment
      * @param ?callable(string): bool $isFile

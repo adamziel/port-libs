@@ -3854,6 +3854,46 @@ CSS;
         $t->same([255, 0, 0, 1], [$seen[0]['r'], $seen[0]['g'], $seen[0]['b'], $seen[0]['alpha']]);
         $t->same([0, 255, 0, 1], [$seen[1]['r'], $seen[1]['g'], $seen[1]['b'], $seen[1]['alpha']]);
     },
+    'custom at-rules map upstream generic EnvironmentVariable visitors in media and declarations' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::env function lines 167-208.
+        $tokens = [
+            '--branding-small' => [
+                'type' => 'length',
+                'value' => [
+                    'unit' => 'px',
+                    'value' => 600,
+                ],
+            ],
+            '--branding-padding' => [
+                'type' => 'length',
+                'value' => [
+                    'unit' => 'px',
+                    'value' => 20,
+                ],
+            ],
+        ];
+        $seenNames = [];
+
+        $css = <<<'CSS'
+@media (max-width: env(--branding-small)) {
+  body {
+    padding: env(--branding-padding);
+  }
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'EnvironmentVariable' => static function (array $environmentVariable) use (&$seenNames, $tokens): ?array {
+                $name = $environmentVariable['name']['ident'] ?? null;
+                $seenNames[] = $name;
+
+                return is_string($name) ? ($tokens[$name] ?? null) : null;
+            },
+        ]);
+
+        $t->same('@media (width<=600px){body{padding:20px}}', $result);
+        $t->same(['--branding-small', '--branding-padding'], $seenNames);
+    },
     'custom at-rules compose upstream EnvironmentVariable visitors in media and declarations' => static function (TestRunner $t): void {
         $tokens = [
             '--branding-small' => [

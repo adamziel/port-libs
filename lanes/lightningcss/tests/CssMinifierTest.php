@@ -265,6 +265,20 @@ CSS
             $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_selectors line ' . $line);
         }
     },
+    'css minifier preserves upstream deep pseudo element selector spacing' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_selectors lines 7395, 7396, and 7397.
+        $cases = [
+            [7395, '.foo ::deep .bar {width: 20px}', '.foo ::deep .bar{width:20px}'],
+            [7396, '.foo::deep .bar {width: 20px}', '.foo::deep .bar{width:20px}'],
+            [7397, '.foo ::deep.bar {width: 20px}', '.foo ::deep.bar{width:20px}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_selectors line ' . $line);
+        }
+    },
     'css minifier maps upstream deep selector combinator parser option rows' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -3248,11 +3262,12 @@ CSS;
         $t->same('.foo{width:-10px}', $minifier->minify('.foo { width: calc(10px * sign(-1vw)) }'));
         $t->same('.foo{width:calc(10px * sign(1%))}', $minifier->minify('.foo { width: calc(10px * sign(1%)) }'));
     },
-    'css minifier maps upstream pi division trigonometric math row' => static function (TestRunner $t): void {
+    'css minifier maps upstream pi trigonometric math rows' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
-        // Pinned upstream 22bdda3d src/lib.rs::test_trig line 8431.
+        // Pinned upstream 22bdda3d src/lib.rs::test_trig lines 8426 and 8431.
         $cases = [
+            [8426, '.foo { width: calc(2px * pi); }', '.foo{width:6.28319px}'],
             [8431, '.foo { width: calc(2px / pi); }', '.foo{width:.63662px}'],
         ];
 
