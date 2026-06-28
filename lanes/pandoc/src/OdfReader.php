@@ -117,6 +117,7 @@ final class OdfReader
      *     packageSignatures:array<string, mixed>,
      *     packageFonts:array<string, mixed>,
      *     packageConfigurations:array<string, mixed>,
+     *     packageObjects:array<string, mixed>,
      *     packageObjectReplacements:array<string, mixed>,
      *     packageScripts:array<string, mixed>,
      *     packageLayoutCaches:array<string, mixed>,
@@ -185,6 +186,7 @@ final class OdfReader
         $packageTemplates = $this->packageTemplateMetadata($package, $manifest, $undeclaredEntries);
         $packageDictionaries = $this->packageDictionaryMetadata($package, $manifest, $undeclaredEntries);
         $packageProvenance = $this->packageProvenance($package, $manifest, $mimetypeEntry, $undeclaredEntries, $styleCatalog);
+        $packageObjects = $packageProvenance['embeddedObjectPackages'];
         $packageStyles = is_array($packageProvenance['stylePackageProvenance'] ?? null)
             ? $packageProvenance['stylePackageProvenance']
             : [];
@@ -200,6 +202,9 @@ final class OdfReader
         }
         if ($packageConfigurations['count'] > 0) {
             $metadata['odfPackageConfigurations'] = $packageConfigurations;
+        }
+        if ($packageObjects['count'] > 0) {
+            $metadata['odfPackageObjects'] = $packageObjects;
         }
         if ($packageObjectReplacements['count'] > 0) {
             $metadata['odfPackageObjectReplacements'] = $packageObjectReplacements;
@@ -310,6 +315,7 @@ final class OdfReader
             'packageSignatures' => $packageSignatures,
             'packageFonts' => $packageFonts,
             'packageConfigurations' => $packageConfigurations,
+            'packageObjects' => $packageObjects,
             'packageObjectReplacements' => $packageObjectReplacements,
             'packageScripts' => $packageScripts,
             'packageLayoutCaches' => $packageLayoutCaches,
@@ -348,6 +354,7 @@ final class OdfReader
             'packageSignatures' => $packageSignatures,
             'packageFonts' => $packageFonts,
             'packageConfigurations' => $packageConfigurations,
+            'packageObjects' => $packageObjects,
             'packageObjectReplacements' => $packageObjectReplacements,
             'packageScripts' => $packageScripts,
             'packageLayoutCaches' => $packageLayoutCaches,
@@ -447,6 +454,7 @@ final class OdfReader
                 'packageSignatures' => $packageSignatures,
                 'packageFonts' => $packageFonts,
                 'packageConfigurations' => $packageConfigurations,
+                'packageObjects' => $packageObjects,
                 'packageObjectReplacements' => $packageObjectReplacements,
                 'packageScripts' => $packageScripts,
                 'packageLayoutCaches' => $packageLayoutCaches,
