@@ -4532,7 +4532,7 @@ CSS;
             ]
         );
 
-        $t->same('.test{background:linear-gradient(red 25%,#00f 75%);width:-10px}', $result);
+        $t->same('.test{background:linear-gradient(red 25%, blue 75%);width:calc(10px - 20px)}', $result);
         $t->same(['--percentage1', '--percentage2', '--length1', '--length2'], $seenNames);
     },
     'custom at-rules preserve upstream raw env spacing across declaration value boundaries' => static function (TestRunner $t): void {
@@ -4550,6 +4550,8 @@ CSS;
             '--counter' => '2',
             '--ident1' => 'solid',
             '--ident2' => 'auto',
+            '--percentage1' => '25%',
+            '--percentage2' => '75%',
             '--color' => 'red',
             '--string1' => '"hello"',
             '--string2' => '" world"',
@@ -4567,7 +4569,9 @@ CSS;
   cursor: url(cursor.png) env(--x) env(--y), auto;
   stroke-dasharray: env(--num1) env(--num2) env(--num3);
   counter-increment: myCounter env(--counter);
+  background: linear-gradient(red env(--percentage1), blue env(--percentage2));
   content: env(--string1) env(--string2);
+  width: calc(env(--length1) - env(--length2));
 }
 CSS;
 
@@ -4580,7 +4584,8 @@ CSS;
             },
         ]);
 
-        $t->same('.test{background:var(--foo) var(--bar);border:var(--foo)solid;transform:scale(1.5) scale(1.5);padding:10px 20px;margin:10px auto;outline:red solid;cursor:url(cursor.png) 4 12, auto;stroke-dasharray:5 10 15;counter-increment:myCounter 2;content:"hello" " world"}', $result);
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::spacing with env substitution line 252.
+        $t->same('.test{background:var(--foo) var(--bar);border:var(--foo)solid;transform:scale(1.5) scale(1.5);padding:10px 20px;margin:10px auto;outline:red solid;cursor:url(cursor.png) 4 12, auto;stroke-dasharray:5 10 15;counter-increment:myCounter 2;background:linear-gradient(red 25%, blue 75%);content:"hello" " world";width:calc(10px - 20px)}', $result);
         $t->same([
             '--var1',
             '--var2',
@@ -4600,8 +4605,12 @@ CSS;
             '--num2',
             '--num3',
             '--counter',
+            '--percentage1',
+            '--percentage2',
             '--string1',
             '--string2',
+            '--length1',
+            '--length2',
         ], $seenNames);
     },
     'custom at-rules revisit upstream raw Function variables' => static function (TestRunner $t): void {

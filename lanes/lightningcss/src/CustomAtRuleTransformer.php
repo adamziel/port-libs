@@ -196,6 +196,11 @@ final class CustomAtRuleTransformer
     /** @var array<string, bool> */
     private array $rawValueVisitorReplacementProperties = [];
 
+    /** @var array<string, list<string>> */
+    private array $rawValueVisitorReplacementDeclarationValues = [];
+
+    private bool $activeDeclarationHadRawValueVisitorReplacement = false;
+
     private bool $preferColorBeforeVisitedWidthDeclarations = false;
 
     private ?string $activeDeclarationProperty = null;
@@ -1221,6 +1226,8 @@ final class CustomAtRuleTransformer
     {
         $visitor = $this->resolveVisitor($visitor);
         $this->rawValueVisitorReplacementProperties = [];
+        $this->rawValueVisitorReplacementDeclarationValues = [];
+        $this->activeDeclarationHadRawValueVisitorReplacement = false;
         $this->preferColorBeforeVisitedWidthDeclarations = false;
         $this->activeDeclarationProperty = null;
         $composeMetadata = is_array($visitor[self::COMPOSE_VISITOR_METADATA] ?? null)
@@ -8346,7 +8353,9 @@ final class CustomAtRuleTransformer
     private function rewriteDeclarationValue(string $value, ?string $property = null): string
     {
         $previousProperty = $this->activeDeclarationProperty;
+        $previousRawValueVisitorReplacement = $this->activeDeclarationHadRawValueVisitorReplacement;
         $this->activeDeclarationProperty = $property === null ? null : strtolower($property);
+        $this->activeDeclarationHadRawValueVisitorReplacement = false;
         $this->functionReplacementAppliedColorVisitor = false;
         try {
             $rewritten = $this->rewriteValueTokens($this->rewriteValueFunctions($this->rewriteStandaloneLengths($value)));
@@ -8354,9 +8363,16 @@ final class CustomAtRuleTransformer
                 $rewritten = $this->rewriteColorDeclarationValue($rewritten, $property);
             }
 
-            return $property === null ? $rewritten : $this->rewriteAnimationCustomIdents($property, $rewritten);
+            $serialized = $property === null ? $rewritten : $this->rewriteAnimationCustomIdents($property, $rewritten);
+            if ($property !== null && $this->activeDeclarationHadRawValueVisitorReplacement) {
+                $propertyKey = strtolower($property);
+                $this->rawValueVisitorReplacementDeclarationValues[$propertyKey][] = $this->restoreRawValueVisitorDeclarationSpacing($propertyKey, $serialized);
+            }
+
+            return $serialized;
         } finally {
             $this->activeDeclarationProperty = $previousProperty;
+            $this->activeDeclarationHadRawValueVisitorReplacement = $previousRawValueVisitorReplacement;
         }
     }
 
@@ -8366,15 +8382,28 @@ final class CustomAtRuleTransformer
             return $code;
         }
 
+        $rawDeclarationValues = $this->rawValueVisitorReplacementDeclarationValues;
+
         return preg_replace_callback(
             '/([\\{;])([-_a-zA-Z][-_a-zA-Z0-9]*):([^;{}]+)/',
-            function (array $matches): string {
+            function (array $matches) use (&$rawDeclarationValues): string {
                 $property = strtolower($matches[2]);
                 if (!isset($this->rawValueVisitorReplacementProperties[$property])) {
                     return $matches[0];
                 }
 
-                return $matches[1] . $matches[2] . ':' . $this->restoreRawValueVisitorDeclarationSpacing($property, $matches[3]);
+                $value = $matches[3];
+                if (($rawDeclarationValues[$property] ?? []) !== []) {
+                    $rawValue = array_shift($rawDeclarationValues[$property]);
+                    if (is_string($rawValue)) {
+                        $value = $rawValue;
+                        if (preg_match('/!\\s*important\\s*$/i', $matches[3]) === 1 && preg_match('/!\\s*important\\s*$/i', $value) !== 1) {
+                            $value .= '!important';
+                        }
+                    }
+                }
+
+                return $matches[1] . $matches[2] . ':' . $this->restoreRawValueVisitorDeclarationSpacing($property, $value);
             },
             $code
         ) ?? $code;
@@ -8382,6 +8411,8 @@ final class CustomAtRuleTransformer
 
     private function restoreRawValueVisitorDeclarationSpacing(string $property, string $value): string
     {
+        $value = $this->restoreRawValueVisitorGradientCommaSpacing($value);
+
         if ($property === 'content') {
             return $this->restoreAdjacentStringTokenSpacing($value);
         }
@@ -8399,6 +8430,104 @@ final class CustomAtRuleTransformer
         }
 
         return $value;
+    }
+
+    private function restoreRawValueVisitorGradientCommaSpacing(string $value): string
+    {
+        $output = '';
+        $cursor = 0;
+        $length = strlen($value);
+
+        while ($cursor < $length) {
+            $char = $value[$cursor];
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                $cursor++;
+                while ($cursor < $length) {
+                    $output .= $value[$cursor];
+                    if ($value[$cursor] === '\\' && $cursor + 1 < $length) {
+                        $cursor++;
+                        $output .= $value[$cursor];
+                    } elseif ($value[$cursor] === $quote) {
+                        $cursor++;
+                        break;
+                    }
+                    $cursor++;
+                }
+                continue;
+            }
+
+            if (preg_match('/(?:repeating-)?(?:linear|radial|conic)-gradient(?=\\()/Ai', substr($value, $cursor), $matches) !== 1) {
+                $output .= $char;
+                $cursor++;
+                continue;
+            }
+
+            $name = $matches[0];
+            $open = $cursor + strlen($name);
+            $close = $this->findMatchingParen($value, $open);
+            if ($close === null) {
+                $output .= $char;
+                $cursor++;
+                continue;
+            }
+
+            $arguments = substr($value, $open + 1, $close - $open - 1);
+            $output .= $name . '(' . $this->restoreTopLevelCommaSpacing($arguments) . ')';
+            $cursor = $close + 1;
+        }
+
+        return $output;
+    }
+
+    private function restoreTopLevelCommaSpacing(string $value): string
+    {
+        $output = '';
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+            if ($char === '(') {
+                $parenDepth++;
+            } elseif ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+            } elseif ($char === '[') {
+                $bracketDepth++;
+            } elseif ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+            } elseif ($char === ',' && $parenDepth === 0 && $bracketDepth === 0) {
+                $output = rtrim($output) . ', ';
+                while (isset($value[$i + 1]) && ctype_space($value[$i + 1])) {
+                    $i++;
+                }
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return rtrim($output);
     }
 
     private function restoreAdjacentStringTokenSpacing(string $value): string
@@ -8832,6 +8961,7 @@ final class CustomAtRuleTransformer
         }
 
         $this->rawValueVisitorReplacementProperties[$this->activeDeclarationProperty] = true;
+        $this->activeDeclarationHadRawValueVisitorReplacement = true;
     }
 
     private function visitorValueContainsRawCss(mixed $value): bool
