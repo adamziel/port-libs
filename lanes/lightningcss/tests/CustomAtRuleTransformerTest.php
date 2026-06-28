@@ -622,6 +622,94 @@ CSS;
             ],
         ]));
     },
+    'custom at-rules map upstream SyntaxString parse value matrix' => static function (TestRunner $t): void {
+        $parse = static function (string $syntax, string $prelude): array {
+            $seen = null;
+            (new CustomAtRuleTransformer())->transform('@probe ' . $prelude . ';', [
+                'probe' => [
+                    'prelude' => $syntax,
+                ],
+            ], [
+                'Rule' => [
+                    'custom' => [
+                        'probe' => static function (array $rule) use (&$seen): array {
+                            $seen = $rule['preludeAst'];
+
+                            return [];
+                        },
+                    ],
+                ],
+            ]);
+
+            return $seen;
+        };
+        $expectInvalid = static function (string $syntax, string $prelude): void {
+            (new CustomAtRuleTransformer())->transform('@probe ' . $prelude . ';', [
+                'probe' => [
+                    'prelude' => $syntax,
+                ],
+            ]);
+        };
+
+        $t->same(['type' => 'literal', 'value' => 'foo'], $parse('foo | <color>+ | <integer>', 'foo'), 'upstream src/values/syntax.rs::tests::test_syntax');
+        $t->same(['type' => 'literal', 'value' => 'foo'], $parse('foo|<color>+|<integer>', 'foo'));
+        $t->same(['type' => 'integer', 'value' => 2], $parse('foo | <color>+ | <integer>', '2'));
+
+        $red = $parse('foo | <color>+ | <integer>', 'red');
+        $t->same('space', $red['value']['multiplier']['type'] ?? null);
+        $t->same([[255, 0, 0]], array_map(
+            static fn (array $component): array => [
+                $component['value']['r'],
+                $component['value']['g'],
+                $component['value']['b'],
+            ],
+            $red['value']['components'] ?? []
+        ));
+
+        $spaceColors = $parse('foo | <color>+ | <integer>', 'red blue');
+        $t->same('space', $spaceColors['value']['multiplier']['type'] ?? null);
+        $t->same([[255, 0, 0], [0, 0, 255]], array_map(
+            static fn (array $component): array => [
+                $component['value']['r'],
+                $component['value']['g'],
+                $component['value']['b'],
+            ],
+            $spaceColors['value']['components'] ?? []
+        ));
+
+        $commaColors = $parse('foo | <color># | <integer>', 'red, blue');
+        $t->same('comma', $commaColors['value']['multiplier']['type'] ?? null);
+        $t->same([[255, 0, 0], [0, 0, 255]], array_map(
+            static fn (array $component): array => [
+                $component['value']['r'],
+                $component['value']['g'],
+                $component['value']['b'],
+            ],
+            $commaColors['value']['components'] ?? []
+        ));
+
+        $t->same(['unit' => 'px', 'value' => 25.0], $parse('<length>', '25px')['value']['value']);
+        $t->same(['unit' => 'px', 'value' => 50.0], $parse('<length>', 'calc(25px + 25px)')['value']['value']);
+        $t->same(['unit' => 'px', 'value' => 25.0], $parse('<length> | <percentage>', '25px')['value']['value']);
+        $t->same(['type' => 'percentage', 'value' => 0.25], $parse('<length> | <percentage>', '25%'));
+        $t->same(['type' => 'literal', 'value' => 'bar'], $parse('foo | bar | baz', 'bar'));
+        $t->same(['type' => 'string', 'value' => 'foo'], $parse('<string>', "'foo'"));
+        $t->same(['type' => 'custom-ident', 'value' => 'hi'], $parse('<custom-ident>', 'hi'));
+
+        foreach ([
+            ['foo | <color>+ | <integer>', '2.5'],
+            ['foo | <color>+ | <integer>', '25px'],
+            ['foo | <color>+ | <integer>', 'red, green'],
+            ['foo | <color># | <integer>', 'red green'],
+            ['<length> | <percentage>', 'calc(100% - 25px)'],
+        ] as [$syntax, $prelude]) {
+            $t->throws(InvalidArgumentException::class, static fn () => $expectInvalid($syntax, $prelude));
+        }
+
+        foreach (['<transform-list>#', '<color', 'color>'] as $syntax) {
+            $t->throws(InvalidArgumentException::class, static fn () => $expectInvalid($syntax, 'foo'));
+        }
+    },
     'custom at-rules visit upstream SyntaxString image preludes before custom rule visitors' => static function (TestRunner $t): void {
         $events = [];
         $rules = [];
