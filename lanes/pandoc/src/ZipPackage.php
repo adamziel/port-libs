@@ -5558,6 +5558,7 @@ final class ZipPackage
                 'pathDepth' => self::entryHandoffPathDepth($entry->name),
                 'pathPrefixes' => self::entryHandoffPathPrefixes($entry->name),
                 'parentDirectory' => self::entryHandoffParentDirectory($entry->name),
+                'leafName' => self::entryHandoffLeafName($entry->name),
                 'packagePartKind' => self::entryHandoffPackagePartKind($entry->name, $isDirectory),
                 'madeByHostSystem' => $entry->madeByHostSystem(),
                 'madeByHostSystemName' => self::creatorHostSystemName($entry->madeByHostSystem()),
@@ -5854,6 +5855,7 @@ final class ZipPackage
                 'isDirectory' => null,
                 'directoryRoot' => null,
                 'parentDirectory' => null,
+                'leafName' => null,
                 'packagePartKind' => null,
                 'platformMetadataPath' => null,
                 'platformMetadataSegments' => [],
@@ -6176,6 +6178,7 @@ final class ZipPackage
             $summary['isDirectory'] = $isDirectory;
             $summary['directoryRoot'] = self::entryHandoffDirectoryRoot($entry->name);
             $summary['parentDirectory'] = self::entryHandoffParentDirectory($entry->name);
+            $summary['leafName'] = self::entryHandoffLeafName($entry->name);
             $summary['packagePartKind'] = self::entryHandoffPackagePartKind($entry->name, $isDirectory);
             $summary = array_merge($summary, self::entryPlatformMetadataHandoffProvenance($entry->name));
             $summary['centralDirectoryIndex'] = $centralDirectoryIndexByName[$entry->name] ?? null;
@@ -6360,6 +6363,8 @@ final class ZipPackage
         $handoffPathPrefixSummaries = self::entryHandoffPathPrefixSummaries($handoffEntries);
         $selectedParentDirectorySummaries = self::entryHandoffParentDirectorySummaries($selectedDirectoryRootSummaryEntries);
         $handoffParentDirectorySummaries = self::entryHandoffParentDirectorySummaries($handoffEntries);
+        $selectedLeafNameCollisionSummaries = self::entryHandoffLeafNameCollisionSummaries($selectedDirectoryRootSummaryEntries);
+        $handoffLeafNameCollisionSummaries = self::entryHandoffLeafNameCollisionSummaries($handoffEntries);
         $selectedPlatformMetadataSummary = self::entryHandoffPlatformMetadataSummary($selectedDirectoryRootSummaryEntries);
         $handoffPlatformMetadataSummary = self::entryHandoffPlatformMetadataSummary($handoffEntries);
         $selectedSizeBucketSummaries = self::entryHandoffSizeBucketSummaries($selectedDirectoryRootSummaryEntries);
@@ -6425,6 +6430,11 @@ final class ZipPackage
             'selectedMaxPathDepth' => self::entryHandoffMaxPathDepth($selectedPathDepthSummaries),
             'selectedPathPrefixCount' => count($selectedPathPrefixSummaries),
             'selectedParentDirectoryCount' => count($selectedParentDirectorySummaries),
+            'selectedLeafNameCollisionCount' => count($selectedLeafNameCollisionSummaries),
+            'selectedLeafNameCollisionEntryCount' => self::entryHandoffSummaryTotal(
+                $selectedLeafNameCollisionSummaries,
+                'entryCount'
+            ),
             'selectedPlatformMetadataEntryCount' => $selectedPlatformMetadataSummary['entryCount'],
             'selectedMacosSidecarEntryCount' => $selectedPlatformMetadataSummary['macosSidecarEntryCount'],
             'selectedAppleDoubleEntryCount' => $selectedPlatformMetadataSummary['appleDoubleEntryCount'],
@@ -6469,6 +6479,11 @@ final class ZipPackage
             'handoffMaxPathDepth' => self::entryHandoffMaxPathDepth($handoffPathDepthSummaries),
             'handoffPathPrefixCount' => count($handoffPathPrefixSummaries),
             'handoffParentDirectoryCount' => count($handoffParentDirectorySummaries),
+            'handoffLeafNameCollisionCount' => count($handoffLeafNameCollisionSummaries),
+            'handoffLeafNameCollisionEntryCount' => self::entryHandoffSummaryTotal(
+                $handoffLeafNameCollisionSummaries,
+                'entryCount'
+            ),
             'handoffPlatformMetadataEntryCount' => $handoffPlatformMetadataSummary['entryCount'],
             'handoffMacosSidecarEntryCount' => $handoffPlatformMetadataSummary['macosSidecarEntryCount'],
             'handoffAppleDoubleEntryCount' => $handoffPlatformMetadataSummary['appleDoubleEntryCount'],
@@ -6763,6 +6778,8 @@ final class ZipPackage
             'handoffPathPrefixSummaries' => $handoffPathPrefixSummaries,
             'selectedParentDirectorySummaries' => $selectedParentDirectorySummaries,
             'handoffParentDirectorySummaries' => $handoffParentDirectorySummaries,
+            'selectedLeafNameCollisionSummaries' => $selectedLeafNameCollisionSummaries,
+            'handoffLeafNameCollisionSummaries' => $handoffLeafNameCollisionSummaries,
             'selectedPlatformMetadataIssues' => $selectedPlatformMetadataSummary['issues'],
             'handoffPlatformMetadataIssues' => $handoffPlatformMetadataSummary['issues'],
             'selectedPlatformMetadataSummaries' => $selectedPlatformMetadataSummary['platformSummaries'],
@@ -9668,6 +9685,93 @@ final class ZipPackage
         $separator = strrpos($trimmedName, '/');
 
         return $separator === false ? '/' : substr($trimmedName, 0, $separator + 1);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffLeafNameCollisionSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $leafName = is_string($entry['leafName'] ?? null) && $entry['leafName'] !== ''
+                ? $entry['leafName']
+                : self::entryHandoffLeafName($name);
+            if ($leafName === '') {
+                continue;
+            }
+
+            if (!isset($summaries[$leafName])) {
+                $summaries[$leafName] = [
+                    'leafName' => $leafName,
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'parentDirectories' => [],
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'roles' => [],
+                    'entryNames' => [],
+                ];
+            }
+
+            ++$summaries[$leafName]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$summaries[$leafName]['directoryEntryCount'];
+            } else {
+                ++$summaries[$leafName]['fileEntryCount'];
+            }
+
+            $parentDirectory = is_string($entry['parentDirectory'] ?? null) && $entry['parentDirectory'] !== ''
+                ? $entry['parentDirectory']
+                : self::entryHandoffParentDirectory($name);
+            if (!in_array($parentDirectory, $summaries[$leafName]['parentDirectories'], true)) {
+                $summaries[$leafName]['parentDirectories'][] = $parentDirectory;
+            }
+
+            $summaries[$leafName]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$leafName]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$leafName]['entryNames'][] = $name;
+
+            foreach (self::entryHandoffRolesForSummary($entry) as $role) {
+                if (!in_array($role, $summaries[$leafName]['roles'], true)) {
+                    $summaries[$leafName]['roles'][] = $role;
+                }
+            }
+        }
+
+        $collisions = array_filter(
+            $summaries,
+            static fn (array $summary): bool => (int) ($summary['entryCount'] ?? 0) > 1
+        );
+
+        foreach ($collisions as &$summary) {
+            sort($summary['parentDirectories'], SORT_STRING);
+            sort($summary['roles'], SORT_STRING);
+        }
+        unset($summary);
+
+        ksort($collisions, SORT_STRING);
+
+        return array_values($collisions);
+    }
+
+    private static function entryHandoffLeafName(string $name): string
+    {
+        $trimmedName = rtrim($name, '/');
+        if ($trimmedName === '') {
+            return '';
+        }
+
+        $separator = strrpos($trimmedName, '/');
+
+        return $separator === false ? $trimmedName : substr($trimmedName, $separator + 1);
     }
 
     /**
