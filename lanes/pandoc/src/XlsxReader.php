@@ -187,9 +187,12 @@ final class XlsxReader
                 'externalReferenceCount' => $workbookInfo['externalReferenceCount'],
                 'sharedStringCount' => count($sharedStrings),
                 'styleFontCount' => count($styles['fonts']),
+                'styleCellStyleFormatCount' => count($styles['cellStyleFormats']),
                 'styleCellFormatCount' => count($styles['cellFormats']),
+                'styleNamedCellStyleCount' => count($styles['cellStyles']),
                 'styleBorderCount' => count($styles['borders']),
                 'styleCustomNumberFormatCount' => count($styles['customNumberFormats']),
+                'cellStyles' => $styles['cellStyles'],
                 'date1904' => $workbookInfo['date1904'],
                 'formulaCellCount' => $formulaCellCount,
                 'formulaCachedValueCount' => $formulaCachedValueCount,
@@ -1143,7 +1146,9 @@ final class XlsxReader
             'fonts' => [],
             'fills' => [],
             'borders' => [],
+            'cellStyleFormats' => [],
             'cellFormats' => [],
+            'cellStyles' => [],
             'customNumberFormats' => [],
         ];
         $relationship = $this->firstRelationshipWithTarget($workbookRelationships, 'styles');
@@ -1193,59 +1198,39 @@ final class XlsxReader
             }
         }
 
+        $cellStyleFormats = [];
+        $cellStyleXfs = $this->firstChildElement($root, 'cellStyleXfs');
+        if ($cellStyleXfs instanceof \DOMElement) {
+            foreach ($this->childElements($cellStyleXfs, 'xf') as $xfElement) {
+                $cellStyleFormats[] = $this->parseStyleXf($xfElement, $fontsList, $fillsList, $bordersList, $customNumberFormats, null);
+            }
+        }
+
+        $cellStyles = $this->parseCellStyles($root);
+        $cellStylesByXfId = [];
+        foreach ($cellStyles as $cellStyle) {
+            $xfId = $cellStyle['xfId'] ?? null;
+            if (is_int($xfId) && !array_key_exists($xfId, $cellStylesByXfId)) {
+                $cellStylesByXfId[$xfId] = $cellStyle;
+            }
+        }
+
         $cellFormats = [];
         $cellXfs = $this->firstChildElement($root, 'cellXfs');
         if ($cellXfs instanceof \DOMElement) {
             foreach ($this->childElements($cellXfs, 'xf') as $xfElement) {
-                $fontId = trim($xfElement->getAttribute('fontId'));
-                $fontId = preg_match('/^\d+$/', $fontId) === 1 ? (int) $fontId : 0;
-                $font = $fontsList[$fontId] ?? $this->defaultStyleFont();
-                $fillId = trim($xfElement->getAttribute('fillId'));
-                $fillId = preg_match('/^\d+$/', $fillId) === 1 ? (int) $fillId : null;
-                $fill = $fillId === null ? $this->defaultStyleFill() : ($fillsList[$fillId] ?? $this->defaultStyleFill());
-                $borderId = trim($xfElement->getAttribute('borderId'));
-                $borderId = preg_match('/^\d+$/', $borderId) === 1 ? (int) $borderId : null;
-                $border = $borderId === null ? $this->defaultStyleBorder() : ($bordersList[$borderId] ?? $this->defaultStyleBorder());
-                $numFmtId = trim($xfElement->getAttribute('numFmtId'));
-                $numFmtId = preg_match('/^\d+$/', $numFmtId) === 1 ? (int) $numFmtId : null;
-                $alignment = $this->firstChildElement($xfElement, 'alignment');
-                $protection = $this->firstChildElement($xfElement, 'protection');
-                $cellFormats[] = [
-                    'fontId' => $fontId,
-                    'fillId' => $fillId,
-                    'borderId' => $borderId,
-                    'bold' => $font['bold'],
-                    'italic' => $font['italic'],
-                    'underline' => $font['underline'],
-                    'strike' => $font['strike'],
-                    'fontName' => $font['name'],
-                    'fontSize' => $font['size'],
-                    'fontColor' => $font['color'],
-                    'fillPatternType' => $fill['patternType'],
-                    'fillForegroundColor' => $fill['foregroundColor'],
-                    'fillBackgroundColor' => $fill['backgroundColor'],
-                    'numFmtId' => $numFmtId,
-                    'formatCode' => $numFmtId === null ? null : ($customNumberFormats[$numFmtId] ?? $this->builtInNumberFormat($numFmtId)),
-                    'horizontalAlign' => $alignment instanceof \DOMElement && trim($alignment->getAttribute('horizontal')) !== '' ? trim($alignment->getAttribute('horizontal')) : null,
-                    'verticalAlign' => $alignment instanceof \DOMElement && trim($alignment->getAttribute('vertical')) !== '' ? trim($alignment->getAttribute('vertical')) : null,
-                    'wrapText' => $alignment instanceof \DOMElement ? $this->booleanAttribute($alignment, 'wrapText') : null,
-                    'textRotation' => $alignment instanceof \DOMElement ? $this->integerAttribute($alignment, 'textRotation') : null,
-                    'locked' => $protection instanceof \DOMElement ? $this->booleanAttribute($protection, 'locked') : null,
-                    'hidden' => $protection instanceof \DOMElement ? $this->booleanAttribute($protection, 'hidden') : null,
-                    'borderLeftStyle' => $border['leftStyle'],
-                    'borderLeftColor' => $border['leftColor'],
-                    'borderRightStyle' => $border['rightStyle'],
-                    'borderRightColor' => $border['rightColor'],
-                    'borderTopStyle' => $border['topStyle'],
-                    'borderTopColor' => $border['topColor'],
-                    'borderBottomStyle' => $border['bottomStyle'],
-                    'borderBottomColor' => $border['bottomColor'],
-                    'borderDiagonalStyle' => $border['diagonalStyle'],
-                    'borderDiagonalColor' => $border['diagonalColor'],
-                    'borderDiagonalUp' => $border['diagonalUp'],
-                    'borderDiagonalDown' => $border['diagonalDown'],
-                    'borderOutline' => $border['outline'],
-                ];
+                $xfId = $this->integerAttribute($xfElement, 'xfId');
+                $baseStyle = $xfId !== null && array_key_exists($xfId, $cellStyleFormats)
+                    ? $cellStyleFormats[$xfId]
+                    : null;
+                $style = $this->parseStyleXf($xfElement, $fontsList, $fillsList, $bordersList, $customNumberFormats, $baseStyle);
+                if ($xfId !== null && array_key_exists($xfId, $cellStylesByXfId)) {
+                    $namedStyle = $cellStylesByXfId[$xfId];
+                    $style['cellStyleName'] = $namedStyle['name'] ?? null;
+                    $style['cellStyleBuiltinId'] = $namedStyle['builtinId'] ?? null;
+                    $style['cellStyleCustomBuiltin'] = $namedStyle['customBuiltin'] ?? null;
+                }
+                $cellFormats[] = $style;
             }
         }
 
@@ -1253,9 +1238,166 @@ final class XlsxReader
             'fonts' => $fontsList,
             'fills' => $fillsList,
             'borders' => $bordersList,
+            'cellStyleFormats' => $cellStyleFormats,
             'cellFormats' => $cellFormats,
+            'cellStyles' => $cellStyles,
             'customNumberFormats' => $customNumberFormats,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $fontsList
+     * @param list<array<string, mixed>> $fillsList
+     * @param list<array<string, mixed>> $bordersList
+     * @param array<int, string> $customNumberFormats
+     * @param array<string, mixed>|null $baseStyle
+     * @return array<string, mixed>
+     */
+    private function parseStyleXf(\DOMElement $xfElement, array $fontsList, array $fillsList, array $bordersList, array $customNumberFormats, ?array $baseStyle): array
+    {
+        $style = $baseStyle ?? $this->defaultCellStyle();
+        $xfId = $this->integerAttribute($xfElement, 'xfId');
+        if ($xfId !== null) {
+            $style['xfId'] = $xfId;
+        }
+
+        foreach ([
+            'applyNumberFormat',
+            'applyFont',
+            'applyFill',
+            'applyBorder',
+            'applyAlignment',
+            'applyProtection',
+            'quotePrefix',
+            'pivotButton',
+        ] as $attribute) {
+            $value = $this->booleanAttribute($xfElement, $attribute);
+            if ($value !== null) {
+                $style[$attribute] = $value;
+            }
+        }
+
+        $fontId = $this->integerAttribute($xfElement, 'fontId');
+        if ($fontId !== null) {
+            $font = $fontsList[$fontId] ?? $this->defaultStyleFont();
+            $style['fontId'] = $fontId;
+            $style['bold'] = $font['bold'];
+            $style['italic'] = $font['italic'];
+            $style['underline'] = $font['underline'];
+            $style['strike'] = $font['strike'];
+            $style['fontName'] = $font['name'];
+            $style['fontSize'] = $font['size'];
+            $style['fontColor'] = $font['color'];
+        }
+
+        $fillId = $this->integerAttribute($xfElement, 'fillId');
+        if ($fillId !== null) {
+            $fill = $fillsList[$fillId] ?? $this->defaultStyleFill();
+            $style['fillId'] = $fillId;
+            $style['fillPatternType'] = $fill['patternType'];
+            $style['fillForegroundColor'] = $fill['foregroundColor'];
+            $style['fillBackgroundColor'] = $fill['backgroundColor'];
+        }
+
+        $borderId = $this->integerAttribute($xfElement, 'borderId');
+        if ($borderId !== null) {
+            $border = $bordersList[$borderId] ?? $this->defaultStyleBorder();
+            $style['borderId'] = $borderId;
+            $style['borderLeftStyle'] = $border['leftStyle'];
+            $style['borderLeftColor'] = $border['leftColor'];
+            $style['borderRightStyle'] = $border['rightStyle'];
+            $style['borderRightColor'] = $border['rightColor'];
+            $style['borderTopStyle'] = $border['topStyle'];
+            $style['borderTopColor'] = $border['topColor'];
+            $style['borderBottomStyle'] = $border['bottomStyle'];
+            $style['borderBottomColor'] = $border['bottomColor'];
+            $style['borderDiagonalStyle'] = $border['diagonalStyle'];
+            $style['borderDiagonalColor'] = $border['diagonalColor'];
+            $style['borderDiagonalUp'] = $border['diagonalUp'];
+            $style['borderDiagonalDown'] = $border['diagonalDown'];
+            $style['borderOutline'] = $border['outline'];
+        }
+
+        $numFmtId = $this->integerAttribute($xfElement, 'numFmtId');
+        if ($numFmtId !== null) {
+            $style['numFmtId'] = $numFmtId;
+            $style['formatCode'] = $customNumberFormats[$numFmtId] ?? $this->builtInNumberFormat($numFmtId);
+        }
+
+        $alignment = $this->firstChildElement($xfElement, 'alignment');
+        if ($alignment instanceof \DOMElement) {
+            $alignmentTextAttributes = [
+                'horizontal' => 'horizontalAlign',
+                'vertical' => 'verticalAlign',
+            ];
+            foreach ($alignmentTextAttributes as $source => $target) {
+                $value = trim($alignment->getAttribute($source));
+                if ($value !== '') {
+                    $style[$target] = $value;
+                }
+            }
+
+            foreach ([
+                'wrapText',
+                'shrinkToFit',
+                'justifyLastLine',
+            ] as $attribute) {
+                $value = $this->booleanAttribute($alignment, $attribute);
+                if ($value !== null) {
+                    $style[$attribute] = $value;
+                }
+            }
+
+            foreach ([
+                'textRotation',
+                'indent',
+                'relativeIndent',
+                'readingOrder',
+            ] as $attribute) {
+                $value = $this->integerAttribute($alignment, $attribute);
+                if ($value !== null) {
+                    $style[$attribute] = $value;
+                }
+            }
+        }
+
+        $protection = $this->firstChildElement($xfElement, 'protection');
+        if ($protection instanceof \DOMElement) {
+            foreach (['locked', 'hidden'] as $attribute) {
+                $value = $this->booleanAttribute($protection, $attribute);
+                if ($value !== null) {
+                    $style[$attribute] = $value;
+                }
+            }
+        }
+
+        return $style;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function parseCellStyles(\DOMElement $root): array
+    {
+        $cellStylesElement = $this->firstChildElement($root, 'cellStyles');
+        if (!$cellStylesElement instanceof \DOMElement) {
+            return [];
+        }
+
+        $cellStyles = [];
+        foreach ($this->childElements($cellStylesElement, 'cellStyle') as $cellStyleElement) {
+            $name = trim($cellStyleElement->getAttribute('name'));
+            $cellStyles[] = [
+                'name' => $name !== '' ? $name : null,
+                'xfId' => $this->integerAttribute($cellStyleElement, 'xfId'),
+                'builtinId' => $this->integerAttribute($cellStyleElement, 'builtinId'),
+                'customBuiltin' => $this->booleanAttribute($cellStyleElement, 'customBuiltin'),
+                'hidden' => $this->booleanAttribute($cellStyleElement, 'hidden'),
+                'iLevel' => $this->integerAttribute($cellStyleElement, 'iLevel'),
+            ];
+        }
+
+        return $cellStyles;
     }
 
     /**
@@ -1418,6 +1560,10 @@ final class XlsxReader
             'fontId' => null,
             'fillId' => null,
             'borderId' => null,
+            'xfId' => null,
+            'cellStyleName' => null,
+            'cellStyleBuiltinId' => null,
+            'cellStyleCustomBuiltin' => null,
             'bold' => false,
             'italic' => false,
             'underline' => false,
@@ -1434,8 +1580,21 @@ final class XlsxReader
             'verticalAlign' => null,
             'wrapText' => null,
             'textRotation' => null,
+            'indent' => null,
+            'relativeIndent' => null,
+            'shrinkToFit' => null,
+            'readingOrder' => null,
+            'justifyLastLine' => null,
             'locked' => null,
             'hidden' => null,
+            'applyNumberFormat' => null,
+            'applyFont' => null,
+            'applyFill' => null,
+            'applyBorder' => null,
+            'applyAlignment' => null,
+            'applyProtection' => null,
+            'quotePrefix' => null,
+            'pivotButton' => null,
             'borderLeftStyle' => null,
             'borderLeftColor' => null,
             'borderRightStyle' => null,
@@ -1801,10 +1960,21 @@ final class XlsxReader
         $hasTime = preg_match('/[hs]/', $formatCode) === 1;
         $hasDate = preg_match('/[yd]/', $formatCode) === 1;
         if ($hasTime && !$hasDate) {
-            return $date->format('H:i:s');
+            return $date->format($this->timeFormatForStyle($rawFormatCode));
         }
 
-        return $hasTime ? $date->format('Y-m-d H:i:s') : $date->format('Y-m-d');
+        return $hasTime ? $date->format('Y-m-d ' . $this->timeFormatForStyle($rawFormatCode)) : $date->format('Y-m-d');
+    }
+
+    private function timeFormatForStyle(string $formatCode): string
+    {
+        $hasSeconds = preg_match('/s+/i', $this->numberFormatCodeForDetection($formatCode)) === 1;
+        $usesMeridiem = preg_match('/am\/pm|a\/p/i', $formatCode) === 1;
+        if ($usesMeridiem) {
+            return $hasSeconds ? 'g:i:s A' : 'g:i A';
+        }
+
+        return $hasSeconds ? 'H:i:s' : 'H:i';
     }
 
     private function isElapsedTimeFormat(string $formatCode): bool
@@ -2092,6 +2262,10 @@ final class XlsxReader
         $attrs = [];
         $map = [
             'styleIndex' => 'xlsxStyleIndex',
+            'xfId' => 'xlsxStyleXfId',
+            'cellStyleName' => 'xlsxCellStyleName',
+            'cellStyleBuiltinId' => 'xlsxCellStyleBuiltinId',
+            'cellStyleCustomBuiltin' => 'xlsxCellStyleCustomBuiltin',
             'numFmtId' => 'xlsxNumberFormatId',
             'formatCode' => 'xlsxNumberFormatCode',
             'fontId' => 'xlsxFontId',
@@ -2120,8 +2294,21 @@ final class XlsxReader
             'verticalAlign' => 'xlsxVerticalAlign',
             'wrapText' => 'xlsxWrapText',
             'textRotation' => 'xlsxTextRotation',
+            'indent' => 'xlsxIndent',
+            'relativeIndent' => 'xlsxRelativeIndent',
+            'shrinkToFit' => 'xlsxShrinkToFit',
+            'readingOrder' => 'xlsxReadingOrder',
+            'justifyLastLine' => 'xlsxJustifyLastLine',
             'locked' => 'xlsxLocked',
             'hidden' => 'xlsxHidden',
+            'applyNumberFormat' => 'xlsxApplyNumberFormat',
+            'applyFont' => 'xlsxApplyFont',
+            'applyFill' => 'xlsxApplyFill',
+            'applyBorder' => 'xlsxApplyBorder',
+            'applyAlignment' => 'xlsxApplyAlignment',
+            'applyProtection' => 'xlsxApplyProtection',
+            'quotePrefix' => 'xlsxQuotePrefix',
+            'pivotButton' => 'xlsxPivotButton',
         ];
 
         foreach ($map as $source => $target) {

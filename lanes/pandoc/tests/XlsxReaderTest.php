@@ -307,7 +307,14 @@ XML,
       <diagonal style="hair"><color rgb="FFABCDEF"/></diagonal>
     </border>
   </borders>
-  <cellXfs count="5">
+  <cellStyleXfs count="2">
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>
+    <xf numFmtId="18" fontId="1" fillId="2" borderId="1" quotePrefix="1" pivotButton="1" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1" applyProtection="1">
+      <alignment horizontal="center" vertical="top" indent="2" relativeIndent="1" shrinkToFit="1" readingOrder="2" justifyLastLine="1"/>
+      <protection locked="0" hidden="1"/>
+    </xf>
+  </cellStyleXfs>
+  <cellXfs count="6">
     <xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>
     <xf numFmtId="164" fontId="0" fillId="2" borderId="1" applyFont="1" applyFill="1" applyNumberFormat="1">
       <alignment horizontal="right" vertical="center" wrapText="1" textRotation="45"/>
@@ -316,7 +323,12 @@ XML,
     <xf numFmtId="14" fontId="1" fillId="0" borderId="0" applyFont="1" applyNumberFormat="1"/>
     <xf numFmtId="165" fontId="0" fillId="0" borderId="0" applyNumberFormat="1"/>
     <xf numFmtId="9" fontId="0" fillId="0" borderId="0" applyNumberFormat="1"/>
+    <xf xfId="1" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1" applyProtection="1"/>
   </cellXfs>
+  <cellStyles count="2">
+    <cellStyle name="Normal" xfId="0" builtinId="0"/>
+    <cellStyle name="Attention Time" xfId="1" builtinId="40" customBuiltin="1"/>
+  </cellStyles>
 </styleSheet>
 XML,
         ],
@@ -324,13 +336,14 @@ XML,
             'name' => 'xl/sharedStrings.xml',
             'data' => <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
-<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="6" uniqueCount="6">
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="7" uniqueCount="7">
   <si><t>Metric</t></si>
   <si><t>Revenue</t></si>
   <si><t>Date</t></si>
   <si><t>Elapsed</t></si>
   <si><t>Share</t></si>
   <si><t>Commented</t></si>
+  <si><t>Meeting</t></si>
 </sst>
 XML,
         ],
@@ -348,6 +361,7 @@ XML,
       <c r="D1" t="s"><v>3</v></c>
       <c r="E1" t="s"><v>4</v></c>
       <c r="F1" t="s"><v>5</v></c>
+      <c r="G1" t="s"><v>6</v></c>
     </row>
     <row r="2">
       <c r="A2" t="s"><v>1</v></c>
@@ -356,6 +370,7 @@ XML,
       <c r="D2" s="3"><v>1.5</v></c>
       <c r="E2" s="4"><v>0.125</v></c>
       <c r="F2" t="inlineStr"><is><t>Has note</t></is></c>
+      <c r="G2" s="5"><v>0.645833333333333</v></c>
     </row>
   </sheetData>
   <drawing r:id="rDrawing"/>
@@ -816,6 +831,7 @@ return [
         $dateCell = $bodyCells[2];
         $elapsedCell = $bodyCells[3];
         $percentCell = $bodyCells[4];
+        $timeCell = $bodyCells[6];
         $findPart = static function (array $items, string $partName): array {
             foreach ($items as $item) {
                 if (($item['partName'] ?? null) === $partName) {
@@ -827,6 +843,12 @@ return [
         };
 
         $t->same(2, $review['styleCustomNumberFormatCount'] ?? null);
+        $t->same(2, $review['styleCellStyleFormatCount'] ?? null);
+        $t->same(2, $review['styleNamedCellStyleCount'] ?? null);
+        $t->same('Attention Time', $review['cellStyles'][1]['name'] ?? null);
+        $t->same(1, $review['cellStyles'][1]['xfId'] ?? null);
+        $t->same(40, $review['cellStyles'][1]['builtinId'] ?? null);
+        $t->same(true, $review['cellStyles'][1]['customBuiltin'] ?? null);
         $t->same(1, $review['commentCount'] ?? null);
         $t->same(1, $review['sheets'][0]['commentCount'] ?? null);
         $t->same('B2', $review['sheets'][0]['comments'][0]['ref'] ?? null);
@@ -854,11 +876,29 @@ return [
         $t->same('36:00:00', $elapsedCell->attr('text'));
         $t->same('date', $elapsedCell->attr('xlsxValueType'));
         $t->same('13%', $percentCell->attr('text'));
+        $t->same('3:30 PM', $timeCell->attr('text'));
+        $t->same('date', $timeCell->attr('xlsxValueType'));
+        $t->same(1, $timeCell->attr('xlsxStyleXfId'));
+        $t->same('Attention Time', $timeCell->attr('xlsxCellStyleName'));
+        $t->same(40, $timeCell->attr('xlsxCellStyleBuiltinId'));
+        $t->same(true, $timeCell->attr('xlsxCellStyleCustomBuiltin'));
+        $t->same(true, $timeCell->attr('xlsxApplyNumberFormat'));
+        $t->same(true, $timeCell->attr('xlsxApplyAlignment'));
+        $t->same(true, $timeCell->attr('xlsxQuotePrefix'));
+        $t->same(true, $timeCell->attr('xlsxPivotButton'));
+        $t->same('center', $timeCell->attr('align'));
+        $t->same('top', $timeCell->attr('xlsxVerticalAlign'));
+        $t->same(2, $timeCell->attr('xlsxIndent'));
+        $t->same(1, $timeCell->attr('xlsxRelativeIndent'));
+        $t->same(true, $timeCell->attr('xlsxShrinkToFit'));
+        $t->same(2, $timeCell->attr('xlsxReadingOrder'));
+        $t->same(true, $timeCell->attr('xlsxJustifyLastLine'));
 
         $t->contains('<td style="text-align:right"><u>($1,234.50)</u></td>', $html);
         $t->contains('<td><del><strong>2024-01-15</strong></del></td>', $html);
         $t->contains('<td><u>36:00:00</u></td>', $html);
         $t->contains('<td><u>13%</u></td>', $html);
+        $t->contains('<td style="text-align:center"><del><strong>3:30 PM</strong></del></td>', $html);
 
         $t->same(1, $features['byKind']['comments']['count'] ?? null);
         $comments = $findPart($features['byKind']['comments']['items'], 'xl/comments/comment1.xml');
