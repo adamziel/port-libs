@@ -25297,6 +25297,7 @@ final class XmlHtmlDom
             $summary['dirnameRaw'] = $control->getAttribute('dirname');
             $summary['dirname'] = $dirname['name'];
             $summary['dirnameValid'] = $dirname['valid'];
+            $summary += self::formControlDirnameReviewSummary($control, $dirname);
         }
         if ($control->hasAttribute('size')) {
             $size = self::positiveIntegerToken($control->getAttribute('size'), 1000000);
@@ -25571,6 +25572,106 @@ final class XmlHtmlDom
         return [
             'name' => $name === '' ? null : $name,
             'valid' => $name !== '' && self::isHtmlReferenceToken($name),
+        ];
+    }
+
+    /**
+     * @param array{name:?string, valid:bool} $dirname
+     * @return array<string, mixed>
+     */
+    private static function formControlDirnameReviewSummary(\DOMElement $control, array $dirname): array
+    {
+        $raw = $control->getAttribute('dirname');
+        $controlName = self::attributeOrNull($control, 'name');
+        $direction = self::formControlDirnameDirectionSummary($control);
+        $form = self::formOwnerElement($control);
+        $effectiveDisabled = self::isEffectivelyDisabledFormControl($control);
+        $issues = [];
+
+        if (!$dirname['valid']) {
+            $issues[] = [
+                'code' => trim($raw) === '' ? 'empty-form-control-dirname' : 'invalid-form-control-dirname',
+                'dirnameRaw' => $raw,
+            ];
+        }
+        if ($controlName !== null && $controlName !== '' && $dirname['name'] === $controlName) {
+            $issues[] = [
+                'code' => 'dirname-name-collides-with-control-name',
+                'name' => $controlName,
+            ];
+        }
+
+        $summary = [
+            'dirnameReviewPolicy' => 'form-control-dirname-directionality-review',
+            'dirnameName' => $dirname['name'],
+            'dirnameSubmitName' => $dirname['name'],
+            'dirnameControlElement' => self::htmlElementName($control),
+            'dirnameControlName' => $controlName,
+            'dirnameControlType' => self::htmlElementName($control) === 'input' ? self::inputType($control) : null,
+            'dirnameFormOwnerId' => $form instanceof \DOMElement ? self::attributeOrNull($form, 'id') : null,
+            'dirnameFormOwnerFound' => $form instanceof \DOMElement,
+            'dirnameEffectiveDisabled' => $effectiveDisabled,
+            'dirnameDirectionState' => $direction['state'],
+            'dirnameDirectionRaw' => $direction['raw'],
+            'dirnameDirection' => $direction['submitted'],
+            'dirnameSubmittedDirection' => $direction['submitted'],
+            'dirnameDirectionResolved' => $direction['resolved'],
+            'dirnameDirectionSource' => $direction['source'],
+            'dirnameDirectionSourceElement' => $direction['sourceElement'],
+            'dirnameDirectionInherited' => $direction['inherited'],
+            'dirnameDirectionDefaulted' => $direction['defaulted'],
+            'dirnameDirectionNeutralDefaulted' => $direction['neutralDefaulted'],
+            'dirnameWouldSubmitDirection' => $dirname['valid'] && $form instanceof \DOMElement && !$effectiveDisabled,
+            'dirnameReviewOnlyNoFormSubmission' => true,
+            'dirnameIssues' => $issues,
+            'dirnameIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'dirnameIssueCount' => count($issues),
+        ];
+
+        if ($direction['sourceElementId'] !== null) {
+            $summary['dirnameDirectionSourceElementId'] = $direction['sourceElementId'];
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @return array{raw:?string, state:string, resolved:?string, submitted:string, source:string, sourceElement:?string, sourceElementId:?string, inherited:bool, defaulted:bool, neutralDefaulted:bool}
+     */
+    private static function formControlDirnameDirectionSummary(\DOMElement $control): array
+    {
+        $effective = self::effectiveDirectionSummary($control, self::htmlAttributes($control));
+        if ($effective !== []) {
+            $resolved = $effective['effectiveDirectionResolved'] ?? null;
+
+            return [
+                'raw' => is_string($effective['effectiveDirectionRaw'] ?? null) ? $effective['effectiveDirectionRaw'] : null,
+                'state' => is_string($effective['effectiveDirection'] ?? null) ? $effective['effectiveDirection'] : 'ltr',
+                'resolved' => is_string($resolved) ? $resolved : null,
+                'submitted' => in_array($resolved, ['ltr', 'rtl'], true) ? $resolved : 'ltr',
+                'source' => is_string($effective['directionSource'] ?? null) ? $effective['directionSource'] : 'self-dir',
+                'sourceElement' => is_string($effective['directionSourceElement'] ?? null) ? $effective['directionSourceElement'] : self::htmlElementName($control),
+                'sourceElementId' => is_string($effective['directionSourceElementId'] ?? null) ? $effective['directionSourceElementId'] : null,
+                'inherited' => (bool) ($effective['directionInherited'] ?? false),
+                'defaulted' => false,
+                'neutralDefaulted' => ($effective['effectiveDirection'] ?? null) === 'auto' && !in_array($resolved, ['ltr', 'rtl'], true),
+            ];
+        }
+
+        return [
+            'raw' => null,
+            'state' => 'ltr',
+            'resolved' => 'ltr',
+            'submitted' => 'ltr',
+            'source' => 'html-default',
+            'sourceElement' => null,
+            'sourceElementId' => null,
+            'inherited' => false,
+            'defaulted' => true,
+            'neutralDefaulted' => false,
         ];
     }
 
