@@ -18068,6 +18068,12 @@ XML;
         $t->same(1, $summary['partXmlTextNodeParentPathCounts']['/w:settings/w:docVars/w:docVar']);
         $t->true(in_array('/review:packet/review:title', $summary['partXmlTextNodeParentPaths'], true), 'review title parent path missing');
         $t->true(in_array('/w:settings/w:docVars/w:docVar', $summary['partXmlTextNodeParentPaths'], true), 'settings docVar parent path missing');
+        $t->same(6, $summary['partXmlTextNodeParentNamespaceCounts']['urn:review-text']);
+        $t->true(($summary['partXmlTextNodeParentNamespaceCounts']['http://schemas.openxmlformats.org/wordprocessingml/2006/main'] ?? 0) >= 5, 'WordprocessingML text-node parent namespace count should include settings text nodes');
+        $t->same(4, $summary['partXmlTextNodeParentQualifiedNameCounts']['review:packet']);
+        $t->same(1, $summary['partXmlTextNodeParentQualifiedNameCounts']['review:title']);
+        $t->same(1, $summary['partXmlTextNodeParentQualifiedNameCounts']['review:item']);
+        $t->true(($summary['partXmlTextNodeParentQualifiedNameCounts']['w:docVar'] ?? 0) >= 1, 'settings docVar text-node parent qualified-name count should be summarized');
 
         $t->same(true, $reviewPart['xmlInspectable']);
         $t->same(6, $reviewPart['xmlTextNodeCount']);
@@ -18078,9 +18084,18 @@ XML;
             '/review:packet/review:item' => 1,
             '/review:packet/review:title' => 1,
         ], $reviewPart['xmlTextNodeParentPathCounts']);
+        $t->same(['urn:review-text' => 6], $reviewPart['xmlTextNodeParentNamespaceCounts']);
+        $t->same(['item' => 1, 'packet' => 4, 'title' => 1], $reviewPart['xmlTextNodeParentLocalNameCounts']);
+        $t->same(['review:item' => 1, 'review:packet' => 4, 'review:title' => 1], $reviewPart['xmlTextNodeParentQualifiedNameCounts']);
         $t->same('/review:packet', $reviewPart['xmlTextNodes'][0]['parentPath']);
+        $t->same('urn:review-text', $reviewPart['xmlTextNodes'][0]['parentNamespace']);
+        $t->same('packet', $reviewPart['xmlTextNodes'][0]['parentLocalName']);
+        $t->same('review:packet', $reviewPart['xmlTextNodes'][0]['parentQualifiedName']);
         $t->same(true, $reviewPart['xmlTextNodes'][0]['isWhitespaceOnly']);
         $t->same('/review:packet/review:title', $reviewPart['xmlTextNodes'][1]['parentPath']);
+        $t->same('urn:review-text', $reviewPart['xmlTextNodes'][1]['parentNamespace']);
+        $t->same('title', $reviewPart['xmlTextNodes'][1]['parentLocalName']);
+        $t->same('review:title', $reviewPart['xmlTextNodes'][1]['parentQualifiedName']);
         $t->same(false, $reviewPart['xmlTextNodes'][1]['isWhitespaceOnly']);
         $t->same(strlen($titleText), $reviewPart['xmlTextNodes'][1]['byteLength']);
         $t->same(sprintf('%08x', crc32($titleText)), $reviewPart['xmlTextNodes'][1]['crc32']);
@@ -18091,21 +18106,90 @@ XML;
         $t->same(5, $settingsPart['xmlTextNodeCount']);
         $t->same(4, $settingsPart['xmlTextNodeWhitespaceCount']);
         $t->same(1, $settingsPart['xmlTextNodeNonWhitespaceCount']);
+        $t->same(['http://schemas.openxmlformats.org/wordprocessingml/2006/main' => 5], $settingsPart['xmlTextNodeParentNamespaceCounts']);
+        $t->same(['docVar' => 1, 'docVars' => 2, 'settings' => 2], $settingsPart['xmlTextNodeParentLocalNameCounts']);
+        $t->same(['w:docVar' => 1, 'w:docVars' => 2, 'w:settings' => 2], $settingsPart['xmlTextNodeParentQualifiedNameCounts']);
         $t->same('/w:settings/w:docVars/w:docVar', $settingsPart['xmlTextNodes'][2]['parentPath']);
         $t->same(3, $settingsPart['xmlTextNodes'][2]['parentDepth']);
+        $t->same('http://schemas.openxmlformats.org/wordprocessingml/2006/main', $settingsPart['xmlTextNodes'][2]['parentNamespace']);
+        $t->same('docVar', $settingsPart['xmlTextNodes'][2]['parentLocalName']);
+        $t->same('w:docVar', $settingsPart['xmlTextNodes'][2]['parentQualifiedName']);
         $t->same(strlen($settingsText), $settingsPart['xmlTextNodes'][2]['byteLength']);
         $t->same(hash('sha256', $settingsText), $settingsPart['xmlTextNodes'][2]['sha256']);
 
         $t->same('customXml/text-node-review.xml', $textNodes[0]['partName']);
         $t->same('/review:packet', $textNodes[0]['parentPath']);
+        $t->same('review:packet', $textNodes[0]['parentQualifiedName']);
         $t->same('customXml/text-node-review.xml', $textNodes[1]['partName']);
         $t->same('/review:packet/review:title', $textNodes[1]['parentPath']);
+        $t->same('review:title', $textNodes[1]['parentQualifiedName']);
         $t->same('word/settings-text-node.xml', $textNodes[8]['partName']);
         $t->same('/w:settings/w:docVars/w:docVar', $textNodes[8]['parentPath']);
+        $t->same('w:docVar', $textNodes[8]['parentQualifiedName']);
         $t->true(!isset($reviewPart['xmlTextNodes'][1]['data']), 'raw XML text should not be exposed on part metadata');
         $encodedTextNodes = json_encode([$reviewPart['xmlTextNodes'], $settingsPart['xmlTextNodes'], $textNodes]);
         $t->true(is_string($encodedTextNodes), 'XML text-node metadata should encode for review');
         $t->true(!str_contains((string) $encodedTextNodes, 'hidden-payload'), 'raw XML text should not be exposed in summary metadata');
+    },
+    'summarizes docx package xml text node parent element names without exposing text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $titleText = 'parent-name-review:hidden-title';
+        $itemText = 'parent-name-review:hidden-item';
+        $unqualifiedText = 'parent-name-review:hidden-unqualified';
+        $parts['customXml/text-parent-name-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:review-text-parent" xmlns:local="urn:review-text-local">
+  <review:title>{$titleText}</review:title>
+  <local:item> {$itemText} </local:item>
+  <unqualified>{$unqualifiedText}</unqualified>
+</review:packet>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/text-parent-name-review.xml'];
+        $textNodes = array_values(array_filter(
+            $summary['partXmlTextNodes'],
+            static fn (array $node): bool => $node['partName'] === 'customXml/text-parent-name-review.xml',
+        ));
+
+        $t->same(7, $reviewPart['xmlTextNodeCount']);
+        $t->same([
+            '(none)' => 1,
+            'urn:review-text-local' => 1,
+            'urn:review-text-parent' => 5,
+        ], $reviewPart['xmlTextNodeParentNamespaceCounts']);
+        $t->same([
+            'item' => 1,
+            'packet' => 4,
+            'title' => 1,
+            'unqualified' => 1,
+        ], $reviewPart['xmlTextNodeParentLocalNameCounts']);
+        $t->same([
+            'local:item' => 1,
+            'review:packet' => 4,
+            'review:title' => 1,
+            'unqualified' => 1,
+        ], $reviewPart['xmlTextNodeParentQualifiedNameCounts']);
+        $t->same(5, $summary['partXmlTextNodeParentNamespaceCounts']['urn:review-text-parent']);
+        $t->same(1, $summary['partXmlTextNodeParentNamespaceCounts']['urn:review-text-local']);
+        $t->same(1, $summary['partXmlTextNodeParentQualifiedNameCounts']['unqualified']);
+        $t->same('urn:review-text-parent', $reviewPart['xmlTextNodes'][1]['parentNamespace']);
+        $t->same('title', $reviewPart['xmlTextNodes'][1]['parentLocalName']);
+        $t->same('review:title', $reviewPart['xmlTextNodes'][1]['parentQualifiedName']);
+        $t->same('urn:review-text-local', $reviewPart['xmlTextNodes'][3]['parentNamespace']);
+        $t->same('item', $reviewPart['xmlTextNodes'][3]['parentLocalName']);
+        $t->same('local:item', $reviewPart['xmlTextNodes'][3]['parentQualifiedName']);
+        $t->same(null, $reviewPart['xmlTextNodes'][5]['parentNamespace']);
+        $t->same('unqualified', $reviewPart['xmlTextNodes'][5]['parentLocalName']);
+        $t->same('unqualified', $reviewPart['xmlTextNodes'][5]['parentQualifiedName']);
+        $t->same('review:title', $textNodes[1]['parentQualifiedName']);
+        $t->same('local:item', $textNodes[3]['parentQualifiedName']);
+        $t->same('unqualified', $textNodes[5]['parentQualifiedName']);
+        $encodedTextNodes = json_encode([$reviewPart['xmlTextNodes'], $textNodes]);
+        $t->true(is_string($encodedTextNodes), 'XML text-node parent metadata should encode for review');
+        $t->true(!str_contains((string) $encodedTextNodes, 'parent-name-review:hidden'), 'raw XML text should not be exposed in parent metadata');
     },
     'summarizes docx package xml doctype declarations without exposing subsets' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
