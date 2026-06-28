@@ -6086,6 +6086,18 @@ CSS;
         ], $seenUrls);
     },
     'custom at-rules compose upstream DashedIdent visitors for custom properties and variables' => static function (TestRunner $t): void {
+        $directSeen = [];
+        $directResult = (new CustomAtRuleTransformer())->transform('.foo { --foo: #ff0; color: var(--foo); }', [], [
+            'DashedIdent' => static function (string $ident) use (&$directSeen): string {
+                $directSeen[] = $ident;
+
+                return '--prefix-' . substr($ident, 2);
+            },
+        ]);
+
+        $t->same('.foo{--prefix-foo:#ff0;color:var(--prefix-foo)}', $directResult, 'upstream node/test/visitor.test.mjs line 870');
+        $t->same(['--foo', '--foo'], $directSeen);
+
         $seen = [];
         $visitor = CustomAtRuleTransformer::composeVisitors([
             [
