@@ -5032,6 +5032,37 @@ TEX;
         $t->contains('<span class="math inline">\(\langle post_id,media_id \rangle\)</span>', $blocks);
         $t->contains('<span class="math display">\[\alpha + \omega \times x^2\]</span>', $blocks);
     },
+    'falls back to source spans for malformed plainmath structural mathml' => static function (TestRunner $t): void {
+        $math = static fn (string $text, bool $display = false): AstNode => new AstNode('math', [
+            'text' => $text,
+            'display' => $display,
+        ]);
+        $plain = static fn (AstNode $inline): AstNode => new AstNode('document', [], [
+            new AstNode('plain', [], [$inline]),
+        ]);
+        $writer = new HtmlWriter(['htmlMathMethod' => 'mathml']);
+        $valid = $writer->write($plain($math('\frac{a}{b}', true)));
+        $cases = [
+            '\frac{a}{' => '<span class="math inline">\frac{a}{</span>',
+            '\sqrt{x' => '<span class="math inline">\sqrt{x</span>',
+            '\left( x + y' => '<span class="math display">\left( x + y</span>',
+            '\begin{pmatrix}a&b' => '<span class="math display">\begin{pmatrix}a&amp;b</span>',
+        ];
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $valid);
+        $t->contains('<mfrac><mi>a</mi><mi>b</mi></mfrac>', $valid);
+
+        foreach ($cases as $tex => $expectedHtml) {
+            $display = str_contains($tex, '\left') || str_contains($tex, '\begin');
+            $html = $writer->write($plain($math($tex, $display)));
+            $dom = new DOMDocument('1.0', 'UTF-8');
+
+            $t->same($expectedHtml, $html);
+            $t->true($dom->loadXML('<root>' . $html . '</root>', LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING));
+            $t->true(!str_contains($html, '<math'), 'Malformed PlainMath should not emit partial MathML for ' . $tex);
+            $t->true(!str_contains($html, '<mi>\\'), 'Malformed PlainMath should not expose command-token MathML for ' . $tex);
+        }
+    },
     'maps upstream html writer webtex and gladtex math outputs' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
         $math = static fn (string $text, bool $display = false): AstNode => new AstNode('math', [
@@ -11622,6 +11653,36 @@ HTML;
         $t->contains('<p><del>test</del></p>', $blocks);
         $t->contains('<p>&lt;/ div&gt;&lt;/.div&gt;</p>', $blocks);
         $t->contains('<!-- pandoc --help -->', $blocks);
+    },
+    'maps commonmark paragraph raw html starts to blank-line boundaries' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '<p data-source="commonmark-raw-paragraph">',
+            '**raw paragraph** import copy.',
+            '',
+            'After **paragraph** boundary.',
+            '',
+            '<p>Structured <em>closed</em> paragraph.</p>',
+        ]));
+        $rawParagraph = $document->children[0];
+        $paragraph = $document->children[1];
+        $closedParagraph = $document->children[2];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(3, count($document->children));
+        $t->same('raw_html', $rawParagraph->type);
+        $t->same(
+            '<p data-source="commonmark-raw-paragraph">' . "\n" . '**raw paragraph** import copy.',
+            $rawParagraph->attr('html')
+        );
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'strong', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('paragraph', $closedParagraph->type);
+        $t->same(['text', 'emph', 'text'], array_map(static fn (AstNode $node): string => $node->type, $closedParagraph->children));
+        $t->same('closed', $closedParagraph->children[1]->children[0]->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . '<p data-source="commonmark-raw-paragraph">' . "\n" . '**raw paragraph** import copy.', $blocks);
+        $t->contains('<p>After <strong>paragraph</strong> boundary.</p>', $blocks);
+        $t->contains('<p>Structured <em>closed</em> paragraph.</p>', $blocks);
+        $t->true(!str_contains($blocks, '<p>**raw paragraph** import copy.'), 'Unclosed CommonMark p start should stay raw instead of merging as structured HTML paragraph text');
     },
     'maps upstream markdown raw email and emoji extension cases' => static function (TestRunner $t): void {
         $rawEmailDocument = (new MarkdownReader())->read('**@user**');

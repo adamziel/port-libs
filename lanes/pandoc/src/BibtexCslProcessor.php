@@ -359,8 +359,12 @@ final class BibtexCslProcessor
         if (($item['article-number'] ?? '') !== '') {
             $parts[] = 'Article number: ' . (string) $item['article-number'];
         }
-        foreach ($this->legalPatentBibliographyParts($item) as $part) {
+        $legalPatentParts = $this->legalPatentBibliographyParts($item);
+        foreach ($legalPatentParts as $part) {
             $parts[] = $part;
+        }
+        if ($legalPatentParts === [] && ($item['number'] ?? '') !== '') {
+            $parts[] = 'Number: ' . (string) $item['number'];
         }
         if (($item['thesis-type'] ?? '') !== '') {
             $parts[] = 'Thesis type: ' . (string) $item['thesis-type'];
@@ -808,9 +812,10 @@ final class BibtexCslProcessor
             'event-place' => ['venue', 'eventvenue', 'eventlocation', 'eventplace', 'event-place', 'event-location'],
             'event-type' => ['eventtype', 'event-type'],
             'edition' => ['edition'],
+            'number' => ['number'],
             'volume' => ['volume'],
             'number-of-volumes' => ['volumes'],
-            'issue' => ['number', 'issue'],
+            'issue' => ['issue'],
             'page' => ['pages', 'page'],
             'pagination' => ['pagination', 'page-label'],
             'book-pagination' => ['bookpagination', 'book-pagination'],
@@ -892,21 +897,13 @@ final class BibtexCslProcessor
             }
             $item[$target] = $target === 'page' ? str_replace('--', '-', $value) : $value;
         }
-
-        foreach ([
-            'publisher-list' => ['publisher', 'institution', 'school', 'organization'],
-            'publisher-place-list' => ['address', 'location', 'publisher-place'],
-            'original-publisher-list' => ['origpublisher', 'originalpublisher', 'original-publisher'],
-            'original-publisher-place-list' => ['origlocation', 'origaddress', 'originalpublisherplace', 'original-publisher-place'],
-            'language-list' => ['language'],
-            'original-language-list' => ['origlanguage', 'originallanguage', 'original-language'],
-            'event-place-list' => ['venue', 'eventvenue', 'eventlocation', 'eventplace', 'event-place', 'event-location'],
-        ] as $target => $names) {
-            $values = $this->literalListFromFields($fields, $names);
-            if (count($values) > 1) {
-                $item[$target] = $values;
-            }
-        }
+        $this->applyLiteralListField($item, $fields, 'publisher', ['publisher', 'institution', 'school', 'organization'], 'publisher-list');
+        $this->applyLiteralListField($item, $fields, 'publisher-place', ['address', 'location', 'publisher-place'], 'publisher-place-list');
+        $this->applyLiteralListField($item, $fields, 'event-place', ['venue', 'eventvenue', 'eventlocation', 'eventplace', 'event-place', 'event-location'], 'event-place-list');
+        $this->applyLiteralListField($item, $fields, 'language', ['language', 'langid', 'hyphenation'], 'language-list');
+        $this->applyLiteralListField($item, $fields, 'original-publisher', ['origpublisher', 'originalpublisher', 'original-publisher'], 'original-publisher-list');
+        $this->applyLiteralListField($item, $fields, 'original-publisher-place', ['origlocation', 'origaddress', 'originalpublisherplace', 'original-publisher-place'], 'original-publisher-place-list');
+        $this->applyLiteralListField($item, $fields, 'original-language', ['origlanguage', 'originallanguage', 'original-language'], 'original-language-list');
 
         $authorityFieldNames = [
             'authority-list',
@@ -957,6 +954,11 @@ final class BibtexCslProcessor
             $item['patent-type-label'] = $this->patentTypeLabel($patentType);
         }
 
+        $number = $this->firstField($fields, ['number']);
+        if (($item['issue'] ?? '') === '' && $number !== null && $number !== '' && $this->entryNumberActsAsIssue($type)) {
+            $item['issue'] = $number;
+            unset($item['number']);
+        }
         $this->normalizeIdentifierFields($item);
 
         $thesisType = $this->thesisTypeForEntry($type, $fields);
@@ -1550,6 +1552,11 @@ final class BibtexCslProcessor
         return false;
     }
 
+    private function entryNumberActsAsIssue(string $type): bool
+    {
+        return in_array(strtolower($type), ['article', 'periodical', 'review', 'suppperiodical'], true);
+    }
+
     /**
      * @param array<string, string> $fields
      * @param list<string> $titleNames
@@ -1591,6 +1598,7 @@ final class BibtexCslProcessor
             'booklet' => 'pamphlet',
             'letter' => 'personal_communication',
             'misc' => 'document',
+            'standard' => 'standard',
             'software' => 'software',
             'dataset' => 'dataset',
             'movie', 'video' => 'motion_picture',
@@ -1664,6 +1672,27 @@ final class BibtexCslProcessor
         }
 
         return $values === [] ? null : implode('; ', $values);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param array<string, string> $fields
+     * @param list<string> $names
+     */
+    private function applyLiteralListField(array &$item, array $fields, string $target, array $names, string $listTarget): void
+    {
+        $value = $this->firstField($fields, $names);
+        if ($value === null || $value === '') {
+            return;
+        }
+
+        $values = $this->literalList($value);
+        if (count($values) < 2) {
+            return;
+        }
+
+        $item[$target] = implode('; ', $values);
+        $item[$listTarget] = $values;
     }
 
     /**

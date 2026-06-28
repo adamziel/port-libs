@@ -855,6 +855,78 @@ return [
         $t->same(true, $inventory['word/media/CON']['zipEntryPresent']);
         $t->same('missing', $inventory['word/media/CON']['contentTypeSource']);
     },
+    'preserves docx zip package comments as metadata-only provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $zipParts = docx_openxml_reader_zip_parts($parts);
+        foreach ($zipParts as &$zipPart) {
+            if ($zipPart['name'] === '[Content_Types].xml') {
+                $zipPart['comment'] = 'content types review';
+            }
+            if ($zipPart['name'] === 'word/document.xml') {
+                $zipPart['comment'] = 'body review';
+            }
+            if ($zipPart['name'] === 'word/media/review.png') {
+                $zipPart['comment'] = 'media review';
+                $zipPart['compressionMethod'] = 0;
+            }
+        }
+        unset($zipPart);
+
+        $zip = ZipPackage::fromParts($zipParts, 'docx package review');
+        $document = (new DocxOpenXmlReader())->readZipPackage($zip);
+        $package = $document->attr('docx')['packageProvenance'];
+        $zipPackage = $package['zipPackage'];
+        $comments = $zipPackage['comments'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $documentEntry = $zipPackage['byPackagePath']['word/document.xml'];
+        $mediaEntry = $zipPackage['byPackagePath']['word/media/review.png'];
+        $documentPart = $inventory['word/document.xml'];
+        $mediaPart = $inventory['word/media/review.png'];
+
+        $t->same('Imported DOCX Heading', $document->children[0]->attr('text'));
+        $t->same($zip->commentPreflight(), $comments);
+        $t->same(true, $comments['hasPackageComment']);
+        $t->same(true, $comments['hasEntryComments']);
+        $t->same(true, $comments['hasComments']);
+        $t->same('docx package review', $comments['packageComment']);
+        $t->same(strlen('docx package review'), $comments['packageCommentLength']);
+        $t->same(3, $comments['entryCommentCount']);
+        $t->same(['[Content_Types].xml', 'word/document.xml', 'word/media/review.png'], $comments['commentedEntryNames']);
+        $t->same([], $comments['packageCommentIssues']);
+        $t->same([], $comments['commentedEntries'][1]['issues']);
+
+        $t->same(true, $summary['zipHasPackageComment']);
+        $t->same(true, $summary['zipHasEntryComments']);
+        $t->same(true, $summary['zipHasComments']);
+        $t->same(strlen('docx package review'), $summary['zipPackageCommentLength']);
+        $t->same([], $summary['zipPackageCommentIssues']);
+        $t->same(3, $summary['zipEntryCommentCount']);
+        $t->same(['[Content_Types].xml', 'word/document.xml', 'word/media/review.png'], $summary['zipCommentedEntryNames']);
+        $t->same(0, $summary['zipCommentControlByteEntryCount']);
+        $t->same(0, $summary['zipCommentUnicodeFormatControlEntryCount']);
+        $t->same(0, $summary['zipCommentBidiControlEntryCount']);
+
+        $t->same('body review', $documentEntry['zipEntryComment']);
+        $t->same(strlen('body review'), $documentEntry['zipEntryCommentLength']);
+        $t->same('utf-8', $documentEntry['zipEntryCommentEncoding']);
+        $t->same(true, $documentEntry['zipEntryHasComment']);
+        $t->same([], $documentEntry['zipEntryCommentIssues']);
+        $t->same('media review', $mediaEntry['zipEntryComment']);
+        $t->same(true, $mediaEntry['zipEntryHasComment']);
+        $t->same('docx-zip-entry-metadata-only', $mediaEntry['byteExposurePolicy']);
+        $t->same(false, $mediaEntry['canExposeBytes']);
+
+        $t->same('body review', $documentPart['zipEntryComment']);
+        $t->same(strlen('body review'), $documentPart['zipEntryCommentLength']);
+        $t->same('utf-8', $documentPart['zipEntryCommentEncoding']);
+        $t->same(true, $documentPart['zipEntryHasComment']);
+        $t->same([], $documentPart['zipEntryCommentIssues']);
+        $t->same('media review', $mediaPart['zipEntryComment']);
+        $t->same(true, $mediaPart['zipEntryHasComment']);
+        $t->same('docx-zip-entry-metadata-only', $mediaPart['zipByteExposurePolicy']);
+        $t->same(false, $mediaPart['zipCanExposeBytes']);
+    },
     'preserves docx package inventory CRC32 provenance for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['customXml/raw-review.bin'] = 'raw custom payload bytes';

@@ -506,6 +506,62 @@ return [
         $t->same(['wp:review-hint'], $identityByPath['content.xml']['customManifestChildElementNames']);
         $t->same(['loext:media-policy'], $identityByPath['Pictures/hero.png']['customManifestChildElementNames']);
     },
+    'preserves compact ODT manifest root extension child provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifest = str_replace(
+            [
+                '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">',
+                '<manifest:file-entry manifest:media-type="application/vnd.oasis.opendocument.text" manifest:full-path="/" manifest:version="1.3"/>',
+            ],
+            [
+                '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" xmlns:loext="urn:libreoffice:manifest" xmlns:wp="urn:wordpress:review" manifest:version="1.3">',
+                '<loext:package-policy loext:state="manual"><wp:handoff/></loext:package-policy>'
+                . '<manifest:file-entry manifest:media-type="application/vnd.oasis.opendocument.text" manifest:full-path="/" manifest:version="1.3"/>',
+            ],
+            $manifestXml
+        );
+        $manifest = str_replace(
+            '</manifest:manifest>',
+            '<wp:queue wp:priority="high"/></manifest:manifest>',
+            $manifest
+        );
+
+        $package = $buildOdtPackage(manifest: $manifest);
+        $odt = OpenDocumentPackage::fromPackage($package);
+        $summary = $odt->summarize();
+        $rootExtensions = $summary['manifestRootExtensionElements'];
+        $review = $summary['manifestReview'];
+        $identity = $summary['packageIdentity'];
+
+        $t->same(2, $rootExtensions['extensionElementCount']);
+        $t->same(['loext:package-policy', 'wp:queue'], $rootExtensions['extensionElementNames']);
+        $t->same('urn:libreoffice:manifest', $rootExtensions['extensionElements'][0]['namespaceUri']);
+        $t->same('loext', $rootExtensions['extensionElements'][0]['prefix']);
+        $t->same(1, $rootExtensions['extensionElements'][0]['attributeCount']);
+        $t->same(1, $rootExtensions['extensionElements'][0]['childElementCount']);
+        $t->same('urn:wordpress:review', $rootExtensions['extensionElements'][1]['namespaceUri']);
+        $t->same('wp', $rootExtensions['extensionElements'][1]['prefix']);
+        $t->same(1, $rootExtensions['extensionElements'][1]['attributeCount']);
+
+        $t->same(2, $review['manifestRootExtensionElementCount']);
+        $t->same(['loext:package-policy', 'wp:queue'], $review['manifestRootExtensionElementNames']);
+        $t->same($rootExtensions['extensionElements'], $review['manifestRootExtensionElements']);
+        $t->same(5, $review['manifestFileEntryCount']);
+        $t->same(['/', 'content.xml', 'styles.xml', 'meta.xml', 'Pictures/hero.png'], array_column($review['manifestFileEntryOrder'], 'fullPath'));
+
+        $t->same(2, $identity['manifestRootExtensionElementCount']);
+        $t->same(['loext:package-policy', 'wp:queue'], $identity['manifestRootExtensionElementNames']);
+        $t->same($rootExtensions['extensionElements'], $identity['manifestRootExtensionElements']);
+        $changedManifest = str_replace('wp:priority="high"', 'wp:priority="low"', $manifest);
+        $changedIdentity = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $changedManifest))->summarize()['packageIdentity'];
+        $t->true($identity['identitySha256'] !== $changedIdentity['identitySha256']);
+
+        $invalidManifestNamespaceChild = str_replace(
+            '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml"/>',
+            '<manifest:package-policy/><manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml"/>',
+            $manifestXml
+        );
+        $t->throws(\InvalidArgumentException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $invalidManifestNamespaceChild)));
+    },
     'keeps compact ODT manifest custom attribute collision provenance stable' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifest = str_replace(
             [

@@ -485,7 +485,10 @@ final class EpubWriter
      */
     private function chapterXhtml(AstNode $document, array $metadata, array $stylesheets): string
     {
-        $body = trim((new HtmlWriter(['writerWrapText' => 'preserve']))->write($document));
+        $body = trim((new HtmlWriter([
+            'writerHTMLMathMethod' => 'mathml',
+            'writerWrapText' => 'preserve',
+        ]))->write($document));
         if ($body === '') {
             $body = '<p></p>';
         }

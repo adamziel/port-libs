@@ -7042,6 +7042,20 @@ final class MarkdownWriter
         ) {
             return ':' . (string) $attributes['data-emoji'] . ':';
         }
+        if (
+            $node->attr('id', '') === ''
+            && is_array($classes)
+            && $classes === ['gemoji']
+            && is_array($attributes)
+            && isset($attributes['shortcode'])
+            && is_string($attributes['shortcode'])
+            && preg_match('/^:[A-Za-z0-9_+-]+:$/D', $attributes['shortcode']) === 1
+            && count($node->children) === 1
+            && $node->children[0]->type === 'text'
+            && $this->emojiShortcodesEnabled()
+        ) {
+            return $attributes['shortcode'];
+        }
 
         $attrTuple = $this->linkAttrTuple($node);
         $attrs = $this->renderAttributesTuple($attrTuple);
@@ -7110,7 +7124,7 @@ final class MarkdownWriter
             return null;
         }
 
-        $targetComponent = $this->escapeWikiLinkComponent($this->escapeUri($target));
+        $targetComponent = $this->escapeWikiLinkComponent($target);
         if ($label === $target) {
             return '[[' . $targetComponent . ']]';
         }
@@ -7128,6 +7142,7 @@ final class MarkdownWriter
         if (
             (bool) ($this->options['wikilinksTitleBeforePipe'] ?? false)
             || str_contains($variant, 'wikilinks_title_before_pipe')
+            || $this->markdownExtensionOverride('wikilinks_title_before_pipe') === true
         ) {
             return 'before';
         }
@@ -7135,8 +7150,13 @@ final class MarkdownWriter
         if (
             (bool) ($this->options['wikilinksTitleAfterPipe'] ?? false)
             || str_contains($variant, 'wikilinks_title_after_pipe')
+            || $this->markdownExtensionOverride('wikilinks_title_after_pipe') === true
         ) {
             return 'after';
+        }
+
+        if ($this->markdownExtensionOverride('wikilinks') === true) {
+            return 'before';
         }
 
         return '';
@@ -8554,6 +8574,11 @@ final class MarkdownWriter
             return (bool) $this->options['lineBlocks'];
         }
 
+        $override = $this->markdownExtensionOverride('line_blocks');
+        if ($override !== null) {
+            return $override;
+        }
+
         return !$this->isCommonMarkVariant();
     }
 
@@ -8727,6 +8752,77 @@ final class MarkdownWriter
     private function smartEnabled(): bool
     {
         return (bool) ($this->options['smart'] ?? true);
+    }
+
+    private function emojiShortcodesEnabled(): bool
+    {
+        return $this->markdownExtensionOverride('emoji_shortcodes') === true;
+    }
+
+    private function markdownExtensionOverride(string $extension): ?bool
+    {
+        return $this->markdownExtensionOverrides()[$extension] ?? null;
+    }
+
+    /**
+     * @return array<string, bool>
+     */
+    private function markdownExtensionOverrides(): array
+    {
+        return MarkdownFormatProfile::markdownExtensionOverrides($this->markdownFormatWithExtensionOption());
+    }
+
+    private function markdownFormatWithExtensionOption(): string
+    {
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $format = is_scalar($format) ? (string) $format : 'markdown';
+        $extensionSuffix = $this->markdownExtensionOptionSuffix($this->options['extensions'] ?? '');
+        if ($extensionSuffix === '') {
+            return $format;
+        }
+
+        if (str_starts_with($extensionSuffix, '+') || str_starts_with($extensionSuffix, '-')) {
+            return $format . $extensionSuffix;
+        }
+
+        return $format . '+' . $extensionSuffix;
+    }
+
+    private function markdownExtensionOptionSuffix(mixed $extensions): string
+    {
+        if (is_scalar($extensions)) {
+            return trim((string) $extensions);
+        }
+
+        if (!is_array($extensions)) {
+            return '';
+        }
+
+        $tokens = [];
+        foreach ($extensions as $name => $value) {
+            if (is_int($name)) {
+                if (!is_scalar($value)) {
+                    continue;
+                }
+
+                $token = trim((string) $value);
+                if ($token === '') {
+                    continue;
+                }
+                $tokens[] = str_starts_with($token, '+') || str_starts_with($token, '-')
+                    ? $token
+                    : '+' . $token;
+                continue;
+            }
+
+            if (!is_scalar($value)) {
+                continue;
+            }
+
+            $tokens[] = ((bool) $value ? '+' : '-') . (string) $name;
+        }
+
+        return implode('', $tokens);
     }
 
     private function bracketedSpansEnabled(): bool

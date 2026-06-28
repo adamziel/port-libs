@@ -801,6 +801,165 @@ final class MathTexConverter
         'mathrel' => 'relation',
     ];
 
+    /** @var list<string> */
+    private const MATH_ATOM_CATEGORY_ORDER = ['Ord', 'Op', 'Bin', 'Rel', 'Open', 'Close', 'Pun', 'Inner'];
+
+    /** @var array<string, string> */
+    private const MATH_CLASS_ATOM_CATEGORIES = [
+        'binary' => 'Bin',
+        'close' => 'Close',
+        'inner' => 'Inner',
+        'open' => 'Open',
+        'operator' => 'Op',
+        'ordinary' => 'Ord',
+        'punctuation' => 'Pun',
+        'relation' => 'Rel',
+    ];
+
+    /** @var array<string, true> */
+    private const MATH_OPEN_ATOM_TOKENS = [
+        '(' => true,
+        '[' => true,
+        '{' => true,
+        '⌈' => true,
+        '⌊' => true,
+        '⌜' => true,
+        '⟦' => true,
+        '⟨' => true,
+        '⟮' => true,
+        '⎰' => true,
+        '〔' => true,
+        '〘' => true,
+    ];
+
+    /** @var array<string, true> */
+    private const MATH_CLOSE_ATOM_TOKENS = [
+        ')' => true,
+        ']' => true,
+        '}' => true,
+        '⌉' => true,
+        '⌋' => true,
+        '⌝' => true,
+        '⟧' => true,
+        '⟩' => true,
+        '⟯' => true,
+        '⎱' => true,
+        '〕' => true,
+        '〙' => true,
+    ];
+
+    /** @var array<string, true> */
+    private const MATH_PUNCTUATION_ATOM_TOKENS = [
+        ',' => true,
+        ';' => true,
+        ':' => true,
+    ];
+
+    /** @var array<string, true> */
+    private const MATH_BINARY_ATOM_TOKENS = [
+        '+' => true,
+        '-' => true,
+        '*' => true,
+        '/' => true,
+        '±' => true,
+        '∓' => true,
+        '∖' => true,
+        '∩' => true,
+        '∪' => true,
+        '∧' => true,
+        '∨' => true,
+        '×' => true,
+        '⋅' => true,
+        '∘' => true,
+        '⊕' => true,
+        '⊖' => true,
+        '⊗' => true,
+        '⊘' => true,
+        '⊙' => true,
+    ];
+
+    /** @var array<string, true> */
+    private const MATH_RELATION_ATOM_TOKENS = [
+        '=' => true,
+        '<' => true,
+        '>' => true,
+        '≤' => true,
+        '≥' => true,
+        '≠' => true,
+        '≈' => true,
+        '≉' => true,
+        '≊' => true,
+        '≅' => true,
+        '≇' => true,
+        '≡' => true,
+        '≢' => true,
+        '≺' => true,
+        '≼' => true,
+        '≻' => true,
+        '≽' => true,
+        '⊂' => true,
+        '⊄' => true,
+        '⊆' => true,
+        '⊈' => true,
+        '⊃' => true,
+        '⊅' => true,
+        '⊇' => true,
+        '⊉' => true,
+        '⊢' => true,
+        '⊨' => true,
+        '⊬' => true,
+        '⊭' => true,
+        '∈' => true,
+        '∉' => true,
+        '∋' => true,
+        '∌' => true,
+        '∣' => true,
+        '∤' => true,
+        '∥' => true,
+        '∦' => true,
+        '∝' => true,
+        '∼' => true,
+        '≃' => true,
+        '≍' => true,
+        '≲' => true,
+        '≳' => true,
+        '≪' => true,
+        '≫' => true,
+        '→' => true,
+        '←' => true,
+        '↔' => true,
+        '↚' => true,
+        '↛' => true,
+        '↮' => true,
+        '⇒' => true,
+        '⇐' => true,
+        '⇔' => true,
+        '⇏' => true,
+    ];
+
+    /** @var array<string, true> */
+    private const MATH_OPERATOR_ATOM_TOKENS = [
+        '∂' => true,
+        '∇' => true,
+        '∑' => true,
+        '∏' => true,
+        '∐' => true,
+        '∫' => true,
+        '∬' => true,
+        '∭' => true,
+        '∮' => true,
+        '∯' => true,
+        '∰' => true,
+        '⋃' => true,
+        '⋂' => true,
+        '⋀' => true,
+        '⋁' => true,
+        '⨀' => true,
+        '⨁' => true,
+        '⨂' => true,
+        '⨆' => true,
+    ];
+
     /** @var array<string, string> */
     private const DELIMITER_COMMANDS = [
         '|' => '‖',
@@ -1371,6 +1530,22 @@ final class MathTexConverter
     }
 
     /**
+     * Prototype a TexMath-like atom category stream from the converter's generated MathML.
+     *
+     * @param array<string, array{arity?: int, template?: string, optionalDefault?: string, environment?: bool, opener?: string, closer?: string}> $macros
+     * @param array<string, array{label?: string, id?: string, reference?: string, tag?: ?string, tagStarred?: bool}|string> $referenceLabels
+     * @return array{tex:string, display:bool, atomCount:int, atomCategories:list<string>, atomCategoryCounts:array<string, int>, atoms:list<array{category:string, element:string, text:string, source:string, mathClass:?string}>}
+     */
+    public function texAtomCategorySummary(string $tex, bool $display = false, array $macros = [], array $referenceLabels = []): array
+    {
+        return $this->mathMlAtomCategorySummary(
+            $this->texToMathMl($tex, $display, $macros, $referenceLabels),
+            $tex,
+            $display
+        );
+    }
+
+    /**
      * @param array<string, array{arity?: int, template?: string, optionalDefault?: string, environment?: bool, opener?: string, closer?: string}> $macros
      * @param array<string, array{label?: string, id?: string, reference?: string, tag?: ?string, tagStarred?: bool}|string> $referenceLabels
      */
@@ -1393,6 +1568,10 @@ final class MathTexConverter
 
             if ($offset < strlen($equation['tex'])) {
                 throw new \InvalidArgumentException('Unsupported TeX token at offset ' . $offset);
+            }
+
+            if ($this->activeLeftFenceDepth !== 0) {
+                throw new \InvalidArgumentException('Unclosed TeX \\left fence');
             }
 
             $displayMode = $display ? 'block' : 'inline';
@@ -1442,6 +1621,175 @@ final class MathTexConverter
             'alttext' => $altText !== '' ? $altText : 'math expression',
             'intent' => $intent !== '' ? $intent : 'math',
         ];
+    }
+
+    /**
+     * @return array{tex:string, display:bool, atomCount:int, atomCategories:list<string>, atomCategoryCounts:array<string, int>, atoms:list<array{category:string, element:string, text:string, source:string, mathClass:?string}>}
+     */
+    private function mathMlAtomCategorySummary(string $mathml, string $tex, bool $display): array
+    {
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $loaded = $dom->loadXML($mathml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+        if (!$loaded || !$dom->documentElement instanceof \DOMElement) {
+            throw new \InvalidArgumentException('Generated MathML atom handoff is not well-formed');
+        }
+
+        $atoms = [];
+        $this->collectMathMlAtomCategories($dom->documentElement, $atoms);
+        $counts = [];
+        foreach ($atoms as $atom) {
+            $category = $atom['category'];
+            $counts[$category] = ($counts[$category] ?? 0) + 1;
+        }
+
+        $categories = [];
+        foreach (self::MATH_ATOM_CATEGORY_ORDER as $category) {
+            if (isset($counts[$category])) {
+                $categories[] = $category;
+            }
+        }
+        foreach (array_keys($counts) as $category) {
+            if (!in_array($category, $categories, true)) {
+                $categories[] = $category;
+            }
+        }
+
+        $orderedCounts = [];
+        foreach ($categories as $category) {
+            $orderedCounts[$category] = $counts[$category];
+        }
+
+        return [
+            'tex' => $tex,
+            'display' => $display,
+            'atomCount' => count($atoms),
+            'atomCategories' => $categories,
+            'atomCategoryCounts' => $orderedCounts,
+            'atoms' => $atoms,
+        ];
+    }
+
+    /**
+     * @param list<array{category:string, element:string, text:string, source:string, mathClass:?string}> $atoms
+     */
+    private function collectMathMlAtomCategories(\DOMNode $node, array &$atoms): void
+    {
+        if (!$node instanceof \DOMElement) {
+            foreach ($node->childNodes as $child) {
+                $this->collectMathMlAtomCategories($child, $atoms);
+            }
+
+            return;
+        }
+
+        if ($node->localName === 'annotation' || $node->localName === 'annotation-xml') {
+            return;
+        }
+
+        $mathClass = $node->getAttribute('data-tex-math-class');
+        if ($mathClass !== '') {
+            $category = self::MATH_CLASS_ATOM_CATEGORIES[$mathClass] ?? null;
+            if ($category !== null) {
+                $atoms[] = [
+                    'category' => $category,
+                    'element' => $node->localName,
+                    'text' => $this->mathMlAtomText($node),
+                    'source' => 'explicit-math-class',
+                    'mathClass' => $mathClass,
+                ];
+            }
+
+            return;
+        }
+
+        $category = $this->mathMlTokenAtomCategory($node);
+        if ($category !== null) {
+            $atoms[] = [
+                'category' => $category,
+                'element' => $node->localName,
+                'text' => $this->mathMlAtomText($node),
+                'source' => 'mathml-token',
+                'mathClass' => null,
+            ];
+
+            return;
+        }
+
+        foreach ($node->childNodes as $child) {
+            $this->collectMathMlAtomCategories($child, $atoms);
+        }
+    }
+
+    private function mathMlTokenAtomCategory(\DOMElement $node): ?string
+    {
+        $name = $node->localName;
+        $text = $this->mathMlAtomText($node);
+
+        if ($name === 'mn' || $name === 'mtext') {
+            return 'Ord';
+        }
+
+        if ($name === 'mi') {
+            return $this->mathMlIdentifierAtomCategory($text);
+        }
+
+        if ($name !== 'mo') {
+            return null;
+        }
+
+        if ($node->getAttribute('separator') === 'true') {
+            return 'Pun';
+        }
+
+        if ($node->getAttribute('fence') === 'true') {
+            if (isset(self::MATH_CLOSE_ATOM_TOKENS[$text])) {
+                return 'Close';
+            }
+
+            return 'Open';
+        }
+
+        if (isset(self::MATH_PUNCTUATION_ATOM_TOKENS[$text])) {
+            return 'Pun';
+        }
+
+        if (isset(self::MATH_RELATION_ATOM_TOKENS[$text])) {
+            return 'Rel';
+        }
+
+        if (isset(self::MATH_BINARY_ATOM_TOKENS[$text])) {
+            return 'Bin';
+        }
+
+        if (isset(self::MATH_OPERATOR_ATOM_TOKENS[$text])) {
+            return 'Op';
+        }
+
+        if (isset(self::MATH_OPEN_ATOM_TOKENS[$text])) {
+            return 'Open';
+        }
+
+        if (isset(self::MATH_CLOSE_ATOM_TOKENS[$text])) {
+            return 'Close';
+        }
+
+        return 'Op';
+    }
+
+    private function mathMlIdentifierAtomCategory(string $text): string
+    {
+        if (in_array($text, self::FUNCTION_COMMANDS, true)) {
+            return 'Op';
+        }
+
+        return $this->singleUtf8Codepoint($text) === null ? 'Op' : 'Ord';
+    }
+
+    private function mathMlAtomText(\DOMNode $node): string
+    {
+        $text = preg_replace('/\s+/u', ' ', trim($node->textContent));
+
+        return is_string($text) ? $text : trim($node->textContent);
     }
 
     private function mathMlNodeAltText(\DOMNode $node): string
@@ -7655,7 +8003,9 @@ final class MathTexConverter
         $delimiter = $this->readFenceDelimiter($source, $offset);
         if ($command === 'left') {
             $this->activeLeftFenceDepth++;
-        } elseif ($this->activeLeftFenceDepth > 0) {
+        } elseif ($this->activeLeftFenceDepth <= 0) {
+            throw new \InvalidArgumentException('Expected TeX \\right inside \\left...\\right at offset ' . $offset);
+        } else {
             $this->activeLeftFenceDepth--;
         }
 

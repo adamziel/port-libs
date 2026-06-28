@@ -1446,6 +1446,7 @@ final class BibtexCslParser
             'patent' => 'patent',
             'legislation', 'legal' => 'legislation',
             'jurisdiction' => 'legal_case',
+            'standard' => 'standard',
             'movie', 'video' => 'motion_picture',
             'audio', 'music' => 'song',
             'artwork', 'image' => 'graphic',

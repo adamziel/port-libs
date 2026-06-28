@@ -62,6 +62,9 @@ final class OdfReader
     /** @var array<string, mixed> */
     private array $manifestRootAttributeProvenance = [];
 
+    /** @var array<string, mixed> */
+    private array $manifestRootExtensionElementProvenance = [];
+
     /** @var array<string, array<string, mixed>> */
     private array $formControlsById = [];
 
@@ -130,6 +133,7 @@ final class OdfReader
         $manifest = $this->readManifest($package);
         $this->manifestByPart = $this->manifestByPart($manifest);
         $manifestRootAttributes = $this->manifestRootAttributeProvenance;
+        $manifestRootExtensions = $this->manifestRootExtensionElementProvenance;
         $rdfMetadata = $this->readRdfMetadata($package, $manifest);
         $signatureMetadata = $this->readSignatureMetadata($package, $manifest);
         $this->packageRdfMetadata = $rdfMetadata;
@@ -196,6 +200,9 @@ final class OdfReader
                 'rootNamespaceDeclarationNames' => $manifestRootAttributes['namespaceDeclarationNames'] ?? [],
                 'rootNamespaceDeclarations' => $manifestRootAttributes['namespaceDeclarations'] ?? [],
                 'rootNamespaceDeclarationMap' => $manifestRootAttributes['namespaceDeclarationMap'] ?? [],
+                'rootExtensionElementCount' => $manifestRootExtensions['extensionElementCount'] ?? 0,
+                'rootExtensionElementNames' => $manifestRootExtensions['extensionElementNames'] ?? [],
+                'rootExtensionElements' => $manifestRootExtensions['extensionElements'] ?? [],
                 'mimetypeEntry' => $mimetypeEntry,
                 'items' => $manifest,
                 'mediaTypeSummary' => $manifestMediaTypeSummary,
@@ -292,6 +299,9 @@ final class OdfReader
                     'rootNamespaceDeclarationNames' => $manifestRootAttributes['namespaceDeclarationNames'] ?? [],
                     'rootNamespaceDeclarations' => $manifestRootAttributes['namespaceDeclarations'] ?? [],
                     'rootNamespaceDeclarationMap' => $manifestRootAttributes['namespaceDeclarationMap'] ?? [],
+                    'rootExtensionElementCount' => $manifestRootExtensions['extensionElementCount'] ?? 0,
+                    'rootExtensionElementNames' => $manifestRootExtensions['extensionElementNames'] ?? [],
+                    'rootExtensionElements' => $manifestRootExtensions['extensionElements'] ?? [],
                     'mimetypeEntry' => $mimetypeEntry,
                     'items' => $manifest,
                     'mediaTypeSummary' => $manifestMediaTypeSummary,
@@ -508,6 +518,7 @@ final class OdfReader
 
         $this->manifestVersion = self::attr($root, self::MANIFEST_NS, 'version');
         $this->manifestRootAttributeProvenance = $this->manifestRootAttributeProvenance($root);
+        $this->manifestRootExtensionElementProvenance = $this->manifestRootExtensionElementProvenance($root);
         $rawItems = [];
         $seenFullPaths = [];
         $seenParts = [];
@@ -745,6 +756,35 @@ final class OdfReader
 
     /**
      * @return array{
+     *     extensionElementCount:int,
+     *     extensionElementNames:list<string>,
+     *     extensionElements:list<array<string, mixed>>
+     * }
+     */
+    private function manifestRootExtensionElementProvenance(\DOMElement $element): array
+    {
+        $extensionElements = [];
+
+        foreach (self::childElements($element) as $child) {
+            if ($child->namespaceURI === self::MANIFEST_NS && $child->localName === 'file-entry') {
+                continue;
+            }
+            if ($child->namespaceURI === self::MANIFEST_NS) {
+                throw new \InvalidArgumentException('ODT manifest may only contain manifest:file-entry children in the manifest namespace');
+            }
+
+            $extensionElements[] = $this->manifestChildElementRecord($child, false);
+        }
+
+        return [
+            'extensionElementCount' => count($extensionElements),
+            'extensionElementNames' => array_values(array_map(static fn (array $item): string => $item['name'], $extensionElements)),
+            'extensionElements' => $extensionElements,
+        ];
+    }
+
+    /**
+     * @return array{
      *     childElementCount:int,
      *     childElementNames:list<string>,
      *     childElements:list<array<string, mixed>>,
@@ -762,19 +802,7 @@ final class OdfReader
             $namespaceUri = (string) $child->namespaceURI;
             $structural = $namespaceUri === self::MANIFEST_NS
                 && isset(self::MANIFEST_FILE_ENTRY_STRUCTURAL_CHILD_ELEMENTS[$child->localName]);
-            $record = [
-                'name' => $this->qualifiedElementName($child),
-                'localName' => $child->localName,
-                'structural' => $structural,
-                'attributeCount' => $child->hasAttributes() ? $child->attributes->length : 0,
-                'childElementCount' => count(self::childElements($child)),
-            ];
-            if ($namespaceUri !== '') {
-                $record['namespaceUri'] = $namespaceUri;
-            }
-            if ($child->prefix !== '') {
-                $record['prefix'] = $child->prefix;
-            }
+            $record = $this->manifestChildElementRecord($child, $structural);
 
             $childElements[] = $record;
             if (!$structural) {
@@ -790,6 +818,29 @@ final class OdfReader
             'customChildElementNames' => array_values(array_map(static fn (array $item): string => $item['name'], $customChildElements)),
             'customChildElements' => $customChildElements,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function manifestChildElementRecord(\DOMElement $child, bool $structural): array
+    {
+        $record = [
+            'name' => $this->qualifiedElementName($child),
+            'localName' => $child->localName,
+            'structural' => $structural,
+            'attributeCount' => $child->hasAttributes() ? $child->attributes->length : 0,
+            'childElementCount' => count(self::childElements($child)),
+        ];
+        $namespaceUri = (string) $child->namespaceURI;
+        if ($namespaceUri !== '') {
+            $record['namespaceUri'] = $namespaceUri;
+        }
+        if ($child->prefix !== '') {
+            $record['prefix'] = $child->prefix;
+        }
+
+        return $record;
     }
 
     /**
@@ -1358,6 +1409,7 @@ final class OdfReader
         array $styleCatalog
     ): array {
         $manifestRootAttributes = $this->manifestRootAttributeProvenance;
+        $manifestRootExtensions = $this->manifestRootExtensionElementProvenance;
         $localHeaderOrder = $package->localHeaderOrderPreflight();
         $compressionMethods = $package->compressionMethodPreflight();
         $comments = $package->commentPreflight();
@@ -1810,6 +1862,9 @@ final class OdfReader
             'manifestRootNamespaceDeclarationNames' => $manifestRootAttributes['namespaceDeclarationNames'] ?? [],
             'manifestRootNamespaceDeclarations' => $manifestRootAttributes['namespaceDeclarations'] ?? [],
             'manifestRootNamespaceDeclarationMap' => $manifestRootAttributes['namespaceDeclarationMap'] ?? [],
+            'manifestRootExtensionElementCount' => $manifestRootExtensions['extensionElementCount'] ?? 0,
+            'manifestRootExtensionElementNames' => $manifestRootExtensions['extensionElementNames'] ?? [],
+            'manifestRootExtensionElements' => $manifestRootExtensions['extensionElements'] ?? [],
             'manifestFileEntryCount' => count($manifestFileEntryOrder),
             'manifestFileEntryOrder' => $manifestFileEntryOrder,
             'manifestByteExposurePolicyCounts' => $manifestByteExposurePolicyCounts,
@@ -2061,6 +2116,7 @@ final class OdfReader
             'manifestVersion' => $this->manifestVersion === '' ? null : $this->manifestVersion,
             'manifestRootCustomAttributeMap' => $provenance['manifestRootCustomAttributeMap'] ?? [],
             'manifestRootNamespaceDeclarationMap' => $provenance['manifestRootNamespaceDeclarationMap'] ?? [],
+            'manifestRootExtensionElements' => $provenance['manifestRootExtensionElements'] ?? [],
             'manifestEntries' => $manifestEntries,
             'packageEntries' => $packageEntries,
             'roleCounts' => $provenance['roleCounts'] ?? [],
@@ -2113,6 +2169,9 @@ final class OdfReader
             'packageParts' => array_column($packageEntries, 'part'),
             'manifestRootCustomAttributeCount' => $provenance['manifestRootCustomAttributeCount'] ?? 0,
             'manifestRootCustomAttributeNames' => $provenance['manifestRootCustomAttributeNames'] ?? [],
+            'manifestRootExtensionElementCount' => $provenance['manifestRootExtensionElementCount'] ?? 0,
+            'manifestRootExtensionElementNames' => $provenance['manifestRootExtensionElementNames'] ?? [],
+            'manifestRootExtensionElements' => $provenance['manifestRootExtensionElements'] ?? [],
             'hasPackageComment' => ($comments['hasPackageComment'] ?? false) === true,
             'hasEntryComments' => ($comments['hasEntryComments'] ?? false) === true,
             'entryCommentCount' => is_int($comments['entryCommentCount'] ?? null) ? $comments['entryCommentCount'] : 0,

@@ -1255,6 +1255,44 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\mathrel{}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\mathbin_1'));
     },
+    'summarizes bounded tex atom categories for plainmath prototype handoff' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $tex = '\\mathop{\\operatorname{argmax}}\\limits_{p_i \\in P}^{\\text{draft}} f(p_i) + a \\mathrel{\\approx} b + x \\mathbin{\\cdot} y + \\mathopen{[}q\\mathclose{]} + f\\mathpunct{,}g + \\mathinner{\\frac{a}{b}} + \\sin \\theta';
+        $mathmlBefore = $converter->texToMathMl($tex, true);
+        $summary = $converter->texAtomCategorySummary($tex, true);
+        $explicitByCategory = [];
+        $inferredByCategory = [];
+
+        foreach ($summary['atoms'] as $atom) {
+            if ($atom['source'] === 'explicit-math-class') {
+                $explicitByCategory[$atom['category']][] = $atom['text'];
+            } else {
+                $inferredByCategory[$atom['category']][] = $atom['text'];
+            }
+        }
+
+        $t->same($tex, $summary['tex']);
+        $t->same(true, $summary['display']);
+        $t->same($mathmlBefore, $converter->texToMathMl($tex, true));
+        $t->same(['Ord', 'Op', 'Bin', 'Rel', 'Open', 'Close', 'Pun', 'Inner'], $summary['atomCategories']);
+        $t->true($summary['atomCount'] >= 24, 'summary should collect token and explicit math-class atoms');
+        $t->true($summary['atomCategoryCounts']['Ord'] >= 10, 'summary should count ordinary identifiers and numbers');
+        $t->true($summary['atomCategoryCounts']['Op'] >= 2, 'summary should count explicit and inferred operators');
+        $t->true($summary['atomCategoryCounts']['Bin'] >= 4, 'summary should count binary operators');
+        $t->true($summary['atomCategoryCounts']['Rel'] >= 2, 'summary should count relation operators');
+        $t->true(in_array('argmax', $explicitByCategory['Op'] ?? [], true), 'explicit mathop should produce Op atom');
+        $t->true(in_array('≈', $explicitByCategory['Rel'] ?? [], true), 'explicit mathrel should produce Rel atom');
+        $t->true(in_array('⋅', $explicitByCategory['Bin'] ?? [], true), 'explicit mathbin should produce Bin atom');
+        $t->true(in_array('[', $explicitByCategory['Open'] ?? [], true), 'explicit mathopen should produce Open atom');
+        $t->true(in_array(']', $explicitByCategory['Close'] ?? [], true), 'explicit mathclose should produce Close atom');
+        $t->true(in_array(',', $explicitByCategory['Pun'] ?? [], true), 'explicit mathpunct should produce Pun atom');
+        $t->true(in_array('ab', $explicitByCategory['Inner'] ?? [], true), 'explicit mathinner should produce Inner atom');
+        $t->true(in_array('sin', $inferredByCategory['Op'] ?? [], true), 'function tokens should infer Op atoms');
+        $t->true(in_array('+', $inferredByCategory['Bin'] ?? [], true), 'plus tokens should infer Bin atoms');
+        $t->true(in_array('∈', $inferredByCategory['Rel'] ?? [], true), 'membership tokens should infer Rel atoms');
+        $t->true(in_array('θ', $inferredByCategory['Ord'] ?? [], true), 'identifier tokens should infer Ord atoms');
+        $t->true(!str_contains($mathmlBefore, 'data-tex-atom'), 'summary prototype should not alter emitted MathML');
+    },
     'converts bounded tex substack limits to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $substackMathml = $converter->texToMathMl('\\sum_{\\substack{i=1 \\\\ i\\ne j}}^{n} a_i + \\lim_{\\substack{x \\to 0 \\\\ x > 0}} f(x)', true);
@@ -2709,6 +2747,8 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\underoverset{a}{b}_1'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\overunderset_1 x'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left( x + y'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\right)'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left\\unknown{x}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\middle|'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left( x \\right) \\middle| y'));

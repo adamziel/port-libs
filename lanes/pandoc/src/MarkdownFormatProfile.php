@@ -48,6 +48,29 @@ final class MarkdownFormatProfile
         'markdown+phpextra' => 'markdown_phpextra',
     ];
 
+    /** @var array<string, string> */
+    private const EXTENSION_ALIASES = [
+        'bracketed_span' => 'bracketed_spans',
+        'emoji_shortcode' => 'emoji_shortcodes',
+        'header_attrs' => 'header_attributes',
+        'header_attribute' => 'header_attributes',
+        'inline_attribute' => 'inline_attributes',
+        'markdown_attribute' => 'inline_attributes',
+        'line_block' => 'line_blocks',
+        'raw_latex' => 'raw_tex',
+        'latex_macros' => 'raw_tex',
+        'subscripts' => 'subscript',
+        'superscripts' => 'superscript',
+        'task_list' => 'task_lists',
+        'task-list' => 'task_lists',
+        'tasklist' => 'task_lists',
+        'wikilink_title_after_pipe' => 'wikilinks_title_after_pipe',
+        'wikilink_title_before_pipe' => 'wikilinks_title_before_pipe',
+        'wikilink' => 'wikilinks',
+        'wiki_link' => 'wikilinks',
+        'wiki_links' => 'wikilinks',
+    ];
+
     /** @var array<string, array{yamlMetadata:bool, titleBlock:bool, rawAttribute:bool, rawHtml:bool, rawTex:bool, rawMarkdown:bool}> */
     private const DEFAULTS = [
         'markdown' => [
@@ -154,16 +177,21 @@ final class MarkdownFormatProfile
             return [];
         }
 
-        if (preg_match_all('/([+-])([A-Za-z0-9_]+)/', $suffix, $matches, PREG_SET_ORDER) === false) {
+        if (preg_match_all('/([+-])([A-Za-z0-9_-]+)/', $suffix, $matches, PREG_SET_ORDER) === false) {
             return [];
         }
 
         $overrides = [];
         foreach ($matches as $match) {
-            $overrides[strtolower($match[2])] = $match[1] === '+';
+            $overrides[self::canonicalExtension(strtolower($match[2]))] = $match[1] === '+';
         }
 
         return $overrides;
+    }
+
+    private static function canonicalExtension(string $extension): string
+    {
+        return self::EXTENSION_ALIASES[$extension] ?? $extension;
     }
 
     /**
@@ -305,23 +333,6 @@ final class MarkdownFormatProfile
 
     private static function extensionFlag(mixed $format, string $extension, bool $default): bool
     {
-        if (!is_scalar($format)) {
-            return $default;
-        }
-
-        $normalized = strtolower(trim((string) $format));
-        if ($normalized === '') {
-            return $default;
-        }
-
-        if (preg_match_all('/([+-])' . preg_quote($extension, '/') . '(?=$|[+-])/', $normalized, $matches) === false) {
-            return $default;
-        }
-
-        if ($matches[1] === []) {
-            return $default;
-        }
-
-        return end($matches[1]) === '+';
+        return self::markdownExtensionOverrides($format)[$extension] ?? $default;
     }
 }

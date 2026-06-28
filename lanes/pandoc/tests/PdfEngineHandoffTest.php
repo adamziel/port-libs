@@ -8794,6 +8794,79 @@ return [
         $t->same($plan['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
     },
 
+    'maps typst safe pdf standard override history into boundary matrix without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/pdf-standard-safe-history.pdf',
+            'source' => '= Typst Safe PDF Standard History Packet',
+            'engineOptions' => [
+                '--pdf-standard=1.7',
+                '--pdf-standard=a-2b',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst PDF standard safe history packet\n%%EOF\n";
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/pdf-standard-safe-history.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/pdf-standard-safe-history.pdf' => $pdfBytes,
+            ],
+        ]]);
+        $planCases = [];
+        foreach ($plan['typstBoundaryMatrix']['cases'] as $case) {
+            $planCases[$case['case']] = $case;
+        }
+        $resultCases = [];
+        foreach ($result['typstBoundaryMatrix']['cases'] as $case) {
+            $resultCases[$case['case']] = $case;
+        }
+        $details = $planCases['pdf-export-controls']['details'];
+
+        $t->same(true, $result['ok']);
+        $t->same(['boundary-overrides', 'output-format', 'pdf-export-controls'], array_column($plan['typstBoundaryMatrix']['cases'], 'case'));
+        $t->same('review', $plan['typstBoundaryMatrix']['reviewStatus']);
+        $t->same(3, $plan['typstBoundaryMatrix']['caseCount']);
+        $t->same(2, $plan['typstBoundaryMatrix']['reviewCaseCount']);
+        $t->same(2, $plan['typstBoundaryMatrix']['issueCount']);
+        $t->same(1, $planCases['pdf-export-controls']['observed']);
+        $t->same(1, $details['pdfStandardCount']);
+        $t->same(0, $details['pdfVersionCount']);
+        $t->same(['a-2b'], $details['pdfStandards']);
+        $t->same(2, $details['pdfStandardHistoryCount']);
+        $t->same(0, $details['invalidPdfStandardCount']);
+        $t->same(1, $details['overrideCount']);
+        $t->same([
+            [
+                'raw' => '1.7',
+                'value' => '1.7',
+                'standards' => ['1.7'],
+                'standardCount' => 1,
+                'safe' => true,
+                'issues' => [],
+            ],
+            [
+                'raw' => 'a-2b',
+                'value' => 'a-2b',
+                'standards' => ['a-2b'],
+                'standardCount' => 1,
+                'safe' => true,
+                'issues' => [],
+            ],
+        ], $plan['typstBoundaryProvenance']['pdfStandardHistory']);
+        $t->contains('boundary-overrides:pdf-standard-boundary-overridden', implode(',', $plan['typstBoundaryMatrix']['issues']));
+        $t->contains('pdf-export-controls:pdf-standard-boundary-overridden', implode(',', $plan['typstBoundaryMatrix']['issues']));
+        $t->contains('typst-boundary-matrix-review-cases:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-matrix-issues:2', implode(',', $plan['diagnostics']));
+        $t->same($details, $resultCases['pdf-export-controls']['details']);
+        $t->same($plan['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($plan['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
+    },
+
     'maps typst pdf page and ppi export controls into boundary matrix without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

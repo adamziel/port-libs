@@ -241,6 +241,41 @@ return [
         $t->same('chapter', $resourceProperties['itemsByProperty']['mathml'][0]['id']);
         $t->same('chapter', $resourceProperties['itemsByProperty']['svg'][0]['id']);
     },
+    'keeps malformed plainmath fallback valid in generated epub xhtml' => static function (TestRunner $t) use ($text, $paragraph): void {
+        $document = new AstNode('document', [
+            'meta' => ['title' => 'PlainMath Fallback EPUB', 'author' => 'Port Libs', 'lang' => 'en'],
+        ], [
+            new AstNode('heading', ['level' => 1], [$text('PlainMath Fallback EPUB')]),
+            $paragraph([
+                $text('Inline '),
+                new AstNode('math', ['text' => '\frac{a}{b}', 'display' => false]),
+                $text(' then malformed '),
+                new AstNode('math', ['text' => '\frac{a}{', 'display' => false]),
+                $text('.'),
+            ]),
+            $paragraph([
+                new AstNode('math', ['text' => '\begin{pmatrix}a&b', 'display' => true]),
+            ]),
+        ]);
+
+        $bytes = (new EpubWriter([
+            'modified' => '2026-06-25T14:20:00Z',
+            'writerEpubTitlePage' => false,
+        ]))->write($document);
+        $zip = ZipPackage::fromString($bytes);
+        $opf = $zip->read('EPUB/package.opf');
+        $chapter = $zip->read('EPUB/text/chapter.xhtml');
+        $dom = new DOMDocument('1.0', 'UTF-8');
+
+        $t->true($dom->loadXML($chapter, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING));
+        $t->contains('<item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml" properties="mathml"/>', $opf);
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">', $chapter);
+        $t->contains('<mfrac><mi>a</mi><mi>b</mi></mfrac>', $chapter);
+        $t->contains('<span class="math inline">\frac{a}{</span>', $chapter);
+        $t->contains('<span class="math display">\begin{pmatrix}a&amp;b</span>', $chapter);
+        $t->true(!str_contains($chapter, '<mi>\\frac</mi>'));
+        $t->true(!str_contains($chapter, '<mi>\\begin</mi>'));
+    },
     'packages configured epub stylesheets and links every xhtml surface' => static function (TestRunner $t) use ($text, $paragraph): void {
         $document = new AstNode('document', [
             'meta' => [

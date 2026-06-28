@@ -15490,6 +15490,9 @@ final class XmlHtmlDom
         if ($httpEquiv === 'content-security-policy' || $httpEquiv === 'content-security-policy-report-only') {
             $summary += self::metaContentSecurityPolicySummary($content, $httpEquiv);
         }
+        if (strtolower(trim((string) self::attributeOrNull($element, 'name'))) === 'referrer') {
+            $summary += self::metaReferrerPolicySummary($content);
+        }
 
         return $summary;
     }
@@ -16323,6 +16326,61 @@ final class XmlHtmlDom
                 $issues
             ))),
             'colorSchemeValid' => $issues === [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function metaReferrerPolicySummary(?string $content): array
+    {
+        $raw = $content;
+        $normalized = $raw === null ? null : strtolower(trim($raw));
+        $legacyMappings = [
+            'never' => 'no-referrer',
+            'default' => 'default-referrer-policy',
+            'always' => 'unsafe-url',
+            'origin-when-crossorigin' => 'origin-when-cross-origin',
+        ];
+        $legacyValue = $normalized !== null && isset($legacyMappings[$normalized]) ? $normalized : null;
+        $policy = null;
+        $policySource = 'none';
+        $issues = [];
+
+        if ($raw === null) {
+            $issues[] = ['code' => 'missing-meta-referrer-content'];
+        } elseif ($normalized === '') {
+            $issues[] = ['code' => 'empty-meta-referrer-content'];
+        } elseif ($legacyValue !== null) {
+            $policy = $legacyMappings[$legacyValue];
+            $policySource = 'legacy-alias';
+        } else {
+            $policy = self::referrerPolicyState($raw);
+            $policySource = $policy === null ? 'invalid-token' : 'referrer-policy';
+            if ($policy === null) {
+                $issues[] = [
+                    'code' => 'invalid-meta-referrer-policy',
+                    'contentRaw' => $raw,
+                ];
+            }
+        }
+
+        return [
+            'metaReferrerReviewPolicy' => 'meta-referrer-policy-review',
+            'metaReferrerRaw' => $raw,
+            'metaReferrerNormalized' => $normalized,
+            'metaReferrerLegacyValue' => $legacyValue,
+            'metaReferrerLegacyMapped' => $legacyValue !== null,
+            'metaReferrerPolicy' => $policy,
+            'metaReferrerPolicySource' => $policySource,
+            'metaReferrerDefaultPolicyRequested' => $policy === 'default-referrer-policy',
+            'metaReferrerApplies' => $issues === [],
+            'metaReferrerIssues' => $issues,
+            'metaReferrerIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'metaReferrerValid' => $issues === [],
         ];
     }
 

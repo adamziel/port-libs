@@ -898,6 +898,10 @@ final class NativeReader
             return new AstNode('raw_tex', ['format' => $format, 'text' => $text, 'tex' => $text]);
         }
 
+        if ($this->isMarkdownRawFormat($format)) {
+            return new AstNode('raw_markdown', ['format' => $format, 'text' => $text, 'markdown' => $text]);
+        }
+
         return new AstNode('raw_block', ['format' => $format, 'text' => $text]);
     }
 
@@ -1039,13 +1043,34 @@ final class NativeReader
             return new AstNode('raw_tex_inline', ['format' => $format, 'text' => $text, 'tex' => $text]);
         }
 
+        if ($this->isMarkdownRawFormat($format)) {
+            return new AstNode('raw_markdown', ['format' => $format, 'text' => $text, 'markdown' => $text]);
+        }
+
         return new AstNode('raw_inline', ['format' => $format, 'text' => $text]);
+    }
+
+    private function isMarkdownRawFormat(string $format): bool
+    {
+        $normalized = $this->rawFormatBase($format);
+
+        return in_array($normalized, [
+            'markdown',
+            'markdown_strict',
+            'markdown_phpextra',
+            'markdown_github',
+            'markdown_mmd',
+            'pandoc',
+            'commonmark',
+            'commonmark_x',
+            'gfm',
+        ], true);
     }
 
     private function isHtmlRawFormat(string $format): bool
     {
         $normalized = strtolower(str_replace('-', '+', $format));
-        $baseFormat = explode('+', $normalized, 2)[0];
+        $baseFormat = $this->rawFormatBase($format);
 
         return in_array($normalized, ['html', 'html4', 'html5', 'xhtml'], true)
             || in_array($baseFormat, ['html', 'html4', 'html5', 'xhtml'], true);
@@ -1053,11 +1078,17 @@ final class NativeReader
 
     private function isTexRawFormat(string $format): bool
     {
-        $normalized = strtolower(str_replace('-', '+', $format));
-        $baseFormat = explode('+', $normalized, 2)[0];
+        $baseFormat = $this->rawFormatBase($format);
 
-        return in_array($normalized, ['tex', 'latex', 'context'], true)
-            || in_array($baseFormat, ['tex', 'latex', 'context'], true);
+        return in_array($baseFormat, ['tex', 'latex', 'context'], true);
+    }
+
+    private function rawFormatBase(string $format): string
+    {
+        $format = strtolower($format);
+        $format = str_replace('-', '+', $format);
+
+        return explode('+', $format, 2)[0];
     }
 
     /**
