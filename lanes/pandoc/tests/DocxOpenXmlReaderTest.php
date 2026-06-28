@@ -22545,6 +22545,117 @@ XML;
         $t->same('00ABCDEF', $replyNote->attr('commentParentParaId'));
         $t->same(false, $replyNote->attr('commentResolved'));
     },
+    'summarizes docx commentsExtended identifier diagnostics for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/comments/review-comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>' . "\n" .
+            '  <Override PartName="/word/comments/diagnostic-comments-extended.xml" ContentType="application/vnd.ms-word.commentsExt+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments/review-comments.xml"/>' . "\n" .
+            '  <Relationship Id="rDiagnosticCommentsExtended" Type="http://schemas.microsoft.com/office/2011/relationships/commentsExtended" Target="comments/diagnostic-comments-extended.xml?thread=diagnostics#commentsEx"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '<w:hyperlink r:id="rLink"><w:r><w:t>source link</w:t></w:r></w:hyperlink>',
+            '<w:hyperlink r:id="rLink"><w:r><w:t>source link</w:t></w:r></w:hyperlink>' . "\n" .
+            '      <w:r><w:t xml:space="preserve"> with duplicate extended comment </w:t></w:r>' . "\n" .
+            '      <w:r><w:commentReference w:id="12"/></w:r>' . "\n" .
+            '      <w:r><w:t xml:space="preserve"> and threaded extended comment </w:t></w:r>' . "\n" .
+            '      <w:r><w:commentReference w:id="13"/></w:r>',
+            $parts['word/document.xml']
+        );
+        $parts['word/comments/review-comments.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml">
+  <w:comment w:id="12" w:author="Review Lead">
+    <w:p w14:paraId="00ABCDEF"><w:r><w:t>Duplicate extended comment context.</w:t></w:r></w:p>
+  </w:comment>
+  <w:comment w:id="13" w:author="Review Reply">
+    <w:p w14:paraId="00FEDCBA"><w:r><w:t>Threaded extended comment context.</w:t></w:r></w:p>
+  </w:comment>
+</w:comments>
+XML;
+        $parts['word/comments/diagnostic-comments-extended.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w15:commentsEx xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+  <w15:commentEx w15:paraId="00ABCDEF" w15:done="0"/>
+  <w15:commentEx w15:paraId="00ABCDEF" w15:done="1"/>
+  <w15:commentEx w15:done="1"/>
+  <w15:commentEx w15:paraId="00FEDCBA" w15:paraIdParent="00ABCDEF" w15:done="0"/>
+</w15:commentsEx>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $commentsExtended = $docx['commentsExtended'];
+        $summary = $docx['packageProvenance']['summary'];
+        $selected = $docx['packageProvenance']['selectedXmlParts']['byKind']['commentsExtended'];
+        $paragraph = $document->children[1];
+        $notes = array_values(array_filter($paragraph->children, static fn (AstNode $node): bool => $node->type === 'note'));
+        $duplicateNote = $notes[0];
+        $replyNote = $notes[1];
+
+        $t->same('word/comments/diagnostic-comments-extended.xml', $docx['commentsExtendedPart']);
+        $t->same('rDiagnosticCommentsExtended', $docx['commentsExtendedRelationship']['id']);
+        $t->same('comments/diagnostic-comments-extended.xml?thread=diagnostics#commentsEx', $docx['commentsExtendedRelationship']['target']);
+        $t->same('thread=diagnostics', $docx['commentsExtendedRelationship']['targetQuery']);
+        $t->same('commentsEx', $docx['commentsExtendedRelationship']['targetFragment']);
+
+        $t->same(4, $commentsExtended['count']);
+        $t->same(2, $commentsExtended['resolvedCount']);
+        $t->same(1, $commentsExtended['threadedCount']);
+        $t->same(1, $commentsExtended['missingParaIdCount']);
+        $t->same(1, $commentsExtended['duplicateParaIdCount']);
+        $t->same(['00ABCDEF'], $commentsExtended['duplicateParaIds']);
+        $t->same(['00ABCDEF', '00FEDCBA'], $commentsExtended['paraIds']);
+        $t->same(1, $commentsExtended['issueCount']);
+        $t->same(['missing-para-id'], $commentsExtended['issueCodes']);
+
+        $t->same(true, $commentsExtended['items'][0]['duplicateParaId']);
+        $t->same(false, $commentsExtended['items'][0]['resolved']);
+        $t->same([], $commentsExtended['items'][0]['issues']);
+        $t->same(true, $commentsExtended['items'][1]['duplicateParaId']);
+        $t->same(true, $commentsExtended['items'][1]['resolved']);
+        $t->same(null, $commentsExtended['items'][2]['paraId']);
+        $t->same(['missing-para-id'], $commentsExtended['items'][2]['issues']);
+        $t->same(false, $commentsExtended['items'][3]['duplicateParaId']);
+        $t->same('00ABCDEF', $commentsExtended['items'][3]['parentParaId']);
+        $t->same(true, $commentsExtended['byParaId']['00ABCDEF']['duplicateParaId']);
+        $t->same(true, $commentsExtended['byParaId']['00ABCDEF']['resolved']);
+        $t->same(false, $commentsExtended['byParaId']['00FEDCBA']['resolved']);
+
+        $t->same(4, $summary['commentsExtendedCount']);
+        $t->same(2, $summary['commentsExtendedResolvedCount']);
+        $t->same(1, $summary['commentsExtendedThreadedCount']);
+        $t->same(1, $summary['commentsExtendedMissingParaIdCount']);
+        $t->same(1, $summary['commentsExtendedDuplicateParaIdCount']);
+        $t->same(['00ABCDEF'], $summary['commentsExtendedDuplicateParaIds']);
+        $t->same(1, $summary['commentsExtendedIssueCount']);
+        $t->same(['missing-para-id'], $summary['commentsExtendedIssueCodes']);
+
+        $t->same('commentsExtended', $selected['kind']);
+        $t->same('commentsEx', $selected['rootLocalName']);
+        $t->same(true, $selected['validRoot']);
+        $t->same([], $selected['issues']);
+
+        $t->same('00ABCDEF', $docx['comments']['byId']['12']['commentParaId']);
+        $t->same(true, $docx['comments']['byId']['12']['commentResolved']);
+        $t->same('word/comments/diagnostic-comments-extended.xml', $docx['comments']['byId']['12']['commentsExtendedPart']);
+        $t->same('00FEDCBA', $docx['comments']['byId']['13']['commentParaId']);
+        $t->same('00ABCDEF', $docx['comments']['byId']['13']['commentParentParaId']);
+        $t->same(false, $docx['comments']['byId']['13']['commentResolved']);
+
+        $t->same('12', $duplicateNote->attr('id'));
+        $t->same(true, $duplicateNote->attr('commentResolved'));
+        $t->same('13', $replyNote->attr('id'));
+        $t->same('00ABCDEF', $replyNote->attr('commentParentParaId'));
+    },
     'reports malformed docx commentsExtended xml without aborting package ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
