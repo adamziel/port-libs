@@ -17993,6 +17993,102 @@ XML;
         $t->true(is_string($encodedStructures), 'XML element structure metadata should encode for review');
         $t->true(!str_contains((string) $encodedStructures, $hiddenText), 'raw XML element text should not be exposed in structure metadata');
     },
+    'summarizes docx package xml element child profiles without exposing text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $textPayload = 'child-profile:hidden-text';
+        $beforePayload = 'child-profile:hidden-before';
+        $afterPayload = 'child-profile:hidden-after';
+        $commentPayload = 'child-profile:hidden-comment';
+        $piPayload = 'child-profile:hidden-pi';
+        $cdataPayload = 'child-profile:hidden-cdata';
+        $parts['customXml/child-profile-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:profilePacket xmlns:review="urn:review-child-profile"><review:profileEmpty/><review:profileContainer><review:profileItem>{$textPayload}</review:profileItem><review:profileItem><review:profileNested/></review:profileItem></review:profileContainer><review:profileMixed>{$beforePayload}<review:profileInline/>{$afterPayload}</review:profileMixed><review:profileMetadata><!--{$commentPayload}--><?audit token="{$piPayload}"?></review:profileMetadata><review:profileCdata><![CDATA[{$cdataPayload}]]></review:profileCdata></review:profilePacket>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/child-profile-review.xml'];
+        $profiles = array_values(array_filter(
+            $summary['partXmlElementChildProfiles'],
+            static fn (array $profile): bool => ($profile['partName'] ?? null) === 'customXml/child-profile-review.xml',
+        ));
+        $profilesByPathAndModel = [];
+        foreach ($profiles as $profile) {
+            $profilesByPathAndModel[$profile['elementPath'] . '|' . $profile['contentModel']] = $profile;
+        }
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(10, $reviewPart['xmlElementChildProfileCount']);
+        $t->same(3, $reviewPart['xmlElementChildProfileEmptyElementCount']);
+        $t->same(3, $reviewPart['xmlElementChildProfileElementOnlyCount']);
+        $t->same(2, $reviewPart['xmlElementChildProfileTextOnlyCount']);
+        $t->same(1, $reviewPart['xmlElementChildProfileMixedContentCount']);
+        $t->same(1, $reviewPart['xmlElementChildProfileMetadataOnlyCount']);
+        $t->same(0, $reviewPart['xmlElementChildProfileWhitespaceOnlyCount']);
+        $t->same(9, $reviewPart['xmlElementChildProfileElementChildCount']);
+        $t->same(3, $reviewPart['xmlElementChildProfileTextNodeChildCount']);
+        $t->same(0, $reviewPart['xmlElementChildProfileWhitespaceTextNodeChildCount']);
+        $t->same(3, $reviewPart['xmlElementChildProfileNonWhitespaceTextNodeChildCount']);
+        $t->same(1, $reviewPart['xmlElementChildProfileCdataSectionChildCount']);
+        $t->same(1, $reviewPart['xmlElementChildProfileCommentChildCount']);
+        $t->same(1, $reviewPart['xmlElementChildProfileProcessingInstructionChildCount']);
+        $t->same(0, $reviewPart['xmlElementChildProfileEntityReferenceChildCount']);
+        $t->same([
+            'element-only' => 3,
+            'empty' => 3,
+            'metadata-only' => 1,
+            'mixed' => 1,
+            'text-only' => 2,
+        ], $reviewPart['xmlElementChildProfileContentModelCounts']);
+        $t->same(['urn:review-child-profile' => 10], $reviewPart['xmlElementChildProfileNamespaceCounts']);
+        $t->same(2, $reviewPart['xmlElementChildProfileLocalNameCounts']['profileItem']);
+        $t->same(1, $reviewPart['xmlElementChildProfileQualifiedNameCounts']['review:profileMixed']);
+        $t->same(2, $reviewPart['xmlElementChildProfilePathCounts']['/review:profilePacket/review:profileContainer/review:profileItem']);
+
+        $packet = $reviewPart['xmlElementChildProfiles'][0];
+        $empty = $profilesByPathAndModel['/review:profilePacket/review:profileEmpty|empty'];
+        $mixed = $profilesByPathAndModel['/review:profilePacket/review:profileMixed|mixed'];
+        $metadata = $profilesByPathAndModel['/review:profilePacket/review:profileMetadata|metadata-only'];
+        $cdata = $profilesByPathAndModel['/review:profilePacket/review:profileCdata|text-only'];
+        $textItem = $profilesByPathAndModel['/review:profilePacket/review:profileContainer/review:profileItem|text-only'];
+
+        $t->same('/review:profilePacket', $packet['elementPath']);
+        $t->same('element-only', $packet['contentModel']);
+        $t->same(5, $packet['elementChildCount']);
+        $t->same(0, $packet['textNodeChildCount']);
+        $t->same(false, $packet['hasMixedContent']);
+        $t->same('empty', $empty['contentModel']);
+        $t->same(0, $empty['childNodeCount']);
+        $t->same('text-only', $textItem['contentModel']);
+        $t->same(1, $textItem['textNodeChildCount']);
+        $t->same(1, $textItem['nonWhitespaceTextNodeChildCount']);
+        $t->same('mixed', $mixed['contentModel']);
+        $t->same(3, $mixed['childNodeCount']);
+        $t->same(1, $mixed['elementChildCount']);
+        $t->same(2, $mixed['textNodeChildCount']);
+        $t->same(2, $mixed['nonWhitespaceTextNodeChildCount']);
+        $t->same(true, $mixed['hasMixedContent']);
+        $t->same('metadata-only', $metadata['contentModel']);
+        $t->same(2, $metadata['childNodeCount']);
+        $t->same(1, $metadata['commentChildCount']);
+        $t->same(1, $metadata['processingInstructionChildCount']);
+        $t->same('text-only', $cdata['contentModel']);
+        $t->same(1, $cdata['cdataSectionChildCount']);
+        $t->same(0, $cdata['textNodeChildCount']);
+
+        $t->true(in_array('customXml/child-profile-review.xml', $summary['partXmlElementChildProfilePartNames'], true), 'child profile part should be summarized');
+        $t->same(10, count($profiles));
+        $t->same(10, $summary['partXmlElementChildProfileNamespaceCounts']['urn:review-child-profile']);
+        $t->same(1, $summary['partXmlElementChildProfileQualifiedNameCounts']['review:profileMetadata']);
+        $t->same(2, $summary['partXmlElementChildProfilePathCounts']['/review:profilePacket/review:profileContainer/review:profileItem']);
+        $t->true($summary['partXmlElementChildProfileMixedContentCount'] >= 1, 'summary should include mixed-content element profiles');
+        $t->true($summary['partXmlElementChildProfileCdataSectionChildCount'] >= 1, 'summary should include CDATA child profile counters');
+        $encodedProfiles = json_encode([$reviewPart, $profiles]);
+        $t->true(is_string($encodedProfiles), 'XML element child profile metadata should encode for review');
+        $t->true(!str_contains((string) $encodedProfiles, 'child-profile:hidden'), 'raw XML child text should not be exposed in child profile metadata');
+    },
     'summarizes docx package xml repeated sibling elements without exposing text' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $hiddenText = 'hidden-repeated-sibling-payload';
