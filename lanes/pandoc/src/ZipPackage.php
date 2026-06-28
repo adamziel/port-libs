@@ -5074,6 +5074,8 @@ final class ZipPackage
      *     unreadableEntryCount:int,
      *     duplicateRequestedEntryCount:int,
      *     duplicateRequestedEntryGroupCount:int,
+     *     byteExposurePolicySummaryCount:int,
+     *     handoffByteExposurePolicySummaryCount:int,
      *     selectedNameHygieneReviewEntryCount:int,
      *     selectedNameHygieneIssueCount:int,
      *     handoffNameHygieneReviewEntryCount:int,
@@ -5695,6 +5697,7 @@ final class ZipPackage
                 'required' => $required,
                 'expectedKind' => $expectedKind,
                 'exists' => $entry !== null,
+                'byteExposurePolicy' => 'missing',
                 'isDirectory' => null,
                 'directoryRoot' => null,
                 'parentDirectory' => null,
@@ -6075,6 +6078,7 @@ final class ZipPackage
             $summary['bytesRead'] = $bytesRead;
             $summary['contentSha256'] = $contentSha256;
             $summary['status'] = $status;
+            $summary['byteExposurePolicy'] = $isReadable ? 'readable' : 'metadata-only';
             $summary['error'] = $error;
             $summary['issues'] = $entryIssues;
 
@@ -6176,6 +6180,8 @@ final class ZipPackage
         $handoffContentDigestSummary = self::entryHandoffContentDigestSummary($handoffEntries);
         $requirementSummaries = self::entryHandoffRequirementSummaries($entries);
         $statusSummaries = self::entryHandoffStatusSummaries($entries);
+        $byteExposurePolicySummaries = self::entryHandoffByteExposurePolicySummaries($entries);
+        $handoffByteExposurePolicySummaries = self::entryHandoffByteExposurePolicySummaries($handoffEntries);
 
         return [
             'requestedEntryCount' => count($requests),
@@ -6246,6 +6252,8 @@ final class ZipPackage
             'unreadableEntryCount' => $unreadableEntryCount,
             'duplicateRequestedEntryCount' => $duplicateRequestedEntryCount,
             'duplicateRequestedEntryGroupCount' => count($duplicateRequestedEntryGroups),
+            'byteExposurePolicySummaryCount' => count($byteExposurePolicySummaries),
+            'handoffByteExposurePolicySummaryCount' => count($handoffByteExposurePolicySummaries),
             'requestedRoleCount' => count($roleSummaries),
             'requestRequirementSummaryCount' => count($requirementSummaries),
             'requestStatusSummaryCount' => count($statusSummaries),
@@ -6400,6 +6408,8 @@ final class ZipPackage
             'roleSummaries' => $roleSummaries,
             'requirementSummaries' => $requirementSummaries,
             'statusSummaries' => $statusSummaries,
+            'byteExposurePolicySummaries' => $byteExposurePolicySummaries,
+            'handoffByteExposurePolicySummaries' => $handoffByteExposurePolicySummaries,
             'selectedDirectoryRootSummaries' => $selectedDirectoryRootSummaries,
             'handoffDirectoryRootSummaries' => $handoffDirectoryRootSummaries,
             'selectedPackagePartKindSummaries' => $selectedPackagePartKindSummaries,
@@ -7428,6 +7438,157 @@ final class ZipPackage
         }
 
         return $ordered;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffByteExposurePolicySummaries(array $entries): array
+    {
+        $summaries = [];
+        $seenNamesByPolicy = [];
+        $seenHandoffNamesByPolicy = [];
+        foreach ($entries as $entry) {
+            $policy = is_string($entry['byteExposurePolicy'] ?? null) && $entry['byteExposurePolicy'] !== ''
+                ? $entry['byteExposurePolicy']
+                : self::entryHandoffByteExposurePolicy($entry);
+            if (!isset($summaries[$policy])) {
+                $summaries[$policy] = [
+                    'byteExposurePolicy' => $policy,
+                    'requestCount' => 0,
+                    'requiredCount' => 0,
+                    'optionalCount' => 0,
+                    'presentEntryCount' => 0,
+                    'missingEntryCount' => 0,
+                    'readableEntryCount' => 0,
+                    'metadataOnlyEntryCount' => 0,
+                    'handoffEntryCount' => 0,
+                    'handoffUniqueEntryCount' => 0,
+                    'failedEntryCount' => 0,
+                    'duplicateRequestCount' => 0,
+                    'selectedUniqueEntryCount' => 0,
+                    'selectedCompressedBytes' => 0,
+                    'selectedUncompressedBytes' => 0,
+                    'handoffCompressedBytes' => 0,
+                    'handoffUncompressedBytes' => 0,
+                    'roles' => [],
+                    'entryNames' => [],
+                    'selectedEntryNames' => [],
+                    'handoffEntryNames' => [],
+                    'missingEntryNames' => [],
+                    'failedEntryNames' => [],
+                    'issues' => [],
+                    'issueCounts' => [],
+                ];
+                $seenNamesByPolicy[$policy] = [];
+                $seenHandoffNamesByPolicy[$policy] = [];
+            }
+
+            ++$summaries[$policy]['requestCount'];
+            if (($entry['required'] ?? false) === true) {
+                ++$summaries[$policy]['requiredCount'];
+            } else {
+                ++$summaries[$policy]['optionalCount'];
+            }
+
+            $role = is_string($entry['role'] ?? null) && $entry['role'] !== ''
+                ? $entry['role']
+                : null;
+            if ($role !== null && !in_array($role, $summaries[$policy]['roles'], true)) {
+                $summaries[$policy]['roles'][] = $role;
+            }
+
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name !== '') {
+                $summaries[$policy]['entryNames'][] = $name;
+            }
+
+            if (($entry['exists'] ?? false) === true) {
+                ++$summaries[$policy]['presentEntryCount'];
+                if ($name !== '' && !isset($seenNamesByPolicy[$policy][$name])) {
+                    $seenNamesByPolicy[$policy][$name] = true;
+                    ++$summaries[$policy]['selectedUniqueEntryCount'];
+                    $summaries[$policy]['selectedEntryNames'][] = $name;
+                    $summaries[$policy]['selectedCompressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+                    $summaries[$policy]['selectedUncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+                }
+            } else {
+                ++$summaries[$policy]['missingEntryCount'];
+                if ($name !== '') {
+                    $summaries[$policy]['missingEntryNames'][] = $name;
+                }
+            }
+
+            if (($entry['isReadable'] ?? false) === true) {
+                ++$summaries[$policy]['readableEntryCount'];
+            } elseif (($entry['exists'] ?? false) === true) {
+                ++$summaries[$policy]['metadataOnlyEntryCount'];
+            }
+
+            if (($entry['isDuplicateRequest'] ?? false) === true) {
+                ++$summaries[$policy]['duplicateRequestCount'];
+            }
+
+            $issues = array_values(array_filter($entry['issues'] ?? [], 'is_string'));
+            if ($policy === 'readable' && ($entry['exists'] ?? false) === true) {
+                ++$summaries[$policy]['handoffEntryCount'];
+                if ($name !== '' && !isset($seenHandoffNamesByPolicy[$policy][$name])) {
+                    $seenHandoffNamesByPolicy[$policy][$name] = true;
+                    ++$summaries[$policy]['handoffUniqueEntryCount'];
+                    $summaries[$policy]['handoffEntryNames'][] = $name;
+                    $summaries[$policy]['handoffCompressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+                    $summaries[$policy]['handoffUncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+                }
+            }
+
+            if ($issues !== []) {
+                ++$summaries[$policy]['failedEntryCount'];
+                if ($name !== '') {
+                    $summaries[$policy]['failedEntryNames'][] = $name;
+                }
+                foreach ($issues as $issue) {
+                    if (!in_array($issue, $summaries[$policy]['issues'], true)) {
+                        $summaries[$policy]['issues'][] = $issue;
+                    }
+                    $summaries[$policy]['issueCounts'][$issue] = ($summaries[$policy]['issueCounts'][$issue] ?? 0) + 1;
+                }
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['roles'], SORT_STRING);
+            sort($summary['issues'], SORT_STRING);
+            ksort($summary['issueCounts'], SORT_STRING);
+        }
+        unset($summary);
+
+        $ordered = [];
+        foreach (['readable', 'metadata-only', 'missing'] as $policy) {
+            if (isset($summaries[$policy])) {
+                $ordered[] = $summaries[$policy];
+                unset($summaries[$policy]);
+            }
+        }
+
+        ksort($summaries, SORT_STRING);
+        foreach ($summaries as $summary) {
+            $ordered[] = $summary;
+        }
+
+        return $ordered;
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     */
+    private static function entryHandoffByteExposurePolicy(array $entry): string
+    {
+        if (($entry['exists'] ?? false) !== true) {
+            return 'missing';
+        }
+
+        return ($entry['isReadable'] ?? false) === true ? 'readable' : 'metadata-only';
     }
 
     /**

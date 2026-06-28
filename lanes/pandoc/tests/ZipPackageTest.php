@@ -13011,6 +13011,97 @@ return [
         $t->same([], $byStatus['missing-optional']['issueCounts']);
     },
 
+    'summarizes selected zip byte exposure policies before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>byte exposure policy</w:p></w:body></w:document>';
+        $relsXml = '<Relationships><Relationship Id="rIdMedia" Target="media/raw.bin"/></Relationships>';
+        $largeBytes = "metadata-only selected media bytes\n";
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $relsXml, 'method' => 0],
+            ['name' => 'word/media/raw.bin', 'data' => $largeBytes, 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/_rels/document.xml.rels', 'required' => false, 'kind' => 'file', 'role' => 'document-relationships'],
+            ['name' => 'word/media/raw.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 8],
+            ['name' => 'word/missing-required.xml', 'required' => true, 'kind' => 'file', 'role' => 'required-sidecar'],
+            ['name' => 'word/missing-optional.xml', 'required' => false, 'kind' => 'file', 'role' => 'optional-sidecar'],
+        ], 1024);
+
+        $byPolicy = [];
+        foreach ($summary['byteExposurePolicySummaries'] as $policySummary) {
+            $byPolicy[$policySummary['byteExposurePolicy']] = $policySummary;
+        }
+        $handoffByPolicy = [];
+        foreach ($summary['handoffByteExposurePolicySummaries'] as $policySummary) {
+            $handoffByPolicy[$policySummary['byteExposurePolicy']] = $policySummary;
+        }
+
+        $readableBytes = strlen($documentXml) + strlen($relsXml);
+        $t->same(3, $summary['byteExposurePolicySummaryCount']);
+        $t->same(1, $summary['handoffByteExposurePolicySummaryCount']);
+        $t->same(['readable', 'metadata-only', 'missing'], array_keys($byPolicy));
+        $t->same(['readable'], array_keys($handoffByPolicy));
+        $t->same(['readable', 'readable', 'metadata-only', 'missing', 'missing'], array_column($summary['entries'], 'byteExposurePolicy'));
+        $t->same(2, $summary['handoffEntryCount']);
+        $t->same(2, $summary['failedEntryCount']);
+        $t->same(['entry-uncompressed-size-exceeds-limit', 'missing-required-entry'], $summary['issues']);
+
+        $t->same(2, $byPolicy['readable']['requestCount']);
+        $t->same(1, $byPolicy['readable']['requiredCount']);
+        $t->same(1, $byPolicy['readable']['optionalCount']);
+        $t->same(2, $byPolicy['readable']['presentEntryCount']);
+        $t->same(2, $byPolicy['readable']['readableEntryCount']);
+        $t->same(0, $byPolicy['readable']['metadataOnlyEntryCount']);
+        $t->same(2, $byPolicy['readable']['handoffEntryCount']);
+        $t->same(2, $byPolicy['readable']['handoffUniqueEntryCount']);
+        $t->same(0, $byPolicy['readable']['failedEntryCount']);
+        $t->same(2, $byPolicy['readable']['selectedUniqueEntryCount']);
+        $t->same($readableBytes, $byPolicy['readable']['selectedUncompressedBytes']);
+        $t->same($readableBytes, $byPolicy['readable']['handoffUncompressedBytes']);
+        $t->same(['document-relationships', 'main-document'], $byPolicy['readable']['roles']);
+        $t->same(['word/document.xml', 'word/_rels/document.xml.rels'], $byPolicy['readable']['entryNames']);
+        $t->same(['word/document.xml', 'word/_rels/document.xml.rels'], $byPolicy['readable']['handoffEntryNames']);
+        $t->same($byPolicy['readable'], $handoffByPolicy['readable']);
+
+        $t->same(1, $byPolicy['metadata-only']['requestCount']);
+        $t->same(1, $byPolicy['metadata-only']['presentEntryCount']);
+        $t->same(0, $byPolicy['metadata-only']['readableEntryCount']);
+        $t->same(1, $byPolicy['metadata-only']['metadataOnlyEntryCount']);
+        $t->same(0, $byPolicy['metadata-only']['handoffEntryCount']);
+        $t->same(1, $byPolicy['metadata-only']['failedEntryCount']);
+        $t->same(1, $byPolicy['metadata-only']['selectedUniqueEntryCount']);
+        $t->same(strlen($largeBytes), $byPolicy['metadata-only']['selectedUncompressedBytes']);
+        $t->same(0, $byPolicy['metadata-only']['handoffUncompressedBytes']);
+        $t->same(['media'], $byPolicy['metadata-only']['roles']);
+        $t->same(['word/media/raw.bin'], $byPolicy['metadata-only']['selectedEntryNames']);
+        $t->same(['word/media/raw.bin'], $byPolicy['metadata-only']['failedEntryNames']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $byPolicy['metadata-only']['issues']);
+        $t->same(['entry-uncompressed-size-exceeds-limit' => 1], $byPolicy['metadata-only']['issueCounts']);
+
+        $t->same(2, $byPolicy['missing']['requestCount']);
+        $t->same(1, $byPolicy['missing']['requiredCount']);
+        $t->same(1, $byPolicy['missing']['optionalCount']);
+        $t->same(0, $byPolicy['missing']['presentEntryCount']);
+        $t->same(2, $byPolicy['missing']['missingEntryCount']);
+        $t->same(0, $byPolicy['missing']['readableEntryCount']);
+        $t->same(0, $byPolicy['missing']['metadataOnlyEntryCount']);
+        $t->same(0, $byPolicy['missing']['handoffEntryCount']);
+        $t->same(1, $byPolicy['missing']['failedEntryCount']);
+        $t->same(['optional-sidecar', 'required-sidecar'], $byPolicy['missing']['roles']);
+        $t->same(['word/missing-required.xml', 'word/missing-optional.xml'], $byPolicy['missing']['missingEntryNames']);
+        $t->same(['word/missing-required.xml'], $byPolicy['missing']['failedEntryNames']);
+        $t->same(['missing-required-entry'], $byPolicy['missing']['issues']);
+        $t->same(['missing-required-entry' => 1], $byPolicy['missing']['issueCounts']);
+
+        $t->same(null, $summary['entries'][2]['bytesRead']);
+        $t->same(null, $summary['entries'][2]['contentSha256']);
+        $t->same('metadata-only', $summary['entries'][2]['byteExposurePolicy']);
+        $t->same('missing', $summary['entries'][3]['byteExposurePolicy']);
+        $t->same('missing', $summary['entries'][4]['byteExposurePolicy']);
+    },
+
     'summarizes readable zip handoff content digests for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>content digest handoff</w:p></w:body></w:document>';
         $commentsXml = '<w:comments><w:comment><w:p>digest note</w:p></w:comment></w:comments>';
