@@ -8,6 +8,7 @@ use PortLibs\LightningCSS\CustomMediaTransformer;
 use PortLibs\LightningCSS\CssModulesTransformer;
 use PortLibs\LightningCSS\LightningCssCliOptions;
 use PortLibs\LightningCSS\NestingTransformer;
+use PortLibs\LightningCSS\SourceMap;
 use PortLibs\LightningCSS\TransitionPrefixer;
 
 $resolveBrowserslist = static function (
@@ -136,6 +137,17 @@ CSS);
   }
 }
 CSS . "\n", $output);
+    },
+    'lightningcss cli preserves custom media definitions when requested' => static function (TestRunner $t) use ($temporaryPath): void {
+        // Pinned upstream 22bdda3d tests/cli_integration_tests.rs::preserve_custom_media lines 477-494.
+        $inputFile = $temporaryPath('test.css');
+        file_put_contents($inputFile, "@custom-media --foo print;\n");
+        $plan = LightningCssCliOptions::planOutputs([$inputFile]);
+
+        $t->contains(
+            '@custom-media --foo print;',
+            (new CustomMediaTransformer())->transform((string) file_get_contents($plan['inputs'][0]), true)
+        );
     },
     'lightningcss cli output file preserves checked input is selector' => static function (TestRunner $t) use ($temporaryPath): void {
         // Pinned upstream 22bdda3d tests/cli_integration_tests.rs::next_66191 lines 794-812.
@@ -270,6 +282,75 @@ CSS);
             'circles' => $moduleExport('EgL3uq_circles', true),
             'fade' => $moduleExport('EgL3uq_fade'),
         ], $actual['exports']);
+    },
+    'lightningcss cli applies css modules pattern option' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d tests/cli_integration_tests.rs::css_modules_pattern lines 377-390.
+        $result = (new CssModulesTransformer())->transform('.foo { color: red; }', [
+            'pattern' => '[name]-[hash]-[local]',
+        ]);
+        $stdout = LightningCssCliOptions::cssModulesStdoutJson($result['code'], $result['exports']);
+
+        $t->contains('test-EgL3uq-foo', $stdout);
+    },
+    'lightningcss cli fails invalid css modules local global nesting' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d tests/cli_integration_tests.rs::css_modules_next_64299 lines 392-421.
+        try {
+            (new CssModulesTransformer())->transform(<<<'CSS'
+.blue {
+  background: blue;
+
+  :global {
+    .red {
+      background: red;
+    }
+  }
+
+  &:global {
+    &.green {
+      background: green;
+    }
+  }
+}
+CSS);
+        } catch (InvalidArgumentException $exception) {
+            $t->same('Ambiguous CSS module class not supported', $exception->getMessage());
+            return;
+        }
+
+        throw new RuntimeException('Expected invalid CSS modules local/global nesting rejection.');
+    },
+    'lightningcss cli writes sourcemap sidecar details' => static function (TestRunner $t) use ($temporaryPath): void {
+        // Pinned upstream 22bdda3d tests/cli_integration_tests.rs::sourcemap lines 423-449.
+        $inputFile = $temporaryPath('test.css');
+        $outputFile = dirname($inputFile) . DIRECTORY_SEPARATOR . 'out.css';
+        file_put_contents($inputFile, ".foo {\n  color: red;\n}\n");
+
+        $sourceMap = new SourceMap(dirname($inputFile));
+        $sourceIndex = $sourceMap->addSource($inputFile);
+        foreach (
+            [
+                [0, 0, 1, 6],
+                [4, 0, 5, 6],
+                [8, 0, 9, 6],
+                [18, 0, 14, 6],
+                [22, 0, 18, 6],
+                [26, 0, 22, 6],
+            ] as [$generatedLine, $generatedColumn, $originalLine, $originalColumn]
+        ) {
+            $sourceMap->addMapping($generatedLine, $generatedColumn, $sourceIndex, $originalLine, $originalColumn);
+        }
+
+        LightningCssCliOptions::writeOutputFile(
+            $outputFile,
+            LightningCssCliOptions::appendSourceMappingUrl((string) file_get_contents($inputFile), $outputFile)
+        );
+        $mapFile = LightningCssCliOptions::writeSourceMapFile($outputFile, $sourceMap);
+        $mapJson = (string) file_get_contents($mapFile);
+
+        $t->contains('/*# sourceMappingURL=' . $outputFile . '.map */', (string) file_get_contents($outputFile));
+        $t->contains('"version":3', $mapJson);
+        $t->contains('"sources":["test.css"]', $mapJson);
+        $t->contains('"mappings":"AACM;;;;AAIA;;;;AAIA;;;;;;;;;;AAKA;;;;AAIA;;;;AAIA"', $mapJson);
     },
     'lightningcss cli applies browserslist defaults without discovered config' => static function (TestRunner $t) use ($resolveBrowserslist, $prefixBorderRadiusFromBrowserslist): void {
         // Pinned upstream 22bdda3d tests/cli_integration_tests.rs::browserslist_defaults lines 517-540.

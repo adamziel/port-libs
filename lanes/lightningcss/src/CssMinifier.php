@@ -8707,8 +8707,45 @@ final class CssMinifier
         $lower = strtolower($trimmed);
         if (preg_match('/^scroll\((.*)\)$/', $lower, $matches) === 1) {
             $parts = $this->splitWhitespaceTopLevel($matches[1]);
-            sort($parts);
-            $parts = array_values(array_filter($parts, static fn (string $part): bool => $part !== 'block' && $part !== 'nearest'));
+            $legacy = static function (array $parts): string {
+                sort($parts);
+                $parts = array_values(array_filter($parts, static fn (string $part): bool => $part !== 'block' && $part !== 'nearest'));
+
+                return 'scroll(' . implode(' ', $parts) . ')';
+            };
+            $scroller = 'nearest';
+            $axis = 'block';
+            $scrollerSet = false;
+            $axisSet = false;
+            foreach ($parts as $part) {
+                if (in_array($part, ['root', 'nearest', 'self'], true)) {
+                    if ($scrollerSet) {
+                        return $legacy($parts);
+                    }
+                    $scroller = $part;
+                    $scrollerSet = true;
+                    continue;
+                }
+
+                if (in_array($part, ['block', 'inline', 'x', 'y'], true)) {
+                    if ($axisSet) {
+                        return $legacy($parts);
+                    }
+                    $axis = $part;
+                    $axisSet = true;
+                    continue;
+                }
+
+                return $legacy($parts);
+            }
+
+            $parts = [];
+            if ($scroller !== 'nearest') {
+                $parts[] = $scroller;
+            }
+            if ($axis !== 'block') {
+                $parts[] = $axis;
+            }
 
             return 'scroll(' . implode(' ', $parts) . ')';
         }

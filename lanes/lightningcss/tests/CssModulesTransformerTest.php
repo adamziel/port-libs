@@ -3857,6 +3857,55 @@ CSS;
         ], $result['exports']);
         $t->same([], $result['references']);
 
+        // Pinned upstream 22bdda3d src/lib.rs::test_css_modules lines 26641-26709.
+        $upstreamDashedComposite = (new CssModulesTransformer())->transform(<<<'CSS'
+@property --foo {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: yellow;
+}
+
+@font-palette-values --Cooler {
+  font-family: Bixa;
+  base-palette: 1;
+  override-colors: 1 #7EB7E4;
+}
+
+.foo {
+  --foo: red;
+  --bar: green;
+  color: var(--foo);
+  font-palette: --Cooler;
+}
+
+.bar {
+  color: var(--color from "./b.css");
+}
+CSS, [
+            'dashedIdents' => true,
+        ]);
+        $placeholder = array_key_first($upstreamDashedComposite['references']);
+
+        if (!is_string($placeholder)) {
+            throw new RuntimeException('Expected upstream dashed-ident dependency placeholder');
+        }
+
+        $t->same('@property --EgL3uq_foo{syntax:"<color>";inherits:false;initial-value:#ff0}@font-palette-values --EgL3uq_Cooler{font-family:Bixa;base-palette:1;override-colors:1 #7eb7e4}.EgL3uq_foo{--EgL3uq_foo:red;--EgL3uq_bar:green;color:var(--EgL3uq_foo);font-palette:--EgL3uq_Cooler}.EgL3uq_bar{color:var(' . $placeholder . ')}', $upstreamDashedComposite['code']);
+        $t->same([
+            '--foo' => $dashed('--EgL3uq_foo', true),
+            '--Cooler' => $dashed('--EgL3uq_Cooler', true),
+            'foo' => $export('EgL3uq_foo'),
+            '--bar' => $dashed('--EgL3uq_bar'),
+            'bar' => $export('EgL3uq_bar'),
+        ], $upstreamDashedComposite['exports']);
+        $t->same([
+            $placeholder => [
+                'type' => 'dependency',
+                'name' => '--color',
+                'specifier' => './b.css',
+            ],
+        ], $upstreamDashedComposite['references']);
+
         $disabled = (new CssModulesTransformer())->transform($css);
         $t->contains('@property --foo', $disabled['code']);
         $t->contains('@font-palette-values --Cooler', $disabled['code']);

@@ -43,9 +43,11 @@ return [
     'css minifier maps residual upstream animation timeline rows' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
-        // Pinned upstream 22bdda3d src/lib.rs::test_animation lines 12294, 12307, 12311, 12315, 12323, 12327, and 12331.
+        // Pinned upstream 22bdda3d src/lib.rs::test_animation lines 12294, 12299, 12303, 12307, 12311, 12315, 12323, 12327, and 12331.
         $cases = [
             [12294, '.foo { animation: foo 3s scroll() }', '.foo{animation:3s foo scroll()}'],
+            [12299, '.foo { animation: foo 3s scroll(root inline) }', '.foo{animation:3s foo scroll(root inline)}'],
+            [12303, '.foo { animation: foo 3s scroll(inline root) }', '.foo{animation:3s foo scroll(root inline)}'],
             [12307, '.foo { animation: foo 3s scroll(inline nearest) }', '.foo{animation:3s foo scroll(inline)}'],
             [12311, '.foo { animation: foo 3s view(block) }', '.foo{animation:3s foo view()}'],
             [12315, '.foo { animation: foo 3s view(inline) }', '.foo{animation:3s foo view(inline)}'],

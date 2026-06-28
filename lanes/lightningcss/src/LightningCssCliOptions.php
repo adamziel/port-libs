@@ -81,6 +81,30 @@ final class LightningCssCliOptions
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
     }
 
+    public static function sourceMapOutputPath(string $outputFile): string
+    {
+        if (trim($outputFile) === '') {
+            throw new \InvalidArgumentException('Source map output requires an output file.');
+        }
+
+        return $outputFile . '.map';
+    }
+
+    public static function appendSourceMappingUrl(string $css, string $outputFile): string
+    {
+        $separator = $css === '' || str_ends_with($css, "\n") ? '' : "\n";
+
+        return $css . $separator . '/*# sourceMappingURL=' . self::sourceMapOutputPath($outputFile) . " */\n";
+    }
+
+    public static function writeSourceMapFile(string $outputFile, SourceMap $sourceMap): string
+    {
+        $sourceMapFile = self::sourceMapOutputPath($outputFile);
+        self::writeOutputFile($sourceMapFile, $sourceMap->toJson(null, false));
+
+        return $sourceMapFile;
+    }
+
     public static function writeOutputFile(string $outputFile, string $contents): void
     {
         $directory = dirname($outputFile);
