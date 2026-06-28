@@ -16373,6 +16373,9 @@ final class OdfReader
             foreach ($issues as $issue) {
                 $issueCodes[$issue] = true;
             }
+            $byteExposurePolicy = is_string($item['byteExposurePolicy'] ?? null) && $item['byteExposurePolicy'] !== ''
+                ? $item['byteExposurePolicy']
+                : ($encrypted ? 'encrypted-resource-bytes-blocked' : 'font-package-bytes-blocked');
             $fontFormatCounts[$fontFormat['fontFormat']] = ($fontFormatCounts[$fontFormat['fontFormat']] ?? 0) + 1;
             $fontFormatSourceCounts[$fontFormat['fontFormatSource']] = ($fontFormatSourceCounts[$fontFormat['fontFormatSource']] ?? 0) + 1;
             $fontFormatFamilyCounts[$fontFormat['fontFormatFamily']] = ($fontFormatFamilyCounts[$fontFormat['fontFormatFamily']] ?? 0) + 1;
@@ -16412,7 +16415,9 @@ final class OdfReader
                 'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
                 'declaredSize' => $item['declaredSize'] ?? null,
                 'declaredSizeMismatch' => ($item['declaredSizeMismatch'] ?? false) === true,
+                'canExposeBytes' => false,
                 'canExposeAsDocumentMedia' => false,
+                'byteExposurePolicy' => $byteExposurePolicy,
                 'reviewPolicy' => 'package-font-metadata-only',
                 'issues' => $issues,
             ];
@@ -16447,6 +16452,8 @@ final class OdfReader
             'fontFileExtensionCounts' => $fontFileExtensionCounts,
             'recognizedFontFormatCount' => count(array_filter($items, static fn (array $item): bool => $item['recognizedFontFormat'] === true)),
             'unknownFontFormatCount' => count(array_filter($items, static fn (array $item): bool => $item['recognizedFontFormat'] !== true)),
+            'byteExposurePolicy' => 'font-package-bytes-blocked',
+            'reviewPolicy' => 'package-font-metadata-only',
             'items' => $items,
         ];
     }
