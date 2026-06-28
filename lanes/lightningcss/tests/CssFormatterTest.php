@@ -1400,6 +1400,39 @@ CSS, $formatter->format('.foo { font: 12px "Helvetica", "Times New Roman", sans-
 
 CSS, $formatter->format('.foo { font: 12px "Helvetica", "Times New Roman", sans-serif; line-height: var(--lh); }'));
     },
+    'css formatter maps upstream custom property function printer residual rows' => static function (TestRunner $t): void {
+        $formatter = new CssFormatter();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_custom_properties lines 23601 and 23609.
+        $t->same(<<<'CSS'
+.foo {
+  transform: var(--bar, );
+}
+
+CSS, $formatter->format('.foo { transform: var(--bar, ) }'));
+
+        $t->same(<<<'CSS'
+.foo {
+  transform: env(--bar, );
+}
+
+CSS, $formatter->format('.foo { transform: env(--bar, ) }'));
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_custom_properties lines 23654 and 23658.
+        $t->same(<<<'CSS'
+.foo {
+  background-color: attr(data-color type(<color>));
+}
+
+CSS, $formatter->format('.foo { background-color: attr(data-color type(<color>)); }'));
+
+        $t->same(<<<'CSS'
+.foo {
+  width: attr(data-width type(<length>), 100px);
+}
+
+CSS, $formatter->format('.foo { width: attr(data-width type(<length>), 100px); }'));
+    },
     'css formatter maps upstream transform printer cases' => static function (TestRunner $t): void {
         $formatter = new CssFormatter();
 

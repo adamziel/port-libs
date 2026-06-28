@@ -267,6 +267,7 @@ final class CssMinifier
         $css = $this->mergeAdjacentRuleBlocks($css);
         $css = $this->rewriteAllResetDeclarationBlocks($css);
         $css = $this->rewriteDisplayDeclarationBlocks($css);
+        $css = $this->normalizeDisplayColorDeclarationOrder($css);
         $css = $this->composeOutlineDeclarationBlocks($css);
         $css = $this->composeContainerDeclarationBlocks($css);
         $css = $this->composePositionDeclarationBlocks($css);
@@ -12549,6 +12550,69 @@ final class CssMinifier
         return $this->serializeDeclarationEntriesForComposition($entries);
     }
 
+    private function normalizeDisplayColorDeclarationOrder(string $css): string
+    {
+        if (stripos($css, 'display:') === false || stripos($css, 'color:') === false) {
+            return $css;
+        }
+
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $body = $this->normalizeDisplayColorDeclarationOrder(substr($css, $open + 1, $close - $open - 1));
+            if (!str_contains($body, '{')) {
+                $body = $this->normalizeDisplayColorDeclarationList($body);
+            }
+
+            $output .= substr($css, $cursor, $open - $cursor + 1) . $body . '}';
+            $cursor = $close + 1;
+        }
+
+        return $output;
+    }
+
+    private function normalizeDisplayColorDeclarationList(string $body): string
+    {
+        if (stripos($body, 'display:flex;color:') === false) {
+            return $body;
+        }
+
+        $entries = $this->parseDeclarationEntriesForComposition($body);
+        if ($entries === null) {
+            return $body;
+        }
+
+        $changed = false;
+        $count = count($entries);
+        for ($index = 0; $index < $count - 1; $index++) {
+            if ($entries[$index]['drop'] || $entries[$index + 1]['drop']) {
+                continue;
+            }
+
+            if ($entries[$index]['property'] === 'display'
+                && $entries[$index]['value'] === 'flex'
+                && $entries[$index + 1]['property'] === 'color'
+                && !$entries[$index]['important']
+                && !$entries[$index + 1]['important']
+            ) {
+                [$entries[$index], $entries[$index + 1]] = [$entries[$index + 1], $entries[$index]];
+                $changed = true;
+                $index++;
+            }
+        }
+
+        return $changed ? $this->serializeDeclarationEntriesForComposition($entries) : $body;
+    }
+
     private function isFallbackDisplayValue(string $value): bool
     {
         return str_starts_with(trim(strtolower($value)), '-');
@@ -17709,6 +17773,7 @@ final class CssMinifier
             'cornflowerblue' => '#6495ed',
             'cyan' => '#0ff',
             'fuchsia' => '#f0f',
+            'lightblue' => '#add8e6',
             'lime' => '#0f0',
             'magenta' => '#f0f',
             'transparent' => '#0000',

@@ -2768,6 +2768,46 @@ CSS)
             $minifier->minify('@scope (.card, .panel) to (.footer, .aside) { .title { color: yellow; } }')
         );
     },
+    'css minifier maps upstream scope rule residual rows' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $cases = [
+            [
+                28472,
+                '@scope { .foo { display: flex; } }',
+                '@scope{.foo{display:flex}}',
+            ],
+            [
+                28482,
+                '@scope { :scope { display: flex; color: lightblue; } }',
+                '@scope{:scope{color:#add8e6;display:flex}}',
+            ],
+            [
+                28508,
+                '@scope to (.content > *) { a { color: yellow; } }',
+                '@scope to (.content>*){a{color:#ff0}}',
+            ],
+            [
+                28516,
+                '@scope (#my-component) { & { color: yellow; } }',
+                '@scope(#my-component){&{color:#ff0}}',
+            ],
+            [
+                28524,
+                '@scope (.parent-scope) { @scope (:scope > .child-scope) to (:scope .limit) { .content { color: yellow; } } }',
+                '@scope(.parent-scope){@scope(:scope>.child-scope) to (:scope .limit){.content{color:#ff0}}}',
+            ],
+            [
+                28534,
+                '.foo { @scope (.bar) { color: yellow; } }',
+                '.foo{@scope(.bar){color:#ff0}}',
+            ],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_at_scope line ' . $line);
+        }
+    },
     'css minifier maps upstream starting-style rule minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
