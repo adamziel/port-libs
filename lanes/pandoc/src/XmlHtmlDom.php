@@ -14866,6 +14866,7 @@ final class XmlHtmlDom
                 static fn (array $option): string => (string) $option['value'],
                 array_filter($options, static fn (array $option): bool => (bool) ($option['selected'] ?? false))
             ));
+            $summary += self::selectSelectionReviewSummary($node, $options);
         }
         if ($name === 'input') {
             $inputType = self::inputType($node);
@@ -29791,6 +29792,238 @@ final class XmlHtmlDom
         }
 
         return $options;
+    }
+
+    /**
+     * @param list<array{value:string, label:string, text:string, selected:bool, disabled:bool, group?:string, groupDisabled?:bool}> $options
+     * @return array<string, mixed>
+     */
+    private static function selectSelectionReviewSummary(\DOMElement $select, array $options): array
+    {
+        $multiple = $select->hasAttribute('multiple');
+        $required = $select->hasAttribute('required');
+        $sizeRaw = self::attributeOrNull($select, 'size');
+        $size = $sizeRaw === null ? null : self::positiveIntegerToken($sizeRaw, 1000000);
+        $displaySize = $size ?? ($multiple ? 4 : 1);
+        $indexedOptions = self::selectIndexedOptionRecords($options);
+        $explicitSelected = array_values(array_filter(
+            $indexedOptions,
+            static fn (array $option): bool => (bool) $option['selected']
+        ));
+        $effectiveSelected = self::selectEffectiveSelectedOptions($indexedOptions, $multiple, $explicitSelected);
+        $selectedEnabled = array_values(array_filter(
+            $effectiveSelected,
+            static fn (array $option): bool => !(bool) $option['disabled']
+        ));
+        $selectedDisabled = array_values(array_filter(
+            $effectiveSelected,
+            static fn (array $option): bool => (bool) $option['disabled']
+        ));
+        $placeholderOption = self::selectPlaceholderOptionRecord($indexedOptions, $required, $multiple, $displaySize);
+        $placeholderSelected = $placeholderOption !== null && self::selectOptionRecordSelected(
+            $effectiveSelected,
+            (int) $placeholderOption['index']
+        );
+        $issues = [];
+
+        if (!$multiple && count($explicitSelected) > 1) {
+            $issues[] = [
+                'code' => 'single-select-multiple-selected-options',
+                'selectedCount' => count($explicitSelected),
+                'selectedValues' => self::selectOptionValues($explicitSelected),
+            ];
+        }
+
+        if ($required) {
+            if ($indexedOptions === []) {
+                $issues[] = ['code' => 'required-select-no-options'];
+            } elseif ($effectiveSelected === []) {
+                $issues[] = ['code' => 'required-select-no-static-selection'];
+            } elseif ($selectedEnabled === []) {
+                $issues[] = [
+                    'code' => 'required-select-disabled-selection',
+                    'selectedValues' => self::selectOptionValues($selectedDisabled),
+                ];
+            } else {
+                if ($placeholderSelected && $placeholderOption !== null) {
+                    $issues[] = [
+                        'code' => 'required-select-placeholder-selected',
+                        'optionIndex' => $placeholderOption['index'],
+                        'optionText' => $placeholderOption['text'],
+                    ];
+                }
+
+                $emptySelected = array_values(array_filter(
+                    $selectedEnabled,
+                    static fn (array $option): bool => (string) $option['value'] === ''
+                ));
+                if ($emptySelected !== []) {
+                    $issues[] = [
+                        'code' => 'required-select-empty-value',
+                        'selectedValues' => self::selectOptionValues($emptySelected),
+                    ];
+                }
+            }
+        }
+
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+
+        return [
+            'selectSelectionReviewPolicy' => 'select-option-selection-review',
+            'selectMultiple' => $multiple,
+            'selectRequired' => $required,
+            'selectSizeRaw' => $sizeRaw,
+            'selectSize' => $size,
+            'selectSizeValid' => $sizeRaw === null ? null : $size !== null,
+            'selectDisplaySize' => $displaySize,
+            'selectOptionCount' => count($indexedOptions),
+            'selectExplicitSelectedCount' => count($explicitSelected),
+            'selectExplicitSelectedValues' => self::selectOptionValues($explicitSelected),
+            'selectExplicitSelectedIndexes' => self::selectOptionIndexes($explicitSelected),
+            'selectEffectiveSelectedCount' => count($effectiveSelected),
+            'selectEffectiveSelectedValues' => self::selectOptionValues($effectiveSelected),
+            'selectEffectiveSelectedIndexes' => self::selectOptionIndexes($effectiveSelected),
+            'selectSelectedEnabledValueCount' => count($selectedEnabled),
+            'selectSelectedDisabledValueCount' => count($selectedDisabled),
+            'selectSelectedDisabledValues' => self::selectOptionValues($selectedDisabled),
+            'selectPlaceholderOptionPresent' => $placeholderOption !== null,
+            'selectPlaceholderOption' => $placeholderOption,
+            'selectPlaceholderSelected' => $placeholderSelected,
+            'selectValueMissing' => $required ? self::selectRequiredValueMissing($issueCodes) : null,
+            'selectSelectionIssues' => $issues,
+            'selectSelectionIssueCodes' => $issueCodes,
+            'selectSelectionValid' => $issues === [],
+        ];
+    }
+
+    /**
+     * @param list<array{value:string, label:string, text:string, selected:bool, disabled:bool, group?:string, groupDisabled?:bool}> $options
+     * @return list<array<string, mixed>>
+     */
+    private static function selectIndexedOptionRecords(array $options): array
+    {
+        $records = [];
+        foreach ($options as $index => $option) {
+            $records[] = self::selectOptionReviewRecord($option, $index);
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param array{value:string, label:string, text:string, selected:bool, disabled:bool, group?:string, groupDisabled?:bool} $option
+     * @return array<string, mixed>
+     */
+    private static function selectOptionReviewRecord(array $option, int $index): array
+    {
+        $record = [
+            'index' => $index,
+            'value' => $option['value'],
+            'label' => $option['label'],
+            'text' => $option['text'],
+            'selected' => $option['selected'],
+            'disabled' => $option['disabled'],
+        ];
+
+        if (array_key_exists('group', $option)) {
+            $record['group'] = $option['group'];
+        }
+        if (array_key_exists('groupDisabled', $option)) {
+            $record['groupDisabled'] = $option['groupDisabled'];
+        }
+
+        return $record;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $indexedOptions
+     * @param list<array<string, mixed>> $explicitSelected
+     * @return list<array<string, mixed>>
+     */
+    private static function selectEffectiveSelectedOptions(array $indexedOptions, bool $multiple, array $explicitSelected): array
+    {
+        if ($multiple) {
+            return $explicitSelected;
+        }
+
+        if ($explicitSelected !== []) {
+            return [end($explicitSelected) ?: $explicitSelected[0]];
+        }
+
+        return $indexedOptions === [] ? [] : [$indexedOptions[0]];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $indexedOptions
+     * @return ?array<string, mixed>
+     */
+    private static function selectPlaceholderOptionRecord(array $indexedOptions, bool $required, bool $multiple, int $displaySize): ?array
+    {
+        if (!$required || $multiple || $displaySize !== 1 || $indexedOptions === []) {
+            return null;
+        }
+
+        $first = $indexedOptions[0];
+        if ((string) $first['value'] !== '' || array_key_exists('group', $first)) {
+            return null;
+        }
+
+        return $first;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $options
+     * @return list<string>
+     */
+    private static function selectOptionValues(array $options): array
+    {
+        return array_values(array_map(
+            static fn (array $option): string => (string) $option['value'],
+            $options
+        ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $options
+     * @return list<int>
+     */
+    private static function selectOptionIndexes(array $options): array
+    {
+        return array_values(array_map(
+            static fn (array $option): int => (int) $option['index'],
+            $options
+        ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $options
+     */
+    private static function selectOptionRecordSelected(array $options, int $index): bool
+    {
+        foreach ($options as $option) {
+            if ((int) $option['index'] === $index) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<string> $issueCodes
+     */
+    private static function selectRequiredValueMissing(array $issueCodes): bool
+    {
+        foreach ($issueCodes as $code) {
+            if (str_starts_with($code, 'required-select-')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
