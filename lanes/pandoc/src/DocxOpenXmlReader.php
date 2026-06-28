@@ -10944,6 +10944,42 @@ final class DocxOpenXmlReader
         $summary['zipNameHygieneWindowsAlternateDataStreamEntryCount'] = $zipNamePolicy['nameHygieneWindowsAlternateDataStreamEntryCount'];
         $summary['zipNameHygieneUnicodeFormatControlEntryCount'] = $zipNamePolicy['nameHygieneUnicodeFormatControlEntryCount'];
         $summary['zipNameHygieneUnicodeBidiControlEntryCount'] = $zipNamePolicy['nameHygieneUnicodeBidiControlEntryCount'];
+        $zipPlatformMetadata = is_array($zipPackage['platformMetadata'] ?? null) ? $zipPackage['platformMetadata'] : [];
+        $summary['zipPlatformMetadataEntryCount'] = (int) ($zipPlatformMetadata['platformMetadataEntryCount'] ?? 0);
+        $summary['zipMacosSidecarEntryCount'] = (int) ($zipPlatformMetadata['macosSidecarEntryCount'] ?? 0);
+        $summary['zipAppleDoubleEntryCount'] = (int) ($zipPlatformMetadata['appleDoubleEntryCount'] ?? 0);
+        $summary['zipFinderMetadataEntryCount'] = (int) ($zipPlatformMetadata['finderMetadataEntryCount'] ?? 0);
+        $summary['zipWindowsSidecarEntryCount'] = (int) ($zipPlatformMetadata['windowsSidecarEntryCount'] ?? 0);
+        $summary['zipWindowsThumbnailCacheEntryCount'] = (int) ($zipPlatformMetadata['windowsThumbnailCacheEntryCount'] ?? 0);
+        $summary['zipWindowsDesktopIniEntryCount'] = (int) ($zipPlatformMetadata['windowsDesktopIniEntryCount'] ?? 0);
+        $zipCreatorHostSystems = is_array($zipPackage['creatorHostSystems'] ?? null) ? $zipPackage['creatorHostSystems'] : [];
+        $summary['zipKnownCreatorHostSystemEntryCount'] = (int) ($zipCreatorHostSystems['knownHostSystemEntryCount'] ?? 0);
+        $summary['zipUnknownCreatorHostSystemEntryCount'] = (int) ($zipCreatorHostSystems['unknownHostSystemEntryCount'] ?? 0);
+        $summary['zipCreatorVersionBelowNeededEntryCount'] = (int) ($zipCreatorHostSystems['creatorVersionBelowNeededEntryCount'] ?? 0);
+        $summary['zipCreatorVersionComparisonCounts'] = is_array($zipCreatorHostSystems['creatorVersionComparisonCounts'] ?? null)
+            ? $zipCreatorHostSystems['creatorVersionComparisonCounts']
+            : [];
+        $summary['zipCreatorHostSystems'] = is_array($zipCreatorHostSystems['hostSystems'] ?? null)
+            ? $zipCreatorHostSystems['hostSystems']
+            : [];
+        $zipPermissions = is_array($zipPackage['permissions'] ?? null) ? $zipPackage['permissions'] : [];
+        $summary['zipUnixModeEntryCount'] = (int) ($zipPermissions['unixModeEntryCount'] ?? 0);
+        $summary['zipExecutableFileCount'] = (int) ($zipPermissions['executableFileCount'] ?? 0);
+        $summary['zipWritablePermissionEntryCount'] = (int) ($zipPermissions['writablePermissionEntryCount'] ?? 0);
+        $zipDosAttributes = is_array($zipPackage['dosAttributes'] ?? null) ? $zipPackage['dosAttributes'] : [];
+        $summary['zipDosAttributeEntryCount'] = (int) ($zipDosAttributes['dosAttributeEntryCount'] ?? 0);
+        $summary['zipHiddenSystemOrVolumeLabelEntryCount'] = (int) ($zipDosAttributes['hiddenSystemOrVolumeLabelEntryCount'] ?? 0);
+        $zipInternalAttributes = is_array($zipPackage['internalAttributes'] ?? null) ? $zipPackage['internalAttributes'] : [];
+        $summary['zipInternalAttributeEntryCount'] = (int) ($zipInternalAttributes['internalAttributeEntryCount'] ?? 0);
+        $summary['zipTextInternalAttributeEntryCount'] = (int) ($zipInternalAttributes['textInternalAttributeEntryCount'] ?? 0);
+        $summary['zipUnknownInternalAttributeEntryCount'] = (int) ($zipInternalAttributes['unknownInternalAttributeEntryCount'] ?? 0);
+        $zipPlatformAttributes = is_array($zipPackage['platformAttributes'] ?? null) ? $zipPackage['platformAttributes'] : [];
+        $summary['zipPlatformAttributeProvenanceEntryCount'] = (int) ($zipPlatformAttributes['provenanceEntryCount'] ?? 0);
+        $summary['zipPlatformAttributeIssueEntryCount'] = (int) ($zipPlatformAttributes['issueEntryCount'] ?? 0);
+        $summary['zipPlatformAttributeIssueCount'] = (int) ($zipPlatformAttributes['issueCount'] ?? 0);
+        $summary['zipPlatformAttributeIssueCodes'] = is_array($zipPlatformAttributes['issueCodes'] ?? null)
+            ? $zipPlatformAttributes['issueCodes']
+            : [];
         $zipOpcManifest = $zipPackage['opcManifest'];
         $summary['zipOpcManifestPresent'] = $zipOpcManifest['present'];
         $summary['zipOpcManifestValid'] = $zipOpcManifest['valid'];
@@ -11095,6 +11131,12 @@ final class DocxOpenXmlReader
                 'dataDescriptors' => $this->emptyZipDataDescriptorProvenance(),
                 'namePolicy' => $this->emptyZipNamePolicyProvenance(),
                 'opcManifest' => $this->emptyZipOpcManifestPreflight(),
+                'platformMetadata' => $this->emptyZipPlatformMetadataPreflight(),
+                'permissions' => $this->emptyZipPermissionPreflight(),
+                'creatorHostSystems' => $this->emptyZipCreatorHostSystemPreflight(),
+                'dosAttributes' => $this->emptyZipDosAttributePreflight(),
+                'internalAttributes' => $this->emptyZipInternalAttributePreflight(),
+                'platformAttributes' => $this->emptyZipPlatformAttributeProvenance(),
                 'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
                 'canExposeBytes' => false,
                 'entries' => [],
@@ -11117,6 +11159,19 @@ final class DocxOpenXmlReader
         }
         $compressionMethods = $sourcePackage->compressionMethodPreflight();
         $dataDescriptors = $this->zipDataDescriptorProvenance($sourcePackage->dataDescriptorPreflight());
+        $platformMetadata = $sourcePackage->platformMetadataPreflight();
+        $permissions = $sourcePackage->permissionPreflight();
+        $creatorHostSystems = $sourcePackage->creatorHostSystemPreflight();
+        $dosAttributes = $sourcePackage->dosAttributePreflight();
+        $internalAttributes = $sourcePackage->internalAttributePreflight();
+        $platformAttributes = $this->zipPlatformAttributeProvenance(
+            $sourcePackage,
+            $platformMetadata,
+            $permissions,
+            $creatorHostSystems,
+            $dosAttributes,
+            $internalAttributes,
+        );
         $dataDescriptorByName = [];
         foreach ($dataDescriptors['entries'] as $descriptorEntry) {
             if (is_array($descriptorEntry) && is_string($descriptorEntry['name'] ?? null)) {
@@ -11182,7 +11237,11 @@ final class DocxOpenXmlReader
                 'loadedPart' => $loadedPart,
                 'canExposeBytes' => false,
                 'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
-            ] + $this->zipDataDescriptorEntryProvenance($dataDescriptorByName[$entry->name] ?? null);
+            ]
+                + (is_array($platformAttributes['byPackagePath'][$entry->name] ?? null)
+                    ? $platformAttributes['byPackagePath'][$entry->name]
+                    : [])
+                + $this->zipDataDescriptorEntryProvenance($dataDescriptorByName[$entry->name] ?? null);
             $entries[] = $summary;
             $byPackagePath[$entry->name] = $summary;
         }
@@ -11204,11 +11263,377 @@ final class DocxOpenXmlReader
             'dataDescriptors' => $dataDescriptors,
             'namePolicy' => $this->zipNamePolicyProvenance($sourcePackage),
             'opcManifest' => $this->zipOpcManifestPreflight($sourcePackage),
+            'platformMetadata' => $platformMetadata,
+            'permissions' => $permissions,
+            'creatorHostSystems' => $creatorHostSystems,
+            'dosAttributes' => $dosAttributes,
+            'internalAttributes' => $internalAttributes,
+            'platformAttributes' => $platformAttributes,
             'localHeaderOrder' => $localHeaderOrder,
             'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
             'canExposeBytes' => false,
             'entries' => $entries,
             'byPackagePath' => $byPackagePath,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyZipPlatformMetadataPreflight(): array
+    {
+        return [
+            'entryCount' => 0,
+            'platformMetadataEntryCount' => 0,
+            'macosSidecarEntryCount' => 0,
+            'appleDoubleEntryCount' => 0,
+            'finderMetadataEntryCount' => 0,
+            'windowsSidecarEntryCount' => 0,
+            'windowsThumbnailCacheEntryCount' => 0,
+            'windowsDesktopIniEntryCount' => 0,
+            'platformMetadataEntries' => [],
+            'entries' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyZipPermissionPreflight(): array
+    {
+        return [
+            'entryCount' => 0,
+            'unixModeEntryCount' => 0,
+            'executableFileCount' => 0,
+            'groupWritableEntryCount' => 0,
+            'worldWritableEntryCount' => 0,
+            'writablePermissionEntryCount' => 0,
+            'executableEntries' => [],
+            'writablePermissionEntries' => [],
+            'entries' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyZipCreatorHostSystemPreflight(): array
+    {
+        return [
+            'entryCount' => 0,
+            'knownHostSystemEntryCount' => 0,
+            'unknownHostSystemEntryCount' => 0,
+            'creatorVersionMeetsNeededEntryCount' => 0,
+            'creatorVersionBelowNeededEntryCount' => 0,
+            'creatorVersionEqualNeededEntryCount' => 0,
+            'creatorVersionAboveNeededEntryCount' => 0,
+            'creatorVersionBelowNeededKnownHostEntryCount' => 0,
+            'creatorVersionBelowNeededUnknownHostEntryCount' => 0,
+            'creatorVersionComparisonCounts' => [
+                'below-needed' => 0,
+                'equals-needed' => 0,
+                'above-needed' => 0,
+            ],
+            'hostSystems' => [],
+            'unknownEntries' => [],
+            'creatorVersionBelowNeededEntries' => [],
+            'entries' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyZipDosAttributePreflight(): array
+    {
+        return [
+            'entryCount' => 0,
+            'dosAttributeEntryCount' => 0,
+            'readOnlyEntryCount' => 0,
+            'hiddenEntryCount' => 0,
+            'systemEntryCount' => 0,
+            'volumeLabelEntryCount' => 0,
+            'directoryAttributeEntryCount' => 0,
+            'archiveEntryCount' => 0,
+            'hiddenSystemOrVolumeLabelEntryCount' => 0,
+            'hiddenSystemOrVolumeLabelEntries' => [],
+            'entries' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyZipInternalAttributePreflight(): array
+    {
+        return [
+            'entryCount' => 0,
+            'internalAttributeEntryCount' => 0,
+            'textInternalAttributeEntryCount' => 0,
+            'unknownInternalAttributeEntryCount' => 0,
+            'internalAttributeEntries' => [],
+            'textInternalAttributeEntries' => [],
+            'unknownInternalAttributeEntries' => [],
+            'entries' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyZipPlatformAttributeProvenance(): array
+    {
+        return [
+            'entryCount' => 0,
+            'externalAttributeEntryCount' => 0,
+            'internalAttributeEntryCount' => 0,
+            'dosAttributeEntryCount' => 0,
+            'unixModeEntryCount' => 0,
+            'executableFileCount' => 0,
+            'writablePermissionEntryCount' => 0,
+            'provenanceEntryCount' => 0,
+            'issueEntryCount' => 0,
+            'issueCount' => 0,
+            'issueCodes' => [],
+            'provenanceEntries' => [],
+            'issueEntries' => [],
+            'entries' => [],
+            'byPackagePath' => [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $preflight
+     * @return array<string, array<string, mixed>>
+     */
+    private function zipPreflightEntriesByName(array $preflight): array
+    {
+        $byName = [];
+        foreach (($preflight['entries'] ?? []) as $entry) {
+            if (!is_array($entry) || !is_string($entry['name'] ?? null)) {
+                continue;
+            }
+
+            $byName[$entry['name']] = $entry;
+        }
+
+        return $byName;
+    }
+
+    /**
+     * @param array<string, mixed> $platformMetadata
+     * @param array<string, mixed> $permissions
+     * @param array<string, mixed> $creatorHostSystems
+     * @param array<string, mixed> $dosAttributes
+     * @param array<string, mixed> $internalAttributes
+     * @return array<string, mixed>
+     */
+    private function zipPlatformAttributeProvenance(
+        ZipPackage $sourcePackage,
+        array $platformMetadata,
+        array $permissions,
+        array $creatorHostSystems,
+        array $dosAttributes,
+        array $internalAttributes
+    ): array {
+        $platformMetadataByName = $this->zipPreflightEntriesByName($platformMetadata);
+        $permissionsByName = $this->zipPreflightEntriesByName($permissions);
+        $creatorHostSystemsByName = $this->zipPreflightEntriesByName($creatorHostSystems);
+        $dosAttributesByName = $this->zipPreflightEntriesByName($dosAttributes);
+        $internalAttributesByName = $this->zipPreflightEntriesByName($internalAttributes);
+        $entries = [];
+        $byPackagePath = [];
+        $provenanceEntries = [];
+        $issueEntries = [];
+        $issueCodes = [];
+        $externalAttributeEntryCount = 0;
+        $internalAttributeEntryCount = 0;
+        $dosAttributeEntryCount = 0;
+        $unixModeEntryCount = 0;
+        $executableFileCount = 0;
+        $writablePermissionEntryCount = 0;
+
+        foreach ($sourcePackage->entries() as $entry) {
+            $item = $this->zipEntryPlatformAttributeProvenance(
+                $entry,
+                $platformMetadataByName[$entry->name] ?? null,
+                $permissionsByName[$entry->name] ?? null,
+                $creatorHostSystemsByName[$entry->name] ?? null,
+                $dosAttributesByName[$entry->name] ?? null,
+                $internalAttributesByName[$entry->name] ?? null,
+            );
+            $entries[] = ['packagePath' => $entry->name] + $item;
+            $byPackagePath[$entry->name] = $item;
+
+            if ($item['hasExternalAttributes'] === true) {
+                ++$externalAttributeEntryCount;
+            }
+            if ($item['hasInternalFileAttributes'] === true) {
+                ++$internalAttributeEntryCount;
+            }
+            if ($item['hasDosAttributes'] === true) {
+                ++$dosAttributeEntryCount;
+            }
+            if ($item['hasUnixMode'] === true) {
+                ++$unixModeEntryCount;
+            }
+            if ($item['isUnixExecutableFile'] === true) {
+                ++$executableFileCount;
+            }
+            if ($item['hasWritablePermissions'] === true) {
+                ++$writablePermissionEntryCount;
+            }
+            if ($item['hasPlatformAttributeProvenance'] === true) {
+                $provenanceEntries[] = ['packagePath' => $entry->name] + $item;
+            }
+            if ($item['platformAttributeIssues'] !== []) {
+                $issueEntries[] = ['packagePath' => $entry->name] + $item;
+            }
+            foreach ($item['platformAttributeIssues'] as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issueCodes[$issue] = true;
+                }
+            }
+        }
+
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'entryCount' => count($entries),
+            'externalAttributeEntryCount' => $externalAttributeEntryCount,
+            'internalAttributeEntryCount' => $internalAttributeEntryCount,
+            'dosAttributeEntryCount' => $dosAttributeEntryCount,
+            'unixModeEntryCount' => $unixModeEntryCount,
+            'executableFileCount' => $executableFileCount,
+            'writablePermissionEntryCount' => $writablePermissionEntryCount,
+            'provenanceEntryCount' => count($provenanceEntries),
+            'issueEntryCount' => count($issueEntries),
+            'issueCount' => count($issueCodes),
+            'issueCodes' => array_keys($issueCodes),
+            'provenanceEntries' => $provenanceEntries,
+            'issueEntries' => $issueEntries,
+            'entries' => $entries,
+            'byPackagePath' => $byPackagePath,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $platformMetadata
+     * @param array<string, mixed>|null $permissions
+     * @param array<string, mixed>|null $creatorHost
+     * @param array<string, mixed>|null $dosAttributes
+     * @param array<string, mixed>|null $internalAttributes
+     * @return array<string, mixed>
+     */
+    private function zipEntryPlatformAttributeProvenance(
+        ZipPackageEntry $entry,
+        ?array $platformMetadata,
+        ?array $permissions,
+        ?array $creatorHost,
+        ?array $dosAttributes,
+        ?array $internalAttributes
+    ): array {
+        $madeByHostSystem = $entry->madeByHostSystem();
+        $madeByVersion = $entry->madeByVersion();
+        $versionNeededToExtract = $entry->neededToExtractVersion();
+        $dosAttributeBits = is_int($dosAttributes['dosAttributes'] ?? null)
+            ? $dosAttributes['dosAttributes']
+            : ($entry->externalFileAttributes & 0xff);
+        $unixMode = $entry->unixMode();
+        $unixPermissions = $entry->unixPermissionBits();
+        $isGroupWritable = is_bool($permissions['isGroupWritable'] ?? null)
+            ? $permissions['isGroupWritable']
+            : ($unixPermissions !== null && ($unixPermissions & 0020) !== 0);
+        $isWorldWritable = is_bool($permissions['isWorldWritable'] ?? null)
+            ? $permissions['isWorldWritable']
+            : ($unixPermissions !== null && ($unixPermissions & 0002) !== 0);
+        $hasWritablePermissions = is_bool($permissions['hasWritablePermissions'] ?? null)
+            ? $permissions['hasWritablePermissions']
+            : ($isGroupWritable || $isWorldWritable);
+        $unknownInternalAttributeBits = is_int($internalAttributes['unknownInternalAttributeBits'] ?? null)
+            ? $internalAttributes['unknownInternalAttributeBits']
+            : $entry->unknownInternalAttributeBits();
+        $platformMetadataIssues = is_array($platformMetadata['issues'] ?? null)
+            ? array_values(array_filter($platformMetadata['issues'], static fn (mixed $issue): bool => is_string($issue)))
+            : [];
+        $issues = [];
+        foreach ($platformMetadataIssues as $issue) {
+            $this->appendUniqueString($issues, $issue);
+        }
+        foreach (is_array($permissions['issues'] ?? null) ? $permissions['issues'] : [] as $issue) {
+            $this->appendUniqueString($issues, is_string($issue) ? $issue : null);
+        }
+        if (($dosAttributes['hasHiddenAttribute'] ?? $entry->hasDosHiddenAttribute()) === true) {
+            $this->appendUniqueString($issues, 'dos-hidden-attribute');
+        }
+        if (($dosAttributes['hasSystemAttribute'] ?? $entry->hasDosSystemAttribute()) === true) {
+            $this->appendUniqueString($issues, 'dos-system-attribute');
+        }
+        if (($dosAttributes['hasVolumeLabelAttribute'] ?? $entry->hasDosVolumeLabelAttribute()) === true) {
+            $this->appendUniqueString($issues, 'dos-volume-label-attribute');
+        }
+        foreach (is_array($internalAttributes['issues'] ?? null) ? $internalAttributes['issues'] : [] as $issue) {
+            $this->appendUniqueString($issues, is_string($issue) ? $issue : null);
+        }
+
+        return [
+            'madeByHostSystem' => $madeByHostSystem,
+            'madeByHostSystemName' => is_string($creatorHost['madeByHostSystemName'] ?? null)
+                ? $creatorHost['madeByHostSystemName']
+                : null,
+            'madeByVersion' => $madeByVersion,
+            'versionMadeBy' => $entry->versionMadeBy,
+            'versionNeededToExtract' => $versionNeededToExtract,
+            'creatorVersionMeetsNeeded' => is_bool($creatorHost['creatorVersionMeetsNeeded'] ?? null)
+                ? $creatorHost['creatorVersionMeetsNeeded']
+                : $madeByVersion >= $versionNeededToExtract,
+            'externalAttributes' => $entry->externalFileAttributes,
+            'externalAttributesHex' => sprintf('%08x', $entry->externalFileAttributes),
+            'hasExternalAttributes' => $entry->externalFileAttributes !== 0,
+            'dosAttributes' => $dosAttributeBits,
+            'dosAttributeNames' => is_array($dosAttributes['dosAttributeNames'] ?? null)
+                ? $dosAttributes['dosAttributeNames']
+                : $entry->dosAttributeNames(),
+            'hasDosAttributes' => $dosAttributeBits !== 0,
+            'hasDosReadOnlyAttribute' => $dosAttributes['hasReadOnlyAttribute'] ?? $entry->hasDosReadOnlyAttribute(),
+            'hasDosHiddenAttribute' => $dosAttributes['hasHiddenAttribute'] ?? $entry->hasDosHiddenAttribute(),
+            'hasDosSystemAttribute' => $dosAttributes['hasSystemAttribute'] ?? $entry->hasDosSystemAttribute(),
+            'hasDosVolumeLabelAttribute' => $dosAttributes['hasVolumeLabelAttribute'] ?? $entry->hasDosVolumeLabelAttribute(),
+            'hasDosDirectoryAttribute' => $dosAttributes['hasDirectoryAttribute'] ?? $entry->hasDosDirectoryAttribute(),
+            'hasDosArchiveAttribute' => $dosAttributes['hasArchiveAttribute'] ?? $entry->hasDosArchiveAttribute(),
+            'internalFileAttributes' => $entry->internalFileAttributes,
+            'internalFileAttributesHex' => sprintf('%04x', $entry->internalFileAttributes),
+            'internalAttributeNames' => is_array($internalAttributes['internalAttributeNames'] ?? null)
+                ? $internalAttributes['internalAttributeNames']
+                : $entry->internalAttributeNames(),
+            'hasInternalFileAttributes' => $entry->internalFileAttributes !== 0,
+            'hasTextInternalAttribute' => $internalAttributes['hasTextInternalAttribute'] ?? $entry->hasTextInternalAttribute(),
+            'hasUnknownInternalAttributeBits' => $internalAttributes['hasUnknownInternalAttributeBits'] ?? ($unknownInternalAttributeBits !== 0),
+            'unknownInternalAttributeBits' => $unknownInternalAttributeBits,
+            'unixMode' => $unixMode,
+            'unixModeOctal' => $unixMode === null ? null : sprintf('%06o', $unixMode),
+            'unixPermissions' => $unixPermissions,
+            'unixPermissionsOctal' => $unixPermissions === null ? null : sprintf('%04o', $unixPermissions),
+            'hasUnixMode' => $unixMode !== null,
+            'unixFileType' => $entry->unixFileType(),
+            'unixFileTypeName' => $entry->unixFileTypeName(),
+            'isUnixExecutableFile' => is_bool($permissions['isExecutableFile'] ?? null)
+                ? $permissions['isExecutableFile']
+                : $entry->isUnixExecutableFile(),
+            'isGroupWritable' => $isGroupWritable,
+            'isWorldWritable' => $isWorldWritable,
+            'hasWritablePermissions' => $hasWritablePermissions,
+            'platformMetadataPlatform' => is_string($platformMetadata['platform'] ?? null) ? $platformMetadata['platform'] : null,
+            'platformMetadataIssues' => $platformMetadataIssues,
+            'platformAttributeIssues' => $issues,
+            'hasPlatformAttributeProvenance' => $entry->externalFileAttributes !== 0
+                || $entry->internalFileAttributes !== 0
+                || $platformMetadataIssues !== []
+                || $madeByHostSystem !== 3
+                || $madeByVersion !== $versionNeededToExtract,
+            'canExposeBytes' => false,
+            'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
+            'reviewPolicy' => 'docx-zip-platform-attributes-metadata-only',
         ];
     }
 
@@ -11541,6 +11966,53 @@ final class DocxOpenXmlReader
             $partInventory[$partName]['zipCentralDirectoryRecordSha256'] = $entry['centralDirectoryRecordSha256'] ?? null;
             $partInventory[$partName]['zipByteExposurePolicy'] = $entry['byteExposurePolicy'] ?? null;
             $partInventory[$partName]['zipCanExposeBytes'] = $entry['canExposeBytes'] ?? null;
+            foreach ([
+                'madeByHostSystem',
+                'madeByHostSystemName',
+                'madeByVersion',
+                'versionMadeBy',
+                'versionNeededToExtract',
+                'creatorVersionMeetsNeeded',
+                'externalAttributes',
+                'externalAttributesHex',
+                'hasExternalAttributes',
+                'dosAttributes',
+                'dosAttributeNames',
+                'hasDosAttributes',
+                'hasDosReadOnlyAttribute',
+                'hasDosHiddenAttribute',
+                'hasDosSystemAttribute',
+                'hasDosVolumeLabelAttribute',
+                'hasDosDirectoryAttribute',
+                'hasDosArchiveAttribute',
+                'internalFileAttributes',
+                'internalFileAttributesHex',
+                'internalAttributeNames',
+                'hasInternalFileAttributes',
+                'hasTextInternalAttribute',
+                'hasUnknownInternalAttributeBits',
+                'unknownInternalAttributeBits',
+                'unixMode',
+                'unixModeOctal',
+                'unixPermissions',
+                'unixPermissionsOctal',
+                'hasUnixMode',
+                'unixFileType',
+                'unixFileTypeName',
+                'isUnixExecutableFile',
+                'isGroupWritable',
+                'isWorldWritable',
+                'hasWritablePermissions',
+                'platformMetadataPlatform',
+                'platformMetadataIssues',
+                'platformAttributeIssues',
+                'hasPlatformAttributeProvenance',
+            ] as $platformAttributeKey) {
+                if (array_key_exists($platformAttributeKey, $entry)) {
+                    $partInventory[$partName][$platformAttributeKey] = $entry[$platformAttributeKey];
+                }
+            }
+            $partInventory[$partName]['zipPlatformAttributeReviewPolicy'] = $entry['reviewPolicy'] ?? null;
             $partInventory[$partName]['usesDataDescriptor'] = $entry['usesDataDescriptor'] ?? false;
             $partInventory[$partName]['dataDescriptorHasSignature'] = $entry['dataDescriptorHasSignature'] ?? null;
             $partInventory[$partName]['dataDescriptorOffset'] = $entry['dataDescriptorOffset'] ?? null;
