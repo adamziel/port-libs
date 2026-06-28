@@ -14580,6 +14580,10 @@ final class DocxOpenXmlReader
             'partXmlProcessingInstructionDataAttributeNameCounts' => $partXmlRoots['xmlProcessingInstructionDataAttributeNameCounts'],
             'partXmlProcessingInstructionDataAttributeNames' => $partXmlRoots['xmlProcessingInstructionDataAttributeNames'],
             'partXmlProcessingInstructionDataAttributeValueByteLength' => $partXmlRoots['xmlProcessingInstructionDataAttributeValueByteLength'],
+            'partXmlProcessingInstructionDataAttributeValueShapeCount' => count($partXmlRoots['xmlProcessingInstructionDataAttributeValueShapeCounts']),
+            'partXmlProcessingInstructionDataAttributeValueShapeCounts' => $partXmlRoots['xmlProcessingInstructionDataAttributeValueShapeCounts'],
+            'partXmlProcessingInstructionDataAttributeValueShapes' => $partXmlRoots['xmlProcessingInstructionDataAttributeValueShapes'],
+            'partXmlProcessingInstructionDataAttributeTokenValueCount' => $partXmlRoots['xmlProcessingInstructionDataAttributeTokenValueCount'],
             'partXmlCommentPartCount' => $partXmlRoots['xmlCommentPartCount'],
             'partXmlCommentCount' => $partXmlRoots['xmlCommentCount'],
             'partXmlCommentByteLength' => $partXmlRoots['xmlCommentByteLength'],
@@ -20478,6 +20482,8 @@ final class DocxOpenXmlReader
         $xmlProcessingInstructionParentQualifiedNameCounts = [];
         $xmlProcessingInstructionDataAttributeNameCounts = [];
         $xmlProcessingInstructionDataAttributeNames = [];
+        $xmlProcessingInstructionDataAttributeValueShapeCounts = [];
+        $xmlProcessingInstructionDataAttributeValueShapes = [];
         $xmlProcessingInstructions = [];
         $xmlCommentPartNames = [];
         $xmlComments = [];
@@ -20653,6 +20659,7 @@ final class DocxOpenXmlReader
         $xmlProcessingInstructionCount = 0;
         $xmlProcessingInstructionDataAttributeCount = 0;
         $xmlProcessingInstructionDataAttributeValueByteLength = 0;
+        $xmlProcessingInstructionDataAttributeTokenValueCount = 0;
         $xmlCommentPartCount = 0;
         $xmlCommentCount = 0;
         $xmlCommentByteLength = 0;
@@ -21130,6 +21137,16 @@ final class DocxOpenXmlReader
                         ($xmlProcessingInstructionDataAttributeNameCounts[$attributeName] ?? 0) + 1;
                     $this->appendUniqueString($xmlProcessingInstructionDataAttributeNames, $attributeName);
                     $xmlProcessingInstructionDataAttributeValueByteLength += (int) ($attribute['valueByteLength'] ?? 0);
+                    $attributeValueShape = is_string($attribute['valueShape'] ?? null)
+                        ? $attribute['valueShape']
+                        : 'token';
+                    $xmlProcessingInstructionDataAttributeValueShapeCounts[$attributeValueShape] =
+                        ($xmlProcessingInstructionDataAttributeValueShapeCounts[$attributeValueShape] ?? 0) + 1;
+                    $this->appendUniqueString(
+                        $xmlProcessingInstructionDataAttributeValueShapes,
+                        $attributeValueShape,
+                    );
+                    $xmlProcessingInstructionDataAttributeTokenValueCount += (int) ($attribute['valueTokenCount'] ?? 0);
                 }
             }
             $partCommentCount = (int) ($part['xmlCommentCount'] ?? 0);
@@ -23181,6 +23198,7 @@ final class DocxOpenXmlReader
         ksort($xmlProcessingInstructionParentLocalNameCounts, SORT_STRING);
         ksort($xmlProcessingInstructionParentQualifiedNameCounts, SORT_STRING);
         ksort($xmlProcessingInstructionDataAttributeNameCounts, SORT_STRING);
+        ksort($xmlProcessingInstructionDataAttributeValueShapeCounts, SORT_STRING);
         ksort($xmlTextNodeParentPathCounts, SORT_STRING);
         ksort($xmlTextNodeParentNamespaceCounts, SORT_STRING);
         ksort($xmlTextNodeParentLocalNameCounts, SORT_STRING);
@@ -23269,6 +23287,7 @@ final class DocxOpenXmlReader
         ksort($xmlElementAttributeValueShapeCounts, SORT_STRING);
         sort($xmlProcessingInstructionTargets, SORT_STRING);
         sort($xmlProcessingInstructionDataAttributeNames, SORT_STRING);
+        sort($xmlProcessingInstructionDataAttributeValueShapes, SORT_STRING);
         sort($invalidPartNames, SORT_STRING);
         sort($xmlDeclarationPartNames, SORT_STRING);
         sort($xmlDoctypePartNames, SORT_STRING);
@@ -23490,6 +23509,9 @@ final class DocxOpenXmlReader
             'xmlProcessingInstructionDataAttributeNameCounts' => $xmlProcessingInstructionDataAttributeNameCounts,
             'xmlProcessingInstructionDataAttributeNames' => $xmlProcessingInstructionDataAttributeNames,
             'xmlProcessingInstructionDataAttributeValueByteLength' => $xmlProcessingInstructionDataAttributeValueByteLength,
+            'xmlProcessingInstructionDataAttributeValueShapeCounts' => $xmlProcessingInstructionDataAttributeValueShapeCounts,
+            'xmlProcessingInstructionDataAttributeValueShapes' => $xmlProcessingInstructionDataAttributeValueShapes,
+            'xmlProcessingInstructionDataAttributeTokenValueCount' => $xmlProcessingInstructionDataAttributeTokenValueCount,
             'xmlProcessingInstructions' => $xmlProcessingInstructions,
             'xmlCommentPartCount' => $xmlCommentPartCount,
             'xmlCommentCount' => $xmlCommentCount,
@@ -25500,7 +25522,7 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{count:int, targetCounts:array<string, int>, targets:list<string>, parentPathCounts:array<string, int>, parentPaths:list<string>, parentNamespaceCounts:array<string, int>, parentLocalNameCounts:array<string, int>, parentQualifiedNameCounts:array<string, int>, items:list<array<string, mixed>>}
+     * @return array{count:int, targetCounts:array<string, int>, targets:list<string>, parentPathCounts:array<string, int>, parentPaths:list<string>, parentNamespaceCounts:array<string, int>, parentLocalNameCounts:array<string, int>, parentQualifiedNameCounts:array<string, int>, dataAttributeValueShapeCounts:array<string, int>, dataAttributeValueShapes:list<string>, dataAttributeTokenValueCount:int, items:list<array<string, mixed>>}
      */
     private function xmlProcessingInstructionProvenance(string $xml, string $partName): array
     {
@@ -25515,6 +25537,9 @@ final class DocxOpenXmlReader
                 'parentNamespaceCounts' => [],
                 'parentLocalNameCounts' => [],
                 'parentQualifiedNameCounts' => [],
+                'dataAttributeValueShapeCounts' => [],
+                'dataAttributeValueShapes' => [],
+                'dataAttributeTokenValueCount' => 0,
                 'items' => [],
             ];
         }
@@ -25527,6 +25552,9 @@ final class DocxOpenXmlReader
         $parentNamespaceCounts = [];
         $parentLocalNameCounts = [];
         $parentQualifiedNameCounts = [];
+        $dataAttributeValueShapeCounts = [];
+        $dataAttributeValueShapes = [];
+        $dataAttributeTokenValueCount = 0;
         $ordinal = 0;
         $walk = function (\DOMNode $node) use (
             &$walk,
@@ -25538,6 +25566,9 @@ final class DocxOpenXmlReader
             &$parentNamespaceCounts,
             &$parentLocalNameCounts,
             &$parentQualifiedNameCounts,
+            &$dataAttributeValueShapeCounts,
+            &$dataAttributeValueShapes,
+            &$dataAttributeTokenValueCount,
             &$ordinal,
         ): void {
             foreach ($node->childNodes as $child) {
@@ -25569,6 +25600,19 @@ final class DocxOpenXmlReader
                     $parentNamespaceCounts[$parentNamespaceKey] = ($parentNamespaceCounts[$parentNamespaceKey] ?? 0) + 1;
                     $parentLocalNameCounts[$parentLocalNameKey] = ($parentLocalNameCounts[$parentLocalNameKey] ?? 0) + 1;
                     $parentQualifiedNameCounts[$parentQualifiedNameKey] = ($parentQualifiedNameCounts[$parentQualifiedNameKey] ?? 0) + 1;
+                    foreach ($pseudoAttributes['items'] as $pseudoAttribute) {
+                        if (!is_array($pseudoAttribute)) {
+                            continue;
+                        }
+
+                        $valueShape = is_string($pseudoAttribute['valueShape'] ?? null)
+                            ? $pseudoAttribute['valueShape']
+                            : 'token';
+                        $dataAttributeValueShapeCounts[$valueShape] =
+                            ($dataAttributeValueShapeCounts[$valueShape] ?? 0) + 1;
+                        $this->appendUniqueString($dataAttributeValueShapes, $valueShape);
+                        $dataAttributeTokenValueCount += (int) ($pseudoAttribute['valueTokenCount'] ?? 0);
+                    }
                     $items[] = [
                         'ordinal' => $ordinal,
                         'target' => $target,
@@ -25599,8 +25643,10 @@ final class DocxOpenXmlReader
         ksort($parentNamespaceCounts, SORT_STRING);
         ksort($parentLocalNameCounts, SORT_STRING);
         ksort($parentQualifiedNameCounts, SORT_STRING);
+        ksort($dataAttributeValueShapeCounts, SORT_STRING);
         sort($targets, SORT_STRING);
         sort($parentPaths, SORT_STRING);
+        sort($dataAttributeValueShapes, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -25611,6 +25657,9 @@ final class DocxOpenXmlReader
             'parentNamespaceCounts' => $parentNamespaceCounts,
             'parentLocalNameCounts' => $parentLocalNameCounts,
             'parentQualifiedNameCounts' => $parentQualifiedNameCounts,
+            'dataAttributeValueShapeCounts' => $dataAttributeValueShapeCounts,
+            'dataAttributeValueShapes' => $dataAttributeValueShapes,
+            'dataAttributeTokenValueCount' => $dataAttributeTokenValueCount,
             'items' => $items,
         ];
     }
@@ -28445,13 +28494,59 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{count:int, names:list<string>, items:list<array{name:string, valueByteLength:int, valueCrc32:?string, valueSha256:?string}>}
+     * @return array{shape:string, tokenCount:int, containsWhitespace:bool, hasLeadingWhitespace:bool, hasTrailingWhitespace:bool}
+     */
+    private function xmlPseudoAttributeValueShape(string $value): array
+    {
+        $trimmed = trim($value);
+        $tokenCount = $trimmed === ''
+            ? 0
+            : count(preg_split('/\s+/', $trimmed) ?: []);
+        $containsWhitespace = preg_match('/\s/', $value) === 1;
+        $hasLeadingWhitespace = $value !== '' && preg_match('/^\s/', $value) === 1;
+        $hasTrailingWhitespace = $value !== '' && preg_match('/\s$/', $value) === 1;
+        $shape = 'token';
+
+        if ($trimmed === '') {
+            $shape = 'empty';
+        } elseif (preg_match('/\A(?:true|false|on|off|yes|no)\z/i', $trimmed) === 1) {
+            $shape = 'boolean';
+        } elseif (preg_match('/\A[+-]?\d+\z/', $trimmed) === 1) {
+            $shape = 'integer';
+        } elseif (preg_match('/\A[+-]?(?:\d+\.\d+|\d+\.\d*|\.\d+)\z/', $trimmed) === 1) {
+            $shape = 'decimal';
+        } elseif (preg_match('/\A[A-Za-z_][A-Za-z0-9_.-]*:[A-Za-z_][A-Za-z0-9_.-]*\z/', $trimmed) === 1) {
+            $shape = 'qname';
+        } elseif (preg_match('/\A[A-Za-z][A-Za-z0-9+.-]*:/', $trimmed) === 1) {
+            $shape = 'absolute-uri';
+        } elseif (str_starts_with($trimmed, '//')) {
+            $shape = 'network-path-reference';
+        } elseif ($tokenCount > 1) {
+            $shape = 'token-list';
+        } elseif (str_contains($trimmed, '/') || str_contains($trimmed, '\\')) {
+            $shape = 'relative-reference';
+        }
+
+        return [
+            'shape' => $shape,
+            'tokenCount' => $tokenCount,
+            'containsWhitespace' => $containsWhitespace,
+            'hasLeadingWhitespace' => $hasLeadingWhitespace,
+            'hasTrailingWhitespace' => $hasTrailingWhitespace,
+        ];
+    }
+
+    /**
+     * @return array{count:int, names:list<string>, valueShapeCounts:array<string, int>, valueShapes:list<string>, tokenValueCount:int, items:list<array{name:string, valueByteLength:int, valueShape:string, valueTokenCount:int, valueContainsWhitespace:bool, valueHasLeadingWhitespace:bool, valueHasTrailingWhitespace:bool, valueCrc32:?string, valueSha256:?string}>}
      */
     private function xmlProcessingInstructionPseudoAttributes(string $data): array
     {
         preg_match_all('/([A-Za-z_][A-Za-z0-9_.:-]*)\s*=\s*(["\'])(.*?)\2/s', $data, $matches, PREG_SET_ORDER);
 
         $names = [];
+        $valueShapeCounts = [];
+        $valueShapes = [];
+        $tokenValueCount = 0;
         $items = [];
         $seen = [];
         foreach ($matches as $match) {
@@ -28461,17 +28556,29 @@ final class DocxOpenXmlReader
             }
 
             $value = (string) $match[3];
+            $valueShape = $this->xmlPseudoAttributeValueShape($value);
+            $valueShapeName = $valueShape['shape'];
             $seen[$name] = true;
             $names[] = $name;
+            $valueShapeCounts[$valueShapeName] = ($valueShapeCounts[$valueShapeName] ?? 0) + 1;
+            $this->appendUniqueString($valueShapes, $valueShapeName);
+            $tokenValueCount += $valueShape['tokenCount'];
             $items[] = [
                 'name' => $name,
                 'valueByteLength' => strlen($value),
+                'valueShape' => $valueShapeName,
+                'valueTokenCount' => $valueShape['tokenCount'],
+                'valueContainsWhitespace' => $valueShape['containsWhitespace'],
+                'valueHasLeadingWhitespace' => $valueShape['hasLeadingWhitespace'],
+                'valueHasTrailingWhitespace' => $valueShape['hasTrailingWhitespace'],
                 'valueCrc32' => $value === '' ? null : sprintf('%08x', crc32($value)),
                 'valueSha256' => $value === '' ? null : hash('sha256', $value),
             ];
         }
 
+        ksort($valueShapeCounts, SORT_STRING);
         sort($names, SORT_STRING);
+        sort($valueShapes, SORT_STRING);
         usort(
             $items,
             static fn (array $left, array $right): int => strcmp((string) $left['name'], (string) $right['name']),
@@ -28480,6 +28587,9 @@ final class DocxOpenXmlReader
         return [
             'count' => count($items),
             'names' => $names,
+            'valueShapeCounts' => $valueShapeCounts,
+            'valueShapes' => $valueShapes,
+            'tokenValueCount' => $tokenValueCount,
             'items' => $items,
         ];
     }
@@ -30312,6 +30422,9 @@ final class DocxOpenXmlReader
                 'xmlProcessingInstructionParentNamespaceCounts' => [],
                 'xmlProcessingInstructionParentLocalNameCounts' => [],
                 'xmlProcessingInstructionParentQualifiedNameCounts' => [],
+                'xmlProcessingInstructionDataAttributeValueShapeCounts' => [],
+                'xmlProcessingInstructionDataAttributeValueShapes' => [],
+                'xmlProcessingInstructionDataAttributeTokenValueCount' => 0,
                 'xmlProcessingInstructions' => [],
                 'xmlCommentCount' => 0,
                 'xmlCommentByteLength' => 0,
@@ -30616,6 +30729,9 @@ final class DocxOpenXmlReader
             'xmlProcessingInstructionParentNamespaceCounts' => $processingInstructions['parentNamespaceCounts'],
             'xmlProcessingInstructionParentLocalNameCounts' => $processingInstructions['parentLocalNameCounts'],
             'xmlProcessingInstructionParentQualifiedNameCounts' => $processingInstructions['parentQualifiedNameCounts'],
+            'xmlProcessingInstructionDataAttributeValueShapeCounts' => $processingInstructions['dataAttributeValueShapeCounts'],
+            'xmlProcessingInstructionDataAttributeValueShapes' => $processingInstructions['dataAttributeValueShapes'],
+            'xmlProcessingInstructionDataAttributeTokenValueCount' => $processingInstructions['dataAttributeTokenValueCount'],
             'xmlProcessingInstructions' => $processingInstructions['items'],
             'xmlCommentCount' => $comments['count'],
             'xmlCommentByteLength' => $comments['byteLength'],

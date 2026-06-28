@@ -19018,7 +19018,9 @@ XML;
 XML;
 
         $document = (new DocxOpenXmlReader())->readPackage($parts);
-        $summary = $document->attr('docx')['packageProvenance']['summary'];
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $part = $package['parts']['customXml/pi-attributes.xml'];
         $attributeValueBytes =
             strlen('text/xsl')
             + strlen('../word/theme/review.xsl')
@@ -19039,6 +19041,32 @@ XML;
         );
         $t->same(['alternate', 'checkpoint', 'href', 'progid', 'type'], $summary['partXmlProcessingInstructionDataAttributeNames']);
         $t->same($attributeValueBytes, $summary['partXmlProcessingInstructionDataAttributeValueByteLength']);
+        $t->same(3, $summary['partXmlProcessingInstructionDataAttributeValueShapeCount']);
+        $t->same(
+            ['boolean' => 1, 'relative-reference' => 3, 'token' => 2],
+            $summary['partXmlProcessingInstructionDataAttributeValueShapeCounts']
+        );
+        $t->same(['boolean', 'relative-reference', 'token'], $summary['partXmlProcessingInstructionDataAttributeValueShapes']);
+        $t->same(6, $summary['partXmlProcessingInstructionDataAttributeTokenValueCount']);
+
+        $t->same(
+            ['boolean' => 1, 'relative-reference' => 3, 'token' => 2],
+            $part['xmlProcessingInstructionDataAttributeValueShapeCounts']
+        );
+        $t->same(['boolean', 'relative-reference', 'token'], $part['xmlProcessingInstructionDataAttributeValueShapes']);
+        $stylesheetAttributes = array_column($part['xmlProcessingInstructions'][0]['dataAttributes'], null, 'name');
+        $auditAttributes = array_column($part['xmlProcessingInstructions'][1]['dataAttributes'], null, 'name');
+        $msoAttributes = array_column($part['xmlProcessingInstructions'][2]['dataAttributes'], null, 'name');
+        $t->same('boolean', $stylesheetAttributes['alternate']['valueShape']);
+        $t->same('relative-reference', $stylesheetAttributes['href']['valueShape']);
+        $t->same('relative-reference', $stylesheetAttributes['type']['valueShape']);
+        $t->same('token', $auditAttributes['checkpoint']['valueShape']);
+        $t->same('relative-reference', $auditAttributes['href']['valueShape']);
+        $t->same('token', $msoAttributes['progid']['valueShape']);
+        $encodedAttributes = json_encode($part['xmlProcessingInstructions']);
+        $t->true(is_string($encodedAttributes), 'PI pseudo-attribute shape metadata should encode for review');
+        $t->true(!str_contains((string) $encodedAttributes, '../word/theme/review.xsl'), 'raw PI href values should not be exposed in shape metadata');
+        $t->true(!str_contains((string) $encodedAttributes, 'Word.Document'), 'raw PI program ids should not be exposed in shape metadata');
     },
     'summarizes docx package xml comments without exposing comment text' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
