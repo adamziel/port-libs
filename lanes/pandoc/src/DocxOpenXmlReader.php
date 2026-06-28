@@ -14394,6 +14394,16 @@ final class DocxOpenXmlReader
             'partXmlElementAttributeElementNameCount' => count($partXmlRoots['xmlElementAttributeElementNameCounts']),
             'partXmlElementAttributeElementNameCounts' => $partXmlRoots['xmlElementAttributeElementNameCounts'],
             'partXmlElementAttributeValueByteLength' => $partXmlRoots['xmlElementAttributeValueByteLength'],
+            'partXmlElementAttributeEmptyValueCount' => $partXmlRoots['xmlElementAttributeEmptyValueCount'],
+            'partXmlElementAttributeWhitespaceOnlyValueCount' => $partXmlRoots['xmlElementAttributeWhitespaceOnlyValueCount'],
+            'partXmlElementAttributeNonWhitespaceValueCount' => $partXmlRoots['xmlElementAttributeNonWhitespaceValueCount'],
+            'partXmlElementAttributeLeadingWhitespaceValueCount' => $partXmlRoots['xmlElementAttributeLeadingWhitespaceValueCount'],
+            'partXmlElementAttributeTrailingWhitespaceValueCount' => $partXmlRoots['xmlElementAttributeTrailingWhitespaceValueCount'],
+            'partXmlElementAttributeLeadingWhitespaceValueByteLength' => $partXmlRoots['xmlElementAttributeLeadingWhitespaceValueByteLength'],
+            'partXmlElementAttributeTrailingWhitespaceValueByteLength' => $partXmlRoots['xmlElementAttributeTrailingWhitespaceValueByteLength'],
+            'partXmlElementAttributeLineBreakValueCount' => $partXmlRoots['xmlElementAttributeLineBreakValueCount'],
+            'partXmlElementAttributeLineBreakValueAttributeCount' => $partXmlRoots['xmlElementAttributeLineBreakValueAttributeCount'],
+            'partXmlElementAttributeTokenValueCount' => $partXmlRoots['xmlElementAttributeTokenValueCount'],
             'partXmlElementAttributePartNames' => $partXmlRoots['xmlElementAttributePartNames'],
             'partXmlInvalidPartNames' => $partXmlRoots['invalidPartNames'],
             'partXmlDeclarationCount' => $partXmlRoots['xmlDeclarationCount'],
@@ -20528,6 +20538,16 @@ final class DocxOpenXmlReader
         $xmlElementAttributePartCount = 0;
         $xmlElementAttributeCount = 0;
         $xmlElementAttributeValueByteLength = 0;
+        $xmlElementAttributeEmptyValueCount = 0;
+        $xmlElementAttributeWhitespaceOnlyValueCount = 0;
+        $xmlElementAttributeNonWhitespaceValueCount = 0;
+        $xmlElementAttributeLeadingWhitespaceValueCount = 0;
+        $xmlElementAttributeTrailingWhitespaceValueCount = 0;
+        $xmlElementAttributeLeadingWhitespaceValueByteLength = 0;
+        $xmlElementAttributeTrailingWhitespaceValueByteLength = 0;
+        $xmlElementAttributeLineBreakValueCount = 0;
+        $xmlElementAttributeLineBreakValueAttributeCount = 0;
+        $xmlElementAttributeTokenValueCount = 0;
 
         foreach ($partInventory as $partName => $part) {
             if (($part['xmlInspectable'] ?? false) !== true) {
@@ -22016,6 +22036,16 @@ final class DocxOpenXmlReader
                 ++$xmlElementAttributePartCount;
                 $xmlElementAttributeCount += $partElementAttributeCount;
                 $xmlElementAttributeValueByteLength += (int) ($part['xmlElementAttributeValueByteLength'] ?? 0);
+                $xmlElementAttributeEmptyValueCount += (int) ($part['xmlElementAttributeEmptyValueCount'] ?? 0);
+                $xmlElementAttributeWhitespaceOnlyValueCount += (int) ($part['xmlElementAttributeWhitespaceOnlyValueCount'] ?? 0);
+                $xmlElementAttributeNonWhitespaceValueCount += (int) ($part['xmlElementAttributeNonWhitespaceValueCount'] ?? 0);
+                $xmlElementAttributeLeadingWhitespaceValueCount += (int) ($part['xmlElementAttributeLeadingWhitespaceValueCount'] ?? 0);
+                $xmlElementAttributeTrailingWhitespaceValueCount += (int) ($part['xmlElementAttributeTrailingWhitespaceValueCount'] ?? 0);
+                $xmlElementAttributeLeadingWhitespaceValueByteLength += (int) ($part['xmlElementAttributeLeadingWhitespaceValueByteLength'] ?? 0);
+                $xmlElementAttributeTrailingWhitespaceValueByteLength += (int) ($part['xmlElementAttributeTrailingWhitespaceValueByteLength'] ?? 0);
+                $xmlElementAttributeLineBreakValueCount += (int) ($part['xmlElementAttributeLineBreakValueCount'] ?? 0);
+                $xmlElementAttributeLineBreakValueAttributeCount += (int) ($part['xmlElementAttributeLineBreakValueAttributeCount'] ?? 0);
+                $xmlElementAttributeTokenValueCount += (int) ($part['xmlElementAttributeTokenValueCount'] ?? 0);
                 $xmlElementAttributePartNames[] = $partName;
             }
             foreach (($part['xmlElementAttributeNameCounts'] ?? []) as $attributeName => $count) {
@@ -22097,6 +22127,15 @@ final class DocxOpenXmlReader
                     'namespace' => is_string($attribute['namespace'] ?? null) ? $attribute['namespace'] : null,
                     'localName' => is_string($attribute['localName'] ?? null) ? $attribute['localName'] : '',
                     'valueByteLength' => (int) ($attribute['valueByteLength'] ?? 0),
+                    'isValueEmpty' => (bool) ($attribute['isValueEmpty'] ?? false),
+                    'isValueWhitespaceOnly' => (bool) ($attribute['isValueWhitespaceOnly'] ?? false),
+                    'valueLeadingWhitespaceByteLength' => (int) ($attribute['valueLeadingWhitespaceByteLength'] ?? 0),
+                    'valueTrailingWhitespaceByteLength' => (int) ($attribute['valueTrailingWhitespaceByteLength'] ?? 0),
+                    'hasValueLeadingWhitespace' => (bool) ($attribute['hasValueLeadingWhitespace'] ?? false),
+                    'hasValueTrailingWhitespace' => (bool) ($attribute['hasValueTrailingWhitespace'] ?? false),
+                    'valueLineBreakCount' => (int) ($attribute['valueLineBreakCount'] ?? 0),
+                    'hasValueLineBreak' => (bool) ($attribute['hasValueLineBreak'] ?? false),
+                    'valueTokenCount' => (int) ($attribute['valueTokenCount'] ?? 0),
                     'valueCrc32' => is_string($attribute['valueCrc32'] ?? null) ? $attribute['valueCrc32'] : null,
                     'valueSha256' => is_string($attribute['valueSha256'] ?? null) ? $attribute['valueSha256'] : null,
                 ];
@@ -22517,6 +22556,16 @@ final class DocxOpenXmlReader
                     : [],
                 'xmlElementAttributeCount' => $partElementAttributeCount,
                 'xmlElementAttributeValueByteLength' => (int) ($part['xmlElementAttributeValueByteLength'] ?? 0),
+                'xmlElementAttributeEmptyValueCount' => (int) ($part['xmlElementAttributeEmptyValueCount'] ?? 0),
+                'xmlElementAttributeWhitespaceOnlyValueCount' => (int) ($part['xmlElementAttributeWhitespaceOnlyValueCount'] ?? 0),
+                'xmlElementAttributeNonWhitespaceValueCount' => (int) ($part['xmlElementAttributeNonWhitespaceValueCount'] ?? 0),
+                'xmlElementAttributeLeadingWhitespaceValueCount' => (int) ($part['xmlElementAttributeLeadingWhitespaceValueCount'] ?? 0),
+                'xmlElementAttributeTrailingWhitespaceValueCount' => (int) ($part['xmlElementAttributeTrailingWhitespaceValueCount'] ?? 0),
+                'xmlElementAttributeLeadingWhitespaceValueByteLength' => (int) ($part['xmlElementAttributeLeadingWhitespaceValueByteLength'] ?? 0),
+                'xmlElementAttributeTrailingWhitespaceValueByteLength' => (int) ($part['xmlElementAttributeTrailingWhitespaceValueByteLength'] ?? 0),
+                'xmlElementAttributeLineBreakValueCount' => (int) ($part['xmlElementAttributeLineBreakValueCount'] ?? 0),
+                'xmlElementAttributeLineBreakValueAttributeCount' => (int) ($part['xmlElementAttributeLineBreakValueAttributeCount'] ?? 0),
+                'xmlElementAttributeTokenValueCount' => (int) ($part['xmlElementAttributeTokenValueCount'] ?? 0),
                 'xmlElementAttributeNameCounts' => is_array($part['xmlElementAttributeNameCounts'] ?? null)
                     ? $part['xmlElementAttributeNameCounts']
                     : [],
@@ -23056,6 +23105,16 @@ final class DocxOpenXmlReader
             'xmlElementAttributeElementPaths' => $xmlElementAttributeElementPaths,
             'xmlElementAttributeElementNameCounts' => $xmlElementAttributeElementNameCounts,
             'xmlElementAttributeValueByteLength' => $xmlElementAttributeValueByteLength,
+            'xmlElementAttributeEmptyValueCount' => $xmlElementAttributeEmptyValueCount,
+            'xmlElementAttributeWhitespaceOnlyValueCount' => $xmlElementAttributeWhitespaceOnlyValueCount,
+            'xmlElementAttributeNonWhitespaceValueCount' => $xmlElementAttributeNonWhitespaceValueCount,
+            'xmlElementAttributeLeadingWhitespaceValueCount' => $xmlElementAttributeLeadingWhitespaceValueCount,
+            'xmlElementAttributeTrailingWhitespaceValueCount' => $xmlElementAttributeTrailingWhitespaceValueCount,
+            'xmlElementAttributeLeadingWhitespaceValueByteLength' => $xmlElementAttributeLeadingWhitespaceValueByteLength,
+            'xmlElementAttributeTrailingWhitespaceValueByteLength' => $xmlElementAttributeTrailingWhitespaceValueByteLength,
+            'xmlElementAttributeLineBreakValueCount' => $xmlElementAttributeLineBreakValueCount,
+            'xmlElementAttributeLineBreakValueAttributeCount' => $xmlElementAttributeLineBreakValueAttributeCount,
+            'xmlElementAttributeTokenValueCount' => $xmlElementAttributeTokenValueCount,
             'xmlElementAttributePartNames' => $xmlElementAttributePartNames,
             'xmlElementAttributes' => $xmlElementAttributes,
             'items' => $items,
@@ -26984,13 +27043,23 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{count:int, valueByteLength:int, nameCounts:array<string, int>, names:list<string>, namespaceCounts:array<string, int>, namespaces:list<string>, prefixCounts:array<string, int>, prefixes:list<string>, elementPathCounts:array<string, int>, elementPaths:list<string>, elementNameCounts:array<string, int>, items:list<array<string, mixed>>}
+     * @return array<string, mixed>
      */
     private function xmlElementAttributeProvenance(string $xml, string $partName): array
     {
         $empty = [
             'count' => 0,
             'valueByteLength' => 0,
+            'emptyValueCount' => 0,
+            'whitespaceOnlyValueCount' => 0,
+            'nonWhitespaceValueCount' => 0,
+            'leadingWhitespaceValueCount' => 0,
+            'trailingWhitespaceValueCount' => 0,
+            'leadingWhitespaceValueByteLength' => 0,
+            'trailingWhitespaceValueByteLength' => 0,
+            'lineBreakValueCount' => 0,
+            'lineBreakValueAttributeCount' => 0,
+            'tokenValueCount' => 0,
             'nameCounts' => [],
             'names' => [],
             'namespaceCounts' => [],
@@ -27019,6 +27088,16 @@ final class DocxOpenXmlReader
         $elementPaths = [];
         $elementNameCounts = [];
         $valueByteLength = 0;
+        $emptyValueCount = 0;
+        $whitespaceOnlyValueCount = 0;
+        $nonWhitespaceValueCount = 0;
+        $leadingWhitespaceValueCount = 0;
+        $trailingWhitespaceValueCount = 0;
+        $leadingWhitespaceValueByteLength = 0;
+        $trailingWhitespaceValueByteLength = 0;
+        $lineBreakValueCount = 0;
+        $lineBreakValueAttributeCount = 0;
+        $tokenValueCount = 0;
         $ordinal = 0;
         $walk = function (\DOMElement $element) use (
             &$walk,
@@ -27033,6 +27112,16 @@ final class DocxOpenXmlReader
             &$elementPaths,
             &$elementNameCounts,
             &$valueByteLength,
+            &$emptyValueCount,
+            &$whitespaceOnlyValueCount,
+            &$nonWhitespaceValueCount,
+            &$leadingWhitespaceValueCount,
+            &$trailingWhitespaceValueCount,
+            &$leadingWhitespaceValueByteLength,
+            &$trailingWhitespaceValueByteLength,
+            &$lineBreakValueCount,
+            &$lineBreakValueAttributeCount,
+            &$tokenValueCount,
             &$ordinal,
         ): void {
             $elementPath = $this->xmlProvenanceParentPath($element);
@@ -27058,8 +27147,44 @@ final class DocxOpenXmlReader
                 $prefixKey = $prefix ?? '(none)';
                 $value = $attribute->value;
                 $attributeValueByteLength = strlen($value);
+                $isValueEmpty = $value === '';
+                $isValueWhitespaceOnly = !$isValueEmpty && preg_match('/[^\x20\x09\x0D\x0A]/', $value) !== 1;
+                $valueLeadingWhitespace = '';
+                if (preg_match('/^[\x20\x09\x0D\x0A]+/', $value, $match) === 1) {
+                    $valueLeadingWhitespace = (string) $match[0];
+                }
+                $valueTrailingWhitespace = '';
+                if (preg_match('/[\x20\x09\x0D\x0A]+$/', $value, $match) === 1) {
+                    $valueTrailingWhitespace = (string) $match[0];
+                }
+                $attributeLineBreakCount = preg_match_all('/\r\n|\r|\n/', $value);
+                $attributeLineBreakCount = is_int($attributeLineBreakCount) ? $attributeLineBreakCount : 0;
+                $attributeTokenCount = preg_match_all('/[^\x20\x09\x0D\x0A]+/', $value);
+                $attributeTokenCount = is_int($attributeTokenCount) ? $attributeTokenCount : 0;
+                $valueLeadingWhitespaceByteLength = strlen($valueLeadingWhitespace);
+                $valueTrailingWhitespaceByteLength = strlen($valueTrailingWhitespace);
 
                 $valueByteLength += $attributeValueByteLength;
+                if ($isValueEmpty) {
+                    ++$emptyValueCount;
+                } elseif ($isValueWhitespaceOnly) {
+                    ++$whitespaceOnlyValueCount;
+                } else {
+                    ++$nonWhitespaceValueCount;
+                }
+                if ($valueLeadingWhitespaceByteLength > 0) {
+                    ++$leadingWhitespaceValueCount;
+                    $leadingWhitespaceValueByteLength += $valueLeadingWhitespaceByteLength;
+                }
+                if ($valueTrailingWhitespaceByteLength > 0) {
+                    ++$trailingWhitespaceValueCount;
+                    $trailingWhitespaceValueByteLength += $valueTrailingWhitespaceByteLength;
+                }
+                if ($attributeLineBreakCount > 0) {
+                    ++$lineBreakValueAttributeCount;
+                    $lineBreakValueCount += $attributeLineBreakCount;
+                }
+                $tokenValueCount += $attributeTokenCount;
                 $nameCounts[$name] = ($nameCounts[$name] ?? 0) + 1;
                 $this->appendUniqueString($names, $name);
                 $namespaceCounts[$namespaceKey] = ($namespaceCounts[$namespaceKey] ?? 0) + 1;
@@ -27087,6 +27212,15 @@ final class DocxOpenXmlReader
                     'namespace' => $namespace,
                     'localName' => $attribute->localName,
                     'valueByteLength' => $attributeValueByteLength,
+                    'isValueEmpty' => $isValueEmpty,
+                    'isValueWhitespaceOnly' => $isValueWhitespaceOnly,
+                    'valueLeadingWhitespaceByteLength' => $valueLeadingWhitespaceByteLength,
+                    'valueTrailingWhitespaceByteLength' => $valueTrailingWhitespaceByteLength,
+                    'hasValueLeadingWhitespace' => $valueLeadingWhitespaceByteLength > 0,
+                    'hasValueTrailingWhitespace' => $valueTrailingWhitespaceByteLength > 0,
+                    'valueLineBreakCount' => $attributeLineBreakCount,
+                    'hasValueLineBreak' => $attributeLineBreakCount > 0,
+                    'valueTokenCount' => $attributeTokenCount,
                     'valueCrc32' => $value === '' ? null : sprintf('%08x', crc32($value)),
                     'valueSha256' => $value === '' ? null : hash('sha256', $value),
                 ];
@@ -27113,6 +27247,16 @@ final class DocxOpenXmlReader
         return [
             'count' => count($items),
             'valueByteLength' => $valueByteLength,
+            'emptyValueCount' => $emptyValueCount,
+            'whitespaceOnlyValueCount' => $whitespaceOnlyValueCount,
+            'nonWhitespaceValueCount' => $nonWhitespaceValueCount,
+            'leadingWhitespaceValueCount' => $leadingWhitespaceValueCount,
+            'trailingWhitespaceValueCount' => $trailingWhitespaceValueCount,
+            'leadingWhitespaceValueByteLength' => $leadingWhitespaceValueByteLength,
+            'trailingWhitespaceValueByteLength' => $trailingWhitespaceValueByteLength,
+            'lineBreakValueCount' => $lineBreakValueCount,
+            'lineBreakValueAttributeCount' => $lineBreakValueAttributeCount,
+            'tokenValueCount' => $tokenValueCount,
             'nameCounts' => $nameCounts,
             'names' => $names,
             'namespaceCounts' => $namespaceCounts,
@@ -29157,6 +29301,16 @@ final class DocxOpenXmlReader
                 'xmlElementSiblingPositions' => [],
                 'xmlElementAttributeCount' => 0,
                 'xmlElementAttributeValueByteLength' => 0,
+                'xmlElementAttributeEmptyValueCount' => 0,
+                'xmlElementAttributeWhitespaceOnlyValueCount' => 0,
+                'xmlElementAttributeNonWhitespaceValueCount' => 0,
+                'xmlElementAttributeLeadingWhitespaceValueCount' => 0,
+                'xmlElementAttributeTrailingWhitespaceValueCount' => 0,
+                'xmlElementAttributeLeadingWhitespaceValueByteLength' => 0,
+                'xmlElementAttributeTrailingWhitespaceValueByteLength' => 0,
+                'xmlElementAttributeLineBreakValueCount' => 0,
+                'xmlElementAttributeLineBreakValueAttributeCount' => 0,
+                'xmlElementAttributeTokenValueCount' => 0,
                 'xmlElementAttributeNameCounts' => [],
                 'xmlElementAttributeNames' => [],
                 'xmlElementAttributeNamespaceCounts' => [],
@@ -29410,6 +29564,16 @@ final class DocxOpenXmlReader
             'xmlElementSiblingPositions' => $elementSiblingPositions['items'],
             'xmlElementAttributeCount' => $elementAttributes['count'],
             'xmlElementAttributeValueByteLength' => $elementAttributes['valueByteLength'],
+            'xmlElementAttributeEmptyValueCount' => $elementAttributes['emptyValueCount'],
+            'xmlElementAttributeWhitespaceOnlyValueCount' => $elementAttributes['whitespaceOnlyValueCount'],
+            'xmlElementAttributeNonWhitespaceValueCount' => $elementAttributes['nonWhitespaceValueCount'],
+            'xmlElementAttributeLeadingWhitespaceValueCount' => $elementAttributes['leadingWhitespaceValueCount'],
+            'xmlElementAttributeTrailingWhitespaceValueCount' => $elementAttributes['trailingWhitespaceValueCount'],
+            'xmlElementAttributeLeadingWhitespaceValueByteLength' => $elementAttributes['leadingWhitespaceValueByteLength'],
+            'xmlElementAttributeTrailingWhitespaceValueByteLength' => $elementAttributes['trailingWhitespaceValueByteLength'],
+            'xmlElementAttributeLineBreakValueCount' => $elementAttributes['lineBreakValueCount'],
+            'xmlElementAttributeLineBreakValueAttributeCount' => $elementAttributes['lineBreakValueAttributeCount'],
+            'xmlElementAttributeTokenValueCount' => $elementAttributes['tokenValueCount'],
             'xmlElementAttributeNameCounts' => $elementAttributes['nameCounts'],
             'xmlElementAttributeNames' => $elementAttributes['names'],
             'xmlElementAttributeNamespaceCounts' => $elementAttributes['namespaceCounts'],

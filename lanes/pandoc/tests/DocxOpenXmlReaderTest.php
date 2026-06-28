@@ -18575,6 +18575,73 @@ XML;
         $t->true(!isset($reviewPart['xmlElementAttributes'][0]['value']), 'raw XML attribute value should not be exposed on part metadata');
         $t->true(!str_contains((string) $encodedAttributes, 'hidden-'), 'raw XML attribute values should not be exposed in summary metadata');
     },
+    'summarizes docx package xml element attribute value shapes without exposing values' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $leadingValue = '  value-shape:hidden-leading';
+        $trailingValue = 'value-shape:hidden-trailing  ';
+        $bothValue = '  value-shape:hidden-both  ';
+        $lineBreakValue = "value-shape:hidden-line\nvalue-shape:hidden-break token";
+        $tabValue = "\tvalue-shape:hidden-tab\t";
+        $parts['customXml/element-attribute-value-shapes.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:review-attribute-value-shapes">
+  <review:item empty="" spaces="   " leading="{$leadingValue}" trailing="{$trailingValue}" both="{$bothValue}" lineBreak="value-shape:hidden-line&#10;value-shape:hidden-break token" tabs="&#9;value-shape:hidden-tab&#9;"/>
+</review:packet>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/element-attribute-value-shapes.xml'];
+        $attributes = array_values(array_filter(
+            $summary['partXmlElementAttributes'],
+            static fn (array $attribute): bool => $attribute['partName'] === 'customXml/element-attribute-value-shapes.xml',
+        ));
+        $attributesByName = [];
+        foreach ($attributes as $attribute) {
+            $attributesByName[$attribute['name']] = $attribute;
+        }
+
+        $t->same(7, $reviewPart['xmlElementAttributeCount']);
+        $t->same(1, $reviewPart['xmlElementAttributeEmptyValueCount']);
+        $t->same(1, $reviewPart['xmlElementAttributeWhitespaceOnlyValueCount']);
+        $t->same(5, $reviewPart['xmlElementAttributeNonWhitespaceValueCount']);
+        $t->same(4, $reviewPart['xmlElementAttributeLeadingWhitespaceValueCount']);
+        $t->same(4, $reviewPart['xmlElementAttributeTrailingWhitespaceValueCount']);
+        $t->same(8, $reviewPart['xmlElementAttributeLeadingWhitespaceValueByteLength']);
+        $t->same(8, $reviewPart['xmlElementAttributeTrailingWhitespaceValueByteLength']);
+        $t->same(1, $reviewPart['xmlElementAttributeLineBreakValueCount']);
+        $t->same(1, $reviewPart['xmlElementAttributeLineBreakValueAttributeCount']);
+        $t->same(7, $reviewPart['xmlElementAttributeTokenValueCount']);
+
+        $t->same(true, $attributesByName['empty']['isValueEmpty']);
+        $t->same(0, $attributesByName['empty']['valueTokenCount']);
+        $t->same(true, $attributesByName['spaces']['isValueWhitespaceOnly']);
+        $t->same(3, $attributesByName['spaces']['valueLeadingWhitespaceByteLength']);
+        $t->same(3, $attributesByName['spaces']['valueTrailingWhitespaceByteLength']);
+        $t->same(2, $attributesByName['leading']['valueLeadingWhitespaceByteLength']);
+        $t->same(false, $attributesByName['leading']['hasValueTrailingWhitespace']);
+        $t->same(2, $attributesByName['trailing']['valueTrailingWhitespaceByteLength']);
+        $t->same(2, $attributesByName['both']['valueLeadingWhitespaceByteLength']);
+        $t->same(2, $attributesByName['both']['valueTrailingWhitespaceByteLength']);
+        $t->same(1, $attributesByName['lineBreak']['valueLineBreakCount']);
+        $t->same(true, $attributesByName['lineBreak']['hasValueLineBreak']);
+        $t->same(3, $attributesByName['lineBreak']['valueTokenCount']);
+        $t->same(hash('sha256', $lineBreakValue), $attributesByName['lineBreak']['valueSha256']);
+        $t->same(1, $attributesByName['tabs']['valueLeadingWhitespaceByteLength']);
+        $t->same(1, $attributesByName['tabs']['valueTrailingWhitespaceByteLength']);
+        $t->same(hash('sha256', $tabValue), $attributesByName['tabs']['valueSha256']);
+
+        $t->true($summary['partXmlElementAttributeEmptyValueCount'] >= 1, 'summary should include empty attribute values');
+        $t->true($summary['partXmlElementAttributeWhitespaceOnlyValueCount'] >= 1, 'summary should include whitespace-only attribute values');
+        $t->true($summary['partXmlElementAttributeLineBreakValueCount'] >= 1, 'summary should include line-break attribute values');
+        $t->true($summary['partXmlElementAttributeTokenValueCount'] >= 7, 'summary should include attribute value token counts');
+
+        $encodedAttributes = json_encode([$reviewPart['xmlElementAttributes'], $attributes]);
+        $t->true(is_string($encodedAttributes), 'XML attribute value-shape metadata should encode for review');
+        $t->true(!isset($reviewPart['xmlElementAttributes'][0]['value']), 'raw XML attribute value should not be exposed on part metadata');
+        $t->true(!str_contains((string) $encodedAttributes, 'value-shape:hidden'), 'raw XML attribute values should not be exposed in value-shape metadata');
+    },
     'summarizes docx package xml processing instructions for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['customXml/pi-review.xml'] = <<<'XML'
