@@ -1697,6 +1697,10 @@ XML;
         foreach ($summary['partXmlRoots'] as $item) {
             $byPartName[$item['partName']] = $item;
         }
+        $declarationsByPartName = [];
+        foreach ($summary['partXmlDeclarations'] as $declaration) {
+            $declarationsByPartName[$declaration['partName']] = $declaration;
+        }
 
         $t->same(9, $summary['partXmlInspectableCount']);
         $t->same(8, $summary['partXmlValidCount']);
@@ -1716,6 +1720,14 @@ XML;
         ], $summary['partXmlDeclarationPartNames']);
         $t->same(['1.0' => 8], $summary['partXmlDeclarationVersionCounts']);
         $t->same(['UTF-8' => 8], $summary['partXmlDeclarationEncodingCounts']);
+        $t->same(17, $summary['partXmlDeclarationAttributeCount']);
+        $t->same(3, $summary['partXmlDeclarationAttributeNameCount']);
+        $t->same([
+            'encoding' => 8,
+            'standalone' => 1,
+            'version' => 8,
+        ], $summary['partXmlDeclarationAttributeNameCounts']);
+        $t->same(['encoding', 'standalone', 'version'], $summary['partXmlDeclarationAttributeNames']);
         $t->same(1, $summary['partXmlStandaloneDeclarationCount']);
         $t->same(0, $summary['partXmlStandaloneYesCount']);
         $t->same(1, $summary['partXmlStandaloneNoCount']);
@@ -1771,9 +1783,16 @@ XML;
         $t->same('UTF-8', $contentTypes['xmlDeclarationEncoding']);
         $t->same(null, $contentTypes['xmlDeclarationStandalone']);
         $t->same(2, $contentTypes['xmlDeclarationAttributeCount']);
+        $t->same(['version', 'encoding'], $contentTypes['xmlDeclarationAttributeNames']);
         $t->same(true, $inventory['[Content_Types].xml']['xmlInspectable']);
         $t->same('Types', $inventory['[Content_Types].xml']['rootLocalName']);
         $t->same('UTF-8', $inventory['[Content_Types].xml']['xmlDeclarationEncoding']);
+        $t->same(['version', 'encoding'], $inventory['[Content_Types].xml']['xmlDeclarationAttributeNames']);
+        $t->same('1.0', $declarationsByPartName['[Content_Types].xml']['version']);
+        $t->same('UTF-8', $declarationsByPartName['[Content_Types].xml']['encoding']);
+        $t->same(null, $declarationsByPartName['[Content_Types].xml']['standalone']);
+        $t->same(2, $declarationsByPartName['[Content_Types].xml']['attributeCount']);
+        $t->same(['version', 'encoding'], $declarationsByPartName['[Content_Types].xml']['attributeNames']);
 
         $relationships = $byPartName['word/_rels/document.xml.rels'];
         $t->same(true, $relationships['validXml']);
@@ -1803,11 +1822,22 @@ XML;
         $t->same('UTF-8', $custom['xmlDeclarationEncoding']);
         $t->same(false, $custom['xmlDeclarationStandalone']);
         $t->same(3, $custom['xmlDeclarationAttributeCount']);
+        $t->same(['version', 'encoding', 'standalone'], $custom['xmlDeclarationAttributeNames']);
         $t->same(hash('sha256', $parts['customXml/root-review.xml']), $inventory['customXml/root-review.xml']['sha256']);
         $t->same('pkg:packet', $inventory['customXml/root-review.xml']['rootQualifiedName']);
         $t->same(['meta:scope', 'review', 'xml:lang'], $inventory['customXml/root-review.xml']['rootAttributeNames']);
         $t->same(strlen('package') + strlen('ready') + strlen('en'), $inventory['customXml/root-review.xml']['rootAttributeValueByteLength']);
         $t->same(false, $inventory['customXml/root-review.xml']['xmlDeclarationStandalone']);
+        $t->same(['version', 'encoding', 'standalone'], $inventory['customXml/root-review.xml']['xmlDeclarationAttributeNames']);
+        $t->same('customXml/root-review.xml', $declarationsByPartName['customXml/root-review.xml']['partName']);
+        $t->same('customXml', $declarationsByPartName['customXml/root-review.xml']['directory']);
+        $t->same('application/xml; profile=root-provenance', $declarationsByPartName['customXml/root-review.xml']['contentType']);
+        $t->same('application/xml', $declarationsByPartName['customXml/root-review.xml']['contentTypeBase']);
+        $t->same('1.0', $declarationsByPartName['customXml/root-review.xml']['version']);
+        $t->same('UTF-8', $declarationsByPartName['customXml/root-review.xml']['encoding']);
+        $t->same(false, $declarationsByPartName['customXml/root-review.xml']['standalone']);
+        $t->same(3, $declarationsByPartName['customXml/root-review.xml']['attributeCount']);
+        $t->same(['version', 'encoding', 'standalone'], $declarationsByPartName['customXml/root-review.xml']['attributeNames']);
 
         $attributesByName = [];
         foreach ($summary['partXmlRootAttributes'] as $attribute) {

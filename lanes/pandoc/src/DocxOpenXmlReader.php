@@ -15678,6 +15678,10 @@ final class DocxOpenXmlReader
             'partXmlDeclarationPartNames' => $partXmlRoots['xmlDeclarationPartNames'],
             'partXmlDeclarationVersionCounts' => $partXmlRoots['xmlDeclarationVersionCounts'],
             'partXmlDeclarationEncodingCounts' => $partXmlRoots['xmlDeclarationEncodingCounts'],
+            'partXmlDeclarationAttributeCount' => $partXmlRoots['xmlDeclarationAttributeCount'],
+            'partXmlDeclarationAttributeNameCount' => count($partXmlRoots['xmlDeclarationAttributeNameCounts']),
+            'partXmlDeclarationAttributeNameCounts' => $partXmlRoots['xmlDeclarationAttributeNameCounts'],
+            'partXmlDeclarationAttributeNames' => $partXmlRoots['xmlDeclarationAttributeNames'],
             'partXmlStandaloneDeclarationCount' => $partXmlRoots['xmlStandaloneDeclarationCount'],
             'partXmlStandaloneYesCount' => $partXmlRoots['xmlStandaloneYesCount'],
             'partXmlStandaloneNoCount' => $partXmlRoots['xmlStandaloneNoCount'],
@@ -16257,6 +16261,7 @@ final class DocxOpenXmlReader
             'partCaseFoldBaseNames' => $partCaseFoldBaseNames,
             'partNameCharacterReviewParts' => $partNameCharacters['parts'],
             'partXmlRoots' => $partXmlRoots['items'],
+            'partXmlDeclarations' => $partXmlRoots['xmlDeclarations'],
             'partXmlDoctypes' => $partXmlRoots['xmlDoctypes'],
             'partXmlProcessingInstructions' => $partXmlRoots['xmlProcessingInstructions'],
             'partXmlComments' => $partXmlRoots['xmlComments'],
@@ -21698,6 +21703,9 @@ final class DocxOpenXmlReader
         $xmlDeclarationPartNames = [];
         $xmlDeclarationVersionCounts = [];
         $xmlDeclarationEncodingCounts = [];
+        $xmlDeclarationAttributeNameCounts = [];
+        $xmlDeclarationAttributeNames = [];
+        $xmlDeclarations = [];
         $xmlDoctypePartNames = [];
         $xmlDoctypeNameCounts = [];
         $xmlDoctypeSystemIdSchemeCounts = [];
@@ -21978,6 +21986,7 @@ final class DocxOpenXmlReader
         $rootChildElementCount = 0;
         $rootChildElementMaxCount = 0;
         $xmlDeclarationCount = 0;
+        $xmlDeclarationAttributeCount = 0;
         $xmlStandaloneDeclarationCount = 0;
         $xmlStandaloneYesCount = 0;
         $xmlStandaloneNoCount = 0;
@@ -22350,6 +22359,35 @@ final class DocxOpenXmlReader
             if (($part['xmlDeclarationPresent'] ?? false) === true) {
                 ++$xmlDeclarationCount;
                 $xmlDeclarationPartNames[] = $partName;
+                $partXmlDeclarationAttributeNames = array_values(array_map('strval', $part['xmlDeclarationAttributeNames'] ?? []));
+                $xmlDeclarationAttributeCount += (int) ($part['xmlDeclarationAttributeCount'] ?? 0);
+                foreach ($partXmlDeclarationAttributeNames as $attributeName) {
+                    if ($attributeName === '') {
+                        continue;
+                    }
+
+                    $xmlDeclarationAttributeNameCounts[$attributeName] =
+                        ($xmlDeclarationAttributeNameCounts[$attributeName] ?? 0) + 1;
+                    $this->appendUniqueString($xmlDeclarationAttributeNames, $attributeName);
+                }
+
+                $xmlDeclarations[] = [
+                    'partName' => $partName,
+                    'directory' => is_string($part['directory'] ?? null)
+                        ? $part['directory']
+                        : $this->packagePartDirectory($partName),
+                    'baseName' => is_string($part['baseName'] ?? null)
+                        ? $part['baseName']
+                        : $this->packagePartBaseName($partName),
+                    'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                    'contentTypeBase' => is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '',
+                    'contentTypeSource' => is_string($part['contentTypeSource'] ?? null) ? $part['contentTypeSource'] : 'missing',
+                    'version' => is_string($part['xmlDeclarationVersion'] ?? null) ? $part['xmlDeclarationVersion'] : null,
+                    'encoding' => is_string($part['xmlDeclarationEncoding'] ?? null) ? $part['xmlDeclarationEncoding'] : null,
+                    'standalone' => is_bool($part['xmlDeclarationStandalone'] ?? null) ? $part['xmlDeclarationStandalone'] : null,
+                    'attributeCount' => (int) ($part['xmlDeclarationAttributeCount'] ?? 0),
+                    'attributeNames' => $partXmlDeclarationAttributeNames,
+                ];
             }
             $xmlDeclarationVersion = is_string($part['xmlDeclarationVersion'] ?? null)
                 ? $part['xmlDeclarationVersion']
@@ -25063,6 +25101,7 @@ final class DocxOpenXmlReader
                 'xmlDeclarationEncoding' => is_string($part['xmlDeclarationEncoding'] ?? null) ? $part['xmlDeclarationEncoding'] : null,
                 'xmlDeclarationStandalone' => is_bool($part['xmlDeclarationStandalone'] ?? null) ? $part['xmlDeclarationStandalone'] : null,
                 'xmlDeclarationAttributeCount' => (int) ($part['xmlDeclarationAttributeCount'] ?? 0),
+                'xmlDeclarationAttributeNames' => array_values(array_map('strval', $part['xmlDeclarationAttributeNames'] ?? [])),
                 'xmlDoctypePresent' => (bool) ($part['xmlDoctypePresent'] ?? false),
                 'xmlDoctypeName' => is_string($part['xmlDoctypeName'] ?? null) ? $part['xmlDoctypeName'] : null,
                 'xmlDoctypePublicId' => is_string($part['xmlDoctypePublicId'] ?? null) ? $part['xmlDoctypePublicId'] : null,
@@ -25755,6 +25794,7 @@ final class DocxOpenXmlReader
         sort($rootChildElementPrefixes, SORT_STRING);
         ksort($xmlDeclarationVersionCounts, SORT_STRING);
         ksort($xmlDeclarationEncodingCounts, SORT_STRING);
+        ksort($xmlDeclarationAttributeNameCounts, SORT_STRING);
         ksort($xmlDoctypeNameCounts, SORT_STRING);
         ksort($xmlDoctypeSystemIdSchemeCounts, SORT_STRING);
         ksort($xmlDoctypeSystemIdIssueCodes, SORT_STRING);
@@ -25920,6 +25960,7 @@ final class DocxOpenXmlReader
         sort($xmlProcessingInstructionDataAttributeValueShapes, SORT_STRING);
         sort($invalidPartNames, SORT_STRING);
         sort($xmlDeclarationPartNames, SORT_STRING);
+        sort($xmlDeclarationAttributeNames, SORT_STRING);
         sort($xmlDoctypePartNames, SORT_STRING);
         sort($xmlProcessingInstructionPartNames, SORT_STRING);
         sort($xmlProcessingInstructionParentPaths, SORT_STRING);
@@ -26172,6 +26213,10 @@ final class DocxOpenXmlReader
             'xmlDeclarationPartNames' => $xmlDeclarationPartNames,
             'xmlDeclarationVersionCounts' => $xmlDeclarationVersionCounts,
             'xmlDeclarationEncodingCounts' => $xmlDeclarationEncodingCounts,
+            'xmlDeclarationAttributeCount' => $xmlDeclarationAttributeCount,
+            'xmlDeclarationAttributeNameCounts' => $xmlDeclarationAttributeNameCounts,
+            'xmlDeclarationAttributeNames' => $xmlDeclarationAttributeNames,
+            'xmlDeclarations' => $xmlDeclarations,
             'xmlStandaloneDeclarationCount' => $xmlStandaloneDeclarationCount,
             'xmlStandaloneYesCount' => $xmlStandaloneYesCount,
             'xmlStandaloneNoCount' => $xmlStandaloneNoCount,
@@ -28428,6 +28473,7 @@ final class DocxOpenXmlReader
             'xmlDeclarationEncoding' => null,
             'xmlDeclarationStandalone' => null,
             'xmlDeclarationAttributeCount' => 0,
+            'xmlDeclarationAttributeNames' => [],
             'validRoot' => null,
             'xmlParseError' => null,
             'expectedContentTypeBase' => $expectedContentTypeBase,
@@ -28478,6 +28524,7 @@ final class DocxOpenXmlReader
         $item['xmlDeclarationEncoding'] = $xmlDeclaration['encoding'];
         $item['xmlDeclarationStandalone'] = $xmlDeclaration['standalone'];
         $item['xmlDeclarationAttributeCount'] = $xmlDeclaration['attributeCount'];
+        $item['xmlDeclarationAttributeNames'] = $xmlDeclaration['attributeNames'];
         if ($xml === '') {
             $item['validRoot'] = false;
             $item['issues'][] = 'empty-xml-part';
@@ -28510,7 +28557,7 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{present:bool, version:?string, encoding:?string, standalone:?bool, attributeCount:int}
+     * @return array{present:bool, version:?string, encoding:?string, standalone:?bool, attributeCount:int, attributeNames:list<string>}
      */
     private function xmlDeclarationProvenance(string $xml): array
     {
@@ -28521,6 +28568,7 @@ final class DocxOpenXmlReader
                 'encoding' => null,
                 'standalone' => null,
                 'attributeCount' => 0,
+                'attributeNames' => [],
             ];
         }
 
@@ -28549,6 +28597,7 @@ final class DocxOpenXmlReader
             'encoding' => isset($attributes['encoding']) && $attributes['encoding'] !== '' ? $attributes['encoding'] : null,
             'standalone' => $standalone,
             'attributeCount' => count($attributes),
+            'attributeNames' => array_keys($attributes),
         ];
     }
 
@@ -35897,6 +35946,7 @@ final class DocxOpenXmlReader
                 'xmlDeclarationEncoding' => null,
                 'xmlDeclarationStandalone' => null,
                 'xmlDeclarationAttributeCount' => 0,
+                'xmlDeclarationAttributeNames' => [],
                 'xmlDoctypePresent' => false,
                 'xmlDoctypeName' => null,
                 'xmlDoctypePublicId' => null,
@@ -36413,6 +36463,7 @@ final class DocxOpenXmlReader
             'xmlDeclarationEncoding' => $xmlDeclaration['encoding'],
             'xmlDeclarationStandalone' => $xmlDeclaration['standalone'],
             'xmlDeclarationAttributeCount' => $xmlDeclaration['attributeCount'],
+            'xmlDeclarationAttributeNames' => $xmlDeclaration['attributeNames'],
             'xmlDoctypePresent' => $doctype['present'],
             'xmlDoctypeName' => $doctype['name'],
             'xmlDoctypePublicId' => $doctype['publicId'],
