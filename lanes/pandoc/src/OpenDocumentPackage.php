@@ -694,6 +694,7 @@ final class OpenDocumentPackage
                 'embeddedObjectContainedPart' => is_array($embeddedObjectPackage) && $embeddedObjectPackage['isRoot'] !== true,
                 'embeddedObjectMediaType' => is_array($embeddedObjectPackage) ? $embeddedObjectPackage['mediaType'] : null,
                 'objectReplacementPackagePart' => self::isObjectReplacementPackagePartName($entry->name),
+                'thumbnailPackagePart' => self::isThumbnailPackagePartName($entry->name),
                 'scriptPackagePart' => self::isScriptPackagePartName($entry->name),
                 'signaturePackagePart' => self::isSignaturePackagePartName($entry->name),
                 'configurationPackagePart' => self::isConfigurationPackagePartName($entry->name),
@@ -956,6 +957,7 @@ final class OpenDocumentPackage
                 'exists' => ($entry['exists'] ?? false) === true,
                 'isDirectory' => ($entry['isDirectory'] ?? false) === true,
                 'encrypted' => ($entry['encrypted'] ?? false) === true,
+                'thumbnailPackagePart' => ($entry['thumbnailPackagePart'] ?? false) === true,
                 'scriptPackagePart' => ($entry['scriptPackagePart'] ?? false) === true,
                 'signaturePackagePart' => ($entry['signaturePackagePart'] ?? false) === true,
                 'configurationPackagePart' => ($entry['configurationPackagePart'] ?? false) === true,
@@ -1055,6 +1057,7 @@ final class OpenDocumentPackage
                 'customManifestChildElementCount' => $part['customManifestChildElementCount'] ?? 0,
                 'customManifestChildElementNames' => $part['customManifestChildElementNames'] ?? [],
                 'manifestDiagnostics' => $part['manifestDiagnostics'] ?? [],
+                'thumbnailPackagePart' => ($part['thumbnailPackagePart'] ?? false) === true,
                 'scriptPackagePart' => ($part['scriptPackagePart'] ?? false) === true,
                 'signaturePackagePart' => ($part['signaturePackagePart'] ?? false) === true,
                 'configurationPackagePart' => ($part['configurationPackagePart'] ?? false) === true,
@@ -1095,6 +1098,7 @@ final class OpenDocumentPackage
             'knownCreatorHostSystemEntryCount' => $packageInventory['knownCreatorHostSystemEntryCount'] ?? 0,
             'unknownCreatorHostSystemEntryCount' => $packageInventory['unknownCreatorHostSystemEntryCount'] ?? 0,
             'creatorVersionBelowNeededEntryCount' => $packageInventory['creatorVersionBelowNeededEntryCount'] ?? 0,
+            'packageThumbnailPartCount' => $packageInventory['packageThumbnailPartCount'] ?? 0,
             'galleryPackagePartCount' => $packageInventory['galleryPackagePartCount'] ?? 0,
             'formPackagePartCount' => $packageInventory['formPackagePartCount'] ?? 0,
             'unixModeEntryCount' => $packageInventory['unixModeEntryCount'] ?? 0,
@@ -1875,6 +1879,7 @@ final class OpenDocumentPackage
                 : null;
             $embeddedObjectPackagePart = is_array($embeddedObjectPackage);
             $scriptPackagePart = is_string($packagePath) && self::isScriptPackagePartName($packagePath);
+            $thumbnailPackagePart = is_string($packagePath) && self::isThumbnailPackagePartName($packagePath);
             $signaturePackagePart = is_string($packagePath) && self::isSignaturePackagePartName($packagePath);
             $configurationPackagePart = is_string($packagePath) && self::isConfigurationPackagePartName($packagePath);
             $fontPackagePart = is_string($packagePath) && self::isFontPackagePart($packagePath, (string) ($entry['mediaType'] ?? ''));
@@ -1905,6 +1910,7 @@ final class OpenDocumentPackage
                 && !$encrypted
                 && !$embeddedObjectPackagePart
                 && !$scriptPackagePart
+                && !$thumbnailPackagePart
                 && !$signaturePackagePart
                 && !$configurationPackagePart
                 && !$fontPackagePart
@@ -1982,6 +1988,7 @@ final class OpenDocumentPackage
                 'embeddedObjectContainedPart' => is_array($embeddedObjectPackage) && $embeddedObjectPackage['isRoot'] !== true,
                 'embeddedObjectMediaType' => is_array($embeddedObjectPackage) ? $embeddedObjectPackage['mediaType'] : null,
                 'scriptPackagePart' => $scriptPackagePart,
+                'thumbnailPackagePart' => $thumbnailPackagePart,
                 'signaturePackagePart' => $signaturePackagePart,
                 'configurationPackagePart' => $configurationPackagePart,
                 'fontPackagePart' => $fontPackagePart,
@@ -2002,6 +2009,7 @@ final class OpenDocumentPackage
                     $encrypted,
                     $embeddedObjectPackagePart,
                     $scriptPackagePart,
+                    $thumbnailPackagePart,
                     $signaturePackagePart,
                     $configurationPackagePart,
                     $fontPackagePart,
@@ -2031,6 +2039,7 @@ final class OpenDocumentPackage
         bool $encrypted,
         bool $embeddedObjectPackagePart,
         bool $scriptPackagePart,
+        bool $thumbnailPackagePart,
         bool $signaturePackagePart,
         bool $configurationPackagePart,
         bool $fontPackagePart,
@@ -2060,6 +2069,9 @@ final class OpenDocumentPackage
         }
         if ($scriptPackagePart) {
             return 'script-package-bytes-blocked';
+        }
+        if ($thumbnailPackagePart) {
+            return 'package-thumbnail-bytes-blocked';
         }
         if ($signaturePackagePart) {
             return 'signature-package-bytes-blocked';
@@ -3005,6 +3017,7 @@ final class OpenDocumentPackage
             foreach ($issues as $issue) {
                 $issueCodes[$issue] = true;
             }
+            $byteExposurePolicy = $encrypted ? 'encrypted-resource-bytes-blocked' : 'package-thumbnail-bytes-blocked';
 
             $items[] = [
                 'fullPath' => $entry['path'] ?? $packagePath,
@@ -3036,7 +3049,9 @@ final class OpenDocumentPackage
                 'storedCrc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
                 'declaredSize' => $entry['declaredSize'] ?? $entry['size'] ?? null,
                 'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
+                'canExposeBytes' => false,
                 'canExposeAsDocumentMedia' => false,
+                'byteExposurePolicy' => $byteExposurePolicy,
                 'reviewPolicy' => 'package-thumbnail-metadata-only',
                 'issues' => $issues,
             ];
@@ -6461,6 +6476,7 @@ final class OpenDocumentPackage
             'embeddedObjectContainedPart' => ($entry['embeddedObjectContainedPart'] ?? false) === true,
             'embeddedObjectMediaType' => $entry['embeddedObjectMediaType'] ?? null,
             'objectReplacementPackagePart' => ($entry['objectReplacementPackagePart'] ?? false) === true,
+            'thumbnailPackagePart' => ($entry['thumbnailPackagePart'] ?? false) === true,
             'scriptPackagePart' => ($entry['scriptPackagePart'] ?? false) === true,
             'signaturePackagePart' => ($entry['signaturePackagePart'] ?? false) === true,
             'configurationPackagePart' => ($entry['configurationPackagePart'] ?? false) === true,
@@ -6547,6 +6563,7 @@ final class OpenDocumentPackage
             'embeddedObjectType' => $entry['embeddedObjectType'] ?? null,
             'embeddedObjectRoot' => ($entry['embeddedObjectRoot'] ?? false) === true,
             'embeddedObjectContainedPart' => ($entry['embeddedObjectContainedPart'] ?? false) === true,
+            'thumbnailPackagePart' => ($entry['thumbnailPackagePart'] ?? false) === true,
             'objectReplacementPackagePart' => ($entry['objectReplacementPackagePart'] ?? false) === true,
             'scriptPackagePart' => ($entry['scriptPackagePart'] ?? false) === true,
             'signaturePackagePart' => ($entry['signaturePackagePart'] ?? false) === true,
