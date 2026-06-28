@@ -145,6 +145,10 @@ return [
 
         $assertRootParameters($t, $readerChart, 'reader');
         $assertRootParameters($t, $compactChart, 'compact');
+        $t->same($readerObjects, $result['packageObjects']);
+        $t->same($readerObjects, $result['metadata']['odfPackageObjects']);
+        $t->same($readerObjects, $result['document']->attr('packageObjects'));
+        $t->same($readerObjects, $result['importReport']['packageObjects']);
         $t->same($readerObjects, $result['document']->attr('manifest')['packageProvenance']['embeddedObjectPackages']);
         $t->same(1, $readerObjects['count'], 'reader object count');
         $t->same(1, $compactObjects['count'], 'compact object count');

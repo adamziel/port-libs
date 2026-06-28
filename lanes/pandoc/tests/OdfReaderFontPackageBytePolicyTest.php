@@ -110,6 +110,8 @@ return [
         $readerItems = $indexBy($readerFonts['items'], 'part');
         $manifestByPart = $indexBy($result['manifest'], 'part');
         $readerProvenance = $result['importReport']['manifest']['packageProvenance'];
+        $readerMediaResources = $readerProvenance['mediaResources'];
+        $readerMediaItems = $indexBy($readerMediaResources['items'], 'part');
 
         $t->same($readerFonts, $result['document']->attr('packageFonts'));
         $t->same($readerFonts, $result['metadata']['odfPackageFonts']);
@@ -186,6 +188,47 @@ return [
         $t->same(null, $manifestReview['byteSha256']);
         $t->same('font-package-bytes-blocked', $manifestReview['byteExposurePolicy']);
         $t->same(['Pictures/hero.png'], array_column($result['media'], 'part'));
+        $t->same(6, $readerMediaResources['manifestDeclaredCount']);
+        $t->same(1, $readerMediaResources['mediaResourceCount']);
+        $t->same(1, $readerMediaResources['mediaResourceExistingCount']);
+        $t->same(0, $readerMediaResources['mediaResourceMissingCount']);
+        $t->same(1, $readerMediaResources['mediaResourceCanExposeCount']);
+        $t->same(5, $readerMediaResources['existingCount']);
+        $t->same(1, $readerMediaResources['missingCount']);
+        $t->same(['image' => 1, 'audio' => 0, 'video' => 0, 'other' => 5], $readerMediaResources['familyCounts']);
+        $t->same([
+            'application/octet-stream' => 1,
+            'font/otf' => 1,
+            'font/ttf' => 1,
+            'font/woff' => 1,
+            'font/woff2' => 1,
+            'image/png' => 1,
+        ], $readerMediaResources['mediaTypeBaseCounts']);
+        $t->same(5, $readerMediaResources['packageRolePrecedenceCount']);
+        $t->same([
+            'odf-media-resource-missing-package-part' => 1,
+            'odf-media-resource-package-role-precedence' => 5,
+        ], $readerMediaResources['issueCodeCounts']);
+        $t->same([
+            'Fonts/ReviewSans.woff2',
+            'Assets/source.woff',
+            'Fonts/missing.ttf',
+            'Fonts/not-font.bin',
+            'Fonts/locked.otf',
+        ], array_column($readerMediaResources['packageRolePrecedenceItems'], 'part'));
+        $t->same(true, $readerMediaItems['Pictures/hero.png']['mediaResource']);
+        $t->same([], $readerMediaItems['Pictures/hero.png']['packageRolePrecedence'] ?? []);
+        $t->same(false, $readerMediaItems['Fonts/ReviewSans.woff2']['mediaResource']);
+        $t->same(['font-package'], $readerMediaItems['Fonts/ReviewSans.woff2']['packageRolePrecedence']);
+        $t->same('font-package-bytes-blocked', $readerMediaItems['Fonts/ReviewSans.woff2']['byteExposurePolicy']);
+        $t->same(false, $readerMediaItems['Assets/source.woff']['mediaResource']);
+        $t->same(['font-package'], $readerMediaItems['Assets/source.woff']['packageRolePrecedence']);
+        $t->same(false, $readerMediaItems['Fonts/missing.ttf']['exists']);
+        $t->same(['odf-media-resource-missing-package-part', 'odf-media-resource-package-role-precedence'], $readerMediaItems['Fonts/missing.ttf']['issues']);
+        $t->same(false, $readerMediaItems['Fonts/not-font.bin']['mediaResource']);
+        $t->same(['font-package'], $readerMediaItems['Fonts/not-font.bin']['packageRolePrecedence']);
+        $t->same(false, $readerMediaItems['Fonts/locked.otf']['canExposeBytes']);
+        $t->same('encrypted-resource-bytes-blocked', $readerMediaItems['Fonts/locked.otf']['byteExposurePolicy']);
         $t->same(5, $readerProvenance['packageFontPartCount']);
         $t->same(5, $readerProvenance['roleCounts']['font-package']);
         $t->same(['font-package', 'manifest-declared'], $readerProvenance['parts']['Fonts/ReviewSans.woff2']['roles']);
@@ -196,6 +239,8 @@ return [
         $compactFonts = $compactSummary['packageFonts'];
         $compactItems = $indexBy($compactFonts['items'], 'packagePath');
         $reviewByPath = $indexBy($compactSummary['manifestReview']['items'], 'path');
+        $compactMediaResources = $compactSummary['manifestReview']['mediaResources'];
+        $compactMediaItems = $indexBy($compactMediaResources['items'], 'part');
         $inventory = $compactSummary['packageInventory'];
 
         $t->same(6, $compactFonts['count']);
@@ -226,6 +271,31 @@ return [
         $t->same('font-package-bytes-blocked', $compactItems['Fonts/orphan.ttf']['byteExposurePolicy']);
 
         $t->same(['Pictures/hero.png'], array_column($compactSummary['mediaParts'], 'path'));
+        $t->same(6, $compactMediaResources['manifestDeclaredCount']);
+        $t->same(1, $compactMediaResources['mediaResourceCount']);
+        $t->same(1, $compactMediaResources['mediaResourceExistingCount']);
+        $t->same(0, $compactMediaResources['mediaResourceMissingCount']);
+        $t->same(1, $compactMediaResources['mediaResourceCanExposeCount']);
+        $t->same(5, $compactMediaResources['existingCount']);
+        $t->same(1, $compactMediaResources['missingCount']);
+        $t->same($readerMediaResources['familyCounts'], $compactMediaResources['familyCounts']);
+        $t->same($readerMediaResources['mediaTypeBaseCounts'], $compactMediaResources['mediaTypeBaseCounts']);
+        $t->same(5, $compactMediaResources['packageRolePrecedenceCount']);
+        $t->same($readerMediaResources['issueCodeCounts'], $compactMediaResources['issueCodeCounts']);
+        $t->same(array_column($readerMediaResources['packageRolePrecedenceItems'], 'part'), array_column($compactMediaResources['packageRolePrecedenceItems'], 'part'));
+        $t->same(true, $compactMediaItems['Pictures/hero.png']['mediaResource']);
+        $t->same([], $compactMediaItems['Pictures/hero.png']['packageRolePrecedence'] ?? []);
+        $t->same(false, $compactMediaItems['Fonts/ReviewSans.woff2']['mediaResource']);
+        $t->same(['font-package'], $compactMediaItems['Fonts/ReviewSans.woff2']['packageRolePrecedence']);
+        $t->same('font-package-bytes-blocked', $compactMediaItems['Fonts/ReviewSans.woff2']['byteExposurePolicy']);
+        $t->same(false, $compactMediaItems['Assets/source.woff']['mediaResource']);
+        $t->same(['font-package'], $compactMediaItems['Assets/source.woff']['packageRolePrecedence']);
+        $t->same(false, $compactMediaItems['Fonts/missing.ttf']['exists']);
+        $t->same(['odf-media-resource-missing-package-part', 'odf-media-resource-package-role-precedence'], $compactMediaItems['Fonts/missing.ttf']['issues']);
+        $t->same(false, $compactMediaItems['Fonts/not-font.bin']['mediaResource']);
+        $t->same(['font-package'], $compactMediaItems['Fonts/not-font.bin']['packageRolePrecedence']);
+        $t->same(false, $compactMediaItems['Fonts/locked.otf']['canExposeBytes']);
+        $t->same('encrypted-resource-bytes-blocked', $compactMediaItems['Fonts/locked.otf']['byteExposurePolicy']);
         $t->same(true, $reviewByPath['Fonts/ReviewSans.woff2']['fontPackagePart']);
         $t->same(false, $reviewByPath['Fonts/ReviewSans.woff2']['canExposeBytes']);
         $t->same(null, $reviewByPath['Fonts/ReviewSans.woff2']['byteLength']);

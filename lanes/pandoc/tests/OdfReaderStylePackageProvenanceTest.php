@@ -86,6 +86,10 @@ return [
         }
 
         $t->same($provenance, $result['document']->attr('manifest')['packageProvenance']['stylePackageProvenance']);
+        $t->same($provenance, $result['document']->attr('packageStyles'));
+        $t->same($provenance, $result['metadata']['odfPackageStyles']);
+        $t->same($provenance, $result['packageStyles']);
+        $t->same($provenance, $result['importReport']['packageStyles']);
         $t->same(2, $provenance['count']);
         $t->same(8, $provenance['definitionCount']);
         $t->same(4, $provenance['automaticStyleDefinitionCount']);

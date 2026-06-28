@@ -198,7 +198,19 @@ return [
         $t->same(['package-signature', 'undeclared-package-entry'], $inventory['META-INF/certificates/orphan.cer']['roles']);
         $t->same(true, $inventory['META-INF/certificates/preview.png']['signaturePackagePart']);
         $t->same(false, in_array('media-resource', $inventory['META-INF/certificates/preview.png']['roles'], true));
-        $t->same(1, $provenance['mediaResources']['packageRolePrecedenceCount']);
+        $t->same(5, $provenance['mediaResources']['manifestDeclaredCount']);
+        $t->same(1, $provenance['mediaResources']['mediaResourceCount']);
+        $t->same(4, $provenance['mediaResources']['packageRolePrecedenceCount']);
+        $t->same([
+            'META-INF/certificates/signing.cer',
+            'META-INF/certificates/missing.cer',
+            'META-INF/certificates/encrypted.cer',
+            'META-INF/certificates/preview.png',
+        ], array_column($provenance['mediaResources']['packageRolePrecedenceItems'], 'part'));
+        $t->same([
+            'odf-media-resource-missing-package-part' => 1,
+            'odf-media-resource-package-role-precedence' => 4,
+        ], $provenance['mediaResources']['issueCodeCounts']);
         $t->same(['package-signature'], $provenance['mediaResources']['packageRolePrecedenceItems'][0]['packageRolePrecedence']);
 
         $compactSummary = OpenDocumentPackage::fromPackage($package)->summarize();
@@ -229,6 +241,16 @@ return [
         $t->same(true, $reviewByPath['META-INF/certificates/signing.cer']['signaturePackagePart']);
         $t->same(false, $reviewByPath['META-INF/certificates/signing.cer']['metaInfSidecarPackagePart']);
         $t->same('signature', $reviewByPath['META-INF/certificates/signing.cer']['manifestMediaFamily']);
+        $t->same(5, $compactSummary['manifestReview']['mediaResources']['manifestDeclaredCount']);
+        $t->same(1, $compactSummary['manifestReview']['mediaResources']['mediaResourceCount']);
+        $t->same(4, $compactSummary['manifestReview']['mediaResources']['packageRolePrecedenceCount']);
+        $t->same([
+            'META-INF/certificates/signing.cer',
+            'META-INF/certificates/missing.cer',
+            'META-INF/certificates/encrypted.cer',
+            'META-INF/certificates/preview.png',
+        ], array_column($compactSummary['manifestReview']['mediaResources']['packageRolePrecedenceItems'], 'part'));
+        $t->same($provenance['mediaResources']['issueCodeCounts'], $compactSummary['manifestReview']['mediaResources']['issueCodeCounts']);
         $t->same(4, $compactInventory['packageSignaturePartCount']);
         $t->same(4, $compactInventory['roleCounts']['package-signature']);
         $t->same(1, $compactInventory['undeclaredRoleCounts']['package-signature']);
