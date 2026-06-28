@@ -276,4 +276,131 @@ return [
         $t->same(['template-package', 'undeclared-package-entry'], $inventory['parts']['Templates/Review/orphan.potx']['roles']);
         $t->same(8, $compactSummary['packageIdentity']['templatePackagePartCount']);
     },
+    'classifies ODT template package office document templates by extension' => static function (TestRunner $t) use ($indexBy): void {
+        $dotxBytes = 'DOTX-TEMPLATE-BYTES';
+        $otcBytes = 'ODF-CHART-TEMPLATE-BYTES';
+        $potmBytes = 'POTM-TEMPLATE-BYTES';
+        $dotBytes = 'LEGACY-DOT-TEMPLATE-BYTES';
+        $dotxSize = strlen($dotxBytes);
+        $otcSize = strlen($otcBytes);
+        $manifestXml = <<<XML
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+  <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Templates/Review/letter.dotx" manifest:media-type="" manifest:size="{$dotxSize}"/>
+  <manifest:file-entry manifest:full-path="Templates/Review/chart.otc" manifest:media-type="" manifest:size="{$otcSize}"/>
+  <manifest:file-entry manifest:full-path="Templates/Review/sheet.xltx" manifest:media-type=""/>
+</manifest:manifest>
+XML;
+        $contentXml = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  office:version="1.3">
+  <office:body>
+    <office:text>
+      <text:p>Office template package sidecars.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+        $package = ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml, 'compressionMethod' => 0],
+            ['name' => 'content.xml', 'data' => $contentXml, 'compressionMethod' => 0],
+            ['name' => 'Templates/Review/letter.dotx', 'data' => $dotxBytes, 'compressionMethod' => 0],
+            ['name' => 'Templates/Review/chart.otc', 'data' => $otcBytes, 'compressionMethod' => 0],
+            ['name' => 'Templates/Review/deck.potm', 'data' => $potmBytes, 'compressionMethod' => 0],
+            ['name' => 'Templates/Review/legacy.dot', 'data' => $dotBytes, 'compressionMethod' => 0],
+        ], 'odt office template sidecars');
+
+        $result = (new OdfReader())->readPackage($package);
+        $readerTemplates = $result['packageTemplates'];
+        $readerItems = $indexBy($readerTemplates['items'], 'part');
+        $readerProvenance = $result['importReport']['manifest']['packageProvenance'];
+
+        $t->same(5, $readerTemplates['count']);
+        $t->same(4, $readerTemplates['readableCount']);
+        $t->same(3, $readerTemplates['declaredCount']);
+        $t->same(2, $readerTemplates['undeclaredCount']);
+        $t->same(1, $readerTemplates['missingCount']);
+        $t->same(0, $readerTemplates['missingMediaTypeCount']);
+        $t->same(0, $readerTemplates['invalidMediaTypeCount']);
+        $t->same([
+            'odf-template-package-missing-part',
+            'odf-template-package-undeclared-part',
+        ], $readerTemplates['issueCodes']);
+        $t->same(['template-document' => 5], $readerTemplates['kindCounts']);
+
+        $dotx = $readerItems['Templates/Review/letter.dotx'];
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.template', $dotx['mediaType']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.template', $dotx['mediaTypeBase']);
+        $t->same('template-document', $dotx['kind']);
+        $t->same(true, $dotx['valid']);
+        $t->same(strlen($dotxBytes), $dotx['byteLength']);
+        $t->same(false, $dotx['canExposeBytes']);
+        $t->same(false, $dotx['canExposeAsDocumentMedia']);
+        $t->same('template-package-bytes-blocked', $dotx['byteExposurePolicy']);
+        $t->same([], $dotx['issues']);
+
+        $chart = $readerItems['Templates/Review/chart.otc'];
+        $t->same('application/vnd.oasis.opendocument.chart-template', $chart['mediaType']);
+        $t->same('application/vnd.oasis.opendocument.chart-template', $chart['mediaTypeBase']);
+        $t->same('template-document', $chart['kind']);
+        $t->same(true, $chart['valid']);
+        $t->same(strlen($otcBytes), $chart['byteLength']);
+        $t->same(false, $chart['canExposeBytes']);
+        $t->same([], $chart['issues']);
+
+        $missing = $readerItems['Templates/Review/sheet.xltx'];
+        $t->same('application/vnd.openxmlformats-officedocument.spreadsheetml.template', $missing['mediaType']);
+        $t->same('template-document', $missing['kind']);
+        $t->same(false, $missing['exists']);
+        $t->same(['odf-template-package-missing-part'], $missing['issues']);
+
+        $orphan = $readerItems['Templates/Review/deck.potm'];
+        $t->same('application/vnd.ms-powerpoint.template.macroEnabled.12', $orphan['mediaType']);
+        $t->same('application/vnd.ms-powerpoint.template.macroenabled.12', $orphan['mediaTypeBase']);
+        $t->same('template-document', $orphan['kind']);
+        $t->same(true, $orphan['valid']);
+        $t->same(false, $orphan['declared']);
+        $t->same(['odf-template-package-undeclared-part'], $orphan['issues']);
+
+        $legacy = $readerItems['Templates/Review/legacy.dot'];
+        $t->same('application/msword', $legacy['mediaType']);
+        $t->same('application/msword', $legacy['mediaTypeBase']);
+        $t->same('template-document', $legacy['kind']);
+        $t->same(true, $legacy['valid']);
+        $t->same(false, $legacy['declared']);
+        $t->same(strlen($dotBytes), $legacy['byteLength']);
+        $t->same(['odf-template-package-undeclared-part'], $legacy['issues']);
+
+        $t->same([], array_column($result['media'], 'part'));
+        $t->same(4, $readerProvenance['templatePackagePartCount']);
+        $t->same(4, $readerProvenance['roleCounts']['template-package']);
+        $t->same(2, $readerProvenance['undeclaredRoleCounts']['template-package']);
+        $t->same(['template-package', 'manifest-declared'], $readerProvenance['parts']['Templates/Review/letter.dotx']['roles']);
+        $t->same(['template-package', 'manifest-declared'], $readerProvenance['parts']['Templates/Review/chart.otc']['roles']);
+        $t->same(['template-package', 'undeclared-package-entry'], $readerProvenance['parts']['Templates/Review/deck.potm']['roles']);
+        $t->same(['template-package', 'undeclared-package-entry'], $readerProvenance['parts']['Templates/Review/legacy.dot']['roles']);
+
+        $compactSummary = OpenDocumentPackage::fromPackage($package)->summarize();
+        $compactTemplates = $compactSummary['packageTemplates'];
+        $compactItems = $indexBy($compactTemplates['items'], 'packagePath');
+
+        $t->same($readerTemplates['kindCounts'], $compactTemplates['kindCounts']);
+        $t->same($readerTemplates['issueCodes'], $compactTemplates['issueCodes']);
+        $t->same('template-document', $compactItems['Templates/Review/letter.dotx']['kind']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.template', $compactItems['Templates/Review/letter.dotx']['mediaType']);
+        $t->same('template-document', $compactItems['Templates/Review/chart.otc']['kind']);
+        $t->same('application/vnd.oasis.opendocument.chart-template', $compactItems['Templates/Review/chart.otc']['mediaTypeBase']);
+        $t->same('template-document', $compactItems['Templates/Review/deck.potm']['kind']);
+        $t->same('application/vnd.ms-powerpoint.template.macroenabled.12', $compactItems['Templates/Review/deck.potm']['mediaTypeBase']);
+        $t->same('template-document', $compactItems['Templates/Review/legacy.dot']['kind']);
+        $t->same('application/msword', $compactItems['Templates/Review/legacy.dot']['mediaTypeBase']);
+        $t->same([], array_column($compactSummary['mediaParts'], 'packagePath'));
+        $t->same(3, $compactSummary['manifestReview']['templatePackagePartCount']);
+        $t->same(4, $compactSummary['packageInventory']['templatePackagePartCount']);
+        $t->same(4, $compactSummary['packageIdentity']['templatePackagePartCount']);
+    },
 ];

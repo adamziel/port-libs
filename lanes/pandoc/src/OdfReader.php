@@ -19477,9 +19477,18 @@ final class OdfReader
             'ots' => 'application/vnd.oasis.opendocument.spreadsheet-template',
             'otp' => 'application/vnd.oasis.opendocument.presentation-template',
             'otg' => 'application/vnd.oasis.opendocument.graphics-template',
+            'otc' => 'application/vnd.oasis.opendocument.chart-template',
+            'oti' => 'application/vnd.oasis.opendocument.image-template',
+            'otf' => 'application/vnd.oasis.opendocument.formula-template',
             'dotx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.template',
+            'dotm' => 'application/vnd.ms-word.template.macroEnabled.12',
             'xltx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.template',
+            'xltm' => 'application/vnd.ms-excel.template.macroEnabled.12',
             'potx' => 'application/vnd.openxmlformats-officedocument.presentationml.template',
+            'potm' => 'application/vnd.ms-powerpoint.template.macroEnabled.12',
+            'dot' => 'application/msword',
+            'xlt' => 'application/vnd.ms-excel',
+            'pot' => 'application/vnd.ms-powerpoint',
             'xml', 'xhtml', 'html' => 'text/xml',
             'png' => 'image/png',
             'jpg', 'jpeg' => 'image/jpeg',
@@ -19499,7 +19508,7 @@ final class OdfReader
 
         return self::isXmlMediaTypeBase($base)
             || self::mediaResourceFamilyFromMediaTypeBase($base) !== null
-            || in_array($base, ['text/plain', 'text/csv', 'application/pdf', 'application/zip', 'application/octet-stream', 'application/binary'], true)
+            || in_array($base, ['text/plain', 'text/csv', 'application/pdf', 'application/zip', 'application/msword', 'application/octet-stream', 'application/binary'], true)
             || str_starts_with($base, 'application/vnd.oasis.opendocument.')
             || str_starts_with($base, 'application/vnd.')
             || str_starts_with($base, 'application/x-');
@@ -19516,8 +19525,16 @@ final class OdfReader
         if (in_array($basename, ['manifest.xml', 'metadata.xml'], true) || self::isXmlMediaTypeBase($base)) {
             return 'template-manifest';
         }
-        if (str_starts_with($base, 'application/vnd.oasis.opendocument.')
-            || str_starts_with($base, 'application/vnd.openxmlformats-officedocument.')
+        if (str_starts_with($base, 'application/vnd.openxmlformats-officedocument.')
+            || str_starts_with($base, 'application/vnd.oasis.opendocument.')
+            || in_array($base, [
+                'application/msword',
+                'application/vnd.ms-excel',
+                'application/vnd.ms-powerpoint',
+                'application/vnd.ms-word.template.macroenabled.12',
+                'application/vnd.ms-excel.template.macroenabled.12',
+                'application/vnd.ms-powerpoint.template.macroenabled.12',
+            ], true)
         ) {
             return 'template-document';
         }
