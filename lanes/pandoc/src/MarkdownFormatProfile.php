@@ -62,6 +62,8 @@ final class MarkdownFormatProfile
         'task_list' => 'task_lists',
         'task-list' => 'task_lists',
         'tasklist' => 'task_lists',
+        'wikilink_title_after_pipe' => 'wikilinks_title_after_pipe',
+        'wikilink_title_before_pipe' => 'wikilinks_title_before_pipe',
         'wikilink' => 'wikilinks',
         'wiki_link' => 'wikilinks',
         'wiki_links' => 'wikilinks',

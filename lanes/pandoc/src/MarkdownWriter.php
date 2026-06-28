@@ -7124,7 +7124,7 @@ final class MarkdownWriter
             return null;
         }
 
-        $targetComponent = $this->escapeWikiLinkComponent($this->escapeUri($target));
+        $targetComponent = $this->escapeWikiLinkComponent($target);
         if ($label === $target) {
             return '[[' . $targetComponent . ']]';
         }
@@ -8776,12 +8776,7 @@ final class MarkdownWriter
     {
         $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
         $format = is_scalar($format) ? (string) $format : 'markdown';
-        $extensions = $this->options['extensions'] ?? '';
-        if (!is_scalar($extensions)) {
-            return $format;
-        }
-
-        $extensionSuffix = trim((string) $extensions);
+        $extensionSuffix = $this->markdownExtensionOptionSuffix($this->options['extensions'] ?? '');
         if ($extensionSuffix === '') {
             return $format;
         }
@@ -8791,6 +8786,43 @@ final class MarkdownWriter
         }
 
         return $format . '+' . $extensionSuffix;
+    }
+
+    private function markdownExtensionOptionSuffix(mixed $extensions): string
+    {
+        if (is_scalar($extensions)) {
+            return trim((string) $extensions);
+        }
+
+        if (!is_array($extensions)) {
+            return '';
+        }
+
+        $tokens = [];
+        foreach ($extensions as $name => $value) {
+            if (is_int($name)) {
+                if (!is_scalar($value)) {
+                    continue;
+                }
+
+                $token = trim((string) $value);
+                if ($token === '') {
+                    continue;
+                }
+                $tokens[] = str_starts_with($token, '+') || str_starts_with($token, '-')
+                    ? $token
+                    : '+' . $token;
+                continue;
+            }
+
+            if (!is_scalar($value)) {
+                continue;
+            }
+
+            $tokens[] = ((bool) $value ? '+' : '-') . (string) $name;
+        }
+
+        return implode('', $tokens);
     }
 
     private function bracketedSpansEnabled(): bool

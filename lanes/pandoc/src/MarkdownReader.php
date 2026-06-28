@@ -9943,12 +9943,82 @@ final class MarkdownReader
                 break;
             }
 
+            if ($this->wikiLinkTitleAfterPipe()) {
+                return [$label, $url];
+            }
+
             return [$url, $label];
         }
 
         $content = trim($content);
 
         return [$content, $content];
+    }
+
+    private function wikiLinkTitleAfterPipe(): bool
+    {
+        return $this->markdownExtensionOverrides()['wikilinks_title_after_pipe'] ?? false;
+    }
+
+    /**
+     * @return array<string, bool>
+     */
+    private function markdownExtensionOverrides(): array
+    {
+        return MarkdownFormatProfile::markdownExtensionOverrides($this->markdownFormatWithExtensionOption());
+    }
+
+    private function markdownFormatWithExtensionOption(): string
+    {
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $format = is_scalar($format) ? (string) $format : 'markdown';
+        $extensionSuffix = $this->markdownExtensionOptionSuffix($this->options['extensions'] ?? '');
+        if ($extensionSuffix === '') {
+            return $format;
+        }
+
+        if (str_starts_with($extensionSuffix, '+') || str_starts_with($extensionSuffix, '-')) {
+            return $format . $extensionSuffix;
+        }
+
+        return $format . '+' . $extensionSuffix;
+    }
+
+    private function markdownExtensionOptionSuffix(mixed $extensions): string
+    {
+        if (is_scalar($extensions)) {
+            return trim((string) $extensions);
+        }
+
+        if (!is_array($extensions)) {
+            return '';
+        }
+
+        $tokens = [];
+        foreach ($extensions as $name => $value) {
+            if (is_int($name)) {
+                if (!is_scalar($value)) {
+                    continue;
+                }
+
+                $token = trim((string) $value);
+                if ($token === '') {
+                    continue;
+                }
+                $tokens[] = str_starts_with($token, '+') || str_starts_with($token, '-')
+                    ? $token
+                    : '+' . $token;
+                continue;
+            }
+
+            if (!is_scalar($value)) {
+                continue;
+            }
+
+            $tokens[] = ((bool) $value ? '+' : '-') . (string) $name;
+        }
+
+        return implode('', $tokens);
     }
 
     /**
