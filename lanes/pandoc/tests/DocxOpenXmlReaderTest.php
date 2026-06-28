@@ -18088,6 +18088,8 @@ XML;
             '/review:packet/review:item' => 2,
             '/review:packet/review:tail' => 1,
         ], $reviewPart['xmlNamespaceDeclarationElementPathCounts']);
+        $t->same(['1' => 1, '2' => 3], $reviewPart['xmlNamespaceDeclarationElementDepthCounts']);
+        $t->same([1, 2], $reviewPart['xmlNamespaceDeclarationElementDepths']);
         $t->same([
             'review:item' => 2,
             'review:packet' => 1,
@@ -18100,6 +18102,7 @@ XML;
         $t->same(sprintf('%08x', crc32($reviewUri)), $reviewPart['xmlNamespaceDeclarations'][0]['namespaceUriCrc32']);
         $t->same(hash('sha256', $reviewUri), $reviewPart['xmlNamespaceDeclarations'][0]['namespaceUriSha256']);
         $t->same('/review:packet/review:item', $reviewPart['xmlNamespaceDeclarations'][1]['elementPath']);
+        $t->same(2, $reviewPart['xmlNamespaceDeclarations'][1]['elementDepth']);
         $t->same('default', $reviewPart['xmlNamespaceDeclarations'][1]['prefix']);
         $t->same(true, $reviewPart['xmlNamespaceDeclarations'][1]['isDefault']);
         $t->same($defaultUri, $reviewPart['xmlNamespaceDeclarations'][1]['namespaceUri']);
@@ -18116,6 +18119,8 @@ XML;
         $t->same(['local' => 1, 'review' => 1, 'w' => 1], $settingsPart['xmlNamespaceDeclarationPrefixCounts']);
         $t->same(1, $settingsPart['xmlNamespaceDeclarationElementPathCounts']['/w:settings/w:docVars']);
         $t->same(1, $settingsPart['xmlNamespaceDeclarationElementPathCounts']['/w:settings/w:docVars/w:docVar']);
+        $t->same(['1' => 1, '2' => 1, '3' => 1], $settingsPart['xmlNamespaceDeclarationElementDepthCounts']);
+        $t->same([1, 2, 3], $settingsPart['xmlNamespaceDeclarationElementDepths']);
 
         $t->true($summary['partXmlNamespaceDeclarationPartCount'] >= 2, 'summary namespace declaration part count should include added XML parts');
         $t->true($summary['partXmlNamespaceDeclarationCount'] >= 7, 'summary namespace declaration count should include added XML parts');
@@ -18124,14 +18129,20 @@ XML;
         $t->same(1, $summary['partXmlNamespaceDeclarationUriCounts'][$settingsLocalUri]);
         $t->same(2, $summary['partXmlNamespaceDeclarationElementPathCounts']['/review:packet/review:item']);
         $t->same(1, $summary['partXmlNamespaceDeclarationElementPathCounts']['/w:settings/w:docVars/w:docVar']);
+        $t->true(($summary['partXmlNamespaceDeclarationElementDepthCounts']['1'] ?? 0) >= 2, 'summary namespace declaration depth 1 count should include added XML roots');
+        $t->true(($summary['partXmlNamespaceDeclarationElementDepthCounts']['2'] ?? 0) >= 4, 'summary namespace declaration depth 2 count should include added nested declarations');
+        $t->true(($summary['partXmlNamespaceDeclarationElementDepthCounts']['3'] ?? 0) >= 1, 'summary namespace declaration depth 3 count should include deep settings declarations');
+        $t->true(in_array(3, $summary['partXmlNamespaceDeclarationElementDepths'], true), 'summary namespace declaration depths should include deep declarations');
         $t->true(in_array('customXml/namespace-declarations.xml', $summary['partXmlNamespaceDeclarationPartNames'], true), 'custom XML namespace declaration part should be summarized');
         $t->true(in_array('word/settings-namespace-declarations.xml', $summary['partXmlNamespaceDeclarationPartNames'], true), 'settings namespace declaration part should be summarized');
         $t->same(7, count($declarations));
         $t->same('customXml/namespace-declarations.xml', $declarations[0]['partName']);
         $t->same('/review:packet', $declarations[0]['elementPath']);
+        $t->same(1, $declarations[0]['elementDepth']);
         $t->same('review', $declarations[0]['prefix']);
         $t->same('word/settings-namespace-declarations.xml', $declarations[6]['partName']);
         $t->same('/w:settings/w:docVars/w:docVar', $declarations[6]['elementPath']);
+        $t->same(3, $declarations[6]['elementDepth']);
         $t->same('local', $declarations[6]['prefix']);
 
         $encodedDeclarations = json_encode([$reviewPart['xmlNamespaceDeclarations'], $settingsPart['xmlNamespaceDeclarations'], $declarations]);

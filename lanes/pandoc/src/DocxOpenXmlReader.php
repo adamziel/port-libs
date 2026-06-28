@@ -14746,6 +14746,9 @@ final class DocxOpenXmlReader
             'partXmlNamespaceDeclarationElementPathCount' => $partXmlRoots['xmlNamespaceDeclarationElementPathCount'],
             'partXmlNamespaceDeclarationElementPathCounts' => $partXmlRoots['xmlNamespaceDeclarationElementPathCounts'],
             'partXmlNamespaceDeclarationElementPaths' => $partXmlRoots['xmlNamespaceDeclarationElementPaths'],
+            'partXmlNamespaceDeclarationElementDepthCount' => $partXmlRoots['xmlNamespaceDeclarationElementDepthCount'],
+            'partXmlNamespaceDeclarationElementDepthCounts' => $partXmlRoots['xmlNamespaceDeclarationElementDepthCounts'],
+            'partXmlNamespaceDeclarationElementDepths' => $partXmlRoots['xmlNamespaceDeclarationElementDepths'],
             'partXmlNamespaceDeclarationElementNameCount' => count($partXmlRoots['xmlNamespaceDeclarationElementNameCounts']),
             'partXmlNamespaceDeclarationElementNameCounts' => $partXmlRoots['xmlNamespaceDeclarationElementNameCounts'],
             'partXmlNamespaceDeclarations' => $partXmlRoots['xmlNamespaceDeclarations'],
@@ -20591,6 +20594,8 @@ final class DocxOpenXmlReader
         $xmlNamespaceDeclarationUris = [];
         $xmlNamespaceDeclarationElementPathCounts = [];
         $xmlNamespaceDeclarationElementPaths = [];
+        $xmlNamespaceDeclarationElementDepthCounts = [];
+        $xmlNamespaceDeclarationElementDepths = [];
         $xmlNamespaceDeclarationElementNameCounts = [];
         $xmlNamespaceDeclarations = [];
         $xmlEntityReferencePartNames = [];
@@ -21788,6 +21793,16 @@ final class DocxOpenXmlReader
                 $xmlNamespaceDeclarationElementPathCounts[$elementPath] =
                     ($xmlNamespaceDeclarationElementPathCounts[$elementPath] ?? 0) + (int) $count;
                 $this->appendUniqueString($xmlNamespaceDeclarationElementPaths, $elementPath);
+            }
+            foreach (($part['xmlNamespaceDeclarationElementDepthCounts'] ?? []) as $elementDepth => $count) {
+                $elementDepth = (string) $elementDepth;
+                if ($elementDepth === '') {
+                    continue;
+                }
+
+                $xmlNamespaceDeclarationElementDepthCounts[$elementDepth] =
+                    ($xmlNamespaceDeclarationElementDepthCounts[$elementDepth] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlNamespaceDeclarationElementDepths, $elementDepth);
             }
             foreach (($part['xmlNamespaceDeclarationElementNameCounts'] ?? []) as $elementName => $count) {
                 if (!is_string($elementName) || $elementName === '') {
@@ -23072,6 +23087,10 @@ final class DocxOpenXmlReader
                     ? $part['xmlNamespaceDeclarationElementPathCounts']
                     : [],
                 'xmlNamespaceDeclarationElementPaths' => array_values(array_map('strval', $part['xmlNamespaceDeclarationElementPaths'] ?? [])),
+                'xmlNamespaceDeclarationElementDepthCounts' => is_array($part['xmlNamespaceDeclarationElementDepthCounts'] ?? null)
+                    ? $part['xmlNamespaceDeclarationElementDepthCounts']
+                    : [],
+                'xmlNamespaceDeclarationElementDepths' => array_values(array_map('intval', $part['xmlNamespaceDeclarationElementDepths'] ?? [])),
                 'xmlNamespaceDeclarationElementNameCounts' => is_array($part['xmlNamespaceDeclarationElementNameCounts'] ?? null)
                     ? $part['xmlNamespaceDeclarationElementNameCounts']
                     : [],
@@ -23430,6 +23449,7 @@ final class DocxOpenXmlReader
         ksort($xmlNamespaceDeclarationPrefixCounts, SORT_STRING);
         ksort($xmlNamespaceDeclarationUriCounts, SORT_STRING);
         ksort($xmlNamespaceDeclarationElementPathCounts, SORT_STRING);
+        ksort($xmlNamespaceDeclarationElementDepthCounts, SORT_NUMERIC);
         ksort($xmlNamespaceDeclarationElementNameCounts, SORT_STRING);
         ksort($xmlEntityReferenceNameCounts, SORT_STRING);
         ksort($xmlEntityReferenceParentPathCounts, SORT_STRING);
@@ -23518,6 +23538,7 @@ final class DocxOpenXmlReader
         sort($xmlNamespaceDeclarationPrefixes, SORT_STRING);
         sort($xmlNamespaceDeclarationUris, SORT_STRING);
         sort($xmlNamespaceDeclarationElementPaths, SORT_STRING);
+        sort($xmlNamespaceDeclarationElementDepths, SORT_NUMERIC);
         sort($xmlEntityReferencePartNames, SORT_STRING);
         sort($xmlEntityReferenceNames, SORT_STRING);
         sort($xmlEntityReferenceParentPaths, SORT_STRING);
@@ -23838,6 +23859,9 @@ final class DocxOpenXmlReader
             'xmlNamespaceDeclarationElementPathCount' => count($xmlNamespaceDeclarationElementPathCounts),
             'xmlNamespaceDeclarationElementPathCounts' => $xmlNamespaceDeclarationElementPathCounts,
             'xmlNamespaceDeclarationElementPaths' => $xmlNamespaceDeclarationElementPaths,
+            'xmlNamespaceDeclarationElementDepthCount' => count($xmlNamespaceDeclarationElementDepthCounts),
+            'xmlNamespaceDeclarationElementDepthCounts' => $xmlNamespaceDeclarationElementDepthCounts,
+            'xmlNamespaceDeclarationElementDepths' => array_values(array_map('intval', $xmlNamespaceDeclarationElementDepths)),
             'xmlNamespaceDeclarationElementNameCounts' => $xmlNamespaceDeclarationElementNameCounts,
             'xmlNamespaceDeclarations' => $xmlNamespaceDeclarations,
             'xmlEntityReferencePartCount' => $xmlEntityReferencePartCount,
@@ -26936,7 +26960,7 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{count:int, defaultCount:int, prefixedCount:int, byteLength:int, prefixCounts:array<string, int>, prefixes:list<string>, uriCounts:array<string, int>, uris:list<string>, elementPathCounts:array<string, int>, elementPaths:list<string>, elementNameCounts:array<string, int>, items:list<array<string, mixed>>}
+     * @return array{count:int, defaultCount:int, prefixedCount:int, byteLength:int, prefixCounts:array<string, int>, prefixes:list<string>, uriCounts:array<string, int>, uris:list<string>, elementPathCounts:array<string, int>, elementPaths:list<string>, elementDepthCounts:array<string, int>, elementDepths:list<int>, elementNameCounts:array<string, int>, items:list<array<string, mixed>>}
      */
     private function xmlNamespaceDeclarationProvenance(string $xml, string $partName): array
     {
@@ -26951,6 +26975,8 @@ final class DocxOpenXmlReader
             'uris' => [],
             'elementPathCounts' => [],
             'elementPaths' => [],
+            'elementDepthCounts' => [],
+            'elementDepths' => [],
             'elementNameCounts' => [],
             'items' => [],
         ];
@@ -26975,6 +27001,8 @@ final class DocxOpenXmlReader
         $uris = [];
         $elementPathCounts = [];
         $elementPaths = [];
+        $elementDepthCounts = [];
+        $elementDepths = [];
         $elementNameCounts = [];
         $elementStack = [];
         $ordinal = 0;
@@ -27019,6 +27047,9 @@ final class DocxOpenXmlReader
                 $prefixCounts[$prefix] = ($prefixCounts[$prefix] ?? 0) + 1;
                 $uriCounts[$namespaceUriKey] = ($uriCounts[$namespaceUriKey] ?? 0) + 1;
                 $elementPathCounts[$elementPath] = ($elementPathCounts[$elementPath] ?? 0) + 1;
+                $elementDepthKey = (string) $elementDepth;
+                $elementDepthCounts[$elementDepthKey] = ($elementDepthCounts[$elementDepthKey] ?? 0) + 1;
+                $elementDepths[$elementDepth] = true;
                 $elementNameCounts[$elementQualifiedName] = ($elementNameCounts[$elementQualifiedName] ?? 0) + 1;
                 $this->appendUniqueString($prefixes, $prefix);
                 if ($namespaceUri !== '') {
@@ -27058,6 +27089,8 @@ final class DocxOpenXmlReader
         ksort($prefixCounts, SORT_STRING);
         ksort($uriCounts, SORT_STRING);
         ksort($elementPathCounts, SORT_STRING);
+        ksort($elementDepthCounts, SORT_NUMERIC);
+        ksort($elementDepths, SORT_NUMERIC);
         ksort($elementNameCounts, SORT_STRING);
         sort($prefixes, SORT_STRING);
         sort($uris, SORT_STRING);
@@ -27074,6 +27107,8 @@ final class DocxOpenXmlReader
             'uris' => $uris,
             'elementPathCounts' => $elementPathCounts,
             'elementPaths' => $elementPaths,
+            'elementDepthCounts' => $elementDepthCounts,
+            'elementDepths' => array_map('intval', array_keys($elementDepths)),
             'elementNameCounts' => $elementNameCounts,
             'items' => $items,
         ];
@@ -30930,6 +30965,8 @@ final class DocxOpenXmlReader
                 'xmlNamespaceDeclarationUris' => [],
                 'xmlNamespaceDeclarationElementPathCounts' => [],
                 'xmlNamespaceDeclarationElementPaths' => [],
+                'xmlNamespaceDeclarationElementDepthCounts' => [],
+                'xmlNamespaceDeclarationElementDepths' => [],
                 'xmlNamespaceDeclarationElementNameCounts' => [],
                 'xmlNamespaceDeclarations' => [],
                 'xmlEntityReferenceCount' => 0,
@@ -31253,6 +31290,8 @@ final class DocxOpenXmlReader
             'xmlNamespaceDeclarationUris' => $namespaceDeclarations['uris'],
             'xmlNamespaceDeclarationElementPathCounts' => $namespaceDeclarations['elementPathCounts'],
             'xmlNamespaceDeclarationElementPaths' => $namespaceDeclarations['elementPaths'],
+            'xmlNamespaceDeclarationElementDepthCounts' => $namespaceDeclarations['elementDepthCounts'],
+            'xmlNamespaceDeclarationElementDepths' => $namespaceDeclarations['elementDepths'],
             'xmlNamespaceDeclarationElementNameCounts' => $namespaceDeclarations['elementNameCounts'],
             'xmlNamespaceDeclarations' => $namespaceDeclarations['items'],
             'xmlEntityReferenceCount' => $entityReferences['count'],
