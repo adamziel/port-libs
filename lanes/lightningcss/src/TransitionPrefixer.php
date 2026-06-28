@@ -11267,7 +11267,11 @@ final class TransitionPrefixer
             $p3Fallback = $usesP3Fallback ? $this->advancedColorP3FallbackValue($normalized, $supportsCustomPropertyOverride) : null;
             $labFallback = $this->advancedColorLabFallbackValue($normalized, $supportsCustomPropertyOverride);
             $labTargetFallback = $needsLabFallback ? $this->advancedColorLabTargetValue($normalized) : null;
-            if ($p3Fallback === null && $supportsCustomPropertyOverride && $needsSrgbFallback && $needsLabFallback) {
+            if ($p3Fallback === null
+                && $supportsCustomPropertyOverride
+                && $needsSrgbFallback
+                && ($needsLabFallback || $this->containsDisplayP3ColorFunction($normalized))
+            ) {
                 $p3Fallback = $this->advancedColorP3FallbackValue($normalized, true);
             }
 
@@ -11317,16 +11321,120 @@ final class TransitionPrefixer
             $rewritten[] = $entry;
         }
 
+        $postSupportRules = [];
+        $changed = $this->rewriteAdvancedColorCustomPropertySiblingRules(
+            $rewritten,
+            $selectors,
+            $p3SupportEntries,
+            $labSupportEntries,
+            $postSupportRules
+        ) || $changed;
+
         if ($p3SupportEntries !== []) {
             $supportRules[] = $this->supportsP3Rule($selectors, $p3SupportEntries);
         }
         if ($labSupportEntries !== []) {
             $supportRules[] = $this->supportsLabRule($selectors, $labSupportEntries);
         }
+        array_push($supportRules, ...$postSupportRules);
 
         $entries = $rewritten;
 
         return $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param list<array{property:string,name:string,value:string,important:bool}> $p3SupportEntries
+     * @param list<array{property:string,name:string,value:string,important:bool}> $labSupportEntries
+     * @param list<string> $postSupportRules
+     */
+    private function rewriteAdvancedColorCustomPropertySiblingRules(
+        array &$entries,
+        string $selectors,
+        array $p3SupportEntries,
+        array $labSupportEntries,
+        array &$postSupportRules
+    ): bool
+    {
+        $supportedCustomProperties = [];
+        foreach ([$p3SupportEntries, $labSupportEntries] as $supportEntries) {
+            foreach ($supportEntries as $supportEntry) {
+                if (str_starts_with($supportEntry['property'], '--')) {
+                    $supportedCustomProperties[$supportEntry['property']] = true;
+                }
+            }
+        }
+
+        if ($supportedCustomProperties === []) {
+            return false;
+        }
+
+        $customIndexes = [];
+        $textDecorationIndexes = [];
+        foreach ($entries as $index => $entry) {
+            if (isset($supportedCustomProperties[$entry['property']])) {
+                $customIndexes[] = $index;
+                continue;
+            }
+
+            if ($entry['property'] === 'text-decoration') {
+                $textDecorationIndexes[] = $index;
+            }
+        }
+
+        if ($customIndexes === [] || $textDecorationIndexes === []) {
+            return false;
+        }
+
+        $firstCustom = $customIndexes[0];
+        $firstTextDecoration = $textDecorationIndexes[0];
+        if ($firstTextDecoration < $firstCustom) {
+            $customEntries = [];
+            $otherEntries = [];
+            foreach ($entries as $entry) {
+                if (isset($supportedCustomProperties[$entry['property']])) {
+                    $customEntries[] = $entry;
+                } else {
+                    $otherEntries[] = $entry;
+                }
+            }
+
+            $entries = [...$customEntries, ...$otherEntries];
+
+            return true;
+        }
+
+        if ($firstCustom >= $firstTextDecoration) {
+            return false;
+        }
+
+        $baseEntries = [];
+        $postEntries = [];
+        $seenSupportedCustomProperty = false;
+        foreach ($entries as $entry) {
+            if (isset($supportedCustomProperties[$entry['property']])) {
+                $seenSupportedCustomProperty = true;
+                $baseEntries[] = $entry;
+                continue;
+            }
+
+            if ($seenSupportedCustomProperty && $entry['property'] === 'text-decoration') {
+                $postEntries[] = $entry;
+                continue;
+            }
+
+            $baseEntries[] = $entry;
+        }
+
+        if ($postEntries === []) {
+            return false;
+        }
+
+        $entries = $baseEntries;
+        $postSupportRules[] = $selectors . '{' . $this->serializeDeclarations($postEntries) . '}';
+
+        return true;
     }
 
     /**
@@ -12015,6 +12123,11 @@ final class TransitionPrefixer
     private function containsAdvancedColorFunction(string $value): bool
     {
         return preg_match('/\b(?:color|lab|lch|oklab|oklch)\(/i', $value) === 1;
+    }
+
+    private function containsDisplayP3ColorFunction(string $value): bool
+    {
+        return preg_match('/\bcolor\(\s*display-p3\b/i', $value) === 1;
     }
 
     private function containsCustomPropertyReference(string $value): bool

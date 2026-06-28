@@ -3889,6 +3889,24 @@ CSS;
                 ['safari' => 15, 'chrome' => 90],
                 '.foo{--foo:#00f942}@supports (color:color(display-p3 0 0 0)){.foo{--foo:color(display-p3 0 1 0)}}',
             ],
+            [
+                24046,
+                '.foo { --foo: color(display-p3 0 1 0); }',
+                ['chrome' => 90],
+                '.foo{--foo:#00f942}@supports (color:color(display-p3 0 0 0)){.foo{--foo:color(display-p3 0 1 0)}}',
+            ],
+            [
+                24069,
+                '.foo { text-decoration: underline; } .foo { --custom: lab(40% 56.6 39); }',
+                ['chrome' => 90],
+                '.foo{--custom:#b32323;text-decoration:underline}@supports (color:lab(0% 0 0)){.foo{--custom:lab(40% 56.6 39)}}',
+            ],
+            [
+                24097,
+                '.foo { --custom: lab(40% 56.6 39); } .foo { text-decoration: underline; }',
+                ['chrome' => 90],
+                '.foo{--custom:#b32323}@supports (color:lab(0% 0 0)){.foo{--custom:lab(40% 56.6 39)}}.foo{text-decoration:underline}',
+            ],
         ];
 
         foreach ($cases as [$line, $input, $targets, $expected]) {
