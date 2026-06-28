@@ -17423,6 +17423,53 @@ XML;
         $t->same(18, $summary['selectedXmlPartCount']);
         $t->same(1, $summary['selectedXmlPartIssueCount']);
         $t->same(['webSettings'], $summary['selectedXmlPartIssueKinds']);
+        $t->same([
+            'conventional-fallback' => 11,
+            'conventional-part' => 2,
+            'relationship' => 5,
+        ], $selected['selectionSourceCounts']);
+        $t->same([
+            '/' => 2,
+            'word/document.xml' => 3,
+        ], $selected['relationshipSourcePartCounts']);
+        $t->same([
+            '_rels/.rels' => 2,
+            'word/_rels/document.xml.rels' => 3,
+        ], $selected['relationshipsPartCounts']);
+        $t->same(3, $selected['relationshipTargetReferenceSuffixCount']);
+        $t->same(2, $selected['relationshipTargetQueryCount']);
+        $t->same(3, $selected['relationshipTargetFragmentCount']);
+        $t->same([
+            '?profile=team#settings',
+            '?profile=browser#web',
+            '#theme',
+        ], $selected['relationshipTargetReferenceSuffixes']);
+        $t->same([
+            'word/document.xml',
+            'docProps/core.xml',
+            'docSettings/review-settings.xml',
+            'word/web/missing-web-settings.xml',
+            'word/theme/review-theme.xml',
+        ], $selected['relationshipSelectedPartNames']);
+        $t->same(['override' => 6], $selected['existingContentTypeSourceCounts']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.theme+xml' => 1,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml' => 1,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml' => 1,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml' => 1,
+            'application/vnd.openxmlformats-package.core-properties+xml' => 1,
+        ], $selected['existingContentTypeBaseCounts']);
+        $t->same($selected['selectionSourceCounts'], $summary['selectedXmlPartSelectionSourceCounts']);
+        $t->same($selected['relationshipSourcePartCounts'], $summary['selectedXmlPartRelationshipSourcePartCounts']);
+        $t->same($selected['relationshipsPartCounts'], $summary['selectedXmlPartRelationshipsPartCounts']);
+        $t->same($selected['relationshipTargetReferenceSuffixCount'], $summary['selectedXmlPartRelationshipTargetReferenceSuffixCount']);
+        $t->same($selected['relationshipTargetQueryCount'], $summary['selectedXmlPartRelationshipTargetQueryCount']);
+        $t->same($selected['relationshipTargetFragmentCount'], $summary['selectedXmlPartRelationshipTargetFragmentCount']);
+        $t->same($selected['relationshipTargetReferenceSuffixes'], $summary['selectedXmlPartRelationshipTargetReferenceSuffixes']);
+        $t->same($selected['relationshipSelectedPartNames'], $summary['selectedXmlPartRelationshipSelectedPartNames']);
+        $t->same($selected['existingContentTypeSourceCounts'], $summary['selectedXmlPartExistingContentTypeSourceCounts']);
+        $t->same($selected['existingContentTypeBaseCounts'], $summary['selectedXmlPartExistingContentTypeBaseCounts']);
 
         $t->same('relationship', $byKind['document']['selectionSource']);
         $t->same('rDoc', $byKind['document']['relationshipId']);
