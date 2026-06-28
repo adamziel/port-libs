@@ -7816,6 +7816,13 @@ final class CssMinifier
             return trim($value);
         }
 
+        if (count($tokens) === 1) {
+            $fallback = $this->normalizeInvalidTransformAngleFunction($tokens[0]);
+            if ($fallback !== null) {
+                return $fallback;
+            }
+        }
+
         $angleIndexes = [];
         $allowUnitlessZeroAngle = count($tokens) === 1;
         foreach ($tokens as $index => $token) {
@@ -8194,6 +8201,11 @@ final class CssMinifier
 
     private function normalizeTransformFunctionAngleArgument(string $arg): string
     {
+        $angle = $this->evaluateTransformAngleFunctionDegrees($arg);
+        if ($angle !== null) {
+            return $this->serializeTransformDegrees($angle, false);
+        }
+
         $degrees = $this->canonicalLinearMathValue($arg, 'angle');
         if ($degrees !== null) {
             return $this->serializeTransformDegrees($degrees, false);
@@ -8204,6 +8216,11 @@ final class CssMinifier
 
     private function normalizeTransformLonghandAngleArgument(string $arg): string
     {
+        $angle = $this->evaluateTransformAngleFunctionDegrees($arg);
+        if ($angle !== null) {
+            return $this->serializeTransformDegrees($angle, true);
+        }
+
         $degrees = $this->canonicalLinearMathValue($arg, 'angle');
         if ($degrees !== null) {
             return $this->serializeTransformDegrees($degrees, true);
@@ -8220,6 +8237,10 @@ final class CssMinifier
 
     private function isTransformAngleToken(string $token, bool $allowUnitlessZero): bool
     {
+        if ($this->evaluateTransformAngleFunctionDegrees($token) !== null) {
+            return true;
+        }
+
         if ($this->canonicalLinearMathValue($token, 'angle') !== null) {
             return true;
         }
@@ -8231,6 +8252,91 @@ final class CssMinifier
         $number = $this->unitlessMathNumber($this->normalizeMathArgument($token));
 
         return $number !== null && abs($number) < 0.0000001;
+    }
+
+    private function evaluateTransformAngleFunctionDegrees(string $arg): ?float
+    {
+        $parsed = $this->parseTransformAngleMathFunction($arg);
+        if ($parsed === null) {
+            return null;
+        }
+
+        $name = $parsed['name'];
+        $args = $parsed['args'];
+        if ($name === 'asin' || $name === 'acos' || $name === 'atan') {
+            if (count($args) !== 1) {
+                return null;
+            }
+
+            $value = $this->unitlessMathNumber(trim($this->minifyMathFunctions($args[0])));
+            if ($value === null) {
+                return null;
+            }
+
+            $radians = match ($name) {
+                'asin' => asin($value),
+                'acos' => acos($value),
+                default => atan($value),
+            };
+
+            return $this->computedTransformAngleDegrees($radians);
+        }
+
+        if ($name !== 'atan2' || count($args) !== 2) {
+            return null;
+        }
+
+        $left = $this->comparableMathValue($this->normalizeMathArgument($args[0]));
+        $right = $this->comparableMathValue($this->normalizeMathArgument($args[1]));
+        if ($left === null || $right === null || $left['group'] !== $right['group']) {
+            return null;
+        }
+
+        $radians = atan2($left['canonical'], $right['canonical']);
+
+        return $this->computedTransformAngleDegrees($radians);
+    }
+
+    private function computedTransformAngleDegrees(float $radians): ?float
+    {
+        if (!is_finite($radians)) {
+            return null;
+        }
+
+        return (float) sprintf('%.6G', $radians * 180.0 / M_PI);
+    }
+
+    private function normalizeInvalidTransformAngleFunction(string $arg): ?string
+    {
+        $parsed = $this->parseTransformAngleMathFunction($arg);
+        if ($parsed === null || $this->evaluateTransformAngleFunctionDegrees($arg) !== null) {
+            return null;
+        }
+
+        if ($parsed['name'] !== 'atan2' || count($parsed['args']) !== 2) {
+            return null;
+        }
+
+        return 'atan2('
+            . $this->normalizeMathArgument($parsed['args'][0])
+            . ', '
+            . $this->normalizeMathArgument($parsed['args'][1])
+            . ')';
+    }
+
+    /**
+     * @return array{name:string,args:list<string>}|null
+     */
+    private function parseTransformAngleMathFunction(string $arg): ?array
+    {
+        if (preg_match('/^(asin|acos|atan|atan2)\((.*)\)$/is', trim($arg), $matches) !== 1) {
+            return null;
+        }
+
+        return [
+            'name' => strtolower($matches[1]),
+            'args' => $this->splitTopLevel($matches[2], ','),
+        ];
     }
 
     private function isTransformZeroAngle(string $value): bool
