@@ -5028,12 +5028,14 @@ CSS;
     'transition prefixer maps upstream top-level media range target fallbacks' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 
-        // Pinned upstream 22bdda3d src/lib.rs::test_media lines 8957, 8978, 8999, 9020, and 9378.
+        // Pinned upstream 22bdda3d src/lib.rs::test_media lines 8957, 8978, 8999, 9020, 9342, 9360, and 9378.
         $cases = [
             [8957, '@media (width >= 240px) { .foo { color: chartreuse; } }', '@media (min-width:240px){.foo{color:#7fff00}}', ['firefox' => 60]],
             [8978, '@media (width >= 240px) { .foo { color: chartreuse; } }', '@media (width>=240px){.foo{color:#7fff00}}', ['firefox' => 64]],
             [8999, '@media (color > 2) { .foo { color: chartreuse; } }', '@media not (max-color:2){.foo{color:#7fff00}}', ['firefox' => 60]],
             [9020, '@media (color < 2) { .foo { color: chartreuse; } }', '@media not (min-color:2){.foo{color:#7fff00}}', ['firefox' => 60]],
+            [9342, '@media (width > calc(1px + 1rem)) { .foo { color: yellow; } }', '@media not (max-width:calc(1px + 1rem)){.foo{color:#ff0}}', ['chrome' => 85]],
+            [9360, '@media (width > max(10px, 1rem)) { .foo { color: yellow; } }', '@media not (max-width:max(10px,1rem)){.foo{color:#ff0}}', ['chrome' => 85]],
             [9378, '@media (width > 0) { .foo { color: yellow; } }', '@media not (max-width:0){.foo{color:#ff0}}', ['chrome' => 85]],
         ];
 

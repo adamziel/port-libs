@@ -1646,7 +1646,8 @@ return [
     },
     'source map imports upstream json defaults and data URLs' => static function (TestRunner $t): void {
         // Pinned upstream 22bdda3d Cargo.lock parcel_sourcemap 2.1.1 lines 985-994,
-        // parcel_sourcemap-2.1.1/src/lib.rs::test_to_json lines 785-795.
+        // parcel_sourcemap-2.1.1/src/lib.rs::test_to_json lines 785-795 and
+        // test_from_json_no_sources_content lines 812-827.
         $jsonOnlyMap = new SourceMap();
         $jsonOnlyMap->addGeneratedMapping(1, 1);
         $t->same(

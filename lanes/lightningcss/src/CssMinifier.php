@@ -84,7 +84,8 @@ final class CssMinifier
         string $css,
         bool $preserveFontTargetFallbacks = false,
         bool $allowNamespaceAfterStyleRules = false,
-        bool $preserveSingletonIsSelectors = false
+        bool $preserveSingletonIsSelectors = false,
+        bool $allowDeepSelectorCombinator = false
     ): string
     {
         if (!$this->recoverInvalidMediaFeatureValues) {
@@ -94,6 +95,9 @@ final class CssMinifier
         [$css, $licenseComments] = $this->stripComments($css);
         $this->validateViewTransitionPseudoElementSelectorPreludes($css);
         $this->validateTerminalPseudoElementSelectorPreludes($css);
+        if (!$allowDeepSelectorCombinator) {
+            $this->validateDeepSelectorCombinatorPreludes($css);
+        }
         $output = '';
         $quote = null;
         $pendingSpace = false;
@@ -185,6 +189,16 @@ final class CssMinifier
                 continue;
             }
 
+            if ($allowDeepSelectorCombinator && str_starts_with(substr($css, $i), '/deep/')) {
+                if ($pendingSpace && $output !== '' && !str_ends_with($output, '{')) {
+                    $output .= ' ';
+                }
+                $output .= '/deep/';
+                $pendingSpace = false;
+                $i += 5;
+                continue;
+            }
+
             if ($char === '/' && $pendingSpace && $this->isInsideUnknownPseudoElementArgument($output)) {
                 $output .= ' /';
                 $pendingSpace = false;
@@ -209,6 +223,8 @@ final class CssMinifier
             } elseif ($pendingSpace && $this->needsComposesMathOperatorSpace($output)) {
                 $output .= ' ';
             } elseif ($pendingSpace && $this->needsSelectorDescendantSpaceAfterAttribute($output, $css, $i)) {
+                $output .= ' ';
+            } elseif ($pendingSpace && $allowDeepSelectorCombinator && str_ends_with($output, '/deep/')) {
                 $output .= ' ';
             } elseif ($pendingSpace && $this->needsUnknownPseudoElementArgumentSpaceAfterSlash($output, $css, $i)) {
                 $output .= ' ';
@@ -2245,6 +2261,30 @@ final class CssMinifier
             $prelude = substr($css, $preludeStart, $open - $preludeStart);
             if ($this->isStyleRulePrelude($prelude)) {
                 $this->validateTerminalPseudoElementSelectors($prelude);
+            }
+
+            $cursor = $open + 1;
+        }
+    }
+
+    private function validateDeepSelectorCombinatorPreludes(string $css): void
+    {
+        if (!str_contains($css, '>>>') && !str_contains($css, '/deep/')) {
+            return;
+        }
+
+        $cursor = 0;
+        $length = strlen($css);
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                return;
+            }
+
+            $preludeStart = $this->findPreludeStart($css, $cursor, $open);
+            $prelude = substr($css, $preludeStart, $open - $preludeStart);
+            if ($this->isStyleRulePrelude($prelude) && (str_contains($prelude, '>>>') || str_contains($prelude, '/deep/'))) {
+                throw new \InvalidArgumentException('Dangling combinator');
             }
 
             $cursor = $open + 1;

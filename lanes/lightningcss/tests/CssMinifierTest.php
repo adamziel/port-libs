@@ -125,7 +125,6 @@ CSS
 
         $cases = [
             // Pinned upstream 22bdda3d node/test/transform.test.mjs::can enable non-standard syntax line 19.
-            '.foo >>> .bar { color: red }' => '.foo>>>.bar{color:red}',
             ':nth-col(2n) {width: 20px}' => ':nth-col(2n){width:20px}',
             ':nth-col(10n-1) {width: 20px}' => ':nth-col(10n-1){width:20px}',
             ':nth-col(-n+2) {width: 20px}' => ':nth-col(-n+2){width:20px}',
@@ -172,6 +171,11 @@ CSS
         foreach ($cases as $input => $expected) {
             $t->same($expected, $minifier->minify($input));
         }
+
+        $t->same(
+            '.foo>>>.bar{color:red}',
+            $minifier->minify('.foo >>> .bar { color: red }', allowDeepSelectorCombinator: true)
+        );
     },
     'css minifier maps upstream state selector with pseudo element part' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
@@ -260,6 +264,31 @@ CSS
         foreach ($cases as [$line, $input, $expected]) {
             $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_selectors line ' . $line);
         }
+    },
+    'css minifier maps upstream deep selector combinator parser option rows' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_selectors lines 7429, 7433, 7437, and 7442.
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $minifier->minify('.foo >>> .bar {width: 20px}'),
+            'upstream src/lib.rs::test_selectors line 7429'
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $minifier->minify('.foo /deep/ .bar {width: 20px}'),
+            'upstream src/lib.rs::test_selectors line 7433'
+        );
+        $t->same(
+            '.foo>>>.bar{width:20px}',
+            $minifier->minify('.foo >>> .bar {width: 20px}', allowDeepSelectorCombinator: true),
+            'upstream src/lib.rs::test_selectors line 7437'
+        );
+        $t->same(
+            '.foo /deep/ .bar{width:20px}',
+            $minifier->minify('.foo /deep/ .bar {width: 20px}', allowDeepSelectorCombinator: true),
+            'upstream src/lib.rs::test_selectors line 7442'
+        );
     },
     'css minifier rejects upstream selectors after terminal pseudo-elements' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
@@ -3218,6 +3247,18 @@ CSS;
         $t->same('.foo{width:abs(1%)}', $minifier->minify('.foo { width: abs(1%) }'));
         $t->same('.foo{width:-10px}', $minifier->minify('.foo { width: calc(10px * sign(-1vw)) }'));
         $t->same('.foo{width:calc(10px * sign(1%))}', $minifier->minify('.foo { width: calc(10px * sign(1%)) }'));
+    },
+    'css minifier maps upstream pi division trigonometric math row' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_trig line 8431.
+        $cases = [
+            [8431, '.foo { width: calc(2px / pi); }', '.foo{width:.63662px}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_trig line ' . $line);
+        }
     },
     'css minifier maps upstream nested math functions inside calc' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();

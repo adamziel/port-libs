@@ -2368,7 +2368,10 @@ CSS;
                             'declarations' => [
                                 'declarations' => [
                                     ['property' => 'visibility', 'raw' => 'hi\\64 den'],
+                                    ['property' => 'background', 'raw' => 'yellow'],
+                                    ['property' => '--custom', 'raw' => 'hi'],
                                     ['property' => 'transition', 'vendorPrefix' => ['moz'], 'raw' => '200ms test'],
+                                    ['property' => '-webkit-animation', 'raw' => '3s cubic-bezier(0.25, 0.1, 0.25, 1) foo'],
                                 ],
                             ],
                         ],
@@ -2377,7 +2380,7 @@ CSS;
             ],
         ]);
 
-        $t->same('*{visibility:hidden;-moz-transition:test .2s}.keep{color:red}', $result);
+        $t->same('*{visibility:hidden;--custom:hi;background:#ff0;-moz-transition:test .2s;-webkit-animation:3s foo}.keep{color:red}', $result);
         $t->same(0, substr_count($result, '@skip'));
     },
     'custom at-rules map upstream composed custom rule visitors' => static function (TestRunner $t): void {

@@ -5598,24 +5598,42 @@ final class CustomAtRuleTransformer
      */
     private function returnedDeclarationBlockEntries(array $block): array
     {
-        $entries = [];
-        foreach (['declarations', 'importantDeclarations'] as $key) {
-            $declarations = $block[$key] ?? [];
-            if (!is_array($declarations)) {
-                continue;
-            }
+        $customEntries = [];
+        $normalEntries = [];
+        $importantEntries = [];
+
+        $declarations = $block['declarations'] ?? [];
+        if (is_array($declarations)) {
             foreach ($declarations as $declaration) {
                 if (!is_array($declaration)) {
                     continue;
                 }
-                if ($key === 'importantDeclarations') {
-                    $declaration['important'] = true;
+                if (str_starts_with((string) ($declaration['property'] ?? ''), '--')) {
+                    $customEntries[] = $declaration;
+                    continue;
                 }
-                $entries[] = $declaration;
+                $normalEntries[] = $declaration;
             }
         }
 
-        return $entries;
+        $importantDeclarations = $block['importantDeclarations'] ?? [];
+        if (is_array($importantDeclarations)) {
+            foreach ($importantDeclarations as $declaration) {
+                if (!is_array($declaration)) {
+                    continue;
+                }
+                $declaration['important'] = true;
+                $importantEntries[] = $declaration;
+            }
+        }
+
+        if ($customEntries !== [] && count($normalEntries) > 1) {
+            $firstNormalEntry = array_shift($normalEntries);
+
+            return [$firstNormalEntry, ...$customEntries, ...$normalEntries, ...$importantEntries];
+        }
+
+        return [...$normalEntries, ...$customEntries, ...$importantEntries];
     }
 
     /**
