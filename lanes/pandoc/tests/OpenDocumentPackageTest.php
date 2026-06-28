@@ -2963,6 +2963,7 @@ XML;
         $t->same('Object Chart/manifest.rdf', $summary['undeclaredPackageEntries'][0]['path']);
     },
     'blocks compact ODT script package bytes in package review summaries' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $basicLibraryXml = '<library:library xmlns:library="http://openoffice.org/2000/library" library:name="Standard"/>';
         $basicModuleXml = '<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Review">Sub Approve' . "\n" . 'End Sub</script:module>';
         $javaScript = 'function ReviewLinkClick() { return false; }';
         $scriptIcon = 'SCRIPTICON';
@@ -2970,6 +2971,7 @@ XML;
         $orphanScript = 'function orphan() { return true; }';
         $scriptEntries =
             '  <manifest:file-entry manifest:media-type="" manifest:full-path="Basic/"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Basic/Standard/script-lb.xml" manifest:size="' . strlen($basicLibraryXml) . '"/>' . "\n"
             . '  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Basic/Standard/Review.xml" manifest:size="' . strlen($basicModuleXml) . '"/>' . "\n"
             . '  <manifest:file-entry manifest:media-type="" manifest:full-path="Scripts/"/>' . "\n"
             . '  <manifest:file-entry manifest:media-type="application/javascript" manifest:full-path="Scripts/review-link.js" manifest:size="' . strlen($javaScript) . '"/>' . "\n"
@@ -2982,6 +2984,7 @@ XML;
             manifest: $manifest,
             extraParts: [
                 ['name' => 'Basic/', 'data' => '', 'compressionMethod' => 0],
+                ['name' => 'Basic/Standard/script-lb.xml', 'data' => $basicLibraryXml, 'compressionMethod' => 0],
                 ['name' => 'Basic/Standard/Review.xml', 'data' => $basicModuleXml, 'compressionMethod' => 0],
                 ['name' => 'Scripts/', 'data' => '', 'compressionMethod' => 0],
                 ['name' => 'Scripts/review-link.js', 'data' => $javaScript, 'compressionMethod' => 0],
@@ -3001,12 +3004,12 @@ XML;
         }
         $inventory = $summary['packageInventory'];
 
-        $t->same(8, $scripts['count']);
-        $t->same(6, $scripts['fileCount']);
+        $t->same(9, $scripts['count']);
+        $t->same(7, $scripts['fileCount']);
         $t->same(2, $scripts['directoryCount']);
-        $t->same(7, $scripts['storedPartCount']);
-        $t->same(4, $scripts['readableCount']);
-        $t->same(7, $scripts['declaredCount']);
+        $t->same(8, $scripts['storedPartCount']);
+        $t->same(5, $scripts['readableCount']);
+        $t->same(8, $scripts['declaredCount']);
         $t->same(1, $scripts['undeclaredCount']);
         $t->same(1, $scripts['missingCount']);
         $t->same(1, $scripts['encryptedCount']);
@@ -3017,13 +3020,14 @@ XML;
             'odf-script-undeclared-package-part',
         ], $scripts['issueCodes']);
         $t->same(['basic', 'scripts'], $scripts['scriptContainers']);
-        $t->same(['basic-module', 'javascript', 'script-directory', 'script-package-part'], $scripts['scriptKinds']);
+        $t->same(['basic-library-index', 'basic-module', 'javascript', 'script-directory', 'script-package-part'], $scripts['scriptKinds']);
         $t->same('script-package-bytes-blocked', $scripts['byteExposurePolicy']);
         $t->same('package-script-metadata-only', $scripts['reviewPolicy']);
 
-        $t->same(7, $summary['manifestReview']['scriptPackagePartCount']);
+        $t->same(8, $summary['manifestReview']['scriptPackagePartCount']);
         $t->same([
             'Basic/',
+            'Basic/Standard/script-lb.xml',
             'Basic/Standard/Review.xml',
             'Scripts/',
             'Scripts/review-link.js',
@@ -3031,8 +3035,9 @@ XML;
             'Scripts/missing.js',
             'Scripts/encrypted.js',
         ], array_column($summary['manifestReview']['scriptPackageItems'], 'path'));
-        $t->same(7, $inventory['scriptPackagePartCount']);
+        $t->same(8, $inventory['scriptPackagePartCount']);
         $t->same(['script-package', 'zip-directory', 'manifest-declared'], $inventory['parts']['Basic/']['roles']);
+        $t->same(['script-package', 'manifest-declared'], $inventory['parts']['Basic/Standard/script-lb.xml']['roles']);
         $t->same(['script-package', 'manifest-declared'], $inventory['parts']['Basic/Standard/Review.xml']['roles']);
         $t->same(['script-package', 'manifest-declared'], $inventory['parts']['Scripts/review-link.js']['roles']);
         $t->same(['script-package', 'manifest-declared'], $inventory['parts']['Scripts/icon.png']['roles']);
@@ -3051,6 +3056,20 @@ XML;
         $t->same(0, $basicDirectory['storedByteLength']);
         $t->same('directory-entry-no-bytes', $basicDirectory['byteExposurePolicy']);
         $t->same([], $basicDirectory['issues']);
+
+        $basicLibraryIndex = $scriptByPath['Basic/Standard/script-lb.xml'];
+        $t->same('basic', $basicLibraryIndex['scriptContainer']);
+        $t->same('basic-library-index', $basicLibraryIndex['scriptKind']);
+        $t->same('Standard', $basicLibraryIndex['scriptLibrary']);
+        $t->same('script-lb', $basicLibraryIndex['scriptModule']);
+        $t->same('text/xml', $basicLibraryIndex['mediaType']);
+        $t->same(true, $basicLibraryIndex['declared']);
+        $t->same(true, $basicLibraryIndex['valid']);
+        $t->same(strlen($basicLibraryXml), $basicLibraryIndex['byteLength']);
+        $t->same(sprintf('%08x', crc32($basicLibraryXml)), $basicLibraryIndex['crc32']);
+        $t->same(false, $basicLibraryIndex['canExposeAsDocumentMedia']);
+        $t->same('script-package-bytes-blocked', $basicLibraryIndex['byteExposurePolicy']);
+        $t->same([], $basicLibraryIndex['issues']);
 
         $scriptsDirectory = $scriptByPath['Scripts/'];
         $t->same(true, $scriptsDirectory['isDirectory']);

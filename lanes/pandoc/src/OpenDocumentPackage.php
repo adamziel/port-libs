@@ -5805,7 +5805,7 @@ final class OpenDocumentPackage
             'py' => 'python',
             'xba' => 'basic-module',
             'xdl' => $container === 'dialogs' ? 'basic-dialog' : 'script-xml',
-            'xml' => in_array($basename, ['dialog-lb.xml', 'dialog-lc.xml'], true)
+            'xml' => in_array($basename, ['script-lb.xml', 'script-lc.xml', 'dialog-lb.xml', 'dialog-lc.xml'], true)
                 ? 'basic-library-index'
                 : match ($container) {
                     'basic' => 'basic-module',
