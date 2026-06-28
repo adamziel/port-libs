@@ -20062,6 +20062,144 @@ MARKDOWN);
         $t->same(['ETSI.CAdES.detached' => 1], $sequence['finalPdfSignatureSubFilters']);
     },
 
+    'fake runner summarizes bounded pdf catalog permission policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/catalog-permissions.pdf']);
+        $docMdpSignatureBytes = hex2bin('3082010A0282010100AABBCC') ?: '';
+        $usageRightsSignatureBytes = hex2bin('3082010A0282010100DDEEFF') ?: '';
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /Perms << /DocMDP 9 0 R /UR3 10 0 R >> >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /Name (Policy Desk) /ByteRange [0 120 190 40] /Contents <3082010A0282010100AABBCC> /Reference [<< /TransformMethod /DocMDP /TransformParams << /Type /TransformParams /P 2 /V /1.2 >> >>] >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /ETSI.RFC3161 /Name (Usage Rights) /Contents <3082010A0282010100DDEEFF> /Reference [<< /TransformMethod /UR3 /TransformParams << /Type /TransformParams /P 255 >> >>] >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/catalog-permissions.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/catalog-permissions.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expectedPermissions = [
+            [
+                'permission' => 'DocMDP',
+                'signatureObject' => '9 0 R',
+                'filter' => 'Adobe.PPKLite',
+                'subFilter' => 'adbe.pkcs7.detached',
+                'name' => 'Policy Desk',
+                'reason' => null,
+                'location' => null,
+                'contactInfo' => null,
+                'signingTime' => null,
+                'byteRange' => [0, 120, 190, 40],
+                'byteRangeSegmentCount' => 2,
+                'coveredBytes' => 160,
+                'contentsBytes' => strlen($docMdpSignatureBytes),
+                'contentsSha256' => hash('sha256', $docMdpSignatureBytes),
+                'contentsSkipped' => null,
+                'referenceTransforms' => [
+                    [
+                        'transformMethod' => 'DocMDP',
+                        'transformParamsType' => 'TransformParams',
+                        'permissions' => 2,
+                        'action' => null,
+                        'fields' => [],
+                    ],
+                ],
+            ],
+            [
+                'permission' => 'UR3',
+                'signatureObject' => '10 0 R',
+                'filter' => 'Adobe.PPKLite',
+                'subFilter' => 'ETSI.RFC3161',
+                'name' => 'Usage Rights',
+                'reason' => null,
+                'location' => null,
+                'contactInfo' => null,
+                'signingTime' => null,
+                'byteRange' => [],
+                'byteRangeSegmentCount' => 0,
+                'coveredBytes' => null,
+                'contentsBytes' => strlen($usageRightsSignatureBytes),
+                'contentsSha256' => hash('sha256', $usageRightsSignatureBytes),
+                'contentsSkipped' => null,
+                'referenceTransforms' => [
+                    [
+                        'transformMethod' => 'UR3',
+                        'transformParamsType' => 'TransformParams',
+                        'permissions' => 255,
+                        'action' => null,
+                        'fields' => [],
+                    ],
+                ],
+            ],
+        ];
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'permissionCount' => 2,
+            'signatureCount' => 2,
+            'byteRangeCount' => 1,
+            'contentsCount' => 2,
+            'referenceTransformCount' => 2,
+            'permissionCounts' => [
+                'DocMDP' => 1,
+                'UR3' => 1,
+            ],
+            'subFilterCounts' => [
+                'ETSI.RFC3161' => 1,
+                'adbe.pkcs7.detached' => 1,
+            ],
+            'transformMethodCounts' => [
+                'DocMDP' => 1,
+                'UR3' => 1,
+            ],
+            'transformPermissionCounts' => [
+                '2' => 1,
+                '255' => 1,
+            ],
+            'issues' => [
+                'catalog-permission-missing-byte-range',
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expectedPermissions, $result['pdfCatalogPermissions']);
+        $t->same($expectedPolicy, $result['pdfCatalogPermissionPolicy']);
+        $t->contains('pdf-byte-catalog-permissions:2', $diagnostics);
+        $t->contains('pdf-byte-catalog-permission-policy:review', $diagnostics);
+        $t->contains('pdf-byte-catalog-permission-policy-permission:DocMDP:1', $diagnostics);
+        $t->contains('pdf-byte-catalog-permission-policy-permission:UR3:1', $diagnostics);
+        $t->contains('pdf-byte-catalog-permission-policy-transform:DocMDP:1', $diagnostics);
+        $t->contains('pdf-byte-catalog-permission-policy-transform:UR3:1', $diagnostics);
+        $t->contains('pdf-byte-catalog-permission-policy-issue:catalog-permission-missing-byte-range:1', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expectedPermissions, $sequence['finalPdfCatalogPermissions']);
+        $t->same($expectedPolicy, $sequence['finalPdfCatalogPermissionPolicy']);
+    },
+
     'fake runner extracts bounded pdf signature seed value constraints from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/signature-seed-values.pdf']);

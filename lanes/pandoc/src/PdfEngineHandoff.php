@@ -856,6 +856,7 @@ final class PdfEngineHandoff
      *     pdfDocumentPartMetadata: list<array{source:string, object:string|null, type:string|null, parentObject:string|null, metadataObject:string|null, metadataKeys:list<string>, metadataItems:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, startPageObject:string|null, endPageObject:string|null, childObjects:list<string>, missingChildObjects:list<string>, childCount:int, depth:int}>,
      *     pdfDocumentPartPolicy: array<string, mixed>,
      *     pdfCatalogPermissions: list<array{permission:string, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
+     *     pdfCatalogPermissionPolicy: array<string, mixed>,
      *     pdfSignatures: list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     pdfSignatureSubFilters: array<string, int>,
      *     pdfSignatureByteRangePolicy: list<array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, byteRange:list<int>, segmentCount:int, coveredBytes:int|null, fileBytes:int, gapCount:int, gapBytes:int, firstGapOffset:int|null, firstGapLength:int|null, startsAtZero:bool, coversToEnd:bool|null, ordered:bool, nonOverlapping:bool, fitsFile:bool|null, contentsBytes:int|null, contentsFitsFirstGap:bool|null, reviewStatus:string, issues:list<string>}>,
@@ -1620,6 +1621,7 @@ final class PdfEngineHandoff
         $pdfDocumentPartMetadata = [];
         $pdfDocumentPartPolicy = [];
         $pdfCatalogPermissions = [];
+        $pdfCatalogPermissionPolicy = [];
         $pdfSignatures = [];
         $pdfSignatureSubFilters = [];
         $pdfSignatureByteRangePolicy = [];
@@ -1776,6 +1778,7 @@ final class PdfEngineHandoff
                 $pdfDocumentPartMetadata = $pdfInspection['documentPartMetadata'];
                 $pdfDocumentPartPolicy = $pdfInspection['documentPartPolicy'];
                 $pdfCatalogPermissions = $pdfInspection['catalogPermissions'];
+                $pdfCatalogPermissionPolicy = $pdfInspection['catalogPermissionPolicy'];
                 $pdfSignatures = $pdfInspection['signatures'];
                 $pdfSignatureSubFilters = $pdfInspection['signatureSubFilters'];
                 $pdfSignatureByteRangePolicy = $pdfInspection['signatureByteRangePolicy'];
@@ -4103,6 +4106,49 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-catalog-permission-subfilter:' . $subFilter . ':' . $subFilterCount;
                     }
                 }
+                if ($pdfCatalogPermissionPolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-catalog-permission-policy:' . ($pdfCatalogPermissionPolicy['reviewStatus'] ?? 'unknown');
+                    foreach ([
+                        'permissionCount' => 'permissions',
+                        'signatureCount' => 'signatures',
+                        'byteRangeCount' => 'byte-ranges',
+                        'contentsCount' => 'contents',
+                        'referenceTransformCount' => 'reference-transforms',
+                    ] as $policyKey => $diagnosticName) {
+                        if (isset($pdfCatalogPermissionPolicy[$policyKey]) && is_int($pdfCatalogPermissionPolicy[$policyKey]) && $pdfCatalogPermissionPolicy[$policyKey] > 0) {
+                            $diagnostics[] = 'pdf-byte-catalog-permission-policy-' . $diagnosticName . ':' . $pdfCatalogPermissionPolicy[$policyKey];
+                        }
+                    }
+                    foreach ([
+                        'permissionCounts' => 'permission',
+                        'subFilterCounts' => 'subfilter',
+                        'transformMethodCounts' => 'transform',
+                        'transformPermissionCounts' => 'transform-permission',
+                    ] as $policyKey => $diagnosticName) {
+                        if (!isset($pdfCatalogPermissionPolicy[$policyKey]) || !is_array($pdfCatalogPermissionPolicy[$policyKey])) {
+                            continue;
+                        }
+                        foreach ($pdfCatalogPermissionPolicy[$policyKey] as $value => $count) {
+                            $valueLabel = is_int($value) ? (string) $value : (is_string($value) ? $value : null);
+                            if ($valueLabel !== null && $valueLabel !== '' && is_int($count)) {
+                                $diagnostics[] = 'pdf-byte-catalog-permission-policy-' . $diagnosticName . ':' . $valueLabel . ':' . $count;
+                            }
+                        }
+                    }
+                    if (isset($pdfCatalogPermissionPolicy['issues']) && is_array($pdfCatalogPermissionPolicy['issues']) && $pdfCatalogPermissionPolicy['issues'] !== []) {
+                        $diagnostics[] = 'pdf-byte-catalog-permission-policy-issues:' . count($pdfCatalogPermissionPolicy['issues']);
+                        $issueCounts = [];
+                        foreach ($pdfCatalogPermissionPolicy['issues'] as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+                            }
+                        }
+                        ksort($issueCounts);
+                        foreach ($issueCounts as $issue => $count) {
+                            $diagnostics[] = 'pdf-byte-catalog-permission-policy-issue:' . $issue . ':' . $count;
+                        }
+                    }
+                }
                 if ($pdfSignatures !== []) {
                     $diagnostics[] = 'pdf-byte-signatures:' . count($pdfSignatures);
                     $byteRangeCount = 0;
@@ -5397,6 +5443,7 @@ final class PdfEngineHandoff
             'pdfDocumentPartMetadata' => $pdfDocumentPartMetadata,
             'pdfDocumentPartPolicy' => $pdfDocumentPartPolicy,
             'pdfCatalogPermissions' => $pdfCatalogPermissions,
+            'pdfCatalogPermissionPolicy' => $pdfCatalogPermissionPolicy,
             'pdfSignatures' => $pdfSignatures,
             'pdfSignatureSubFilters' => $pdfSignatureSubFilters,
             'pdfSignatureByteRangePolicy' => $pdfSignatureByteRangePolicy,
@@ -5572,6 +5619,7 @@ final class PdfEngineHandoff
      *     finalPdfDocumentPartMetadata: list<array{source:string, object:string|null, type:string|null, parentObject:string|null, metadataObject:string|null, metadataKeys:list<string>, metadataItems:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, startPageObject:string|null, endPageObject:string|null, childObjects:list<string>, missingChildObjects:list<string>, childCount:int, depth:int}>,
      *     finalPdfDocumentPartPolicy: array<string, mixed>,
      *     finalPdfCatalogPermissions: list<array{permission:string, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
+     *     finalPdfCatalogPermissionPolicy: array<string, mixed>,
      *     finalPdfSignatures: list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     finalPdfSignatureSubFilters: array<string, int>,
      *     finalPdfSignatureByteRangePolicy: list<array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, byteRange:list<int>, segmentCount:int, coveredBytes:int|null, fileBytes:int, gapCount:int, gapBytes:int, firstGapOffset:int|null, firstGapLength:int|null, startsAtZero:bool, coversToEnd:bool|null, ordered:bool, nonOverlapping:bool, fitsFile:bool|null, contentsBytes:int|null, contentsFitsFirstGap:bool|null, reviewStatus:string, issues:list<string>}>,
@@ -5907,6 +5955,7 @@ final class PdfEngineHandoff
             'finalPdfDocumentPartMetadata' => is_array($finalRun) && is_array($finalRun['pdfDocumentPartMetadata'] ?? null) ? $finalRun['pdfDocumentPartMetadata'] : [],
             'finalPdfDocumentPartPolicy' => is_array($finalRun) && is_array($finalRun['pdfDocumentPartPolicy'] ?? null) ? $finalRun['pdfDocumentPartPolicy'] : [],
             'finalPdfCatalogPermissions' => is_array($finalRun) && is_array($finalRun['pdfCatalogPermissions'] ?? null) ? $finalRun['pdfCatalogPermissions'] : [],
+            'finalPdfCatalogPermissionPolicy' => is_array($finalRun) && is_array($finalRun['pdfCatalogPermissionPolicy'] ?? null) ? $finalRun['pdfCatalogPermissionPolicy'] : [],
             'finalPdfSignatures' => is_array($finalRun) && is_array($finalRun['pdfSignatures'] ?? null) ? $finalRun['pdfSignatures'] : [],
             'finalPdfSignatureSubFilters' => is_array($finalRun) && is_array($finalRun['pdfSignatureSubFilters'] ?? null) ? $finalRun['pdfSignatureSubFilters'] : [],
             'finalPdfSignatureByteRangePolicy' => is_array($finalRun) && is_array($finalRun['pdfSignatureByteRangePolicy'] ?? null) ? $finalRun['pdfSignatureByteRangePolicy'] : [],
@@ -12892,6 +12941,7 @@ final class PdfEngineHandoff
      *     documentPartMetadata:list<array{source:string, object:string|null, type:string|null, parentObject:string|null, metadataObject:string|null, metadataKeys:list<string>, metadataItems:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, startPageObject:string|null, endPageObject:string|null, childObjects:list<string>, missingChildObjects:list<string>, childCount:int, depth:int}>,
      *     documentPartPolicy:array<string, mixed>,
      *     catalogPermissions:list<array{permission:string, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
+     *     catalogPermissionPolicy:array<string, mixed>,
      *     signatures:list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     signatureSubFilters:array<string, int>,
      *     signatureByteRangePolicy:list<array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, byteRange:list<int>, segmentCount:int, coveredBytes:int|null, fileBytes:int, gapCount:int, gapBytes:int, firstGapOffset:int|null, firstGapLength:int|null, startsAtZero:bool, coversToEnd:bool|null, ordered:bool, nonOverlapping:bool, fitsFile:bool|null, contentsBytes:int|null, contentsFitsFirstGap:bool|null, reviewStatus:string, issues:list<string>}>,
@@ -13150,6 +13200,7 @@ final class PdfEngineHandoff
             'documentPartMetadata' => $documentPartMetadata,
             'documentPartPolicy' => $this->summarizePdfDocumentPartPolicy($documentPartMetadata),
             'catalogPermissions' => $catalogPermissions,
+            'catalogPermissionPolicy' => $this->summarizePdfCatalogPermissionPolicy($catalogPermissions),
             'signatures' => $signatures,
             'signatureSubFilters' => $this->summarizePdfSignatureSubFilters($signatures),
             'signatureByteRangePolicy' => $this->summarizePdfSignatureByteRangePolicy($signatures, $catalogPermissions, strlen($pdfBytes)),
@@ -24353,6 +24404,120 @@ final class PdfEngineHandoff
         }
 
         return false;
+    }
+
+    /**
+     * @param list<array{permission:string, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}> $permissions
+     * @return array{reviewStatus:string, permissionCount:int, signatureCount:int, byteRangeCount:int, contentsCount:int, referenceTransformCount:int, permissionCounts:array<string, int>, subFilterCounts:array<string, int>, transformMethodCounts:array<string, int>, transformPermissionCounts:array<string, int>, issues:list<string>}|array{}
+     */
+    private function summarizePdfCatalogPermissionPolicy(array $permissions): array
+    {
+        if ($permissions === []) {
+            return [];
+        }
+
+        $permissionCounts = [];
+        $subFilterCounts = [];
+        $transformMethodCounts = [];
+        $transformPermissionCounts = [];
+        $signatureObjects = [];
+        $byteRangeCount = 0;
+        $contentsCount = 0;
+        $referenceTransformCount = 0;
+        $issues = [];
+
+        foreach ($permissions as $permission) {
+            $permissionName = is_string($permission['permission'] ?? null) && $permission['permission'] !== ''
+                ? $permission['permission']
+                : 'unknown';
+            $permissionCounts[$permissionName] = ($permissionCounts[$permissionName] ?? 0) + 1;
+
+            if (is_string($permission['signatureObject'] ?? null) && $permission['signatureObject'] !== '') {
+                $signatureObjects[$permission['signatureObject']] = true;
+            }
+
+            if (isset($permission['byteRange']) && is_array($permission['byteRange']) && $permission['byteRange'] !== []) {
+                ++$byteRangeCount;
+            } else {
+                $issues[] = 'catalog-permission-missing-byte-range';
+            }
+
+            if (is_int($permission['contentsBytes'] ?? null)) {
+                ++$contentsCount;
+            } else {
+                $issues[] = 'catalog-permission-missing-contents';
+            }
+
+            if (is_string($permission['subFilter'] ?? null) && $permission['subFilter'] !== '') {
+                $subFilterCounts[$permission['subFilter']] = ($subFilterCounts[$permission['subFilter']] ?? 0) + 1;
+            }
+
+            $transforms = is_array($permission['referenceTransforms'] ?? null) ? $permission['referenceTransforms'] : [];
+            $referenceTransformCount += count($transforms);
+            if ($transforms === []) {
+                $issues[] = 'catalog-permission-missing-reference-transform';
+            }
+
+            $hasDocMdpTransform = false;
+            $hasUsageRightsTransform = false;
+            foreach ($transforms as $transform) {
+                if (!is_array($transform)) {
+                    continue;
+                }
+
+                $method = is_string($transform['transformMethod'] ?? null) && $transform['transformMethod'] !== ''
+                    ? $transform['transformMethod']
+                    : null;
+                if ($method === null) {
+                    $issues[] = 'catalog-permission-reference-transform-missing-method';
+                } else {
+                    $transformMethodCounts[$method] = ($transformMethodCounts[$method] ?? 0) + 1;
+                    if ($method === 'DocMDP') {
+                        $hasDocMdpTransform = true;
+                    }
+                    if ($method === 'UR' || $method === 'UR3') {
+                        $hasUsageRightsTransform = true;
+                    }
+                }
+
+                if (($transform['transformParamsType'] ?? null) === null) {
+                    $issues[] = 'catalog-permission-reference-transform-missing-params';
+                }
+
+                if (is_int($transform['permissions'] ?? null)) {
+                    $permissionValue = (string) $transform['permissions'];
+                    $transformPermissionCounts[$permissionValue] = ($transformPermissionCounts[$permissionValue] ?? 0) + 1;
+                }
+            }
+
+            if ($permissionName === 'DocMDP' && !$hasDocMdpTransform) {
+                $issues[] = 'catalog-permission-docmdp-missing-docmdp-transform';
+            }
+            if (($permissionName === 'UR' || $permissionName === 'UR3') && !$hasUsageRightsTransform) {
+                $issues[] = 'catalog-permission-usage-rights-missing-transform';
+            }
+        }
+
+        ksort($permissionCounts, SORT_STRING);
+        ksort($subFilterCounts, SORT_STRING);
+        ksort($transformMethodCounts, SORT_STRING);
+        ksort($transformPermissionCounts, SORT_STRING);
+        $issues = array_values(array_unique($issues));
+        sort($issues, SORT_STRING);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'permissionCount' => count($permissions),
+            'signatureCount' => count($signatureObjects),
+            'byteRangeCount' => $byteRangeCount,
+            'contentsCount' => $contentsCount,
+            'referenceTransformCount' => $referenceTransformCount,
+            'permissionCounts' => $permissionCounts,
+            'subFilterCounts' => $subFilterCounts,
+            'transformMethodCounts' => $transformMethodCounts,
+            'transformPermissionCounts' => $transformPermissionCounts,
+            'issues' => $issues,
+        ];
     }
 
     /**
