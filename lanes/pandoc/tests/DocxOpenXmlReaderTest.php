@@ -19112,29 +19112,78 @@ XML;
         $t->same(4, $summary['partXmlCommentCount']);
         $t->same($commentByteLength, $summary['partXmlCommentByteLength']);
         $t->same(['customXml/comment-review.xml', 'word/settings-comment.xml'], $summary['partXmlCommentPartNames']);
+        $t->same([
+            '/' => 1,
+            '/review:packet' => 1,
+            '/review:packet/review:item' => 1,
+            '/w:settings' => 1,
+        ], $summary['partXmlCommentParentPathCounts']);
+        $t->same([
+            '(none)' => 1,
+            'http://schemas.openxmlformats.org/wordprocessingml/2006/main' => 1,
+            'urn:review-comments' => 2,
+        ], $summary['partXmlCommentParentNamespaceCounts']);
+        $t->same([
+            '(none)' => 1,
+            'item' => 1,
+            'packet' => 1,
+            'settings' => 1,
+        ], $summary['partXmlCommentParentLocalNameCounts']);
+        $t->same([
+            '(none)' => 1,
+            'review:item' => 1,
+            'review:packet' => 1,
+            'w:settings' => 1,
+        ], $summary['partXmlCommentParentQualifiedNameCounts']);
 
         $t->same(true, $reviewPart['xmlInspectable']);
         $t->same(3, $reviewPart['xmlCommentCount']);
         $t->same(strlen($rootComment) + strlen($childComment) + strlen($itemComment), $reviewPart['xmlCommentByteLength']);
+        $t->same([
+            '/' => 1,
+            '/review:packet' => 1,
+            '/review:packet/review:item' => 1,
+        ], $reviewPart['xmlCommentParentPathCounts']);
+        $t->same(['(none)' => 1, 'urn:review-comments' => 2], $reviewPart['xmlCommentParentNamespaceCounts']);
+        $t->same(['(none)' => 1, 'item' => 1, 'packet' => 1], $reviewPart['xmlCommentParentLocalNameCounts']);
+        $t->same(['(none)' => 1, 'review:item' => 1, 'review:packet' => 1], $reviewPart['xmlCommentParentQualifiedNameCounts']);
         $t->same('/', $reviewPart['xmlComments'][0]['parentPath']);
+        $t->same(null, $reviewPart['xmlComments'][0]['parentNamespace']);
+        $t->same(null, $reviewPart['xmlComments'][0]['parentLocalName']);
+        $t->same(null, $reviewPart['xmlComments'][0]['parentQualifiedName']);
         $t->same('/review:packet', $reviewPart['xmlComments'][1]['parentPath']);
+        $t->same('urn:review-comments', $reviewPart['xmlComments'][1]['parentNamespace']);
+        $t->same('packet', $reviewPart['xmlComments'][1]['parentLocalName']);
+        $t->same('review:packet', $reviewPart['xmlComments'][1]['parentQualifiedName']);
         $t->same('/review:packet/review:item', $reviewPart['xmlComments'][2]['parentPath']);
+        $t->same('urn:review-comments', $reviewPart['xmlComments'][2]['parentNamespace']);
+        $t->same('item', $reviewPart['xmlComments'][2]['parentLocalName']);
+        $t->same('review:item', $reviewPart['xmlComments'][2]['parentQualifiedName']);
         $t->same(strlen($rootComment), $reviewPart['xmlComments'][0]['byteLength']);
         $t->same(sprintf('%08x', crc32($rootComment)), $reviewPart['xmlComments'][0]['crc32']);
         $t->same(hash('sha256', $rootComment), $reviewPart['xmlComments'][0]['sha256']);
 
         $t->same(1, $settingsPart['xmlCommentCount']);
         $t->same(strlen($settingsComment), $settingsPart['xmlCommentByteLength']);
+        $t->same(['http://schemas.openxmlformats.org/wordprocessingml/2006/main' => 1], $settingsPart['xmlCommentParentNamespaceCounts']);
+        $t->same(['settings' => 1], $settingsPart['xmlCommentParentLocalNameCounts']);
+        $t->same(['w:settings' => 1], $settingsPart['xmlCommentParentQualifiedNameCounts']);
         $t->same('/w:settings', $settingsPart['xmlComments'][0]['parentPath']);
+        $t->same('http://schemas.openxmlformats.org/wordprocessingml/2006/main', $settingsPart['xmlComments'][0]['parentNamespace']);
+        $t->same('settings', $settingsPart['xmlComments'][0]['parentLocalName']);
+        $t->same('w:settings', $settingsPart['xmlComments'][0]['parentQualifiedName']);
         $t->same(sprintf('%08x', crc32($settingsComment)), $settingsPart['xmlComments'][0]['crc32']);
         $t->same(hash('sha256', $settingsComment), $settingsPart['xmlComments'][0]['sha256']);
 
         $t->same('customXml/comment-review.xml', $comments[0]['partName']);
         $t->same('/', $comments[0]['parentPath']);
+        $t->same(null, $comments[0]['parentNamespace']);
         $t->same('customXml/comment-review.xml', $comments[2]['partName']);
         $t->same('/review:packet/review:item', $comments[2]['parentPath']);
+        $t->same('review:item', $comments[2]['parentQualifiedName']);
         $t->same('word/settings-comment.xml', $comments[3]['partName']);
         $t->same('/w:settings', $comments[3]['parentPath']);
+        $t->same('w:settings', $comments[3]['parentQualifiedName']);
         $t->true(!isset($reviewPart['xmlComments'][0]['data']), 'raw XML comment text should not be exposed on part metadata');
         $encodedComments = json_encode([$reviewPart['xmlComments'], $settingsPart['xmlComments'], $comments]);
         $t->true(is_string($encodedComments), 'XML comment metadata should encode for review');
@@ -19174,32 +19223,71 @@ XML;
         $t->same(3, $summary['partXmlCdataSectionCount']);
         $t->same($sectionByteLength, $summary['partXmlCdataSectionByteLength']);
         $t->same(['customXml/cdata-review.xml', 'word/settings-cdata.xml'], $summary['partXmlCdataSectionPartNames']);
+        $t->same([
+            '/review:packet/review:item' => 1,
+            '/review:packet/review:raw' => 1,
+            '/w:settings/w:docVars/w:docVar' => 1,
+        ], $summary['partXmlCdataSectionParentPathCounts']);
+        $t->same([
+            'http://schemas.openxmlformats.org/wordprocessingml/2006/main' => 1,
+            'urn:review-cdata' => 2,
+        ], $summary['partXmlCdataSectionParentNamespaceCounts']);
+        $t->same([
+            'docVar' => 1,
+            'item' => 1,
+            'raw' => 1,
+        ], $summary['partXmlCdataSectionParentLocalNameCounts']);
+        $t->same([
+            'review:item' => 1,
+            'review:raw' => 1,
+            'w:docVar' => 1,
+        ], $summary['partXmlCdataSectionParentQualifiedNameCounts']);
 
         $t->same(true, $reviewPart['xmlInspectable']);
         $t->same(2, $reviewPart['xmlCdataSectionCount']);
         $t->same(strlen($rootCdata) + strlen($itemCdata), $reviewPart['xmlCdataSectionByteLength']);
+        $t->same([
+            '/review:packet/review:item' => 1,
+            '/review:packet/review:raw' => 1,
+        ], $reviewPart['xmlCdataSectionParentPathCounts']);
+        $t->same(['urn:review-cdata' => 2], $reviewPart['xmlCdataSectionParentNamespaceCounts']);
+        $t->same(['item' => 1, 'raw' => 1], $reviewPart['xmlCdataSectionParentLocalNameCounts']);
+        $t->same(['review:item' => 1, 'review:raw' => 1], $reviewPart['xmlCdataSectionParentQualifiedNameCounts']);
         $t->same('/review:packet/review:raw', $reviewPart['xmlCdataSections'][0]['parentPath']);
         $t->same(2, $reviewPart['xmlCdataSections'][0]['parentDepth']);
+        $t->same('urn:review-cdata', $reviewPart['xmlCdataSections'][0]['parentNamespace']);
+        $t->same('raw', $reviewPart['xmlCdataSections'][0]['parentLocalName']);
+        $t->same('review:raw', $reviewPart['xmlCdataSections'][0]['parentQualifiedName']);
         $t->same(strlen($rootCdata), $reviewPart['xmlCdataSections'][0]['byteLength']);
         $t->same(sprintf('%08x', crc32($rootCdata)), $reviewPart['xmlCdataSections'][0]['crc32']);
         $t->same(hash('sha256', $rootCdata), $reviewPart['xmlCdataSections'][0]['sha256']);
         $t->same('/review:packet/review:item', $reviewPart['xmlCdataSections'][1]['parentPath']);
+        $t->same('review:item', $reviewPart['xmlCdataSections'][1]['parentQualifiedName']);
         $t->same(strlen($itemCdata), $reviewPart['xmlCdataSections'][1]['byteLength']);
         $t->same(hash('sha256', $itemCdata), $reviewPart['xmlCdataSections'][1]['sha256']);
 
         $t->same(1, $settingsPart['xmlCdataSectionCount']);
         $t->same(strlen($settingsCdata), $settingsPart['xmlCdataSectionByteLength']);
+        $t->same(['http://schemas.openxmlformats.org/wordprocessingml/2006/main' => 1], $settingsPart['xmlCdataSectionParentNamespaceCounts']);
+        $t->same(['docVar' => 1], $settingsPart['xmlCdataSectionParentLocalNameCounts']);
+        $t->same(['w:docVar' => 1], $settingsPart['xmlCdataSectionParentQualifiedNameCounts']);
         $t->same('/w:settings/w:docVars/w:docVar', $settingsPart['xmlCdataSections'][0]['parentPath']);
         $t->same(3, $settingsPart['xmlCdataSections'][0]['parentDepth']);
+        $t->same('http://schemas.openxmlformats.org/wordprocessingml/2006/main', $settingsPart['xmlCdataSections'][0]['parentNamespace']);
+        $t->same('docVar', $settingsPart['xmlCdataSections'][0]['parentLocalName']);
+        $t->same('w:docVar', $settingsPart['xmlCdataSections'][0]['parentQualifiedName']);
         $t->same(sprintf('%08x', crc32($settingsCdata)), $settingsPart['xmlCdataSections'][0]['crc32']);
         $t->same(hash('sha256', $settingsCdata), $settingsPart['xmlCdataSections'][0]['sha256']);
 
         $t->same('customXml/cdata-review.xml', $sections[0]['partName']);
         $t->same('/review:packet/review:raw', $sections[0]['parentPath']);
+        $t->same('review:raw', $sections[0]['parentQualifiedName']);
         $t->same('customXml/cdata-review.xml', $sections[1]['partName']);
         $t->same('/review:packet/review:item', $sections[1]['parentPath']);
+        $t->same('review:item', $sections[1]['parentQualifiedName']);
         $t->same('word/settings-cdata.xml', $sections[2]['partName']);
         $t->same('/w:settings/w:docVars/w:docVar', $sections[2]['parentPath']);
+        $t->same('w:docVar', $sections[2]['parentQualifiedName']);
         $t->true(!isset($reviewPart['xmlCdataSections'][0]['data']), 'raw XML CDATA text should not be exposed on part metadata');
         $encodedSections = json_encode([$reviewPart['xmlCdataSections'], $settingsPart['xmlCdataSections'], $sections]);
         $t->true(is_string($encodedSections), 'XML CDATA metadata should encode for review');
