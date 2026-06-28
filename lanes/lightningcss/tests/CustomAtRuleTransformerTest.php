@@ -4629,6 +4629,32 @@ CSS;
         $t->same('.foo{color:var(--prefix-foo);background:red}', $result);
         $t->same(['--foo'], $seen);
     },
+    'custom at-rules map upstream visitor custom unit dimensions' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::custom units line 68.
+        $result = (new CustomAtRuleTransformer())->transform('.foo { --step: .25rem; font-size: 3--step; }', [], [
+            'Token' => [
+                'dimension' => static function (array $token): ?array {
+                    if (!str_starts_with((string) ($token['unit'] ?? ''), '--')) {
+                        return null;
+                    }
+
+                    return ['raw' => 'calc(' . ($token['value'] ?? '') . '*var(' . $token['unit'] . '))'];
+                },
+            ],
+        ]);
+
+        $t->same('.foo{--step:.25rem;font-size:calc(3*var(--step))}', $result);
+    },
+    'custom at-rules map upstream raw token function return' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::supports returning raw values for tokens line 998.
+        $result = (new CustomAtRuleTransformer())->transform('.foo { color: theme("red"); }', [], [
+            'Function' => [
+                'theme' => static fn (): array => ['raw' => 'rgba(255, 0, 0)'],
+            ],
+        ]);
+
+        $t->same('.foo{color:red}', $result);
+    },
     'custom at-rules compose upstream raw Function variables through CSS Modules dashed idents' => static function (TestRunner $t): void {
         // Pinned upstream 22bdda3d node/test/visitor.test.mjs::supports returning raw values as variables line 1019.
         $visited = (new CustomAtRuleTransformer())->transform('.foo { color: theme("foo"); }', [], [
