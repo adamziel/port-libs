@@ -1903,6 +1903,11 @@ CSS
             '.foo{font-family:Helvetica,Times New Roman,sans-serif;font-size:12px;font-stretch:125%}',
             $minifier->minify('.foo { font-family: "Helvetica", "Times New Roman", sans-serif; font-size: 12px; font-stretch: expanded; }')
         );
+        $t->same(
+            '.foo{font-family:SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace!important}',
+            $minifier->minify('.foo { font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important; }'),
+            'upstream src/lib.rs::test_important lines 8052-8059'
+        );
         $t->same('.foo{font-stretch:100%}', $minifier->minify('.foo { font-stretch: normal; }'));
         $t->same('.foo{font-family:Helvetica,sans-serif}', $minifier->minify('.foo { font-family: Helvetica, Helvetica, sans-serif; }'));
         $t->same(
