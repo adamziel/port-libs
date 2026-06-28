@@ -19049,6 +19049,12 @@ final class OdfReader
             'odt' => self::MIMETYPE,
             'ods' => 'application/vnd.oasis.opendocument.spreadsheet',
             'odp' => 'application/vnd.oasis.opendocument.presentation',
+            'odg' => 'application/vnd.oasis.opendocument.graphics',
+            'odf' => 'application/vnd.oasis.opendocument.formula',
+            'odc' => 'application/vnd.oasis.opendocument.chart',
+            'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'pptx' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
             'pdf' => 'application/pdf',
             'csv' => 'text/csv',
             'txt', 'properties' => 'text/plain',
@@ -19085,7 +19091,9 @@ final class OdfReader
         if (in_array($basename, ['manifest.xml', 'metadata.xml', 'settings.xml', 'content.xml'], true) || self::isXmlMediaTypeBase($base)) {
             return 'report-definition';
         }
-        if (str_starts_with($base, 'application/vnd.oasis.opendocument.')) {
+        if (str_starts_with($base, 'application/vnd.oasis.opendocument.')
+            || str_starts_with($base, 'application/vnd.openxmlformats-officedocument.')
+        ) {
             return 'report-document';
         }
         if (self::mediaResourceFamilyFromMediaTypeBase($base) !== null) {
