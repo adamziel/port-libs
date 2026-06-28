@@ -401,6 +401,80 @@ return [
         $t->same(2, $methodBuckets[0]['entryCount']);
         $t->same(count($parts) - 1, $methodBuckets[8]['entryCount']);
     },
+    'carries docx opc zip entry manifest preflight through package provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/_rels/orphan.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rOrphanImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/orphan.png"/>
+</Relationships>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readZipPackage(docx_openxml_reader_zip_package($parts));
+        $package = $document->attr('docx')['packageProvenance'];
+        $manifest = $package['zipPackage']['opcManifest'];
+        $summary = $package['summary'];
+        $manifestRelationshipParts = [];
+        foreach ($manifest['relationshipParts'] as $relationshipPart) {
+            $manifestRelationshipParts[$relationshipPart['partName']] = $relationshipPart;
+        }
+        $manifestEntries = [];
+        foreach ($manifest['entries'] as $entry) {
+            $manifestEntries[$entry['entryName']] = $entry;
+        }
+
+        $t->same('Imported DOCX Heading', $document->children[0]->attr('text'));
+        $t->same(true, $manifest['present']);
+        $t->same(false, $manifest['valid']);
+        $t->same(false, $manifest['isSupportedByBoundedReader']);
+        $t->same(count($parts), $manifest['entryCount']);
+        $t->same(count($parts), $manifest['fileEntryCount']);
+        $t->same(0, $manifest['directoryEntryCount']);
+        $t->same(count($parts), $manifest['packagePartCount']);
+        $t->same(1, $manifest['contentTypesItemCount']);
+        $t->same(3, $manifest['relationshipPartCount']);
+        $t->same(1, $manifest['rootRelationshipPartCount']);
+        $t->same(2, $manifest['partRelationshipPartCount']);
+        $t->same(0, $manifest['invalidRelationshipPartCount']);
+        $t->same(1, $manifest['orphanRelationshipPartCount']);
+        $t->same(1, $manifest['mediaPartCandidateCount']);
+        $t->same(0, $manifest['embeddedPackageCandidateCount']);
+        $t->same(['orphan-relationship-part' => 1], $manifest['issueCounts']);
+        $t->same(['orphan-relationship-part'], $manifest['issues']);
+        $t->same(['word/_rels/orphan.xml.rels'], $manifest['entryNamesByIssue']['orphan-relationship-part']);
+        $t->same(['/word/_rels/orphan.xml.rels'], $manifest['partNamesByIssue']['orphan-relationship-part']);
+        $t->same(2, $manifest['roleCounts']['part-relationships']);
+        $t->same(1, $manifest['roleCounts']['package-relationships']);
+        $t->same(1, $manifest['roleCounts']['media']);
+
+        $orphanRelationshipPart = $manifestRelationshipParts['/word/_rels/orphan.xml.rels'];
+        $t->same('/word/orphan.xml', $orphanRelationshipPart['relationshipSource']);
+        $t->same(false, $orphanRelationshipPart['relationshipSourceExists']);
+        $t->same(['orphan-relationship-part'], $orphanRelationshipPart['issues']);
+        $t->same('/word/orphan.xml', $manifestEntries['word/_rels/orphan.xml.rels']['relationshipSource']);
+        $t->same(false, $manifestEntries['word/_rels/orphan.xml.rels']['relationshipSourceExists']);
+        $t->same(['orphan-relationship-part'], $manifestEntries['word/_rels/orphan.xml.rels']['issues']);
+
+        $t->same(true, $summary['zipOpcManifestPresent']);
+        $t->same(false, $summary['zipOpcManifestValid']);
+        $t->same(false, $summary['zipOpcManifestSupportedByBoundedReader']);
+        $t->same(count($parts), $summary['zipOpcManifestEntryCount']);
+        $t->same(count($parts), $summary['zipOpcManifestFileEntryCount']);
+        $t->same(0, $summary['zipOpcManifestDirectoryEntryCount']);
+        $t->same(count($parts), $summary['zipOpcManifestPackagePartCount']);
+        $t->same(1, $summary['zipOpcManifestIssueCount']);
+        $t->same(['orphan-relationship-part'], $summary['zipOpcManifestIssueCodes']);
+        $t->same(['orphan-relationship-part' => 1], $summary['zipOpcManifestIssueCounts']);
+        $t->same(1, $summary['zipOpcManifestContentTypesItemCount']);
+        $t->same(3, $summary['zipOpcManifestRelationshipPartCount']);
+        $t->same(1, $summary['zipOpcManifestRootRelationshipPartCount']);
+        $t->same(2, $summary['zipOpcManifestPartRelationshipPartCount']);
+        $t->same(0, $summary['zipOpcManifestInvalidRelationshipPartCount']);
+        $t->same(1, $summary['zipOpcManifestOrphanRelationshipPartCount']);
+        $t->same(0, $summary['zipOpcManifestEmbeddedPackageCandidateCount']);
+        $t->same(1, $summary['zipOpcManifestMediaPartCandidateCount']);
+        $t->same(2, $summary['zipOpcManifestRoleCounts']['part-relationships']);
+    },
     'preserves docx unsupported zip compression provenance without aborting ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $unsupportedPart = 'word/media/review-bzip2.bin';
@@ -17919,6 +17993,297 @@ XML;
         $t->true(is_string($encodedStructures), 'XML element structure metadata should encode for review');
         $t->true(!str_contains((string) $encodedStructures, $hiddenText), 'raw XML element text should not be exposed in structure metadata');
     },
+    'summarizes docx package xml element child profiles without exposing text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $textPayload = 'child-profile:hidden-text';
+        $beforePayload = 'child-profile:hidden-before';
+        $afterPayload = 'child-profile:hidden-after';
+        $commentPayload = 'child-profile:hidden-comment';
+        $piPayload = 'child-profile:hidden-pi';
+        $cdataPayload = 'child-profile:hidden-cdata';
+        $parts['customXml/child-profile-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:profilePacket xmlns:review="urn:review-child-profile"><review:profileEmpty/><review:profileContainer><review:profileItem>{$textPayload}</review:profileItem><review:profileItem><review:profileNested/></review:profileItem></review:profileContainer><review:profileMixed>{$beforePayload}<review:profileInline/>{$afterPayload}</review:profileMixed><review:profileMetadata><!--{$commentPayload}--><?audit token="{$piPayload}"?></review:profileMetadata><review:profileCdata><![CDATA[{$cdataPayload}]]></review:profileCdata></review:profilePacket>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/child-profile-review.xml'];
+        $profiles = array_values(array_filter(
+            $summary['partXmlElementChildProfiles'],
+            static fn (array $profile): bool => ($profile['partName'] ?? null) === 'customXml/child-profile-review.xml',
+        ));
+        $profilesByPathAndModel = [];
+        foreach ($profiles as $profile) {
+            $profilesByPathAndModel[$profile['elementPath'] . '|' . $profile['contentModel']] = $profile;
+        }
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(10, $reviewPart['xmlElementChildProfileCount']);
+        $t->same(3, $reviewPart['xmlElementChildProfileEmptyElementCount']);
+        $t->same(3, $reviewPart['xmlElementChildProfileElementOnlyCount']);
+        $t->same(2, $reviewPart['xmlElementChildProfileTextOnlyCount']);
+        $t->same(1, $reviewPart['xmlElementChildProfileMixedContentCount']);
+        $t->same(1, $reviewPart['xmlElementChildProfileMetadataOnlyCount']);
+        $t->same(0, $reviewPart['xmlElementChildProfileWhitespaceOnlyCount']);
+        $t->same(9, $reviewPart['xmlElementChildProfileElementChildCount']);
+        $t->same(3, $reviewPart['xmlElementChildProfileTextNodeChildCount']);
+        $t->same(0, $reviewPart['xmlElementChildProfileWhitespaceTextNodeChildCount']);
+        $t->same(3, $reviewPart['xmlElementChildProfileNonWhitespaceTextNodeChildCount']);
+        $t->same(1, $reviewPart['xmlElementChildProfileCdataSectionChildCount']);
+        $t->same(1, $reviewPart['xmlElementChildProfileCommentChildCount']);
+        $t->same(1, $reviewPart['xmlElementChildProfileProcessingInstructionChildCount']);
+        $t->same(0, $reviewPart['xmlElementChildProfileEntityReferenceChildCount']);
+        $t->same([
+            'element-only' => 3,
+            'empty' => 3,
+            'metadata-only' => 1,
+            'mixed' => 1,
+            'text-only' => 2,
+        ], $reviewPart['xmlElementChildProfileContentModelCounts']);
+        $t->same(['urn:review-child-profile' => 10], $reviewPart['xmlElementChildProfileNamespaceCounts']);
+        $t->same(2, $reviewPart['xmlElementChildProfileLocalNameCounts']['profileItem']);
+        $t->same(1, $reviewPart['xmlElementChildProfileQualifiedNameCounts']['review:profileMixed']);
+        $t->same(2, $reviewPart['xmlElementChildProfilePathCounts']['/review:profilePacket/review:profileContainer/review:profileItem']);
+
+        $packet = $reviewPart['xmlElementChildProfiles'][0];
+        $empty = $profilesByPathAndModel['/review:profilePacket/review:profileEmpty|empty'];
+        $mixed = $profilesByPathAndModel['/review:profilePacket/review:profileMixed|mixed'];
+        $metadata = $profilesByPathAndModel['/review:profilePacket/review:profileMetadata|metadata-only'];
+        $cdata = $profilesByPathAndModel['/review:profilePacket/review:profileCdata|text-only'];
+        $textItem = $profilesByPathAndModel['/review:profilePacket/review:profileContainer/review:profileItem|text-only'];
+
+        $t->same('/review:profilePacket', $packet['elementPath']);
+        $t->same('element-only', $packet['contentModel']);
+        $t->same(5, $packet['elementChildCount']);
+        $t->same(0, $packet['textNodeChildCount']);
+        $t->same(false, $packet['hasMixedContent']);
+        $t->same('empty', $empty['contentModel']);
+        $t->same(0, $empty['childNodeCount']);
+        $t->same('text-only', $textItem['contentModel']);
+        $t->same(1, $textItem['textNodeChildCount']);
+        $t->same(1, $textItem['nonWhitespaceTextNodeChildCount']);
+        $t->same('mixed', $mixed['contentModel']);
+        $t->same(3, $mixed['childNodeCount']);
+        $t->same(1, $mixed['elementChildCount']);
+        $t->same(2, $mixed['textNodeChildCount']);
+        $t->same(2, $mixed['nonWhitespaceTextNodeChildCount']);
+        $t->same(true, $mixed['hasMixedContent']);
+        $t->same('metadata-only', $metadata['contentModel']);
+        $t->same(2, $metadata['childNodeCount']);
+        $t->same(1, $metadata['commentChildCount']);
+        $t->same(1, $metadata['processingInstructionChildCount']);
+        $t->same('text-only', $cdata['contentModel']);
+        $t->same(1, $cdata['cdataSectionChildCount']);
+        $t->same(0, $cdata['textNodeChildCount']);
+
+        $t->true(in_array('customXml/child-profile-review.xml', $summary['partXmlElementChildProfilePartNames'], true), 'child profile part should be summarized');
+        $t->same(10, count($profiles));
+        $t->same(10, $summary['partXmlElementChildProfileNamespaceCounts']['urn:review-child-profile']);
+        $t->same(1, $summary['partXmlElementChildProfileQualifiedNameCounts']['review:profileMetadata']);
+        $t->same(2, $summary['partXmlElementChildProfilePathCounts']['/review:profilePacket/review:profileContainer/review:profileItem']);
+        $t->true($summary['partXmlElementChildProfileMixedContentCount'] >= 1, 'summary should include mixed-content element profiles');
+        $t->true($summary['partXmlElementChildProfileCdataSectionChildCount'] >= 1, 'summary should include CDATA child profile counters');
+        $encodedProfiles = json_encode([$reviewPart, $profiles]);
+        $t->true(is_string($encodedProfiles), 'XML element child profile metadata should encode for review');
+        $t->true(!str_contains((string) $encodedProfiles, 'child-profile:hidden'), 'raw XML child text should not be exposed in child profile metadata');
+    },
+    'summarizes docx package xml repeated sibling elements without exposing text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $hiddenText = 'hidden-repeated-sibling-payload';
+        $parts['customXml/repeated-siblings.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:review-sibling" xmlns:audit="urn:audit-sibling">
+  <review:items>
+    <review:item/>
+    <review:item/>
+    <review:item/>
+    <audit:item/>
+    <audit:item/>
+  </review:items>
+  <review:groups>
+    <review:group>
+      <review:member/>
+      <review:member/>
+    </review:group>
+    <review:group/>
+  </review:groups>
+  <review:payload>{$hiddenText}</review:payload>
+</review:packet>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/repeated-siblings.xml'];
+        $groups = array_values(array_filter(
+            $summary['partXmlRepeatedSiblingElements'],
+            static fn (array $group): bool => ($group['partName'] ?? null) === 'customXml/repeated-siblings.xml',
+        ));
+        $groupsByKey = [];
+        foreach ($groups as $group) {
+            $groupsByKey[$group['parentPath'] . '|' . $group['elementQualifiedName']] = $group;
+        }
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(4, $reviewPart['xmlRepeatedSiblingElementGroupCount']);
+        $t->same(9, $reviewPart['xmlRepeatedSiblingElementCount']);
+        $t->same(3, $reviewPart['xmlRepeatedSiblingElementMaxCount']);
+        $t->same([
+            '/review:packet/review:groups' => 1,
+            '/review:packet/review:groups/review:group' => 1,
+            '/review:packet/review:items' => 2,
+        ], $reviewPart['xmlRepeatedSiblingElementParentPathCounts']);
+        $t->same([
+            'urn:review-sibling' => 4,
+        ], $reviewPart['xmlRepeatedSiblingElementParentNamespaceCounts']);
+        $t->same(['group' => 1, 'groups' => 1, 'items' => 2], $reviewPart['xmlRepeatedSiblingElementParentLocalNameCounts']);
+        $t->same([
+            'review:group' => 1,
+            'review:groups' => 1,
+            'review:items' => 2,
+        ], $reviewPart['xmlRepeatedSiblingElementParentQualifiedNameCounts']);
+        $t->same([
+            'urn:audit-sibling' => 2,
+            'urn:review-sibling' => 7,
+        ], $reviewPart['xmlRepeatedSiblingElementNamespaceCounts']);
+        $t->same(['group' => 2, 'item' => 5, 'member' => 2], $reviewPart['xmlRepeatedSiblingElementLocalNameCounts']);
+        $t->same([
+            'audit:item' => 2,
+            'review:group' => 2,
+            'review:item' => 3,
+            'review:member' => 2,
+        ], $reviewPart['xmlRepeatedSiblingElementQualifiedNameCounts']);
+        $t->same(['audit' => 2, 'review' => 7], $reviewPart['xmlRepeatedSiblingElementPrefixCounts']);
+        $t->same(['audit', 'review'], $reviewPart['xmlRepeatedSiblingElementPrefixes']);
+
+        $t->true($summary['partXmlRepeatedSiblingElementPartCount'] >= 1, 'summary repeated sibling part count should include custom XML');
+        $t->true(in_array('customXml/repeated-siblings.xml', $summary['partXmlRepeatedSiblingElementPartNames'], true), 'custom XML repeated sibling part should be summarized');
+        $t->true($summary['partXmlRepeatedSiblingElementGroupCount'] >= 4, 'summary repeated sibling group count should include custom XML groups');
+        $t->true($summary['partXmlRepeatedSiblingElementCount'] >= 9, 'summary repeated sibling element count should include custom XML repeated elements');
+        $t->true($summary['partXmlRepeatedSiblingElementMaxCount'] >= 3, 'summary repeated sibling max count should include custom XML max siblings');
+        $t->same(2, $summary['partXmlRepeatedSiblingElementNamespaceCounts']['urn:audit-sibling']);
+        $t->same(7, $summary['partXmlRepeatedSiblingElementNamespaceCounts']['urn:review-sibling']);
+        $t->same(2, $summary['partXmlRepeatedSiblingElementQualifiedNameCounts']['audit:item']);
+        $t->same(3, $summary['partXmlRepeatedSiblingElementQualifiedNameCounts']['review:item']);
+        $t->same(2, $summary['partXmlRepeatedSiblingElementQualifiedNameCounts']['review:member']);
+        $t->same(2, $summary['partXmlRepeatedSiblingElementParentPathCounts']['/review:packet/review:items']);
+        $t->same(1, $summary['partXmlRepeatedSiblingElementParentPathCounts']['/review:packet/review:groups/review:group']);
+        $t->true(in_array('/review:packet/review:groups/review:group', $summary['partXmlRepeatedSiblingElementParentPaths'], true), 'summary repeated sibling parent paths should include nested group');
+
+        $reviewItems = $groupsByKey['/review:packet/review:items|review:item'];
+        $auditItems = $groupsByKey['/review:packet/review:items|audit:item'];
+        $members = $groupsByKey['/review:packet/review:groups/review:group|review:member'];
+        $t->same(3, $reviewItems['count']);
+        $t->same(1, $reviewItems['firstSiblingIndex']);
+        $t->same(3, $reviewItems['lastSiblingIndex']);
+        $t->same('urn:review-sibling', $reviewItems['elementNamespace']);
+        $t->same('review', $reviewItems['elementPrefix']);
+        $t->same(2, $auditItems['count']);
+        $t->same(4, $auditItems['firstSiblingIndex']);
+        $t->same(5, $auditItems['lastSiblingIndex']);
+        $t->same('urn:audit-sibling', $auditItems['elementNamespace']);
+        $t->same('audit', $auditItems['elementPrefix']);
+        $t->same(2, $members['count']);
+        $t->same('/review:packet/review:groups/review:group', $members['parentPath']);
+        $t->same(3, $members['parentDepth']);
+
+        $encodedGroups = json_encode([$reviewPart, $groups]);
+        $t->true(is_string($encodedGroups), 'XML repeated sibling metadata should encode for review');
+        $t->true(!str_contains((string) $encodedGroups, $hiddenText), 'raw XML text should not be exposed in repeated sibling metadata');
+    },
+    'summarizes docx package xml sibling transitions without exposing text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $hiddenBetween = 'sibling-transition:hidden-between';
+        $hiddenComment = 'sibling-transition:hidden-comment';
+        $hiddenPi = 'sibling-transition:hidden-pi';
+        $hiddenTail = 'sibling-transition:hidden-tail';
+        $parts['customXml/sibling-transitions.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:review-sibling-transition" xmlns:audit="urn:audit-sibling-transition"><review:first/>{$hiddenBetween}<review:second/><review:second/><!--{$hiddenComment}--><audit:third/><?audit token="{$hiddenPi}"?><review:group><review:member/><audit:member/><review:member/></review:group><review:textPayload>{$hiddenTail}</review:textPayload></review:packet>
+XML;
+        $parts['word/settings-sibling-transitions.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docVars><w:docVar w:name="Alpha"/><w:docVar w:name="Beta"/></w:docVars><w:compat/><w:themeFontLang/></w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/sibling-transitions.xml'];
+        $settingsPart = $package['parts']['word/settings-sibling-transitions.xml'];
+        $reviewTransitions = array_values(array_filter(
+            $summary['partXmlElementSiblingTransitions'],
+            static fn (array $transition): bool => ($transition['partName'] ?? null) === 'customXml/sibling-transitions.xml',
+        ));
+        $selectedTransitions = array_values(array_filter(
+            $summary['partXmlElementSiblingTransitions'],
+            static fn (array $transition): bool => in_array(
+                $transition['partName'] ?? null,
+                ['customXml/sibling-transitions.xml', 'word/settings-sibling-transitions.xml'],
+                true,
+            ),
+        ));
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(7, $reviewPart['xmlElementSiblingTransitionCount']);
+        $t->same(1, $reviewPart['xmlElementSiblingTransitionSameNameCount']);
+        $t->same(6, $reviewPart['xmlElementSiblingTransitionDifferentNameCount']);
+        $t->same(3, $reviewPart['xmlElementSiblingTransitionInterleavedNonElementNodeCount']);
+        $t->same(1, $reviewPart['xmlElementSiblingTransitionMaxInterleavedNonElementNodeCount']);
+        $t->same([
+            'audit:member -> review:member' => 1,
+            'audit:third -> review:group' => 1,
+            'review:first -> review:second' => 1,
+            'review:group -> review:textPayload' => 1,
+            'review:member -> audit:member' => 1,
+            'review:second -> audit:third' => 1,
+            'review:second -> review:second' => 1,
+        ], $reviewPart['xmlElementSiblingTransitionPairCounts']);
+        $t->same([
+            '/review:packet' => 5,
+            '/review:packet/review:group' => 2,
+        ], $reviewPart['xmlElementSiblingTransitionParentPathCounts']);
+        $t->same(['urn:review-sibling-transition' => 7], $reviewPart['xmlElementSiblingTransitionParentNamespaceCounts']);
+        $t->same(['group' => 2, 'packet' => 5], $reviewPart['xmlElementSiblingTransitionParentLocalNameCounts']);
+        $t->same(['review:group' => 2, 'review:packet' => 5], $reviewPart['xmlElementSiblingTransitionParentQualifiedNameCounts']);
+        $t->same(2, $reviewPart['xmlElementSiblingTransitionPreviousElementNameCounts']['review:second']);
+        $t->same(2, $reviewPart['xmlElementSiblingTransitionNextElementNameCounts']['review:second']);
+
+        $t->same('review:first -> review:second', $reviewPart['xmlElementSiblingTransitions'][0]['pair']);
+        $t->same(1, $reviewPart['xmlElementSiblingTransitions'][0]['interleavedNonElementNodeCount']);
+        $t->same(true, $reviewPart['xmlElementSiblingTransitions'][0]['hasInterleavedNonElementNodes']);
+        $t->same(false, $reviewPart['xmlElementSiblingTransitions'][0]['sameElementName']);
+        $t->same('review:second -> review:second', $reviewPart['xmlElementSiblingTransitions'][1]['pair']);
+        $t->same(true, $reviewPart['xmlElementSiblingTransitions'][1]['sameElementName']);
+        $t->same('review:member -> audit:member', $reviewPart['xmlElementSiblingTransitions'][5]['pair']);
+        $t->same('/review:packet/review:group', $reviewPart['xmlElementSiblingTransitions'][5]['parentPath']);
+        $t->same('audit', $reviewPart['xmlElementSiblingTransitions'][5]['nextElementPrefix']);
+
+        $t->same(true, $settingsPart['xmlInspectable']);
+        $t->same(3, $settingsPart['xmlElementSiblingTransitionCount']);
+        $t->same(1, $settingsPart['xmlElementSiblingTransitionSameNameCount']);
+        $t->same(2, $settingsPart['xmlElementSiblingTransitionDifferentNameCount']);
+        $t->same(1, $settingsPart['xmlElementSiblingTransitionPairCounts']['w:docVar -> w:docVar']);
+        $t->same(2, $settingsPart['xmlElementSiblingTransitionParentPathCounts']['/w:settings']);
+
+        $t->true($summary['partXmlElementSiblingTransitionPartCount'] >= 2, 'summary sibling-transition part count should include added XML parts');
+        $t->true(in_array('customXml/sibling-transitions.xml', $summary['partXmlElementSiblingTransitionPartNames'], true), 'custom XML sibling-transition part should be summarized');
+        $t->true(in_array('word/settings-sibling-transitions.xml', $summary['partXmlElementSiblingTransitionPartNames'], true), 'settings sibling-transition part should be summarized');
+        $t->true($summary['partXmlElementSiblingTransitionCount'] >= 10, 'summary sibling-transition count should include added XML transitions');
+        $t->same(1, $summary['partXmlElementSiblingTransitionPairCounts']['review:second -> review:second']);
+        $t->same(1, $summary['partXmlElementSiblingTransitionPairCounts']['w:docVar -> w:docVar']);
+        $t->same(5, $summary['partXmlElementSiblingTransitionParentPathCounts']['/review:packet']);
+        $t->same(2, $summary['partXmlElementSiblingTransitionParentPathCounts']['/w:settings']);
+        $t->true($summary['partXmlElementSiblingTransitionInterleavedNonElementNodeCount'] >= 3, 'summary should include interleaved non-element node counts');
+        $t->same(7, count($reviewTransitions));
+        $t->same(10, count($selectedTransitions));
+
+        $encodedTransitions = json_encode([$reviewPart, $settingsPart, $selectedTransitions]);
+        $t->true(is_string($encodedTransitions), 'XML sibling-transition metadata should encode for review');
+        $t->true(!str_contains((string) $encodedTransitions, 'sibling-transition:hidden'), 'raw XML text should not be exposed in sibling-transition metadata');
+    },
     'summarizes docx package xml element attributes without exposing values' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $rootState = 'root-state-hidden-alpha';
@@ -18085,6 +18450,15 @@ XML;
         );
         $t->same(['mso-application', 'review-audit', 'xml-stylesheet'], $summary['partXmlProcessingInstructionTargets']);
         $t->same(['customXml/pi-review.xml', 'word/settings-pi.xml'], $summary['partXmlProcessingInstructionPartNames']);
+        $t->same(2, $summary['partXmlProcessingInstructionParentPathCount']);
+        $t->same(['/' => 2, '/review:packet' => 1], $summary['partXmlProcessingInstructionParentPathCounts']);
+        $t->same(['/', '/review:packet'], $summary['partXmlProcessingInstructionParentPaths']);
+        $t->same(
+            ['(none)' => 2, 'urn:review-pi' => 1],
+            $summary['partXmlProcessingInstructionParentNamespaceCounts']
+        );
+        $t->same(['(none)' => 2, 'packet' => 1], $summary['partXmlProcessingInstructionParentLocalNameCounts']);
+        $t->same(['(none)' => 2, 'review:packet' => 1], $summary['partXmlProcessingInstructionParentQualifiedNameCounts']);
         $t->same(4, $summary['partXmlProcessingInstructionDataAttributeCount']);
         $t->same(4, $summary['partXmlProcessingInstructionDataAttributeNameCount']);
         $t->same(
@@ -18098,28 +18472,45 @@ XML;
         $t->same(2, $reviewPart['xmlProcessingInstructionCount']);
         $t->same(['review-audit', 'xml-stylesheet'], $reviewPart['xmlProcessingInstructionTargets']);
         $t->same(['review-audit' => 1, 'xml-stylesheet' => 1], $reviewPart['xmlProcessingInstructionTargetCounts']);
+        $t->same(['/' => 1, '/review:packet' => 1], $reviewPart['xmlProcessingInstructionParentPathCounts']);
+        $t->same(['/', '/review:packet'], $reviewPart['xmlProcessingInstructionParentPaths']);
+        $t->same(['(none)' => 1, 'urn:review-pi' => 1], $reviewPart['xmlProcessingInstructionParentNamespaceCounts']);
+        $t->same(['(none)' => 1, 'packet' => 1], $reviewPart['xmlProcessingInstructionParentLocalNameCounts']);
+        $t->same(['(none)' => 1, 'review:packet' => 1], $reviewPart['xmlProcessingInstructionParentQualifiedNameCounts']);
         $t->same('xml-stylesheet', $reviewPart['xmlProcessingInstructions'][0]['targetKey']);
+        $t->same('/', $reviewPart['xmlProcessingInstructions'][0]['parentPath']);
+        $t->same(0, $reviewPart['xmlProcessingInstructions'][0]['parentDepth']);
+        $t->same(null, $reviewPart['xmlProcessingInstructions'][0]['parentNamespace']);
         $t->same(strlen($stylesheetData), $reviewPart['xmlProcessingInstructions'][0]['dataByteLength']);
         $t->same(sprintf('%08x', crc32($stylesheetData)), $reviewPart['xmlProcessingInstructions'][0]['dataCrc32']);
         $t->same(hash('sha256', $stylesheetData), $reviewPart['xmlProcessingInstructions'][0]['dataSha256']);
         $t->same(2, $reviewPart['xmlProcessingInstructions'][0]['dataAttributeCount']);
         $t->same(['href', 'type'], $reviewPart['xmlProcessingInstructions'][0]['dataAttributeNames']);
         $t->same('review-audit', $reviewPart['xmlProcessingInstructions'][1]['targetKey']);
+        $t->same('/review:packet', $reviewPart['xmlProcessingInstructions'][1]['parentPath']);
+        $t->same(1, $reviewPart['xmlProcessingInstructions'][1]['parentDepth']);
+        $t->same('urn:review-pi', $reviewPart['xmlProcessingInstructions'][1]['parentNamespace']);
+        $t->same('packet', $reviewPart['xmlProcessingInstructions'][1]['parentLocalName']);
+        $t->same('review:packet', $reviewPart['xmlProcessingInstructions'][1]['parentQualifiedName']);
         $t->same(['checkpoint'], $reviewPart['xmlProcessingInstructions'][1]['dataAttributeNames']);
 
         $t->same(1, $settingsPart['xmlProcessingInstructionCount']);
         $t->same(['mso-application'], $settingsPart['xmlProcessingInstructionTargets']);
+        $t->same(['/' => 1], $settingsPart['xmlProcessingInstructionParentPathCounts']);
         $t->same(strlen($msoData), $settingsPart['xmlProcessingInstructions'][0]['dataByteLength']);
         $t->same(hash('sha256', $msoData), $settingsPart['xmlProcessingInstructions'][0]['dataSha256']);
         $t->same(['progid'], $settingsPart['xmlProcessingInstructions'][0]['dataAttributeNames']);
 
         $t->same('customXml/pi-review.xml', $processingInstructions[0]['partName']);
         $t->same('xml-stylesheet', $processingInstructions[0]['targetKey']);
+        $t->same('/', $processingInstructions[0]['parentPath']);
         $t->same(['href', 'type'], $processingInstructions[0]['dataAttributeNames']);
         $t->same('customXml/pi-review.xml', $processingInstructions[1]['partName']);
         $t->same('review-audit', $processingInstructions[1]['targetKey']);
+        $t->same('/review:packet', $processingInstructions[1]['parentPath']);
         $t->same('word/settings-pi.xml', $processingInstructions[2]['partName']);
         $t->same('mso-application', $processingInstructions[2]['targetKey']);
+        $t->same('/', $processingInstructions[2]['parentPath']);
         $t->same(['progid'], $processingInstructions[2]['dataAttributeNames']);
     },
     'summarizes docx package xml processing instruction pseudo attributes for package review' => static function (TestRunner $t): void {
@@ -18469,6 +18860,88 @@ XML;
         $t->true(is_string($encodedTextNodes), 'XML text-node parent metadata should encode for review');
         $t->true(!str_contains((string) $encodedTextNodes, 'parent-name-review:hidden'), 'raw XML text should not be exposed in parent metadata');
     },
+    'summarizes docx package xml leaf text elements without exposing text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $titleText = 'leaf-text-review:hidden-title';
+        $itemText = " leaf-text-review:hidden-item\n";
+        $cdataText = 'leaf-text-review:hidden-cdata';
+        $childText = 'leaf-text-review:hidden-child';
+        $whitespaceText = " \t\n";
+        $expectedByteLength = strlen($titleText) + strlen($itemText) + strlen($cdataText) + strlen($childText) + strlen($whitespaceText);
+        $parts['customXml/leaf-text-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:review-leaf-text" xmlns:meta="urn:review-leaf-meta">
+  <review:title>{$titleText}</review:title>
+  <review:item meta:kind="primary">{$itemText}</review:item>
+  <review:item><![CDATA[{$cdataText}]]></review:item>
+  <review:mixed><review:child>{$childText}</review:child></review:mixed>
+  <review:whitespace>{$whitespaceText}</review:whitespace>
+  <review:empty/>
+</review:packet>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/leaf-text-review.xml'];
+        $leafTextElements = array_values(array_filter(
+            $summary['partXmlLeafTextElements'],
+            static fn (array $element): bool => $element['partName'] === 'customXml/leaf-text-review.xml',
+        ));
+
+        $t->same(5, $reviewPart['xmlLeafTextElementCount']);
+        $t->same($expectedByteLength, $reviewPart['xmlLeafTextElementByteLength']);
+        $t->same(4, $reviewPart['xmlLeafTextElementNonWhitespaceCount']);
+        $t->same(1, $reviewPart['xmlLeafTextElementWhitespaceOnlyCount']);
+        $t->same($expectedByteLength - strlen($whitespaceText), $reviewPart['xmlLeafTextElementNonWhitespaceByteLength']);
+        $t->same(5, $reviewPart['xmlLeafTextElementTextNodeCount']);
+        $t->same(1, $reviewPart['xmlLeafTextElementCdataNodeCount']);
+        $t->same(2, $reviewPart['xmlLeafTextElementLeadingWhitespaceCount']);
+        $t->same(2, $reviewPart['xmlLeafTextElementTrailingWhitespaceCount']);
+        $t->same(4, $reviewPart['xmlLeafTextElementLeadingWhitespaceByteLength']);
+        $t->same(4, $reviewPart['xmlLeafTextElementTrailingWhitespaceByteLength']);
+        $t->same(2, $reviewPart['xmlLeafTextElementLineBreakCount']);
+        $t->same(2, $reviewPart['xmlLeafTextElementLineBreakElementCount']);
+        $t->same(['review' => 5], $reviewPart['xmlLeafTextElementPrefixCounts']);
+        $t->same(['review'], $reviewPart['xmlLeafTextElementPrefixes']);
+        $t->same(['urn:review-leaf-text' => 5], $reviewPart['xmlLeafTextElementNamespaceCounts']);
+        $t->same([
+            'child' => 1,
+            'item' => 2,
+            'title' => 1,
+            'whitespace' => 1,
+        ], $reviewPart['xmlLeafTextElementLocalNameCounts']);
+        $t->same(2, $reviewPart['xmlLeafTextElementPathCounts']['/review:packet/review:item']);
+        $t->same(1, $reviewPart['xmlLeafTextElementPathCounts']['/review:packet/review:mixed/review:child']);
+        $t->same(5, count($reviewPart['xmlLeafTextElements']));
+        $t->same('/review:packet/review:title', $reviewPart['xmlLeafTextElements'][0]['elementPath']);
+        $t->same(strlen($titleText), $reviewPart['xmlLeafTextElements'][0]['byteLength']);
+        $t->same(hash('sha256', $titleText), $reviewPart['xmlLeafTextElements'][0]['sha256']);
+        $t->same('/review:packet/review:item', $reviewPart['xmlLeafTextElements'][1]['elementPath']);
+        $t->same(1, $reviewPart['xmlLeafTextElements'][1]['leadingWhitespaceByteLength']);
+        $t->same(1, $reviewPart['xmlLeafTextElements'][1]['trailingWhitespaceByteLength']);
+        $t->same(true, $reviewPart['xmlLeafTextElements'][1]['hasLineBreak']);
+        $t->same(1, $reviewPart['xmlLeafTextElements'][2]['cdataNodeCount']);
+        $t->same('/review:packet/review:mixed/review:child', $reviewPart['xmlLeafTextElements'][3]['elementPath']);
+        $t->same(true, $reviewPart['xmlLeafTextElements'][4]['isWhitespaceOnly']);
+        $t->same(3, $reviewPart['xmlLeafTextElements'][4]['leadingWhitespaceByteLength']);
+        $t->same(3, $reviewPart['xmlLeafTextElements'][4]['trailingWhitespaceByteLength']);
+
+        $t->true($summary['partXmlLeafTextElementPartCount'] >= 1, 'summary leaf-text part count should include custom XML');
+        $t->true($summary['partXmlLeafTextElementCount'] >= 5, 'summary leaf-text count should include custom XML');
+        $t->true($summary['partXmlLeafTextElementCdataNodeCount'] >= 1, 'summary leaf-text CDATA count should include custom XML');
+        $t->true(in_array('customXml/leaf-text-review.xml', $summary['partXmlLeafTextElementPartNames'], true), 'custom XML leaf-text part should be summarized');
+        $t->true(in_array('/review:packet/review:item', $summary['partXmlLeafTextElementPaths'], true), 'leaf-text paths should include repeated item leaves');
+        $t->true(($summary['partXmlLeafTextElementLocalNameCounts']['item'] ?? 0) >= 2, 'summary leaf-text local-name counts should include item leaves');
+        $t->same('customXml/leaf-text-review.xml', $leafTextElements[0]['partName']);
+        $t->same('/review:packet/review:title', $leafTextElements[0]['elementPath']);
+        $t->same('customXml/leaf-text-review.xml', $leafTextElements[4]['partName']);
+        $t->same('/review:packet/review:whitespace', $leafTextElements[4]['elementPath']);
+        $t->true(!isset($reviewPart['xmlLeafTextElements'][0]['text']), 'raw XML leaf text should not be exposed on part metadata');
+        $encodedLeafTextElements = json_encode([$reviewPart['xmlLeafTextElements'], $leafTextElements]);
+        $t->true(is_string($encodedLeafTextElements), 'XML leaf text metadata should encode for review');
+        $t->true(!str_contains((string) $encodedLeafTextElements, 'leaf-text-review:hidden'), 'raw XML leaf text should not be exposed in summary metadata');
+    },
     'summarizes docx package xml text node whitespace shape without exposing text' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $leadingText = '  whitespace-shape:hidden-leading';
@@ -18738,6 +19211,310 @@ XML;
         $encodedReferences = json_encode([$reviewPart, $settingsPart, $entityReferences]);
         $t->true(is_string($encodedReferences), 'XML entity-reference metadata should encode for review');
         $t->true(!str_contains((string) $encodedReferences, 'entity-reference:hidden'), 'raw XML entity replacement values should not be exposed in summary metadata');
+    },
+    'summarizes docx package xml element child shapes without exposing text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $textPayload = 'child-shape:hidden-text';
+        $mixedLead = 'child-shape:hidden-mixed-lead';
+        $mixedTail = 'child-shape:hidden-mixed-tail';
+        $cdataPayload = 'child-shape:hidden-cdata';
+        $commentPayload = 'child-shape:hidden-comment';
+        $settingsPayload = 'child-shape:hidden-settings';
+        $parts['customXml/child-shape-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:review-child-shape">
+  <review:elementOnly>
+    <review:leaf/>
+  </review:elementOnly>
+  <review:textOnly>{$textPayload}</review:textOnly>
+  <review:mixed>{$mixedLead}<review:inline/>{$mixedTail}</review:mixed>
+  <review:cdata><![CDATA[{$cdataPayload}]]></review:cdata>
+  <review:commented><!--{$commentPayload}--></review:commented>
+  <review:empty/>
+</review:packet>
+XML;
+        $parts['word/settings-child-shape.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docVars>
+    <w:docVar w:name="ChildShape">
+      <w:val>{$settingsPayload}</w:val>
+    </w:docVar>
+  </w:docVars>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/child-shape-review.xml'];
+        $settingsPart = $package['parts']['word/settings-child-shape.xml'];
+        $childShapes = array_values(array_filter(
+            $summary['partXmlElementChildShapes'],
+            static fn (array $shape): bool => in_array(
+                $shape['partName'],
+                ['customXml/child-shape-review.xml', 'word/settings-child-shape.xml'],
+                true,
+            ),
+        ));
+        $reviewShapesByPath = [];
+        foreach ($reviewPart['xmlElementChildShapes'] as $shape) {
+            $reviewShapesByPath[$shape['elementPath']] = $shape;
+        }
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(9, $reviewPart['xmlElementChildShapeCount']);
+        $t->same(['element-only' => 2, 'empty' => 4, 'mixed' => 1, 'text-only' => 2], $reviewPart['xmlElementChildShapeCounts']);
+        $t->same(8, $reviewPart['xmlElementChildShapeChildKindCounts']['element']);
+        $t->same(12, $reviewPart['xmlElementChildShapeChildKindCounts']['text']);
+        $t->same(9, $reviewPart['xmlElementChildShapeChildKindCounts']['whitespace-text']);
+        $t->same(3, $reviewPart['xmlElementChildShapeChildKindCounts']['non-whitespace-text']);
+        $t->same(1, $reviewPart['xmlElementChildShapeChildKindCounts']['cdata']);
+        $t->same(1, $reviewPart['xmlElementChildShapeChildKindCounts']['comment']);
+        $t->same(1, $reviewPart['xmlElementChildShapeMixedContentPathCounts']['/review:packet/review:mixed']);
+
+        $t->same('element-only', $reviewShapesByPath['/review:packet']['shape']);
+        $t->same(6, $reviewShapesByPath['/review:packet']['childElementCount']);
+        $t->same(7, $reviewShapesByPath['/review:packet']['childWhitespaceTextNodeCount']);
+        $t->same(false, $reviewShapesByPath['/review:packet']['hasMixedContent']);
+        $t->same('text-only', $reviewShapesByPath['/review:packet/review:textOnly']['shape']);
+        $t->same(strlen($textPayload), $reviewShapesByPath['/review:packet/review:textOnly']['childTextByteLength']);
+        $t->same(1, $reviewShapesByPath['/review:packet/review:textOnly']['childNonWhitespaceTextNodeCount']);
+        $t->same('mixed', $reviewShapesByPath['/review:packet/review:mixed']['shape']);
+        $t->same(1, $reviewShapesByPath['/review:packet/review:mixed']['childElementCount']);
+        $t->same(2, $reviewShapesByPath['/review:packet/review:mixed']['childNonWhitespaceTextNodeCount']);
+        $t->same(true, $reviewShapesByPath['/review:packet/review:mixed']['hasMixedContent']);
+        $t->same('text-only', $reviewShapesByPath['/review:packet/review:cdata']['shape']);
+        $t->same(1, $reviewShapesByPath['/review:packet/review:cdata']['childCdataSectionCount']);
+        $t->same('empty', $reviewShapesByPath['/review:packet/review:commented']['shape']);
+        $t->same(1, $reviewShapesByPath['/review:packet/review:commented']['childCommentCount']);
+        $t->same('empty', $reviewShapesByPath['/review:packet/review:empty']['shape']);
+
+        $t->same(true, $settingsPart['xmlInspectable']);
+        $t->same(4, $settingsPart['xmlElementChildShapeCount']);
+        $t->same('text-only', $settingsPart['xmlElementChildShapes'][3]['shape']);
+        $t->same(strlen($settingsPayload), $settingsPart['xmlElementChildShapes'][3]['childNonWhitespaceTextByteLength']);
+
+        $t->true($summary['partXmlElementChildShapePartCount'] >= 2, 'summary child-shape part count should include added XML parts');
+        $t->true($summary['partXmlElementChildShapeCount'] >= 13, 'summary child-shape count should include added XML elements');
+        $t->true(in_array('customXml/child-shape-review.xml', $summary['partXmlElementChildShapePartNames'], true), 'custom XML child-shape part should be summarized');
+        $t->true(in_array('word/settings-child-shape.xml', $summary['partXmlElementChildShapePartNames'], true), 'settings child-shape part should be summarized');
+        $t->true($summary['partXmlElementChildShapeCounts']['mixed'] >= 1, 'summary child-shape buckets should include mixed content');
+        $t->same(1, $summary['partXmlElementChildShapeMixedContentPathCounts']['/review:packet/review:mixed']);
+        $t->same(1, $summary['partXmlElementChildShapeElementNameCounts']['review:mixed']);
+        $t->true(($summary['partXmlElementChildShapeElementNameCounts']['w:docVar'] ?? 0) >= 1, 'settings child-shape element names should include docVar');
+        $t->same(13, count($childShapes));
+        $t->same('customXml/child-shape-review.xml', $childShapes[0]['partName']);
+        $t->same('/review:packet', $childShapes[0]['elementPath']);
+        $t->same('word/settings-child-shape.xml', $childShapes[12]['partName']);
+        $t->same('/w:settings/w:docVars/w:docVar/w:val', $childShapes[12]['elementPath']);
+
+        $encodedShapes = json_encode([$reviewPart['xmlElementChildShapes'], $settingsPart['xmlElementChildShapes'], $childShapes]);
+        $t->true(is_string($encodedShapes), 'XML child-shape metadata should encode for review');
+        $t->true(!str_contains((string) $encodedShapes, 'child-shape:hidden'), 'raw XML text should not be exposed in child-shape metadata');
+    },
+    'summarizes docx package xml child node shape without exposing child text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $entityValue = 'child-node:hidden-entity';
+        $cdataValue = 'child-node:hidden-cdata';
+        $commentValue = 'child-node:hidden-comment';
+        $piValue = 'child-node:hidden-pi';
+        $parts['customXml/child-node-shape-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE review:packet [
+<!ENTITY reviewer "{$entityValue}">
+]>
+<review:packet xmlns:review="urn:review-child-node">
+  <review:item>alpha<review:mark/>beta<![CDATA[{$cdataValue}]]>&reviewer;<?audit state="{$piValue}"?><!--{$commentValue}--></review:item>
+  <review:plain>plain</review:plain>
+</review:packet>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/child-node-shape-review.xml'];
+        $shapes = array_values(array_filter(
+            $summary['partXmlChildNodeShapes'],
+            static fn (array $shape): bool => $shape['partName'] === 'customXml/child-node-shape-review.xml',
+        ));
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(4, $reviewPart['xmlChildNodeParentCount']);
+        $t->same(13, $reviewPart['xmlChildNodeChildCount']);
+        $t->same(1, $reviewPart['xmlChildNodeMixedParentCount']);
+        $t->same([
+            'cdata' => 1,
+            'comment' => 1,
+            'element' => 3,
+            'entity-reference' => 1,
+            'processing-instruction' => 1,
+            'text' => 3,
+            'whitespace-text' => 3,
+        ], $reviewPart['xmlChildNodeTypeCounts']);
+        $t->same([
+            '/review:packet' => 1,
+            '/review:packet/review:item' => 1,
+            '/review:packet/review:item/review:mark' => 1,
+            '/review:packet/review:plain' => 1,
+        ], $reviewPart['xmlChildNodeParentPathCounts']);
+        $t->same(['urn:review-child-node' => 4], $reviewPart['xmlChildNodeParentNamespaceCounts']);
+        $t->same(['item' => 1, 'mark' => 1, 'packet' => 1, 'plain' => 1], $reviewPart['xmlChildNodeParentLocalNameCounts']);
+        $t->same([
+            'review:item' => 1,
+            'review:mark' => 1,
+            'review:packet' => 1,
+            'review:plain' => 1,
+        ], $reviewPart['xmlChildNodeParentQualifiedNameCounts']);
+
+        $t->same(4, count($shapes));
+        $t->same('customXml/child-node-shape-review.xml', $shapes[0]['partName']);
+        $t->same('/review:packet', $shapes[0]['parentPath']);
+        $t->same(5, $shapes[0]['childCount']);
+        $t->same(2, $shapes[0]['elementChildCount']);
+        $t->same(3, $shapes[0]['whitespaceTextChildCount']);
+        $t->same(false, $shapes[0]['hasMixedContent']);
+        $t->same(['whitespace-text', 'element', 'whitespace-text', 'element', 'whitespace-text'], $shapes[0]['childTypeSequence']);
+        $t->same('/review:packet/review:item', $shapes[1]['parentPath']);
+        $t->same(7, $shapes[1]['childCount']);
+        $t->same(1, $shapes[1]['elementChildCount']);
+        $t->same(2, $shapes[1]['textChildCount']);
+        $t->same(1, $shapes[1]['cdataChildCount']);
+        $t->same(1, $shapes[1]['entityReferenceChildCount']);
+        $t->same(1, $shapes[1]['processingInstructionChildCount']);
+        $t->same(1, $shapes[1]['commentChildCount']);
+        $t->same(true, $shapes[1]['hasMixedContent']);
+        $t->same(['text', 'element', 'text', 'cdata', 'entity-reference', 'processing-instruction', 'comment'], $shapes[1]['childTypeSequence']);
+        $t->same('/review:packet/review:item/review:mark', $shapes[2]['parentPath']);
+        $t->same(0, $shapes[2]['childCount']);
+        $t->same('/review:packet/review:plain', $shapes[3]['parentPath']);
+        $t->same(['text'], $shapes[3]['childTypeSequence']);
+
+        $t->true(in_array('customXml/child-node-shape-review.xml', $summary['partXmlChildNodePartNames'], true), 'child-node shape part should be summarized');
+        $t->true($summary['partXmlChildNodeMixedParentCount'] >= 1, 'summary should include mixed-content parent count');
+        $t->true($summary['partXmlChildNodeTypeCounts']['cdata'] >= 1, 'summary should include CDATA child-node count');
+        $t->true($summary['partXmlChildNodeTypeCounts']['entity-reference'] >= 1, 'summary should include entity-reference child-node count');
+        $t->same(1, $summary['partXmlChildNodeParentPathCounts']['/review:packet/review:item']);
+
+        $encodedShapes = json_encode([$reviewPart['xmlChildNodeShapes'], $shapes]);
+        $t->true(is_string($encodedShapes), 'XML child-node shape metadata should encode for review');
+        $t->true(!str_contains((string) $encodedShapes, 'child-node:hidden'), 'raw XML child text should not be exposed in child-node shape metadata');
+    },
+    'summarizes docx package xml element sibling positions without exposing text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $hiddenItem = 'sibling-position:hidden-item';
+        $hiddenTail = 'sibling-position:hidden-tail';
+        $parts['customXml/sibling-position-review.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<review:packet xmlns:review="urn:review-sibling-position" xmlns:audit="urn:review-sibling-audit">
+  <review:front/>
+  <review:group>
+    <review:item>{$hiddenItem}</review:item>
+    <review:item/>
+    <review:tail>{$hiddenTail}</review:tail>
+  </review:group>
+  <audit:note/>
+  <review:solo><review:only/></review:solo>
+</review:packet>
+XML;
+        $parts['word/settings-sibling-position.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docVars>
+    <w:docVar w:name="First"/>
+    <w:docVar w:name="Second"/>
+    <w:docVar w:name="Third"/>
+  </w:docVars>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $reviewPart = $package['parts']['customXml/sibling-position-review.xml'];
+        $settingsPart = $package['parts']['word/settings-sibling-position.xml'];
+        $positions = array_values(array_filter(
+            $summary['partXmlElementSiblingPositions'],
+            static fn (array $position): bool => in_array(
+                $position['partName'],
+                ['customXml/sibling-position-review.xml', 'word/settings-sibling-position.xml'],
+                true,
+            ),
+        ));
+        $reviewPositionsByPath = [];
+        foreach ($reviewPart['xmlElementSiblingPositions'] as $position) {
+            $reviewPositionsByPath[$position['elementPath']][] = $position;
+        }
+
+        $t->same(true, $reviewPart['xmlInspectable']);
+        $t->same(9, $reviewPart['xmlElementSiblingPositionCount']);
+        $t->same(4, $reviewPart['xmlElementSiblingPositionFirstCount']);
+        $t->same(4, $reviewPart['xmlElementSiblingPositionLastCount']);
+        $t->same(2, $reviewPart['xmlElementSiblingPositionOnlyChildCount']);
+        $t->same([
+            '/' => 1,
+            '/review:packet' => 4,
+            '/review:packet/review:group' => 3,
+            '/review:packet/review:solo' => 1,
+        ], $reviewPart['xmlElementSiblingPositionParentPathCounts']);
+        $t->same([
+            '(document)' => 1,
+            'urn:review-sibling-position' => 8,
+        ], $reviewPart['xmlElementSiblingPositionParentNamespaceCounts']);
+        $t->same([
+            'audit:note' => 1,
+            'review:front' => 1,
+            'review:group' => 1,
+            'review:item' => 2,
+            'review:only' => 1,
+            'review:packet' => 1,
+            'review:solo' => 1,
+            'review:tail' => 1,
+        ], $reviewPart['xmlElementSiblingPositionElementNameCounts']);
+        $t->same([1 => 4, 2 => 2, 3 => 2, 4 => 1], $reviewPart['xmlElementSiblingPositionIndexCounts']);
+        $t->same(['1' => 2, '2-3' => 3, '4-7' => 4], $reviewPart['xmlElementSiblingPositionSiblingCountBuckets']);
+
+        $t->same('/', $reviewPart['xmlElementSiblingPositions'][0]['parentPath']);
+        $t->same(1, $reviewPart['xmlElementSiblingPositions'][0]['siblingIndex']);
+        $t->same(1, $reviewPart['xmlElementSiblingPositions'][0]['siblingCount']);
+        $t->same(true, $reviewPart['xmlElementSiblingPositions'][0]['isOnlyElementSibling']);
+        $t->same('/review:packet/review:front', $reviewPositionsByPath['/review:packet/review:front'][0]['elementPath']);
+        $t->same(1, $reviewPositionsByPath['/review:packet/review:front'][0]['siblingIndex']);
+        $t->same(4, $reviewPositionsByPath['/review:packet/review:front'][0]['siblingCount']);
+        $t->same(true, $reviewPositionsByPath['/review:packet/review:front'][0]['isFirstElementSibling']);
+        $t->same(false, $reviewPositionsByPath['/review:packet/review:front'][0]['isLastElementSibling']);
+        $t->same(2, $reviewPositionsByPath['/review:packet/review:group'][0]['siblingIndex']);
+        $t->same(1, $reviewPositionsByPath['/review:packet/review:group/review:item'][0]['siblingIndex']);
+        $t->same(2, $reviewPositionsByPath['/review:packet/review:group/review:item'][1]['siblingIndex']);
+        $t->same(3, $reviewPositionsByPath['/review:packet/review:group/review:tail'][0]['siblingIndex']);
+        $t->same(true, $reviewPositionsByPath['/review:packet/review:group/review:tail'][0]['isLastElementSibling']);
+        $t->same(4, $reviewPositionsByPath['/review:packet/review:solo'][0]['siblingIndex']);
+        $t->same(true, $reviewPositionsByPath['/review:packet/review:solo/review:only'][0]['isOnlyElementSibling']);
+
+        $t->same(true, $settingsPart['xmlInspectable']);
+        $t->same(5, $settingsPart['xmlElementSiblingPositionCount']);
+        $t->same(3, $settingsPart['xmlElementSiblingPositionFirstCount']);
+        $t->same(3, $settingsPart['xmlElementSiblingPositionLastCount']);
+        $t->same(2, $settingsPart['xmlElementSiblingPositionOnlyChildCount']);
+        $t->same(['1' => 2, '2-3' => 3], $settingsPart['xmlElementSiblingPositionSiblingCountBuckets']);
+        $t->same(3, $settingsPart['xmlElementSiblingPositionElementNameCounts']['w:docVar']);
+
+        $t->true($summary['partXmlElementSiblingPositionPartCount'] >= 2, 'summary sibling-position part count should include added XML parts');
+        $t->true($summary['partXmlElementSiblingPositionCount'] >= 14, 'summary sibling-position count should include added XML elements');
+        $t->true(in_array('customXml/sibling-position-review.xml', $summary['partXmlElementSiblingPositionPartNames'], true), 'custom XML sibling-position part should be summarized');
+        $t->true(in_array('word/settings-sibling-position.xml', $summary['partXmlElementSiblingPositionPartNames'], true), 'settings sibling-position part should be summarized');
+        $t->same(4, $summary['partXmlElementSiblingPositionParentPathCounts']['/review:packet']);
+        $t->same(3, $summary['partXmlElementSiblingPositionParentPathCounts']['/review:packet/review:group']);
+        $t->same(3, $summary['partXmlElementSiblingPositionElementNameCounts']['w:docVar']);
+        $t->same(14, count($positions));
+        $t->same('customXml/sibling-position-review.xml', $positions[0]['partName']);
+        $t->same('/review:packet', $positions[0]['elementPath']);
+        $t->same('word/settings-sibling-position.xml', $positions[13]['partName']);
+        $t->same('/w:settings/w:docVars/w:docVar', $positions[13]['elementPath']);
+
+        $encodedPositions = json_encode([$reviewPart['xmlElementSiblingPositions'], $settingsPart['xmlElementSiblingPositions'], $positions]);
+        $t->true(is_string($encodedPositions), 'XML sibling-position metadata should encode for review');
+        $t->true(!str_contains((string) $encodedPositions, 'sibling-position:hidden'), 'raw XML text should not be exposed in sibling-position metadata');
     },
     'accepts docx main document template and macro-enabled content types' => static function (TestRunner $t): void {
         $acceptedDocumentContentTypes = [
