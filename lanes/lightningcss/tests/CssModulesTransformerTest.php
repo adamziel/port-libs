@@ -2542,7 +2542,7 @@ CSS);
         ], $escapedFunction['exports']);
         $t->same([], $escapedFunction['references']);
     },
-    'css modules rejects upstream deprecated value rules before composing exports' => static function (TestRunner $t): void {
+    'css modules rejects upstream src/lib.rs::test_css_modules_value_rule row 30664 before composing exports' => static function (TestRunner $t): void {
         foreach ([
             '@value compact: (max-width: 37.4375em);',
             '@v\61 lue compact: (max-width: 37.4375em);',
