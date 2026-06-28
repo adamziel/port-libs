@@ -16838,6 +16838,7 @@ final class OdfReader
             $items[] = [
                 'fullPath' => $item['fullPath'] ?? $part,
                 'part' => $part,
+                'packagePath' => $part,
                 'partReference' => $item['partReference'] ?? null,
                 'partSuffix' => $item['partSuffix'] ?? null,
                 'partQuery' => $item['partQuery'] ?? null,
