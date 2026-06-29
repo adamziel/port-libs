@@ -793,7 +793,7 @@ final class PdfEngineHandoff
      *     pdfFormXObjectFilters: array<string, int>,
      *     pdfStreamFilterPolicy: array{streamCount:int, filterCount:int, filters:array<string, int>, surfaces:array<string, int>, actions:array<string, int>, streams:list<array{surface:string, source:string, object:string|null, filters:list<string>, action:string, streamBytes:int|null, streamSkipped:string|null}>}|array{},
      *     pdfStreamDecodeParameters: array{streamCount:int, parameterSetCount:int, filters:array<string, int>, surfaces:array<string, int>, predictors:array<string, int>, streams:list<array{surface:string, source:string, object:string|null, filters:list<string>, parameterSets:list<array{filter:string|null, parameterSource:string, predictor:int|null, predictorLabel:string|null, colors:int|null, bitsPerComponent:int|null, columns:int|null, earlyChange:int|null, k:int|null, rows:int|null, blackIs1:bool|null, encodedByteAlign:bool|null, endOfLine:bool|null, endOfBlock:bool|null, damagedRowsBeforeError:int|null, jbig2Globals:string|null, cryptName:string|null, cryptType:string|null, rawKeys:list<string>}>}>}|array{},
-     *     pdfGraphicsStates: list<array{page:int, pageObject:string|null, resourceName:string, graphicsStateObject:string|null, inherited:bool, strokingAlpha:float|null, nonstrokingAlpha:float|null, blendModes:list<string>, overprintStroking:bool|null, overprintNonstroking:bool|null, overprintMode:int|null, alphaSource:bool|null, textKnockout:bool|null, softMask:string|null}>,
+     *     pdfGraphicsStates: list<array{page:int, pageObject:string|null, resourceName:string, graphicsStateObject:string|null, inherited:bool, strokingAlpha:float|null, nonstrokingAlpha:float|null, blendModes:list<string>, overprintStroking:bool|null, overprintNonstroking:bool|null, overprintMode:int|null, alphaSource:bool|null, textKnockout:bool|null, softMask:string|null, printControls:list<array{key:string, label:string, kind:string, value:string|null, object:string|null, names:list<string>, references:list<string>}>>>,
      *     pdfGraphicsStateBlendModes: array<string, int>,
      *     pdfOutlineTitles: list<string>,
      *     pdfOutlines: list<array{object:string, title:string, parent:string|null, prev:string|null, next:string|null, first:string|null, last:string|null, count:int|null, open:bool|null, destPageObject:string|null, destFit:string|null, actionType:string|null, actionTarget:string|null}>,
@@ -2442,6 +2442,10 @@ final class PdfEngineHandoff
                     $graphicsStateAlphaCount = 0;
                     $graphicsStateSoftMaskCount = 0;
                     $graphicsStateOverprintCount = 0;
+                    $graphicsStatePrintControlCount = 0;
+                    $graphicsStateTransferFunctionCount = 0;
+                    $graphicsStateHalftoneCount = 0;
+                    $graphicsStateColorCorrectionCount = 0;
                     foreach ($pdfGraphicsStates as $graphicsState) {
                         if (
                             ($graphicsState['strokingAlpha'] ?? null) !== null
@@ -2459,6 +2463,17 @@ final class PdfEngineHandoff
                         ) {
                             $graphicsStateOverprintCount++;
                         }
+                        foreach (($graphicsState['printControls'] ?? []) as $printControl) {
+                            $key = is_string($printControl['key'] ?? null) ? $printControl['key'] : '';
+                            $graphicsStatePrintControlCount++;
+                            if (in_array($key, ['TR', 'TR2'], true)) {
+                                $graphicsStateTransferFunctionCount++;
+                            } elseif ($key === 'HT') {
+                                $graphicsStateHalftoneCount++;
+                            } elseif (in_array($key, ['BG', 'BG2', 'UCR', 'UCR2'], true)) {
+                                $graphicsStateColorCorrectionCount++;
+                            }
+                        }
                     }
                     if ($graphicsStateAlphaCount > 0) {
                         $diagnostics[] = 'pdf-byte-graphics-state-alpha:' . $graphicsStateAlphaCount;
@@ -2474,6 +2489,18 @@ final class PdfEngineHandoff
                     }
                     if ($graphicsStateOverprintCount > 0) {
                         $diagnostics[] = 'pdf-byte-graphics-state-overprint:' . $graphicsStateOverprintCount;
+                    }
+                    if ($graphicsStatePrintControlCount > 0) {
+                        $diagnostics[] = 'pdf-byte-graphics-state-print-controls:' . $graphicsStatePrintControlCount;
+                    }
+                    if ($graphicsStateTransferFunctionCount > 0) {
+                        $diagnostics[] = 'pdf-byte-graphics-state-transfer-functions:' . $graphicsStateTransferFunctionCount;
+                    }
+                    if ($graphicsStateHalftoneCount > 0) {
+                        $diagnostics[] = 'pdf-byte-graphics-state-halftones:' . $graphicsStateHalftoneCount;
+                    }
+                    if ($graphicsStateColorCorrectionCount > 0) {
+                        $diagnostics[] = 'pdf-byte-graphics-state-color-corrections:' . $graphicsStateColorCorrectionCount;
                     }
                 }
                 if ($pdfTrailerCount > 0) {
@@ -5533,7 +5560,7 @@ final class PdfEngineHandoff
      *     finalPdfFormXObjectFilters: array<string, int>,
      *     finalPdfStreamFilterPolicy: array{streamCount:int, filterCount:int, filters:array<string, int>, surfaces:array<string, int>, actions:array<string, int>, streams:list<array{surface:string, source:string, object:string|null, filters:list<string>, action:string, streamBytes:int|null, streamSkipped:string|null}>}|array{},
      *     finalPdfStreamDecodeParameters: array{streamCount:int, parameterSetCount:int, filters:array<string, int>, surfaces:array<string, int>, predictors:array<string, int>, streams:list<array{surface:string, source:string, object:string|null, filters:list<string>, parameterSets:list<array{filter:string|null, parameterSource:string, predictor:int|null, predictorLabel:string|null, colors:int|null, bitsPerComponent:int|null, columns:int|null, earlyChange:int|null, k:int|null, rows:int|null, blackIs1:bool|null, encodedByteAlign:bool|null, endOfLine:bool|null, endOfBlock:bool|null, damagedRowsBeforeError:int|null, jbig2Globals:string|null, cryptName:string|null, cryptType:string|null, rawKeys:list<string>}>}>}|array{},
-     *     finalPdfGraphicsStates: list<array{page:int, pageObject:string|null, resourceName:string, graphicsStateObject:string|null, inherited:bool, strokingAlpha:float|null, nonstrokingAlpha:float|null, blendModes:list<string>, overprintStroking:bool|null, overprintNonstroking:bool|null, overprintMode:int|null, alphaSource:bool|null, textKnockout:bool|null, softMask:string|null}>,
+     *     finalPdfGraphicsStates: list<array{page:int, pageObject:string|null, resourceName:string, graphicsStateObject:string|null, inherited:bool, strokingAlpha:float|null, nonstrokingAlpha:float|null, blendModes:list<string>, overprintStroking:bool|null, overprintNonstroking:bool|null, overprintMode:int|null, alphaSource:bool|null, textKnockout:bool|null, softMask:string|null, printControls:list<array{key:string, label:string, kind:string, value:string|null, object:string|null, names:list<string>, references:list<string>}>>>,
      *     finalPdfGraphicsStateBlendModes: array<string, int>,
      *     finalPdfTrailerCount: int,
      *     finalPdfTrailerRevisions: list<array{revision:int, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, startxref:int|null, id:list<string>}>,
@@ -31160,7 +31187,7 @@ final class PdfEngineHandoff
     }
 
     /**
-     * @return list<array{page:int, pageObject:string|null, resourceName:string, graphicsStateObject:string|null, inherited:bool, strokingAlpha:float|null, nonstrokingAlpha:float|null, blendModes:list<string>, overprintStroking:bool|null, overprintNonstroking:bool|null, overprintMode:int|null, alphaSource:bool|null, textKnockout:bool|null, softMask:string|null}>
+     * @return list<array{page:int, pageObject:string|null, resourceName:string, graphicsStateObject:string|null, inherited:bool, strokingAlpha:float|null, nonstrokingAlpha:float|null, blendModes:list<string>, overprintStroking:bool|null, overprintNonstroking:bool|null, overprintMode:int|null, alphaSource:bool|null, textKnockout:bool|null, softMask:string|null, printControls:list<array{key:string, label:string, kind:string, value:string|null, object:string|null, names:list<string>, references:list<string>}>>>
      */
     private function extractPdfGraphicsStates(string $pdfBytes, ?string $catalog): array
     {
@@ -31219,7 +31246,7 @@ final class PdfEngineHandoff
     /**
      * @param array<string, string> $objects
      * @param array<string, bool> $visited
-     * @param list<array{page:int, pageObject:string|null, resourceName:string, graphicsStateObject:string|null, inherited:bool, strokingAlpha:float|null, nonstrokingAlpha:float|null, blendModes:list<string>, overprintStroking:bool|null, overprintNonstroking:bool|null, overprintMode:int|null, alphaSource:bool|null, textKnockout:bool|null, softMask:string|null}> $states
+     * @param list<array{page:int, pageObject:string|null, resourceName:string, graphicsStateObject:string|null, inherited:bool, strokingAlpha:float|null, nonstrokingAlpha:float|null, blendModes:list<string>, overprintStroking:bool|null, overprintNonstroking:bool|null, overprintMode:int|null, alphaSource:bool|null, textKnockout:bool|null, softMask:string|null, printControls:list<array{key:string, label:string, kind:string, value:string|null, object:string|null, names:list<string>, references:list<string>}>>> $states
      */
     private function collectPdfGraphicsStatesFromPageTree(
         array $objects,
@@ -31265,7 +31292,7 @@ final class PdfEngineHandoff
 
     /**
      * @param array<string, string> $objects
-     * @return list<array{page:int, pageObject:string|null, resourceName:string, graphicsStateObject:string|null, inherited:bool, strokingAlpha:float|null, nonstrokingAlpha:float|null, blendModes:list<string>, overprintStroking:bool|null, overprintNonstroking:bool|null, overprintMode:int|null, alphaSource:bool|null, textKnockout:bool|null, softMask:string|null}>
+     * @return list<array{page:int, pageObject:string|null, resourceName:string, graphicsStateObject:string|null, inherited:bool, strokingAlpha:float|null, nonstrokingAlpha:float|null, blendModes:list<string>, overprintStroking:bool|null, overprintNonstroking:bool|null, overprintMode:int|null, alphaSource:bool|null, textKnockout:bool|null, softMask:string|null, printControls:list<array{key:string, label:string, kind:string, value:string|null, object:string|null, names:list<string>, references:list<string>}>>>
      */
     private function summarizePdfPageGraphicsStates(string $pageDictionary, string $pageReference, ?string $inheritedResources, array $objects): array
     {
@@ -31300,7 +31327,7 @@ final class PdfEngineHandoff
     /**
      * @param array{kind:string, value:string} $value
      * @param array<string, string> $objects
-     * @return array{page:int, pageObject:string|null, resourceName:string, graphicsStateObject:string|null, inherited:bool, strokingAlpha:float|null, nonstrokingAlpha:float|null, blendModes:list<string>, overprintStroking:bool|null, overprintNonstroking:bool|null, overprintMode:int|null, alphaSource:bool|null, textKnockout:bool|null, softMask:string|null}|null
+     * @return array{page:int, pageObject:string|null, resourceName:string, graphicsStateObject:string|null, inherited:bool, strokingAlpha:float|null, nonstrokingAlpha:float|null, blendModes:list<string>, overprintStroking:bool|null, overprintNonstroking:bool|null, overprintMode:int|null, alphaSource:bool|null, textKnockout:bool|null, softMask:string|null, printControls:list<array{key:string, label:string, kind:string, value:string|null, object:string|null, names:list<string>, references:list<string>}>>|null
      */
     private function summarizePdfGraphicsStateResource(string $resourceName, array $value, array $objects, string $pageReference, bool $inherited): ?array
     {
@@ -31334,6 +31361,7 @@ final class PdfEngineHandoff
             'alphaSource' => $this->extractPdfExactBooleanValue($graphicsStateDictionary, 'AIS'),
             'textKnockout' => $this->extractPdfExactBooleanValue($graphicsStateDictionary, 'TK'),
             'softMask' => $this->extractPdfGraphicsStateSoftMask($graphicsStateDictionary),
+            'printControls' => $this->extractPdfGraphicsStatePrintControls($graphicsStateDictionary, $objects),
         ];
     }
 
@@ -31390,7 +31418,133 @@ final class PdfEngineHandoff
     }
 
     /**
-     * @param list<array{page:int, pageObject:string|null, resourceName:string, graphicsStateObject:string|null, inherited:bool, strokingAlpha:float|null, nonstrokingAlpha:float|null, blendModes:list<string>, overprintStroking:bool|null, overprintNonstroking:bool|null, overprintMode:int|null, alphaSource:bool|null, textKnockout:bool|null, softMask:string|null}> $states
+     * @param array<string, string> $objects
+     * @return list<array{key:string, label:string, kind:string, value:string|null, object:string|null, names:list<string>, references:list<string>}>
+     */
+    private function extractPdfGraphicsStatePrintControls(string $dictionary, array $objects): array
+    {
+        $controls = [];
+        foreach ([
+            'TR' => 'transfer-function',
+            'TR2' => 'transfer-function-2',
+            'HT' => 'halftone',
+            'BG' => 'black-generation',
+            'BG2' => 'black-generation-2',
+            'UCR' => 'undercolor-removal',
+            'UCR2' => 'undercolor-removal-2',
+        ] as $key => $label) {
+            $control = $this->summarizePdfGraphicsStatePrintControl($key, $label, $this->extractPdfValueForName($dictionary, $key), $objects);
+            if ($control !== null) {
+                $controls[] = $control;
+            }
+        }
+
+        return $controls;
+    }
+
+    /**
+     * @param array{kind:string, value:string, next?:int}|null $value
+     * @param array<string, string> $objects
+     * @return array{key:string, label:string, kind:string, value:string|null, object:string|null, names:list<string>, references:list<string>}|null
+     */
+    private function summarizePdfGraphicsStatePrintControl(?string $key, string $label, ?array $value, array $objects): ?array
+    {
+        if ($key === null || $value === null) {
+            return null;
+        }
+
+        $references = [];
+        foreach ($this->collectPdfReferencesFromValue($value, $objects) as $reference) {
+            $references[] = $this->formatPdfIndirectReference($reference);
+        }
+        $references = $this->uniqueStrings($references);
+        sort($references, SORT_STRING);
+
+        $summary = [
+            'key' => $key,
+            'label' => $label,
+            'kind' => $value['kind'],
+            'value' => $this->pdfGraphicsStatePrintControlValue($value, $objects),
+            'object' => $this->pdfGraphicsStatePrintControlObject($value),
+            'names' => $this->pdfValueToNameList($value, $objects),
+            'references' => $references,
+        ];
+
+        return $summary;
+    }
+
+    /**
+     * @param array{kind:string, value:string, next?:int} $value
+     * @param array<string, string> $objects
+     */
+    private function pdfGraphicsStatePrintControlValue(array $value, array $objects): ?string
+    {
+        if (in_array($value['kind'], ['name', 'literal', 'hex', 'number', 'keyword'], true)) {
+            $label = trim($value['value']);
+
+            return $label === '' ? null : $label;
+        }
+
+        if ($value['kind'] === 'dictionary') {
+            return $this->pdfGraphicsStatePrintControlDictionaryLabel($value['value']);
+        }
+
+        if ($value['kind'] !== 'reference') {
+            return null;
+        }
+
+        $body = trim($objects[$this->pdfReferenceKey($value['value'])] ?? '');
+        if ($body === '') {
+            return null;
+        }
+
+        $resolved = $this->parsePdfValueAt($body, 0);
+        if ($resolved === null) {
+            return str_starts_with($body, '<<')
+                ? $this->pdfGraphicsStatePrintControlDictionaryLabel($body)
+                : null;
+        }
+
+        return $this->pdfGraphicsStatePrintControlValue($resolved, $objects);
+    }
+
+    /**
+     * @param array{kind:string, value:string, next?:int} $value
+     */
+    private function pdfGraphicsStatePrintControlObject(array $value): ?string
+    {
+        if ($value['kind'] === 'reference') {
+            return $this->formatPdfIndirectReference($value['value']);
+        }
+        if ($value['kind'] === 'dictionary') {
+            return 'inline';
+        }
+
+        return null;
+    }
+
+    private function pdfGraphicsStatePrintControlDictionaryLabel(string $dictionary): ?string
+    {
+        $functionType = $this->extractPdfIntegerToken($dictionary, 'FunctionType');
+        if ($functionType !== null) {
+            return 'FunctionType:' . $functionType;
+        }
+
+        $halftoneType = $this->extractPdfIntegerToken($dictionary, 'HalftoneType');
+        if ($halftoneType !== null) {
+            return 'HalftoneType:' . $halftoneType;
+        }
+
+        $type = $this->extractPdfNameToken($dictionary, 'Type');
+        if ($type !== null && $type !== '') {
+            return $type;
+        }
+
+        return 'inline';
+    }
+
+    /**
+     * @param list<array{page:int, pageObject:string|null, resourceName:string, graphicsStateObject:string|null, inherited:bool, strokingAlpha:float|null, nonstrokingAlpha:float|null, blendModes:list<string>, overprintStroking:bool|null, overprintNonstroking:bool|null, overprintMode:int|null, alphaSource:bool|null, textKnockout:bool|null, softMask:string|null, printControls:list<array{key:string, label:string, kind:string, value:string|null, object:string|null, names:list<string>, references:list<string>}>>> $states
      * @return array<string, int>
      */
     private function summarizePdfGraphicsStateBlendModes(array $states): array

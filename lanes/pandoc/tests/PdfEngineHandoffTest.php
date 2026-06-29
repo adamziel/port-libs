@@ -12041,16 +12041,25 @@ MARKDOWN);
             '<< /Type /Page /Parent 2 0 R /Resources << /ExtGState << /GSWatermark << /Type /ExtGState /ca 0.35 /BM /Multiply /AIS true /TK false /SMask /None >> /GSReview 7 0 R >> >> >>',
             'endobj',
             '6 0 obj',
-            '<< /Type /ExtGState /CA 0.8 /ca 0.6 /BM [/Normal /Screen] /OP true /op false /OPM 1 /SA true >>',
+            '<< /Type /ExtGState /CA 0.8 /ca 0.6 /BM [/Normal /Screen] /OP true /op false /OPM 1 /SA true /TR /Identity /TR2 10 0 R /HT 11 0 R /BG /Default /UCR /Identity >>',
             'endobj',
             '7 0 obj',
-            '<< /Type /ExtGState /CA 1 /ca 0.92 /BM 8 0 R /SMask 9 0 R /AIS false /TK true >>',
+            '<< /Type /ExtGState /CA 1 /ca 0.92 /BM 8 0 R /SMask 9 0 R /AIS false /TK true /TR2 /Default /HT /Default /BG2 12 0 R /UCR2 /Default >>',
             'endobj',
             '8 0 obj',
             '[/Overlay /SoftLight]',
             'endobj',
             '9 0 obj',
             '<< /Type /Mask /S /Luminosity >>',
+            'endobj',
+            '10 0 obj',
+            '<< /FunctionType 2 /Domain [0 1] /C0 [0] /C1 [1] /N 1 >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /Halftone /HalftoneType 1 /Frequency 85 /Angle 45 /SpotFunction /Round >>',
+            'endobj',
+            '12 0 obj',
+            '<< /FunctionType 4 /Domain [0 1] /Range [0 1] >>',
             'endobj',
             'trailer',
             '<< /Root 1 0 R >>',
@@ -12087,6 +12096,13 @@ MARKDOWN);
                 'alphaSource' => null,
                 'textKnockout' => null,
                 'softMask' => null,
+                'printControls' => [
+                    ['key' => 'TR', 'label' => 'transfer-function', 'kind' => 'name', 'value' => 'Identity', 'object' => null, 'names' => ['Identity'], 'references' => []],
+                    ['key' => 'TR2', 'label' => 'transfer-function-2', 'kind' => 'reference', 'value' => 'FunctionType:2', 'object' => '10 0 R', 'names' => [], 'references' => ['10 0 R']],
+                    ['key' => 'HT', 'label' => 'halftone', 'kind' => 'reference', 'value' => 'HalftoneType:1', 'object' => '11 0 R', 'names' => [], 'references' => ['11 0 R']],
+                    ['key' => 'BG', 'label' => 'black-generation', 'kind' => 'name', 'value' => 'Default', 'object' => null, 'names' => ['Default'], 'references' => []],
+                    ['key' => 'UCR', 'label' => 'undercolor-removal', 'kind' => 'name', 'value' => 'Identity', 'object' => null, 'names' => ['Identity'], 'references' => []],
+                ],
             ],
             [
                 'page' => 2,
@@ -12103,6 +12119,12 @@ MARKDOWN);
                 'alphaSource' => false,
                 'textKnockout' => true,
                 'softMask' => '9 0 R',
+                'printControls' => [
+                    ['key' => 'TR2', 'label' => 'transfer-function-2', 'kind' => 'name', 'value' => 'Default', 'object' => null, 'names' => ['Default'], 'references' => []],
+                    ['key' => 'HT', 'label' => 'halftone', 'kind' => 'name', 'value' => 'Default', 'object' => null, 'names' => ['Default'], 'references' => []],
+                    ['key' => 'BG2', 'label' => 'black-generation-2', 'kind' => 'reference', 'value' => 'FunctionType:4', 'object' => '12 0 R', 'names' => [], 'references' => ['12 0 R']],
+                    ['key' => 'UCR2', 'label' => 'undercolor-removal-2', 'kind' => 'name', 'value' => 'Default', 'object' => null, 'names' => ['Default'], 'references' => []],
+                ],
             ],
             [
                 'page' => 2,
@@ -12119,6 +12141,7 @@ MARKDOWN);
                 'alphaSource' => true,
                 'textKnockout' => false,
                 'softMask' => 'None',
+                'printControls' => [],
             ],
         ];
 
@@ -12131,6 +12154,10 @@ MARKDOWN);
         $t->contains('pdf-byte-graphics-state-blend-mode:Multiply:1', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-graphics-state-soft-masks:2', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-graphics-state-overprint:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-graphics-state-print-controls:9', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-graphics-state-transfer-functions:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-graphics-state-halftones:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-graphics-state-color-corrections:4', implode(',', $result['diagnostics']));
         $t->same(true, $sequence['ok']);
         $t->same($expected, $sequence['finalPdfGraphicsStates'] ?? null);
         $t->same(['Multiply' => 1, 'Normal' => 1, 'Overlay' => 1, 'Screen' => 1, 'SoftLight' => 1], $sequence['finalPdfGraphicsStateBlendModes'] ?? null);
