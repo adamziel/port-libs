@@ -3453,6 +3453,103 @@ XML);
         $t->contains('<dt>Smith 2026</dt><dd>Label Date Review Packet :: 2025-12-31</dd>', $blocks);
         $t->contains('<dt>Ng 2024</dt><dd>Split Label Date Packet :: 2023-04</dd>', $blocks);
     },
+    'carries biblatex available submitted and label dates in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@online{legacy-review-window,
+  author        = {Roe, Pat},
+  title         = {Availability Window Packet},
+  date          = {2026-06-12},
+  availabledate = {2025-04-03},
+  submitteddate = {2024-03-09},
+  labeldate     = {2026-05},
+  url           = {https://example.test/availability-window}
+}
+
+@report{legacy-split-window,
+  author         = {Ng, Nia},
+  title          = {Split Window Packet},
+  year           = {2025},
+  availableyear  = {2025},
+  availablemonth = {4},
+  availableday   = {5},
+  submittedyear  = {2024},
+  submittedmonth = {3},
+  labelyear      = {2023},
+  publisher      = {Review Press}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $window = $items['legacy-review-window'];
+        $split = $items['legacy-split-window'];
+
+        $t->same([[2025, 4, 3]], $window['available-date']['date-parts']);
+        $t->same([[2024, 3, 9]], $window['submitted']['date-parts']);
+        $t->same([2026, 5], $window['label-date']['date-parts'][0]);
+        $t->same([[2025, 4, 5]], $split['available-date']['date-parts']);
+        $t->same([[2024, 3]], $split['submitted']['date-parts']);
+        $t->same([2023], $split['label-date']['date-parts'][0]);
+        $t->same('2025-04-03', $window['rawBibtex']['fields']['availabledate']);
+        $t->same('2024', $split['rawBibtex']['fields']['submittedyear']);
+        $t->contains('Available date: 2025-04-03', $processor->renderBibliographyText($window));
+        $t->contains('Submitted date: 2024-03-09', $processor->renderBibliographyText($window));
+        $t->contains('Label date: 2026-05', $processor->renderBibliographyText($window));
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Review Window Date Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-review-window-date-review</id>
+    <updated>2026-06-29T00:00:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <date variable="available-date"/>
+        <date variable="submitted"/>
+        <date variable="label-date"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="available-date"/>
+      <date variable="submitted"/>
+      <date variable="label-date"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $styledWindow = $styled->item('legacy-review-window');
+        $styledSplit = $styled->item('legacy-split-window');
+        $t->same('Bounded Legacy BibLaTeX Review Window Date Review', $summary['title'] ?? null);
+        $t->same([2025, 4, 3], $styledWindow['availableDate']['parts'] ?? null);
+        $t->same([2024, 3], $styledSplit['submittedDate']['parts'] ?? null);
+        $t->same('[Availability Window Packet | 2025-04-03 | 2024-03-09 | 2026-05; Split Window Packet | 2025-04-05 | 2024-03 | 2023]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-review-window', 'text' => '[@legacy-review-window]']),
+            new AstNode('citation', ['id' => 'legacy-split-window', 'text' => '[@legacy-split-window]']),
+        ]));
+        $t->same('Availability Window Packet :: 2025-04-03 :: 2024-03-09 :: 2026-05', $styled->renderBibliographyEntry('legacy-review-window'));
+        $t->same('Split Window Packet :: 2025-04-05 :: 2024-03 :: 2023', $styled->renderBibliographyEntry('legacy-split-window'));
+
+        $document = (new MarkdownReader())->read('Review windows cite @legacy-review-window and [@legacy-split-window].');
+        $handoff = $processor->citationHandoff($document, $source);
+        $bibliographyDocument = new AstNode('document', [], [$handoff['bibliography']]);
+        $blocks = (new WordPressBlockWriter())->write($bibliographyDocument);
+
+        $t->same(['legacy-review-window', 'legacy-split-window'], $handoff['citedKeys']);
+        $t->same([[2025, 4, 3]], $handoff['bibliography']->children[0]->attr('cslItem')['available-date']['date-parts'] ?? null);
+        $t->same([[2024, 3]], $handoff['bibliography']->children[1]->attr('cslItem')['submitted']['date-parts'] ?? null);
+        $t->contains('Available date: 2025-04-03', $blocks);
+        $t->contains('Submitted date: 2024-03', $blocks);
+        $t->contains('Label date: 2023', $blocks);
+    },
     'carries legacy biblatex source file attachment policy metadata' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @online{legacy-file-source,
