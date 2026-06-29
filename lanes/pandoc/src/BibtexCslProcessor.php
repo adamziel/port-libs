@@ -343,6 +343,15 @@ final class BibtexCslProcessor
         if ($year !== '') {
             $parts[] = $year;
         }
+        foreach ([
+            'available-date' => 'Available date',
+            'submitted' => 'Submitted date',
+        ] as $field => $label) {
+            $date = $this->dateDisplay($item[$field] ?? []);
+            if ($date !== '') {
+                $parts[] = $label . ': ' . $date;
+            }
+        }
         if (($item['page'] ?? '') !== '') {
             $parts[] = (string) $item['page'];
         }
@@ -1097,6 +1106,28 @@ final class BibtexCslProcessor
             $item['event-date'] = ['date-parts' => [$eventDate]];
         }
 
+        $availableDate = $this->dateRangePartsFromFields(
+            $fields,
+            ['availabledate', 'available-date'],
+            ['availableyear', 'availablemonth', 'availableday'],
+            ['availableenddate', 'available-end-date'],
+            ['availableendyear', 'availableendmonth', 'availableendday']
+        );
+        if ($availableDate !== null) {
+            $item['available-date'] = ['date-parts' => $availableDate];
+        }
+
+        $submittedDate = $this->dateRangePartsFromFields(
+            $fields,
+            ['submitted', 'submitteddate', 'submitted-date', 'submissiondate', 'submission-date'],
+            ['submittedyear', 'submittedmonth', 'submittedday'],
+            ['submittedenddate', 'submitted-end-date', 'submissionenddate', 'submission-end-date'],
+            ['submittedendyear', 'submittedendmonth', 'submittedendday']
+        );
+        if ($submittedDate !== null) {
+            $item['submitted'] = ['date-parts' => $submittedDate];
+        }
+
         $keywords = $this->keywordList($this->firstField($fields, ['keywords', 'keyword', 'keyword-list', 'keywordlist']));
         if ($keywords !== []) {
             $item['keyword'] = $keywords;
@@ -1818,16 +1849,11 @@ final class BibtexCslProcessor
             }
         }
 
-        if ($date !== '' && preg_match('/^(-?\d{1,4})(?:-(\d{1,2})(?:-(\d{1,2}))?)?/', $date, $m) === 1) {
-            $parts = [(int) $m[1]];
-            if (($m[2] ?? '') !== '') {
-                $parts[] = (int) $m[2];
+        if ($date !== '') {
+            $parts = $this->datePartsFromValue($date);
+            if ($parts !== null) {
+                return $parts;
             }
-            if (($m[3] ?? '') !== '') {
-                $parts[] = (int) $m[3];
-            }
-
-            return $parts;
         }
 
         if ($ymdFields === []) {
@@ -1851,6 +1877,63 @@ final class BibtexCslProcessor
                 $parts[] = 1;
             }
             $parts[] = (int) $day;
+        }
+
+        return $parts;
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @param list<string> $dateFields
+     * @param list<string> $ymdFields
+     * @param list<string> $endDateFields
+     * @param list<string> $endYmdFields
+     * @return list<list<int>>|null
+     */
+    private function dateRangePartsFromFields(array $fields, array $dateFields, array $ymdFields, array $endDateFields, array $endYmdFields): ?array
+    {
+        foreach ($dateFields as $field) {
+            $value = trim((string) ($fields[$field] ?? ''));
+            if ($value === '' || !str_contains($value, '/')) {
+                continue;
+            }
+
+            [$startValue, $endValue] = array_map('trim', explode('/', $value, 2));
+            $start = $this->datePartsFromValue($startValue);
+            if ($start === null) {
+                continue;
+            }
+
+            $end = $this->datePartsFromValue($endValue);
+
+            return $end === null ? [$start] : [$start, $end];
+        }
+
+        $start = $this->datePartsFromFields($fields, $dateFields, $ymdFields);
+        if ($start === null) {
+            return null;
+        }
+
+        $end = $this->datePartsFromFields($fields, $endDateFields, $endYmdFields);
+
+        return $end === null ? [$start] : [$start, $end];
+    }
+
+    /**
+     * @return list<int>|null
+     */
+    private function datePartsFromValue(string $date): ?array
+    {
+        if (preg_match('/^(-?\d{1,4})(?:-(\d{1,2})(?:-(\d{1,2}))?)?/', $date, $m) !== 1) {
+            return null;
+        }
+
+        $parts = [(int) $m[1]];
+        if (($m[2] ?? '') !== '') {
+            $parts[] = (int) $m[2];
+        }
+        if (($m[3] ?? '') !== '') {
+            $parts[] = (int) $m[3];
         }
 
         return $parts;
@@ -2986,6 +3069,53 @@ final class BibtexCslProcessor
         }
 
         return (string) $parts[0];
+    }
+
+    private function dateDisplay(mixed $date): string
+    {
+        if (!is_array($date)) {
+            return '';
+        }
+
+        $literal = trim((string) ($date['literal'] ?? ''));
+        if ($literal !== '') {
+            return $literal;
+        }
+
+        $dateParts = $date['date-parts'] ?? [];
+        if (!is_array($dateParts) || $dateParts === []) {
+            return '';
+        }
+
+        $parts = [];
+        foreach ($dateParts as $datePart) {
+            if (is_array($datePart)) {
+                $part = $this->datePartDisplay($datePart);
+                if ($part !== '') {
+                    $parts[] = $part;
+                }
+            }
+        }
+
+        return implode('/', $parts);
+    }
+
+    /**
+     * @param array<int, mixed> $parts
+     */
+    private function datePartDisplay(array $parts): string
+    {
+        $formatted = [];
+        foreach (array_values($parts) as $index => $part) {
+            if (!is_int($part) && !is_numeric($part)) {
+                continue;
+            }
+
+            $value = (string) (int) $part;
+            $formatted[] = $index === 0 ? $value : str_pad($value, 2, '0', STR_PAD_LEFT);
+        }
+
+        return implode('-', $formatted);
     }
 
     private function cleanValue(string $value, bool $trim = true): string

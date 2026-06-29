@@ -3021,6 +3021,99 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Literal List Review Manual :: Review Press; Archive Desk :: New York; London :: Archivo Press; Migration Desk :: Madrid; Barcelona :: spanish; basque :: english; french</dd>', $blocks);
         $t->contains('<dt>Curator 2025</dt><dd>Event List Proceedings :: Migration Desk :: Portland Convention Center; Remote Stream</dd>', $blocks);
     },
+    'carries biblatex available and submitted dates in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@online{availability-packet,
+  author            = {Ng, Nia},
+  title             = {Legacy Availability Packet},
+  date              = {2026},
+  availabledate     = {2025-04-03/2025-04-05},
+  submittedyear     = {2024},
+  submittedmonth    = {3},
+  submittedendyear  = {2024},
+  submittedendmonth = {4},
+  url               = {https://example.test/availability-packet}
+}
+
+@article{submitted-literal,
+  author         = {Roe, Pat},
+  title          = {Submitted Literal Packet},
+  journaltitle   = {Migration Availability Review},
+  date           = {2025},
+  availableyear  = {2025},
+  availablemonth = {1},
+  submitted      = {2025-02-10}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $availability = $items['availability-packet'];
+        $submitted = $items['submitted-literal'];
+
+        $t->same(['date-parts' => [[2025, 4, 3], [2025, 4, 5]]], $availability['available-date']);
+        $t->same(['date-parts' => [[2024, 3], [2024, 4]]], $availability['submitted']);
+        $t->same(['date-parts' => [[2025, 1]]], $submitted['available-date']);
+        $t->same(['date-parts' => [[2025, 2, 10]]], $submitted['submitted']);
+        $t->same('2025-04-03/2025-04-05', $availability['rawBibtex']['fields']['availabledate']);
+        $t->same('2024', $availability['rawBibtex']['fields']['submittedendyear']);
+        $t->same('2025-02-10', $submitted['rawBibtex']['fields']['submitted']);
+        $t->same(
+            'Nia Ng. Legacy Availability Packet. 2026. Available date: 2025-04-03/2025-04-05. Submitted date: 2024-03/2024-04. https://example.test/availability-packet.',
+            $processor->renderBibliographyText($availability)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Availability Date Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-availability-date-review</id>
+    <updated>2026-06-29T00:20:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <date variable="available-date"/>
+        <date variable="submitted"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="available-date"/>
+      <date variable="submitted"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledAvailability = $styled->item('availability-packet');
+        $styledSubmitted = $styled->item('submitted-literal');
+        $t->same('2025-04-03/2025-04-05', $styledAvailability['availableDate']['display'] ?? null);
+        $t->same('2024-03/2024-04', $styledAvailability['submittedDate']['display'] ?? null);
+        $t->same('2025-01', $styledSubmitted['availableDate']['display'] ?? null);
+        $t->same('2025-02-10', $styledSubmitted['submittedDate']['display'] ?? null);
+        $t->same('[Ng | 2025-04-03/2025-04-05 | 2024-03/2024-04; Roe | 2025-01 | 2025-02-10]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'availability-packet', 'text' => '[@availability-packet]']),
+            new AstNode('citation', ['id' => 'submitted-literal', 'text' => '[@submitted-literal]']),
+        ]));
+        $t->same('Legacy Availability Packet :: 2025-04-03/2025-04-05 :: 2024-03/2024-04', $styled->renderBibliographyEntry('availability-packet'));
+        $t->same('Submitted Literal Packet :: 2025-01 :: 2025-02-10', $styled->renderBibliographyEntry('submitted-literal'));
+
+        $document = (new MarkdownReader())->read('Availability review [@availability-packet; @submitted-literal] stays visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['availability-packet', 'submitted-literal'], $handoff['citedKeys']);
+        $t->same([[2025, 4, 3], [2025, 4, 5]], $handoff['items'][0]['available-date']['date-parts']);
+        $t->same([[2025, 2, 10]], $handoff['bibliography']->children[1]->attr('cslItem')['submitted']['date-parts'] ?? null);
+        $t->contains('<p>Availability review [Ng | 2025-04-03/2025-04-05 | 2024-03/2024-04; Roe | 2025-01 | 2025-02-10] stays visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Legacy Availability Packet :: 2025-04-03/2025-04-05 :: 2024-03/2024-04</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Submitted Literal Packet :: 2025-01 :: 2025-02-10</dd>', $blocks);
+    },
     'carries biblatex date addendum aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @online{legacy-date-addendum,
