@@ -460,6 +460,40 @@ return [
         $t->true(!str_contains($nestedBody, '<mtext>\\mbox'));
         $t->true(!str_contains($nestedBody, '<mtext>\\textbf'));
     },
+    'converts texmath text fixture glyphs and ligatures in text mode' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $normalMathml = $converter->texToMathMl('\\text{(\\L ukasiewicz, G\\"{o}del, and G\\"odel)}', true);
+        $italicMathml = $converter->texToMathMl('\\textit{\\ldots{}--``double quotes\'\'---`single quotes\'}');
+        $fallbackMathml = $converter->texToMathMl('\\text{\\"z}', true);
+        $unknownMathml = $converter->texToMathMl('\\text{\\unknown word}', true);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+
+        $t->true(
+            $dom->loadXML($normalMathml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING),
+            'text fixture glyph MathML remains well-formed XML'
+        );
+        $t->true(
+            $dom->loadXML($italicMathml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING),
+            'text fixture ligature MathML remains well-formed XML'
+        );
+        $t->true(
+            $dom->loadXML($fallbackMathml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING),
+            'unsupported text accent fallback remains well-formed XML'
+        );
+        $t->true(
+            $dom->loadXML($unknownMathml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING),
+            'unknown text command fallback remains well-formed XML'
+        );
+        $t->contains('<mtext>(Łukasiewicz, Gödel, and Gödel)</mtext>', $normalMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\text{(\\L ukasiewicz, G\\&quot;{o}del, and G\\&quot;odel)}</annotation>', $normalMathml);
+        $t->contains('<mstyle mathvariant="italic"><mtext>…</mtext></mstyle>', $italicMathml);
+        $t->contains('<mstyle mathvariant="italic"><mtext>–“double quotes”—‘single quotes’</mtext></mstyle>', $italicMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\textit{\\ldots{}--``double quotes&#039;&#039;---`single quotes&#039;}</annotation>', $italicMathml);
+        $t->contains('<mtext>&quot;z</mtext>', $fallbackMathml);
+        $t->contains('<mtext>\\unknown word</mtext>', $unknownMathml);
+        $t->true(!str_contains($normalMathml . $italicMathml, '<mtext>\\L'));
+        $t->true(!str_contains($normalMathml . $italicMathml, '<mtext>G&quot;'));
+    },
     'converts bounded tex escaped special symbols to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $symbolMathml = $converter->texToMathMl('\\{p_i\\} + a\\#b + c\\&d + e\\$f + g\\%h + i\\_j + \\textbackslash', true);

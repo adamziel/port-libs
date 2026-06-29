@@ -454,6 +454,39 @@ final class MathTexConverter
     ];
 
     /** @var array<string, string> */
+    private const TEXT_MODE_NAMED_GLYPHS = [
+        'AA' => 'Å',
+        'aa' => 'å',
+        'AE' => 'Æ',
+        'ae' => 'æ',
+        'L' => 'Ł',
+        'l' => 'ł',
+        'O' => 'Ø',
+        'o' => 'ø',
+        'OE' => 'Œ',
+        'oe' => 'œ',
+        'ss' => 'ß',
+    ];
+
+    /** @var array<string, array<string, string>> */
+    private const TEXT_MODE_ACCENT_GLYPHS = [
+        '"' => [
+            'A' => 'Ä',
+            'E' => 'Ë',
+            'I' => 'Ï',
+            'O' => 'Ö',
+            'U' => 'Ü',
+            'Y' => 'Ÿ',
+            'a' => 'ä',
+            'e' => 'ë',
+            'i' => 'ï',
+            'o' => 'ö',
+            'u' => 'ü',
+            'y' => 'ÿ',
+        ],
+    ];
+
+    /** @var array<string, string> */
     private const SPACING_COMMANDS = [
         ' ' => '0.3333em',
         '!' => '-0.1667em',
@@ -4747,6 +4780,19 @@ final class MathTexConverter
                     continue;
                 }
 
+                if (isset(self::TEXT_MODE_NAMED_GLYPHS[$textCommand])) {
+                    $buffer .= self::TEXT_MODE_NAMED_GLYPHS[$textCommand];
+                    $offset = $commandOffset;
+                    $this->skipTextModeControlWordSpace($source, $offset, $textCommand);
+                    continue;
+                }
+
+                if (isset(self::TEXT_MODE_ACCENT_GLYPHS[$textCommand])) {
+                    $offset = $commandOffset;
+                    $buffer .= $this->readTextModeAccentGlyph($source, $offset, $textCommand);
+                    continue;
+                }
+
                 if ($textCommand !== ' ' && isset(self::SPACING_COMMANDS[$textCommand])) {
                     $this->flushTextModeBuffer($children, $buffer, $variant);
                     $offset = $commandOffset;
@@ -4754,8 +4800,12 @@ final class MathTexConverter
                     continue;
                 }
 
-                $buffer .= $this->normalizeTextModeGroupCommand($textCommand);
+                $normalizedCommand = $this->normalizeTextModeGroupCommand($textCommand);
+                $buffer .= $normalizedCommand;
                 $offset = $commandOffset;
+                if ($normalizedCommand !== '\\' . $textCommand) {
+                    $this->skipTextModeControlWordSpace($source, $offset, $textCommand);
+                }
                 continue;
             }
 
@@ -4800,12 +4850,65 @@ final class MathTexConverter
 
     private function textModeTextNode(string $text, ?string $variant): string
     {
+        $text = $this->normalizeTextModeLigatures($text);
         $node = '<mtext>' . $this->esc($text) . '</mtext>';
         if ($variant === null) {
             return $node;
         }
 
         return '<mstyle mathvariant="' . $this->esc($variant) . '">' . $node . '</mstyle>';
+    }
+
+    private function readTextModeAccentGlyph(string $source, int &$offset, string $command): string
+    {
+        $target = $this->readTextModeAccentTarget($source, $offset, $command);
+
+        return self::TEXT_MODE_ACCENT_GLYPHS[$command][$target] ?? $command . $target;
+    }
+
+    private function readTextModeAccentTarget(string $source, int &$offset, string $command): string
+    {
+        if (($source[$offset] ?? '') === '{') {
+            $target = $this->normalizeTextModeContent($this->readRequiredGroupText($source, $offset));
+        } elseif (($source[$offset] ?? '') === '\\') {
+            $offset++;
+            $targetCommand = $this->readCommandName($source, $offset);
+            $target = self::TEXT_MODE_NAMED_GLYPHS[$targetCommand] ?? $this->normalizeTextModeGroupCommand($targetCommand);
+        } else {
+            $remaining = substr($source, $offset);
+            if (preg_match('/\A./us', $remaining, $m) !== 1) {
+                throw new \InvalidArgumentException('Expected TeX text accent \\' . $command . ' target at offset ' . $offset);
+            }
+            $target = $m[0];
+            $offset += strlen($m[0]);
+        }
+
+        if (preg_match('/\A./us', $target, $m) !== 1) {
+            throw new \InvalidArgumentException('Expected TeX text accent \\' . $command . ' target at offset ' . $offset);
+        }
+
+        return $m[0];
+    }
+
+    private function normalizeTextModeLigatures(string $text): string
+    {
+        return strtr($text, [
+            '---' => '—',
+            '--' => '–',
+            '``' => '“',
+            "''" => '”',
+            '`' => '‘',
+            "'" => '’',
+        ]);
+    }
+
+    private function skipTextModeControlWordSpace(string $source, int &$offset, string $command): void
+    {
+        if ($command === '' || !ctype_alpha($command[0] ?? '') || ($source[$offset] ?? '') !== ' ') {
+            return;
+        }
+
+        $offset++;
     }
 
     private function readTextModeInnerMath(string $source, int &$offset): ?string
@@ -4931,14 +5034,29 @@ final class MathTexConverter
                     $offset++;
                 }
                 $command = substr($text, $commandStart, $offset - $commandStart);
-                $offset--;
-                $output .= match ($command) {
+                $normalizedCommand = match ($command) {
+                    'AA' => 'Å',
+                    'aa' => 'å',
+                    'AE' => 'Æ',
+                    'ae' => 'æ',
                     'LaTeX' => 'LaTeX',
+                    'L' => 'Ł',
+                    'l' => 'ł',
+                    'O' => 'Ø',
+                    'o' => 'ø',
+                    'OE' => 'Œ',
+                    'oe' => 'œ',
+                    'ss' => 'ß',
                     'TeX' => 'TeX',
                     'dots', 'ldots' => '…',
                     'textbackslash' => '\\',
                     default => '\\' . $command,
                 };
+                if ($normalizedCommand !== '\\' . $command) {
+                    $this->skipTextModeControlWordSpace($text, $offset, $command);
+                }
+                $offset--;
+                $output .= $normalizedCommand;
                 continue;
             }
 
