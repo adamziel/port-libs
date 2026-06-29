@@ -1536,7 +1536,13 @@ final class MarkdownReader
         }
 
         $closingTag = $this->tryParseRawHtmlClosingTag($line);
-        if ($closingTag !== null && $this->isCommonMarkBlankTerminatedRawHtmlTag($closingTag['name'])) {
+        if (
+            $closingTag !== null
+            && (
+                $this->isCommonMarkBlankTerminatedRawHtmlTag($closingTag['name'])
+                || $this->isRawHtmlCustomTagName($closingTag['name'])
+            )
+        ) {
             return $this->readRawHtmlUntilBlankLine($lines, $index);
         }
 
@@ -8243,7 +8249,11 @@ final class MarkdownReader
 
         $closingTag = $this->tryParseRawHtmlClosingTag($line);
 
-        return $closingTag !== null && $this->isCommonMarkBlankTerminatedRawHtmlTag($closingTag['name']);
+        return $closingTag !== null
+            && (
+                $this->isCommonMarkBlankTerminatedRawHtmlTag($closingTag['name'])
+                || $this->isRawHtmlCustomTagName($closingTag['name'])
+            );
     }
 
     /**
