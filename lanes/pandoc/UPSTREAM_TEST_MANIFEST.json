@@ -1489,6 +1489,8 @@
         "mappedNativeMarkdownCitationsRoundTripCases": 3,
         "nativeWriterTableConstructorCases": 9,
         "mappedNativeWriterTableConstructorCases": 9,
+        "nativeTextTableCaptionConstructorCases": 1,
+        "mappedNativeTextTableCaptionConstructorCases": 1,
         "nativeReaderRoundTripPropertyBoundaryCases": 2,
         "mappedNativeReaderRoundTripPropertyBoundaryCases": 2,
         "nativeReaderFocusedConstructorReadbackCases": 10,
