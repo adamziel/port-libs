@@ -15142,6 +15142,100 @@ XML;
         $t->same('bullet_list', $bullet->type);
         $t->same('-', $bullet->attr('bulletChar'));
     },
+    'preserves raw docx numbering relationship records before id de-duplication' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $numberingRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
+        $numberingContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml';
+        $chosenNumberingXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:abstractNum w:abstractNumId="51">
+    <w:lvl w:ilvl="0"><w:start w:val="6"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/></w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="7"><w:abstractNumId w:val="51"/></w:num>
+</w:numbering>
+XML;
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/chosen-numbering.xml" ContentType="' . $numberingContentType . '; profile=dedupe-review"/>' . "\n" .
+            '  <Override PartName="/word/missing-numbering.xml" ContentType="' . $numberingContentType . '"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rNumberingDup" Type="' . $numberingRel . '" Target="missing-numbering.xml"/>' . "\n" .
+            '  <Relationship Id="rNumberingDup" Type="' . $numberingRel . '" Target="chosen-numbering.xml?pick=2#defs"/>' . "\n" .
+            '  <Relationship Id="rNumberingExternal" Type="' . $numberingRel . '" Target="https://example.test/numbering.xml?remote=1#defs" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rNumberingMissingTarget" Type="' . $numberingRel . '"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/chosen-numbering.xml'] = $chosenNumberingXml;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $review = $package['numberingRelationship'];
+        $records = $review['relationshipRecords'];
+        $duplicate = $review['duplicateRelationshipIdItems'][0];
+        $chosen = $review['relationshipRecordsById']['rNumberingDup'][1];
+        $missingTarget = $review['relationshipRecordsById']['rNumberingMissingTarget'][0];
+        $ordered = $document->children[2];
+
+        $t->same($review, $docx['numberingRelationshipReview']);
+        $t->same('word/chosen-numbering.xml', $docx['numberingPart']);
+        $t->same('rNumberingDup', $docx['numberingRelationship']['id']);
+        $t->same('chosen-numbering.xml?pick=2#defs', $docx['numberingRelationship']['target']);
+        $t->same('word/chosen-numbering.xml?pick=2#defs', $docx['numberingRelationship']['resolvedTarget']);
+        $t->same(2, $review['relationshipCount']);
+        $t->same(1, $review['internalRelationshipCount']);
+        $t->same(1, $review['externalRelationshipCount']);
+        $t->same(1, $review['selectedRelationshipCount']);
+        $t->same(4, $review['relationshipRecordCount']);
+        $t->same(3, $review['validRelationshipRecordCount']);
+        $t->same(1, $review['invalidRelationshipRecordCount']);
+        $t->same(1, $review['duplicateRelationshipIdCount']);
+        $t->same(2, $review['duplicateRelationshipRecordCount']);
+        $t->same(['rNumberingDup'], $review['duplicateRelationshipIds']);
+        $t->same(1, $review['relationshipRecordIssueCount']);
+        $t->same(['missing-relationship-target'], $review['relationshipRecordIssueCodes']);
+        $t->same([
+            'rNumberingDup',
+            'rNumberingDup',
+            'rNumberingExternal',
+            'rNumberingMissingTarget',
+        ], $review['relationshipRecordIds']);
+        $t->same(['word/chosen-numbering.xml', 'word/missing-numbering.xml'], $review['relationshipRecordTargetParts']);
+        $t->same(['https://example.test/numbering.xml?remote=1#defs'], $review['relationshipRecordExternalTargets']);
+        $t->same([
+            $numberingContentType,
+            $numberingContentType . '; profile=dedupe-review',
+        ], $review['relationshipRecordContentTypes']);
+
+        $t->same('rNumberingDup', $duplicate['id']);
+        $t->same([2, 3], $duplicate['ordinals']);
+        $t->same(['missing-numbering.xml', 'chosen-numbering.xml?pick=2#defs'], $duplicate['targets']);
+        $t->same(['word/missing-numbering.xml', 'word/chosen-numbering.xml'], $duplicate['targetParts']);
+        $t->same([false, true], $duplicate['existsValues']);
+        $t->same([$numberingContentType, $numberingContentType . '; profile=dedupe-review'], $duplicate['contentTypes']);
+        $t->same([2, 3, 4, 5], array_column($records, 'ordinal'));
+        $t->same('word/chosen-numbering.xml', $chosen['targetPart']);
+        $t->same('pick=2', $chosen['targetQuery']);
+        $t->same('defs', $chosen['targetFragment']);
+        $t->same(true, $chosen['duplicateId']);
+        $t->same(false, $missingTarget['valid']);
+        $t->same(['missing-relationship-target'], $missingTarget['issues']);
+        $t->same($review['relationshipRecordCount'], $summary['numberingRelationshipRecordCount']);
+        $t->same($review['duplicateRelationshipIdCount'], $summary['numberingRelationshipRecordDuplicateIdCount']);
+        $t->same($review['duplicateRelationshipRecordCount'], $summary['numberingRelationshipRecordDuplicateCount']);
+        $t->same($review['invalidRelationshipRecordCount'], $summary['numberingRelationshipRecordInvalidCount']);
+        $t->same($review['relationshipRecordIssueCount'], $summary['numberingRelationshipRecordIssueCount']);
+        $t->same($review['relationshipRecordIssueCodes'], $summary['numberingRelationshipRecordIssueCodes']);
+        $t->same('ordered_list', $ordered->type);
+        $t->same(6, $ordered->attr('start'));
+    },
     'reports invalid docx numbering relationship target without aborting import' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $numberingRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
