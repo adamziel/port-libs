@@ -13261,6 +13261,7 @@ final class DocxOpenXmlReader
         $partBaseNameStems = $this->packagePartBaseNameStemSummary($partInventory);
         $partCaseFoldBaseNames = $this->packagePartCaseFoldBaseNameSummary($partInventory);
         $partNameCharacters = $this->packagePartNameCharacterSummary($partInventory);
+        $partPathSegmentCharacters = $this->packagePartPathSegmentCharacterSummary($partInventory);
         $partXmlRoots = $this->packagePartXmlRootSummary($partInventory);
         $partXmlElementAncestry = $this->packagePartXmlElementAncestrySummary($partInventory);
         $partXmlNamespaceShadows = $this->packagePartXmlNamespaceShadowSummary($partInventory);
@@ -15747,6 +15748,15 @@ final class DocxOpenXmlReader
             'partNameNonAsciiPartCount' => count($partNameCharacters['flagPartNames']['non-ascii'] ?? []),
             'partNameCharacterFlagCounts' => $partNameCharacters['flagCounts'],
             'partNameCharacterFlagPartNames' => $partNameCharacters['flagPartNames'],
+            'partPathSegmentCharacterReviewSegmentCount' => $partPathSegmentCharacters['segmentCount'],
+            'partPathSegmentCharacterReviewPartCount' => $partPathSegmentCharacters['partCount'],
+            'partPathSegmentUppercaseSegmentCount' => count($partPathSegmentCharacters['flagSegments']['uppercase'] ?? []),
+            'partPathSegmentWhitespaceSegmentCount' => count($partPathSegmentCharacters['flagSegments']['whitespace'] ?? []),
+            'partPathSegmentPercentEncodedOctetSegmentCount' => count($partPathSegmentCharacters['flagSegments']['percent-encoded-octet'] ?? []),
+            'partPathSegmentNonAsciiSegmentCount' => count($partPathSegmentCharacters['flagSegments']['non-ascii'] ?? []),
+            'partPathSegmentCharacterFlagCounts' => $partPathSegmentCharacters['flagCounts'],
+            'partPathSegmentCharacterFlagPartNames' => $partPathSegmentCharacters['flagPartNames'],
+            'partPathSegmentCharacterFlagSegments' => $partPathSegmentCharacters['flagSegments'],
             'partXmlInspectableCount' => $partXmlRoots['count'],
             'partXmlValidCount' => $partXmlRoots['validCount'],
             'partXmlInvalidCount' => $partXmlRoots['invalidCount'],
@@ -16802,6 +16812,7 @@ final class DocxOpenXmlReader
             'partBaseNameStems' => $partBaseNameStems,
             'partCaseFoldBaseNames' => $partCaseFoldBaseNames,
             'partNameCharacterReviewParts' => $partNameCharacters['parts'],
+            'partPathSegmentCharacterReviewSegments' => $partPathSegmentCharacters['segments'],
             'partXmlRoots' => $partXmlRoots['items'],
             'partXmlDeclarations' => $partXmlRoots['xmlDeclarations'],
             'partXmlDoctypes' => $partXmlRoots['xmlDoctypes'],
@@ -22206,6 +22217,109 @@ final class DocxOpenXmlReader
             'flagCounts' => $flagCounts,
             'flagPartNames' => $flagPartNames,
             'parts' => $items,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return array{segmentCount:int, partCount:int, flagCounts:array<string, int>, flagPartNames:array<string, list<string>>, flagSegments:array<string, list<string>>, segments:list<array<string, mixed>>}
+     */
+    private function packagePartPathSegmentCharacterSummary(array $partInventory): array
+    {
+        $flagCounts = [];
+        $flagPartNames = [];
+        $flagSegments = [];
+        $items = [];
+        $partsWithSegmentIssues = [];
+        foreach ($partInventory as $partName => $part) {
+            $partName = (string) ($part['partName'] ?? $partName);
+            $segmentReviews = is_array($part['pathSegmentCharacterReviews'] ?? null)
+                ? $part['pathSegmentCharacterReviews']
+                : $this->packagePartPathSegmentCharacterReviews(
+                    is_array($part['pathSegments'] ?? null)
+                        ? array_values(array_map('strval', $part['pathSegments']))
+                        : $this->packagePartPathSegments($partName),
+                );
+            if ($segmentReviews === []) {
+                continue;
+            }
+
+            $partsWithSegmentIssues[$partName] = true;
+            foreach ($segmentReviews as $segmentReview) {
+                if (!is_array($segmentReview)) {
+                    continue;
+                }
+
+                $segment = is_string($segmentReview['segment'] ?? null) ? $segmentReview['segment'] : '';
+                $flags = is_array($segmentReview['flags'] ?? null)
+                    ? array_values(array_filter(
+                        array_map('strval', $segmentReview['flags']),
+                        static fn (string $flag): bool => $flag !== '',
+                    ))
+                    : [];
+                if ($segment === '' || $flags === []) {
+                    continue;
+                }
+
+                foreach ($flags as $flag) {
+                    $flagCounts[$flag] = ($flagCounts[$flag] ?? 0) + 1;
+                    $flagPartNames[$flag] ??= [];
+                    $flagSegments[$flag] ??= [];
+                    $this->appendUniqueString($flagPartNames[$flag], $partName);
+                    $this->appendUniqueString($flagSegments[$flag], $segment);
+                }
+
+                $items[] = [
+                    'partName' => $partName,
+                    'directory' => is_string($part['directory'] ?? null)
+                        ? $part['directory']
+                        : $this->packagePartDirectory($partName),
+                    'pathSegmentIndex' => is_int($segmentReview['pathSegmentIndex'] ?? null)
+                        ? $segmentReview['pathSegmentIndex']
+                        : 0,
+                    'segment' => $segment,
+                    'caseFoldSegment' => $this->packagePartCaseFoldKey($segment),
+                    'flags' => $flags,
+                    'bytes' => (int) ($part['bytes'] ?? 0),
+                    'contentTypeSource' => is_string($part['contentTypeSource'] ?? null)
+                        ? $part['contentTypeSource']
+                        : 'missing',
+                    'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+                ];
+            }
+        }
+
+        ksort($flagCounts, SORT_STRING);
+        ksort($flagPartNames, SORT_STRING);
+        foreach ($flagPartNames as &$partNames) {
+            sort($partNames, SORT_STRING);
+        }
+        unset($partNames);
+        ksort($flagSegments, SORT_STRING);
+        foreach ($flagSegments as &$segments) {
+            sort($segments, SORT_STRING);
+        }
+        unset($segments);
+
+        usort(
+            $items,
+            static function (array $left, array $right): int {
+                $partNameComparison = strcmp((string) $left['partName'], (string) $right['partName']);
+                if ($partNameComparison !== 0) {
+                    return $partNameComparison;
+                }
+
+                return ((int) $left['pathSegmentIndex']) <=> ((int) $right['pathSegmentIndex']);
+            },
+        );
+
+        return [
+            'segmentCount' => count($items),
+            'partCount' => count($partsWithSegmentIssues),
+            'flagCounts' => $flagCounts,
+            'flagPartNames' => $flagPartNames,
+            'flagSegments' => $flagSegments,
+            'segments' => $items,
         ];
     }
 
@@ -36363,6 +36477,21 @@ final class DocxOpenXmlReader
                 $roles = ['package-part'];
             }
             $partNameCharacterFlags = $this->packagePartNameCharacterFlags($partName);
+            $pathSegmentCharacterReviews = $this->packagePartPathSegmentCharacterReviews($pathSegments);
+            $pathSegmentCharacterFlags = [];
+            $pathSegmentCharacterFlagCounts = [];
+            foreach ($pathSegmentCharacterReviews as $pathSegmentCharacterReview) {
+                foreach (($pathSegmentCharacterReview['flags'] ?? []) as $flag) {
+                    if (!is_string($flag) || $flag === '') {
+                        continue;
+                    }
+
+                    $this->appendUniqueString($pathSegmentCharacterFlags, $flag);
+                    $pathSegmentCharacterFlagCounts[$flag] = ($pathSegmentCharacterFlagCounts[$flag] ?? 0) + 1;
+                }
+            }
+            sort($pathSegmentCharacterFlags, SORT_STRING);
+            ksort($pathSegmentCharacterFlagCounts, SORT_STRING);
             $xmlRoot = $this->packagePartXmlRootInventory($contents, $partName, $contentTypeResolution, $partExtension);
             $xmlRelationshipReferences = $this->packagePartXmlRelationshipReferenceInventory(
                 $contents,
@@ -36410,6 +36539,14 @@ final class DocxOpenXmlReader
                 'partNameHasWhitespace' => in_array('whitespace', $partNameCharacterFlags, true),
                 'partNameHasPercentEncodedOctet' => in_array('percent-encoded-octet', $partNameCharacterFlags, true),
                 'partNameHasNonAscii' => in_array('non-ascii', $partNameCharacterFlags, true),
+                'pathSegmentCharacterReviews' => $pathSegmentCharacterReviews,
+                'pathSegmentCharacterReviewCount' => count($pathSegmentCharacterReviews),
+                'pathSegmentCharacterFlags' => $pathSegmentCharacterFlags,
+                'pathSegmentCharacterFlagCounts' => $pathSegmentCharacterFlagCounts,
+                'pathSegmentHasUppercase' => in_array('uppercase', $pathSegmentCharacterFlags, true),
+                'pathSegmentHasWhitespace' => in_array('whitespace', $pathSegmentCharacterFlags, true),
+                'pathSegmentHasPercentEncodedOctet' => in_array('percent-encoded-octet', $pathSegmentCharacterFlags, true),
+                'pathSegmentHasNonAscii' => in_array('non-ascii', $pathSegmentCharacterFlags, true),
             ] + $xmlRoot + $xmlRelationshipReferences;
             if ($entry['isRelationshipPart']) {
                 $relationshipSourcePart = $this->relationshipSourcePartForInventory($partName);
@@ -36442,6 +36579,33 @@ final class DocxOpenXmlReader
         }
 
         return $flags;
+    }
+
+    /**
+     * @param list<string> $pathSegments
+     * @return list<array{pathSegmentIndex:int, segment:string, flags:list<string>}>
+     */
+    private function packagePartPathSegmentCharacterReviews(array $pathSegments): array
+    {
+        $reviews = [];
+        foreach ($pathSegments as $pathSegmentIndex => $segment) {
+            if (!is_string($segment) || $segment === '') {
+                continue;
+            }
+
+            $flags = $this->packagePartNameCharacterFlags($segment);
+            if ($flags === []) {
+                continue;
+            }
+
+            $reviews[] = [
+                'pathSegmentIndex' => $pathSegmentIndex,
+                'segment' => $segment,
+                'flags' => $flags,
+            ];
+        }
+
+        return $reviews;
     }
 
     /**
