@@ -28216,6 +28216,7 @@ final class XmlHtmlDom
 
         if ($name === 'video') {
             $summary['poster'] = self::attributeOrNull($element, 'poster');
+            $summary += self::videoPosterReviewSummary($element);
         }
 
         $fallbackText = self::normalizedTextWithoutMediaResourceChildren($element);
@@ -28224,6 +28225,51 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function videoPosterReviewSummary(\DOMElement $video): array
+    {
+        $posterRaw = self::attributeOrNull($video, 'poster');
+        $posterUrl = self::hyperlinkUrlReviewSummary($posterRaw);
+        $issues = [];
+
+        if ($posterRaw !== null) {
+            if (trim($posterRaw) === '') {
+                $issues[] = ['code' => 'empty-video-poster'];
+            } elseif ($posterUrl['unsafe'] === true) {
+                $issues[] = [
+                    'code' => 'unsafe-video-poster-url',
+                    'poster' => $posterRaw,
+                    'scheme' => $posterUrl['scheme'],
+                ];
+            } elseif ($posterUrl['kind'] === 'absolute' && !in_array($posterUrl['scheme'], ['http', 'https'], true)) {
+                $issues[] = [
+                    'code' => 'non-http-video-poster-url',
+                    'poster' => $posterRaw,
+                    'scheme' => $posterUrl['scheme'],
+                ];
+            }
+        }
+
+        return [
+            'videoPosterReviewPolicy' => 'video-poster-resource-provenance-review',
+            'videoPosterRaw' => $posterRaw,
+            'videoPosterPresent' => $posterRaw !== null,
+            'videoPosterKind' => $posterUrl['kind'],
+            'videoPosterScheme' => $posterUrl['scheme'],
+            'videoPosterUnsafe' => $posterUrl['unsafe'],
+            'videoPosterReviewOnlyNoResourceFetch' => true,
+            'videoPosterIssues' => $issues,
+            'videoPosterIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'videoPosterIssueCount' => count($issues),
+            'videoPosterValid' => $posterRaw === null ? null : $issues === [],
+        ];
     }
 
     /**
