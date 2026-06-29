@@ -2322,11 +2322,6 @@ final class WordPressBlockWriter
 
     private function noteSourceLabel(AstNode $node): string
     {
-        // Keep legacy Markdown footnotes numeric; note-style CSL output needs source labels for reviewer handoff.
-        if (!$this->containsProcessedCslNoteCitation($node)) {
-            return '';
-        }
-
         foreach (['label', 'noteLabel'] as $attribute) {
             $label = $node->attr($attribute);
             if (!is_scalar($label)) {
