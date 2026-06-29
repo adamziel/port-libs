@@ -10555,14 +10555,27 @@ XML;
     },
     'summarizes docx relationship target path shape for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
+        $nonAsciiTargetPart = "word/customXml/caf\xC3\xA9-target.xml";
         $parts['word/_rels/document.xml.rels'] = str_replace(
             '</Relationships>',
             '  <Relationship Id="rSelfDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="document.xml?self=1#source"/>' . "\n" .
             '  <Relationship Id="rCoreParent" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="../docProps/core.xml?audit=up#core"/>' . "\n" .
             '  <Relationship Id="rAbsoluteImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="/word/media/review.png?absolute=1#root"/>' . "\n" .
+            '  <Relationship Id="rBackslashTarget" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="customXml\\backslash-target.xml"/>' . "\n" .
+            '  <Relationship Id="rEmptySegmentTarget" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="customXml//empty-segment-target.xml"/>' . "\n" .
+            '  <Relationship Id="rCurrentDirectoryTarget" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="./customXml/current-dot-target.xml"/>' . "\n" .
+            '  <Relationship Id="rPercentEncodedTarget" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="customXml/encoded%20target.xml"/>' . "\n" .
+            '  <Relationship Id="rWhitespaceTarget" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="customXml/white space target.xml"/>' . "\n" .
+            '  <Relationship Id="rNonAsciiTarget" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="customXml/caf&#xE9;-target.xml"/>' . "\n" .
             '</Relationships>',
             $parts['word/_rels/document.xml.rels']
         );
+        $parts['word/customXml/backslash-target.xml'] = '<backslashTarget/>';
+        $parts['word/customXml/empty-segment-target.xml'] = '<emptySegmentTarget/>';
+        $parts['word/customXml/current-dot-target.xml'] = '<currentDirectoryTarget/>';
+        $parts['word/customXml/encoded target.xml'] = '<percentEncodedTarget/>';
+        $parts['word/customXml/white space target.xml'] = '<whitespaceTarget/>';
+        $parts[$nonAsciiTargetPart] = '<nonAsciiTarget/>';
         $parts['word/header/header1.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Header package path audit</w:t></w:r></w:p></w:hdr>';
         $parts['word/header/_rels/header1.xml.rels'] = <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -10580,16 +10593,46 @@ XML;
         $selfDocument = $documentRelationships['rSelfDocument'];
         $coreParent = $documentRelationships['rCoreParent'];
         $absoluteImage = $documentRelationships['rAbsoluteImage'];
+        $backslashTarget = $documentRelationships['rBackslashTarget'];
+        $emptySegmentTarget = $documentRelationships['rEmptySegmentTarget'];
+        $currentDirectoryTarget = $documentRelationships['rCurrentDirectoryTarget'];
+        $percentEncodedTarget = $documentRelationships['rPercentEncodedTarget'];
+        $whitespaceTarget = $documentRelationships['rWhitespaceTarget'];
+        $nonAsciiTarget = $documentRelationships['rNonAsciiTarget'];
         $headerParent = $headerRelationships['rHeaderParentImage'];
         $headerSelf = $headerRelationships['rHeaderSelf'];
 
         $t->same(2, $summary['relationshipTargetParentTraversalCount']);
         $t->same(2, $summary['relationshipTargetParentTraversalSegmentCount']);
         $t->same(2, $summary['sameSourceRelationshipCount']);
+        $t->same(6, $summary['relationshipTargetPathCharacterReviewTargetCount']);
+        $t->same([
+            'backslash' => 1,
+            'current-directory-segment' => 1,
+            'empty-path-segment' => 1,
+            'non-ascii' => 1,
+            'percent-encoded-octet' => 1,
+            'whitespace' => 1,
+        ], $summary['relationshipTargetPathCharacterFlagCounts']);
+        $t->same(1, $summary['relationshipTargetBackslashCount']);
+        $t->same(1, $summary['relationshipTargetEmptyPathSegmentCount']);
+        $t->same(1, $summary['relationshipTargetCurrentDirectorySegmentCount']);
+        $t->same(1, $summary['relationshipTargetPercentEncodedOctetCount']);
+        $t->same(1, $summary['relationshipTargetWhitespaceCount']);
+        $t->same(1, $summary['relationshipTargetNonAsciiCount']);
         $t->same(['word/_rels/document.xml.rels', 'word/header/_rels/header1.xml.rels'], $summary['relationshipPartsWithParentTraversalTargets']);
         $t->same(['word/_rels/document.xml.rels', 'word/header/_rels/header1.xml.rels'], $summary['relationshipPartsWithSameSourceTargets']);
+        $t->same(['word/_rels/document.xml.rels'], $summary['relationshipPartsWithPathCharacterTargets']);
         $t->same(['rCoreParent', 'rHeaderParentImage'], array_column($summary['relationshipTargetsWithParentTraversal'], 'id'));
         $t->same(['rSelfDocument', 'rHeaderSelf'], array_column($summary['relationshipsWithSameSourceTargets'], 'id'));
+        $t->same([
+            'rBackslashTarget',
+            'rEmptySegmentTarget',
+            'rCurrentDirectoryTarget',
+            'rPercentEncodedTarget',
+            'rWhitespaceTarget',
+            'rNonAsciiTarget',
+        ], array_column($summary['relationshipTargetsWithPathCharacters'], 'id'));
 
         $t->same('word/document.xml', $selfDocument['targetPart']);
         $t->same(true, $selfDocument['sameSourcePart']);
@@ -10609,6 +10652,26 @@ XML;
         $t->same(true, $absoluteImage['targetStartsAtPackageRoot']);
         $t->same(false, $absoluteImage['targetHasParentTraversal']);
 
+        $t->same('word/customXml/backslash-target.xml', $backslashTarget['targetPart']);
+        $t->same(['backslash'], $backslashTarget['targetPathCharacterFlags']);
+        $t->same(true, $backslashTarget['targetHasBackslash']);
+        $t->same(false, $backslashTarget['targetHasParentTraversal']);
+        $t->same(['empty-path-segment'], $emptySegmentTarget['targetPathCharacterFlags']);
+        $t->same(true, $emptySegmentTarget['targetHasEmptyPathSegment']);
+        $t->same('word/customXml/empty-segment-target.xml', $emptySegmentTarget['targetPart']);
+        $t->same(['current-directory-segment'], $currentDirectoryTarget['targetPathCharacterFlags']);
+        $t->same(true, $currentDirectoryTarget['targetHasCurrentDirectorySegment']);
+        $t->same('word/customXml/current-dot-target.xml', $currentDirectoryTarget['targetPart']);
+        $t->same(['percent-encoded-octet'], $percentEncodedTarget['targetPathCharacterFlags']);
+        $t->same(true, $percentEncodedTarget['targetHasPercentEncodedOctet']);
+        $t->same('word/customXml/encoded target.xml', $percentEncodedTarget['targetPart']);
+        $t->same(['whitespace'], $whitespaceTarget['targetPathCharacterFlags']);
+        $t->same(true, $whitespaceTarget['targetHasWhitespace']);
+        $t->same('word/customXml/white space target.xml', $whitespaceTarget['targetPart']);
+        $t->same(['non-ascii'], $nonAsciiTarget['targetPathCharacterFlags']);
+        $t->same(true, $nonAsciiTarget['targetHasNonAscii']);
+        $t->same($nonAsciiTargetPart, $nonAsciiTarget['targetPart']);
+
         $t->same('word/media/review.png', $headerParent['targetPart']);
         $t->same(1, $headerParent['targetParentTraversalCount']);
         $t->same(true, $headerParent['targetHasParentTraversal']);
@@ -10624,6 +10687,8 @@ XML;
         $t->same(0, $package['relationshipTypes'][$imageType]['sameSourceTargetCount']);
         $t->same(1, $package['relationshipTypes'][$coreType]['parentTraversalTargetCount']);
         $t->same(1, $package['relationshipTypes'][$customXmlType]['sameSourceTargetCount']);
+        $t->same(6, $package['relationshipTypes'][$customXmlType]['targetPathCharacterReviewTargetCount']);
+        $t->same($summary['relationshipTargetPathCharacterFlagCounts'], $package['relationshipTypes'][$customXmlType]['targetPathCharacterFlagCounts']);
         $t->same(1, $package['relationshipTypes'][$hyperlinkType]['sameSourceTargetCount']);
         $t->same(true, $package['relationshipTypes'][$imageType]['relationships'][1]['targetStartsAtPackageRoot']);
         $t->same(true, $package['relationshipTypes'][$imageType]['relationships'][2]['targetHasParentTraversal']);

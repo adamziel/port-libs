@@ -13462,14 +13462,17 @@ final class DocxOpenXmlReader
         $relationshipTargetFragmentCount = 0;
         $relationshipTargetStartsAtPackageRootCount = 0;
         $relationshipTargetParentTraversalSegmentCount = 0;
+        $relationshipTargetPathCharacterFlagCounts = [];
         $relationshipPartsWithTargetReferenceSuffix = [];
         $relationshipPartsWithPackageRootTargets = [];
         $relationshipPartsWithParentTraversalTargets = [];
         $relationshipPartsWithSameSourceTargets = [];
+        $relationshipPartsWithPathCharacterTargets = [];
         $relationshipTargetsWithReferenceSuffix = [];
         $relationshipTargetsStartingAtPackageRoot = [];
         $relationshipTargetsWithParentTraversal = [];
         $relationshipsWithSameSourceTargets = [];
+        $relationshipTargetsWithPathCharacters = [];
         $relationshipRecordCount = 0;
         $duplicateRelationshipIdCount = 0;
         $duplicateRelationshipRecordCount = 0;
@@ -13866,6 +13869,21 @@ final class DocxOpenXmlReader
                 if (($relationship['sameSourcePart'] ?? false) === true) {
                     $relationshipsWithSameSourceTargets[] = $this->relationshipProvenanceSummaryItem($relationship);
                     $relationshipPartsWithSameSourceTargets[(string) $relationshipsPart] = true;
+                }
+                $targetPathCharacterFlags = is_array($relationship['targetPathCharacterFlags'] ?? null)
+                    ? array_values(array_map('strval', $relationship['targetPathCharacterFlags']))
+                    : [];
+                if ($targetPathCharacterFlags !== []) {
+                    $relationshipTargetsWithPathCharacters[] = $this->relationshipProvenanceSummaryItem($relationship);
+                    $relationshipPartsWithPathCharacterTargets[(string) $relationshipsPart] = true;
+                    foreach ($targetPathCharacterFlags as $targetPathCharacterFlag) {
+                        if ($targetPathCharacterFlag === '') {
+                            continue;
+                        }
+
+                        $relationshipTargetPathCharacterFlagCounts[$targetPathCharacterFlag] =
+                            ($relationshipTargetPathCharacterFlagCounts[$targetPathCharacterFlag] ?? 0) + 1;
+                    }
                 }
                 $targetPart = $relationship['targetPart'] ?? null;
                 if (is_string($targetPart) && $targetPart !== '') {
@@ -15284,6 +15302,7 @@ final class DocxOpenXmlReader
         ksort($externalRelationshipTargetKindCounts);
         ksort($externalRelationshipTargetSchemeCounts);
         ksort($externalRelationshipTargetIssueCounts);
+        ksort($relationshipTargetPathCharacterFlagCounts);
         ksort($relationshipRecordTargetModeCounts);
         ksort($relationshipRecordIssueCodes);
         ksort($relationshipPartIssueCodes);
@@ -16736,6 +16755,14 @@ final class DocxOpenXmlReader
             'relationshipTargetParentTraversalCount' => count($relationshipTargetsWithParentTraversal),
             'relationshipTargetParentTraversalSegmentCount' => $relationshipTargetParentTraversalSegmentCount,
             'sameSourceRelationshipCount' => count($relationshipsWithSameSourceTargets),
+            'relationshipTargetPathCharacterReviewTargetCount' => count($relationshipTargetsWithPathCharacters),
+            'relationshipTargetPathCharacterFlagCounts' => $relationshipTargetPathCharacterFlagCounts,
+            'relationshipTargetBackslashCount' => (int) ($relationshipTargetPathCharacterFlagCounts['backslash'] ?? 0),
+            'relationshipTargetEmptyPathSegmentCount' => (int) ($relationshipTargetPathCharacterFlagCounts['empty-path-segment'] ?? 0),
+            'relationshipTargetCurrentDirectorySegmentCount' => (int) ($relationshipTargetPathCharacterFlagCounts['current-directory-segment'] ?? 0),
+            'relationshipTargetPercentEncodedOctetCount' => (int) ($relationshipTargetPathCharacterFlagCounts['percent-encoded-octet'] ?? 0),
+            'relationshipTargetWhitespaceCount' => (int) ($relationshipTargetPathCharacterFlagCounts['whitespace'] ?? 0),
+            'relationshipTargetNonAsciiCount' => (int) ($relationshipTargetPathCharacterFlagCounts['non-ascii'] ?? 0),
             'contentTypeDefaultCount' => (int) ($contentTypesPart['defaultCount'] ?? 0),
             'contentTypeOverrideCount' => (int) ($contentTypesPart['overrideCount'] ?? 0),
             'contentTypeRecordCount' => (int) ($contentTypesPart['recordCount'] ?? 0),
@@ -16861,6 +16888,7 @@ final class DocxOpenXmlReader
             'relationshipPartsWithPackageRootTargets' => array_keys($relationshipPartsWithPackageRootTargets),
             'relationshipPartsWithParentTraversalTargets' => array_keys($relationshipPartsWithParentTraversalTargets),
             'relationshipPartsWithSameSourceTargets' => array_keys($relationshipPartsWithSameSourceTargets),
+            'relationshipPartsWithPathCharacterTargets' => array_keys($relationshipPartsWithPathCharacterTargets),
             'relationshipPartsWithDuplicateRelationshipIds' => $relationshipPartsWithDuplicateRelationshipIds,
             'relationshipPartsWithInvalidRecords' => $relationshipPartsWithInvalidRecords,
             'relationshipPartsWithInvalidXml' => $relationshipPartsWithInvalidXml,
@@ -16877,6 +16905,7 @@ final class DocxOpenXmlReader
             'relationshipTargetsStartingAtPackageRoot' => $relationshipTargetsStartingAtPackageRoot,
             'relationshipTargetsWithParentTraversal' => $relationshipTargetsWithParentTraversal,
             'relationshipsWithSameSourceTargets' => $relationshipsWithSameSourceTargets,
+            'relationshipTargetsWithPathCharacters' => $relationshipTargetsWithPathCharacters,
             'externalRelationshipTargets' => $externalRelationshipTargets,
             'unsafeExternalRelationshipTargets' => $unsafeExternalRelationshipTargets,
             'duplicateRelationshipIdItems' => $duplicateRelationshipIdItems,
@@ -34820,6 +34849,9 @@ final class DocxOpenXmlReader
         $externalTargetIssues = is_array($relationship['externalTargetIssues'] ?? null)
             ? array_values(array_map('strval', $relationship['externalTargetIssues']))
             : [];
+        $targetPathCharacterFlags = is_array($relationship['targetPathCharacterFlags'] ?? null)
+            ? array_values(array_map('strval', $relationship['targetPathCharacterFlags']))
+            : [];
 
         return [
             'id' => $relationship['id'] ?? '',
@@ -34838,6 +34870,13 @@ final class DocxOpenXmlReader
             'targetHasParentTraversal' => (bool) ($relationship['targetHasParentTraversal'] ?? false),
             'targetStartsAtPackageRoot' => (bool) ($relationship['targetStartsAtPackageRoot'] ?? false),
             'sameSourcePart' => (bool) ($relationship['sameSourcePart'] ?? false),
+            'targetPathCharacterFlags' => $targetPathCharacterFlags,
+            'targetHasBackslash' => (bool) ($relationship['targetHasBackslash'] ?? false),
+            'targetHasEmptyPathSegment' => (bool) ($relationship['targetHasEmptyPathSegment'] ?? false),
+            'targetHasCurrentDirectorySegment' => (bool) ($relationship['targetHasCurrentDirectorySegment'] ?? false),
+            'targetHasPercentEncodedOctet' => (bool) ($relationship['targetHasPercentEncodedOctet'] ?? false),
+            'targetHasWhitespace' => (bool) ($relationship['targetHasWhitespace'] ?? false),
+            'targetHasNonAscii' => (bool) ($relationship['targetHasNonAscii'] ?? false),
             'externalTargetKind' => is_string($relationship['externalTargetKind'] ?? null) ? $relationship['externalTargetKind'] : null,
             'externalTargetScheme' => is_string($relationship['externalTargetScheme'] ?? null) ? $relationship['externalTargetScheme'] : null,
             'externalTargetAllowed' => is_bool($relationship['externalTargetAllowed'] ?? null) ? $relationship['externalTargetAllowed'] : null,
@@ -35303,8 +35342,10 @@ final class DocxOpenXmlReader
                         'packageRootTargetCount' => 0,
                         'parentTraversalTargetCount' => 0,
                         'sameSourceTargetCount' => 0,
+                        'targetPathCharacterReviewTargetCount' => 0,
                         'allowedExternalTargetCount' => 0,
                         'unsafeExternalTargetCount' => 0,
+                        'targetPathCharacterFlagCounts' => [],
                         'externalTargetKindCounts' => [],
                         'externalTargetSchemeCounts' => [],
                         'externalTargetIssueCounts' => [],
@@ -35427,6 +35468,20 @@ final class DocxOpenXmlReader
                     if (($relationship['sameSourcePart'] ?? false) === true) {
                         $types[$typeKey]['sameSourceTargetCount']++;
                     }
+                    $targetPathCharacterFlags = is_array($relationship['targetPathCharacterFlags'] ?? null)
+                        ? array_values(array_map('strval', $relationship['targetPathCharacterFlags']))
+                        : [];
+                    if ($targetPathCharacterFlags !== []) {
+                        $types[$typeKey]['targetPathCharacterReviewTargetCount']++;
+                        foreach ($targetPathCharacterFlags as $targetPathCharacterFlag) {
+                            if ($targetPathCharacterFlag === '') {
+                                continue;
+                            }
+
+                            $types[$typeKey]['targetPathCharacterFlagCounts'][$targetPathCharacterFlag] =
+                                ($types[$typeKey]['targetPathCharacterFlagCounts'][$targetPathCharacterFlag] ?? 0) + 1;
+                        }
+                    }
                     $this->appendUniqueString($types[$typeKey]['targetParts'], $targetPart);
                     if ($targetPart !== null) {
                         $targetPartInventory = $partInventory[$targetPart] ?? null;
@@ -35538,6 +35593,15 @@ final class DocxOpenXmlReader
                     'targetHasParentTraversal' => (bool) ($relationship['targetHasParentTraversal'] ?? false),
                     'targetStartsAtPackageRoot' => (bool) ($relationship['targetStartsAtPackageRoot'] ?? false),
                     'sameSourcePart' => (bool) ($relationship['sameSourcePart'] ?? false),
+                    'targetPathCharacterFlags' => is_array($relationship['targetPathCharacterFlags'] ?? null)
+                        ? array_values(array_map('strval', $relationship['targetPathCharacterFlags']))
+                        : [],
+                    'targetHasBackslash' => (bool) ($relationship['targetHasBackslash'] ?? false),
+                    'targetHasEmptyPathSegment' => (bool) ($relationship['targetHasEmptyPathSegment'] ?? false),
+                    'targetHasCurrentDirectorySegment' => (bool) ($relationship['targetHasCurrentDirectorySegment'] ?? false),
+                    'targetHasPercentEncodedOctet' => (bool) ($relationship['targetHasPercentEncodedOctet'] ?? false),
+                    'targetHasWhitespace' => (bool) ($relationship['targetHasWhitespace'] ?? false),
+                    'targetHasNonAscii' => (bool) ($relationship['targetHasNonAscii'] ?? false),
                     'externalTargetKind' => is_string($relationship['externalTargetKind'] ?? null) ? $relationship['externalTargetKind'] : null,
                     'externalTargetScheme' => is_string($relationship['externalTargetScheme'] ?? null) ? $relationship['externalTargetScheme'] : null,
                     'externalTargetAllowed' => is_bool($relationship['externalTargetAllowed'] ?? null) ? $relationship['externalTargetAllowed'] : null,
@@ -35556,6 +35620,7 @@ final class DocxOpenXmlReader
             ksort($type['sourceRoleCounts']);
             ksort($type['targetDirectoryCounts']);
             ksort($type['targetPartExtensionCounts']);
+            ksort($type['targetPathCharacterFlagCounts']);
             ksort($type['externalTargetKindCounts']);
             ksort($type['externalTargetSchemeCounts']);
             ksort($type['externalTargetIssueCounts']);
@@ -36273,6 +36338,13 @@ final class DocxOpenXmlReader
             'targetHasParentTraversal' => $targetPath['hasParentTraversal'],
             'targetStartsAtPackageRoot' => $targetPath['startsAtPackageRoot'],
             'sameSourcePart' => $targetPath['sameSourcePart'],
+            'targetPathCharacterFlags' => $targetPath['characterFlags'],
+            'targetHasBackslash' => $targetPath['hasBackslash'],
+            'targetHasEmptyPathSegment' => $targetPath['hasEmptyPathSegment'],
+            'targetHasCurrentDirectorySegment' => $targetPath['hasCurrentDirectorySegment'],
+            'targetHasPercentEncodedOctet' => $targetPath['hasPercentEncodedOctet'],
+            'targetHasWhitespace' => $targetPath['hasWhitespace'],
+            'targetHasNonAscii' => $targetPath['hasNonAscii'],
             'externalTargetKind' => is_array($externalPolicy) ? $externalPolicy['kind'] : null,
             'externalTargetScheme' => is_array($externalPolicy) ? $externalPolicy['scheme'] : null,
             'externalTargetAllowed' => is_array($externalPolicy) ? $externalPolicy['allowed'] : null,
@@ -36291,7 +36363,7 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{parentTraversalCount:int, hasParentTraversal:bool, startsAtPackageRoot:bool, sameSourcePart:bool}
+     * @return array{parentTraversalCount:int, hasParentTraversal:bool, startsAtPackageRoot:bool, sameSourcePart:bool, characterFlags:list<string>, hasBackslash:bool, hasEmptyPathSegment:bool, hasCurrentDirectorySegment:bool, hasPercentEncodedOctet:bool, hasWhitespace:bool, hasNonAscii:bool}
      */
     private function relationshipTargetPathProvenance(
         string $target,
@@ -36306,13 +36378,46 @@ final class DocxOpenXmlReader
                 'hasParentTraversal' => false,
                 'startsAtPackageRoot' => false,
                 'sameSourcePart' => false,
+                'characterFlags' => [],
+                'hasBackslash' => false,
+                'hasEmptyPathSegment' => false,
+                'hasCurrentDirectorySegment' => false,
+                'hasPercentEncodedOctet' => false,
+                'hasWhitespace' => false,
+                'hasNonAscii' => false,
             ];
         }
 
         $rawTargetPart = preg_replace('/[#?].*$/', '', $target) ?? $target;
-        $rawTargetPart = str_replace('\\', '/', $rawTargetPart);
+        $characterFlags = [];
+        $hasBackslash = str_contains($rawTargetPart, '\\');
+        $separatorNormalizedTargetPart = str_replace('\\', '/', $rawTargetPart);
+        $rawSegments = explode('/', ltrim($separatorNormalizedTargetPart, '/'));
+        $hasEmptyPathSegment = in_array('', $rawSegments, true);
+        $hasCurrentDirectorySegment = in_array('.', $rawSegments, true);
+        $hasPercentEncodedOctet = preg_match('/%[0-9A-Fa-f]{2}/', $rawTargetPart) === 1;
+        $hasWhitespace = preg_match('/[ \t\r\n\f\v]/', $rawTargetPart) === 1;
+        $hasNonAscii = preg_match('/[^\x00-\x7F]/', $rawTargetPart) === 1;
+        if ($hasBackslash) {
+            $characterFlags[] = 'backslash';
+        }
+        if ($hasEmptyPathSegment) {
+            $characterFlags[] = 'empty-path-segment';
+        }
+        if ($hasCurrentDirectorySegment) {
+            $characterFlags[] = 'current-directory-segment';
+        }
+        if ($hasPercentEncodedOctet) {
+            $characterFlags[] = 'percent-encoded-octet';
+        }
+        if ($hasWhitespace) {
+            $characterFlags[] = 'whitespace';
+        }
+        if ($hasNonAscii) {
+            $characterFlags[] = 'non-ascii';
+        }
         $segments = array_values(array_filter(
-            explode('/', ltrim($rawTargetPart, '/')),
+            $rawSegments,
             static fn (string $segment): bool => $segment !== '' && $segment !== '.',
         ));
         $parentTraversalCount = count(array_filter($segments, static fn (string $segment): bool => $segment === '..'));
@@ -36321,10 +36426,17 @@ final class DocxOpenXmlReader
         return [
             'parentTraversalCount' => $parentTraversalCount,
             'hasParentTraversal' => $parentTraversalCount > 0,
-            'startsAtPackageRoot' => str_starts_with($rawTargetPart, '/'),
+            'startsAtPackageRoot' => str_starts_with($separatorNormalizedTargetPart, '/'),
             'sameSourcePart' => $targetPart !== null
                 && $normalizedSourcePart !== ''
                 && $targetPart === $normalizedSourcePart,
+            'characterFlags' => $characterFlags,
+            'hasBackslash' => $hasBackslash,
+            'hasEmptyPathSegment' => $hasEmptyPathSegment,
+            'hasCurrentDirectorySegment' => $hasCurrentDirectorySegment,
+            'hasPercentEncodedOctet' => $hasPercentEncodedOctet,
+            'hasWhitespace' => $hasWhitespace,
+            'hasNonAscii' => $hasNonAscii,
         ];
     }
 
