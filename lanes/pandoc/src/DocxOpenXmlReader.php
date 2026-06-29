@@ -854,6 +854,39 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['endnotesInvalidRootCount'] = $endnotes['summary']['invalidRootCount'];
         $packageProvenance['summary']['endnotesIssueCount'] = $endnotes['summary']['issueCount'];
         $packageProvenance['summary']['endnotesIssueCodes'] = $endnotes['summary']['issueCodes'];
+        $noteRelationshipSidecars = $this->noteRelationshipSidecarReview([
+            'footnotes' => $footnotes['summary'],
+            'endnotes' => $endnotes['summary'],
+            'comments' => $comments['summary'],
+        ]);
+        $packageProvenance['noteRelationshipSidecars'] = $noteRelationshipSidecars;
+        $packageProvenance['summary']['noteRelationshipSidecarSourceCount'] = $noteRelationshipSidecars['sourceCount'];
+        $packageProvenance['summary']['noteRelationshipSidecarSourceWithRelationshipsCount'] = $noteRelationshipSidecars['sourceWithRelationshipsCount'];
+        $packageProvenance['summary']['noteRelationshipSidecarRelationshipCount'] = $noteRelationshipSidecars['relationshipCount'];
+        $packageProvenance['summary']['noteRelationshipSidecarRelationshipRecordCount'] = $noteRelationshipSidecars['relationshipRecordCount'];
+        $packageProvenance['summary']['noteRelationshipSidecarReferencedRelationshipCount'] = $noteRelationshipSidecars['referencedRelationshipCount'];
+        $packageProvenance['summary']['noteRelationshipSidecarUnreferencedRelationshipCount'] = $noteRelationshipSidecars['unreferencedRelationshipCount'];
+        $packageProvenance['summary']['noteRelationshipSidecarMissingReferencedRelationshipCount'] = $noteRelationshipSidecars['missingReferencedRelationshipCount'];
+        $packageProvenance['summary']['noteRelationshipSidecarInternalRelationshipCount'] = $noteRelationshipSidecars['internalRelationshipCount'];
+        $packageProvenance['summary']['noteRelationshipSidecarExternalRelationshipCount'] = $noteRelationshipSidecars['externalRelationshipCount'];
+        $packageProvenance['summary']['noteRelationshipSidecarExistingTargetCount'] = $noteRelationshipSidecars['existingTargetCount'];
+        $packageProvenance['summary']['noteRelationshipSidecarMissingTargetCount'] = $noteRelationshipSidecars['missingTargetCount'];
+        $packageProvenance['summary']['noteRelationshipSidecarMissingContentTypeCount'] = $noteRelationshipSidecars['missingContentTypeCount'];
+        $packageProvenance['summary']['noteRelationshipSidecarDuplicateRelationshipIdCount'] = $noteRelationshipSidecars['duplicateRelationshipIdCount'];
+        $packageProvenance['summary']['noteRelationshipSidecarInvalidRelationshipRecordCount'] = $noteRelationshipSidecars['invalidRelationshipRecordCount'];
+        $packageProvenance['summary']['noteRelationshipSidecarIssueCount'] = $noteRelationshipSidecars['issueCount'];
+        $packageProvenance['summary']['noteRelationshipSidecarIssueCodes'] = $noteRelationshipSidecars['issueCodes'];
+        $packageProvenance['summary']['noteRelationshipSidecarRelationshipIds'] = $noteRelationshipSidecars['relationshipIds'];
+        $packageProvenance['summary']['noteRelationshipSidecarReferencedRelationshipIds'] = $noteRelationshipSidecars['referencedRelationshipIds'];
+        $packageProvenance['summary']['noteRelationshipSidecarUnreferencedRelationshipIds'] = $noteRelationshipSidecars['unreferencedRelationshipIds'];
+        $packageProvenance['summary']['noteRelationshipSidecarMissingReferencedRelationshipIds'] = $noteRelationshipSidecars['missingReferencedRelationshipIds'];
+        $packageProvenance['summary']['noteRelationshipSidecarTargetParts'] = $noteRelationshipSidecars['targetParts'];
+        $packageProvenance['summary']['noteRelationshipSidecarExternalTargets'] = $noteRelationshipSidecars['externalTargets'];
+        $packageProvenance['summary']['noteRelationshipSidecarTargetReferenceSuffixes'] = $noteRelationshipSidecars['targetReferenceSuffixes'];
+        $packageProvenance['summary']['noteRelationshipSidecarRelationshipTypeCounts'] = $noteRelationshipSidecars['relationshipTypeCounts'];
+        $packageProvenance['summary']['noteRelationshipSidecarContentTypeBaseCounts'] = $noteRelationshipSidecars['contentTypeBaseCounts'];
+        $packageProvenance['summary']['noteRelationshipSidecarExternalTargetKindCounts'] = $noteRelationshipSidecars['externalTargetKindCounts'];
+        $packageProvenance['summary']['noteRelationshipSidecarExternalTargetSchemeCounts'] = $noteRelationshipSidecars['externalTargetSchemeCounts'];
         $packageProvenance['customXmlParts'] = $customXmlParts;
         $packageProvenance['summary']['customXmlPartCount'] = $customXmlParts['count'];
         $packageProvenance['summary']['customXmlRelationshipCount'] = $customXmlParts['relationshipCount'];
@@ -1288,6 +1321,7 @@ final class DocxOpenXmlReader
                 'endnotes' => $endnotes['summary'],
                 'commentsPart' => $commentsPart['partName'],
                 'comments' => $comments['summary'],
+                'noteRelationshipSidecars' => $noteRelationshipSidecars,
                 'commentsExtendedPart' => $commentsExtendedPart['partName'],
                 'commentsExtended' => $commentsExtended['summary'],
                 'commentsIdsPart' => $commentsIdsPart['partName'],
@@ -11031,6 +11065,206 @@ final class DocxOpenXmlReader
             'relationshipBacklinks' => $relationshipBacklinks,
             'relationships' => $relationships,
             'relationshipDiagnostics' => $relationshipDiagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $summaries
+     * @return array<string, mixed>
+     */
+    private function noteRelationshipSidecarReview(array $summaries): array
+    {
+        $items = [];
+        $relationshipIds = [];
+        $referencedRelationshipIds = [];
+        $unreferencedRelationshipIds = [];
+        $missingReferencedRelationshipIds = [];
+        $targetParts = [];
+        $externalTargets = [];
+        $targetReferenceSuffixes = [];
+        $relationshipTypeCounts = [];
+        $contentTypeBaseCounts = [];
+        $externalTargetKindCounts = [];
+        $externalTargetSchemeCounts = [];
+        $issueCodes = [];
+
+        $relationshipCount = 0;
+        $relationshipRecordCount = 0;
+        $referencedRelationshipCount = 0;
+        $unreferencedRelationshipCount = 0;
+        $missingReferencedRelationshipCount = 0;
+        $internalRelationshipCount = 0;
+        $externalRelationshipCount = 0;
+        $existingTargetCount = 0;
+        $missingTargetCount = 0;
+        $missingContentTypeCount = 0;
+        $duplicateRelationshipIdCount = 0;
+        $invalidRelationshipRecordCount = 0;
+        $issueCount = 0;
+
+        foreach ($summaries as $sourceType => $summary) {
+            $sourceType = (string) $sourceType;
+            $relationships = is_array($summary['relationships'] ?? null) ? $summary['relationships'] : [];
+            $relationshipIssueCodes = is_array($summary['relationshipIssueCodes'] ?? null)
+                ? $summary['relationshipIssueCodes']
+                : [];
+            $item = [
+                'sourceType' => $sourceType,
+                'relationshipsPart' => is_string($summary['relationshipsPart'] ?? null)
+                    ? $summary['relationshipsPart']
+                    : null,
+                'relationshipCount' => (int) ($summary['relationshipCount'] ?? 0),
+                'relationshipRecordCount' => (int) ($summary['relationshipRecordCount'] ?? 0),
+                'referencedRelationshipCount' => (int) ($summary['referencedRelationshipCount'] ?? 0),
+                'unreferencedRelationshipCount' => (int) ($summary['unreferencedRelationshipCount'] ?? 0),
+                'missingReferencedRelationshipCount' => (int) ($summary['missingReferencedRelationshipCount'] ?? 0),
+                'internalRelationshipCount' => (int) ($summary['internalRelationshipCount'] ?? 0),
+                'externalRelationshipCount' => (int) ($summary['externalRelationshipCount'] ?? 0),
+                'existingTargetCount' => (int) ($summary['existingRelationshipTargetCount'] ?? 0),
+                'missingTargetCount' => (int) ($summary['missingRelationshipTargetCount'] ?? 0),
+                'missingContentTypeCount' => (int) ($summary['missingRelationshipContentTypeCount'] ?? 0),
+                'duplicateRelationshipIdCount' => (int) ($summary['duplicateRelationshipIdCount'] ?? 0),
+                'invalidRelationshipRecordCount' => (int) ($summary['invalidRelationshipRecordCount'] ?? 0),
+                'relationshipIssueCount' => (int) ($summary['relationshipIssueCount'] ?? 0),
+                'relationshipIssueCodes' => $relationshipIssueCodes,
+                'relationshipIds' => is_array($summary['relationshipIds'] ?? null) ? $summary['relationshipIds'] : [],
+                'referencedRelationshipIds' => is_array($summary['referencedRelationshipIds'] ?? null)
+                    ? $summary['referencedRelationshipIds']
+                    : [],
+                'unreferencedRelationshipIds' => is_array($summary['unreferencedRelationshipIds'] ?? null)
+                    ? $summary['unreferencedRelationshipIds']
+                    : [],
+                'missingReferencedRelationshipIds' => is_array($summary['missingReferencedRelationshipIds'] ?? null)
+                    ? $summary['missingReferencedRelationshipIds']
+                    : [],
+                'targetParts' => is_array($summary['relationshipTargetParts'] ?? null)
+                    ? $summary['relationshipTargetParts']
+                    : [],
+                'externalTargets' => is_array($summary['relationshipExternalTargets'] ?? null)
+                    ? $summary['relationshipExternalTargets']
+                    : [],
+                'targetReferenceSuffixes' => is_array($summary['relationshipTargetReferenceSuffixes'] ?? null)
+                    ? $summary['relationshipTargetReferenceSuffixes']
+                    : [],
+                'byteExposurePolicy' => 'note-relationship-sidecar-bytes-blocked',
+                'reviewPolicy' => 'note-relationship-sidecar-metadata-only',
+            ];
+
+            $items[] = $item;
+            $relationshipCount += $item['relationshipCount'];
+            $relationshipRecordCount += $item['relationshipRecordCount'];
+            $referencedRelationshipCount += $item['referencedRelationshipCount'];
+            $unreferencedRelationshipCount += $item['unreferencedRelationshipCount'];
+            $missingReferencedRelationshipCount += $item['missingReferencedRelationshipCount'];
+            $internalRelationshipCount += $item['internalRelationshipCount'];
+            $externalRelationshipCount += $item['externalRelationshipCount'];
+            $existingTargetCount += $item['existingTargetCount'];
+            $missingTargetCount += $item['missingTargetCount'];
+            $missingContentTypeCount += $item['missingContentTypeCount'];
+            $duplicateRelationshipIdCount += $item['duplicateRelationshipIdCount'];
+            $invalidRelationshipRecordCount += $item['invalidRelationshipRecordCount'];
+            $issueCount += $item['relationshipIssueCount'];
+
+            foreach ($item['relationshipIds'] as $relationshipId) {
+                $this->appendUniqueString($relationshipIds, is_string($relationshipId) ? $relationshipId : null);
+            }
+            foreach ($item['referencedRelationshipIds'] as $relationshipId) {
+                $this->appendUniqueString($referencedRelationshipIds, is_string($relationshipId) ? $relationshipId : null);
+            }
+            foreach ($item['unreferencedRelationshipIds'] as $relationshipId) {
+                $this->appendUniqueString($unreferencedRelationshipIds, is_string($relationshipId) ? $relationshipId : null);
+            }
+            foreach ($item['missingReferencedRelationshipIds'] as $relationshipId) {
+                $this->appendUniqueString($missingReferencedRelationshipIds, is_string($relationshipId) ? $relationshipId : null);
+            }
+            foreach ($item['targetParts'] as $targetPart) {
+                $this->appendUniqueString($targetParts, is_string($targetPart) ? $targetPart : null);
+            }
+            foreach ($item['externalTargets'] as $externalTarget) {
+                $this->appendUniqueString($externalTargets, is_string($externalTarget) ? $externalTarget : null);
+            }
+            foreach ($item['targetReferenceSuffixes'] as $targetReferenceSuffix) {
+                $this->appendUniqueString($targetReferenceSuffixes, is_string($targetReferenceSuffix) ? $targetReferenceSuffix : null);
+            }
+            foreach ($relationshipIssueCodes as $issueCode) {
+                $this->appendUniqueString($issueCodes, is_string($issueCode) ? $issueCode : null);
+            }
+            foreach ($relationships as $relationship) {
+                if (!is_array($relationship)) {
+                    continue;
+                }
+                $type = is_string($relationship['type'] ?? null) ? $relationship['type'] : '';
+                if ($type !== '') {
+                    $relationshipTypeCounts[$type] = ($relationshipTypeCounts[$type] ?? 0) + 1;
+                }
+                $contentTypeBase = is_string($relationship['contentTypeBase'] ?? null) ? $relationship['contentTypeBase'] : '';
+                if ($contentTypeBase !== '') {
+                    $contentTypeBaseCounts[$contentTypeBase] = ($contentTypeBaseCounts[$contentTypeBase] ?? 0) + 1;
+                }
+                if (($relationship['external'] ?? false) === true) {
+                    $kind = is_string($relationship['externalTargetKind'] ?? null)
+                        ? $relationship['externalTargetKind']
+                        : '(unknown)';
+                    $scheme = is_string($relationship['externalTargetScheme'] ?? null)
+                        ? $relationship['externalTargetScheme']
+                        : '(none)';
+                    $externalTargetKindCounts[$kind] = ($externalTargetKindCounts[$kind] ?? 0) + 1;
+                    $externalTargetSchemeCounts[$scheme] = ($externalTargetSchemeCounts[$scheme] ?? 0) + 1;
+                    foreach (($relationship['externalTargetIssues'] ?? []) as $issueCode) {
+                        $this->appendUniqueString($issueCodes, is_string($issueCode) ? $issueCode : null);
+                    }
+                }
+            }
+        }
+
+        ksort($relationshipTypeCounts, SORT_STRING);
+        ksort($contentTypeBaseCounts, SORT_STRING);
+        ksort($externalTargetKindCounts, SORT_STRING);
+        ksort($externalTargetSchemeCounts, SORT_STRING);
+        sort($relationshipIds, SORT_STRING);
+        sort($referencedRelationshipIds, SORT_STRING);
+        sort($unreferencedRelationshipIds, SORT_STRING);
+        sort($missingReferencedRelationshipIds, SORT_STRING);
+        sort($targetParts, SORT_STRING);
+        sort($externalTargets, SORT_STRING);
+        sort($targetReferenceSuffixes, SORT_STRING);
+        sort($issueCodes, SORT_STRING);
+        $issueCount = max($issueCount, count($issueCodes));
+
+        return [
+            'sourceCount' => count($items),
+            'sourceWithRelationshipsCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['relationshipCount'] > 0,
+            )),
+            'relationshipCount' => $relationshipCount,
+            'relationshipRecordCount' => $relationshipRecordCount,
+            'referencedRelationshipCount' => $referencedRelationshipCount,
+            'unreferencedRelationshipCount' => $unreferencedRelationshipCount,
+            'missingReferencedRelationshipCount' => $missingReferencedRelationshipCount,
+            'internalRelationshipCount' => $internalRelationshipCount,
+            'externalRelationshipCount' => $externalRelationshipCount,
+            'existingTargetCount' => $existingTargetCount,
+            'missingTargetCount' => $missingTargetCount,
+            'missingContentTypeCount' => $missingContentTypeCount,
+            'duplicateRelationshipIdCount' => $duplicateRelationshipIdCount,
+            'invalidRelationshipRecordCount' => $invalidRelationshipRecordCount,
+            'issueCount' => $issueCount,
+            'issueCodes' => $issueCodes,
+            'relationshipIds' => $relationshipIds,
+            'referencedRelationshipIds' => $referencedRelationshipIds,
+            'unreferencedRelationshipIds' => $unreferencedRelationshipIds,
+            'missingReferencedRelationshipIds' => $missingReferencedRelationshipIds,
+            'targetParts' => $targetParts,
+            'externalTargets' => $externalTargets,
+            'targetReferenceSuffixes' => $targetReferenceSuffixes,
+            'relationshipTypeCounts' => $relationshipTypeCounts,
+            'contentTypeBaseCounts' => $contentTypeBaseCounts,
+            'externalTargetKindCounts' => $externalTargetKindCounts,
+            'externalTargetSchemeCounts' => $externalTargetSchemeCounts,
+            'items' => $items,
+            'byteExposurePolicy' => 'note-relationship-sidecar-bytes-blocked',
+            'reviewPolicy' => 'note-relationship-sidecar-metadata-only',
         ];
     }
 

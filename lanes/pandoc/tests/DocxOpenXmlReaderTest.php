@@ -27637,6 +27637,128 @@ XML;
         $t->true(!str_contains((string) $encoded, $packageComment), 'package comment text should not be exposed');
         $t->true(!str_contains((string) $encoded, $entryComment), 'entry comment text should not be exposed');
     },
+    'summarizes docx note and comment relationship sidecars without exposing target bytes' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n",
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n"
+            . '  <Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>' . "\n"
+            . '  <Override PartName="/word/endnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml"/>' . "\n"
+            . '  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>' . "\n",
+            $parts['[Content_Types].xml'],
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>' . "\n"
+            . '  <Relationship Id="rEndnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes" Target="endnotes.xml"/>' . "\n"
+            . '  <Relationship Id="rComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>' . "\n"
+            . '</Relationships>',
+            $parts['word/_rels/document.xml.rels'],
+        );
+        $parts['word/footnotes.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:footnote w:id="1">
+    <w:p>
+      <w:r><w:t>Footnote relationship sidecar</w:t></w:r>
+      <w:r r:id="rFootImage"><w:t>image relationship</w:t></w:r>
+      <w:r r:id="rFootMissing"><w:t>missing relationship</w:t></w:r>
+    </w:p>
+  </w:footnote>
+</w:footnotes>
+XML;
+        $parts['word/_rels/footnotes.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rFootImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/note-image.png?slot=foot#img"/>
+  <Relationship Id="rFootMissing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-note.png?slot=missing#img"/>
+  <Relationship Id="rFootOrphan" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/footnote?unused=1#orphan" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['word/endnotes.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:endnote w:id="2">
+    <w:p><w:r r:id="rEndExternal"><w:t>Endnote external relationship</w:t></w:r></w:p>
+  </w:endnote>
+</w:endnotes>
+XML;
+        $parts['word/_rels/endnotes.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rEndExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="file:///tmp/blocked-endnote-target" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['word/comments.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:comment w:id="5" w:author="Reviewer">
+    <w:p><w:r r:id="rCommentImage"><w:t>Comment relationship sidecar</w:t></w:r></w:p>
+  </w:comment>
+</w:comments>
+XML;
+        $parts['word/_rels/comments.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rCommentImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/comment-image.png?slot=comment#img"/>
+</Relationships>
+XML;
+        $parts['word/media/note-image.png'] = 'hidden note image bytes';
+        $parts['word/media/comment-image.png'] = 'hidden comment image bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $sidecars = $package['noteRelationshipSidecars'];
+        $footnotes = $docx['footnotes'];
+        $endnotes = $docx['endnotes'];
+        $comments = $docx['comments'];
+
+        $t->same(3, $sidecars['sourceCount']);
+        $t->same(3, $sidecars['sourceWithRelationshipsCount']);
+        $t->same(5, $sidecars['relationshipCount']);
+        $t->same(5, $sidecars['relationshipRecordCount']);
+        $t->same(4, $sidecars['referencedRelationshipCount']);
+        $t->same(1, $sidecars['unreferencedRelationshipCount']);
+        $t->same(['rFootOrphan'], $sidecars['unreferencedRelationshipIds']);
+        $t->same(3, $sidecars['internalRelationshipCount']);
+        $t->same(2, $sidecars['externalRelationshipCount']);
+        $t->same(2, $sidecars['existingTargetCount']);
+        $t->same(1, $sidecars['missingTargetCount']);
+        $t->same(0, $sidecars['missingContentTypeCount']);
+        $t->same(['external-target-unsafe-scheme', 'missing-target-part'], $sidecars['issueCodes']);
+        $t->same(['word/media/comment-image.png', 'word/media/missing-note.png', 'word/media/note-image.png'], $sidecars['targetParts']);
+        $t->same(['file:///tmp/blocked-endnote-target', 'https://example.test/footnote?unused=1#orphan'], $sidecars['externalTargets']);
+        $t->same(['?slot=comment#img', '?slot=foot#img', '?slot=missing#img', '?unused=1#orphan'], $sidecars['targetReferenceSuffixes']);
+        $t->same([
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink' => 2,
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image' => 3,
+        ], $sidecars['relationshipTypeCounts']);
+        $t->same(['absolute-uri' => 2], $sidecars['externalTargetKindCounts']);
+        $t->same(['file' => 1, 'https' => 1], $sidecars['externalTargetSchemeCounts']);
+        $t->same('note-relationship-sidecar-bytes-blocked', $sidecars['byteExposurePolicy']);
+        $t->same('note-relationship-sidecar-metadata-only', $sidecars['reviewPolicy']);
+
+        $t->same(5, $summary['noteRelationshipSidecarRelationshipCount']);
+        $t->same(4, $summary['noteRelationshipSidecarReferencedRelationshipCount']);
+        $t->same(1, $summary['noteRelationshipSidecarUnreferencedRelationshipCount']);
+        $t->same(1, $summary['noteRelationshipSidecarMissingTargetCount']);
+        $t->same(['external-target-unsafe-scheme', 'missing-target-part'], $summary['noteRelationshipSidecarIssueCodes']);
+        $t->same($sidecars['relationshipTypeCounts'], $summary['noteRelationshipSidecarRelationshipTypeCounts']);
+        $t->same($sidecars, $docx['noteRelationshipSidecars']);
+
+        $t->same(['rFootImage', 'rFootMissing'], $footnotes['referencedRelationshipIds']);
+        $t->same(['rFootOrphan'], $footnotes['unreferencedRelationshipIds']);
+        $t->same(['rEndExternal'], $endnotes['referencedRelationshipIds']);
+        $t->same(['rCommentImage'], $comments['referencedRelationshipIds']);
+        $t->same('note-relationship-sidecar-metadata-only', $sidecars['items'][0]['reviewPolicy']);
+
+        $encoded = json_encode($sidecars);
+        $t->true(is_string($encoded), 'sidecar metadata should encode for review');
+        $t->true(!str_contains((string) $encoded, 'hidden note image bytes'), 'note image bytes must not be exposed');
+        $t->true(!str_contains((string) $encoded, 'hidden comment image bytes'), 'comment image bytes must not be exposed');
+    },
     'reads a native zip docx package without shelling out' => static function (TestRunner $t): void {
         $path = docx_openxml_reader_temp_docx(docx_openxml_reader_fixture_parts());
         try {
