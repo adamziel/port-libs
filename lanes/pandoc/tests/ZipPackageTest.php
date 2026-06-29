@@ -13738,6 +13738,14 @@ return [
             $key = $contentTypeSummary['declaredContentTypeBase'] ?? $contentTypeSummary['declaredContentTypes'][0];
             $handoffByContentType[$key] = $contentTypeSummary;
         }
+        $byFamily = [];
+        foreach ($summary['declaredContentTypeFamilySummaries'] as $familySummary) {
+            $byFamily[$familySummary['declaredContentTypeFamily']] = $familySummary;
+        }
+        $handoffByFamily = [];
+        foreach ($summary['handoffDeclaredContentTypeFamilySummaries'] as $familySummary) {
+            $handoffByFamily[$familySummary['declaredContentTypeFamily']] = $familySummary;
+        }
 
         $mainType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
         $relsType = 'application/vnd.openxmlformats-package.relationships+xml';
@@ -13745,8 +13753,14 @@ return [
         $t->same(3, $summary['handoffDeclaredContentTypeEntryCount']);
         $t->same(5, $summary['declaredContentTypeSummaryCount']);
         $t->same(3, $summary['handoffDeclaredContentTypeSummaryCount']);
+        $t->same(5, $summary['declaredContentTypeFamilyEntryCount']);
+        $t->same(3, $summary['handoffDeclaredContentTypeFamilyEntryCount']);
+        $t->same(5, $summary['declaredContentTypeFamilySummaryCount']);
+        $t->same(3, $summary['handoffDeclaredContentTypeFamilySummaryCount']);
         $t->same(1, $summary['invalidDeclaredContentTypeEntryCount']);
         $t->same(1, $summary['handoffInvalidDeclaredContentTypeEntryCount']);
+        $t->same(1, $summary['invalidDeclaredContentTypeFamilyEntryCount']);
+        $t->same(1, $summary['handoffInvalidDeclaredContentTypeFamilyEntryCount']);
         $t->same(1, $summary['declaredContentTypeParameterEntryCount']);
         $t->same(1, $summary['handoffDeclaredContentTypeParameterEntryCount']);
         $t->same(['invalid-declared-content-type'], $summary['declaredContentTypeIssues']);
@@ -13754,12 +13768,17 @@ return [
         $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
 
         $t->same($mainType, $summary['entries'][0]['declaredContentTypeBase']);
+        $t->same('openxml-wordprocessing', $summary['entries'][0]['declaredContentTypeFamily']);
         $t->same('content-types-override', $summary['entries'][0]['declaredContentTypeSource']);
         $t->same(true, $summary['entries'][0]['declaredContentTypeIsValid']);
         $t->same($relsType, $summary['entries'][1]['declaredContentTypeBase']);
+        $t->same('opc-relationships', $summary['entries'][1]['declaredContentTypeFamily']);
         $t->same(true, $summary['entries'][1]['declaredContentTypeHasParameters']);
         $t->same(1, $summary['entries'][1]['declaredContentTypeParameterCount']);
         $t->same('UTF-8', $summary['entries'][1]['declaredContentTypeParameterMap']['charset']);
+        $t->same('binary', $summary['entries'][2]['declaredContentTypeFamily']);
+        $t->same('xml', $summary['entries'][3]['declaredContentTypeFamily']);
+        $t->same('invalid', $summary['entries'][4]['declaredContentTypeFamily']);
         $t->same(false, $summary['entries'][4]['declaredContentTypeIsValid']);
         $t->same(['invalid-declared-content-type'], $summary['entries'][4]['declaredContentTypeIssues']);
         $t->same('ready', $summary['entries'][4]['status']);
@@ -13781,6 +13800,29 @@ return [
         $t->same(false, isset($handoffByContentType['application/octet-stream']));
         $t->same(false, isset($handoffByContentType['application/xml']));
         $t->same(['custom/invalid-type.bin'], $handoffByContentType['not a content type']['handoffEntryNames']);
+
+        $t->same(['binary', 'invalid', 'opc-relationships', 'openxml-wordprocessing', 'xml'], array_keys($byFamily));
+        $t->same(['invalid', 'opc-relationships', 'openxml-wordprocessing'], array_keys($handoffByFamily));
+        $t->same([$mainType], $byFamily['openxml-wordprocessing']['declaredContentTypeBases']);
+        $t->same(['main-document'], $byFamily['openxml-wordprocessing']['roles']);
+        $t->same(['word/document.xml'], $byFamily['openxml-wordprocessing']['handoffEntryNames']);
+        $t->same([$relsType], $byFamily['opc-relationships']['declaredContentTypeBases']);
+        $t->same(1, $byFamily['opc-relationships']['parameterEntryCount']);
+        $t->same(1, $byFamily['opc-relationships']['parameterCount']);
+        $t->same(['document-relationships'], $byFamily['opc-relationships']['roles']);
+        $t->same(['application/octet-stream'], $byFamily['binary']['declaredContentTypeBases']);
+        $t->same(1, $byFamily['binary']['failedEntryCount']);
+        $t->same(['word/media/raw.bin'], $byFamily['binary']['failedEntryNames']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $byFamily['binary']['issues']);
+        $t->same(['application/xml'], $byFamily['xml']['declaredContentTypeBases']);
+        $t->same(1, $byFamily['xml']['missingEntryCount']);
+        $t->same(['word/missing.xml'], $byFamily['xml']['missingEntryNames']);
+        $t->same([], $byFamily['invalid']['declaredContentTypeBases']);
+        $t->same(1, $byFamily['invalid']['invalidEntryCount']);
+        $t->same(['invalid-declared-content-type'], $byFamily['invalid']['issues']);
+        $t->same(false, isset($handoffByFamily['binary']));
+        $t->same(false, isset($handoffByFamily['xml']));
+        $t->same(['custom/invalid-type.bin'], $handoffByFamily['invalid']['handoffEntryNames']);
     },
 
     'summarizes readable zip handoff content digests for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
