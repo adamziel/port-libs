@@ -205,6 +205,32 @@ final class PandocFormatRegistry
         'wiki' => 'mediawiki',
     ];
 
+    /** @var list<string> */
+    private const ROFF_MANUAL_INPUT_FORMATS = [
+        'man',
+        'mdoc',
+    ];
+
+    /** @var list<string> */
+    private const ROFF_MANUAL_OUTPUT_FORMATS = [
+        'man',
+        'ms',
+    ];
+
+    /** @var array<string, string> */
+    private const ROFF_MANUAL_FORMAT_LABELS = [
+        'man' => 'roff man manual page',
+        'mdoc' => 'roff mdoc manual page',
+        'ms' => 'roff ms macro package',
+    ];
+
+    /** @var array<string, string> */
+    private const ROFF_MANUAL_EXTENSION_INFERENCE = [
+        '.ms' => 'ms',
+        '.roff' => 'ms',
+        '.[1-9]' => 'man',
+    ];
+
     /**
      * @var array<string, array{status:string, implementation:string, notes:string}>
      */
@@ -309,6 +335,11 @@ final class PandocFormatRegistry
             'implementation' => MarkdownReader::class,
             'notes' => 'Raw TeX and bounded LaTeX table/math behavior are mapped; full LaTeX reader parity remains open.',
         ],
+        'man' => [
+            'status' => 'unsupported',
+            'implementation' => '',
+            'notes' => 'Roff manual registry evidence tracks the upstream man reader token; no native PHP man reader is registered yet.',
+        ],
         'markdown' => [
             'status' => 'partial',
             'implementation' => MarkdownReader::class,
@@ -333,6 +364,11 @@ final class PandocFormatRegistry
             'status' => 'partial',
             'implementation' => MarkdownReader::class,
             'notes' => 'Strict Markdown uses the shared reader without a complete extension disabling matrix.',
+        ],
+        'mdoc' => [
+            'status' => 'unsupported',
+            'implementation' => '',
+            'notes' => 'Roff manual registry evidence tracks upstream mdoc as a manual-family input token; no native PHP mdoc reader is registered yet.',
         ],
         'native' => [
             'status' => 'partial',
@@ -444,6 +480,11 @@ final class PandocFormatRegistry
             'implementation' => LatexWriter::class,
             'notes' => 'LaTeX writer covers bounded block, inline, math, and raw TeX slices; full writer parity remains open.',
         ],
+        'man' => [
+            'status' => 'unsupported',
+            'implementation' => '',
+            'notes' => 'Roff manual registry evidence tracks the upstream man writer token; no native PHP man writer is registered yet.',
+        ],
         'markdown' => [
             'status' => 'partial',
             'implementation' => MarkdownWriter::class,
@@ -468,6 +509,11 @@ final class PandocFormatRegistry
             'status' => 'partial',
             'implementation' => MarkdownWriter::class,
             'notes' => 'Strict Markdown output lacks a complete extension disabling matrix.',
+        ],
+        'ms' => [
+            'status' => 'unsupported',
+            'implementation' => '',
+            'notes' => 'Roff manual registry evidence tracks the upstream ms writer token and .ms/.roff extension inference; no native PHP ms writer is registered yet.',
         ],
         'native' => [
             'status' => 'partial',
@@ -555,6 +601,231 @@ final class PandocFormatRegistry
         $extension = strtolower(ltrim(trim($extension), '.'));
 
         return self::WIKI_EXTENSION_INFERENCE[$extension] ?? null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function roffManualInputFormats(): array
+    {
+        return self::ROFF_MANUAL_INPUT_FORMATS;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function roffManualOutputFormats(): array
+    {
+        return self::ROFF_MANUAL_OUTPUT_FORMATS;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function roffManualExtensionInference(): array
+    {
+        return self::ROFF_MANUAL_EXTENSION_INFERENCE;
+    }
+
+    public static function inferRoffManualFormatFromExtension(string $extension): ?string
+    {
+        $normalized = strtolower(trim($extension));
+        if ($normalized === '') {
+            return null;
+        }
+        if ($normalized[0] !== '.') {
+            $normalized = '.' . $normalized;
+        }
+
+        if (preg_match('/^\.[1-9]$/', $normalized) === 1) {
+            return 'man';
+        }
+
+        foreach (self::ROFF_MANUAL_EXTENSION_INFERENCE as $candidate => $format) {
+            if ($candidate !== '.[1-9]' && $normalized === $candidate) {
+                return $format;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, array{
+     *     label:string,
+     *     direction:string,
+     *     input:array{status:string, implementation:string, notes:string},
+     *     output:array{status:string, implementation:string, notes:string},
+     *     extensionInferences:list<string>,
+     *     directReaderParityClaimed:bool,
+     *     directWriterParityClaimed:bool
+     * }>
+     */
+    public static function roffManualFormatRegistry(): array
+    {
+        $inputSupport = self::phpInputSupport();
+        $outputSupport = self::phpOutputSupport();
+        $formats = array_values(array_unique(array_merge(self::ROFF_MANUAL_INPUT_FORMATS, self::ROFF_MANUAL_OUTPUT_FORMATS)));
+        $registry = [];
+
+        foreach ($formats as $format) {
+            $hasInput = in_array($format, self::ROFF_MANUAL_INPUT_FORMATS, true);
+            $hasOutput = in_array($format, self::ROFF_MANUAL_OUTPUT_FORMATS, true);
+            $input = $hasInput ? $inputSupport[$format] : self::notApplicableSupport('Not an upstream Pandoc roff/manual reader format.');
+            $output = $hasOutput ? $outputSupport[$format] : self::notApplicableSupport('Not an upstream Pandoc roff/manual writer format.');
+
+            $registry[$format] = [
+                'label' => self::ROFF_MANUAL_FORMAT_LABELS[$format],
+                'direction' => self::formatDirection($hasInput, $hasOutput),
+                'input' => $input,
+                'output' => $output,
+                'extensionInferences' => self::roffManualExtensionInferencesForFormat($format),
+                'directReaderParityClaimed' => $input['status'] === 'complete',
+                'directWriterParityClaimed' => $output['status'] === 'complete',
+            ];
+        }
+
+        return $registry;
+    }
+
+    /**
+     * @return array{
+     *     inputFormats:list<string>,
+     *     outputFormats:list<string>,
+     *     uniqueFormats:list<string>,
+     *     directionBuckets:array<string, list<string>>,
+     *     inputStatusBuckets:array<string, list<string>>,
+     *     outputStatusBuckets:array<string, list<string>>,
+     *     extensionInference:array<string, string>,
+     *     directReaderParityClaimed:bool,
+     *     directWriterParityClaimed:bool
+     * }
+     */
+    public static function roffManualFormatRegistrySummary(): array
+    {
+        $registry = self::roffManualFormatRegistry();
+        $directionBuckets = [
+            'input-output' => [],
+            'input-only' => [],
+            'output-only' => [],
+        ];
+        $inputStatusBuckets = [];
+        $outputStatusBuckets = [];
+        $directReaderParityClaimed = true;
+        $directWriterParityClaimed = true;
+
+        foreach ($registry as $format => $entry) {
+            $directionBuckets[$entry['direction']][] = $format;
+
+            if ($entry['input']['status'] !== 'not-applicable') {
+                $inputStatusBuckets[$entry['input']['status']][] = $format;
+                $directReaderParityClaimed = $directReaderParityClaimed && $entry['directReaderParityClaimed'];
+            }
+
+            if ($entry['output']['status'] !== 'not-applicable') {
+                $outputStatusBuckets[$entry['output']['status']][] = $format;
+                $directWriterParityClaimed = $directWriterParityClaimed && $entry['directWriterParityClaimed'];
+            }
+        }
+
+        return [
+            'inputFormats' => self::ROFF_MANUAL_INPUT_FORMATS,
+            'outputFormats' => self::ROFF_MANUAL_OUTPUT_FORMATS,
+            'uniqueFormats' => array_keys($registry),
+            'directionBuckets' => $directionBuckets,
+            'inputStatusBuckets' => $inputStatusBuckets,
+            'outputStatusBuckets' => $outputStatusBuckets,
+            'extensionInference' => self::ROFF_MANUAL_EXTENSION_INFERENCE,
+            'directReaderParityClaimed' => $directReaderParityClaimed,
+            'directWriterParityClaimed' => $directWriterParityClaimed,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     upstreamManualDate:string,
+     *     upstreamManualUrl:string,
+     *     upstreamSourceCommit:string,
+     *     inputFormats:list<string>,
+     *     outputFormats:list<string>,
+     *     uniqueFormats:list<string>,
+     *     directionBuckets:array<string, list<string>>,
+     *     extensionInference:array<string, string>,
+     *     unsupportedInputs:list<string>,
+     *     unsupportedOutputs:list<string>,
+     *     partialInputs:list<string>,
+     *     partialOutputs:list<string>,
+     *     directReaderParityClaimed:bool,
+     *     directWriterParityClaimed:bool,
+     *     formats:array<string, array{
+     *         label:string,
+     *         direction:string,
+     *         inputStatus:string,
+     *         inputImplementation:string,
+     *         outputStatus:string,
+     *         outputImplementation:string,
+     *         extensionInferences:list<string>,
+     *         directReaderParityClaimed:bool,
+     *         directWriterParityClaimed:bool
+     *     }>
+     * }
+     */
+    public static function roffManualFormatReviewPacket(): array
+    {
+        $registry = self::roffManualFormatRegistry();
+        $summary = self::roffManualFormatRegistrySummary();
+        $formats = [];
+        $unsupportedInputs = [];
+        $unsupportedOutputs = [];
+        $partialInputs = [];
+        $partialOutputs = [];
+
+        foreach ($registry as $format => $entry) {
+            $inputStatus = $entry['input']['status'];
+            $outputStatus = $entry['output']['status'];
+
+            if ($inputStatus === 'unsupported') {
+                $unsupportedInputs[] = $format;
+            } elseif ($inputStatus === 'partial') {
+                $partialInputs[] = $format;
+            }
+
+            if ($outputStatus === 'unsupported') {
+                $unsupportedOutputs[] = $format;
+            } elseif ($outputStatus === 'partial') {
+                $partialOutputs[] = $format;
+            }
+
+            $formats[$format] = [
+                'label' => $entry['label'],
+                'direction' => $entry['direction'],
+                'inputStatus' => $inputStatus,
+                'inputImplementation' => $entry['input']['implementation'],
+                'outputStatus' => $outputStatus,
+                'outputImplementation' => $entry['output']['implementation'],
+                'extensionInferences' => $entry['extensionInferences'],
+                'directReaderParityClaimed' => $entry['directReaderParityClaimed'],
+                'directWriterParityClaimed' => $entry['directWriterParityClaimed'],
+            ];
+        }
+
+        return [
+            'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
+            'upstreamManualUrl' => self::UPSTREAM_MANUAL_URL,
+            'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
+            'inputFormats' => $summary['inputFormats'],
+            'outputFormats' => $summary['outputFormats'],
+            'uniqueFormats' => $summary['uniqueFormats'],
+            'directionBuckets' => $summary['directionBuckets'],
+            'extensionInference' => $summary['extensionInference'],
+            'unsupportedInputs' => $unsupportedInputs,
+            'unsupportedOutputs' => $unsupportedOutputs,
+            'partialInputs' => $partialInputs,
+            'partialOutputs' => $partialOutputs,
+            'directReaderParityClaimed' => $summary['directReaderParityClaimed'],
+            'directWriterParityClaimed' => $summary['directWriterParityClaimed'],
+            'formats' => $formats,
+        ];
     }
 
     /**
@@ -831,6 +1102,21 @@ final class PandocFormatRegistry
     {
         $extensions = [];
         foreach (self::WIKI_EXTENSION_INFERENCE as $extension => $inferredFormat) {
+            if ($inferredFormat === $format) {
+                $extensions[] = $extension;
+            }
+        }
+
+        return $extensions;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function roffManualExtensionInferencesForFormat(string $format): array
+    {
+        $extensions = [];
+        foreach (self::ROFF_MANUAL_EXTENSION_INFERENCE as $extension => $inferredFormat) {
             if ($inferredFormat === $format) {
                 $extensions[] = $extension;
             }
