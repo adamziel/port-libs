@@ -189,4 +189,21 @@ php tools/run-tests.php lanes/pandoc/tests/PlainMathStaticTexmathFixtureTest.php
 1 test files, 81 assertions, 0 failures
 ```
 
+Follow-up verification on current `origin/main` after the later PlainMath
+fixture and text-glyph normalization slices:
+
+```text
+git rebase origin/main
+Current branch polecat/1780/plib-wj70q.19@mqzcmyy0 is up to date.
+
+php tools/run-tests.php lanes/pandoc/tests/PlainMathStaticTexmathFixtureTest.php
+Focused test run: 1 selected test files (root lock skipped)
+PASS promotes static texmath reader fixtures into plainmath conformance corpus
+PASS promotes additional texmath reader fixtures into plainmath conformance corpus
+PASS promotes texmath atom coercion fixtures into plainmath conformance corpus
+PASS promotes unbraced texmath atom coercion tokens into plainmath conformance corpus
+
+1 test files, 103 assertions, 0 failures
+```
+
 No runtime behavior was changed in this lane.
