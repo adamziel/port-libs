@@ -207,4 +207,73 @@ return [
         $t->same('office:master-styles', $result['masterPages']['ReviewPage']['sourceContainer']);
         $t->same(true, $result['masterPages']['ReviewPage']['masterStyle']);
     },
+    'surfaces ODT style diagnostics in package style provenance by source part' => static function (TestRunner $t) use ($manifestXml, $metaXml): void {
+        $brokenStylesXml = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0">
+  <office:styles>
+    <style:style style:name="ReviewBody" style:family="paragraph" style:parent-style-name="MissingReviewParent"/>
+  </office:styles>
+</office:document-styles>
+XML;
+
+        $brokenContentXml = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0">
+  <office:automatic-styles>
+    <style:style style:name="AutoBroken" style:family="paragraph" style:parent-style-name="MissingAutoParent"/>
+  </office:automatic-styles>
+  <office:body>
+    <office:text>
+      <text:p text:style-name="MissingContentParagraph">Style diagnostics package packet.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml],
+            ['name' => 'content.xml', 'data' => $brokenContentXml],
+            ['name' => 'styles.xml', 'data' => $brokenStylesXml],
+            ['name' => 'meta.xml', 'data' => $metaXml],
+        ], 'odt style diagnostics package provenance'));
+
+        $provenance = $result['packageStyles'];
+        $itemsByPart = [];
+        foreach ($provenance['items'] as $item) {
+            $itemsByPart[$item['part']] = $item;
+        }
+
+        $t->same($provenance, $result['importReport']['packageStyles']);
+        $t->same($provenance, $result['document']->attr('packageStyles'));
+        $t->same(3, $provenance['diagnosticCount']);
+        $t->same([
+            'odf-content-missing-style' => 1,
+            'odf-style-missing-parent' => 2,
+        ], $provenance['diagnosticCodeCounts']);
+        $t->same(['content.xml', 'styles.xml'], $provenance['diagnosticSourceParts']);
+
+        $content = $itemsByPart['content.xml'];
+        $t->same(2, $content['diagnosticCount']);
+        $t->same([
+            'odf-content-missing-style' => 1,
+            'odf-style-missing-parent' => 1,
+        ], $content['diagnosticCodeCounts']);
+        $t->same('AutoBroken', $content['diagnostics'][0]['styleName']);
+        $t->same('content.xml', $content['diagnostics'][0]['sourcePart']);
+        $t->same('office:automatic-styles', $content['diagnostics'][0]['sourceContainer']);
+        $t->same('MissingContentParagraph', $content['diagnostics'][1]['styleName']);
+        $t->same('content.xml', $content['diagnostics'][1]['sourcePart']);
+
+        $styles = $itemsByPart['styles.xml'];
+        $t->same(1, $styles['diagnosticCount']);
+        $t->same(['odf-style-missing-parent' => 1], $styles['diagnosticCodeCounts']);
+        $t->same('ReviewBody', $styles['diagnostics'][0]['styleName']);
+        $t->same('styles.xml', $styles['diagnostics'][0]['sourcePart']);
+        $t->same('office:styles', $styles['diagnostics'][0]['sourceContainer']);
+    },
 ];
