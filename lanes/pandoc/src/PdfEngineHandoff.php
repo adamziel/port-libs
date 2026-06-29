@@ -769,6 +769,7 @@ final class PdfEngineHandoff
      *     pdfPageRotations: array<int, int>,
      *     pdfPageProductionMetadata: list<array{page:int, pageObject:string|null, boxColorInfoObject:string|null, boxColorInfo:list<array{box:string, color:list<float>|null, width:float|null, style:string|null}>, separationInfoObject:string|null, separationPages:list<string>, separationDeviceColorant:string|null, separationColorSpace:string|null, presStepsObject:string|null, presStepsSubtype:string|null, presStepsNext:list<string>}>,
      *     pdfPageDisplayMetadata: list<array{page:int, pageObject:string|null, language:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>,
+     *     pdfPageDisplayPolicy: array<string, mixed>,
      *     pdfPageThumbnails: list<array{page:int, pageObject:string|null, thumbnailObject:string|null, valueKind:string, subtype:string|null, validImage:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, reviewStatus:string, issues:list<string>}>,
      *     pdfPageThumbnailPolicy: array{reviewStatus:string, pageCount:int|null, thumbnailCount:int, thumbnailPages:list<int>, imageThumbnailCount:int, missingObjectCount:int, nonImageCount:int, missingStreamCount:int, skippedStreamCount:int, streamCount:int, colorSpaces:array<string, int>, filters:array<string, int>, issues:list<string>}|array{},
      *     pdfPageLabels: list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
@@ -1532,6 +1533,7 @@ final class PdfEngineHandoff
         $pdfPageRotations = [];
         $pdfPageProductionMetadata = [];
         $pdfPageDisplayMetadata = [];
+        $pdfPageDisplayPolicy = [];
         $pdfPageThumbnails = [];
         $pdfPageThumbnailPolicy = [];
         $pdfPageLabels = [];
@@ -1688,6 +1690,7 @@ final class PdfEngineHandoff
                 $pdfPageRotations = $pdfInspection['pageRotations'];
                 $pdfPageProductionMetadata = $pdfInspection['pageProductionMetadata'];
                 $pdfPageDisplayMetadata = $pdfInspection['pageDisplayMetadata'];
+                $pdfPageDisplayPolicy = $pdfInspection['pageDisplayPolicy'];
                 $pdfPageThumbnails = $pdfInspection['pageThumbnails'];
                 $pdfPageThumbnailPolicy = $pdfInspection['pageThumbnailPolicy'];
                 $pdfPageLabels = $pdfInspection['pageLabels'];
@@ -1955,6 +1958,36 @@ final class PdfEngineHandoff
                     }
                     if ($pageLastModifiedCount > 0) {
                         $diagnostics[] = 'pdf-byte-page-last-modified:' . $pageLastModifiedCount;
+                    }
+                }
+                if ($pdfPageDisplayPolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-page-display-policy:' . ($pdfPageDisplayPolicy['reviewStatus'] ?? 'unknown');
+                    foreach ([
+                        'languages' => 'languageCount',
+                        'user-units' => 'userUnitCount',
+                        'tab-orders' => 'tabOrderCount',
+                        'groups' => 'groupCount',
+                        'thumbnails' => 'thumbnailCount',
+                        'last-modified' => 'lastModifiedCount',
+                    ] as $diagnosticName => $policyKey) {
+                        if (isset($pdfPageDisplayPolicy[$policyKey]) && is_int($pdfPageDisplayPolicy[$policyKey]) && $pdfPageDisplayPolicy[$policyKey] > 0) {
+                            $diagnostics[] = 'pdf-byte-page-display-policy-' . $diagnosticName . ':' . $pdfPageDisplayPolicy[$policyKey];
+                        }
+                    }
+                    if (isset($pdfPageDisplayPolicy['tabOrders']) && is_array($pdfPageDisplayPolicy['tabOrders'])) {
+                        foreach ($pdfPageDisplayPolicy['tabOrders'] as $tabOrder => $tabOrderCount) {
+                            if (is_string($tabOrder) && is_int($tabOrderCount)) {
+                                $diagnostics[] = 'pdf-byte-page-display-policy-tab-order:' . $tabOrder . ':' . $tabOrderCount;
+                            }
+                        }
+                    }
+                    if (isset($pdfPageDisplayPolicy['issues']) && is_array($pdfPageDisplayPolicy['issues']) && $pdfPageDisplayPolicy['issues'] !== []) {
+                        $diagnostics[] = 'pdf-byte-page-display-policy-issues:' . count($pdfPageDisplayPolicy['issues']);
+                        foreach ($pdfPageDisplayPolicy['issues'] as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $diagnostics[] = 'pdf-byte-page-display-policy-issue:' . $issue . ':1';
+                            }
+                        }
                     }
                 }
                 if ($pdfPageThumbnails !== []) {
@@ -5309,6 +5342,7 @@ final class PdfEngineHandoff
             'pdfPageRotations' => $pdfPageRotations,
             'pdfPageProductionMetadata' => $pdfPageProductionMetadata,
             'pdfPageDisplayMetadata' => $pdfPageDisplayMetadata,
+            'pdfPageDisplayPolicy' => $pdfPageDisplayPolicy,
             'pdfPageThumbnails' => $pdfPageThumbnails,
             'pdfPageThumbnailPolicy' => $pdfPageThumbnailPolicy,
             'pdfPageLabels' => $pdfPageLabels,
@@ -5475,6 +5509,7 @@ final class PdfEngineHandoff
      *     finalPdfPageRotations: array<int, int>,
      *     finalPdfPageProductionMetadata: list<array{page:int, pageObject:string|null, boxColorInfoObject:string|null, boxColorInfo:list<array{box:string, color:list<float>|null, width:float|null, style:string|null}>, separationInfoObject:string|null, separationPages:list<string>, separationDeviceColorant:string|null, separationColorSpace:string|null, presStepsObject:string|null, presStepsSubtype:string|null, presStepsNext:list<string>}>,
      *     finalPdfPageDisplayMetadata: list<array{page:int, pageObject:string|null, language:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>,
+     *     finalPdfPageDisplayPolicy: array<string, mixed>,
      *     finalPdfPageThumbnails: list<array{page:int, pageObject:string|null, thumbnailObject:string|null, valueKind:string, subtype:string|null, validImage:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, reviewStatus:string, issues:list<string>}>,
      *     finalPdfPageThumbnailPolicy: array{reviewStatus:string, pageCount:int|null, thumbnailCount:int, thumbnailPages:list<int>, imageThumbnailCount:int, missingObjectCount:int, nonImageCount:int, missingStreamCount:int, skippedStreamCount:int, streamCount:int, colorSpaces:array<string, int>, filters:array<string, int>, issues:list<string>}|array{},
      *     finalPdfPageLabels: list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
@@ -5809,6 +5844,7 @@ final class PdfEngineHandoff
             'finalPdfPageRotations' => is_array($finalRun) && is_array($finalRun['pdfPageRotations'] ?? null) ? $finalRun['pdfPageRotations'] : [],
             'finalPdfPageProductionMetadata' => is_array($finalRun) && is_array($finalRun['pdfPageProductionMetadata'] ?? null) ? $finalRun['pdfPageProductionMetadata'] : [],
             'finalPdfPageDisplayMetadata' => is_array($finalRun) && is_array($finalRun['pdfPageDisplayMetadata'] ?? null) ? $finalRun['pdfPageDisplayMetadata'] : [],
+            'finalPdfPageDisplayPolicy' => is_array($finalRun) && is_array($finalRun['pdfPageDisplayPolicy'] ?? null) ? $finalRun['pdfPageDisplayPolicy'] : [],
             'finalPdfPageThumbnails' => is_array($finalRun) && is_array($finalRun['pdfPageThumbnails'] ?? null) ? $finalRun['pdfPageThumbnails'] : [],
             'finalPdfPageThumbnailPolicy' => is_array($finalRun) && is_array($finalRun['pdfPageThumbnailPolicy'] ?? null) ? $finalRun['pdfPageThumbnailPolicy'] : [],
             'finalPdfPageLabels' => is_array($finalRun) && is_array($finalRun['pdfPageLabels'] ?? null) ? $finalRun['pdfPageLabels'] : [],
@@ -12851,6 +12887,7 @@ final class PdfEngineHandoff
      *     webCapturePolicy:array<string, mixed>,
      *     outputIntents:list<array{type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
      *     pageOutputIntents:list<array{page:int, pageObject:string|null, source:string, type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
+     *     pageDisplayPolicy:array<string, mixed>,
      *     outputIntentPolicy:array<string, mixed>,
      *     conformancePolicy:array<string, mixed>,
      *     language:string|null,
@@ -13062,6 +13099,7 @@ final class PdfEngineHandoff
             'pageRotations' => $this->summarizePdfPageRotations($pageBoxes),
             'pageProductionMetadata' => $pageProductionMetadata,
             'pageDisplayMetadata' => $pageDisplayMetadata,
+            'pageDisplayPolicy' => $this->summarizePdfPageDisplayPolicy($pageDisplayMetadata, $this->extractPdfPageCount($pdfBytes)),
             'pageThumbnails' => $pageThumbnails,
             'pageThumbnailPolicy' => $this->summarizePdfPageThumbnailPolicy($pageThumbnails, $this->extractPdfPageCount($pdfBytes)),
             'pageLabels' => $this->extractPdfPageLabels($pdfBytes, $catalog),
@@ -27817,6 +27855,139 @@ final class PdfEngineHandoff
         ksort($orders);
 
         return $orders;
+    }
+
+    /**
+     * @param list<array{page:int, pageObject:string|null, language:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}> $metadata
+     * @return array<string, mixed>
+     */
+    private function summarizePdfPageDisplayPolicy(array $metadata, ?int $pageCount): array
+    {
+        if ($metadata === []) {
+            return [];
+        }
+
+        $languages = [];
+        $tabOrders = [];
+        $groupColorSpaces = [];
+        $userUnitPages = [];
+        $thumbnailPages = [];
+        $lastModifiedPages = [];
+        $issues = [];
+        $userUnitCount = 0;
+        $groupCount = 0;
+        $isolatedGroupCount = 0;
+        $knockoutGroupCount = 0;
+        $maxUserUnit = null;
+
+        foreach ($metadata as $pageDisplay) {
+            $page = is_int($pageDisplay['page'] ?? null) ? $pageDisplay['page'] : null;
+            $language = $pageDisplay['language'] ?? null;
+            if (is_string($language) && $language !== '') {
+                $languages[$language] = ($languages[$language] ?? 0) + 1;
+            }
+
+            $userUnit = $pageDisplay['userUnit'] ?? null;
+            if (is_float($userUnit) || is_int($userUnit)) {
+                ++$userUnitCount;
+                $maxUserUnit = $maxUserUnit === null ? (float) $userUnit : max($maxUserUnit, (float) $userUnit);
+                if ($page !== null) {
+                    $userUnitPages[] = $page;
+                }
+                if ((float) $userUnit <= 0.0) {
+                    $issues[] = 'page-user-unit-invalid';
+                } elseif (abs((float) $userUnit - 1.0) > 0.000001) {
+                    $issues[] = 'page-user-unit-scaling';
+                }
+            }
+
+            $tabOrder = $pageDisplay['tabOrder'] ?? null;
+            if (is_string($tabOrder) && $tabOrder !== '') {
+                $tabOrders[$tabOrder] = ($tabOrders[$tabOrder] ?? 0) + 1;
+                if (!in_array($tabOrder, ['A', 'C', 'R', 'S', 'W'], true)) {
+                    $issues[] = 'page-tab-order-unknown';
+                }
+            }
+
+            $groupSubtype = $pageDisplay['groupSubtype'] ?? null;
+            if (is_string($groupSubtype) && $groupSubtype !== '') {
+                ++$groupCount;
+                if ($groupSubtype === 'Transparency') {
+                    $issues[] = 'page-transparency-group';
+                }
+                $groupColorSpace = $pageDisplay['groupColorSpace'] ?? null;
+                if (is_string($groupColorSpace) && $groupColorSpace !== '') {
+                    $groupColorSpaces[$groupColorSpace] = ($groupColorSpaces[$groupColorSpace] ?? 0) + 1;
+                }
+                if (($pageDisplay['groupIsolated'] ?? null) === true) {
+                    ++$isolatedGroupCount;
+                }
+                if (($pageDisplay['groupKnockout'] ?? null) === true) {
+                    ++$knockoutGroupCount;
+                    $issues[] = 'page-transparency-knockout';
+                }
+            }
+
+            if (is_string($pageDisplay['thumbnailObject'] ?? null) && $pageDisplay['thumbnailObject'] !== '') {
+                if ($page !== null) {
+                    $thumbnailPages[] = $page;
+                }
+                $issues[] = 'page-thumbnail-preview';
+            }
+            if (is_string($pageDisplay['lastModified'] ?? null) && $pageDisplay['lastModified'] !== '') {
+                if ($page !== null) {
+                    $lastModifiedPages[] = $page;
+                }
+                $issues[] = 'page-last-modified-provenance';
+            }
+        }
+
+        ksort($languages);
+        ksort($tabOrders);
+        ksort($groupColorSpaces);
+        $userUnitPages = array_values(array_unique($userUnitPages));
+        sort($userUnitPages);
+        $thumbnailPages = array_values(array_unique($thumbnailPages));
+        sort($thumbnailPages);
+        $lastModifiedPages = array_values(array_unique($lastModifiedPages));
+        sort($lastModifiedPages);
+
+        $languageCount = array_sum($languages);
+        $tabOrderCount = array_sum($tabOrders);
+        $thumbnailCount = count($thumbnailPages);
+        $lastModifiedCount = count($lastModifiedPages);
+        if ($languageCount > 0) {
+            $issues[] = 'page-language-overrides';
+        }
+        if ($tabOrderCount > 0) {
+            $issues[] = 'page-tab-order-overrides';
+        }
+
+        $issues = array_values(array_unique($issues));
+        sort($issues);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'pageCount' => $pageCount,
+            'metadataPageCount' => count($metadata),
+            'languageCount' => $languageCount,
+            'languages' => array_keys($languages),
+            'languageCounts' => $languages,
+            'userUnitCount' => $userUnitCount,
+            'maxUserUnit' => $maxUserUnit,
+            'userUnitPages' => $userUnitPages,
+            'tabOrderCount' => $tabOrderCount,
+            'tabOrders' => $tabOrders,
+            'groupCount' => $groupCount,
+            'groupColorSpaces' => $groupColorSpaces,
+            'isolatedGroupCount' => $isolatedGroupCount,
+            'knockoutGroupCount' => $knockoutGroupCount,
+            'thumbnailCount' => $thumbnailCount,
+            'thumbnailPages' => $thumbnailPages,
+            'lastModifiedCount' => $lastModifiedCount,
+            'lastModifiedPages' => $lastModifiedPages,
+            'issues' => $issues,
+        ];
     }
 
     /**

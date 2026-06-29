@@ -10951,9 +10951,49 @@ MARKDOWN);
                 'lastModified' => null,
             ],
         ];
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'pageCount' => 2,
+            'metadataPageCount' => 2,
+            'languageCount' => 2,
+            'languages' => ['en-US', 'fr-CA'],
+            'languageCounts' => [
+                'en-US' => 1,
+                'fr-CA' => 1,
+            ],
+            'userUnitCount' => 1,
+            'maxUserUnit' => 2.0,
+            'userUnitPages' => [1],
+            'tabOrderCount' => 2,
+            'tabOrders' => [
+                'R' => 1,
+                'S' => 1,
+            ],
+            'groupCount' => 2,
+            'groupColorSpaces' => [
+                'DeviceRGB' => 1,
+                'ICCBased' => 1,
+            ],
+            'isolatedGroupCount' => 1,
+            'knockoutGroupCount' => 1,
+            'thumbnailCount' => 1,
+            'thumbnailPages' => [1],
+            'lastModifiedCount' => 1,
+            'lastModifiedPages' => [1],
+            'issues' => [
+                'page-language-overrides',
+                'page-last-modified-provenance',
+                'page-tab-order-overrides',
+                'page-thumbnail-preview',
+                'page-transparency-group',
+                'page-transparency-knockout',
+                'page-user-unit-scaling',
+            ],
+        ];
 
         $t->same(true, $result['ok']);
         $t->same($expected, $result['pdfPageDisplayMetadata']);
+        $t->same($expectedPolicy, $result['pdfPageDisplayPolicy']);
         $t->contains('pdf-byte-page-display-metadata:2', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-page-user-units:1', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-page-tab-orders:2', implode(',', $result['diagnostics']));
@@ -10963,8 +11003,17 @@ MARKDOWN);
         $t->contains('pdf-byte-page-thumbnails:1', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-page-languages:2', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-page-last-modified:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-display-policy:review', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-display-policy-user-units:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-display-policy-tab-orders:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-display-policy-tab-order:R:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-display-policy-tab-order:S:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-display-policy-issues:7', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-display-policy-issue:page-transparency-knockout:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-display-policy-issue:page-user-unit-scaling:1', implode(',', $result['diagnostics']));
         $t->same(true, $sequence['ok']);
         $t->same($expected, $sequence['finalPdfPageDisplayMetadata']);
+        $t->same($expectedPolicy, $sequence['finalPdfPageDisplayPolicy']);
     },
 
     'fake runner extracts bounded pdf page thumbnail provenance from produced bytes' => static function (TestRunner $t) use ($document): void {
