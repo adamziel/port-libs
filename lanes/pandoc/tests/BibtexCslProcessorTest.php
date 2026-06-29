@@ -1283,6 +1283,98 @@ XML);
         $t->contains('<p>Release state [Migration Manual | Review Sources | RS | 7 | 2 | 2.1.0 | revised | print-on-demand packet] stays visible.</p>', $blocks);
         $t->contains('<dt>Garcia 2026</dt><dd>Migration Manual :: Review Sources :: RS :: 7 :: 2 :: 2.1.0 :: revised :: print-on-demand packet</dd>', $blocks);
     },
+    'carries biblatex reprint title and original genre in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{legacy-facsimile,
+  author       = {Garcia, Gia},
+  title        = {Migration Manual},
+  origtitle    = {Manual de Migracion},
+  origtype     = {field manual},
+  reprinttitle = {Facsimile Source Packet},
+  publisher    = {Review Press},
+  date         = {2026}
+}
+
+@article{legacy-archive-reprint,
+  author         = {Ng, Nia},
+  title          = {Archive Reprint Notice},
+  journaltitle   = {Review Journal},
+  original-genre = {archive bulletin},
+  reprint-title  = {Updated Source Reprint},
+  date           = {2025}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $facsimile = $items['legacy-facsimile'];
+        $archive = $items['legacy-archive-reprint'];
+
+        $t->same('field manual', $facsimile['original-genre']);
+        $t->same('Facsimile Source Packet', $facsimile['reprint-title']);
+        $t->same('field manual', $facsimile['rawBibtex']['fields']['origtype']);
+        $t->same('Facsimile Source Packet', $facsimile['rawBibtex']['fields']['reprinttitle']);
+        $t->same('archive bulletin', $archive['original-genre']);
+        $t->same('Updated Source Reprint', $archive['reprint-title']);
+        $t->same('archive bulletin', $archive['rawBibtex']['fields']['original-genre']);
+        $t->same('Updated Source Reprint', $archive['rawBibtex']['fields']['reprint-title']);
+        $t->contains('Original genre: field manual', $processor->renderBibliographyText($facsimile));
+        $t->contains('Reprint title: Facsimile Source Packet', $processor->renderBibliographyText($facsimile));
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Reprint Provenance Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-reprint-provenance-review</id>
+    <updated>2026-06-29T15:20:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="original-genre"/>
+        <text variable="reprint-title"/>
+        <text variable="origtype"/>
+        <text variable="reprinttitle"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="original-genre"/>
+      <text variable="reprint-title"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledFacsimile = $styled->item('legacy-facsimile');
+        $styledArchive = $styled->item('legacy-archive-reprint');
+        $t->same('Bounded Legacy BibLaTeX Reprint Provenance Review', $styled->cslStyleSummary()['title'] ?? null);
+        $t->same('field manual', $styledFacsimile['originalGenre'] ?? null);
+        $t->same('Facsimile Source Packet', $styledFacsimile['reprintTitle'] ?? null);
+        $t->same('archive bulletin', $styledArchive['originalGenre'] ?? null);
+        $t->same('Updated Source Reprint', $styledArchive['reprintTitle'] ?? null);
+        $t->same('[Garcia | field manual | Facsimile Source Packet | field manual | Facsimile Source Packet; Ng | archive bulletin | Updated Source Reprint | archive bulletin | Updated Source Reprint]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-facsimile', 'text' => '[@legacy-facsimile]']),
+            new AstNode('citation', ['id' => 'legacy-archive-reprint', 'text' => '[@legacy-archive-reprint]']),
+        ]));
+        $t->same('Migration Manual :: field manual :: Facsimile Source Packet', $styled->renderBibliographyEntry('legacy-facsimile'));
+        $t->same('Archive Reprint Notice :: archive bulletin :: Updated Source Reprint', $styled->renderBibliographyEntry('legacy-archive-reprint'));
+
+        $document = (new MarkdownReader())->read('Legacy reprint sources [@legacy-facsimile; @legacy-archive-reprint] retain provenance.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['legacy-facsimile', 'legacy-archive-reprint'], $handoff['citedKeys']);
+        $t->same('field manual', $handoff['items'][0]['original-genre'] ?? null);
+        $t->same('Updated Source Reprint', $handoff['bibliography']->children[1]->attr('cslItem')['reprint-title'] ?? null);
+        $t->contains('<p>Legacy reprint sources [Garcia | field manual | Facsimile Source Packet | field manual | Facsimile Source Packet; Ng | archive bulletin | Updated Source Reprint | archive bulletin | Updated Source Reprint] retain provenance.</p>', $blocks);
+        $t->contains('<dt>Garcia 2026</dt><dd>Migration Manual :: field manual :: Facsimile Source Packet</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Archive Reprint Notice :: archive bulletin :: Updated Source Reprint</dd>', $blocks);
+    },
     'carries biblatex translated title aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @book{translated-title-source,
