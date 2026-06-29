@@ -1321,6 +1321,7 @@ final class OdfReader
         $rootCustomAttributeNames = [];
         $rootCustomAttributeItems = [];
         $manifestPartReferenceSuffixItems = [];
+        $manifestMediaTypeMismatches = [];
         $byteExposurePolicyCounts = [];
 
         foreach ($expectedRoots as $part => $expectedRoot) {
@@ -1381,6 +1382,24 @@ final class OdfReader
 
             if (!is_array($manifestItem)) {
                 $diagnostics[] = 'odf-xml-part-undeclared-package-part';
+            }
+            $manifestMediaTypeBase = is_array($manifestItem) && is_string($manifestItem['mediaTypeBase'] ?? null)
+                ? $manifestItem['mediaTypeBase']
+                : null;
+            $manifestMediaTypeValid = is_array($manifestItem)
+                && $manifestMediaTypeBase !== null
+                && self::isXmlMediaTypeBase($manifestMediaTypeBase);
+            $manifestMediaTypeMismatch = is_array($manifestItem) && !$manifestMediaTypeValid;
+            if ($manifestMediaTypeMismatch) {
+                $diagnostics[] = 'odf-xml-part-manifest-media-type-mismatch';
+                $manifestMediaTypeMismatches[] = [
+                    'part' => $part,
+                    'expectedManifestMediaTypeFamily' => 'xml',
+                    'manifestFullPath' => $manifestItem['fullPath'] ?? null,
+                    'manifestPartReference' => $manifestItem['partReference'] ?? null,
+                    'manifestMediaType' => $manifestItem['mediaType'] ?? null,
+                    'manifestMediaTypeBase' => $manifestMediaTypeBase,
+                ];
             }
             if (is_array($manifestItem) && is_string($manifestItem['partSuffix'] ?? null)) {
                 $manifestPartReferenceSuffixItems[] = [
@@ -1454,6 +1473,9 @@ final class OdfReader
                     && $manifestItem['partReference'] !== $manifestItem['part'],
                 'manifestMediaType' => is_array($manifestItem) ? $manifestItem['mediaType'] : null,
                 'manifestMediaTypeBase' => is_array($manifestItem) ? $manifestItem['mediaTypeBase'] : null,
+                'manifestMediaTypeValid' => $manifestMediaTypeValid,
+                'manifestMediaTypeMismatch' => $manifestMediaTypeMismatch,
+                'expectedManifestMediaTypeFamily' => 'xml',
                 'manifestMediaTypeHasParameters' => is_array($manifestItem) && ($manifestItem['mediaTypeHasParameters'] ?? false) === true,
                 'manifestMediaTypeParameterCount' => is_array($manifestItem) ? ($manifestItem['mediaTypeParameterCount'] ?? 0) : 0,
                 'manifestMediaTypeParameters' => is_array($manifestItem) ? ($manifestItem['mediaTypeParameters'] ?? []) : [],
@@ -1507,6 +1529,8 @@ final class OdfReader
                 static fn (array $item): bool => ($item['manifestUriEncodedPartReference'] ?? false) === true
             )),
             'manifestPartReferenceSuffixItems' => $manifestPartReferenceSuffixItems,
+            'manifestMediaTypeMismatchCount' => count($manifestMediaTypeMismatches),
+            'manifestMediaTypeMismatches' => $manifestMediaTypeMismatches,
             'byteExposurePolicyCounts' => $byteExposurePolicyCounts,
             'items' => $items,
         ];

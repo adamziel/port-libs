@@ -636,6 +636,7 @@ final class OpenDocumentPackage
         $rootCustomAttributeNames = [];
         $rootCustomAttributeItems = [];
         $manifestPartReferenceSuffixItems = [];
+        $manifestMediaTypeMismatches = [];
         $byteExposurePolicyCounts = [];
 
         foreach ($expectedRoots as $part => $expectedRoot) {
@@ -684,6 +685,25 @@ final class OpenDocumentPackage
 
             if (!is_array($manifestEntry)) {
                 $diagnostics[] = 'odf-xml-part-undeclared-package-part';
+            }
+            $manifestMediaTypeBase = is_array($manifestEntry) && is_string($manifestEntry['mediaTypeBase'] ?? null)
+                ? $manifestEntry['mediaTypeBase']
+                : null;
+            $manifestMediaTypeValid = is_array($manifestEntry)
+                && $manifestMediaTypeBase !== null
+                && self::isXmlMediaTypeBase($manifestMediaTypeBase);
+            $manifestMediaTypeMismatch = is_array($manifestEntry) && !$manifestMediaTypeValid;
+            if ($manifestMediaTypeMismatch) {
+                $diagnostics[] = 'odf-xml-part-manifest-media-type-mismatch';
+                $manifestMediaTypeMismatches[] = [
+                    'part' => $part,
+                    'expectedManifestMediaTypeFamily' => 'xml',
+                    'manifestFullPath' => $manifestEntry['path'] ?? null,
+                    'manifestPackagePath' => $manifestEntry['packagePath'] ?? null,
+                    'manifestPathReference' => $manifestEntry['pathReference'] ?? null,
+                    'manifestMediaType' => $manifestEntry['mediaType'] ?? null,
+                    'manifestMediaTypeBase' => $manifestMediaTypeBase,
+                ];
             }
             if (is_array($manifestEntry) && is_string($manifestEntry['pathSuffix'] ?? null)) {
                 $manifestPartReferenceSuffixItems[] = [
@@ -754,6 +774,9 @@ final class OpenDocumentPackage
                 'manifestUriEncodedPackageReference' => is_array($manifestEntry) && ($manifestEntry['uriEncodedPackageReference'] ?? false) === true,
                 'manifestMediaType' => is_array($manifestEntry) ? ($manifestEntry['mediaType'] ?? null) : null,
                 'manifestMediaTypeBase' => is_array($manifestEntry) ? ($manifestEntry['mediaTypeBase'] ?? null) : null,
+                'manifestMediaTypeValid' => $manifestMediaTypeValid,
+                'manifestMediaTypeMismatch' => $manifestMediaTypeMismatch,
+                'expectedManifestMediaTypeFamily' => 'xml',
                 'manifestMediaTypeHasParameters' => is_array($manifestEntry) && ($manifestEntry['mediaTypeHasParameters'] ?? false) === true,
                 'manifestMediaTypeParameterCount' => is_array($manifestEntry) ? ($manifestEntry['mediaTypeParameterCount'] ?? 0) : 0,
                 'manifestMediaTypeParameters' => is_array($manifestEntry) ? ($manifestEntry['mediaTypeParameters'] ?? []) : [],
@@ -807,6 +830,8 @@ final class OpenDocumentPackage
                 static fn (array $item): bool => ($item['manifestUriEncodedPackageReference'] ?? false) === true
             )),
             'manifestPartReferenceSuffixItems' => $manifestPartReferenceSuffixItems,
+            'manifestMediaTypeMismatchCount' => count($manifestMediaTypeMismatches),
+            'manifestMediaTypeMismatches' => $manifestMediaTypeMismatches,
             'byteExposurePolicyCounts' => $byteExposurePolicyCounts,
             'items' => $items,
         ];
