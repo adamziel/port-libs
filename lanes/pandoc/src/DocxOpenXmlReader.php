@@ -10663,6 +10663,26 @@ final class DocxOpenXmlReader
         $summary['zipDataDescriptorIssueCount'] = $zipDataDescriptors['issueCount'];
         $summary['zipDataDescriptorIssueCodes'] = $zipDataDescriptors['issueCodes'];
         $summary['zipDataDescriptorByteLength'] = $zipDataDescriptors['descriptorByteLength'];
+        $zipExtraFields = is_array($zipPackage['extraFields'] ?? null)
+            ? $zipPackage['extraFields']
+            : $this->emptyZipExtraFieldProvenance();
+        $summary['zipExtraFieldEntryCount'] = (int) ($zipExtraFields['extraFieldEntryCount'] ?? 0);
+        $summary['zipDuplicateExtraFieldEntryCount'] = (int) ($zipExtraFields['duplicateExtraFieldEntryCount'] ?? 0);
+        $summary['zipDuplicateCentralExtraFieldEntryCount'] = (int) ($zipExtraFields['duplicateCentralExtraFieldEntryCount'] ?? 0);
+        $summary['zipDuplicateLocalExtraFieldEntryCount'] = (int) ($zipExtraFields['duplicateLocalExtraFieldEntryCount'] ?? 0);
+        $summary['zipMismatchedExtraFieldEntryCount'] = (int) ($zipExtraFields['mismatchedExtraFieldEntryCount'] ?? 0);
+        $summary['zipMismatchedExtraFieldValueEntryCount'] = (int) ($zipExtraFields['mismatchedExtraFieldValueEntryCount'] ?? 0);
+        $summary['zipCentralOnlyExtraFieldEntryCount'] = (int) ($zipExtraFields['centralOnlyExtraFieldEntryCount'] ?? 0);
+        $summary['zipLocalOnlyExtraFieldEntryCount'] = (int) ($zipExtraFields['localOnlyExtraFieldEntryCount'] ?? 0);
+        $summary['zipExtraFieldIdCount'] = (int) ($zipExtraFields['extraFieldIdCount'] ?? 0);
+        $summary['zipCentralExtraFieldIdCount'] = (int) ($zipExtraFields['centralExtraFieldIdCount'] ?? 0);
+        $summary['zipLocalExtraFieldIdCount'] = (int) ($zipExtraFields['localExtraFieldIdCount'] ?? 0);
+        $summary['zipSharedExtraFieldIdCount'] = (int) ($zipExtraFields['sharedExtraFieldIdCount'] ?? 0);
+        $summary['zipCentralOnlyExtraFieldIdCount'] = (int) ($zipExtraFields['centralOnlyExtraFieldIdCount'] ?? 0);
+        $summary['zipLocalOnlyExtraFieldIdCount'] = (int) ($zipExtraFields['localOnlyExtraFieldIdCount'] ?? 0);
+        $summary['zipExtraFieldIdUsage'] = is_array($zipExtraFields['extraFieldIdUsage'] ?? null)
+            ? $zipExtraFields['extraFieldIdUsage']
+            : [];
         $zipNamePolicy = $zipPackage['namePolicy'];
         $summary['zipNamePolicyValid'] = $zipNamePolicy['valid'];
         $summary['zipNamePolicyIssueCount'] = $zipNamePolicy['issueCount'];
@@ -10756,6 +10776,7 @@ final class DocxOpenXmlReader
                     'entries' => [],
                 ],
                 'dataDescriptors' => $this->emptyZipDataDescriptorProvenance(),
+                'extraFields' => $this->emptyZipExtraFieldProvenance(),
                 'namePolicy' => $this->emptyZipNamePolicyProvenance(),
                 'comments' => $this->emptyZipCommentProvenance(),
                 'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
@@ -10768,7 +10789,14 @@ final class DocxOpenXmlReader
         $localHeaderOrder = $sourcePackage->localHeaderOrderPreflight();
         $compressionMethods = $sourcePackage->compressionMethodPreflight();
         $dataDescriptors = $this->zipDataDescriptorProvenance($sourcePackage->dataDescriptorPreflight());
+        $extraFields = $sourcePackage->extraFieldPreflight();
         $comments = $sourcePackage->commentPreflight();
+        $extraFieldEntriesByName = [];
+        foreach (($extraFields['entries'] ?? []) as $extraFieldEntry) {
+            if (is_array($extraFieldEntry) && is_string($extraFieldEntry['name'] ?? null)) {
+                $extraFieldEntriesByName[$extraFieldEntry['name']] = $extraFieldEntry;
+            }
+        }
         $commentEntriesByName = [];
         foreach (($comments['entries'] ?? []) as $commentEntry) {
             if (is_array($commentEntry) && is_string($commentEntry['name'] ?? null)) {
@@ -10808,6 +10836,7 @@ final class DocxOpenXmlReader
             }
 
             $localOrder = $localOrderByName[$entry->name] ?? null;
+            $extraFieldEntry = $extraFieldEntriesByName[$entry->name] ?? null;
             $commentEntry = $commentEntriesByName[$entry->name] ?? null;
             $summary = [
                 'packagePath' => $entry->name,
@@ -10830,6 +10859,21 @@ final class DocxOpenXmlReader
                 'zipEntryCommentEncoding' => $entry->commentEncoding,
                 'zipEntryHasComment' => $entry->comment !== '',
                 'zipEntryCommentIssues' => is_array($commentEntry) ? ($commentEntry['issues'] ?? []) : [],
+                'centralExtraFieldIds' => is_array($extraFieldEntry) ? ($extraFieldEntry['centralExtraFieldIds'] ?? []) : [],
+                'localExtraFieldIds' => is_array($extraFieldEntry) ? ($extraFieldEntry['localExtraFieldIds'] ?? []) : [],
+                'duplicateCentralExtraFieldIds' => is_array($extraFieldEntry) ? ($extraFieldEntry['duplicateCentralExtraFieldIds'] ?? []) : [],
+                'duplicateLocalExtraFieldIds' => is_array($extraFieldEntry) ? ($extraFieldEntry['duplicateLocalExtraFieldIds'] ?? []) : [],
+                'centralOnlyExtraFieldIds' => is_array($extraFieldEntry) ? ($extraFieldEntry['centralOnlyExtraFieldIds'] ?? []) : [],
+                'localOnlyExtraFieldIds' => is_array($extraFieldEntry) ? ($extraFieldEntry['localOnlyExtraFieldIds'] ?? []) : [],
+                'mismatchedExtraFieldValueIds' => is_array($extraFieldEntry) ? ($extraFieldEntry['mismatchedExtraFieldValueIds'] ?? []) : [],
+                'hasCentralExtraFields' => is_array($extraFieldEntry) ? (($extraFieldEntry['centralExtraFieldIds'] ?? []) !== []) : false,
+                'hasLocalExtraFields' => is_array($extraFieldEntry) ? (($extraFieldEntry['localExtraFieldIds'] ?? []) !== []) : false,
+                'hasZipExtraFieldProvenance' => is_array($extraFieldEntry)
+                    ? (($extraFieldEntry['centralExtraFieldIds'] ?? []) !== [] || ($extraFieldEntry['localExtraFieldIds'] ?? []) !== [])
+                    : false,
+                'hasDuplicateExtraFieldIds' => is_array($extraFieldEntry) ? (bool) ($extraFieldEntry['hasDuplicateExtraFieldIds'] ?? false) : false,
+                'hasMismatchedExtraFieldIds' => is_array($extraFieldEntry) ? (bool) ($extraFieldEntry['hasMismatchedExtraFieldIds'] ?? false) : false,
+                'hasMismatchedExtraFieldValues' => is_array($extraFieldEntry) ? (bool) ($extraFieldEntry['hasMismatchedExtraFieldValues'] ?? false) : false,
                 'isDirectory' => $isDirectory,
                 'loadedPart' => $loadedPart,
                 'canExposeBytes' => false,
@@ -10853,6 +10897,7 @@ final class DocxOpenXmlReader
             'loadedPartNames' => $loadedPartNames,
             'compressionMethods' => $compressionMethods,
             'dataDescriptors' => $dataDescriptors,
+            'extraFields' => $extraFields,
             'namePolicy' => $this->zipNamePolicyProvenance($sourcePackage),
             'comments' => $comments,
             'localHeaderOrder' => $localHeaderOrder,
@@ -10860,6 +10905,35 @@ final class DocxOpenXmlReader
             'canExposeBytes' => false,
             'entries' => $entries,
             'byPackagePath' => $byPackagePath,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyZipExtraFieldProvenance(): array
+    {
+        return [
+            'entryCount' => 0,
+            'extraFieldEntryCount' => 0,
+            'duplicateExtraFieldEntryCount' => 0,
+            'duplicateCentralExtraFieldEntryCount' => 0,
+            'duplicateLocalExtraFieldEntryCount' => 0,
+            'mismatchedExtraFieldEntryCount' => 0,
+            'mismatchedExtraFieldValueEntryCount' => 0,
+            'centralOnlyExtraFieldEntryCount' => 0,
+            'localOnlyExtraFieldEntryCount' => 0,
+            'extraFieldIdCount' => 0,
+            'centralExtraFieldIdCount' => 0,
+            'localExtraFieldIdCount' => 0,
+            'sharedExtraFieldIdCount' => 0,
+            'centralOnlyExtraFieldIdCount' => 0,
+            'localOnlyExtraFieldIdCount' => 0,
+            'extraFieldIdUsage' => [],
+            'duplicateEntries' => [],
+            'mismatchedEntries' => [],
+            'valueMismatchedEntries' => [],
+            'entries' => [],
         ];
     }
 
@@ -11166,6 +11240,19 @@ final class DocxOpenXmlReader
             $partInventory[$partName]['zipEntryCommentEncoding'] = $entry['zipEntryCommentEncoding'] ?? 'utf-8';
             $partInventory[$partName]['zipEntryHasComment'] = $entry['zipEntryHasComment'] ?? false;
             $partInventory[$partName]['zipEntryCommentIssues'] = $entry['zipEntryCommentIssues'] ?? [];
+            $partInventory[$partName]['centralExtraFieldIds'] = $entry['centralExtraFieldIds'] ?? [];
+            $partInventory[$partName]['localExtraFieldIds'] = $entry['localExtraFieldIds'] ?? [];
+            $partInventory[$partName]['duplicateCentralExtraFieldIds'] = $entry['duplicateCentralExtraFieldIds'] ?? [];
+            $partInventory[$partName]['duplicateLocalExtraFieldIds'] = $entry['duplicateLocalExtraFieldIds'] ?? [];
+            $partInventory[$partName]['centralOnlyExtraFieldIds'] = $entry['centralOnlyExtraFieldIds'] ?? [];
+            $partInventory[$partName]['localOnlyExtraFieldIds'] = $entry['localOnlyExtraFieldIds'] ?? [];
+            $partInventory[$partName]['mismatchedExtraFieldValueIds'] = $entry['mismatchedExtraFieldValueIds'] ?? [];
+            $partInventory[$partName]['hasCentralExtraFields'] = $entry['hasCentralExtraFields'] ?? false;
+            $partInventory[$partName]['hasLocalExtraFields'] = $entry['hasLocalExtraFields'] ?? false;
+            $partInventory[$partName]['hasZipExtraFieldProvenance'] = $entry['hasZipExtraFieldProvenance'] ?? false;
+            $partInventory[$partName]['hasDuplicateExtraFieldIds'] = $entry['hasDuplicateExtraFieldIds'] ?? false;
+            $partInventory[$partName]['hasMismatchedExtraFieldIds'] = $entry['hasMismatchedExtraFieldIds'] ?? false;
+            $partInventory[$partName]['hasMismatchedExtraFieldValues'] = $entry['hasMismatchedExtraFieldValues'] ?? false;
             $partInventory[$partName]['usesDataDescriptor'] = $entry['usesDataDescriptor'] ?? false;
             $partInventory[$partName]['dataDescriptorHasSignature'] = $entry['dataDescriptorHasSignature'] ?? null;
             $partInventory[$partName]['dataDescriptorOffset'] = $entry['dataDescriptorOffset'] ?? null;

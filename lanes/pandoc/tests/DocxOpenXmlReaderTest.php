@@ -401,6 +401,69 @@ return [
         $t->same(2, $methodBuckets[0]['entryCount']);
         $t->same(count($parts) - 1, $methodBuckets[8]['entryCount']);
     },
+    'preserves docx source zip extra-field provenance across package ingestion' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $customExtraPayload = 'docx-extra-field-review';
+        $customExtraField = pack('vva*', 0xcafe, strlen($customExtraPayload), $customExtraPayload);
+        $zipParts = [];
+        foreach ($parts as $name => $data) {
+            $zipPart = [
+                'name' => $name,
+                'data' => $data,
+            ];
+            if ($name === 'word/document.xml') {
+                $zipPart['modifiedAt'] = 1700000000;
+                $zipPart['extraFieldData'] = $customExtraField;
+            }
+            $zipParts[] = $zipPart;
+        }
+
+        $document = (new DocxOpenXmlReader())->readZipPackage(ZipPackage::fromParts($zipParts));
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $zipExtraFields = $package['zipPackage']['extraFields'];
+        $documentEntry = $package['zipPackage']['byPackagePath']['word/document.xml'];
+        $documentInventory = $package['parts']['word/document.xml'];
+        $extraFieldEntries = [];
+        foreach ($zipExtraFields['entries'] as $entry) {
+            $extraFieldEntries[$entry['name']] = $entry;
+        }
+
+        $expectedIds = [0x5455, 0xcafe];
+        $t->same(1, $summary['zipExtraFieldEntryCount']);
+        $t->same(0, $summary['zipDuplicateExtraFieldEntryCount']);
+        $t->same(0, $summary['zipMismatchedExtraFieldEntryCount']);
+        $t->same(0, $summary['zipMismatchedExtraFieldValueEntryCount']);
+        $t->same(2, $summary['zipExtraFieldIdCount']);
+        $t->same(2, $summary['zipCentralExtraFieldIdCount']);
+        $t->same(2, $summary['zipLocalExtraFieldIdCount']);
+        $t->same(2, $summary['zipSharedExtraFieldIdCount']);
+        $t->same(0, $summary['zipCentralOnlyExtraFieldIdCount']);
+        $t->same(0, $summary['zipLocalOnlyExtraFieldIdCount']);
+
+        $t->same($expectedIds, $documentEntry['centralExtraFieldIds']);
+        $t->same($expectedIds, $documentEntry['localExtraFieldIds']);
+        $t->same(true, $documentEntry['hasCentralExtraFields']);
+        $t->same(true, $documentEntry['hasLocalExtraFields']);
+        $t->same(true, $documentEntry['hasZipExtraFieldProvenance']);
+        $t->same(false, $documentEntry['hasDuplicateExtraFieldIds']);
+        $t->same(false, $documentEntry['hasMismatchedExtraFieldIds']);
+        $t->same(false, $documentEntry['hasMismatchedExtraFieldValues']);
+
+        $t->same($expectedIds, $documentInventory['centralExtraFieldIds']);
+        $t->same($expectedIds, $documentInventory['localExtraFieldIds']);
+        $t->same(true, $documentInventory['hasZipExtraFieldProvenance']);
+        $t->same(false, $documentInventory['hasMismatchedExtraFieldValues']);
+
+        $t->same($expectedIds, $extraFieldEntries['word/document.xml']['centralExtraFieldIds']);
+        $t->same($expectedIds, $extraFieldEntries['word/document.xml']['localExtraFieldIds']);
+        $t->same('0x5455', $summary['zipExtraFieldIdUsage'][0]['idHex']);
+        $t->same(['word/document.xml'], $summary['zipExtraFieldIdUsage'][0]['centralEntryNames']);
+        $t->same(['word/document.xml'], $summary['zipExtraFieldIdUsage'][0]['localEntryNames']);
+        $t->same('0xcafe', $summary['zipExtraFieldIdUsage'][1]['idHex']);
+        $t->same(['word/document.xml'], $summary['zipExtraFieldIdUsage'][1]['centralEntryNames']);
+        $t->same(['word/document.xml'], $summary['zipExtraFieldIdUsage'][1]['localEntryNames']);
+    },
     'preserves docx unsupported zip compression provenance without aborting ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $unsupportedPart = 'word/media/review-bzip2.bin';
