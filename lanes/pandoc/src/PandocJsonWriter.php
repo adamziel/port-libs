@@ -1044,16 +1044,15 @@ final class PandocJsonWriter
             return $native;
         }
 
-        return [
-            't' => 'Caption',
-            'c' => $isWrappedContent ? [[
-                $shortNative,
-                $caption[1],
-            ]] : [
-                $shortNative,
-                $caption[1],
-            ],
+        $native['c'] = $isWrappedContent ? [[
+            $shortNative,
+            $caption[1],
+        ]] : [
+            $shortNative,
+            $caption[1],
         ];
+
+        return $native;
     }
 
     /**
@@ -1114,13 +1113,17 @@ final class PandocJsonWriter
             }
 
             if ($sourceShort['t'] === 'Just') {
-                return $generatedShort === null
-                    ? ['t' => 'Nothing']
-                    : ['t' => 'Just', 'c' => $this->shortCaptionNativeContent($sourceShort['c'] ?? null, $generatedShort)];
+                if ($generatedShort === null) {
+                    return ['t' => 'Nothing'];
+                }
+
+                $sourceShort['c'] = $this->shortCaptionNativeContent($sourceShort['c'] ?? null, $generatedShort);
+
+                return $sourceShort;
             }
 
             if ($sourceShort['t'] === 'ShortCaption') {
-                return $generatedShort === null ? null : ['t' => 'ShortCaption', 'c' => [$generatedShort]];
+                return $generatedShort === null ? null : $this->regeneratedShortCaptionNative($sourceShort, $generatedShort);
             }
         }
 
@@ -1155,14 +1158,26 @@ final class PandocJsonWriter
             && !array_is_list($sourceShort[0])
             && ($sourceShort[0]['t'] ?? null) === 'ShortCaption'
         ) {
-            return [['t' => 'ShortCaption', 'c' => [$generatedShort]]];
+            return [$this->regeneratedShortCaptionNative($sourceShort[0], $generatedShort)];
         }
 
         if (is_array($sourceShort) && !array_is_list($sourceShort) && ($sourceShort['t'] ?? null) === 'ShortCaption') {
-            return ['t' => 'ShortCaption', 'c' => [$generatedShort]];
+            return $this->regeneratedShortCaptionNative($sourceShort, $generatedShort);
         }
 
         return $generatedShort;
+    }
+
+    /**
+     * @param array<string, mixed> $native
+     * @param list<array<string, mixed>> $generatedShort
+     * @return array<string, mixed>
+     */
+    private function regeneratedShortCaptionNative(array $native, array $generatedShort): array
+    {
+        $native['c'] = [$generatedShort];
+
+        return $native;
     }
 
     /**
