@@ -1058,8 +1058,9 @@ XML);
 }
 BIB;
 
-        $item = (new BibtexCslProcessor())->cslItems($source)['translated-manual'];
-        $bibliography = (new BibtexCslProcessor())->renderBibliographyText($item);
+        $processor = new BibtexCslProcessor();
+        $item = $processor->cslItems($source)['translated-manual'];
+        $bibliography = $processor->renderBibliographyText($item);
 
         $t->same('book', $item['type']);
         $t->same('Migration Manual', $item['title']);
@@ -1076,7 +1077,49 @@ BIB;
         $t->same('2.1.0', $item['version']);
         $t->same('revised', $item['status']);
         $t->same('print-on-demand packet', $item['medium']);
-        $t->same('Gia Garcia. Migration Manual. Review Press. 2026.', $bibliography);
+        $t->same('Gia Garcia. Migration Manual. Review Press. 2026. Collection: Review Sources. Collection abbreviation: RS. Collection number: 7. Edition: 2. Version: 2.1.0. Status: revised. Medium: print-on-demand packet.', $bibliography);
+
+        $styled = CitationCslProcessor::fromItems([$item])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="collection-title"/>
+        <text variable="collection-title" form="short"/>
+        <text variable="collection-number"/>
+        <text variable="edition"/>
+        <text variable="version"/>
+        <text variable="status"/>
+        <text variable="medium"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="collection-title"/>
+      <text variable="collection-title" form="short"/>
+      <text variable="collection-number"/>
+      <text variable="edition"/>
+      <text variable="version"/>
+      <text variable="status"/>
+      <text variable="medium"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('[Migration Manual | Review Sources | RS | 7 | 2 | 2.1.0 | revised | print-on-demand packet]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'translated-manual', 'text' => '[@translated-manual]']),
+        ]));
+        $t->same('Migration Manual :: Review Sources :: RS :: 7 :: 2 :: 2.1.0 :: revised :: print-on-demand packet', $styled->renderBibliographyEntry('translated-manual'));
+
+        $document = (new MarkdownReader())->read('Release state [@translated-manual] stays visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Release state [Migration Manual | Review Sources | RS | 7 | 2 | 2.1.0 | revised | print-on-demand packet] stays visible.</p>', $blocks);
+        $t->contains('<dt>Garcia 2026</dt><dd>Migration Manual :: Review Sources :: RS :: 7 :: 2 :: 2.1.0 :: revised :: print-on-demand packet</dd>', $blocks);
     },
     'carries biblatex translated title aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'

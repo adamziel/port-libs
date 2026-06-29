@@ -362,6 +362,33 @@ final class BibtexCslProcessor
         foreach ($this->legalPatentBibliographyParts($item) as $part) {
             $parts[] = $part;
         }
+        foreach ([
+            'collection-title' => 'Collection',
+            'collection-title-short' => 'Collection abbreviation',
+            'collection-number' => 'Collection number',
+        ] as $field => $label) {
+            if (($item[$field] ?? '') !== '') {
+                $value = (string) $item[$field];
+                if ($field === 'collection-title-short') {
+                    $value = rtrim($value, '.');
+                }
+                $parts[] = $label . ': ' . $value;
+            }
+        }
+        foreach ([
+            'edition' => 'Edition',
+            'version' => 'Version',
+            'status' => 'Status',
+            'medium' => 'Medium',
+        ] as $field => $label) {
+            if ($field === 'status' && in_array((string) ($item['type'] ?? ''), ['patent', 'legislation', 'legal_case'], true)) {
+                continue;
+            }
+
+            if (($item[$field] ?? '') !== '') {
+                $parts[] = $label . ': ' . (string) $item[$field];
+            }
+        }
         if (($item['thesis-type'] ?? '') !== '') {
             $parts[] = 'Thesis type: ' . (string) $item['thesis-type'];
         }
