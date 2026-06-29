@@ -5110,11 +5110,13 @@ final class ZipPackage
      *     selectedDecodedNameDiffersFromRawNameEntryCount:int,
      *     selectedCommentedEntryCount:int,
      *     selectedRawCommentProvenanceEntryCount:int,
+     *     selectedCommentEncodingSummaryCount:int,
      *     selectedLegacyEncodedCommentEntryCount:int,
      *     selectedUnicodeCommentExtraEntryCount:int,
      *     selectedDecodedCommentDiffersFromRawCommentEntryCount:int,
      *     handoffCommentedEntryCount:int,
      *     handoffRawCommentProvenanceEntryCount:int,
+     *     handoffCommentEncodingSummaryCount:int,
      *     handoffLegacyEncodedCommentEntryCount:int,
      *     handoffUnicodeCommentExtraEntryCount:int,
      *     handoffDecodedCommentDiffersFromRawCommentEntryCount:int,
@@ -5267,7 +5269,9 @@ final class ZipPackage
      *     selectedRawNameProvenanceEntries:list<array<string, mixed>>,
      *     selectedCommentedEntries:list<array<string, mixed>>,
      *     selectedRawCommentProvenanceEntries:list<array<string, mixed>>,
+     *     selectedCommentEncodingSummaries:list<array<string, mixed>>,
      *     handoffCommentedEntries:list<array<string, mixed>>,
+     *     handoffCommentEncodingSummaries:list<array<string, mixed>>,
      *     handoffRawCommentProvenanceEntries:list<array<string, mixed>>,
      *     selectedExtraFieldProvenanceEntries:list<array<string, mixed>>,
      *     selectedExtraFieldIdUsage:list<array<string, mixed>>,
@@ -6421,6 +6425,8 @@ final class ZipPackage
             'centralDirectoryFixedFieldIssues'
         );
         $handoffRawCommentSummary = self::entryHandoffRawCommentSummary($handoffEntries);
+        $selectedCommentEncodingSummaries = self::entryHandoffCommentEncodingSummaries($entries);
+        $handoffCommentEncodingSummaries = self::entryHandoffCommentEncodingSummaries($handoffEntries);
         $selectedExtraFieldIdUsage = self::extraFieldIdUsageSummary($selectedExtraFieldProvenanceEntries);
         $handoffExtraFieldSummary = self::entryHandoffExtraFieldSummary($handoffEntries);
         $roleSummaries = self::entryHandoffRoleSummaries($entries);
@@ -6588,11 +6594,13 @@ final class ZipPackage
             'selectedDecodedNameDiffersFromRawNameEntryCount' => $selectedDecodedNameDiffersFromRawNameEntryCount,
             'selectedCommentedEntryCount' => count($selectedCommentedEntries),
             'selectedRawCommentProvenanceEntryCount' => count($selectedRawCommentProvenanceEntries),
+            'selectedCommentEncodingSummaryCount' => count($selectedCommentEncodingSummaries),
             'selectedLegacyEncodedCommentEntryCount' => $selectedLegacyEncodedCommentEntryCount,
             'selectedUnicodeCommentExtraEntryCount' => $selectedUnicodeCommentExtraEntryCount,
             'selectedDecodedCommentDiffersFromRawCommentEntryCount' => $selectedDecodedCommentDiffersFromRawCommentEntryCount,
             'handoffCommentedEntryCount' => $handoffRawCommentSummary['commentedEntryCount'],
             'handoffRawCommentProvenanceEntryCount' => $handoffRawCommentSummary['rawCommentProvenanceEntryCount'],
+            'handoffCommentEncodingSummaryCount' => count($handoffCommentEncodingSummaries),
             'handoffLegacyEncodedCommentEntryCount' => $handoffRawCommentSummary['legacyEncodedCommentEntryCount'],
             'handoffUnicodeCommentExtraEntryCount' => $handoffRawCommentSummary['unicodeCommentExtraEntryCount'],
             'handoffDecodedCommentDiffersFromRawCommentEntryCount' => $handoffRawCommentSummary['decodedCommentDiffersFromRawCommentEntryCount'],
@@ -6865,8 +6873,10 @@ final class ZipPackage
             'selectedRawNameProvenanceEntries' => $selectedRawNameProvenanceEntries,
             'selectedCommentedEntries' => $selectedCommentedEntries,
             'selectedRawCommentProvenanceEntries' => $selectedRawCommentProvenanceEntries,
+            'selectedCommentEncodingSummaries' => $selectedCommentEncodingSummaries,
             'handoffCommentedEntries' => $handoffRawCommentSummary['commentedEntries'],
             'handoffRawCommentProvenanceEntries' => $handoffRawCommentSummary['rawCommentProvenanceEntries'],
+            'handoffCommentEncodingSummaries' => $handoffCommentEncodingSummaries,
             'selectedExtraFieldProvenanceEntries' => $selectedExtraFieldProvenanceEntries,
             'selectedExtraFieldIdUsage' => $selectedExtraFieldIdUsage['extraFieldIdUsage'],
             'handoffExtraFieldProvenanceEntries' => $handoffExtraFieldSummary['extraFieldProvenanceEntries'],
@@ -8231,6 +8241,100 @@ final class ZipPackage
             'commentedEntries' => $commentedEntries,
             'rawCommentProvenanceEntries' => $rawCommentProvenanceEntries,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffCommentEncodingSummaries(array $entries): array
+    {
+        $summaries = [];
+
+        foreach ($entries as $entry) {
+            if (($entry['exists'] ?? false) !== true) {
+                continue;
+            }
+
+            $rawComment = is_string($entry['rawComment'] ?? null) ? $entry['rawComment'] : '';
+            if ($rawComment === '') {
+                continue;
+            }
+
+            $encoding = is_string($entry['commentEncoding'] ?? null) && $entry['commentEncoding'] !== ''
+                ? $entry['commentEncoding']
+                : 'unknown';
+            if (!isset($summaries[$encoding])) {
+                $summaries[$encoding] = [
+                    'commentEncoding' => $encoding,
+                    'entryCount' => 0,
+                    'readyEntryCount' => 0,
+                    'blockedEntryCount' => 0,
+                    'rawCommentProvenanceEntryCount' => 0,
+                    'legacyEncodedCommentEntryCount' => 0,
+                    'unicodeCommentExtraEntryCount' => 0,
+                    'decodedCommentDiffersFromRawCommentEntryCount' => 0,
+                    'rawCommentBytes' => 0,
+                    'decodedCommentBytes' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'roles' => [],
+                    'entryNames' => [],
+                    'readyEntryNames' => [],
+                    'blockedEntryNames' => [],
+                ];
+            }
+
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            $status = is_string($entry['status'] ?? null) ? $entry['status'] : '';
+            ++$summaries[$encoding]['entryCount'];
+            if ($status === 'ready') {
+                ++$summaries[$encoding]['readyEntryCount'];
+                if ($name !== '') {
+                    $summaries[$encoding]['readyEntryNames'][] = $name;
+                }
+            } elseif ($status === 'blocked') {
+                ++$summaries[$encoding]['blockedEntryCount'];
+                if ($name !== '') {
+                    $summaries[$encoding]['blockedEntryNames'][] = $name;
+                }
+            }
+
+            if (($entry['hasRawCommentProvenance'] ?? false) === true) {
+                ++$summaries[$encoding]['rawCommentProvenanceEntryCount'];
+            }
+            if (($entry['usesLegacyCommentEncoding'] ?? false) === true) {
+                ++$summaries[$encoding]['legacyEncodedCommentEntryCount'];
+            }
+            if (($entry['usesUnicodeCommentExtraField'] ?? false) === true) {
+                ++$summaries[$encoding]['unicodeCommentExtraEntryCount'];
+            }
+            if (($entry['rawCommentMatchesDecodedComment'] ?? true) === false) {
+                ++$summaries[$encoding]['decodedCommentDiffersFromRawCommentEntryCount'];
+            }
+
+            $comment = is_string($entry['comment'] ?? null) ? $entry['comment'] : '';
+            $summaries[$encoding]['rawCommentBytes'] += strlen($rawComment);
+            $summaries[$encoding]['decodedCommentBytes'] += strlen($comment);
+            $summaries[$encoding]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$encoding]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            if ($name !== '') {
+                $summaries[$encoding]['entryNames'][] = $name;
+            }
+            foreach (self::entryHandoffRolesForSummary($entry) as $role) {
+                if (!in_array($role, $summaries[$encoding]['roles'], true)) {
+                    $summaries[$encoding]['roles'][] = $role;
+                }
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['roles'], SORT_STRING);
+        }
+        unset($summary);
+        ksort($summaries, SORT_STRING);
+
+        return array_values($summaries);
     }
 
     /**

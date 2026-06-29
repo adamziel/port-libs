@@ -11234,12 +11234,14 @@ return [
 
     'summarizes readable zip handoff raw comments before reader byte exposure' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>handoff raw comment summary</w:p></w:body></w:document>';
+        $documentCompressedBytes = strlen(gzdeflate($documentXml));
         $documentComment = 'document reviewer note';
         $readyName = 'word/media/commented-ready.bin';
         $readyRawComment = "r\x82sum\x82 ready attachment";
         $readyComment = "r\u{00e9}sum\u{00e9} ready attachment";
         $blockedName = 'word/media/commented-blocked.bin';
         $blockedComment = 'blocked media reviewer note';
+        $blockedPayload = str_repeat('blocked commented media payload ', 3);
         $package = ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/document.xml',
@@ -11256,7 +11258,7 @@ return [
             ],
             [
                 'name' => $blockedName,
-                'data' => str_repeat('blocked commented media payload ', 3),
+                'data' => $blockedPayload,
                 'method' => 0,
                 'comment' => $blockedComment,
             ],
@@ -11288,6 +11290,74 @@ return [
         $t->same(1, $summary['handoffLegacyEncodedCommentEntryCount']);
         $t->same(0, $summary['handoffUnicodeCommentExtraEntryCount']);
         $t->same(1, $summary['handoffDecodedCommentDiffersFromRawCommentEntryCount']);
+        $t->same(2, $summary['selectedCommentEncodingSummaryCount']);
+        $t->same(2, $summary['handoffCommentEncodingSummaryCount']);
+
+        $selectedCommentEncodingByName = [];
+        foreach ($summary['selectedCommentEncodingSummaries'] as $encodingSummary) {
+            $selectedCommentEncodingByName[$encodingSummary['commentEncoding']] = $encodingSummary;
+        }
+        $handoffCommentEncodingByName = [];
+        foreach ($summary['handoffCommentEncodingSummaries'] as $encodingSummary) {
+            $handoffCommentEncodingByName[$encodingSummary['commentEncoding']] = $encodingSummary;
+        }
+        $t->same(['cp437', 'utf-8'], array_keys($selectedCommentEncodingByName));
+        $t->same(['cp437', 'utf-8'], array_keys($handoffCommentEncodingByName));
+        $t->same([
+            'commentEncoding' => 'cp437',
+            'entryCount' => 1,
+            'readyEntryCount' => 1,
+            'blockedEntryCount' => 0,
+            'rawCommentProvenanceEntryCount' => 1,
+            'legacyEncodedCommentEntryCount' => 1,
+            'unicodeCommentExtraEntryCount' => 0,
+            'decodedCommentDiffersFromRawCommentEntryCount' => 1,
+            'rawCommentBytes' => strlen($readyRawComment),
+            'decodedCommentBytes' => strlen($readyComment),
+            'compressedBytes' => strlen("ready commented media placeholder\n"),
+            'uncompressedBytes' => strlen("ready commented media placeholder\n"),
+            'roles' => ['attachment'],
+            'entryNames' => [$readyName],
+            'readyEntryNames' => [$readyName],
+            'blockedEntryNames' => [],
+        ], $selectedCommentEncodingByName['cp437']);
+        $t->same($selectedCommentEncodingByName['cp437'], $handoffCommentEncodingByName['cp437']);
+        $t->same([
+            'commentEncoding' => 'utf-8',
+            'entryCount' => 2,
+            'readyEntryCount' => 1,
+            'blockedEntryCount' => 1,
+            'rawCommentProvenanceEntryCount' => 0,
+            'legacyEncodedCommentEntryCount' => 0,
+            'unicodeCommentExtraEntryCount' => 0,
+            'decodedCommentDiffersFromRawCommentEntryCount' => 0,
+            'rawCommentBytes' => strlen($documentComment) + strlen($blockedComment),
+            'decodedCommentBytes' => strlen($documentComment) + strlen($blockedComment),
+            'compressedBytes' => $documentCompressedBytes + strlen($blockedPayload),
+            'uncompressedBytes' => strlen($documentXml) + strlen($blockedPayload),
+            'roles' => ['attachment', 'main-document'],
+            'entryNames' => ['word/document.xml', $blockedName],
+            'readyEntryNames' => ['word/document.xml'],
+            'blockedEntryNames' => [$blockedName],
+        ], $selectedCommentEncodingByName['utf-8']);
+        $t->same([
+            'commentEncoding' => 'utf-8',
+            'entryCount' => 1,
+            'readyEntryCount' => 1,
+            'blockedEntryCount' => 0,
+            'rawCommentProvenanceEntryCount' => 0,
+            'legacyEncodedCommentEntryCount' => 0,
+            'unicodeCommentExtraEntryCount' => 0,
+            'decodedCommentDiffersFromRawCommentEntryCount' => 0,
+            'rawCommentBytes' => strlen($documentComment),
+            'decodedCommentBytes' => strlen($documentComment),
+            'compressedBytes' => $documentCompressedBytes,
+            'uncompressedBytes' => strlen($documentXml),
+            'roles' => ['main-document'],
+            'entryNames' => ['word/document.xml'],
+            'readyEntryNames' => ['word/document.xml'],
+            'blockedEntryNames' => [],
+        ], $handoffCommentEncodingByName['utf-8']);
 
         $documentCommentSummary = $summary['handoffCommentedEntries'][0];
         $readyCommentSummary = $summary['handoffCommentedEntries'][1];
