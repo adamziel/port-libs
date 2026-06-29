@@ -1044,16 +1044,15 @@ final class PandocJsonWriter
             return $native;
         }
 
-        return [
-            't' => 'Caption',
-            'c' => $isWrappedContent ? [[
-                $shortNative,
-                $caption[1],
-            ]] : [
-                $shortNative,
-                $caption[1],
-            ],
+        $native['c'] = $isWrappedContent ? [[
+            $shortNative,
+            $caption[1],
+        ]] : [
+            $shortNative,
+            $caption[1],
         ];
+
+        return $native;
     }
 
     /**
@@ -1118,10 +1117,9 @@ final class PandocJsonWriter
                     return ['t' => 'Nothing'];
                 }
 
-                return [
-                    't' => 'Just',
-                    'c' => $this->shortCaptionNativeContent($sourceShort['c'] ?? null, $generatedShort),
-                ];
+                $sourceShort['c'] = $this->shortCaptionNativeContent($sourceShort['c'] ?? null, $generatedShort);
+
+                return $sourceShort;
             }
 
             if ($sourceShort['t'] === 'ShortCaption') {
@@ -1177,10 +1175,9 @@ final class PandocJsonWriter
      */
     private function regeneratedShortCaptionNative(array $native, array $generatedShort): array
     {
-        return [
-            't' => 'ShortCaption',
-            'c' => [$generatedShort],
-        ];
+        $native['c'] = [$generatedShort];
+
+        return $native;
     }
 
     /**
