@@ -14895,6 +14895,7 @@ final class XmlHtmlDom
             $summary['effectiveDisabled'] = self::isEffectivelyDisabledFormControl($node);
             $summary['required'] = $node->hasAttribute('required');
             $summary += self::formControlConstraintSummary($node, $name);
+            $summary += self::formRequiredValueReviewSummary($node, $name, $inputType);
             if ($inputType === 'file' || $node->hasAttribute('accept') || $node->hasAttribute('capture')) {
                 $summary += self::fileInputReviewSummary($node, $inputType);
             }
@@ -14926,6 +14927,7 @@ final class XmlHtmlDom
             $summary['readonly'] = $node->hasAttribute('readonly');
             $summary['required'] = $node->hasAttribute('required');
             $summary += self::formControlConstraintSummary($node, $name);
+            $summary += self::formRequiredValueReviewSummary($node, $name, null);
             if ($node->hasAttribute('placeholder')) {
                 $summary['placeholder'] = $node->getAttribute('placeholder');
             }
@@ -25307,6 +25309,285 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function formRequiredValueReviewSummary(
+        \DOMElement $control,
+        string $name,
+        ?string $inputType
+    ): array {
+        if (!$control->hasAttribute('required') || !in_array($name, ['input', 'textarea'], true)) {
+            return [];
+        }
+
+        $type = $name === 'input' ? ($inputType ?? self::inputType($control)) : null;
+        $applies = $name === 'textarea'
+            || ($type !== null && self::inputTypeSupportsRequiredValue($type));
+        $readonly = $name === 'textarea'
+            ? $control->hasAttribute('readonly')
+            : ($type !== null && self::inputTypeSupportsReadonlyValue($type) && $control->hasAttribute('readonly'));
+        $effectiveDisabled = self::isEffectivelyDisabledFormControl($control);
+        $value = self::formRequiredStaticValueSummary($control, $name, $type, $applies);
+        $issues = [];
+
+        if (!$applies) {
+            $issues[] = [
+                'code' => 'required-control-unsupported',
+                'element' => $name,
+                'inputType' => $type,
+            ];
+        }
+        if ($effectiveDisabled) {
+            $issues[] = ['code' => 'required-control-disabled'];
+        }
+        if ($readonly) {
+            $issues[] = ['code' => 'required-control-readonly'];
+        }
+        if ($applies && !$effectiveDisabled && !$readonly && $value['missing'] === true) {
+            $issues[] = [
+                'code' => 'required-control-value-missing',
+                'valueSource' => $value['source'],
+            ];
+        }
+
+        $summary = [
+            'requiredValueReviewPolicy' => 'form-control-required-value-review',
+            'requiredValueElement' => $name,
+            'requiredValueInputType' => $type,
+            'requiredValueControlId' => self::attributeOrNull($control, 'id'),
+            'requiredValueControlName' => self::attributeOrNull($control, 'name'),
+            'requiredValueApplies' => $applies,
+            'requiredValueEffectiveDisabled' => $effectiveDisabled,
+            'requiredValueReadonly' => $readonly,
+            'requiredValueSource' => $value['source'],
+            'requiredValueStaticValue' => $value['value'],
+            'requiredValueStaticValueLength' => is_string($value['value']) ? strlen($value['value']) : null,
+            'requiredValuePresent' => $value['present'],
+            'requiredValueMissing' => $value['missing'],
+            'requiredValueWouldBlockStaticSubmission' => $applies
+                && !$effectiveDisabled
+                && !$readonly
+                && $value['missing'] === true,
+            'requiredValueReviewOnlyNoFormSubmission' => true,
+            'requiredValueIssues' => $issues,
+            'requiredValueIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'requiredValueValid' => $issues === [],
+        ];
+
+        if ($type === 'radio') {
+            $summary += self::radioRequiredValueReviewSummary($control);
+        }
+
+        return $summary;
+    }
+
+    private static function inputTypeSupportsRequiredValue(string $type): bool
+    {
+        return !in_array(strtolower($type), ['button', 'color', 'hidden', 'image', 'range', 'reset', 'submit'], true);
+    }
+
+    private static function inputTypeSupportsReadonlyValue(string $type): bool
+    {
+        return in_array(strtolower($type), [
+            'date',
+            'datetime-local',
+            'email',
+            'month',
+            'number',
+            'password',
+            'search',
+            'tel',
+            'text',
+            'time',
+            'url',
+            'week',
+        ], true);
+    }
+
+    /**
+     * @return array{source:string, value:?string, present:?bool, missing:?bool}
+     */
+    private static function formRequiredStaticValueSummary(
+        \DOMElement $control,
+        string $name,
+        ?string $inputType,
+        bool $applies
+    ): array {
+        if (!$applies) {
+            return [
+                'source' => 'unsupported-control',
+                'value' => null,
+                'present' => null,
+                'missing' => null,
+            ];
+        }
+
+        if ($name === 'textarea') {
+            $value = $control->textContent;
+
+            return [
+                'source' => 'textarea-text',
+                'value' => $value,
+                'present' => $value !== '',
+                'missing' => $value === '',
+            ];
+        }
+
+        if ($inputType === 'checkbox') {
+            $checked = $control->hasAttribute('checked');
+
+            return [
+                'source' => 'checked-state',
+                'value' => $checked ? self::formInputSubmittedValue($control) : null,
+                'present' => $checked,
+                'missing' => !$checked,
+            ];
+        }
+
+        if ($inputType === 'radio') {
+            $radio = self::radioGroupRequiredValueSummary($control);
+
+            return [
+                'source' => 'radio-group-checked-state',
+                'value' => $radio['checkedValues'][0] ?? null,
+                'present' => $radio['checked'],
+                'missing' => !$radio['checked'],
+            ];
+        }
+
+        if ($inputType === 'file') {
+            return [
+                'source' => 'file-input-static-selection',
+                'value' => null,
+                'present' => false,
+                'missing' => true,
+            ];
+        }
+
+        $value = $control->getAttribute('value');
+
+        return [
+            'source' => 'value-attribute',
+            'value' => $value,
+            'present' => $value !== '',
+            'missing' => $value === '',
+        ];
+    }
+
+    private static function formInputSubmittedValue(\DOMElement $input): string
+    {
+        $value = self::attributeOrNull($input, 'value');
+
+        return $value ?? 'on';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function radioRequiredValueReviewSummary(\DOMElement $radio): array
+    {
+        $group = self::radioGroupRequiredValueSummary($radio);
+
+        return [
+            'requiredValueRadioGroupName' => $group['name'],
+            'requiredValueRadioGroupSize' => count($group['controls']),
+            'requiredValueRadioGroupRequiredCount' => $group['requiredCount'],
+            'requiredValueRadioGroupChecked' => $group['checked'],
+            'requiredValueRadioGroupCheckedIds' => $group['checkedIds'],
+            'requiredValueRadioGroupCheckedValues' => $group['checkedValues'],
+            'requiredValueRadioGroupControls' => $group['controls'],
+        ];
+    }
+
+    /**
+     * @return array{name:string, checked:bool, checkedIds:list<string>, checkedValues:list<string>, requiredCount:int, controls:list<array<string, mixed>>}
+     */
+    private static function radioGroupRequiredValueSummary(\DOMElement $radio): array
+    {
+        $document = $radio->ownerDocument;
+        $name = self::attributeOrNull($radio, 'name') ?? '';
+        $owner = self::formOwnerElement($radio);
+        $controls = [];
+        $checkedIds = [];
+        $checkedValues = [];
+        $requiredCount = 0;
+
+        if (!$document instanceof \DOMDocument) {
+            return [
+                'name' => $name,
+                'checked' => $radio->hasAttribute('checked'),
+                'checkedIds' => $radio->hasAttribute('checked') ? array_values(array_filter([self::attributeOrNull($radio, 'id')])) : [],
+                'checkedValues' => $radio->hasAttribute('checked') ? [self::formInputSubmittedValue($radio)] : [],
+                'requiredCount' => $radio->hasAttribute('required') ? 1 : 0,
+                'controls' => [self::radioRequiredValueControlSummary($radio, true)],
+            ];
+        }
+
+        foreach ($document->getElementsByTagName('input') as $candidate) {
+            if (!$candidate instanceof \DOMElement || self::inputType($candidate) !== 'radio') {
+                continue;
+            }
+            if ((self::attributeOrNull($candidate, 'name') ?? '') !== $name) {
+                continue;
+            }
+            if (!self::sameFormOwner($owner, self::formOwnerElement($candidate))) {
+                continue;
+            }
+
+            $current = $candidate->isSameNode($radio);
+            $checked = $candidate->hasAttribute('checked');
+            if ($candidate->hasAttribute('required')) {
+                ++$requiredCount;
+            }
+            if ($checked) {
+                $id = self::attributeOrNull($candidate, 'id');
+                if ($id !== null && $id !== '') {
+                    $checkedIds[] = $id;
+                }
+                $checkedValues[] = self::formInputSubmittedValue($candidate);
+            }
+            $controls[] = self::radioRequiredValueControlSummary($candidate, $current);
+        }
+
+        return [
+            'name' => $name,
+            'checked' => $checkedValues !== [],
+            'checkedIds' => $checkedIds,
+            'checkedValues' => $checkedValues,
+            'requiredCount' => $requiredCount,
+            'controls' => $controls,
+        ];
+    }
+
+    private static function sameFormOwner(?\DOMElement $left, ?\DOMElement $right): bool
+    {
+        if (!$left instanceof \DOMElement || !$right instanceof \DOMElement) {
+            return !$left instanceof \DOMElement && !$right instanceof \DOMElement;
+        }
+
+        return $left->isSameNode($right);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function radioRequiredValueControlSummary(\DOMElement $radio, bool $current): array
+    {
+        return [
+            'id' => self::attributeOrNull($radio, 'id'),
+            'name' => self::attributeOrNull($radio, 'name'),
+            'value' => self::formInputSubmittedValue($radio),
+            'checked' => $radio->hasAttribute('checked'),
+            'required' => $radio->hasAttribute('required'),
+            'effectiveDisabled' => self::isEffectivelyDisabledFormControl($radio),
+            'current' => $current,
+        ];
     }
 
     private static function nonNegativeIntegerToken(string $value, int $max): ?int
