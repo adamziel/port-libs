@@ -3626,11 +3626,33 @@ final class MathTexConverter
             $previousIndex !== null
             && $this->mathMlNodeHasFunctionOperatorHead($nodes[$previousIndex])
             && $this->mathMlNodeCanStartFunctionArgument($node)
+            && !$this->shouldSuppressAutomaticFunctionApplication($nodes, $previousIndex, $node)
         ) {
             $nodes[] = '<mo>⁡</mo>';
         }
 
         $nodes[] = $node;
+    }
+
+    /**
+     * @param list<string> $nodes
+     */
+    private function shouldSuppressAutomaticFunctionApplication(array $nodes, int $previousIndex, string $node): bool
+    {
+        if (preg_match('/^<mo\b[^>]*>(?:\[|\{)<\/mo>$/u', $node) === 1) {
+            return true;
+        }
+
+        if ($previousIndex !== 0 || preg_match('/^<mi\b/', $node) !== 1) {
+            return false;
+        }
+
+        $attribute = preg_quote(self::TEX_FUNCTION_OPERATOR_ATTRIBUTE, '/');
+
+        return preg_match(
+            '/^<m(?:under|over|underover)\b[^>]*><mi\b[^>]*' . $attribute . '[^>]*>[^<]*\s[^<]*<\/mi>/u',
+            $nodes[$previousIndex]
+        ) === 1;
     }
 
     /**

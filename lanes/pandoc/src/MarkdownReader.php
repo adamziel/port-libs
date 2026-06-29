@@ -5984,22 +5984,349 @@ final class MarkdownReader
      */
     private function tryReadRawTexMacroDefinition(string $line): ?array
     {
-        if (
-            preg_match(
-                '/^ {0,3}\\\\((?:re)?newcommand|providecommand)\{\\\\([A-Za-z]+)\}(?:\[(\d+)])?(?:\[[^\]\r\n]*])?\{((?:\\\\.|[^{}])*)\}[ \t]*$/',
-                $line,
-                $m
-            ) !== 1
-        ) {
+        $source = trim($line);
+
+        $declaredOperator = $this->tryReadRawTexDeclaredMathOperatorDefinition($source);
+        if ($declaredOperator !== null) {
+            return $declaredOperator;
+        }
+
+        $pairedDelimiterXpp = $this->tryReadRawTexDeclaredPairedDelimiterXppDefinition($source);
+        if ($pairedDelimiterXpp !== null) {
+            return $pairedDelimiterXpp;
+        }
+
+        $pairedDelimiterX = $this->tryReadRawTexDeclaredPairedDelimiterXDefinition($source);
+        if ($pairedDelimiterX !== null) {
+            return $pairedDelimiterX;
+        }
+
+        $pairedDelimiter = $this->tryReadRawTexDeclaredPairedDelimiterDefinition($source);
+        if ($pairedDelimiter !== null) {
+            return $pairedDelimiter;
+        }
+
+        return $this->tryReadRawTexNewCommandDefinition($source);
+    }
+
+    /**
+     * @return array{command:string, name:string, arity:int, template:string}|null
+     */
+    private function tryReadRawTexNewCommandDefinition(string $source): ?array
+    {
+        if (preg_match('/^\\\\((?:re)?newcommand|providecommand)/', $source, $m) !== 1) {
+            return null;
+        }
+
+        $offset = strlen($m[0]);
+        $this->skipTexWhitespace($source, $offset);
+        $name = $this->readTexBraceArgument($source, $offset);
+        if ($name === null || preg_match('/^\\\\([A-Za-z]+)$/', $name['value'], $nameMatch) !== 1) {
+            return null;
+        }
+        $offset = $name['next'];
+
+        $arity = null;
+        $this->skipTexWhitespace($source, $offset);
+        $arityArgument = $this->readTexBracketArgument($source, $offset);
+        if ($arityArgument !== null) {
+            if (preg_match('/^[0-9]$/', trim($arityArgument['value'])) !== 1) {
+                return null;
+            }
+            $arity = (int) trim($arityArgument['value']);
+            $offset = $arityArgument['next'];
+
+            $defaultArgument = $this->readTexBracketArgument($source, $offset);
+            if ($defaultArgument !== null) {
+                $offset = $defaultArgument['next'];
+            }
+        }
+
+        $this->skipTexWhitespace($source, $offset);
+        $template = $this->readTexBraceArgument($source, $offset);
+        if ($template === null) {
+            return null;
+        }
+        $offset = $template['next'];
+
+        $this->skipTexWhitespace($source, $offset);
+        if ($offset !== strlen($source)) {
             return null;
         }
 
         return [
             'command' => $m[1],
-            'name' => $m[2],
-            'arity' => isset($m[3]) && $m[3] !== '' ? (int) $m[3] : 0,
-            'template' => $m[4],
+            'name' => $nameMatch[1],
+            'arity' => $arity ?? $this->inferRawTexMacroArity($template['value']),
+            'template' => $template['value'],
         ];
+    }
+
+    /**
+     * @return array{command:string, name:string, arity:int, template:string}|null
+     */
+    private function tryReadRawTexDeclaredMathOperatorDefinition(string $source): ?array
+    {
+        if (preg_match('/^\\\\DeclareMathOperator(\*)?/', $source, $m) !== 1) {
+            return null;
+        }
+
+        $offset = strlen($m[0]);
+        $this->skipTexWhitespace($source, $offset);
+        $name = $this->readTexBraceArgument($source, $offset);
+        if ($name === null || preg_match('/^\\\\([A-Za-z]+)$/', trim($name['value']), $nameMatch) !== 1) {
+            return null;
+        }
+        $offset = $name['next'];
+
+        $this->skipTexWhitespace($source, $offset);
+        $operator = $this->readTexBraceArgument($source, $offset);
+        if ($operator === null) {
+            return null;
+        }
+        $offset = $operator['next'];
+
+        $this->skipTexWhitespace($source, $offset);
+        if ($offset !== strlen($source)) {
+            return null;
+        }
+
+        return [
+            'command' => 'DeclareMathOperator',
+            'name' => $nameMatch[1],
+            'arity' => 0,
+            'template' => '\\operatorname' . (($m[1] ?? '') === '*' ? '*' : '') . '{' . $operator['value'] . '}',
+        ];
+    }
+
+    /**
+     * @return array{command:string, name:string, arity:int, template:string}|null
+     */
+    private function tryReadRawTexDeclaredPairedDelimiterDefinition(string $source): ?array
+    {
+        if (preg_match('/^\\\\DeclarePairedDelimiter(?![A-Za-z])/', $source, $m) !== 1) {
+            return null;
+        }
+
+        $offset = strlen($m[0]);
+        $name = $this->readRawTexMacroNameReference($source, $offset);
+        if ($name === null) {
+            return null;
+        }
+
+        $this->skipTexWhitespace($source, $offset);
+        $openDelimiter = $this->readTexBraceArgument($source, $offset);
+        if ($openDelimiter === null) {
+            return null;
+        }
+        $offset = $openDelimiter['next'];
+
+        $this->skipTexWhitespace($source, $offset);
+        $closeDelimiter = $this->readTexBraceArgument($source, $offset);
+        if ($closeDelimiter === null) {
+            return null;
+        }
+        $offset = $closeDelimiter['next'];
+
+        $this->skipTexWhitespace($source, $offset);
+        if ($offset !== strlen($source)) {
+            return null;
+        }
+
+        return [
+            'command' => 'DeclarePairedDelimiter',
+            'name' => $name,
+            'arity' => 1,
+            'template' => '\\left' . trim($openDelimiter['value']) . ' #1 \\right' . trim($closeDelimiter['value']),
+        ];
+    }
+
+    /**
+     * @return array{command:string, name:string, arity:int, template:string}|null
+     */
+    private function tryReadRawTexDeclaredPairedDelimiterXDefinition(string $source): ?array
+    {
+        if (preg_match('/^\\\\DeclarePairedDelimiterX(?![A-Za-z])/', $source, $m) !== 1) {
+            return null;
+        }
+
+        $offset = strlen($m[0]);
+        $name = $this->readRawTexMacroNameReference($source, $offset);
+        if ($name === null) {
+            return null;
+        }
+
+        $declaredArity = null;
+        $this->skipTexWhitespace($source, $offset);
+        $arityArgument = $this->readTexBracketArgument($source, $offset);
+        if ($arityArgument !== null) {
+            if (preg_match('/^[1-9]$/', trim($arityArgument['value'])) !== 1) {
+                return null;
+            }
+            $declaredArity = (int) trim($arityArgument['value']);
+            $offset = $arityArgument['next'];
+        }
+
+        $this->skipTexWhitespace($source, $offset);
+        $openDelimiter = $this->readTexBraceArgument($source, $offset);
+        if ($openDelimiter === null) {
+            return null;
+        }
+        $offset = $openDelimiter['next'];
+
+        $this->skipTexWhitespace($source, $offset);
+        $closeDelimiter = $this->readTexBraceArgument($source, $offset);
+        if ($closeDelimiter === null) {
+            return null;
+        }
+        $offset = $closeDelimiter['next'];
+
+        $this->skipTexWhitespace($source, $offset);
+        $body = $this->readTexBraceArgument($source, $offset);
+        if ($body === null) {
+            return null;
+        }
+        $offset = $body['next'];
+
+        $this->skipTexWhitespace($source, $offset);
+        if ($offset !== strlen($source)) {
+            return null;
+        }
+
+        return [
+            'command' => 'DeclarePairedDelimiterX',
+            'name' => $name,
+            'arity' => $declaredArity ?? $this->inferRawTexMacroArity($body['value']),
+            'template' => '\\left' . trim($openDelimiter['value']) . ' ' . $body['value'] . ' \\right' . trim($closeDelimiter['value']),
+        ];
+    }
+
+    /**
+     * @return array{command:string, name:string, arity:int, template:string}|null
+     */
+    private function tryReadRawTexDeclaredPairedDelimiterXppDefinition(string $source): ?array
+    {
+        if (preg_match('/^\\\\DeclarePairedDelimiterXPP(?![A-Za-z])/', $source, $m) !== 1) {
+            return null;
+        }
+
+        $offset = strlen($m[0]);
+        $name = $this->readRawTexMacroNameReference($source, $offset);
+        if ($name === null) {
+            return null;
+        }
+
+        $declaredArity = null;
+        $this->skipTexWhitespace($source, $offset);
+        $arityArgument = $this->readTexBracketArgument($source, $offset);
+        if ($arityArgument !== null) {
+            if (preg_match('/^[1-9]$/', trim($arityArgument['value'])) !== 1) {
+                return null;
+            }
+            $declaredArity = (int) trim($arityArgument['value']);
+            $offset = $arityArgument['next'];
+        }
+
+        $this->skipTexWhitespace($source, $offset);
+        $prefix = $this->readTexBraceArgument($source, $offset);
+        if ($prefix === null) {
+            return null;
+        }
+        $offset = $prefix['next'];
+
+        $this->skipTexWhitespace($source, $offset);
+        $openDelimiter = $this->readTexBraceArgument($source, $offset);
+        if ($openDelimiter === null) {
+            return null;
+        }
+        $offset = $openDelimiter['next'];
+
+        $this->skipTexWhitespace($source, $offset);
+        $closeDelimiter = $this->readTexBraceArgument($source, $offset);
+        if ($closeDelimiter === null) {
+            return null;
+        }
+        $offset = $closeDelimiter['next'];
+
+        $this->skipTexWhitespace($source, $offset);
+        $suffix = $this->readTexBraceArgument($source, $offset);
+        if ($suffix === null) {
+            return null;
+        }
+        $offset = $suffix['next'];
+
+        $this->skipTexWhitespace($source, $offset);
+        $body = $this->readTexBraceArgument($source, $offset);
+        if ($body === null) {
+            return null;
+        }
+        $offset = $body['next'];
+
+        $this->skipTexWhitespace($source, $offset);
+        if ($offset !== strlen($source)) {
+            return null;
+        }
+
+        $template = '';
+        $prefixTemplate = trim($prefix['value']);
+        if ($prefixTemplate !== '') {
+            $template .= $prefixTemplate . ' ';
+        }
+        $template .= '\\left' . trim($openDelimiter['value']) . ' ' . $body['value'] . ' \\right' . trim($closeDelimiter['value']);
+        $suffixTemplate = trim($suffix['value']);
+        if ($suffixTemplate !== '') {
+            $template .= ' ' . $suffixTemplate;
+        }
+
+        return [
+            'command' => 'DeclarePairedDelimiterXPP',
+            'name' => $name,
+            'arity' => $declaredArity ?? $this->inferRawTexMacroArity($body['value']),
+            'template' => $template,
+        ];
+    }
+
+    private function readRawTexMacroNameReference(string $source, int &$offset): ?string
+    {
+        $this->skipTexWhitespace($source, $offset);
+        if (($source[$offset] ?? '') === '{') {
+            $name = $this->readTexBraceArgument($source, $offset);
+            if ($name === null || preg_match('/^\\\\([A-Za-z]+)$/', trim($name['value']), $nameMatch) !== 1) {
+                return null;
+            }
+
+            $offset = $name['next'];
+
+            return $nameMatch[1];
+        }
+
+        if (($source[$offset] ?? '') !== '\\') {
+            return null;
+        }
+
+        $offset++;
+        $start = $offset;
+        while (($source[$offset] ?? '') !== '' && ctype_alpha($source[$offset])) {
+            $offset++;
+        }
+
+        return $offset > $start ? substr($source, $start, $offset - $start) : null;
+    }
+
+    private function inferRawTexMacroArity(string $template): int
+    {
+        if (preg_match_all('/#([1-9])/', $template, $m) !== false && $m[1] !== []) {
+            return max(array_map('intval', $m[1]));
+        }
+
+        return 0;
+    }
+
+    private function skipTexWhitespace(string $source, int &$offset): void
+    {
+        while (($source[$offset] ?? '') !== '' && ctype_space($source[$offset])) {
+            $offset++;
+        }
     }
 
     /**
@@ -11530,6 +11857,44 @@ final class MarkdownReader
 
             $depth--;
             if ($depth === 0) {
+                return [
+                    'value' => substr($text, $offset + 1, $cursor - $offset - 1),
+                    'next' => $cursor + 1,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{value:string, next:int}|null
+     */
+    private function readTexBracketArgument(string $text, int $offset): ?array
+    {
+        if (($text[$offset] ?? '') !== '[') {
+            return null;
+        }
+
+        $depth = 0;
+        $length = strlen($text);
+        for ($cursor = $offset + 1; $cursor < $length; $cursor++) {
+            if ($text[$cursor] === '\\') {
+                $cursor++;
+                continue;
+            }
+
+            if ($text[$cursor] === '{') {
+                $depth++;
+                continue;
+            }
+
+            if ($text[$cursor] === '}' && $depth > 0) {
+                $depth--;
+                continue;
+            }
+
+            if ($text[$cursor] === ']' && $depth === 0) {
                 return [
                     'value' => substr($text, $offset + 1, $cursor - $offset - 1),
                     'next' => $cursor + 1,

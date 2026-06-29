@@ -46,7 +46,7 @@ final class LatexWriter
     {
         return match ($node->type) {
             'heading' => [$this->renderHeading($node)],
-            'paragraph', 'plain' => [$this->renderInlines($node->children)],
+            'paragraph', 'plain' => [$this->renderInlines($node->children, true)],
             'code_block' => $this->renderCodeBlock($node),
             'bullet_list' => $this->renderList($node, false),
             'ordered_list' => $this->renderList($node, true),
@@ -496,7 +496,7 @@ final class LatexWriter
             }
         }
 
-        return true;
+        return $item->attr('loose', null) === false;
     }
 
     /**
@@ -704,7 +704,7 @@ final class LatexWriter
 
             if (
                 $node->children !== []
-                && !in_array($node->type, ['text', 'softbreak', 'linebreak', 'code', 'math', 'link', 'image', 'note'], true)
+                && !in_array($node->type, ['text', 'softbreak', 'linebreak', 'code', 'math', 'link', 'image', 'note', 'raw_tex', 'raw_tex_inline', 'raw_inline'], true)
             ) {
                 array_push($tokens, ...$this->inlineTokens($node->children, $escapeText, $protectImages, $styles));
                 continue;
@@ -883,7 +883,12 @@ final class LatexWriter
 
         return $node->attr('display') === true
             ? '\\[' . $text . '\\]'
-            : '\\(' . $text . '\\)';
+            : ($this->inlineMathNeedsBackslashDelimiters($text) ? '\\(' . $text . '\\)' : '$' . $text . '$');
+    }
+
+    private function inlineMathNeedsBackslashDelimiters(string $text): bool
+    {
+        return str_contains($text, '|') || str_contains($text, '$') || str_contains($text, "\n");
     }
 
     private function renderRawInline(AstNode $node): string
@@ -1082,6 +1087,9 @@ final class LatexWriter
             'code',
             'math',
             'link',
+            'raw_tex',
+            'raw_tex_inline',
+            'raw_inline',
         ], true);
     }
 }
