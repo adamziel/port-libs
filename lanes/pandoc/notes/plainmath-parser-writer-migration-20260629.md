@@ -121,6 +121,31 @@ the high-conflict TeX parser. The next safe parser step is slice 5, limited to
 `x_1 + \frac{a}{b}` with no delimiter, environment, macro, accessibility, or
 HtmlWriter behavior changes.
 
+### First PR Contract
+
+Keep the first extraction PR deliberately smaller than the parser split:
+
+- Add `lanes/pandoc/src/PlainMath/MathMlFragment.php`.
+- Add focused coverage in a new or existing `HtmlWriter` math test file for:
+  accepted `<math>` fragments, rejected processing instructions, rejected
+  `<script>` content, namespace injection, and display-mode injection.
+- Change only `HtmlWriter::renderMathML()` and the new helper/test files.
+  `MathTexConverter.php` should not change in this PR.
+- Preserve the current fallback: if an AST-provided fragment is not accepted by
+  `MathMlFragment::normalize()`, `HtmlWriter` still tries
+  `MathTexConverter::texToMathMl()` and then falls back to the escaped source
+  span on unsupported TeX.
+- Make the helper string-based for now. A DOM-normalizing helper would be
+  cleaner long-term, but this first step should be byte-compatible with the
+  existing `looksLikeMathMLElement()` and `mathMLWithRequiredAttributes()`
+  behavior.
+
+The first parser PR should start only after that boundary lands. Its contract is
+separate: add node snapshots and a writer parity assertion for
+`x_1 + \frac{a}{b}`, leave the existing private parser as the facade fallback,
+and avoid arrays, delimiters, raw definitions, equation metadata,
+accessibility, and `HtmlWriter`.
+
 ## Test Strategy
 
 - Parser tests assert node arrays or value-object snapshots, not MathML strings.
@@ -195,6 +220,21 @@ fixture and text-glyph normalization slices:
 ```text
 git rebase origin/main
 Current branch polecat/1780/plib-wj70q.19@mqzcmyy0 is up to date.
+
+php tools/run-tests.php lanes/pandoc/tests/PlainMathStaticTexmathFixtureTest.php
+Focused test run: 1 selected test files (root lock skipped)
+PASS promotes static texmath reader fixtures into plainmath conformance corpus
+PASS promotes additional texmath reader fixtures into plainmath conformance corpus
+PASS promotes texmath atom coercion fixtures into plainmath conformance corpus
+PASS promotes unbraced texmath atom coercion tokens into plainmath conformance corpus
+
+1 test files, 103 assertions, 0 failures
+```
+
+Current first-PR-contract update:
+
+```text
+git diff --check
 
 php tools/run-tests.php lanes/pandoc/tests/PlainMathStaticTexmathFixtureTest.php
 Focused test run: 1 selected test files (root lock skipped)
