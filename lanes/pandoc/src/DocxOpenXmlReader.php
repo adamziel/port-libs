@@ -941,6 +941,11 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['fontTableEmbeddedFontExternalTargetKindCounts'] = $fontTable['embeddedFontExternalTargetKindCounts'] ?? [];
         $packageProvenance['summary']['fontTableEmbeddedFontExternalTargetSchemeCounts'] = $fontTable['embeddedFontExternalTargetSchemeCounts'] ?? [];
         $packageProvenance['summary']['fontTableEmbeddedFontExternalTargetIssueCodes'] = $fontTable['embeddedFontExternalTargetIssueCodes'] ?? [];
+        $packageProvenance['summary']['fontTableEmbeddedFontKeyPresentCount'] = (int) ($fontTable['embeddedFontKeyPresentCount'] ?? 0);
+        $packageProvenance['summary']['fontTableEmbeddedFontKeyMissingCount'] = (int) ($fontTable['embeddedFontKeyMissingCount'] ?? 0);
+        $packageProvenance['summary']['fontTableEmbeddedFontKeyExpectedByteLengthCount'] = (int) ($fontTable['embeddedFontKeyExpectedByteLengthCount'] ?? 0);
+        $packageProvenance['summary']['fontTableEmbeddedFontKeyUnexpectedByteLengthCount'] = (int) ($fontTable['embeddedFontKeyUnexpectedByteLengthCount'] ?? 0);
+        $packageProvenance['summary']['fontTableEmbeddedFontKeyFormatCounts'] = $fontTable['embeddedFontKeyFormatCounts'] ?? [];
         $packageProvenance['summary']['fontTableEmbeddedFontIssueCount'] = (int) ($fontTable['embeddedFontIssueCount'] ?? 0);
         $packageProvenance['summary']['fontTableEmbeddedFontIssueCodes'] = $fontTable['embeddedFontIssueCodes'] ?? [];
         $packageProvenance['summary']['fontTableInvalidXmlCount'] = (int) ($fontTable['invalidXmlCount'] ?? 0);
@@ -40599,6 +40604,11 @@ final class DocxOpenXmlReader
                 'embeddedFontExternalTargetKindCounts' => [],
                 'embeddedFontExternalTargetSchemeCounts' => [],
                 'embeddedFontExternalTargetIssueCodes' => [],
+                'embeddedFontKeyPresentCount' => 0,
+                'embeddedFontKeyMissingCount' => 0,
+                'embeddedFontKeyExpectedByteLengthCount' => 0,
+                'embeddedFontKeyUnexpectedByteLengthCount' => 0,
+                'embeddedFontKeyFormatCounts' => [],
                 'embeddedFontIssueCount' => 0,
                 'embeddedFontIssueCodes' => [],
                 'notTrueTypeCount' => 0,
@@ -40624,6 +40634,11 @@ final class DocxOpenXmlReader
         $embeddedFontExternalTargetKindCounts = [];
         $embeddedFontExternalTargetSchemeCounts = [];
         $embeddedFontExternalTargetIssueCodes = [];
+        $embeddedFontKeyPresentCount = 0;
+        $embeddedFontKeyMissingCount = 0;
+        $embeddedFontKeyExpectedByteLengthCount = 0;
+        $embeddedFontKeyUnexpectedByteLengthCount = 0;
+        $embeddedFontKeyFormatCounts = [];
         $embeddedFontIssueCount = 0;
         $embeddedFontIssueCodes = [];
         foreach ($this->elements($xpath, '/w:fonts/w:font') as $font) {
@@ -40672,6 +40687,20 @@ final class DocxOpenXmlReader
                         }
                     }
                 }
+                $keyFormat = is_string($embeddedFont['fontKeyFormat'] ?? null) && $embeddedFont['fontKeyFormat'] !== ''
+                    ? $embeddedFont['fontKeyFormat']
+                    : 'unknown';
+                $embeddedFontKeyFormatCounts[$keyFormat] = ($embeddedFontKeyFormatCounts[$keyFormat] ?? 0) + 1;
+                if (($embeddedFont['fontKeyPresent'] ?? false) === true) {
+                    ++$embeddedFontKeyPresentCount;
+                    if (($embeddedFont['fontKeyExpectedByteLength'] ?? false) === true) {
+                        ++$embeddedFontKeyExpectedByteLengthCount;
+                    } else {
+                        ++$embeddedFontKeyUnexpectedByteLengthCount;
+                    }
+                } else {
+                    ++$embeddedFontKeyMissingCount;
+                }
                 if (($embeddedFont['external'] ?? false) === false && ($embeddedFont['exists'] ?? false) === true) {
                     ++$embeddedFontExistingCount;
                 }
@@ -40694,6 +40723,7 @@ final class DocxOpenXmlReader
         ksort($embeddedFontExternalTargetKindCounts, SORT_STRING);
         ksort($embeddedFontExternalTargetSchemeCounts, SORT_STRING);
         ksort($embeddedFontExternalTargetIssueCodes, SORT_STRING);
+        ksort($embeddedFontKeyFormatCounts, SORT_STRING);
         ksort($embeddedFontIssueCodes, SORT_STRING);
 
         return [
@@ -40715,6 +40745,11 @@ final class DocxOpenXmlReader
             'embeddedFontExternalTargetKindCounts' => $embeddedFontExternalTargetKindCounts,
             'embeddedFontExternalTargetSchemeCounts' => $embeddedFontExternalTargetSchemeCounts,
             'embeddedFontExternalTargetIssueCodes' => array_keys($embeddedFontExternalTargetIssueCodes),
+            'embeddedFontKeyPresentCount' => $embeddedFontKeyPresentCount,
+            'embeddedFontKeyMissingCount' => $embeddedFontKeyMissingCount,
+            'embeddedFontKeyExpectedByteLengthCount' => $embeddedFontKeyExpectedByteLengthCount,
+            'embeddedFontKeyUnexpectedByteLengthCount' => $embeddedFontKeyUnexpectedByteLengthCount,
+            'embeddedFontKeyFormatCounts' => $embeddedFontKeyFormatCounts,
             'embeddedFontIssueCount' => $embeddedFontIssueCount,
             'embeddedFontIssueCodes' => array_keys($embeddedFontIssueCodes),
             'notTrueTypeCount' => count(array_filter($fonts, static fn (array $font): bool => ($font['notTrueType'] ?? false) === true)),
@@ -40832,6 +40867,62 @@ final class DocxOpenXmlReader
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    private function fontTableEmbeddedFontKeyMetadata(string $fontKey): array
+    {
+        $present = $fontKey !== '';
+        if (!$present) {
+            return [
+                'present' => false,
+                'sha256' => null,
+                'format' => 'missing',
+                'valueLength' => 0,
+                'normalizedHexLength' => 0,
+                'byteLength' => null,
+                'validHex' => false,
+                'hasGuidBraces' => false,
+                'guidFormat' => false,
+                'expectedByteLength' => false,
+            ];
+        }
+
+        $hasGuidBraces = str_starts_with($fontKey, '{') && str_ends_with($fontKey, '}');
+        $unwrapped = $hasGuidBraces ? substr($fontKey, 1, -1) : $fontKey;
+        $normalizedHex = str_replace('-', '', $unwrapped);
+        $normalizedHexLength = strlen($normalizedHex);
+        $validHex = $normalizedHexLength > 0
+            && $normalizedHexLength % 2 === 0
+            && preg_match('/^[0-9A-Fa-f]+$/', $normalizedHex) === 1;
+        $byteLength = $validHex ? intdiv($normalizedHexLength, 2) : null;
+        $guidFormat = preg_match('/^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$/', $unwrapped) === 1;
+        $hyphenlessExpectedKey = preg_match('/^[0-9A-Fa-f]{32}$/', $unwrapped) === 1;
+        $format = 'other';
+        if ($guidFormat && $hasGuidBraces) {
+            $format = 'braced-guid';
+        } elseif ($guidFormat) {
+            $format = 'guid';
+        } elseif ($hyphenlessExpectedKey) {
+            $format = 'hex-16-byte';
+        } elseif ($validHex) {
+            $format = 'hex';
+        }
+
+        return [
+            'present' => true,
+            'sha256' => hash('sha256', $fontKey),
+            'format' => $format,
+            'valueLength' => strlen($fontKey),
+            'normalizedHexLength' => $normalizedHexLength,
+            'byteLength' => $byteLength,
+            'validHex' => $validHex,
+            'hasGuidBraces' => $hasGuidBraces,
+            'guidFormat' => $guidFormat,
+            'expectedByteLength' => $validHex && $byteLength === 16,
+        ];
+    }
+
+    /**
      * @param array<string, string> $parts
      * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}|null $relationship
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
@@ -40847,6 +40938,7 @@ final class DocxOpenXmlReader
         string $style,
         string $fontKey
     ): array {
+        $fontKeyMetadata = $this->fontTableEmbeddedFontKeyMetadata($fontKey);
         $item = [
             'style' => $style,
             'id' => $relationshipId,
@@ -40879,8 +40971,17 @@ final class DocxOpenXmlReader
             'byteLength' => null,
             'crc32' => null,
             'sha256' => null,
-            'fontKeyPresent' => $fontKey !== '',
-            'fontKeySha256' => $fontKey !== '' ? hash('sha256', $fontKey) : null,
+            'fontKeyPresent' => $fontKeyMetadata['present'],
+            'fontKeySha256' => $fontKeyMetadata['sha256'],
+            'fontKeyFormat' => $fontKeyMetadata['format'],
+            'fontKeyValueLength' => $fontKeyMetadata['valueLength'],
+            'fontKeyNormalizedHexLength' => $fontKeyMetadata['normalizedHexLength'],
+            'fontKeyByteLength' => $fontKeyMetadata['byteLength'],
+            'fontKeyValidHex' => $fontKeyMetadata['validHex'],
+            'fontKeyHasGuidBraces' => $fontKeyMetadata['hasGuidBraces'],
+            'fontKeyGuidFormat' => $fontKeyMetadata['guidFormat'],
+            'fontKeyExpectedByteLength' => $fontKeyMetadata['expectedByteLength'],
+            'fontKeyReviewPolicy' => 'embedded-font-key-metadata-only',
             'byteExposurePolicy' => 'embedded-font-bytes-blocked',
             'reviewPolicy' => 'embedded-font-metadata-only',
             'valid' => false,

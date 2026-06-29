@@ -17183,6 +17183,15 @@ XML;
         $t->same(hash('sha256', $fontBytes), $regular['sha256']);
         $t->same(true, $regular['fontKeyPresent']);
         $t->same(hash('sha256', $fontKey), $regular['fontKeySha256']);
+        $t->same('braced-guid', $regular['fontKeyFormat']);
+        $t->same(38, $regular['fontKeyValueLength']);
+        $t->same(32, $regular['fontKeyNormalizedHexLength']);
+        $t->same(16, $regular['fontKeyByteLength']);
+        $t->same(true, $regular['fontKeyValidHex']);
+        $t->same(true, $regular['fontKeyHasGuidBraces']);
+        $t->same(true, $regular['fontKeyGuidFormat']);
+        $t->same(true, $regular['fontKeyExpectedByteLength']);
+        $t->same('embedded-font-key-metadata-only', $regular['fontKeyReviewPolicy']);
         $t->true(!isset($regular['fontKey']), 'Raw embedded font key should not be exposed');
         $t->same('embedded-font-bytes-blocked', $regular['byteExposurePolicy']);
         $t->same('embedded-font-metadata-only', $regular['reviewPolicy']);
@@ -17229,6 +17238,8 @@ XML;
         $t->same('regular', $missingRelationship['style']);
         $t->same('', $missingRelationship['id']);
         $t->same(true, $missingRelationship['fontKeyPresent']);
+        $t->same('braced-guid', $missingRelationship['fontKeyFormat']);
+        $t->same(true, $missingRelationship['fontKeyExpectedByteLength']);
         $t->same(['missing-relationship-id'], $missingRelationship['issues']);
 
         $t->true(in_array('font-table', $inventory['word/fonts/review-fonts.xml']['roles'], true), 'font table inventory role missing');
@@ -17246,6 +17257,11 @@ XML;
         $t->same(['absolute-uri' => 2], $summary['fontTableEmbeddedFontExternalTargetKindCounts']);
         $t->same(['https' => 1, 'javascript' => 1], $summary['fontTableEmbeddedFontExternalTargetSchemeCounts']);
         $t->same(['external-target-unsafe-scheme'], $summary['fontTableEmbeddedFontExternalTargetIssueCodes']);
+        $t->same(3, $summary['fontTableEmbeddedFontKeyPresentCount']);
+        $t->same(3, $summary['fontTableEmbeddedFontKeyMissingCount']);
+        $t->same(3, $summary['fontTableEmbeddedFontKeyExpectedByteLengthCount']);
+        $t->same(0, $summary['fontTableEmbeddedFontKeyUnexpectedByteLengthCount']);
+        $t->same(['braced-guid' => 3, 'missing' => 3], $summary['fontTableEmbeddedFontKeyFormatCounts']);
         $t->same(5, $summary['fontTableEmbeddedFontIssueCount']);
         $t->same($fontTable['embeddedFontIssueCodes'], $summary['fontTableEmbeddedFontIssueCodes']);
     },
@@ -17326,17 +17342,140 @@ XML;
         $t->same(hash('sha256', $fontBytes), $embedded['sha256']);
         $t->same(true, $embedded['fontKeyPresent']);
         $t->same(hash('sha256', $fontKey), $embedded['fontKeySha256']);
+        $t->same('braced-guid', $embedded['fontKeyFormat']);
+        $t->same(16, $embedded['fontKeyByteLength']);
+        $t->same(true, $embedded['fontKeyExpectedByteLength']);
         $t->true(!isset($embedded['fontKey']), 'Raw embedded font key should not be exposed');
         $t->same([], $embedded['issues']);
         $t->same(true, $embedded['valid']);
 
         $t->same(1, $summary['fontTableEmbeddedFontCount']);
         $t->same(1, $summary['fontTableEmbeddedFontExistingCount']);
+        $t->same(1, $summary['fontTableEmbeddedFontKeyPresentCount']);
+        $t->same(['braced-guid' => 1], $summary['fontTableEmbeddedFontKeyFormatCounts']);
         $t->same(0, $summary['fontTableEmbeddedFontIssueCount']);
         $t->same('font', $relationshipType['label']);
         $t->same(1, $relationshipType['count']);
         $t->same(['word/fonts/loose-Regular.odttf'], $relationshipType['existingTargetParts']);
         $t->true(in_array('embedded-font', $inventory['word/fonts/loose-Regular.odttf']['roles'], true), 'loose embedded font inventory role missing');
+    },
+    'classifies docx font table embedded font key shapes without exposing raw keys' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $bracedKey = '{00112233-4455-6677-8899-AABBCCDDEEFF}';
+        $guidKey = '11112233-4455-6677-8899-AABBCCDDEEFF';
+        $hexKey = '22222233445566778899AABBCCDDEEFF';
+        $shortHexKey = 'ABCDEF';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/fonts/key-shapes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml"/>' . "\n" .
+            '  <Override PartName="/word/fonts/key-braced.odttf" ContentType="application/vnd.openxmlformats-officedocument.obfuscatedFont"/>' . "\n" .
+            '  <Override PartName="/word/fonts/key-guid.odttf" ContentType="application/vnd.openxmlformats-officedocument.obfuscatedFont"/>' . "\n" .
+            '  <Override PartName="/word/fonts/key-hex.odttf" ContentType="application/vnd.openxmlformats-officedocument.obfuscatedFont"/>' . "\n" .
+            '  <Override PartName="/word/fonts/key-short.odttf" ContentType="application/vnd.openxmlformats-officedocument.obfuscatedFont"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rKeyShapeFonts" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable" Target="fonts/key-shapes.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/fonts/key-shapes.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:fonts xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:font w:name="Key Shapes">
+    <w:embedRegular r:id="rBraced" w:fontKey="{00112233-4455-6677-8899-AABBCCDDEEFF}"/>
+    <w:embedBold r:id="rGuid" w:fontKey="11112233-4455-6677-8899-AABBCCDDEEFF"/>
+    <w:embedItalic r:id="rHex" w:fontKey="22222233445566778899AABBCCDDEEFF"/>
+    <w:embedBoldItalic r:id="rShort" w:fontKey="ABCDEF"/>
+  </w:font>
+</w:fonts>
+XML;
+        $parts['word/fonts/_rels/key-shapes.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rBraced" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="key-braced.odttf"/>
+  <Relationship Id="rGuid" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="key-guid.odttf"/>
+  <Relationship Id="rHex" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="key-hex.odttf"/>
+  <Relationship Id="rShort" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="key-short.odttf"/>
+</Relationships>
+XML;
+        $parts['word/fonts/key-braced.odttf'] = 'KEY-BRACED';
+        $parts['word/fonts/key-guid.odttf'] = 'KEY-GUID';
+        $parts['word/fonts/key-hex.odttf'] = 'KEY-HEX';
+        $parts['word/fonts/key-short.odttf'] = 'KEY-SHORT';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $fontTable = $docx['fontTable'];
+        $summary = $docx['packageProvenance']['summary'];
+        $embeddedFonts = $fontTable['byName']['Key Shapes']['embeddedFonts'];
+        $braced = $embeddedFonts[0];
+        $guid = $embeddedFonts[1];
+        $hex = $embeddedFonts[2];
+        $shortHex = $embeddedFonts[3];
+
+        $t->same(4, $fontTable['embeddedFontRelationshipCount']);
+        $t->same(4, $fontTable['embeddedFontExistingCount']);
+        $t->same(0, $fontTable['embeddedFontIssueCount']);
+        $t->same(4, $fontTable['embeddedFontKeyPresentCount']);
+        $t->same(0, $fontTable['embeddedFontKeyMissingCount']);
+        $t->same(3, $fontTable['embeddedFontKeyExpectedByteLengthCount']);
+        $t->same(1, $fontTable['embeddedFontKeyUnexpectedByteLengthCount']);
+        $t->same([
+            'braced-guid' => 1,
+            'guid' => 1,
+            'hex' => 1,
+            'hex-16-byte' => 1,
+        ], $fontTable['embeddedFontKeyFormatCounts']);
+
+        $t->same('braced-guid', $braced['fontKeyFormat']);
+        $t->same(38, $braced['fontKeyValueLength']);
+        $t->same(32, $braced['fontKeyNormalizedHexLength']);
+        $t->same(16, $braced['fontKeyByteLength']);
+        $t->same(true, $braced['fontKeyValidHex']);
+        $t->same(true, $braced['fontKeyHasGuidBraces']);
+        $t->same(true, $braced['fontKeyGuidFormat']);
+        $t->same(true, $braced['fontKeyExpectedByteLength']);
+        $t->same(hash('sha256', $bracedKey), $braced['fontKeySha256']);
+        $t->true(!isset($braced['fontKey']), 'Raw braced embedded font key should not be exposed');
+
+        $t->same('guid', $guid['fontKeyFormat']);
+        $t->same(36, $guid['fontKeyValueLength']);
+        $t->same(32, $guid['fontKeyNormalizedHexLength']);
+        $t->same(16, $guid['fontKeyByteLength']);
+        $t->same(false, $guid['fontKeyHasGuidBraces']);
+        $t->same(true, $guid['fontKeyGuidFormat']);
+        $t->same(true, $guid['fontKeyExpectedByteLength']);
+        $t->same(hash('sha256', $guidKey), $guid['fontKeySha256']);
+        $t->true(!isset($guid['fontKey']), 'Raw GUID embedded font key should not be exposed');
+
+        $t->same('hex-16-byte', $hex['fontKeyFormat']);
+        $t->same(32, $hex['fontKeyValueLength']);
+        $t->same(32, $hex['fontKeyNormalizedHexLength']);
+        $t->same(16, $hex['fontKeyByteLength']);
+        $t->same(false, $hex['fontKeyGuidFormat']);
+        $t->same(true, $hex['fontKeyExpectedByteLength']);
+        $t->same(hash('sha256', $hexKey), $hex['fontKeySha256']);
+        $t->true(!isset($hex['fontKey']), 'Raw hex embedded font key should not be exposed');
+
+        $t->same('hex', $shortHex['fontKeyFormat']);
+        $t->same(6, $shortHex['fontKeyValueLength']);
+        $t->same(6, $shortHex['fontKeyNormalizedHexLength']);
+        $t->same(3, $shortHex['fontKeyByteLength']);
+        $t->same(true, $shortHex['fontKeyValidHex']);
+        $t->same(false, $shortHex['fontKeyExpectedByteLength']);
+        $t->same(hash('sha256', $shortHexKey), $shortHex['fontKeySha256']);
+        $t->same('embedded-font-key-metadata-only', $shortHex['fontKeyReviewPolicy']);
+        $t->true(!isset($shortHex['fontKey']), 'Raw short embedded font key should not be exposed');
+
+        $t->same($fontTable['embeddedFontKeyPresentCount'], $summary['fontTableEmbeddedFontKeyPresentCount']);
+        $t->same($fontTable['embeddedFontKeyMissingCount'], $summary['fontTableEmbeddedFontKeyMissingCount']);
+        $t->same($fontTable['embeddedFontKeyExpectedByteLengthCount'], $summary['fontTableEmbeddedFontKeyExpectedByteLengthCount']);
+        $t->same($fontTable['embeddedFontKeyUnexpectedByteLengthCount'], $summary['fontTableEmbeddedFontKeyUnexpectedByteLengthCount']);
+        $t->same($fontTable['embeddedFontKeyFormatCounts'], $summary['fontTableEmbeddedFontKeyFormatCounts']);
     },
     'preserves docx font table signature provenance for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
