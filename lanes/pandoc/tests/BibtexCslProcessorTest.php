@@ -3215,6 +3215,82 @@ XML);
         $t->contains('Date addendum: first source capture', $blocks);
         $t->contains('Event date addendum: hybrid review window', $blocks);
     },
+    'carries legacy biblatex label date metadata in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@article{legacy-label-date,
+  author       = {Smith, Ada},
+  title        = {Label Date Review Packet},
+  journaltitle = {Source Dating Review},
+  date         = {2026},
+  labeldate    = {2025-12-31}
+}
+
+@report{split-label-date,
+  author     = {Ng, Nia},
+  title      = {Split Label Date Packet},
+  institution = {Review Desk},
+  year       = {2024},
+  labelyear  = {2023},
+  labelmonth = {4}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $legacy = $items['legacy-label-date'];
+        $split = $items['split-label-date'];
+
+        $t->same([2025, 12, 31], $legacy['label-date']['date-parts'][0]);
+        $t->same([2023, 4], $split['label-date']['date-parts'][0]);
+        $t->same('2025-12-31', $legacy['rawBibtex']['fields']['labeldate']);
+        $t->same('4', $split['rawBibtex']['fields']['labelmonth']);
+        $t->same(
+            'Ada Smith. Label Date Review Packet. Source Dating Review. 2026. Label date: 2025-12-31.',
+            $processor->renderBibliographyText($legacy)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <date variable="label-date"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="label-date"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledLegacy = $styled->item('legacy-label-date');
+        $styledSplit = $styled->item('split-label-date');
+        $t->same('2025-12-31', $styledLegacy['labelDate']['display'] ?? null);
+        $t->same('2023-04', $styledSplit['labelDate']['display'] ?? null);
+        $t->same('[Smith | 2025-12-31; Ng | 2023-04]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-label-date', 'text' => '[@legacy-label-date]']),
+            new AstNode('citation', ['id' => 'split-label-date', 'text' => '[@split-label-date]']),
+        ]));
+        $t->same('Label Date Review Packet :: 2025-12-31', $styled->renderBibliographyEntry('legacy-label-date'));
+        $t->same('Split Label Date Packet :: 2023-04', $styled->renderBibliographyEntry('split-label-date'));
+
+        $document = (new MarkdownReader())->read('Label dates [@legacy-label-date; @split-label-date] stay reviewable.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['legacy-label-date', 'split-label-date'], $handoff['citedKeys']);
+        $t->same([2025, 12, 31], $handoff['items'][0]['label-date']['date-parts'][0] ?? null);
+        $t->same([2023, 4], $handoff['bibliography']->children[1]->attr('cslItem')['label-date']['date-parts'][0] ?? null);
+        $t->contains('<p>Label dates [Smith | 2025-12-31; Ng | 2023-04] stay reviewable.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Label Date Review Packet :: 2025-12-31</dd>', $blocks);
+        $t->contains('<dt>Ng 2024</dt><dd>Split Label Date Packet :: 2023-04</dd>', $blocks);
+    },
     'carries legacy biblatex source file attachment policy metadata' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @online{legacy-file-source,

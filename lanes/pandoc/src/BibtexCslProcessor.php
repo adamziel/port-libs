@@ -460,6 +460,10 @@ final class BibtexCslProcessor
                 $parts[] = $label . ': ' . $value;
             }
         }
+        $labelDate = $this->datePartsText($item['label-date'] ?? null);
+        if ($labelDate !== '') {
+            $parts[] = 'Label date: ' . $labelDate;
+        }
         if (($item['rights'] ?? '') !== '') {
             $parts[] = 'Rights: ' . (string) $item['rights'];
         }
@@ -1099,6 +1103,12 @@ final class BibtexCslProcessor
         $reprintDate = $this->datePartsFromFields($fields, ['reprintdate', 'reprint-date'], ['reprintyear', 'reprintmonth', 'reprintday']);
         if ($reprintDate !== null) {
             $item['reprint-date'] = ['date-parts' => [$reprintDate]];
+        }
+
+        $labelDate = $this->datePartsFromFields($fields, ['labeldate', 'label-date'], ['labelyear', 'labelmonth', 'labelday'])
+            ?? $this->datePartsFromFields($fields, [], ['label-year', 'label-month', 'label-day']);
+        if ($labelDate !== null) {
+            $item['label-date'] = ['date-parts' => [$labelDate]];
         }
 
         $eventDate = $this->datePartsFromFields($fields, ['eventdate', 'event-date'], ['eventyear', 'eventmonth', 'eventday']);
@@ -3146,6 +3156,31 @@ final class BibtexCslProcessor
         }
 
         return substr($source, $start, $cursor - $start);
+    }
+
+    private function datePartsText(mixed $date): string
+    {
+        if (!is_array($date)) {
+            return '';
+        }
+
+        $parts = $date['date-parts'][0] ?? null;
+        if (!is_array($parts) || $parts === []) {
+            return '';
+        }
+
+        $formatted = [];
+        foreach (array_values($parts) as $index => $part) {
+            if (!is_int($part) && !is_numeric($part)) {
+                return '';
+            }
+
+            $formatted[] = $index === 0
+                ? (string) (int) $part
+                : str_pad((string) (int) $part, 2, '0', STR_PAD_LEFT);
+        }
+
+        return implode('-', $formatted);
     }
 
     private function readFieldName(string $source, int &$cursor): string
