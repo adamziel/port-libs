@@ -215,13 +215,13 @@ return [
 
         $t->contains('# ODT import packet', $markdown);
         $t->contains('## Review checklist', $markdown);
-        $t->contains('Reviewer **_summary_**  keeps [source link](https://example.test/source.odt?post=42)\\', $markdown);
+        $t->contains('Reviewer ***summary***  keeps [source link](https://example.test/source.odt?post=42)\\', $markdown);
         $t->contains('and ^ODT^ notes[^1]', $markdown);
         $t->contains('- Confirm media map', $markdown);
         $t->contains('c)  Legal review', $markdown);
         $t->contains('![ODT hero alt](Pictures/hero.png "ODT hero title")', $markdown);
-        $t->contains('<table>', $markdown);
-        $t->contains('<td><p>Status</p></td><td colspan="2"><p>Needs media review</p></td>', $markdown);
+        $t->contains('| Status | Needs media review', $markdown);
+        $t->contains('| Owner  | Owner    | Migration team |', $markdown);
         $t->contains('[^1]: ODT footnote source audit.', $markdown);
 
         $t->contains('<h1 id="odt-import-packet">ODT import packet</h1>', $blocks);

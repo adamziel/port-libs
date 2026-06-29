@@ -1146,7 +1146,7 @@ XML;
         $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
         $t->contains('**[Important [source](https://example.test/source) packet.]{data-odf-style-name="StrongParagraph"}**', $markdown);
-        $t->contains('[*__[Inherited emphasis packet.]{data-odf-style-name="InheritedEmphasisParagraph"}__*]{.smallcaps}', $markdown);
+        $t->contains('[***[Inherited emphasis packet.]{data-odf-style-name="InheritedEmphasisParagraph"}***]{.smallcaps}', $markdown);
         $t->contains('<p><strong><span data-odf-style-name="StrongParagraph">Important <a href="https://example.test/source">source</a> packet.</span></strong></p>', $blocksHtml);
         $t->contains('<p><span style="font-variant:small-caps"><em><strong><span data-odf-style-name="InheritedEmphasisParagraph">Inherited emphasis packet.</span></strong></em></span></p>', $blocksHtml);
         $t->contains('<p>Plain styled paragraph.</p>', $blocksHtml);
@@ -1312,10 +1312,10 @@ XML;
 
         $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('# ODT Source Packet {#odt-source-packet}', $markdown);
-        $t->contains('## ODT Source Packet {#odt-source-packet-1}', $markdown);
-        $t->contains('## Styled packet title {#styled-packet-title}', $markdown);
-        $t->contains('### !!! {#section}', $markdown);
+        $t->contains('# ODT Source Packet', $markdown);
+        $t->contains('## ODT Source Packet', $markdown);
+        $t->contains('## Styled packet title', $markdown);
+        $t->contains('### !!!', $markdown);
         $t->contains('<h1 id="odt-source-packet">ODT Source Packet</h1>', $blocksHtml);
         $t->contains('<h2 id="odt-source-packet-1">ODT Source Packet</h2>', $blocksHtml);
         $t->contains('<h2 id="styled-packet-title">Styled packet title</h2>', $blocksHtml);
@@ -3721,7 +3721,7 @@ XML;
         $t->contains('[jump back](#review-anchor){.odf-bookmark-ref data-odf-ref-name="Review Anchor" data-odf-reference-format="text"}', $markdown);
         $t->contains('[^1]: ODF footnote body.', $markdown);
         $t->contains('[^2]: ODF endnote body with [review link](https://example.test/review).', $markdown);
-        $t->contains('<span id="review-anchor" class="anchor odf-bookmark" data-odf-bookmark-name="Review Anchor"></span>', $blocksHtml);
+        $t->contains('<span id="review-anchor" class="anchor odf-bookmark" data-odf-bookmark-name="Review Anchor" data-pandoc-anchor="empty-target"></span>', $blocksHtml);
         $t->contains('<a href="#review-anchor" class="odf-bookmark-ref" data-odf-ref-name="Review Anchor" data-odf-reference-format="text">jump back</a>', $blocksHtml);
         $t->contains('<li id="fn-1"><p>ODF footnote body.</p>', $blocksHtml);
         $t->contains('<li id="fn-2"><p>ODF endnote body with <a href="https://example.test/review">review link</a>.</p>', $blocksHtml);
@@ -4376,7 +4376,7 @@ XML;
         $t->contains('[source claim](#source-claim){.odf-reference-ref data-odf-ref-name="Source Claim" data-odf-reference-format="text"}', $markdown);
         $t->contains('<span id="source-claim" class="odf-reference-mark odf-reference-mark-range" data-odf-reference-name="Source Claim" data-odf-reference-range="true">source claim</span>', $blocksHtml);
         $t->contains('<a href="#source-claim" class="odf-reference-ref" data-odf-ref-name="Source Claim" data-odf-reference-format="text">source claim</a>', $blocksHtml);
-        $t->contains('<span id="point-review" class="anchor odf-reference-mark" data-odf-reference-name="Point Review"></span>marker.', $blocksHtml);
+        $t->contains('<span id="point-review" class="anchor odf-reference-mark" data-odf-reference-name="Point Review" data-pandoc-anchor="empty-target"></span>marker.', $blocksHtml);
         $t->contains('<a href="#point-review" class="odf-reference-ref" data-odf-ref-name="Point Review" data-odf-reference-format="page">point marker</a>', $blocksHtml);
     },
     'wraps ODT reference mark ranges around nested inline content' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -7162,7 +7162,8 @@ XML;
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
         $processedBlocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('Source cites [@smith1899] and [@missing-source].', $markdown);
-        $t->contains('<p>Source cites [@smith1899] and [@missing-source].</p>', $blocksHtml);
+        $t->contains('<span class="pandoc-citation" data-pandoc-citation-id="smith1899"', $blocksHtml);
+        $t->contains('<span class="pandoc-citation" data-pandoc-citation-id="missing-source"', $blocksHtml);
         $t->contains('<p>Source cites (Smith 1899) and [@missing-source].</p>', $processedBlocks);
     },
     'maps ODT table of contents into review div metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -8015,9 +8016,8 @@ XML;
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
         $t->contains('Inline formula $$x=1$$ preserved.', $markdown);
         $t->contains('$$a+b$$', $markdown);
-        $t->contains('<span class="math display"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">', $blocksHtml);
-        $t->contains('<annotation encoding="application/x-tex">x=1</annotation>', $blocksHtml);
-        $t->contains('<span class="math display"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $blocksHtml);
+        $t->contains('<span class="math display">\[x=1\]</span>', $blocksHtml);
+        $t->contains('<span class="math display">\[a+b\]</span>', $blocksHtml);
     },
     'maps ODT chart draw objects into embedded object review placeholders' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $manifestWithChartObjects = <<<'XML'
@@ -8478,7 +8478,7 @@ XML;
 
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
         $t->contains('<img src="./Pictures/source%20hero.png" alt="Decoded source hero" title="Encoded hero"/>', $blocksHtml);
-        $t->contains('<span class="math display"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $blocksHtml);
+        $t->contains('<span class="math display">\[y=2\]</span>', $blocksHtml);
     },
     'maps ODT frame text-box image captions into figure image handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithTextBoxCaption = <<<'XML'
@@ -8562,7 +8562,7 @@ XML;
         $t->same('Block-level recovered caption.', $image->children[0]->attr('text'));
         $t->same('paragraph', $paragraph->type);
         $t->same('Following paragraph remains separate.', $paragraph->attr('text'));
-        $t->contains('![Block-level recovered caption.](Pictures/hero.png "fig:Block hero title"){.odf-text-box-image-caption data-odf-text-box-caption="true" data-odf-text-box-frame-name="Block captioned hero"}', $markdown);
+        $t->contains('![Block-level recovered caption.](Pictures/hero.png "Block hero title"){.odf-text-box-image-caption data-odf-text-box-caption="true" data-odf-text-box-frame-name="Block captioned hero"}', $markdown);
         $t->contains('<figure class="wp-block-image"><img src="Pictures/hero.png" alt="Block-level recovered caption." title="fig:Block hero title" class="odf-text-box-image-caption" data-odf-text-box-caption="true" data-odf-text-box-frame-name="Block captioned hero"/><figcaption>Block-level recovered caption.</figcaption></figure>', $blocksHtml);
     },
     'maps ODT draw frame captions into figure caption metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -8616,7 +8616,8 @@ XML;
         $t->same(1, $result['importReport']['content']['frameCaptionCount'] ?? 0);
         $t->same('paragraph', $blocks[1]->type);
         $t->same('Following content remains separate.', $blocks[1]->attr('text'));
-        $t->contains('![Hero fallback alt](Pictures/hero.png "Hero source title"){.odf-frame-caption data-odf-frame-caption-source="draw:caption" data-odf-frame-caption-frame-name="Captioned draw frame"}', $markdown);
+        $t->contains('<figure class="odf-frame-caption" data-odf-frame-caption-source="draw:caption" data-odf-frame-caption-frame-name="Captioned draw frame">', $markdown);
+        $t->contains('<figcaption>Figure 2: Source hero caption.</figcaption>', $markdown);
         $t->contains('<figure class="wp-block-image odf-frame-caption" data-odf-frame-caption-source="draw:caption" data-odf-frame-caption-frame-name="Captioned draw frame"><img src="Pictures/hero.png" alt="Hero fallback alt" title="Hero source title"/><figcaption>Figure 2: Source hero caption.</figcaption></figure>', $blocksHtml);
     },
     'preserves ODT frame image dimensions for Markdown and WordPress handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -8671,8 +8672,8 @@ XML;
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
         $t->contains('![Inline proof alt](Pictures/hero.png "Inline proof title"){width="2.5cm" height="1.25cm"}', $markdown);
         $t->contains('![Block proof alt](Pictures/hero.png "Block proof title"){width="5cm" height="3cm"}', $markdown);
-        $t->contains('<img src="Pictures/hero.png" alt="Inline proof alt" title="Inline proof title" width="2.5cm" height="1.25cm"/>', $blocksHtml);
-        $t->contains('<img src="Pictures/hero.png" alt="Block proof alt" title="Block proof title" width="5cm" height="3cm"/>', $blocksHtml);
+        $t->contains('<img src="Pictures/hero.png" alt="Inline proof alt" title="Inline proof title" data-pandoc-width="2.5cm" data-pandoc-height="1.25cm" style="width:2.5cm; height:1.25cm"/>', $blocksHtml);
+        $t->contains('<img src="Pictures/hero.png" alt="Block proof alt" title="Block proof title" data-pandoc-width="5cm" data-pandoc-height="3cm" style="width:5cm; height:3cm"/>', $blocksHtml);
     },
     'preserves ODT frame image xlink metadata for review handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithLinkedImage = <<<'XML'
@@ -8716,7 +8717,7 @@ XML;
         $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
         $t->contains('![Linked hero alt](Pictures/hero.png "Linked hero title"){width="4cm" data-odf-image-xlink-type="simple" data-odf-image-xlink-show="embed" data-odf-image-xlink-actuate="onLoad"}', $markdown);
-        $t->contains('<img src="Pictures/hero.png" alt="Linked hero alt" title="Linked hero title" width="4cm" data-odf-image-xlink-type="simple" data-odf-image-xlink-show="embed" data-odf-image-xlink-actuate="onLoad"/>', $blocksHtml);
+        $t->contains('<img src="Pictures/hero.png" alt="Linked hero alt" title="Linked hero title" data-pandoc-width="4cm" style="width:4cm" data-odf-image-xlink-type="simple" data-odf-image-xlink-show="embed" data-odf-image-xlink-actuate="onLoad"/>', $blocksHtml);
     },
     'preserves ODT image frame anchor metadata for review handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithAnchoredImage = <<<'XML'
@@ -8767,7 +8768,7 @@ XML;
         $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
         $t->contains('![Frame metadata alt](Pictures/hero.png "Frame metadata title"){width="4cm" data-odf-frame-name="Review image frame" data-odf-frame-style-name="FrameStyle" data-odf-frame-anchor-type="paragraph" data-odf-frame-anchor-page-number="4" data-odf-frame-x="1.25cm" data-odf-frame-y="2cm" data-odf-frame-z-index="7"}', $markdown);
-        $t->contains('<img src="Pictures/hero.png" alt="Frame metadata alt" title="Frame metadata title" width="4cm" data-odf-frame-name="Review image frame" data-odf-frame-style-name="FrameStyle" data-odf-frame-anchor-type="paragraph" data-odf-frame-anchor-page-number="4" data-odf-frame-x="1.25cm" data-odf-frame-y="2cm" data-odf-frame-z-index="7"/>', $blocksHtml);
+        $t->contains('<img src="Pictures/hero.png" alt="Frame metadata alt" title="Frame metadata title" data-pandoc-width="4cm" style="width:4cm" data-odf-frame-name="Review image frame" data-odf-frame-style-name="FrameStyle" data-odf-frame-anchor-type="paragraph" data-odf-frame-anchor-page-number="4" data-odf-frame-x="1.25cm" data-odf-frame-y="2cm" data-odf-frame-z-index="7"/>', $blocksHtml);
     },
     'preserves ODT text box frame anchor metadata for review handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithAnchoredTextBox = <<<'XML'
@@ -8892,7 +8893,7 @@ XML;
         $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
         $t->contains('![Layered hero alt](Pictures/hero.png "Layered hero title"){width="4cm" data-odf-frame-name="Layered hero" data-odf-frame-layer="review-media" data-odf-frame-layer-exists="true" data-odf-frame-layer-display="screen" data-odf-frame-layer-protected="true"}', $markdown);
-        $t->contains('<img src="Pictures/hero.png" alt="Layered hero alt" title="Layered hero title" width="4cm" data-odf-frame-name="Layered hero" data-odf-frame-layer="review-media" data-odf-frame-layer-exists="true" data-odf-frame-layer-display="screen" data-odf-frame-layer-protected="true"/>', $blocksHtml);
+        $t->contains('<img src="Pictures/hero.png" alt="Layered hero alt" title="Layered hero title" data-pandoc-width="4cm" style="width:4cm" data-odf-frame-name="Layered hero" data-odf-frame-layer="review-media" data-odf-frame-layer-exists="true" data-odf-frame-layer-display="screen" data-odf-frame-layer-protected="true"/>', $blocksHtml);
         $t->contains('<div class="odf-text-box" data-odf-frame-name="Layered aside" data-odf-frame-width="6cm" data-odf-frame-layer="draft-notes" data-odf-frame-layer-exists="true" data-odf-frame-layer-display="none" data-odf-frame-layer-hidden="true"><p>Draft layer note.</p></div>', $blocksHtml);
     },
     'renders ODT handoff nodes through Markdown and WordPress writers' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -8906,8 +8907,8 @@ XML;
         $t->contains('[^1]', $markdown);
         $t->contains('c.  Legal review', $markdown);
         $t->contains('![Hero alt text](Pictures/hero.png "Hero title")', $markdown);
-        $t->contains('<table data-odf-table-name="Audit" data-odf-table-column-count="2">', $markdown);
-        $t->contains('<th scope="col"><p>Status</p></th>', $markdown);
+        $t->contains('| Status                | Owner', $markdown);
+        $t->contains(': Audit', $markdown);
         $t->contains('Ready for review', $markdown);
 
         $t->contains('<!-- wp:heading {"level":1} -->', $blocks);

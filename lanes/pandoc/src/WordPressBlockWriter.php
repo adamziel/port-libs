@@ -401,37 +401,80 @@ final class WordPressBlockWriter
             if ($start > 1) {
                 $attrs['start'] = $start;
             }
-            $tagAttrs = $this->renderOrderedListTagAttrs($node);
             $comment = '<!-- wp:list ' . json_encode($attrs, JSON_THROW_ON_ERROR) . ' -->';
-        } elseif ($this->listIsTaskList($node)) {
-            $tagAttrs = ' class="task-list"';
         }
+        $tagAttrs = $this->renderListTagAttrs($node, $ordered);
+        $blocks = [];
         $items = [];
 
         foreach ($node->children as $item) {
             if ($item->type !== 'list_item') {
                 continue;
             }
+            if ($this->listItemIsHeader($item)) {
+                $blocks[] = $this->renderListHeaderBlock($item);
+                continue;
+            }
             $items[] = $this->renderListItem($item);
         }
 
-        return $comment
-            . "\n" . '<' . $tag . $tagAttrs . '>' . implode('', $items) . '</' . $tag . '>'
-            . "\n" . '<!-- /wp:list -->';
+        if ($items !== []) {
+            $blocks[] = $comment
+                . "\n" . '<' . $tag . $tagAttrs . '>' . implode('', $items) . '</' . $tag . '>'
+                . "\n" . '<!-- /wp:list -->';
+        }
+
+        return implode("\n\n", $blocks);
     }
 
     private function renderListHtml(AstNode $node, bool $ordered): string
     {
         $tag = $ordered ? 'ol' : 'ul';
-        $tagAttrs = $ordered ? $this->renderOrderedListTagAttrs($node) : ($this->listIsTaskList($node) ? ' class="task-list"' : '');
+        $tagAttrs = $this->renderListTagAttrs($node, $ordered);
+        $blocks = [];
         $items = [];
         foreach ($node->children as $item) {
-            if ($item->type === 'list_item') {
-                $items[] = $this->renderListItem($item);
+            if ($item->type !== 'list_item') {
+                continue;
             }
+            if ($this->listItemIsHeader($item)) {
+                $blocks[] = $this->renderListHeaderHtml($item);
+                continue;
+            }
+            $items[] = $this->renderListItem($item);
+        }
+        if ($items !== []) {
+            $blocks[] = '<' . $tag . $tagAttrs . '>' . implode('', $items) . '</' . $tag . '>';
         }
 
-        return '<' . $tag . $tagAttrs . '>' . implode('', $items) . '</' . $tag . '>';
+        return implode('', $blocks);
+    }
+
+    private function listItemIsHeader(AstNode $item): bool
+    {
+        return $item->attr('listHeader') === true;
+    }
+
+    private function renderListHeaderBlock(AstNode $item): string
+    {
+        return '<!-- wp:html -->'
+            . "\n" . $this->renderListHeaderHtml($item)
+            . "\n" . '<!-- /wp:html -->';
+    }
+
+    private function renderListHeaderHtml(AstNode $item): string
+    {
+        return '<div' . $this->renderDivAttrs(new AstNode('div', $item->attrs, $item->children)) . '>'
+            . $this->renderBlocksAsHtml($item->children)
+            . '</div>';
+    }
+
+    private function renderListTagAttrs(AstNode $node, bool $ordered): string
+    {
+        $attrs = $ordered ? $this->renderOrderedListTagAttrs($node) : '';
+        $extraClasses = !$ordered && $this->listIsTaskList($node) ? ['task-list'] : [];
+
+        return $attrs . $this->renderBlockHtmlAttrsWithClasses($node, $extraClasses);
     }
 
     private function renderOrderedListTagAttrs(AstNode $node): string
@@ -591,6 +634,59 @@ final class WordPressBlockWriter
         $attrs = '';
         foreach ($orderedNames as $name) {
             $value = $htmlAttributes[$name];
+            $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @param list<string> $baseClasses
+     */
+    private function renderBlockHtmlAttrsWithClasses(AstNode $node, array $baseClasses): string
+    {
+        $htmlAttributes = [];
+        foreach ($this->inlineHtmlAttributes($node) as $name => $value) {
+            $htmlAttributes[strtolower((string) $name)] = $value;
+        }
+        $classes = $baseClasses;
+        $existingClass = trim((string) ($htmlAttributes['class'] ?? ''));
+        if ($existingClass !== '') {
+            array_push($classes, ...preg_split('/\s+/', $existingClass, -1, PREG_SPLIT_NO_EMPTY));
+        }
+        $nodeClasses = $node->attr('classes', []);
+        if (is_array($nodeClasses)) {
+            foreach ($nodeClasses as $class) {
+                $class = trim((string) $class);
+                if ($class !== '') {
+                    $classes[] = $class;
+                }
+            }
+        }
+        if ($classes !== []) {
+            $htmlAttributes['class'] = implode(' ', array_values(array_unique($classes)));
+        }
+
+        $orderedNames = [];
+        foreach (['id', 'class', 'lang', 'dir', 'role', 'title'] as $name) {
+            if (array_key_exists($name, $htmlAttributes)) {
+                $orderedNames[] = $name;
+            }
+        }
+        foreach (array_keys($htmlAttributes) as $name) {
+            $name = strtolower((string) $name);
+            if (!in_array($name, $orderedNames, true)) {
+                $orderedNames[] = $name;
+            }
+        }
+
+        $attrs = '';
+        foreach ($orderedNames as $name) {
+            $value = $htmlAttributes[$name];
+            $name = strtolower((string) $name);
+            if (!$this->isAllowedBlockHtmlAttr($name)) {
+                continue;
+            }
             $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
         }
 
@@ -804,7 +900,7 @@ final class WordPressBlockWriter
         }
 
         $caption = (string) $node->attr('caption', '');
-        $captionHtml = $caption !== '' ? $this->renderCaptionInlines($node) : '';
+        $captionHtml = $caption !== '' ? $this->renderTableCaptionHtml($node) : '';
         $html = '<table' . $this->renderTableElementAttrs($node) . '>' . $this->renderTableColgroup($node);
         if ($head instanceof AstNode && $head->children !== []) {
             $html .= '<thead' . $this->renderStoredHtmlAttrs($head, true, []) . '>';
@@ -855,11 +951,11 @@ final class WordPressBlockWriter
         $classes = ['wp-element-caption'];
         $sourceClass = trim((string) ($attrs['class'] ?? ''));
         if ($sourceClass !== '') {
-            array_unshift($classes, ...preg_split('/\s+/', $sourceClass, -1, PREG_SPLIT_NO_EMPTY));
+            array_push($classes, ...preg_split('/\s+/', $sourceClass, -1, PREG_SPLIT_NO_EMPTY));
         }
         $attrs['class'] = implode(' ', array_values(array_unique($classes)));
 
-        return $this->renderBlockHtmlAttrs(new AstNode('figcaption', ['htmlAttributes' => $attrs]));
+        return $this->renderBlockHtmlAttrsWithClasses(new AstNode('figcaption', ['htmlAttributes' => $attrs]), []);
     }
 
     /**
@@ -937,6 +1033,22 @@ final class WordPressBlockWriter
     private function renderTableElementAttrs(AstNode $node): string
     {
         return $this->renderStoredHtmlAttrs($node, true, []);
+    }
+
+    private function renderTableCaptionHtml(AstNode $node): string
+    {
+        $blocks = $node->attr('captionBlocks', null);
+        if (is_array($blocks) && $blocks !== []) {
+            foreach ($blocks as $block) {
+                if (!$block instanceof AstNode) {
+                    return $this->renderCaptionInlines($node);
+                }
+            }
+
+            return $this->renderBlocksAsHtml($blocks);
+        }
+
+        return $this->renderCaptionInlines($node);
     }
 
     private function renderCaptionInlines(AstNode $node): string
@@ -1497,22 +1609,13 @@ final class WordPressBlockWriter
 
     private function renderImageFigureAttrs(AstNode $node): string
     {
-        $classes = ['wp-block-image'];
-        $extraClasses = $node->attr('classes', []);
-        if (is_array($extraClasses)) {
-            foreach ($extraClasses as $class) {
-                $classes[] = (string) $class;
-            }
-        }
-
-        $attrs = ' class="' . $this->esc(implode(' ', array_values(array_unique($classes)))) . '"';
-        $id = (string) $node->attr('id', '');
-        if ($id !== '') {
-            $attrs .= ' id="' . $this->esc($id) . '"';
-        }
-
+        $attrs = $this->renderBlockHtmlAttrsWithClasses($node, ['wp-block-image']);
         $attributes = $node->attr('attributes', []);
-        if (is_array($attributes) && isset($attributes['latex-placement'])) {
+        if (
+            is_array($attributes)
+            && isset($attributes['latex-placement'])
+            && !isset($attributes['data-pandoc-latex-placement'])
+        ) {
             $attrs .= ' data-pandoc-latex-placement="' . $this->esc((string) $attributes['latex-placement']) . '"';
         }
 
@@ -1608,7 +1711,7 @@ final class WordPressBlockWriter
     private function renderBlockQuote(AstNode $node): string
     {
         return '<!-- wp:quote -->'
-            . "\n" . '<blockquote class="wp-block-quote">' . $this->renderBlocksAsHtml($node->children) . '</blockquote>'
+            . "\n" . '<blockquote' . $this->renderBlockHtmlAttrsWithClasses($node, ['wp-block-quote']) . '>' . $this->renderBlocksAsHtml($node->children) . '</blockquote>'
             . "\n" . '<!-- /wp:quote -->';
     }
 

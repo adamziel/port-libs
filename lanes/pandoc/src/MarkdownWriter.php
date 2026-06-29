@@ -4982,27 +4982,78 @@ final class MarkdownWriter
         $lines = [];
         $start = (int) $node->attr('start', 1);
         $index = 0;
+        $itemIndex = 0;
         $items = array_values(array_filter(
             $node->children,
             static fn (AstNode $item): bool => $item->type === 'list_item'
         ));
+        $renderedItemCount = count(array_filter(
+            $items,
+            fn (AstNode $item): bool => !$this->listItemIsHeader($item)
+        ));
 
-        foreach ($items as $itemIndex => $item) {
+        foreach ($items as $item) {
+            if ($this->listItemIsHeader($item)) {
+                if ($lines !== [] && end($lines) !== '') {
+                    $lines[] = '';
+                }
+                array_push($lines, ...$this->renderListHeader($item, $indent));
+                if (end($lines) !== '') {
+                    $lines[] = '';
+                }
+                continue;
+            }
             $marker = $ordered
                 ? $this->orderedListMarker($node, $item, $start + $index, $itemIndex)
                 : $this->bulletListMarker();
             array_push($lines, ...$this->renderListItem($item, $marker, $indent));
             if (
-                $itemIndex < count($items) - 1
-                && $this->listNeedsBlankBetweenItems($node, $items[$itemIndex + 1])
+                $itemIndex < $renderedItemCount - 1
+                && $this->listNeedsBlankBetweenItems($node, $this->nextRenderableListItem($items, $itemIndex + 1))
                 && end($lines) !== ''
             ) {
                 $lines[] = '';
             }
             $index++;
+            $itemIndex++;
         }
 
         return $lines;
+    }
+
+    private function listItemIsHeader(AstNode $item): bool
+    {
+        return $item->attr('listHeader') === true;
+    }
+
+    /**
+     * @param list<AstNode> $items
+     */
+    private function nextRenderableListItem(array $items, int $renderedOffset): AstNode
+    {
+        $seen = 0;
+        foreach ($items as $item) {
+            if ($this->listItemIsHeader($item)) {
+                continue;
+            }
+            if ($seen === $renderedOffset) {
+                return $item;
+            }
+            $seen++;
+        }
+
+        return end($items) ?: new AstNode('list_item');
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderListHeader(AstNode $item, int $indent): array
+    {
+        $attrs = $item->attrs;
+        unset($attrs['listHeader']);
+
+        return $this->renderBlock(new AstNode('div', $attrs, $item->children), $indent);
     }
 
     private function bulletListMarker(): string
@@ -5914,7 +5965,7 @@ final class MarkdownWriter
         $fenceChar = $this->backtickCodeBlocksEnabled() ? '`' : '~';
         $fence = str_repeat($fenceChar, $this->codeFenceLength($text, $fenceChar));
         $attrs = $this->renderCodeBlockInfoString($node);
-        $infoSeparator = $attrs === '' || $indent > 0 ? '' : ' ';
+        $infoSeparator = $attrs === '' || $indent > 0 || str_starts_with($attrs, '{') ? '' : ' ';
         $lines = [$fence . $infoSeparator . $attrs];
         array_push($lines, ...explode("\n", $text));
         $lines[] = $fence;
