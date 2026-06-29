@@ -13096,6 +13096,45 @@ return [
         $t->same('Para', $encoded['blocks'][0]['c'][0][1][0][0]['t']);
         $t->same('Plain', $encoded['blocks'][0]['c'][0][1][1][0]['t']);
     },
+    'preserves native definition term text constructor runs through native json reader' => static function (TestRunner $t): void {
+        $definitionTerm = [
+            ['t' => 'Str', 'c' => 'Source'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => 'Glossary'],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'DefinitionList', 'c' => [
+                    [
+                        $definitionTerm,
+                        [
+                            [
+                                ['t' => 'Plain', 'c' => [
+                                    ['t' => 'Str', 'c' => 'Definition'],
+                                ]],
+                            ],
+                        ],
+                    ],
+                ]],
+            ],
+        ];
+
+        $jsonDocument = (new PandocJsonReader())->readPacket($packet);
+        $nativeDocument = (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR));
+        $jsonTerm = $jsonDocument->children[0]->children[0]->children[0];
+        $nativeTerm = $nativeDocument->children[0]->children[0]->children[0];
+        $nativeTermText = $nativeTerm->children[0] ?? new AstNode('missing');
+        $nativePacket = json_decode((new NativeWriter())->write($nativeDocument), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same(['text', 'space', 'text'], array_map(static fn (AstNode $node): string => $node->type, $jsonTerm->children), 'json reader keeps raw definition term inline constructors');
+        $t->same(['text'], array_map(static fn (AstNode $node): string => $node->type, $nativeTerm->children), 'native reader coalesces definition term text constructor run');
+        $t->same('Source Glossary', $nativeTermText->attr('text'), 'native reader keeps definition term text');
+        $t->same(['Str', 'Space', 'Str'], $nativeTermText->attr('nativeInlineConstructors'), 'native reader records definition term constructors');
+        $t->same($definitionTerm, $nativeTermText->attr('nativeInlineParts'), 'native reader records definition term native parts');
+        $t->same($definitionTerm, $nativePacket['blocks'][0]['c'][0][0], 'native writer preserves definition term constructor parts');
+    },
     'passes native definition term linebreaks through wordpress html handoff' => static function (TestRunner $t): void {
         $packet = [
             'pandoc-api-version' => [1, 23, 1],
