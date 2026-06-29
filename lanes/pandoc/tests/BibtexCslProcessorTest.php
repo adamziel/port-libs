@@ -811,6 +811,7 @@ XML);
   author            = {Writer, Willa},
   compiler          = {Compiler, Cal},
   editorialdirector = {Director, Edna},
+  editortranslator  = {Translator, Theo},
   redactor          = {Redactor, Rae},
   commentator       = {Commentator, Cam},
   annotator         = {Annotator, Ada},
@@ -818,6 +819,8 @@ XML);
   continuator       = {Continuator, Chen},
   reviser           = {Reviser, Remy},
   collaborator      = {Collaborator, Cora and Partner, Priya},
+  seriescreator     = {Series, Stella},
+  seriescreator+an  = {1=series imported from legacy catalog},
   introduction      = {Intro, Ira},
   foreword          = {Foreword, Finn},
   afterword         = {Afterword, Ari},
@@ -833,6 +836,7 @@ BIB;
         $t->same('Writer', $item['author'][0]['family']);
         $t->same('Compiler', $item['compiler'][0]['family']);
         $t->same('Director', $item['editorial-director'][0]['family']);
+        $t->same('Translator', $item['editor-translator'][0]['family']);
         $t->same('Redactor', $item['redactor'][0]['family']);
         $t->same('Commentator', $item['commentator'][0]['family']);
         $t->same('Annotator', $item['annotator'][0]['family']);
@@ -841,11 +845,49 @@ BIB;
         $t->same('Reviser', $item['reviser'][0]['family']);
         $t->same('Collaborator', $item['collaborator'][0]['family']);
         $t->same('Partner', $item['collaborator'][1]['family']);
+        $t->same('Series', $item['series-creator'][0]['family']);
+        $t->same([['part' => 'name', 'value' => 'series imported from legacy catalog']], $item['series-creator'][0]['annotations'] ?? null);
         $t->same('Intro', $item['introduction'][0]['family']);
         $t->same('Foreword', $item['foreword'][0]['family']);
         $t->same('Afterword', $item['afterword'][0]['family']);
+        $t->same('Translator, Theo', $item['rawBibtex']['fields']['editortranslator']);
         $t->same('Director, Edna', $item['rawBibtex']['fields']['editorialdirector']);
-        $t->same('Willa Writer. Secondary Credit Packet. 2026.', $bibliography);
+        $t->same('Willa Writer. Secondary Credit Packet. 2026. Name annotations: Series creator 1: series imported from legacy catalog.', $bibliography);
+
+        $styled = CitationCslProcessor::fromItems([$item])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="editor-translator"/>
+        <names variable="series-creator"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="editor-translator"/>
+      <names variable="series-creator"/>
+      <text variable="name-annotation-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $styledItem = $styled->item('secondary-credits');
+        $t->same('Translator', $styledItem['editorTranslators'][0]['family'] ?? null);
+        $t->same('Series', $styledItem['seriesCreators'][0]['family'] ?? null);
+        $t->same('series imported from legacy catalog', $styledItem['seriesCreators'][0]['annotations'][0]['value'] ?? null);
+        $t->same('[Translator | Series]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'secondary-credits', 'text' => '[@secondary-credits]']),
+        ]));
+        $t->same('Secondary Credit Packet :: Translator, Theo :: Series, Stella :: Series creator 1: series imported from legacy catalog', $styled->renderBibliographyEntry('secondary-credits'));
+
+        $document = (new MarkdownReader())->read('Secondary legacy credits [@secondary-credits] stay reviewable.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Secondary legacy credits [Translator | Series] stay reviewable.</p>', $blocks);
+        $t->contains('<dt>Writer 2026</dt><dd>Secondary Credit Packet :: Translator, Theo :: Series, Stella :: Series creator 1: series imported from legacy catalog</dd>', $blocks);
     },
     'carries biblatex secondary editor roles in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
