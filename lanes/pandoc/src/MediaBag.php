@@ -257,7 +257,7 @@ final class MediaBag
      * @return array{
      *     document:AstNode,
      *     entries:list<array{path:string, mediaPath:string, mimeType:string, byteLength:int, sha1:string, source:string, canonicalSource:string, sourcePath:string, pathRepairSummary:string, extractionPathRepairSummary:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, contents:string, linkedMimeGroup?:string, linkedMimeGroupSize?:int}>,
-     *     resourceMap:list<array{occurrence:int, nodeType:string, source:string, canonicalSource:string, sourcePath:string, path:string, mediaPath:string, originalMediaPath:string, mappedUrl:string, mimeType:string, byteLength:int, sha1:string, pathRepairSummary:string, extractionPathRepairSummary:string, pathCollision:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, linkedMimeGroup?:string, linkedMimeGroupSize?:int}>,
+     *     resourceMap:list<array{occurrence:int, nodeType:string, source:string, sourceLookupKey:string, sourceLookupRepair:string, canonicalSource:string, sourcePath:string, path:string, mediaPath:string, originalMediaPath:string, mappedUrl:string, mimeType:string, byteLength:int, sha1:string, pathRepairSummary:string, extractionPathRepairSummary:string, pathCollision:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, linkedMimeGroup?:string, linkedMimeGroupSize?:int}>,
      *     diagnostics:list<string>
      * }
      */
@@ -314,27 +314,38 @@ final class MediaBag
 
         $document = $this->mapResourceNodes($document, function (AstNode $image) use ($destination, $plannedPaths, &$diagnostics): AstNode {
             $source = (string) $image->attr('url', '');
-            $item = $this->lookupMediaSource($source);
-            if ($item === null) {
+            $match = $this->lookupMediaSourceMatch($source);
+            if ($match === null) {
                 return $image;
             }
 
+            $item = $match['item'];
             $attrs = $image->attrs;
             $plan = $plannedPaths[$item['canonicalSource']] ?? ['path' => $item['path'], 'collision' => 'none'];
             $mediaPath = $plan['path'];
             $mappedUrl = $destination . '/' . $mediaPath;
             $attrs['url'] = $mappedUrl;
-            $attrs['attributes'] = $this->mediaProvenanceAttributes($attrs, $item, $mediaPath, $mappedUrl, $plan, null);
+            $attrs['attributes'] = $this->mediaProvenanceAttributes(
+                $attrs,
+                $item,
+                $mediaPath,
+                $mappedUrl,
+                $plan,
+                null,
+                $match['lookupKey'],
+                $match['lookupRepair']
+            );
             $diagnostics[] = 'media-resource-mapped:' . self::diagnosticSource($source);
 
             return new AstNode($image->type, $attrs, $image->children);
         }, function (AstNode $link) use ($destination, $plannedPaths, $linkedMimeGroups, &$diagnostics): AstNode {
             $source = (string) $link->attr('url', '');
-            $item = $this->lookupMediaSource($source);
-            if ($item === null) {
+            $match = $this->lookupMediaSourceMatch($source);
+            if ($match === null) {
                 return $link;
             }
 
+            $item = $match['item'];
             $attrs = $link->attrs;
             $plan = $plannedPaths[$item['canonicalSource']] ?? ['path' => $item['path'], 'collision' => 'none'];
             $mediaPath = $plan['path'];
@@ -346,7 +357,9 @@ final class MediaBag
                 $mediaPath,
                 $mappedUrl,
                 $plan,
-                $linkedMimeGroups[$item['canonicalSource']] ?? null
+                $linkedMimeGroups[$item['canonicalSource']] ?? null,
+                $match['lookupKey'],
+                $match['lookupRepair']
             );
             $diagnostics[] = 'media-resource-link-mapped:' . self::diagnosticSource($source);
 
@@ -362,7 +375,7 @@ final class MediaBag
     }
 
     /**
-     * @return list<array{occurrence:int, nodeType:string, source:string, canonicalSource:string, sourcePath:string, path:string, mediaPath:string, originalMediaPath:string, mappedUrl:string, mimeType:string, byteLength:int, sha1:string, pathRepairSummary:string, extractionPathRepairSummary:string, pathCollision:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, linkedMimeGroup?:string, linkedMimeGroupSize?:int}>
+     * @return list<array{occurrence:int, nodeType:string, source:string, sourceLookupKey:string, sourceLookupRepair:string, canonicalSource:string, sourcePath:string, path:string, mediaPath:string, originalMediaPath:string, mappedUrl:string, mimeType:string, byteLength:int, sha1:string, pathRepairSummary:string, extractionPathRepairSummary:string, pathCollision:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, linkedMimeGroup?:string, linkedMimeGroupSize?:int}>
      */
     public function resourceMap(AstNode $document, string $destination): array
     {
@@ -380,7 +393,7 @@ final class MediaBag
     /**
      * @param array<string, array{path:string, collision:string}> $plannedPaths
      * @param array<string, array{group:string, size:int}> $linkedMimeGroups
-     * @return list<array{occurrence:int, nodeType:string, source:string, canonicalSource:string, sourcePath:string, path:string, mediaPath:string, originalMediaPath:string, mappedUrl:string, mimeType:string, byteLength:int, sha1:string, pathRepairSummary:string, extractionPathRepairSummary:string, pathCollision:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, linkedMimeGroup?:string, linkedMimeGroupSize?:int}>
+     * @return list<array{occurrence:int, nodeType:string, source:string, sourceLookupKey:string, sourceLookupRepair:string, canonicalSource:string, sourcePath:string, path:string, mediaPath:string, originalMediaPath:string, mappedUrl:string, mimeType:string, byteLength:int, sha1:string, pathRepairSummary:string, extractionPathRepairSummary:string, pathCollision:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, linkedMimeGroup?:string, linkedMimeGroupSize?:int}>
      */
     private function resourceMapForDocument(
         AstNode $document,
@@ -397,7 +410,7 @@ final class MediaBag
     /**
      * @param array<string, array{path:string, collision:string}> $plannedPaths
      * @param array<string, array{group:string, size:int}> $linkedMimeGroups
-     * @param list<array{occurrence:int, nodeType:string, source:string, canonicalSource:string, sourcePath:string, path:string, mediaPath:string, originalMediaPath:string, mappedUrl:string, mimeType:string, byteLength:int, sha1:string, pathRepairSummary:string, extractionPathRepairSummary:string, pathCollision:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, linkedMimeGroup?:string, linkedMimeGroupSize?:int}> $mappings
+     * @param list<array{occurrence:int, nodeType:string, source:string, sourceLookupKey:string, sourceLookupRepair:string, canonicalSource:string, sourcePath:string, path:string, mediaPath:string, originalMediaPath:string, mappedUrl:string, mimeType:string, byteLength:int, sha1:string, pathRepairSummary:string, extractionPathRepairSummary:string, pathCollision:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, linkedMimeGroup?:string, linkedMimeGroupSize?:int}> $mappings
      */
     private function collectResourceMap(
         AstNode $node,
@@ -408,8 +421,9 @@ final class MediaBag
     ): void {
         if ($node->type === 'image' || $node->type === 'link') {
             $source = (string) $node->attr('url', '');
-            $item = $source === '' ? null : $this->lookupMediaSource($source);
-            if ($item !== null) {
+            $match = $source === '' ? null : $this->lookupMediaSourceMatch($source);
+            if ($match !== null) {
+                $item = $match['item'];
                 $plan = $plannedPaths[$item['canonicalSource']] ?? ['path' => $item['path'], 'collision' => 'none'];
                 $mediaPath = $plan['path'];
                 $mappedUrl = $destination . '/' . $mediaPath;
@@ -417,6 +431,8 @@ final class MediaBag
                     'occurrence' => count($mappings),
                     'nodeType' => $node->type,
                     'source' => $source,
+                    'sourceLookupKey' => $match['lookupKey'],
+                    'sourceLookupRepair' => $match['lookupRepair'],
                     'canonicalSource' => $item['canonicalSource'],
                     'sourcePath' => $item['sourcePath'],
                     'path' => $mappedUrl,
@@ -460,7 +476,9 @@ final class MediaBag
         string $mediaPath,
         string $mappedUrl,
         array $plan,
-        ?array $linkedMimeGroup
+        ?array $linkedMimeGroup,
+        string $sourceLookupKey,
+        string $sourceLookupRepair
     ): array
     {
         $attributes = [];
@@ -482,6 +500,8 @@ final class MediaBag
 
         $attributes = array_replace($attributes, [
             'data-pandoc-media-source' => $item['source'],
+            'data-pandoc-media-source-lookup-key' => $sourceLookupKey,
+            'data-pandoc-media-source-lookup-repair' => $sourceLookupRepair,
             'data-pandoc-media-canonical-source' => $item['canonicalSource'],
             'data-pandoc-media-original-path' => $item['path'],
             'data-pandoc-media-path' => $mediaPath,
@@ -913,17 +933,6 @@ final class MediaBag
     }
 
     /**
-     * @return list<string>
-     */
-    private static function resourceLookupKeys(string $source): array
-    {
-        return array_map(
-            static fn (array $record): string => $record['key'],
-            self::resourceLookupKeyRecords($source)
-        );
-    }
-
-    /**
      * @return list<array{key:string, repair:string}>
      */
     private static function resourceLookupKeyRecords(string $source): array
@@ -1191,10 +1200,35 @@ final class MediaBag
      */
     private function lookupMediaSource(string $source): ?array
     {
-        foreach (self::resourceLookupKeys($source) as $key) {
-            $item = $this->lookup($key);
+        $match = $this->lookupMediaSourceMatch($source);
+
+        return $match['item'] ?? null;
+    }
+
+    /**
+     * @return array{item:array{source:string, canonicalSource:string, sourcePath:string, path:string, pathRepairSummary:string, mimeType:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, contents:string, sha1:string, byteLength:int}, lookupKey:string, lookupRepair:string}|null
+     */
+    private function lookupMediaSourceMatch(string $source): ?array
+    {
+        foreach (self::resourceLookupKeyRecords($source) as $record) {
+            $item = $this->lookup($record['key']);
             if ($item !== null) {
-                return $item;
+                $lookupKey = $record['key'];
+                $lookupRepair = $record['repair'];
+                if (
+                    $lookupRepair === 'exact'
+                    && $lookupKey !== $item['source']
+                    && $lookupKey !== $item['canonicalSource']
+                ) {
+                    $lookupKey = $item['canonicalSource'];
+                    $lookupRepair = 'canonical';
+                }
+
+                return [
+                    'item' => $item,
+                    'lookupKey' => $lookupKey,
+                    'lookupRepair' => $lookupRepair,
+                ];
             }
         }
 
