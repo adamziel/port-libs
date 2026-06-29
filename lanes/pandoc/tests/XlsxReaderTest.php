@@ -309,7 +309,7 @@ XML,
   </borders>
   <cellXfs count="5">
     <xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>
-    <xf numFmtId="164" fontId="0" fillId="2" borderId="1" applyFont="1" applyFill="1" applyNumberFormat="1">
+    <xf numFmtId="164" fontId="0" fillId="2" borderId="1" applyFont="1" applyFill="1" applyBorder="1" applyNumberFormat="1" applyAlignment="1" applyProtection="1" quotePrefix="1" pivotButton="0">
       <alignment horizontal="right" vertical="center" wrapText="1" textRotation="45"/>
       <protection locked="0" hidden="1"/>
     </xf>
@@ -340,6 +340,9 @@ XML,
 <?xml version="1.0" encoding="UTF-8"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <cols>
+    <col min="2" max="3" width="18.5" customWidth="1" hidden="1" outlineLevel="1" collapsed="1" style="1"/>
+  </cols>
   <sheetData>
     <row r="1">
       <c r="A1" t="s"><v>0</v></c>
@@ -349,7 +352,7 @@ XML,
       <c r="E1" t="s"><v>4</v></c>
       <c r="F1" t="s"><v>5</v></c>
     </row>
-    <row r="2">
+    <row r="2" hidden="1" ht="24.5" customHeight="1" outlineLevel="2" collapsed="1" s="1" customFormat="1">
       <c r="A2" t="s"><v>1</v></c>
       <c r="B2" s="1"><v>-1234.5</v></c>
       <c r="C2" s="2"><v>45306</v></c>
@@ -829,6 +832,21 @@ return [
         $t->same(2, $review['styleCustomNumberFormatCount'] ?? null);
         $t->same(1, $review['commentCount'] ?? null);
         $t->same(1, $review['sheets'][0]['commentCount'] ?? null);
+        $t->same(1, $review['hiddenRowCount'] ?? null);
+        $t->same(2, $review['hiddenColumnCount'] ?? null);
+        $t->same(1, $review['customHeightRowCount'] ?? null);
+        $t->same(2, $review['customWidthColumnCount'] ?? null);
+        $t->same(1, $review['sheets'][0]['hiddenRowCount'] ?? null);
+        $t->same(2, $review['sheets'][0]['hiddenColumnCount'] ?? null);
+        $t->same(2, $review['sheets'][0]['rowMetadata'][0]['index'] ?? null);
+        $t->same(true, $review['sheets'][0]['rowMetadata'][0]['hidden'] ?? null);
+        $t->same(24.5, $review['sheets'][0]['rowMetadata'][0]['height'] ?? null);
+        $t->same(2, $review['sheets'][0]['rowMetadata'][0]['outlineLevel'] ?? null);
+        $t->same(2, $review['sheets'][0]['columnMetadata'][0]['min'] ?? null);
+        $t->same(3, $review['sheets'][0]['columnMetadata'][0]['max'] ?? null);
+        $t->same(2, $review['sheets'][0]['columnMetadata'][0]['span'] ?? null);
+        $t->same(true, $review['sheets'][0]['columnMetadata'][0]['hidden'] ?? null);
+        $t->same(18.5, $review['sheets'][0]['columnMetadata'][0]['width'] ?? null);
         $t->same('B2', $review['sheets'][0]['comments'][0]['ref'] ?? null);
         $t->same('Reviewer', $review['sheets'][0]['comments'][0]['author'] ?? null);
         $t->same('Check revenue', $review['sheets'][0]['comments'][0]['text'] ?? null);
@@ -839,16 +857,42 @@ return [
         $t->same(1, $moneyCell->attr('xlsxStyleIndex'));
         $t->same('$#,##0.00;($#,##0.00)', $moneyCell->attr('xlsxNumberFormatCode'));
         $t->same('rgb:FFFFCC00', $moneyCell->attr('xlsxFillForegroundColor'));
+        $t->same(true, $moneyCell->attr('xlsxApplyNumberFormat'));
+        $t->same(true, $moneyCell->attr('xlsxApplyFont'));
+        $t->same(true, $moneyCell->attr('xlsxApplyFill'));
+        $t->same(true, $moneyCell->attr('xlsxApplyBorder'));
+        $t->same(true, $moneyCell->attr('xlsxApplyAlignment'));
+        $t->same(true, $moneyCell->attr('xlsxApplyProtection'));
+        $t->same(true, $moneyCell->attr('xlsxQuotePrefix'));
+        $t->same(false, $moneyCell->attr('xlsxPivotButton'));
         $t->same(true, $moneyCell->attr('xlsxWrapText'));
         $t->same(45, $moneyCell->attr('xlsxTextRotation'));
         $t->same(false, $moneyCell->attr('xlsxLocked'));
         $t->same(true, $moneyCell->attr('xlsxHidden'));
+        $t->same(true, $moneyCell->attr('xlsxRowHidden'));
+        $t->same(24.5, $moneyCell->attr('xlsxRowHeight'));
+        $t->same(true, $moneyCell->attr('xlsxRowCustomHeight'));
+        $t->same(2, $moneyCell->attr('xlsxRowOutlineLevel'));
+        $t->same(true, $moneyCell->attr('xlsxRowCollapsed'));
+        $t->same(1, $moneyCell->attr('xlsxRowStyleIndex'));
+        $t->same(true, $moneyCell->attr('xlsxRowCustomFormat'));
+        $t->same(true, $moneyCell->attr('xlsxColumnHidden'));
+        $t->same(18.5, $moneyCell->attr('xlsxColumnWidth'));
+        $t->same(true, $moneyCell->attr('xlsxColumnCustomWidth'));
+        $t->same(2, $moneyCell->attr('xlsxColumnMin'));
+        $t->same(3, $moneyCell->attr('xlsxColumnMax'));
+        $t->same(2, $moneyCell->attr('xlsxColumnSpan'));
+        $t->same(1, $moneyCell->attr('xlsxColumnStyleIndex'));
+        $t->same(1, $moneyCell->attr('xlsxColumnOutlineLevel'));
+        $t->same(true, $moneyCell->attr('xlsxColumnCollapsed'));
         $t->same(1, $moneyCell->attr('xlsxCommentCount'));
         $t->same('Check revenue', $moneyCell->attr('xlsxComments')[0]['text'] ?? null);
         $t->same('underline', $moneyCell->children[0]->children[0]->type);
 
         $t->same('2024-01-15', $dateCell->attr('text'));
         $t->same('date', $dateCell->attr('xlsxValueType'));
+        $t->same(true, $dateCell->attr('xlsxColumnHidden'));
+        $t->same(18.5, $dateCell->attr('xlsxColumnWidth'));
         $t->same('strikeout', $dateCell->children[0]->children[0]->type);
         $t->same('strong', $dateCell->children[0]->children[0]->children[0]->type);
         $t->same('36:00:00', $elapsedCell->attr('text'));

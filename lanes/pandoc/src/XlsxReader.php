@@ -107,6 +107,10 @@ final class XlsxReader
         $tablePartCount = 0;
         $autoFilterCount = 0;
         $commentCount = 0;
+        $hiddenRowCount = 0;
+        $hiddenColumnCount = 0;
+        $customHeightRowCount = 0;
+        $customWidthColumnCount = 0;
         foreach ($sheets as $sheet) {
             $relationship = $workbookRelationships->byId($sheet['relationshipId']);
             if (!$relationship instanceof OpcRelationship) {
@@ -121,8 +125,9 @@ final class XlsxReader
             $sheetRelationships = $this->relationshipsOrEmpty($package, $sheetPart);
             $sheetComments = $this->parseSheetComments($package, $sheetPart, $sheetRelationships);
             $sheetDiagnostics = $this->parseSheetDiagnostics($sheetDocument);
+            $sheetLayoutMetadata = $this->parseSheetLayoutMetadata($sheetDocument);
             $sheetTableMetadata = $this->parseSheetTableMetadata($package, $sheetPart, $sheetDocument, $sheetRelationships);
-            $cells = $this->parseSheetCells($sheetDocument, $sharedStrings, $styles, $workbookInfo['date1904'], $sheetRelationships, $sheetComments['commentsByCell']);
+            $cells = $this->parseSheetCells($sheetDocument, $sharedStrings, $styles, $workbookInfo['date1904'], $sheetRelationships, $sheetComments['commentsByCell'], $sheetLayoutMetadata);
             $table = $this->cellsToTable($sheet['name'], $cells);
             $blocks[] = new AstNode('heading', [
                 'level' => 2,
@@ -140,6 +145,10 @@ final class XlsxReader
             $tablePartCount += count($sheetTableMetadata['tableParts']);
             $autoFilterCount += count($sheetTableMetadata['autoFilterRanges']);
             $commentCount += $sheetComments['commentCount'];
+            $hiddenRowCount += $sheetLayoutMetadata['hiddenRowCount'];
+            $hiddenColumnCount += $sheetLayoutMetadata['hiddenColumnCount'];
+            $customHeightRowCount += $sheetLayoutMetadata['customHeightRowCount'];
+            $customWidthColumnCount += $sheetLayoutMetadata['customWidthColumnCount'];
 
             $sheetReviews[] = [
                 'index' => $sheet['index'],
@@ -160,6 +169,12 @@ final class XlsxReader
                 'commentCount' => $sheetComments['commentCount'],
                 'comments' => $sheetComments['comments'],
                 'commentDiagnostics' => $sheetComments['commentDiagnostics'],
+                'hiddenRowCount' => $sheetLayoutMetadata['hiddenRowCount'],
+                'hiddenColumnCount' => $sheetLayoutMetadata['hiddenColumnCount'],
+                'customHeightRowCount' => $sheetLayoutMetadata['customHeightRowCount'],
+                'customWidthColumnCount' => $sheetLayoutMetadata['customWidthColumnCount'],
+                'rowMetadata' => $sheetLayoutMetadata['rows'],
+                'columnMetadata' => $sheetLayoutMetadata['columns'],
                 'autoFilterRanges' => $sheetTableMetadata['autoFilterRanges'],
                 'tableParts' => $sheetTableMetadata['tableParts'],
                 'tablePartDiagnostics' => $sheetTableMetadata['tablePartDiagnostics'],
@@ -197,6 +212,10 @@ final class XlsxReader
                 'commentCount' => $commentCount,
                 'tablePartCount' => $tablePartCount,
                 'autoFilterCount' => $autoFilterCount,
+                'hiddenRowCount' => $hiddenRowCount,
+                'hiddenColumnCount' => $hiddenColumnCount,
+                'customHeightRowCount' => $customHeightRowCount,
+                'customWidthColumnCount' => $customWidthColumnCount,
                 'sheets' => $sheetReviews,
                 'featureMetadata' => $featureMetadata,
                 'contentTypesAvailable' => $contentTypeReview['available'],
@@ -1214,6 +1233,14 @@ final class XlsxReader
                     'fontId' => $fontId,
                     'fillId' => $fillId,
                     'borderId' => $borderId,
+                    'applyNumberFormat' => $this->booleanAttribute($xfElement, 'applyNumberFormat'),
+                    'applyFont' => $this->booleanAttribute($xfElement, 'applyFont'),
+                    'applyFill' => $this->booleanAttribute($xfElement, 'applyFill'),
+                    'applyBorder' => $this->booleanAttribute($xfElement, 'applyBorder'),
+                    'applyAlignment' => $this->booleanAttribute($xfElement, 'applyAlignment'),
+                    'applyProtection' => $this->booleanAttribute($xfElement, 'applyProtection'),
+                    'quotePrefix' => $this->booleanAttribute($xfElement, 'quotePrefix'),
+                    'pivotButton' => $this->booleanAttribute($xfElement, 'pivotButton'),
                     'bold' => $font['bold'],
                     'italic' => $font['italic'],
                     'underline' => $font['underline'],
@@ -1418,6 +1445,14 @@ final class XlsxReader
             'fontId' => null,
             'fillId' => null,
             'borderId' => null,
+            'applyNumberFormat' => null,
+            'applyFont' => null,
+            'applyFill' => null,
+            'applyBorder' => null,
+            'applyAlignment' => null,
+            'applyProtection' => null,
+            'quotePrefix' => null,
+            'pivotButton' => null,
             'bold' => false,
             'italic' => false,
             'underline' => false,
@@ -1473,6 +1508,7 @@ final class XlsxReader
      *     customNumberFormats:array<int, string>
      * } $styles
      * @param array<string, list<array<string, mixed>>> $commentsByCell
+     * @param array<string, mixed> $layoutMetadata
      * @return array<string, array{
      *     row:int,
      *     column:int,
@@ -1489,7 +1525,7 @@ final class XlsxReader
      *     covered:bool
      * }>
      */
-    private function parseSheetCells(\DOMDocument $document, array $sharedStrings, array $styles, bool $date1904, OpcRelationships $relationships, array $commentsByCell): array
+    private function parseSheetCells(\DOMDocument $document, array $sharedStrings, array $styles, bool $date1904, OpcRelationships $relationships, array $commentsByCell, array $layoutMetadata): array
     {
         $root = XmlHtmlDom::rootElement($document, 'worksheet');
         if (!$root instanceof \DOMElement) {
@@ -1508,6 +1544,8 @@ final class XlsxReader
             foreach ($this->childElements($rowElement, 'c') as $cellElement) {
                 $cell = $this->parseCell($cellElement, $sharedStrings, $styles, $date1904, $hyperlinks, $commentsByCell);
                 if ($cell !== null) {
+                    $cell['rowMetadata'] = $layoutMetadata['rowsByIndex'][$cell['row']] ?? null;
+                    $cell['columnMetadata'] = $this->columnMetadataForColumn($layoutMetadata['columns'], $cell['column']);
                     $cells[$cell['row'] . ':' . $cell['column']] = $cell;
                 }
             }
@@ -1516,6 +1554,160 @@ final class XlsxReader
         $this->applyMergeRegions($cells, $mergeRegions);
 
         return $cells;
+    }
+
+    /**
+     * @return array{
+     *     rows:list<array<string, mixed>>,
+     *     rowsByIndex:array<int, array<string, mixed>>,
+     *     columns:list<array<string, mixed>>,
+     *     hiddenRowCount:int,
+     *     hiddenColumnCount:int,
+     *     customHeightRowCount:int,
+     *     customWidthColumnCount:int
+     * }
+     */
+    private function parseSheetLayoutMetadata(\DOMDocument $document): array
+    {
+        $root = XmlHtmlDom::rootElement($document, 'worksheet');
+        if (!$root instanceof \DOMElement) {
+            return [
+                'rows' => [],
+                'rowsByIndex' => [],
+                'columns' => [],
+                'hiddenRowCount' => 0,
+                'hiddenColumnCount' => 0,
+                'customHeightRowCount' => 0,
+                'customWidthColumnCount' => 0,
+            ];
+        }
+
+        $columns = [];
+        $hiddenColumnCount = 0;
+        $customWidthColumnCount = 0;
+        $cols = $this->firstChildElement($root, 'cols');
+        if ($cols instanceof \DOMElement) {
+            foreach ($this->childElements($cols, 'col') as $columnElement) {
+                $min = $this->integerAttribute($columnElement, 'min');
+                $max = $this->integerAttribute($columnElement, 'max');
+                if ($min === null || $max === null || $min < 1 || $max < 1) {
+                    continue;
+                }
+                if ($max < $min) {
+                    [$min, $max] = [$max, $min];
+                }
+                $span = $max - $min + 1;
+                $hidden = $this->booleanAttribute($columnElement, 'hidden');
+                $customWidth = $this->booleanAttribute($columnElement, 'customWidth');
+                $record = [
+                    'min' => $min,
+                    'max' => $max,
+                    'span' => $span,
+                    'hidden' => $hidden,
+                    'width' => $this->floatAttribute($columnElement, 'width'),
+                    'customWidth' => $customWidth,
+                    'styleIndex' => $this->integerAttribute($columnElement, 'style'),
+                    'outlineLevel' => $this->integerAttribute($columnElement, 'outlineLevel'),
+                    'collapsed' => $this->booleanAttribute($columnElement, 'collapsed'),
+                    'bestFit' => $this->booleanAttribute($columnElement, 'bestFit'),
+                    'phonetic' => $this->booleanAttribute($columnElement, 'phonetic'),
+                ];
+                $columns[] = $record;
+                if ($hidden === true) {
+                    $hiddenColumnCount += $span;
+                }
+                if ($customWidth === true || $record['width'] !== null) {
+                    $customWidthColumnCount += $span;
+                }
+            }
+        }
+
+        $rows = [];
+        $rowsByIndex = [];
+        $hiddenRowCount = 0;
+        $customHeightRowCount = 0;
+        $sheetData = $this->firstChildElement($root, 'sheetData');
+        if ($sheetData instanceof \DOMElement) {
+            foreach ($this->childElements($sheetData, 'row') as $rowElement) {
+                $index = $this->integerAttribute($rowElement, 'r');
+                if ($index === null || $index < 1) {
+                    continue;
+                }
+
+                $height = $this->floatAttribute($rowElement, 'ht');
+                $hidden = $this->booleanAttribute($rowElement, 'hidden');
+                $customHeight = $this->booleanAttribute($rowElement, 'customHeight');
+                $record = [
+                    'index' => $index,
+                    'hidden' => $hidden,
+                    'height' => $height,
+                    'customHeight' => $customHeight,
+                    'styleIndex' => $this->integerAttribute($rowElement, 's'),
+                    'customFormat' => $this->booleanAttribute($rowElement, 'customFormat'),
+                    'outlineLevel' => $this->integerAttribute($rowElement, 'outlineLevel'),
+                    'collapsed' => $this->booleanAttribute($rowElement, 'collapsed'),
+                    'cellCount' => count($this->childElements($rowElement, 'c')),
+                ];
+
+                if (!$this->hasMeaningfulLayoutMetadata($record, ['index', 'cellCount'])) {
+                    continue;
+                }
+
+                $rows[] = $record;
+                $rowsByIndex[$index] = $record;
+                if ($hidden === true) {
+                    ++$hiddenRowCount;
+                }
+                if ($customHeight === true || $height !== null) {
+                    ++$customHeightRowCount;
+                }
+            }
+        }
+
+        return [
+            'rows' => $rows,
+            'rowsByIndex' => $rowsByIndex,
+            'columns' => $columns,
+            'hiddenRowCount' => $hiddenRowCount,
+            'hiddenColumnCount' => $hiddenColumnCount,
+            'customHeightRowCount' => $customHeightRowCount,
+            'customWidthColumnCount' => $customWidthColumnCount,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @param list<string> $ignoredKeys
+     */
+    private function hasMeaningfulLayoutMetadata(array $record, array $ignoredKeys): bool
+    {
+        foreach ($record as $key => $value) {
+            if (in_array($key, $ignoredKeys, true)) {
+                continue;
+            }
+            if ($value !== null && $value !== false && $value !== '') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $columns
+     * @return array<string, mixed>|null
+     */
+    private function columnMetadataForColumn(array $columns, int $column): ?array
+    {
+        foreach ($columns as $record) {
+            $min = $record['min'] ?? null;
+            $max = $record['max'] ?? null;
+            if (is_int($min) && is_int($max) && $column >= $min && $column <= $max) {
+                return $record;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -2098,6 +2290,14 @@ final class XlsxReader
             'fontName' => 'xlsxFontName',
             'fontSize' => 'xlsxFontSize',
             'fontColor' => 'xlsxFontColor',
+            'applyNumberFormat' => 'xlsxApplyNumberFormat',
+            'applyFont' => 'xlsxApplyFont',
+            'applyFill' => 'xlsxApplyFill',
+            'applyBorder' => 'xlsxApplyBorder',
+            'applyAlignment' => 'xlsxApplyAlignment',
+            'applyProtection' => 'xlsxApplyProtection',
+            'quotePrefix' => 'xlsxQuotePrefix',
+            'pivotButton' => 'xlsxPivotButton',
             'fillId' => 'xlsxFillId',
             'fillPatternType' => 'xlsxFillPatternType',
             'fillForegroundColor' => 'xlsxFillForegroundColor',
@@ -2130,6 +2330,50 @@ final class XlsxReader
                 continue;
             }
             $attrs[$target] = $value;
+        }
+
+        $rowMetadata = $cell['rowMetadata'] ?? null;
+        if (is_array($rowMetadata)) {
+            $rowMap = [
+                'hidden' => 'xlsxRowHidden',
+                'height' => 'xlsxRowHeight',
+                'customHeight' => 'xlsxRowCustomHeight',
+                'styleIndex' => 'xlsxRowStyleIndex',
+                'customFormat' => 'xlsxRowCustomFormat',
+                'outlineLevel' => 'xlsxRowOutlineLevel',
+                'collapsed' => 'xlsxRowCollapsed',
+            ];
+            foreach ($rowMap as $source => $target) {
+                $value = $rowMetadata[$source] ?? null;
+                if ($value === null || $value === '') {
+                    continue;
+                }
+                $attrs[$target] = $value;
+            }
+        }
+
+        $columnMetadata = $cell['columnMetadata'] ?? null;
+        if (is_array($columnMetadata)) {
+            $columnMap = [
+                'min' => 'xlsxColumnMin',
+                'max' => 'xlsxColumnMax',
+                'span' => 'xlsxColumnSpan',
+                'hidden' => 'xlsxColumnHidden',
+                'width' => 'xlsxColumnWidth',
+                'customWidth' => 'xlsxColumnCustomWidth',
+                'styleIndex' => 'xlsxColumnStyleIndex',
+                'outlineLevel' => 'xlsxColumnOutlineLevel',
+                'collapsed' => 'xlsxColumnCollapsed',
+                'bestFit' => 'xlsxColumnBestFit',
+                'phonetic' => 'xlsxColumnPhonetic',
+            ];
+            foreach ($columnMap as $source => $target) {
+                $value = $columnMetadata[$source] ?? null;
+                if ($value === null || $value === '') {
+                    continue;
+                }
+                $attrs[$target] = $value;
+            }
         }
 
         if (($style['underline'] ?? false) === true) {
@@ -2692,6 +2936,16 @@ final class XlsxReader
         }
 
         return (int) $value;
+    }
+
+    private function floatAttribute(\DOMElement $element, string $attribute): ?float
+    {
+        $value = trim($element->getAttribute($attribute));
+        if (!is_numeric($value)) {
+            return null;
+        }
+
+        return (float) $value;
     }
 
     /**
