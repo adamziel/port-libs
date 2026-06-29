@@ -8218,6 +8218,7 @@ final class PdfEngineHandoff
             $pageSelectionSegmentCounts = [
                 'page' => 0,
                 'range' => 0,
+                'range-to' => 0,
                 'range-from' => 0,
                 'invalid' => 0,
             ];
@@ -8263,6 +8264,7 @@ final class PdfEngineHandoff
                 'pageSelectionSegmentCount' => count(is_array($pageSelection['segments'] ?? null) ? $pageSelection['segments'] : []),
                 'pageSelectionPageSegmentCount' => is_int($pageSelectionPolicy['pageSegmentCount'] ?? null) ? $pageSelectionPolicy['pageSegmentCount'] : $pageSelectionSegmentCounts['page'],
                 'pageSelectionRangeSegmentCount' => is_int($pageSelectionPolicy['rangeSegmentCount'] ?? null) ? $pageSelectionPolicy['rangeSegmentCount'] : $pageSelectionSegmentCounts['range'],
+                'pageSelectionRangeToSegmentCount' => is_int($pageSelectionPolicy['rangeToSegmentCount'] ?? null) ? $pageSelectionPolicy['rangeToSegmentCount'] : $pageSelectionSegmentCounts['range-to'],
                 'pageSelectionRangeFromSegmentCount' => is_int($pageSelectionPolicy['rangeFromSegmentCount'] ?? null) ? $pageSelectionPolicy['rangeFromSegmentCount'] : $pageSelectionSegmentCounts['range-from'],
                 'pageSelectionInvalidSegmentCount' => is_int($pageSelectionPolicy['invalidSegmentCount'] ?? null) ? $pageSelectionPolicy['invalidSegmentCount'] : $pageSelectionSegmentCounts['invalid'],
                 'pageSelectionOverlapCount' => is_int($pageSelectionPolicy['overlapCount'] ?? null) ? $pageSelectionPolicy['overlapCount'] : 0,
@@ -9808,6 +9810,9 @@ final class PdfEngineHandoff
                     if ($start > $end) {
                         $segmentIssues[] = 'pages-descending-range-boundary:' . $segment;
                     }
+                } elseif (preg_match('/\A-([1-9][0-9]*)\z/', $segment, $matches) === 1) {
+                    $kind = 'range-to';
+                    $end = (int) $matches[1];
                 } elseif (preg_match('/\A([1-9][0-9]*)-\z/', $segment, $matches) === 1) {
                     $kind = 'range-from';
                     $start = (int) $matches[1];
@@ -9839,7 +9844,7 @@ final class PdfEngineHandoff
 
     /**
      * @param array{segments?:list<array{raw:string, kind:string, start:int|null, end:int|null, issues:list<string>}>}|null $pageSelection
-     * @return array{reviewStatus:string, segmentCount:int, pageSegmentCount:int, rangeSegmentCount:int, rangeFromSegmentCount:int, invalidSegmentCount:int, finiteRangeCount:int, openEndedRangeCount:int, overlapCount:int, overlaps:list<array{left:string, right:string}>, issues:list<string>}|array{}
+     * @return array{reviewStatus:string, segmentCount:int, pageSegmentCount:int, rangeSegmentCount:int, rangeToSegmentCount:int, rangeFromSegmentCount:int, invalidSegmentCount:int, finiteRangeCount:int, openEndedRangeCount:int, overlapCount:int, overlaps:list<array{left:string, right:string}>, issues:list<string>}|array{}
      */
     private function typstPageSelectionPolicy(?array $pageSelection): array
     {
@@ -9850,6 +9855,7 @@ final class PdfEngineHandoff
         $kindCounts = [
             'page' => 0,
             'range' => 0,
+            'range-to' => 0,
             'range-from' => 0,
             'invalid' => 0,
         ];
@@ -9868,7 +9874,10 @@ final class PdfEngineHandoff
 
             $start = $segment['start'] ?? null;
             $end = $segment['end'] ?? null;
-            if (!is_int($start) || !in_array($kind, ['page', 'range', 'range-from'], true)) {
+            if ($kind === 'range-to' && is_int($end)) {
+                $start = 1;
+            }
+            if (!is_int($start) || !in_array($kind, ['page', 'range', 'range-to', 'range-from'], true)) {
                 continue;
             }
 
@@ -9905,9 +9914,10 @@ final class PdfEngineHandoff
             'segmentCount' => count($pageSelection['segments']),
             'pageSegmentCount' => $kindCounts['page'],
             'rangeSegmentCount' => $kindCounts['range'],
+            'rangeToSegmentCount' => $kindCounts['range-to'],
             'rangeFromSegmentCount' => $kindCounts['range-from'],
             'invalidSegmentCount' => $kindCounts['invalid'],
-            'finiteRangeCount' => $kindCounts['page'] + $kindCounts['range'],
+            'finiteRangeCount' => $kindCounts['page'] + $kindCounts['range'] + $kindCounts['range-to'],
             'openEndedRangeCount' => $kindCounts['range-from'],
             'overlapCount' => count($overlaps),
             'overlaps' => $overlaps,
