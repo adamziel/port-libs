@@ -15215,6 +15215,189 @@ XML;
         $t->true(in_array('relationship-target', $inventory['word/media/picture-bullet.png']['roles'], true), 'relationship target role missing');
         $t->true(in_array('numbering-picture-bullet', $inventory['word/media/unreferenced-bullet.png']['roles'], true), 'unreferenced picture bullet role missing');
     },
+    'summarizes docx numbering relationship sidecar inventory for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $hyperlinkRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+        $numberingContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml';
+        $numberingImageBytes = 'numbering sidecar image bytes';
+        $badImageBytes = '<not-a-numbering-image/>';
+        $unreferencedBytes = 'unreferenced numbering image bytes';
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/numbering.xml" ContentType="' . $numberingContentType . '"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/numbering.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+  xmlns:v="urn:schemas-microsoft-com:vml">
+  <w:numPicBullet w:numPicBulletId="7">
+    <w:pict><v:shape><v:imagedata r:id="rNumberingImage"/></v:shape></w:pict>
+  </w:numPicBullet>
+  <w:numPicBullet w:numPicBulletId="8">
+    <w:pict><v:shape><v:imagedata r:id="rMissingNumberingImage"/></v:shape></w:pict>
+  </w:numPicBullet>
+  <w:abstractNum w:abstractNumId="90">
+    <w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/><w:lvlText w:val="*"/><w:lvlPicBulletId w:val="7"/></w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="7"><w:abstractNumId w:val="90"/></w:num>
+</w:numbering>
+XML;
+        $parts['word/_rels/numbering.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rNumberingImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/numbering.png?asset=sidecar#image"/>
+  <Relationship Id="rMissingNumberingImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-numbering.png"/>
+  <Relationship Id="rBadNumberingImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/bad-numbering.xml"/>
+  <Relationship Id="rExternalNumberingImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="https://cdn.example.test/numbering.png?remote=1#asset" TargetMode="External"/>
+  <Relationship Id="rNumberingLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/numbering-help#link" TargetMode="External"/>
+  <Relationship Id="rUnreferencedNumberingImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/unreferenced-numbering.png"/>
+</Relationships>
+XML;
+        $parts['word/media/numbering.png'] = $numberingImageBytes;
+        $parts['word/media/bad-numbering.xml'] = $badImageBytes;
+        $parts['word/media/unreferenced-numbering.png'] = $unreferencedBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $sidecar = $docx['numberingRelationshipSidecar'];
+        $good = $sidecar['byRelationshipId']['rNumberingImage'];
+        $missing = $sidecar['byRelationshipId']['rMissingNumberingImage'];
+        $bad = $sidecar['byRelationshipId']['rBadNumberingImage'];
+        $externalImage = $sidecar['byRelationshipId']['rExternalNumberingImage'];
+        $externalLink = $sidecar['byRelationshipId']['rNumberingLink'];
+        $unreferenced = $sidecar['byRelationshipId']['rUnreferencedNumberingImage'];
+
+        $t->same($sidecar, $package['numberingRelationshipSidecar']);
+        $t->same('word/numbering.xml', $sidecar['partName']);
+        $t->same('word/_rels/numbering.xml.rels', $sidecar['relationshipsPart']);
+        $t->same(true, $sidecar['relationshipsPartExists']);
+        $t->same(6, $sidecar['relationshipCount']);
+        $t->same(4, $sidecar['internalRelationshipCount']);
+        $t->same(2, $sidecar['externalRelationshipCount']);
+        $t->same(5, $sidecar['imageRelationshipCount']);
+        $t->same(2, $sidecar['referencedPictureBulletRelationshipCount']);
+        $t->same(3, $sidecar['unreferencedImageRelationshipCount']);
+        $t->same(3, $sidecar['existingTargetCount']);
+        $t->same(1, $sidecar['missingTargetCount']);
+        $t->same(0, $sidecar['missingContentTypeCount']);
+        $t->same(1, $sidecar['unexpectedImageContentTypeCount']);
+        $t->same(4, $sidecar['issueCount']);
+        $t->same([
+            'rNumberingImage',
+            'rMissingNumberingImage',
+            'rBadNumberingImage',
+            'rExternalNumberingImage',
+            'rNumberingLink',
+            'rUnreferencedNumberingImage',
+        ], $sidecar['relationshipIds']);
+        $t->same([
+            'rNumberingImage',
+            'rMissingNumberingImage',
+            'rBadNumberingImage',
+            'rExternalNumberingImage',
+            'rUnreferencedNumberingImage',
+        ], $sidecar['imageRelationshipIds']);
+        $t->same(['rNumberingImage', 'rMissingNumberingImage'], $sidecar['referencedPictureBulletRelationshipIds']);
+        $t->same(['rBadNumberingImage', 'rExternalNumberingImage', 'rUnreferencedNumberingImage'], $sidecar['unreferencedImageRelationshipIds']);
+        $t->same([
+            'word/media/bad-numbering.xml',
+            'word/media/missing-numbering.png',
+            'word/media/numbering.png',
+            'word/media/unreferenced-numbering.png',
+        ], $sidecar['targetParts']);
+        $t->same([
+            'https://cdn.example.test/numbering.png?remote=1#asset',
+            'https://example.test/numbering-help#link',
+        ], $sidecar['externalTargets']);
+        $t->same(['application/xml', 'image/png'], $sidecar['contentTypes']);
+        $t->same([$hyperlinkRel, $imageRel], $sidecar['relationshipTypes']);
+        $t->same([$hyperlinkRel => 1, $imageRel => 5], $sidecar['relationshipTypeCounts']);
+        $t->same(['(missing)' => 2, 'application/xml' => 1, 'image/png' => 3], $sidecar['contentTypeBaseCounts']);
+        $t->same(['default' => 4, 'missing' => 2], $sidecar['contentTypeSourceCounts']);
+        $t->same(['png' => 3, 'xml' => 1], $sidecar['targetExtensionCounts']);
+        $t->same([
+            'external-numbering-sidecar-relationship',
+            'missing-numbering-sidecar-target',
+            'unexpected-numbering-sidecar-image-content-type',
+        ], $sidecar['issueCodes']);
+        $t->same('numbering-relationship-sidecar-bytes-blocked', $sidecar['byteExposurePolicy']);
+        $t->same('numbering-relationship-sidecar-metadata-only', $sidecar['reviewPolicy']);
+
+        $t->same('word/_rels/numbering.xml.rels#rNumberingImage', $good['relationshipKey']);
+        $t->same($imageRel, $good['type']);
+        $t->same('image', $good['typeLabel']);
+        $t->same('media/numbering.png?asset=sidecar#image', $good['target']);
+        $t->same('word/media/numbering.png?asset=sidecar#image', $good['resolvedTarget']);
+        $t->same('word/media/numbering.png', $good['targetPart']);
+        $t->same('asset=sidecar', $good['targetQuery']);
+        $t->same('image', $good['targetFragment']);
+        $t->same('?asset=sidecar#image', $good['targetReferenceSuffix']);
+        $t->same(false, $good['external']);
+        $t->same(true, $good['exists']);
+        $t->same(strlen($numberingImageBytes), $good['byteLength']);
+        $t->same(sprintf('%08x', crc32($numberingImageBytes)), $good['crc32']);
+        $t->same(hash('sha256', $numberingImageBytes), $good['sha256']);
+        $t->same('image/png', $good['contentTypeBase']);
+        $t->same('default', $good['contentTypeSource']);
+        $t->same(true, $good['referencedByPictureBullet']);
+        $t->same(true, $good['valid']);
+        $t->same([], $good['issues']);
+
+        $t->same('word/media/missing-numbering.png', $missing['targetPart']);
+        $t->same(false, $missing['exists']);
+        $t->same('image/png', $missing['contentTypeBase']);
+        $t->same(true, $missing['referencedByPictureBullet']);
+        $t->same(false, $missing['valid']);
+        $t->same(['missing-numbering-sidecar-target'], $missing['issues']);
+
+        $t->same('word/media/bad-numbering.xml', $bad['targetPart']);
+        $t->same(true, $bad['exists']);
+        $t->same('application/xml', $bad['contentTypeBase']);
+        $t->same(strlen($badImageBytes), $bad['bytes']);
+        $t->same(false, $bad['referencedByPictureBullet']);
+        $t->same(false, $bad['valid']);
+        $t->same(['unexpected-numbering-sidecar-image-content-type'], $bad['issues']);
+
+        $t->same(true, $externalImage['external']);
+        $t->same(null, $externalImage['targetPart']);
+        $t->same('remote=1', $externalImage['targetQuery']);
+        $t->same('asset', $externalImage['targetFragment']);
+        $t->same(true, $externalImage['externalTargetAllowed']);
+        $t->same(false, $externalImage['referencedByPictureBullet']);
+        $t->same(['external-numbering-sidecar-relationship'], $externalImage['issues']);
+
+        $t->same($hyperlinkRel, $externalLink['type']);
+        $t->same('hyperlink', $externalLink['typeLabel']);
+        $t->same(true, $externalLink['external']);
+        $t->same('link', $externalLink['targetFragment']);
+        $t->same(['external-numbering-sidecar-relationship'], $externalLink['issues']);
+
+        $t->same('word/media/unreferenced-numbering.png', $unreferenced['targetPart']);
+        $t->same(true, $unreferenced['exists']);
+        $t->same(false, $unreferenced['referencedByPictureBullet']);
+        $t->same(true, $unreferenced['valid']);
+
+        $t->same($sidecar['relationshipsPartExists'], $summary['numberingRelationshipSidecarExists']);
+        $t->same($sidecar['relationshipCount'], $summary['numberingRelationshipSidecarRelationshipCount']);
+        $t->same($sidecar['internalRelationshipCount'], $summary['numberingRelationshipSidecarInternalCount']);
+        $t->same($sidecar['externalRelationshipCount'], $summary['numberingRelationshipSidecarExternalCount']);
+        $t->same($sidecar['imageRelationshipCount'], $summary['numberingRelationshipSidecarImageRelationshipCount']);
+        $t->same($sidecar['referencedPictureBulletRelationshipCount'], $summary['numberingRelationshipSidecarReferencedPictureBulletCount']);
+        $t->same($sidecar['unreferencedImageRelationshipCount'], $summary['numberingRelationshipSidecarUnreferencedImageRelationshipCount']);
+        $t->same($sidecar['existingTargetCount'], $summary['numberingRelationshipSidecarExistingTargetCount']);
+        $t->same($sidecar['missingTargetCount'], $summary['numberingRelationshipSidecarMissingTargetCount']);
+        $t->same($sidecar['unexpectedImageContentTypeCount'], $summary['numberingRelationshipSidecarUnexpectedImageContentTypeCount']);
+        $t->same($sidecar['issueCount'], $summary['numberingRelationshipSidecarIssueCount']);
+        $t->same($sidecar['issueCodes'], $summary['numberingRelationshipSidecarIssueCodes']);
+        $t->true(in_array('numbering-picture-bullet', $package['parts']['word/media/numbering.png']['roles'], true), 'referenced numbering image role missing');
+        $t->true(in_array('numbering-picture-bullet', $package['parts']['word/media/unreferenced-numbering.png']['roles'], true), 'unreferenced numbering image role missing');
+    },
     'resolves docx styles and core properties from relationship targets' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

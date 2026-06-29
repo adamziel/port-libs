@@ -275,6 +275,14 @@ final class DocxOpenXmlReader
             $numberingRelationships,
             $contentTypes,
         );
+        $numberingRelationshipSidecar = $this->numberingRelationshipSidecarReview(
+            $parts,
+            $numberingPart['partName'],
+            $numberingRelationshipsPart,
+            $numberingRelationships,
+            $contentTypes,
+            $numberingPictureBullets,
+        );
         $numberingRelationshipReview = $this->numberingRelationshipReview(
             $parts,
             $numberingPart,
@@ -1107,6 +1115,20 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['numberingPictureBulletExternalCount'] = $numberingPictureBullets['externalCount'];
         $packageProvenance['summary']['numberingPictureBulletIssueCount'] = $numberingPictureBullets['issueCount'];
         $packageProvenance['summary']['numberingPictureBulletIssueCodes'] = $numberingPictureBullets['issueCodes'];
+        $packageProvenance['numberingRelationshipSidecar'] = $numberingRelationshipSidecar;
+        $packageProvenance['summary']['numberingRelationshipSidecarExists'] = $numberingRelationshipSidecar['relationshipsPartExists'];
+        $packageProvenance['summary']['numberingRelationshipSidecarRelationshipCount'] = $numberingRelationshipSidecar['relationshipCount'];
+        $packageProvenance['summary']['numberingRelationshipSidecarInternalCount'] = $numberingRelationshipSidecar['internalRelationshipCount'];
+        $packageProvenance['summary']['numberingRelationshipSidecarExternalCount'] = $numberingRelationshipSidecar['externalRelationshipCount'];
+        $packageProvenance['summary']['numberingRelationshipSidecarImageRelationshipCount'] = $numberingRelationshipSidecar['imageRelationshipCount'];
+        $packageProvenance['summary']['numberingRelationshipSidecarReferencedPictureBulletCount'] = $numberingRelationshipSidecar['referencedPictureBulletRelationshipCount'];
+        $packageProvenance['summary']['numberingRelationshipSidecarUnreferencedImageRelationshipCount'] = $numberingRelationshipSidecar['unreferencedImageRelationshipCount'];
+        $packageProvenance['summary']['numberingRelationshipSidecarExistingTargetCount'] = $numberingRelationshipSidecar['existingTargetCount'];
+        $packageProvenance['summary']['numberingRelationshipSidecarMissingTargetCount'] = $numberingRelationshipSidecar['missingTargetCount'];
+        $packageProvenance['summary']['numberingRelationshipSidecarMissingContentTypeCount'] = $numberingRelationshipSidecar['missingContentTypeCount'];
+        $packageProvenance['summary']['numberingRelationshipSidecarUnexpectedImageContentTypeCount'] = $numberingRelationshipSidecar['unexpectedImageContentTypeCount'];
+        $packageProvenance['summary']['numberingRelationshipSidecarIssueCount'] = $numberingRelationshipSidecar['issueCount'];
+        $packageProvenance['summary']['numberingRelationshipSidecarIssueCodes'] = $numberingRelationshipSidecar['issueCodes'];
         $packageProvenance['numberingRelationship'] = $numberingRelationshipReview;
         $packageProvenance['summary']['numberingRelationshipCount'] = $numberingRelationshipReview['relationshipCount'];
         $packageProvenance['summary']['numberingRelationshipInternalCount'] = $numberingRelationshipReview['internalRelationshipCount'];
@@ -1237,6 +1259,7 @@ final class DocxOpenXmlReader
                 'numberingRelationshipsPart' => $numberingRelationshipsPart,
                 'numberingRelationships' => $numberingRelationships,
                 'numberingRelationshipReview' => $numberingRelationshipReview,
+                'numberingRelationshipSidecar' => $numberingRelationshipSidecar,
                 'numberingPictureBullets' => $numberingPictureBullets,
                 'settingsPart' => $settingsPart['partName'],
                 'settings' => $settings,
@@ -2205,6 +2228,226 @@ final class DocxOpenXmlReader
             'xml' => $parts[$partName] ?? '',
             'relationship' => null,
             'exists' => isset($parts[$partName]),
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array<string, mixed> $pictureBullets
+     * @return array<string, mixed>
+     */
+    private function numberingRelationshipSidecarReview(
+        array $parts,
+        string $numberingPart,
+        string $relationshipsPart,
+        array $relationships,
+        array $contentTypes,
+        array $pictureBullets
+    ): array {
+        $referencedPictureBulletRelationshipIds = [];
+        foreach (($pictureBullets['referencedRelationshipIds'] ?? []) as $relationshipId) {
+            if (is_string($relationshipId) && $relationshipId !== '') {
+                $referencedPictureBulletRelationshipIds[$relationshipId] = true;
+            }
+        }
+
+        $items = [];
+        $byRelationshipId = [];
+        $relationshipIds = [];
+        $imageRelationshipIds = [];
+        $referencedPictureBulletRelationshipIdsList = [];
+        $unreferencedImageRelationshipIds = [];
+        $targetParts = [];
+        $externalTargets = [];
+        $contentTypesSeen = [];
+        $relationshipTypes = [];
+        $relationshipTypeCounts = [];
+        $contentTypeBaseCounts = [];
+        $contentTypeSourceCounts = [];
+        $targetExtensionCounts = [];
+        $issueCodes = [];
+        $internalRelationshipCount = 0;
+        $externalRelationshipCount = 0;
+        $imageRelationshipCount = 0;
+        $existingTargetCount = 0;
+        $missingTargetCount = 0;
+        $missingContentTypeCount = 0;
+        $unexpectedImageContentTypeCount = 0;
+        $issueCount = 0;
+
+        foreach ($relationships as $relationship) {
+            $summary = $this->relationshipInventorySummary(
+                $parts,
+                $relationship,
+                $numberingPart,
+                $relationshipsPart,
+                $contentTypes,
+            );
+            $relationshipId = (string) $relationship['id'];
+            $relationshipType = (string) $summary['type'];
+            $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+            $external = (bool) $summary['external'];
+            $exists = (bool) $summary['exists'];
+            $contentTypeBase = is_string($summary['contentTypeBase'] ?? null) ? $summary['contentTypeBase'] : '';
+            $contentTypeSource = is_string($summary['contentTypeSource'] ?? null) ? $summary['contentTypeSource'] : 'missing';
+            $referencedByPictureBullet = isset($referencedPictureBulletRelationshipIds[$relationshipId]);
+            $issues = [];
+
+            $relationshipIds[] = $relationshipId;
+            $this->appendUniqueString($relationshipTypes, $relationshipType);
+            $relationshipTypeCounts[$relationshipType] = ($relationshipTypeCounts[$relationshipType] ?? 0) + 1;
+            $contentTypeSourceCounts[$contentTypeSource] = ($contentTypeSourceCounts[$contentTypeSource] ?? 0) + 1;
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $contentTypeBaseCounts[$contentTypeBaseKey] = ($contentTypeBaseCounts[$contentTypeBaseKey] ?? 0) + 1;
+
+            if ($external) {
+                ++$externalRelationshipCount;
+                $this->appendUniqueString($externalTargets, is_string($summary['target'] ?? null) ? $summary['target'] : null);
+                $issues[] = 'external-numbering-sidecar-relationship';
+                foreach (($summary['externalTargetIssues'] ?? []) as $externalIssue) {
+                    if (is_string($externalIssue) && $externalIssue !== '') {
+                        $issues[] = $externalIssue;
+                    }
+                }
+            } else {
+                ++$internalRelationshipCount;
+                if ($targetPart !== null) {
+                    $this->appendUniqueString($targetParts, $targetPart);
+                    $partExtension = $this->packagePartExtension($targetPart);
+                    $targetExtensionCounts[$partExtension] = ($targetExtensionCounts[$partExtension] ?? 0) + 1;
+                }
+                if ($exists) {
+                    ++$existingTargetCount;
+                } else {
+                    ++$missingTargetCount;
+                    $issues[] = 'missing-numbering-sidecar-target';
+                }
+            }
+
+            if ($relationshipType === self::IMAGE_REL) {
+                ++$imageRelationshipCount;
+                $imageRelationshipIds[] = $relationshipId;
+                if ($referencedByPictureBullet) {
+                    $referencedPictureBulletRelationshipIdsList[] = $relationshipId;
+                } else {
+                    $unreferencedImageRelationshipIds[] = $relationshipId;
+                }
+                if (!$external) {
+                    if ($contentTypeSource === 'missing') {
+                        ++$missingContentTypeCount;
+                        $issues[] = 'missing-numbering-sidecar-content-type';
+                    } elseif (!str_starts_with($contentTypeBase, 'image/')) {
+                        ++$unexpectedImageContentTypeCount;
+                        $issues[] = 'unexpected-numbering-sidecar-image-content-type';
+                    }
+                }
+            }
+
+            $this->appendUniqueString($contentTypesSeen, is_string($summary['contentType'] ?? null) ? $summary['contentType'] : null);
+            $byteLength = $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null;
+            $crc32 = $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null;
+            $sha256 = $targetPart !== null && $exists ? hash('sha256', $parts[$targetPart]) : null;
+            $issues = array_values(array_unique($issues));
+            sort($issues, SORT_STRING);
+            foreach ($issues as $issue) {
+                $issueCodes[$issue] = true;
+            }
+            if ($issues !== []) {
+                ++$issueCount;
+            }
+
+            $item = [
+                'index' => count($items),
+                'id' => $relationshipId,
+                'relationshipKey' => $relationshipsPart . '#' . $relationshipId,
+                'type' => $relationshipType,
+                'typeLabel' => $this->relationshipTypeLabel($relationshipType),
+                'sourcePart' => $summary['sourcePart'],
+                'relationshipsPart' => $summary['relationshipsPart'],
+                'target' => $summary['target'],
+                'targetMode' => $summary['targetMode'],
+                'external' => $external,
+                'resolvedTarget' => $summary['resolvedTarget'],
+                'targetPart' => $targetPart,
+                'targetQuery' => $summary['targetQuery'],
+                'targetFragment' => $summary['targetFragment'],
+                'targetReferenceSuffix' => $summary['targetReferenceSuffix'],
+                'targetParentTraversalCount' => $summary['targetParentTraversalCount'],
+                'targetHasParentTraversal' => $summary['targetHasParentTraversal'],
+                'targetStartsAtPackageRoot' => $summary['targetStartsAtPackageRoot'],
+                'sameSourcePart' => $summary['sameSourcePart'],
+                'externalTargetKind' => $summary['externalTargetKind'],
+                'externalTargetScheme' => $summary['externalTargetScheme'],
+                'externalTargetAllowed' => $summary['externalTargetAllowed'],
+                'externalTargetIssues' => $summary['externalTargetIssues'],
+                'exists' => $exists,
+                'byteLength' => $byteLength,
+                'bytes' => $byteLength,
+                'crc32' => $crc32,
+                'sha256' => $sha256,
+                'contentType' => $summary['contentType'],
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeHasParameters' => $summary['contentTypeHasParameters'],
+                'contentTypeParameterCount' => $summary['contentTypeParameterCount'],
+                'contentTypeParameters' => $summary['contentTypeParameters'],
+                'contentTypeParameterMap' => $summary['contentTypeParameterMap'],
+                'contentTypeSource' => $contentTypeSource,
+                'defaultExtension' => $summary['defaultExtension'],
+                'overridePartName' => $summary['overridePartName'],
+                'referencedByPictureBullet' => $referencedByPictureBullet,
+                'valid' => $issues === [],
+                'issues' => $issues,
+                'byteExposurePolicy' => 'numbering-relationship-sidecar-bytes-blocked',
+                'reviewPolicy' => 'numbering-relationship-sidecar-metadata-only',
+            ];
+            $items[] = $item;
+            $byRelationshipId[$relationshipId] = $item;
+        }
+
+        ksort($relationshipTypeCounts, SORT_STRING);
+        ksort($contentTypeBaseCounts, SORT_STRING);
+        ksort($contentTypeSourceCounts, SORT_STRING);
+        ksort($targetExtensionCounts, SORT_STRING);
+        ksort($issueCodes, SORT_STRING);
+        sort($targetParts, SORT_STRING);
+        sort($externalTargets, SORT_STRING);
+        sort($contentTypesSeen, SORT_STRING);
+        sort($relationshipTypes, SORT_STRING);
+
+        return [
+            'partName' => $numberingPart,
+            'relationshipsPart' => $relationshipsPart,
+            'relationshipsPartExists' => isset($parts[$relationshipsPart]),
+            'relationshipCount' => count($items),
+            'internalRelationshipCount' => $internalRelationshipCount,
+            'externalRelationshipCount' => $externalRelationshipCount,
+            'imageRelationshipCount' => $imageRelationshipCount,
+            'referencedPictureBulletRelationshipCount' => count($referencedPictureBulletRelationshipIdsList),
+            'unreferencedImageRelationshipCount' => count($unreferencedImageRelationshipIds),
+            'existingTargetCount' => $existingTargetCount,
+            'missingTargetCount' => $missingTargetCount,
+            'missingContentTypeCount' => $missingContentTypeCount,
+            'unexpectedImageContentTypeCount' => $unexpectedImageContentTypeCount,
+            'issueCount' => $issueCount,
+            'relationshipIds' => $relationshipIds,
+            'imageRelationshipIds' => $imageRelationshipIds,
+            'referencedPictureBulletRelationshipIds' => $referencedPictureBulletRelationshipIdsList,
+            'unreferencedImageRelationshipIds' => $unreferencedImageRelationshipIds,
+            'targetParts' => $targetParts,
+            'externalTargets' => $externalTargets,
+            'contentTypes' => $contentTypesSeen,
+            'relationshipTypes' => $relationshipTypes,
+            'relationshipTypeCounts' => $relationshipTypeCounts,
+            'contentTypeBaseCounts' => $contentTypeBaseCounts,
+            'contentTypeSourceCounts' => $contentTypeSourceCounts,
+            'targetExtensionCounts' => $targetExtensionCounts,
+            'issueCodes' => array_keys($issueCodes),
+            'relationships' => $items,
+            'byRelationshipId' => $byRelationshipId,
+            'byteExposurePolicy' => 'numbering-relationship-sidecar-bytes-blocked',
+            'reviewPolicy' => 'numbering-relationship-sidecar-metadata-only',
         ];
     }
 
