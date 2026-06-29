@@ -377,6 +377,101 @@ XML;
         $t->contains('<ol type="I" data-pandoc-list-style="upper_roman" data-pandoc-list-delimiter="two_parens">', $blocks);
         $t->contains('<ol start="3" type="a"><li>Alpha three<ol type="I"><li>Nested roman</li></ol></li><li>Alpha four</li></ol>', $converterBlocks);
     },
+    'resolves docx numbering definitions through document relationships' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            ['name' => 'word/_rels/document.xml.rels', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rNumberingCustom" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering/custom-numbering.xml?profile=review#defs"/>
+</Relationships>
+XML],
+            ['name' => 'word/numbering.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:abstractNum w:abstractNumId="1"><w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/></w:lvl></w:abstractNum>
+  <w:num w:numId="23"><w:abstractNumId w:val="1"/></w:num>
+</w:numbering>
+XML],
+            ['name' => 'word/numbering/custom-numbering.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:abstractNum w:abstractNumId="9">
+    <w:lvl w:ilvl="0"><w:start w:val="5"/><w:numFmt w:val="lowerRoman"/><w:lvlText w:val="%1)"/></w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="23"><w:abstractNumId w:val="9"/></w:num>
+</w:numbering>
+XML],
+            ['name' => 'word/document.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="23"/></w:numPr></w:pPr><w:r><w:t>Relationship-selected five</w:t></w:r></w:p>
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="23"/></w:numPr></w:pPr><w:r><w:t>Relationship-selected six</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+XML],
+        ]);
+
+        $document = (new DocxReader())->readDocument($package);
+        $blocks = (new WordPressBlockWriter(['preserveListAttributes' => true]))->write($document);
+        $meta = $document->attr('meta');
+        $list = $document->children[0];
+
+        $t->same('word/numbering/custom-numbering.xml', $meta['docxNumberingPart']);
+        $t->same('rNumberingCustom', $meta['docxNumberingRelationshipId']);
+        $t->same('numbering/custom-numbering.xml?profile=review#defs', $meta['docxNumberingRelationshipTarget']);
+        $t->same(1, $meta['docxNumberingDefinitions']);
+        $t->same('ordered_list', $list->type);
+        $t->same(5, $list->attr('start'));
+        $t->same('lower_roman', $list->attr('style'));
+        $t->same('one_paren', $list->attr('delimiter'));
+        $t->same('Relationship-selected five', $list->children[0]->children[0]->attr('text'));
+        $t->same('Relationship-selected six', $list->children[1]->children[0]->attr('text'));
+        $t->contains('<ol start="5" type="i" data-pandoc-list-style="lower_roman" data-pandoc-list-delimiter="one_paren">', $blocks);
+    },
+    'derives docx numbering from paragraph styles and respects numId zero suppression' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            ['name' => 'word/styles.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:styleId="Checklist"><w:name w:val="Checklist"/></w:style>
+  <w:style w:type="paragraph" w:styleId="DerivedChecklist"><w:basedOn w:val="Checklist"/><w:name w:val="Derived Checklist"/></w:style>
+</w:styles>
+XML],
+            ['name' => 'word/numbering.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:abstractNum w:abstractNumId="4">
+    <w:lvl w:ilvl="0"><w:pStyle w:val="Checklist"/><w:numFmt w:val="bullet"/><w:lvlText w:val="-"/></w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="12"><w:abstractNumId w:val="4"/></w:num>
+</w:numbering>
+XML],
+            ['name' => 'word/document.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:pPr><w:pStyle w:val="DerivedChecklist"/></w:pPr><w:r><w:t>Inherited checklist item</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Checklist"/><w:numPr><w:numId w:val="0"/></w:numPr></w:pPr><w:r><w:t>Suppressed checklist item</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+XML],
+        ]);
+
+        $document = (new DocxReader())->readDocument($package);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $list = $document->children[0];
+        $suppressed = $document->children[1];
+
+        $t->same('bullet_list', $list->type);
+        $t->same('12', $list->attr('numId'));
+        $t->same(0, $list->attr('level'));
+        $t->same('Inherited checklist item', $list->children[0]->children[0]->attr('text'));
+        $t->same('paragraph', $suppressed->type);
+        $t->same('Suppressed checklist item', $suppressed->attr('text'));
+        $t->contains('<ul><li>Inherited checklist item</li></ul>', $blocks);
+        $t->contains('<p>Suppressed checklist item</p>', $blocks);
+    },
     'reads docx bookmarks reference fields and omml equations into shared ast' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-docx-');
         if ($path === false) {
