@@ -16331,7 +16331,12 @@ final class XmlHtmlDom
     /**
      * @return array<string, mixed>
      */
-    private static function metaContentSecurityPolicySummary(?string $content, string $httpEquiv): array
+    private static function metaContentSecurityPolicySummary(
+        ?string $content,
+        string $httpEquiv,
+        string $reviewPolicy = 'meta-content-security-policy-review',
+        string $missingContentIssueCode = 'missing-meta-csp-content'
+    ): array
     {
         $raw = $content ?? '';
         $directives = [];
@@ -16437,7 +16442,7 @@ final class XmlHtmlDom
         ));
         $issues = [];
         if ($content === null || trim($content) === '') {
-            $issues[] = ['code' => 'missing-meta-csp-content'];
+            $issues[] = ['code' => $missingContentIssueCode];
         }
         foreach ($invalidDirectiveNames as $name) {
             $issues[] = ['code' => 'invalid-csp-directive-name', 'nameRaw' => $name];
@@ -16460,7 +16465,7 @@ final class XmlHtmlDom
         }
 
         return [
-            'contentSecurityPolicyReviewPolicy' => 'meta-content-security-policy-review',
+            'contentSecurityPolicyReviewPolicy' => $reviewPolicy,
             'contentSecurityPolicyHttpEquiv' => $httpEquiv,
             'contentSecurityPolicyRaw' => $content,
             'contentSecurityPolicyByteLength' => strlen($raw),
@@ -28416,6 +28421,7 @@ final class XmlHtmlDom
             'loading' => self::attributeOrNull($iframe, 'loading'),
             'referrerpolicy' => self::attributeOrNull($iframe, 'referrerpolicy'),
             'allow' => self::attributeOrNull($iframe, 'allow'),
+            'csp' => self::attributeOrNull($iframe, 'csp'),
             'sandboxTokens' => $iframe->hasAttribute('sandbox') ? self::spaceSeparatedTokens($iframe->getAttribute('sandbox')) : [],
             'allowFullscreen' => $iframe->hasAttribute('allowfullscreen'),
             'credentialless' => $iframe->hasAttribute('credentialless'),
@@ -28494,6 +28500,14 @@ final class XmlHtmlDom
             }
         }
 
+        if ($iframe->hasAttribute('csp')) {
+            $csp = self::iframeContentSecurityPolicyReviewSummary($iframe->getAttribute('csp'));
+            $summary += $csp;
+            if (($csp['iframeCspValid'] ?? true) !== true) {
+                self::appendUniqueString($summary['iframePolicyIssueCodes'], 'invalid-iframe-csp');
+            }
+        }
+
         $summary['allowFullscreen'] = $iframe->hasAttribute('allowfullscreen');
 
         return $summary;
@@ -28539,6 +28553,41 @@ final class XmlHtmlDom
             ))),
             'iframeCredentiallessValid' => $issues === [],
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function iframeContentSecurityPolicyReviewSummary(string $content): array
+    {
+        $summary = self::metaContentSecurityPolicySummary(
+            $content,
+            'csp',
+            'iframe-content-security-policy-review',
+            'missing-iframe-csp-content'
+        );
+
+        return [
+            'iframeCspReviewPolicy' => 'iframe-content-security-policy-review',
+            'iframeCspSourceAttribute' => 'csp',
+            'iframeCspRaw' => $content,
+            'iframeCspByteLength' => $summary['contentSecurityPolicyByteLength'],
+            'iframeCspSha256' => $summary['contentSecurityPolicySha256'],
+            'iframeCspDirectiveCount' => $summary['cspDirectiveCount'],
+            'iframeCspDirectiveNames' => $summary['cspDirectiveNames'],
+            'iframeCspDirectiveNameCounts' => $summary['cspDirectiveNameCounts'],
+            'iframeCspDirectiveKinds' => $summary['cspDirectiveKinds'],
+            'iframeCspFetchDirectiveNames' => $summary['cspFetchDirectiveNames'],
+            'iframeCspSchemeSources' => $summary['cspSchemeSources'],
+            'iframeCspNetworkSources' => $summary['cspNetworkSources'],
+            'iframeCspReportEndpoints' => $summary['cspReportEndpoints'],
+            'iframeCspUnsafeKeywords' => $summary['cspUnsafeKeywords'],
+            'iframeCspIssues' => $summary['cspIssues'],
+            'iframeCspIssueCodes' => $summary['cspIssueCodes'],
+            'iframeCspValid' => $summary['contentSecurityPolicyValid'],
+            'iframeCspReviewOnlyNoFrameFetch' => true,
+            'iframeCspBrowserEnforcement' => false,
+        ] + $summary;
     }
 
     /**
