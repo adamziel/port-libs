@@ -7628,6 +7628,7 @@ final class MarkdownReader
             'option',
             'p',
             'param',
+            'search',
             'section',
             'summary',
             'table',
