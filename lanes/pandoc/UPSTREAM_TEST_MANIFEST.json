@@ -18,6 +18,8 @@
     "odfBeanShellPackageScriptAssertions": 35,
     "mappedOdfScriptMediaAliasCases": 1,
     "odfScriptMediaAliasAssertions": 52,
+    "mappedOdfPythonPackageScriptAliasCases": 1,
+    "odfPythonPackageScriptAliasAssertions": 34,
     "upstream": {
         "name": "jgm/pandoc",
         "url": "https://github.com/jgm/pandoc",
@@ -517,6 +519,7 @@
             "mappedOdfRubyPackageScriptCases": 1,
             "mappedOdfBeanShellPackageScriptCases": 1,
             "mappedOdfScriptMediaAliasCases": 1,
+            "mappedOdfPythonPackageScriptAliasCases": 1,
             "mappedOdfStyleDiagnosticsCases": 1,
             "mappedOdfAttachmentLegacyDocumentResourceCases": 1,
             "mappedOdfThumbnailPackagePathCases": 1
@@ -1622,6 +1625,7 @@
         "mappedOdfRubyPackageScriptCases": 1,
         "mappedOdfBeanShellPackageScriptCases": 1,
         "mappedOdfScriptMediaAliasCases": 1,
+        "mappedOdfPythonPackageScriptAliasCases": 1,
         "mappedOdfStyleDiagnosticsCases": 1,
         "mappedOdtStyleDiagnosticsCases": 1,
         "mappedOdfAttachmentLegacyDocumentResourceCases": 1,

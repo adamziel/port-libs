@@ -453,4 +453,67 @@ return [
         $t->same(false, $compactItems['Scripts/java/review']['canExposeBytes']);
         $t->same(['Pictures/hero.png'], array_column($compactSummary['mediaParts'], 'path'));
     },
+    'accepts ODT extensionless Python package script media-type aliases as metadata-only review data' => static function (TestRunner $t) use (
+        $buildPackage,
+        $indexBy,
+        $manifestXml
+    ): void {
+        $extensionlessPythonScript = 'print("extensionless package review")';
+        $pythonAliasManifest = str_replace(
+            '  <manifest:file-entry manifest:full-path="Scripts/missing.js" manifest:media-type="application/javascript"/>',
+            '  <manifest:file-entry manifest:full-path="Scripts/python/review" manifest:media-type="application/x-python" manifest:size="' . strlen($extensionlessPythonScript) . '"/>' . "\n"
+                . '  <manifest:file-entry manifest:full-path="Scripts/missing.js" manifest:media-type="application/javascript"/>',
+            $manifestXml
+        );
+        $package = $buildPackage($pythonAliasManifest, [
+            ['name' => 'Scripts/python/review', 'data' => $extensionlessPythonScript, 'compressionMethod' => 0],
+        ]);
+        $result = (new OdfReader())->readPackage($package);
+        $scripts = $result['packageScripts'];
+        $items = $indexBy($scripts['items'], 'part');
+        $manifestByPart = $indexBy($result['manifest'], 'part');
+        $scriptMetadataParts = $indexBy($result['scriptMetadata']['parts'], 'part');
+
+        $t->same(0, $scripts['invalidMediaTypeCount']);
+        $python = $items['Scripts/python/review'];
+        $t->same('application/x-python', $python['mediaType']);
+        $t->same('application/x-python', $python['mediaTypeBase']);
+        $t->same(true, $python['mediaTypeValid']);
+        $t->same('python', $python['scriptKind']);
+        $t->same('python/review', $python['scriptPath']);
+        $t->same('python', $python['scriptLibrary']);
+        $t->same('review', $python['scriptModule']);
+        $t->same(null, $python['extension']);
+        $t->same(true, $python['valid']);
+        $t->same([], $python['issues']);
+        $t->same(strlen($extensionlessPythonScript), $python['byteLength']);
+        $t->same(sprintf('%08x', crc32($extensionlessPythonScript)), $python['crc32']);
+        $t->same(false, $python['canExposeBytes']);
+        $t->same(false, $python['canExposeAsDocumentMedia']);
+        $t->same('script-package-bytes-blocked', $manifestByPart['Scripts/python/review']['byteExposurePolicy']);
+
+        $richScript = $scriptMetadataParts['Scripts/python/review'];
+        $t->same('python-script', $richScript['kind']);
+        $t->same('Python', $richScript['language']);
+        $t->same('python', $richScript['libraryName']);
+        $t->same('review', $richScript['moduleName']);
+        $t->same(false, $richScript['canExposeBytes']);
+        $t->same(null, $richScript['byteLength']);
+        $t->same(strlen($extensionlessPythonScript), $richScript['storedByteLength']);
+        $t->same(sprintf('%08x', crc32($extensionlessPythonScript)), $richScript['storedCrc32']);
+
+        $compactSummary = OpenDocumentPackage::fromPackage($package)->summarize();
+        $compactItems = $indexBy($compactSummary['packageScripts']['items'], 'part');
+        $compactPython = $compactItems['Scripts/python/review'];
+        $t->same('application/x-python', $compactPython['mediaType']);
+        $t->same('application/x-python', $compactPython['mediaTypeBase']);
+        $t->same('python', $compactPython['scriptKind']);
+        $t->same('python/review', $compactPython['scriptPath']);
+        $t->same('python', $compactPython['scriptLibrary']);
+        $t->same('review', $compactPython['scriptModule']);
+        $t->same(null, $compactPython['extension']);
+        $t->same(true, $compactPython['valid']);
+        $t->same(false, $compactPython['canExposeBytes']);
+        $t->same(false, $compactPython['canExposeAsDocumentMedia']);
+    },
 ];
