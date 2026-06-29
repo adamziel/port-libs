@@ -1023,6 +1023,64 @@ return [
         ], $extracted['diagnostics']);
     },
 
+    'annotates missing media placeholders with source lookup provenance' => static function (TestRunner $t): void {
+        $bag = new MediaBag();
+        $relativeSource = 'figures/review%20draft.svg?cache=1#crop';
+        $unsafeSource = 'unsafe/%2e%2e/escape.png';
+        $remoteSource = 'https://cdn.example.test/media/missing.webp?cache=1#hero';
+        $image = static fn (string $url, string $title): AstNode => new AstNode('paragraph', [], [
+            new AstNode('image', [
+                'url' => $url,
+                'title' => $title,
+            ], [new AstNode('text', ['text' => $title])]),
+        ]);
+
+        $document = new AstNode('document', [], [
+            $image($relativeSource, 'Relative missing image'),
+            $image($unsafeSource, 'Unsafe missing image'),
+            $image($remoteSource, 'Remote missing image'),
+        ]);
+
+        $filled = $bag->fillDocument($document, []);
+        $relativeAttrs = $filled['document']->children[0]->children[0]->attr('attributes');
+        $unsafeAttrs = $filled['document']->children[1]->children[0]->attr('attributes');
+        $remoteAttrs = $filled['document']->children[2]->children[0]->attr('attributes');
+
+        $t->same([
+            'media-resource-missing:' . $relativeSource,
+            'media-resource-missing:' . $unsafeSource,
+            'media-resource-missing:' . $remoteSource,
+        ], $filled['diagnostics']);
+        $t->same('span', $filled['document']->children[0]->children[0]->type);
+        $t->same('relative-url', $relativeAttrs['original-image-source-kind']);
+        $t->same($relativeSource, $relativeAttrs['original-image-canonical-src']);
+        $t->same('figures/review draft.svg?cache=1#crop', $relativeAttrs['original-image-source-path']);
+        $t->same('image/svg+xml', $relativeAttrs['original-image-inferred-type']);
+        $t->same('3', $relativeAttrs['original-image-lookup-count']);
+        $t->same('exact,path-only,percent-decoded', $relativeAttrs['original-image-lookup-repairs']);
+        $t->same('safe-relative', $relativeAttrs['original-image-percent-decode']);
+        $t->same('figures/review%20draft.svg', $relativeAttrs['original-image-path-only-src']);
+        $t->same('figures/review draft.svg', $relativeAttrs['original-image-decoded-src']);
+
+        $t->same('unsafe-relative-path', $unsafeAttrs['original-image-source-kind']);
+        $t->same('unsafe/../escape.png', $unsafeAttrs['original-image-source-path']);
+        $t->same('image/png', $unsafeAttrs['original-image-inferred-type']);
+        $t->same('1', $unsafeAttrs['original-image-lookup-count']);
+        $t->same('exact', $unsafeAttrs['original-image-lookup-repairs']);
+        $t->same('unsafe-relative', $unsafeAttrs['original-image-percent-decode']);
+        $t->true(!array_key_exists('original-image-decoded-src', $unsafeAttrs), 'Unsafe percent-decoded paths should not be advertised as lookup keys');
+
+        $t->same('uri', $remoteAttrs['original-image-source-kind']);
+        $t->same($remoteSource, $remoteAttrs['original-image-canonical-src']);
+        $t->same('/media/missing.webp', $remoteAttrs['original-image-source-path']);
+        $t->same('image/webp', $remoteAttrs['original-image-inferred-type']);
+        $t->same('2', $remoteAttrs['original-image-lookup-count']);
+        $t->same('exact,path-only', $remoteAttrs['original-image-lookup-repairs']);
+        $t->same('none', $remoteAttrs['original-image-percent-decode']);
+        $t->same('https://cdn.example.test/media/missing.webp', $remoteAttrs['original-image-path-only-src']);
+        $t->same([], $bag->directory());
+    },
+
     'keeps malformed inline media resources as bounded review placeholders' => static function (TestRunner $t): void {
         $bag = new MediaBag();
         $badDataUri = 'data:image/png;base64,not valid base64 %%';

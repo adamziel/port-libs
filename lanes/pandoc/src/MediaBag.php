@@ -1338,13 +1338,114 @@ final class MediaBag
             $classes = [];
         }
 
+        $source = (string) $image->attr('url', '');
         $attrs['classes'] = array_values(array_unique(array_merge(['image', 'placeholder'], $classes)));
-        $attrs['attributes'] = array_merge([
-            'original-image-src' => (string) $image->attr('url', ''),
+        $attrs['attributes'] = array_merge(self::missingMediaPlaceholderAttributes($source), [
+            'original-image-src' => $source,
             'original-image-title' => (string) $image->attr('title', ''),
         ], $attributes);
 
         return new AstNode('span', $attrs, $image->children);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function missingMediaPlaceholderAttributes(string $source): array
+    {
+        $canonicalSource = $source === '' ? '' : self::canonicalizeSource($source);
+        $decodedSource = $canonicalSource === '' ? '' : rawurldecode($canonicalSource);
+        $sourcePath = $source === ''
+            ? ''
+            : (str_starts_with($source, 'data:')
+                ? 'data-uri'
+                : self::uriPathOrSource($source, $decodedSource));
+        $pathOnlySource = $source === '' ? '' : self::pathOnlyRelativeSource($source);
+        $decodedPathOnlySource = $pathOnlySource === '' ? null : self::decodedRelativeSourceKey($pathOnlySource);
+        $lookupRecords = $source === '' ? [] : self::resourceLookupKeyRecords($source);
+
+        $attributes = [
+            'original-image-source-kind' => self::sourceKind($source),
+            'original-image-canonical-src' => $canonicalSource,
+            'original-image-source-path' => $sourcePath,
+            'original-image-inferred-type' => $source === '' ? 'application/octet-stream' : self::mimeTypeFromSourcePath($source),
+            'original-image-lookup-count' => (string) count($lookupRecords),
+            'original-image-lookup-repairs' => self::lookupRepairSummary($lookupRecords),
+            'original-image-percent-decode' => self::percentDecodeStatus($pathOnlySource),
+        ];
+
+        if ($pathOnlySource !== '' && $pathOnlySource !== $source) {
+            $attributes['original-image-path-only-src'] = $pathOnlySource;
+        }
+        if ($decodedPathOnlySource !== null) {
+            $attributes['original-image-decoded-src'] = $decodedPathOnlySource;
+        }
+
+        return $attributes;
+    }
+
+    private static function sourceKind(string $source): string
+    {
+        if ($source === '') {
+            return 'empty';
+        }
+        if (str_starts_with($source, 'data:')) {
+            return 'data-uri';
+        }
+
+        $normalizedSource = str_replace('\\', '/', $source);
+        if (self::isWindowsDrivePath($normalizedSource)) {
+            return 'windows-drive-path';
+        }
+        if (self::isUri($source)) {
+            return 'uri';
+        }
+        if (str_starts_with($normalizedSource, '//')) {
+            return 'scheme-relative-path';
+        }
+        if (str_starts_with($normalizedSource, '/')) {
+            return 'absolute-path';
+        }
+        if (self::pathOnlyRelativeSource($normalizedSource) !== $normalizedSource) {
+            return 'relative-url';
+        }
+
+        return self::isSafeRelativeMediaPath($normalizedSource) ? 'relative-path' : 'unsafe-relative-path';
+    }
+
+    /**
+     * @param list<array{key:string, repair:string}> $lookupRecords
+     */
+    private static function lookupRepairSummary(array $lookupRecords): string
+    {
+        $repairs = [];
+        foreach ($lookupRecords as $record) {
+            $repairs[$record['repair']] = true;
+        }
+
+        return $repairs === [] ? 'none' : implode(',', array_keys($repairs));
+    }
+
+    private static function percentDecodeStatus(string $pathOnlySource): string
+    {
+        if (
+            $pathOnlySource === ''
+            || str_starts_with($pathOnlySource, 'data:')
+            || self::isUri($pathOnlySource)
+            || !str_contains($pathOnlySource, '%')
+        ) {
+            return 'none';
+        }
+
+        $decoded = rawurldecode($pathOnlySource);
+        if ($decoded === $pathOnlySource) {
+            return 'none';
+        }
+        if (str_contains($decoded, "\0")) {
+            return 'null-byte-rejected';
+        }
+
+        return self::isSafeRelativeMediaPath($decoded) ? 'safe-relative' : 'unsafe-relative';
     }
 
     /**
