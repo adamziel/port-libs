@@ -148,6 +148,109 @@ XML);
         $t->same('Byte ODT', $document->children[0]->attr('text'));
         $t->same('paragraph', $document->children[1]->type);
     },
+    'reports direct odt style diagnostics in document metadata' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary ODT path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary ODT package');
+        }
+        $zip->addFromString('styles.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+  <office:styles>
+    <style:style style:family="text" style:display-name="Nameless Text"/>
+    <style:style style:name="FamilylessText"><style:text-properties fo:font-style="italic"/></style:style>
+    <style:style style:name="VendorInline" style:family="review-extension"/>
+    <style:style style:name="KnownText" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style>
+    <text:list-style>
+      <text:list-level-style-number text:level="1" style:num-format="1"/>
+    </text:list-style>
+    <text:list-style style:name="KnownNumbers">
+      <text:list-level-style-number text:level="1" style:num-format="1"/>
+    </text:list-style>
+  </office:styles>
+</office:document-styles>
+XML);
+        $zip->addFromString('content.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p><text:span text:style-name="KnownText">Known</text:span> and <text:span text:style-name="MissingText">missing</text:span> text style.</text:p>
+      <text:list text:style-name="MissingList">
+        <text:list-item><text:p>Missing list style.</text:p></text:list-item>
+      </text:list>
+      <text:list text:style-name="KnownNumbers">
+        <text:list-item><text:p>Known list style.</text:p></text:list-item>
+      </text:list>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML);
+        $zip->close();
+
+        try {
+            $document = (new OdtReader())->readOdtFile($path);
+        } finally {
+            @unlink($path);
+        }
+
+        $meta = $document->attr('meta');
+        $diagnosticsByCode = [];
+        foreach ($meta['odtStyleDiagnostics'] as $diagnostic) {
+            $diagnosticsByCode[$diagnostic['code']][] = $diagnostic;
+        }
+
+        $t->same(6, $meta['odtStyleDiagnosticCount']);
+        $t->same([
+            'odt-content-missing-list-style' => 1,
+            'odt-content-missing-text-style' => 1,
+            'odt-list-style-missing-name' => 1,
+            'odt-style-missing-family' => 1,
+            'odt-style-missing-name' => 1,
+            'odt-style-unknown-family' => 1,
+        ], $meta['odtStyleDiagnosticCodeCounts']);
+
+        $missingName = $diagnosticsByCode['odt-style-missing-name'][0];
+        $t->same('styles.xml', $missingName['sourcePart']);
+        $t->same('style:style', $missingName['element']);
+        $t->same('text', $missingName['family']);
+
+        $missingFamily = $diagnosticsByCode['odt-style-missing-family'][0];
+        $t->same('FamilylessText', $missingFamily['styleName']);
+        $t->same('style:style', $missingFamily['element']);
+
+        $unknownFamily = $diagnosticsByCode['odt-style-unknown-family'][0];
+        $t->same('VendorInline', $unknownFamily['styleName']);
+        $t->same('review-extension', $unknownFamily['family']);
+
+        $missingListName = $diagnosticsByCode['odt-list-style-missing-name'][0];
+        $t->same('styles.xml', $missingListName['sourcePart']);
+        $t->same('text:list-style', $missingListName['element']);
+
+        $missingTextStyle = $diagnosticsByCode['odt-content-missing-text-style'][0];
+        $t->same('content.xml', $missingTextStyle['sourcePart']);
+        $t->same('text:span', $missingTextStyle['element']);
+        $t->same('MissingText', $missingTextStyle['styleName']);
+
+        $missingListStyle = $diagnosticsByCode['odt-content-missing-list-style'][0];
+        $t->same('content.xml', $missingListStyle['sourcePart']);
+        $t->same('text:list', $missingListStyle['element']);
+        $t->same('MissingList', $missingListStyle['listStyleName']);
+
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('Known and missing text style.', $document->children[0]->attr('text'));
+    },
     'preserves odt footnotes through the converter input path' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
         if ($path === false) {
