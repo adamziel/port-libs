@@ -37,6 +37,9 @@ final class MarkdownWriter
     /** @var list<string> */
     private array $plainTemplatePartialStack = [];
 
+    /** @var list<string> */
+    private array $inlineDelimiterStack = [];
+
     /**
      * @param array{variant?: string, setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, linkAttributes?: bool, headerAttributes?: bool, fencedCodeBlocks?: bool, backtickCodeBlocks?: bool, fencedCodeAttributes?: bool, definitionLists?: bool, lineBlocks?: bool, bracketedSpans?: bool, nativeSpans?: bool, fencedDivs?: bool, nativeDivs?: bool, implicitFigures?: bool, markdownInHtmlBlocks?: bool, markdownAttribute?: bool, rawAttribute?: bool, rawHtml?: bool, rawTex?: bool, simpleTables?: bool, pipeTables?: bool, multilineTables?: bool, gridTables?: bool, tableCaptions?: bool, columns?: int, tabStop?: int, wrap?: string, strikeout?: bool, superscript?: bool, subscript?: bool, preferAscii?: bool, smart?: bool, escapedLineBreaks?: bool, hardLineBreaks?: bool, wikilinksTitleAfterPipe?: bool, wikilinksTitleBeforePipe?: bool, gutenberg?: bool, template?: bool|string, templatePath?: string, standalone?: bool, tableOfContents?: bool, toc?: bool, tocDepth?: int, numberSections?: bool, variables?: array<string, mixed>, partials?: array<string, string>, headerIncludes?: mixed, includeBefore?: mixed, includeAfter?: mixed, opmlNoteMarkdown?: bool} $options
      */
@@ -60,6 +63,7 @@ final class MarkdownWriter
         $this->lastReferenceIndex = 0;
         $this->escapeInlineSpaces = false;
         $this->plainTemplatePartialStack = [];
+        $this->inlineDelimiterStack = [];
 
         $customPlainTemplate = $this->customPlainTemplateSource();
         if ($customPlainTemplate !== null) {
@@ -6151,7 +6155,7 @@ final class MarkdownWriter
             'linebreak' => $this->renderLineBreak(),
             'code' => $this->renderCode($node),
             'emph' => $this->renderEmph($node),
-            'strong' => $this->delimitInlineContent('**', '**', $this->renderInlines($node->children)),
+            'strong' => $this->renderStrong($node, $following),
             'mark' => $this->renderMark($node),
             'underline' => $this->renderUnderline($node),
             'small_caps' => $this->renderSmallCaps($node),
@@ -6293,7 +6297,34 @@ final class MarkdownWriter
 
     private function renderCode(AstNode $node): string
     {
-        $text = (string) $node->attr('text', '');
+        $text = $this->normalizedCodeSpanText((string) $node->attr('text', ''));
+        $attrs = $this->linkAttrTuple($node);
+        if (!$this->isNullAttrTuple($attrs) && !$this->inlineCodeAttributesEnabled()) {
+            if ($this->rawHtmlEnabled()) {
+                return '<code'
+                    . $this->renderHtmlAttributes($this->htmlAttributesFromAttrTuple($attrs))
+                    . '>'
+                    . $this->escapeHtml($text)
+                    . '</code>';
+            }
+
+            $attrs = [
+                'id' => '',
+                'classes' => [],
+                'attributes' => [],
+            ];
+        }
+
+        return $this->renderCodeSpan($text, $this->renderAttributesTuple($attrs));
+    }
+
+    private function normalizedCodeSpanText(string $text): string
+    {
+        return str_replace("\n", ' ', str_replace(["\r\n", "\r"], "\n", $text));
+    }
+
+    private function renderCodeSpan(string $text, string $attrs = ''): string
+    {
         $longestTickRun = 0;
         if (preg_match_all('/`+/', $text, $matches) !== false) {
             foreach ($matches[0] as $run) {
@@ -6302,14 +6333,16 @@ final class MarkdownWriter
         }
 
         $marker = str_repeat('`', $longestTickRun + 1);
-        $spacer = $longestTickRun === 0 ? '' : ' ';
+        $spacePadded = $longestTickRun > 0
+            || ($text !== '' && trim($text, ' ') !== '' && ($text[0] === ' ' || str_ends_with($text, ' ')));
+        $spacer = $spacePadded ? ' ' : '';
 
         return $marker
             . $spacer
             . $text
             . $spacer
             . $marker
-            . $this->renderAttributesTuple($this->linkAttrTuple($node));
+            . $attrs;
     }
 
     private function renderLineBreak(): string
@@ -6426,11 +6459,110 @@ final class MarkdownWriter
 
     private function renderEmph(AstNode $node): string
     {
-        if (count($node->children) === 1 && $node->children[0]->type === 'emph') {
-            return $this->renderInlines($node->children[0]->children);
+        $delimiter = $this->inlineEmphasisDelimiter($node);
+
+        return $this->renderDelimitedInline($delimiter, $delimiter, $node->children);
+    }
+
+    /**
+     * @param list<AstNode> $following
+     */
+    private function renderStrong(AstNode $node, array $following = []): string
+    {
+        $delimiter = $this->inlineStrongDelimiter($node, $following);
+
+        return $this->renderDelimitedInline($delimiter, $delimiter, $node->children);
+    }
+
+    /**
+     * @param list<AstNode> $children
+     */
+    private function renderDelimitedInline(string $opener, string $closer, array $children): string
+    {
+        $this->inlineDelimiterStack[] = $opener;
+        try {
+            return $this->delimitInlineContent($opener, $closer, $this->renderInlines($children));
+        } finally {
+            array_pop($this->inlineDelimiterStack);
+        }
+    }
+
+    private function inlineEmphasisDelimiter(AstNode $node): string
+    {
+        $explicit = $this->explicitInlineDelimiter($node, ['delimiter', 'markdownDelimiter', 'markdownEmphDelimiter', 'sourceDelimiter']);
+        if ($explicit !== null) {
+            return $explicit === 'underscore' ? '_' : '*';
         }
 
-        return $this->delimitInlineContent('*', '*', $this->renderInlines($node->children));
+        return $this->currentInlineDelimiterFamily() === 'asterisk' ? '_' : '*';
+    }
+
+    /**
+     * @param list<AstNode> $following
+     */
+    private function inlineStrongDelimiter(AstNode $node, array $following = []): string
+    {
+        $explicit = $this->explicitInlineDelimiter($node, ['delimiter', 'markdownStrongDelimiter', 'markdownDelimiter', 'sourceDelimiter']);
+        if ($explicit !== null) {
+            return $explicit === 'underscore' ? '__' : '**';
+        }
+
+        if ($this->currentInlineDelimiterFamily() !== 'asterisk') {
+            return '**';
+        }
+
+        return $following !== [] && $this->inlineChildrenStartWithWhitespace($node->children) ? '**' : '__';
+    }
+
+    /**
+     * @param list<AstNode> $children
+     */
+    private function inlineChildrenStartWithWhitespace(array $children): bool
+    {
+        $first = $children[0] ?? null;
+        if (!$first instanceof AstNode) {
+            return false;
+        }
+
+        return match ($first->type) {
+            'space', 'softbreak', 'linebreak' => true,
+            'text' => preg_match('/^\s/u', (string) $first->attr('text', '')) === 1,
+            default => false,
+        };
+    }
+
+    /**
+     * @param list<string> $names
+     */
+    private function explicitInlineDelimiter(AstNode $node, array $names): ?string
+    {
+        foreach ($names as $name) {
+            $value = $node->attr($name, null);
+            if (!is_scalar($value)) {
+                continue;
+            }
+
+            $normalized = strtolower(trim((string) $value));
+            if (in_array($normalized, ['_', '__', 'underscore', 'underscores'], true)) {
+                return 'underscore';
+            }
+
+            if (in_array($normalized, ['*', '**', 'asterisk', 'asterisks'], true)) {
+                return 'asterisk';
+            }
+        }
+
+        return null;
+    }
+
+    private function currentInlineDelimiterFamily(): string
+    {
+        $delimiter = end($this->inlineDelimiterStack);
+        if ($delimiter === false) {
+            return '';
+        }
+
+        return str_contains($delimiter, '_') ? 'underscore' : 'asterisk';
     }
 
     private function renderScript(string $kind, string $delimiter, string $htmlTag, AstNode $node): string
@@ -8523,9 +8655,114 @@ final class MarkdownWriter
             && !$this->isNullAttrTuple($attrs);
     }
 
+    private function inlineCodeAttributesEnabled(): bool
+    {
+        return $this->markdownExtensionEnabled('inlineCodeAttributes', 'inline_code_attributes', [
+            'markdown' => true,
+            'commonmark' => false,
+            'commonmark_x' => true,
+            'gfm' => false,
+            'markdown_mmd' => false,
+            'markdown_phpextra' => false,
+            'markdown_strict' => false,
+        ], true);
+    }
+
     private function linkAttributesEnabled(): bool
     {
         return (bool) ($this->options['linkAttributes'] ?? true);
+    }
+
+    /**
+     * @param array<string, bool> $formatDefaults
+     */
+    private function markdownExtensionEnabled(
+        string $optionKey,
+        string $extension,
+        array $formatDefaults,
+        bool $defaultWithoutFormat
+    ): bool {
+        foreach ([$optionKey, $extension] as $key) {
+            if (array_key_exists($key, $this->options)) {
+                return $this->boolOption($this->options[$key], $defaultWithoutFormat);
+            }
+        }
+
+        $hasFormat = array_key_exists('format', $this->options);
+        $format = $this->options['format'] ?? 'markdown';
+        $default = $hasFormat
+            ? ($formatDefaults[MarkdownFormatProfile::canonicalFormat($format)] ?? $defaultWithoutFormat)
+            : $defaultWithoutFormat;
+
+        $enabled = $this->formatExtensionOverride($format, $extension, $default);
+
+        return $this->optionsExtensionOverride($extension, $enabled);
+    }
+
+    private function boolOption(mixed $value, bool $default): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_int($value) || is_float($value)) {
+            return $value !== 0;
+        }
+
+        if (is_string($value)) {
+            $normalized = strtolower(trim($value));
+            if (in_array($normalized, ['1', 'true', 'yes', 'on'], true)) {
+                return true;
+            }
+            if (in_array($normalized, ['0', 'false', 'no', 'off'], true)) {
+                return false;
+            }
+        }
+
+        return $default;
+    }
+
+    private function formatExtensionOverride(mixed $format, string $extension, bool $default): bool
+    {
+        if (!is_scalar($format)) {
+            return $default;
+        }
+
+        $normalized = strtolower(trim((string) $format));
+        if ($normalized === '') {
+            return $default;
+        }
+
+        if (preg_match_all('/([+-])' . preg_quote($extension, '/') . '(?=$|[+-])/', $normalized, $matches) === false) {
+            return $default;
+        }
+
+        return $matches[1] === [] ? $default : end($matches[1]) === '+';
+    }
+
+    private function optionsExtensionOverride(string $extension, bool $default): bool
+    {
+        $extensions = $this->options['extensions'] ?? null;
+        if (!is_array($extensions)) {
+            return $default;
+        }
+
+        $enabled = $default;
+        foreach ($extensions as $key => $value) {
+            if (is_int($key) && is_string($value)) {
+                $normalized = strtolower(trim($value));
+                if (preg_match('/^([+-])' . preg_quote($extension, '/') . '$/', $normalized, $match) === 1) {
+                    $enabled = $match[1] === '+';
+                }
+                continue;
+            }
+
+            if (strtolower((string) $key) === $extension) {
+                $enabled = $this->boolOption($value, $enabled);
+            }
+        }
+
+        return $enabled;
     }
 
     private function fencedCodeBlocksEnabled(): bool
