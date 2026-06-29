@@ -20560,6 +20560,133 @@ XML;
         $t->true(in_array('chart-part', $inventory['word/charts/unreferenced.xml']['roles'], true), 'unreferenced chart inventory role missing');
         $t->true(!isset($docx['media']['word/charts/chart1.xml']), 'Chart XML should not be exposed as document media');
     },
+    'summarizes docx header chart and diagram package parts' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $headerRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/header';
+        $chartRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart';
+        $dataRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData';
+        $chartContentType = 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml';
+        $dataContentType = 'application/vnd.openxmlformats-officedocument.drawingml.diagramData+xml';
+        $headerContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml';
+        $chartXml = '<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"/>';
+        $unreferencedChartXml = '<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart/></c:chartSpace>';
+        $dataXml = '<dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"/>';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/header-chart-diagram.xml" ContentType="' . $headerContentType . '"/>' . "\n" .
+            '  <Override PartName="/word/charts/header-chart.xml" ContentType="' . $chartContentType . '; profile=header-chart"/>' . "\n" .
+            '  <Override PartName="/word/charts/header-unreferenced.xml" ContentType="' . $chartContentType . '"/>' . "\n" .
+            '  <Override PartName="/word/diagrams/header-data.xml" ContentType="' . $dataContentType . '; profile=header-diagram"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rHeaderChartDiagram" Type="' . $headerRel . '" Target="header-chart-diagram.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '</w:body>',
+            '    <w:sectPr><w:headerReference w:type="default" r:id="rHeaderChartDiagram"/></w:sectPr>' . "\n" .
+            '  </w:body>',
+            $parts['word/document.xml']
+        );
+        $parts['word/header-chart-diagram.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram">
+  <w:p>
+    <w:r><w:drawing><wp:inline><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart r:id="rHeaderChart"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>
+    <w:r><w:drawing><wp:inline><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds r:dm="rHeaderDiagramData"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>
+  </w:p>
+</w:hdr>
+XML;
+        $parts['word/_rels/header-chart-diagram.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderChart" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="charts/header-chart.xml?slot=header#chart"/>
+  <Relationship Id="rHeaderUnreferencedChart" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="charts/header-unreferenced.xml"/>
+  <Relationship Id="rHeaderDiagramData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="diagrams/header-data.xml?slot=header#diagram"/>
+</Relationships>
+XML;
+        $parts['word/charts/header-chart.xml'] = $chartXml;
+        $parts['word/charts/header-unreferenced.xml'] = $unreferencedChartXml;
+        $parts['word/diagrams/header-data.xml'] = $dataXml;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $charts = $docx['chartParts'];
+        $diagrams = $docx['diagramParts'];
+        $headerChartKey = 'word/_rels/header-chart-diagram.xml.rels#rHeaderChart';
+        $headerUnreferencedChartKey = 'word/_rels/header-chart-diagram.xml.rels#rHeaderUnreferencedChart';
+        $headerDiagramKey = 'word/_rels/header-chart-diagram.xml.rels#rHeaderDiagramData';
+        $headerChart = $charts['byRelationshipKey'][$headerChartKey];
+        $unreferencedChart = $charts['byRelationshipKey'][$headerUnreferencedChartKey];
+        $headerDiagram = $diagrams['byRelationshipKey'][$headerDiagramKey];
+        $relationshipTypes = $package['relationshipTypes'];
+        $inventory = $package['parts'];
+
+        $t->same(2, $charts['count']);
+        $t->same(2, $charts['relationshipCount']);
+        $t->same(1, $charts['referencedCount']);
+        $t->same(1, $charts['unreferencedRelationshipCount']);
+        $t->same(2, $charts['existingCount']);
+        $t->same(0, $charts['issueCount']);
+        $t->same(['document', 'header'], $charts['sourceTypes']);
+        $t->same(['word/document.xml', 'word/header-chart-diagram.xml'], $charts['sourceParts']);
+        $t->same([$headerChartKey], $charts['referencedRelationshipKeys']);
+        $t->same([$headerUnreferencedChartKey], $charts['unreferencedRelationshipKeys']);
+
+        $t->same('header', $headerChart['sourceType']);
+        $t->same('word/header-chart-diagram.xml', $headerChart['sourcePart']);
+        $t->same($headerChartKey, $headerChart['relationshipKey']);
+        $t->same('charts/header-chart.xml?slot=header#chart', $headerChart['target']);
+        $t->same('word/charts/header-chart.xml?slot=header#chart', $headerChart['resolvedTarget']);
+        $t->same('word/charts/header-chart.xml', $headerChart['targetPart']);
+        $t->same('slot=header', $headerChart['targetQuery']);
+        $t->same('chart', $headerChart['targetFragment']);
+        $t->same($chartContentType . '; profile=header-chart', $headerChart['contentType']);
+        $t->same(['profile' => 'header-chart'], $headerChart['contentTypeParameterMap']);
+        $t->same(true, $headerChart['referenced']);
+        $t->same(true, $headerChart['valid']);
+        $t->same(false, $unreferencedChart['referenced']);
+        $t->same('word/charts/header-unreferenced.xml', $unreferencedChart['targetPart']);
+
+        $t->same(1, $diagrams['count']);
+        $t->same(1, $diagrams['relationshipCount']);
+        $t->same(1, $diagrams['referencedCount']);
+        $t->same(1, $diagrams['existingCount']);
+        $t->same(0, $diagrams['issueCount']);
+        $t->same(['document', 'header'], $diagrams['sourceTypes']);
+        $t->same([$headerDiagramKey], $diagrams['referencedRelationshipKeys']);
+        $t->same('header', $headerDiagram['sourceType']);
+        $t->same('data', $headerDiagram['role']);
+        $t->same($headerDiagramKey, $headerDiagram['relationshipKey']);
+        $t->same('word/diagrams/header-data.xml?slot=header#diagram', $headerDiagram['resolvedTarget']);
+        $t->same('word/diagrams/header-data.xml', $headerDiagram['targetPart']);
+        $t->same($dataContentType . '; profile=header-diagram', $headerDiagram['contentType']);
+        $t->same(true, $headerDiagram['valid']);
+
+        $t->same(2, $summary['chartPartCount']);
+        $t->same(2, $summary['chartPartRelationshipCount']);
+        $t->same(1, $summary['chartPartReferencedCount']);
+        $t->same(2, $summary['chartPartExistingCount']);
+        $t->same(1, $summary['diagramPartCount']);
+        $t->same(1, $summary['diagramPartRelationshipCount']);
+        $t->same(1, $summary['diagramPartReferencedCount']);
+        $t->same(1, $summary['diagramPartExistingCount']);
+        $t->same(2, $relationshipTypes[$chartRel]['count']);
+        $t->same(['word/charts/header-chart.xml', 'word/charts/header-unreferenced.xml'], $relationshipTypes[$chartRel]['existingTargetParts']);
+        $t->same(1, $relationshipTypes[$dataRel]['count']);
+        $t->same(['word/diagrams/header-data.xml'], $relationshipTypes[$dataRel]['existingTargetParts']);
+        $t->true(in_array('chart-part', $inventory['word/charts/header-chart.xml']['roles'], true), 'header chart inventory role missing');
+        $t->true(in_array('diagram-data', $inventory['word/diagrams/header-data.xml']['roles'], true), 'header diagram inventory role missing');
+        $t->true(!isset($docx['media']['word/charts/header-chart.xml']), 'Header chart XML should not be exposed as media');
+        $t->true(!isset($docx['media']['word/diagrams/header-data.xml']), 'Header diagram XML should not be exposed as media');
+    },
     'summarizes docx diagram package parts from smartart relationships' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $dataRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData';
