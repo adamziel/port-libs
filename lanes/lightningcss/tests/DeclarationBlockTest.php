@@ -1415,6 +1415,7 @@ return [
     'declaration block reads upstream background cssom longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
+        // Pinned upstream 22bdda3d tests/test_cssom.rs::test_get rows 109, 110, 111, 116, 121, 126, 131, 136, 141, 146, 200, 208, 215, and 222.
         $t->same(['value' => 'red', 'important' => false], $block->getProperty('background: red', 'background'));
         $t->same(['value' => 'red', 'important' => false], $block->getProperty('background: red', 'background-color'));
         $t->same(['value' => 'none', 'important' => false], $block->getProperty('background: red', 'background-image'));
@@ -1472,6 +1473,7 @@ return [
     'declaration block composes upstream background cssom shorthand' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
+        // Pinned upstream 22bdda3d tests/test_cssom.rs::test_get rows 157, 168, 179, and 190.
         $t->same(
             ['value' => 'linear-gradient(red, green) 20px 10px / 50px 100px repeat-x', 'important' => false],
             $block->getProperty(
