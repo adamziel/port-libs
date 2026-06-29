@@ -558,6 +558,164 @@ final class PandocFormatRegistry
     }
 
     /**
+     * @return array{
+     *     inputFormats:list<string>,
+     *     outputFormats:list<string>,
+     *     uniqueFormats:list<string>,
+     *     directInputFormats:list<string>,
+     *     directOutputFormats:list<string>,
+     *     unsupportedInputFormats:list<string>,
+     *     unsupportedOutputFormats:list<string>,
+     *     unsupportedBothFormats:list<string>,
+     *     partialInputUnsupportedOutputFormats:list<string>,
+     *     inputOnlyUnsupportedFormats:list<string>,
+     *     outputOnlyUnsupportedFormats:list<string>,
+     *     noNativeReaderWriterFormats:list<string>,
+     *     sourceAliasUnsupportedExtensions:list<string>,
+     *     extensionUnsupportedDirections:array<string, list<string>>,
+     *     directReaderParityClaimed:bool,
+     *     directWriterParityClaimed:bool,
+     *     externalToolFree:bool
+     * }
+     */
+    public static function richPackageUnsupportedFormatSummary(): array
+    {
+        $formats = RichPackageUnsupportedFormatRegistry::richPackageFormats();
+        $inputFormats = [];
+        $outputFormats = [];
+        $directInputFormats = [];
+        $directOutputFormats = [];
+        $unsupportedInputFormats = [];
+        $unsupportedOutputFormats = [];
+        $unsupportedBothFormats = [];
+        $partialInputUnsupportedOutputFormats = [];
+        $inputOnlyUnsupportedFormats = [];
+        $outputOnlyUnsupportedFormats = [];
+        $noNativeReaderWriterFormats = [];
+
+        foreach ($formats as $format) {
+            $input = RichPackageUnsupportedFormatRegistry::formatStatus($format, 'input');
+            $output = RichPackageUnsupportedFormatRegistry::formatStatus($format, 'output');
+            $hasInput = $input['upstream'] === true;
+            $hasOutput = $output['upstream'] === true;
+            $hasDirectInput = $hasInput && $input['countsAsDirectSupport'] === true;
+            $hasDirectOutput = $hasOutput && $output['countsAsDirectSupport'] === true;
+            $hasUnsupportedInput = $hasInput && !$hasDirectInput;
+            $hasUnsupportedOutput = $hasOutput && !$hasDirectOutput;
+
+            if ($hasInput) {
+                $inputFormats[] = $format;
+                if ($hasDirectInput) {
+                    $directInputFormats[] = $format;
+                } else {
+                    $unsupportedInputFormats[] = $format;
+                }
+            }
+
+            if ($hasOutput) {
+                $outputFormats[] = $format;
+                if ($hasDirectOutput) {
+                    $directOutputFormats[] = $format;
+                } else {
+                    $unsupportedOutputFormats[] = $format;
+                }
+            }
+
+            if ($hasUnsupportedInput && $hasUnsupportedOutput) {
+                $unsupportedBothFormats[] = $format;
+            }
+            if ($hasDirectInput && $hasUnsupportedOutput) {
+                $partialInputUnsupportedOutputFormats[] = $format;
+            }
+            if ($hasUnsupportedInput && !$hasOutput) {
+                $inputOnlyUnsupportedFormats[] = $format;
+            }
+            if ($hasUnsupportedOutput && !$hasInput) {
+                $outputOnlyUnsupportedFormats[] = $format;
+            }
+            if (!$hasDirectInput && !$hasDirectOutput) {
+                $noNativeReaderWriterFormats[] = $format;
+            }
+        }
+
+        $extensionUnsupportedDirections = [];
+        foreach (RichPackageUnsupportedFormatRegistry::extensionDiagnostics() as $extensionStatus) {
+            $extensionUnsupportedDirections[$extensionStatus['extension']] = $extensionStatus['unsupportedDirections'];
+        }
+
+        return [
+            'inputFormats' => $inputFormats,
+            'outputFormats' => $outputFormats,
+            'uniqueFormats' => $formats,
+            'directInputFormats' => $directInputFormats,
+            'directOutputFormats' => $directOutputFormats,
+            'unsupportedInputFormats' => $unsupportedInputFormats,
+            'unsupportedOutputFormats' => $unsupportedOutputFormats,
+            'unsupportedBothFormats' => $unsupportedBothFormats,
+            'partialInputUnsupportedOutputFormats' => $partialInputUnsupportedOutputFormats,
+            'inputOnlyUnsupportedFormats' => $inputOnlyUnsupportedFormats,
+            'outputOnlyUnsupportedFormats' => $outputOnlyUnsupportedFormats,
+            'noNativeReaderWriterFormats' => $noNativeReaderWriterFormats,
+            'sourceAliasUnsupportedExtensions' => array_column(
+                RichPackageUnsupportedFormatRegistry::sourceAliasDiagnostics(),
+                'extension'
+            ),
+            'extensionUnsupportedDirections' => $extensionUnsupportedDirections,
+            'directReaderParityClaimed' => false,
+            'directWriterParityClaimed' => false,
+            'externalToolFree' => true,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     upstreamCommit:string,
+     *     upstreamManualDate:string,
+     *     upstreamSourceCommit:string,
+     *     summary:array<string, mixed>,
+     *     registryReport:array<string, mixed>,
+     *     phpInputSupport:array<string, array{status:string, implementation:string, notes:string}>,
+     *     phpOutputSupport:array<string, array{status:string, implementation:string, notes:string}>,
+     *     sourceAliasDiagnostics:list<array<string, mixed>>,
+     *     extensionDiagnostics:list<array<string, mixed>>,
+     *     externalToolFree:bool
+     * }
+     */
+    public static function richPackageFormatReviewPacket(): array
+    {
+        $summary = self::richPackageUnsupportedFormatSummary();
+        $inputSupport = self::phpInputSupport();
+        $outputSupport = self::phpOutputSupport();
+        $richInputSupport = [];
+        $richOutputSupport = [];
+
+        foreach ($summary['inputFormats'] as $format) {
+            $richInputSupport[$format] = $inputSupport[$format] ?? self::notApplicableSupport(
+                'Not an upstream Pandoc rich package reader format.'
+            );
+        }
+
+        foreach ($summary['outputFormats'] as $format) {
+            $richOutputSupport[$format] = $outputSupport[$format] ?? self::notApplicableSupport(
+                'Not an upstream Pandoc rich package writer format.'
+            );
+        }
+
+        return [
+            'upstreamCommit' => RichPackageUnsupportedFormatRegistry::UPSTREAM_COMMIT,
+            'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
+            'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
+            'summary' => $summary,
+            'registryReport' => RichPackageUnsupportedFormatRegistry::statusReport(),
+            'phpInputSupport' => $richInputSupport,
+            'phpOutputSupport' => $richOutputSupport,
+            'sourceAliasDiagnostics' => RichPackageUnsupportedFormatRegistry::sourceAliasDiagnostics(),
+            'extensionDiagnostics' => RichPackageUnsupportedFormatRegistry::extensionDiagnostics(),
+            'externalToolFree' => true,
+        ];
+    }
+
+    /**
      * @return array<string, array{
      *     label:string,
      *     direction:string,
