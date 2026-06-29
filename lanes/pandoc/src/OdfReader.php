@@ -15340,7 +15340,7 @@ final class OdfReader
                 'application/x-beanshell', 'text/x-beanshell', 'application/x-bsh' => 'beanshell',
                 'application/java-archive' => 'java-archive',
                 'application/java-vm' => 'java-class',
-                'text/x-python' => 'python',
+                'text/x-python', 'application/x-python' => 'python',
                 'text/x-ruby', 'application/x-ruby' => 'ruby',
                 default => $container === 'basic' ? 'basic-package-part' : 'script-package-part',
             },
@@ -15600,17 +15600,23 @@ final class OdfReader
         if (str_starts_with($normalized, 'dialogs/') && (str_ends_with($normalized, '.xml') || str_ends_with($normalized, '.xdl'))) {
             return 'basic-dialog';
         }
-        if ($mediaType === 'text/x-python' || str_ends_with($normalized, '.py')) {
+        if (in_array($mediaType, ['text/x-python', 'application/x-python'], true) || str_ends_with($normalized, '.py')) {
             return 'python-script';
         }
         if (in_array($mediaType, ['application/javascript', 'text/javascript'], true) || str_ends_with($normalized, '.js')) {
             return 'javascript-script';
         }
-        if (str_ends_with($normalized, '.bsh')) {
+        if (in_array($mediaType, ['application/x-beanshell', 'text/x-beanshell', 'application/x-bsh'], true) || str_ends_with($normalized, '.bsh')) {
             return 'beanshell-script';
         }
-        if (str_ends_with($normalized, '.rb')) {
+        if (in_array($mediaType, ['text/x-ruby', 'application/x-ruby'], true) || str_ends_with($normalized, '.rb')) {
             return 'ruby-script';
+        }
+        if ($mediaType === 'application/java-archive' || str_ends_with($normalized, '.jar')) {
+            return 'java-archive';
+        }
+        if ($mediaType === 'application/java-vm' || str_ends_with($normalized, '.class')) {
+            return 'java-class';
         }
 
         return 'script';
@@ -15624,6 +15630,7 @@ final class OdfReader
             'javascript-script' => 'JavaScript',
             'beanshell-script' => 'BeanShell',
             'ruby-script' => 'Ruby',
+            'java-archive', 'java-class' => 'Java',
             default => 'script',
         };
     }

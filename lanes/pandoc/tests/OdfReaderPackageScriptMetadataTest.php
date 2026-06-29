@@ -82,7 +82,7 @@ $metaXml = <<<'XML'
 </office:document-meta>
 XML;
 
-$buildPackage = static fn (?string $manifestOverride = null): ZipPackage => ZipPackage::fromParts([
+$buildPackage = static fn (?string $manifestOverride = null, array $extraParts = []): ZipPackage => ZipPackage::fromParts(array_merge([
     ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
     ['name' => 'META-INF/manifest.xml', 'data' => $manifestOverride ?? $manifestXml, 'compressionMethod' => 0],
     ['name' => 'content.xml', 'data' => $contentXml, 'compressionMethod' => 0],
@@ -98,7 +98,7 @@ $buildPackage = static fn (?string $manifestOverride = null): ZipPackage => ZipP
     ['name' => 'Scripts/beanshell/review.bsh', 'data' => $beanShellScript, 'compressionMethod' => 0],
     ['name' => 'Scripts/encrypted.js', 'data' => $encryptedScript, 'compressionMethod' => 0],
     ['name' => 'Scripts/orphan.py', 'data' => $orphanPython, 'compressionMethod' => 0],
-], 'odt reader script package metadata');
+], $extraParts), 'odt reader script package metadata');
 
 $indexBy = static function (array $items, string $key): array {
     $indexed = [];
@@ -357,5 +357,100 @@ return [
         $t->same('ruby', $compactItems['Scripts/ruby/review.rb']['scriptKind']);
         $t->same(true, $compactItems['Scripts/ruby/review.rb']['valid']);
         $t->same(false, $compactItems['Scripts/ruby/review.rb']['canExposeBytes']);
+    },
+    'classifies extensionless ODT package scripts from script media-type aliases' => static function (TestRunner $t) use (
+        $buildPackage,
+        $indexBy,
+        $manifestXml
+    ): void {
+        $pythonScript = 'print("extensionless review")';
+        $beanShellScript = 'print("extensionless beanshell");';
+        $javaClass = 'CAFEBABE';
+        $aliasManifest = str_replace(
+            '</manifest:manifest>',
+            '  <manifest:file-entry manifest:full-path="Scripts/python/audit" manifest:media-type="application/x-python" manifest:size="' . strlen($pythonScript) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="Scripts/beanshell/review" manifest:media-type="application/x-bsh" manifest:size="' . strlen($beanShellScript) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="Scripts/java/review" manifest:media-type="application/java-vm" manifest:size="' . strlen($javaClass) . '"/>' . "\n"
+            . '</manifest:manifest>',
+            $manifestXml
+        );
+        $package = $buildPackage($aliasManifest, [
+            ['name' => 'Scripts/python/audit', 'data' => $pythonScript, 'compressionMethod' => 0],
+            ['name' => 'Scripts/beanshell/review', 'data' => $beanShellScript, 'compressionMethod' => 0],
+            ['name' => 'Scripts/java/review', 'data' => $javaClass, 'compressionMethod' => 0],
+        ]);
+        $result = (new OdfReader())->readPackage($package);
+        $scripts = $result['packageScripts'];
+        $items = $indexBy($scripts['items'], 'part');
+        $runtimeParts = $indexBy($result['scriptMetadata']['parts'], 'part');
+        $manifestByPart = $indexBy($result['manifest'], 'part');
+
+        $t->same(0, $scripts['invalidMediaTypeCount']);
+        $t->same(true, in_array('python', $scripts['scriptKinds'], true));
+        $t->same(true, in_array('beanshell', $scripts['scriptKinds'], true));
+        $t->same(true, in_array('java-class', $scripts['scriptKinds'], true));
+
+        $python = $items['Scripts/python/audit'];
+        $t->same('application/x-python', $python['mediaType']);
+        $t->same('python', $python['scriptKind']);
+        $t->same('python/audit', $python['scriptPath']);
+        $t->same('python', $python['scriptLibrary']);
+        $t->same('audit', $python['scriptModule']);
+        $t->same(null, $python['extension']);
+        $t->same(true, $python['mediaTypeValid']);
+        $t->same(true, $python['valid']);
+        $t->same([], $python['issues']);
+        $t->same(false, $python['canExposeBytes']);
+        $t->same(false, $python['canExposeAsDocumentMedia']);
+        $t->same('script-package-bytes-blocked', $manifestByPart['Scripts/python/audit']['byteExposurePolicy']);
+
+        $pythonRuntime = $runtimeParts['Scripts/python/audit'];
+        $t->same('python-script', $pythonRuntime['kind']);
+        $t->same('Python', $pythonRuntime['language']);
+        $t->same(false, $pythonRuntime['canExposeBytes']);
+        $t->same(null, $pythonRuntime['byteLength']);
+        $t->same(strlen($pythonScript), $pythonRuntime['storedByteLength']);
+
+        $beanShell = $items['Scripts/beanshell/review'];
+        $t->same('application/x-bsh', $beanShell['mediaType']);
+        $t->same('beanshell', $beanShell['scriptKind']);
+        $t->same('beanshell/review', $beanShell['scriptPath']);
+        $t->same('beanshell', $beanShell['scriptLibrary']);
+        $t->same('review', $beanShell['scriptModule']);
+        $t->same(null, $beanShell['extension']);
+        $t->same(true, $beanShell['valid']);
+        $t->same([], $beanShell['issues']);
+
+        $beanShellRuntime = $runtimeParts['Scripts/beanshell/review'];
+        $t->same('beanshell-script', $beanShellRuntime['kind']);
+        $t->same('BeanShell', $beanShellRuntime['language']);
+        $t->same(false, $beanShellRuntime['canExposeBytes']);
+        $t->same(null, $beanShellRuntime['byteLength']);
+
+        $java = $items['Scripts/java/review'];
+        $t->same('application/java-vm', $java['mediaType']);
+        $t->same('java-class', $java['scriptKind']);
+        $t->same('java/review', $java['scriptPath']);
+        $t->same('java', $java['scriptLibrary']);
+        $t->same('review', $java['scriptModule']);
+        $t->same(null, $java['extension']);
+        $t->same(true, $java['valid']);
+        $t->same([], $java['issues']);
+
+        $javaRuntime = $runtimeParts['Scripts/java/review'];
+        $t->same('java-class', $javaRuntime['kind']);
+        $t->same('Java', $javaRuntime['language']);
+        $t->same(false, $javaRuntime['canExposeBytes']);
+        $t->same(null, $javaRuntime['byteLength']);
+
+        $compactSummary = OpenDocumentPackage::fromPackage($package)->summarize();
+        $compactItems = $indexBy($compactSummary['packageScripts']['items'], 'part');
+        $t->same('python', $compactItems['Scripts/python/audit']['scriptKind']);
+        $t->same('beanshell', $compactItems['Scripts/beanshell/review']['scriptKind']);
+        $t->same('java-class', $compactItems['Scripts/java/review']['scriptKind']);
+        $t->same(false, $compactItems['Scripts/python/audit']['canExposeBytes']);
+        $t->same(false, $compactItems['Scripts/beanshell/review']['canExposeBytes']);
+        $t->same(false, $compactItems['Scripts/java/review']['canExposeBytes']);
+        $t->same(['Pictures/hero.png'], array_column($compactSummary['mediaParts'], 'path'));
     },
 ];
