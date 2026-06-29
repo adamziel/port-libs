@@ -7156,7 +7156,7 @@ final class OpenDocumentPackage
                 'application/x-beanshell', 'text/x-beanshell', 'application/x-bsh' => 'beanshell',
                 'application/java-archive' => 'java-archive',
                 'application/java-vm' => 'java-class',
-                'text/x-python' => 'python',
+                'text/x-python', 'application/x-python' => 'python',
                 'text/x-ruby', 'application/x-ruby' => 'ruby',
                 default => $container === 'basic' ? 'basic-package-part' : 'script-package-part',
             },
