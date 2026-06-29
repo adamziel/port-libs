@@ -13677,11 +13677,13 @@ return [
         $relsXml = '<Relationships><Relationship Id="rIdMedia" Target="media/image.png"/></Relationships>';
         $largeBytes = "blocked content type media bytes\n";
         $invalidBytes = "invalid content type should still hand off\n";
+        $svgBytes = "<svg><title>declared image</title></svg>\n";
         $package = ZipPackage::fromString($buildZipPackage([
             ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
             ['name' => 'word/_rels/document.xml.rels', 'data' => $relsXml, 'method' => 0],
             ['name' => 'word/media/raw.bin', 'data' => $largeBytes, 'method' => 0],
             ['name' => 'custom/invalid-type.bin', 'data' => $invalidBytes, 'method' => 0],
+            ['name' => 'word/media/vector.svg', 'data' => $svgBytes, 'method' => 0],
         ]));
 
         $summary = $package->entryHandoffPreflight([
@@ -13726,6 +13728,14 @@ return [
                 'declaredContentType' => 'not a content type',
                 'declaredContentTypeSource' => 'content-types-override',
             ],
+            [
+                'name' => 'word/media/vector.svg',
+                'required' => false,
+                'kind' => 'file',
+                'role' => 'media',
+                'declaredContentType' => 'image/svg+xml',
+                'declaredContentTypeSource' => 'content-types-default',
+            ],
         ], 1024);
 
         $byContentType = [];
@@ -13746,17 +13756,27 @@ return [
         foreach ($summary['handoffDeclaredContentTypeFamilySummaries'] as $familySummary) {
             $handoffByFamily[$familySummary['declaredContentTypeFamily']] = $familySummary;
         }
+        $byTopLevel = [];
+        foreach ($summary['declaredContentTypeTopLevelSummaries'] as $topLevelSummary) {
+            $byTopLevel[$topLevelSummary['declaredContentTypeTopLevel']] = $topLevelSummary;
+        }
+        $handoffByTopLevel = [];
+        foreach ($summary['handoffDeclaredContentTypeTopLevelSummaries'] as $topLevelSummary) {
+            $handoffByTopLevel[$topLevelSummary['declaredContentTypeTopLevel']] = $topLevelSummary;
+        }
 
         $mainType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
         $relsType = 'application/vnd.openxmlformats-package.relationships+xml';
-        $t->same(5, $summary['declaredContentTypeEntryCount']);
-        $t->same(3, $summary['handoffDeclaredContentTypeEntryCount']);
-        $t->same(5, $summary['declaredContentTypeSummaryCount']);
-        $t->same(3, $summary['handoffDeclaredContentTypeSummaryCount']);
-        $t->same(5, $summary['declaredContentTypeFamilyEntryCount']);
-        $t->same(3, $summary['handoffDeclaredContentTypeFamilyEntryCount']);
+        $t->same(6, $summary['declaredContentTypeEntryCount']);
+        $t->same(4, $summary['handoffDeclaredContentTypeEntryCount']);
+        $t->same(6, $summary['declaredContentTypeSummaryCount']);
+        $t->same(4, $summary['handoffDeclaredContentTypeSummaryCount']);
+        $t->same(6, $summary['declaredContentTypeFamilyEntryCount']);
+        $t->same(4, $summary['handoffDeclaredContentTypeFamilyEntryCount']);
         $t->same(5, $summary['declaredContentTypeFamilySummaryCount']);
-        $t->same(3, $summary['handoffDeclaredContentTypeFamilySummaryCount']);
+        $t->same(4, $summary['handoffDeclaredContentTypeFamilySummaryCount']);
+        $t->same(2, $summary['declaredContentTypeTopLevelSummaryCount']);
+        $t->same(2, $summary['handoffDeclaredContentTypeTopLevelSummaryCount']);
         $t->same(1, $summary['invalidDeclaredContentTypeEntryCount']);
         $t->same(1, $summary['handoffInvalidDeclaredContentTypeEntryCount']);
         $t->same(1, $summary['invalidDeclaredContentTypeFamilyEntryCount']);
@@ -13769,6 +13789,10 @@ return [
 
         $t->same($mainType, $summary['entries'][0]['declaredContentTypeBase']);
         $t->same('openxml-wordprocessing', $summary['entries'][0]['declaredContentTypeFamily']);
+        $t->same('application', $summary['entries'][0]['declaredContentTypeTopLevel']);
+        $t->same('vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $summary['entries'][0]['declaredContentTypeSubtype']);
+        $t->same('xml', $summary['entries'][0]['declaredContentTypeStructuredSuffix']);
+        $t->same(true, $summary['entries'][0]['declaredContentTypeHasStructuredSuffix']);
         $t->same('content-types-override', $summary['entries'][0]['declaredContentTypeSource']);
         $t->same(true, $summary['entries'][0]['declaredContentTypeIsValid']);
         $t->same($relsType, $summary['entries'][1]['declaredContentTypeBase']);
@@ -13780,9 +13804,13 @@ return [
         $t->same('xml', $summary['entries'][3]['declaredContentTypeFamily']);
         $t->same('invalid', $summary['entries'][4]['declaredContentTypeFamily']);
         $t->same(false, $summary['entries'][4]['declaredContentTypeIsValid']);
+        $t->same(null, $summary['entries'][4]['declaredContentTypeTopLevel']);
         $t->same(['invalid-declared-content-type'], $summary['entries'][4]['declaredContentTypeIssues']);
         $t->same('ready', $summary['entries'][4]['status']);
         $t->same(hash('sha256', $invalidBytes), $summary['entries'][4]['contentSha256']);
+        $t->same('image', $summary['entries'][5]['declaredContentTypeTopLevel']);
+        $t->same('svg+xml', $summary['entries'][5]['declaredContentTypeSubtype']);
+        $t->same('xml', $summary['entries'][5]['declaredContentTypeStructuredSuffix']);
 
         $t->same(['content-types-override'], $byContentType[$mainType]['sources']);
         $t->same(['main-document'], $byContentType[$mainType]['roles']);
@@ -13797,12 +13825,13 @@ return [
         $t->same(['word/missing.xml'], $byContentType['application/xml']['missingEntryNames']);
         $t->same(1, $byContentType['not a content type']['invalidEntryCount']);
         $t->same(['invalid-declared-content-type'], $byContentType['not a content type']['issues']);
+        $t->same(['word/media/vector.svg'], $byContentType['image/svg+xml']['handoffEntryNames']);
         $t->same(false, isset($handoffByContentType['application/octet-stream']));
         $t->same(false, isset($handoffByContentType['application/xml']));
         $t->same(['custom/invalid-type.bin'], $handoffByContentType['not a content type']['handoffEntryNames']);
 
         $t->same(['binary', 'invalid', 'opc-relationships', 'openxml-wordprocessing', 'xml'], array_keys($byFamily));
-        $t->same(['invalid', 'opc-relationships', 'openxml-wordprocessing'], array_keys($handoffByFamily));
+        $t->same(['invalid', 'opc-relationships', 'openxml-wordprocessing', 'xml'], array_keys($handoffByFamily));
         $t->same([$mainType], $byFamily['openxml-wordprocessing']['declaredContentTypeBases']);
         $t->same(['main-document'], $byFamily['openxml-wordprocessing']['roles']);
         $t->same(['word/document.xml'], $byFamily['openxml-wordprocessing']['handoffEntryNames']);
@@ -13814,15 +13843,92 @@ return [
         $t->same(1, $byFamily['binary']['failedEntryCount']);
         $t->same(['word/media/raw.bin'], $byFamily['binary']['failedEntryNames']);
         $t->same(['entry-uncompressed-size-exceeds-limit'], $byFamily['binary']['issues']);
-        $t->same(['application/xml'], $byFamily['xml']['declaredContentTypeBases']);
+        $t->same(['application/xml', 'image/svg+xml'], $byFamily['xml']['declaredContentTypeBases']);
         $t->same(1, $byFamily['xml']['missingEntryCount']);
         $t->same(['word/missing.xml'], $byFamily['xml']['missingEntryNames']);
+        $t->same(['media', 'optional-sidecar'], $byFamily['xml']['roles']);
+        $t->same(['word/media/vector.svg'], $byFamily['xml']['handoffEntryNames']);
         $t->same([], $byFamily['invalid']['declaredContentTypeBases']);
         $t->same(1, $byFamily['invalid']['invalidEntryCount']);
         $t->same(['invalid-declared-content-type'], $byFamily['invalid']['issues']);
         $t->same(false, isset($handoffByFamily['binary']));
-        $t->same(false, isset($handoffByFamily['xml']));
+        $t->same(['word/media/vector.svg'], $handoffByFamily['xml']['handoffEntryNames']);
         $t->same(['custom/invalid-type.bin'], $handoffByFamily['invalid']['handoffEntryNames']);
+        $t->same([
+            'declaredContentTypeTopLevel' => 'application',
+            'entryCount' => 4,
+            'parameterEntryCount' => 1,
+            'missingEntryCount' => 1,
+            'failedEntryCount' => 1,
+            'selectedUniqueEntryCount' => 3,
+            'handoffUniqueEntryCount' => 2,
+            'selectedCompressedBytes' => strlen($documentXml) + strlen($relsXml) + strlen($largeBytes),
+            'selectedUncompressedBytes' => strlen($documentXml) + strlen($relsXml) + strlen($largeBytes),
+            'handoffCompressedBytes' => strlen($documentXml) + strlen($relsXml),
+            'handoffUncompressedBytes' => strlen($documentXml) + strlen($relsXml),
+            'declaredContentTypeBases' => [
+                'application/octet-stream',
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+                'application/vnd.openxmlformats-package.relationships+xml',
+                'application/xml',
+            ],
+            'declaredContentTypeSubtypes' => [
+                'octet-stream',
+                'vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+                'vnd.openxmlformats-package.relationships+xml',
+                'xml',
+            ],
+            'declaredContentTypeStructuredSuffixes' => ['xml'],
+            'sources' => ['content-types-default', 'content-types-override'],
+            'roles' => ['document-relationships', 'main-document', 'media', 'optional-sidecar'],
+            'entryNames' => [
+                'word/document.xml',
+                'word/_rels/document.xml.rels',
+                'word/media/raw.bin',
+                'word/missing.xml',
+            ],
+            'selectedEntryNames' => [
+                'word/document.xml',
+                'word/_rels/document.xml.rels',
+                'word/media/raw.bin',
+            ],
+            'handoffEntryNames' => [
+                'word/document.xml',
+                'word/_rels/document.xml.rels',
+            ],
+            'missingEntryNames' => ['word/missing.xml'],
+            'failedEntryNames' => ['word/media/raw.bin'],
+            'issues' => ['entry-uncompressed-size-exceeds-limit'],
+            'issueCounts' => ['entry-uncompressed-size-exceeds-limit' => 1],
+        ], $byTopLevel['application']);
+        $t->same([
+            'declaredContentTypeTopLevel' => 'image',
+            'entryCount' => 1,
+            'parameterEntryCount' => 0,
+            'missingEntryCount' => 0,
+            'failedEntryCount' => 0,
+            'selectedUniqueEntryCount' => 1,
+            'handoffUniqueEntryCount' => 1,
+            'selectedCompressedBytes' => strlen($svgBytes),
+            'selectedUncompressedBytes' => strlen($svgBytes),
+            'handoffCompressedBytes' => strlen($svgBytes),
+            'handoffUncompressedBytes' => strlen($svgBytes),
+            'declaredContentTypeBases' => ['image/svg+xml'],
+            'declaredContentTypeSubtypes' => ['svg+xml'],
+            'declaredContentTypeStructuredSuffixes' => ['xml'],
+            'sources' => ['content-types-default'],
+            'roles' => ['media'],
+            'entryNames' => ['word/media/vector.svg'],
+            'selectedEntryNames' => ['word/media/vector.svg'],
+            'handoffEntryNames' => ['word/media/vector.svg'],
+            'missingEntryNames' => [],
+            'failedEntryNames' => [],
+            'issues' => [],
+            'issueCounts' => [],
+        ], $byTopLevel['image']);
+        $t->same(2, $handoffByTopLevel['application']['entryCount']);
+        $t->same(['word/document.xml', 'word/_rels/document.xml.rels'], $handoffByTopLevel['application']['handoffEntryNames']);
+        $t->same($byTopLevel['image'], $handoffByTopLevel['image']);
     },
 
     'summarizes readable zip handoff content digests for package review' => static function (TestRunner $t) use ($buildZipPackage): void {

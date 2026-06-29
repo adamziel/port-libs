@@ -5088,6 +5088,8 @@ final class ZipPackage
      *     handoffDeclaredContentTypeFamilySummaryCount:int,
      *     invalidDeclaredContentTypeFamilyEntryCount:int,
      *     handoffInvalidDeclaredContentTypeFamilyEntryCount:int,
+     *     declaredContentTypeTopLevelSummaryCount:int,
+     *     handoffDeclaredContentTypeTopLevelSummaryCount:int,
      *     invalidDeclaredContentTypeEntryCount:int,
      *     handoffInvalidDeclaredContentTypeEntryCount:int,
      *     declaredContentTypeParameterEntryCount:int,
@@ -5234,6 +5236,8 @@ final class ZipPackage
      *     handoffDeclaredContentTypeSummaries:list<array<string, mixed>>,
      *     declaredContentTypeFamilySummaries:list<array<string, mixed>>,
      *     handoffDeclaredContentTypeFamilySummaries:list<array<string, mixed>>,
+     *     declaredContentTypeTopLevelSummaries:list<array<string, mixed>>,
+     *     handoffDeclaredContentTypeTopLevelSummaries:list<array<string, mixed>>,
      *     selectedDirectoryRootSummaries:list<array<string, mixed>>,
      *     handoffDirectoryRootSummaries:list<array<string, mixed>>,
      *     selectedSizeBucketSummaries:list<array<string, mixed>>,
@@ -5878,6 +5882,10 @@ final class ZipPackage
                 'platformMetadataIssues' => [],
                 'declaredContentType' => null,
                 'declaredContentTypeBase' => null,
+                'declaredContentTypeTopLevel' => null,
+                'declaredContentTypeSubtype' => null,
+                'declaredContentTypeStructuredSuffix' => null,
+                'declaredContentTypeHasStructuredSuffix' => false,
                 'declaredContentTypeHasParameters' => false,
                 'declaredContentTypeParameterCount' => 0,
                 'declaredContentTypeParameters' => [],
@@ -6421,6 +6429,8 @@ final class ZipPackage
         $handoffDeclaredContentTypeSummaries = self::entryHandoffDeclaredContentTypeSummaries($handoffEntries);
         $declaredContentTypeFamilySummaries = self::entryHandoffDeclaredContentTypeFamilySummaries($entries);
         $handoffDeclaredContentTypeFamilySummaries = self::entryHandoffDeclaredContentTypeFamilySummaries($handoffEntries);
+        $declaredContentTypeTopLevelSummaries = self::entryHandoffDeclaredContentTypeTopLevelSummaries($entries);
+        $handoffDeclaredContentTypeTopLevelSummaries = self::entryHandoffDeclaredContentTypeTopLevelSummaries($handoffEntries);
         $declaredContentTypeIssues = self::entryHandoffDeclaredContentTypeIssues($declaredContentTypeSummaries);
         $handoffDeclaredContentTypeIssues = self::entryHandoffDeclaredContentTypeIssues($handoffDeclaredContentTypeSummaries);
 
@@ -6541,6 +6551,8 @@ final class ZipPackage
             'handoffDeclaredContentTypeFamilySummaryCount' => count($handoffDeclaredContentTypeFamilySummaries),
             'invalidDeclaredContentTypeFamilyEntryCount' => self::entryHandoffSummaryTotal($declaredContentTypeFamilySummaries, 'invalidEntryCount'),
             'handoffInvalidDeclaredContentTypeFamilyEntryCount' => self::entryHandoffSummaryTotal($handoffDeclaredContentTypeFamilySummaries, 'invalidEntryCount'),
+            'declaredContentTypeTopLevelSummaryCount' => count($declaredContentTypeTopLevelSummaries),
+            'handoffDeclaredContentTypeTopLevelSummaryCount' => count($handoffDeclaredContentTypeTopLevelSummaries),
             'invalidDeclaredContentTypeEntryCount' => self::entryHandoffSummaryTotal($declaredContentTypeSummaries, 'invalidEntryCount'),
             'handoffInvalidDeclaredContentTypeEntryCount' => self::entryHandoffSummaryTotal($handoffDeclaredContentTypeSummaries, 'invalidEntryCount'),
             'declaredContentTypeParameterEntryCount' => self::entryHandoffSummaryTotal($declaredContentTypeSummaries, 'parameterEntryCount'),
@@ -6791,6 +6803,8 @@ final class ZipPackage
             'handoffDeclaredContentTypeSummaries' => $handoffDeclaredContentTypeSummaries,
             'declaredContentTypeFamilySummaries' => $declaredContentTypeFamilySummaries,
             'handoffDeclaredContentTypeFamilySummaries' => $handoffDeclaredContentTypeFamilySummaries,
+            'declaredContentTypeTopLevelSummaries' => $declaredContentTypeTopLevelSummaries,
+            'handoffDeclaredContentTypeTopLevelSummaries' => $handoffDeclaredContentTypeTopLevelSummaries,
             'selectedDirectoryRootSummaries' => $selectedDirectoryRootSummaries,
             'handoffDirectoryRootSummaries' => $handoffDirectoryRootSummaries,
             'selectedSizeBucketSummaries' => $selectedSizeBucketSummaries,
@@ -6932,6 +6946,10 @@ final class ZipPackage
      * @return array{
      *     declaredContentType:?string,
      *     declaredContentTypeBase:?string,
+     *     declaredContentTypeTopLevel:?string,
+     *     declaredContentTypeSubtype:?string,
+     *     declaredContentTypeStructuredSuffix:?string,
+     *     declaredContentTypeHasStructuredSuffix:bool,
      *     declaredContentTypeHasParameters:bool,
      *     declaredContentTypeParameterCount:int,
      *     declaredContentTypeParameters:list<array{name:string,value:string,raw:string}>,
@@ -6948,6 +6966,10 @@ final class ZipPackage
             return [
                 'declaredContentType' => null,
                 'declaredContentTypeBase' => null,
+                'declaredContentTypeTopLevel' => null,
+                'declaredContentTypeSubtype' => null,
+                'declaredContentTypeStructuredSuffix' => null,
+                'declaredContentTypeHasStructuredSuffix' => false,
                 'declaredContentTypeHasParameters' => false,
                 'declaredContentTypeParameterCount' => 0,
                 'declaredContentTypeParameters' => [],
@@ -6963,6 +6985,10 @@ final class ZipPackage
             return [
                 'declaredContentType' => $contentType,
                 'declaredContentTypeBase' => null,
+                'declaredContentTypeTopLevel' => null,
+                'declaredContentTypeSubtype' => null,
+                'declaredContentTypeStructuredSuffix' => null,
+                'declaredContentTypeHasStructuredSuffix' => false,
                 'declaredContentTypeHasParameters' => false,
                 'declaredContentTypeParameterCount' => 0,
                 'declaredContentTypeParameters' => [],
@@ -6975,10 +7001,15 @@ final class ZipPackage
         }
 
         $report = OpcContentTypes::contentTypeReport($contentType);
+        $components = self::entryHandoffDeclaredContentTypeComponents($report['contentTypeBase']);
 
         return [
             'declaredContentType' => $report['contentType'],
             'declaredContentTypeBase' => $report['contentTypeBase'],
+            'declaredContentTypeTopLevel' => $components['topLevel'],
+            'declaredContentTypeSubtype' => $components['subtype'],
+            'declaredContentTypeStructuredSuffix' => $components['structuredSuffix'],
+            'declaredContentTypeHasStructuredSuffix' => $components['structuredSuffix'] !== null,
             'declaredContentTypeHasParameters' => $report['contentTypeHasParameters'],
             'declaredContentTypeParameterCount' => $report['contentTypeParameterCount'],
             'declaredContentTypeParameters' => $report['contentTypeParameters'],
@@ -6987,6 +7018,31 @@ final class ZipPackage
             'declaredContentTypeFamily' => self::entryHandoffDeclaredContentTypeFamily($report['contentTypeBase']),
             'declaredContentTypeIsValid' => true,
             'declaredContentTypeIssues' => [],
+        ];
+    }
+
+    /**
+     * @return array{topLevel:string, subtype:string, structuredSuffix:?string}
+     */
+    private static function entryHandoffDeclaredContentTypeComponents(string $contentTypeBase): array
+    {
+        $separator = strpos($contentTypeBase, '/');
+        if ($separator === false) {
+            throw new \LogicException('Validated OPC content type was missing a subtype separator');
+        }
+
+        $topLevel = substr($contentTypeBase, 0, $separator);
+        $subtype = substr($contentTypeBase, $separator + 1);
+        $suffixSeparator = strrpos($subtype, '+');
+        $structuredSuffix = $suffixSeparator === false ? null : substr($subtype, $suffixSeparator + 1);
+        if ($structuredSuffix === '') {
+            $structuredSuffix = null;
+        }
+
+        return [
+            'topLevel' => $topLevel,
+            'subtype' => $subtype,
+            'structuredSuffix' => $structuredSuffix,
         ];
     }
 
@@ -7421,6 +7477,164 @@ final class ZipPackage
             sort($summary['roles'], SORT_STRING);
             sort($summary['declaredContentTypeIssues'], SORT_STRING);
             ksort($summary['declaredContentTypeIssueCounts'], SORT_STRING);
+            ksort($summary['issueCounts'], SORT_STRING);
+        }
+        unset($summary);
+
+        ksort($summaries, SORT_STRING);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffDeclaredContentTypeTopLevelSummaries(array $entries): array
+    {
+        $summaries = [];
+        $seenNamesByType = [];
+        $seenHandoffNamesByType = [];
+
+        foreach ($entries as $entry) {
+            if (($entry['declaredContentTypeIsValid'] ?? true) !== true) {
+                continue;
+            }
+
+            $topLevel = is_string($entry['declaredContentTypeTopLevel'] ?? null)
+                ? $entry['declaredContentTypeTopLevel']
+                : null;
+            if ($topLevel === null || $topLevel === '') {
+                continue;
+            }
+
+            if (!isset($summaries[$topLevel])) {
+                $summaries[$topLevel] = [
+                    'declaredContentTypeTopLevel' => $topLevel,
+                    'entryCount' => 0,
+                    'parameterEntryCount' => 0,
+                    'missingEntryCount' => 0,
+                    'failedEntryCount' => 0,
+                    'selectedUniqueEntryCount' => 0,
+                    'handoffUniqueEntryCount' => 0,
+                    'selectedCompressedBytes' => 0,
+                    'selectedUncompressedBytes' => 0,
+                    'handoffCompressedBytes' => 0,
+                    'handoffUncompressedBytes' => 0,
+                    'declaredContentTypeBases' => [],
+                    'declaredContentTypeSubtypes' => [],
+                    'declaredContentTypeStructuredSuffixes' => [],
+                    'sources' => [],
+                    'roles' => [],
+                    'entryNames' => [],
+                    'selectedEntryNames' => [],
+                    'handoffEntryNames' => [],
+                    'missingEntryNames' => [],
+                    'failedEntryNames' => [],
+                    'issues' => [],
+                    'issueCounts' => [],
+                ];
+                $seenNamesByType[$topLevel] = [];
+                $seenHandoffNamesByType[$topLevel] = [];
+            }
+
+            ++$summaries[$topLevel]['entryCount'];
+            if (($entry['declaredContentTypeParameterCount'] ?? 0) > 0) {
+                ++$summaries[$topLevel]['parameterEntryCount'];
+            }
+
+            $contentTypeBase = is_string($entry['declaredContentTypeBase'] ?? null)
+                ? $entry['declaredContentTypeBase']
+                : null;
+            if ($contentTypeBase !== null && !in_array($contentTypeBase, $summaries[$topLevel]['declaredContentTypeBases'], true)) {
+                $summaries[$topLevel]['declaredContentTypeBases'][] = $contentTypeBase;
+            }
+
+            $subtype = is_string($entry['declaredContentTypeSubtype'] ?? null)
+                ? $entry['declaredContentTypeSubtype']
+                : null;
+            if ($subtype !== null && !in_array($subtype, $summaries[$topLevel]['declaredContentTypeSubtypes'], true)) {
+                $summaries[$topLevel]['declaredContentTypeSubtypes'][] = $subtype;
+            }
+
+            $structuredSuffix = is_string($entry['declaredContentTypeStructuredSuffix'] ?? null)
+                ? $entry['declaredContentTypeStructuredSuffix']
+                : null;
+            if (
+                $structuredSuffix !== null
+                && !in_array($structuredSuffix, $summaries[$topLevel]['declaredContentTypeStructuredSuffixes'], true)
+            ) {
+                $summaries[$topLevel]['declaredContentTypeStructuredSuffixes'][] = $structuredSuffix;
+            }
+
+            $source = is_string($entry['declaredContentTypeSource'] ?? null)
+                ? $entry['declaredContentTypeSource']
+                : null;
+            if ($source !== null && !in_array($source, $summaries[$topLevel]['sources'], true)) {
+                $summaries[$topLevel]['sources'][] = $source;
+            }
+
+            foreach (self::entryHandoffRolesForSummary($entry) as $role) {
+                if (!in_array($role, $summaries[$topLevel]['roles'], true)) {
+                    $summaries[$topLevel]['roles'][] = $role;
+                }
+            }
+
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name !== '') {
+                $summaries[$topLevel]['entryNames'][] = $name;
+            }
+
+            if (($entry['exists'] ?? false) === true) {
+                if ($name !== '' && !isset($seenNamesByType[$topLevel][$name])) {
+                    $seenNamesByType[$topLevel][$name] = true;
+                    ++$summaries[$topLevel]['selectedUniqueEntryCount'];
+                    $summaries[$topLevel]['selectedEntryNames'][] = $name;
+                    $summaries[$topLevel]['selectedCompressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+                    $summaries[$topLevel]['selectedUncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+                }
+            } else {
+                ++$summaries[$topLevel]['missingEntryCount'];
+                if ($name !== '') {
+                    $summaries[$topLevel]['missingEntryNames'][] = $name;
+                }
+            }
+
+            if (($entry['status'] ?? null) === 'ready' && ($entry['exists'] ?? false) === true) {
+                if ($name !== '' && !isset($seenHandoffNamesByType[$topLevel][$name])) {
+                    $seenHandoffNamesByType[$topLevel][$name] = true;
+                    ++$summaries[$topLevel]['handoffUniqueEntryCount'];
+                    $summaries[$topLevel]['handoffEntryNames'][] = $name;
+                    $summaries[$topLevel]['handoffCompressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+                    $summaries[$topLevel]['handoffUncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+                }
+            }
+
+            $issues = array_values(array_filter(
+                is_array($entry['issues'] ?? null) ? $entry['issues'] : [],
+                'is_string'
+            ));
+            if ($issues !== [] && ($entry['status'] ?? null) !== 'ready') {
+                ++$summaries[$topLevel]['failedEntryCount'];
+                if ($name !== '') {
+                    $summaries[$topLevel]['failedEntryNames'][] = $name;
+                }
+                foreach ($issues as $issue) {
+                    if (!in_array($issue, $summaries[$topLevel]['issues'], true)) {
+                        $summaries[$topLevel]['issues'][] = $issue;
+                    }
+                    $summaries[$topLevel]['issueCounts'][$issue] =
+                        ($summaries[$topLevel]['issueCounts'][$issue] ?? 0) + 1;
+                }
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['declaredContentTypeBases'], SORT_STRING);
+            sort($summary['declaredContentTypeSubtypes'], SORT_STRING);
+            sort($summary['declaredContentTypeStructuredSuffixes'], SORT_STRING);
+            sort($summary['sources'], SORT_STRING);
+            sort($summary['roles'], SORT_STRING);
             ksort($summary['issueCounts'], SORT_STRING);
         }
         unset($summary);
