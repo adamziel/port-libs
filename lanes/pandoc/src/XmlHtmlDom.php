@@ -19696,6 +19696,12 @@ final class XmlHtmlDom
             }
         }
 
+        if (array_key_exists('aria-hidden', $attributes)) {
+            $summary += self::ariaHiddenAttributeSummary($element, $attributes['aria-hidden']);
+        }
+
+        $summary += self::effectiveAriaHiddenSummary($element, $attributes);
+
         if (array_key_exists('role', $attributes)) {
             $role = self::htmlRoleAttributeSummary($attributes['role']);
             $summary['roleAttributeReviewPolicy'] = 'html-role-token-list-review';
@@ -23535,6 +23541,144 @@ final class XmlHtmlDom
         ksort($references);
 
         return $references;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function ariaHiddenAttributeSummary(\DOMElement $element, string $raw): array
+    {
+        $state = self::ariaHiddenState($raw);
+        $issues = [];
+        if ($state === null) {
+            $issues[] = [
+                'code' => 'invalid-aria-hidden-token',
+                'ariaHiddenRaw' => $raw,
+            ];
+        }
+
+        $summary = [
+            'ariaHiddenReviewPolicy' => 'aria-hidden-subtree-review',
+            'ariaHiddenRaw' => $raw,
+            'ariaHiddenKeyword' => self::ariaHiddenKeyword($state),
+            'ariaHiddenState' => $state === null ? 'invalid' : ($state ? 'hidden' : 'visible'),
+            'ariaHidden' => $state,
+            'ariaHiddenValid' => $state !== null,
+            'ariaHiddenHidesSubtree' => $state === true,
+            'ariaHiddenInvalidValueIgnored' => $state === null,
+            'ariaHiddenReviewHandoffPolicy' => 'metadata-only-no-accessibility-tree',
+            'ariaHiddenElement' => self::htmlElementName($element),
+            'ariaHiddenIssues' => $issues,
+            'ariaHiddenIssueCodes' => array_values(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            )),
+        ];
+
+        $elementId = self::attributeOrNull($element, 'id');
+        if ($elementId !== null && $elementId !== '') {
+            $summary['ariaHiddenElementId'] = $elementId;
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @return array<string, mixed>
+     */
+    private static function effectiveAriaHiddenSummary(\DOMElement $element, array $attributes): array
+    {
+        if (array_key_exists('aria-hidden', $attributes)) {
+            $state = self::ariaHiddenState($attributes['aria-hidden']);
+            if ($state === true) {
+                return self::ariaHiddenProvenanceSummary(
+                    $element,
+                    $attributes['aria-hidden'],
+                    $state,
+                    true,
+                    false,
+                    'self-aria-hidden'
+                );
+            }
+        }
+
+        for ($ancestor = $element->parentNode; $ancestor instanceof \DOMElement; $ancestor = $ancestor->parentNode) {
+            $ancestorAttributes = self::htmlAttributes($ancestor);
+            if (!array_key_exists('aria-hidden', $ancestorAttributes)) {
+                continue;
+            }
+
+            $state = self::ariaHiddenState($ancestorAttributes['aria-hidden']);
+            if ($state === true) {
+                return self::ariaHiddenProvenanceSummary(
+                    $ancestor,
+                    $ancestorAttributes['aria-hidden'],
+                    $state,
+                    true,
+                    true,
+                    'ancestor-aria-hidden'
+                );
+            }
+        }
+
+        if (array_key_exists('aria-hidden', $attributes)) {
+            $state = self::ariaHiddenState($attributes['aria-hidden']);
+
+            return self::ariaHiddenProvenanceSummary(
+                $element,
+                $attributes['aria-hidden'],
+                $state,
+                false,
+                false,
+                $state === false ? 'self-aria-hidden' : 'invalid-aria-hidden-ignored'
+            );
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function ariaHiddenProvenanceSummary(
+        \DOMElement $source,
+        string $raw,
+        ?bool $state,
+        bool $effective,
+        bool $inherited,
+        string $sourceKind
+    ): array {
+        $summary = [
+            'effectiveAriaHiddenRaw' => $raw,
+            'effectiveAriaHiddenKeyword' => self::ariaHiddenKeyword($state),
+            'effectiveAriaHiddenState' => $effective ? 'hidden' : 'visible',
+            'effectiveAriaHidden' => $effective,
+            'ariaHiddenInherited' => $inherited,
+            'ariaHiddenSource' => $sourceKind,
+            'ariaHiddenSourceElement' => self::htmlElementName($source),
+        ];
+
+        $sourceId = self::attributeOrNull($source, 'id');
+        if ($sourceId !== null && $sourceId !== '') {
+            $summary['ariaHiddenSourceElementId'] = $sourceId;
+        }
+
+        return $summary;
+    }
+
+    private static function ariaHiddenState(string $raw): ?bool
+    {
+        return match (strtolower(trim($raw))) {
+            'true' => true,
+            'false' => false,
+            default => null,
+        };
+    }
+
+    private static function ariaHiddenKeyword(?bool $state): ?string
+    {
+        return $state === null ? null : ($state ? 'true' : 'false');
     }
 
     /**
