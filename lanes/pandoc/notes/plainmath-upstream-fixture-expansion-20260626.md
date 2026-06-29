@@ -32,12 +32,30 @@ Added seven fixture-backed cases to `PlainMathStaticTexmathFixtureTest.php`:
 Each case asserts native PHP MathML structure plus the exact source TeX
 annotation preserved by the PlainMath handoff.
 
+## 2026-06-29 Addendum
+
+Added four more passing fixture-backed cases from the same TexMath reader
+corpus:
+
+- `test/reader/tex/choose.test`
+- `test/reader/tex/genfrac.test`
+- `test/reader/tex/notin.test`
+- `test/reader/tex/cancel.test`
+
+The added cases cover infix `\choose`/`\brace` no-line fractions, explicit
+`\genfrac` delimiters, negated relation normalization, and cancel/boxed
+MathML enclosure mapping. They remain static PHP assertions against
+`MathTexConverter`; no TexMath, Pandoc, TeX engine, browser renderer, or
+external converter is invoked by the test.
+
 ## Counts
 
 - Static upstream denominator remains `2,276` inspected upstream Pandoc
   test/data/benchmark files.
-- Focused mapped behavior checks: `2,289 -> 2,296`.
-- PlainMath static TexMath fixture cases: `0 -> 7` in this lane slice.
+- Focused mapped behavior checks: `2,304 -> 2,308` after the 2026-06-29
+  addendum.
+- PlainMath static TexMath fixture cases: `7 -> 11` after the 2026-06-29
+  addendum.
 
 ## Verification
 
@@ -49,3 +67,5 @@ php tools/run-tests.php lanes/pandoc/tests/PlainMathStaticTexmathFixtureTest.php
 
 Expected result: the focused PlainMath conformance test file passes without
 external converter execution.
+
+2026-06-29 result: `1` file, `103` assertions, `0` failures.

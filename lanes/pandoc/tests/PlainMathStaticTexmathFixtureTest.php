@@ -78,6 +78,56 @@ return [
             $t->true(!str_contains($mathml, '<mi>\\'), $path . ' leaves no literal TeX command identifiers in MathML');
         }
     },
+    'promotes additional texmath reader fixtures into plainmath conformance corpus' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $fixtures = [
+            'test/reader/tex/choose.test' => [
+                'tex' => 'a \\choose {b \\brace c + 2}',
+                'fragments' => [
+                    '<mo fence="true" stretchy="true">(</mo><mfrac linethickness="0"><mi>a</mi>',
+                    '<mo fence="true" stretchy="true">{</mo><mfrac linethickness="0"><mi>b</mi><mrow><mi>c</mi><mo>+</mo><mn>2</mn></mrow></mfrac><mo fence="true" stretchy="true">}</mo>',
+                    '<annotation encoding="application/x-tex">a \\choose {b \\brace c + 2}</annotation>',
+                ],
+            ],
+            'test/reader/tex/genfrac.test' => [
+                'tex' => '\\genfrac{\\{}{\\}}{0pt}{}{x}{y}',
+                'fragments' => [
+                    '<mo fence="true" stretchy="true">{</mo><mfrac linethickness="0"><mi>x</mi><mi>y</mi></mfrac><mo fence="true" stretchy="true">}</mo>',
+                    '<annotation encoding="application/x-tex">\\genfrac{\\{}{\\}}{0pt}{}{x}{y}</annotation>',
+                ],
+            ],
+            'test/reader/tex/notin.test' => [
+                'tex' => "x \\in y\n\\wedge\nx \\not\\in y",
+                'fragments' => [
+                    '<mi>x</mi><mo>∈</mo><mi>y</mi><mo>∧</mo><mi>x</mi><mo>∉</mo><mi>y</mi>',
+                    "<annotation encoding=\"application/x-tex\">x \\in y\n\\wedge\nx \\not\\in y</annotation>",
+                ],
+            ],
+            'test/reader/tex/cancel.test' => [
+                'tex' => '\\boxed{\\cancel{x} + \\bcancel{y} = \\xcancel{z}}',
+                'fragments' => [
+                    '<menclose notation="box"><mrow><menclose notation="updiagonalstrike"><mi>x</mi></menclose><mo>+</mo>',
+                    '<menclose notation="downdiagonalstrike"><mi>y</mi></menclose><mo>=</mo><menclose notation="updiagonalstrike downdiagonalstrike"><mi>z</mi></menclose>',
+                    '<annotation encoding="application/x-tex">\\boxed{\\cancel{x} + \\bcancel{y} = \\xcancel{z}}</annotation>',
+                ],
+            ],
+        ];
+
+        foreach ($fixtures as $path => $fixture) {
+            $mathml = $converter->texToMathMl($fixture['tex'], true);
+            $dom = new \DOMDocument('1.0', 'UTF-8');
+
+            $t->true(
+                $dom->loadXML($mathml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING),
+                $path . ' emits well-formed MathML'
+            );
+            $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $mathml);
+            foreach ($fixture['fragments'] as $fragment) {
+                $t->contains($fragment, $mathml);
+            }
+            $t->true(!str_contains($mathml, '<mi>\\'), $path . ' leaves no literal TeX command identifiers in MathML');
+        }
+    },
     'promotes texmath atom coercion fixtures into plainmath conformance corpus' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $fixtures = [
