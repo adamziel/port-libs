@@ -144,6 +144,57 @@ foreach ($valueSourceCases as $name => [$markup, $propertyName, $expectedValue, 
         };
 }
 
+$tests['classifies html reader microdata value policy metadata'] =
+    static function (TestRunner $t): void {
+        $document = (new HtmlReader())->read(
+            '<!doctype html><html><body><section itemscope itemtype="https://schema.org/SoftwareApplication">'
+            . '<a itemprop="downloadUrl" href="https://downloads.example.test/app.zip">Download</a>'
+            . '<img itemprop="screenshot" src="/media/screen.png" alt="Screen">'
+            . '<meta itemprop="alternateName" content="">'
+            . '<span itemprop="">Nameless property text</span>'
+            . '<a itemprop="supportUrl" href="mailto:help@example.test">Support</a>'
+            . '</section></body></html>'
+        );
+        $meta = $document->attr('meta');
+        $item = $meta['htmlMicrodataItems'][0];
+        $properties = $item['properties'];
+
+        $t->same(5, $meta['htmlMicrodataPropertyCount']);
+        $t->same(3, $meta['htmlMicrodataUrlPropertyCount']);
+        $t->same(2, $meta['htmlMicrodataExternalUrlPropertyCount']);
+        $t->same(1, $meta['htmlMicrodataEmptyValueCount']);
+        $t->same(1, $meta['htmlMicrodataNamelessPropertyCount']);
+        $t->same(0, $meta['htmlMicrodataTruncatedValueCount']);
+        $t->same([
+            'html-microdata-empty-property-value:alternateName',
+            'html-microdata-property-without-name',
+            'html-microdata-url-non-http:supportUrl',
+        ], $meta['htmlMicrodataDiagnostics']);
+
+        $t->same(3, $item['urlPropertyCount']);
+        $t->same(2, $item['externalUrlPropertyCount']);
+        $t->same(1, $item['emptyValueCount']);
+        $t->same(1, $item['namelessPropertyCount']);
+        $t->same(0, $item['truncatedValueCount']);
+
+        $t->same('metadata-only-no-fetch', $properties[0]['valueUrlPolicy']);
+        $t->same('absolute-http', $properties[0]['valueUrlKind']);
+        $t->same('https', $properties[0]['valueUrlScheme']);
+        $t->same(true, $properties[0]['valueExternal']);
+        $t->same(strlen('https://downloads.example.test/app.zip'), $properties[0]['valueLengthBytes']);
+        $t->same(false, $properties[0]['valueTruncated']);
+        $t->same(false, $properties[0]['valueEmpty']);
+
+        $t->same('root-relative', $properties[1]['valueUrlKind']);
+        $t->same(null, $properties[1]['valueUrlScheme']);
+        $t->same(false, $properties[1]['valueExternal']);
+        $t->same(true, $properties[2]['valueEmpty']);
+        $t->same([], $properties[3]['names']);
+        $t->same('absolute-non-http', $properties[4]['valueUrlKind']);
+        $t->same('mailto', $properties[4]['valueUrlScheme']);
+        $t->same(true, $properties[4]['valueExternal']);
+    };
+
 $tests['keeps html reader imports alive when microdata dom parse is unavailable'] =
     static function (TestRunner $t): void {
         $document = (new HtmlReader())->read(
@@ -155,12 +206,17 @@ $tests['keeps html reader imports alive when microdata dom parse is unavailable'
         $t->same('unavailable', $meta['htmlMicrodataParseStatus']);
         $t->same(0, $meta['htmlMicrodataItemCount']);
         $t->same(0, $meta['htmlMicrodataPropertyCount']);
+        $t->same(0, $meta['htmlMicrodataUrlPropertyCount']);
+        $t->same(0, $meta['htmlMicrodataExternalUrlPropertyCount']);
+        $t->same(0, $meta['htmlMicrodataEmptyValueCount']);
+        $t->same(0, $meta['htmlMicrodataNamelessPropertyCount']);
+        $t->same(0, $meta['htmlMicrodataTruncatedValueCount']);
         $t->same(['html-microdata-dom-parse-failed'], $meta['htmlMicrodataDiagnostics']);
     };
 
 $tests['records html reader microdata metadata mapped-case count'] =
     static function (TestRunner $t) use ($valueSourceCases): void {
-        $t->same(7, 1 + count($valueSourceCases) + 1);
+        $t->same(8, 1 + count($valueSourceCases) + 2);
     };
 
 return $tests;
