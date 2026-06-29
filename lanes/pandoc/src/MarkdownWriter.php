@@ -7124,7 +7124,7 @@ final class MarkdownWriter
             return null;
         }
 
-        $targetComponent = $this->escapeWikiLinkComponent($target);
+        $targetComponent = $this->escapeWikiLinkTargetComponent($target);
         if ($label === $target) {
             return '[[' . $targetComponent . ']]';
         }
@@ -7195,6 +7195,11 @@ final class MarkdownWriter
             ']' => '\\]',
             '|' => '\\|',
         ]);
+    }
+
+    private function escapeWikiLinkTargetComponent(string $value): string
+    {
+        return str_replace(' ', '%20', $this->escapeWikiLinkComponent($value));
     }
 
     /**

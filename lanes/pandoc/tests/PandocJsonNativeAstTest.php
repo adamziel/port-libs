@@ -15773,7 +15773,7 @@ NATIVE;
         $t->same('raw_markdown', $roundTrip->children[0]->type);
         $t->same('raw_tex', $roundTrip->children[1]->type);
         $t->same('raw_markdown', $roundTrip->children[2]->children[0]->type);
-        $t->same('raw_tex', $roundTrip->children[2]->children[2]->type);
+        $t->same('raw_tex_inline', $roundTrip->children[2]->children[2]->type);
     },
     'serializes native text raw tex inline nodes through pandoc json writers' => static function (TestRunner $t): void {
         $nativeText = <<<'NATIVE'
@@ -15861,7 +15861,7 @@ NATIVE;
         $t->same($jsonPacket['blocks'][1]['c'][2], $nativePacket['blocks'][1]['c'][2]);
         $t->same('raw_markdown', $roundTrip->children[0]->type);
         $t->same('raw_markdown', $roundTrip->children[1]->children[2]->type);
-        $t->same('raw_tex', $roundTrip->children[1]->children[4]->type);
+        $t->same('raw_tex_inline', $roundTrip->children[1]->children[4]->type);
     },
     'preserves single wrapped raw format constructors through json and native stacks' => static function (TestRunner $t): void {
         $blockFormat = ['t' => 'Format', 'c' => [['html']], 'reviewQueue' => 'raw-block-format-source'];

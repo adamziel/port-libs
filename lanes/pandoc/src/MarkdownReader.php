@@ -10553,6 +10553,22 @@ final class MarkdownReader
 
     private function rawInlineNode(string $format, string $text): AstNode
     {
+        $normalized = strtolower($format);
+        if (in_array($normalized, ['html', 'html4', 'html5'], true)) {
+            return new AstNode('raw_html_inline', [
+                'format' => $format,
+                'html' => $text,
+                'text' => $text,
+            ]);
+        }
+        if ($normalized === 'tex') {
+            return new AstNode('raw_tex_inline', [
+                'format' => $format,
+                'tex' => $text,
+                'text' => $text,
+            ]);
+        }
+
         return new AstNode('raw_inline', [
             'format' => $format,
             'text' => $text,

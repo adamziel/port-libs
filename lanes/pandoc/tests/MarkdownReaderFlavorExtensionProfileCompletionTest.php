@@ -9,6 +9,9 @@ $inlineText = static function (AstNode $node) use (&$inlineText): string {
     if ($node->type === 'text' || $node->type === 'code' || $node->type === 'math' || $node->type === 'raw_inline') {
         return (string) $node->attr('text', '');
     }
+    if ($node->type === 'raw_html_inline') {
+        return (string) $node->attr('html', '');
+    }
 
     $text = '';
     foreach ($node->children as $child) {
@@ -91,10 +94,11 @@ $enabledCases = [
     'gfm plus raw attribute enables raw inline attribute extension' => [
         'options' => ['format' => 'gfm+raw_attribute'],
         'markdown' => 'Before `<b>x</b>`{=html} after.',
-        'match' => static fn (AstNode $node): bool => $node->type === 'raw_inline',
+        'match' => static fn (AstNode $node): bool => $node->type === 'raw_html_inline',
         'assert' => static function (TestRunner $t, AstNode $node): void {
             $t->same('html', $node->attr('format'));
             $t->same('<b>x</b>', $node->attr('text'));
+            $t->same('<b>x</b>', $node->attr('html'));
         },
     ],
     'gfm plus inline attributes enables code attributes extension' => [
@@ -150,7 +154,7 @@ $disabledCases = [
         'options' => ['format' => 'markdown-raw_attribute'],
         'markdown' => 'Before `<b>x</b>`{=html} after.',
         'literal' => 'Before <b>x</b>{=html} after.',
-        'match' => static fn (AstNode $node): bool => $node->type === 'raw_inline',
+        'match' => static fn (AstNode $node): bool => $node->type === 'raw_html_inline',
     ],
     'gfm disables inline code attributes extension' => [
         'options' => ['format' => 'gfm'],
