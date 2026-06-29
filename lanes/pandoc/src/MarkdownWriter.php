@@ -7138,11 +7138,13 @@ final class MarkdownWriter
 
     private function shouldSuppressUnsupportedNativeRawInline(AstNode $node, string $format): bool
     {
+        $normalized = strtolower($format);
+
         return $node->type === 'raw_inline'
             && $this->hasNativeRawInlineProvenance($node)
-            && !$this->isRawMarkdownFormat($format)
-            && !$this->isRawHtmlFormat($format)
-            && !in_array($format, ['latex', 'tex'], true);
+            && !$this->isRawMarkdownFormat($normalized)
+            && !$this->isRawHtmlFormat($normalized)
+            && !in_array($normalized, ['latex', 'tex'], true);
     }
 
     private function hasNativeRawInlineProvenance(AstNode $node): bool

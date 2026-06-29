@@ -1045,7 +1045,12 @@ final class NativeReader
             return new AstNode('raw_tex_inline', ['format' => $format, 'text' => $text, 'tex' => $text]);
         }
 
-        return new AstNode('raw_inline', ['format' => $format, 'text' => $text]);
+        return new AstNode('raw_inline', [
+            'constructor' => 'RawInline',
+            'native' => ['t' => 'RawInline', 'c' => [$format, $text]],
+            'format' => $format,
+            'text' => $text,
+        ]);
     }
 
     private function isHtmlRawFormat(string $format): bool

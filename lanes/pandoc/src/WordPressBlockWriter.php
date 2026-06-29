@@ -1375,19 +1375,10 @@ final class WordPressBlockWriter
         }
 
         $native = $node->attr('native');
-        $hasReviewSidecar = $node->attr('reviewQueue') !== null
-            || $node->attr('sourcepos') !== null
-            || (
-                is_array($native)
-                && (array_key_exists('reviewQueue', $native) || array_key_exists('sourcepos', $native))
-            );
-        if ($hasReviewSidecar) {
-            return false;
-        }
 
         return $node->attr('constructor') === 'RawInline'
-            || $node->attr('native') !== null
-            || $node->attr('formatNative') !== null;
+            || $node->attr('formatNative') !== null
+            || (is_array($native) && !array_is_list($native) && ($native['t'] ?? null) === 'RawInline');
     }
 
     private function rawFormatToken(string $format): string
@@ -1562,9 +1553,13 @@ final class WordPressBlockWriter
 
     private function renderFigureCaption(AstNode $node, ?AstNode $image = null): string
     {
-        $caption = (string) $node->attr('caption', '');
-        if ($node->attr('constructor') === 'Figure' && $caption !== '') {
-            return $this->esc($caption);
+        if ($image instanceof AstNode) {
+            $caption = $this->figureCaptionText($node);
+            if ($caption === '') {
+                $caption = (string) $image->attr('alt', '');
+            }
+
+            return $caption === '' ? '' : $this->esc($caption);
         }
 
         $inlines = $node->attr('captionInlines', null);
@@ -1604,8 +1599,8 @@ final class WordPressBlockWriter
             $attrs .= ' id="' . $this->esc($id) . '"';
         }
 
-        $sourceAttrs = $this->inlineHtmlAttributes($node);
-        foreach ($sourceAttrs as $name => $value) {
+        $htmlAttributes = $this->inlineHtmlAttributes($node);
+        foreach ($htmlAttributes as $name => $value) {
             $name = strtolower((string) $name);
             if (
                 in_array($name, ['id', 'class', 'latex-placement', 'data-pandoc-latex-placement', 'style'], true)
@@ -1618,8 +1613,8 @@ final class WordPressBlockWriter
             $attrs .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
         }
 
-        if (isset($sourceAttrs['latex-placement'])) {
-            $attrs .= ' data-pandoc-latex-placement="' . $this->esc((string) $sourceAttrs['latex-placement']) . '"';
+        if (isset($htmlAttributes['latex-placement'])) {
+            $attrs .= ' data-pandoc-latex-placement="' . $this->esc((string) $htmlAttributes['latex-placement']) . '"';
         }
 
         return $attrs;
