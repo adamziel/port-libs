@@ -49,6 +49,13 @@ $namedRawHtmlCases = [
     ],
 ];
 
+$topLevelNamedRawHtmlCases = [
+    'pre' => [
+        "<pre>\nraw *markdown*\n</pre>\n\nAfter",
+        "<pre>\nraw *markdown*\n</pre>",
+    ],
+];
+
 $blockTagRawHtmlCases = [
     'article' => [
         "before\n<article data-review=\"raw-boundary\">\n**raw article** stays raw.\n\nafter",
@@ -90,6 +97,17 @@ return [
                 $t->same('before', $document->children[0]->attr('text'), $name . ' leading paragraph');
                 $t->same($expectedRaw, $document->children[1]->attr('html'), $name . ' raw html');
                 $t->same('after', $document->children[2]->attr('text'), $name . ' trailing paragraph');
+            }
+        },
+
+    'maps commonmark top-level named raw html starts before html import helpers' =>
+        static function (TestRunner $t) use ($blockTypes, $topLevelNamedRawHtmlCases): void {
+            foreach ($topLevelNamedRawHtmlCases as $name => [$markdown, $expectedRaw]) {
+                $document = (new MarkdownReader(['format' => 'commonmark']))->read($markdown);
+
+                $t->same(['raw_html', 'paragraph'], $blockTypes($document), $name);
+                $t->same($expectedRaw, $document->children[0]->attr('html'), $name . ' raw html');
+                $t->same('After', $document->children[1]->attr('text'), $name . ' trailing paragraph');
             }
         },
 
@@ -137,7 +155,7 @@ return [
         },
 
     'records commonmark raw html paragraph interrupt completion mapped-case count' =>
-        static function (TestRunner $t) use ($specialRawHtmlCases, $namedRawHtmlCases, $blockTagRawHtmlCases): void {
-            $t->same(13, count($specialRawHtmlCases) + count($namedRawHtmlCases) + count($blockTagRawHtmlCases) + 2);
+        static function (TestRunner $t) use ($specialRawHtmlCases, $namedRawHtmlCases, $topLevelNamedRawHtmlCases, $blockTagRawHtmlCases): void {
+            $t->same(14, count($specialRawHtmlCases) + count($namedRawHtmlCases) + count($topLevelNamedRawHtmlCases) + count($blockTagRawHtmlCases) + 2);
         },
 ];
