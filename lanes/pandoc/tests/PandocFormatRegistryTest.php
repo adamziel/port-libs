@@ -389,4 +389,39 @@ return [
             $t->same('', $review['outputImplementation'], "Roff/manual {$format} must not register an output implementation");
         }
     },
+    'reports wiki direct format ship gate blockers from registry status' => static function (TestRunner $t): void {
+        $gate = PandocFormatRegistry::wikiFormatShipGate();
+
+        $t->same('wiki', $gate['family']);
+        $t->same('PandocFormatRegistry::wikiFormatReviewPacket', $gate['source']);
+        $t->same(false, $gate['shippable']);
+        $t->same('blocked', $gate['directParityStatus']);
+        $t->same('blocked', $gate['readerStatus']);
+        $t->same('blocked', $gate['writerStatus']);
+        $t->same(7, $gate['acceptedInputFormatCount']);
+        $t->same(5, $gate['acceptedOutputFormatCount']);
+        $t->same(9, $gate['uniqueFormatCount']);
+        $t->same(false, $gate['directReaderParityClaimed']);
+        $t->same(false, $gate['directWriterParityClaimed']);
+        $t->same([], $gate['directReaderCompleteFormats']);
+        $t->same([], $gate['directWriterCompleteFormats']);
+        $t->same(['creole', 'dokuwiki', 'jira', 'mediawiki', 'tikiwiki', 'twiki', 'vimwiki'], $gate['readerBlockingFormats']);
+        $t->same(['dokuwiki', 'jira', 'mediawiki', 'xwiki', 'zimwiki'], $gate['writerBlockingFormats']);
+        $t->same(7, $gate['readerBlockingFormatCount']);
+        $t->same(5, $gate['writerBlockingFormatCount']);
+        $t->same(['creole', 'dokuwiki', 'mediawiki', 'tikiwiki', 'twiki', 'vimwiki'], $gate['unsupportedInputs']);
+        $t->same(['jira'], $gate['partialInputs']);
+        $t->same(['dokuwiki', 'jira', 'mediawiki', 'xwiki', 'zimwiki'], $gate['unsupportedOutputs']);
+        $t->same([], $gate['partialOutputs']);
+        $t->same([
+            'native PHP wiki readers for every accepted upstream wiki input format',
+            'native PHP wiki writers for every accepted upstream wiki output format',
+            'focused direct-format fixtures without invoking Pandoc or external wiki renderers',
+        ], $gate['activationRequirements']);
+        $t->same([
+            'wiki-reader-parity-incomplete',
+            'wiki-writer-parity-incomplete',
+            'wiki-format-registry-accounting-only',
+        ], $gate['diagnostics']);
+    },
 ];
