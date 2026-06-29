@@ -7499,7 +7499,7 @@ return [
                 $encodedCaption = $encoded['blocks'][0]['c'][1];
 
                 $t->same('Caption', $encodedCaption['t'], "{$source} {$writer} edited long caption keeps constructor");
-                $t->same(false, array_key_exists('reviewQueue', $encodedCaption), "{$source} {$writer} edited long caption drops stale caption sidecar");
+                $t->same('caption-source', $encodedCaption['reviewQueue'] ?? null, "{$source} {$writer} edited long caption preserves caption wrapper sidecar");
                 $t->same('short-maybe-source', $encodedCaption['c'][0]['reviewQueue'], "{$source} {$writer} edited long caption preserves unchanged short maybe sidecar");
                 $t->same('short-caption-source', $encodedCaption['c'][0]['c']['reviewQueue'], "{$source} {$writer} edited long caption preserves unchanged short caption sidecar");
                 $t->same('Edited', $encodedCaption['c'][1][0]['c'][0]['c'], "{$source} {$writer} edited long caption regenerates text");
@@ -7522,11 +7522,11 @@ return [
                 $encodedCaption = $encoded['blocks'][0]['c'][1];
 
                 $t->same('Caption', $encodedCaption['t'], "{$source} {$writer} edited short caption keeps constructor");
-                $t->same(false, array_key_exists('reviewQueue', $encodedCaption), "{$source} {$writer} edited short caption drops stale caption sidecar");
+                $t->same('caption-source', $encodedCaption['reviewQueue'] ?? null, "{$source} {$writer} edited short caption preserves caption wrapper sidecar");
                 $t->same('Just', $encodedCaption['c'][0]['t'], "{$source} {$writer} edited short caption keeps maybe constructor");
-                $t->same(false, array_key_exists('reviewQueue', $encodedCaption['c'][0]), "{$source} {$writer} edited short caption drops stale short maybe sidecar");
+                $t->same('short-maybe-source', $encodedCaption['c'][0]['reviewQueue'] ?? null, "{$source} {$writer} edited short caption preserves short maybe sidecar");
                 $t->same('ShortCaption', $encodedCaption['c'][0]['c']['t'], "{$source} {$writer} edited short caption keeps helper constructor");
-                $t->same(false, array_key_exists('reviewQueue', $encodedCaption['c'][0]['c']), "{$source} {$writer} edited short caption drops stale short caption sidecar");
+                $t->same('short-caption-source', $encodedCaption['c'][0]['c']['reviewQueue'] ?? null, "{$source} {$writer} edited short caption preserves short caption sidecar");
                 $t->same('Edited', $encodedCaption['c'][0]['c']['c'][0][0]['c'], "{$source} {$writer} edited short caption regenerates text");
                 $t->same($longCaptionNative, $encodedCaption['c'][1][0], "{$source} {$writer} edited short caption preserves unchanged long block payload");
             }
@@ -11413,7 +11413,7 @@ return [
                 $t->same('ShortCaption', $shortMaybePayload['c'][0]['t'], "{$label} short caption constructor");
                 $t->same('Edited', $shortMaybePayload['c'][0]['c'][0][0]['c'], "{$label} edited short caption first token");
                 $t->same('short', $shortMaybePayload['c'][0]['c'][0][2]['c'], "{$label} edited short caption last token");
-                $t->same(false, array_key_exists('reviewQueue', $shortMaybePayload['c'][0]), "{$label} edited short caption drops stale sidecar");
+                $t->same('short-caption-source', $shortMaybePayload['c'][0]['reviewQueue'] ?? null, "{$label} edited short caption preserves short caption sidecar");
             }
         }
     },
@@ -11522,7 +11522,7 @@ return [
 
                 $t->same('Caption', $editedTableCaption['t'], "{$label} edited table caption constructor");
                 $t->same(true, array_is_list($editedTableCaption['c']) && count($editedTableCaption['c']) === 1, "{$label} edited table keeps wrapped caption tuple");
-                $t->same(false, array_key_exists('reviewQueue', $editedTableCaption), "{$label} edited table drops stale caption sidecar");
+                $t->same('wrapped-table-caption-source', $editedTableCaption['reviewQueue'] ?? null, "{$label} edited table preserves caption wrapper sidecar");
                 $t->same('wrapped-short-maybe-source', $editedTableCaption['c'][0][0]['reviewQueue'], "{$label} edited table preserves short maybe sidecar");
                 $t->same('Wrapped', $editedTableCaption['c'][0][0]['c']['c'][0][0]['c'], "{$label} edited table preserves short caption text");
                 $t->same('Edited', $editedTableCaption['c'][0][1][0]['c'][0]['c'], "{$label} edited table regenerates long caption text");
