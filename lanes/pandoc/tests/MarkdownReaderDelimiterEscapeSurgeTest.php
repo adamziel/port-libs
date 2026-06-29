@@ -87,8 +87,8 @@ $semanticConfigs = [
         'close' => '==',
         'escaped' => '\\=\\=',
         'literal' => '==',
-        'html' => '<span class="mark">%s</span>',
-        'htmlStart' => '<span class="mark">',
+        'html' => '<mark>%s</mark>',
+        'htmlStart' => '<mark>',
         'classes' => ['mark'],
     ],
     'superscript' => [
