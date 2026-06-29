@@ -164,9 +164,18 @@ final class NativeWriter
             return $nativeBlock;
         }
 
+        $hasInlineChildren = $this->hasJsonNativeInlineChildren($node->type);
+        $sourceChildren = $node->children;
+        if ($hasInlineChildren && $sourceChildren === []) {
+            $text = $node->attr('text', null);
+            if (is_string($text) && $text !== '') {
+                $sourceChildren = $this->textInlines($text);
+            }
+        }
+
         $children = [];
-        foreach ($node->children as $child) {
-            if ($this->hasJsonNativeInlineChildren($node->type)) {
+        foreach ($sourceChildren as $child) {
+            if ($hasInlineChildren) {
                 array_push($children, ...$this->nativeJsonInlineNodes($child));
             } else {
                 $children[] = $this->nativeJsonNode($child);
@@ -643,6 +652,7 @@ final class NativeWriter
             'plain',
             'paragraph',
             'heading',
+            'definition_term',
             'term',
             'line',
             'emph',

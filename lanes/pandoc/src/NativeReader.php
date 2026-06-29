@@ -181,6 +181,7 @@ final class NativeReader
             'plain',
             'paragraph',
             'heading',
+            'definition_term',
             'term',
             'line',
             'emph',
