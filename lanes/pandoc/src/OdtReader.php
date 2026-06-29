@@ -12,7 +12,7 @@ final class OdtReader
     private const FO_NS = 'urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0';
     private const XLINK_NS = 'http://www.w3.org/1999/xlink';
 
-    /** @var array<string, array{strong?: bool, emph?: bool}> */
+    /** @var array<string, array{strong?: bool, emph?: bool, family?: string, parentName?: string, sourcePart?: string, element?: string}> */
     private array $textStyles = [];
 
     /** @var array<string, array<int, array{ordered: bool, style?: string, delimiter?: string, start?: int}>> */
@@ -103,6 +103,7 @@ final class OdtReader
             $styles instanceof \DOMDocument ? $this->collectListStyles($styles, 'styles.xml') : [],
             $this->collectListStyles($content, 'content.xml'),
         );
+        array_push($this->styleDiagnostics, ...$this->textStyleParentDiagnostics($this->textStyles));
         array_push($this->styleDiagnostics, ...$this->contentStyleReferenceDiagnostics($content));
 
         $metadata = $meta_xml !== '' ? $this->metadata($this->loadXml($meta_xml, 'ODT meta.xml')) : [];
@@ -475,7 +476,7 @@ final class OdtReader
     }
 
     /**
-     * @return array<string, array{strong?: bool, emph?: bool}>
+     * @return array<string, array{strong?: bool, emph?: bool, family?: string, parentName?: string, sourcePart?: string, element?: string}>
      */
     private function collectTextStyles(\DOMDocument $dom, string $sourcePart = ''): array
     {
@@ -493,7 +494,15 @@ final class OdtReader
             if ($name === '') {
                 continue;
             }
-            $entry = [];
+            $entry = [
+                'family' => $family,
+                'sourcePart' => $sourcePart,
+                'element' => $this->odtElementName($style),
+            ];
+            $parentName = $this->attr($style, self::STYLE_NS, 'parent-style-name');
+            if ($parentName !== '') {
+                $entry['parentName'] = $parentName;
+            }
             foreach ($style->childNodes as $props) {
                 if (!$props instanceof \DOMElement || $props->localName !== 'text-properties') {
                     continue;
@@ -511,6 +520,36 @@ final class OdtReader
         }
 
         return $styles;
+    }
+
+    /**
+     * @param array<string, array{strong?: bool, emph?: bool, family?: string, parentName?: string, sourcePart?: string, element?: string}> $styles
+     * @return list<array<string, mixed>>
+     */
+    private function textStyleParentDiagnostics(array $styles): array
+    {
+        $diagnostics = [];
+        foreach ($styles as $styleName => $style) {
+            $parentName = (string) ($style['parentName'] ?? '');
+            if ($parentName === '' || isset($styles[$parentName])) {
+                continue;
+            }
+
+            $diagnostic = [
+                'code' => 'odt-style-missing-parent',
+                'sourcePart' => (string) ($style['sourcePart'] ?? ''),
+                'element' => (string) ($style['element'] ?? 'style:style'),
+                'styleName' => $styleName,
+                'parentStyleName' => $parentName,
+            ];
+            $family = (string) ($style['family'] ?? '');
+            if ($family !== '') {
+                $diagnostic['family'] = $family;
+            }
+            $diagnostics[] = $diagnostic;
+        }
+
+        return $diagnostics;
     }
 
     /**
