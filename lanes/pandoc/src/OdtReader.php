@@ -18,6 +18,9 @@ final class OdtReader
     /** @var array<string, array<int, array{ordered: bool, style?: string, delimiter?: string, start?: int}>> */
     private array $listStyles = [];
 
+    /** @var list<array<string, mixed>> */
+    private array $styleDiagnostics = [];
+
     /** @var list<string> */
     private array $referencedResources = [];
 
@@ -90,14 +93,17 @@ final class OdtReader
     private function readPackage(string $content_xml, string $styles_xml = '', string $meta_xml = '', array $entries = [], array $image_resources = []): AstNode
     {
         $content = $this->loadXml($content_xml, 'ODT content.xml');
+        $styles = $styles_xml !== '' ? $this->loadXml($styles_xml, 'ODT styles.xml') : null;
+        $this->styleDiagnostics = [];
         $this->textStyles = array_replace(
-            $styles_xml !== '' ? $this->collectTextStyles($this->loadXml($styles_xml, 'ODT styles.xml')) : [],
-            $this->collectTextStyles($content),
+            $styles instanceof \DOMDocument ? $this->collectTextStyles($styles, 'styles.xml') : [],
+            $this->collectTextStyles($content, 'content.xml'),
         );
         $this->listStyles = array_replace_recursive(
-            $styles_xml !== '' ? $this->collectListStyles($this->loadXml($styles_xml, 'ODT styles.xml')) : [],
-            $this->collectListStyles($content),
+            $styles instanceof \DOMDocument ? $this->collectListStyles($styles, 'styles.xml') : [],
+            $this->collectListStyles($content, 'content.xml'),
         );
+        array_push($this->styleDiagnostics, ...$this->contentStyleReferenceDiagnostics($content));
 
         $metadata = $meta_xml !== '' ? $this->metadata($this->loadXml($meta_xml, 'ODT meta.xml')) : [];
         $body = $this->firstElementByLocalName($content, 'body');
@@ -117,6 +123,9 @@ final class OdtReader
         $referenced_resources = array_values(array_unique($this->referencedResources));
         $metadata['odtTextStyleCount'] = count($this->textStyles);
         $metadata['odtListStyleCount'] = count($this->listStyles);
+        $metadata['odtStyleDiagnosticCount'] = count($this->styleDiagnostics);
+        $metadata['odtStyleDiagnosticCodeCounts'] = $this->diagnosticCodeCounts($this->styleDiagnostics);
+        $metadata['odtStyleDiagnostics'] = $this->styleDiagnostics;
         $metadata['odtPackageEntries'] = count($entries);
         $metadata['odtReferencedResources'] = $referenced_resources;
         $metadata['odtImageResources'] = $image_resources !== []
@@ -468,13 +477,14 @@ final class OdtReader
     /**
      * @return array<string, array{strong?: bool, emph?: bool}>
      */
-    private function collectTextStyles(\DOMDocument $dom): array
+    private function collectTextStyles(\DOMDocument $dom, string $sourcePart = ''): array
     {
         $styles = [];
         foreach ($dom->getElementsByTagName('*') as $style) {
             if (!$style instanceof \DOMElement || $style->localName !== 'style') {
                 continue;
             }
+            $this->appendStyleDefinitionDiagnostics($style, $sourcePart);
             $family = $this->attr($style, self::STYLE_NS, 'family');
             if ($family !== '' && $family !== 'text') {
                 continue;
@@ -497,9 +507,7 @@ final class OdtReader
                     $entry['emph'] = true;
                 }
             }
-            if ($entry !== []) {
-                $styles[$name] = $entry;
-            }
+            $styles[$name] = $entry;
         }
 
         return $styles;
@@ -508,7 +516,7 @@ final class OdtReader
     /**
      * @return array<string, array<int, array{ordered: bool, style?: string, delimiter?: string, start?: int}>>
      */
-    private function collectListStyles(\DOMDocument $dom): array
+    private function collectListStyles(\DOMDocument $dom, string $sourcePart = ''): array
     {
         $styles = [];
         foreach ($dom->getElementsByTagName('*') as $style) {
@@ -520,6 +528,11 @@ final class OdtReader
                 $name = $this->attr($style, self::TEXT_NS, 'style-name');
             }
             if ($name === '') {
+                $this->styleDiagnostics[] = [
+                    'code' => 'odt-list-style-missing-name',
+                    'sourcePart' => $sourcePart,
+                    'element' => $this->odtElementName($style),
+                ];
                 continue;
             }
 
@@ -560,6 +573,160 @@ final class OdtReader
         }
 
         return $styles;
+    }
+
+    private function appendStyleDefinitionDiagnostics(\DOMElement $style, string $sourcePart): void
+    {
+        $name = $this->attr($style, self::STYLE_NS, 'name');
+        $family = $this->attr($style, self::STYLE_NS, 'family');
+
+        if ($name === '') {
+            $diagnostic = [
+                'code' => 'odt-style-missing-name',
+                'sourcePart' => $sourcePart,
+                'element' => $this->odtElementName($style),
+            ];
+            if ($family !== '') {
+                $diagnostic['family'] = $family;
+            }
+            $this->styleDiagnostics[] = $diagnostic;
+
+            return;
+        }
+
+        if ($family === '') {
+            $this->styleDiagnostics[] = [
+                'code' => 'odt-style-missing-family',
+                'sourcePart' => $sourcePart,
+                'element' => $this->odtElementName($style),
+                'styleName' => $name,
+            ];
+
+            return;
+        }
+
+        if (!$this->isKnownStyleFamily($family)) {
+            $this->styleDiagnostics[] = [
+                'code' => 'odt-style-unknown-family',
+                'sourcePart' => $sourcePart,
+                'element' => $this->odtElementName($style),
+                'styleName' => $name,
+                'family' => $family,
+            ];
+        }
+    }
+
+    private function isKnownStyleFamily(string $family): bool
+    {
+        return in_array($family, [
+            'chart',
+            'control',
+            'drawing-page',
+            'graphic',
+            'paragraph',
+            'presentation',
+            'ruby',
+            'section',
+            'table',
+            'table-cell',
+            'table-column',
+            'table-page',
+            'table-row',
+            'text',
+        ], true);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function contentStyleReferenceDiagnostics(\DOMDocument $dom): array
+    {
+        $diagnostics = [];
+        $seen = [];
+        foreach ($dom->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement) {
+                continue;
+            }
+
+            if ($element->namespaceURI === self::TEXT_NS && $element->localName === 'span') {
+                $this->appendMissingContentStyleDiagnostic(
+                    $diagnostics,
+                    $seen,
+                    'odt-content-missing-text-style',
+                    $element,
+                    'styleName',
+                    $this->attr($element, self::TEXT_NS, 'style-name'),
+                    $this->textStyles
+                );
+                continue;
+            }
+
+            if ($element->namespaceURI === self::TEXT_NS && $element->localName === 'list') {
+                $this->appendMissingContentStyleDiagnostic(
+                    $diagnostics,
+                    $seen,
+                    'odt-content-missing-list-style',
+                    $element,
+                    'listStyleName',
+                    $this->attr($element, self::TEXT_NS, 'style-name'),
+                    $this->listStyles
+                );
+            }
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @param array<string, true> $seen
+     * @param array<string, mixed> $targets
+     */
+    private function appendMissingContentStyleDiagnostic(
+        array &$diagnostics,
+        array &$seen,
+        string $code,
+        \DOMElement $element,
+        string $referenceKey,
+        string $referenceName,
+        array $targets
+    ): void {
+        if ($referenceName === '' || isset($targets[$referenceName])) {
+            return;
+        }
+
+        $elementName = $this->odtElementName($element);
+        $seenKey = $code . "\0" . $elementName . "\0" . $referenceName;
+        if (isset($seen[$seenKey])) {
+            return;
+        }
+
+        $seen[$seenKey] = true;
+        $diagnostics[] = [
+            'code' => $code,
+            'sourcePart' => 'content.xml',
+            'element' => $elementName,
+            $referenceKey => $referenceName,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, int>
+     */
+    private function diagnosticCodeCounts(array $diagnostics): array
+    {
+        $counts = [];
+        foreach ($diagnostics as $diagnostic) {
+            $code = (string) ($diagnostic['code'] ?? '');
+            if ($code === '') {
+                continue;
+            }
+            $counts[$code] = ($counts[$code] ?? 0) + 1;
+        }
+        ksort($counts);
+
+        return $counts;
     }
 
     private function orderedListStyle(string $format): string
@@ -678,6 +845,20 @@ final class OdtReader
         }
 
         return '';
+    }
+
+    private function odtElementName(\DOMElement $element): string
+    {
+        $prefix = match ($element->namespaceURI) {
+            self::TEXT_NS => 'text',
+            self::TABLE_NS => 'table',
+            self::STYLE_NS => 'style',
+            self::FO_NS => 'fo',
+            self::XLINK_NS => 'xlink',
+            default => '',
+        };
+
+        return $prefix === '' ? $element->localName : $prefix . ':' . $element->localName;
     }
 
     private function isPackageRelativeResourceUrl(string $url): bool
