@@ -257,6 +257,7 @@ final class MediaBag
      * @return array{
      *     document:AstNode,
      *     entries:list<array{path:string, mediaPath:string, mimeType:string, byteLength:int, sha1:string, source:string, canonicalSource:string, sourcePath:string, pathRepairSummary:string, extractionPathRepairSummary:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, contents:string, linkedMimeGroup?:string, linkedMimeGroupSize?:int}>,
+     *     resourceMap:list<array{occurrence:int, nodeType:string, source:string, canonicalSource:string, sourcePath:string, path:string, mediaPath:string, originalMediaPath:string, mappedUrl:string, mimeType:string, byteLength:int, sha1:string, pathRepairSummary:string, extractionPathRepairSummary:string, pathCollision:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, linkedMimeGroup?:string, linkedMimeGroupSize?:int}>,
      *     diagnostics:list<string>
      * }
      */
@@ -309,6 +310,8 @@ final class MediaBag
 
         usort($entries, static fn (array $a, array $b): int => $a['path'] <=> $b['path']);
 
+        $resourceMap = $this->resourceMapForDocument($document, $destination, $plannedPaths, $linkedMimeGroups);
+
         $document = $this->mapResourceNodes($document, function (AstNode $image) use ($destination, $plannedPaths, &$diagnostics): AstNode {
             $source = (string) $image->attr('url', '');
             $item = $this->lookupMediaSource($source);
@@ -353,8 +356,95 @@ final class MediaBag
         return [
             'document' => $document,
             'entries' => $entries,
+            'resourceMap' => $resourceMap,
             'diagnostics' => $diagnostics,
         ];
+    }
+
+    /**
+     * @return list<array{occurrence:int, nodeType:string, source:string, canonicalSource:string, sourcePath:string, path:string, mediaPath:string, originalMediaPath:string, mappedUrl:string, mimeType:string, byteLength:int, sha1:string, pathRepairSummary:string, extractionPathRepairSummary:string, pathCollision:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, linkedMimeGroup?:string, linkedMimeGroupSize?:int}>
+     */
+    public function resourceMap(AstNode $document, string $destination): array
+    {
+        $destination = self::normalizeExtractionDestination($destination);
+        $extractionPlan = $this->plannedExtractionPlan();
+
+        return $this->resourceMapForDocument(
+            $document,
+            $destination,
+            $extractionPlan['paths'],
+            $this->linkedMimeGroups($document)
+        );
+    }
+
+    /**
+     * @param array<string, array{path:string, collision:string}> $plannedPaths
+     * @param array<string, array{group:string, size:int}> $linkedMimeGroups
+     * @return list<array{occurrence:int, nodeType:string, source:string, canonicalSource:string, sourcePath:string, path:string, mediaPath:string, originalMediaPath:string, mappedUrl:string, mimeType:string, byteLength:int, sha1:string, pathRepairSummary:string, extractionPathRepairSummary:string, pathCollision:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, linkedMimeGroup?:string, linkedMimeGroupSize?:int}>
+     */
+    private function resourceMapForDocument(
+        AstNode $document,
+        string $destination,
+        array $plannedPaths,
+        array $linkedMimeGroups
+    ): array {
+        $mappings = [];
+        $this->collectResourceMap($document, $destination, $plannedPaths, $linkedMimeGroups, $mappings);
+
+        return $mappings;
+    }
+
+    /**
+     * @param array<string, array{path:string, collision:string}> $plannedPaths
+     * @param array<string, array{group:string, size:int}> $linkedMimeGroups
+     * @param list<array{occurrence:int, nodeType:string, source:string, canonicalSource:string, sourcePath:string, path:string, mediaPath:string, originalMediaPath:string, mappedUrl:string, mimeType:string, byteLength:int, sha1:string, pathRepairSummary:string, extractionPathRepairSummary:string, pathCollision:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, linkedMimeGroup?:string, linkedMimeGroupSize?:int}> $mappings
+     */
+    private function collectResourceMap(
+        AstNode $node,
+        string $destination,
+        array $plannedPaths,
+        array $linkedMimeGroups,
+        array &$mappings
+    ): void {
+        if ($node->type === 'image' || $node->type === 'link') {
+            $source = (string) $node->attr('url', '');
+            $item = $source === '' ? null : $this->lookupMediaSource($source);
+            if ($item !== null) {
+                $plan = $plannedPaths[$item['canonicalSource']] ?? ['path' => $item['path'], 'collision' => 'none'];
+                $mediaPath = $plan['path'];
+                $mappedUrl = $destination . '/' . $mediaPath;
+                $mapping = [
+                    'occurrence' => count($mappings),
+                    'nodeType' => $node->type,
+                    'source' => $source,
+                    'canonicalSource' => $item['canonicalSource'],
+                    'sourcePath' => $item['sourcePath'],
+                    'path' => $mappedUrl,
+                    'mediaPath' => $mediaPath,
+                    'originalMediaPath' => $item['path'],
+                    'mappedUrl' => $mappedUrl,
+                    'mimeType' => $item['mimeType'],
+                    'byteLength' => $item['byteLength'],
+                    'sha1' => $item['sha1'],
+                    'pathRepairSummary' => $item['pathRepairSummary'],
+                    'extractionPathRepairSummary' => self::extractionPathRepairSummary($item, $plan),
+                    'pathCollision' => $plan['collision'],
+                    'mimeTypeSource' => $item['mimeTypeSource'],
+                    'inferredMimeType' => $item['inferredMimeType'],
+                    'mimeRepairSummary' => $item['mimeRepairSummary'],
+                ];
+                $linkedMimeGroup = $linkedMimeGroups[$item['canonicalSource']] ?? null;
+                if ($linkedMimeGroup !== null) {
+                    $mapping['linkedMimeGroup'] = $linkedMimeGroup['group'];
+                    $mapping['linkedMimeGroupSize'] = $linkedMimeGroup['size'];
+                }
+                $mappings[] = $mapping;
+            }
+        }
+
+        foreach ($node->children as $child) {
+            $this->collectResourceMap($child, $destination, $plannedPaths, $linkedMimeGroups, $mappings);
+        }
     }
 
     /**

@@ -911,6 +911,70 @@ return [
         $t->same('casefold-path-collision-disambiguated', explode(',', $roundTrip->children[0]->children[8]->attr('attributes')['data-pandoc-media-path-repair'])[1]);
     },
 
+    'reports media bag resource mappings in document order' => static function (TestRunner $t): void {
+        $bag = new MediaBag();
+        $heroBytes = "hero image bytes\n";
+        $packetBytes = "%PDF review packet bytes\n";
+        $variantSource = 'assets/hero.png?variant=thumbnail#xywh=10,10,20,20';
+        $bag->insertMedia('assets/hero.png', 'image/png', $heroBytes);
+        $bag->insertMedia('downloads/review.pdf', 'application/pdf', $packetBytes);
+
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('image', [
+                    'url' => 'assets/hero.png',
+                    'title' => 'Hero image',
+                ], [new AstNode('text', ['text' => 'Hero image'])]),
+                new AstNode('space'),
+                new AstNode('link', [
+                    'url' => 'downloads/review.pdf',
+                    'title' => 'Review packet',
+                ], [new AstNode('text', ['text' => 'packet'])]),
+                new AstNode('space'),
+                new AstNode('image', [
+                    'url' => $variantSource,
+                    'title' => 'Thumbnail crop',
+                ], [new AstNode('text', ['text' => 'Thumbnail crop'])]),
+            ]),
+        ]);
+
+        $resourceMap = $bag->resourceMap($document, 'media//review');
+
+        $t->same(3, count($resourceMap));
+        $t->same([0, 1, 2], array_column($resourceMap, 'occurrence'));
+        $t->same(['image', 'link', 'image'], array_column($resourceMap, 'nodeType'));
+        $t->same('assets/hero.png', $resourceMap[0]['source']);
+        $t->same('assets/hero.png', $resourceMap[0]['canonicalSource']);
+        $t->same('media/review/assets/hero.png', $resourceMap[0]['mappedUrl']);
+        $t->same('media/review/assets/hero.png', $resourceMap[0]['path']);
+        $t->same('assets/hero.png', $resourceMap[0]['mediaPath']);
+        $t->same('image/png', $resourceMap[0]['mimeType']);
+        $t->same((string) strlen($heroBytes), (string) $resourceMap[0]['byteLength']);
+        $t->same(sha1($heroBytes), $resourceMap[0]['sha1']);
+        $t->same('downloads/review.pdf', $resourceMap[1]['source']);
+        $t->same('application/pdf', $resourceMap[1]['mimeType']);
+        $t->same('media/review/downloads/review.pdf', $resourceMap[1]['mappedUrl']);
+        $t->same($variantSource, $resourceMap[2]['source']);
+        $t->same('assets/hero.png', $resourceMap[2]['canonicalSource']);
+        $t->same('media/review/assets/hero.png', $resourceMap[2]['mappedUrl']);
+        $t->same('safe-relative-path', $resourceMap[2]['extractionPathRepairSummary']);
+        $t->same('none', $resourceMap[2]['pathCollision']);
+        $t->same('assets/hero.png', $document->children[0]->children[0]->attr('url'));
+
+        $extracted = $bag->extractMedia($document, 'media/review');
+        $mappedParagraph = $extracted['document']->children[0];
+
+        $t->same($resourceMap, $extracted['resourceMap']);
+        $t->same('media/review/assets/hero.png', $mappedParagraph->children[0]->attr('url'));
+        $t->same('media/review/downloads/review.pdf', $mappedParagraph->children[2]->attr('url'));
+        $t->same('media/review/assets/hero.png', $mappedParagraph->children[4]->attr('url'));
+        $t->same([
+            'media-resource-mapped:assets/hero.png',
+            'media-resource-link-mapped:downloads/review.pdf',
+            'media-resource-mapped:' . $variantSource,
+        ], $extracted['diagnostics']);
+    },
+
     'keeps malformed inline media resources as bounded review placeholders' => static function (TestRunner $t): void {
         $bag = new MediaBag();
         $badDataUri = 'data:image/png;base64,not valid base64 %%';
