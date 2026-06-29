@@ -268,6 +268,11 @@ final class MarkdownReader
                 array_push($blocks, ...$rawHtmlContainer);
                 continue;
             }
+            $commonMarkRawHtmlTag = $paragraph === [] && $listStack === [] ? $this->tryReadCommonMarkCompleteRawHtmlTagBlock($lines, $index) : null;
+            if ($commonMarkRawHtmlTag !== null) {
+                $blocks[] = $commonMarkRawHtmlTag;
+                continue;
+            }
             $htmlInlineFragment = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlInlineFragmentBlock($lines, $index) : null;
             if ($htmlInlineFragment !== null) {
                 $blocks[] = $htmlInlineFragment;
@@ -1503,6 +1508,66 @@ final class MarkdownReader
         $index = max($index, min($cursor - 1, $count - 1));
 
         return new AstNode('raw_html', ['html' => implode("\n", $content)]);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadCommonMarkCompleteRawHtmlTagBlock(array $lines, int &$index): ?AstNode
+    {
+        if (!$this->commonMarkRawHtmlType7Enabled()) {
+            return null;
+        }
+
+        $line = $this->expandTabsToSpaces($lines[$index] ?? '');
+        $tag = $this->commonMarkCompleteRawHtmlTagLineName($line);
+        if ($tag === null || $this->rawHtmlTagUsesEarlierBlockRule($tag)) {
+            return null;
+        }
+
+        return $this->readRawHtmlUntilBlankLine($lines, $index);
+    }
+
+    private function commonMarkRawHtmlType7Enabled(): bool
+    {
+        if (!$this->htmlRawHtmlEnabled()) {
+            return false;
+        }
+
+        $format = MarkdownFormatProfile::canonicalFormat($this->options['format'] ?? 'markdown');
+
+        return in_array($format, ['commonmark', 'commonmark_x', 'gfm'], true);
+    }
+
+    private function commonMarkCompleteRawHtmlTagLineName(string $line): ?string
+    {
+        $tag = '[A-Za-z][A-Za-z0-9:-]*';
+        $attribute = '[A-Za-z_:][A-Za-z0-9_.:-]*(?:\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s"\'=<>`]+))?';
+
+        if (preg_match(
+            '/^ {0,3}<\/(' . $tag . ')\s*>[ \t]*$/u',
+            $line,
+            $match
+        ) === 1) {
+            return strtolower($match[1]);
+        }
+
+        if (preg_match(
+            '/^ {0,3}<(' . $tag . ')(?:\s+' . $attribute . ')*\s*\/?>[ \t]*$/u',
+            $line,
+            $match
+        ) === 1) {
+            return strtolower($match[1]);
+        }
+
+        return null;
+    }
+
+    private function rawHtmlTagUsesEarlierBlockRule(string $tag): bool
+    {
+        return in_array($tag, ['script', 'style', 'pre', 'textarea', 'noscript', 'xmp', 'table', 'hr'], true)
+            || $this->isCommonMarkBlankTerminatedRawHtmlTag($tag)
+            || $this->isRawHtmlCustomTagName($tag);
     }
 
     /**
