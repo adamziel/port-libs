@@ -189,7 +189,7 @@ final class OdfReader
         $packageTemplates = $this->packageTemplateMetadata($package, $manifest, $undeclaredEntries);
         $packageDictionaries = $this->packageDictionaryMetadata($package, $manifest, $undeclaredEntries);
         $packageEvents = $this->packageEventMetadata($package, $manifest, $undeclaredEntries);
-        $packageProvenance = $this->packageProvenance($package, $manifest, $mimetypeEntry, $undeclaredEntries, $styleCatalog);
+        $packageProvenance = $this->packageProvenance($package, $manifest, $mimetypeEntry, $undeclaredEntries, $styleCatalog, $styleDiagnostics);
         $packageObjects = $packageProvenance['embeddedObjectPackages'];
         $packageStyles = is_array($packageProvenance['stylePackageProvenance'] ?? null)
             ? $packageProvenance['stylePackageProvenance']
@@ -2023,6 +2023,7 @@ final class OdfReader
      * @param list<array<string, mixed>> $manifest
      * @param list<array<string, mixed>> $undeclaredEntries
      * @param array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>, diagnostics:list<array<string, mixed>>} $styleCatalog
+     * @param list<array<string, mixed>> $styleDiagnostics
      * @return array<string, mixed>
      */
     private function packageProvenance(
@@ -2030,7 +2031,8 @@ final class OdfReader
         array $manifest,
         array $mimetypeEntry,
         array $undeclaredEntries,
-        array $styleCatalog
+        array $styleCatalog,
+        array $styleDiagnostics
     ): array {
         $manifestRootAttributes = $this->manifestRootAttributeProvenance;
         $manifestRootExtensions = $this->manifestRootExtensionElementProvenance;
@@ -2542,7 +2544,7 @@ final class OdfReader
         ksort($packagePartByteExposurePolicyByteLengths, SORT_STRING);
         ksort($packagePartByteExposurePolicyCompressedByteLengths, SORT_STRING);
         $embeddedObjectPackages = $this->embeddedObjectPackageProvenance($package, $manifest, $objectPackageRootParts);
-        $stylePackageProvenance = $this->stylePackageProvenance($styleCatalog, $manifestByPart, $parts);
+        $stylePackageProvenance = $this->stylePackageProvenance($styleCatalog, $manifestByPart, $parts, $styleDiagnostics);
         sort($manifestCustomAttributeNames, SORT_STRING);
         sort($manifestCustomChildElementNames, SORT_STRING);
         ksort($manifestVersionCounts, SORT_STRING);
@@ -2988,9 +2990,10 @@ final class OdfReader
      * @param array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>, diagnostics:list<array<string, mixed>>} $styleCatalog
      * @param array<string, array<string, mixed>> $manifestByPart
      * @param array<string, array<string, mixed>> $packageParts
+     * @param list<array<string, mixed>> $styleDiagnostics
      * @return array<string, mixed>
      */
-    private function stylePackageProvenance(array $styleCatalog, array $manifestByPart, array $packageParts): array
+    private function stylePackageProvenance(array $styleCatalog, array $manifestByPart, array $packageParts, array $styleDiagnostics): array
     {
         $collections = [
             'styles' => ['countKey' => 'styleCount', 'namesKey' => 'styleNames'],
@@ -3009,6 +3012,37 @@ final class OdfReader
         $automaticStyleDefinitionNames = [];
         $automaticStyleDefinitions = [];
         $masterStyleDefinitionCount = 0;
+        $ensurePartItem = static function (string $part) use (&$itemsByPart): void {
+            if (isset($itemsByPart[$part])) {
+                return;
+            }
+
+            $itemsByPart[$part] = [
+                'part' => $part,
+                'styleCount' => 0,
+                'styleNames' => [],
+                'fontFaceCount' => 0,
+                'fontFaceNames' => [],
+                'listStyleCount' => 0,
+                'listStyleNames' => [],
+                'dataStyleCount' => 0,
+                'dataStyleNames' => [],
+                'tableTemplateCount' => 0,
+                'tableTemplateNames' => [],
+                'pageLayoutCount' => 0,
+                'pageLayoutNames' => [],
+                'masterPageCount' => 0,
+                'masterPageNames' => [],
+                'automaticStyleCount' => 0,
+                'automaticStyleNames' => [],
+                'automaticStyleDefinitions' => [],
+                'masterStyleCount' => 0,
+                'sourceContainerCounts' => [],
+                'diagnosticCount' => 0,
+                'diagnosticCodeCounts' => [],
+                'diagnostics' => [],
+            ];
+        };
 
         foreach ($collections as $collectionName => $config) {
             $definitions = $styleCatalog[$collectionName] ?? [];
@@ -3026,30 +3060,7 @@ final class OdfReader
                     continue;
                 }
 
-                if (!isset($itemsByPart[$part])) {
-                    $itemsByPart[$part] = [
-                        'part' => $part,
-                        'styleCount' => 0,
-                        'styleNames' => [],
-                        'fontFaceCount' => 0,
-                        'fontFaceNames' => [],
-                        'listStyleCount' => 0,
-                        'listStyleNames' => [],
-                        'dataStyleCount' => 0,
-                        'dataStyleNames' => [],
-                        'tableTemplateCount' => 0,
-                        'tableTemplateNames' => [],
-                        'pageLayoutCount' => 0,
-                        'pageLayoutNames' => [],
-                        'masterPageCount' => 0,
-                        'masterPageNames' => [],
-                        'automaticStyleCount' => 0,
-                        'automaticStyleNames' => [],
-                        'automaticStyleDefinitions' => [],
-                        'masterStyleCount' => 0,
-                        'sourceContainerCounts' => [],
-                    ];
-                }
+                $ensurePartItem($part);
 
                 $countKey = $config['countKey'];
                 $namesKey = $config['namesKey'];
@@ -3087,6 +3098,21 @@ final class OdfReader
                 }
             }
         }
+
+        $diagnosticItems = $this->stylePackageDiagnosticItems($styleDiagnostics, $styleCatalog);
+        $diagnosticSourceParts = [];
+        foreach ($diagnosticItems as $diagnostic) {
+            $part = $diagnostic['sourcePart'] ?? null;
+            if (!is_string($part) || $part === '') {
+                continue;
+            }
+
+            $ensurePartItem($part);
+            $itemsByPart[$part]['diagnostics'][] = $diagnostic;
+            $diagnosticSourceParts[] = $part;
+        }
+        $diagnosticSourceParts = array_values(array_unique($diagnosticSourceParts));
+        sort($diagnosticSourceParts, SORT_STRING);
 
         foreach ($collections as $collectionName => $_config) {
             $definitionTypeCounts[$collectionName] = $definitionTypeCounts[$collectionName] ?? 0;
@@ -3139,6 +3165,10 @@ final class OdfReader
                     ];
                 });
             }
+            if (is_array($item['diagnostics'])) {
+                $item['diagnosticCount'] = count($item['diagnostics']);
+                $item['diagnosticCodeCounts'] = $this->diagnosticCodeCounts($item['diagnostics']);
+            }
 
             $items[] = self::withoutEmpty($item + [
                 'declaredInManifest' => is_array($manifestItem),
@@ -3169,12 +3199,78 @@ final class OdfReader
             'automaticStyleDefinitions' => $automaticStyleDefinitions,
             'masterStyleDefinitionCount' => $masterStyleDefinitionCount,
             'sourceParts' => array_values(array_map(static fn (array $item): string => (string) $item['part'], $items)),
+            'diagnosticCount' => count($diagnosticItems),
+            'diagnosticCodeCounts' => $this->diagnosticCodeCounts($diagnosticItems),
+            'diagnosticSourceParts' => $diagnosticSourceParts,
+            'diagnostics' => $diagnosticItems,
             'definitionTypeCounts' => $definitionTypeCounts,
             'sourceContainerCounts' => $sourceContainerCounts,
             'byteExposurePolicy' => 'odf-style-package-provenance-metadata-only',
             'canExposeBytes' => false,
             'items' => $items,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @param array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>, diagnostics:list<array<string, mixed>>} $styleCatalog
+     * @return list<array<string, mixed>>
+     */
+    private function stylePackageDiagnosticItems(array $diagnostics, array $styleCatalog): array
+    {
+        $items = [];
+        foreach ($diagnostics as $diagnostic) {
+            if (!is_array($diagnostic)) {
+                continue;
+            }
+
+            $items[] = self::withoutEmpty($diagnostic + $this->styleDiagnosticSourceMetadata($diagnostic, $styleCatalog));
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param array<string, mixed> $diagnostic
+     * @param array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>, diagnostics:list<array<string, mixed>>} $styleCatalog
+     * @return array<string, mixed>
+     */
+    private function styleDiagnosticSourceMetadata(array $diagnostic, array $styleCatalog): array
+    {
+        $sourcePart = $diagnostic['sourcePart'] ?? null;
+        if (is_string($sourcePart) && $sourcePart !== '') {
+            return [
+                'sourcePart' => $sourcePart,
+                'sourceContainer' => is_string($diagnostic['sourceContainer'] ?? null) ? $diagnostic['sourceContainer'] : null,
+            ];
+        }
+
+        foreach ([
+            'styleName' => 'styles',
+            'listStyleName' => 'listStyles',
+            'dataStyleName' => 'dataStyles',
+            'tableTemplateName' => 'tableTemplates',
+            'pageLayoutName' => 'pageLayouts',
+            'masterPageName' => 'masterPages',
+            'fontFaceName' => 'fontFaces',
+        ] as $diagnosticKey => $collectionName) {
+            $name = $diagnostic[$diagnosticKey] ?? null;
+            if (!is_string($name) || $name === '') {
+                continue;
+            }
+
+            $definition = $styleCatalog[$collectionName][$name] ?? null;
+            if (!is_array($definition)) {
+                continue;
+            }
+
+            return [
+                'sourcePart' => is_string($definition['sourcePart'] ?? null) ? $definition['sourcePart'] : null,
+                'sourceContainer' => is_string($definition['sourceContainer'] ?? null) ? $definition['sourceContainer'] : null,
+            ];
+        }
+
+        return [];
     }
 
     /**
