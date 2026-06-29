@@ -742,7 +742,32 @@ final class BibtexCslProcessor
             $item['title'] = $title;
         }
 
-        $containerTitle = $this->composedTitle($fields, ['journaltitle', 'journal', 'booktitle'], ['journalsubtitle', 'booksubtitle']);
+        $containerTitle = $this->composedTitle(
+            $fields,
+            [
+                'journaltitle',
+                'journal-title',
+                'journal',
+                'booktitle',
+                'book-title',
+                'container-title',
+                'container-title-text',
+                'containertitle',
+                'containertitletext',
+                'publication-title',
+                'publicationtitle',
+            ],
+            [
+                'journalsubtitle',
+                'journal-subtitle',
+                'booksubtitle',
+                'book-subtitle',
+                'container-subtitle',
+                'containersubtitle',
+                'publication-subtitle',
+                'publicationsubtitle',
+            ]
+        );
         if ($containerTitle !== null && $containerTitle !== '') {
             $item['container-title'] = $containerTitle;
         }
@@ -820,9 +845,9 @@ final class BibtexCslProcessor
             'reprint-date-addon' => ['reprintdateaddon', 'reprintdate-addon', 'reprint-date-addon', 'reprintdateaddendum', 'reprint-date-addendum'],
             'event-date-addon' => ['eventdateaddon', 'eventdate-addon', 'event-date-addon'],
             'accessed-date-addon' => ['urldateaddon', 'urldate-addon', 'url-date-addon', 'accesseddateaddon', 'accessed-date-addon'],
-            'short-title' => ['shorttitle'],
-            'title-addon' => ['titleaddon'],
-            'container-title-addon' => ['journaltitleaddon', 'booktitleaddon'],
+            'short-title' => ['shorttitle', 'short-title', 'title-short'],
+            'title-addon' => ['titleaddon', 'title-addon'],
+            'container-title-addon' => ['journaltitleaddon', 'booktitleaddon', 'journal-title-addon', 'book-title-addon', 'container-title-addon', 'containertitleaddon'],
             'main-title-addon' => ['maintitleaddon', 'main-title-addon'],
             'reviewed-genre' => ['reviewedgenre', 'reviewed-genre', 'reviewgenre', 'review-genre'],
             'volume-title-short' => ['shortvolumetitle', 'short-volume-title', 'volumetitleshort', 'volume-title-short'],
@@ -856,6 +881,7 @@ final class BibtexCslProcessor
             'number-of-volumes' => ['volumes'],
             'issue' => ['number', 'issue'],
             'page' => ['pages', 'page'],
+            'page-first' => ['page-first', 'pagefirst'],
             'pagination' => ['pagination', 'page-label'],
             'book-pagination' => ['bookpagination', 'book-pagination'],
             'article-number' => ['eid', 'article-number', 'articlenumber'],
@@ -874,18 +900,18 @@ final class BibtexCslProcessor
             'scale' => ['scale'],
             'DOI' => ['doi'],
             'URL' => ['url'],
-            'URL-label' => ['urldescription', 'urltitle', 'urllabel', 'url-label'],
+            'URL-label' => ['urldescription', 'urltitle', 'urllabel', 'url-label', 'url-description'],
             'rights' => ['rights', 'copyright', 'license', 'licence'],
             'publisher' => ['publisher', 'institution', 'school', 'organization'],
             'publisher-place' => ['address', 'location', 'publisher-place'],
-            'collection-title' => ['series', 'series-title', 'seriestitle', 'series-title-text', 'seriestitletext', 'collection-title', 'collectiontitle'],
+            'collection-title' => ['series', 'series-title', 'seriestitle', 'series-title-text', 'seriestitletext', 'collection-title', 'collectiontitle', 'collection-title-text', 'collectiontitletext'],
             'collection-title-short' => ['shortseries', 'short-series', 'series-short', 'series-title-short', 'seriestitleshort', 'shortcollection', 'collection-title-short', 'collectiontitleshort'],
             'collection-number' => ['seriesnumber', 'series-number', 'collectionnumber', 'collection-number'],
             'version' => ['version'],
             'status' => ['status', 'publication-status', 'publicationstatus', 'pubstate'],
             'medium' => ['howpublished', 'medium'],
-            'ISBN' => ['isbn'],
-            'ISSN' => ['issn'],
+            'ISBN' => ['isbn', 'isbn13', 'isbn-13', 'isbn10', 'isbn-10', 'eisbn', 'e-isbn', 'electronicisbn', 'electronic-isbn'],
+            'ISSN' => ['issn', 'printissn', 'print-issn', 'pissn', 'p-issn', 'eissn', 'e-issn', 'electronicissn', 'electronic-issn', 'onlineissn', 'online-issn', 'issnonline', 'issn-online'],
             'ISAN' => ['isan'],
             'ISMN' => ['ismn'],
             'ISRN' => ['isrn'],
@@ -935,6 +961,13 @@ final class BibtexCslProcessor
                 continue;
             }
             $item[$target] = $target === 'page' ? str_replace('--', '-', $value) : $value;
+        }
+
+        if (($item['page-first'] ?? '') === '') {
+            $pageFirst = $this->firstPageFromRange((string) ($item['page'] ?? ''));
+            if ($pageFirst !== '') {
+                $item['page-first'] = $pageFirst;
+            }
         }
 
         foreach ([
@@ -1753,6 +1786,18 @@ final class BibtexCslProcessor
         }
 
         return null;
+    }
+
+    private function firstPageFromRange(string $pages): string
+    {
+        $pages = trim($pages);
+        if ($pages === '') {
+            return '';
+        }
+
+        $parts = preg_split('/\s*(?:[-\x{2010}-\x{2015}]|,|&|\band\b)\s*/u', $pages, 2);
+
+        return trim((string) ($parts[0] ?? $pages));
     }
 
     /**

@@ -94,6 +94,126 @@ BIB;
         $t->same('Import note attached', $item['note']);
         $t->same('Nia Ng. Obscure Archive Packet: Source Review Appendix. 2026. https://example.test/preprint.', $bibliography);
     },
+    'carries compact biblatex csl aliases in legacy handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@article{alias-journal,
+  author              = {Doe, Jane},
+  title               = {Alias Journal Packet},
+  title-short         = {Alias packet},
+  title-addon         = {review appendix},
+  journal-title       = {Journal of Alias Imports},
+  journal-subtitle    = {Source Desk},
+  journal-title-addon = {online dossier},
+  date                = {2026},
+  pages               = {A12--A18},
+  eISSN               = {EISSN 2468 1357},
+  url                 = {https://example.test/alias-journal},
+  url-description     = {archived review copy}
+}
+
+@incollection{alias-chapter,
+  author                = {Ng, Nia},
+  title                 = {Alias Chapter Packet},
+  book-title            = {Migration Alias Handbook},
+  book-subtitle         = {Reviewer Edition},
+  book-title-addon      = {internal packet},
+  collection-title-text = {Alias Review Series},
+  date                  = {2025},
+  pages                 = {77--81},
+  isbn13                = {ISBN-13: 978-1-4028-9462-6}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $journal = $items['alias-journal'];
+        $chapter = $items['alias-chapter'];
+
+        $t->same('article-journal', $journal['type']);
+        $t->same('Alias packet', $journal['short-title']);
+        $t->same('review appendix', $journal['title-addon']);
+        $t->same('Journal of Alias Imports: Source Desk', $journal['container-title']);
+        $t->same('online dossier', $journal['container-title-addon']);
+        $t->same('A12-A18', $journal['page']);
+        $t->same('A12', $journal['page-first']);
+        $t->same('2468-1357', $journal['ISSN']);
+        $t->same('archived review copy', $journal['URL-label']);
+        $t->same('Journal of Alias Imports', $journal['rawBibtex']['fields']['journal-title']);
+        $t->same('EISSN 2468 1357', $journal['rawBibtex']['fields']['eissn']);
+        $t->same('chapter', $chapter['type']);
+        $t->same('Migration Alias Handbook: Reviewer Edition', $chapter['container-title']);
+        $t->same('internal packet', $chapter['container-title-addon']);
+        $t->same('Alias Review Series', $chapter['collection-title']);
+        $t->same('77', $chapter['page-first']);
+        $t->same('978-1-4028-9462-6', $chapter['ISBN']);
+        $t->same('Migration Alias Handbook', $chapter['rawBibtex']['fields']['book-title']);
+        $t->same('ISBN-13: 978-1-4028-9462-6', $chapter['rawBibtex']['fields']['isbn13']);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Alias Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-alias-review</id>
+    <updated>2026-06-29T00:45:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="short-title"/>
+        <text variable="title-addon"/>
+        <text variable="container-title"/>
+        <text variable="container-title-addon"/>
+        <text variable="collection-title"/>
+        <text variable="page-first"/>
+        <text variable="ISSN"/>
+        <text variable="ISBN"/>
+        <text variable="url-label"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="container-title"/>
+      <text variable="container-title-addon"/>
+      <text variable="collection-title"/>
+      <text variable="page-first"/>
+      <text variable="ISSN"/>
+      <text variable="ISBN"/>
+      <text variable="url-label"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledJournal = $styled->item('alias-journal');
+        $styledChapter = $styled->item('alias-chapter');
+        $t->same('Bounded Legacy BibLaTeX Alias Review', $styled->cslStyleSummary()['title'] ?? null);
+        $t->same('A12', $styledJournal['pageFirst'] ?? null);
+        $t->same('2468-1357', $styledJournal['issn'] ?? null);
+        $t->same('archived review copy', $styledJournal['urlLabel'] ?? null);
+        $t->same('77', $styledChapter['pageFirst'] ?? null);
+        $t->same('978-1-4028-9462-6', $styledChapter['isbn'] ?? null);
+        $t->same('[Doe | Alias packet | review appendix | Journal of Alias Imports: Source Desk | online dossier | A12 | 2468-1357 | archived review copy; Ng | Migration Alias Handbook: Reviewer Edition | internal packet | Alias Review Series | 77 | 978-1-4028-9462-6]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'alias-journal', 'text' => '[@alias-journal]']),
+            new AstNode('citation', ['id' => 'alias-chapter', 'text' => '[@alias-chapter]']),
+        ]));
+        $t->same('Alias Journal Packet :: Journal of Alias Imports: Source Desk :: online dossier :: A12 :: 2468-1357 :: archived review copy', $styled->renderBibliographyEntry('alias-journal'));
+        $t->same('Alias Chapter Packet :: Migration Alias Handbook: Reviewer Edition :: internal packet :: Alias Review Series :: 77 :: 978-1-4028-9462-6', $styled->renderBibliographyEntry('alias-chapter'));
+
+        $document = (new MarkdownReader())->read('Alias journal @alias-journal and chapter [@alias-chapter] keep compact CSL metadata.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['alias-journal', 'alias-chapter'], $handoff['citedKeys']);
+        $t->same('A12', $handoff['bibliography']->children[0]->attr('cslItem')['page-first'] ?? null);
+        $t->same('978-1-4028-9462-6', $handoff['bibliography']->children[1]->attr('cslItem')['ISBN'] ?? null);
+        $t->contains('<p>Alias journal Doe (2026) and chapter [Ng | Migration Alias Handbook: Reviewer Edition | internal packet | Alias Review Series | 77 | 978-1-4028-9462-6] keep compact CSL metadata.</p>', $blocks);
+        $t->contains('<dt>Doe 2026</dt><dd>Alias Journal Packet :: Journal of Alias Imports: Source Desk :: online dossier :: A12 :: 2468-1357 :: archived review copy</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Alias Chapter Packet :: Migration Alias Handbook: Reviewer Edition :: internal packet :: Alias Review Series :: 77 :: 978-1-4028-9462-6</dd>', $blocks);
+    },
     'carries legacy biblatex registry identifiers in bibliography handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @article{legacy-pubmed,
