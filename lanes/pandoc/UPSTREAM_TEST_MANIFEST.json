@@ -14,6 +14,8 @@
     "odfAttachmentLegacyDocumentResourceAssertions": 19,
     "mappedOdfThumbnailPackagePathCases": 1,
     "odfThumbnailPackagePathAssertions": 85,
+    "mappedOdfBeanShellPackageScriptCases": 1,
+    "odfBeanShellPackageScriptAssertions": 35,
     "upstream": {
         "name": "jgm/pandoc",
         "url": "https://github.com/jgm/pandoc",
@@ -511,6 +513,7 @@
             "mappedSharedOpcZipCentralDirectorySourceRecordCases": 1,
             "mappedDocxDiagramUnqualifiedEmbeddedPackageCases": 1,
             "mappedOdfRubyPackageScriptCases": 1,
+            "mappedOdfBeanShellPackageScriptCases": 1,
             "mappedOdfStyleDiagnosticsCases": 1,
             "mappedOdfAttachmentLegacyDocumentResourceCases": 1,
             "mappedOdfThumbnailPackagePathCases": 1
@@ -1614,6 +1617,7 @@
         "mappedJsonNativeRawTexInlineTextCases": 1,
         "mappedSharedOpcZipCentralDirectorySourceRecordCases": 1,
         "mappedOdfRubyPackageScriptCases": 1,
+        "mappedOdfBeanShellPackageScriptCases": 1,
         "mappedOdfStyleDiagnosticsCases": 1,
         "mappedOdtStyleDiagnosticsCases": 1,
         "mappedOdfAttachmentLegacyDocumentResourceCases": 1,

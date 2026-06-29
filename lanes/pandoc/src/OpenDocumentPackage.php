@@ -7119,6 +7119,9 @@ final class OpenDocumentPackage
         if ($expectedBase === 'text/x-ruby') {
             return in_array($mediaTypeBase, ['text/x-ruby', 'application/x-ruby'], true);
         }
+        if ($expectedBase === 'application/x-beanshell') {
+            return in_array($mediaTypeBase, ['application/x-beanshell', 'text/x-beanshell', 'application/x-bsh'], true);
+        }
 
         return $mediaTypeBase === $expectedBase;
     }
@@ -7162,6 +7165,7 @@ final class OpenDocumentPackage
                 },
             default => match ($mediaTypeBase) {
                 'application/javascript', 'text/javascript' => 'javascript',
+                'application/x-beanshell', 'text/x-beanshell', 'application/x-bsh' => 'beanshell',
                 'application/java-archive' => 'java-archive',
                 'application/java-vm' => 'java-class',
                 'text/x-python' => 'python',

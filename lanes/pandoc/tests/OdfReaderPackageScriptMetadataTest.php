@@ -10,6 +10,7 @@ $basicLibraryXml = '<library:library xmlns:library="http://openoffice.org/2000/l
 $basicModuleXml = '<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Review">Sub Approve' . "\n" . 'End Sub</script:module>';
 $javaScript = 'function approveReview() { return false; }';
 $rubyScript = 'puts "package review"';
+$beanShellScript = 'print("package review");';
 $encryptedScript = 'encrypted macro payload';
 $orphanPython = 'print("orphan review")';
 
@@ -26,6 +27,7 @@ $manifestXml = <<<'XML'
   <manifest:file-entry manifest:full-path="Scripts/" manifest:media-type=""/>
   <manifest:file-entry manifest:full-path="Scripts/review.js" manifest:media-type="application/javascript" manifest:size="__JS_SIZE__"/>
   <manifest:file-entry manifest:full-path="Scripts/ruby/review.rb" manifest:media-type="text/x-ruby" manifest:size="__RUBY_SIZE__"/>
+  <manifest:file-entry manifest:full-path="Scripts/beanshell/review.bsh" manifest:media-type="text/x-beanshell" manifest:size="__BEANSHELL_SIZE__"/>
   <manifest:file-entry manifest:full-path="Scripts/missing.js" manifest:media-type="application/javascript"/>
   <manifest:file-entry manifest:full-path="Scripts/encrypted.js" manifest:media-type="application/javascript" manifest:size="2048">
     <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="script-checksum"/>
@@ -34,8 +36,14 @@ $manifestXml = <<<'XML'
 XML;
 
 $manifestXml = str_replace(
-    ['__LIBRARY_SIZE__', '__BASIC_SIZE__', '__JS_SIZE__', '__RUBY_SIZE__'],
-    [(string) strlen($basicLibraryXml), (string) strlen($basicModuleXml), (string) strlen($javaScript), (string) strlen($rubyScript)],
+    ['__LIBRARY_SIZE__', '__BASIC_SIZE__', '__JS_SIZE__', '__RUBY_SIZE__', '__BEANSHELL_SIZE__'],
+    [
+        (string) strlen($basicLibraryXml),
+        (string) strlen($basicModuleXml),
+        (string) strlen($javaScript),
+        (string) strlen($rubyScript),
+        (string) strlen($beanShellScript),
+    ],
     $manifestXml
 );
 
@@ -87,6 +95,7 @@ $buildPackage = static fn (?string $manifestOverride = null): ZipPackage => ZipP
     ['name' => 'Scripts/', 'data' => '', 'compressionMethod' => 0],
     ['name' => 'Scripts/review.js', 'data' => $javaScript, 'compressionMethod' => 0],
     ['name' => 'Scripts/ruby/review.rb', 'data' => $rubyScript, 'compressionMethod' => 0],
+    ['name' => 'Scripts/beanshell/review.bsh', 'data' => $beanShellScript, 'compressionMethod' => 0],
     ['name' => 'Scripts/encrypted.js', 'data' => $encryptedScript, 'compressionMethod' => 0],
     ['name' => 'Scripts/orphan.py', 'data' => $orphanPython, 'compressionMethod' => 0],
 ], 'odt reader script package metadata');
@@ -111,6 +120,7 @@ return [
         $basicModuleXml,
         $javaScript,
         $rubyScript,
+        $beanShellScript,
         $encryptedScript,
         $orphanPython
     ): void {
@@ -124,12 +134,12 @@ return [
         $t->same($scripts, $result['document']->attr('packageScripts'));
         $t->same($scripts, $result['metadata']['odfPackageScripts']);
         $t->same($scripts, $result['importReport']['packageScripts']);
-        $t->same(9, $scripts['count']);
-        $t->same(7, $scripts['fileCount']);
+        $t->same(10, $scripts['count']);
+        $t->same(8, $scripts['fileCount']);
         $t->same(2, $scripts['directoryCount']);
-        $t->same(8, $scripts['storedPartCount']);
-        $t->same(5, $scripts['readableCount']);
-        $t->same(8, $scripts['declaredCount']);
+        $t->same(9, $scripts['storedPartCount']);
+        $t->same(6, $scripts['readableCount']);
+        $t->same(9, $scripts['declaredCount']);
         $t->same(1, $scripts['undeclaredCount']);
         $t->same(1, $scripts['missingCount']);
         $t->same(1, $scripts['encryptedCount']);
@@ -141,7 +151,7 @@ return [
             'odf-script-undeclared-package-part',
         ], $scripts['issueCodes']);
         $t->same(['basic', 'scripts'], $scripts['scriptContainers']);
-        $t->same(['basic-library-index', 'basic-module', 'javascript', 'python', 'ruby', 'script-directory'], $scripts['scriptKinds']);
+        $t->same(['basic-library-index', 'basic-module', 'beanshell', 'javascript', 'python', 'ruby', 'script-directory'], $scripts['scriptKinds']);
         $t->same('script-package-bytes-blocked', $scripts['byteExposurePolicy']);
         $t->same('package-script-metadata-only', $scripts['reviewPolicy']);
 
@@ -213,6 +223,22 @@ return [
         $t->same(false, $ruby['canExposeAsDocumentMedia']);
         $t->same('script-package-bytes-blocked', $manifestByPart['Scripts/ruby/review.rb']['byteExposurePolicy']);
 
+        $beanShell = $items['Scripts/beanshell/review.bsh'];
+        $t->same('scripts', $beanShell['scriptContainer']);
+        $t->same('beanshell', $beanShell['scriptKind']);
+        $t->same('beanshell/review.bsh', $beanShell['scriptPath']);
+        $t->same('beanshell', $beanShell['scriptLibrary']);
+        $t->same('review', $beanShell['scriptModule']);
+        $t->same('bsh', $beanShell['extension']);
+        $t->same('text/x-beanshell', $beanShell['mediaType']);
+        $t->same(true, $beanShell['mediaTypeValid']);
+        $t->same(true, $beanShell['valid']);
+        $t->same(strlen($beanShellScript), $beanShell['byteLength']);
+        $t->same(sprintf('%08x', crc32($beanShellScript)), $beanShell['crc32']);
+        $t->same(false, $beanShell['canExposeBytes']);
+        $t->same(false, $beanShell['canExposeAsDocumentMedia']);
+        $t->same('script-package-bytes-blocked', $manifestByPart['Scripts/beanshell/review.bsh']['byteExposurePolicy']);
+
         $missing = $items['Scripts/missing.js'];
         $t->same(false, $missing['exists']);
         $t->same(null, $missing['byteLength']);
@@ -240,6 +266,7 @@ return [
         $t->same(['Pictures/hero.png'], array_column($result['media'], 'part'));
         $t->same(['manifest-declared', 'script-package'], $provenance['parts']['Scripts/review.js']['roles']);
         $t->same(['manifest-declared', 'script-package'], $provenance['parts']['Scripts/ruby/review.rb']['roles']);
+        $t->same(['manifest-declared', 'script-package'], $provenance['parts']['Scripts/beanshell/review.bsh']['roles']);
         $t->same(['script-package', 'undeclared-package-entry'], $provenance['parts']['Scripts/orphan.py']['roles']);
         $t->same(1, $provenance['undeclaredRoleCounts']['script-package']);
         $t->same('Scripts/orphan.py', $result['importReport']['manifest']['undeclaredEntries'][0]['part']);
@@ -249,6 +276,13 @@ return [
         $compactItems = $indexBy($compactScripts['items'], 'part');
         $compactReview = $indexBy($compactSummary['manifestReview']['items'], 'path');
         $t->same($scripts['scriptKinds'], $compactScripts['scriptKinds']);
+        $t->same('beanshell', $compactItems['Scripts/beanshell/review.bsh']['scriptKind']);
+        $t->same('text/x-beanshell', $compactItems['Scripts/beanshell/review.bsh']['mediaType']);
+        $t->same('beanshell/review.bsh', $compactItems['Scripts/beanshell/review.bsh']['scriptPath']);
+        $t->same('beanshell', $compactItems['Scripts/beanshell/review.bsh']['scriptLibrary']);
+        $t->same(false, $compactItems['Scripts/beanshell/review.bsh']['canExposeBytes']);
+        $t->same(false, $compactItems['Scripts/beanshell/review.bsh']['canExposeAsDocumentMedia']);
+        $t->same('script-package-bytes-blocked', $compactReview['Scripts/beanshell/review.bsh']['byteExposurePolicy']);
         $t->same('ruby', $compactItems['Scripts/ruby/review.rb']['scriptKind']);
         $t->same('text/x-ruby', $compactItems['Scripts/ruby/review.rb']['mediaType']);
         $t->same('ruby/review.rb', $compactItems['Scripts/ruby/review.rb']['scriptPath']);
@@ -257,6 +291,39 @@ return [
         $t->same(false, $compactItems['Scripts/ruby/review.rb']['canExposeAsDocumentMedia']);
         $t->same('script-package-bytes-blocked', $compactReview['Scripts/ruby/review.rb']['byteExposurePolicy']);
         $t->same(['Pictures/hero.png'], array_column($compactSummary['mediaParts'], 'path'));
+    },
+    'accepts ODT BeanShell package script media-type aliases as metadata-only review data' => static function (TestRunner $t) use (
+        $buildPackage,
+        $indexBy,
+        $manifestXml
+    ): void {
+        $beanShellAliasManifest = str_replace(
+            'manifest:full-path="Scripts/beanshell/review.bsh" manifest:media-type="text/x-beanshell"',
+            'manifest:full-path="Scripts/beanshell/review.bsh" manifest:media-type="application/x-bsh"',
+            $manifestXml
+        );
+        $package = $buildPackage($beanShellAliasManifest);
+        $result = (new OdfReader())->readPackage($package);
+        $scripts = $result['packageScripts'];
+        $items = $indexBy($scripts['items'], 'part');
+        $manifestByPart = $indexBy($result['manifest'], 'part');
+
+        $t->same(0, $scripts['invalidMediaTypeCount']);
+        $t->same(['basic-library-index', 'basic-module', 'beanshell', 'javascript', 'python', 'ruby', 'script-directory'], $scripts['scriptKinds']);
+        $t->same('application/x-bsh', $items['Scripts/beanshell/review.bsh']['mediaType']);
+        $t->same('application/x-bsh', $items['Scripts/beanshell/review.bsh']['mediaTypeBase']);
+        $t->same('beanshell', $items['Scripts/beanshell/review.bsh']['scriptKind']);
+        $t->same(true, $items['Scripts/beanshell/review.bsh']['valid']);
+        $t->same([], $items['Scripts/beanshell/review.bsh']['issues']);
+        $t->same(false, $items['Scripts/beanshell/review.bsh']['canExposeBytes']);
+        $t->same('script-package-bytes-blocked', $manifestByPart['Scripts/beanshell/review.bsh']['byteExposurePolicy']);
+
+        $compactSummary = OpenDocumentPackage::fromPackage($package)->summarize();
+        $compactItems = $indexBy($compactSummary['packageScripts']['items'], 'part');
+        $t->same('application/x-bsh', $compactItems['Scripts/beanshell/review.bsh']['mediaType']);
+        $t->same('beanshell', $compactItems['Scripts/beanshell/review.bsh']['scriptKind']);
+        $t->same(true, $compactItems['Scripts/beanshell/review.bsh']['valid']);
+        $t->same(false, $compactItems['Scripts/beanshell/review.bsh']['canExposeBytes']);
     },
     'accepts ODT ruby package script media-type aliases as metadata-only review data' => static function (TestRunner $t) use (
         $buildPackage,
@@ -275,7 +342,7 @@ return [
         $manifestByPart = $indexBy($result['manifest'], 'part');
 
         $t->same(0, $scripts['invalidMediaTypeCount']);
-        $t->same(['basic-library-index', 'basic-module', 'javascript', 'python', 'ruby', 'script-directory'], $scripts['scriptKinds']);
+        $t->same(['basic-library-index', 'basic-module', 'beanshell', 'javascript', 'python', 'ruby', 'script-directory'], $scripts['scriptKinds']);
         $t->same('application/x-ruby', $items['Scripts/ruby/review.rb']['mediaType']);
         $t->same('application/x-ruby', $items['Scripts/ruby/review.rb']['mediaTypeBase']);
         $t->same('ruby', $items['Scripts/ruby/review.rb']['scriptKind']);
