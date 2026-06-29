@@ -13764,6 +13764,22 @@ return [
         foreach ($summary['handoffDeclaredContentTypeTopLevelSummaries'] as $topLevelSummary) {
             $handoffByTopLevel[$topLevelSummary['declaredContentTypeTopLevel']] = $topLevelSummary;
         }
+        $bySubtype = [];
+        foreach ($summary['declaredContentTypeSubtypeSummaries'] as $subtypeSummary) {
+            $bySubtype[$subtypeSummary['declaredContentTypeSubtype']] = $subtypeSummary;
+        }
+        $handoffBySubtype = [];
+        foreach ($summary['handoffDeclaredContentTypeSubtypeSummaries'] as $subtypeSummary) {
+            $handoffBySubtype[$subtypeSummary['declaredContentTypeSubtype']] = $subtypeSummary;
+        }
+        $byStructuredSuffix = [];
+        foreach ($summary['declaredContentTypeStructuredSuffixSummaries'] as $suffixSummary) {
+            $byStructuredSuffix[$suffixSummary['declaredContentTypeStructuredSuffix']] = $suffixSummary;
+        }
+        $handoffByStructuredSuffix = [];
+        foreach ($summary['handoffDeclaredContentTypeStructuredSuffixSummaries'] as $suffixSummary) {
+            $handoffByStructuredSuffix[$suffixSummary['declaredContentTypeStructuredSuffix']] = $suffixSummary;
+        }
 
         $mainType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
         $relsType = 'application/vnd.openxmlformats-package.relationships+xml';
@@ -13777,6 +13793,10 @@ return [
         $t->same(4, $summary['handoffDeclaredContentTypeFamilySummaryCount']);
         $t->same(2, $summary['declaredContentTypeTopLevelSummaryCount']);
         $t->same(2, $summary['handoffDeclaredContentTypeTopLevelSummaryCount']);
+        $t->same(5, $summary['declaredContentTypeSubtypeSummaryCount']);
+        $t->same(3, $summary['handoffDeclaredContentTypeSubtypeSummaryCount']);
+        $t->same(1, $summary['declaredContentTypeStructuredSuffixSummaryCount']);
+        $t->same(1, $summary['handoffDeclaredContentTypeStructuredSuffixSummaryCount']);
         $t->same(1, $summary['invalidDeclaredContentTypeEntryCount']);
         $t->same(1, $summary['handoffInvalidDeclaredContentTypeEntryCount']);
         $t->same(1, $summary['invalidDeclaredContentTypeFamilyEntryCount']);
@@ -13929,6 +13949,141 @@ return [
         $t->same(2, $handoffByTopLevel['application']['entryCount']);
         $t->same(['word/document.xml', 'word/_rels/document.xml.rels'], $handoffByTopLevel['application']['handoffEntryNames']);
         $t->same($byTopLevel['image'], $handoffByTopLevel['image']);
+
+        $mainSubtype = 'vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
+        $relsSubtype = 'vnd.openxmlformats-package.relationships+xml';
+        $t->same([
+            'octet-stream',
+            'svg+xml',
+            $mainSubtype,
+            $relsSubtype,
+            'xml',
+        ], array_keys($bySubtype));
+        $t->same(['svg+xml', $mainSubtype, $relsSubtype], array_keys($handoffBySubtype));
+        $t->same([
+            'declaredContentTypeSubtype' => $mainSubtype,
+            'entryCount' => 1,
+            'parameterEntryCount' => 0,
+            'missingEntryCount' => 0,
+            'failedEntryCount' => 0,
+            'selectedUniqueEntryCount' => 1,
+            'handoffUniqueEntryCount' => 1,
+            'selectedCompressedBytes' => strlen($documentXml),
+            'selectedUncompressedBytes' => strlen($documentXml),
+            'handoffCompressedBytes' => strlen($documentXml),
+            'handoffUncompressedBytes' => strlen($documentXml),
+            'declaredContentTypeTopLevels' => ['application'],
+            'declaredContentTypeBases' => [$mainType],
+            'declaredContentTypeSubtypes' => [$mainSubtype],
+            'declaredContentTypeStructuredSuffixes' => ['xml'],
+            'sources' => ['content-types-override'],
+            'roles' => ['main-document'],
+            'entryNames' => ['word/document.xml'],
+            'selectedEntryNames' => ['word/document.xml'],
+            'handoffEntryNames' => ['word/document.xml'],
+            'missingEntryNames' => [],
+            'failedEntryNames' => [],
+            'issues' => [],
+            'issueCounts' => [],
+        ], $bySubtype[$mainSubtype]);
+        $t->same([
+            'declaredContentTypeSubtype' => 'octet-stream',
+            'entryCount' => 1,
+            'parameterEntryCount' => 0,
+            'missingEntryCount' => 0,
+            'failedEntryCount' => 1,
+            'selectedUniqueEntryCount' => 1,
+            'handoffUniqueEntryCount' => 0,
+            'selectedCompressedBytes' => strlen($largeBytes),
+            'selectedUncompressedBytes' => strlen($largeBytes),
+            'handoffCompressedBytes' => 0,
+            'handoffUncompressedBytes' => 0,
+            'declaredContentTypeTopLevels' => ['application'],
+            'declaredContentTypeBases' => ['application/octet-stream'],
+            'declaredContentTypeSubtypes' => ['octet-stream'],
+            'declaredContentTypeStructuredSuffixes' => [],
+            'sources' => ['content-types-default'],
+            'roles' => ['media'],
+            'entryNames' => ['word/media/raw.bin'],
+            'selectedEntryNames' => ['word/media/raw.bin'],
+            'handoffEntryNames' => [],
+            'missingEntryNames' => [],
+            'failedEntryNames' => ['word/media/raw.bin'],
+            'issues' => ['entry-uncompressed-size-exceeds-limit'],
+            'issueCounts' => ['entry-uncompressed-size-exceeds-limit' => 1],
+        ], $bySubtype['octet-stream']);
+        $t->same([
+            'declaredContentTypeSubtype' => 'xml',
+            'entryCount' => 1,
+            'parameterEntryCount' => 0,
+            'missingEntryCount' => 1,
+            'failedEntryCount' => 0,
+            'selectedUniqueEntryCount' => 0,
+            'handoffUniqueEntryCount' => 0,
+            'selectedCompressedBytes' => 0,
+            'selectedUncompressedBytes' => 0,
+            'handoffCompressedBytes' => 0,
+            'handoffUncompressedBytes' => 0,
+            'declaredContentTypeTopLevels' => ['application'],
+            'declaredContentTypeBases' => ['application/xml'],
+            'declaredContentTypeSubtypes' => ['xml'],
+            'declaredContentTypeStructuredSuffixes' => [],
+            'sources' => ['content-types-default'],
+            'roles' => ['optional-sidecar'],
+            'entryNames' => ['word/missing.xml'],
+            'selectedEntryNames' => [],
+            'handoffEntryNames' => [],
+            'missingEntryNames' => ['word/missing.xml'],
+            'failedEntryNames' => [],
+            'issues' => [],
+            'issueCounts' => [],
+        ], $bySubtype['xml']);
+        $t->same(false, isset($handoffBySubtype['octet-stream']));
+        $t->same(false, isset($handoffBySubtype['xml']));
+        $t->same(['word/media/vector.svg'], $handoffBySubtype['svg+xml']['handoffEntryNames']);
+
+        $suffixXmlBytes = strlen($documentXml) + strlen($relsXml) + strlen($svgBytes);
+        $t->same(['xml'], array_keys($byStructuredSuffix));
+        $t->same(['xml'], array_keys($handoffByStructuredSuffix));
+        $t->same([
+            'declaredContentTypeStructuredSuffix' => 'xml',
+            'entryCount' => 3,
+            'parameterEntryCount' => 1,
+            'missingEntryCount' => 0,
+            'failedEntryCount' => 0,
+            'selectedUniqueEntryCount' => 3,
+            'handoffUniqueEntryCount' => 3,
+            'selectedCompressedBytes' => $suffixXmlBytes,
+            'selectedUncompressedBytes' => $suffixXmlBytes,
+            'handoffCompressedBytes' => $suffixXmlBytes,
+            'handoffUncompressedBytes' => $suffixXmlBytes,
+            'declaredContentTypeTopLevels' => ['application', 'image'],
+            'declaredContentTypeBases' => [$mainType, $relsType, 'image/svg+xml'],
+            'declaredContentTypeSubtypes' => ['svg+xml', $mainSubtype, $relsSubtype],
+            'declaredContentTypeStructuredSuffixes' => ['xml'],
+            'sources' => ['content-types-default', 'content-types-override'],
+            'roles' => ['document-relationships', 'main-document', 'media'],
+            'entryNames' => [
+                'word/document.xml',
+                'word/_rels/document.xml.rels',
+                'word/media/vector.svg',
+            ],
+            'selectedEntryNames' => [
+                'word/document.xml',
+                'word/_rels/document.xml.rels',
+                'word/media/vector.svg',
+            ],
+            'handoffEntryNames' => [
+                'word/document.xml',
+                'word/_rels/document.xml.rels',
+                'word/media/vector.svg',
+            ],
+            'missingEntryNames' => [],
+            'failedEntryNames' => [],
+            'issues' => [],
+            'issueCounts' => [],
+        ], $byStructuredSuffix['xml']);
+        $t->same($byStructuredSuffix['xml'], $handoffByStructuredSuffix['xml']);
     },
 
     'summarizes readable zip handoff content digests for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
