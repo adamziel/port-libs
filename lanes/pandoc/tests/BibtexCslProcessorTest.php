@@ -1283,6 +1283,86 @@ XML);
         $t->contains('<p>Release state [Migration Manual | Review Sources | RS | 7 | 2 | 2.1.0 | revised | print-on-demand packet] stays visible.</p>', $blocks);
         $t->contains('<dt>Garcia 2026</dt><dd>Migration Manual :: Review Sources :: RS :: 7 :: 2 :: 2.1.0 :: revised :: print-on-demand packet</dd>', $blocks);
     },
+    'carries compact biblatex original publication aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{compact-original,
+  author                 = {Diaz, Dana},
+  title                  = {Migration Manual Reissue},
+  originaltitle          = {Manual de Migracion},
+  originalsubtitle       = {Appendix de Archivo},
+  originaltitleaddon     = {compact source note},
+  originalyear           = {2019},
+  originalmonth          = {7},
+  originalday            = {2},
+  originalpublisher      = {Archivo Desk},
+  originalpublisherplace = {Seville},
+  publisher              = {Review Press},
+  date                   = {2026}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $item = $processor->cslItems($source)['compact-original'];
+
+        $t->same('Migration Manual Reissue', $item['title']);
+        $t->same('Manual de Migracion: Appendix de Archivo', $item['original-title']);
+        $t->same('compact source note', $item['original-title-addon']);
+        $t->same([2019, 7, 2], $item['original-date']['date-parts'][0]);
+        $t->same('Archivo Desk', $item['original-publisher']);
+        $t->same('Seville', $item['original-publisher-place']);
+        $t->same('Manual de Migracion', $item['rawBibtex']['fields']['originaltitle']);
+        $t->same('2019', $item['rawBibtex']['fields']['originalyear']);
+
+        $styled = CitationCslProcessor::fromItems([$item])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Compact Original Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-compact-original-review</id>
+    <updated>2026-06-29T22:00:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="original-title"/>
+        <text variable="original-title-addon"/>
+        <date variable="original-date"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="original-title"/>
+      <text variable="original-title-addon"/>
+      <date variable="original-date"/>
+      <text variable="original-publisher"/>
+      <text variable="original-publisher-place"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledItem = $styled->item('compact-original');
+        $t->same('Bounded Legacy BibLaTeX Compact Original Review', $styled->cslStyleSummary()['title'] ?? null);
+        $t->same('Manual de Migracion: Appendix de Archivo', $styledItem['originalTitle'] ?? null);
+        $t->same('compact source note', $styledItem['originalTitleAddon'] ?? null);
+        $t->same('2019-07-02', $styledItem['originalDate']['display'] ?? null);
+        $t->same('[Migration Manual Reissue | Manual de Migracion: Appendix de Archivo | compact source note | 2019-07-02]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'compact-original', 'text' => '[@compact-original]']),
+        ]));
+        $t->same('Migration Manual Reissue :: Manual de Migracion: Appendix de Archivo :: compact source note :: 2019-07-02 :: Archivo Desk :: Seville', $styled->renderBibliographyEntry('compact-original'));
+
+        $document = (new MarkdownReader())->read('Compact original publication [@compact-original] remains visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['compact-original'], $handoff['citedKeys']);
+        $t->same([[2019, 7, 2]], $handoff['bibliography']->children[0]->attr('cslItem')['original-date']['date-parts'] ?? null);
+        $t->contains('<p>Compact original publication [Migration Manual Reissue | Manual de Migracion: Appendix de Archivo | compact source note | 2019-07-02] remains visible.</p>', $blocks);
+        $t->contains('<dt>Diaz 2026</dt><dd>Migration Manual Reissue :: Manual de Migracion: Appendix de Archivo :: compact source note :: 2019-07-02 :: Archivo Desk :: Seville</dd>', $blocks);
+    },
     'carries biblatex reprint title and original genre in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @book{legacy-facsimile,

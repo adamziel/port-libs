@@ -799,7 +799,11 @@ final class BibtexCslProcessor
             $item['issue-title'] = $issueTitle;
         }
 
-        $originalTitle = $this->composedTitle($fields, ['origtitle', 'original-title'], ['origsubtitle', 'original-subtitle']);
+        $originalTitle = $this->composedTitle(
+            $fields,
+            ['origtitle', 'originaltitle', 'original-title'],
+            ['origsubtitle', 'originalsubtitle', 'original-subtitle']
+        );
         if ($originalTitle !== null && $originalTitle !== '') {
             $item['original-title'] = $originalTitle;
         }
@@ -1138,7 +1142,15 @@ final class BibtexCslProcessor
             $item['accessed'] = ['date-parts' => [$accessed]];
         }
 
-        $originalDate = $this->datePartsFromFields($fields, ['origdate', 'original-date'], ['origyear', 'origmonth', 'origday']);
+        $originalDate = $this->datePartsFromFields(
+            $fields,
+            ['origdate', 'originaldate', 'original-date'],
+            ['origyear', 'origmonth', 'origday']
+        ) ?? $this->datePartsFromFields(
+            $fields,
+            [],
+            ['originalyear', 'originalmonth', 'originalday']
+        );
         if ($originalDate !== null) {
             $item['original-date'] = ['date-parts' => [$originalDate]];
         }
