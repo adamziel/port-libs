@@ -785,7 +785,15 @@ return [
                         'sha256',
                         substr($zip, $manifestEntry['localHeaderOffset'], $manifestEntry['localHeaderLength'])
                     ),
+                    'localRecordBytes' => $manifestEntry['localRecordBytes'],
+                    'localRecordSha256' => hash(
+                        'sha256',
+                        substr($zip, $manifestEntry['localRecordOffset'], $manifestEntry['localRecordBytes'])
+                    ),
                     'compressedDataSha256' => $entry['compressedDataSha256'],
+                    'usesDataDescriptor' => $manifestEntry['usesDataDescriptor'],
+                    'dataDescriptorBytes' => $manifestEntry['dataDescriptorBytes'],
+                    'dataDescriptorSha256' => $manifestEntry['dataDescriptorSha256'],
                     'centralDirectoryRecordSha256' => hash(
                         'sha256',
                         substr($zip, $manifestEntry['centralDirectoryRecordOffset'], $centralDirectoryRecordBytes)
@@ -826,7 +834,12 @@ return [
                 'compressedSize' => $entry['compressedSize'],
                 'uncompressedSize' => $entry['uncompressedSize'],
                 'localHeaderSha256' => $entry['localHeaderSha256'],
+                'localRecordBytes' => $entry['localRecordBytes'],
+                'localRecordSha256' => $entry['localRecordSha256'],
                 'compressedDataSha256' => $entry['compressedDataSha256'],
+                'usesDataDescriptor' => $entry['usesDataDescriptor'],
+                'dataDescriptorBytes' => $entry['dataDescriptorBytes'],
+                'dataDescriptorSha256' => $entry['dataDescriptorSha256'],
                 'centralDirectoryRecordSha256' => $entry['centralDirectoryRecordSha256'],
             ],
             $manifest['entries']
@@ -875,6 +888,64 @@ return [
         $t->same(hash('sha256', ''), $directoryEntry['compressedDataSha256']);
         $t->same($documentEntry['compressedDataEnd'], $mediaEntry['localHeaderOffset']);
         $t->same($mediaEntry['compressedDataEnd'], $directoryEntry['localHeaderOffset']);
+        $t->same($manifest, $raw['packageManifest']);
+        $t->same($manifest, $raw['strictImport']['packageManifest']);
+    },
+
+    'preflights zip package manifest data descriptor source records for package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>descriptor manifest source</w:p></w:body></w:document>';
+        $commentsXml = '<w:comments><w:comment>descriptor manifest sidecar</w:comment></w:comments>';
+        $commentsCompressed = gzdeflate($commentsXml);
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/comments.xml',
+                'data' => $commentsXml,
+                'method' => 8,
+                'descriptor' => true,
+            ],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+
+        $documentEntry = $manifest['entries'][0];
+        $commentsEntry = $manifest['entries'][1];
+
+        $t->same(1, $manifest['dataDescriptorEntryCount']);
+        $t->same(16, $manifest['dataDescriptorBytes']);
+        $t->same($documentEntry['localRecordBytes'] + $commentsEntry['localRecordBytes'], $manifest['localRecordBytes']);
+
+        $t->same(false, $documentEntry['usesDataDescriptor']);
+        $t->same(0, $documentEntry['dataDescriptorBytes']);
+        $t->same(null, $documentEntry['dataDescriptorOffset']);
+        $t->same(null, $documentEntry['dataDescriptorEnd']);
+        $t->same(null, $documentEntry['dataDescriptorSha256']);
+        $t->same($documentEntry['compressedDataEnd'], $documentEntry['localRecordEnd']);
+        $t->same(
+            hash('sha256', substr($zip, $documentEntry['localRecordOffset'], $documentEntry['localRecordBytes'])),
+            $documentEntry['localRecordSha256']
+        );
+
+        $t->same(true, $commentsEntry['usesDataDescriptor']);
+        $t->same($commentsEntry['compressedDataEnd'], $commentsEntry['dataDescriptorOffset']);
+        $t->same(16, $commentsEntry['dataDescriptorBytes']);
+        $t->same($commentsEntry['dataDescriptorOffset'] + 16, $commentsEntry['dataDescriptorEnd']);
+        $t->same($commentsEntry['dataDescriptorEnd'], $commentsEntry['localRecordEnd']);
+        $t->same(hash('sha256', $commentsCompressed), $commentsEntry['compressedDataSha256']);
+        $t->same(
+            hash('sha256', substr($zip, $commentsEntry['dataDescriptorOffset'], $commentsEntry['dataDescriptorBytes'])),
+            $commentsEntry['dataDescriptorSha256']
+        );
+        $t->same(
+            hash('sha256', substr($zip, $commentsEntry['localRecordOffset'], $commentsEntry['localRecordBytes'])),
+            $commentsEntry['localRecordSha256']
+        );
         $t->same($manifest, $raw['packageManifest']);
         $t->same($manifest, $raw['strictImport']['packageManifest']);
     },

@@ -12983,6 +12983,9 @@ final class ZipPackage
         $unsupportedCompressionMethodCount = 0;
         $compressedBytes = 0;
         $uncompressedBytes = 0;
+        $localRecordBytes = 0;
+        $dataDescriptorEntryCount = 0;
+        $dataDescriptorBytes = 0;
 
         foreach ($this->entries as $centralDirectoryIndex => $entry) {
             $localHeader = $this->readLocalHeader($entry);
@@ -13006,6 +13009,7 @@ final class ZipPackage
             $localHeaderOrder = $localOrderByName[$entry->name] ?? null;
             $localHeaderLength = (int) $localHeader['localHeaderLength'];
             $compressedDataOffset = (int) $localHeader['dataStart'];
+            $compressedDataEnd = $compressedDataOffset + $entry->compressedSize;
             $compressedDataSha256 = hash(
                 'sha256',
                 substr($this->bytes, $compressedDataOffset, $entry->compressedSize)
@@ -13013,6 +13017,36 @@ final class ZipPackage
             $localHeaderSha256 = hash(
                 'sha256',
                 substr($this->bytes, $entry->localHeaderOffset, $localHeaderLength)
+            );
+            $usesDataDescriptor = ($entry->generalPurposeFlags & 0x0008) !== 0;
+            $dataDescriptorOffset = null;
+            $dataDescriptorLength = 0;
+            $dataDescriptorEnd = null;
+            $dataDescriptorSha256 = null;
+            $localRecordEnd = $compressedDataEnd;
+            if ($usesDataDescriptor) {
+                $descriptor = $this->dataDescriptorMetadata(
+                    $entry,
+                    $compressedDataEnd,
+                    $this->nextEntryOrCentralDirectoryOffset($entry)
+                );
+                $dataDescriptorOffset = $descriptor['descriptorOffset'];
+                $dataDescriptorLength = (int) $descriptor['descriptorLength'];
+                $dataDescriptorEnd = $descriptor['descriptorEnd'];
+                $dataDescriptorSha256 = hash(
+                    'sha256',
+                    substr($this->bytes, $dataDescriptorOffset, $dataDescriptorLength)
+                );
+                $localRecordEnd = $dataDescriptorEnd;
+                ++$dataDescriptorEntryCount;
+                $dataDescriptorBytes += $dataDescriptorLength;
+            }
+
+            $localRecordLength = $localRecordEnd - $entry->localHeaderOffset;
+            $localRecordBytes += $localRecordLength;
+            $localRecordSha256 = hash(
+                'sha256',
+                substr($this->bytes, $entry->localHeaderOffset, $localRecordLength)
             );
             $centralDirectoryRecordSha256 = null;
             if ($entry->centralDirectoryRecordOffset !== null && $entry->centralDirectoryRecordEnd !== null) {
@@ -13038,9 +13072,18 @@ final class ZipPackage
                 'localHeaderOffset' => $entry->localHeaderOffset,
                 'localHeaderLength' => $localHeaderLength,
                 'localHeaderSha256' => $localHeaderSha256,
+                'localRecordOffset' => $entry->localHeaderOffset,
+                'localRecordBytes' => $localRecordLength,
+                'localRecordEnd' => $localRecordEnd,
+                'localRecordSha256' => $localRecordSha256,
                 'compressedDataOffset' => $compressedDataOffset,
-                'compressedDataEnd' => $compressedDataOffset + $entry->compressedSize,
+                'compressedDataEnd' => $compressedDataEnd,
                 'compressedDataSha256' => $compressedDataSha256,
+                'usesDataDescriptor' => $usesDataDescriptor,
+                'dataDescriptorOffset' => $dataDescriptorOffset,
+                'dataDescriptorBytes' => $dataDescriptorLength,
+                'dataDescriptorEnd' => $dataDescriptorEnd,
+                'dataDescriptorSha256' => $dataDescriptorSha256,
                 'centralDirectoryRecordOffset' => $entry->centralDirectoryRecordOffset,
                 'centralDirectoryRecordEnd' => $entry->centralDirectoryRecordEnd,
                 'centralDirectoryRecordSha256' => $centralDirectoryRecordSha256,
@@ -13056,7 +13099,12 @@ final class ZipPackage
                 'compressedSize' => $summary['compressedSize'],
                 'uncompressedSize' => $summary['uncompressedSize'],
                 'localHeaderSha256' => $summary['localHeaderSha256'],
+                'localRecordBytes' => $summary['localRecordBytes'],
+                'localRecordSha256' => $summary['localRecordSha256'],
                 'compressedDataSha256' => $summary['compressedDataSha256'],
+                'usesDataDescriptor' => $summary['usesDataDescriptor'],
+                'dataDescriptorBytes' => $summary['dataDescriptorBytes'],
+                'dataDescriptorSha256' => $summary['dataDescriptorSha256'],
                 'centralDirectoryRecordSha256' => $summary['centralDirectoryRecordSha256'],
             ];
         }
@@ -13082,6 +13130,9 @@ final class ZipPackage
             'directoryEntryCount' => $directoryEntryCount,
             'compressedBytes' => $compressedBytes,
             'uncompressedBytes' => $uncompressedBytes,
+            'localRecordBytes' => $localRecordBytes,
+            'dataDescriptorEntryCount' => $dataDescriptorEntryCount,
+            'dataDescriptorBytes' => $dataDescriptorBytes,
             'storedEntryCount' => $storedEntryCount,
             'deflatedEntryCount' => $deflatedEntryCount,
             'unsupportedCompressionMethodCount' => $unsupportedCompressionMethodCount,
