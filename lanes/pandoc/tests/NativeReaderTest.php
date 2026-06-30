@@ -543,6 +543,44 @@ NATIVE;
             $t->same('raw_inline', $roundTrip->children[1]->children[2]->type, "{$source} preserves generic raw inline");
         }
     },
+    'preserves textual native raw Format helpers through json writer handoff' => static function (TestRunner $t): void {
+        $nativeText = <<<'NATIVE'
+[ RawBlock (Format "opml") "<outline/>"
+, Para [ RawInline (Format "opml") "<inline/>" , Space , RawInline (Format "html") "<span>ok</span>" ]
+]
+NATIVE;
+
+        $document = (new NativeReader())->read($nativeText);
+        $rawBlock = $document->children[0];
+        $paragraph = $document->children[1];
+        $genericInline = $paragraph->children[0];
+        $htmlInline = $paragraph->children[2];
+
+        $t->same('raw_block', $rawBlock->type);
+        $t->same(['t' => 'Format', 'c' => 'opml'], $rawBlock->attr('formatNative'));
+        $t->same('raw_inline', $genericInline->type);
+        $t->same(['t' => 'Format', 'c' => 'opml'], $genericInline->attr('formatNative'));
+        $t->same('raw_html_inline', $htmlInline->type);
+        $t->same(['t' => 'Format', 'c' => 'html'], $htmlInline->attr('formatNative'));
+
+        $jsonPacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $forcedJsonPacket = json_decode((new NativeWriter())->write(new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
+        ], $document->children)), true, 512, JSON_THROW_ON_ERROR);
+
+        foreach (['default native writer' => $jsonPacket, 'forced json writer' => $forcedJsonPacket] as $source => $packet) {
+            $t->same(['t' => 'Format', 'c' => 'opml'], $packet['blocks'][0]['c'][0], "{$source} preserves raw block Format helper");
+            $t->same(['t' => 'Format', 'c' => 'opml'], $packet['blocks'][1]['c'][0]['c'][0], "{$source} preserves generic raw inline Format helper");
+            $t->same(['t' => 'Format', 'c' => 'html'], $packet['blocks'][1]['c'][2]['c'][0], "{$source} preserves html raw inline Format helper");
+        }
+
+        $roundTrip = (new NativeReader())->read((new NativeWriter(['blocksOnly' => true]))->write($document));
+
+        $t->same('raw_block', $roundTrip->children[0]->type);
+        $t->same('raw_inline', $roundTrip->children[1]->children[0]->type);
+        $t->same('raw_html_inline', $roundTrip->children[1]->children[2]->type);
+    },
     'normalizes textual native cite constructors for pandoc json writer handoff' => static function (TestRunner $t): void {
         $nativeText = <<<'NATIVE'
 [ Para
