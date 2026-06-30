@@ -3893,6 +3893,11 @@ final class DocxReader
 
     private function headingLevel(\DOMElement $paragraph): ?int
     {
+        $directOutlineLevel = $this->paragraphDirectOutlineHeadingLevel($paragraph);
+        if ($directOutlineLevel !== null) {
+            return $directOutlineLevel;
+        }
+
         foreach ($paragraph->getElementsByTagNameNS(self::W_NS, 'pStyle') as $style) {
             if (!$style instanceof \DOMElement) {
                 continue;
@@ -3909,6 +3914,26 @@ final class DocxReader
             }
         }
         return null;
+    }
+
+    private function paragraphDirectOutlineHeadingLevel(\DOMElement $paragraph): ?int
+    {
+        $pPr = $this->directChild($paragraph, 'pPr');
+        if (!$pPr instanceof \DOMElement) {
+            return null;
+        }
+
+        $outlineLevel = $this->directChild($pPr, 'outlineLvl');
+        if (!$outlineLevel instanceof \DOMElement) {
+            return null;
+        }
+
+        $value = $this->attr($outlineLevel, self::W_NS, 'val');
+        if (!preg_match('/^\d+$/', $value)) {
+            return null;
+        }
+
+        return $value === '0' ? 1 : null;
     }
 
     private function paragraphStyleId(\DOMElement $paragraph): string

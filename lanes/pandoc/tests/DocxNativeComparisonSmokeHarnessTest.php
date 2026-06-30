@@ -239,17 +239,11 @@ XML);
 
         try {
             $writeDocxParts($root . '/0_level_headers.docx', [
-                'word/styles.xml' => <<<'XML'
-<?xml version="1.0"?>
-<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:style w:type="paragraph" w:styleId="Heading0"><w:name w:val="Heading 0"/></w:style>
-</w:styles>
-XML,
                 'word/document.xml' => <<<'XML'
 <?xml version="1.0"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
-    <w:p><w:pPr><w:pStyle w:val="Heading0"/></w:pPr><w:r><w:t>CONTENTS</w:t></w:r></w:p>
+    <w:p><w:pPr><w:outlineLvl w:val="0"/></w:pPr><w:r><w:t>CONTENTS</w:t></w:r></w:p>
     <w:p><w:r><w:t>Section body</w:t></w:r></w:p>
   </w:body>
 </w:document>
@@ -257,7 +251,7 @@ XML,
             ]);
             file_put_contents(
                 $root . '/0_level_headers.native',
-                '[Header 1 ("contents",["Heading-0"],[]) [Str "CONTENTS"],Para [Str "Section",Space,Str "body"]]'
+                '[Header 1 ("contents",[],[]) [Str "CONTENTS"],Para [Str "Section",Space,Str "body"]]'
             );
 
             $writeDocxParts($root . '/anchor_header_after_anchor.docx', [

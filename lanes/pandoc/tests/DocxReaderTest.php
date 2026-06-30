@@ -1160,6 +1160,32 @@ XML],
         $t->same('paragraph', $paragraph->type);
         $t->same('Plain zero label', $paragraph->attr('text'));
     },
+    'maps direct docx paragraph outline level zero to heading' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            ['name' => 'word/document.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:pPr><w:outlineLvl w:val="0"/></w:pPr><w:r><w:t>CONTENTS</w:t></w:r></w:p>
+    <w:p><w:r><w:t>Section body</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+XML],
+        ]);
+
+        $document = (new DocxReader())->readDocument($package);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $heading = $document->children[0];
+        $paragraph = $document->children[1];
+
+        $t->same('heading', $heading->type);
+        $t->same(1, $heading->attr('level'));
+        $t->same('contents', $heading->attr('id'));
+        $t->same('CONTENTS', $heading->attr('text'));
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Section body', $paragraph->attr('text'));
+        $t->contains('<h1 id="contents">CONTENTS</h1>', $blocks);
+    },
     'preserves nested docx instrText fields inside linked field results' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
         $bytes = $buildDocxReaderPackageBytes(<<<'XML'
 <?xml version="1.0"?>
