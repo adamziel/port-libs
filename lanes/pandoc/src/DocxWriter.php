@@ -2386,13 +2386,9 @@ XML;
             return null;
         }
 
-        $styleId = preg_replace('/[^A-Za-z0-9_]+/', '', $name);
+        $styleId = preg_replace('/\s+/u', '', $name);
         if (!is_string($styleId) || $styleId === '') {
             return null;
-        }
-
-        if (preg_match('/^[A-Za-z_]/', $styleId) !== 1) {
-            $styleId = '_' . $styleId;
         }
 
         return $styleId;
@@ -3000,13 +2996,20 @@ XML;
 
     private function customStylesXml(): string
     {
+        $defaultStyleNamesByType = self::defaultStyleNamesByType();
         $xml = '';
         ksort($this->customParagraphStyles, SORT_STRING);
         foreach ($this->customParagraphStyles as $styleId => $name) {
+            if (isset($defaultStyleNamesByType['paragraph'][$name])) {
+                continue;
+            }
             $xml .= $this->paragraphStyleXml($styleId, $name, 'BodyText', true, true);
         }
         ksort($this->customCharacterStyles, SORT_STRING);
         foreach ($this->customCharacterStyles as $styleId => $name) {
+            if (isset($defaultStyleNamesByType['character'][$name])) {
+                continue;
+            }
             $xml .= $this->characterStyleXml($styleId, $name, 'BodyTextChar', true);
         }
 
@@ -3065,6 +3068,57 @@ XML;
         $stylesXml = rtrim($stylesXml, "\r\n");
 
         return $stylesXml;
+    }
+
+    /**
+     * @return array{paragraph: array<string, true>, character: array<string, true>}
+     */
+    private static function defaultStyleNamesByType(): array
+    {
+        static $styleNamesByType = null;
+        if ($styleNamesByType !== null) {
+            return $styleNamesByType;
+        }
+
+        $styleNamesByType = [
+            'paragraph' => [],
+            'character' => [],
+        ];
+
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument();
+        $loaded = $dom->loadXML(self::defaultStylesXml(), LIBXML_NONET);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        if (!$loaded) {
+            return $styleNamesByType;
+        }
+
+        foreach ($dom->getElementsByTagNameNS(self::NS_W, 'style') as $style) {
+            if (!$style instanceof \DOMElement) {
+                continue;
+            }
+
+            $type = $style->getAttributeNS(self::NS_W, 'type');
+            if ($type !== 'paragraph' && $type !== 'character') {
+                continue;
+            }
+
+            foreach ($style->getElementsByTagNameNS(self::NS_W, 'name') as $name) {
+                if (!$name instanceof \DOMElement) {
+                    continue;
+                }
+
+                $value = $name->getAttributeNS(self::NS_W, 'val');
+                if ($value !== '') {
+                    $styleNamesByType[$type][$value] = true;
+                }
+                break;
+            }
+        }
+
+        return $styleNamesByType;
     }
 
     private function numberingXml(): string

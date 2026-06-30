@@ -828,6 +828,35 @@ return [
         $t->true(!str_contains($stylesXml, 'w:styleId="CommentText"'), 'Comment-only style should not be emitted for non-comment documents');
     },
 
+    'uses upstream-style custom style ids and reuses default style definitions' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
+        $document = $doc([
+            $paragraph([
+                new AstNode('span', ['attributes' => ['custom-style' => 'Review-Style 2']], [$text('reviewed')]),
+                $text(' and '),
+                new AstNode('span', ['attributes' => ['custom-style' => 'Hyperlink']], [$text('already styled')]),
+            ]),
+            new AstNode('div', ['attributes' => ['custom-style' => 'Body Text']], [
+                $paragraph([$text('body style reuse')]),
+            ]),
+            new AstNode('div', ['attributes' => ['custom-style' => '2026 Block-Style']], [
+                $paragraph([$text('new block style')]),
+            ]),
+        ]);
+
+        [, $parts] = $packageParts((new DocxWriter())->write($document));
+        $documentXml = $parts['word/document.xml'];
+        $stylesXml = $parts['word/styles.xml'];
+
+        $t->contains('<w:rStyle w:val="Review-Style2"/>', $documentXml);
+        $t->contains('<w:rStyle w:val="Hyperlink"/>', $documentXml);
+        $t->contains('<w:pStyle w:val="BodyText"/>', $documentXml);
+        $t->contains('<w:pStyle w:val="2026Block-Style"/>', $documentXml);
+        $t->contains('<w:style w:type="character" w:customStyle="1" w:styleId="Review-Style2"><w:name w:val="Review-Style 2"/><w:basedOn w:val="BodyTextChar"/></w:style>', $stylesXml);
+        $t->contains('<w:style w:type="paragraph" w:customStyle="1" w:styleId="2026Block-Style"><w:name w:val="2026 Block-Style"/><w:basedOn w:val="BodyText"/><w:qFormat/></w:style>', $stylesXml);
+        $t->same(1, substr_count($stylesXml, 'w:styleId="BodyText"'));
+        $t->same(1, substr_count($stylesXml, 'w:styleId="Hyperlink"'));
+    },
+
     'emits block text style for simple block quotes' => static function (TestRunner $t) use ($doc, $text, $paragraph, $plain, $item, $packageParts): void {
         $document = $doc([
             new AstNode('blockquote', [], [
