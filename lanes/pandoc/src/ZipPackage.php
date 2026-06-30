@@ -1364,6 +1364,8 @@ final class ZipPackage
      *     issueEntryCount:int,
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
+     *     issueCounts:array<string, int>,
+     *     entryNamesByIssue:array<string, list<string>>,
      *     issueEntries:list<array<string, mixed>>,
      *     entries:list<array<string, mixed>>
      * }
@@ -1663,6 +1665,8 @@ final class ZipPackage
             }
         }
 
+        $issueProvenance = self::zipIssueProvenanceByEntryName($issues, $issueEntries);
+
         return [
             'entryCount' => count($entries),
             'totalEntryCount' => $archive['totalEntryCount'],
@@ -1681,6 +1685,8 @@ final class ZipPackage
             'issueEntryCount' => count($issueEntries),
             'isSupportedByBoundedReader' => $issues === [],
             'issues' => $issues,
+            'issueCounts' => $issueProvenance['issueCounts'],
+            'entryNamesByIssue' => $issueProvenance['entryNamesByIssue'],
             'issueEntries' => $issueEntries,
             'entries' => $entries,
         ];
@@ -1805,6 +1811,8 @@ final class ZipPackage
      *     isArchiveLayoutContiguous:bool,
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
+     *     issueCounts:array<string, int>,
+     *     entryNamesByIssue:array<string, list<string>>,
      *     entries:list<array<string, mixed>>
      * }
      */
@@ -1934,6 +1942,7 @@ final class ZipPackage
         }
 
         $issues = array_values(array_unique($issues));
+        $issueProvenance = self::zipIssueProvenanceByEntryName($issues, $entries);
 
         return [
             'entryCount' => count($entries),
@@ -1980,7 +1989,62 @@ final class ZipPackage
             'isArchiveLayoutContiguous' => $issues === [],
             'isSupportedByBoundedReader' => $issues === [],
             'issues' => $issues,
+            'issueCounts' => $issueProvenance['issueCounts'],
+            'entryNamesByIssue' => $issueProvenance['entryNamesByIssue'],
             'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @param list<string> $issues
+     * @param list<array<string, mixed>> $entries
+     * @return array{issueCounts:array<string, int>, entryNamesByIssue:array<string, list<string>>}
+     */
+    private static function zipIssueProvenanceByEntryName(array $issues, array $entries): array
+    {
+        $issueCounts = [];
+        $entryNamesByIssue = [];
+        foreach ($issues as $issue) {
+            if (is_string($issue) && $issue !== '') {
+                $issueCounts[$issue] = 0;
+            }
+        }
+
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : null;
+            $seenEntryIssues = [];
+            foreach (is_array($entry['issues'] ?? null) ? $entry['issues'] : [] as $issue) {
+                if (!is_string($issue) || $issue === '' || isset($seenEntryIssues[$issue])) {
+                    continue;
+                }
+
+                $seenEntryIssues[$issue] = true;
+                $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+                if ($name !== null) {
+                    $entryNamesByIssue[$issue] ??= [];
+                    if (!in_array($name, $entryNamesByIssue[$issue], true)) {
+                        $entryNamesByIssue[$issue][] = $name;
+                    }
+                }
+            }
+        }
+
+        foreach ($issueCounts as $issue => $count) {
+            if ($count === 0) {
+                $issueCounts[$issue] = 1;
+            }
+        }
+
+        ksort($issueCounts, SORT_STRING);
+        ksort($entryNamesByIssue, SORT_STRING);
+        foreach ($entryNamesByIssue as &$entryNames) {
+            sort($entryNames, SORT_STRING);
+        }
+        unset($entryNames);
+
+        return [
+            'issueCounts' => $issueCounts,
+            'entryNamesByIssue' => $entryNamesByIssue,
         ];
     }
 
