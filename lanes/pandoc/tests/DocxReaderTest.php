@@ -298,16 +298,16 @@ XML],
         $suppressed = $document->children[2];
 
         $t->same('ordered_list', $ordered->type);
-        $t->same('42', $ordered->attr('numId'));
-        $t->same(0, $ordered->attr('level'));
+        $t->true(!array_key_exists('numId', $ordered->attrs), 'DOCX list numId should not be exposed as a Pandoc list attr');
+        $t->true(!array_key_exists('level', $ordered->attrs), 'DOCX list level should not be exposed as a Pandoc list attr');
         $t->same(5, $ordered->attr('start'));
         $t->same('lower_alpha', $ordered->attr('style'));
         $t->same('one_paren', $ordered->attr('delimiter'));
         $t->same('Review source', $ordered->children[0]->children[0]->attr('text'));
         $t->same('Publish migration', $ordered->children[1]->children[0]->attr('text'));
         $t->same('bullet_list', $bullet->type);
-        $t->same('43', $bullet->attr('numId'));
-        $t->same(0, $bullet->attr('level'));
+        $t->true(!array_key_exists('numId', $bullet->attrs), 'DOCX bullet numId should not be exposed as a Pandoc list attr');
+        $t->true(!array_key_exists('level', $bullet->attrs), 'DOCX bullet level should not be exposed as a Pandoc list attr');
         $t->same('Check footers', $bullet->children[0]->children[0]->attr('text'));
         $t->same('paragraph', $suppressed->type);
         $t->same('Plain exception', $suppressed->attr('text'));
@@ -583,8 +583,8 @@ XML],
         $t->same('ordered_list', $document->children[1]->type);
         $t->same(3, count($document->children[1]->children));
         $t->same(1, $document->children[1]->attr('start'));
-        $t->same('1', $document->children[1]->attr('numId'));
-        $t->same(0, $document->children[1]->attr('level'));
+        $t->true(!array_key_exists('numId', $document->children[1]->attrs), 'first restarted list should not expose DOCX numId');
+        $t->true(!array_key_exists('level', $document->children[1]->attrs), 'first restarted list should not expose DOCX level');
         $t->same('Item 1', $document->children[1]->children[0]->children[0]->attr('text'));
         $t->same('Item 3', $document->children[1]->children[2]->children[0]->attr('text'));
         $t->same('Conclusion', $document->children[2]->attr('text'));
@@ -593,8 +593,8 @@ XML],
         $t->same('ordered_list', $document->children[4]->type);
         $t->same(4, count($document->children[4]->children));
         $t->same(1, $document->children[4]->attr('start'));
-        $t->same('2', $document->children[4]->attr('numId'));
-        $t->same(0, $document->children[4]->attr('level'));
+        $t->true(!array_key_exists('numId', $document->children[4]->attrs), 'second restarted list should not expose DOCX numId');
+        $t->true(!array_key_exists('level', $document->children[4]->attrs), 'second restarted list should not expose DOCX level');
         $t->same('Item 1', $document->children[4]->children[0]->children[0]->attr('text'));
         $t->same('Item 4', $document->children[4]->children[3]->children[0]->attr('text'));
         $t->same('Conclusion', $document->children[5]->attr('text'));
@@ -2166,6 +2166,8 @@ XML],
         $t->same('960', $image->attr('attributes')['data-docx-object-dxa-orig']);
         $t->same('480', $image->attr('attributes')['data-docx-object-dya-orig']);
 
+        $t->same(['default'], $table->attr('alignments'));
+        $t->same([null], $table->attr('widths'));
         $t->same('DerivedTable', $tableAttributes['data-docx-table-style']);
         $t->same('Derived Table', $tableAttributes['data-docx-table-style-name']);
         $t->same('BaseTable', $tableAttributes['data-docx-table-style-based-on']);

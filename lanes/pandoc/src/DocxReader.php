@@ -647,9 +647,10 @@ final class DocxReader
                     }
                     $list = $this->numberingListAttributes($numbering['numId'], $numbering['level']);
                     $attrs = $list['attrs'];
-                    $attrs['numId'] = $numbering['numId'];
-                    $attrs['level'] = max(0, $numbering['level'] - 1);
-                    $groupAttrs = $list['groupAttrs'] ?? $attrs;
+                    $groupAttrs = $list['groupAttrs'] ?? array_replace($attrs, [
+                        'docxNumId' => $numbering['numId'],
+                        'docxLevel' => $numbering['level'],
+                    ]);
                     if (($list['continuation'] ?? false) === true) {
                         for ($i = count($pendingListRecords) - 1; $i >= 0; --$i) {
                             if ((int) $pendingListRecords[$i]['level'] === (int) $numbering['level']) {
@@ -684,11 +685,12 @@ final class DocxReader
                     $styleListNumbering = $styleId === '' ? null : $this->paragraphStyleNumbering($styleId);
                     $lastIndex = array_key_last($pendingListRecords);
                     $lastRecord = $lastIndex === null ? null : $pendingListRecords[$lastIndex];
+                    $lastGroupAttrs = is_array($lastRecord) ? ($lastRecord['groupAttrs'] ?? $lastRecord['attrs']) : [];
                     if (
                         $styleListNumbering !== null
                         && is_array($lastRecord)
-                        && (string) ($lastRecord['attrs']['numId'] ?? '') === $styleListNumbering['numId']
-                        && (int) $lastRecord['level'] === $styleListNumbering['level']
+                        && (string) ($lastGroupAttrs['docxNumId'] ?? '') === $styleListNumbering['numId']
+                        && (int) ($lastGroupAttrs['docxLevel'] ?? $lastRecord['level']) === $styleListNumbering['level']
                     ) {
                         $flushCodeBlock();
                         $flushQuote();
@@ -3780,10 +3782,25 @@ final class DocxReader
             }
         }
 
-        return new AstNode('table', $this->tableAttributes($table), [
+        return new AstNode('table', $this->tableAttributes($table, $this->tableColumnCountFromRowSpecs($rowSpecs)), [
             new AstNode('table_head', [], $headRows),
             new AstNode('table_body', [], $rows),
         ]);
+    }
+
+    /**
+     * @param list<list<array{column: int, colspan: int}>> $rowSpecs
+     */
+    private function tableColumnCountFromRowSpecs(array $rowSpecs): int
+    {
+        $columnCount = 0;
+        foreach ($rowSpecs as $cells) {
+            foreach ($cells as $cell) {
+                $columnCount = max($columnCount, (int) $cell['column'] + (int) $cell['colspan']);
+            }
+        }
+
+        return $columnCount;
     }
 
     private function tableRowGridBefore(\DOMElement $row): int
@@ -3918,11 +3935,17 @@ final class DocxReader
     /**
      * @return array<string, mixed>
      */
-    private function tableAttributes(\DOMElement $table): array
+    private function tableAttributes(\DOMElement $table, int $columnCount): array
     {
+        $attrs = [];
+        if ($columnCount > 0) {
+            $attrs['alignments'] = array_fill(0, $columnCount, 'default');
+            $attrs['widths'] = array_fill(0, $columnCount, null);
+        }
+
         $tblPr = $this->directChild($table, 'tblPr');
         if (!$tblPr instanceof \DOMElement) {
-            return [];
+            return $attrs;
         }
 
         $htmlAttributes = [];
@@ -3954,7 +3977,11 @@ final class DocxReader
             }
         }
 
-        return $htmlAttributes === [] ? [] : ['htmlAttributes' => $htmlAttributes];
+        if ($htmlAttributes !== []) {
+            $attrs['htmlAttributes'] = $htmlAttributes;
+        }
+
+        return $attrs;
     }
 
     /**
