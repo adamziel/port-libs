@@ -19762,6 +19762,81 @@ XML;
         $t->same(null, $byKind['comments']['crc32']);
         $t->same(null, $byKind['comments']['sha256']);
     },
+    'summarizes docx selected openxml part byte length buckets for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' . "\n" .
+            '  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettingsBuckets" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/styles.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+XML;
+        $docVarPayload = str_repeat('<w:docVar w:name="review" w:val="bucket"/>', 1700);
+        $parts['word/settings.xml'] = '<?xml version="1.0" encoding="UTF-8"?>' .
+            '<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' .
+            '<w:docVars>' . $docVarPayload . '</w:docVars>' .
+            '</w:settings>';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $selected = $package['selectedXmlParts'];
+        $summary = $package['summary'];
+        $byKind = $selected['byKind'];
+
+        $expectedCounts = [
+            'huge' => 1,
+            'large' => 1,
+            'medium' => 3,
+        ];
+        $expectedByteLengths = [
+            'huge' => strlen($parts['word/settings.xml']),
+            'large' => strlen($parts['word/document.xml']),
+            'medium' => strlen($parts['docProps/core.xml']) + strlen($parts['word/numbering.xml']) + strlen($parts['word/styles.xml']),
+        ];
+        $expectedPartNames = [
+            'huge' => ['word/settings.xml'],
+            'large' => ['word/document.xml'],
+            'medium' => ['docProps/core.xml', 'word/numbering.xml', 'word/styles.xml'],
+        ];
+
+        $t->same(18, $selected['count']);
+        $t->same(5, $selected['existingCount']);
+        $t->same($expectedCounts, $selected['existingByteLengthBucketCounts']);
+        $t->same(['huge', 'large', 'medium'], $selected['existingByteLengthBuckets']);
+        $t->same($expectedByteLengths, $selected['existingByteLengthBucketByteLengths']);
+        $t->same($expectedPartNames, $selected['existingByteLengthBucketPartNames']);
+        $t->same(3, $selected['existingByteLengthBucketCount']);
+
+        $t->same('large', $byKind['document']['byteLengthBucket']);
+        $t->same('medium', $byKind['coreProperties']['byteLengthBucket']);
+        $t->same('medium', $byKind['styles']['byteLengthBucket']);
+        $t->same('huge', $byKind['settings']['byteLengthBucket']);
+        $t->same(null, $byKind['comments']['byteLengthBucket']);
+
+        $t->same($selected['existingByteLengthBucketCount'], $summary['selectedXmlPartExistingByteLengthBucketCount']);
+        $t->same($selected['existingByteLengthBucketCounts'], $summary['selectedXmlPartExistingByteLengthBucketCounts']);
+        $t->same($selected['existingByteLengthBuckets'], $summary['selectedXmlPartExistingByteLengthBuckets']);
+        $t->same($selected['existingByteLengthBucketByteLengths'], $summary['selectedXmlPartExistingByteLengthBucketByteLengths']);
+        $t->same($selected['existingByteLengthBucketPartNames'], $summary['selectedXmlPartExistingByteLengthBucketPartNames']);
+
+        $encodedBuckets = json_encode([
+            $selected['existingByteLengthBucketCounts'],
+            $selected['existingByteLengthBucketPartNames'],
+            $summary['selectedXmlPartExistingByteLengthBucketCounts'],
+        ]);
+        $t->true(is_string($encodedBuckets), 'selected XML byte bucket metadata should encode for review');
+        $t->true(!str_contains((string) $encodedBuckets, '<w:docVar'), 'selected XML bucket metadata should not expose selected part XML bytes');
+    },
     'tracks docx selected openxml part root and content type provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

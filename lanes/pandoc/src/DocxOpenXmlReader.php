@@ -789,6 +789,11 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['selectedXmlPartRelationshipSelectedPartNames'] = $selectedXmlParts['relationshipSelectedPartNames'];
         $packageProvenance['summary']['selectedXmlPartExistingContentTypeSourceCounts'] = $selectedXmlParts['existingContentTypeSourceCounts'];
         $packageProvenance['summary']['selectedXmlPartExistingContentTypeBaseCounts'] = $selectedXmlParts['existingContentTypeBaseCounts'];
+        $packageProvenance['summary']['selectedXmlPartExistingByteLengthBucketCount'] = $selectedXmlParts['existingByteLengthBucketCount'];
+        $packageProvenance['summary']['selectedXmlPartExistingByteLengthBucketCounts'] = $selectedXmlParts['existingByteLengthBucketCounts'];
+        $packageProvenance['summary']['selectedXmlPartExistingByteLengthBuckets'] = $selectedXmlParts['existingByteLengthBuckets'];
+        $packageProvenance['summary']['selectedXmlPartExistingByteLengthBucketByteLengths'] = $selectedXmlParts['existingByteLengthBucketByteLengths'];
+        $packageProvenance['summary']['selectedXmlPartExistingByteLengthBucketPartNames'] = $selectedXmlParts['existingByteLengthBucketPartNames'];
         $packageProvenance['summary']['selectedXmlPartByteDigestCount'] = $selectedXmlParts['byteDigestCount'];
         $packageProvenance['summary']['selectedXmlPartIssueCount'] = $selectedXmlParts['issueCount'];
         $packageProvenance['summary']['selectedXmlPartInvalidXmlCount'] = $selectedXmlParts['invalidXmlCount'];
@@ -31509,6 +31514,9 @@ final class DocxOpenXmlReader
         $relationshipSelectedPartNames = [];
         $existingContentTypeSourceCounts = [];
         $existingContentTypeBaseCounts = [];
+        $existingByteLengthBucketCounts = [];
+        $existingByteLengthBucketByteLengths = [];
+        $existingByteLengthBucketPartNames = [];
         foreach ($items as $item) {
             $selectionSource = is_string($item['selectionSource'] ?? null) ? $item['selectionSource'] : 'unknown';
             $selectionSourceCounts[$selectionSource] = ($selectionSourceCounts[$selectionSource] ?? 0) + 1;
@@ -31523,6 +31531,16 @@ final class DocxOpenXmlReader
                 $contentTypeBase = is_string($item['contentTypeBase'] ?? null) ? $item['contentTypeBase'] : '';
                 $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
                 $existingContentTypeBaseCounts[$contentTypeBaseKey] = ($existingContentTypeBaseCounts[$contentTypeBaseKey] ?? 0) + 1;
+
+                $byteLengthBucket = is_string($item['byteLengthBucket'] ?? null)
+                    ? $item['byteLengthBucket']
+                    : $this->packagePartByteLengthBucket((int) ($item['bytes'] ?? 0));
+                $existingByteLengthBucketCounts[$byteLengthBucket] =
+                    ($existingByteLengthBucketCounts[$byteLengthBucket] ?? 0) + 1;
+                $existingByteLengthBucketByteLengths[$byteLengthBucket] =
+                    ($existingByteLengthBucketByteLengths[$byteLengthBucket] ?? 0) + (int) ($item['bytes'] ?? 0);
+                $existingByteLengthBucketPartNames[$byteLengthBucket][] =
+                    is_string($item['partName'] ?? null) ? $item['partName'] : '';
             }
 
             if (($item['relationshipId'] ?? null) !== null) {
@@ -31611,6 +31629,17 @@ final class DocxOpenXmlReader
         ksort($rootNamespaceCounts, SORT_STRING);
         ksort($rootLocalNameCounts, SORT_STRING);
         ksort($rootQualifiedNameCounts, SORT_STRING);
+        ksort($existingByteLengthBucketCounts, SORT_STRING);
+        ksort($existingByteLengthBucketByteLengths, SORT_STRING);
+        ksort($existingByteLengthBucketPartNames, SORT_STRING);
+        foreach ($existingByteLengthBucketPartNames as &$bucketPartNames) {
+            $bucketPartNames = array_values(array_filter(
+                array_map('strval', $bucketPartNames),
+                static fn (string $partName): bool => $partName !== '',
+            ));
+            sort($bucketPartNames, SORT_STRING);
+        }
+        unset($bucketPartNames);
         ksort($xmlDeclarationEncodingCounts, SORT_STRING);
         sort($rootNamespaces, SORT_STRING);
         sort($rootLocalNames, SORT_STRING);
@@ -31630,6 +31659,11 @@ final class DocxOpenXmlReader
             'relationshipSelectedPartNames' => $relationshipSelectedPartNames,
             'existingContentTypeSourceCounts' => $existingContentTypeSourceCounts,
             'existingContentTypeBaseCounts' => $existingContentTypeBaseCounts,
+            'existingByteLengthBucketCount' => count($existingByteLengthBucketCounts),
+            'existingByteLengthBucketCounts' => $existingByteLengthBucketCounts,
+            'existingByteLengthBuckets' => array_keys($existingByteLengthBucketCounts),
+            'existingByteLengthBucketByteLengths' => $existingByteLengthBucketByteLengths,
+            'existingByteLengthBucketPartNames' => $existingByteLengthBucketPartNames,
             'byteDigestCount' => count(array_filter($items, static fn (array $item): bool => is_string($item['sha256'] ?? null))),
             'missingRequiredOrReferencedCount' => count(array_filter(
                 $items,
@@ -31707,6 +31741,7 @@ final class DocxOpenXmlReader
             'required' => $required,
             'exists' => $exists,
             'bytes' => $partBytes === null ? 0 : strlen($partBytes),
+            'byteLengthBucket' => $partBytes === null ? null : $this->packagePartByteLengthBucket(strlen($partBytes)),
             'crc32' => $partBytes === null ? null : sprintf('%08x', crc32($partBytes)),
             'sha256' => $partBytes === null ? null : hash('sha256', $partBytes),
             'expectedRootNamespace' => $expectedRootNamespace,
