@@ -71,6 +71,51 @@ jobs:
       - name: Validate DOCX parity status metadata
         run: jq empty lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/UPSTREAM_DOCX_CACHE_MANIFEST.json lanes/pandoc/lane-status.json porting-summary.json
 
+      - name: Restore pinned Pandoc DOCX upstream cache
+        id: pandoc-docx-upstream-cache
+        uses: actions/cache@v4
+        with:
+          path: .upstream-cache/pandoc-current
+          key: pandoc-docx-upstream-sparse-v3-${{ runner.os }}-612e143fbe6d735b612c4800d21e61b7d44e4dca
+
+      - name: Hydrate pinned Pandoc DOCX upstream cache
+        if: steps.pandoc-docx-upstream-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          target=.upstream-cache/pandoc-current
+          mkdir -p "$(dirname "$target")"
+          git init "$target"
+          git -C "$target" remote add origin https://github.com/jgm/pandoc.git
+          git -C "$target" sparse-checkout init --no-cone
+          git -C "$target" sparse-checkout set \
+            /cabal.project \
+            /pandoc.cabal \
+            /test/test-pandoc.hs \
+            /test/lalune.jpg \
+            /test/Tests/Readers/Docx.hs \
+            /test/Tests/Writers/Docx.hs \
+            /test/docx \
+            /data/docx
+          git -C "$target" fetch --depth=1 --filter=blob:none origin 612e143fbe6d735b612c4800d21e61b7d44e4dca
+          git -C "$target" switch --detach FETCH_HEAD
+
+      - name: Verify pinned Pandoc DOCX upstream cache
+        run: |
+          set -euo pipefail
+          target=.upstream-cache/pandoc-current
+          test "$(git -C "$target" rev-parse HEAD)" = "612e143fbe6d735b612c4800d21e61b7d44e4dca"
+          test -f "$target/cabal.project"
+          test -f "$target/pandoc.cabal"
+          test -f "$target/test/test-pandoc.hs"
+          test -f "$target/test/lalune.jpg"
+          test -f "$target/test/Tests/Readers/Docx.hs"
+          test -f "$target/test/Tests/Writers/Docx.hs"
+          test -d "$target/test/docx"
+          test -d "$target/test/docx/golden"
+          test -d "$target/data/docx"
+          test -f "$target/data/docx/[Content_Types].xml"
+          test -f "$target/data/docx/word/document.xml"
+
       - name: Run optional upstream DOCX cache manifest audit
         run: php tools/pandoc-docx-cache-manifest.php --json
 
