@@ -67,6 +67,7 @@ return [
             $t->same(0, $report['totalPairCount']);
             $t->same(0, $report['comparedPairCount']);
             $t->same(0, $report['parseFailureCount']);
+            $t->same([], $report['semanticGapComparisons']);
             $t->contains('Pandoc DOCX/native smoke: skipped', $harness->formatReport($report));
         } finally {
             $removeTree($root);
@@ -101,10 +102,33 @@ return [
             $t->same(1, $report['sameTextCount']);
             $t->same(2, $report['sameTopTypeSequenceCount']);
             $t->same(1, $report['semanticGapPairCount']);
+            $t->same('raw-bookmark', $report['semanticGapComparisons'][0]['fixture']);
             $t->true(in_array('raw-openxml-field-or-bookmark-markup', $categoryNames, true));
             $t->true(in_array('field-bookmark-cross-reference-resolution', $categoryNames, true));
             $t->true(in_array('text-normalization', $categoryNames, true));
             $t->contains('same: text=1 topTypeSequence=2 semanticGapPairs=1', $harness->formatReport($report));
+        } finally {
+            $removeTree($root);
+        }
+    },
+    'keeps capped examples while reporting every semantic gap comparison' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeDocx): void {
+        $root = $makeTempDir();
+
+        try {
+            foreach (['alpha', 'bravo', 'charlie'] as $fixture) {
+                $writeDocx($root . '/' . $fixture . '.docx', $fixture . ' docx');
+                file_put_contents($root . '/' . $fixture . '.native', '[Para [Str "' . $fixture . '",Space,Str "native"]]');
+            }
+
+            $report = (new DocxNativeComparisonSmokeHarness())->run($root, ['maxExamples' => 1]);
+
+            $t->same(3, $report['semanticGapPairCount']);
+            $t->same(1, count($report['comparisons']));
+            $t->same(3, count($report['semanticGapComparisons']));
+            $t->same(['alpha', 'bravo', 'charlie'], array_map(
+                static fn (array $comparison): string => (string) $comparison['fixture'],
+                $report['semanticGapComparisons']
+            ));
         } finally {
             $removeTree($root);
         }

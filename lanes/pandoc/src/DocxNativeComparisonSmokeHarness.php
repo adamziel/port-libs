@@ -76,6 +76,7 @@ final class DocxNativeComparisonSmokeHarness
                 'knownSemanticGapCategories' => [],
                 'parseFailures' => [],
                 'comparisons' => [],
+                'semanticGapComparisons' => [],
             ];
         }
 
@@ -97,6 +98,7 @@ final class DocxNativeComparisonSmokeHarness
         $semanticGapPairCount = 0;
         $parseFailures = [];
         $comparisons = [];
+        $semanticGapComparisons = [];
         $categoryCounts = [];
 
         foreach ($pairNames as $pairName) {
@@ -148,6 +150,14 @@ final class DocxNativeComparisonSmokeHarness
                 foreach ($categories as $category) {
                     $this->addCategory($categoryCounts, $category, $pairName, $maxExamples);
                 }
+                $semanticGapComparisons[] = [
+                    'fixture' => $pairName,
+                    'sameText' => $sameText,
+                    'sameTopTypeSequence' => $sameTopTypes,
+                    'docxTopTypes' => $docxTopTypes,
+                    'nativeTopTypes' => $nativeTopTypes,
+                    'categories' => $categories,
+                ];
             }
 
             if (count($comparisons) < $maxExamples) {
@@ -182,6 +192,7 @@ final class DocxNativeComparisonSmokeHarness
             'knownSemanticGapCategories' => array_values($categoryCounts),
             'parseFailures' => array_slice($parseFailures, 0, $maxExamples),
             'comparisons' => $comparisons,
+            'semanticGapComparisons' => $semanticGapComparisons,
         ];
     }
 

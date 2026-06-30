@@ -1040,8 +1040,26 @@ final class DocxReader
             }
         }
 
+        if ($nodes !== [] && $this->allNodesHaveType($nodes, 'note')) {
+            return $nodes;
+        }
+
         $style = $this->runStyle($run);
         return $this->styledRunNodes($nodes, $style);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function allNodesHaveType(array $nodes, string $type): bool
+    {
+        foreach ($nodes as $node) {
+            if ($node->type !== $type) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -3515,11 +3533,64 @@ final class DocxReader
             }
             $children = $this->bodyBlocks($note);
             if ($children !== []) {
-                $notes[$id] = $children;
+                $notes[$id] = $this->trimLeadingNoteWhitespace($children);
             }
         }
 
         return $notes;
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<AstNode>
+     */
+    private function trimLeadingNoteWhitespace(array $blocks): array
+    {
+        $done = false;
+        foreach ($blocks as $index => $block) {
+            $blocks[$index] = $this->trimLeadingWhitespaceNode($block, $done);
+            if ($done) {
+                break;
+            }
+        }
+
+        return $blocks;
+    }
+
+    private function trimLeadingWhitespaceNode(AstNode $node, bool &$done): AstNode
+    {
+        if ($done) {
+            return $node;
+        }
+
+        if ($node->type === 'text') {
+            $text = (string) $node->attr('text', '');
+            $trimmed = preg_replace('/^\s+/u', '', $text) ?? $text;
+            if ($trimmed !== '') {
+                $done = true;
+            }
+            if ($trimmed === $text) {
+                return $node;
+            }
+
+            return new AstNode('text', ['text' => $trimmed]);
+        }
+
+        if ($node->children === []) {
+            return $node;
+        }
+
+        $children = [];
+        foreach ($node->children as $child) {
+            $children[] = $this->trimLeadingWhitespaceNode($child, $done);
+        }
+
+        $attrs = $node->attrs;
+        if (array_key_exists('text', $attrs)) {
+            $attrs['text'] = trim(preg_replace('/\s+/', ' ', implode('', array_map(fn (AstNode $child): string => $this->nodeText($child), $children))) ?? '');
+        }
+
+        return new AstNode($node->type, $attrs, $children);
     }
 
     /**

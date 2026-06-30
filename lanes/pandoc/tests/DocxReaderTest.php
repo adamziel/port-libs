@@ -467,6 +467,13 @@ XML],
         $t->same(1, $meta['docxComments']);
         $t->same(1, $meta['docxHeaders']);
         $t->same(1, $meta['docxFooters']);
+        $noteParagraph = $document->children[1];
+        $notes = array_values(array_filter($noteParagraph->children, static fn ($node): bool => $node->type === 'note'));
+        $t->same(3, count($notes));
+        $t->same('Footnote body.', $notes[0]->children[0]->attr('text'));
+        $t->same('Endnote body.', $notes[1]->children[0]->attr('text'));
+        $t->same('Comment body.', $notes[2]->children[0]->attr('text'));
+        $t->true(!in_array('superscript', array_map(static fn ($node): string => $node->type, $noteParagraph->children), true), 'DOCX note references should not be wrapped in superscript AST nodes');
         $t->true(!str_contains($blocks, 'class="docx-header"'), 'Header parts should remain out of normal DOCX reader body output');
         $t->true(!str_contains($blocks, 'Header text.'), 'Header text should remain metadata-only in normal DOCX reader output');
         $t->true(!str_contains($blocks, 'Footer text.'), 'Footer text should remain metadata-only in normal DOCX reader output');
