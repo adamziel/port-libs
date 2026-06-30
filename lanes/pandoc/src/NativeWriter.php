@@ -950,16 +950,16 @@ final class NativeWriter
 
     private function renderMetaValue(mixed $value): string
     {
-        if (is_array($value) && isset($value['type'])) {
-            $type = (string) $value['type'];
-            $payload = $value['value'] ?? null;
+        if (is_array($value)) {
+            $tagged = $this->renderTaggedMetaValue($value);
+            if ($tagged !== null) {
+                return $tagged;
+            }
 
-            return match ($type) {
-                'MetaInlines' => 'MetaInlines ' . $this->renderInlineList(is_array($payload) ? $payload : []),
-                'MetaBlocks' => 'MetaBlocks ' . $this->renderBlockList(is_array($payload) ? $payload : [], 0),
-                'MetaList' => 'MetaList [ ' . implode(' , ', array_map(fn (mixed $item): string => $this->renderMetaValue($item), is_array($payload) ? $payload : [])) . ' ]',
-                default => 'MetaString ' . $this->quote((string) $payload),
-            };
+            $typed = $this->renderTypedMetaValue($value);
+            if ($typed !== null) {
+                return $typed;
+            }
         }
 
         if ($value instanceof AstNode) {
@@ -1002,6 +1002,224 @@ final class NativeWriter
         }
 
         return 'MetaString ' . $this->quote((string) $value);
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     */
+    private function renderTypedMetaValue(array $value): ?string
+    {
+        if (!is_string($value['type'] ?? null)) {
+            return null;
+        }
+
+        $type = (string) $value['type'];
+
+        return match ($type) {
+            'inlines', 'MetaInlines' => 'MetaInlines ' . $this->renderInlineList($this->metaInlineNodes($value['children'] ?? $value['value'] ?? $value['c'] ?? [])),
+            'blocks', 'MetaBlocks' => 'MetaBlocks ' . $this->renderBlockList($this->metaBlockNodes($value['children'] ?? $value['value'] ?? $value['c'] ?? []), 0),
+            'list', 'MetaList' => $this->renderMetaListValue($value['items'] ?? $value['value'] ?? $value['c'] ?? []),
+            'map', 'MetaMap' => $this->renderMetaMapValue($this->metaMapItems($value['items'] ?? $value['value'] ?? $value['c'] ?? [])),
+            'MetaBool' => 'MetaBool ' . ($this->singleWrappedMetaValue($value['value'] ?? $value['c'] ?? false) === true ? 'True' : 'False'),
+            'MetaString' => 'MetaString ' . $this->quote((string) $this->singleWrappedMetaValue($value['value'] ?? $value['c'] ?? '')),
+            default => 'MetaString ' . $this->quote((string) ($value['value'] ?? '')),
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     */
+    private function renderTaggedMetaValue(array $value): ?string
+    {
+        if (!is_string($value['t'] ?? null)) {
+            return null;
+        }
+
+        $content = $value['c'] ?? null;
+
+        return match ($value['t']) {
+            'MetaString' => 'MetaString ' . $this->quote((string) $this->singleWrappedMetaValue($content)),
+            'MetaBool' => 'MetaBool ' . ($this->singleWrappedMetaValue($content) === true ? 'True' : 'False'),
+            'MetaInlines' => 'MetaInlines ' . $this->renderInlineList($this->metaInlineNodes($content)),
+            'MetaBlocks' => 'MetaBlocks ' . $this->renderBlockList($this->metaBlockNodes($content), 0),
+            'MetaList' => $this->renderMetaListValue($content),
+            'MetaMap' => $this->renderMetaMapValue($this->metaMapItems($content)),
+            default => null,
+        };
+    }
+
+    private function renderMetaListValue(mixed $value): string
+    {
+        $items = $this->metaListItems($value);
+
+        return 'MetaList [ ' . implode(' , ', array_map(fn (mixed $item): string => $this->renderMetaValue($item), $items)) . ' ]';
+    }
+
+    /**
+     * @param array<string, mixed> $items
+     */
+    private function renderMetaMapValue(array $items): string
+    {
+        ksort($items);
+        $pairs = [];
+        foreach ($items as $key => $item) {
+            $pairs[] = '( ' . $this->quote((string) $key) . ' , ' . $this->renderMetaValue($item) . ' )';
+        }
+
+        return 'MetaMap (fromList [ ' . implode(' , ', $pairs) . ' ])';
+    }
+
+    private function singleWrappedMetaValue(mixed $value): mixed
+    {
+        while (is_array($value) && array_is_list($value) && count($value) === 1) {
+            $value = $value[0];
+        }
+
+        return $value;
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function metaListItems(mixed $value): array
+    {
+        $value = $this->singleWrappedMetaListValue($value);
+
+        return is_array($value) && array_is_list($value) ? $value : [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function metaMapItems(mixed $value): array
+    {
+        $value = $this->singleWrappedMetaMapValue($value);
+        if (!is_array($value) || array_is_list($value)) {
+            return [];
+        }
+
+        if (
+            count($value) === 1
+            && array_key_exists('unMeta', $value)
+            && is_array($value['unMeta'])
+            && !array_is_list($value['unMeta'])
+        ) {
+            return $value['unMeta'];
+        }
+
+        return $value;
+    }
+
+    private function singleWrappedMetaListValue(mixed $value): mixed
+    {
+        while (
+            is_array($value)
+            && array_is_list($value)
+            && count($value) === 1
+            && is_array($value[0])
+            && array_is_list($value[0])
+        ) {
+            $value = $value[0];
+        }
+
+        return $value;
+    }
+
+    private function singleWrappedMetaMapValue(mixed $value): mixed
+    {
+        while (
+            is_array($value)
+            && array_is_list($value)
+            && count($value) === 1
+            && is_array($value[0])
+            && !array_is_list($value[0])
+        ) {
+            $value = $value[0];
+        }
+
+        return $value;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function metaInlineNodes(mixed $value): array
+    {
+        $items = $this->metaListItems($value);
+        $nodes = [];
+        foreach ($items as $item) {
+            if ($item instanceof AstNode) {
+                $nodes[] = $item;
+                continue;
+            }
+
+            if (is_array($item)) {
+                $node = $this->nativeInlinePayloadNode($item);
+                if ($node instanceof AstNode) {
+                    $nodes[] = $node;
+                }
+            }
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function metaBlockNodes(mixed $value): array
+    {
+        $items = $this->metaListItems($value);
+        $nodes = [];
+        foreach ($items as $item) {
+            if ($item instanceof AstNode) {
+                $nodes[] = $item;
+                continue;
+            }
+
+            if (is_array($item)) {
+                $node = $this->nativeBlockPayloadNode($item);
+                if ($node instanceof AstNode) {
+                    $nodes[] = $node;
+                }
+            }
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * @param array<string, mixed> $native
+     */
+    private function nativeInlinePayloadNode(array $native): ?AstNode
+    {
+        try {
+            return (new PandocJsonReader())->readPacket([
+                'pandoc-api-version' => self::DEFAULT_API_VERSION,
+                'meta' => [],
+                'blocks' => [
+                    ['t' => 'Plain', 'c' => [$native]],
+                ],
+            ])->children[0]->children[0] ?? null;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $native
+     */
+    private function nativeBlockPayloadNode(array $native): ?AstNode
+    {
+        try {
+            return (new PandocJsonReader())->readPacket([
+                'pandoc-api-version' => self::DEFAULT_API_VERSION,
+                'meta' => [],
+                'blocks' => [$native],
+            ])->children[0] ?? null;
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /**
@@ -1847,6 +2065,10 @@ final class NativeWriter
 
     private function isInlineNode(AstNode $node): bool
     {
+        if (in_array($node->type, ['raw_markdown', 'raw_tex'], true)) {
+            return $node->attr('constructor') === 'RawInline';
+        }
+
         return in_array($node->type, [
             'text',
             'space',

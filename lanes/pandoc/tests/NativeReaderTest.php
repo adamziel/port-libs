@@ -196,6 +196,75 @@ return [
         $t->same('Grace', $roundTripMeta['authorInlines'][1][0]->attr('text'));
         $t->same('2026-06-10', $roundTripMeta['dateInlines'][0]->attr('text'));
     },
+    'writes canonical and tagged metadata constructors in textual native output' => static function (TestRunner $t): void {
+        $rawInline = new AstNode('raw_markdown', [
+            'constructor' => 'RawInline',
+            'format' => 'gfm',
+            'markdown' => '<span>raw</span>',
+            'text' => '<span>raw</span>',
+        ]);
+        $document = new AstNode('document', [
+            'meta' => [
+                'review' => ['type' => 'map', 'items' => [
+                    'draft' => true,
+                    'tags' => ['type' => 'list', 'items' => [
+                        'json-native',
+                        false,
+                    ]],
+                    'body' => ['type' => 'blocks', 'children' => [
+                        new AstNode('paragraph', [], [
+                            new AstNode('text', ['text' => 'Block']),
+                            new AstNode('space'),
+                            new AstNode('text', ['text' => 'metadata']),
+                        ]),
+                    ]],
+                    'inline' => ['type' => 'inlines', 'children' => [
+                        new AstNode('text', ['text' => 'Inline']),
+                        new AstNode('space'),
+                        $rawInline,
+                    ]],
+                ]],
+                'pretagged' => ['t' => 'MetaMap', 'c' => [
+                    'source' => ['t' => 'MetaString', 'c' => 'tagged-source'],
+                    'enabled' => ['t' => 'MetaBool', 'c' => true],
+                    'aliases' => ['t' => 'MetaList', 'c' => [
+                        ['t' => 'MetaString', 'c' => 'alpha'],
+                        ['t' => 'MetaBool', 'c' => false],
+                    ]],
+                ]],
+                'rawDirect' => $rawInline,
+            ],
+        ], [
+            new AstNode('paragraph', [], [new AstNode('text', ['text' => 'Body'])]),
+        ]);
+
+        $nativeText = (new NativeWriter(['standalone' => true]))->write($document);
+        $roundTrip = (new NativeReader())->read($nativeText);
+        $meta = $roundTrip->attr('meta');
+        $review = $meta['review'];
+        $pretagged = $meta['pretagged'];
+        $rawDirect = $meta['rawDirect'];
+
+        $t->contains('MetaMap', $nativeText);
+        $t->contains('MetaBool True', $nativeText);
+        $t->contains('RawInline (Format "gfm") "<span>raw</span>"', $nativeText);
+        $t->same(true, $review['draft']);
+        $t->same('MetaList', $review['tags']['type']);
+        $t->same(['json-native', false], $review['tags']['value']);
+        $t->same('MetaBlocks', $review['body']['type']);
+        $t->same('paragraph', $review['body']['value'][0]->type);
+        $t->same('Block metadata', $review['body']['value'][0]->attr('text'));
+        $t->same('MetaInlines', $review['inline']['type']);
+        $t->same(['text', 'space', 'raw_markdown'], array_map(static fn (AstNode $node): string => $node->type, $review['inline']['value']));
+        $t->same('gfm', $review['inline']['value'][2]->attr('format'));
+        $t->same('tagged-source', $pretagged['source']);
+        $t->same(true, $pretagged['enabled']);
+        $t->same('MetaList', $pretagged['aliases']['type']);
+        $t->same(['alpha', false], $pretagged['aliases']['value']);
+        $t->same('MetaInlines', $rawDirect['type']);
+        $t->same('raw_markdown', $rawDirect['value'][0]->type);
+        $t->same('gfm', $rawDirect['value'][0]->attr('format'));
+    },
     'normalizes legacy pandoc native json unMeta document arrays' => static function (TestRunner $t): void {
         $legacy = [
             [
