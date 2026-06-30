@@ -1673,10 +1673,29 @@ XML;
         foreach ($review['items'] as $item) {
             $reviewByPath[$item['path']] = $item;
         }
+        $identityManifestByPath = [];
+        foreach ($summary['packageIdentity']['manifestEntries'] as $item) {
+            $identityManifestByPath[$item['path']] = $item;
+        }
+        $identityPackageByPath = [];
+        foreach ($summary['packageIdentity']['packageEntries'] as $item) {
+            $identityPackageByPath[$item['path']] = $item;
+        }
+        $changedIdentity = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [[
+                'name' => 'Pictures/timestamped.png',
+                'data' => $timestampedBytes,
+                'compressionMethod' => 0,
+                'modifiedAt' => $modifiedAt + 1,
+            ]],
+        ))->summarize()['packageIdentity'];
 
         $media = $mediaByPath['Pictures/timestamped.png'];
         $part = $inventory['parts']['Pictures/timestamped.png'];
         $reviewItem = $reviewByPath['Pictures/timestamped.png'];
+        $identityManifest = $identityManifestByPath['Pictures/timestamped.png'];
+        $identityPackage = $identityPackageByPath['Pictures/timestamped.png'];
 
         $t->same($modifiedAt, $media['zipModifiedAt']);
         $t->same('extended-timestamp', $media['zipTimestampSource']);
@@ -1704,6 +1723,20 @@ XML;
         $t->same($modifiedAt, $part['zipLocalModifiedAt']);
         $t->same('extended-timestamp', $part['zipLocalTimestampSource']);
         $t->same([], $part['zipTimestampIssues']);
+
+        $t->same(1, $summary['packageIdentity']['zipTimestampEntryCount']);
+        $t->same(1, $summary['packageIdentity']['zipDosTimestampEntryCount']);
+        $t->same(1, $summary['packageIdentity']['zipExtendedTimestampEntryCount']);
+        $t->same(0, $summary['packageIdentity']['zipInvalidDosTimestampEntryCount']);
+        $t->same($modifiedAt, $identityManifest['zipModifiedAt']);
+        $t->same('extended-timestamp', $identityManifest['zipTimestampSource']);
+        $t->same($modifiedAt, $identityManifest['zipLocalModifiedAt']);
+        $t->same('extended-timestamp', $identityManifest['zipLocalTimestampSource']);
+        $t->same($modifiedAt, $identityPackage['zipModifiedAt']);
+        $t->same('extended-timestamp', $identityPackage['zipTimestampSource']);
+        $t->same($modifiedAt, $identityPackage['zipLocalModifiedAt']);
+        $t->same('extended-timestamp', $identityPackage['zipLocalTimestampSource']);
+        $t->true($summary['packageIdentity']['identitySha256'] !== $changedIdentity['identitySha256']);
     },
     'resolves compact ODT manifest path suffixes while preserving query and fragment provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $sourceBytes = 'SOURCEPNG';

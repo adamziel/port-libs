@@ -12768,6 +12768,7 @@ XML;
 
         $result = (new OdfReader())->readPackage($package);
         $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $identity = $provenance['packageIdentity'];
         $manifestByPath = [];
         foreach ($result['manifest'] as $item) {
             $manifestByPath[$item['fullPath']] = $item;
@@ -12776,9 +12777,25 @@ XML;
         foreach ($provenance['manifestFileEntryOrder'] as $item) {
             $manifestOrderByPath[$item['fullPath']] = $item;
         }
+        $identityManifestByPath = [];
+        foreach ($identity['manifestEntries'] as $item) {
+            $identityManifestByPath[$item['fullPath']] = $item;
+        }
+        $identityPackageByPart = [];
+        foreach ($identity['packageEntries'] as $item) {
+            $identityPackageByPart[$item['part']] = $item;
+        }
+        $changedIdentity = (new OdfReader())->readPackage($buildOdtPackage(null, $manifest, null, null, [[
+            'name' => 'Pictures/timestamped.png',
+            'data' => $timestampedBytes,
+            'compressionMethod' => 0,
+            'modifiedAt' => $modifiedAt + 1,
+        ]]))['importReport']['manifest']['packageProvenance']['packageIdentity'];
         $manifestItem = $manifestByPath['Pictures/timestamped.png'];
         $orderItem = $manifestOrderByPath['Pictures/timestamped.png'];
         $part = $provenance['parts']['Pictures/timestamped.png'];
+        $identityManifest = $identityManifestByPath['Pictures/timestamped.png'];
+        $identityPackage = $identityPackageByPart['Pictures/timestamped.png'];
 
         $t->same($package->modificationTimePreflight(), $provenance['modificationTimes']);
         $t->same(1, $provenance['zipTimestampEntryCount']);
@@ -12806,6 +12823,20 @@ XML;
         $t->same($modifiedAt, $part['zipLocalModifiedAt']);
         $t->same('extended-timestamp', $part['zipLocalTimestampSource']);
         $t->same([], $part['zipTimestampIssues']);
+
+        $t->same(1, $identity['zipTimestampEntryCount']);
+        $t->same(1, $identity['zipDosTimestampEntryCount']);
+        $t->same(1, $identity['zipExtendedTimestampEntryCount']);
+        $t->same(0, $identity['zipInvalidDosTimestampEntryCount']);
+        $t->same($modifiedAt, $identityManifest['zipModifiedAt']);
+        $t->same('extended-timestamp', $identityManifest['zipTimestampSource']);
+        $t->same($modifiedAt, $identityManifest['zipLocalModifiedAt']);
+        $t->same('extended-timestamp', $identityManifest['zipLocalTimestampSource']);
+        $t->same($modifiedAt, $identityPackage['zipModifiedAt']);
+        $t->same('extended-timestamp', $identityPackage['zipTimestampSource']);
+        $t->same($modifiedAt, $identityPackage['zipLocalModifiedAt']);
+        $t->same('extended-timestamp', $identityPackage['zipLocalTimestampSource']);
+        $t->true($identity['identitySha256'] !== $changedIdentity['identitySha256']);
     },
     'surfaces ODT ZIP package comments in rich package provenance' => static function (TestRunner $t) use ($manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $package = ZipPackage::fromParts([
