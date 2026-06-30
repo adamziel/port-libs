@@ -5973,6 +5973,204 @@ XML;
         $t->same(['_rels/.rels', 'word/_rels/missing-source-media.rels'], $missing['relationshipParts']);
         $t->same(null, $missing['largestExistingSourcePart']);
     },
+    'summarizes docx relationship source content type subtype and tree buckets for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $mainDocumentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
+        $jsonSourceType = 'application/vnd.example.source+json';
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Default Extension="json" ContentType="' . $jsonSourceType . '; profile=source-tree"/>' . "\n" .
+            '  <Default Extension="txt" ContentType="text/plain; charset=UTF-8"/>' . "\n" .
+            '  <Default Extension="src" ContentType="source-tree-invalid"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $jsonSource = '{"source":"tree","padding":"' . str_repeat('J', 64) . '"}';
+        $textSource = 'plain relationship source notes';
+        $invalidSource = 'invalid relationship source bytes';
+        $parts['customXml/source-tree.json'] = $jsonSource;
+        $parts['customXml/source-standard.txt'] = $textSource;
+        $parts['word/source-invalid.src'] = $invalidSource;
+        $parts['word/media/source-tree-json.png'] = 'json source target';
+        $parts['word/media/source-tree-text.png'] = 'text source target';
+        $parts['word/media/source-tree-invalid.png'] = 'invalid source target';
+        $parts['word/media/source-tree-missing.png'] = 'missing source target';
+        $parts['customXml/_rels/source-tree.json.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rJsonSourceTree" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../word/media/source-tree-json.png"/>
+</Relationships>
+XML;
+        $parts['customXml/_rels/source-standard.txt.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rTextSourceTree" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../word/media/source-tree-text.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/source-invalid.src.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rInvalidSourceTree" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/source-tree-invalid.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/missing-source-tree.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rMissingSourceTree" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/source-tree-missing.png"/>
+</Relationships>
+XML;
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $bySubtype = [];
+        foreach ($summary['relationshipSourceContentTypeSubtypes'] as $subtype) {
+            $bySubtype[$subtype['sourceContentTypeSubtypeKey']] = $subtype;
+        }
+        $byTree = [];
+        foreach ($summary['relationshipSourceContentTypeTrees'] as $tree) {
+            $byTree[$tree['sourceContentTypeTreeKey']] = $tree;
+        }
+
+        $t->same(6, $summary['relationshipSourceCount']);
+        $t->same(5, $summary['relationshipSourceContentTypeSubtypeBucketCount']);
+        $t->same([
+            '(invalid)' => 1,
+            '(missing)' => 2,
+            'plain' => 1,
+            'vnd.example.source+json' => 1,
+            'vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+        ], $summary['relationshipSourceContentTypeSubtypeBucketCounts']);
+        $t->same([
+            '(invalid)',
+            '(missing)',
+            'plain',
+            'vnd.example.source+json',
+            'vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+        ], array_column($summary['relationshipSourceContentTypeSubtypes'], 'sourceContentTypeSubtypeKey'));
+
+        $office = $bySubtype['vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'];
+        $t->same('vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $office['sourceContentTypeSubtype']);
+        $t->same(1, $office['sourceCount']);
+        $t->same(1, $office['existingSourceCount']);
+        $t->same(2, $office['relationshipCount']);
+        $t->same(0, $office['parameterizedSourceCount']);
+        $t->same(['application' => 1], $office['mediaTypeCounts']);
+        $t->same([$mainDocumentType => 1], $office['sourceContentTypeBaseCounts']);
+        $t->same(['override' => 1], $office['sourceContentTypeSourceCounts']);
+        $t->same(['word' => 1], $office['sourceDirectoryCounts']);
+        $t->same(['xml' => 1], $office['sourcePartExtensionCounts']);
+        $t->same(['office-document' => 1, 'root-relationship-target' => 1], $office['sourceRoleCounts']);
+        $t->same(['word/document.xml'], $office['sourceParts']);
+        $t->same('word/document.xml', $office['largestExistingSourcePart']['sourcePart']);
+        $t->same('vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $office['largestExistingSourcePart']['sourceContentTypeSubtype']);
+
+        $vendorSubtype = $bySubtype['vnd.example.source+json'];
+        $t->same(1, $vendorSubtype['sourceCount']);
+        $t->same(1, $vendorSubtype['parameterizedSourceCount']);
+        $t->same([$jsonSourceType => 1], $vendorSubtype['sourceContentTypeBaseCounts']);
+        $t->same(['default' => 1], $vendorSubtype['sourceContentTypeSourceCounts']);
+        $t->same(['application' => 1], $vendorSubtype['mediaTypeCounts']);
+        $t->same(['customXml/source-tree.json'], $vendorSubtype['sourceParts']);
+        $t->same(['customXml/_rels/source-tree.json.rels'], $vendorSubtype['relationshipParts']);
+        $t->same(strlen($jsonSource), $vendorSubtype['existingSourceByteLength']);
+        $t->same(hash('sha256', $jsonSource), $vendorSubtype['largestExistingSourcePart']['sourceSha256']);
+        $t->same(['profile' => 'source-tree'], $vendorSubtype['largestExistingSourcePart']['sourceContentTypeParameterMap']);
+
+        $plain = $bySubtype['plain'];
+        $t->same(1, $plain['sourceCount']);
+        $t->same(['text' => 1], $plain['mediaTypeCounts']);
+        $t->same(['text/plain' => 1], $plain['sourceContentTypeBaseCounts']);
+        $t->same(['text/plain; charset=UTF-8'], $plain['sourceContentTypes']);
+        $t->same(['customXml/source-standard.txt'], $plain['sourceParts']);
+
+        $invalid = $bySubtype['(invalid)'];
+        $t->same(null, $invalid['sourceContentTypeSubtype']);
+        $t->same(1, $invalid['invalidContentTypeSourceCount']);
+        $t->same(0, $invalid['missingContentTypeSourceCount']);
+        $t->same(0, $invalid['parameterizedSourceCount']);
+        $t->same(['source-tree-invalid' => 1], $invalid['sourceContentTypeBaseCounts']);
+        $t->same(['source-tree-invalid'], $invalid['sourceContentTypes']);
+        $t->same(['word/source-invalid.src'], $invalid['sourceParts']);
+        $t->same('word/source-invalid.src', $invalid['largestExistingSourcePart']['sourcePart']);
+        $t->same(null, $invalid['largestExistingSourcePart']['sourceContentTypeSubtype']);
+
+        $missing = $bySubtype['(missing)'];
+        $t->same(null, $missing['sourceContentTypeSubtype']);
+        $t->same(2, $missing['sourceCount']);
+        $t->same(1, $missing['existingSourceCount']);
+        $t->same(1, $missing['nonExistingSourceCount']);
+        $t->same(2, $missing['missingContentTypeSourceCount']);
+        $t->same(3, $missing['relationshipCount']);
+        $t->same(['(missing)' => 2], $missing['sourceContentTypeBaseCounts']);
+        $t->same(['(missing)' => 2], $missing['sourceContentTypeSourceCounts']);
+        $t->same(['/' => 1, 'word' => 1], $missing['sourceDirectoryCounts']);
+        $t->same(['(none)' => 2], $missing['sourcePartExtensionCounts']);
+        $t->same(['/', 'word/missing-source-tree'], $missing['sourceParts']);
+        $t->same(['_rels/.rels', 'word/_rels/missing-source-tree.rels'], $missing['relationshipParts']);
+        $t->same(null, $missing['largestExistingSourcePart']);
+
+        $t->same(5, $summary['relationshipSourceContentTypeTreeBucketCount']);
+        $t->same([
+            '(invalid)' => 1,
+            '(missing)' => 2,
+            'standard' => 1,
+            'vnd.example' => 1,
+            'vnd.openxmlformats-officedocument' => 1,
+        ], $summary['relationshipSourceContentTypeTreeBucketCounts']);
+        $t->same([
+            '(invalid)',
+            '(missing)',
+            'standard',
+            'vnd.example',
+            'vnd.openxmlformats-officedocument',
+        ], array_column($summary['relationshipSourceContentTypeTrees'], 'sourceContentTypeTreeKey'));
+
+        $vendorTree = $byTree['vnd.example'];
+        $t->same('vnd.example', $vendorTree['sourceContentTypeTree']);
+        $t->same(1, $vendorTree['sourceCount']);
+        $t->same(1, $vendorTree['relationshipCount']);
+        $t->same(1, $vendorTree['parameterizedSourceCount']);
+        $t->same([$jsonSourceType => 1], $vendorTree['sourceContentTypeBaseCounts']);
+        $t->same(['vnd.example.source+json' => 1], $vendorTree['subtypeCounts']);
+        $t->same(['customXml/source-tree.json'], $vendorTree['sourceParts']);
+        $t->same('customXml/source-tree.json', $vendorTree['largestExistingSourcePart']['sourcePart']);
+        $t->same('vnd.example', $vendorTree['largestExistingSourcePart']['sourceContentTypeTree']);
+
+        $standardTree = $byTree['standard'];
+        $t->same(1, $standardTree['sourceCount']);
+        $t->same(['text/plain' => 1], $standardTree['sourceContentTypeBaseCounts']);
+        $t->same(['text' => 1], $standardTree['mediaTypeCounts']);
+        $t->same(['plain' => 1], $standardTree['subtypeCounts']);
+        $t->same(['customXml/source-standard.txt'], $standardTree['sourceParts']);
+
+        $officeTree = $byTree['vnd.openxmlformats-officedocument'];
+        $t->same(1, $officeTree['sourceCount']);
+        $t->same(2, $officeTree['relationshipCount']);
+        $t->same([$mainDocumentType => 1], $officeTree['sourceContentTypeBaseCounts']);
+        $t->same(['application' => 1], $officeTree['mediaTypeCounts']);
+        $t->same(['word/document.xml'], $officeTree['sourceParts']);
+        $t->same('vnd.openxmlformats-officedocument', $officeTree['largestExistingSourcePart']['sourceContentTypeTree']);
+
+        $invalidTree = $byTree['(invalid)'];
+        $t->same(null, $invalidTree['sourceContentTypeTree']);
+        $t->same(1, $invalidTree['invalidContentTypeSourceCount']);
+        $t->same(['source-tree-invalid' => 1], $invalidTree['sourceContentTypeBaseCounts']);
+        $t->same(['(invalid)' => 1], $invalidTree['mediaTypeCounts']);
+        $t->same(['(invalid)' => 1], $invalidTree['subtypeCounts']);
+        $t->same(['word/source-invalid.src'], $invalidTree['sourceParts']);
+
+        $missingTree = $byTree['(missing)'];
+        $t->same(null, $missingTree['sourceContentTypeTree']);
+        $t->same(2, $missingTree['missingContentTypeSourceCount']);
+        $t->same(['(missing)' => 2], $missingTree['sourceContentTypeBaseCounts']);
+        $t->same(['(missing)' => 2], $missingTree['mediaTypeCounts']);
+        $t->same(['(missing)' => 2], $missingTree['subtypeCounts']);
+        $t->same(['/', 'word/missing-source-tree'], $missingTree['sourceParts']);
+        $t->same(null, $missingTree['largestExistingSourcePart']);
+
+        $encoded = json_encode($summary['relationshipSourceContentTypeTrees']);
+        $t->true(is_string($encoded));
+        $t->true(!str_contains((string) $encoded, $jsonSource), 'source tree metadata should not expose source bytes');
+    },
     'summarizes docx relationship source content type syntax suffix buckets for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
