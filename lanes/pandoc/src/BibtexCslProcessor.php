@@ -190,6 +190,15 @@ final class BibtexCslProcessor
             ];
         }
 
+        $itemsByKey = [];
+        foreach ($entries as $key => $entry) {
+            $itemsByKey[$key] = $entry['csl'];
+        }
+        $itemsByCitationKey = $this->itemsByCitationKey($itemsByKey);
+        foreach ($entries as $key => $entry) {
+            $entries[$key]['csl'] = $this->withRelatedReferenceMetadata($entry['csl'], $itemsByCitationKey);
+        }
+
         return $entries;
     }
 
@@ -534,6 +543,10 @@ final class BibtexCslProcessor
         $customNameSummary = $this->biblatexCustomNameSummary($item['biblatex-custom-names'] ?? []);
         if ($customNameSummary !== '') {
             $parts[] = 'BibLaTeX custom names: ' . $customNameSummary;
+        }
+        $relatedOptionSummary = $this->relatedOptionSummary($item);
+        if ($relatedOptionSummary !== '') {
+            $parts[] = 'Related options: ' . $relatedOptionSummary;
         }
         $fieldAnnotationSummary = $this->biblatexFieldAnnotationSummary($item['biblatex-field-annotations'] ?? []);
         if ($fieldAnnotationSummary !== '') {
@@ -1487,6 +1500,87 @@ final class BibtexCslProcessor
     }
 
     /**
+     * @param array<string, mixed> $item
+     * @param array<string, array<string, mixed>> $itemsByCitationKey
+     * @return array<string, mixed>
+     */
+    private function withRelatedReferenceMetadata(array $item, array $itemsByCitationKey): array
+    {
+        $relatedKeys = $this->fieldKeyList((string) ($item['related'] ?? ''));
+        if ($relatedKeys === []) {
+            return $item;
+        }
+
+        $item['relatedKeys'] = $relatedKeys;
+
+        $options = $this->biblatexRelatedOptionList((string) ($item['related-options'] ?? ''));
+        if ($options !== []) {
+            $item['relatedOptions'] = $options;
+        }
+
+        $relatedItems = [];
+        $missing = [];
+        $seen = [];
+        foreach ($relatedKeys as $relatedKey) {
+            $relatedItem = $itemsByCitationKey[$relatedKey] ?? null;
+            if ($relatedItem === null) {
+                $missing[] = $relatedKey;
+                continue;
+            }
+
+            $relatedId = (string) ($relatedItem['id'] ?? $relatedKey);
+            if (isset($seen[$relatedId])) {
+                continue;
+            }
+
+            $seen[$relatedId] = true;
+            $relatedItems[] = $this->relatedReferenceSummary($relatedItem);
+        }
+
+        if ($relatedItems !== []) {
+            $item['relatedItems'] = $relatedItems;
+        }
+        if ($missing !== []) {
+            $item['missingRelatedKeys'] = $missing;
+        } else {
+            unset($item['missingRelatedKeys']);
+        }
+        $item['relatedSummary'] = $this->summarizedReferenceValues($relatedItems, $missing);
+
+        return $item;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, mixed>
+     */
+    private function relatedReferenceSummary(array $item): array
+    {
+        $summary = [
+            'id' => (string) ($item['id'] ?? ''),
+            'type' => (string) ($item['type'] ?? ''),
+        ];
+
+        $title = trim((string) ($item['title'] ?? ''));
+        if ($title !== '') {
+            $summary['title'] = $title;
+        }
+        if (isset($item['issued']) && is_array($item['issued'])) {
+            $summary['issued'] = $item['issued'];
+        }
+        $options = $item['biblatex-options'] ?? [];
+        $hasDataOnlyOption = is_array($options) && $this->hasDataOnlyOption(implode(',', array_map(
+            static fn (mixed $option): string => (string) $option,
+            $options
+        )));
+        if (($item['dataOnly'] ?? false) === true || $hasDataOnlyOption) {
+            $summary['dataOnly'] = true;
+        }
+
+        return $summary;
+    }
+
+    /**
      * @param list<string> $keys
      * @param array<string, array{id:string, type:string, fields:array<string, string>}> $entriesByKey
      * @return list<array<string, mixed>>
@@ -1617,6 +1711,22 @@ final class BibtexCslProcessor
         }
 
         return false;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function relatedOptionSummary(array $item): string
+    {
+        $options = $item['relatedOptions'] ?? $this->biblatexRelatedOptionList((string) ($item['related-options'] ?? ''));
+        if (!is_array($options)) {
+            return '';
+        }
+
+        return implode('; ', array_values(array_filter(
+            array_map(static fn (mixed $option): string => trim((string) $option), $options),
+            static fn (string $option): bool => $option !== ''
+        )));
     }
 
     /**
@@ -2894,6 +3004,26 @@ final class BibtexCslProcessor
             array_map(
                 static fn (string $option): string => trim($option),
                 $this->splitTopLevel($value, ',')
+            ),
+            static fn (string $option): bool => $option !== ''
+        ));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function biblatexRelatedOptionList(string $value): array
+    {
+        if (trim($value) === '') {
+            return [];
+        }
+
+        $separator = str_contains($value, ';') ? ';' : ',';
+
+        return array_values(array_filter(
+            array_map(
+                static fn (string $option): string => trim($option),
+                $this->splitTopLevel($value, $separator)
             ),
             static fn (string $option): bool => $option !== ''
         ));

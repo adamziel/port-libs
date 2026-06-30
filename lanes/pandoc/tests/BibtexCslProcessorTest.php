@@ -3657,6 +3657,12 @@ XML);
   relatedoptions        = {dataonly; skipbib},
   crossref              = {source-proceedings}
 }
+
+@online{source-appendix,
+  author                = {{Archive Desk}},
+  title                 = {Source Appendix Ledger},
+  date                  = {2025}
+}
 BIB;
 
         $processor = new BibtexCslProcessor();
@@ -3672,7 +3678,16 @@ BIB;
         $t->same('updated-by', $item['related-type']);
         $t->same('Updated source', $item['related-string']);
         $t->same('dataonly; skipbib', $item['related-options']);
+        $t->same(['source-appendix', 'source-license'], $item['relatedKeys']);
+        $t->same(['dataonly', 'skipbib'], $item['relatedOptions']);
+        $t->same('source-appendix', $item['relatedItems'][0]['id'] ?? null);
+        $t->same('webpage', $item['relatedItems'][0]['type'] ?? null);
+        $t->same('Source Appendix Ledger', $item['relatedItems'][0]['title'] ?? null);
+        $t->same([2025], $item['relatedItems'][0]['issued']['date-parts'][0] ?? null);
+        $t->same(['source-license'], $item['missingRelatedKeys']);
         $t->same('source-proceedings', $item['xref']);
+        $t->contains('Updated source (updated-by): Source Appendix Ledger (2025); missing: source-license', $processor->renderBibliographyText($item));
+        $t->contains('Related options: dataonly; skipbib', $processor->renderBibliographyText($item));
 
         $document = (new MarkdownReader())->read('Relation source [@legacy-relation] keeps relation handoff metadata.');
         $handoff = $processor->citationHandoff($document, $source);
@@ -3681,6 +3696,44 @@ BIB;
         $t->same('relation-manual', $handoff['bibliography']->children[0]->attr('cslItem')['id'] ?? null);
         $t->same('005 explicit relation list', $handoff['bibliography']->children[0]->attr('cslItem')['shorthand-list-sort-key'] ?? null);
         $t->same('source-proceedings', $handoff['bibliography']->children[0]->attr('cslItem')['xref'] ?? null);
+        $t->same(['source-license'], $handoff['bibliography']->children[0]->attr('cslItem')['missingRelatedKeys'] ?? null);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Related Entry Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-related-entry-review</id>
+    <updated>2026-06-30T16:45:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="related-summary"/>
+        <text variable="related-options"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="related-summary"/>
+      <text variable="related-options"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $normalized = $styled->item('relation-manual');
+        $t->same(['source-appendix', 'source-license'], $normalized['relatedKeys'] ?? null);
+        $t->same(['dataonly', 'skipbib'], $normalized['relatedOptions'] ?? null);
+        $t->same(['source-license'], $normalized['missingRelatedKeys'] ?? null);
+        $t->same('Source Appendix Ledger', $normalized['relatedItems'][0]['title'] ?? null);
+        $t->same('[Relation Review Manual | Updated source (updated-by): Source Appendix Ledger (2025); missing: source-license | dataonly, skipbib]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'relation-manual', 'text' => '[@relation-manual]']),
+        ]));
+        $t->same('Relation Review Manual :: Updated source (updated-by): Source Appendix Ledger (2025); missing: source-license :: dataonly, skipbib', $styled->renderBibliographyEntry('relation-manual'));
     },
     'carries biblatex related entry provenance in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -3723,7 +3776,7 @@ BIB;
         $t->same('skipbib=true, dataonly=false', $item['related-options']);
         $t->same('source-packet, license-packet, missing-related', $item['rawBibtex']['fields']['related']);
         $t->same(
-            'Mia Mapper. Related Review Manual. 2026. BibLaTeX related sources: Reviews source packet (reviewof): Source Packet (2025-04-01); License Packet (2024); missing: missing-related.',
+            'Mia Mapper. Related Review Manual. 2026. Related options: skipbib=true; dataonly=false. BibLaTeX related sources: Reviews source packet (reviewof): Source Packet (2025-04-01); License Packet (2024); missing: missing-related.',
             $processor->renderBibliographyText($item)
         );
 
