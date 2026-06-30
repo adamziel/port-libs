@@ -19944,6 +19944,104 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfAcroFormMetadata']);
     },
 
+    'fake runner summarizes pdf acroform appearance regeneration policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/acroform-appearance-policy.pdf']);
+        $textAppearance = "q BT /Helv 10 Tf (Migration Desk) Tj ET Q\n";
+        $choiceAppearance = "q BT /Helv 10 Tf (Archive) Tj ET Q\n";
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /AcroForm 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Annots [4 0 R 5 0 R 6 0 R 7 0 R] >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Tx /T (reviewer.name) /V (Migration Desk) /AP << /N 10 0 R >> >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Btn /T (approved) /V /Off >>',
+            'endobj',
+            '6 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Ch /T (routing.queue) /V (Archive) /AS /Archive /AP << /N << /Archive 11 0 R >> >> >>',
+            'endobj',
+            '7 0 obj',
+            '<< /Type /Annot /Subtype /Link /Rect [0 0 24 24] /AP << /N 12 0 R >> >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Fields [4 0 R 5 0 R 6 0 R] /NeedAppearances true >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /XObject /Subtype /Form /BBox [0 0 180 24] /Length ' . strlen($textAppearance) . ' >>',
+            'stream',
+            $textAppearance,
+            'endstream',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /XObject /Subtype /Form /BBox [0 0 180 24] /Length ' . strlen($choiceAppearance) . ' >>',
+            'stream',
+            $choiceAppearance,
+            'endstream',
+            'endobj',
+            '12 0 obj',
+            '<< /Type /XObject /Subtype /Form /BBox [0 0 24 24] >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/acroform-appearance-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/acroform-appearance-policy.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            'reviewStatus' => 'review',
+            'fieldCount' => 3,
+            'fieldNames' => ['approved', 'reviewer.name', 'routing.queue'],
+            'needAppearances' => true,
+            'defaultResourcesPresent' => false,
+            'defaultAppearancePresent' => false,
+            'xfaPresent' => false,
+            'appearancePolicyCount' => 2,
+            'normalAppearanceFieldCount' => 2,
+            'fieldsWithoutNormalAppearanceCount' => 1,
+            'fieldsWithoutNormalAppearance' => ['approved'],
+            'reviewAppearanceCount' => 0,
+            'issues' => [
+                'fields-without-normal-appearance',
+                'need-appearances-regeneration-boundary',
+                'need-appearances-without-default-appearance',
+                'need-appearances-without-default-resources',
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfAcroFormAppearancePolicy']);
+        $t->contains('pdf-byte-acroform-appearance-policy:review', $diagnostics);
+        $t->contains('pdf-byte-acroform-appearance-fields:3', $diagnostics);
+        $t->contains('pdf-byte-acroform-appearance-missing-normal-fields:1', $diagnostics);
+        $t->contains('pdf-byte-acroform-appearance-policy-issues:4', $diagnostics);
+        $t->contains('pdf-byte-acroform-appearance-policy-issue:fields-without-normal-appearance', $diagnostics);
+        $t->contains('pdf-byte-acroform-appearance-policy-issue:need-appearances-without-default-resources', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfAcroFormAppearancePolicy']);
+    },
+
     'fake runner extracts bounded pdf xfa packet provenance from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/xfa-packets.pdf']);

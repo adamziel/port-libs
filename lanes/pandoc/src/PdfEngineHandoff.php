@@ -850,6 +850,7 @@ final class PdfEngineHandoff
      *     pdfCollectionMetadata: array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
      *     pdfCollectionPolicy: array<string, mixed>,
      *     pdfAcroFormMetadata: array{fieldReferences:list<string>, fieldCount:int, needAppearances:bool|null, sigFlags:int|null, sigFlagNames:list<string>, defaultResourcesPresent:bool, defaultAppearance:string|null, quadding:int|null, calculationOrder:list<string>, xfaPresent:bool, xfaPacketNames:list<string>}|array{},
+     *     pdfAcroFormAppearancePolicy: array{reviewStatus:string, fieldCount:int, fieldNames:list<string>, needAppearances:bool|null, defaultResourcesPresent:bool, defaultAppearancePresent:bool, xfaPresent:bool, appearancePolicyCount:int, normalAppearanceFieldCount:int, fieldsWithoutNormalAppearanceCount:int, fieldsWithoutNormalAppearance:list<string>, reviewAppearanceCount:int, issues:list<string>}|array{},
      *     pdfAcroFormCalculationOrder: list<array{order:int, fieldObject:string, fieldName:string|null, fieldType:string|null, fieldTypeLabel:string|null, alternateName:string|null, mappingName:string|null, flags:int|null, flagNames:list<string>, missing:bool}>,
      *     pdfXfaPackets: list<array{packetName:string|null, packetObject:string|null, source:string, valueKind:string, filters:list<string>, packetBytes:int|null, packetSha256:string|null, packetSkipped:string|null}>,
      *     pdfThreads: list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>,
@@ -1615,6 +1616,7 @@ final class PdfEngineHandoff
         $pdfCollectionMetadata = [];
         $pdfCollectionPolicy = [];
         $pdfAcroFormMetadata = [];
+        $pdfAcroFormAppearancePolicy = [];
         $pdfAcroFormCalculationOrder = [];
         $pdfXfaPackets = [];
         $pdfThreads = [];
@@ -1772,6 +1774,7 @@ final class PdfEngineHandoff
                 $pdfCollectionMetadata = $pdfInspection['collectionMetadata'];
                 $pdfCollectionPolicy = $pdfInspection['collectionPolicy'];
                 $pdfAcroFormMetadata = $pdfInspection['acroFormMetadata'];
+                $pdfAcroFormAppearancePolicy = $pdfInspection['acroFormAppearancePolicy'];
                 $pdfAcroFormCalculationOrder = $pdfInspection['acroFormCalculationOrder'];
                 $pdfXfaPackets = $pdfInspection['xfaPackets'];
                 $pdfThreads = $pdfInspection['threads'];
@@ -3989,6 +3992,26 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-acroform-xfa-packets:' . count($pdfAcroFormMetadata['xfaPacketNames']);
                     }
                 }
+                if ($pdfAcroFormAppearancePolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-acroform-appearance-policy:' . $pdfAcroFormAppearancePolicy['reviewStatus'];
+                    if (($pdfAcroFormAppearancePolicy['fieldCount'] ?? 0) > 0) {
+                        $diagnostics[] = 'pdf-byte-acroform-appearance-fields:' . $pdfAcroFormAppearancePolicy['fieldCount'];
+                    }
+                    if (($pdfAcroFormAppearancePolicy['fieldsWithoutNormalAppearanceCount'] ?? 0) > 0) {
+                        $diagnostics[] = 'pdf-byte-acroform-appearance-missing-normal-fields:' . $pdfAcroFormAppearancePolicy['fieldsWithoutNormalAppearanceCount'];
+                    }
+                    if (($pdfAcroFormAppearancePolicy['reviewAppearanceCount'] ?? 0) > 0) {
+                        $diagnostics[] = 'pdf-byte-acroform-appearance-review-annotations:' . $pdfAcroFormAppearancePolicy['reviewAppearanceCount'];
+                    }
+                    if (isset($pdfAcroFormAppearancePolicy['issues']) && is_array($pdfAcroFormAppearancePolicy['issues']) && $pdfAcroFormAppearancePolicy['issues'] !== []) {
+                        $diagnostics[] = 'pdf-byte-acroform-appearance-policy-issues:' . count($pdfAcroFormAppearancePolicy['issues']);
+                        foreach ($pdfAcroFormAppearancePolicy['issues'] as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $diagnostics[] = 'pdf-byte-acroform-appearance-policy-issue:' . $issue;
+                            }
+                        }
+                    }
+                }
                 if ($pdfXfaPackets !== []) {
                     $diagnostics[] = 'pdf-byte-xfa-packets:' . count($pdfXfaPackets);
                     $xfaPacketNames = 0;
@@ -5451,6 +5474,7 @@ final class PdfEngineHandoff
             'pdfCollectionMetadata' => $pdfCollectionMetadata,
             'pdfCollectionPolicy' => $pdfCollectionPolicy,
             'pdfAcroFormMetadata' => $pdfAcroFormMetadata,
+            'pdfAcroFormAppearancePolicy' => $pdfAcroFormAppearancePolicy,
             'pdfAcroFormCalculationOrder' => $pdfAcroFormCalculationOrder,
             'pdfXfaPackets' => $pdfXfaPackets,
             'pdfThreads' => $pdfThreads,
@@ -5627,6 +5651,7 @@ final class PdfEngineHandoff
      *     finalPdfCollectionMetadata: array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
      *     finalPdfCollectionPolicy: array<string, mixed>,
      *     finalPdfAcroFormMetadata: array{fieldReferences:list<string>, fieldCount:int, needAppearances:bool|null, sigFlags:int|null, sigFlagNames:list<string>, defaultResourcesPresent:bool, defaultAppearance:string|null, quadding:int|null, calculationOrder:list<string>, xfaPresent:bool, xfaPacketNames:list<string>}|array{},
+     *     finalPdfAcroFormAppearancePolicy: array{reviewStatus:string, fieldCount:int, fieldNames:list<string>, needAppearances:bool|null, defaultResourcesPresent:bool, defaultAppearancePresent:bool, xfaPresent:bool, appearancePolicyCount:int, normalAppearanceFieldCount:int, fieldsWithoutNormalAppearanceCount:int, fieldsWithoutNormalAppearance:list<string>, reviewAppearanceCount:int, issues:list<string>}|array{},
      *     finalPdfAcroFormCalculationOrder: list<array{order:int, fieldObject:string, fieldName:string|null, fieldType:string|null, fieldTypeLabel:string|null, alternateName:string|null, mappingName:string|null, flags:int|null, flagNames:list<string>, missing:bool}>,
      *     finalPdfXfaPackets: list<array{packetName:string|null, packetObject:string|null, source:string, valueKind:string, filters:list<string>, packetBytes:int|null, packetSha256:string|null, packetSkipped:string|null}>,
      *     finalPdfThreads: list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>,
@@ -5963,6 +5988,7 @@ final class PdfEngineHandoff
             'finalPdfCollectionMetadata' => is_array($finalRun) && is_array($finalRun['pdfCollectionMetadata'] ?? null) ? $finalRun['pdfCollectionMetadata'] : [],
             'finalPdfCollectionPolicy' => is_array($finalRun) && is_array($finalRun['pdfCollectionPolicy'] ?? null) ? $finalRun['pdfCollectionPolicy'] : [],
             'finalPdfAcroFormMetadata' => is_array($finalRun) && is_array($finalRun['pdfAcroFormMetadata'] ?? null) ? $finalRun['pdfAcroFormMetadata'] : [],
+            'finalPdfAcroFormAppearancePolicy' => is_array($finalRun) && is_array($finalRun['pdfAcroFormAppearancePolicy'] ?? null) ? $finalRun['pdfAcroFormAppearancePolicy'] : [],
             'finalPdfAcroFormCalculationOrder' => is_array($finalRun) && is_array($finalRun['pdfAcroFormCalculationOrder'] ?? null) ? $finalRun['pdfAcroFormCalculationOrder'] : [],
             'finalPdfXfaPackets' => is_array($finalRun) && is_array($finalRun['pdfXfaPackets'] ?? null) ? $finalRun['pdfXfaPackets'] : [],
             'finalPdfThreads' => is_array($finalRun) && is_array($finalRun['pdfThreads'] ?? null) ? $finalRun['pdfThreads'] : [],
@@ -13056,6 +13082,14 @@ final class PdfEngineHandoff
         $signatureAppearanceByteRanges = $this->summarizePdfSignatureAppearanceByteRanges($signatures, $annotationAppearances, $pdfBytes);
         $signatureAppearancePolicy = $this->summarizePdfSignatureAppearancePolicy($signatures, $annotationAppearances, $signatureAppearanceByteRanges);
         $annotationAppearancePolicy = $this->summarizePdfAnnotationAppearancePolicy($annotationAppearances);
+        $acroFormMetadata = $this->extractPdfAcroFormMetadata($pdfBytes, $catalog);
+        $acroFormCalculationOrder = $this->extractPdfAcroFormCalculationOrder($pdfBytes, $catalog);
+        $xfaPackets = $this->extractPdfXfaPackets($pdfBytes, $catalog);
+        $acroFormAppearancePolicy = $this->summarizePdfAcroFormAppearancePolicy(
+            $acroFormMetadata,
+            $formFields,
+            $annotationAppearancePolicy
+        );
         $embeddedFiles = $this->extractPdfEmbeddedFiles($pdfBytes, $catalog);
         $collectionMetadata = $this->extractPdfCollectionMetadata($pdfBytes, $catalog);
         $threads = $this->extractPdfThreads($pdfBytes, $catalog);
@@ -13217,9 +13251,10 @@ final class PdfEngineHandoff
             'optionalContentMemberships' => $this->extractPdfOptionalContentMemberships($pdfBytes, $catalog),
             'collectionMetadata' => $collectionMetadata,
             'collectionPolicy' => $this->summarizePdfCollectionPolicy($collectionMetadata, $embeddedFiles),
-            'acroFormMetadata' => $this->extractPdfAcroFormMetadata($pdfBytes, $catalog),
-            'acroFormCalculationOrder' => $this->extractPdfAcroFormCalculationOrder($pdfBytes, $catalog),
-            'xfaPackets' => $this->extractPdfXfaPackets($pdfBytes, $catalog),
+            'acroFormMetadata' => $acroFormMetadata,
+            'acroFormAppearancePolicy' => $acroFormAppearancePolicy,
+            'acroFormCalculationOrder' => $acroFormCalculationOrder,
+            'xfaPackets' => $xfaPackets,
             'threads' => $threads,
             'threadPolicy' => $this->summarizePdfThreadPolicy($threads),
             'documentPartMetadata' => $documentPartMetadata,
@@ -34819,6 +34854,107 @@ final class PdfEngineHandoff
             'calculationOrder' => $calculationOrder,
             'xfaPresent' => $xfaValue !== null,
             'xfaPacketNames' => $xfaValue === null ? [] : $this->extractPdfXfaPacketNames($xfaValue, $objects),
+        ];
+    }
+
+    /**
+     * @param array{fieldReferences?:list<string>, fieldCount?:int, needAppearances?:bool|null, defaultResourcesPresent?:bool, defaultAppearance?:string|null, xfaPresent?:bool} $metadata
+     * @param list<array{name:string, type:string, typeLabel:string, alternateName:string|null, mappingName:string|null, value:string|null, defaultValue:string|null, flags:int, flagNames:list<string>, options:list<string>}> $fields
+     * @param list<array{fieldName:string|null, normalAppearanceCount:int, reviewStatus:string, issues:list<string>}> $annotationAppearancePolicy
+     * @return array{reviewStatus:string, fieldCount:int, fieldNames:list<string>, needAppearances:bool|null, defaultResourcesPresent:bool, defaultAppearancePresent:bool, xfaPresent:bool, appearancePolicyCount:int, normalAppearanceFieldCount:int, fieldsWithoutNormalAppearanceCount:int, fieldsWithoutNormalAppearance:list<string>, reviewAppearanceCount:int, issues:list<string>}|array{}
+     */
+    private function summarizePdfAcroFormAppearancePolicy(array $metadata, array $fields, array $annotationAppearancePolicy): array
+    {
+        if ($metadata === []) {
+            return [];
+        }
+
+        $fieldNames = [];
+        foreach ($fields as $field) {
+            if (!is_string($field['name'] ?? null) || $field['name'] === '') {
+                continue;
+            }
+
+            $fieldNames[$field['name']] = true;
+        }
+        $fieldNames = array_keys($fieldNames);
+        sort($fieldNames, SORT_STRING);
+
+        $fieldNameSet = array_fill_keys($fieldNames, true);
+        $normalAppearanceFields = [];
+        $appearancePolicyCount = 0;
+        $reviewAppearanceCount = 0;
+        foreach ($annotationAppearancePolicy as $policy) {
+            if (!is_array($policy)) {
+                continue;
+            }
+            $policyFieldName = is_string($policy['fieldName'] ?? null) && $policy['fieldName'] !== ''
+                ? $policy['fieldName']
+                : null;
+            if ($policyFieldName === null || !isset($fieldNameSet[$policyFieldName])) {
+                continue;
+            }
+
+            ++$appearancePolicyCount;
+            if (($policy['reviewStatus'] ?? 'ok') !== 'ok' || ($policy['issues'] ?? []) !== []) {
+                ++$reviewAppearanceCount;
+            }
+            if (
+                is_int($policy['normalAppearanceCount'] ?? null)
+                && $policy['normalAppearanceCount'] > 0
+            ) {
+                $normalAppearanceFields[$policyFieldName] = true;
+            }
+        }
+        $normalAppearanceFieldNames = array_keys($normalAppearanceFields);
+        sort($normalAppearanceFieldNames, SORT_STRING);
+
+        $fieldsWithoutNormalAppearance = array_values(array_diff($fieldNames, $normalAppearanceFieldNames));
+        sort($fieldsWithoutNormalAppearance, SORT_STRING);
+
+        $needAppearances = array_key_exists('needAppearances', $metadata) && is_bool($metadata['needAppearances'])
+            ? $metadata['needAppearances']
+            : null;
+        $defaultResourcesPresent = ($metadata['defaultResourcesPresent'] ?? false) === true;
+        $defaultAppearancePresent = is_string($metadata['defaultAppearance'] ?? null) && $metadata['defaultAppearance'] !== '';
+        $xfaPresent = ($metadata['xfaPresent'] ?? false) === true;
+
+        $issues = [];
+        if ($needAppearances === true) {
+            $issues[] = 'need-appearances-regeneration-boundary';
+            if (!$defaultResourcesPresent) {
+                $issues[] = 'need-appearances-without-default-resources';
+            }
+            if (!$defaultAppearancePresent) {
+                $issues[] = 'need-appearances-without-default-appearance';
+            }
+        }
+        if ($fieldsWithoutNormalAppearance !== []) {
+            $issues[] = 'fields-without-normal-appearance';
+        }
+        if ($reviewAppearanceCount > 0) {
+            $issues[] = 'annotation-appearance-policy-review';
+        }
+        if ($xfaPresent) {
+            $issues[] = 'xfa-form-appearance-boundary';
+        }
+        $issues = array_values(array_unique($issues));
+        sort($issues, SORT_STRING);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'fieldCount' => is_int($metadata['fieldCount'] ?? null) ? $metadata['fieldCount'] : count($fieldNames),
+            'fieldNames' => $fieldNames,
+            'needAppearances' => $needAppearances,
+            'defaultResourcesPresent' => $defaultResourcesPresent,
+            'defaultAppearancePresent' => $defaultAppearancePresent,
+            'xfaPresent' => $xfaPresent,
+            'appearancePolicyCount' => $appearancePolicyCount,
+            'normalAppearanceFieldCount' => count($normalAppearanceFieldNames),
+            'fieldsWithoutNormalAppearanceCount' => count($fieldsWithoutNormalAppearance),
+            'fieldsWithoutNormalAppearance' => $fieldsWithoutNormalAppearance,
+            'reviewAppearanceCount' => $reviewAppearanceCount,
+            'issues' => $issues,
         ];
     }
 
