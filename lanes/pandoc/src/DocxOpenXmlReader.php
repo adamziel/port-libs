@@ -1173,6 +1173,8 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['fontTableEmbeddedFontExternalCount'] = (int) ($fontTable['embeddedFontExternalCount'] ?? 0);
         $packageProvenance['summary']['fontTableEmbeddedFontAllowedExternalCount'] = (int) ($fontTable['embeddedFontAllowedExternalCount'] ?? 0);
         $packageProvenance['summary']['fontTableEmbeddedFontUnsafeExternalCount'] = (int) ($fontTable['embeddedFontUnsafeExternalCount'] ?? 0);
+        $packageProvenance['summary']['fontTableEmbeddedFontAllowedExternalTargetCount'] = (int) ($fontTable['embeddedFontAllowedExternalTargetCount'] ?? ($fontTable['embeddedFontAllowedExternalCount'] ?? 0));
+        $packageProvenance['summary']['fontTableEmbeddedFontUnsafeExternalTargetCount'] = (int) ($fontTable['embeddedFontUnsafeExternalTargetCount'] ?? ($fontTable['embeddedFontUnsafeExternalCount'] ?? 0));
         $packageProvenance['summary']['fontTableEmbeddedFontUnsafeExternalTargets'] = $fontTable['embeddedFontUnsafeExternalTargets'] ?? [];
         $packageProvenance['summary']['fontTableEmbeddedFontExternalTargetKindCounts'] = $fontTable['embeddedFontExternalTargetKindCounts'] ?? [];
         $packageProvenance['summary']['fontTableEmbeddedFontExternalTargetSchemeCounts'] = $fontTable['embeddedFontExternalTargetSchemeCounts'] ?? [];
@@ -47347,6 +47349,8 @@ final class DocxOpenXmlReader
                 'embeddedFontExternalCount' => 0,
                 'embeddedFontAllowedExternalCount' => 0,
                 'embeddedFontUnsafeExternalCount' => 0,
+                'embeddedFontAllowedExternalTargetCount' => 0,
+                'embeddedFontUnsafeExternalTargetCount' => 0,
                 'embeddedFontUnsafeExternalTargets' => [],
                 'embeddedFontExternalTargetKindCounts' => [],
                 'embeddedFontExternalTargetSchemeCounts' => [],
@@ -47488,6 +47492,8 @@ final class DocxOpenXmlReader
             'embeddedFontExternalCount' => $embeddedFontExternalCount,
             'embeddedFontAllowedExternalCount' => $embeddedFontAllowedExternalCount,
             'embeddedFontUnsafeExternalCount' => $embeddedFontUnsafeExternalCount,
+            'embeddedFontAllowedExternalTargetCount' => $embeddedFontAllowedExternalCount,
+            'embeddedFontUnsafeExternalTargetCount' => $embeddedFontUnsafeExternalCount,
             'embeddedFontUnsafeExternalTargets' => $embeddedFontUnsafeExternalTargets,
             'embeddedFontExternalTargetKindCounts' => $embeddedFontExternalTargetKindCounts,
             'embeddedFontExternalTargetSchemeCounts' => $embeddedFontExternalTargetSchemeCounts,

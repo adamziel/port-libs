@@ -20600,6 +20600,110 @@ XML;
         $t->same(5, $summary['fontTableEmbeddedFontIssueCount']);
         $t->same($fontTable['embeddedFontIssueCodes'], $summary['fontTableEmbeddedFontIssueCodes']);
     },
+    'preflights docx embedded font external target policy metadata' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $fontBytes = 'LOCALOBFUSCATEDFONT';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/fonts/external-policy-fonts.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml"/>' . "\n" .
+            '  <Override PartName="/word/fonts/policy-Italic.odttf" ContentType="application/vnd.openxmlformats-officedocument.obfuscatedFont"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rPolicyFontTable" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable" Target="fonts/external-policy-fonts.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/fonts/external-policy-fonts.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:fonts xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:font w:name="Policy Font">
+    <w:embedRegular r:id="rRemoteSafe"/>
+    <w:embedBold r:id="rRemoteUnsafe"/>
+    <w:embedItalic r:id="rLocalItalic"/>
+  </w:font>
+</w:fonts>
+XML;
+        $parts['word/fonts/_rels/external-policy-fonts.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rRemoteSafe" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="https://fonts.example.test/policy-Regular.odttf?profile=web#font" TargetMode="External"/>
+  <Relationship Id="rRemoteUnsafe" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="file:///C:/Fonts/policy-Bold.odttf" TargetMode="External"/>
+  <Relationship Id="rLocalItalic" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="policy-Italic.odttf"/>
+</Relationships>
+XML;
+        $parts['word/fonts/policy-Italic.odttf'] = $fontBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $fontTable = $docx['fontTable'];
+        $summary = $docx['packageProvenance']['summary'];
+        $relationshipType = $docx['packageProvenance']['relationshipTypes']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/font'];
+        $font = $fontTable['byName']['Policy Font'];
+        $safe = $font['embeddedFonts'][0];
+        $unsafe = $font['embeddedFonts'][1];
+        $local = $font['embeddedFonts'][2];
+
+        $t->same(3, $fontTable['embeddedFontRelationshipCount']);
+        $t->same(1, $fontTable['embeddedFontExistingCount']);
+        $t->same(0, $fontTable['embeddedFontMissingCount']);
+        $t->same(2, $fontTable['embeddedFontExternalCount']);
+        $t->same(1, $fontTable['embeddedFontAllowedExternalTargetCount']);
+        $t->same(1, $fontTable['embeddedFontUnsafeExternalTargetCount']);
+        $t->same(['absolute-uri' => 2], $fontTable['embeddedFontExternalTargetKindCounts']);
+        $t->same(['file' => 1, 'https' => 1], $fontTable['embeddedFontExternalTargetSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme'], $fontTable['embeddedFontExternalTargetIssueCodes']);
+        $t->same(2, $fontTable['embeddedFontIssueCount']);
+        $t->same(['external-embedded-font', 'external-target-unsafe-scheme'], $fontTable['embeddedFontIssueCodes']);
+
+        $t->same('regular', $safe['style']);
+        $t->same(true, $safe['external']);
+        $t->same('https://fonts.example.test/policy-Regular.odttf?profile=web#font', $safe['target']);
+        $t->same('profile=web', $safe['targetQuery']);
+        $t->same('font', $safe['targetFragment']);
+        $t->same('?profile=web#font', $safe['targetReferenceSuffix']);
+        $t->same(null, $safe['targetPart']);
+        $t->same('absolute-uri', $safe['externalTargetKind']);
+        $t->same('https', $safe['externalTargetScheme']);
+        $t->same(true, $safe['externalTargetAllowed']);
+        $t->same([], $safe['externalTargetIssues']);
+        $t->same(['external-embedded-font'], $safe['issues']);
+
+        $t->same('bold', $unsafe['style']);
+        $t->same(true, $unsafe['external']);
+        $t->same('file:///C:/Fonts/policy-Bold.odttf', $unsafe['target']);
+        $t->same('absolute-uri', $unsafe['externalTargetKind']);
+        $t->same('file', $unsafe['externalTargetScheme']);
+        $t->same(false, $unsafe['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $unsafe['externalTargetIssues']);
+        $t->same(['external-embedded-font', 'external-target-unsafe-scheme'], $unsafe['issues']);
+
+        $t->same('italic', $local['style']);
+        $t->same(false, $local['external']);
+        $t->same('word/fonts/policy-Italic.odttf', $local['targetPart']);
+        $t->same(true, $local['exists']);
+        $t->same(strlen($fontBytes), $local['byteLength']);
+        $t->same(hash('sha256', $fontBytes), $local['sha256']);
+        $t->same(null, $local['externalTargetAllowed']);
+        $t->same([], $local['externalTargetIssues']);
+        $t->same([], $local['issues']);
+
+        $t->same(3, $summary['fontTableEmbeddedFontCount']);
+        $t->same(2, $summary['fontTableEmbeddedFontExternalCount']);
+        $t->same(1, $summary['fontTableEmbeddedFontAllowedExternalTargetCount']);
+        $t->same(1, $summary['fontTableEmbeddedFontUnsafeExternalTargetCount']);
+        $t->same($fontTable['embeddedFontExternalTargetKindCounts'], $summary['fontTableEmbeddedFontExternalTargetKindCounts']);
+        $t->same($fontTable['embeddedFontExternalTargetSchemeCounts'], $summary['fontTableEmbeddedFontExternalTargetSchemeCounts']);
+        $t->same($fontTable['embeddedFontExternalTargetIssueCodes'], $summary['fontTableEmbeddedFontExternalTargetIssueCodes']);
+        $t->same($fontTable['embeddedFontIssueCodes'], $summary['fontTableEmbeddedFontIssueCodes']);
+        $t->same(2, $relationshipType['externalCount']);
+        $t->same(1, $relationshipType['allowedExternalTargetCount']);
+        $t->same(1, $relationshipType['unsafeExternalTargetCount']);
+        $t->same(['external-target-unsafe-scheme' => 1], $relationshipType['externalTargetIssueCounts']);
+    },
     'recovers docx font table unqualified embedded font attributes for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $fontKey = '{33333333-4455-6677-8899-AABBCCDDEEFF}';
