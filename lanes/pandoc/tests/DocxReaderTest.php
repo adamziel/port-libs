@@ -1139,6 +1139,7 @@ XML],
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:style w:type="paragraph" w:styleId="SourceCode"><w:name w:val="Source Code"/></w:style>
   <w:style w:type="paragraph" w:styleId="Quote"><w:name w:val="Quote"/></w:style>
+  <w:style w:type="paragraph" w:styleId="a4"><w:name w:val="Block Text"/></w:style>
   <w:style w:type="paragraph" w:styleId="DefinitionTerm"><w:name w:val="Definition Term"/></w:style>
   <w:style w:type="paragraph" w:styleId="Definition"><w:name w:val="Definition"/></w:style>
 </w:styles>
@@ -1152,6 +1153,7 @@ XML;
     <w:p><w:pPr><w:pStyle w:val="SourceCode"/></w:pPr></w:p>
     <w:p><w:pPr><w:pStyle w:val="SourceCode"/></w:pPr><w:r><w:t>gamma</w:t></w:r></w:p>
     <w:p><w:pPr><w:pStyle w:val="Quote"/></w:pPr><w:r><w:t>Styled quote</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="a4"/></w:pPr><w:r><w:t>Block text quote</w:t></w:r></w:p>
     <w:p><w:pPr><w:ind w:left="1440"/></w:pPr><w:r><w:t>Indented quote</w:t></w:r></w:p>
     <w:p><w:pPr><w:pStyle w:val="DefinitionTerm"/></w:pPr><w:r><w:t>Term</w:t></w:r></w:p>
     <w:p><w:pPr><w:pStyle w:val="Definition"/></w:pPr><w:r><w:t>Definition one</w:t></w:r></w:p>
@@ -1166,7 +1168,7 @@ XML;
 
         $t->same(['paragraph', 'code_block', 'blockquote', 'definition_list'], array_map(static fn ($node): string => $node->type, $document->children));
         $t->same("alpha\nbeta\n\ngamma", $document->children[1]->attr('text'));
-        $t->same(['Styled quote', 'Indented quote'], array_map(static fn ($node): string => (string) $node->attr('text', ''), $document->children[2]->children));
+        $t->same(['Styled quote', 'Block text quote', 'Indented quote'], array_map(static fn ($node): string => (string) $node->attr('text', ''), $document->children[2]->children));
         $definitionItem = $document->children[3]->children[0];
         $t->same('Term', $definitionItem->children[0]->attr('text'));
         $t->same(['Definition one', 'Definition two'], array_map(static fn ($node): string => (string) $node->attr('text', ''), $definitionItem->children[1]->children));

@@ -788,7 +788,7 @@ final class DocxReader
                 if ($normalized === 'definition') {
                     return 'definition';
                 }
-                if (in_array($normalized, ['quote', 'intensequote', 'blockquote'], true)) {
+                if (in_array($normalized, ['quote', 'intensequote', 'blockquote', 'blocktext'], true)) {
                     return 'blockquote';
                 }
             }
