@@ -1705,7 +1705,7 @@ final class BibtexCslParser
         $options = self::biblatexOptionList($fields['options'] ?? '');
 
         foreach (self::BIBLATEX_ENTRY_OPTION_FIELDS as $field => $optionName) {
-            if (!isset($fields[$field])) {
+            if (!array_key_exists($field, $fields)) {
                 continue;
             }
 
@@ -1736,7 +1736,9 @@ final class BibtexCslParser
 
     private static function normalizedBiblatexOptionName(string $name): string
     {
-        return strtolower(str_replace('_', '-', trim($name)));
+        $name = strtolower(self::cleanBibtexText($name));
+
+        return preg_replace('/[-_\s]+/', '', $name) ?? $name;
     }
 
     /**
@@ -1745,9 +1747,18 @@ final class BibtexCslParser
      */
     private static function truthyBiblatexOptionField(array $fields, array $names): bool
     {
-        $value = strtolower(str_replace('_', '-', self::firstField($fields, $names)));
+        foreach ($names as $name) {
+            if (!array_key_exists($name, $fields)) {
+                continue;
+            }
 
-        return in_array($value, ['1', 'true', 'yes', 'on'], true);
+            $value = strtolower(self::cleanBibtexText($fields[$name]));
+            if ($value !== '' && !in_array($value, ['false', '0', 'no', 'off'], true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

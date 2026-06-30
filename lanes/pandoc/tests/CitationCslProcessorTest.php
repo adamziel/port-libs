@@ -2106,6 +2106,70 @@ XML);
         $t->true(!str_contains($blocks, '<dt>Rao 2026</dt>'), 'standalone skipbib=true entries must not be appended to the bibliography');
         $t->true(!str_contains($blocks, 'Standalone Data Only Options'), 'standalone dataonly=true entries must not become CSL items');
     },
+    'maps standalone biblatex entry option field overrides into csl review metadata' => static function (TestRunner $t): void {
+        $bibtex = <<<'BIB'
+@book{standalone-options-manual,
+  author         = {Smith, Ada},
+  title          = {Standalone Options Manual},
+  date           = {2026},
+  publisher      = {Review Press},
+  options        = {skipbib=true, useauthor=true, maxnames=3},
+  labeldateparts = {year},
+  skipbib        = {false},
+  sortlocale     = {de-DE},
+  useauthor      = {false},
+  useeditor      = {true},
+  uniquelist     = {minyear},
+  uniquename     = {init}
+}
+
+@online{standalone-options-snapshot,
+  author    = {Desk, Review},
+  title     = {Standalone Options Snapshot},
+  date      = {2025},
+  dataonly  = {false},
+  skiplab   = {false},
+  useprefix = {true}
+}
+
+@misc{standalone-options-data,
+  title     = {Standalone Data Only Options},
+  date      = {2024},
+  data-only = {true}
+}
+BIB;
+
+        $manualOptions = [
+            'maxnames=3',
+            'labeldateparts=year',
+            'skipbib=false',
+            'sortlocale=de-DE',
+            'useauthor=false',
+            'useeditor=true',
+            'uniquelist=minyear',
+            'uniquename=init',
+        ];
+        $snapshotOptions = ['dataonly=false', 'skiplab=false', 'useprefix=true'];
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('standalone-options-manual', $items[0]['id']);
+        $t->same($manualOptions, $items[0]['biblatex-options'] ?? null);
+        $t->same('false', $items[0]['rawBibtex']['fields']['skipbib'] ?? null);
+        $t->same('standalone-options-snapshot', $items[1]['id']);
+        $t->same($snapshotOptions, $items[1]['biblatex-options'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $manual = $processor->item('standalone-options-manual');
+        $snapshot = $processor->item('standalone-options-snapshot');
+        $t->same($manualOptions, $manual['biblatexOptions'] ?? null);
+        $t->same(implode('; ', $manualOptions), $manual['biblatexOptionSummary'] ?? null);
+        $t->same($snapshotOptions, $snapshot['biblatexOptions'] ?? null);
+        $t->contains(
+            'BibLaTeX options: maxnames=3; labeldateparts=year; skipbib=false; sortlocale=de-DE; useauthor=false; useeditor=true; uniquelist=minyear; uniquename=init.',
+            $processor->renderBibliographyEntry('standalone-options-manual')
+        );
+    },
     'omits bounded biblatex skipbib entries from appended bibliographies' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{visible-manual,

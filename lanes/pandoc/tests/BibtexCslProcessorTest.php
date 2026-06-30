@@ -3257,6 +3257,67 @@ XML);
         $t->contains('<dt>Smith 2026</dt><dd>Legacy Review Context :: skipbib=false, useprefix=true, maxnames=3 :: variant=mexican; hyphenation=traditional :: refsection 2; refsegment migration-import :: title default: title verified; title source: OCR headline normalized; url source: archived before WordPress import :: feminine</dd>', $blocks);
         $t->true(!str_contains($blocks, '<dt>Desk 2025</dt>'), 'skipbib=true legacy BibLaTeX entries must stay out of appended bibliographies');
     },
+    'carries standalone biblatex entry option fields in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{legacy-standalone-options,
+  author         = {Smith, Ada},
+  title          = {Legacy Standalone Options},
+  date           = {2026},
+  publisher      = {Review Press},
+  options        = {skipbib=true, useauthor=true, maxnames=3},
+  labeldateparts = {year},
+  skipbib        = {false},
+  sortlocale     = {de-DE},
+  useauthor      = {false},
+  useeditor      = {true},
+  uniquelist     = {minyear},
+  uniquename     = {init}
+}
+
+@online{legacy-standalone-snapshot,
+  author    = {Desk, Review},
+  title     = {Legacy Standalone Snapshot},
+  date      = {2025},
+  dataonly  = {false},
+  skiplab   = {false},
+  useprefix = {true}
+}
+BIB;
+
+        $manualOptions = [
+            'maxnames=3',
+            'labeldateparts=year',
+            'skipbib=false',
+            'sortlocale=de-DE',
+            'useauthor=false',
+            'useeditor=true',
+            'uniquelist=minyear',
+            'uniquename=init',
+        ];
+        $snapshotOptions = ['dataonly=false', 'skiplab=false', 'useprefix=true'];
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $manual = $items['legacy-standalone-options'];
+        $snapshot = $items['legacy-standalone-snapshot'];
+
+        $t->same($manualOptions, $manual['biblatex-options']);
+        $t->same('false', $manual['rawBibtex']['fields']['skipbib']);
+        $t->same($snapshotOptions, $snapshot['biblatex-options']);
+        $t->contains(
+            'BibLaTeX options: maxnames=3; labeldateparts=year; skipbib=false; sortlocale=de-DE; useauthor=false; useeditor=true; uniquelist=minyear; uniquename=init',
+            $processor->renderBibliographyText($manual)
+        );
+
+        $citationProcessor = CitationCslProcessor::fromItems(array_values($items));
+        $normalized = $citationProcessor->item('legacy-standalone-options');
+        $t->same($manualOptions, $normalized['biblatexOptions'] ?? null);
+        $t->same(implode('; ', $manualOptions), $normalized['biblatexOptionSummary'] ?? null);
+        $t->contains(
+            'BibLaTeX options: maxnames=3; labeldateparts=year; skipbib=false; sortlocale=de-DE; useauthor=false; useeditor=true; uniquelist=minyear; uniquename=init.',
+            $citationProcessor->renderBibliographyEntry('legacy-standalone-options')
+        );
+    },
     'carries biblatex issue title aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @article{legacy-issue-title,
