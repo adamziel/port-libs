@@ -19886,9 +19886,11 @@ final class XmlHtmlDom
         }
 
         if (array_key_exists('tabindex', $attributes)) {
+            $tabIndex = self::integerAttribute($element, 'tabindex', null);
             $summary['tabIndexRaw'] = $attributes['tabindex'];
-            $summary['tabIndex'] = self::integerAttribute($element, 'tabindex', null);
-            $summary['tabIndexValid'] = $summary['tabIndex'] !== null;
+            $summary['tabIndex'] = $tabIndex;
+            $summary['tabIndexValid'] = $tabIndex !== null;
+            $summary += self::tabIndexReviewSummary($element, $attributes['tabindex'], $tabIndex);
         }
 
         if (array_key_exists('inputmode', $attributes)) {
@@ -23487,6 +23489,230 @@ final class XmlHtmlDom
         }
 
         return 'element';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function tabIndexReviewSummary(\DOMElement $element, string $raw, ?int $value): array
+    {
+        $candidates = self::tabIndexCandidateSummaries($element);
+        $currentIndex = null;
+        foreach ($candidates as $candidate) {
+            if (($candidate['current'] ?? false) === true) {
+                $currentIndex = (int) $candidate['index'];
+                break;
+            }
+        }
+
+        $positiveCandidates = array_values(array_filter(
+            $candidates,
+            static fn (array $candidate): bool => ($candidate['positiveOrderCandidate'] ?? false) === true
+        ));
+        usort($positiveCandidates, static function (array $left, array $right): int {
+            $byValue = ((int) ($left['value'] ?? 0)) <=> ((int) ($right['value'] ?? 0));
+
+            return $byValue !== 0 ? $byValue : ((int) ($left['index'] ?? 0)) <=> ((int) ($right['index'] ?? 0));
+        });
+
+        $zeroCandidates = self::tabIndexCandidatesByState($candidates, 'zero');
+        $negativeCandidates = self::tabIndexCandidatesByState($candidates, 'negative');
+        $invalidCandidates = self::tabIndexCandidatesByState($candidates, 'invalid');
+        $sameValueCandidates = $value === null ? [] : array_values(array_filter(
+            $candidates,
+            static fn (array $candidate): bool => ($candidate['valid'] ?? false) === true
+                && ($candidate['value'] ?? null) === $value
+        ));
+        $duplicatePositiveValue = $value !== null && $value > 0 && count($sameValueCandidates) > 1;
+        $effectiveDisabled = self::isFormControlElement($element) && self::isEffectivelyDisabledFormControl($element);
+        $issues = [];
+
+        if ($value === null) {
+            $issues[] = [
+                'code' => 'invalid-html-tabindex',
+                'tabIndexRaw' => $raw,
+            ];
+        } elseif ($value > 0) {
+            $issues[] = [
+                'code' => 'positive-html-tabindex-focus-order',
+                'tabIndex' => $value,
+            ];
+        }
+        if ($duplicatePositiveValue) {
+            $issues[] = [
+                'code' => 'duplicate-positive-html-tabindex-value',
+                'tabIndex' => $value,
+                'count' => count($sameValueCandidates),
+            ];
+        }
+        if ($effectiveDisabled) {
+            $issues[] = [
+                'code' => 'disabled-tabindex-focus-candidate',
+                'tabIndex' => $value,
+            ];
+        }
+
+        $valid = $value !== null;
+        $focusable = $valid && !$effectiveDisabled;
+
+        return [
+            'tabIndexReviewPolicy' => 'html-tabindex-focus-order-review',
+            'tabIndexState' => self::tabIndexState($value),
+            'tabIndexFocusable' => $focusable,
+            'tabIndexSequentialFocusCandidate' => $focusable && $value >= 0,
+            'tabIndexProgrammaticFocusCandidate' => $focusable,
+            'tabIndexPositiveOrderCandidate' => $focusable && $value > 0,
+            'tabIndexDisabledSuppressed' => $effectiveDisabled,
+            'tabIndexDocumentCandidateIndex' => $currentIndex,
+            'tabIndexDocumentCandidateCount' => count($candidates),
+            'tabIndexCandidateIds' => self::tabIndexCandidateIds($candidates),
+            'tabIndexPositiveCandidateCount' => count($positiveCandidates),
+            'tabIndexPositiveCandidateIds' => self::tabIndexCandidateIds($positiveCandidates),
+            'tabIndexPositiveCandidates' => $positiveCandidates,
+            'tabIndexZeroCandidateCount' => count($zeroCandidates),
+            'tabIndexZeroCandidateIds' => self::tabIndexCandidateIds($zeroCandidates),
+            'tabIndexNegativeCandidateCount' => count($negativeCandidates),
+            'tabIndexNegativeCandidateIds' => self::tabIndexCandidateIds($negativeCandidates),
+            'tabIndexInvalidCandidateCount' => count($invalidCandidates),
+            'tabIndexInvalidCandidateIds' => self::tabIndexCandidateIds($invalidCandidates),
+            'tabIndexSameValueCandidateCount' => count($sameValueCandidates),
+            'tabIndexSameValueCandidateIds' => self::tabIndexCandidateIds($sameValueCandidates),
+            'tabIndexSameValueCandidates' => $sameValueCandidates,
+            'tabIndexDuplicatePositiveValue' => $duplicatePositiveValue,
+            'tabIndexCandidates' => $candidates,
+            'tabIndexIssues' => $issues,
+            'tabIndexIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'tabIndexBrowserFocusNavigation' => false,
+            'tabIndexReviewHandoffPolicy' => 'metadata-only-no-browser-focus-navigation',
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function tabIndexCandidateSummaries(\DOMElement $context): array
+    {
+        $document = $context->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return [];
+        }
+
+        $candidates = [];
+        foreach ($document->getElementsByTagName('*') as $candidate) {
+            if (!$candidate instanceof \DOMElement || !$candidate->hasAttribute('tabindex')) {
+                continue;
+            }
+
+            $candidates[] = self::tabIndexCandidateSummary($candidate, count($candidates), $candidate->isSameNode($context));
+        }
+
+        return $candidates;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function tabIndexCandidateSummary(\DOMElement $element, int $index, bool $current): array
+    {
+        $name = self::htmlElementName($element);
+        $value = self::integerAttribute($element, 'tabindex', null);
+        $isControl = self::isFormControlElement($element);
+        $effectiveDisabled = $isControl && self::isEffectivelyDisabledFormControl($element);
+        $valid = $value !== null;
+        $focusable = $valid && !$effectiveDisabled;
+        $summary = [
+            'index' => $index,
+            'tag' => $name,
+            'id' => self::attributeOrNull($element, 'id'),
+            'raw' => $element->getAttribute('tabindex'),
+            'value' => $value,
+            'valid' => $valid,
+            'state' => self::tabIndexState($value),
+            'kind' => self::tabIndexCandidateKind($element, $name, $isControl),
+            'formControl' => $isControl,
+            'effectiveDisabled' => $effectiveDisabled,
+            'focusable' => $focusable,
+            'sequentialFocusCandidate' => $focusable && $value >= 0,
+            'programmaticFocusCandidate' => $focusable,
+            'positiveOrderCandidate' => $focusable && $value > 0,
+            'current' => $current,
+            'text' => self::normalizedText($element),
+        ];
+
+        if ($name === 'input') {
+            $summary['inputType'] = self::inputType($element);
+            $summary['controlName'] = self::attributeOrNull($element, 'name');
+            $summary['valueAttribute'] = self::attributeOrNull($element, 'value');
+        } elseif ($name === 'button') {
+            $summary['buttonType'] = self::buttonType($element);
+            $summary['controlName'] = self::attributeOrNull($element, 'name');
+            $summary['valueAttribute'] = self::attributeOrNull($element, 'value');
+            $summary['label'] = self::normalizedText($element);
+        } elseif ($name === 'textarea') {
+            $summary['controlName'] = self::attributeOrNull($element, 'name');
+            $summary['value'] = $element->textContent;
+        } elseif (($name === 'a' || $name === 'area') && $element->hasAttribute('href')) {
+            $summary['href'] = $element->getAttribute('href');
+        }
+
+        return $summary;
+    }
+
+    private static function tabIndexState(?int $value): string
+    {
+        if ($value === null) {
+            return 'invalid';
+        }
+        if ($value > 0) {
+            return 'positive';
+        }
+        if ($value === 0) {
+            return 'zero';
+        }
+
+        return 'negative';
+    }
+
+    private static function tabIndexCandidateKind(\DOMElement $element, string $name, bool $isControl): string
+    {
+        if ($isControl) {
+            return 'form-control';
+        }
+        if (($name === 'a' || $name === 'area') && $element->hasAttribute('href')) {
+            return 'hyperlink';
+        }
+        if (in_array($name, ['iframe', 'object', 'embed'], true)) {
+            return 'embedded';
+        }
+
+        return 'tabindex';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $candidates
+     * @return list<array<string, mixed>>
+     */
+    private static function tabIndexCandidatesByState(array $candidates, string $state): array
+    {
+        return array_values(array_filter(
+            $candidates,
+            static fn (array $candidate): bool => ($candidate['state'] ?? null) === $state
+        ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $candidates
+     * @return list<string>
+     */
+    private static function tabIndexCandidateIds(array $candidates): array
+    {
+        return array_values(array_filter(
+            array_map(static fn (array $candidate): ?string => $candidate['id'] ?? null, $candidates),
+            static fn (?string $id): bool => $id !== null && $id !== ''
+        ));
     }
 
     /**

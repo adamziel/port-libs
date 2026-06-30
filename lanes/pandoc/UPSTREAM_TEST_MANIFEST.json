@@ -1663,7 +1663,10 @@
         "xmlHtmlDomButtonCommandForReviewAssertions": 63,
         "xmlHtmlDomInertReviewCases": 1,
         "mappedXmlHtmlDomInertReviewCases": 1,
-        "xmlHtmlDomInertReviewAssertions": 54
+        "xmlHtmlDomInertReviewAssertions": 54,
+        "xmlHtmlDomTabIndexReviewCases": 1,
+        "mappedXmlHtmlDomTabIndexReviewCases": 1,
+        "xmlHtmlDomTabIndexReviewAssertions": 58
     },
     "nativeImplementation": {
         "language": "PHP",
