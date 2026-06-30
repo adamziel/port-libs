@@ -574,7 +574,7 @@ return [
         [, $parts] = $packageParts((new DocxWriter())->write($document));
         $documentXml = $parts['word/document.xml'];
 
-        $t->contains('<w:tbl><w:tr><w:tc><w:p><w:r><w:t xml:space="preserve">Ribosome</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t xml:space="preserve">Lysosome</w:t></w:r></w:p></w:tc></w:tr></w:tbl>', $documentXml);
+        $t->contains('<w:tbl><w:tr><w:tc><w:p><w:pPr><w:pStyle w:val="BodyText"/></w:pPr><w:r><w:t xml:space="preserve">Ribosome</w:t></w:r></w:p></w:tc><w:tc><w:p><w:pPr><w:pStyle w:val="BodyText"/></w:pPr><w:r><w:t xml:space="preserve">Lysosome</w:t></w:r></w:p></w:tc></w:tr></w:tbl>', $documentXml);
         $t->true(!str_contains($documentXml, '&lt;w:tbl'), 'Raw OpenXML table fragment was XML-escaped');
     },
 

@@ -942,6 +942,8 @@ XML;
     {
         $blocks = [];
         $previousTopLevelTable = false;
+        $bodyParagraphStyle = 'FirstParagraph';
+        $openHeadingBookmarks = [];
         foreach ($document->children as $child) {
             if (!$child instanceof AstNode) {
                 continue;
@@ -949,12 +951,44 @@ XML;
             if ($previousTopLevelTable && $child->type === 'table') {
                 $blocks[] = '<w:p/>';
             }
+
+            if ($child->type === 'heading') {
+                $level = max(1, min(9, (int) $child->attr('level', 1)));
+                while ($openHeadingBookmarks !== [] && $openHeadingBookmarks[count($openHeadingBookmarks) - 1]['level'] >= $level) {
+                    $bookmark = array_pop($openHeadingBookmarks);
+                    $blocks[] = '<w:bookmarkEnd w:id="' . $bookmark['id'] . '"/>';
+                }
+
+                $bookmark = $this->headingBookmark($child);
+                if ($bookmark !== null) {
+                    $blocks[] = '<w:bookmarkStart w:id="' . $bookmark['id'] . '" w:name="' . self::escAttr($bookmark['name']) . '"/>';
+                }
+                $blocks[] = $this->headingParagraphXml($child);
+                if ($bookmark !== null) {
+                    $openHeadingBookmarks[] = ['id' => $bookmark['id'], 'level' => $level];
+                }
+                $bodyParagraphStyle = 'FirstParagraph';
+                $previousTopLevelTable = false;
+                continue;
+            }
+
+            if ($child->type === 'paragraph' || $child->type === 'plain') {
+                $blocks[] = $this->paragraphXml($child, $bodyParagraphStyle, null);
+                $bodyParagraphStyle = 'BodyText';
+                $previousTopLevelTable = false;
+                continue;
+            }
+
             foreach ($this->renderBlock($child, 0, null) as $blockXml) {
                 if ($blockXml !== '') {
                     $blocks[] = $blockXml;
                 }
             }
             $previousTopLevelTable = $child->type === 'table';
+        }
+        while ($openHeadingBookmarks !== []) {
+            $bookmark = array_pop($openHeadingBookmarks);
+            $blocks[] = '<w:bookmarkEnd w:id="' . $bookmark['id'] . '"/>';
         }
         if ($blocks === []) {
             $blocks[] = '<w:p/>';
@@ -1000,19 +1034,37 @@ XML;
      */
     private function headingBlockXml(AstNode $node): array
     {
-        $xml = $this->paragraphXml($node, 'Heading' . max(1, min(6, (int) $node->attr('level', 1))), null);
-        $id = (string) $node->attr('id', '');
-        if ($id === '') {
+        $xml = $this->headingParagraphXml($node);
+        $bookmark = $this->headingBookmark($node);
+        if ($bookmark === null) {
             return [$xml];
         }
 
-        $bookmarkId = $this->nextBookmarkId++;
-        $name = $this->bookmarkName($id);
+        return [
+            '<w:bookmarkStart w:id="' . $bookmark['id'] . '" w:name="' . self::escAttr($bookmark['name']) . '"/>',
+            $xml,
+            '<w:bookmarkEnd w:id="' . $bookmark['id'] . '"/>',
+        ];
+    }
+
+    private function headingParagraphXml(AstNode $node): string
+    {
+        return $this->paragraphXml($node, 'Heading' . max(1, min(6, (int) $node->attr('level', 1))), null);
+    }
+
+    /**
+     * @return array{id:int, name:string}|null
+     */
+    private function headingBookmark(AstNode $node): ?array
+    {
+        $id = (string) $node->attr('id', '');
+        if ($id === '') {
+            return null;
+        }
 
         return [
-            '<w:bookmarkStart w:id="' . $bookmarkId . '" w:name="' . self::escAttr($name) . '"/>',
-            $xml,
-            '<w:bookmarkEnd w:id="' . $bookmarkId . '"/>',
+            'id' => $this->nextBookmarkId++,
+            'name' => $this->bookmarkName($id),
         ];
     }
 
