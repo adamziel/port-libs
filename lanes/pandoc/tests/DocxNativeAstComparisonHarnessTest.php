@@ -364,8 +364,153 @@ NATIVE);
             $t->same(0, $report['normalizedAstMismatchCount']);
             $t->same('normalized-ast-equality-observed-not-runner-or-writer-parity', $report['astParityStatus']);
             $t->true(in_array('DOCX data-docx-* provenance attributes retained for local writer diagnostics', $report['normalizationPolicy']['excludes'], true));
-            $t->true(in_array('default table cell spans and row-head counts omitted by native Attr tuples', $report['normalizationPolicy']['excludes'], true));
+            $t->true(in_array('default table cell alignment, spans, and row-head counts omitted by native Attr tuples', $report['normalizationPolicy']['excludes'], true));
             $t->true(in_array('floating-point serialization noise in table column width fractions', $report['normalizationPolicy']['excludes'], true));
+        } finally {
+            $removeTree($root);
+        }
+    },
+    'matches docx table caption fixtures after source metadata normalization' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeDocxDocument): void {
+        $root = $makeTempDir();
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $plain = static fn (string $value): AstNode => new AstNode('plain', [], [$text($value)]);
+        $cell = static fn (string $value): AstNode => new AstNode('table_cell', [], [$plain($value)]);
+        $table = static function (string $caption, array $captionInlines, string $cellText) use ($cell): AstNode {
+            return new AstNode('table', [
+                'caption' => $caption,
+                'captionInlines' => $captionInlines,
+                'captionBlocks' => [
+                    new AstNode('paragraph', [], $captionInlines),
+                ],
+                'alignments' => ['default'],
+                'widths' => [0.0],
+            ], [
+                new AstNode('table_head'),
+                new AstNode('table_body', ['rowHeadColumns' => 0], [
+                    new AstNode('table_row', [], [$cell($cellText)]),
+                ]),
+                new AstNode('table_foot'),
+            ]);
+        };
+
+        try {
+            $writeDocxDocument($root . '/table_captions_no_field.docx', <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:pPr><w:pStyle w:val="Caption"/></w:pPr><w:r><w:t>Quarterly audit totals</w:t></w:r></w:p>
+    <w:tbl><w:tr><w:tc><w:p><w:r><w:t>Count</w:t></w:r></w:p></w:tc></w:tr></w:tbl>
+  </w:body>
+</w:document>
+XML);
+            $writeDocxDocument($root . '/table_captions_with_field.docx', <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:pPr><w:pStyle w:val="Caption"/></w:pPr>
+      <w:bookmarkStart w:id="1" w:name="_RefTable1"/>
+      <w:r><w:t xml:space="preserve">Table </w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+      <w:r><w:instrText xml:space="preserve"> SEQ Table \* ARABIC </w:instrText></w:r>
+      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+      <w:r><w:t>1</w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+      <w:bookmarkEnd w:id="1"/>
+    </w:p>
+    <w:tbl><w:tr><w:tc><w:p><w:r><w:t>First option</w:t></w:r></w:p></w:tc></w:tr></w:tbl>
+  </w:body>
+</w:document>
+XML);
+
+            file_put_contents(
+                $root . '/table_captions_no_field.native',
+                (new NativeWriter())->write(new AstNode('document', [], [
+                    $table('Quarterly audit totals', [$text('Quarterly audit totals')], 'Count'),
+                ]))
+            );
+            file_put_contents(
+                $root . '/table_captions_with_field.native',
+                (new NativeWriter())->write(new AstNode('document', [], [
+                    $table('Table 1', [
+                        new AstNode('span', ['id' => '_RefTable1', 'classes' => ['anchor']]),
+                        $text('Table'),
+                        new AstNode('space'),
+                        $text('1'),
+                    ], 'First option'),
+                ]))
+            );
+
+            $report = (new DocxNativeAstComparisonHarness())->run($root);
+
+            $t->same(2, $report['comparedPairCount']);
+            $t->same(2, $report['normalizedAstMatchCount']);
+            $t->same(0, $report['normalizedAstMismatchCount']);
+            $t->true(in_array('DOCX table captionSource retained for local writer diagnostics', $report['normalizationPolicy']['excludes'], true));
+        } finally {
+            $removeTree($root);
+        }
+    },
+    'matches docx table header rowspan fixture after column alignment derivation' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeDocxDocument): void {
+        $root = $makeTempDir();
+
+        try {
+            $writeDocxDocument($root . '/table_header_rowspan.docx', <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:tbl>
+      <w:tr>
+        <w:trPr><w:tblHeader/></w:trPr>
+        <w:tc><w:tcPr><w:vMerge w:val="restart"/></w:tcPr><w:p><w:r><w:t>A</w:t></w:r></w:p></w:tc>
+        <w:tc><w:tcPr><w:gridSpan w:val="2"/></w:tcPr><w:p><w:r><w:t>B</w:t></w:r></w:p></w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr><w:tblHeader/></w:trPr>
+        <w:tc><w:tcPr><w:vMerge/></w:tcPr><w:p/></w:tc>
+        <w:tc><w:p><w:r><w:t>G</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>H</w:t></w:r></w:p></w:tc>
+      </w:tr>
+      <w:tr>
+        <w:tc><w:p><w:pPr><w:jc w:val="left"/></w:pPr><w:r><w:t>1</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>2</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>3</w:t></w:r></w:p></w:tc>
+      </w:tr>
+    </w:tbl>
+  </w:body>
+</w:document>
+XML);
+            $plain = static fn (string $value): AstNode => new AstNode('plain', [], [new AstNode('text', ['text' => $value])]);
+            $cell = static fn (string $value, array $attrs = []): AstNode => new AstNode('table_cell', $attrs, [$plain($value)]);
+            $row = static fn (array $cells): AstNode => new AstNode('table_row', [], $cells);
+            $expected = new AstNode('document', [], [
+                new AstNode('table', ['alignments' => ['left', 'default', 'default'], 'widths' => [0.0, 0.0, 0.0]], [
+                    new AstNode('table_head', [], [
+                        $row([
+                            $cell('A', ['rowspan' => 2]),
+                            $cell('B', ['colspan' => 2]),
+                        ]),
+                        $row([
+                            $cell('G'),
+                            $cell('H'),
+                        ]),
+                    ]),
+                    new AstNode('table_body', ['rowHeadColumns' => 0], [
+                        $row([
+                            $cell('1', ['align' => 'left']),
+                            $cell('2'),
+                            $cell('3'),
+                        ]),
+                    ]),
+                    new AstNode('table_foot'),
+                ]),
+            ]);
+            file_put_contents($root . '/table_header_rowspan.native', (new NativeWriter())->write($expected));
+
+            $report = (new DocxNativeAstComparisonHarness())->run($root);
+
+            $t->same(1, $report['normalizedAstMatchCount']);
+            $t->same(0, $report['normalizedAstMismatchCount']);
         } finally {
             $removeTree($root);
         }
@@ -427,7 +572,7 @@ XML);
             $t->same(1, $report['normalizedAstMatchCount']);
             $t->same(0, $report['normalizedAstMismatchCount']);
             $t->true(in_array('derived text attrs on plain, paragraph, heading, and table_cell nodes', $report['normalizationPolicy']['excludes'], true));
-            $t->true(in_array('default table cell spans and row-head counts omitted by native Attr tuples', $report['normalizationPolicy']['excludes'], true));
+            $t->true(in_array('default table cell alignment, spans, and row-head counts omitted by native Attr tuples', $report['normalizationPolicy']['excludes'], true));
         } finally {
             $removeTree($root);
         }

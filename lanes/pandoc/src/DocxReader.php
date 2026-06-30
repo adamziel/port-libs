@@ -3987,7 +3987,9 @@ final class DocxReader
             }
         }
 
-        return new AstNode('table', $this->tableAttributes($table, $this->tableColumnCountFromRowSpecs($rowSpecs)), [
+        $columnCount = $this->tableColumnCountFromRowSpecs($rowSpecs);
+
+        return new AstNode('table', $this->tableAttributes($table, $columnCount, $rowSpecs), [
             new AstNode('table_head', [], $headRows),
             new AstNode('table_body', [], $rows),
             new AstNode('table_foot'),
@@ -4007,6 +4009,38 @@ final class DocxReader
         }
 
         return $columnCount;
+    }
+
+    /**
+     * @param list<list<array{element: ?\DOMElement, column: int, colspan: int, vMerge: string, omitted: string}>> $rowSpecs
+     * @return list<string>
+     */
+    private function tableColumnAlignmentsFromRowSpecs(array $rowSpecs, int $columnCount): array
+    {
+        $alignments = array_fill(0, $columnCount, 'default');
+        foreach ($rowSpecs as $cells) {
+            foreach ($cells as $cell) {
+                if ((int) $cell['colspan'] !== 1) {
+                    continue;
+                }
+
+                $column = (int) $cell['column'];
+                if (!array_key_exists($column, $alignments) || $alignments[$column] !== 'default') {
+                    continue;
+                }
+
+                $element = $cell['element'] ?? null;
+                if (!$element instanceof \DOMElement) {
+                    continue;
+                }
+
+                if ($this->tableCellAlignment($element) === 'left') {
+                    $alignments[$column] = 'left';
+                }
+            }
+        }
+
+        return $alignments;
     }
 
     private function tableRowGridBefore(\DOMElement $row): int
@@ -4185,13 +4219,14 @@ final class DocxReader
     }
 
     /**
+     * @param list<list<array{element: ?\DOMElement, column: int, colspan: int, vMerge: string, omitted: string}>> $rowSpecs
      * @return array<string, mixed>
      */
-    private function tableAttributes(\DOMElement $table, int $columnCount): array
+    private function tableAttributes(\DOMElement $table, int $columnCount, array $rowSpecs): array
     {
         $attrs = [];
         if ($columnCount > 0) {
-            $attrs['alignments'] = array_fill(0, $columnCount, 'default');
+            $attrs['alignments'] = $this->tableColumnAlignmentsFromRowSpecs($rowSpecs, $columnCount);
             $attrs['widths'] = $this->tableGridWidths($table, $columnCount);
         }
 

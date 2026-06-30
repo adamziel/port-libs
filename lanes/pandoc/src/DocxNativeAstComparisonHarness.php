@@ -306,8 +306,9 @@ final class DocxNativeAstComparisonHarness
                 'document-level metadata added by local DOCX package parsing',
                 'local DOCX raw bookmark markers and visible field/content-control provenance wrappers',
                 'DOCX data-docx-* provenance attributes retained for local writer diagnostics',
+                'DOCX table captionSource retained for local writer diagnostics',
                 'derived text attrs on plain, paragraph, heading, and table_cell nodes',
-                'default table cell spans and row-head counts omitted by native Attr tuples',
+                'default table cell alignment, spans, and row-head counts omitted by native Attr tuples',
                 'DOCX tab separator encoding when upstream native exposes equivalent spacing',
                 'reader-specific adjacent Str/Space text-node segmentation',
                 'floating-point serialization noise in table column width fractions',
@@ -386,6 +387,9 @@ final class DocxNativeAstComparisonHarness
             if ($key === 'text' && in_array($node->type, ['plain', 'paragraph', 'heading', 'table_cell'], true)) {
                 continue;
             }
+            if ($node->type === 'table' && $key === 'captionSource') {
+                continue;
+            }
             if ($node->type === 'table_cell' && in_array($key, ['colspan', 'rowspan'], true) && (int) $value === 1) {
                 continue;
             }
@@ -393,6 +397,14 @@ final class DocxNativeAstComparisonHarness
                 continue;
             }
             if ($node->type === 'image' && in_array($key, ['width', 'height'], true) && $this->imageDimensionMirrorsAttrTuple($node, $key, $value)) {
+                continue;
+            }
+            if (in_array($key, ['captionInlines', 'shortCaptionInlines'], true) && is_array($value) && $this->isAstNodeList($value)) {
+                $attrs[$key] = $this->normalizedCaptionInlineListValue($value);
+                continue;
+            }
+            if (in_array($key, ['captionBlocks', 'shortCaptionBlocks'], true) && is_array($value) && $this->isAstNodeList($value)) {
+                $attrs[$key] = $this->normalizedCaptionBlockListValue($value);
                 continue;
             }
             $normalizedValue = $this->normalizedValue($value);
@@ -421,6 +433,9 @@ final class DocxNativeAstComparisonHarness
         }
         if ($key === 'colspan' || $key === 'rowspan') {
             return (int) $value === 1;
+        }
+        if ($key === 'align') {
+            return (string) $value === 'default';
         }
 
         return false;
@@ -628,6 +643,100 @@ final class DocxNativeAstComparisonHarness
             $normalized[(string) $key] = $this->normalizedValue($item);
         }
         ksort($normalized, SORT_STRING);
+
+        return $normalized;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @return list<array<string, mixed>>
+     */
+    private function normalizedCaptionInlineListValue(array $nodes): array
+    {
+        $normalized = [];
+        $text = '';
+        foreach ($nodes as $node) {
+            $replacementChildren = $this->comparisonReplacementChildren($node);
+            if (is_array($replacementChildren)) {
+                foreach ($this->normalizedCaptionInlineListValue($replacementChildren) as $replacementNode) {
+                    $this->appendNormalizedCaptionInlineNode($normalized, $text, $replacementNode);
+                }
+                continue;
+            }
+
+            if ($node->type === 'text') {
+                $text .= (string) $node->attr('text', '');
+                continue;
+            }
+            if ($node->type === 'space') {
+                $text .= ' ';
+                continue;
+            }
+            if ($node->type === 'softbreak' || $node->type === 'linebreak') {
+                $text .= ' ';
+                continue;
+            }
+
+            $this->appendCaptionInlineText($normalized, $text);
+            $text = '';
+            $normalized[] = $this->normalizedNode($node);
+        }
+        $this->appendCaptionInlineText($normalized, $text);
+
+        return $normalized;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $normalized
+     * @param array<string, mixed> $node
+     */
+    private function appendNormalizedCaptionInlineNode(array &$normalized, string &$text, array $node): void
+    {
+        if (($node['type'] ?? null) === 'text' && is_string($node['attrs']['text'] ?? null)) {
+            $text .= $node['attrs']['text'];
+            return;
+        }
+
+        $this->appendCaptionInlineText($normalized, $text);
+        $text = '';
+        $normalized[] = $node;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $normalized
+     */
+    private function appendCaptionInlineText(array &$normalized, string $text): void
+    {
+        $text = preg_replace('/[ \t\r\n]+/u', ' ', $text) ?? str_replace("\t", ' ', $text);
+        if ($text === '') {
+            return;
+        }
+
+        $this->appendNormalizedChild($normalized, [
+            'type' => 'text',
+            'attrs' => ['text' => $text],
+            'children' => [],
+        ]);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @return list<array<string, mixed>>
+     */
+    private function normalizedCaptionBlockListValue(array $nodes): array
+    {
+        return array_map(fn (AstNode $node): array => $this->normalizedCaptionBlockValue($node), $nodes);
+    }
+
+    /**
+     * @return array{type:string, attrs:array<string, mixed>, children:list<array<string, mixed>>}
+     */
+    private function normalizedCaptionBlockValue(AstNode $node): array
+    {
+        $normalized = $this->normalizedNode($node);
+        if (in_array($node->type, ['plain', 'paragraph'], true)) {
+            $normalized['children'] = $this->normalizedCaptionInlineListValue($node->children);
+        }
 
         return $normalized;
     }

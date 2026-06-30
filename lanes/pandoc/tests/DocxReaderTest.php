@@ -2175,6 +2175,17 @@ XML;
         $t->same([0.0, 0.0], $table->attr('widths'));
         $t->same(2, substr_count($native, 'ColWidthDefault'));
     },
+    'derives left docx table column alignment from single column cells' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:tbl><w:tr><w:tc><w:p><w:pPr><w:jc w:val="left"/></w:pPr><w:r><w:t>Left aligned</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Default</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:body></w:document>');
+
+        $document = (new DocxReader())->read($bytes);
+        $table = $document->children[0];
+        $native = (new NativeWriter())->write($document);
+
+        $t->same(['left', 'default'], $table->attr('alignments'));
+        $t->same('left', $table->children[1]->children[0]->children[0]->attr('align'));
+        $t->contains('[ ( AlignLeft , ColWidthDefault )', $native);
+    },
     'maps docx table grid column widths to native fractions' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
         $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:tbl><w:tblGrid><w:gridCol w:w="2000"/><w:gridCol w:w="3990"/></w:tblGrid><w:tr><w:tc><w:p><w:r><w:t>Left</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Right</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:sectPr><w:pgSz w:w="10000" w:h="12000"/><w:pgMar w:left="1000" w:right="1000" w:gutter="0"/></w:sectPr></w:body></w:document>');
 
