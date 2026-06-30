@@ -420,9 +420,9 @@ return [
         $t->contains('<w:tblGrid><w:gridCol w:w="1980"/><w:gridCol w:w="5940"/></w:tblGrid>', $documentXml);
         $t->contains('<w:pStyle w:val="Compact"/>', $documentXml);
         $t->contains('<w:pStyle w:val="FirstParagraph"/>', $documentXml);
-        $t->contains('<w:t>Feature</w:t>', $documentXml);
+        $t->contains('<w:t xml:space="preserve">Feature</w:t>', $documentXml);
         $t->contains('<w:b/>', $documentXml);
-        $t->contains('<w:t>paragraph cell</w:t>', $documentXml);
+        $t->contains('<w:t xml:space="preserve">paragraph cell</w:t>', $documentXml);
         $t->contains('<w:numId w:val="1001"/>', $documentXml);
         $t->contains('<w:gridSpan w:val="2"/>', $documentXml);
         $t->contains('w:styleId="Table"', $parts['word/styles.xml']);
@@ -493,7 +493,7 @@ return [
         $t->contains('<w:commentRangeStart w:id="0"/>', $documentXml);
         $t->contains('<w:commentRangeEnd w:id="0"/>', $documentXml);
         $t->contains('<w:commentReference w:id="0"/>', $documentXml);
-        $t->contains('<w:t>target</w:t>', $documentXml);
+        $t->contains('<w:t xml:space="preserve">target</w:t>', $documentXml);
         $t->true(!str_contains($documentXml, 'I left a comment.'), 'Comment body leaked into document.xml');
         $t->contains('<w:comment w:id="0" w:author="Jesse Rosenthal" w:date="2016-05-09T16:13:00Z">', $commentsXml);
         $t->contains('<w:pStyle w:val="CommentText"/>', $commentsXml);
@@ -564,7 +564,7 @@ return [
         [, $parts] = $packageParts((new DocxWriter())->write($document));
         $documentXml = $parts['word/document.xml'];
 
-        $t->contains('<w:tbl><w:tr><w:tc><w:p><w:r><w:t>Ribosome</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Lysosome</w:t></w:r></w:p></w:tc></w:tr></w:tbl>', $documentXml);
+        $t->contains('<w:tbl><w:tr><w:tc><w:p><w:r><w:t xml:space="preserve">Ribosome</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t xml:space="preserve">Lysosome</w:t></w:r></w:p></w:tc></w:tr></w:tbl>', $documentXml);
         $t->true(!str_contains($documentXml, '&lt;w:tbl'), 'Raw OpenXML table fragment was XML-escaped');
     },
 
@@ -593,8 +593,8 @@ return [
         $documentXml = $parts['word/document.xml'];
 
         $t->contains('<w:r><w:t xml:space="preserve">Here is a </w:t></w:r>', $documentXml);
-        $t->contains('<w:del w:id="1" w:author="Author"><w:r><w:delText>dummy</w:delText></w:r></w:del>', $documentXml);
-        $t->contains('<w:ins w:id="1" w:author="Author" w:date="2014-06-25T10:40:00Z"><w:r><w:t>test</w:t></w:r></w:ins>', $documentXml);
+        $t->contains('<w:del w:id="1" w:author="Author"><w:r><w:delText xml:space="preserve">dummy</w:delText></w:r></w:del>', $documentXml);
+        $t->contains('<w:ins w:id="1" w:author="Author" w:date="2014-06-25T10:40:00Z"><w:r><w:t xml:space="preserve">test</w:t></w:r></w:ins>', $documentXml);
         $t->true(!str_contains($documentXml, '<w:r><w:t>dummy</w:t></w:r>'), 'Deletion text must use w:delText');
     },
 
@@ -648,7 +648,7 @@ return [
 
         $t->contains('<w:rStyle w:val="Emphatic"/>', $documentXml);
         $t->contains('<w:rStyle w:val="MyStyle"/>', $documentXml);
-        $t->contains('<w:hyperlink r:id="rId9"><w:r><w:rPr><w:rStyle w:val="Hyperlink"/></w:rPr><w:t>link</w:t></w:r></w:hyperlink>', $documentXml);
+        $t->contains('<w:hyperlink r:id="rId9"><w:r><w:rPr><w:rStyle w:val="Hyperlink"/></w:rPr><w:t xml:space="preserve">link</w:t></w:r></w:hyperlink>', $documentXml);
         $t->contains('<w:pStyle w:val="MyBlockStyle"/>', $documentXml);
         $t->contains('<w:pStyle w:val="Heading2"/>', $documentXml);
         $t->contains('w:styleId="Emphatic"', $stylesXml);
@@ -677,9 +677,9 @@ return [
         $t->contains('w:styleId="BlockText"', $parts['word/styles.xml']);
         $t->contains('<w:name w:val="Block Text"/>', $parts['word/styles.xml']);
         $t->contains('<w:pStyle w:val="BlockText"/>', $documentXml);
-        $t->contains('<w:t>quoted paragraph</w:t>', $documentXml);
+        $t->contains('<w:t xml:space="preserve">quoted paragraph</w:t>', $documentXml);
         $t->contains('<w:numId w:val="1001"/>', $documentXml);
-        $t->contains('<w:t>quoted bullet</w:t>', $documentXml);
+        $t->contains('<w:t xml:space="preserve">quoted bullet</w:t>', $documentXml);
         $t->same('blockquote', $roundTrip->children[0]->type);
     },
 
@@ -741,8 +741,8 @@ return [
         $t->contains('<w:numId w:val="1000"/>', $documentXml);
         $t->contains('<w:numId w:val="1005"/>', $documentXml);
         $t->contains('<w:numId w:val="1006"/>', $documentXml);
-        $t->contains('<w:t>continuation</w:t>', $documentXml);
-        $t->contains('<w:t>nested first</w:t>', $documentXml);
+        $t->contains('<w:t xml:space="preserve">continuation</w:t>', $documentXml);
+        $t->contains('<w:t xml:space="preserve">nested first</w:t>', $documentXml);
     },
 
     'emits task list checkboxes as numbering markers without duplicated text glyphs' => static function (TestRunner $t) use ($doc, $text, $paragraph, $plain, $item, $packageParts): void {
@@ -772,10 +772,10 @@ return [
         $t->contains('<w:numId w:val="1002"/>', $documentXml);
         $t->contains('<w:numId w:val="1003"/>', $documentXml);
         $t->contains('<w:numId w:val="1000"/>', $documentXml);
-        $t->contains('<w:t>Unchecked</w:t>', $documentXml);
-        $t->contains('<w:t>Checked</w:t>', $documentXml);
-        $t->contains('<w:t>with continuation</w:t>', $documentXml);
-        $t->contains('<w:t>Checked sublist</w:t>', $documentXml);
+        $t->contains('<w:t xml:space="preserve">Unchecked</w:t>', $documentXml);
+        $t->contains('<w:t xml:space="preserve">Checked</w:t>', $documentXml);
+        $t->contains('<w:t xml:space="preserve">with continuation</w:t>', $documentXml);
+        $t->contains('<w:t xml:space="preserve">Checked sublist</w:t>', $documentXml);
         $t->true(!str_contains($documentXml, "\u{2610}"), 'Unchecked task glyph should be carried by numbering, not paragraph text');
         $t->true(!str_contains($documentXml, "\u{2612}"), 'Checked task glyph should be carried by numbering, not paragraph text');
     },

@@ -2261,9 +2261,8 @@ final class DocxWriter
                 $runs .= '<w:r>' . $this->runPropertiesXml($format) . '<w:tab/></w:r>';
                 continue;
             }
-            $space = ($format['preserveSpace'] ?? false) === true ? ' xml:space="preserve"' : $this->preserveSpaceAttribute($part);
             $tag = (($format['deleted'] ?? false) === true) ? 'w:delText' : 'w:t';
-            $runs .= '<w:r>' . $this->runPropertiesXml($format) . '<' . $tag . $space . '>' . self::escText($part) . '</' . $tag . '></w:r>';
+            $runs .= '<w:r>' . $this->runPropertiesXml($format) . '<' . $tag . ' xml:space="preserve">' . self::escText($part) . '</' . $tag . '></w:r>';
         }
 
         return $runs;
@@ -2320,11 +2319,6 @@ final class DocxWriter
         }
 
         return $props === [] ? '' : '<w:rPr>' . implode('', $props) . '</w:rPr>';
-    }
-
-    private function preserveSpaceAttribute(string $text): string
-    {
-        return preg_match('/(^ | $|  )/', $text) === 1 ? ' xml:space="preserve"' : '';
     }
 
     private function imageAltText(AstNode $node): string
