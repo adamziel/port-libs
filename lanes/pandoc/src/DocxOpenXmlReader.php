@@ -904,6 +904,12 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['fontTableEmbeddedFontExternalCount'] = (int) ($fontTable['embeddedFontExternalCount'] ?? 0);
         $packageProvenance['summary']['fontTableEmbeddedFontIssueCount'] = (int) ($fontTable['embeddedFontIssueCount'] ?? 0);
         $packageProvenance['summary']['fontTableEmbeddedFontIssueCodes'] = $fontTable['embeddedFontIssueCodes'] ?? [];
+        $packageProvenance['summary']['fontTableEmbeddedFontContentTypeSourceCounts'] = $fontTable['embeddedFontContentTypeSourceCounts'] ?? [];
+        $packageProvenance['summary']['fontTableEmbeddedFontDefaultContentTypeCount'] = (int) ($fontTable['embeddedFontDefaultContentTypeCount'] ?? 0);
+        $packageProvenance['summary']['fontTableEmbeddedFontOverrideContentTypeCount'] = (int) ($fontTable['embeddedFontOverrideContentTypeCount'] ?? 0);
+        $packageProvenance['summary']['fontTableEmbeddedFontMissingContentTypeCount'] = (int) ($fontTable['embeddedFontMissingContentTypeCount'] ?? 0);
+        $packageProvenance['summary']['fontTableEmbeddedFontDefaultExtensions'] = $fontTable['embeddedFontDefaultExtensions'] ?? [];
+        $packageProvenance['summary']['fontTableEmbeddedFontOverridePartNames'] = $fontTable['embeddedFontOverridePartNames'] ?? [];
         $packageProvenance['summary']['fontTableInvalidXmlCount'] = (int) ($fontTable['invalidXmlCount'] ?? 0);
         $packageProvenance['summary']['fontTableIssueCount'] = (int) ($fontTable['issueCount'] ?? 0);
         $packageProvenance['summary']['fontTableIssueCodes'] = $fontTable['issueCodes'] ?? [];
@@ -1624,7 +1630,7 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array<string, array{id:string, type:string, name:string, headingLevel:int|null, basedOn:?string, next:?string, link:?string, numStyleLink:?string, styleLink:?string, referenceCount:int, missingReferenceCount:int, references:list<array{kind:string, targetStyleId:string, exists:bool}>, missingReferences:list<array{kind:string, targetStyleId:string}>}>
+     * @return array<string, array{id:string, type:string, name:string, headingLevel:int|null, basedOn:?string, next:?string, link:?string, numStyleLink:?string, styleLink:?string, numId:?string, numLevel:?int, referenceCount:int, missingReferenceCount:int, references:list<array{kind:string, targetStyleId:string, exists:bool}>, missingReferences:list<array{kind:string, targetStyleId:string}>}>
      */
     private function readStyles(string $xml, string $partName): array
     {
@@ -1660,6 +1666,7 @@ final class DocxOpenXmlReader
             } elseif (preg_match('/^Heading([1-6])$/', $styleId, $match) === 1) {
                 $headingLevel = (int) $match[1];
             }
+            $styleNumbering = $this->styleParagraphNumbering($this->childElement($style, 'pPr'));
 
             $referenceValues = [];
             $references = [];
@@ -1695,6 +1702,8 @@ final class DocxOpenXmlReader
                 'link' => $referenceValues['link'],
                 'numStyleLink' => $referenceValues['numStyleLink'],
                 'styleLink' => $referenceValues['styleLink'],
+                'numId' => $styleNumbering['numId'] ?? null,
+                'numLevel' => $styleNumbering['level'] ?? null,
                 'referenceCount' => count($references),
                 'missingReferenceCount' => count($missingReferences),
                 'references' => $references,
@@ -1703,6 +1712,31 @@ final class DocxOpenXmlReader
         }
 
         return $styles;
+    }
+
+    /**
+     * @return array{numId:string, level:int}|null
+     */
+    private function styleParagraphNumbering(?\DOMElement $pPr): ?array
+    {
+        if (!$pPr instanceof \DOMElement) {
+            return null;
+        }
+
+        $numPr = $this->childElement($pPr, 'numPr');
+        if (!$numPr instanceof \DOMElement) {
+            return null;
+        }
+
+        $numId = $this->childAttr($numPr, 'numId', 'val');
+        if ($numId === '') {
+            return null;
+        }
+
+        return [
+            'numId' => $numId,
+            'level' => (int) ($this->childAttr($numPr, 'ilvl', 'val') ?: '0'),
+        ];
     }
 
     /**
@@ -22895,6 +22929,10 @@ final class DocxOpenXmlReader
                     'text' => $this->childAttr($level, 'lvlText', 'val') ?: '%' . ($ilvl + 1) . '.',
                     'start' => max(1, (int) ($this->childAttr($level, 'start', 'val') ?: '1')),
                 ];
+                $styleId = $this->childAttr($level, 'pStyle', 'val');
+                if ($styleId !== '') {
+                    $levelDefinition['styleId'] = $styleId;
+                }
                 $pictureBulletId = $this->childAttr($level, 'lvlPicBulletId', 'val');
                 if ($pictureBulletId !== '') {
                     $levelDefinition['pictureBulletId'] = $pictureBulletId;
@@ -25066,6 +25104,14 @@ final class DocxOpenXmlReader
                 'embeddedFontExternalCount' => 0,
                 'embeddedFontIssueCount' => 0,
                 'embeddedFontIssueCodes' => [],
+                'embeddedFontContentTypeSourceCounts' => [],
+                'embeddedFontContentTypeBaseCounts' => [],
+                'embeddedFontContentTypes' => [],
+                'embeddedFontDefaultContentTypeCount' => 0,
+                'embeddedFontOverrideContentTypeCount' => 0,
+                'embeddedFontMissingContentTypeCount' => 0,
+                'embeddedFontDefaultExtensions' => [],
+                'embeddedFontOverridePartNames' => [],
                 'notTrueTypeCount' => 0,
                 'signatureCount' => 0,
                 'signatureUnicodeRangeCount' => 0,
@@ -25085,6 +25131,12 @@ final class DocxOpenXmlReader
         $embeddedFontExternalCount = 0;
         $embeddedFontIssueCount = 0;
         $embeddedFontIssueCodes = [];
+        $embeddedFontMissingContentTypeCount = 0;
+        $embeddedFontContentTypeSourceCounts = [];
+        $embeddedFontContentTypeBaseCounts = [];
+        $embeddedFontContentTypes = [];
+        $embeddedFontDefaultExtensions = [];
+        $embeddedFontOverridePartNames = [];
         foreach ($this->elements($xpath, '/w:fonts/w:font') as $font) {
             $name = $font->getAttributeNS(self::NS_W, 'name');
             if ($name === '') {
@@ -25124,6 +25176,37 @@ final class DocxOpenXmlReader
                 if ($embeddedFont['issues'] !== []) {
                     ++$embeddedFontIssueCount;
                 }
+                if (in_array('missing-content-type', $embeddedFont['issues'], true)) {
+                    ++$embeddedFontMissingContentTypeCount;
+                }
+                $contentTypeSource = is_string($embeddedFont['contentTypeSource'] ?? null)
+                    ? $embeddedFont['contentTypeSource']
+                    : 'missing';
+                if ($contentTypeSource === '') {
+                    $contentTypeSource = 'missing';
+                }
+                $embeddedFontContentTypeSourceCounts[$contentTypeSource] =
+                    ($embeddedFontContentTypeSourceCounts[$contentTypeSource] ?? 0) + 1;
+
+                $contentTypeBase = is_string($embeddedFont['contentTypeBase'] ?? null)
+                    ? $embeddedFont['contentTypeBase']
+                    : '';
+                $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+                $embeddedFontContentTypeBaseCounts[$contentTypeBaseKey] =
+                    ($embeddedFontContentTypeBaseCounts[$contentTypeBaseKey] ?? 0) + 1;
+
+                $this->appendUniqueString(
+                    $embeddedFontContentTypes,
+                    is_string($embeddedFont['contentType'] ?? null) ? $embeddedFont['contentType'] : null,
+                );
+                $this->appendUniqueString(
+                    $embeddedFontDefaultExtensions,
+                    is_string($embeddedFont['defaultExtension'] ?? null) ? $embeddedFont['defaultExtension'] : null,
+                );
+                $this->appendUniqueString(
+                    $embeddedFontOverridePartNames,
+                    is_string($embeddedFont['overridePartName'] ?? null) ? $embeddedFont['overridePartName'] : null,
+                );
                 foreach ($embeddedFont['issues'] as $issue) {
                     if (is_string($issue) && $issue !== '') {
                         $embeddedFontIssueCodes[$issue] = true;
@@ -25135,6 +25218,11 @@ final class DocxOpenXmlReader
             $byName[$name] = $record;
         }
         ksort($embeddedFontIssueCodes, SORT_STRING);
+        ksort($embeddedFontContentTypeSourceCounts, SORT_STRING);
+        ksort($embeddedFontContentTypeBaseCounts, SORT_STRING);
+        sort($embeddedFontContentTypes, SORT_STRING);
+        sort($embeddedFontDefaultExtensions, SORT_STRING);
+        sort($embeddedFontOverridePartNames, SORT_STRING);
 
         return [
             'relationshipsPart' => $relationshipsPart,
@@ -25151,6 +25239,14 @@ final class DocxOpenXmlReader
             'embeddedFontExternalCount' => $embeddedFontExternalCount,
             'embeddedFontIssueCount' => $embeddedFontIssueCount,
             'embeddedFontIssueCodes' => array_keys($embeddedFontIssueCodes),
+            'embeddedFontContentTypeSourceCounts' => $embeddedFontContentTypeSourceCounts,
+            'embeddedFontContentTypeBaseCounts' => $embeddedFontContentTypeBaseCounts,
+            'embeddedFontContentTypes' => $embeddedFontContentTypes,
+            'embeddedFontDefaultContentTypeCount' => (int) ($embeddedFontContentTypeSourceCounts['default'] ?? 0),
+            'embeddedFontOverrideContentTypeCount' => (int) ($embeddedFontContentTypeSourceCounts['override'] ?? 0),
+            'embeddedFontMissingContentTypeCount' => $embeddedFontMissingContentTypeCount,
+            'embeddedFontDefaultExtensions' => $embeddedFontDefaultExtensions,
+            'embeddedFontOverridePartNames' => $embeddedFontOverridePartNames,
             'notTrueTypeCount' => count(array_filter($fonts, static fn (array $font): bool => ($font['notTrueType'] ?? false) === true)),
             'signatureCount' => count(array_filter($fonts, static fn (array $font): bool => isset($font['signature']))),
             'signatureUnicodeRangeCount' => array_sum(array_map(static fn (array $font): int => (int) ($font['signature']['unicodeRangeCount'] ?? 0), $fonts)),
@@ -26884,7 +26980,7 @@ final class DocxOpenXmlReader
                     continue;
                 }
 
-                $list = $this->paragraphListAttrs($child, $numbering);
+                $list = $paragraph->type === 'paragraph' ? $this->paragraphListAttrs($child, $numbering, $styles) : null;
                 if ($list !== null && $paragraph->type === 'paragraph') {
                     $key = $list['type'] . ':' . $list['numId'] . ':' . $list['level'] . ':' . ($list['style'] ?? '') . ':' . ($list['delimiter'] ?? '') . ':' . $list['start'] . ':' . ($list['pictureBulletId'] ?? '');
                     if (!is_array($currentList) || $currentList['key'] !== $key) {
@@ -27032,7 +27128,7 @@ final class DocxOpenXmlReader
                     continue;
                 }
 
-                $list = $this->paragraphListAttrs($bodyChild, $numbering);
+                $list = $paragraph->type === 'paragraph' ? $this->paragraphListAttrs($bodyChild, $numbering, $styles) : null;
                 if ($list !== null && $paragraph->type === 'paragraph') {
                     $key = $list['type'] . ':' . $list['numId'] . ':' . $list['level'] . ':' . ($list['style'] ?? '') . ':' . ($list['delimiter'] ?? '') . ':' . $list['start'] . ':' . ($list['pictureBulletId'] ?? '');
                     if (!is_array($currentList) || $currentList['key'] !== $key) {
@@ -27385,7 +27481,6 @@ final class DocxOpenXmlReader
     private function readDrawingImages(\DOMElement $drawing, \DOMXPath $xpath, array $relationships, array $contentTypes): array
     {
         $images = [];
-        $docPr = $this->firstElement($xpath, './/wp:docPr', $drawing);
         foreach ($this->elements($xpath, './/a:blip', $drawing) as $blip) {
             $relationshipId = $blip->getAttributeNS(self::NS_R, 'embed');
             if ($relationshipId === '') {
@@ -27401,6 +27496,7 @@ final class DocxOpenXmlReader
             $targetPart = $isExternal ? null : $this->stripQueryAndFragment($relationship['resolvedTarget']);
             $targetSuffix = $this->targetReferenceSuffix($relationship['resolvedTarget']);
             $url = $isExternal ? $relationship['target'] : (string) $targetPart;
+            $docPr = $this->drawingImageDocPr($blip, $xpath, $drawing);
             $alt = $docPr instanceof \DOMElement ? trim($docPr->getAttribute('descr')) : '';
             $title = $docPr instanceof \DOMElement ? trim($docPr->getAttribute('title') ?: $docPr->getAttribute('name')) : '';
             $attrs = [
@@ -27431,6 +27527,26 @@ final class DocxOpenXmlReader
         }
 
         return $images;
+    }
+
+    private function drawingImageDocPr(\DOMElement $blip, \DOMXPath $xpath, \DOMElement $drawing): ?\DOMElement
+    {
+        $node = $blip->parentNode;
+        while ($node instanceof \DOMElement) {
+            if ($node->namespaceURI === self::NS_WP && in_array($node->localName, ['inline', 'anchor'], true)) {
+                $docPr = $this->firstElement($xpath, './wp:docPr', $node);
+
+                return $docPr instanceof \DOMElement ? $docPr : null;
+            }
+
+            if ($node->isSameNode($drawing)) {
+                break;
+            }
+
+            $node = $node->parentNode;
+        }
+
+        return $this->firstElement($xpath, './/wp:docPr', $drawing);
     }
 
     /**
@@ -27518,34 +27634,95 @@ final class DocxOpenXmlReader
 
     /**
      * @param array<string, array{abstractNumId:string, levels:array<int, array<string, mixed>>}> $numbering
+     * @param array<string, array<string, mixed>> $styles
      * @return array<string, mixed>|null
      */
-    private function paragraphListAttrs(\DOMElement $paragraph, array $numbering): ?array
+    private function paragraphListAttrs(\DOMElement $paragraph, array $numbering, array $styles): ?array
     {
         $pPr = $this->childElement($paragraph, 'pPr');
         $numPr = $pPr instanceof \DOMElement ? $this->childElement($pPr, 'numPr') : null;
-        if (!$numPr instanceof \DOMElement) {
+        if ($numPr instanceof \DOMElement) {
+            $numId = $this->childAttr($numPr, 'numId', 'val');
+            if ($numId === '' || $numId === '0') {
+                return null;
+            }
+
+            $ilvl = (int) ($this->childAttr($numPr, 'ilvl', 'val') ?: '0');
+
+            return $this->listAttrsForNumberingLevel($numId, $ilvl, $numbering);
+        }
+
+        $styleId = $this->paragraphStyleId($paragraph);
+        if ($styleId === '') {
             return null;
         }
 
-        $numId = $this->childAttr($numPr, 'numId', 'val');
-        if ($numId === '' || !isset($numbering[$numId])) {
+        foreach ($this->paragraphStyleChainIds($styleId, $styles) as $candidateStyleId) {
+            $style = $styles[$candidateStyleId] ?? null;
+            if (!is_array($style)) {
+                continue;
+            }
+
+            $numId = is_string($style['numId'] ?? null) ? $style['numId'] : '';
+            if ($numId !== '' && $numId !== '0') {
+                return $this->listAttrsForNumberingLevel(
+                    $numId,
+                    max(0, (int) ($style['numLevel'] ?? 0)),
+                    $numbering
+                );
+            }
+        }
+
+        foreach ($this->paragraphStyleChainIds($styleId, $styles) as $candidateStyleId) {
+            $attrs = $this->listAttrsForNumberingStyle($candidateStyleId, $numbering);
+            if ($attrs !== null) {
+                return $attrs;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, array{abstractNumId:string, levels:array<int, array<string, mixed>>}> $numbering
+     * @return array<string, mixed>|null
+     */
+    private function listAttrsForNumberingStyle(string $styleId, array $numbering): ?array
+    {
+        foreach ($numbering as $numId => $definition) {
+            foreach ($definition['levels'] as $ilvl => $level) {
+                if (($level['styleId'] ?? null) === $styleId) {
+                    return $this->listAttrsForNumberingLevel((string) $numId, (int) $ilvl, $numbering);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, array{abstractNumId:string, levels:array<int, array<string, mixed>>}> $numbering
+     * @return array<string, mixed>|null
+     */
+    private function listAttrsForNumberingLevel(string $numId, int $ilvl, array $numbering): ?array
+    {
+        if (!isset($numbering[$numId])) {
             return null;
         }
 
-        $ilvl = (int) ($this->childAttr($numPr, 'ilvl', 'val') ?: '0');
         $level = $numbering[$numId]['levels'][$ilvl] ?? ['format' => 'decimal', 'text' => '%' . ($ilvl + 1) . '.', 'start' => 1];
-        $format = $level['format'];
+        $format = (string) ($level['format'] ?? 'decimal');
+        $text = (string) ($level['text'] ?? '%' . ($ilvl + 1) . '.');
         $type = $format === 'bullet' ? 'bullet_list' : 'ordered_list';
 
         $attrs = [
             'type' => $type,
             'numId' => $numId,
             'level' => $ilvl,
-            'start' => $level['start'],
+            'start' => max(1, (int) ($level['start'] ?? 1)),
             'style' => $this->listStyleForFormat($format),
-            'delimiter' => $this->listDelimiterForText($level['text']),
-            'text' => $level['text'],
+            'delimiter' => $this->listDelimiterForText($text),
+            'text' => $text,
         ];
         if (is_string($level['pictureBulletId'] ?? null)) {
             $attrs['pictureBulletId'] = $level['pictureBulletId'];
@@ -27555,6 +27732,23 @@ final class DocxOpenXmlReader
         }
 
         return $attrs;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $styles
+     * @return list<string>
+     */
+    private function paragraphStyleChainIds(string $styleId, array $styles): array
+    {
+        $ids = [];
+        $current = $styleId;
+        while ($current !== '' && !in_array($current, $ids, true)) {
+            $ids[] = $current;
+            $style = $styles[$current] ?? null;
+            $current = is_array($style) && is_string($style['basedOn'] ?? null) ? $style['basedOn'] : '';
+        }
+
+        return $ids === [] ? [$styleId] : $ids;
     }
 
     private function paragraphStyleId(\DOMElement $paragraph): string

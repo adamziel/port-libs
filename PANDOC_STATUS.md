@@ -1,10 +1,12 @@
 # Pandoc Status
 
-Updated: 2026-06-26 UTC
+Updated: 2026-06-30 UTC
 
 Current registry audit: 51 upstream input formats tracked; 33 have partial native PHP readers; 18 remain unsupported. Output registry audit: 75 upstream output formats tracked; 17 have partial native PHP writers; 58 remain unsupported. Project-local inputs `pdf` and `doc` are tracked separately from upstream Pandoc inputs. The latest format-dispatch work keeps bounded `xml`, `jats`, and `bits` readers on `PortLibs\Pandoc\XmlReader`, keeps `docbook` on direct `PortLibs\Pandoc\DocBookReader` dispatch, moves `html` onto dedicated `PortLibs\Pandoc\HtmlReader` dispatch while preserving the current HTML-capable reader bridge, adds bounded `opml` dispatch through `PortLibs\Pandoc\OpmlReader` plus `PortLibs\Pandoc\OpmlWriter`, adds bounded EPUB/EPUB3 output through `PortLibs\Pandoc\EpubWriter`, closes the pinned upstream CSV/TSV parser evidence through `PortLibs\Pandoc\DelimitedTextReader`, closes the pinned upstream XLSX reader fixture through `PortLibs\Pandoc\XlsxReader`, closes the pinned upstream PPTX reader fixture through `PortLibs\Pandoc\PptxReader`, adds bounded Jira wiki reader unit semantics through `PortLibs\Pandoc\JiraReader`, exposes wiki-family registry metadata for 7 upstream input tokens and 5 upstream output tokens without claiming direct wiki parity, and covers the six pinned upstream FB2 golden fixture semantics through `PortLibs\Pandoc\Fb2Reader`; full Pandoc parity remains open for the larger unsupported/partial format surface.
 
 Rule: a format is complete only when repo passing tests equals upstream tests.
+
+Current DOCX/OpenXML audit: full upstream DOCX parity is not defensible. The pinned Pandoc `test/docx` inventory at `0640c4c9859aa5a3ede082c190fcd5883c24ac83` has 233 artifacts: 112 `.native` expected artifacts, 121 `.docx` package artifacts, and 38 golden `.docx` outputs. Current upstream `612e143fbe6d735b612c4800d21e61b7d44e4dca` adds three DOCX drift artifacts now checked in under `lanes/pandoc/fixtures/upstream-current-docx`: `lists_restart_8367.docx`, `lists_restart_8367.native`, and `ns0-reference.docx`. This repo currently has 31 checked-in `upstream-native-docx-*` fixtures, 23 exact normalized matches to pinned upstream native fixture names, 2 checked-in current-upstream `.docx` package fixtures, and 0 checked-in pinned upstream `.docx` package fixtures; broader package coverage is synthetic ZIP/XML plus bounded package-provenance tests.
 
 ODF/ODT is marked ship-ready: 90 local mapped ODF/ODT cases / 20 upstream ODF/ODT cases, with 0 critical ODF/ODT gaps.
 
@@ -19,7 +21,7 @@ ODF/ODT is marked ship-ready: 90 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | Wiki / roff / text markup readers | 1 | 20; Jira reader unit semantics covered, larger Jira fixture still open |
 | OPML | 7 | 2 upstream old-suite tests; reader fixture canonical-native exact, writer fixture exact |
 | HTML / XML / JATS / BITS DOM | 30 | 54 |
-| DOCX / OpenXML | 95 | 256 |
+| DOCX / OpenXML | bounded synthetic/native slices only | 233 pinned artifacts; upstream DOCX runner/golden package evidence missing |
 | EPUB / EPUB3 | 105 | 11 |
 | CSV / TSV | 4 | 4 pinned CSV reader/parser evidence; RST csv-table integration remains tracked with RST |
 | CSL / BibTeX / BibLaTeX / csljson / RIS / EndNote XML | 80 | 227 |

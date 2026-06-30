@@ -1,0 +1,58 @@
+name: Pandoc DOCX parity
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/pandoc-docx.yml'
+      - 'PANDOC_STATUS.md'
+      - 'lanes/pandoc/**'
+      - 'tools/**'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/pandoc-docx.yml'
+      - 'PANDOC_STATUS.md'
+      - 'lanes/pandoc/**'
+      - 'tools/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  focused-docx:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: dom, intl, mbstring, zip
+          coverage: none
+
+      - name: Lint DOCX parity files
+        run: |
+          php -l lanes/pandoc/src/DocxReader.php
+          php -l lanes/pandoc/src/DocxOpenXmlReader.php
+          php -l lanes/pandoc/src/ZipPackageEntry.php
+          php -l lanes/pandoc/tests/DocxReaderTest.php
+          php -l lanes/pandoc/tests/DocxOpenXmlReaderTest.php
+          php -l lanes/pandoc/tests/DocxParityEvidenceStatusTest.php
+          php -l lanes/pandoc/tests/ZipPackageTest.php
+
+      - name: Validate DOCX parity status metadata
+        run: jq empty lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/lane-status.json porting-summary.json
+
+      - name: Run focused DOCX parity tests
+        run: |
+          php tools/run-tests.php \
+            lanes/pandoc/tests/DocxParityEvidenceStatusTest.php \
+            lanes/pandoc/tests/DocxReaderTest.php \
+            lanes/pandoc/tests/DocxOpenXmlReaderTest.php \
+            lanes/pandoc/tests/DocxGeneratedFieldMetadataTest.php \
+            lanes/pandoc/tests/ZipPackageTest.php \
+            lanes/pandoc/tests/MediaBagTest.php

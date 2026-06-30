@@ -142,6 +142,121 @@ return [
 
         $t->throws(InvalidArgumentException::class, static fn (): DocxReader => new DocxReader(['revisionMode' => 'merge']));
     },
+    'resolves docx paragraph style numbering and explicit numbering suppression' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            ['name' => 'word/styles.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:styleId="ReviewStep">
+    <w:name w:val="Review Step"/>
+    <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="42"/></w:numPr></w:pPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="DerivedReviewStep">
+    <w:name w:val="Derived Review Step"/>
+    <w:basedOn w:val="ReviewStep"/>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="ChecklistItem">
+    <w:name w:val="Checklist Item"/>
+  </w:style>
+</w:styles>
+XML],
+            ['name' => 'word/numbering.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:abstractNum w:abstractNumId="7">
+    <w:lvl w:ilvl="0"><w:start w:val="5"/><w:numFmt w:val="lowerLetter"/><w:lvlText w:val="%1)"/></w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="42"><w:abstractNumId w:val="7"/></w:num>
+  <w:abstractNum w:abstractNumId="8">
+    <w:lvl w:ilvl="0"><w:pStyle w:val="ChecklistItem"/><w:numFmt w:val="bullet"/><w:lvlText w:val="-"/></w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="43"><w:abstractNumId w:val="8"/></w:num>
+</w:numbering>
+XML],
+            ['name' => 'word/document.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:pPr><w:pStyle w:val="DerivedReviewStep"/></w:pPr><w:r><w:t>Review source</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="DerivedReviewStep"/></w:pPr><w:r><w:t>Publish migration</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="ChecklistItem"/></w:pPr><w:r><w:t>Check footers</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="DerivedReviewStep"/><w:numPr><w:numId w:val="0"/></w:numPr></w:pPr><w:r><w:t>Plain exception</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+XML],
+        ]);
+
+        $document = (new DocxReader())->readDocument($package);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $ordered = $document->children[0];
+        $bullet = $document->children[1];
+        $suppressed = $document->children[2];
+
+        $t->same('ordered_list', $ordered->type);
+        $t->same('42', $ordered->attr('numId'));
+        $t->same(0, $ordered->attr('level'));
+        $t->same(5, $ordered->attr('start'));
+        $t->same('lower_alpha', $ordered->attr('style'));
+        $t->same('one_paren', $ordered->attr('delimiter'));
+        $t->same('Review source', $ordered->children[0]->children[0]->attr('text'));
+        $t->same('Publish migration', $ordered->children[1]->children[0]->attr('text'));
+        $t->same('bullet_list', $bullet->type);
+        $t->same('43', $bullet->attr('numId'));
+        $t->same(0, $bullet->attr('level'));
+        $t->same('Check footers', $bullet->children[0]->children[0]->attr('text'));
+        $t->same('paragraph', $suppressed->type);
+        $t->same('Plain exception', $suppressed->attr('text'));
+        $t->contains('<ol start="5" type="a"><li>Review source</li><li>Publish migration</li></ol>', $blocks);
+        $t->contains('<ul><li>Check footers</li></ul>', $blocks);
+        $t->contains('<p>Plain exception</p>', $blocks);
+    },
+    'reads current upstream docx list restart fixture as restarted lists' => static function (TestRunner $t): void {
+        $root = dirname(__DIR__) . '/fixtures/upstream-current-docx';
+        $docxPath = $root . '/lists_restart_8367.docx';
+        $nativePath = $root . '/lists_restart_8367.native';
+
+        $t->same('82a7d9ef72325b53a2a2de927406f17ed6cc9625e74a339d523c11434d756a0b', hash_file('sha256', $docxPath));
+        $t->same('23c7fa0b06905e5702f2cb1f7aa6a619ffea3b4365366c9a2ebfe7531472ba15', hash_file('sha256', $nativePath));
+
+        $document = (new DocxReader())->readDocxFile($docxPath);
+        $native = (string) file_get_contents($nativePath);
+
+        $t->same(6, count($document->children));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('Section 1', $document->children[0]->attr('text'));
+        $t->same('ordered_list', $document->children[1]->type);
+        $t->same(3, count($document->children[1]->children));
+        $t->same(1, $document->children[1]->attr('start'));
+        $t->same('1', $document->children[1]->attr('numId'));
+        $t->same(0, $document->children[1]->attr('level'));
+        $t->same('Item 1', $document->children[1]->children[0]->children[0]->attr('text'));
+        $t->same('Item 3', $document->children[1]->children[2]->children[0]->attr('text'));
+        $t->same('Conclusion', $document->children[2]->attr('text'));
+        $t->same('Section 2', $document->children[3]->attr('text'));
+        $t->same('ordered_list', $document->children[4]->type);
+        $t->same(4, count($document->children[4]->children));
+        $t->same(1, $document->children[4]->attr('start'));
+        $t->same('2', $document->children[4]->attr('numId'));
+        $t->same(0, $document->children[4]->attr('level'));
+        $t->same('Item 1', $document->children[4]->children[0]->children[0]->attr('text'));
+        $t->same('Item 4', $document->children[4]->children[3]->children[0]->attr('text'));
+        $t->same('Conclusion', $document->children[5]->attr('text'));
+        $t->contains('OrderedList (1,Decimal,Period)', $native);
+    },
+    'reads current upstream ns0 prefixed docx reference package' => static function (TestRunner $t): void {
+        $path = dirname(__DIR__) . '/fixtures/upstream-current-docx/ns0-reference.docx';
+
+        $t->same('5310462e44b2b601a259d1b0ae83c8407f81a9e966b623d235c9240ce7929d67', hash_file('sha256', $path));
+
+        $document = (new DocxReader())->readDocxFile($path);
+        $meta = $document->attr('meta');
+
+        $t->same(1, count($document->children));
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('ref', $document->children[0]->attr('text'));
+        $t->same(5, $meta['docxPackageEntries']);
+        $t->same(1, $meta['docxRelationshipCount']);
+    },
     'reads docx package body metadata notes headers footers and review spans into shared ast' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-docx-');
         if ($path === false) {
@@ -419,6 +534,59 @@ XML;
         $t->contains('>Equation target</a>', $blocks);
         $t->contains('<span class="math inline">\\(x^{2}+y\\)</span>', $blocks);
         $t->contains('<span class="math display">\\[\\frac{1}{n}\\]</span>', $blocks);
+    },
+    'preserves docx hyperlink relationship anchors and tracked change contents' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            ['name' => 'word/_rels/document.xml.rels', 'data' => '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/review" TargetMode="External"/></Relationships>'],
+            ['name' => 'word/document.xml', 'data' => '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body><w:p><w:hyperlink r:id="rIdExternal" w:anchor="Section_2"><w:r><w:t xml:space="preserve">See </w:t></w:r><w:ins w:author="Anchor Reviewer" w:date="2026-06-30T00:00:00Z"><w:r><w:t>inserted anchor</w:t></w:r></w:ins></w:hyperlink><w:r><w:t> after.</w:t></w:r></w:p></w:body></w:document>'],
+        ]);
+
+        $document = (new DocxReader())->readDocument($package);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $paragraph = $document->children[0];
+        $link = $paragraph->children[0];
+
+        $t->same('See inserted anchor after.', $paragraph->attr('text'));
+        $t->same('link', $link->type);
+        $t->same('https://example.test/review#Section_2', $link->attr('url'));
+        $t->same('See ', $link->children[0]->attr('text'));
+        $t->same('span', $link->children[1]->type);
+        $t->same(['insertion'], $link->children[1]->attr('classes'));
+        $t->same('Anchor Reviewer', $link->children[1]->attr('attributes')['author']);
+        $t->same('2026-06-30T00:00:00Z', $link->children[1]->attr('attributes')['date']);
+        $t->contains('<a href="https://example.test/review#Section_2">See <ins class="insertion" data-pandoc-change-author="Anchor Reviewer"', $blocks);
+        $t->contains('data-pandoc-change-date="2026-06-30T00:00:00Z"', $blocks);
+        $t->contains('>inserted anchor</ins></a> after.', $blocks);
+    },
+    'unwraps docx smart tags and alternate content fallback in body inline field and table scopes' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><w:body><w:smartTag w:uri="urn:example" w:element="body"><w:p><w:r><w:t>Wrapped block</w:t></w:r></w:p></w:smartTag><w:p><w:r><w:t>Inline </w:t></w:r><w:smartTag w:uri="urn:example" w:element="inline"><w:r><w:rPr><w:b/></w:rPr><w:t>smart</w:t></w:r></w:smartTag><w:r><w:t> and </w:t></w:r><w:r><mc:AlternateContent><mc:Choice Requires="wps"><w:t>choice</w:t></mc:Choice><mc:Fallback><w:t>fallback</w:t></mc:Fallback></mc:AlternateContent></w:r></w:p><w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText> REF _SmartTarget \h </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:smartTag w:uri="urn:example" w:element="field-result"><w:r><w:t>Smart target</w:t></w:r></w:smartTag><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p><w:tbl><w:tr><w:tc><w:smartTag w:uri="urn:example" w:element="cell"><w:p><w:r><w:t>Cell smart</w:t></w:r></w:p></w:smartTag></w:tc></w:tr></w:tbl></w:body></w:document>');
+
+        $document = (new DocxReader())->read($bytes);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(4, count($document->children));
+        $t->same('Wrapped block', $document->children[0]->attr('text'));
+
+        $inline = $document->children[1];
+        $t->same('Inline smart and fallback', $inline->attr('text'));
+        $t->same('strong', $inline->children[1]->type);
+        $t->same('smart', $inline->children[1]->children[0]->attr('text'));
+        $t->same(' and fallback', $inline->children[2]->attr('text'));
+
+        $field = $document->children[2]->children[0];
+        $t->same('link', $field->type);
+        $t->same('#_SmartTarget', $field->attr('url'));
+        $t->same('Smart target', $field->children[0]->attr('text'));
+
+        $cell = $document->children[3]->children[1]->children[0]->children[0];
+        $t->same('Cell smart', $cell->attr('text'));
+        $t->same('Cell smart', $cell->children[0]->attr('text'));
+
+        $t->contains('<p>Wrapped block</p>', $blocks);
+        $t->contains('Inline <strong>smart</strong> and fallback', $blocks);
+        $t->contains('<a href="#_SmartTarget"', $blocks);
+        $t->contains('<td><p>Cell smart</p></td>', $blocks);
+        $t->true(!str_contains($blocks, 'choice'), 'AlternateContent choice branch should not be emitted when a fallback is available');
     },
     'preserves docx content controls with block inline and table metadata' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
         $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:sdt><w:sdtPr><w:alias w:val="Customer Name"/><w:tag w:val="customer.name"/><w:id w:val="42"/><w:lock w:val="sdtContentLocked"/><w:placeholder><w:docPart w:val="CustomerPlaceholder"/></w:placeholder><w:dataBinding w:xpath="/root/customer/name" w:storeItemID="{11111111-1111-1111-1111-111111111111}" w:prefixMappings="xmlns:c=&apos;urn:customer&apos;"/><w:text w:multiLine="1"/></w:sdtPr><w:sdtContent><w:p><w:r><w:t>Ada Lovelace</w:t></w:r></w:p></w:sdtContent></w:sdt><w:p><w:r><w:t>Status: </w:t></w:r><w:sdt><w:sdtPr><w:alias w:val="Status choice"/><w:tag w:val="status"/><w:id w:val="43"/><w:dropDownList><w:listItem w:displayText="Draft" w:value="draft"/><w:listItem w:displayText="Approved" w:value="approved"/></w:dropDownList></w:sdtPr><w:sdtContent><w:r><w:t>Approved</w:t></w:r></w:sdtContent></w:sdt></w:p><w:tbl><w:tr><w:tc><w:sdt><w:sdtPr><w:alias w:val="Signed date"/><w:tag w:val="signed.date"/><w:id w:val="44"/><w:date w:fullDate="2026-06-26T00:00:00Z"><w:dateFormat w:val="MMMM d, yyyy"/><w:lid w:val="en-US"/></w:date></w:sdtPr><w:sdtContent><w:p><w:r><w:t>June 26, 2026</w:t></w:r></w:p></w:sdtContent></w:sdt></w:tc></w:tr></w:tbl></w:body></w:document>');

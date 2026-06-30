@@ -17,7 +17,7 @@ final class DocxReader
     /** @var array<string, array<string, mixed>> */
     private array $styles = [];
 
-    /** @var array<string, array<int, array{ordered: bool, style?: string, delimiter?: string, start?: int}>> */
+    /** @var array<string, array<int, array{ordered: bool, style?: string, delimiter?: string, start?: int, styleId?: string}>> */
     private array $numbering = [];
 
     /** @var array<string, array{target: string, type: string, mode: string}> */
@@ -324,6 +324,7 @@ final class DocxReader
     {
         $blocks = [];
         $pendingListRecords = [];
+        $activeStyleNumbering = [];
 
         $flushList = function () use (&$blocks, &$pendingListRecords): void {
             if ($pendingListRecords === []) {
@@ -333,22 +334,30 @@ final class DocxReader
             $pendingListRecords = [];
         };
 
-        foreach ($body->childNodes as $child) {
-            if (!$child instanceof \DOMElement) {
-                continue;
-            }
+        foreach ($this->transparentChildElements($body) as $child) {
             if ($child->localName === 'p') {
                 $paragraph = $this->paragraph($child);
                 if (!$paragraph instanceof AstNode) {
                     continue;
                 }
-                $numbering = $this->paragraphNumbering($child);
+                $styleId = $this->paragraphStyleId($child);
+                $styleNumbering = $styleId === '' ? null : ($activeStyleNumbering[$styleId] ?? null);
+                $numbering = $paragraph->type === 'paragraph' ? $this->paragraphNumbering($child, $styleNumbering) : null;
                 if ($numbering !== null) {
+                    if ($styleId !== '') {
+                        $activeStyleNumbering[$styleId] = [
+                            'numId' => $numbering['numId'],
+                            'level' => $numbering['level'],
+                        ];
+                    }
                     $list = $this->numberingListAttributes($numbering['numId'], $numbering['level']);
+                    $attrs = $list['attrs'];
+                    $attrs['numId'] = $numbering['numId'];
+                    $attrs['level'] = max(0, $numbering['level'] - 1);
                     $pendingListRecords[] = [
                         'level' => $numbering['level'],
                         'ordered' => $list['ordered'],
-                        'attrs' => $list['attrs'],
+                        'attrs' => $attrs,
                         'paragraph' => $paragraph,
                     ];
                     continue;
@@ -439,7 +448,7 @@ final class DocxReader
                 $items[] = new AstNode('list_item', [], $children);
             }
 
-            $blocks[] = new AstNode($ordered ? 'ordered_list' : 'bullet_list', $ordered ? $attrs : [], $items);
+            $blocks[] = new AstNode($ordered ? 'ordered_list' : 'bullet_list', $attrs, $items);
         }
 
         return $blocks;
@@ -462,16 +471,51 @@ final class DocxReader
     }
 
     /**
+     * @return list<\DOMElement>
+     */
+    private function transparentChildElements(\DOMElement $container): array
+    {
+        $children = [];
+        foreach ($container->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+            if ($child->localName === 'smartTag') {
+                array_push($children, ...$this->transparentChildElements($child));
+                continue;
+            }
+            if ($child->localName === 'AlternateContent') {
+                $fallback = $this->alternateContentFallback($child);
+                if ($fallback instanceof \DOMElement) {
+                    array_push($children, ...$this->transparentChildElements($fallback));
+                }
+                continue;
+            }
+            $children[] = $child;
+        }
+
+        return $children;
+    }
+
+    private function alternateContentFallback(\DOMElement $alternateContent): ?\DOMElement
+    {
+        foreach ($alternateContent->childNodes as $child) {
+            if ($child instanceof \DOMElement && $child->localName === 'Fallback') {
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @return list<AstNode>
      */
     private function inlineChildren(\DOMElement $container): array
     {
         $inlines = [];
         $complexField = null;
-        foreach ($container->childNodes as $child) {
-            if (!$child instanceof \DOMElement) {
-                continue;
-            }
+        foreach ($this->transparentChildElements($container) as $child) {
             if ($child->localName === 'r') {
                 $events = $this->runFieldEvents($child);
                 if ($events !== []) {
@@ -571,10 +615,7 @@ final class DocxReader
     private function runFieldEvents(\DOMElement $run): array
     {
         $events = [];
-        foreach ($run->childNodes as $child) {
-            if (!$child instanceof \DOMElement) {
-                continue;
-            }
+        foreach ($this->transparentChildElements($run) as $child) {
             if ($child->localName === 'fldChar') {
                 $type = strtolower($this->attr($child, self::W_NS, 'fldCharType'));
                 if (in_array($type, ['begin', 'separate', 'end'], true)) {
@@ -596,10 +637,7 @@ final class DocxReader
     private function run(\DOMElement $run): array
     {
         $nodes = [];
-        foreach ($run->childNodes as $child) {
-            if (!$child instanceof \DOMElement) {
-                continue;
-            }
+        foreach ($this->transparentChildElements($run) as $child) {
             if ($child->localName === 't' || $child->localName === 'delText') {
                 $text = $child->textContent;
                 if ($text !== '') {
@@ -1008,20 +1046,17 @@ final class DocxReader
 
     private function hyperlink(\DOMElement $hyperlink): ?AstNode
     {
-        $inlines = [];
-        foreach ($hyperlink->childNodes as $child) {
-            if ($child instanceof \DOMElement && $child->localName === 'r') {
-                array_push($inlines, ...$this->run($child));
-            }
-        }
+        $inlines = $this->inlineChildren($hyperlink);
         if ($inlines === []) {
             return null;
         }
         $rid = $this->attr($hyperlink, self::R_NS, 'id');
+        $anchor = $this->attr($hyperlink, self::W_NS, 'anchor');
         $url = $rid !== '' ? ($this->relationships[$rid]['target'] ?? '') : '';
         if ($url === '') {
-            $anchor = $this->attr($hyperlink, self::W_NS, 'anchor');
             $url = $anchor !== '' ? '#' . $anchor : '';
+        } elseif ($anchor !== '') {
+            $url .= '#' . $anchor;
         }
 
         return new AstNode('link', ['url' => $url, 'title' => ''], $inlines);
@@ -1940,19 +1975,7 @@ final class DocxReader
 
     private function tableCell(\DOMElement $cell, ?int $colspan = null, int $rowspan = 1, string $verticalMerge = ''): AstNode
     {
-        $blocks = [];
-        foreach ($cell->childNodes as $child) {
-            if ($child instanceof \DOMElement && $child->localName === 'p') {
-                $paragraph = $this->paragraph($child);
-                if ($paragraph instanceof AstNode) {
-                    $blocks[] = $paragraph;
-                }
-            } elseif ($child instanceof \DOMElement && $child->localName === 'tbl') {
-                $blocks[] = $this->table($child);
-            } elseif ($child instanceof \DOMElement && $child->localName === 'sdt') {
-                array_push($blocks, ...$this->contentControlBlocks($child));
-            }
-        }
+        $blocks = $this->bodyBlocks($cell);
         $text = trim(implode(' ', array_map(fn (AstNode $block): string => $this->nodeText($block), $blocks)));
 
         $attrs = [
@@ -2112,15 +2135,23 @@ final class DocxReader
         return null;
     }
 
+    private function paragraphStyleId(\DOMElement $paragraph): string
+    {
+        $pPr = $this->directChild($paragraph, 'pPr');
+        $pStyle = $pPr instanceof \DOMElement ? $this->directChild($pPr, 'pStyle') : null;
+
+        return $pStyle instanceof \DOMElement ? $this->attr($pStyle, self::W_NS, 'val') : '';
+    }
+
     /**
      * @return array{numId: string, level: int}|null
+     * @param array{numId: string, level: int}|null $activeStyleNumbering
      */
-    private function paragraphNumbering(\DOMElement $paragraph): ?array
+    private function paragraphNumbering(\DOMElement $paragraph, ?array $activeStyleNumbering = null): ?array
     {
-        foreach ($paragraph->getElementsByTagNameNS(self::W_NS, 'numPr') as $numPr) {
-            if (!$numPr instanceof \DOMElement) {
-                continue;
-            }
+        $pPr = $this->directChild($paragraph, 'pPr');
+        $numPr = $pPr instanceof \DOMElement ? $this->directChild($pPr, 'numPr') : null;
+        if ($numPr instanceof \DOMElement) {
             $numId = '';
             $level = 1;
             foreach ($numPr->childNodes as $child) {
@@ -2131,7 +2162,38 @@ final class DocxReader
                 }
             }
             if ($numId !== '') {
+                if ($numId === '0') {
+                    return null;
+                }
+
                 return ['numId' => $numId, 'level' => $level];
+            }
+        }
+
+        if ($activeStyleNumbering !== null) {
+            return $activeStyleNumbering;
+        }
+
+        $styleId = $this->paragraphStyleId($paragraph);
+        if ($styleId === '') {
+            return null;
+        }
+
+        foreach ($this->styleChainIds($styleId) as $candidateStyleId) {
+            $style = $this->styles[$candidateStyleId] ?? [];
+            $numId = (string) ($style['numId'] ?? '');
+            if ($numId !== '' && $numId !== '0') {
+                return [
+                    'numId' => $numId,
+                    'level' => max(1, (int) ($style['numLevel'] ?? 1)),
+                ];
+            }
+        }
+
+        foreach ($this->styleChainIds($styleId) as $candidateStyleId) {
+            $numbering = $this->numberingForParagraphStyle($candidateStyleId);
+            if ($numbering !== null) {
+                return $numbering;
             }
         }
 
@@ -2297,6 +2359,11 @@ final class DocxReader
                             $entry['headingLevel'] = max(1, min(6, (int) ($this->attr($outline, self::W_NS, 'val') ?: '0') + 1));
                         }
                     }
+                    $styleNumbering = $this->styleParagraphNumbering($child);
+                    if ($styleNumbering !== null) {
+                        $entry['numId'] = $styleNumbering['numId'];
+                        $entry['numLevel'] = $styleNumbering['level'];
+                    }
                 } elseif ($child->localName === 'rPr') {
                     $entry = array_replace($entry, $this->runPropertyStyle($child));
                 } elseif ($child->localName === 'tblPr') {
@@ -2347,6 +2414,75 @@ final class DocxReader
     }
 
     /**
+     * @return array{numId: string, level: int}|null
+     */
+    private function styleParagraphNumbering(\DOMElement $pPr): ?array
+    {
+        $numPr = $this->directChild($pPr, 'numPr');
+        if (!$numPr instanceof \DOMElement) {
+            return null;
+        }
+
+        $numId = '';
+        $level = 1;
+        foreach ($numPr->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            if ($child->localName === 'numId') {
+                $numId = $this->attr($child, self::W_NS, 'val');
+            } elseif ($child->localName === 'ilvl') {
+                $level = max(1, (int) ($this->attr($child, self::W_NS, 'val') ?: '0') + 1);
+            }
+        }
+
+        return $numId === '' ? null : ['numId' => $numId, 'level' => $level];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function styleChainIds(string $styleId): array
+    {
+        $style = $this->styles[$styleId] ?? null;
+        if (!is_array($style)) {
+            return [$styleId];
+        }
+
+        $chain = $style['styleChain'] ?? [$styleId];
+        if (!is_array($chain)) {
+            return [$styleId];
+        }
+
+        $ids = array_values(array_unique(array_reverse(array_map(
+            static fn (mixed $value): string => (string) $value,
+            $chain
+        ))));
+
+        return $ids === [] ? [$styleId] : $ids;
+    }
+
+    /**
+     * @return array{numId: string, level: int}|null
+     */
+    private function numberingForParagraphStyle(string $styleId): ?array
+    {
+        foreach ($this->numbering as $numId => $levels) {
+            foreach ($levels as $level => $definition) {
+                if (($definition['styleId'] ?? null) === $styleId) {
+                    return [
+                        'numId' => (string) $numId,
+                        'level' => max(1, (int) $level),
+                    ];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @return array<string, string>
      */
     private function tableStyleMetadata(\DOMElement $tblPr): array
@@ -2373,7 +2509,7 @@ final class DocxReader
     }
 
     /**
-     * @return array<string, array<int, array{ordered: bool, style?: string, delimiter?: string, start?: int}>>
+     * @return array<string, array<int, array{ordered: bool, style?: string, delimiter?: string, start?: int, styleId?: string}>>
      */
     private function numbering(\DOMDocument $dom): array
     {
@@ -2443,13 +2579,14 @@ final class DocxReader
     }
 
     /**
-     * @return array{ordered: bool, style?: string, delimiter?: string, start?: int}
+     * @return array{ordered: bool, style?: string, delimiter?: string, start?: int, styleId?: string}
      */
     private function numberingLevel(\DOMElement $level): array
     {
         $format = 'bullet';
         $text = '';
         $start = null;
+        $styleId = '';
         foreach ($level->childNodes as $child) {
             if (!$child instanceof \DOMElement) {
                 continue;
@@ -2463,11 +2600,18 @@ final class DocxReader
                 if ($value !== '' && is_numeric($value)) {
                     $start = max(1, (int) $value);
                 }
+            } elseif ($child->localName === 'pStyle') {
+                $styleId = $this->attr($child, self::W_NS, 'val');
             }
         }
 
         if ($format === 'bullet') {
-            return ['ordered' => false];
+            $entry = ['ordered' => false];
+            if ($styleId !== '') {
+                $entry['styleId'] = $styleId;
+            }
+
+            return $entry;
         }
 
         $entry = [
@@ -2477,6 +2621,9 @@ final class DocxReader
         ];
         if ($start !== null) {
             $entry['start'] = $start;
+        }
+        if ($styleId !== '') {
+            $entry['styleId'] = $styleId;
         }
 
         return $entry;
@@ -2820,9 +2967,10 @@ final class DocxReader
     {
         $merged = [];
         foreach ($nodes as $node) {
-            $last = $merged[array_key_last($merged)] ?? null;
+            $lastIndex = array_key_last($merged);
+            $last = $lastIndex === null ? null : $merged[$lastIndex];
             if ($node->type === 'text' && $last instanceof AstNode && $last->type === 'text') {
-                $merged[array_key_last($merged)] = new AstNode('text', [
+                $merged[$lastIndex] = new AstNode('text', [
                     'text' => (string) $last->attr('text', '') . (string) $node->attr('text', ''),
                 ]);
                 continue;

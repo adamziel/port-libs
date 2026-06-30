@@ -1613,6 +1613,45 @@
         "mappedJsonNativeMixedTableBlockBoundaryCases": 1,
         "mappedJsonNativeTextualInlinePartCases": 1
     },
+    "docxParityAudit": {
+        "verdict": "not-full-upstream-docx-parity",
+        "auditedAt": "2026-06-30",
+        "upstreamCommit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
+        "upstreamInventorySource": ".upstream-cache/pandoc-current pinned commit 0640c4c9859aa5a3ede082c190fcd5883c24ac83 via git ls-tree -r test/docx",
+        "upstreamDocxDirectoryArtifacts": 233,
+        "upstreamNativeExpectedArtifacts": 112,
+        "upstreamDocxPackageArtifacts": 121,
+        "upstreamGoldenDocxArtifacts": 38,
+        "currentUpstreamCommit": "612e143fbe6d735b612c4800d21e61b7d44e4dca",
+        "currentUpstreamDocxDirectoryArtifacts": 236,
+        "currentUpstreamNativeExpectedArtifacts": 113,
+        "currentUpstreamDocxPackageArtifacts": 123,
+        "currentUpstreamDriftFromPinnedArtifacts": [
+            "test/docx/lists_restart_8367.docx",
+            "test/docx/lists_restart_8367.native",
+            "test/docx/ns0-reference.docx"
+        ],
+        "localUpstreamNativeDocxFixtureFiles": 31,
+        "localExactNormalizedNativeFixtureMatches": 23,
+        "localOnlyNativeFixtureAliases": 8,
+        "missingPinnedUpstreamNativeFixtures": 89,
+        "localCurrentUpstreamDocxPackageFixtureFiles": 2,
+        "localCurrentUpstreamNativeFixtureFiles": 1,
+        "localPinnedDocxPackageFixtureFiles": 0,
+        "localDocxPackageFixtureFiles": 2,
+        "upstreamDocxRunnerExecuted": false,
+        "upstreamDocxGoldenPackageRoundTripExecuted": false,
+        "packageFixtureCoverage": "synthetic ZIP/XML DOCX package fixtures plus two checked-in current-upstream DOCX package drift fixtures; no checked-in pinned upstream DOCX package corpus",
+        "defensibleClaim": "bounded DOCX/OpenXML package provenance, selected upstream Native fixture slices, and three current-upstream DOCX drift fixtures",
+        "missingEvidenceChecklist": [
+            "Run or faithfully reproduce upstream test/docx reader cases for all pinned .docx inputs and expected .native outputs.",
+            "Add checked-in evidence or a reproducible cache gate for the 89 pinned upstream DOCX native fixture names missing from local exact fixture coverage.",
+            "Exercise upstream golden DOCX writer fixtures and compare generated DOCX package structure/content, not just Markdown or WordPress handoff text.",
+            "Record upstream Haskell test-pandoc DOCX reader/writer runner results or an accepted native-PHP equivalent denominator with per-fixture pass/fail rows.",
+            "Keep package-ingestion provenance, ZIP/OPC policy, macro/ActiveX external-target policy, and media byte-exposure checks separate from full DOCX semantic parity.",
+            "Do not treat aggregate focused-check counts above the static upstream file denominator as full DOCX parity."
+        ]
+    },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,

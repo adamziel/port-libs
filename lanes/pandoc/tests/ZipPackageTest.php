@@ -7638,6 +7638,30 @@ return [
         $t->same('<w:document><w:p>extra fields</w:p></w:document>', $package->read('/word/document.xml'));
     },
 
+    'reads central zip extended timestamps with local-only access metadata' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $modifiedAt = 1780479017;
+        $accessedAt = 1780479021;
+        $centralTimestampExtra = pack('vvCV', 0x5455, 5, 0x03, $modifiedAt);
+        $localTimestampExtra = pack('vvCVV', 0x5455, 9, 0x03, $modifiedAt, $accessedAt);
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>central timestamp</w:p></w:document>',
+                'method' => 8,
+                'localExtra' => $localTimestampExtra,
+                'centralExtra' => $centralTimestampExtra,
+            ],
+        ]));
+        $entry = $package->entry('word/document.xml');
+
+        $t->same(['modifiedAt' => $modifiedAt], $entry->extendedTimestamps());
+        $t->same($modifiedAt, $entry->extendedLastModifiedTimestamp());
+        $t->same(null, $entry->extendedAccessedTimestamp());
+        $t->same($accessedAt, $package->localExtendedAccessedTimestamp('/word/document.xml'));
+        $t->same('<w:document><w:p>central timestamp</w:p></w:document>', $package->read('/word/document.xml'));
+    },
+
     'exposes local zip extra fields for package preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
         $extendedTimestamp = 1780479017;
         $timestampExtra = pack('vvCV', 0x5455, 5, 0x01, $extendedTimestamp);

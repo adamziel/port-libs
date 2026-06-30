@@ -331,7 +331,7 @@ final class ZipPackageEntry
     {
         return self::extendedTimestampFromExtraField(
             $this->centralExtraField(0x5455),
-            $this->name
+            "central extra fields for {$this->name}"
         );
     }
 
@@ -342,7 +342,7 @@ final class ZipPackageEntry
     {
         return self::extendedTimestampsFromExtraField(
             $this->centralExtraField(0x5455),
-            $this->name
+            "central extra fields for {$this->name}"
         );
     }
 
@@ -610,6 +610,7 @@ final class ZipPackageEntry
 
         $cursor = 1;
         $timestamps = [];
+        $isCentralDirectory = str_contains($label, 'central');
         $fields = [
             0x01 => 'modifiedAt',
             0x02 => 'accessedAt',
@@ -622,6 +623,9 @@ final class ZipPackageEntry
             }
 
             if ($cursor + 4 > strlen($data)) {
+                if ($isCentralDirectory && $timestamps !== [] && $cursor === strlen($data)) {
+                    break;
+                }
                 throw new \RuntimeException("ZIP extended timestamp extra field for {$label} is truncated");
             }
 
