@@ -2471,7 +2471,7 @@ final class MarkdownReader
         }
 
         $line = $lines[$index] ?? '';
-        if (preg_match('/^ {0,3}<(section|aside)\b/i', $line, $match) !== 1) {
+        if (preg_match('/^ {0,3}<(article|aside|footer|nav|section)\b/i', $line, $match) !== 1) {
             return null;
         }
 
@@ -3415,7 +3415,7 @@ final class MarkdownReader
             'dl',
             'figure',
             'iframe',
-            ...($this->htmlNativeDivsEnabled() ? ['aside', 'header', 'main', 'section'] : []),
+            ...($this->htmlNativeDivsEnabled() ? ['article', 'aside', 'footer', 'header', 'main', 'nav', 'section'] : []),
             'h1',
             'h2',
             'h3',
@@ -3493,7 +3493,7 @@ final class MarkdownReader
         if ($name === 'div') {
             return new AstNode('div', $this->htmlElementPandocAttrs($element), $this->parseHtmlBlockChildren($element));
         }
-        if ($this->htmlNativeDivsEnabled() && in_array($name, ['aside', 'header', 'main', 'section'], true)) {
+        if ($this->htmlNativeDivsEnabled() && in_array($name, ['article', 'aside', 'footer', 'header', 'main', 'nav', 'section'], true)) {
             return $this->buildHtmlNativeDivNode($element);
         }
         if ($name === 'hr') {
@@ -3880,9 +3880,12 @@ final class MarkdownReader
     private function htmlNativeDivAttrs(\DOMElement $element): array
     {
         return match (strtolower($element->localName)) {
+            'article' => $this->htmlNativeClassedDivAttrs($element, 'article'),
             'aside' => $this->htmlNativeClassedDivAttrs($element, 'aside'),
+            'footer' => $this->htmlNativeClassedDivAttrs($element, 'footer'),
             'header' => $this->htmlNativeHeaderAttrs($element),
             'main' => $this->htmlNativeMainAttrs($element),
+            'nav' => $this->htmlNativeClassedDivAttrs($element, 'nav'),
             'section' => $this->htmlNativeClassedDivAttrs($element, 'section'),
             default => $this->htmlElementPandocAttrs($element),
         };
