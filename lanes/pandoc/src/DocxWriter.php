@@ -2120,16 +2120,31 @@ final class DocxWriter
 
     private function bookmarkName(string $target): string
     {
-        $name = preg_replace('/[^A-Za-z0-9_-]/', '_', $target) ?? '';
+        $name = preg_replace('/[^\p{L}\p{N}_-]/u', '_', $target);
+        if (!is_string($name)) {
+            $name = preg_replace('/[^A-Za-z0-9_-]/', '_', $target) ?? '';
+        }
         $name = trim($name, '_');
         if ($name === '') {
             return '_';
         }
-        if (preg_match('/^[A-Za-z_]/', $name) !== 1) {
+        if (preg_match('/^[\p{L}_]/u', $name) !== 1) {
             $name = '_' . $name;
         }
+        if ($this->utf8Length($name) > 40) {
+            return 'X' . substr(sha1($target), 1);
+        }
 
-        return substr($name, 0, 40);
+        return $name;
+    }
+
+    private function utf8Length(string $value): int
+    {
+        if (preg_match_all('/./us', $value, $matches) === false) {
+            return strlen($value);
+        }
+
+        return count($matches[0]);
     }
 
     /**

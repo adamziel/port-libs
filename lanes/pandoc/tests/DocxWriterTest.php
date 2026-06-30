@@ -514,6 +514,33 @@ return [
         $t->true(!str_contains($documentXml, '&lt;w:bookmarkStart'), 'Raw bookmark was XML-escaped');
     },
 
+    'uses hashed bookmark names for long internal anchors' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
+        $opening = 'remote-folder-or-longlonglonglonglong-file-with-manymanymanymany-letters-inside-opening';
+        $closing = 'remote-folder-or-longlonglonglonglong-file-with-manymanymanymany-letters-inside-closing';
+        $openingBookmark = 'X' . substr(sha1($opening), 1);
+        $closingBookmark = 'X' . substr(sha1($closing), 1);
+        $unicodeAnchor = "\u{043E}\u{0433}\u{043B}\u{0430}\u{0432}\u{043B}\u{0435}\u{043D}\u{0438}\u{0435}";
+        $unicodeText = "\u{041E}\u{0433}\u{043B}\u{0430}\u{0432}\u{043B}\u{0435}\u{043D}\u{0438}\u{0435}";
+
+        $document = $doc([
+            new AstNode('heading', ['level' => 1, 'id' => $unicodeAnchor], [$text($unicodeText)]),
+            $paragraph([new AstNode('link', ['url' => '#' . $opening], [$text('Open remote folder')])]),
+            $paragraph([new AstNode('link', ['url' => '#' . $closing], [$text('Close remote folder')])]),
+            new AstNode('heading', ['level' => 2, 'id' => $opening], [$text('Open folder')]),
+            new AstNode('heading', ['level' => 2, 'id' => $closing], [$text('Close folder')]),
+        ]);
+
+        [, $parts] = $packageParts((new DocxWriter())->write($document));
+        $documentXml = $parts['word/document.xml'];
+
+        $t->contains('<w:bookmarkStart w:id="11" w:name="' . $unicodeAnchor . '"/>', $documentXml);
+        $t->contains('<w:hyperlink w:anchor="' . $openingBookmark . '">', $documentXml);
+        $t->contains('<w:hyperlink w:anchor="' . $closingBookmark . '">', $documentXml);
+        $t->contains('<w:bookmarkStart w:id="12" w:name="' . $openingBookmark . '"/>', $documentXml);
+        $t->contains('<w:bookmarkStart w:id="13" w:name="' . $closingBookmark . '"/>', $documentXml);
+        $t->true(!str_contains($documentXml, 'w:anchor="remote-folder-or-longlonglonglonglong-fi"'), 'Long bookmark names should not collide by truncation');
+    },
+
     'passes through raw openxml block fragments around normal paragraphs' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
         $document = $doc([
             $paragraph([$text('Cell compartments')]),
