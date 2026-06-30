@@ -1020,9 +1020,17 @@ final class DocxReader
     private function run(\DOMElement $run): array
     {
         $nodes = [];
+        $usesSymbolFont = $this->runUsesSymbolFont($run);
         foreach ($this->transparentChildElements($run) as $child) {
             if ($child->localName === 't' || $child->localName === 'delText') {
-                $text = $child->textContent;
+                $text = $usesSymbolFont ? $this->symbolFontText($child->textContent) : $child->textContent;
+                if ($text !== '') {
+                    $nodes[] = new AstNode('text', ['text' => $text]);
+                }
+                continue;
+            }
+            if ($child->localName === 'sym') {
+                $text = $this->symbolElementText($child);
                 if ($text !== '') {
                     $nodes[] = new AstNode('text', ['text' => $text]);
                 }
@@ -3061,6 +3069,79 @@ final class DocxReader
         }
 
         return array_filter($style, 'is_bool');
+    }
+
+    private function runUsesSymbolFont(\DOMElement $run): bool
+    {
+        $rPr = $this->directChild($run, 'rPr');
+        if (!$rPr instanceof \DOMElement) {
+            return false;
+        }
+
+        $fonts = $this->directChild($rPr, 'rFonts');
+        if (!$fonts instanceof \DOMElement) {
+            return false;
+        }
+
+        foreach (['ascii', 'hAnsi', 'cs'] as $name) {
+            if (strcasecmp($this->attr($fonts, self::W_NS, $name), 'Symbol') === 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function symbolElementText(\DOMElement $symbol): string
+    {
+        if (strcasecmp($this->attr($symbol, self::W_NS, 'font'), 'Symbol') !== 0) {
+            return '';
+        }
+
+        $hex = $this->attr($symbol, self::W_NS, 'char');
+        if ($hex === '' || preg_match('/^[0-9a-f]+$/i', $hex) !== 1) {
+            return '';
+        }
+
+        return $this->macSymbolByteText(hexdec(substr($hex, -2)));
+    }
+
+    private function symbolFontText(string $text): string
+    {
+        return preg_replace_callback('/[\x{F000}-\x{F0FF}]/u', function (array $match): string {
+            return $this->macSymbolByteText($this->utf8Codepoint($match[0]) & 0xff);
+        }, $text) ?? $text;
+    }
+
+    private function macSymbolByteText(int $byte): string
+    {
+        $decoded = UnicodeText::decodeBytes(chr($byte & 0xff), 'mac-symbol');
+
+        return (string) ($decoded['text'] ?? '');
+    }
+
+    private function utf8Codepoint(string $char): int
+    {
+        if (function_exists('mb_ord')) {
+            return mb_ord($char, 'UTF-8');
+        }
+
+        $bytes = array_map('ord', str_split($char));
+        $first = $bytes[0] ?? 0;
+        if ($first < 0x80) {
+            return $first;
+        }
+        if (($first & 0xe0) === 0xc0) {
+            return (($first & 0x1f) << 6) | (($bytes[1] ?? 0) & 0x3f);
+        }
+        if (($first & 0xf0) === 0xe0) {
+            return (($first & 0x0f) << 12) | ((($bytes[1] ?? 0) & 0x3f) << 6) | (($bytes[2] ?? 0) & 0x3f);
+        }
+        if (($first & 0xf8) === 0xf0) {
+            return (($first & 0x07) << 18) | ((($bytes[1] ?? 0) & 0x3f) << 12) | ((($bytes[2] ?? 0) & 0x3f) << 6) | (($bytes[3] ?? 0) & 0x3f);
+        }
+
+        return 0;
     }
 
     /**

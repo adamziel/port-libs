@@ -155,6 +155,14 @@ return [
         $t->same("Non-breaking hyphen: [{$nonBreakingHyphen}]", $document->children[1]->attr('text'));
         $t->same("Non-breaking hyphen: [{$nonBreakingHyphen}]", $document->children[1]->children[0]->attr('text'));
     },
+    'decodes docx symbol font run characters' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:sym w:font="Symbol" w:char="00DA"/></w:r><w:r><w:sym w:font="Symbol" w:char="F0DA"/></w:r><w:r><w:rPr><w:rFonts w:ascii="Symbol" w:hAnsi="Symbol"/></w:rPr><w:t></w:t></w:r><w:r><w:t> </w:t></w:r></w:p></w:body></w:document>');
+
+        $document = (new DocxReader())->read($bytes);
+
+        $t->same("∨∨( ", $document->children[0]->attr('text'));
+        $t->same("∨∨( ", $document->children[0]->children[0]->attr('text'));
+    },
     'resolves docx paragraph style numbering and explicit numbering suppression' => static function (TestRunner $t): void {
         $package = ZipPackage::fromParts([
             ['name' => 'word/styles.xml', 'data' => <<<'XML'
