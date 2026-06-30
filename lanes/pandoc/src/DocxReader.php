@@ -2808,22 +2808,69 @@ final class DocxReader
     {
         $switches = $this->fieldSwitches($tokens);
         $entry = $this->fieldTarget($tokens);
-        $attrs = ['entry' => $entry];
+        $preserveDocxProvenance = $switches !== [];
+        $classes = $preserveDocxProvenance
+            ? [
+                'indexref',
+                'docx-field',
+                'docx-field-xe',
+                'docx-index-entry',
+            ]
+            : ['indexref'];
+        $attrs = $preserveDocxProvenance
+            ? [
+                'data-docx-field' => 'xe',
+                'data-docx-field-instruction' => $instruction,
+                'entry' => $entry,
+                'data-docx-index-entry' => $entry,
+                'data-docx-field-entry' => $entry,
+            ]
+            : ['entry' => $entry];
         if (isset($switches['t'])) {
+            if ($preserveDocxProvenance) {
+                $classes[] = 'docx-index-entry-cross-reference';
+            }
             $attrs['crossref'] = $switches['t'];
+            if ($preserveDocxProvenance) {
+                $attrs['data-docx-field-cross-reference'] = $switches['t'];
+            }
         }
         if (isset($switches['y'])) {
+            if ($preserveDocxProvenance) {
+                $classes[] = 'docx-index-entry-yomi';
+            }
             $attrs['yomi'] = $switches['y'];
+            if ($preserveDocxProvenance) {
+                $attrs['data-docx-field-yomi'] = $switches['y'];
+            }
         }
         if (isset($switches['b'])) {
+            if ($preserveDocxProvenance) {
+                $classes[] = 'docx-index-entry-bold';
+            }
             $attrs['bold'] = 'true';
+            if ($preserveDocxProvenance) {
+                $attrs['data-docx-field-bold'] = 'true';
+            }
         }
         if (isset($switches['i'])) {
+            if ($preserveDocxProvenance) {
+                $classes[] = 'docx-index-entry-italic';
+            }
             $attrs['italic'] = 'true';
+            if ($preserveDocxProvenance) {
+                $attrs['data-docx-field-italic'] = 'true';
+            }
+        }
+        if ($preserveDocxProvenance && isset($switches['f'])) {
+            $attrs['data-docx-field-entry-type'] = $switches['f'];
+        }
+        if ($preserveDocxProvenance && isset($switches['r'])) {
+            $attrs['data-docx-field-bookmark'] = $switches['r'];
         }
 
         return new AstNode('span', [
-            'classes' => ['indexref'],
+            'classes' => $classes,
             'attributes' => $attrs,
         ]);
     }
