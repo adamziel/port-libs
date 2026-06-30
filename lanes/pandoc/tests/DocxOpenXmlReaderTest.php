@@ -16050,6 +16050,7 @@ XML;
         $meta = $document->attr('meta');
         $extended = $docx['extendedProperties'];
         $custom = $docx['customProperties'];
+        $summary = $docx['packageProvenance']['summary'];
 
         $t->same('customXml/review-app.xml', $docx['extendedPropertiesPart']);
         $t->same('rApp', $docx['extendedPropertiesRelationship']['id']);
@@ -16081,7 +16082,34 @@ XML;
         $t->same(2, $extended['headingPairs'][0]['count']);
         $t->same('Heading 1', $extended['headingPairs'][1]['name']);
         $t->same(4, $extended['headingPairs'][1]['count']);
+        $t->same(4, $extended['headingPairsVector']['declaredValueCount']);
+        $t->same(4, $extended['headingPairsVector']['valueCount']);
+        $t->same(true, $extended['headingPairsVector']['declaredValueCountMatchesActual']);
+        $t->same('variant', $extended['headingPairsVector']['valueBaseType']);
+        $t->same(['lpstr', 'i4', 'lpstr', 'i4'], $extended['headingPairsVector']['valueItemTypes']);
+        $t->same(2, $extended['headingPairsVector']['validPairCount']);
+        $t->same(0, $extended['headingPairsVector']['invalidPairCount']);
+        $t->same([], $extended['headingPairsVector']['issueCodes']);
         $t->same(['DOCX source packet', 'Reviewer checklist'], $extended['titlesOfParts']);
+        $t->same(2, $extended['titlesOfPartsVector']['declaredValueCount']);
+        $t->same(2, $extended['titlesOfPartsVector']['valueCount']);
+        $t->same(true, $extended['titlesOfPartsVector']['declaredValueCountMatchesActual']);
+        $t->same('lpstr', $extended['titlesOfPartsVector']['valueBaseType']);
+        $t->same(['lpstr', 'lpstr'], $extended['titlesOfPartsVector']['valueItemTypes']);
+        $t->same([], $extended['titlesOfPartsVector']['issueCodes']);
+        $t->same(2, $summary['extendedPropertiesHeadingPairCount']);
+        $t->same(4, $summary['extendedPropertiesHeadingPairVectorValueCount']);
+        $t->same(4, $summary['extendedPropertiesHeadingPairVectorDeclaredValueCount']);
+        $t->same(true, $summary['extendedPropertiesHeadingPairVectorDeclaredValueCountMatchesActual']);
+        $t->same('variant', $summary['extendedPropertiesHeadingPairVectorBaseType']);
+        $t->same(2, $summary['extendedPropertiesHeadingPairVectorValidPairCount']);
+        $t->same(0, $summary['extendedPropertiesHeadingPairVectorIssueCount']);
+        $t->same(2, $summary['extendedPropertiesTitlesOfPartsCount']);
+        $t->same(2, $summary['extendedPropertiesTitlesOfPartsVectorValueCount']);
+        $t->same(2, $summary['extendedPropertiesTitlesOfPartsVectorDeclaredValueCount']);
+        $t->same(true, $summary['extendedPropertiesTitlesOfPartsVectorDeclaredValueCountMatchesActual']);
+        $t->same('lpstr', $summary['extendedPropertiesTitlesOfPartsVectorBaseType']);
+        $t->same(0, $summary['extendedPropertiesTitlesOfPartsVectorIssueCount']);
         $t->same('Microsoft Word', $meta['docxExtendedProperties']['application']);
 
         $t->same('docProps/custom.xml', $docx['customPropertiesPart']);
@@ -16110,6 +16138,96 @@ XML;
         $t->same('ImportStatus', $custom['items'][4]['name']);
         $t->same(true, $custom['items'][4]['duplicate']);
         $t->same('approved-for-staging', $custom['items'][4]['value']);
+    },
+    'reports docx extended property vector declaration diagnostics for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rAppDiagnostics" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['docProps/app.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"
+  xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
+  <Application>Review Tool</Application>
+  <HeadingPairs>
+    <vt:vector size="6" baseType="variant">
+      <vt:variant><vt:lpstr>Slides</vt:lpstr></vt:variant>
+      <vt:variant><vt:i4>3</vt:i4></vt:variant>
+      <vt:variant><vt:lpstr>Broken count</vt:lpstr></vt:variant>
+      <vt:variant><vt:lpstr>not-a-count</vt:lpstr></vt:variant>
+      <vt:variant><vt:lpstr>Orphan heading</vt:lpstr></vt:variant>
+    </vt:vector>
+  </HeadingPairs>
+  <TitlesOfParts>
+    <vt:vector size="3" baseType="variant">
+      <vt:lpstr>Visible title</vt:lpstr>
+      <vt:i4>42</vt:i4>
+    </vt:vector>
+  </TitlesOfParts>
+</Properties>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $extended = $docx['extendedProperties'];
+        $summary = $docx['packageProvenance']['summary'];
+        $headingPairsVector = $extended['headingPairsVector'];
+        $titlesVector = $extended['titlesOfPartsVector'];
+
+        $t->same([['name' => 'Slides', 'count' => 3]], $extended['headingPairs']);
+        $t->same(6, $headingPairsVector['declaredValueCount']);
+        $t->same(5, $headingPairsVector['valueCount']);
+        $t->same(false, $headingPairsVector['declaredValueCountMatchesActual']);
+        $t->same('variant', $headingPairsVector['valueBaseType']);
+        $t->same(['lpstr', 'i4', 'lpstr', 'lpstr', 'lpstr'], $headingPairsVector['valueItemTypes']);
+        $t->same(3, $headingPairsVector['pairRecordCount']);
+        $t->same(1, $headingPairsVector['validPairCount']);
+        $t->same(2, $headingPairsVector['invalidPairCount']);
+        $t->same(1, $headingPairsVector['unpairedValueCount']);
+        $t->same([
+            'extended-heading-pairs-non-integer-count',
+            'extended-heading-pairs-unpaired-value',
+            'extended-heading-pairs-vector-size-mismatch',
+        ], $headingPairsVector['issueCodes']);
+        $t->same(false, $headingPairsVector['items'][1]['valid']);
+        $t->same(['extended-heading-pairs-non-integer-count'], $headingPairsVector['items'][1]['issues']);
+        $t->same(false, $headingPairsVector['items'][2]['valid']);
+        $t->same(['extended-heading-pairs-unpaired-value'], $headingPairsVector['items'][2]['issues']);
+
+        $t->same(['Visible title', '42'], $extended['titlesOfParts']);
+        $t->same(3, $titlesVector['declaredValueCount']);
+        $t->same(2, $titlesVector['valueCount']);
+        $t->same(false, $titlesVector['declaredValueCountMatchesActual']);
+        $t->same('variant', $titlesVector['valueBaseType']);
+        $t->same('lpstr', $titlesVector['expectedBaseType']);
+        $t->same(false, $titlesVector['baseTypeMatchesExpected']);
+        $t->same(['lpstr', 'i4'], $titlesVector['valueItemTypes']);
+        $t->same([
+            'extended-titles-of-parts-unexpected-base-type',
+            'extended-titles-of-parts-vector-size-mismatch',
+        ], $titlesVector['issueCodes']);
+
+        $t->same(1, $summary['extendedPropertiesHeadingPairCount']);
+        $t->same(5, $summary['extendedPropertiesHeadingPairVectorValueCount']);
+        $t->same(6, $summary['extendedPropertiesHeadingPairVectorDeclaredValueCount']);
+        $t->same(false, $summary['extendedPropertiesHeadingPairVectorDeclaredValueCountMatchesActual']);
+        $t->same(1, $summary['extendedPropertiesHeadingPairVectorValidPairCount']);
+        $t->same(2, $summary['extendedPropertiesHeadingPairVectorInvalidPairCount']);
+        $t->same($headingPairsVector['issueCodes'], $summary['extendedPropertiesHeadingPairVectorIssueCodes']);
+        $t->same(2, $summary['extendedPropertiesTitlesOfPartsCount']);
+        $t->same(2, $summary['extendedPropertiesTitlesOfPartsVectorValueCount']);
+        $t->same(3, $summary['extendedPropertiesTitlesOfPartsVectorDeclaredValueCount']);
+        $t->same(false, $summary['extendedPropertiesTitlesOfPartsVectorDeclaredValueCountMatchesActual']);
+        $t->same($titlesVector['issueCodes'], $summary['extendedPropertiesTitlesOfPartsVectorIssueCodes']);
     },
     'preserves docx custom property vector and array values from package properties' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();

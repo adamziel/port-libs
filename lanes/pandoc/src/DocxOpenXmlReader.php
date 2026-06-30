@@ -782,6 +782,33 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['selectedXmlPartXmlStandaloneDeclarationCount'] = $selectedXmlParts['xmlStandaloneDeclarationCount'];
         $packageProvenance['summary']['selectedXmlPartXmlStandaloneYesCount'] = $selectedXmlParts['xmlStandaloneYesCount'];
         $packageProvenance['summary']['selectedXmlPartXmlStandaloneNoCount'] = $selectedXmlParts['xmlStandaloneNoCount'];
+        $extendedHeadingPairs = is_array($extendedProperties['headingPairs'] ?? null) ? $extendedProperties['headingPairs'] : [];
+        $extendedHeadingPairsVector = is_array($extendedProperties['headingPairsVector'] ?? null)
+            ? $extendedProperties['headingPairsVector']
+            : [];
+        $extendedTitlesOfParts = is_array($extendedProperties['titlesOfParts'] ?? null) ? $extendedProperties['titlesOfParts'] : [];
+        $extendedTitlesOfPartsVector = is_array($extendedProperties['titlesOfPartsVector'] ?? null)
+            ? $extendedProperties['titlesOfPartsVector']
+            : [];
+        $packageProvenance['summary']['extendedPropertiesHeadingPairCount'] = count($extendedHeadingPairs);
+        $packageProvenance['summary']['extendedPropertiesHeadingPairVectorValueCount'] = (int) ($extendedHeadingPairsVector['valueCount'] ?? 0);
+        $packageProvenance['summary']['extendedPropertiesHeadingPairVectorDeclaredValueCount'] = $extendedHeadingPairsVector['declaredValueCount'] ?? null;
+        $packageProvenance['summary']['extendedPropertiesHeadingPairVectorDeclaredValueCountMatchesActual'] = $extendedHeadingPairsVector['declaredValueCountMatchesActual'] ?? null;
+        $packageProvenance['summary']['extendedPropertiesHeadingPairVectorBaseType'] = $extendedHeadingPairsVector['valueBaseType'] ?? null;
+        $packageProvenance['summary']['extendedPropertiesHeadingPairVectorItemTypes'] = $extendedHeadingPairsVector['valueItemTypes'] ?? [];
+        $packageProvenance['summary']['extendedPropertiesHeadingPairVectorValidPairCount'] = (int) ($extendedHeadingPairsVector['validPairCount'] ?? 0);
+        $packageProvenance['summary']['extendedPropertiesHeadingPairVectorInvalidPairCount'] = (int) ($extendedHeadingPairsVector['invalidPairCount'] ?? 0);
+        $packageProvenance['summary']['extendedPropertiesHeadingPairVectorUnpairedValueCount'] = (int) ($extendedHeadingPairsVector['unpairedValueCount'] ?? 0);
+        $packageProvenance['summary']['extendedPropertiesHeadingPairVectorIssueCount'] = (int) ($extendedHeadingPairsVector['issueCount'] ?? 0);
+        $packageProvenance['summary']['extendedPropertiesHeadingPairVectorIssueCodes'] = $extendedHeadingPairsVector['issueCodes'] ?? [];
+        $packageProvenance['summary']['extendedPropertiesTitlesOfPartsCount'] = count($extendedTitlesOfParts);
+        $packageProvenance['summary']['extendedPropertiesTitlesOfPartsVectorValueCount'] = (int) ($extendedTitlesOfPartsVector['valueCount'] ?? 0);
+        $packageProvenance['summary']['extendedPropertiesTitlesOfPartsVectorDeclaredValueCount'] = $extendedTitlesOfPartsVector['declaredValueCount'] ?? null;
+        $packageProvenance['summary']['extendedPropertiesTitlesOfPartsVectorDeclaredValueCountMatchesActual'] = $extendedTitlesOfPartsVector['declaredValueCountMatchesActual'] ?? null;
+        $packageProvenance['summary']['extendedPropertiesTitlesOfPartsVectorBaseType'] = $extendedTitlesOfPartsVector['valueBaseType'] ?? null;
+        $packageProvenance['summary']['extendedPropertiesTitlesOfPartsVectorItemTypes'] = $extendedTitlesOfPartsVector['valueItemTypes'] ?? [];
+        $packageProvenance['summary']['extendedPropertiesTitlesOfPartsVectorIssueCount'] = (int) ($extendedTitlesOfPartsVector['issueCount'] ?? 0);
+        $packageProvenance['summary']['extendedPropertiesTitlesOfPartsVectorIssueCodes'] = $extendedTitlesOfPartsVector['issueCodes'] ?? [];
         $packageProvenance['summary']['stylesWithEffectsPart'] = $stylesWithEffectsPart['partName'];
         $packageProvenance['summary']['stylesWithEffectsExists'] = $stylesWithEffectsPart['exists'];
         $packageProvenance['summary']['stylesWithEffectsRelationshipId'] = $stylesWithEffectsPart['relationship']['id'] ?? null;
@@ -39760,10 +39787,24 @@ final class DocxOpenXmlReader
         if ($headingPairs !== []) {
             $properties['headingPairs'] = $headingPairs;
         }
+        $headingPairsVector = $this->firstElement($xpath, '/ep:Properties/ep:HeadingPairs/vt:vector', $dom);
+        if ($headingPairsVector instanceof \DOMElement) {
+            $properties['headingPairsVector'] = $this->extendedHeadingPairsVectorProvenance($headingPairsVector);
+        }
 
         $titlesOfParts = $this->extendedTitlesOfParts($xpath, $dom);
         if ($titlesOfParts !== []) {
             $properties['titlesOfParts'] = $titlesOfParts;
+        }
+        $titlesOfPartsVector = $this->firstElement($xpath, '/ep:Properties/ep:TitlesOfParts/vt:vector', $dom);
+        if ($titlesOfPartsVector instanceof \DOMElement) {
+            $properties['titlesOfPartsVector'] = $this->docPropsVectorProvenance(
+                $titlesOfPartsVector,
+                'extended-titles-of-parts',
+                'lpstr',
+            ) + [
+                'titleCount' => count($titlesOfParts),
+            ];
         }
 
         return $properties;
@@ -39816,6 +39857,128 @@ final class DocxOpenXmlReader
         }
 
         return $titles;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function extendedHeadingPairsVectorProvenance(\DOMElement $vector): array
+    {
+        $values = $this->docPropsVectorValues($vector);
+        $types = $this->docPropsVectorValueTypes($vector);
+        $issues = [];
+        $items = [];
+        $validPairCount = 0;
+        $invalidPairCount = 0;
+        $unpairedValueCount = count($values) % 2;
+
+        for ($index = 0; $index < count($values); $index += 2) {
+            $pairIssues = [];
+            $nameValue = $values[$index] ?? null;
+            $name = is_scalar($nameValue) ? trim((string) $nameValue) : '';
+            if ($name === '') {
+                $pairIssues[] = 'extended-heading-pairs-empty-name';
+            }
+
+            $countValuePresent = array_key_exists($index + 1, $values);
+            $countValue = $countValuePresent ? $values[$index + 1] : null;
+            $count = is_int($countValue) ? $countValue : null;
+            if (!$countValuePresent) {
+                $pairIssues[] = 'extended-heading-pairs-unpaired-value';
+            } elseif ($count === null) {
+                $pairIssues[] = 'extended-heading-pairs-non-integer-count';
+            }
+
+            $pairIssues = array_values(array_unique($pairIssues));
+            sort($pairIssues, SORT_STRING);
+            foreach ($pairIssues as $issue) {
+                $issues[$issue] = true;
+            }
+
+            if ($pairIssues === []) {
+                ++$validPairCount;
+            } else {
+                ++$invalidPairCount;
+            }
+
+            $items[] = [
+                'index' => intdiv($index, 2),
+                'name' => $name !== '' ? $name : null,
+                'count' => $count,
+                'nameValueType' => $types[$index] ?? null,
+                'countValueType' => $types[$index + 1] ?? null,
+                'valid' => $pairIssues === [],
+                'issues' => $pairIssues,
+            ];
+        }
+
+        $provenance = $this->docPropsVectorProvenance($vector, 'extended-heading-pairs', 'variant');
+        foreach (($provenance['issueCodes'] ?? []) as $issue) {
+            if (is_string($issue) && $issue !== '') {
+                $issues[$issue] = true;
+            }
+        }
+        ksort($issues, SORT_STRING);
+        $provenance['pairRecordCount'] = count($items);
+        $provenance['validPairCount'] = $validPairCount;
+        $provenance['invalidPairCount'] = $invalidPairCount;
+        $provenance['unpairedValueCount'] = $unpairedValueCount;
+        $provenance['issueCount'] = count($issues);
+        $provenance['issueCodes'] = array_keys($issues);
+        $provenance['items'] = $items;
+
+        return $provenance;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function docPropsVectorProvenance(\DOMElement $vector, string $issuePrefix, ?string $expectedBaseType): array
+    {
+        $values = $this->docPropsVectorValues($vector);
+        $types = $this->docPropsVectorValueTypes($vector);
+        $issues = [];
+        $provenance = [
+            'valueCount' => count($values),
+            'valueItemTypes' => $types,
+        ];
+
+        $declaredValueCount = null;
+        $size = trim($vector->getAttribute('size'));
+        if ($size !== '') {
+            if (ctype_digit($size)) {
+                $declaredValueCount = (int) $size;
+                $provenance['declaredValueCount'] = $declaredValueCount;
+                $provenance['declaredValueCountMatchesActual'] = $declaredValueCount === count($values);
+                if ($declaredValueCount !== count($values)) {
+                    $issues[] = $issuePrefix . '-vector-size-mismatch';
+                }
+            } else {
+                $provenance['declaredValueCountRawByteLength'] = strlen($size);
+                $provenance['declaredValueCountRawCrc32'] = sprintf('%08x', crc32($size));
+                $provenance['declaredValueCountRawSha256'] = hash('sha256', $size);
+                $issues[] = $issuePrefix . '-non-numeric-vector-size';
+            }
+        }
+
+        $baseType = trim($vector->getAttribute('baseType'));
+        if ($baseType !== '') {
+            $provenance['valueBaseType'] = $baseType;
+        }
+        if ($expectedBaseType !== null) {
+            $provenance['expectedBaseType'] = $expectedBaseType;
+            $provenance['baseTypeMatchesExpected'] = $baseType === '' || $baseType === $expectedBaseType;
+            if ($baseType !== '' && $baseType !== $expectedBaseType) {
+                $issues[] = $issuePrefix . '-unexpected-base-type';
+            }
+        }
+
+        $issues = array_values(array_unique($issues));
+        sort($issues, SORT_STRING);
+        $provenance['issueCount'] = count($issues);
+        $provenance['issueCodes'] = $issues;
+
+        return $provenance;
     }
 
     /**
