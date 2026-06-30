@@ -48,6 +48,9 @@ final class DocxWriter
     private const GENERATED_DOS_DATE = 33; // 1980-01-01 00:00:00, the earliest valid DOS ZIP date.
     private const BULLET_NUM_ID = 1;
     private const ORDERED_NUM_ID = 2;
+    private const CONTINUATION_NUM_ID = 3;
+    private const TASK_UNCHECKED_NUM_ID = 4;
+    private const TASK_CHECKED_NUM_ID = 5;
 
     /** @var array<string, int> */
     private const CORE_PART_ORDER = [
@@ -84,13 +87,17 @@ final class DocxWriter
     /** @var array<string, true> */
     private array $commentIds = [];
 
-    /** @var array<string, array{numId:int, level:int, start:int}> */
-    private array $orderedListOverrides = [];
+    /** @var array<string, array{abstractNumId:int, style:string, delimiter:string}> */
+    private array $orderedListDefinitions = [];
+
+    /** @var list<array{numId:int, abstractNumId:int, level:int, start:int}> */
+    private array $orderedListInstances = [];
 
     private int $nextDocumentRelationshipId = 9;
     private int $nextFootnoteId = 9;
     private int $nextBookmarkId = 11;
     private int $nextNumberingId = 10;
+    private int $nextAbstractNumberingId = 20;
 
     /**
      * @param array<string, mixed> $options
@@ -199,11 +206,13 @@ final class DocxWriter
         $this->footnotes = [];
         $this->comments = [];
         $this->commentIds = [];
-        $this->orderedListOverrides = [];
+        $this->orderedListDefinitions = [];
+        $this->orderedListInstances = [];
         $this->nextDocumentRelationshipId = 9;
         $this->nextFootnoteId = 9;
         $this->nextBookmarkId = 11;
         $this->nextNumberingId = 10;
+        $this->nextAbstractNumberingId = 20;
     }
 
     private function contentTypesXml(): string
@@ -807,18 +816,35 @@ final class DocxWriter
                 $itemBlocks = [new AstNode('plain', [], [new AstNode('text', ['text' => (string) $item->attr('text')])])];
             }
 
+            $taskChecked = $ordered ? null : $this->taskListItemChecked($itemBlocks);
+            $itemNumId = $taskChecked === null
+                ? $numId
+                : ($taskChecked ? self::TASK_CHECKED_NUM_ID : self::TASK_UNCHECKED_NUM_ID);
+            $primaryNumbering = ['numId' => $itemNumId, 'level' => $listLevel];
+            $continuationNumbering = ['numId' => self::CONTINUATION_NUM_ID, 'level' => $listLevel];
             $numberedParagraphEmitted = false;
+            $stripTaskMarker = $taskChecked !== null;
             foreach ($itemBlocks as $child) {
                 if (!$child instanceof AstNode) {
                     continue;
                 }
                 if ($child->type === 'bullet_list') {
+                    if (!$numberedParagraphEmitted) {
+                        $blocks[] = $this->paragraphFromInlinesXml([], $paragraphStyle, $primaryNumbering);
+                        $numberedParagraphEmitted = true;
+                        $stripTaskMarker = false;
+                    }
                     foreach ($this->listXml($child, false, $listLevel + 1, $paragraphStyle) as $nested) {
                         $blocks[] = $nested;
                     }
                     continue;
                 }
                 if ($child->type === 'ordered_list') {
+                    if (!$numberedParagraphEmitted) {
+                        $blocks[] = $this->paragraphFromInlinesXml([], $paragraphStyle, $primaryNumbering);
+                        $numberedParagraphEmitted = true;
+                        $stripTaskMarker = false;
+                    }
                     foreach ($this->listXml($child, true, $listLevel + 1, $paragraphStyle) as $nested) {
                         $blocks[] = $nested;
                     }
@@ -826,20 +852,24 @@ final class DocxWriter
                 }
 
                 if ($child->type === 'paragraph' || $child->type === 'plain') {
+                    $paragraph = $stripTaskMarker ? $this->stripTaskListMarker($child) : $child;
+                    $stripTaskMarker = false;
                     $blocks[] = $this->paragraphXml(
-                        $child,
+                        $paragraph,
                         $paragraphStyle,
-                        $numberedParagraphEmitted ? null : ['numId' => $numId, 'level' => $listLevel]
+                        $numberedParagraphEmitted ? $continuationNumbering : $primaryNumbering
                     );
                     $numberedParagraphEmitted = true;
                     continue;
                 }
 
                 if ($this->isInlineNode($child)) {
+                    $inlines = $stripTaskMarker ? $this->stripTaskListMarkerFromInlines([$child]) : [$child];
+                    $stripTaskMarker = false;
                     $blocks[] = $this->paragraphFromInlinesXml(
-                        [$child],
+                        $inlines,
                         $paragraphStyle,
-                        $numberedParagraphEmitted ? null : ['numId' => $numId, 'level' => $listLevel]
+                        $numberedParagraphEmitted ? $continuationNumbering : $primaryNumbering
                     );
                     $numberedParagraphEmitted = true;
                     continue;
@@ -847,20 +877,26 @@ final class DocxWriter
 
                 foreach ($this->renderBlock($child, $listLevel + 1, $paragraphStyle) as $blockXml) {
                     if (!$numberedParagraphEmitted && str_starts_with($blockXml, '<w:p>')) {
-                        $blocks[] = $this->paragraphXml(
-                            new AstNode('plain', [], [new AstNode('text', ['text' => $this->plainText($child)])]),
-                            $paragraphStyle,
-                            ['numId' => $numId, 'level' => $listLevel]
-                        );
+                        $blocks[] = $this->numberedParagraphBlockXml($blockXml, $primaryNumbering);
                         $numberedParagraphEmitted = true;
+                        $stripTaskMarker = false;
                         continue;
+                    }
+                    if ($numberedParagraphEmitted && str_starts_with($blockXml, '<w:p>')) {
+                        $blocks[] = $this->numberedParagraphBlockXml($blockXml, $continuationNumbering);
+                        continue;
+                    }
+                    if (!$numberedParagraphEmitted) {
+                        $blocks[] = $this->paragraphFromInlinesXml([], $paragraphStyle, $primaryNumbering);
+                        $numberedParagraphEmitted = true;
+                        $stripTaskMarker = false;
                     }
                     $blocks[] = $blockXml;
                 }
             }
 
             if (!$numberedParagraphEmitted) {
-                $blocks[] = $this->paragraphFromInlinesXml([], $paragraphStyle, ['numId' => $numId, 'level' => $listLevel]);
+                $blocks[] = $this->paragraphFromInlinesXml([], $paragraphStyle, $primaryNumbering);
             }
         }
 
@@ -870,20 +906,154 @@ final class DocxWriter
     private function orderedListNumId(AstNode $list, int $listLevel): int
     {
         $start = max(1, (int) $list->attr('start', 1));
-        if ($start === 1) {
+        $style = $this->orderedListStyle($list);
+        $delimiter = $this->orderedListDelimiter($list);
+        $abstractNumId = $this->orderedListAbstractNumId($style, $delimiter);
+        $numId = $this->nextNumberingId++;
+
+        $this->orderedListInstances[] = [
+            'numId' => $numId,
+            'abstractNumId' => $abstractNumId,
+            'level' => max(0, min(8, $listLevel)),
+            'start' => $start,
+        ];
+
+        return $numId;
+    }
+
+    private function orderedListAbstractNumId(string $style, string $delimiter): int
+    {
+        if ($style === 'decimal' && ($delimiter === 'period' || $delimiter === 'default')) {
             return self::ORDERED_NUM_ID;
         }
 
-        $key = $listLevel . ':' . $start;
-        if (!isset($this->orderedListOverrides[$key])) {
-            $this->orderedListOverrides[$key] = [
-                'numId' => $this->nextNumberingId++,
-                'level' => max(0, min(8, $listLevel)),
-                'start' => $start,
+        $key = $style . ':' . $delimiter;
+        if (!isset($this->orderedListDefinitions[$key])) {
+            $this->orderedListDefinitions[$key] = [
+                'abstractNumId' => $this->nextAbstractNumberingId++,
+                'style' => $style,
+                'delimiter' => $delimiter,
             ];
         }
 
-        return $this->orderedListOverrides[$key]['numId'];
+        return $this->orderedListDefinitions[$key]['abstractNumId'];
+    }
+
+    private function orderedListStyle(AstNode $list): string
+    {
+        $style = $list->attr('style', 'decimal');
+
+        return match (is_string($style) ? $style : '') {
+            'lower_alpha',
+            'upper_alpha',
+            'lower_roman',
+            'upper_roman',
+            'example' => $style,
+            default => 'decimal',
+        };
+    }
+
+    private function orderedListDelimiter(AstNode $list): string
+    {
+        $delimiter = $list->attr('delimiter', 'period');
+
+        return match (is_string($delimiter) ? $delimiter : '') {
+            'one_paren',
+            'two_parens',
+            'default' => $delimiter,
+            default => 'period',
+        };
+    }
+
+    /**
+     * @param list<AstNode> $itemBlocks
+     */
+    private function taskListItemChecked(array $itemBlocks): ?bool
+    {
+        foreach ($itemBlocks as $block) {
+            if (!$block instanceof AstNode) {
+                continue;
+            }
+            if ($block->type === 'paragraph' || $block->type === 'plain') {
+                return $this->taskMarkerCheckedFromText($block->children === []
+                    ? (string) $block->attr('text', '')
+                    : $this->plainInlineText($block->children));
+            }
+            if ($this->isInlineNode($block)) {
+                return $this->taskMarkerCheckedFromText($this->plainInlineText([$block]));
+            }
+            if ($block->type === 'div') {
+                $checked = $this->taskListItemChecked($block->children);
+                if ($checked !== null) {
+                    return $checked;
+                }
+            }
+
+            return null;
+        }
+
+        return null;
+    }
+
+    private function taskMarkerCheckedFromText(string $text): ?bool
+    {
+        if (preg_match('/^\s*(\x{2610}|\x{2612})(?:\s|$)/u', $text, $matches) !== 1) {
+            return null;
+        }
+
+        return $matches[1] === "\u{2612}";
+    }
+
+    private function stripTaskListMarker(AstNode $node): AstNode
+    {
+        if ($node->children === []) {
+            $text = preg_replace('/^\s*(?:\x{2610}|\x{2612})\s*/u', '', (string) $node->attr('text', '')) ?? '';
+
+            return new AstNode($node->type, array_replace($node->attrs, ['text' => $text]), []);
+        }
+
+        return new AstNode($node->type, $node->attrs, $this->stripTaskListMarkerFromInlines($node->children));
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     * @return list<AstNode>
+     */
+    private function stripTaskListMarkerFromInlines(array $inlines): array
+    {
+        $stripped = [];
+        $markerSeen = false;
+        $dropFollowingSpace = false;
+        foreach ($inlines as $inline) {
+            if (!$inline instanceof AstNode) {
+                continue;
+            }
+
+            if (!$markerSeen && ($inline->type === 'text' || $inline->type === 'str')) {
+                $key = $inline->type === 'str' ? 'value' : 'text';
+                $text = (string) $inline->attr($key, $inline->attr('text', ''));
+                $withoutMarker = preg_replace('/^\s*(?:\x{2610}|\x{2612})\s*/u', '', $text, 1, $count);
+                if ($count > 0) {
+                    $markerSeen = true;
+                    if ($withoutMarker !== '') {
+                        $stripped[] = new AstNode($inline->type, array_replace($inline->attrs, [$key => $withoutMarker]), $inline->children);
+                    } else {
+                        $dropFollowingSpace = true;
+                    }
+                    continue;
+                }
+            }
+
+            if ($dropFollowingSpace && ($inline->type === 'space' || $inline->type === 'softbreak')) {
+                $dropFollowingSpace = false;
+                continue;
+            }
+
+            $dropFollowingSpace = false;
+            $stripped[] = $inline;
+        }
+
+        return $stripped;
     }
 
     /**
@@ -925,12 +1095,46 @@ final class DocxWriter
             $properties[] = '<w:pStyle w:val="' . self::escAttr($styleId) . '"/>';
         }
         if ($numbering !== null) {
-            $properties[] = '<w:numPr><w:ilvl w:val="' . max(0, min(8, $numbering['level'])) . '"/><w:numId w:val="' . (int) $numbering['numId'] . '"/></w:numPr>';
+            $properties[] = $this->numberingPropertiesXml($numbering);
         }
 
         $pPr = $properties === [] ? '' : '<w:pPr>' . implode('', $properties) . '</w:pPr>';
 
         return '<w:p>' . $pPr . $runs . '</w:p>';
+    }
+
+    /**
+     * @param array{numId:int, level:int} $numbering
+     */
+    private function numberedParagraphBlockXml(string $paragraphXml, array $numbering): string
+    {
+        $numberingXml = $this->numberingPropertiesXml($numbering);
+        if (str_starts_with($paragraphXml, '<w:p><w:pPr>')) {
+            $withNumberingAfterStyle = preg_replace(
+                '/^<w:p><w:pPr>(<w:pStyle\b[^>]*\/>)/',
+                '<w:p><w:pPr>$1' . $numberingXml,
+                $paragraphXml,
+                1
+            );
+            if ($withNumberingAfterStyle !== null && $withNumberingAfterStyle !== $paragraphXml) {
+                return $withNumberingAfterStyle;
+            }
+
+            return preg_replace('/^<w:p><w:pPr>/', '<w:p><w:pPr>' . $numberingXml, $paragraphXml, 1) ?? $paragraphXml;
+        }
+        if (str_starts_with($paragraphXml, '<w:p>')) {
+            return '<w:p><w:pPr>' . $numberingXml . '</w:pPr>' . substr($paragraphXml, strlen('<w:p>'));
+        }
+
+        return $paragraphXml;
+    }
+
+    /**
+     * @param array{numId:int, level:int} $numbering
+     */
+    private function numberingPropertiesXml(array $numbering): string
+    {
+        return '<w:numPr><w:ilvl w:val="' . max(0, min(8, $numbering['level'])) . '"/><w:numId w:val="' . (int) $numbering['numId'] . '"/></w:numPr>';
     }
 
     /**
@@ -1393,28 +1597,84 @@ final class DocxWriter
 
     private function numberingXml(): string
     {
-        $bulletLevels = '';
-        $orderedLevels = '';
-        for ($level = 0; $level < 9; $level++) {
-            $left = 720 + ($level * 360);
-            $text = '%' . ($level + 1) . '.';
-            $bulletLevels .= '<w:lvl w:ilvl="' . $level . '"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val="&#8226;"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="' . $left . '" w:hanging="360"/></w:pPr><w:rPr><w:rFonts w:ascii="Symbol" w:hAnsi="Symbol" w:hint="default"/></w:rPr></w:lvl>';
-            $orderedLevels .= '<w:lvl w:ilvl="' . $level . '"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="' . $text . '"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="' . $left . '" w:hanging="360"/></w:pPr></w:lvl>';
+        $abstractNums = ''
+            . '<w:abstractNum w:abstractNumId="1"><w:multiLevelType w:val="hybridMultilevel"/>' . $this->bulletLevelsXml('&#8226;', true) . '</w:abstractNum>'
+            . '<w:abstractNum w:abstractNumId="2"><w:multiLevelType w:val="hybridMultilevel"/>' . $this->orderedLevelsXml('decimal', 'period') . '</w:abstractNum>'
+            . '<w:abstractNum w:abstractNumId="3"><w:multiLevelType w:val="hybridMultilevel"/>' . $this->bulletLevelsXml(' ', false) . '</w:abstractNum>'
+            . '<w:abstractNum w:abstractNumId="4"><w:multiLevelType w:val="hybridMultilevel"/>' . $this->bulletLevelsXml('&#9744;', false) . '</w:abstractNum>'
+            . '<w:abstractNum w:abstractNumId="5"><w:multiLevelType w:val="hybridMultilevel"/>' . $this->bulletLevelsXml('&#9746;', false) . '</w:abstractNum>';
+        foreach ($this->orderedListDefinitions as $definition) {
+            $abstractNums .= '<w:abstractNum w:abstractNumId="' . $definition['abstractNumId'] . '"><w:multiLevelType w:val="hybridMultilevel"/>'
+                . $this->orderedLevelsXml($definition['style'], $definition['delimiter'])
+                . '</w:abstractNum>';
         }
 
-        $numbers = '<w:num w:numId="' . self::BULLET_NUM_ID . '"><w:abstractNumId w:val="1"/></w:num>'
-            . '<w:num w:numId="' . self::ORDERED_NUM_ID . '"><w:abstractNumId w:val="2"/></w:num>';
-        foreach ($this->orderedListOverrides as $override) {
-            $numbers .= '<w:num w:numId="' . $override['numId'] . '"><w:abstractNumId w:val="2"/><w:lvlOverride w:ilvl="' . $override['level'] . '"><w:startOverride w:val="' . $override['start'] . '"/></w:lvlOverride></w:num>';
+        $numbers = ''
+            . '<w:num w:numId="' . self::BULLET_NUM_ID . '"><w:abstractNumId w:val="1"/></w:num>'
+            . '<w:num w:numId="' . self::ORDERED_NUM_ID . '"><w:abstractNumId w:val="2"/></w:num>'
+            . '<w:num w:numId="' . self::CONTINUATION_NUM_ID . '"><w:abstractNumId w:val="3"/></w:num>'
+            . '<w:num w:numId="' . self::TASK_UNCHECKED_NUM_ID . '"><w:abstractNumId w:val="4"/></w:num>'
+            . '<w:num w:numId="' . self::TASK_CHECKED_NUM_ID . '"><w:abstractNumId w:val="5"/></w:num>';
+        foreach ($this->orderedListInstances as $instance) {
+            $numbers .= '<w:num w:numId="' . $instance['numId'] . '"><w:abstractNumId w:val="' . $instance['abstractNumId'] . '"/><w:lvlOverride w:ilvl="' . $instance['level'] . '"><w:startOverride w:val="' . $instance['start'] . '"/></w:lvlOverride></w:num>';
         }
 
         return self::xmlDeclaration()
             . '<w:numbering xmlns:w="' . self::NS_W . '">'
-            . '<w:abstractNum w:abstractNumId="1"><w:multiLevelType w:val="hybridMultilevel"/>' . $bulletLevels . '</w:abstractNum>'
-            . '<w:abstractNum w:abstractNumId="2"><w:multiLevelType w:val="hybridMultilevel"/>' . $orderedLevels . '</w:abstractNum>'
+            . $abstractNums
             . $numbers
             . '</w:numbering>'
             . "\n";
+    }
+
+    private function bulletLevelsXml(string $levelText, bool $symbolFont): string
+    {
+        $levels = '';
+        for ($level = 0; $level < 9; $level++) {
+            $left = 720 + ($level * 720);
+            $levels .= '<w:lvl w:ilvl="' . $level . '"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val="' . $levelText . '"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="' . $left . '" w:hanging="360"/></w:pPr>';
+            if ($symbolFont) {
+                $levels .= '<w:rPr><w:rFonts w:ascii="Symbol" w:hAnsi="Symbol" w:hint="default"/></w:rPr>';
+            }
+            $levels .= '</w:lvl>';
+        }
+
+        return $levels;
+    }
+
+    private function orderedLevelsXml(string $style, string $delimiter): string
+    {
+        $levels = '';
+        $format = $this->docxOrderedNumberFormat($style);
+        for ($level = 0; $level < 9; $level++) {
+            $left = 720 + ($level * 720);
+            $text = $this->docxOrderedLevelText($level + 1, $delimiter);
+            $levels .= '<w:lvl w:ilvl="' . $level . '"><w:start w:val="1"/><w:numFmt w:val="' . $format . '"/><w:lvlText w:val="' . $text . '"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="' . $left . '" w:hanging="360"/></w:pPr></w:lvl>';
+        }
+
+        return $levels;
+    }
+
+    private function docxOrderedNumberFormat(string $style): string
+    {
+        return match ($style) {
+            'lower_alpha' => 'lowerLetter',
+            'upper_alpha' => 'upperLetter',
+            'lower_roman' => 'lowerRoman',
+            'upper_roman' => 'upperRoman',
+            default => 'decimal',
+        };
+    }
+
+    private function docxOrderedLevelText(int $level, string $delimiter): string
+    {
+        $placeholder = '%' . $level;
+
+        return match ($delimiter) {
+            'one_paren' => $placeholder . ')',
+            'two_parens' => '(' . $placeholder . ')',
+            default => $placeholder . '.',
+        };
     }
 
     private function settingsXml(): string

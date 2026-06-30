@@ -327,6 +327,84 @@ return [
         $t->same('blockquote', $roundTrip->children[0]->type);
     },
 
+    'emits list numbering instances for starts styles delimiters and continuations' => static function (TestRunner $t) use ($doc, $text, $paragraph, $plain, $item, $packageParts): void {
+        $document = $doc([
+            new AstNode('ordered_list', ['start' => 1, 'style' => 'decimal', 'delimiter' => 'period'], [
+                $item([$paragraph([$text('one')])]),
+                $item([
+                    $paragraph([$text('two')]),
+                    new AstNode('ordered_list', ['start' => 1, 'style' => 'lower_alpha', 'delimiter' => 'default'], [
+                        $item([$plain([$text('alpha')])]),
+                    ]),
+                ]),
+            ]),
+            new AstNode('ordered_list', ['start' => 4, 'style' => 'decimal', 'delimiter' => 'period'], [
+                $item([$paragraph([$text('continued')])]),
+            ]),
+            new AstNode('ordered_list', ['start' => 1, 'style' => 'upper_roman', 'delimiter' => 'two_parens'], [
+                $item([$paragraph([$text('roman')])]),
+            ]),
+            new AstNode('bullet_list', [], [
+                $item([
+                    $paragraph([$text('bullet')]),
+                    $paragraph([$text('continuation')]),
+                ]),
+                $item([
+                    new AstNode('bullet_list', [], [
+                        $item([$paragraph([$text('nested first')])]),
+                    ]),
+                ]),
+            ]),
+        ]);
+
+        [, $parts] = $packageParts((new DocxWriter())->write($document));
+        $documentXml = $parts['word/document.xml'];
+        $numberingXml = $parts['word/numbering.xml'];
+
+        $t->contains('<w:num w:numId="10"><w:abstractNumId w:val="2"/><w:lvlOverride w:ilvl="0"><w:startOverride w:val="1"/></w:lvlOverride></w:num>', $numberingXml);
+        $t->contains('<w:num w:numId="12"><w:abstractNumId w:val="2"/><w:lvlOverride w:ilvl="0"><w:startOverride w:val="4"/></w:lvlOverride></w:num>', $numberingXml);
+        $t->contains('<w:numFmt w:val="lowerLetter"/>', $numberingXml);
+        $t->contains('<w:numFmt w:val="upperRoman"/>', $numberingXml);
+        $t->contains('<w:lvlText w:val="(%1)"/>', $numberingXml);
+        $t->contains('<w:numId w:val="10"/>', $documentXml);
+        $t->contains('<w:numId w:val="11"/>', $documentXml);
+        $t->contains('<w:numId w:val="12"/>', $documentXml);
+        $t->contains('<w:numId w:val="13"/>', $documentXml);
+        $t->contains('<w:numId w:val="3"/></w:numPr></w:pPr><w:r><w:t>continuation</w:t></w:r>', $documentXml);
+        $t->contains('<w:numId w:val="1"/></w:numPr></w:pPr></w:p>', $documentXml);
+        $t->contains('<w:t>nested first</w:t>', $documentXml);
+    },
+
+    'emits task list checkboxes as numbering markers without duplicated text glyphs' => static function (TestRunner $t) use ($doc, $text, $paragraph, $plain, $item, $packageParts): void {
+        $document = $doc([
+            new AstNode('bullet_list', [], [
+                $item([$paragraph([new AstNode('text', ['text' => "\u{2610}"]), new AstNode('space'), $text('Unchecked')])]),
+                $item([
+                    $paragraph([new AstNode('text', ['text' => "\u{2612}"]), new AstNode('space'), $text('Checked')]),
+                    $paragraph([$text('with continuation')]),
+                ]),
+                $item([
+                    $plain([new AstNode('text', ['text' => "\u{2612} Checked sublist"])]),
+                ]),
+            ]),
+        ]);
+
+        [, $parts] = $packageParts((new DocxWriter())->write($document));
+        $documentXml = $parts['word/document.xml'];
+        $numberingXml = $parts['word/numbering.xml'];
+
+        $t->contains('<w:num w:numId="4"><w:abstractNumId w:val="4"/></w:num>', $numberingXml);
+        $t->contains('<w:num w:numId="5"><w:abstractNumId w:val="5"/></w:num>', $numberingXml);
+        $t->contains('<w:lvlText w:val="&#9744;"/>', $numberingXml);
+        $t->contains('<w:lvlText w:val="&#9746;"/>', $numberingXml);
+        $t->contains('<w:numId w:val="4"/></w:numPr></w:pPr><w:r><w:t>Unchecked</w:t></w:r>', $documentXml);
+        $t->contains('<w:numId w:val="5"/></w:numPr></w:pPr><w:r><w:t>Checked</w:t></w:r>', $documentXml);
+        $t->contains('<w:numId w:val="3"/></w:numPr></w:pPr><w:r><w:t>with continuation</w:t></w:r>', $documentXml);
+        $t->contains('<w:numId w:val="5"/></w:numPr></w:pPr><w:r><w:t>Checked sublist</w:t></w:r>', $documentXml);
+        $t->true(!str_contains($documentXml, "\u{2610}"), 'Unchecked task glyph should be carried by numbering, not paragraph text');
+        $t->true(!str_contains($documentXml, "\u{2612}"), 'Checked task glyph should be carried by numbering, not paragraph text');
+    },
+
     'normalizes docx package part names and fixed zip timestamps' => static function (TestRunner $t) use ($doc, $text, $paragraph): void {
         $writer = new DocxWriter();
         $parts = $writer->packageParts($doc([$paragraph([$text('Stable package')])]));
