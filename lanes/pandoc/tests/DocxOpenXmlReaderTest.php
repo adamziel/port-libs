@@ -21477,6 +21477,115 @@ XML;
         $t->true(!str_contains((string) $encodedReview, 'hidden-alpha'), 'selected XML comment rollups should not expose comment text');
         $t->true(!str_contains((string) $encodedReview, 'Comment Theme'), 'selected XML comment rollups should not expose selected part attribute values');
     },
+    'summarizes docx selected openxml text and cdata metadata for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $settingsText = "selected-settings-text:hidden-alpha\nline-two";
+        $settingsCdata = 'selected-settings-cdata:hidden-beta';
+        $themeCdata = 'selected-theme-cdata:hidden-gamma';
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' . "\n" .
+            '  <Override PartName="/word/theme/text-theme.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettingsText" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml?review=text#settings"/>' . "\n" .
+            '  <Relationship Id="rThemeText" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/text-theme.xml?review=cdata#theme"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/settings.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docVars><w:docVar>{$settingsText}</w:docVar></w:docVars>
+  <w:compat><![CDATA[{$settingsCdata}]]></w:compat>
+</w:settings>
+XML;
+        $parts['word/theme/text-theme.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Text Theme">
+  <a:themeElements><![CDATA[{$themeCdata}]]></a:themeElements>
+</a:theme>
+XML;
+
+        $package = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance'];
+        $selected = $package['selectedXmlParts'];
+        $summary = $package['summary'];
+        $settings = $selected['byKind']['settings'];
+        $theme = $selected['byKind']['theme'];
+        $settingsTextRows = array_values(array_filter(
+            $settings['xmlTextNodes'],
+            static fn (array $row): bool => $row['parentPath'] === '/w:settings/w:docVars/w:docVar',
+        ));
+
+        $t->same(2, $selected['xmlCdataSectionPartCount']);
+        $t->same(2, $selected['xmlCdataSectionCount']);
+        $t->same(strlen($settingsCdata) + strlen($themeCdata), $selected['xmlCdataSectionByteLength']);
+        $t->same(['word/settings.xml', 'word/theme/text-theme.xml'], $selected['xmlCdataSectionPartNames']);
+        $t->same([
+            '/a:theme/a:themeElements' => 1,
+            '/w:settings/w:compat' => 1,
+        ], $selected['xmlCdataSectionParentPathCounts']);
+        $t->same([
+            'http://schemas.openxmlformats.org/drawingml/2006/main' => 1,
+            'http://schemas.openxmlformats.org/wordprocessingml/2006/main' => 1,
+        ], $selected['xmlCdataSectionParentNamespaceCounts']);
+
+        $t->same(1, $settings['xmlCdataSectionCount']);
+        $t->same(strlen($settingsCdata), $settings['xmlCdataSectionByteLength']);
+        $t->same('/w:settings/w:compat', $settings['xmlCdataSections'][0]['parentPath']);
+        $t->same('w:compat', $settings['xmlCdataSections'][0]['parentQualifiedName']);
+        $t->same(sprintf('%08x', crc32($settingsCdata)), $settings['xmlCdataSections'][0]['crc32']);
+        $t->same(hash('sha256', $settingsCdata), $settings['xmlCdataSections'][0]['sha256']);
+
+        $t->same(1, $theme['xmlCdataSectionCount']);
+        $t->same(strlen($themeCdata), $theme['xmlCdataSectionByteLength']);
+        $t->same('/a:theme/a:themeElements', $theme['xmlCdataSections'][0]['parentPath']);
+        $t->same('a:themeElements', $theme['xmlCdataSections'][0]['parentQualifiedName']);
+        $t->same(sprintf('%08x', crc32($themeCdata)), $theme['xmlCdataSections'][0]['crc32']);
+        $t->same(hash('sha256', $themeCdata), $theme['xmlCdataSections'][0]['sha256']);
+
+        $t->same(1, count($settingsTextRows));
+        $t->same(strlen($settingsText), $settingsTextRows[0]['byteLength']);
+        $t->same(false, $settingsTextRows[0]['isWhitespaceOnly']);
+        $t->same(1, $settingsTextRows[0]['lineBreakCount']);
+        $t->same(true, $settingsTextRows[0]['hasLineBreak']);
+        $t->same(sprintf('%08x', crc32($settingsText)), $settingsTextRows[0]['crc32']);
+        $t->same(hash('sha256', $settingsText), $settingsTextRows[0]['sha256']);
+        $t->same('docVar', $settingsTextRows[0]['parentLocalName']);
+        $t->true($selected['xmlTextNodeCount'] >= $settings['xmlTextNodeCount'], 'selected text rollup should include settings text nodes');
+        $t->true(in_array('word/settings.xml', $selected['xmlTextNodePartNames'], true), 'settings text part should be summarized');
+
+        $t->same($selected['xmlCdataSectionPartCount'], $summary['selectedXmlPartXmlCdataSectionPartCount']);
+        $t->same($selected['xmlCdataSectionCount'], $summary['selectedXmlPartXmlCdataSectionCount']);
+        $t->same($selected['xmlCdataSectionByteLength'], $summary['selectedXmlPartXmlCdataSectionByteLength']);
+        $t->same($selected['xmlCdataSectionPartNames'], $summary['selectedXmlPartXmlCdataSectionPartNames']);
+        $t->same($selected['xmlCdataSectionParentPathCounts'], $summary['selectedXmlPartXmlCdataSectionParentPathCounts']);
+        $t->same($selected['xmlCdataSections'], $summary['selectedXmlPartXmlCdataSections']);
+        $t->same($selected['xmlTextNodeCount'], $summary['selectedXmlPartXmlTextNodeCount']);
+        $t->same($selected['xmlTextNodeByteLength'], $summary['selectedXmlPartXmlTextNodeByteLength']);
+        $t->same($selected['xmlTextNodeWhitespaceCount'], $summary['selectedXmlPartXmlTextNodeWhitespaceCount']);
+        $t->same($selected['xmlTextNodeNonWhitespaceCount'], $summary['selectedXmlPartXmlTextNodeNonWhitespaceCount']);
+        $t->same($selected['xmlTextNodeLineBreakCount'], $summary['selectedXmlPartXmlTextNodeLineBreakCount']);
+        $t->same($selected['xmlTextNodeParentPathCounts'], $summary['selectedXmlPartXmlTextNodeParentPathCounts']);
+        $t->same($selected['xmlTextNodes'], $summary['selectedXmlPartXmlTextNodes']);
+
+        $encodedReview = json_encode([
+            $selected['xmlCdataSections'],
+            $selected['xmlTextNodes'],
+            $summary['selectedXmlPartXmlCdataSections'],
+            $summary['selectedXmlPartXmlTextNodes'],
+        ]);
+        $t->true(is_string($encodedReview), 'selected XML text metadata should encode for review');
+        $t->true(!isset($settingsTextRows[0]['data']), 'selected XML text metadata must not expose raw text');
+        $t->true(!isset($settings['xmlCdataSections'][0]['data']), 'selected XML CDATA metadata must not expose raw CDATA text');
+        $t->true(!str_contains((string) $encodedReview, 'hidden-alpha'), 'selected XML text rollups should not expose text content');
+        $t->true(!str_contains((string) $encodedReview, 'hidden-beta'), 'selected XML CDATA rollups should not expose CDATA content');
+        $t->true(!str_contains((string) $encodedReview, 'hidden-gamma'), 'selected XML theme CDATA rollups should not expose CDATA content');
+        $t->true(!str_contains((string) $encodedReview, 'Text Theme'), 'selected XML text rollups should not expose selected part attribute values');
+    },
     'summarizes docx package xml root namespace declarations for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['customXml/ns-review.xml'] = <<<'XML'
