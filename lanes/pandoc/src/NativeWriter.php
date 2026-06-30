@@ -1136,7 +1136,7 @@ final class NativeWriter
     private function renderInline(AstNode $node): array
     {
         return match ($node->type) {
-            'text' => $this->renderTextInline((string) $node->attr('text', '')),
+            'text' => $this->renderTextInlineNode($node),
             'space' => ['Space'],
             'softbreak' => ['SoftBreak'],
             'linebreak' => ['LineBreak'],
@@ -1413,6 +1413,42 @@ final class NativeWriter
         }
 
         return $nodes;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderTextInlineNode(AstNode $node): array
+    {
+        if ($this->nativeInlinePartsMatchText($node)) {
+            $rendered = [];
+            $parts = $node->attr('nativeInlineParts', []);
+            foreach ($parts as $part) {
+                if (!is_array($part) || array_is_list($part)) {
+                    return $this->renderTextInline((string) $node->attr('text', ''));
+                }
+
+                if (($part['t'] ?? null) === 'Str') {
+                    $content = $this->nativeStringContent($part['c'] ?? null);
+                    if ($content === null) {
+                        return $this->renderTextInline((string) $node->attr('text', ''));
+                    }
+                    $rendered[] = 'Str ' . $this->quote($content);
+                    continue;
+                }
+
+                if (in_array($part['t'] ?? null, ['Space', 'SoftBreak', 'LineBreak'], true)) {
+                    $rendered[] = (string) $part['t'];
+                    continue;
+                }
+
+                return $this->renderTextInline((string) $node->attr('text', ''));
+            }
+
+            return $rendered;
+        }
+
+        return $this->renderTextInline((string) $node->attr('text', ''));
     }
 
     /**

@@ -3505,6 +3505,42 @@ return [
             $t->same(['text', 'softbreak', 'text', 'linebreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $roundTrip->children[0]->children), "{$source} reads preserved separator constructors");
         }
     },
+    'preserves native text part constructors in textual native output' => static function (TestRunner $t): void {
+        $nativeParts = [
+            ['t' => 'Str', 'c' => ['Alpha']],
+            ['t' => 'SoftBreak'],
+            ['t' => 'Str', 'c' => 'Beta'],
+            ['t' => 'LineBreak'],
+            ['t' => 'Str', 'c' => 'Gamma'],
+        ];
+        $emptyStr = ['t' => 'Str', 'c' => ''];
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', [
+                    'text' => 'Alpha Beta Gamma',
+                    'nativeInlineParts' => $nativeParts,
+                ]),
+            ]),
+            new AstNode('plain', [], [
+                new AstNode('text', [
+                    'text' => '',
+                    'nativeInlineParts' => [$emptyStr],
+                ]),
+            ]),
+        ]);
+
+        $nativeText = (new NativeWriter(['blocksOnly' => true]))->write($document);
+        $roundTrip = (new NativeReader())->read($nativeText);
+        $paragraphChildren = $roundTrip->children[0]->children;
+        $plainChildren = $roundTrip->children[1]->children;
+
+        $t->contains('SoftBreak', $nativeText);
+        $t->contains('LineBreak', $nativeText);
+        $t->contains('Str ""', $nativeText);
+        $t->same(false, str_contains($nativeText, 'Str "Alpha Beta Gamma"'));
+        $t->same(['text', 'softbreak', 'text', 'linebreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraphChildren));
+        $t->same('', $plainChildren[0]->attr('text'));
+    },
     'preserves empty native string constructors through json and native writers' => static function (TestRunner $t): void {
         $emptyStr = ['t' => 'Str', 'c' => '', 'reviewQueue' => 'empty-str-source'];
         $codeInline = ['t' => 'Code', 'c' => [['empty-code', ['php'], [['data-source', 'empty-str']]], 'wp_insert_post']];
