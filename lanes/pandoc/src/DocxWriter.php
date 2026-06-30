@@ -15,6 +15,8 @@ final class DocxWriter
     private const NS_VT = 'http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes';
     private const NS_XSI = 'http://www.w3.org/2001/XMLSchema-instance';
     private const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
+    private const NS_PIC = 'http://schemas.openxmlformats.org/drawingml/2006/picture';
+    private const NS_WP = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
     private const REL_OFFICE_DOCUMENT = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
     private const REL_CORE_PROPERTIES = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties';
     private const REL_EXTENDED_PROPERTIES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties';
@@ -28,6 +30,7 @@ final class DocxWriter
     private const REL_NUMBERING = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
     private const REL_SETTINGS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
     private const REL_HYPERLINK = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+    private const REL_IMAGE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
     private const CT_CORE_PROPERTIES = 'application/vnd.openxmlformats-package.core-properties+xml';
     private const CT_EXTENDED_PROPERTIES = 'application/vnd.openxmlformats-officedocument.extended-properties+xml';
     private const CT_CUSTOM_PROPERTIES = 'application/vnd.openxmlformats-officedocument.custom-properties+xml';
@@ -78,6 +81,12 @@ final class DocxWriter
     /** @var list<OpcRelationship> */
     private array $footnoteRelationships = [];
 
+    /** @var list<array{name:string, data:string, contentType:string, source:string, relationshipId:string}> */
+    private array $mediaParts = [];
+
+    /** @var array<string, array{name:string, data:string, contentType:string, source:string, relationshipId:string}> */
+    private array $mediaPartsBySource = [];
+
     /** @var list<array{id:int, blocks:list<AstNode>}> */
     private array $footnotes = [];
 
@@ -125,7 +134,7 @@ final class DocxWriter
         $commentsXml = $this->commentsXml();
         $footnotesXml = $this->footnotesXml();
 
-        return $this->normalizePackageParts([
+        $parts = [
             ['name' => '[Content_Types].xml', 'data' => $this->contentTypesXml()],
             ['name' => '_rels/.rels', 'data' => $this->rootRelationshipsXml()],
             ['name' => 'docProps/core.xml', 'data' => $this->corePropertiesXml($document)],
@@ -142,7 +151,13 @@ final class DocxWriter
             ['name' => 'word/settings.xml', 'data' => $this->settingsXml()],
             ['name' => 'word/theme/theme1.xml', 'data' => $this->themeXml()],
             ['name' => 'word/webSettings.xml', 'data' => $this->webSettingsXml()],
-        ]);
+        ];
+
+        foreach ($this->mediaParts as $mediaPart) {
+            $parts[] = ['name' => $mediaPart['name'], 'data' => $mediaPart['data']];
+        }
+
+        return $this->normalizePackageParts($parts);
     }
 
     public static function normalizePackagePartName(string $partName): string
@@ -203,6 +218,8 @@ final class DocxWriter
     {
         $this->documentRelationships = [];
         $this->footnoteRelationships = [];
+        $this->mediaParts = [];
+        $this->mediaPartsBySource = [];
         $this->footnotes = [];
         $this->comments = [];
         $this->commentIds = [];
@@ -233,6 +250,9 @@ final class DocxWriter
         $types->addOverride('/word/settings.xml', self::CT_SETTINGS);
         $types->addOverride('/word/theme/theme1.xml', self::CT_THEME);
         $types->addOverride('/word/webSettings.xml', self::CT_WEB_SETTINGS);
+        foreach ($this->mediaParts as $mediaPart) {
+            $types->addOverride('/' . $mediaPart['name'], $mediaPart['contentType']);
+        }
 
         return self::xmlDeclaration() . $types->toXml() . "\n";
     }
@@ -514,8 +534,13 @@ final class DocxWriter
             $blocks[] = '<w:p/>';
         }
 
+        $namespaces = 'xmlns:w="' . self::NS_W . '" xmlns:r="' . self::NS_R . '"';
+        if ($this->mediaParts !== []) {
+            $namespaces .= ' xmlns:a="' . self::NS_A . '" xmlns:pic="' . self::NS_PIC . '" xmlns:wp="' . self::NS_WP . '"';
+        }
+
         return self::xmlDeclaration()
-            . '<w:document xmlns:w="' . self::NS_W . '" xmlns:r="' . self::NS_R . '">'
+            . '<w:document ' . $namespaces . '>'
             . '<w:body>'
             . implode('', $blocks)
             . $this->sectionPropertiesXml()
@@ -1173,7 +1198,9 @@ final class DocxWriter
             'smallcaps', 'small_caps' => $this->renderInlines($node->children, $format + ['smallCaps' => true], $context),
             'code' => $this->textRun((string) $node->attr('text', $node->attr('code', '')), $format + ['code' => true]),
             'link' => $this->hyperlinkXml($node, $format, $context),
-            'image' => $this->textRun($this->imageAltText($node), $format),
+            'image' => $context === 'document'
+                ? $this->imageXml($node, $format)
+                : $this->textRun($this->imageAltText($node), $format),
             'math' => $this->textRun((string) $node->attr('text', $node->attr('math', '')), $format),
             'raw_inline' => $this->rawOpenXmlInlineXml($node) ?? $this->textRun(
                 (string) $node->attr('text', $node->attr('math', $node->attr('html', $node->attr('tex', '')))),
@@ -1215,6 +1242,58 @@ final class DocxWriter
         $relationshipId = $this->addHyperlinkRelationship($target);
 
         return '<w:hyperlink r:id="' . self::escAttr($relationshipId) . '">' . $content . '</w:hyperlink>';
+    }
+
+    /**
+     * @param array<string, bool|string> $format
+     */
+    private function imageXml(AstNode $node, array $format): string
+    {
+        $source = (string) $node->attr('url', $node->attr('src', ''));
+        $mediaPart = $source === '' ? null : $this->ensureImageMediaPart($source);
+        if ($mediaPart === null) {
+            return $this->textRun($this->imageAltText($node), $format);
+        }
+
+        $dimensions = $this->imageDimensionsEmu($node, $mediaPart['data']);
+        $docPrId = $this->nextDocumentDynamicId();
+        $picturePrId = $this->nextDocumentDynamicId();
+        $alt = $this->imageAltText($node);
+        $title = (string) $node->attr('title', '');
+        $sourceName = $this->imageSourceName($source);
+        $relationshipId = $mediaPart['relationshipId'];
+        $bookmarkName = (string) $node->attr('id', '');
+        $bookmarkStart = '';
+        $bookmarkEnd = '';
+        if ($bookmarkName !== '') {
+            $bookmarkId = $this->nextDocumentDynamicId();
+            if ($this->nextBookmarkId <= $bookmarkId) {
+                $this->nextBookmarkId = $bookmarkId + 1;
+            }
+            $bookmarkStart = '<w:bookmarkStart w:id="' . $bookmarkId . '" w:name="' . self::escAttr($bookmarkName) . '"/>';
+            $bookmarkEnd = '<w:bookmarkEnd w:id="' . $bookmarkId . '"/>';
+        }
+
+        $drawing = '<w:r><w:drawing><wp:inline>'
+            . '<wp:extent cx="' . $dimensions['cx'] . '" cy="' . $dimensions['cy'] . '"/>'
+            . '<wp:effectExtent b="0" l="0" r="0" t="0"/>'
+            . '<wp:docPr descr="' . self::escAttr($alt) . '" title="' . self::escAttr($title) . '" id="' . $docPrId . '" name="Picture"/>'
+            . '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+            . '<pic:pic><pic:nvPicPr>'
+            . '<pic:cNvPr descr="' . self::escAttr($sourceName) . '" id="' . $picturePrId . '" name="Picture"/>'
+            . '<pic:cNvPicPr><a:picLocks noChangeArrowheads="1" noChangeAspect="1"/></pic:cNvPicPr>'
+            . '</pic:nvPicPr><pic:blipFill>'
+            . '<a:blip r:embed="' . self::escAttr($relationshipId) . '"/>'
+            . '<a:stretch><a:fillRect/></a:stretch>'
+            . '</pic:blipFill><pic:spPr bwMode="auto">'
+            . '<a:xfrm><a:off x="0" y="0"/><a:ext cx="' . $dimensions['cx'] . '" cy="' . $dimensions['cy'] . '"/></a:xfrm>'
+            . '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>'
+            . '<a:noFill/><a:ln w="9525"><a:noFill/><a:headEnd/><a:tailEnd/></a:ln>'
+            . '</pic:spPr></pic:pic>'
+            . '</a:graphicData></a:graphic>'
+            . '</wp:inline></w:drawing></w:r>';
+
+        return $bookmarkStart . $drawing . $bookmarkEnd;
     }
 
     private function footnoteReferenceXml(AstNode $node): string
@@ -1360,6 +1439,224 @@ final class DocxWriter
         $this->documentRelationships[] = new OpcRelationship($id, $type, $target, $targetMode);
 
         return $id;
+    }
+
+    private function nextDocumentDynamicId(): int
+    {
+        return $this->nextDocumentRelationshipId++;
+    }
+
+    /**
+     * @return array{name:string, data:string, contentType:string, source:string, relationshipId:string}|null
+     */
+    private function ensureImageMediaPart(string $source): ?array
+    {
+        $key = $this->mediaSourceKey($source);
+        if (isset($this->mediaPartsBySource[$key])) {
+            return $this->mediaPartsBySource[$key];
+        }
+
+        $media = $this->resolveImageMedia($source);
+        if ($media === null) {
+            return null;
+        }
+
+        $relationshipId = 'rId' . $this->nextDocumentDynamicId();
+        $target = 'media/' . $relationshipId . '.' . $media['extension'];
+        $partName = 'word/' . $target;
+        $this->documentRelationships[] = new OpcRelationship(
+            $relationshipId,
+            self::REL_IMAGE,
+            $target,
+            OpcRelationship::TARGET_MODE_INTERNAL
+        );
+
+        $part = [
+            'name' => $partName,
+            'data' => $media['data'],
+            'contentType' => $media['contentType'],
+            'source' => $source,
+            'relationshipId' => $relationshipId,
+        ];
+        $this->mediaParts[] = $part;
+        $this->mediaPartsBySource[$key] = $part;
+
+        return $part;
+    }
+
+    private function mediaSourceKey(string $source): string
+    {
+        $resolved = $this->resolveLocalMediaPath($source);
+
+        return $resolved === null ? $source : $resolved;
+    }
+
+    /**
+     * @return array{data:string, extension:string, contentType:string}|null
+     */
+    private function resolveImageMedia(string $source): ?array
+    {
+        $path = $this->resolveLocalMediaPath($source);
+        if ($path === null || !is_file($path) || !is_readable($path)) {
+            return null;
+        }
+
+        $extension = strtolower((string) pathinfo($path, PATHINFO_EXTENSION));
+        $contentType = match ($extension) {
+            'jpg', 'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'gif' => 'image/gif',
+            default => null,
+        };
+        if ($contentType === null) {
+            return null;
+        }
+
+        $data = file_get_contents($path);
+        if (!is_string($data)) {
+            return null;
+        }
+
+        return [
+            'data' => $data,
+            'extension' => $extension === 'jpeg' ? 'jpg' : $extension,
+            'contentType' => $contentType,
+        ];
+    }
+
+    private function resolveLocalMediaPath(string $source): ?string
+    {
+        if ($source === '' || preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $source) === 1) {
+            return null;
+        }
+
+        $candidates = [];
+        if ($source[0] === '/') {
+            $candidates[] = $source;
+        } else {
+            $normalizedSource = str_replace('/', DIRECTORY_SEPARATOR, $source);
+            foreach ($this->mediaBasePaths() as $basePath) {
+                $candidates[] = rtrim($basePath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $normalizedSource;
+            }
+            $cwd = getcwd();
+            if (is_string($cwd)) {
+                $candidates[] = $cwd . DIRECTORY_SEPARATOR . $normalizedSource;
+            }
+        }
+
+        foreach ($candidates as $candidate) {
+            $real = realpath($candidate);
+            if (is_string($real) && is_file($real)) {
+                return $real;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function mediaBasePaths(): array
+    {
+        $paths = [];
+        foreach (['mediaBasePath', 'resourcePath'] as $key) {
+            if (isset($this->options[$key]) && is_string($this->options[$key]) && $this->options[$key] !== '') {
+                $paths[] = $this->options[$key];
+            }
+        }
+        foreach (['mediaBasePaths', 'resourcePaths'] as $key) {
+            $value = $this->options[$key] ?? [];
+            if (is_string($value) && $value !== '') {
+                $paths[] = $value;
+                continue;
+            }
+            if (!is_array($value)) {
+                continue;
+            }
+            foreach ($value as $path) {
+                if (is_string($path) && $path !== '') {
+                    $paths[] = $path;
+                }
+            }
+        }
+
+        return array_values(array_unique($paths));
+    }
+
+    /** @return array{cx:int, cy:int} */
+    private function imageDimensionsEmu(AstNode $node, string $bytes): array
+    {
+        $imageSize = @getimagesizefromstring($bytes);
+        $naturalWidth = is_array($imageSize) && isset($imageSize[0]) ? max(1, (int) $imageSize[0]) : 200;
+        $naturalHeight = is_array($imageSize) && isset($imageSize[1]) ? max(1, (int) $imageSize[1]) : 200;
+        $naturalCx = $naturalWidth * 9525;
+        $naturalCy = $naturalHeight * 9525;
+        $width = $this->imageDimensionAttribute($node, 'width');
+        $height = $this->imageDimensionAttribute($node, 'height');
+        $cx = $width === null ? null : $this->dimensionToEmu($width);
+        $cy = $height === null ? null : $this->dimensionToEmu($height);
+
+        if ($cx === null && $cy === null) {
+            $cx = $naturalCx;
+            $cy = $naturalCy;
+        } elseif ($cx !== null && $cy === null) {
+            $cy = (int) round($cx * ($naturalCy / $naturalCx));
+        } elseif ($cx === null && $cy !== null) {
+            $cx = (int) round($cy * ($naturalCx / $naturalCy));
+        }
+
+        $cx = max(1, (int) $cx);
+        $cy = max(1, (int) $cy);
+        $maxCx = 5334000;
+        if ($cx > $maxCx) {
+            $scale = $maxCx / $cx;
+            $cx = $maxCx;
+            $cy = max(1, (int) round($cy * $scale));
+        }
+
+        return ['cx' => $cx, 'cy' => $cy];
+    }
+
+    private function imageDimensionAttribute(AstNode $node, string $name): ?string
+    {
+        $value = $node->attr($name);
+        if (is_scalar($value) && (string) $value !== '') {
+            return (string) $value;
+        }
+
+        $attributes = $node->attr('attributes', []);
+        if (is_array($attributes) && isset($attributes[$name]) && is_scalar($attributes[$name]) && (string) $attributes[$name] !== '') {
+            return (string) $attributes[$name];
+        }
+
+        return null;
+    }
+
+    private function dimensionToEmu(string $dimension): ?int
+    {
+        $dimension = trim($dimension);
+        if (preg_match('/^([0-9]+(?:\.[0-9]+)?|\.[0-9]+)\s*(in|cm|mm|pt|px)?$/i', $dimension, $match) !== 1) {
+            return null;
+        }
+
+        $value = (float) $match[1];
+        $unit = strtolower($match[2] ?? 'px');
+
+        return match ($unit) {
+            'in' => (int) round($value * 914400),
+            'cm' => max(1, (int) floor($value * 359999.99999999994)),
+            'mm' => max(1, (int) floor($value * 35999.99999999999)),
+            'pt' => (int) round($value * 12700),
+            default => (int) round($value * 9525),
+        };
+    }
+
+    private function imageSourceName(string $source): string
+    {
+        $basename = basename(str_replace('\\', '/', $source));
+
+        return $basename === '' ? $source : $basename;
     }
 
     private function bookmarkName(string $target): string

@@ -166,6 +166,115 @@ return [
         $t->contains('<w:allowPNG/>', $parts['word/webSettings.xml']);
     },
 
+    'emits local image media parts with document image relationships' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
+        $mediaDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'port-libs-docx-writer-media-' . getmypid() . '-' . bin2hex(random_bytes(4));
+        if (!mkdir($mediaDir, 0777, true) && !is_dir($mediaDir)) {
+            throw new RuntimeException('Unable to create DOCX writer media fixture directory');
+        }
+        $imageBytes = "bounded-docx-writer-jpeg-fixture\n";
+        $imagePath = $mediaDir . DIRECTORY_SEPARATOR . 'lalune.jpg';
+        if (file_put_contents($imagePath, $imageBytes) === false) {
+            throw new RuntimeException('Unable to write DOCX writer media fixture');
+        }
+
+        try {
+            $document = $doc([
+                $paragraph([
+                    new AstNode('image', [
+                        'id' => 'fig:testimg',
+                        'url' => 'lalune.jpg',
+                        'title' => 'fig:',
+                    ], [$text('testimg')]),
+                ]),
+            ]);
+
+            [, $parts] = $packageParts((new DocxWriter(['mediaBasePath' => $mediaDir]))->write($document));
+            $contentTypes = OpcContentTypes::fromXml($parts['[Content_Types].xml']);
+            $documentRels = OpcRelationships::fromXml($parts['word/_rels/document.xml.rels'], '/word/document.xml');
+            $imageRel = $documentRels->byId('rId9');
+            $documentXml = $parts['word/document.xml'];
+
+            $t->same($imageBytes, $parts['word/media/rId9.jpg'] ?? null);
+            $t->same('image/jpeg', $contentTypes->contentTypeForPart('/word/media/rId9.jpg'));
+            $t->true($imageRel instanceof OpcRelationship, 'Image relationship rId9 missing');
+            $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/image', $imageRel?->type);
+            $t->same('media/rId9.jpg', $imageRel?->target);
+            $t->contains('xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"', $documentXml);
+            $t->contains('<w:bookmarkStart w:id="12" w:name="fig:testimg"/>', $documentXml);
+            $t->contains('<wp:docPr descr="testimg" title="fig:" id="10" name="Picture"/>', $documentXml);
+            $t->contains('<pic:cNvPr descr="lalune.jpg" id="11" name="Picture"/>', $documentXml);
+            $t->contains('<a:blip r:embed="rId9"/>', $documentXml);
+            $t->contains('<w:bookmarkEnd w:id="12"/>', $documentXml);
+        } finally {
+            @unlink($imagePath);
+            @rmdir($mediaDir);
+        }
+    },
+
+    'deduplicates inline image media and preserves later hyperlink relationship ids' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
+        $mediaDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'port-libs-docx-writer-media-' . getmypid() . '-' . bin2hex(random_bytes(4));
+        if (!mkdir($mediaDir, 0777, true) && !is_dir($mediaDir)) {
+            throw new RuntimeException('Unable to create DOCX writer media fixture directory');
+        }
+        $imageBytes = "bounded-docx-writer-inline-jpeg-fixture\n";
+        $imagePath = $mediaDir . DIRECTORY_SEPARATOR . 'lalune.jpg';
+        if (file_put_contents($imagePath, $imageBytes) === false) {
+            throw new RuntimeException('Unable to write DOCX writer media fixture');
+        }
+
+        try {
+            $document = $doc([
+                $paragraph([
+                    $text('This picture'),
+                    new AstNode('space'),
+                    new AstNode('image', [
+                        'url' => 'lalune.jpg',
+                        'title' => 'First identicon',
+                        'attributes' => [
+                            'width' => '0.8888888888888888in',
+                            'height' => '0.8888888888888888in',
+                        ],
+                    ], [$text('green')]),
+                    new AstNode('space'),
+                    new AstNode('link', ['url' => 'http://www.google.com'], [
+                        $text('one'),
+                        new AstNode('space'),
+                        new AstNode('image', [
+                            'url' => 'lalune.jpg',
+                            'title' => 'Second identicon',
+                            'attributes' => [
+                                'width' => '0.8888888888888888in',
+                                'height' => '0.8888888888888888in',
+                            ],
+                        ], [$text('red')]),
+                    ]),
+                ]),
+            ]);
+
+            [, $parts] = $packageParts((new DocxWriter(['mediaBasePath' => $mediaDir]))->write($document));
+            $documentRels = OpcRelationships::fromXml($parts['word/_rels/document.xml.rels'], '/word/document.xml');
+            $documentXml = $parts['word/document.xml'];
+
+            $mediaParts = array_values(array_filter(
+                array_keys($parts),
+                static fn (string $name): bool => str_starts_with($name, 'word/media/')
+            ));
+
+            $t->same(['word/media/rId9.jpg'], $mediaParts);
+            $t->same($imageBytes, $parts['word/media/rId9.jpg']);
+            $t->same('media/rId9.jpg', $documentRels->byId('rId9')?->target);
+            $t->same('http://www.google.com', $documentRels->byId('rId14')?->target);
+            $t->same(OpcRelationship::TARGET_MODE_EXTERNAL, $documentRels->byId('rId14')?->targetMode);
+            $t->contains('<wp:extent cx="812800" cy="812800"/>', $documentXml);
+            $t->contains('<wp:docPr descr="green" title="First identicon" id="10" name="Picture"/>', $documentXml);
+            $t->contains('<wp:docPr descr="red" title="Second identicon" id="12" name="Picture"/>', $documentXml);
+            $t->contains('<w:hyperlink r:id="rId14">', $documentXml);
+        } finally {
+            @unlink($imagePath);
+            @rmdir($mediaDir);
+        }
+    },
+
     'emits bounded word tables with captions spans and nested cell blocks' => static function (TestRunner $t) use ($doc, $text, $paragraph, $item, $cell, $row, $packageParts): void {
         $document = $doc([
             new AstNode('table', [

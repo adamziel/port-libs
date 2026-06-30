@@ -1008,7 +1008,9 @@ final class DocxWriterGoldenManifest
         }
 
         $nativeReader = new NativeReader();
-        $writerInstance = new DocxWriter();
+        $writerInstance = new DocxWriter([
+            'mediaBasePaths' => array_values(array_unique([$sourceDir, dirname($sourceDir)])),
+        ]);
         $rows = [];
         $generated = 0;
         $skipped = 0;
