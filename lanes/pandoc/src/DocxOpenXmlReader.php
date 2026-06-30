@@ -1404,6 +1404,8 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['chartPartIssueCount'] = $chartParts['issueCount'];
         $packageProvenance['summary']['chartPartIssueCodes'] = $chartParts['issueCodes'];
         $packageProvenance['summary']['chartEmbeddedPackageCount'] = $chartParts['embeddedPackageCount'];
+        $packageProvenance['summary']['chartEmbeddedPackageReferencedCount'] = $chartParts['embeddedPackageReferencedCount'];
+        $packageProvenance['summary']['chartEmbeddedPackageUnreferencedRelationshipCount'] = $chartParts['embeddedPackageUnreferencedRelationshipCount'];
         $packageProvenance['summary']['chartEmbeddedPackageExistingCount'] = $chartParts['embeddedPackageExistingCount'];
         $packageProvenance['summary']['chartEmbeddedPackageMissingCount'] = $chartParts['embeddedPackageMissingCount'];
         $packageProvenance['summary']['chartEmbeddedPackageExternalCount'] = $chartParts['embeddedPackageExternalCount'];
@@ -1426,6 +1428,8 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['diagramPartIssueCount'] = $diagramParts['issueCount'];
         $packageProvenance['summary']['diagramPartIssueCodes'] = $diagramParts['issueCodes'];
         $packageProvenance['summary']['diagramEmbeddedPackageCount'] = $diagramParts['embeddedPackageCount'];
+        $packageProvenance['summary']['diagramEmbeddedPackageReferencedCount'] = $diagramParts['embeddedPackageReferencedCount'];
+        $packageProvenance['summary']['diagramEmbeddedPackageUnreferencedRelationshipCount'] = $diagramParts['embeddedPackageUnreferencedRelationshipCount'];
         $packageProvenance['summary']['diagramEmbeddedPackageExistingCount'] = $diagramParts['embeddedPackageExistingCount'];
         $packageProvenance['summary']['diagramEmbeddedPackageMissingCount'] = $diagramParts['embeddedPackageMissingCount'];
         $packageProvenance['summary']['diagramEmbeddedPackageExternalCount'] = $diagramParts['embeddedPackageExternalCount'];
@@ -7143,6 +7147,8 @@ final class DocxOpenXmlReader
         $embeddedPackageExternalTargets = [];
         $embeddedPackageIssueCodes = [];
         $embeddedPackageCount = 0;
+        $embeddedPackageReferencedCount = 0;
+        $embeddedPackageUnreferencedRelationshipCount = 0;
         $embeddedPackageExistingCount = 0;
         $embeddedPackageMissingCount = 0;
         $embeddedPackageExternalCount = 0;
@@ -7172,6 +7178,8 @@ final class DocxOpenXmlReader
             }
             $embeddedPackages = is_array($item['embeddedPackages'] ?? null) ? $item['embeddedPackages'] : [];
             $embeddedPackageCount += (int) ($embeddedPackages['count'] ?? 0);
+            $embeddedPackageReferencedCount += (int) ($embeddedPackages['referencedCount'] ?? 0);
+            $embeddedPackageUnreferencedRelationshipCount += (int) ($embeddedPackages['unreferencedRelationshipCount'] ?? 0);
             $embeddedPackageExistingCount += (int) ($embeddedPackages['existingCount'] ?? 0);
             $embeddedPackageMissingCount += (int) ($embeddedPackages['missingCount'] ?? 0);
             $embeddedPackageExternalCount += (int) ($embeddedPackages['externalCount'] ?? 0);
@@ -7256,6 +7264,8 @@ final class DocxOpenXmlReader
             'externalTargets' => $externalTargets,
             'contentTypes' => $contentTypesSeen,
             'embeddedPackageCount' => $embeddedPackageCount,
+            'embeddedPackageReferencedCount' => $embeddedPackageReferencedCount,
+            'embeddedPackageUnreferencedRelationshipCount' => $embeddedPackageUnreferencedRelationshipCount,
             'embeddedPackageExistingCount' => $embeddedPackageExistingCount,
             'embeddedPackageMissingCount' => $embeddedPackageMissingCount,
             'embeddedPackageExternalCount' => $embeddedPackageExternalCount,
@@ -8060,6 +8070,8 @@ final class DocxOpenXmlReader
         $embeddedPackageExternalTargets = [];
         $embeddedPackageIssueCodes = [];
         $embeddedPackageCount = 0;
+        $embeddedPackageReferencedCount = 0;
+        $embeddedPackageUnreferencedRelationshipCount = 0;
         $embeddedPackageExistingCount = 0;
         $embeddedPackageMissingCount = 0;
         $embeddedPackageExternalCount = 0;
@@ -8083,6 +8095,8 @@ final class DocxOpenXmlReader
             }
             $embeddedPackages = is_array($item['embeddedPackages'] ?? null) ? $item['embeddedPackages'] : [];
             $embeddedPackageCount += (int) ($embeddedPackages['count'] ?? 0);
+            $embeddedPackageReferencedCount += (int) ($embeddedPackages['referencedCount'] ?? 0);
+            $embeddedPackageUnreferencedRelationshipCount += (int) ($embeddedPackages['unreferencedRelationshipCount'] ?? 0);
             $embeddedPackageExistingCount += (int) ($embeddedPackages['existingCount'] ?? 0);
             $embeddedPackageMissingCount += (int) ($embeddedPackages['missingCount'] ?? 0);
             $embeddedPackageExternalCount += (int) ($embeddedPackages['externalCount'] ?? 0);
@@ -8132,6 +8146,8 @@ final class DocxOpenXmlReader
             'contentTypes' => $contentTypesSeen,
             'roleCounts' => $roleCounts,
             'embeddedPackageCount' => $embeddedPackageCount,
+            'embeddedPackageReferencedCount' => $embeddedPackageReferencedCount,
+            'embeddedPackageUnreferencedRelationshipCount' => $embeddedPackageUnreferencedRelationshipCount,
             'embeddedPackageExistingCount' => $embeddedPackageExistingCount,
             'embeddedPackageMissingCount' => $embeddedPackageMissingCount,
             'embeddedPackageExternalCount' => $embeddedPackageExternalCount,
