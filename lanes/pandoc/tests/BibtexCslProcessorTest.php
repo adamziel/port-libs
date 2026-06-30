@@ -412,6 +412,101 @@ XML);
         $t->contains('PMID 34567890', $blocks);
         $t->contains('HDL 20.500/legacy', $blocks);
     },
+    'carries biblatex math registry identifiers in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@article{legacy-math-review,
+  author       = {Noether, Emmy},
+  title        = {Legacy Math Review Packet},
+  journaltitle = {Mathematical Migration Review},
+  date         = {2026},
+  mrnumber     = {MR1234567},
+  mrclass      = {11M06},
+  zbl          = {1234.56789}
+}
+
+@article{legacy-math-alias,
+  author       = {Smith, Ada},
+  title        = {Alias Math Registry Packet},
+  journaltitle = {Migration Algebra Notes},
+  date         = {2025},
+  mathscinet   = {MR7654321},
+  mr-class     = {68N15},
+  zbmath       = {9876.54321}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $review = $items['legacy-math-review'];
+        $alias = $items['legacy-math-alias'];
+
+        $t->same('MR1234567', $review['MRNumber']);
+        $t->same('11M06', $review['MRClass']);
+        $t->same('1234.56789', $review['Zbl']);
+        $t->same('MR7654321', $alias['MRNumber']);
+        $t->same('68N15', $alias['MRClass']);
+        $t->same('9876.54321', $alias['Zbl']);
+        $t->same('MR7654321', $alias['rawBibtex']['fields']['mathscinet']);
+        $t->same('68N15', $alias['rawBibtex']['fields']['mr-class']);
+        $t->same('9876.54321', $alias['rawBibtex']['fields']['zbmath']);
+        $t->same(
+            'Emmy Noether. Legacy Math Review Packet. Mathematical Migration Review. 2026. MR MR1234567. MR class 11M06. Zbl 1234.56789.',
+            $processor->renderBibliographyText($review)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Math Registry Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-math-registry-review</id>
+    <updated>2026-06-30T11:45:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="mr-number"/>
+        <text variable="mr-class"/>
+        <text variable="zbmath"/>
+        <text variable="registry-identifiers"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="mathscinet"/>
+      <text variable="mr-class"/>
+      <text variable="zbl"/>
+      <text variable="registry-identifier-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledReview = $styled->item('legacy-math-review');
+        $styledAlias = $styled->item('legacy-math-alias');
+        $t->same('Bounded Legacy BibLaTeX Math Registry Review', $styled->cslStyleSummary()['title'] ?? null);
+        $t->same('MR MR1234567; MR class 11M06; Zbl 1234.56789', $styledReview['registryIdentifierSummary'] ?? null);
+        $t->same('MR MR7654321; MR class 68N15; Zbl 9876.54321', $styledAlias['registryIdentifierSummary'] ?? null);
+        $t->same('[Legacy Math Review Packet | MR1234567 | 11M06 | 1234.56789 | MR MR1234567; MR class 11M06; Zbl 1234.56789; Alias Math Registry Packet | MR7654321 | 68N15 | 9876.54321 | MR MR7654321; MR class 68N15; Zbl 9876.54321]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-math-review', 'text' => '[@legacy-math-review]']),
+            new AstNode('citation', ['id' => 'legacy-math-alias', 'text' => '[@legacy-math-alias]']),
+        ]));
+        $t->same('Alias Math Registry Packet :: MR7654321 :: 68N15 :: 9876.54321 :: MR MR7654321; MR class 68N15; Zbl 9876.54321', $styled->renderBibliographyEntry('legacy-math-alias'));
+
+        $document = (new MarkdownReader())->read('Math registry packets [@legacy-math-review; @legacy-math-alias] keep review identifiers visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['legacy-math-review', 'legacy-math-alias'], $handoff['citedKeys']);
+        $t->same('MR1234567', $handoff['items'][0]['MRNumber'] ?? null);
+        $t->same('9876.54321', $handoff['bibliography']->children[1]->attr('cslItem')['Zbl'] ?? null);
+        $t->contains('<p>Math registry packets [Legacy Math Review Packet | MR1234567 | 11M06 | 1234.56789 | MR MR1234567; MR class 11M06; Zbl 1234.56789; Alias Math Registry Packet | MR7654321 | 68N15 | 9876.54321 | MR MR7654321; MR class 68N15; Zbl 9876.54321] keep review identifiers visible.</p>', $blocks);
+        $t->contains('<dt>Noether 2026</dt><dd>Legacy Math Review Packet :: MR1234567 :: 11M06 :: 1234.56789 :: MR MR1234567; MR class 11M06; Zbl 1234.56789</dd>', $blocks);
+        $t->contains('<dt>Smith 2025</dt><dd>Alias Math Registry Packet :: MR7654321 :: 68N15 :: 9876.54321 :: MR MR7654321; MR class 68N15; Zbl 9876.54321</dd>', $blocks);
+    },
     'normalizes prefixed biblatex identifiers without losing raw fields' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @online{identifier-normalization,
