@@ -48,6 +48,35 @@ final class MarkdownFormatProfile
         'markdown+phpextra' => 'markdown_phpextra',
     ];
 
+    /** @var array<string, string> */
+    private const EXTENSION_ALIASES = [
+        'bracketed_span' => 'bracketed_spans',
+        'emoji_shortcode' => 'emoji_shortcodes',
+        'header_attrs' => 'header_attributes',
+        'header_attribute' => 'header_attributes',
+        'inline_attribute' => 'inline_attributes',
+        'markdown_attribute' => 'inline_attributes',
+        'line_block' => 'line_blocks',
+        'raw_latex' => 'raw_tex',
+        'latex_macros' => 'raw_tex',
+        'subscripts' => 'subscript',
+        'superscripts' => 'superscript',
+        'task_list' => 'task_lists',
+        'task-list' => 'task_lists',
+        'tasklist' => 'task_lists',
+        'grid_table' => 'grid_tables',
+        'multiline_table' => 'multiline_tables',
+        'pipe_table' => 'pipe_tables',
+        'simple_table' => 'simple_tables',
+        'table' => 'pipe_tables',
+        'tables' => 'pipe_tables',
+        'wikilink_title_after_pipe' => 'wikilinks_title_after_pipe',
+        'wikilink_title_before_pipe' => 'wikilinks_title_before_pipe',
+        'wikilink' => 'wikilinks',
+        'wiki_link' => 'wikilinks',
+        'wiki_links' => 'wikilinks',
+    ];
+
     /** @var array<string, array{yamlMetadata:bool, titleBlock:bool, rawAttribute:bool, rawHtml:bool, rawTex:bool, rawMarkdown:bool}> */
     private const DEFAULTS = [
         'markdown' => [
@@ -160,10 +189,15 @@ final class MarkdownFormatProfile
 
         $overrides = [];
         foreach ($matches as $match) {
-            $overrides[strtolower($match[2])] = $match[1] === '+';
+            $overrides[self::canonicalExtension(strtolower($match[2]))] = $match[1] === '+';
         }
 
         return $overrides;
+    }
+
+    private static function canonicalExtension(string $extension): string
+    {
+        return self::EXTENSION_ALIASES[$extension] ?? $extension;
     }
 
     /**
