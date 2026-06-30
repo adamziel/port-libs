@@ -312,15 +312,27 @@ return [
         $documentXml = $parts['word/document.xml'];
         $roundTrip = (new DocxReader())->read((new DocxWriter())->write($document));
 
-        $t->contains('<w:pStyle w:val="Caption"/>', $documentXml);
+        $t->contains('<w:pStyle w:val="TableCaption"/>', $documentXml);
         $t->contains('<w:tbl>', $documentXml);
-        $t->contains('<w:tblGrid><w:gridCol w:w="2160"/><w:gridCol w:w="6480"/></w:tblGrid>', $documentXml);
+        $t->contains('<w:tblStyle w:val="Table"/>', $documentXml);
+        $t->contains('<w:tblW w:w="5000" w:type="pct"/>', $documentXml);
+        $t->contains('<w:tblLayout w:type="fixed"/>', $documentXml);
+        $t->contains('<w:tblLook w:firstRow="1"', $documentXml);
+        $t->contains('<w:tblHeader w:val="on"/>', $documentXml);
+        $t->contains('<w:tblGrid><w:gridCol w:w="1980"/><w:gridCol w:w="5940"/></w:tblGrid>', $documentXml);
+        $t->contains('<w:pStyle w:val="Compact"/>', $documentXml);
+        $t->contains('<w:pStyle w:val="FirstParagraph"/>', $documentXml);
         $t->contains('<w:t>Feature</w:t>', $documentXml);
         $t->contains('<w:b/>', $documentXml);
         $t->contains('<w:t>paragraph cell</w:t>', $documentXml);
         $t->contains('<w:numId w:val="1"/>', $documentXml);
         $t->contains('<w:gridSpan w:val="2"/>', $documentXml);
+        $t->contains('w:styleId="Table"', $parts['word/styles.xml']);
+        $t->contains('w:styleId="BodyText"', $parts['word/styles.xml']);
+        $t->contains('w:styleId="FirstParagraph"', $parts['word/styles.xml']);
+        $t->contains('w:styleId="Compact"', $parts['word/styles.xml']);
         $t->contains('w:styleId="Caption"', $parts['word/styles.xml']);
+        $t->contains('w:styleId="TableCaption"', $parts['word/styles.xml']);
         $t->same('table', $roundTrip->children[0]->type);
         $t->same('Table coverage', $roundTrip->children[0]->attr('caption'));
     },
@@ -411,6 +423,33 @@ return [
         $t->contains('<w:bookmarkStart w:id="0" w:name="Aliquam"/>', $documentXml);
         $t->contains('<w:bookmarkEnd w:id="0"/>', $documentXml);
         $t->true(!str_contains($documentXml, '&lt;w:bookmarkStart'), 'Raw bookmark was XML-escaped');
+    },
+
+    'preserves empty raw block as a table separator paragraph' => static function (TestRunner $t) use ($doc, $text, $cell, $row, $packageParts): void {
+        $simpleTable = static fn (string $left, string $right): AstNode => new AstNode('table', ['widths' => [0.0, 0.0]], [
+            new AstNode('table_head', [], []),
+            new AstNode('table_body', [], [
+                $row([
+                    $cell([$text($left)]),
+                    $cell([$text($right)]),
+                ]),
+            ]),
+            new AstNode('table_foot', [], []),
+        ]);
+
+        $document = $doc([
+            $simpleTable('a', 'b'),
+            new AstNode('raw_tex', ['format' => 'latex', 'text' => '', 'tex' => '']),
+            $simpleTable('c', 'd'),
+        ]);
+
+        [, $parts] = $packageParts((new DocxWriter())->write($document));
+        $documentXml = $parts['word/document.xml'];
+
+        $t->contains('<w:tblW w:w="0" w:type="auto"/>', $documentXml);
+        $t->contains('<w:tblLook w:firstRow="0"', $documentXml);
+        $t->contains('<w:tblGrid><w:gridCol w:w="3960"/><w:gridCol w:w="3960"/></w:tblGrid>', $documentXml);
+        $t->contains('</w:tbl><w:p/><w:tbl>', $documentXml);
     },
 
     'emits block text style for simple block quotes' => static function (TestRunner $t) use ($doc, $text, $paragraph, $plain, $item, $packageParts): void {
