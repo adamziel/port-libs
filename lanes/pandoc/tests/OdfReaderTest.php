@@ -12749,6 +12749,64 @@ XML;
         $t->throws(\RuntimeException::class, static fn (): array => $reader->readPackage($buildOdtPackage(null, $manifestWithDuplicateFullPath)));
         $t->throws(\RuntimeException::class, static fn (): array => $reader->readPackage($buildOdtPackage(null, $manifestWithDuplicateDecodedPart)));
     },
+    'preserves ODT ZIP timestamp provenance in rich package review handoff' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $timestampedBytes = 'TIMESTAMPEDPNG';
+        $modifiedAt = 1780479017;
+        $manifest = str_replace(
+            '  <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            '  <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>'
+            . "\n"
+            . '  <manifest:file-entry manifest:full-path="Pictures/timestamped.png" manifest:media-type="image/png"/>',
+            $manifestXml
+        );
+        $package = $buildOdtPackage(null, $manifest, null, null, [[
+            'name' => 'Pictures/timestamped.png',
+            'data' => $timestampedBytes,
+            'compressionMethod' => 0,
+            'modifiedAt' => $modifiedAt,
+        ]]);
+
+        $result = (new OdfReader())->readPackage($package);
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $manifestByPath = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByPath[$item['fullPath']] = $item;
+        }
+        $manifestOrderByPath = [];
+        foreach ($provenance['manifestFileEntryOrder'] as $item) {
+            $manifestOrderByPath[$item['fullPath']] = $item;
+        }
+        $manifestItem = $manifestByPath['Pictures/timestamped.png'];
+        $orderItem = $manifestOrderByPath['Pictures/timestamped.png'];
+        $part = $provenance['parts']['Pictures/timestamped.png'];
+
+        $t->same($package->modificationTimePreflight(), $provenance['modificationTimes']);
+        $t->same(1, $provenance['zipTimestampEntryCount']);
+        $t->same(1, $provenance['zipDosTimestampEntryCount']);
+        $t->same(1, $provenance['zipExtendedTimestampEntryCount']);
+        $t->same(0, $provenance['zipInvalidDosTimestampEntryCount']);
+
+        $t->same($modifiedAt, $manifestItem['zipModifiedAt']);
+        $t->same('extended-timestamp', $manifestItem['zipTimestampSource']);
+        $t->same(true, $manifestItem['zipHasDosTimestamp']);
+        $t->same(true, $manifestItem['zipIsDosTimestampValid']);
+        $t->same($modifiedAt, $manifestItem['zipExtendedModifiedAt']);
+        $t->same($modifiedAt, $manifestItem['zipLocalModifiedAt']);
+        $t->same('extended-timestamp', $manifestItem['zipLocalTimestampSource']);
+        $t->same([], $manifestItem['zipTimestampIssues']);
+
+        $t->same($modifiedAt, $orderItem['zipModifiedAt']);
+        $t->same('extended-timestamp', $orderItem['zipTimestampSource']);
+        $t->same($modifiedAt, $orderItem['zipLocalModifiedAt']);
+        $t->same('extended-timestamp', $orderItem['zipLocalTimestampSource']);
+        $t->same([], $orderItem['zipTimestampIssues']);
+
+        $t->same($modifiedAt, $part['zipModifiedAt']);
+        $t->same('extended-timestamp', $part['zipTimestampSource']);
+        $t->same($modifiedAt, $part['zipLocalModifiedAt']);
+        $t->same('extended-timestamp', $part['zipLocalTimestampSource']);
+        $t->same([], $part['zipTimestampIssues']);
+    },
     'surfaces ODT ZIP package comments in rich package provenance' => static function (TestRunner $t) use ($manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $package = ZipPackage::fromParts([
             ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],

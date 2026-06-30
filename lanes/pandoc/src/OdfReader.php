@@ -724,6 +724,7 @@ final class OdfReader
         $items = [];
         $objectPackageRootParts = $this->objectPackageRootParts($rawItems);
         $commentEntriesByName = self::zipPreflightEntriesByName($package->commentPreflight());
+        $modificationTimeByName = self::zipModificationTimeEntriesByName($package->modificationTimePreflight());
         foreach ($rawItems as $rawItem) {
             $part = $rawItem['part'] ?? null;
             $mediaType = (string) ($rawItem['mediaType'] ?? '');
@@ -731,6 +732,9 @@ final class OdfReader
             $exists = $part === null || $isDirectory || $package->has($part);
             $zipEntry = $exists && is_string($part) && $part !== '' && !$isDirectory ? $package->entry($part) : null;
             $commentEntry = $zipEntry instanceof ZipPackageEntry ? ($commentEntriesByName[$zipEntry->name] ?? null) : null;
+            $timestampProvenance = $zipEntry instanceof ZipPackageEntry
+                ? self::zipTimestampProvenance($modificationTimeByName[$zipEntry->name] ?? null)
+                : self::zipTimestampProvenance(null);
             $storedByteLength = $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null;
             $compressionMethod = $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressionMethod : null;
             $hasSupportedCompression = $compressionMethod === null || $compressionMethod === 0 || $compressionMethod === 8;
@@ -867,7 +871,7 @@ final class OdfReader
                 'eventPackagePart' => $eventPackagePart,
                 'canExposeBytes' => $canExposeBytes,
                 'byteExposurePolicy' => $byteExposurePolicy,
-            ];
+            ] + $timestampProvenance;
             if ($diagnostics !== []) {
                 $item['diagnostics'] = $diagnostics;
             }
@@ -2006,6 +2010,7 @@ final class OdfReader
         $packageManifest = $package->packageManifestPreflight();
         $compressionMethods = $package->compressionMethodPreflight();
         $comments = $package->commentPreflight();
+        $modificationTimes = $package->modificationTimePreflight();
         $platformMetadata = $package->platformMetadataPreflight();
         $permissions = $package->permissionPreflight();
         $creatorHostSystems = $package->creatorHostSystemPreflight();
@@ -2153,6 +2158,11 @@ final class OdfReader
                 'zipEntryCommentEncoding' => $item['zipEntryCommentEncoding'] ?? null,
                 'zipEntryHasComment' => ($item['zipEntryHasComment'] ?? false) === true,
                 'zipEntryCommentIssues' => $item['zipEntryCommentIssues'] ?? [],
+                'zipModifiedAt' => $item['zipModifiedAt'] ?? null,
+                'zipTimestampSource' => $item['zipTimestampSource'] ?? null,
+                'zipLocalModifiedAt' => $item['zipLocalModifiedAt'] ?? null,
+                'zipLocalTimestampSource' => $item['zipLocalTimestampSource'] ?? null,
+                'zipTimestampIssues' => $item['zipTimestampIssues'] ?? [],
                 'diagnostics' => $item['diagnostics'] ?? [],
             ];
             $manifestByteExposurePolicy = $item['byteExposurePolicy'] ?? null;
@@ -2257,6 +2267,7 @@ final class OdfReader
             $localOrderByName[$entry['name']] = $entry;
         }
         $sourceRecordEntriesByName = self::zipPreflightEntriesByName($packageManifest);
+        $modificationTimeByName = self::zipModificationTimeEntriesByName($modificationTimes);
         $commentEntriesByName = [];
         foreach ($comments['entries'] ?? [] as $entry) {
             $name = $entry['name'] ?? null;
@@ -2284,6 +2295,7 @@ final class OdfReader
             $roles = $this->packagePartRoles($entry, $manifestItem, $isUndeclared, $objectPackageRootParts);
             $rawNameProvenance = $this->zipEntryRawNameProvenance($entry);
             $sourceRecordProvenance = self::zipEntrySourceRecordProvenance($sourceRecordEntriesByName[$entry->name] ?? null);
+            $timestampProvenance = self::zipTimestampProvenance($modificationTimeByName[$entry->name] ?? null);
             $platformAttributeProvenance = self::zipPlatformAttributeProvenance(
                 $entry,
                 $platformMetadataByName[$entry->name] ?? null,
@@ -2400,7 +2412,7 @@ final class OdfReader
                 'canExposeBytes' => is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $byteExposurePolicy,
                 'undeclared' => $isUndeclared,
-            ] + $rawNameProvenance + $sourceRecordProvenance + $platformAttributeProvenance;
+            ] + $rawNameProvenance + $sourceRecordProvenance + $timestampProvenance + $platformAttributeProvenance;
 
             if (is_string($byteExposurePolicy) && $byteExposurePolicy !== '') {
                 $packagePartByteExposurePolicyCounts[$byteExposurePolicy] = ($packagePartByteExposurePolicyCounts[$byteExposurePolicy] ?? 0) + 1;
@@ -2630,6 +2642,13 @@ final class OdfReader
             'hasEntryComments' => ($comments['hasEntryComments'] ?? false) === true,
             'entryCommentCount' => is_int($comments['entryCommentCount'] ?? null) ? $comments['entryCommentCount'] : 0,
             'commentedEntryNames' => is_array($comments['commentedEntryNames'] ?? null) ? $comments['commentedEntryNames'] : [],
+            'modificationTimes' => $modificationTimes,
+            'zipTimestampEntryCount' => $modificationTimes['timestampEntryCount'],
+            'zipDosTimestampEntryCount' => $modificationTimes['dosTimestampEntryCount'],
+            'zipExtendedTimestampEntryCount' => $modificationTimes['extendedTimestampEntryCount'],
+            'zipNtfsTimestampEntryCount' => $modificationTimes['ntfsTimestampEntryCount'],
+            'zipInvalidDosTimestampEntryCount' => $modificationTimes['invalidDosTimestampEntryCount'],
+            'zipInvalidDosTimestampEntries' => $modificationTimes['invalidDosTimestampEntries'],
             'platformMetadata' => $platformMetadata,
             'platformMetadataEntryCount' => $platformMetadata['platformMetadataEntryCount'],
             'creatorHostSystems' => $creatorHostSystems,
@@ -3672,6 +3691,49 @@ final class OdfReader
         }
 
         return $entriesByName;
+    }
+
+    /**
+     * @param array<string, mixed> $modificationTimes
+     * @return array<string, array<string, mixed>>
+     */
+    private static function zipModificationTimeEntriesByName(array $modificationTimes): array
+    {
+        $entriesByName = [];
+        foreach (is_array($modificationTimes['entries'] ?? null) ? $modificationTimes['entries'] : [] as $entry) {
+            $name = $entry['name'] ?? null;
+            if (is_string($name) && $name !== '') {
+                $entriesByName[$name] = $entry;
+            }
+        }
+
+        return $entriesByName;
+    }
+
+    /**
+     * @param array<string, mixed>|null $timestamp
+     * @return array<string, mixed>
+     */
+    private static function zipTimestampProvenance(?array $timestamp): array
+    {
+        return [
+            'zipModifiedAt' => $timestamp['modifiedAt'] ?? null,
+            'zipTimestampSource' => $timestamp['timestampSource'] ?? null,
+            'zipModifiedDosTime' => $timestamp['modifiedDosTime'] ?? null,
+            'zipModifiedDosDate' => $timestamp['modifiedDosDate'] ?? null,
+            'zipHasDosTimestamp' => ($timestamp['hasDosTimestamp'] ?? false) === true,
+            'zipIsDosTimestampValid' => ($timestamp['isDosTimestampValid'] ?? true) === true,
+            'zipDosModifiedAt' => $timestamp['dosModifiedAt'] ?? null,
+            'zipExtendedModifiedAt' => $timestamp['extendedModifiedAt'] ?? null,
+            'zipNtfsModifiedAt' => $timestamp['ntfsModifiedAt'] ?? null,
+            'zipCentralModifiedAt' => $timestamp['centralModifiedAt'] ?? null,
+            'zipCentralTimestampSource' => $timestamp['centralTimestampSource'] ?? null,
+            'zipLocalExtendedModifiedAt' => $timestamp['localExtendedModifiedAt'] ?? null,
+            'zipLocalNtfsModifiedAt' => $timestamp['localNtfsModifiedAt'] ?? null,
+            'zipLocalModifiedAt' => $timestamp['localModifiedAt'] ?? null,
+            'zipLocalTimestampSource' => $timestamp['localTimestampSource'] ?? null,
+            'zipTimestampIssues' => is_array($timestamp['issues'] ?? null) ? $timestamp['issues'] : [],
+        ];
     }
 
     /**
