@@ -780,10 +780,11 @@ return [
         [, $parts] = $packageParts((new DocxWriter())->write($document));
         $documentXml = $parts['word/document.xml'];
 
-        $t->contains('<w:bookmarkStart w:id="9" w:name="a-section-for-testing-link-targets"/>', $documentXml);
+        $t->contains('<w:bookmarkStart w:id="10" w:name="a-section-for-testing-link-targets"/>', $documentXml);
         $t->contains('<w:hyperlink w:anchor="a-section-for-testing-link-targets">', $documentXml);
-        $t->contains('<w:bookmarkStart w:id="10" w:name="fig:testimg"/>', $documentXml);
+        $t->contains('<w:bookmarkStart w:id="9" w:name="fig:testimg"/>', $documentXml);
         $t->contains('<w:hyperlink w:anchor="fig:testimg">', $documentXml);
+        $t->contains('<w:bookmarkEnd w:id="10"/>', $documentXml);
         $t->contains('<w:bookmarkStart w:id="0" w:name="Aliquam"/>', $documentXml);
         $t->contains('<w:bookmarkEnd w:id="0"/>', $documentXml);
         $t->contains('<w:fldSimple w:instr="REF ref_fig:testimg"/>', $documentXml);
@@ -829,11 +830,12 @@ return [
         [, $parts] = $packageParts((new DocxWriter())->write($document));
         $documentXml = $parts['word/document.xml'];
 
-        $t->contains('<w:bookmarkStart w:id="9" w:name="' . $unicodeAnchor . '"/>', $documentXml);
+        $t->contains('<w:bookmarkStart w:id="11" w:name="' . $unicodeAnchor . '"/>', $documentXml);
         $t->contains('<w:hyperlink w:anchor="' . $openingBookmark . '">', $documentXml);
         $t->contains('<w:hyperlink w:anchor="' . $closingBookmark . '">', $documentXml);
-        $t->contains('<w:bookmarkStart w:id="10" w:name="' . $openingBookmark . '"/>', $documentXml);
-        $t->contains('<w:bookmarkStart w:id="11" w:name="' . $closingBookmark . '"/>', $documentXml);
+        $t->contains('<w:bookmarkStart w:id="9" w:name="' . $openingBookmark . '"/>', $documentXml);
+        $t->contains('<w:bookmarkStart w:id="10" w:name="' . $closingBookmark . '"/>', $documentXml);
+        $t->contains('<w:bookmarkEnd w:id="11"/>', $documentXml);
         $t->true(!str_contains($documentXml, 'w:anchor="remote-folder-or-longlonglonglonglong-fi"'), 'Long bookmark names should not collide by truncation');
     },
 

@@ -1040,17 +1040,17 @@ XML;
             if ($child->type === 'heading') {
                 $level = max(1, min(9, (int) $child->attr('level', 1)));
                 while ($openHeadingBookmarks !== [] && $openHeadingBookmarks[count($openHeadingBookmarks) - 1]['level'] >= $level) {
-                    $bookmark = array_pop($openHeadingBookmarks);
-                    $blocks[] = '<w:bookmarkEnd w:id="' . $bookmark['id'] . '"/>';
+                    $this->closePendingHeadingBookmark($blocks, $openHeadingBookmarks);
                 }
 
-                $bookmark = $this->headingBookmark($child);
-                if ($bookmark !== null) {
-                    $blocks[] = '<w:bookmarkStart w:id="' . $bookmark['id'] . '" w:name="' . self::escAttr($bookmark['name']) . '"/>';
+                $bookmarkName = $this->headingBookmarkName($child);
+                if ($bookmarkName !== null) {
+                    $startIndex = count($blocks);
+                    $blocks[] = '';
                 }
                 $blocks[] = $this->headingParagraphXml($child);
-                if ($bookmark !== null) {
-                    $openHeadingBookmarks[] = ['id' => $bookmark['id'], 'level' => $level];
+                if ($bookmarkName !== null) {
+                    $openHeadingBookmarks[] = ['level' => $level, 'name' => $bookmarkName, 'startIndex' => $startIndex];
                 }
                 $bodyParagraphStyle = 'FirstParagraph';
                 $previousTopLevelTable = false;
@@ -1075,8 +1075,7 @@ XML;
             $previousTopLevelTable = $child->type === 'table';
         }
         while ($openHeadingBookmarks !== []) {
-            $bookmark = array_pop($openHeadingBookmarks);
-            $blocks[] = '<w:bookmarkEnd w:id="' . $bookmark['id'] . '"/>';
+            $this->closePendingHeadingBookmark($blocks, $openHeadingBookmarks);
         }
         if ($blocks === []) {
             $blocks[] = '<w:p/>';
@@ -1142,18 +1141,44 @@ XML;
     }
 
     /**
-     * @return array{id:int, name:string}|null
+     * @param list<string> $blocks
+     * @param list<array{level:int, name:string, startIndex:int}> $openHeadingBookmarks
      */
-    private function headingBookmark(AstNode $node): ?array
+    private function closePendingHeadingBookmark(array &$blocks, array &$openHeadingBookmarks): void
+    {
+        $bookmark = array_pop($openHeadingBookmarks);
+        if ($bookmark === null) {
+            return;
+        }
+
+        $bookmarkId = $this->nextBookmarkId++;
+        $blocks[$bookmark['startIndex']] = '<w:bookmarkStart w:id="' . $bookmarkId . '" w:name="' . self::escAttr($bookmark['name']) . '"/>';
+        $blocks[] = '<w:bookmarkEnd w:id="' . $bookmarkId . '"/>';
+    }
+
+    private function headingBookmarkName(AstNode $node): ?string
     {
         $id = (string) $node->attr('id', '');
         if ($id === '') {
             return null;
         }
 
+        return $this->bookmarkName($id);
+    }
+
+    /**
+     * @return array{id:int, name:string}|null
+     */
+    private function headingBookmark(AstNode $node): ?array
+    {
+        $name = $this->headingBookmarkName($node);
+        if ($name === null) {
+            return null;
+        }
+
         return [
             'id' => $this->nextBookmarkId++,
-            'name' => $this->bookmarkName($id),
+            'name' => $name,
         ];
     }
 
