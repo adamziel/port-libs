@@ -4092,9 +4092,11 @@ BIB;
         $t->same([2023], $split['label-date']['date-parts'][0]);
         $t->same('2025-04-03', $window['rawBibtex']['fields']['availabledate']);
         $t->same('2024', $split['rawBibtex']['fields']['submittedyear']);
+        $t->same('2023', $split['rawBibtex']['fields']['labelyear']);
         $t->contains('Available date: 2025-04-03', $processor->renderBibliographyText($window));
         $t->contains('Submitted date: 2024-03-09', $processor->renderBibliographyText($window));
         $t->contains('Label date: 2026-05', $processor->renderBibliographyText($window));
+        $t->contains('Submitted date: 2024-03', $processor->renderBibliographyText($split));
 
         $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -4102,7 +4104,7 @@ BIB;
   <info>
     <title>Bounded Legacy BibLaTeX Review Window Date Review</title>
     <id>https://example.test/styles/bounded-legacy-biblatex-review-window-date-review</id>
-    <updated>2026-06-29T00:00:00+00:00</updated>
+    <updated>2026-06-30T12:32:00+00:00</updated>
   </info>
   <citation>
     <layout prefix="[" suffix="]" delimiter="; ">
@@ -4131,6 +4133,7 @@ XML);
         $t->same('Bounded Legacy BibLaTeX Review Window Date Review', $summary['title'] ?? null);
         $t->same([2025, 4, 3], $styledWindow['availableDate']['parts'] ?? null);
         $t->same([2024, 3], $styledSplit['submittedDate']['parts'] ?? null);
+        $t->same([2023], $styledSplit['labelDate']['parts'] ?? null);
         $t->same('[Availability Window Packet | 2025-04-03 | 2024-03-09 | 2026-05; Split Window Packet | 2025-04-05 | 2024-03 | 2023]', $styled->renderCitationCluster([
             new AstNode('citation', ['id' => 'legacy-review-window', 'text' => '[@legacy-review-window]']),
             new AstNode('citation', ['id' => 'legacy-split-window', 'text' => '[@legacy-split-window]']),
