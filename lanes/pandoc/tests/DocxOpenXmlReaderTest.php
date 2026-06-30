@@ -20209,6 +20209,118 @@ XML;
         $t->true(!str_contains((string) $encodedReview, 'Selected Attribute Theme'), 'selected XML root attribute metadata should not expose theme names');
         $t->true(!str_contains((string) $encodedReview, 'hidden-value'), 'selected XML root attribute metadata should not expose descendant XML values');
     },
+    'summarizes docx selected openxml root namespace declaration metadata for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $wordUri = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+        $drawingUri = 'http://schemas.openxmlformats.org/drawingml/2006/main';
+        $mcUri = 'http://schemas.openxmlformats.org/markup-compatibility/2006';
+        $settingsReviewUri = 'urn:selected-root-settings-review';
+        $themeCxUri = 'urn:selected-root-theme-cx';
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' . "\n" .
+            '  <Override PartName="/word/theme/namespace-theme.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettingsNamespaceReview" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>' . "\n" .
+            '  <Relationship Id="rThemeNamespaceReview" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/namespace-theme.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/settings.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<settings xmlns="{$wordUri}" xmlns:mc="{$mcUri}" xmlns:review="{$settingsReviewUri}" mc:Ignorable="review">
+  <docVars><docVar name="hidden-value"/></docVars>
+</settings>
+XML;
+        $parts['word/theme/namespace-theme.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<a:theme xmlns:a="{$drawingUri}" xmlns:cx="{$themeCxUri}" name="Hidden Namespace Theme">
+  <a:themeElements/>
+</a:theme>
+XML;
+
+        $package = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance'];
+        $selected = $package['selectedXmlParts'];
+        $summary = $package['summary'];
+        $settings = $selected['byKind']['settings'];
+        $theme = $selected['byKind']['theme'];
+        $expectedSettingsByteLength = strlen($wordUri) + strlen($mcUri) + strlen($settingsReviewUri);
+        $expectedThemeByteLength = strlen($drawingUri) + strlen($themeCxUri);
+
+        $t->same(18, $selected['count']);
+        $t->same(6, $selected['existingCount']);
+        $t->same(15, $selected['rootNamespaceDeclarationCount']);
+        $t->same(1, $selected['rootNamespaceDeclarationDefaultCount']);
+        $t->same(14, $selected['rootNamespaceDeclarationPrefixedCount']);
+        $t->same([
+            'a' => 2,
+            'cp' => 1,
+            'cx' => 1,
+            'dc' => 1,
+            'dcterms' => 1,
+            'default' => 1,
+            'mc' => 1,
+            'pic' => 1,
+            'r' => 1,
+            'review' => 1,
+            'w' => 3,
+            'wp' => 1,
+        ], $selected['rootNamespaceDeclarationPrefixCounts']);
+        $t->same(array_keys($selected['rootNamespaceDeclarationPrefixCounts']), $selected['rootNamespaceDeclarationPrefixes']);
+        $t->same(4, $selected['rootNamespaceDeclarationUriCounts'][$wordUri]);
+        $t->same(2, $selected['rootNamespaceDeclarationUriCounts'][$drawingUri]);
+        $t->same(1, $selected['rootNamespaceDeclarationUriCounts'][$settingsReviewUri]);
+        $t->same(1, $selected['rootNamespaceDeclarationUriCounts'][$themeCxUri]);
+        $t->true(in_array($settingsReviewUri, $selected['rootNamespaceDeclarationUris'], true), 'settings review namespace URI should be summarized');
+        $t->true(in_array($themeCxUri, $selected['rootNamespaceDeclarationUris'], true), 'theme namespace URI should be summarized');
+
+        $t->same(null, $settings['rootPrefix']);
+        $t->same(3, $settings['rootNamespaceDeclarationCount']);
+        $t->same(1, $settings['rootNamespaceDeclarationDefaultCount']);
+        $t->same(2, $settings['rootNamespaceDeclarationPrefixedCount']);
+        $t->same($expectedSettingsByteLength, $settings['rootNamespaceDeclarationByteLength']);
+        $t->same(['default' => 1, 'mc' => 1, 'review' => 1], $settings['rootNamespaceDeclarationPrefixCounts']);
+        $t->same(['default', 'mc', 'review'], $settings['rootNamespaceDeclarationPrefixes']);
+        $t->same($wordUri, $settings['rootNamespaceDeclarations'][0]['namespaceUri']);
+        $t->same('xmlns', $settings['rootNamespaceDeclarations'][0]['name']);
+        $t->same('default', $settings['rootNamespaceDeclarations'][0]['prefix']);
+        $t->same(true, $settings['rootNamespaceDeclarations'][0]['isDefault']);
+        $t->same(strlen($wordUri), $settings['rootNamespaceDeclarations'][0]['namespaceUriByteLength']);
+        $t->same(sprintf('%08x', crc32($wordUri)), $settings['rootNamespaceDeclarations'][0]['namespaceUriCrc32']);
+        $t->same(hash('sha256', $wordUri), $settings['rootNamespaceDeclarations'][0]['namespaceUriSha256']);
+        $t->same('review', $settings['rootNamespaceDeclarations'][2]['prefix']);
+        $t->same($settingsReviewUri, $settings['rootNamespaceDeclarations'][2]['namespaceUri']);
+
+        $t->same('a', $theme['rootPrefix']);
+        $t->same(2, $theme['rootNamespaceDeclarationCount']);
+        $t->same(0, $theme['rootNamespaceDeclarationDefaultCount']);
+        $t->same(2, $theme['rootNamespaceDeclarationPrefixedCount']);
+        $t->same($expectedThemeByteLength, $theme['rootNamespaceDeclarationByteLength']);
+        $t->same(['a' => 1, 'cx' => 1], $theme['rootNamespaceDeclarationPrefixCounts']);
+        $t->same('cx', $theme['rootNamespaceDeclarations'][1]['prefix']);
+        $t->same($themeCxUri, $theme['rootNamespaceDeclarations'][1]['namespaceUri']);
+
+        $t->same($selected['rootNamespaceDeclarationDefaultCount'], $summary['selectedXmlPartRootNamespaceDeclarationDefaultCount']);
+        $t->same($selected['rootNamespaceDeclarationPrefixedCount'], $summary['selectedXmlPartRootNamespaceDeclarationPrefixedCount']);
+        $t->same($selected['rootNamespaceDeclarationByteLength'], $summary['selectedXmlPartRootNamespaceDeclarationByteLength']);
+        $t->same($selected['rootNamespaceDeclarationPrefixCounts'], $summary['selectedXmlPartRootNamespaceDeclarationPrefixCounts']);
+        $t->same($selected['rootNamespaceDeclarationPrefixes'], $summary['selectedXmlPartRootNamespaceDeclarationPrefixes']);
+        $t->same($selected['rootNamespaceDeclarationUriCounts'], $summary['selectedXmlPartRootNamespaceDeclarationUriCounts']);
+        $t->same($selected['rootNamespaceDeclarationUris'], $summary['selectedXmlPartRootNamespaceDeclarationUris']);
+        $t->same($selected['rootNamespaceDeclarations'], $summary['selectedXmlPartRootNamespaceDeclarations']);
+
+        $encodedReview = json_encode([
+            $selected['rootNamespaceDeclarations'],
+            $summary['selectedXmlPartRootNamespaceDeclarations'],
+        ]);
+        $t->true(is_string($encodedReview), 'selected XML namespace declaration metadata should encode for review');
+        $t->true(!str_contains((string) $encodedReview, 'hidden-value'), 'selected XML namespace declaration metadata should not expose descendant values');
+        $t->true(!str_contains((string) $encodedReview, 'Hidden Namespace Theme'), 'selected XML namespace declaration metadata should not expose non-namespace root attributes');
+    },
     'summarizes docx selected openxml root name rollups for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

@@ -814,6 +814,14 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['selectedXmlPartRootAttributePrefixes'] = $selectedXmlParts['rootAttributePrefixes'];
         $packageProvenance['summary']['selectedXmlPartRootAttributes'] = $selectedXmlParts['rootAttributes'];
         $packageProvenance['summary']['selectedXmlPartRootNamespaceDeclarationCount'] = $selectedXmlParts['rootNamespaceDeclarationCount'];
+        $packageProvenance['summary']['selectedXmlPartRootNamespaceDeclarationDefaultCount'] = $selectedXmlParts['rootNamespaceDeclarationDefaultCount'];
+        $packageProvenance['summary']['selectedXmlPartRootNamespaceDeclarationPrefixedCount'] = $selectedXmlParts['rootNamespaceDeclarationPrefixedCount'];
+        $packageProvenance['summary']['selectedXmlPartRootNamespaceDeclarationByteLength'] = $selectedXmlParts['rootNamespaceDeclarationByteLength'];
+        $packageProvenance['summary']['selectedXmlPartRootNamespaceDeclarationPrefixCounts'] = $selectedXmlParts['rootNamespaceDeclarationPrefixCounts'];
+        $packageProvenance['summary']['selectedXmlPartRootNamespaceDeclarationPrefixes'] = $selectedXmlParts['rootNamespaceDeclarationPrefixes'];
+        $packageProvenance['summary']['selectedXmlPartRootNamespaceDeclarationUriCounts'] = $selectedXmlParts['rootNamespaceDeclarationUriCounts'];
+        $packageProvenance['summary']['selectedXmlPartRootNamespaceDeclarationUris'] = $selectedXmlParts['rootNamespaceDeclarationUris'];
+        $packageProvenance['summary']['selectedXmlPartRootNamespaceDeclarations'] = $selectedXmlParts['rootNamespaceDeclarations'];
         $packageProvenance['summary']['selectedXmlPartRootNamespaceCount'] = count($selectedXmlParts['rootNamespaceCounts']);
         $packageProvenance['summary']['selectedXmlPartRootNamespaceCounts'] = $selectedXmlParts['rootNamespaceCounts'];
         $packageProvenance['summary']['selectedXmlPartRootNamespaces'] = $selectedXmlParts['rootNamespaces'];
@@ -31580,6 +31588,14 @@ final class DocxOpenXmlReader
         $rootAttributePrefixes = [];
         $rootAttributes = [];
         $rootNamespaceDeclarationCount = 0;
+        $rootNamespaceDeclarationDefaultCount = 0;
+        $rootNamespaceDeclarationPrefixedCount = 0;
+        $rootNamespaceDeclarationByteLength = 0;
+        $rootNamespaceDeclarationPrefixCounts = [];
+        $rootNamespaceDeclarationPrefixes = [];
+        $rootNamespaceDeclarationUriCounts = [];
+        $rootNamespaceDeclarationUris = [];
+        $rootNamespaceDeclarations = [];
         $rootPrefixedCount = 0;
         $rootChildElementPartCount = 0;
         $rootChildElementCount = 0;
@@ -31729,6 +31745,53 @@ final class DocxOpenXmlReader
                 ];
             }
             $rootNamespaceDeclarationCount += (int) ($item['rootNamespaceDeclarationCount'] ?? 0);
+            $rootNamespaceDeclarationDefaultCount += (int) ($item['rootNamespaceDeclarationDefaultCount'] ?? 0);
+            $rootNamespaceDeclarationPrefixedCount += (int) ($item['rootNamespaceDeclarationPrefixedCount'] ?? 0);
+            $rootNamespaceDeclarationByteLength += (int) ($item['rootNamespaceDeclarationByteLength'] ?? 0);
+            foreach (($item['rootNamespaceDeclarationPrefixCounts'] ?? []) as $prefix => $count) {
+                if (!is_string($prefix) || $prefix === '') {
+                    continue;
+                }
+
+                $rootNamespaceDeclarationPrefixCounts[$prefix] =
+                    ($rootNamespaceDeclarationPrefixCounts[$prefix] ?? 0) + (int) $count;
+                $this->appendUniqueString($rootNamespaceDeclarationPrefixes, $prefix);
+            }
+            foreach (($item['rootNamespaceDeclarationUriCounts'] ?? []) as $uri => $count) {
+                if (!is_string($uri) || $uri === '') {
+                    continue;
+                }
+
+                $rootNamespaceDeclarationUriCounts[$uri] =
+                    ($rootNamespaceDeclarationUriCounts[$uri] ?? 0) + (int) $count;
+                if ($uri !== '(empty)') {
+                    $this->appendUniqueString($rootNamespaceDeclarationUris, $uri);
+                }
+            }
+            foreach (($item['rootNamespaceDeclarations'] ?? []) as $declaration) {
+                if (!is_array($declaration)) {
+                    continue;
+                }
+
+                $rootNamespaceDeclarations[] = [
+                    'kind' => is_string($item['kind'] ?? null) ? $item['kind'] : '',
+                    'partName' => is_string($item['partName'] ?? null) ? $item['partName'] : '',
+                    'ordinal' => (int) ($declaration['ordinal'] ?? 0),
+                    'name' => is_string($declaration['name'] ?? null) ? $declaration['name'] : '',
+                    'prefix' => is_string($declaration['prefix'] ?? null) ? $declaration['prefix'] : '',
+                    'isDefault' => (bool) ($declaration['isDefault'] ?? false),
+                    'namespaceUri' => is_string($declaration['namespaceUri'] ?? null)
+                        ? $declaration['namespaceUri']
+                        : '',
+                    'namespaceUriByteLength' => (int) ($declaration['namespaceUriByteLength'] ?? 0),
+                    'namespaceUriCrc32' => is_string($declaration['namespaceUriCrc32'] ?? null)
+                        ? $declaration['namespaceUriCrc32']
+                        : null,
+                    'namespaceUriSha256' => is_string($declaration['namespaceUriSha256'] ?? null)
+                        ? $declaration['namespaceUriSha256']
+                        : null,
+                ];
+            }
             if (($item['rootPrefix'] ?? null) !== null) {
                 ++$rootPrefixedCount;
             }
@@ -31855,6 +31918,8 @@ final class DocxOpenXmlReader
         ksort($rootAttributeNameCounts, SORT_STRING);
         ksort($rootAttributeNamespaceCounts, SORT_STRING);
         ksort($rootAttributePrefixCounts, SORT_STRING);
+        ksort($rootNamespaceDeclarationPrefixCounts, SORT_STRING);
+        ksort($rootNamespaceDeclarationUriCounts, SORT_STRING);
         ksort($rootChildElementNameCounts, SORT_STRING);
         ksort($rootChildElementNamespaceCounts, SORT_STRING);
         ksort($rootChildElementLocalNameCounts, SORT_STRING);
@@ -31879,6 +31944,8 @@ final class DocxOpenXmlReader
         sort($rootAttributePartNames, SORT_STRING);
         sort($rootAttributeNamespaces, SORT_STRING);
         sort($rootAttributePrefixes, SORT_STRING);
+        sort($rootNamespaceDeclarationPrefixes, SORT_STRING);
+        sort($rootNamespaceDeclarationUris, SORT_STRING);
         sort($rootChildElementPartNames, SORT_STRING);
         sort($rootChildElementNames, SORT_STRING);
         sort($rootChildElementNamespaces, SORT_STRING);
@@ -31927,6 +31994,14 @@ final class DocxOpenXmlReader
             'rootAttributePrefixes' => $rootAttributePrefixes,
             'rootAttributes' => $rootAttributes,
             'rootNamespaceDeclarationCount' => $rootNamespaceDeclarationCount,
+            'rootNamespaceDeclarationDefaultCount' => $rootNamespaceDeclarationDefaultCount,
+            'rootNamespaceDeclarationPrefixedCount' => $rootNamespaceDeclarationPrefixedCount,
+            'rootNamespaceDeclarationByteLength' => $rootNamespaceDeclarationByteLength,
+            'rootNamespaceDeclarationPrefixCounts' => $rootNamespaceDeclarationPrefixCounts,
+            'rootNamespaceDeclarationPrefixes' => $rootNamespaceDeclarationPrefixes,
+            'rootNamespaceDeclarationUriCounts' => $rootNamespaceDeclarationUriCounts,
+            'rootNamespaceDeclarationUris' => $rootNamespaceDeclarationUris,
+            'rootNamespaceDeclarations' => $rootNamespaceDeclarations,
             'rootNamespaceCounts' => $rootNamespaceCounts,
             'rootNamespaces' => $rootNamespaces,
             'rootLocalNameCounts' => $rootLocalNameCounts,
@@ -32022,6 +32097,14 @@ final class DocxOpenXmlReader
             'rootAttributes' => [],
             'rootNamespaceDeclarationCount' => 0,
             'rootNamespacePrefixes' => [],
+            'rootNamespaceDeclarationDefaultCount' => 0,
+            'rootNamespaceDeclarationPrefixedCount' => 0,
+            'rootNamespaceDeclarationByteLength' => 0,
+            'rootNamespaceDeclarationPrefixCounts' => [],
+            'rootNamespaceDeclarationPrefixes' => [],
+            'rootNamespaceDeclarationUriCounts' => [],
+            'rootNamespaceDeclarationUris' => [],
+            'rootNamespaceDeclarations' => [],
             'rootChildElementCount' => 0,
             'rootChildElementNames' => [],
             'rootChildElementNameCounts' => [],
@@ -32117,6 +32200,14 @@ final class DocxOpenXmlReader
         $item['rootAttributes'] = $root['attributes'];
         $item['rootNamespaceDeclarationCount'] = $root['namespaceDeclarationCount'];
         $item['rootNamespacePrefixes'] = $root['namespacePrefixes'];
+        $item['rootNamespaceDeclarationDefaultCount'] = $root['namespaceDeclarationDefaultCount'];
+        $item['rootNamespaceDeclarationPrefixedCount'] = $root['namespaceDeclarationPrefixedCount'];
+        $item['rootNamespaceDeclarationByteLength'] = $root['namespaceDeclarationByteLength'];
+        $item['rootNamespaceDeclarationPrefixCounts'] = $root['namespaceDeclarationPrefixCounts'];
+        $item['rootNamespaceDeclarationPrefixes'] = $root['namespaceDeclarationPrefixes'];
+        $item['rootNamespaceDeclarationUriCounts'] = $root['namespaceDeclarationUriCounts'];
+        $item['rootNamespaceDeclarationUris'] = $root['namespaceDeclarationUris'];
+        $item['rootNamespaceDeclarations'] = $root['namespaceDeclarations'];
         $item['rootChildElementCount'] = $root['childElementCount'];
         $item['rootChildElementNames'] = $root['childElementNames'];
         $item['rootChildElementNameCounts'] = $root['childElementNameCounts'];
@@ -37530,7 +37621,7 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{validXml:bool, xmlParseError:?string, namespace:?string, localName:?string, qualifiedName:?string, prefix:?string, attributeCount:int, attributeNames:list<string>, attributeNameCounts:array<string, int>, attributeValueByteLength:int, attributes:list<array{name:string, prefix:?string, namespace:?string, localName:string, valueByteLength:int, valueCrc32:?string, valueSha256:?string}>, namespaceDeclarationCount:int, namespacePrefixes:list<string>, childElementCount:int, childElementNames:list<string>, childElementNameCounts:array<string, int>, childElementNamespaceCounts:array<string, int>, childElementNamespaces:list<string>, childElementLocalNameCounts:array<string, int>, childElementPrefixCounts:array<string, int>, childElementPrefixes:list<string>, childElementFirstName:?string, childElementLastName:?string, childElements:list<array{index:int, siblingCount:int, isFirstChildElement:bool, isLastChildElement:bool, namespace:?string, localName:string, qualifiedName:string, prefix:?string}>}
+     * @return array{validXml:bool, xmlParseError:?string, namespace:?string, localName:?string, qualifiedName:?string, prefix:?string, attributeCount:int, attributeNames:list<string>, attributeNameCounts:array<string, int>, attributeValueByteLength:int, attributes:list<array{name:string, prefix:?string, namespace:?string, localName:string, valueByteLength:int, valueCrc32:?string, valueSha256:?string}>, namespaceDeclarationCount:int, namespacePrefixes:list<string>, namespaceDeclarationDefaultCount:int, namespaceDeclarationPrefixedCount:int, namespaceDeclarationByteLength:int, namespaceDeclarationPrefixCounts:array<string, int>, namespaceDeclarationPrefixes:list<string>, namespaceDeclarationUriCounts:array<string, int>, namespaceDeclarationUris:list<string>, namespaceDeclarations:list<array<string, mixed>>, childElementCount:int, childElementNames:list<string>, childElementNameCounts:array<string, int>, childElementNamespaceCounts:array<string, int>, childElementNamespaces:list<string>, childElementLocalNameCounts:array<string, int>, childElementPrefixCounts:array<string, int>, childElementPrefixes:list<string>, childElementFirstName:?string, childElementLastName:?string, childElements:list<array{index:int, siblingCount:int, isFirstChildElement:bool, isLastChildElement:bool, namespace:?string, localName:string, qualifiedName:string, prefix:?string}>}
      */
     private function xmlRootProvenance(string $xml, string $partName): array
     {
@@ -37550,6 +37641,14 @@ final class DocxOpenXmlReader
                 'attributes' => [],
                 'namespaceDeclarationCount' => 0,
                 'namespacePrefixes' => [],
+                'namespaceDeclarationDefaultCount' => 0,
+                'namespaceDeclarationPrefixedCount' => 0,
+                'namespaceDeclarationByteLength' => 0,
+                'namespaceDeclarationPrefixCounts' => [],
+                'namespaceDeclarationPrefixes' => [],
+                'namespaceDeclarationUriCounts' => [],
+                'namespaceDeclarationUris' => [],
+                'namespaceDeclarations' => [],
                 'childElementCount' => 0,
                 'childElementNames' => [],
                 'childElementNameCounts' => [],
@@ -37580,6 +37679,14 @@ final class DocxOpenXmlReader
                 'attributes' => [],
                 'namespaceDeclarationCount' => 0,
                 'namespacePrefixes' => [],
+                'namespaceDeclarationDefaultCount' => 0,
+                'namespaceDeclarationPrefixedCount' => 0,
+                'namespaceDeclarationByteLength' => 0,
+                'namespaceDeclarationPrefixCounts' => [],
+                'namespaceDeclarationPrefixes' => [],
+                'namespaceDeclarationUriCounts' => [],
+                'namespaceDeclarationUris' => [],
+                'namespaceDeclarations' => [],
                 'childElementCount' => 0,
                 'childElementNames' => [],
                 'childElementNameCounts' => [],
@@ -37707,6 +37814,14 @@ final class DocxOpenXmlReader
             'attributes' => $attributes,
             'namespaceDeclarationCount' => $namespaceDeclarations['count'],
             'namespacePrefixes' => $namespaceDeclarations['prefixes'],
+            'namespaceDeclarationDefaultCount' => $namespaceDeclarations['defaultCount'],
+            'namespaceDeclarationPrefixedCount' => $namespaceDeclarations['prefixedCount'],
+            'namespaceDeclarationByteLength' => $namespaceDeclarations['byteLength'],
+            'namespaceDeclarationPrefixCounts' => $namespaceDeclarations['prefixCounts'],
+            'namespaceDeclarationPrefixes' => $namespaceDeclarations['prefixes'],
+            'namespaceDeclarationUriCounts' => $namespaceDeclarations['uriCounts'],
+            'namespaceDeclarationUris' => $namespaceDeclarations['uris'],
+            'namespaceDeclarations' => $namespaceDeclarations['items'],
             'childElementCount' => count($childElements),
             'childElementNames' => $childElementNames,
             'childElementNameCounts' => $childElementNameCounts,
@@ -37722,26 +37837,77 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{count:int, prefixes:list<string>}
+     * @return array{count:int, defaultCount:int, prefixedCount:int, byteLength:int, prefixCounts:array<string, int>, prefixes:list<string>, uriCounts:array<string, int>, uris:list<string>, items:list<array<string, mixed>>}
      */
     private function rootNamespaceDeclarations(string $xml): array
     {
         if (preg_match('/<(?![?!])([A-Za-z_][A-Za-z0-9_.:-]*)([^>]*)>/s', $xml, $rootMatch) !== 1) {
             return [
                 'count' => 0,
+                'defaultCount' => 0,
+                'prefixedCount' => 0,
+                'byteLength' => 0,
+                'prefixCounts' => [],
                 'prefixes' => [],
+                'uriCounts' => [],
+                'uris' => [],
+                'items' => [],
             ];
         }
 
         $prefixes = [];
+        $prefixCounts = [];
+        $uriCounts = [];
+        $uris = [];
+        $items = [];
+        $defaultCount = 0;
+        $prefixedCount = 0;
+        $byteLength = 0;
         preg_match_all('/\sxmlns(?::([A-Za-z_][A-Za-z0-9_.-]*))?\s*=\s*(["\'])(.*?)\2/s', (string) $rootMatch[2], $matches, PREG_SET_ORDER);
-        foreach ($matches as $match) {
-            $this->appendUniqueString($prefixes, ($match[1] ?? '') === '' ? 'default' : (string) $match[1]);
+        foreach ($matches as $ordinal => $match) {
+            $prefix = ($match[1] ?? '') === '' ? 'default' : (string) $match[1];
+            $namespaceUri = (string) ($match[3] ?? '');
+            $namespaceUriKey = $namespaceUri === '' ? '(empty)' : $namespaceUri;
+            $namespaceUriByteLength = strlen($namespaceUri);
+
+            $prefixCounts[$prefix] = ($prefixCounts[$prefix] ?? 0) + 1;
+            $uriCounts[$namespaceUriKey] = ($uriCounts[$namespaceUriKey] ?? 0) + 1;
+            $this->appendUniqueString($prefixes, $prefix);
+            if ($namespaceUri !== '') {
+                $this->appendUniqueString($uris, $namespaceUri);
+            }
+            if ($prefix === 'default') {
+                ++$defaultCount;
+            } else {
+                ++$prefixedCount;
+            }
+            $byteLength += $namespaceUriByteLength;
+
+            $items[] = [
+                'ordinal' => $ordinal + 1,
+                'name' => $prefix === 'default' ? 'xmlns' : 'xmlns:' . $prefix,
+                'prefix' => $prefix,
+                'isDefault' => $prefix === 'default',
+                'namespaceUri' => $namespaceUri,
+                'namespaceUriByteLength' => $namespaceUriByteLength,
+                'namespaceUriCrc32' => $namespaceUri === '' ? null : sprintf('%08x', crc32($namespaceUri)),
+                'namespaceUriSha256' => $namespaceUri === '' ? null : hash('sha256', $namespaceUri),
+            ];
         }
+        ksort($prefixCounts, SORT_STRING);
+        ksort($uriCounts, SORT_STRING);
+        sort($uris, SORT_STRING);
 
         return [
             'count' => count($matches),
+            'defaultCount' => $defaultCount,
+            'prefixedCount' => $prefixedCount,
+            'byteLength' => $byteLength,
+            'prefixCounts' => $prefixCounts,
             'prefixes' => $prefixes,
+            'uriCounts' => $uriCounts,
+            'uris' => $uris,
+            'items' => $items,
         ];
     }
 
