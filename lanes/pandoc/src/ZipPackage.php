@@ -5051,6 +5051,7 @@ final class ZipPackage
      *     selectedCompressionMethodBucketCount:int,
      *     selectedUnknownExpansionRatioEntryCount:int,
      *     selectedHasUnknownExpansionRatioEntries:bool,
+     *     selectedExpansionRatioBucketCount:int,
      *     missingEntryCount:int,
      *     missingRequiredEntryCount:int,
      *     missingOptionalEntryCount:int,
@@ -5060,6 +5061,7 @@ final class ZipPackage
      *     handoffExtensionlessFileEntryCount:int,
      *     handoffSizeBucketCount:int,
      *     handoffCompressionMethodBucketCount:int,
+     *     handoffExpansionRatioBucketCount:int,
      *     readableEntryCount:int,
      *     handoffZeroByteEntryCount:int,
      *     handoffZeroByteFileCount:int,
@@ -5252,6 +5254,8 @@ final class ZipPackage
      *     handoffDirectoryRootSummaries:list<array<string, mixed>>,
      *     selectedSizeBucketSummaries:list<array<string, mixed>>,
      *     handoffSizeBucketSummaries:list<array<string, mixed>>,
+     *     selectedExpansionRatioBucketSummaries:list<array<string, mixed>>,
+     *     handoffExpansionRatioBucketSummaries:list<array<string, mixed>>,
      *     selectedExtensionSummaries:list<array<string, mixed>>,
      *     handoffExtensionSummaries:list<array<string, mixed>>,
      *     selectedCompressionMethodBuckets:list<array{compressionMethod:int,compressionMethodName:string,entryCount:int,compressedBytes:int,uncompressedBytes:int,isSupported:bool}>,
@@ -6402,6 +6406,8 @@ final class ZipPackage
         $handoffPlatformMetadataSummary = self::entryHandoffPlatformMetadataSummary($handoffEntries);
         $selectedSizeBucketSummaries = self::entryHandoffSizeBucketSummaries($selectedDirectoryRootSummaryEntries);
         $handoffSizeBucketSummaries = self::entryHandoffSizeBucketSummaries($handoffEntries);
+        $selectedExpansionRatioBucketSummaries = self::entryHandoffExpansionRatioBucketSummaries($selectedDirectoryRootSummaryEntries);
+        $handoffExpansionRatioBucketSummaries = self::entryHandoffExpansionRatioBucketSummaries($handoffEntries);
         $selectedNameHygieneIssueSummaries = self::entryHandoffNameHygieneIssueSummaries($selectedNameHygieneReviewEntries);
         $handoffNameHygieneIssueSummaries = self::entryHandoffNameHygieneIssueSummaries($handoffEntries);
         $handoffNameHygieneReviewEntries = self::entryHandoffNameHygieneReviewEntries($handoffEntries);
@@ -6505,6 +6511,7 @@ final class ZipPackage
             'selectedCompressionMethodBucketCount' => count($selectedCompressionMethodBuckets),
             'selectedUnknownExpansionRatioEntryCount' => count($selectedUnknownExpansionRatioEntries),
             'selectedHasUnknownExpansionRatioEntries' => $selectedUnknownExpansionRatioEntries !== [],
+            'selectedExpansionRatioBucketCount' => count($selectedExpansionRatioBucketSummaries),
             'missingEntryCount' => count($missingEntries),
             'missingRequiredEntryCount' => $missingRequiredEntryCount,
             'missingOptionalEntryCount' => $missingOptionalEntryCount,
@@ -6517,6 +6524,7 @@ final class ZipPackage
             'handoffExtensionlessFileEntryCount' => self::entryHandoffExtensionlessFileEntryCount($handoffExtensionSummaries),
             'handoffSizeBucketCount' => count($handoffSizeBucketSummaries),
             'handoffCompressionMethodBucketCount' => count($handoffCompressionMethodBuckets),
+            'handoffExpansionRatioBucketCount' => count($handoffExpansionRatioBucketSummaries),
             'handoffOrderMismatchEntryCount' => $handoffOrderSummary['mismatchEntryCount'],
             'handoffCentralDirectoryOrderMatchesLocalHeaderOrder' => $handoffOrderSummary['centralDirectoryOrderMatchesLocalHeaderOrder'],
             'handoffRequestOrderMatchesCentralDirectoryOrder' => $handoffOrderSummary['requestOrderMatchesCentralDirectoryOrder'],
@@ -6837,6 +6845,8 @@ final class ZipPackage
             'handoffDirectoryRootSummaries' => $handoffDirectoryRootSummaries,
             'selectedSizeBucketSummaries' => $selectedSizeBucketSummaries,
             'handoffSizeBucketSummaries' => $handoffSizeBucketSummaries,
+            'selectedExpansionRatioBucketSummaries' => $selectedExpansionRatioBucketSummaries,
+            'handoffExpansionRatioBucketSummaries' => $handoffExpansionRatioBucketSummaries,
             'selectedPackagePartKindSummaries' => $selectedPackagePartKindSummaries,
             'handoffPackagePartKindSummaries' => $handoffPackagePartKindSummaries,
             'selectedExtensionSummaries' => $selectedExtensionSummaries,
@@ -10733,6 +10743,141 @@ final class ZipPackage
             'sizeBucket' => 'large',
             'minUncompressedBytes' => 1048577,
             'maxUncompressedBytes' => null,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffExpansionRatioBucketSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $compressedSize = (int) ($entry['compressedSize'] ?? 0);
+            $uncompressedSize = (int) ($entry['uncompressedSize'] ?? 0);
+            $expansionRatio = self::expansionRatio($uncompressedSize, $compressedSize);
+            $bucket = self::entryHandoffExpansionRatioBucket($expansionRatio);
+            $key = $bucket['expansionRatioBucket'];
+            if (!isset($summaries[$key])) {
+                $summaries[$key] = [
+                    'expansionRatioBucket' => $bucket['expansionRatioBucket'],
+                    'minExpansionRatio' => $bucket['minExpansionRatio'],
+                    'maxExpansionRatio' => $bucket['maxExpansionRatio'],
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'unknownExpansionRatioEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'roles' => [],
+                    'entryNames' => [],
+                    'largestExpansionRatioEntryName' => null,
+                    'largestExpansionRatio' => null,
+                ];
+            }
+
+            ++$summaries[$key]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$summaries[$key]['directoryEntryCount'];
+            } else {
+                ++$summaries[$key]['fileEntryCount'];
+            }
+            if ($expansionRatio === null) {
+                ++$summaries[$key]['unknownExpansionRatioEntryCount'];
+            }
+
+            $summaries[$key]['compressedBytes'] += $compressedSize;
+            $summaries[$key]['uncompressedBytes'] += $uncompressedSize;
+            $summaries[$key]['entryNames'][] = $name;
+
+            if (
+                $expansionRatio !== null
+                && (
+                    !is_float($summaries[$key]['largestExpansionRatio'])
+                    || $expansionRatio > $summaries[$key]['largestExpansionRatio']
+                )
+            ) {
+                $summaries[$key]['largestExpansionRatioEntryName'] = $name;
+                $summaries[$key]['largestExpansionRatio'] = $expansionRatio;
+            }
+
+            foreach (self::entryHandoffRolesForSummary($entry) as $role) {
+                if (!in_array($role, $summaries[$key]['roles'], true)) {
+                    $summaries[$key]['roles'][] = $role;
+                }
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['roles'], SORT_STRING);
+        }
+        unset($summary);
+
+        $ordered = [];
+        foreach (['zero-byte', 'up-to-1x', '1x-to-10x', '10x-to-100x', 'over-100x', 'unknown'] as $bucket) {
+            if (isset($summaries[$bucket])) {
+                $ordered[] = $summaries[$bucket];
+            }
+        }
+
+        return $ordered;
+    }
+
+    /**
+     * @return array{expansionRatioBucket:string,minExpansionRatio:?float,maxExpansionRatio:?float}
+     */
+    private static function entryHandoffExpansionRatioBucket(?float $expansionRatio): array
+    {
+        if ($expansionRatio === null) {
+            return [
+                'expansionRatioBucket' => 'unknown',
+                'minExpansionRatio' => null,
+                'maxExpansionRatio' => null,
+            ];
+        }
+
+        if ($expansionRatio <= 0.0) {
+            return [
+                'expansionRatioBucket' => 'zero-byte',
+                'minExpansionRatio' => 0.0,
+                'maxExpansionRatio' => 0.0,
+            ];
+        }
+
+        if ($expansionRatio <= 1.0) {
+            return [
+                'expansionRatioBucket' => 'up-to-1x',
+                'minExpansionRatio' => 0.0,
+                'maxExpansionRatio' => 1.0,
+            ];
+        }
+
+        if ($expansionRatio <= 10.0) {
+            return [
+                'expansionRatioBucket' => '1x-to-10x',
+                'minExpansionRatio' => 1.0,
+                'maxExpansionRatio' => 10.0,
+            ];
+        }
+
+        if ($expansionRatio <= 100.0) {
+            return [
+                'expansionRatioBucket' => '10x-to-100x',
+                'minExpansionRatio' => 10.0,
+                'maxExpansionRatio' => 100.0,
+            ];
+        }
+
+        return [
+            'expansionRatioBucket' => 'over-100x',
+            'minExpansionRatio' => 100.0,
+            'maxExpansionRatio' => null,
         ];
     }
 

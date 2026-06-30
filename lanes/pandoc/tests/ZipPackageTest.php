@@ -13315,6 +13315,141 @@ return [
         $t->contains('Unsupported ZIP compression method 12', $zeroCompressedEntry['error']);
     },
 
+    'summarizes selected zip handoff expansion ratio buckets before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = str_repeat('D', 2048);
+        $styleXml = '<style/>';
+        $emptyBytes = '';
+        $mediaBytes = str_repeat('M', 70000);
+        $unknownName = 'word/media/zero-compressed.bin';
+        $unknownUncompressedSize = 37;
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 8],
+            ['name' => 'word/styles.xml', 'data' => $styleXml, 'method' => 0],
+            ['name' => 'word/media/empty.bin', 'data' => $emptyBytes, 'method' => 0],
+            ['name' => 'word/media/large.bin', 'data' => $mediaBytes, 'method' => 8],
+            [
+                'name' => $unknownName,
+                'data' => '',
+                'method' => 12,
+                'centralCompressedSize' => 0,
+                'centralUncompressedSize' => $unknownUncompressedSize,
+                'localCompressedSize' => 0,
+                'localUncompressedSize' => $unknownUncompressedSize,
+            ],
+        ]));
+        $documentCompressed = strlen(gzdeflate($documentXml));
+        $mediaCompressed = strlen(gzdeflate($mediaBytes));
+        $documentRatio = strlen($documentXml) / $documentCompressed;
+        $mediaRatio = strlen($mediaBytes) / $mediaCompressed;
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/styles.xml', 'required' => false, 'kind' => 'file', 'role' => 'styles'],
+            ['name' => 'word/media/empty.bin', 'required' => false, 'kind' => 'file', 'role' => 'attachment'],
+            ['name' => 'word/media/large.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 16],
+            ['name' => $unknownName, 'required' => false, 'kind' => 'file', 'role' => 'media-review'],
+        ], 131072);
+
+        $selectedByBucket = [];
+        foreach ($summary['selectedExpansionRatioBucketSummaries'] as $bucket) {
+            $selectedByBucket[$bucket['expansionRatioBucket']] = $bucket;
+        }
+        $handoffByBucket = [];
+        foreach ($summary['handoffExpansionRatioBucketSummaries'] as $bucket) {
+            $handoffByBucket[$bucket['expansionRatioBucket']] = $bucket;
+        }
+
+        $t->same(4, $summary['selectedExpansionRatioBucketCount']);
+        $t->same(3, $summary['handoffExpansionRatioBucketCount']);
+        $t->same(['zero-byte', 'up-to-1x', 'over-100x', 'unknown'], array_keys($selectedByBucket));
+        $t->same(['zero-byte', 'up-to-1x', 'over-100x'], array_keys($handoffByBucket));
+
+        $t->same([
+            'expansionRatioBucket' => 'zero-byte',
+            'minExpansionRatio' => 0.0,
+            'maxExpansionRatio' => 0.0,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'unknownExpansionRatioEntryCount' => 0,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+            'roles' => ['attachment'],
+            'entryNames' => ['word/media/empty.bin'],
+            'largestExpansionRatioEntryName' => 'word/media/empty.bin',
+            'largestExpansionRatio' => 0.0,
+        ], $selectedByBucket['zero-byte']);
+        $t->same($selectedByBucket['zero-byte'], $handoffByBucket['zero-byte']);
+
+        $t->same([
+            'expansionRatioBucket' => 'up-to-1x',
+            'minExpansionRatio' => 0.0,
+            'maxExpansionRatio' => 1.0,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'unknownExpansionRatioEntryCount' => 0,
+            'compressedBytes' => strlen($styleXml),
+            'uncompressedBytes' => strlen($styleXml),
+            'roles' => ['styles'],
+            'entryNames' => ['word/styles.xml'],
+            'largestExpansionRatioEntryName' => 'word/styles.xml',
+            'largestExpansionRatio' => 1.0,
+        ], $selectedByBucket['up-to-1x']);
+        $t->same($selectedByBucket['up-to-1x'], $handoffByBucket['up-to-1x']);
+
+        $t->same([
+            'expansionRatioBucket' => 'over-100x',
+            'minExpansionRatio' => 100.0,
+            'maxExpansionRatio' => null,
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'unknownExpansionRatioEntryCount' => 0,
+            'compressedBytes' => $documentCompressed + $mediaCompressed,
+            'uncompressedBytes' => strlen($documentXml) + strlen($mediaBytes),
+            'roles' => ['main-document', 'media'],
+            'entryNames' => ['word/document.xml', 'word/media/large.bin'],
+            'largestExpansionRatioEntryName' => 'word/media/large.bin',
+            'largestExpansionRatio' => $mediaRatio,
+        ], $selectedByBucket['over-100x']);
+        $t->same([
+            'expansionRatioBucket' => 'over-100x',
+            'minExpansionRatio' => 100.0,
+            'maxExpansionRatio' => null,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'unknownExpansionRatioEntryCount' => 0,
+            'compressedBytes' => $documentCompressed,
+            'uncompressedBytes' => strlen($documentXml),
+            'roles' => ['main-document'],
+            'entryNames' => ['word/document.xml'],
+            'largestExpansionRatioEntryName' => 'word/document.xml',
+            'largestExpansionRatio' => $documentRatio,
+        ], $handoffByBucket['over-100x']);
+
+        $t->same([
+            'expansionRatioBucket' => 'unknown',
+            'minExpansionRatio' => null,
+            'maxExpansionRatio' => null,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'unknownExpansionRatioEntryCount' => 1,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => $unknownUncompressedSize,
+            'roles' => ['media-review'],
+            'entryNames' => [$unknownName],
+            'largestExpansionRatioEntryName' => null,
+            'largestExpansionRatio' => null,
+        ], $selectedByBucket['unknown']);
+        $t->same('metadata-only', $summary['entries'][3]['byteExposurePolicy']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['entries'][3]['issues']);
+        $t->same(false, $summary['entries'][4]['isReadable']);
+        $t->same(['entry-uncompressed-size-exceeds-limit', 'unreadable-entry'], $summary['issues']);
+    },
+
     'preflights duplicate selected zip package requests before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>duplicate selected handoff</w:p></w:body></w:document>';
         $imageBytes = "review image bytes\n";
