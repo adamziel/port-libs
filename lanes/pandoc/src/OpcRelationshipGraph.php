@@ -264,6 +264,10 @@ final class OpcRelationshipGraph
             ];
 
             try {
+                OpcPackagePath::assertSafeUriReferenceSuffix(
+                    $selectedPartName,
+                    'OPC selected content type part URI reference'
+                );
                 $partName = OpcPackagePath::canonicalPartNameFromUri(
                     OpcPackagePath::stripQueryAndFragment($selectedPartName)
                 );

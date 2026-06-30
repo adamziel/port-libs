@@ -160,6 +160,11 @@ final class OpcPackagePath
         return substr($partName, 0, $split);
     }
 
+    public static function assertSafeUriReferenceSuffix(string $uriReference, string $label): void
+    {
+        self::assertUriReferenceSuffix(substr($uriReference, strcspn($uriReference, '?#')), $label);
+    }
+
     private static function decodeUriPath(string $path, string $label): string
     {
         if (preg_match('/%(?![0-9A-Fa-f]{2})/', $path) === 1) {
@@ -187,6 +192,10 @@ final class OpcPackagePath
     {
         if ($suffix === '') {
             return;
+        }
+
+        if (preg_match('/[\x00-\x20\x7F]/', $suffix) === 1) {
+            throw new \InvalidArgumentException($label . ' query or fragment contains invalid URI bytes');
         }
 
         if (preg_match('/%(?![0-9A-Fa-f]{2})/', $suffix) === 1) {

@@ -316,6 +316,65 @@ XML;
         $t->same(null, $targets['/word/document.xml:rIdExternalAudit']['targetQuery']);
         $t->same(null, $targets['/word/document.xml:rIdExternalAudit']['targetFragment']);
     },
+    'rejects unsafe OPC content type URI reference suffixes before package graph construction' => static function (TestRunner $t) use ($contentTypesXml): void {
+        $types = OpcContentTypes::fromXml($contentTypesXml);
+
+        foreach ([
+            '/word/document.xml?review=%ZZ' => 'malformed percent escape',
+            '/word/document.xml#review%00' => 'unsafe percent-encoded byte',
+            "/word/document.xml?review=raw value" => 'invalid URI bytes',
+        ] as $uriReference => $parseErrorNeedle) {
+            try {
+                $types->contentTypeResolutionForPart($uriReference);
+                $t->true(false, 'Unsafe OPC content type URI reference suffix should be rejected: ' . $uriReference);
+            } catch (\InvalidArgumentException $exception) {
+                $t->contains($parseErrorNeedle, $exception->getMessage());
+            }
+        }
+
+        $summary = OpcRelationshipGraph::preflightSelectedContentTypes(
+            ZipPackage::fromParts([
+                ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+                ['name' => 'word/document.xml', 'data' => '<w:document/>'],
+                ['name' => 'word/media/review-image.PNG', 'data' => 'PNG'],
+            ]),
+            [
+                '/word/document.xml?review=%ZZ',
+                '/word/media/review-image.PNG#crop%00',
+                "/word/document.xml?review=raw value",
+                '/word/media/review-image.PNG?crop=%20ready',
+            ]
+        );
+
+        $records = [];
+        foreach ($summary['records'] as $record) {
+            $records[$record['selectedPartName']] = $record;
+        }
+
+        $t->same(false, $summary['valid']);
+        $t->same(4, $summary['selectedPartCount']);
+        $t->same(1, $summary['uniqueSelectedPartCount']);
+        $t->same(3, $summary['invalidSelectedPartCount']);
+        $t->same(1, $summary['existingSelectedPartCount']);
+        $t->same(1, $summary['contentTypeResolvedPartCount']);
+        $t->same(['invalid-selected-part-name' => 3], $summary['issueCounts']);
+        $t->same(['invalid-selected-part-name'], $summary['issues']);
+        $t->same(3, count($summary['invalidSelectedPartNames']));
+
+        $t->same(['invalid-selected-part-name'], $records['/word/document.xml?review=%ZZ']['issues']);
+        $t->contains('malformed percent escape', $records['/word/document.xml?review=%ZZ']['parseError'] ?? '');
+        $t->same(['invalid-selected-part-name'], $records['/word/media/review-image.PNG#crop%00']['issues']);
+        $t->contains('unsafe percent-encoded byte', $records['/word/media/review-image.PNG#crop%00']['parseError'] ?? '');
+        $t->same(['invalid-selected-part-name'], $records["/word/document.xml?review=raw value"]['issues']);
+        $t->contains('invalid URI bytes', $records["/word/document.xml?review=raw value"]['parseError'] ?? '');
+
+        $validImage = $records['/word/media/review-image.PNG?crop=%20ready'];
+        $t->same('/word/media/review-image.PNG', $validImage['partName']);
+        $t->same(true, $validImage['exists']);
+        $t->same('default', $validImage['contentTypeSource']);
+        $t->same('image/png', $validImage['contentType']);
+        $t->same([], $validImage['issues']);
+    },
     'preflights OPC ZIP entry manifest before XML package handoff' => static function (TestRunner $t): void {
         $package = ZipPackage::fromParts([
             ['name' => '[Content_Types].xml', 'data' => '<Types/>'],
