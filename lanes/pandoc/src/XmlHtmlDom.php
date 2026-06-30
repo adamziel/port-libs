@@ -91,6 +91,7 @@ final class XmlHtmlDom
         'autoplay' => true,
         'checked' => true,
         'controls' => true,
+        'credentialless' => true,
         'default' => true,
         'defer' => true,
         'disablepictureinpicture' => true,
@@ -26006,6 +26007,8 @@ final class XmlHtmlDom
             'loading' => self::attributeOrNull($iframe, 'loading'),
             'referrerpolicy' => self::attributeOrNull($iframe, 'referrerpolicy'),
             'allow' => self::attributeOrNull($iframe, 'allow'),
+            'csp' => self::attributeOrNull($iframe, 'csp'),
+            'credentialless' => $iframe->hasAttribute('credentialless'),
             'sandboxTokens' => $iframe->hasAttribute('sandbox') ? self::spaceSeparatedTokens($iframe->getAttribute('sandbox')) : [],
             'allowFullscreen' => $iframe->hasAttribute('allowfullscreen'),
         ];
@@ -26033,6 +26036,24 @@ final class XmlHtmlDom
             'iframePolicyReview' => 'iframe-policy-metadata-review',
             'iframePolicyIssueCodes' => [],
         ];
+
+        if ($iframe->hasAttribute('credentialless')) {
+            $credentialless = self::iframeCredentiallessPolicySummary($iframe);
+            $summary += $credentialless;
+            foreach (($credentialless['iframeCredentiallessIssueCodes'] ?? []) as $code) {
+                if (is_string($code) && $code !== '') {
+                    self::appendUniqueString($summary['iframePolicyIssueCodes'], $code);
+                }
+            }
+        }
+
+        if ($iframe->hasAttribute('csp')) {
+            $csp = self::iframeContentSecurityPolicySummary($iframe->getAttribute('csp'));
+            $summary += $csp;
+            if (($csp['contentSecurityPolicyValid'] ?? true) !== true) {
+                self::appendUniqueString($summary['iframePolicyIssueCodes'], 'invalid-iframe-csp-policy');
+            }
+        }
 
         if ($iframe->hasAttribute('sandbox')) {
             $sandbox = self::iframeSandboxPolicySummary($iframe->getAttribute('sandbox'));
@@ -26075,6 +26096,81 @@ final class XmlHtmlDom
         $summary['allowFullscreen'] = $iframe->hasAttribute('allowfullscreen');
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function iframeCredentiallessPolicySummary(\DOMElement $iframe): array
+    {
+        $raw = $iframe->getAttribute('credentialless');
+        $canonical = $raw === '' || strtolower($raw) === 'credentialless';
+        $issues = [];
+        if (!$canonical) {
+            $issues[] = [
+                'code' => 'noncanonical-iframe-credentialless-boolean-value',
+                'credentiallessRaw' => $raw,
+            ];
+        }
+
+        return [
+            'iframeCredentiallessReviewPolicy' => 'iframe-credentialless-storage-isolation-review',
+            'credentiallessRaw' => $raw,
+            'iframeCredentiallessRequested' => true,
+            'iframeCredentiallessIsolationMode' => 'cross-origin-embedder-credentialless',
+            'iframeCredentiallessNetworkFetchedByPortLibs' => false,
+            'iframeCredentiallessCanonicalBoolean' => $canonical,
+            'iframeCredentiallessIssues' => $issues,
+            'iframeCredentiallessIssueCodes' => array_values(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            )),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function iframeContentSecurityPolicySummary(string $value): array
+    {
+        $summary = self::metaContentSecurityPolicySummary($value, 'iframe-csp');
+        $issues = [];
+        foreach (($summary['cspIssues'] ?? []) as $issue) {
+            if (!is_array($issue)) {
+                continue;
+            }
+            if (($issue['code'] ?? null) === 'missing-meta-csp-content') {
+                $issue['code'] = 'missing-iframe-csp-content';
+            }
+            $issues[] = $issue;
+        }
+
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+
+        $summary['contentSecurityPolicyReviewPolicy'] = 'iframe-content-security-policy-attribute-review';
+        $summary['contentSecurityPolicySource'] = 'iframe-csp-attribute';
+        $summary['contentSecurityPolicyAttribute'] = 'csp';
+        $summary['cspIssues'] = $issues;
+        $summary['cspIssueCodes'] = $issueCodes;
+        $summary['contentSecurityPolicyValid'] = $issueCodes === [];
+
+        return $summary + [
+            'iframeCspReviewPolicy' => 'iframe-content-security-policy-attribute-review',
+            'iframeCspRaw' => $value,
+            'iframeCspByteLength' => strlen($value),
+            'iframeCspSha256' => hash('sha256', $value),
+            'iframeCspDirectiveCount' => (int) ($summary['cspDirectiveCount'] ?? 0),
+            'iframeCspDirectiveNames' => $summary['cspDirectiveNames'] ?? [],
+            'iframeCspFetchDirectiveNames' => $summary['cspFetchDirectiveNames'] ?? [],
+            'iframeCspNetworkSources' => $summary['cspNetworkSources'] ?? [],
+            'iframeCspReportEndpoints' => $summary['cspReportEndpoints'] ?? [],
+            'iframeCspIssueCodes' => $issueCodes,
+            'iframeCspValid' => $issueCodes === [],
+            'iframeCspEnforcedByPortLibs' => false,
+        ];
     }
 
     /**
