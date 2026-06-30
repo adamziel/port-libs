@@ -9049,7 +9049,47 @@ return [
                 'native' => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
             ] as $writer => $encoded) {
                 $t->same(['t' => 'Attr', 'c' => [[['edited-heading'], [['edited'], ['source']], [[['data-source'], ['edited-json']], [['data-state'], ['reviewed']]]]], 'reviewQueue' => 'wrapped-heading-attr'], $encoded['blocks'][0]['c'][1], "{$source} {$writer} regenerates edited wrapped heading Attr constructor");
-                $t->same(['wrapped-link', ['external'], [['data-link', 'edited']]], $encoded['blocks'][1]['c'][0]['c'][0], "{$source} {$writer} regenerates edited wrapped link attr tuple");
+                $t->same([['wrapped-link'], [['external']], [[['data-link'], ['edited']]]], $encoded['blocks'][1]['c'][0]['c'][0], "{$source} {$writer} regenerates edited wrapped link attr tuple");
+            }
+        }
+    },
+    'regenerates edited untagged attr scalar wrappers' => static function (TestRunner $t): void {
+        $headingAttr = [[['source-heading'], [['source-class']], [[['data-state'], ['draft']]]]];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Header', 'c' => [
+                    2,
+                    $headingAttr,
+                    [['t' => 'Str', 'c' => 'Untagged attr scalar']],
+                ]],
+            ],
+        ];
+        $expectedAttr = [['edited-heading'], [['edited-class']], [[['data-state'], ['reviewed']]]];
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $heading = $document->children[0];
+            $edited = new AstNode('document', $document->attrs, [
+                new AstNode('heading', array_replace($heading->attrs, [
+                    'id' => 'edited-heading',
+                    'classes' => ['edited-class'],
+                    'attributes' => ['data-state' => 'reviewed'],
+                ]), $heading->children),
+            ]);
+
+            $t->same('source-heading', $heading->attr('id'), "{$source} unwraps untagged single wrapped Attr id");
+            $t->same(['source-class'], $heading->attr('classes'), "{$source} unwraps untagged single wrapped Attr classes");
+            $t->same(['data-state' => 'draft'], $heading->attr('attributes'), "{$source} unwraps untagged single wrapped Attr key-values");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($edited),
+                'native' => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same($expectedAttr, $encoded['blocks'][0]['c'][1], "{$source} {$writer} regenerates edited untagged Attr scalar wrappers");
             }
         }
     },

@@ -2784,7 +2784,7 @@ final class PandocJsonWriter
         if ($tuple !== null) {
             return $this->normalizedAttrTuple($tuple) === $this->normalizedAttrTuple($generated)
                 ? $native
-                : null;
+                : $this->regeneratedAttrTupleContent($native, $generated);
         }
 
         $tagged = $this->taggedNative($native, 'Attr');
