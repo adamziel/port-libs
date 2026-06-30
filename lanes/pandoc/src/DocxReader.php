@@ -600,7 +600,10 @@ final class DocxReader
                     continue;
                 }
 
-                if ($styleBlockKind === 'blockquote' || $this->isIndentedBlockQuoteParagraph($child, $styleId)) {
+                if (
+                    $styleBlockKind === 'blockquote'
+                    || $this->isIndentedBlockQuoteParagraph($child, $styleId, $pendingListRecords !== [] || $pendingQuoteBlocks !== [])
+                ) {
                     $flushList();
                     $flushCodeBlock();
                     $flushDefinitionList();
@@ -844,7 +847,7 @@ final class DocxReader
         return new AstNode($paragraph->type, $attrs, $children);
     }
 
-    private function isIndentedBlockQuoteParagraph(\DOMElement $paragraph, string $styleId): bool
+    private function isIndentedBlockQuoteParagraph(\DOMElement $paragraph, string $styleId, bool $listOrQuoteContext = false): bool
     {
         $pPr = $this->directChild($paragraph, 'pPr');
         $ind = $pPr instanceof \DOMElement ? $this->directChild($pPr, 'ind') : null;
@@ -859,15 +862,15 @@ final class DocxReader
 
         $leftTwips = (int) $left;
         if ($styleId === '') {
-            return $leftTwips >= 1000;
+            return $leftTwips >= ($listOrQuoteContext ? 360 : 1000);
         }
 
         $styleLeft = $this->styles[$styleId]['paragraphLeftIndent'] ?? null;
         if (!is_int($styleLeft)) {
-            return false;
+            return $leftTwips >= ($listOrQuoteContext ? 360 : 1000);
         }
 
-        return ($leftTwips - $styleLeft) >= 360;
+        return ($leftTwips - $styleLeft) >= 360 || ($listOrQuoteContext && $leftTwips >= 360);
     }
 
     private function codeTextFromParagraph(\DOMElement $paragraph): string
