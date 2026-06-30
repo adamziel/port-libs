@@ -94,6 +94,94 @@ BIB;
         $t->same('Import note attached', $item['note']);
         $t->same('Nia Ng. Obscure Archive Packet: Source Review Appendix. 2026. https://example.test/preprint.', $bibliography);
     },
+    'carries biblatex primary class archive aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@online{primary-class-preprint,
+  author        = {Ng, Nia},
+  title         = {Primary Class Preprint},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL},
+  eprint        = {2606.10001},
+  date          = {2026},
+  url           = {https://example.test/primary-class-preprint}
+}
+
+@online{hyphen-primary-class-preprint,
+  author         = {Roe, Pat},
+  title          = {Hyphen Primary Class Preprint},
+  archiveprefix  = {arXiv},
+  primary-class  = {math.AG},
+  eprint         = {2606.10002},
+  date           = {2025}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $primary = $items['primary-class-preprint'];
+        $hyphen = $items['hyphen-primary-class-preprint'];
+
+        $t->same('arXiv', $primary['archive']);
+        $t->same('cs.CL', $primary['archive-place']);
+        $t->same('2606.10001', $primary['archive_location']);
+        $t->same('arXiv:cs.CL:2606.10001', $primary['archive-summary']);
+        $t->same('cs.CL', $primary['rawBibtex']['fields']['primaryclass']);
+        $t->same('math.AG', $hyphen['archive-place']);
+        $t->same('math.AG', $hyphen['rawBibtex']['fields']['primary-class']);
+        $t->same('arXiv:math.AG:2606.10002', $hyphen['archive-summary']);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Primary Class Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-primary-class-review</id>
+    <updated>2026-06-30T10:35:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="archive"/>
+        <text variable="archive-place"/>
+        <text variable="archive_location"/>
+        <text variable="archive-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="archive-place"/>
+      <text variable="archive-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledPrimary = $styled->item('primary-class-preprint');
+        $styledHyphen = $styled->item('hyphen-primary-class-preprint');
+        $t->same('Bounded Legacy BibLaTeX Primary Class Review', $styled->cslStyleSummary()['title'] ?? null);
+        $t->same('cs.CL', $styledPrimary['archivePlace'] ?? null);
+        $t->same('math.AG', $styledHyphen['archivePlace'] ?? null);
+        $t->same('[Primary Class Preprint | arXiv | cs.CL | 2606.10001 | arXiv:cs.CL:2606.10001; Hyphen Primary Class Preprint | arXiv | math.AG | 2606.10002 | arXiv:math.AG:2606.10002]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'primary-class-preprint', 'text' => '[@primary-class-preprint]']),
+            new AstNode('citation', ['id' => 'hyphen-primary-class-preprint', 'text' => '[@hyphen-primary-class-preprint]']),
+        ]));
+        $t->same('Primary Class Preprint :: cs.CL :: arXiv:cs.CL:2606.10001', $styled->renderBibliographyEntry('primary-class-preprint'));
+        $t->same('Hyphen Primary Class Preprint :: math.AG :: arXiv:math.AG:2606.10002', $styled->renderBibliographyEntry('hyphen-primary-class-preprint'));
+
+        $document = (new MarkdownReader())->read('Primary class sources [@hyphen-primary-class-preprint; @primary-class-preprint] keep arXiv classes visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['hyphen-primary-class-preprint', 'primary-class-preprint'], $handoff['citedKeys']);
+        $t->same('math.AG', $handoff['items'][0]['archive-place'] ?? null);
+        $t->same('cs.CL', $handoff['bibliography']->children[1]->attr('cslItem')['archive-place'] ?? null);
+        $t->contains('<p>Primary class sources [Hyphen Primary Class Preprint | arXiv | math.AG | 2606.10002 | arXiv:math.AG:2606.10002; Primary Class Preprint | arXiv | cs.CL | 2606.10001 | arXiv:cs.CL:2606.10001] keep arXiv classes visible.</p>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Hyphen Primary Class Preprint :: math.AG :: arXiv:math.AG:2606.10002</dd>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Primary Class Preprint :: cs.CL :: arXiv:cs.CL:2606.10001</dd>', $blocks);
+    },
     'carries compact biblatex csl aliases in legacy handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @article{alias-journal,

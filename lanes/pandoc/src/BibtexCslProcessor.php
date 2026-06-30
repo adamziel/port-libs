@@ -950,7 +950,7 @@ final class BibtexCslProcessor
             'Wikidata' => ['wikidata', 'wikidataid', 'wikidata-id', 'wd'],
             'archive' => ['archiveprefix', 'eprinttype', 'archive'],
             'archive-collection' => ['archivecollection', 'archive-collection', 'archive_collection'],
-            'archive-place' => ['eprintclass', 'archiveplace', 'archive-place'],
+            'archive-place' => ['eprintclass', 'primaryclass', 'primary-class', 'archiveplace', 'archive-place'],
             'archive_location' => ['eprint', 'archive-location', 'archive_location', 'archivelocation'],
             'call-number' => ['callnumber', 'call-number', 'library', 'shelfmark', 'shelf-mark'],
             'language' => ['language', 'langid', 'hyphenation'],
