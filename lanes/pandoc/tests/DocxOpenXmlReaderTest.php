@@ -1511,6 +1511,123 @@ XML;
         $t->same(5, $summary['partNameNormalizationReviewEntryCount']);
         $t->same($normalization['issueCodes'], $summary['partNameNormalizationIssueCodes']);
     },
+    'preserves docx zip package entry metadata policy provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $zipParts = docx_openxml_reader_zip_parts($parts);
+        foreach ($zipParts as &$zipPart) {
+            if ($zipPart['name'] === 'word/document.xml') {
+                $zipPart['modifiedAt'] = 1780479016;
+                $zipPart['externalAttributes'] = 0x81a40000;
+                $zipPart['internalAttributes'] = 0x0001;
+                $zipPart['creatorHostSystem'] = 3;
+            }
+            if ($zipPart['name'] === 'word/media/review.png') {
+                $zipPart['externalAttributes'] = 0x81ed0000;
+                $zipPart['creatorHostSystem'] = 3;
+                $zipPart['compressionMethod'] = 0;
+            }
+        }
+        unset($zipPart);
+        $zipParts[] = [
+            'name' => 'word/media/Thumbs.db',
+            'data' => 'windows thumbnail metadata',
+            'compressionMethod' => 0,
+            'externalAttributes' => 0x22,
+            'creatorHostSystem' => 0,
+        ];
+        $zipParts[] = [
+            'name' => 'word/media/.DS_Store',
+            'data' => 'macos finder metadata',
+            'compressionMethod' => 0,
+            'externalAttributes' => 0x81a40000,
+            'creatorHostSystem' => 3,
+        ];
+
+        $zip = ZipPackage::fromParts($zipParts);
+        $document = (new DocxOpenXmlReader())->readZipPackage($zip);
+        $package = $document->attr('docx')['packageProvenance'];
+        $zipPackage = $package['zipPackage'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $documentEntry = $zipPackage['byPackagePath']['word/document.xml'];
+        $mediaEntry = $zipPackage['byPackagePath']['word/media/review.png'];
+        $thumbsEntry = $zipPackage['byPackagePath']['word/media/Thumbs.db'];
+        $finderEntry = $zipPackage['byPackagePath']['word/media/.DS_Store'];
+
+        $t->same('Imported DOCX Heading', $document->children[0]->attr('text'));
+        $t->same($zip->generalPurposeFlagPreflight(), $zipPackage['generalPurposeFlags']);
+        $t->same($zip->modificationTimePreflight(), $zipPackage['modificationTimes']);
+        $t->same($zip->creatorHostSystemPreflight(), $zipPackage['creatorHostSystems']);
+        $t->same($zip->permissionPreflight(), $zipPackage['permissions']);
+        $t->same($zip->dosAttributePreflight(), $zipPackage['dosAttributes']);
+        $t->same($zip->internalAttributePreflight(), $zipPackage['internalAttributes']);
+        $t->same($zip->platformMetadataPreflight(), $zipPackage['platformMetadata']);
+        $t->same($zip->unixOwnerPreflight(), $zipPackage['unixOwners']);
+
+        $t->same(count($zipParts), $summary['zipGeneralPurposeUtf8NameEntryCount']);
+        $t->same(0, $summary['zipGeneralPurposeUnsupportedFlagEntryCount']);
+        $t->same(0, $summary['zipGeneralPurposeStrictReviewEntryCount']);
+        $t->same(1, $summary['zipModificationTimestampEntryCount']);
+        $t->same(1, $summary['zipExtendedTimestampEntryCount']);
+        $t->same(count($zipParts), $summary['zipKnownCreatorHostSystemEntryCount']);
+        $t->same(0, $summary['zipUnknownCreatorHostSystemEntryCount']);
+        $t->same(2, count($summary['zipCreatorHostSystems']));
+        $t->same(3, $summary['zipUnixModeEntryCount']);
+        $t->same(1, $summary['zipExecutableFileCount']);
+        $t->same(0, $summary['zipWritablePermissionEntryCount']);
+        $t->same(1, $summary['zipDosAttributeEntryCount']);
+        $t->same(1, $summary['zipHiddenEntryCount']);
+        $t->same(1, $summary['zipInternalAttributeEntryCount']);
+        $t->same(1, $summary['zipTextInternalAttributeEntryCount']);
+        $t->same(2, $summary['zipPlatformMetadataEntryCount']);
+        $t->same(0, $summary['zipMacosSidecarEntryCount']);
+        $t->same(1, $summary['zipFinderMetadataEntryCount']);
+        $t->same(1, $summary['zipWindowsSidecarEntryCount']);
+        $t->same(1, $summary['zipWindowsThumbnailCacheEntryCount']);
+        $t->same(0, $summary['zipUnixOwnerMetadataEntryCount']);
+
+        $t->same(0x0800, $documentEntry['generalPurposeFlags']);
+        $t->same(['utf-8-names'], $documentEntry['zipFlagNames']);
+        $t->same(false, $documentEntry['zipGeneralPurposeRequiresStrictReview']);
+        $t->same(1780479016, $documentEntry['zipModifiedAt']);
+        $t->same('extended-timestamp', $documentEntry['zipTimestampSource']);
+        $t->same(3, $documentEntry['zipMadeByHostSystem']);
+        $t->same('unix', $documentEntry['zipMadeByHostSystemName']);
+        $t->same(true, $documentEntry['zipCreatorVersionMeetsNeeded']);
+        $t->same(0x81a40000, $documentEntry['zipExternalAttributes']);
+        $t->same(0x81a4, $documentEntry['zipUnixMode']);
+        $t->same(0644, $documentEntry['zipUnixPermissions']);
+        $t->same(true, $documentEntry['zipHasTextInternalAttribute']);
+        $t->same(['apparently-text'], $documentEntry['zipInternalAttributeNames']);
+        $t->same(['internal-text-attribute'], $documentEntry['zipInternalAttributeIssues']);
+
+        $t->same(true, $mediaEntry['zipUnixExecutableFile']);
+        $t->same(0755, $mediaEntry['zipUnixPermissions']);
+        $t->same(['unix-executable-file'], $mediaEntry['zipPermissionIssues']);
+        $t->same(true, $thumbsEntry['zipHasDosHiddenAttribute']);
+        $t->same(['hidden', 'archive'], $thumbsEntry['zipDosAttributeNames']);
+        $t->same('windows', $thumbsEntry['zipPlatformMetadataPlatform']);
+        $t->same(['windows-thumbnail-cache-entry'], $thumbsEntry['zipPlatformMetadataIssues']);
+        $t->same('macos', $finderEntry['zipPlatformMetadataPlatform']);
+        $t->same(['finder-metadata-entry'], $finderEntry['zipPlatformMetadataIssues']);
+
+        $documentPart = $inventory['word/document.xml'];
+        $mediaPart = $inventory['word/media/review.png'];
+        $thumbsPart = $inventory['word/media/Thumbs.db'];
+        $finderPart = $inventory['word/media/.DS_Store'];
+        $t->same(1780479016, $documentPart['zipModifiedAt']);
+        $t->same('extended-timestamp', $documentPart['zipTimestampSource']);
+        $t->same('unix', $documentPart['zipMadeByHostSystemName']);
+        $t->same(0644, $documentPart['zipUnixPermissions']);
+        $t->same(true, $documentPart['zipHasTextInternalAttribute']);
+        $t->same(true, $mediaPart['zipUnixExecutableFile']);
+        $t->same(['unix-executable-file'], $mediaPart['zipPermissionIssues']);
+        $t->same(['hidden', 'archive'], $thumbsPart['zipDosAttributeNames']);
+        $t->same('windows', $thumbsPart['zipPlatformMetadataPlatform']);
+        $t->same('macos', $finderPart['zipPlatformMetadataPlatform']);
+        $t->same('docx-zip-entry-metadata-only', $finderPart['zipByteExposurePolicy']);
+        $t->same(false, $finderPart['zipCanExposeBytes']);
+    },
     'preserves docx package inventory CRC32 provenance for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['customXml/raw-review.bin'] = 'raw custom payload bytes';

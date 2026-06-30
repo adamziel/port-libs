@@ -13018,6 +13018,26 @@ final class DocxOpenXmlReader
         $summary['zipDataDescriptorIssueCount'] = $zipDataDescriptors['issueCount'];
         $summary['zipDataDescriptorIssueCodes'] = $zipDataDescriptors['issueCodes'];
         $summary['zipDataDescriptorByteLength'] = $zipDataDescriptors['descriptorByteLength'];
+        $zipExtraFields = is_array($zipPackage['extraFields'] ?? null)
+            ? $zipPackage['extraFields']
+            : $this->emptyZipExtraFieldProvenance();
+        $summary['zipExtraFieldEntryCount'] = (int) ($zipExtraFields['extraFieldEntryCount'] ?? 0);
+        $summary['zipDuplicateExtraFieldEntryCount'] = (int) ($zipExtraFields['duplicateExtraFieldEntryCount'] ?? 0);
+        $summary['zipDuplicateCentralExtraFieldEntryCount'] = (int) ($zipExtraFields['duplicateCentralExtraFieldEntryCount'] ?? 0);
+        $summary['zipDuplicateLocalExtraFieldEntryCount'] = (int) ($zipExtraFields['duplicateLocalExtraFieldEntryCount'] ?? 0);
+        $summary['zipMismatchedExtraFieldEntryCount'] = (int) ($zipExtraFields['mismatchedExtraFieldEntryCount'] ?? 0);
+        $summary['zipMismatchedExtraFieldValueEntryCount'] = (int) ($zipExtraFields['mismatchedExtraFieldValueEntryCount'] ?? 0);
+        $summary['zipCentralOnlyExtraFieldEntryCount'] = (int) ($zipExtraFields['centralOnlyExtraFieldEntryCount'] ?? 0);
+        $summary['zipLocalOnlyExtraFieldEntryCount'] = (int) ($zipExtraFields['localOnlyExtraFieldEntryCount'] ?? 0);
+        $summary['zipExtraFieldIdCount'] = (int) ($zipExtraFields['extraFieldIdCount'] ?? 0);
+        $summary['zipCentralExtraFieldIdCount'] = (int) ($zipExtraFields['centralExtraFieldIdCount'] ?? 0);
+        $summary['zipLocalExtraFieldIdCount'] = (int) ($zipExtraFields['localExtraFieldIdCount'] ?? 0);
+        $summary['zipSharedExtraFieldIdCount'] = (int) ($zipExtraFields['sharedExtraFieldIdCount'] ?? 0);
+        $summary['zipCentralOnlyExtraFieldIdCount'] = (int) ($zipExtraFields['centralOnlyExtraFieldIdCount'] ?? 0);
+        $summary['zipLocalOnlyExtraFieldIdCount'] = (int) ($zipExtraFields['localOnlyExtraFieldIdCount'] ?? 0);
+        $summary['zipExtraFieldIdUsage'] = is_array($zipExtraFields['extraFieldIdUsage'] ?? null)
+            ? $zipExtraFields['extraFieldIdUsage']
+            : [];
         $zipComments = is_array($zipPackage['comments'] ?? null)
             ? $zipPackage['comments']
             : $this->emptyZipCommentProvenance();
@@ -13138,9 +13158,14 @@ final class DocxOpenXmlReader
         $zipPermissions = is_array($zipPackage['permissions'] ?? null) ? $zipPackage['permissions'] : [];
         $summary['zipUnixModeEntryCount'] = (int) ($zipPermissions['unixModeEntryCount'] ?? 0);
         $summary['zipExecutableFileCount'] = (int) ($zipPermissions['executableFileCount'] ?? 0);
+        $summary['zipGroupWritablePermissionEntryCount'] = (int) ($zipPermissions['groupWritableEntryCount'] ?? 0);
+        $summary['zipWorldWritablePermissionEntryCount'] = (int) ($zipPermissions['worldWritableEntryCount'] ?? 0);
         $summary['zipWritablePermissionEntryCount'] = (int) ($zipPermissions['writablePermissionEntryCount'] ?? 0);
         $zipDosAttributes = is_array($zipPackage['dosAttributes'] ?? null) ? $zipPackage['dosAttributes'] : [];
         $summary['zipDosAttributeEntryCount'] = (int) ($zipDosAttributes['dosAttributeEntryCount'] ?? 0);
+        $summary['zipHiddenEntryCount'] = (int) ($zipDosAttributes['hiddenEntryCount'] ?? 0);
+        $summary['zipSystemEntryCount'] = (int) ($zipDosAttributes['systemEntryCount'] ?? 0);
+        $summary['zipVolumeLabelEntryCount'] = (int) ($zipDosAttributes['volumeLabelEntryCount'] ?? 0);
         $summary['zipHiddenSystemOrVolumeLabelEntryCount'] = (int) ($zipDosAttributes['hiddenSystemOrVolumeLabelEntryCount'] ?? 0);
         $zipInternalAttributes = is_array($zipPackage['internalAttributes'] ?? null) ? $zipPackage['internalAttributes'] : [];
         $summary['zipInternalAttributeEntryCount'] = (int) ($zipInternalAttributes['internalAttributeEntryCount'] ?? 0);
@@ -13175,6 +13200,26 @@ final class DocxOpenXmlReader
         $summary['zipTimestampReviewEntries'] = is_array($zipTimestamps['timestampedEntries'] ?? null)
             ? $zipTimestamps['timestampedEntries']
             : [];
+        $zipGeneralPurposeFlags = is_array($zipPackage['generalPurposeFlags'] ?? null)
+            ? $zipPackage['generalPurposeFlags']
+            : $this->emptyZipGeneralPurposeFlagProvenance();
+        $summary['zipGeneralPurposeUnsupportedFlagEntryCount'] = (int) ($zipGeneralPurposeFlags['unsupportedFlagEntryCount'] ?? 0);
+        $summary['zipGeneralPurposeUtf8NameEntryCount'] = (int) ($zipGeneralPurposeFlags['utf8NameEntryCount'] ?? 0);
+        $summary['zipGeneralPurposeDataDescriptorEntryCount'] = (int) ($zipGeneralPurposeFlags['dataDescriptorEntryCount'] ?? 0);
+        $summary['zipGeneralPurposeDeflateOptionEntryCount'] = (int) ($zipGeneralPurposeFlags['deflateOptionEntryCount'] ?? 0);
+        $summary['zipGeneralPurposeStrictReviewEntryCount'] = (int) ($zipGeneralPurposeFlags['strictReviewEntryCount'] ?? 0);
+        $zipModificationTimes = is_array($zipPackage['modificationTimes'] ?? null)
+            ? $zipPackage['modificationTimes']
+            : $this->emptyZipModificationTimeProvenance();
+        $summary['zipModificationTimestampEntryCount'] = (int) ($zipModificationTimes['timestampEntryCount'] ?? 0);
+        $summary['zipInvalidDosTimestampEntryCount'] = (int) ($zipModificationTimes['invalidDosTimestampEntryCount'] ?? 0);
+        $zipUnixOwners = is_array($zipPackage['unixOwners'] ?? null)
+            ? $zipPackage['unixOwners']
+            : $this->emptyZipUnixOwnerProvenance();
+        $summary['zipUnixOwnerMetadataEntryCount'] = (int) ($zipUnixOwners['ownerMetadataEntryCount'] ?? 0);
+        $summary['zipCentralUnixOwnerMetadataEntryCount'] = (int) ($zipUnixOwners['centralOwnerMetadataEntryCount'] ?? 0);
+        $summary['zipLocalUnixOwnerMetadataEntryCount'] = (int) ($zipUnixOwners['localOwnerMetadataEntryCount'] ?? 0);
+        $summary['zipMismatchedUnixOwnerMetadataEntryCount'] = (int) ($zipUnixOwners['mismatchedOwnerMetadataEntryCount'] ?? 0);
         $zipOpcManifest = $zipPackage['opcManifest'];
         $summary['zipOpcManifestPresent'] = $zipOpcManifest['present'];
         $summary['zipOpcManifestValid'] = $zipOpcManifest['valid'];
@@ -13633,6 +13678,9 @@ final class DocxOpenXmlReader
                 ],
                 'dataDescriptors' => $this->emptyZipDataDescriptorProvenance(),
                 'comments' => $this->emptyZipCommentProvenance(),
+                'extraFields' => $this->emptyZipExtraFieldProvenance(),
+                'generalPurposeFlags' => $this->emptyZipGeneralPurposeFlagProvenance(),
+                'modificationTimes' => $this->emptyZipModificationTimeProvenance(),
                 'namePolicy' => $this->emptyZipNamePolicyProvenance(),
                 'opcManifest' => $this->emptyZipOpcManifestPreflight(),
                 'platformMetadata' => $this->emptyZipPlatformMetadataPreflight(),
@@ -13642,6 +13690,7 @@ final class DocxOpenXmlReader
                 'internalAttributes' => $this->emptyZipInternalAttributePreflight(),
                 'platformAttributes' => $this->emptyZipPlatformAttributeProvenance(),
                 'timestamps' => $this->emptyZipTimestampProvenance(),
+                'unixOwners' => $this->emptyZipUnixOwnerProvenance(),
                 'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
                 'canExposeBytes' => false,
                 'entries' => [],
@@ -13676,12 +13725,16 @@ final class DocxOpenXmlReader
         }
         $compressionMethods = $sourcePackage->compressionMethodPreflight();
         $dataDescriptors = $this->zipDataDescriptorProvenance($sourcePackage->dataDescriptorPreflight());
+        $extraFields = $sourcePackage->extraFieldPreflight();
         $comments = $this->zipCommentProvenance($sourcePackage->commentPreflight());
+        $generalPurposeFlags = $sourcePackage->generalPurposeFlagPreflight();
+        $modificationTimes = $sourcePackage->modificationTimePreflight();
         $platformMetadata = $sourcePackage->platformMetadataPreflight();
         $permissions = $sourcePackage->permissionPreflight();
         $creatorHostSystems = $sourcePackage->creatorHostSystemPreflight();
         $dosAttributes = $sourcePackage->dosAttributePreflight();
         $internalAttributes = $sourcePackage->internalAttributePreflight();
+        $unixOwners = $sourcePackage->unixOwnerPreflight();
         $platformAttributes = $this->zipPlatformAttributeProvenance(
             $sourcePackage,
             $platformMetadata,
@@ -13691,6 +13744,15 @@ final class DocxOpenXmlReader
             $internalAttributes,
         );
         $timestamps = $this->zipTimestampProvenance($sourcePackage);
+        $extraFieldEntriesByName = $this->zipPreflightEntriesByName($extraFields);
+        $generalPurposeFlagsByName = $this->zipPreflightEntriesByName($generalPurposeFlags);
+        $modificationTimesByName = $this->zipPreflightEntriesByName($modificationTimes);
+        $creatorHostSystemsByName = $this->zipPreflightEntriesByName($creatorHostSystems);
+        $permissionsByName = $this->zipPreflightEntriesByName($permissions);
+        $dosAttributesByName = $this->zipPreflightEntriesByName($dosAttributes);
+        $internalAttributesByName = $this->zipPreflightEntriesByName($internalAttributes);
+        $platformMetadataByName = $this->zipPreflightEntriesByName($platformMetadata);
+        $unixOwnersByName = $this->zipPreflightEntriesByName($unixOwners);
         $dataDescriptorByName = [];
         foreach ($dataDescriptors['entries'] as $descriptorEntry) {
             if (is_array($descriptorEntry) && is_string($descriptorEntry['name'] ?? null)) {
@@ -13739,6 +13801,15 @@ final class DocxOpenXmlReader
             $manifestEntry = $packageManifestByName[$entry->name] ?? [];
             $localHeaderEntry = $localHeaderByName[$entry->name] ?? [];
             $commentEntry = $commentByName[$entry->name] ?? null;
+            $extraFieldEntry = $extraFieldEntriesByName[$entry->name] ?? null;
+            $flagEntry = $generalPurposeFlagsByName[$entry->name] ?? null;
+            $timeEntry = $modificationTimesByName[$entry->name] ?? null;
+            $creatorEntry = $creatorHostSystemsByName[$entry->name] ?? null;
+            $permissionEntry = $permissionsByName[$entry->name] ?? null;
+            $dosAttributeEntry = $dosAttributesByName[$entry->name] ?? null;
+            $internalAttributeEntry = $internalAttributesByName[$entry->name] ?? null;
+            $platformMetadataEntry = $platformMetadataByName[$entry->name] ?? null;
+            $unixOwnerEntry = $unixOwnersByName[$entry->name] ?? null;
             $summary = [
                 'packagePath' => $entry->name,
                 'partName' => $isDirectory ? null : $entry->name,
@@ -13795,6 +13866,74 @@ final class DocxOpenXmlReader
                 'localHeaderCrc32' => $localHeaderEntry['localHeaderCrc32'] ?? null,
                 'localHeaderCompressedSize' => $localHeaderEntry['localHeaderCompressedSize'] ?? null,
                 'localHeaderUncompressedSize' => $localHeaderEntry['localHeaderUncompressedSize'] ?? null,
+                'generalPurposeFlags' => $entry->generalPurposeFlags,
+                'zipFlagNames' => is_array($flagEntry) ? ($flagEntry['flagNames'] ?? []) : [],
+                'zipUnsupportedFlagBits' => is_array($flagEntry) ? ($flagEntry['unsupportedFlagBits'] ?? 0) : 0,
+                'zipUsesUtf8Names' => is_array($flagEntry) ? ($flagEntry['usesUtf8Names'] ?? false) : false,
+                'zipGeneralPurposeUsesDataDescriptor' => is_array($flagEntry) ? ($flagEntry['usesDataDescriptor'] ?? false) : false,
+                'zipDeflateOptionFlags' => is_array($flagEntry) ? ($flagEntry['deflateOptionFlags'] ?? 0) : 0,
+                'zipDeflateOptionName' => is_array($flagEntry) ? ($flagEntry['deflateOptionName'] ?? null) : null,
+                'zipGeneralPurposeRequiresStrictReview' => is_array($flagEntry) ? ($flagEntry['requiresStrictReview'] ?? false) : false,
+                'zipGeneralPurposeIssues' => is_array($flagEntry) ? ($flagEntry['issues'] ?? []) : [],
+                'zipModifiedDosTime' => $entry->lastModifiedTime,
+                'zipModifiedDosDate' => $entry->lastModifiedDate,
+                'zipHasDosTimestamp' => is_array($timeEntry) ? ($timeEntry['hasDosTimestamp'] ?? false) : false,
+                'zipIsDosTimestampValid' => is_array($timeEntry) ? ($timeEntry['isDosTimestampValid'] ?? true) : true,
+                'zipDosModifiedAt' => is_array($timeEntry) ? ($timeEntry['dosModifiedAt'] ?? null) : null,
+                'zipExtendedModifiedAt' => is_array($timeEntry) ? ($timeEntry['extendedModifiedAt'] ?? null) : null,
+                'zipNtfsModifiedAt' => is_array($timeEntry) ? ($timeEntry['ntfsModifiedAt'] ?? null) : null,
+                'zipModifiedAt' => is_array($timeEntry) ? ($timeEntry['modifiedAt'] ?? null) : null,
+                'zipTimestampSource' => is_array($timeEntry) ? ($timeEntry['timestampSource'] ?? null) : null,
+                'zipTimestampIssues' => is_array($timeEntry) ? ($timeEntry['issues'] ?? []) : [],
+                'zipVersionMadeBy' => $entry->versionMadeBy,
+                'zipMadeByHostSystem' => is_array($creatorEntry) ? ($creatorEntry['madeByHostSystem'] ?? $entry->madeByHostSystem()) : $entry->madeByHostSystem(),
+                'zipMadeByHostSystemName' => is_array($creatorEntry) ? ($creatorEntry['madeByHostSystemName'] ?? 'unknown') : 'unknown',
+                'zipMadeByVersion' => is_array($creatorEntry) ? ($creatorEntry['madeByVersion'] ?? $entry->madeByVersion()) : $entry->madeByVersion(),
+                'zipVersionNeededToExtract' => is_array($creatorEntry) ? ($creatorEntry['versionNeededToExtract'] ?? $entry->neededToExtractVersion()) : $entry->neededToExtractVersion(),
+                'zipCreatorVersionMeetsNeeded' => is_array($creatorEntry) ? ($creatorEntry['creatorVersionMeetsNeeded'] ?? null) : null,
+                'zipCreatorVersionComparison' => is_array($creatorEntry) ? ($creatorEntry['creatorVersionComparison'] ?? null) : null,
+                'zipCreatorVersionDelta' => is_array($creatorEntry) ? ($creatorEntry['creatorVersionDelta'] ?? null) : null,
+                'zipCreatorHostSystemKnown' => is_array($creatorEntry) ? ($creatorEntry['isKnown'] ?? null) : null,
+                'zipCreatorHostSystemIssues' => is_array($creatorEntry) ? ($creatorEntry['issues'] ?? []) : [],
+                'zipExternalAttributes' => $entry->externalFileAttributes,
+                'zipUnixMode' => is_array($permissionEntry) ? ($permissionEntry['unixMode'] ?? null) : null,
+                'zipUnixPermissions' => is_array($permissionEntry) ? ($permissionEntry['permissions'] ?? null) : null,
+                'zipUnixExecutableFile' => is_array($permissionEntry) ? ($permissionEntry['isExecutableFile'] ?? false) : false,
+                'zipGroupWritablePermission' => is_array($permissionEntry) ? ($permissionEntry['isGroupWritable'] ?? false) : false,
+                'zipWorldWritablePermission' => is_array($permissionEntry) ? ($permissionEntry['isWorldWritable'] ?? false) : false,
+                'zipWritablePermissions' => is_array($permissionEntry) ? ($permissionEntry['hasWritablePermissions'] ?? false) : false,
+                'zipPermissionIssues' => is_array($permissionEntry) ? ($permissionEntry['issues'] ?? []) : [],
+                'zipDosAttributes' => is_array($dosAttributeEntry) ? ($dosAttributeEntry['dosAttributes'] ?? 0) : 0,
+                'zipDosAttributeNames' => is_array($dosAttributeEntry) ? ($dosAttributeEntry['dosAttributeNames'] ?? []) : [],
+                'zipHasDosHiddenAttribute' => is_array($dosAttributeEntry) ? ($dosAttributeEntry['hasHiddenAttribute'] ?? false) : false,
+                'zipHasDosSystemAttribute' => is_array($dosAttributeEntry) ? ($dosAttributeEntry['hasSystemAttribute'] ?? false) : false,
+                'zipHasDosVolumeLabelAttribute' => is_array($dosAttributeEntry) ? ($dosAttributeEntry['hasVolumeLabelAttribute'] ?? false) : false,
+                'zipInternalFileAttributes' => is_array($internalAttributeEntry) ? ($internalAttributeEntry['internalFileAttributes'] ?? 0) : 0,
+                'zipInternalAttributeNames' => is_array($internalAttributeEntry) ? ($internalAttributeEntry['internalAttributeNames'] ?? []) : [],
+                'zipHasTextInternalAttribute' => is_array($internalAttributeEntry) ? ($internalAttributeEntry['hasTextInternalAttribute'] ?? false) : false,
+                'zipUnknownInternalAttributeBits' => is_array($internalAttributeEntry) ? ($internalAttributeEntry['unknownInternalAttributeBits'] ?? 0) : 0,
+                'zipInternalAttributeIssues' => is_array($internalAttributeEntry) ? ($internalAttributeEntry['issues'] ?? []) : [],
+                'zipPlatformMetadataPlatform' => is_array($platformMetadataEntry) ? ($platformMetadataEntry['platform'] ?? null) : null,
+                'zipPlatformMetadataIssues' => is_array($platformMetadataEntry) ? ($platformMetadataEntry['issues'] ?? []) : [],
+                'zipIsMacosSidecar' => is_array($platformMetadataEntry) ? ($platformMetadataEntry['isMacosSidecar'] ?? false) : false,
+                'zipIsWindowsSidecar' => is_array($platformMetadataEntry) ? ($platformMetadataEntry['isWindowsSidecar'] ?? false) : false,
+                'zipOwnerMetadata' => is_array($unixOwnerEntry) ? $unixOwnerEntry : null,
+                'centralExtraFieldIds' => is_array($extraFieldEntry) ? ($extraFieldEntry['centralExtraFieldIds'] ?? []) : [],
+                'localExtraFieldIds' => is_array($extraFieldEntry) ? ($extraFieldEntry['localExtraFieldIds'] ?? []) : [],
+                'duplicateCentralExtraFieldIds' => is_array($extraFieldEntry) ? ($extraFieldEntry['duplicateCentralExtraFieldIds'] ?? []) : [],
+                'duplicateLocalExtraFieldIds' => is_array($extraFieldEntry) ? ($extraFieldEntry['duplicateLocalExtraFieldIds'] ?? []) : [],
+                'centralOnlyExtraFieldIds' => is_array($extraFieldEntry) ? ($extraFieldEntry['centralOnlyExtraFieldIds'] ?? []) : [],
+                'localOnlyExtraFieldIds' => is_array($extraFieldEntry) ? ($extraFieldEntry['localOnlyExtraFieldIds'] ?? []) : [],
+                'mismatchedExtraFieldValueIds' => is_array($extraFieldEntry) ? ($extraFieldEntry['mismatchedExtraFieldValueIds'] ?? []) : [],
+                'hasCentralExtraFields' => is_array($extraFieldEntry) ? (($extraFieldEntry['centralExtraFieldIds'] ?? []) !== []) : false,
+                'hasLocalExtraFields' => (bool) ($localHeaderEntry['hasLocalExtraFields'] ?? false)
+                    || (is_array($extraFieldEntry) && ($extraFieldEntry['localExtraFieldIds'] ?? []) !== []),
+                'hasZipExtraFieldProvenance' => is_array($extraFieldEntry)
+                    ? (($extraFieldEntry['centralExtraFieldIds'] ?? []) !== [] || ($extraFieldEntry['localExtraFieldIds'] ?? []) !== [])
+                    : false,
+                'hasDuplicateExtraFieldIds' => is_array($extraFieldEntry) ? (bool) ($extraFieldEntry['hasDuplicateExtraFieldIds'] ?? false) : false,
+                'hasMismatchedExtraFieldIds' => is_array($extraFieldEntry) ? (bool) ($extraFieldEntry['hasMismatchedExtraFieldIds'] ?? false) : false,
+                'hasMismatchedExtraFieldValues' => is_array($extraFieldEntry) ? (bool) ($extraFieldEntry['hasMismatchedExtraFieldValues'] ?? false) : false,
                 'isDirectory' => $isDirectory,
                 'loadedPart' => $loadedPart,
                 'hasZipEntryComment' => is_array($commentEntry) && ($commentEntry['hasComment'] ?? false) === true,
@@ -13844,6 +13983,9 @@ final class DocxOpenXmlReader
             'localHeaders' => $localHeaders,
             'dataDescriptors' => $dataDescriptors,
             'comments' => $comments,
+            'extraFields' => $extraFields,
+            'generalPurposeFlags' => $generalPurposeFlags,
+            'modificationTimes' => $modificationTimes,
             'namePolicy' => $this->zipNamePolicyProvenance($sourcePackage),
             'opcManifest' => $this->zipOpcManifestPreflight($sourcePackage),
             'platformMetadata' => $platformMetadata,
@@ -13853,11 +13995,207 @@ final class DocxOpenXmlReader
             'internalAttributes' => $internalAttributes,
             'platformAttributes' => $platformAttributes,
             'timestamps' => $timestamps,
+            'unixOwners' => $unixOwners,
             'localHeaderOrder' => $localHeaderOrder,
             'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
             'canExposeBytes' => false,
             'entries' => $entries,
             'byPackagePath' => $byPackagePath,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $preflight
+     * @return array<string, array<string, mixed>>
+     */
+    private function zipPreflightEntriesByName(array $preflight): array
+    {
+        $entriesByName = [];
+        foreach (($preflight['entries'] ?? []) as $entry) {
+            if (is_array($entry) && is_string($entry['name'] ?? null)) {
+                $entriesByName[$entry['name']] = $entry;
+            }
+        }
+
+        return $entriesByName;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyZipGeneralPurposeFlagProvenance(): array
+    {
+        return [
+            'entryCount' => 0,
+            'supportedEntryCount' => 0,
+            'unsupportedFlagEntryCount' => 0,
+            'utf8NameEntryCount' => 0,
+            'dataDescriptorEntryCount' => 0,
+            'deflateOptionEntryCount' => 0,
+            'strictReviewEntryCount' => 0,
+            'unsupportedEntries' => [],
+            'strictReviewEntries' => [],
+            'entries' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyZipModificationTimeProvenance(): array
+    {
+        return [
+            'entryCount' => 0,
+            'timestampEntryCount' => 0,
+            'dosTimestampEntryCount' => 0,
+            'extendedTimestampEntryCount' => 0,
+            'ntfsTimestampEntryCount' => 0,
+            'invalidDosTimestampEntryCount' => 0,
+            'invalidDosTimestampEntries' => [],
+            'entries' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyZipCreatorHostSystemProvenance(): array
+    {
+        return [
+            'entryCount' => 0,
+            'knownHostSystemEntryCount' => 0,
+            'unknownHostSystemEntryCount' => 0,
+            'creatorVersionMeetsNeededEntryCount' => 0,
+            'creatorVersionBelowNeededEntryCount' => 0,
+            'creatorVersionEqualNeededEntryCount' => 0,
+            'creatorVersionAboveNeededEntryCount' => 0,
+            'creatorVersionBelowNeededKnownHostEntryCount' => 0,
+            'creatorVersionBelowNeededUnknownHostEntryCount' => 0,
+            'creatorVersionComparisonCounts' => [],
+            'hostSystems' => [],
+            'unknownEntries' => [],
+            'creatorVersionBelowNeededEntries' => [],
+            'entries' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyZipPermissionProvenance(): array
+    {
+        return [
+            'entryCount' => 0,
+            'unixModeEntryCount' => 0,
+            'executableFileCount' => 0,
+            'groupWritableEntryCount' => 0,
+            'worldWritableEntryCount' => 0,
+            'writablePermissionEntryCount' => 0,
+            'executableEntries' => [],
+            'writablePermissionEntries' => [],
+            'entries' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyZipDosAttributeProvenance(): array
+    {
+        return [
+            'entryCount' => 0,
+            'dosAttributeEntryCount' => 0,
+            'readOnlyEntryCount' => 0,
+            'hiddenEntryCount' => 0,
+            'systemEntryCount' => 0,
+            'volumeLabelEntryCount' => 0,
+            'directoryAttributeEntryCount' => 0,
+            'archiveEntryCount' => 0,
+            'hiddenSystemOrVolumeLabelEntryCount' => 0,
+            'hiddenSystemOrVolumeLabelEntries' => [],
+            'entries' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyZipInternalAttributeProvenance(): array
+    {
+        return [
+            'entryCount' => 0,
+            'internalAttributeEntryCount' => 0,
+            'textInternalAttributeEntryCount' => 0,
+            'unknownInternalAttributeEntryCount' => 0,
+            'internalAttributeEntries' => [],
+            'textInternalAttributeEntries' => [],
+            'unknownInternalAttributeEntries' => [],
+            'entries' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyZipPlatformMetadataProvenance(): array
+    {
+        return [
+            'entryCount' => 0,
+            'platformMetadataEntryCount' => 0,
+            'macosSidecarEntryCount' => 0,
+            'appleDoubleEntryCount' => 0,
+            'finderMetadataEntryCount' => 0,
+            'windowsSidecarEntryCount' => 0,
+            'windowsThumbnailCacheEntryCount' => 0,
+            'windowsDesktopIniEntryCount' => 0,
+            'platformMetadataEntries' => [],
+            'entries' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyZipUnixOwnerProvenance(): array
+    {
+        return [
+            'entryCount' => 0,
+            'ownerMetadataEntryCount' => 0,
+            'centralOwnerMetadataEntryCount' => 0,
+            'localOwnerMetadataEntryCount' => 0,
+            'mismatchedOwnerMetadataEntryCount' => 0,
+            'ownerMetadataEntries' => [],
+            'mismatchedOwnerMetadataEntries' => [],
+            'entries' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyZipExtraFieldProvenance(): array
+    {
+        return [
+            'entryCount' => 0,
+            'extraFieldEntryCount' => 0,
+            'duplicateExtraFieldEntryCount' => 0,
+            'duplicateCentralExtraFieldEntryCount' => 0,
+            'duplicateLocalExtraFieldEntryCount' => 0,
+            'mismatchedExtraFieldEntryCount' => 0,
+            'mismatchedExtraFieldValueEntryCount' => 0,
+            'centralOnlyExtraFieldEntryCount' => 0,
+            'localOnlyExtraFieldEntryCount' => 0,
+            'extraFieldIdCount' => 0,
+            'centralExtraFieldIdCount' => 0,
+            'localExtraFieldIdCount' => 0,
+            'sharedExtraFieldIdCount' => 0,
+            'centralOnlyExtraFieldIdCount' => 0,
+            'localOnlyExtraFieldIdCount' => 0,
+            'extraFieldIdUsage' => [],
+            'duplicateEntries' => [],
+            'mismatchedEntries' => [],
+            'valueMismatchedEntries' => [],
+            'entries' => [],
         ];
     }
 
@@ -14393,24 +14731,6 @@ final class DocxOpenXmlReader
             'issues' => $issues,
             'reviewPolicy' => 'docx-zip-comment-metadata-only',
         ];
-    }
-
-    /**
-     * @param array<string, mixed> $preflight
-     * @return array<string, array<string, mixed>>
-     */
-    private function zipPreflightEntriesByName(array $preflight): array
-    {
-        $byName = [];
-        foreach (($preflight['entries'] ?? []) as $entry) {
-            if (!is_array($entry) || !is_string($entry['name'] ?? null)) {
-                continue;
-            }
-
-            $byName[$entry['name']] = $entry;
-        }
-
-        return $byName;
     }
 
     /**
@@ -15075,6 +15395,71 @@ final class DocxOpenXmlReader
                 }
             }
             $partInventory[$partName]['zipPlatformAttributeReviewPolicy'] = $entry['reviewPolicy'] ?? null;
+            $partInventory[$partName]['generalPurposeFlags'] = $entry['generalPurposeFlags'] ?? 0;
+            $partInventory[$partName]['zipFlagNames'] = $entry['zipFlagNames'] ?? [];
+            $partInventory[$partName]['zipUnsupportedFlagBits'] = $entry['zipUnsupportedFlagBits'] ?? 0;
+            $partInventory[$partName]['zipUsesUtf8Names'] = $entry['zipUsesUtf8Names'] ?? false;
+            $partInventory[$partName]['zipGeneralPurposeUsesDataDescriptor'] = $entry['zipGeneralPurposeUsesDataDescriptor'] ?? false;
+            $partInventory[$partName]['zipDeflateOptionFlags'] = $entry['zipDeflateOptionFlags'] ?? 0;
+            $partInventory[$partName]['zipDeflateOptionName'] = $entry['zipDeflateOptionName'] ?? null;
+            $partInventory[$partName]['zipGeneralPurposeRequiresStrictReview'] = $entry['zipGeneralPurposeRequiresStrictReview'] ?? false;
+            $partInventory[$partName]['zipGeneralPurposeIssues'] = $entry['zipGeneralPurposeIssues'] ?? [];
+            $partInventory[$partName]['zipModifiedDosTime'] = $entry['zipModifiedDosTime'] ?? 0;
+            $partInventory[$partName]['zipModifiedDosDate'] = $entry['zipModifiedDosDate'] ?? 0;
+            $partInventory[$partName]['zipHasDosTimestamp'] = $entry['zipHasDosTimestamp'] ?? false;
+            $partInventory[$partName]['zipIsDosTimestampValid'] = $entry['zipIsDosTimestampValid'] ?? true;
+            $partInventory[$partName]['zipDosModifiedAt'] = $entry['zipDosModifiedAt'] ?? null;
+            $partInventory[$partName]['zipExtendedModifiedAt'] = $entry['zipExtendedModifiedAt'] ?? null;
+            $partInventory[$partName]['zipNtfsModifiedAt'] = $entry['zipNtfsModifiedAt'] ?? null;
+            $partInventory[$partName]['zipModifiedAt'] = $entry['zipModifiedAt'] ?? null;
+            $partInventory[$partName]['zipTimestampSource'] = $entry['zipTimestampSource'] ?? null;
+            $partInventory[$partName]['zipTimestampIssues'] = $entry['zipTimestampIssues'] ?? [];
+            $partInventory[$partName]['zipVersionMadeBy'] = $entry['zipVersionMadeBy'] ?? 0;
+            $partInventory[$partName]['zipMadeByHostSystem'] = $entry['zipMadeByHostSystem'] ?? null;
+            $partInventory[$partName]['zipMadeByHostSystemName'] = $entry['zipMadeByHostSystemName'] ?? null;
+            $partInventory[$partName]['zipMadeByVersion'] = $entry['zipMadeByVersion'] ?? null;
+            $partInventory[$partName]['zipVersionNeededToExtract'] = $entry['zipVersionNeededToExtract'] ?? null;
+            $partInventory[$partName]['zipCreatorVersionMeetsNeeded'] = $entry['zipCreatorVersionMeetsNeeded'] ?? null;
+            $partInventory[$partName]['zipCreatorVersionComparison'] = $entry['zipCreatorVersionComparison'] ?? null;
+            $partInventory[$partName]['zipCreatorVersionDelta'] = $entry['zipCreatorVersionDelta'] ?? null;
+            $partInventory[$partName]['zipCreatorHostSystemKnown'] = $entry['zipCreatorHostSystemKnown'] ?? null;
+            $partInventory[$partName]['zipCreatorHostSystemIssues'] = $entry['zipCreatorHostSystemIssues'] ?? [];
+            $partInventory[$partName]['zipExternalAttributes'] = $entry['zipExternalAttributes'] ?? 0;
+            $partInventory[$partName]['zipUnixMode'] = $entry['zipUnixMode'] ?? null;
+            $partInventory[$partName]['zipUnixPermissions'] = $entry['zipUnixPermissions'] ?? null;
+            $partInventory[$partName]['zipUnixExecutableFile'] = $entry['zipUnixExecutableFile'] ?? false;
+            $partInventory[$partName]['zipGroupWritablePermission'] = $entry['zipGroupWritablePermission'] ?? false;
+            $partInventory[$partName]['zipWorldWritablePermission'] = $entry['zipWorldWritablePermission'] ?? false;
+            $partInventory[$partName]['zipWritablePermissions'] = $entry['zipWritablePermissions'] ?? false;
+            $partInventory[$partName]['zipPermissionIssues'] = $entry['zipPermissionIssues'] ?? [];
+            $partInventory[$partName]['zipDosAttributes'] = $entry['zipDosAttributes'] ?? 0;
+            $partInventory[$partName]['zipDosAttributeNames'] = $entry['zipDosAttributeNames'] ?? [];
+            $partInventory[$partName]['zipHasDosHiddenAttribute'] = $entry['zipHasDosHiddenAttribute'] ?? false;
+            $partInventory[$partName]['zipHasDosSystemAttribute'] = $entry['zipHasDosSystemAttribute'] ?? false;
+            $partInventory[$partName]['zipHasDosVolumeLabelAttribute'] = $entry['zipHasDosVolumeLabelAttribute'] ?? false;
+            $partInventory[$partName]['zipInternalFileAttributes'] = $entry['zipInternalFileAttributes'] ?? 0;
+            $partInventory[$partName]['zipInternalAttributeNames'] = $entry['zipInternalAttributeNames'] ?? [];
+            $partInventory[$partName]['zipHasTextInternalAttribute'] = $entry['zipHasTextInternalAttribute'] ?? false;
+            $partInventory[$partName]['zipUnknownInternalAttributeBits'] = $entry['zipUnknownInternalAttributeBits'] ?? 0;
+            $partInventory[$partName]['zipInternalAttributeIssues'] = $entry['zipInternalAttributeIssues'] ?? [];
+            $partInventory[$partName]['zipPlatformMetadataPlatform'] = $entry['zipPlatformMetadataPlatform'] ?? null;
+            $partInventory[$partName]['zipPlatformMetadataIssues'] = $entry['zipPlatformMetadataIssues'] ?? [];
+            $partInventory[$partName]['zipIsMacosSidecar'] = $entry['zipIsMacosSidecar'] ?? false;
+            $partInventory[$partName]['zipIsWindowsSidecar'] = $entry['zipIsWindowsSidecar'] ?? false;
+            $partInventory[$partName]['zipOwnerMetadata'] = $entry['zipOwnerMetadata'] ?? null;
+            $partInventory[$partName]['centralExtraFieldIds'] = $entry['centralExtraFieldIds'] ?? [];
+            $partInventory[$partName]['localExtraFieldIds'] = $entry['localExtraFieldIds'] ?? [];
+            $partInventory[$partName]['duplicateCentralExtraFieldIds'] = $entry['duplicateCentralExtraFieldIds'] ?? [];
+            $partInventory[$partName]['duplicateLocalExtraFieldIds'] = $entry['duplicateLocalExtraFieldIds'] ?? [];
+            $partInventory[$partName]['centralOnlyExtraFieldIds'] = $entry['centralOnlyExtraFieldIds'] ?? [];
+            $partInventory[$partName]['localOnlyExtraFieldIds'] = $entry['localOnlyExtraFieldIds'] ?? [];
+            $partInventory[$partName]['mismatchedExtraFieldValueIds'] = $entry['mismatchedExtraFieldValueIds'] ?? [];
+            $partInventory[$partName]['hasCentralExtraFields'] = $entry['hasCentralExtraFields'] ?? false;
+            $partInventory[$partName]['hasLocalExtraFields'] = $entry['hasLocalExtraFields'] ?? false;
+            $partInventory[$partName]['hasZipExtraFieldProvenance'] = $entry['hasZipExtraFieldProvenance'] ?? false;
+            $partInventory[$partName]['hasDuplicateExtraFieldIds'] = $entry['hasDuplicateExtraFieldIds'] ?? false;
+            $partInventory[$partName]['hasMismatchedExtraFieldIds'] = $entry['hasMismatchedExtraFieldIds'] ?? false;
+            $partInventory[$partName]['hasMismatchedExtraFieldValues'] = $entry['hasMismatchedExtraFieldValues'] ?? false;
             $partInventory[$partName]['usesDataDescriptor'] = $entry['usesDataDescriptor'] ?? false;
             $partInventory[$partName]['dataDescriptorHasSignature'] = $entry['dataDescriptorHasSignature'] ?? null;
             $partInventory[$partName]['dataDescriptorOffset'] = $entry['dataDescriptorOffset'] ?? null;
