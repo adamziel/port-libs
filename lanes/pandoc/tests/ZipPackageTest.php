@@ -14414,6 +14414,238 @@ return [
         $t->same($byStructuredSuffix['xml'], $handoffByStructuredSuffix['xml']);
     },
 
+    'summarizes selected zip handoff content type parameters before reader byte exposure' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $mainType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
+        $relsType = 'application/vnd.openxmlformats-package.relationships+xml';
+        $documentXml = '<w:document><w:body><w:p>content type parameter handoff</w:p></w:body></w:document>';
+        $relsXml = '<Relationships/>';
+        $css = 'body{color:#111}';
+        $rawBytes = 'blocked media bytes';
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $relsXml, 'method' => 0],
+            ['name' => 'word/styles.css', 'data' => $css, 'method' => 0],
+            ['name' => 'word/media/raw.bin', 'data' => $rawBytes, 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            [
+                'name' => 'word/document.xml',
+                'required' => true,
+                'kind' => 'file',
+                'role' => 'main-document',
+                'declaredContentType' => $mainType,
+                'declaredContentTypeSource' => 'content-types-override',
+            ],
+            [
+                'name' => 'word/_rels/document.xml.rels',
+                'required' => true,
+                'kind' => 'file',
+                'role' => 'document-relationships',
+                'declaredContentType' => $relsType . '; charset=UTF-8; profile=office',
+                'declaredContentTypeSource' => 'content-types-default',
+            ],
+            [
+                'name' => 'word/styles.css',
+                'required' => false,
+                'kind' => 'file',
+                'role' => 'stylesheet',
+                'declaredContentType' => 'text/css; charset=utf-8',
+                'declaredContentTypeSource' => 'content-types-default',
+            ],
+            [
+                'name' => 'word/media/raw.bin',
+                'required' => false,
+                'kind' => 'file',
+                'role' => 'media',
+                'declaredContentType' => 'application/octet-stream; profile=blocked',
+                'declaredContentTypeSource' => 'request',
+                'maxUncompressedBytes' => 4,
+            ],
+            [
+                'name' => 'word/missing.xml',
+                'required' => false,
+                'kind' => 'file',
+                'role' => 'optional-sidecar',
+                'declaredContentType' => 'application/xml; charset=utf-8',
+                'declaredContentTypeSource' => 'content-types-default',
+            ],
+        ], 4096);
+
+        $byParameter = [];
+        foreach ($summary['declaredContentTypeParameterSummaries'] as $parameterSummary) {
+            $byParameter[$parameterSummary['declaredContentTypeParameterName']] = $parameterSummary;
+        }
+        $handoffByParameter = [];
+        foreach ($summary['handoffDeclaredContentTypeParameterSummaries'] as $parameterSummary) {
+            $handoffByParameter[$parameterSummary['declaredContentTypeParameterName']] = $parameterSummary;
+        }
+
+        $t->same(4, $summary['declaredContentTypeParameterEntryCount']);
+        $t->same(2, $summary['handoffDeclaredContentTypeParameterEntryCount']);
+        $t->same(2, $summary['declaredContentTypeParameterSummaryCount']);
+        $t->same(2, $summary['handoffDeclaredContentTypeParameterSummaryCount']);
+        $t->same(['charset', 'profile'], array_keys($byParameter));
+        $t->same(['charset', 'profile'], array_keys($handoffByParameter));
+
+        $t->same([
+            'declaredContentTypeParameterName' => 'charset',
+            'parameterCount' => 3,
+            'parameterValueCount' => 2,
+            'entryCount' => 3,
+            'missingEntryCount' => 1,
+            'failedEntryCount' => 0,
+            'selectedUniqueEntryCount' => 2,
+            'handoffUniqueEntryCount' => 2,
+            'selectedCompressedBytes' => strlen($relsXml) + strlen($css),
+            'selectedUncompressedBytes' => strlen($relsXml) + strlen($css),
+            'handoffCompressedBytes' => strlen($relsXml) + strlen($css),
+            'handoffUncompressedBytes' => strlen($relsXml) + strlen($css),
+            'parameterValues' => ['UTF-8', 'utf-8'],
+            'rawParameters' => ['charset=UTF-8', 'charset=utf-8'],
+            'declaredContentTypeBases' => [
+                'application/vnd.openxmlformats-package.relationships+xml',
+                'application/xml',
+                'text/css',
+            ],
+            'declaredContentTypes' => [
+                $relsType . '; charset=UTF-8; profile=office',
+                'application/xml; charset=utf-8',
+                'text/css; charset=utf-8',
+            ],
+            'declaredContentTypeFamilies' => ['css', 'opc-relationships', 'xml'],
+            'declaredContentTypeTopLevels' => ['application', 'text'],
+            'declaredContentTypeSubtypes' => ['css', 'vnd.openxmlformats-package.relationships+xml', 'xml'],
+            'declaredContentTypeStructuredSuffixes' => ['xml'],
+            'sources' => ['content-types-default'],
+            'roles' => ['document-relationships', 'optional-sidecar', 'stylesheet'],
+            'entryNames' => [
+                'word/_rels/document.xml.rels',
+                'word/styles.css',
+                'word/missing.xml',
+            ],
+            'selectedEntryNames' => ['word/_rels/document.xml.rels', 'word/styles.css'],
+            'handoffEntryNames' => ['word/_rels/document.xml.rels', 'word/styles.css'],
+            'missingEntryNames' => ['word/missing.xml'],
+            'failedEntryNames' => [],
+            'issues' => [],
+            'issueCounts' => [],
+        ], $byParameter['charset']);
+        $t->same([
+            'declaredContentTypeParameterName' => 'charset',
+            'parameterCount' => 2,
+            'parameterValueCount' => 2,
+            'entryCount' => 2,
+            'missingEntryCount' => 0,
+            'failedEntryCount' => 0,
+            'selectedUniqueEntryCount' => 2,
+            'handoffUniqueEntryCount' => 2,
+            'selectedCompressedBytes' => strlen($relsXml) + strlen($css),
+            'selectedUncompressedBytes' => strlen($relsXml) + strlen($css),
+            'handoffCompressedBytes' => strlen($relsXml) + strlen($css),
+            'handoffUncompressedBytes' => strlen($relsXml) + strlen($css),
+            'parameterValues' => ['UTF-8', 'utf-8'],
+            'rawParameters' => ['charset=UTF-8', 'charset=utf-8'],
+            'declaredContentTypeBases' => [
+                'application/vnd.openxmlformats-package.relationships+xml',
+                'text/css',
+            ],
+            'declaredContentTypes' => [
+                $relsType . '; charset=UTF-8; profile=office',
+                'text/css; charset=utf-8',
+            ],
+            'declaredContentTypeFamilies' => ['css', 'opc-relationships'],
+            'declaredContentTypeTopLevels' => ['application', 'text'],
+            'declaredContentTypeSubtypes' => ['css', 'vnd.openxmlformats-package.relationships+xml'],
+            'declaredContentTypeStructuredSuffixes' => ['xml'],
+            'sources' => ['content-types-default'],
+            'roles' => ['document-relationships', 'stylesheet'],
+            'entryNames' => [
+                'word/_rels/document.xml.rels',
+                'word/styles.css',
+            ],
+            'selectedEntryNames' => ['word/_rels/document.xml.rels', 'word/styles.css'],
+            'handoffEntryNames' => ['word/_rels/document.xml.rels', 'word/styles.css'],
+            'missingEntryNames' => [],
+            'failedEntryNames' => [],
+            'issues' => [],
+            'issueCounts' => [],
+        ], $handoffByParameter['charset']);
+
+        $t->same([
+            'declaredContentTypeParameterName' => 'profile',
+            'parameterCount' => 2,
+            'parameterValueCount' => 2,
+            'entryCount' => 2,
+            'missingEntryCount' => 0,
+            'failedEntryCount' => 1,
+            'selectedUniqueEntryCount' => 2,
+            'handoffUniqueEntryCount' => 1,
+            'selectedCompressedBytes' => strlen($relsXml) + strlen($rawBytes),
+            'selectedUncompressedBytes' => strlen($relsXml) + strlen($rawBytes),
+            'handoffCompressedBytes' => strlen($relsXml),
+            'handoffUncompressedBytes' => strlen($relsXml),
+            'parameterValues' => ['blocked', 'office'],
+            'rawParameters' => ['profile=blocked', 'profile=office'],
+            'declaredContentTypeBases' => [
+                'application/octet-stream',
+                'application/vnd.openxmlformats-package.relationships+xml',
+            ],
+            'declaredContentTypes' => [
+                'application/octet-stream; profile=blocked',
+                $relsType . '; charset=UTF-8; profile=office',
+            ],
+            'declaredContentTypeFamilies' => ['binary', 'opc-relationships'],
+            'declaredContentTypeTopLevels' => ['application'],
+            'declaredContentTypeSubtypes' => ['octet-stream', 'vnd.openxmlformats-package.relationships+xml'],
+            'declaredContentTypeStructuredSuffixes' => ['xml'],
+            'sources' => ['content-types-default', 'request'],
+            'roles' => ['document-relationships', 'media'],
+            'entryNames' => ['word/_rels/document.xml.rels', 'word/media/raw.bin'],
+            'selectedEntryNames' => ['word/_rels/document.xml.rels', 'word/media/raw.bin'],
+            'handoffEntryNames' => ['word/_rels/document.xml.rels'],
+            'missingEntryNames' => [],
+            'failedEntryNames' => ['word/media/raw.bin'],
+            'issues' => ['entry-uncompressed-size-exceeds-limit'],
+            'issueCounts' => ['entry-uncompressed-size-exceeds-limit' => 1],
+        ], $byParameter['profile']);
+        $t->same([
+            'declaredContentTypeParameterName' => 'profile',
+            'parameterCount' => 1,
+            'parameterValueCount' => 1,
+            'entryCount' => 1,
+            'missingEntryCount' => 0,
+            'failedEntryCount' => 0,
+            'selectedUniqueEntryCount' => 1,
+            'handoffUniqueEntryCount' => 1,
+            'selectedCompressedBytes' => strlen($relsXml),
+            'selectedUncompressedBytes' => strlen($relsXml),
+            'handoffCompressedBytes' => strlen($relsXml),
+            'handoffUncompressedBytes' => strlen($relsXml),
+            'parameterValues' => ['office'],
+            'rawParameters' => ['profile=office'],
+            'declaredContentTypeBases' => ['application/vnd.openxmlformats-package.relationships+xml'],
+            'declaredContentTypes' => [$relsType . '; charset=UTF-8; profile=office'],
+            'declaredContentTypeFamilies' => ['opc-relationships'],
+            'declaredContentTypeTopLevels' => ['application'],
+            'declaredContentTypeSubtypes' => ['vnd.openxmlformats-package.relationships+xml'],
+            'declaredContentTypeStructuredSuffixes' => ['xml'],
+            'sources' => ['content-types-default'],
+            'roles' => ['document-relationships'],
+            'entryNames' => ['word/_rels/document.xml.rels'],
+            'selectedEntryNames' => ['word/_rels/document.xml.rels'],
+            'handoffEntryNames' => ['word/_rels/document.xml.rels'],
+            'missingEntryNames' => [],
+            'failedEntryNames' => [],
+            'issues' => [],
+            'issueCounts' => [],
+        ], $handoffByParameter['profile']);
+
+        $t->same('metadata-only', $summary['entries'][3]['byteExposurePolicy']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['entries'][3]['issues']);
+        $t->same('missing-optional', $summary['entries'][4]['status']);
+    },
+
     'summarizes readable zip handoff content digests for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>content digest handoff</w:p></w:body></w:document>';
         $commentsXml = '<w:comments><w:comment><w:p>digest note</w:p></w:comment></w:comments>';

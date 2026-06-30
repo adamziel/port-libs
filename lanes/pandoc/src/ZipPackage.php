@@ -6500,6 +6500,8 @@ final class ZipPackage
         $handoffDeclaredContentTypeSubtypeSummaries = self::entryHandoffDeclaredContentTypeSubtypeSummaries($handoffEntries);
         $declaredContentTypeStructuredSuffixSummaries = self::entryHandoffDeclaredContentTypeStructuredSuffixSummaries($entries);
         $handoffDeclaredContentTypeStructuredSuffixSummaries = self::entryHandoffDeclaredContentTypeStructuredSuffixSummaries($handoffEntries);
+        $declaredContentTypeParameterSummaries = self::entryHandoffDeclaredContentTypeParameterSummaries($entries);
+        $handoffDeclaredContentTypeParameterSummaries = self::entryHandoffDeclaredContentTypeParameterSummaries($handoffEntries);
         $declaredContentTypeIssues = self::entryHandoffDeclaredContentTypeIssues($declaredContentTypeSummaries);
         $handoffDeclaredContentTypeIssues = self::entryHandoffDeclaredContentTypeIssues($handoffDeclaredContentTypeSummaries);
 
@@ -6703,6 +6705,8 @@ final class ZipPackage
             'handoffInvalidDeclaredContentTypeEntryCount' => self::entryHandoffSummaryTotal($handoffDeclaredContentTypeSummaries, 'invalidEntryCount'),
             'declaredContentTypeParameterEntryCount' => self::entryHandoffSummaryTotal($declaredContentTypeSummaries, 'parameterEntryCount'),
             'handoffDeclaredContentTypeParameterEntryCount' => self::entryHandoffSummaryTotal($handoffDeclaredContentTypeSummaries, 'parameterEntryCount'),
+            'declaredContentTypeParameterSummaryCount' => count($declaredContentTypeParameterSummaries),
+            'handoffDeclaredContentTypeParameterSummaryCount' => count($handoffDeclaredContentTypeParameterSummaries),
             'declaredContentTypeIssueCount' => count($declaredContentTypeIssues),
             'handoffDeclaredContentTypeIssueCount' => count($handoffDeclaredContentTypeIssues),
             'requestedRoleCount' => count($roleSummaries),
@@ -6959,6 +6963,8 @@ final class ZipPackage
             'handoffDeclaredContentTypeSubtypeSummaries' => $handoffDeclaredContentTypeSubtypeSummaries,
             'declaredContentTypeStructuredSuffixSummaries' => $declaredContentTypeStructuredSuffixSummaries,
             'handoffDeclaredContentTypeStructuredSuffixSummaries' => $handoffDeclaredContentTypeStructuredSuffixSummaries,
+            'declaredContentTypeParameterSummaries' => $declaredContentTypeParameterSummaries,
+            'handoffDeclaredContentTypeParameterSummaries' => $handoffDeclaredContentTypeParameterSummaries,
             'selectedDirectoryRootSummaries' => $selectedDirectoryRootSummaries,
             'handoffDirectoryRootSummaries' => $handoffDirectoryRootSummaries,
             'selectedSizeBucketSummaries' => $selectedSizeBucketSummaries,
@@ -8020,6 +8026,181 @@ final class ZipPackage
             'declaredContentTypeStructuredSuffix',
             'declaredContentTypeStructuredSuffix'
         );
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffDeclaredContentTypeParameterSummaries(array $entries): array
+    {
+        $summaries = [];
+        $seenNamesByParameter = [];
+        $seenHandoffNamesByParameter = [];
+
+        foreach ($entries as $entry) {
+            if (($entry['declaredContentTypeIsValid'] ?? true) !== true) {
+                continue;
+            }
+
+            $parameters = is_array($entry['declaredContentTypeParameters'] ?? null)
+                ? $entry['declaredContentTypeParameters']
+                : [];
+            if ($parameters === []) {
+                continue;
+            }
+
+            foreach ($parameters as $parameter) {
+                if (!is_array($parameter)) {
+                    continue;
+                }
+
+                $name = is_string($parameter['name'] ?? null) ? $parameter['name'] : '';
+                if ($name === '') {
+                    continue;
+                }
+
+                $value = is_string($parameter['value'] ?? null) ? $parameter['value'] : '';
+                $raw = is_string($parameter['raw'] ?? null) ? $parameter['raw'] : $name . '=' . $value;
+                if (!isset($summaries[$name])) {
+                    $summaries[$name] = [
+                        'declaredContentTypeParameterName' => $name,
+                        'parameterCount' => 0,
+                        'parameterValueCount' => 0,
+                        'entryCount' => 0,
+                        'missingEntryCount' => 0,
+                        'failedEntryCount' => 0,
+                        'selectedUniqueEntryCount' => 0,
+                        'handoffUniqueEntryCount' => 0,
+                        'selectedCompressedBytes' => 0,
+                        'selectedUncompressedBytes' => 0,
+                        'handoffCompressedBytes' => 0,
+                        'handoffUncompressedBytes' => 0,
+                        'parameterValues' => [],
+                        'rawParameters' => [],
+                        'declaredContentTypeBases' => [],
+                        'declaredContentTypes' => [],
+                        'declaredContentTypeFamilies' => [],
+                        'declaredContentTypeTopLevels' => [],
+                        'declaredContentTypeSubtypes' => [],
+                        'declaredContentTypeStructuredSuffixes' => [],
+                        'sources' => [],
+                        'roles' => [],
+                        'entryNames' => [],
+                        'selectedEntryNames' => [],
+                        'handoffEntryNames' => [],
+                        'missingEntryNames' => [],
+                        'failedEntryNames' => [],
+                        'issues' => [],
+                        'issueCounts' => [],
+                    ];
+                    $seenNamesByParameter[$name] = [];
+                    $seenHandoffNamesByParameter[$name] = [];
+                }
+
+                ++$summaries[$name]['parameterCount'];
+                ++$summaries[$name]['entryCount'];
+                if (!in_array($value, $summaries[$name]['parameterValues'], true)) {
+                    $summaries[$name]['parameterValues'][] = $value;
+                }
+                if (!in_array($raw, $summaries[$name]['rawParameters'], true)) {
+                    $summaries[$name]['rawParameters'][] = $raw;
+                }
+
+                foreach ([
+                    'declaredContentTypeBase' => 'declaredContentTypeBases',
+                    'declaredContentType' => 'declaredContentTypes',
+                    'declaredContentTypeFamily' => 'declaredContentTypeFamilies',
+                    'declaredContentTypeTopLevel' => 'declaredContentTypeTopLevels',
+                    'declaredContentTypeSubtype' => 'declaredContentTypeSubtypes',
+                    'declaredContentTypeStructuredSuffix' => 'declaredContentTypeStructuredSuffixes',
+                    'declaredContentTypeSource' => 'sources',
+                ] as $entryField => $summaryField) {
+                    $fieldValue = is_string($entry[$entryField] ?? null) ? $entry[$entryField] : null;
+                    if (
+                        $fieldValue !== null
+                        && $fieldValue !== ''
+                        && !in_array($fieldValue, $summaries[$name][$summaryField], true)
+                    ) {
+                        $summaries[$name][$summaryField][] = $fieldValue;
+                    }
+                }
+
+                foreach (self::entryHandoffRolesForSummary($entry) as $role) {
+                    if (!in_array($role, $summaries[$name]['roles'], true)) {
+                        $summaries[$name]['roles'][] = $role;
+                    }
+                }
+
+                $entryName = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+                if ($entryName !== '') {
+                    $summaries[$name]['entryNames'][] = $entryName;
+                }
+
+                if (($entry['exists'] ?? false) === true) {
+                    if ($entryName !== '' && !isset($seenNamesByParameter[$name][$entryName])) {
+                        $seenNamesByParameter[$name][$entryName] = true;
+                        ++$summaries[$name]['selectedUniqueEntryCount'];
+                        $summaries[$name]['selectedEntryNames'][] = $entryName;
+                        $summaries[$name]['selectedCompressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+                        $summaries[$name]['selectedUncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+                    }
+                } else {
+                    ++$summaries[$name]['missingEntryCount'];
+                    if ($entryName !== '') {
+                        $summaries[$name]['missingEntryNames'][] = $entryName;
+                    }
+                }
+
+                if (($entry['status'] ?? null) === 'ready' && ($entry['exists'] ?? false) === true) {
+                    if ($entryName !== '' && !isset($seenHandoffNamesByParameter[$name][$entryName])) {
+                        $seenHandoffNamesByParameter[$name][$entryName] = true;
+                        ++$summaries[$name]['handoffUniqueEntryCount'];
+                        $summaries[$name]['handoffEntryNames'][] = $entryName;
+                        $summaries[$name]['handoffCompressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+                        $summaries[$name]['handoffUncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+                    }
+                }
+
+                $issues = array_values(array_filter(
+                    is_array($entry['issues'] ?? null) ? $entry['issues'] : [],
+                    'is_string'
+                ));
+                if ($issues !== [] && ($entry['status'] ?? null) !== 'ready') {
+                    ++$summaries[$name]['failedEntryCount'];
+                    if ($entryName !== '') {
+                        $summaries[$name]['failedEntryNames'][] = $entryName;
+                    }
+                    foreach ($issues as $issue) {
+                        if (!in_array($issue, $summaries[$name]['issues'], true)) {
+                            $summaries[$name]['issues'][] = $issue;
+                        }
+                        $summaries[$name]['issueCounts'][$issue] =
+                            ($summaries[$name]['issueCounts'][$issue] ?? 0) + 1;
+                    }
+                }
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            $summary['parameterValueCount'] = count($summary['parameterValues']);
+            sort($summary['parameterValues'], SORT_STRING);
+            sort($summary['rawParameters'], SORT_STRING);
+            sort($summary['declaredContentTypeBases'], SORT_STRING);
+            sort($summary['declaredContentTypes'], SORT_STRING);
+            sort($summary['declaredContentTypeFamilies'], SORT_STRING);
+            sort($summary['declaredContentTypeTopLevels'], SORT_STRING);
+            sort($summary['declaredContentTypeSubtypes'], SORT_STRING);
+            sort($summary['declaredContentTypeStructuredSuffixes'], SORT_STRING);
+            sort($summary['sources'], SORT_STRING);
+            sort($summary['roles'], SORT_STRING);
+            ksort($summary['issueCounts'], SORT_STRING);
+        }
+        unset($summary);
+
+        ksort($summaries, SORT_STRING);
+
+        return array_values($summaries);
     }
 
     /**
