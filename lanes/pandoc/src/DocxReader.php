@@ -17,11 +17,13 @@ final class DocxReader
     /** @var array<string, array<string, mixed>> */
     private array $styles = [];
 
-    /** @var array<string, array<int, array{ordered: bool, style?: string, delimiter?: string, start?: int, styleId?: string}>> */
+    /** @var array<string, array<int, array{ordered: bool, style?: string, delimiter?: string, start?: int, styleId?: string, text?: string, continuation?: bool, taskChecked?: bool}>> */
     private array $numbering = [];
 
     /** @var array<string, array{target: string, type: string, mode: string}> */
     private array $relationships = [];
+
+    private string $documentPartName = 'word/document.xml';
 
     /** @var array<string, list<AstNode>> */
     private array $footnotes = [];
@@ -94,6 +96,7 @@ final class DocxReader
             $footer_xmls,
             $entries,
             $media,
+            $documentPartName,
         );
     }
 
@@ -207,8 +210,10 @@ final class DocxReader
         array $header_xmls,
         array $footer_xmls,
         array $entries,
-        array $media
+        array $media,
+        string $documentPartName
     ): AstNode {
+        $this->documentPartName = $documentPartName;
         $this->styles = $styles_xml !== '' ? $this->styles($this->loadXml($styles_xml, 'DOCX styles.xml')) : [];
         $this->numbering = $numbering_xml !== '' ? $this->numbering($this->loadXml($numbering_xml, 'DOCX numbering.xml')) : [];
         $this->relationships = $rels_xml !== '' ? $this->relationships($this->loadXml($rels_xml, 'DOCX document relationships')) : [];
@@ -468,12 +473,29 @@ final class DocxReader
                     $attrs = $list['attrs'];
                     $attrs['numId'] = $numbering['numId'];
                     $attrs['level'] = max(0, $numbering['level'] - 1);
-                    $pendingListRecords[] = [
+                    $groupAttrs = $list['groupAttrs'] ?? $attrs;
+                    if (($list['continuation'] ?? false) === true) {
+                        for ($i = count($pendingListRecords) - 1; $i >= 0; --$i) {
+                            if ((int) $pendingListRecords[$i]['level'] === (int) $numbering['level']) {
+                                $groupAttrs = $pendingListRecords[$i]['groupAttrs'] ?? $pendingListRecords[$i]['attrs'];
+                                break;
+                            }
+                        }
+                    }
+                    $record = [
                         'level' => $numbering['level'],
                         'ordered' => $list['ordered'],
                         'attrs' => $attrs,
+                        'groupAttrs' => $groupAttrs,
                         'paragraph' => $paragraph,
                     ];
+                    if (is_string($list['marker'] ?? null) && $list['marker'] !== '') {
+                        $record['marker'] = $list['marker'];
+                    }
+                    if (($list['continuation'] ?? false) === true) {
+                        $record['continuation'] = true;
+                    }
+                    $pendingListRecords[] = $record;
                     continue;
                 }
 
@@ -536,7 +558,7 @@ final class DocxReader
     }
 
     /**
-     * @param list<array{level: int, ordered: bool, attrs: array<string, mixed>, paragraph: AstNode}> $records
+     * @param list<array{level: int, ordered: bool, attrs: array<string, mixed>, groupAttrs: array<string, mixed>, paragraph: AstNode, marker?: string, continuation?: bool}> $records
      * @return list<AstNode>
      */
     private function listBlocksFromRecords(array $records): array
@@ -550,7 +572,7 @@ final class DocxReader
     }
 
     /**
-     * @param list<array{level: int, ordered: bool, attrs: array<string, mixed>, paragraph: AstNode}> $records
+     * @param list<array{level: int, ordered: bool, attrs: array<string, mixed>, groupAttrs: array<string, mixed>, paragraph: AstNode, marker?: string, continuation?: bool}> $records
      * @return list<AstNode>
      */
     private function listBlocksAtLevel(array $records, int &$index, int $level): array
@@ -569,6 +591,7 @@ final class DocxReader
 
             $ordered = (bool) $record['ordered'];
             $attrs = $record['attrs'];
+            $groupAttrs = $record['groupAttrs'] ?? $record['attrs'];
             $items = [];
 
             while ($index < $count) {
@@ -580,12 +603,25 @@ final class DocxReader
                 if ($recordLevel > $level) {
                     break;
                 }
-                if ((bool) $record['ordered'] !== $ordered || $record['attrs'] !== $attrs) {
+                if ((bool) $record['ordered'] !== $ordered || ($record['groupAttrs'] ?? $record['attrs']) !== $groupAttrs) {
                     break;
                 }
 
                 $index++;
-                $children = [$record['paragraph']];
+                if (($record['continuation'] ?? false) && $items !== []) {
+                    $lastIndex = array_key_last($items);
+                    $lastItem = $lastIndex === null ? null : $items[$lastIndex];
+                    if ($lastItem instanceof AstNode) {
+                        $items[$lastIndex] = new AstNode(
+                            'list_item',
+                            $lastItem->attrs,
+                            [...$lastItem->children, $record['paragraph']]
+                        );
+                    }
+                    continue;
+                }
+
+                $children = [$this->paragraphWithListMarker($record['paragraph'], (string) ($record['marker'] ?? ''))];
                 while ($index < $count && max(1, (int) $records[$index]['level']) > $level) {
                     $nestedLevel = max(1, (int) $records[$index]['level']);
                     array_push($children, ...$this->listBlocksAtLevel($records, $index, $nestedLevel));
@@ -597,6 +633,24 @@ final class DocxReader
         }
 
         return $blocks;
+    }
+
+    private function paragraphWithListMarker(AstNode $paragraph, string $marker): AstNode
+    {
+        if ($marker === '' || !in_array($paragraph->type, ['paragraph', 'plain'], true)) {
+            return $paragraph;
+        }
+
+        $children = [
+            new AstNode('text', ['text' => $marker]),
+            new AstNode('space'),
+            ...$paragraph->children,
+        ];
+
+        return new AstNode($paragraph->type, [
+            ...$paragraph->attrs,
+            'text' => trim($marker . ' ' . (string) $paragraph->attr('text', '')),
+        ], $children);
     }
 
     private function paragraph(\DOMElement $paragraph): ?AstNode
@@ -1332,8 +1386,8 @@ final class DocxReader
             return $inlines === [] ? null : new AstNode('span', ['classes' => ['docx-field']], $inlines);
         }
 
-        $anchor = $this->fieldAnchor($instruction);
-        if ($anchor === '') {
+        $target = $this->fieldLinkTarget($instruction);
+        if ($target === null) {
             return $this->metadataFieldNode($instruction, $inlines);
         }
         if ($inlines === []) {
@@ -1341,8 +1395,8 @@ final class DocxReader
         }
 
         return new AstNode('link', [
-            'url' => '#' . $anchor,
-            'title' => '',
+            'url' => $target['url'],
+            'title' => $target['title'],
             'attributes' => ['data-docx-field' => $instruction],
         ], $inlines);
     }
@@ -1716,19 +1770,62 @@ final class DocxReader
         return '';
     }
 
-    private function fieldAnchor(string $instruction): string
+    /**
+     * @return ?array{url:string,title:string}
+     */
+    private function fieldLinkTarget(string $instruction): ?array
     {
-        $instruction = trim(preg_replace('/\s+/u', ' ', $instruction) ?? $instruction);
-        if ($instruction === '') {
-            return '';
+        $tokens = $this->fieldInstructionTokens($instruction);
+        $command = strtoupper($tokens[0] ?? '');
+        if ($command === '') {
+            return null;
         }
 
-        if (preg_match('/\bHYPERLINK\s+\\\\l\s+"?([^"\\\\\s]+)"?/i', $instruction, $match) === 1) {
-            return $match[1];
+        if ($command === 'HYPERLINK') {
+            $switches = $this->fieldSwitches($tokens);
+            $url = $this->hyperlinkFieldTarget($tokens);
+            if (isset($switches['l']) && $switches['l'] !== '') {
+                $url = $url === '' ? '#' . $switches['l'] : $url . '#' . $switches['l'];
+            }
+            if ($url === '') {
+                return null;
+            }
+
+            return [
+                'url' => $url,
+                'title' => $switches['o'] ?? '',
+            ];
         }
 
-        if (preg_match('/\b(?:REF|PAGEREF|NOTEREF)\s+"?([^"\\\\\s]+)"?/i', $instruction, $match) === 1) {
-            return $match[1];
+        if (in_array($command, ['REF', 'PAGEREF', 'NOTEREF'], true)) {
+            $anchor = $this->fieldTarget($tokens);
+            if ($anchor === '') {
+                return null;
+            }
+
+            return [
+                'url' => '#' . $anchor,
+                'title' => '',
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function hyperlinkFieldTarget(array $tokens): string
+    {
+        for ($i = 1, $count = count($tokens); $i < $count; $i++) {
+            if (str_starts_with($tokens[$i], '\\')) {
+                if ($i + 1 < $count && !str_starts_with($tokens[$i + 1], '\\')) {
+                    $i++;
+                }
+                continue;
+            }
+
+            return $tokens[$i];
         }
 
         return '';
@@ -2136,6 +2233,7 @@ final class DocxReader
     private function table(\DOMElement $table): AstNode
     {
         $rowSpecs = [];
+        $rowHeaderFlags = [];
         foreach ($table->childNodes as $child) {
             if ($child instanceof \DOMElement && $child->localName === 'tr') {
                 $cells = [];
@@ -2153,6 +2251,7 @@ final class DocxReader
                     ];
                     $column += $colspan;
                 }
+                $rowHeaderFlags[] = $this->tableRowIsHeader($child);
                 $rowSpecs[] = $cells;
             }
         }
@@ -2194,6 +2293,7 @@ final class DocxReader
             }
         }
 
+        $headRows = [];
         $rows = [];
         foreach ($rowSpecs as $rowIndex => $cells) {
             $rowCells = [];
@@ -2204,13 +2304,33 @@ final class DocxReader
                 }
                 $rowCells[] = $this->tableCell($cell['element'], (int) $cell['colspan'], (int) ($rowspans[$key] ?? 1), (string) $cell['vMerge']);
             }
-            $rows[] = new AstNode('table_row', [], $rowCells);
+            $row = new AstNode('table_row', [], $rowCells);
+            if ($rowHeaderFlags[$rowIndex] ?? false) {
+                $headRows[] = $row;
+            } else {
+                $rows[] = $row;
+            }
         }
 
         return new AstNode('table', $this->tableAttributes($table), [
-            new AstNode('table_head'),
+            new AstNode('table_head', [], $headRows),
             new AstNode('table_body', [], $rows),
         ]);
+    }
+
+    private function tableRowIsHeader(\DOMElement $row): bool
+    {
+        $trPr = $this->directChild($row, 'trPr');
+        if (!$trPr instanceof \DOMElement) {
+            return false;
+        }
+
+        $tblHeader = $this->directChild($trPr, 'tblHeader');
+        if (!$tblHeader instanceof \DOMElement) {
+            return false;
+        }
+
+        return $this->onOffMetadataValue($this->attr($tblHeader, self::W_NS, 'val')) !== 'false';
     }
 
     private function tableRow(\DOMElement $row): AstNode
@@ -2454,14 +2574,24 @@ final class DocxReader
     }
 
     /**
-     * @return array{ordered: bool, attrs: array<string, mixed>}
+     * @return array{ordered: bool, attrs: array<string, mixed>, groupAttrs?: array<string, mixed>, marker?: string, continuation?: bool}
      */
     private function numberingListAttributes(string $numId, int $level): array
     {
         $levels = $this->numbering[$numId] ?? [];
         $style = $levels[$level] ?? $levels[1] ?? null;
         if (!is_array($style) || !($style['ordered'] ?? false)) {
-            return ['ordered' => false, 'attrs' => []];
+            $result = ['ordered' => false, 'attrs' => []];
+            if (($style['continuation'] ?? false) === true) {
+                $result['continuation'] = true;
+            }
+            $taskChecked = $style['taskChecked'] ?? null;
+            if (is_bool($taskChecked)) {
+                $result['marker'] = $taskChecked ? "\u{2612}" : "\u{2610}";
+                $result['groupAttrs'] = ['docxTaskBullet' => true];
+            }
+
+            return $result;
         }
 
         return [
@@ -2763,7 +2893,7 @@ final class DocxReader
     }
 
     /**
-     * @return array<string, array<int, array{ordered: bool, style?: string, delimiter?: string, start?: int, styleId?: string}>>
+     * @return array<string, array<int, array{ordered: bool, style?: string, delimiter?: string, start?: int, styleId?: string, text?: string, continuation?: bool, taskChecked?: bool}>>
      */
     private function numbering(\DOMDocument $dom): array
     {
@@ -2833,12 +2963,13 @@ final class DocxReader
     }
 
     /**
-     * @return array{ordered: bool, style?: string, delimiter?: string, start?: int, styleId?: string}
+     * @return array{ordered: bool, style?: string, delimiter?: string, start?: int, styleId?: string, text?: string, continuation?: bool, taskChecked?: bool}
      */
     private function numberingLevel(\DOMElement $level): array
     {
         $format = 'bullet';
         $text = '';
+        $hasLevelText = false;
         $start = null;
         $styleId = '';
         foreach ($level->childNodes as $child) {
@@ -2849,6 +2980,7 @@ final class DocxReader
                 $format = $this->attr($child, self::W_NS, 'val') ?: 'bullet';
             } elseif ($child->localName === 'lvlText') {
                 $text = $this->attr($child, self::W_NS, 'val');
+                $hasLevelText = true;
             } elseif ($child->localName === 'start') {
                 $value = $this->attr($child, self::W_NS, 'val');
                 if ($value !== '' && is_numeric($value)) {
@@ -2859,8 +2991,18 @@ final class DocxReader
             }
         }
 
-        if ($format === 'bullet') {
+        if ($format === 'bullet' || $format === 'none') {
             $entry = ['ordered' => false];
+            if ($text !== '') {
+                $entry['text'] = $text;
+            }
+            if ($format === 'none' || ($hasLevelText && trim($text) === '')) {
+                $entry['continuation'] = true;
+            }
+            $taskChecked = $this->docxTaskBulletChecked($text);
+            if ($taskChecked !== null) {
+                $entry['taskChecked'] = $taskChecked;
+            }
             if ($styleId !== '') {
                 $entry['styleId'] = $styleId;
             }
@@ -2881,6 +3023,15 @@ final class DocxReader
         }
 
         return $entry;
+    }
+
+    private function docxTaskBulletChecked(string $levelText): ?bool
+    {
+        if (preg_match('/^\s*(\x{2610}|\x{2612})\s*$/u', $levelText, $matches) !== 1) {
+            return null;
+        }
+
+        return $matches[1] === "\u{2612}";
     }
 
     private function docxOrderedListStyle(string $format): string
@@ -3271,17 +3422,15 @@ final class DocxReader
 
     private function normalizeWordTarget(string $target): string
     {
+        $target = str_replace('\\', '/', $target);
         if (preg_match('/^[a-z][a-z0-9+.-]*:/i', $target)) {
             return $target;
         }
-        $target = str_replace('\\', '/', $target);
-        if (str_starts_with($target, '../')) {
-            $target = substr($target, 3);
-        } elseif (!str_starts_with($target, 'word/')) {
-            $target = 'word/' . ltrim($target, '/');
+        if (str_starts_with($target, '/') || str_starts_with($target, 'word/')) {
+            return ltrim($target, '/');
         }
 
-        return $target;
+        return $this->normalizePackageTarget($this->documentPartName, $target);
     }
 
     private function emuCssDimension(string $value): string

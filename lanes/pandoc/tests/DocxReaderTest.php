@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\DocxReader;
+use PortLibs\Pandoc\NativeWriter;
 use PortLibs\Pandoc\PandocConverter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 use PortLibs\Pandoc\ZipPackage;
@@ -209,6 +210,79 @@ XML],
         $t->contains('<ol start="5" type="a"><li>Review source</li><li>Publish migration</li></ol>', $blocks);
         $t->contains('<ul><li>Check footers</li></ul>', $blocks);
         $t->contains('<p>Plain exception</p>', $blocks);
+    },
+    'preserves docx task-list numbering glyphs and blank bullet continuations' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            ['name' => 'word/numbering.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:abstractNum w:abstractNumId="990">
+    <w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/><w:lvlText w:val=" "/></w:lvl>
+    <w:lvl w:ilvl="1"><w:numFmt w:val="bullet"/><w:lvlText w:val=" "/></w:lvl>
+    <w:lvl w:ilvl="2"><w:numFmt w:val="bullet"/><w:lvlText w:val=" "/></w:lvl>
+  </w:abstractNum>
+  <w:abstractNum w:abstractNumId="992">
+    <w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/><w:lvlText w:val="☐"/></w:lvl>
+    <w:lvl w:ilvl="1"><w:numFmt w:val="bullet"/><w:lvlText w:val="☐"/></w:lvl>
+    <w:lvl w:ilvl="2"><w:numFmt w:val="bullet"/><w:lvlText w:val="☐"/></w:lvl>
+  </w:abstractNum>
+  <w:abstractNum w:abstractNumId="993">
+    <w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/><w:lvlText w:val="☒"/></w:lvl>
+    <w:lvl w:ilvl="1"><w:numFmt w:val="bullet"/><w:lvlText w:val="☒"/></w:lvl>
+    <w:lvl w:ilvl="2"><w:numFmt w:val="bullet"/><w:lvlText w:val="☒"/></w:lvl>
+  </w:abstractNum>
+  <w:abstractNum w:abstractNumId="994">
+    <w:lvl w:ilvl="3"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%4."/></w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="1000"><w:abstractNumId w:val="990"/></w:num>
+  <w:num w:numId="1001"><w:abstractNumId w:val="992"/></w:num>
+  <w:num w:numId="1002"><w:abstractNumId w:val="993"/></w:num>
+  <w:num w:numId="1003"><w:abstractNumId w:val="992"/></w:num>
+  <w:num w:numId="1004"><w:abstractNumId w:val="993"/></w:num>
+  <w:num w:numId="1005"><w:abstractNumId w:val="992"/></w:num>
+  <w:num w:numId="1006"><w:abstractNumId w:val="994"/></w:num>
+</w:numbering>
+XML],
+            ['name' => 'word/document.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1001"/></w:numPr></w:pPr><w:r><w:t>Unchecked</w:t></w:r></w:p>
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1002"/></w:numPr></w:pPr><w:r><w:t>Checked</w:t></w:r></w:p>
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1000"/></w:numPr></w:pPr><w:r><w:t>with continuation paragraph</w:t></w:r></w:p>
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1003"/></w:numPr></w:pPr><w:r><w:t>Unchecked</w:t></w:r></w:p>
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="1004"/></w:numPr></w:pPr><w:r><w:t>Checked sublist</w:t></w:r></w:p>
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="2"/><w:numId w:val="1005"/></w:numPr></w:pPr><w:r><w:t>Unchecked subsublist</w:t></w:r></w:p>
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="3"/><w:numId w:val="1006"/></w:numPr></w:pPr><w:r><w:t>Numbered child</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+XML],
+        ]);
+
+        $document = (new DocxReader())->readDocument($package);
+        $native = (new NativeWriter())->write($document);
+        $list = $document->children[0];
+        $checkedItem = $list->children[1];
+        $nestedChecked = $list->children[2]->children[1];
+        $nestedUnchecked = $nestedChecked->children[0]->children[1];
+        $numberedChild = $nestedUnchecked->children[0]->children[1];
+
+        $t->same('bullet_list', $list->type);
+        $t->same(3, count($list->children));
+        $t->same("☐ Unchecked", $list->children[0]->children[0]->attr('text'));
+        $t->same("☒ Checked", $checkedItem->children[0]->attr('text'));
+        $t->same('with continuation paragraph', $checkedItem->children[1]->attr('text'));
+        $t->same("☐ Unchecked", $list->children[2]->children[0]->attr('text'));
+        $t->same('bullet_list', $nestedChecked->type);
+        $t->same("☒ Checked sublist", $nestedChecked->children[0]->children[0]->attr('text'));
+        $t->same('bullet_list', $nestedUnchecked->type);
+        $t->same("☐ Unchecked subsublist", $nestedUnchecked->children[0]->children[0]->attr('text'));
+        $t->same('ordered_list', $numberedChild->type);
+        $t->same('Numbered child', $numberedChild->children[0]->children[0]->attr('text'));
+        $t->contains('Str "\\9744" , Space , Str "Unchecked"', $native);
+        $t->contains('Str "\\9746" , Space , Str "Checked"', $native);
+        $t->contains('Para [ Str "with" , Space , Str "continuation" , Space , Str "paragraph" ]', $native);
+        $t->contains('OrderedList ( 1 , Decimal , Period )', $native);
     },
     'reads current upstream docx list restart fixture as restarted lists' => static function (TestRunner $t): void {
         $root = dirname(__DIR__) . '/fixtures/upstream-current-docx';
@@ -586,6 +660,59 @@ XML;
         $t->contains('<span class="math inline">\\(x^{2}+y\\)</span>', $blocks);
         $t->contains('<span class="math display">\\[\\frac{1}{n}\\]</span>', $blocks);
     },
+    'parses docx hyperlink field instructions into links' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes(<<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:fldSimple w:instr=' HYPERLINK "https://example.test/simple" \o "Simple title" '>
+        <w:r><w:t>Simple field</w:t></w:r>
+      </w:fldSimple>
+    </w:p>
+    <w:p>
+      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+      <w:r><w:instrText xml:space="preserve"> HYPERLINK "https://example.test/complex" \o "Complex title" </w:instrText></w:r>
+      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+      <w:r><w:t>Complex field</w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+      <w:r><w:instrText xml:space="preserve"> HYPERLINK \l "LocalTarget" </w:instrText></w:r>
+      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+      <w:r><w:t>Local field</w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML);
+
+        $document = (new DocxReader())->read($bytes);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $simple = $document->children[0]->children[0];
+        $complex = $document->children[1]->children[0];
+        $local = $document->children[2]->children[0];
+
+        $t->same('link', $simple->type);
+        $t->same('https://example.test/simple', $simple->attr('url'));
+        $t->same('Simple title', $simple->attr('title'));
+        $t->same('HYPERLINK "https://example.test/simple" \o "Simple title"', $simple->attr('attributes')['data-docx-field']);
+        $t->same('Simple field', $simple->children[0]->attr('text'));
+
+        $t->same('link', $complex->type);
+        $t->same('https://example.test/complex', $complex->attr('url'));
+        $t->same('Complex title', $complex->attr('title'));
+        $t->same('Complex field', $complex->children[0]->attr('text'));
+
+        $t->same('link', $local->type);
+        $t->same('#LocalTarget', $local->attr('url'));
+        $t->same('Local field', $local->children[0]->attr('text'));
+
+        $t->contains('<a href="https://example.test/simple" title="Simple title"', $blocks);
+        $t->contains('data-docx-field="HYPERLINK &quot;https://example.test/complex&quot; \o &quot;Complex title&quot;"', $blocks);
+        $t->contains('<a href="#LocalTarget"', $blocks);
+    },
     'preserves docx hyperlink relationship anchors and tracked change contents' => static function (TestRunner $t): void {
         $package = ZipPackage::fromParts([
             ['name' => 'word/_rels/document.xml.rels', 'data' => '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/review" TargetMode="External"/></Relationships>'],
@@ -625,6 +752,96 @@ XML;
         $t->same('link', $link->type);
         $t->same('https://example.test/alternate', $link->attr('url'));
         $t->same('document path', $link->children[0]->attr('text'));
+    },
+    'normalizes alternate part drawing and vml image relationship targets' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            ['name' => '_rels/.rels', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDoc" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="/word/sub/document.xml"/>
+</Relationships>
+XML],
+            ['name' => '[Content_Types].xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/sub/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>
+XML],
+            ['name' => 'word/sub/_rels/document.xml.rels', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rDrawing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/drawing.png"/>
+  <Relationship Id="rVml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="..\media\vml-preview.png"/>
+</Relationships>
+XML],
+            ['name' => 'word/sub/document.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:document
+  xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+  xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+  xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+  xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"
+  xmlns:v="urn:schemas-microsoft-com:vml"
+  xmlns:o="urn:schemas-microsoft-com:office:office">
+  <w:body>
+    <w:p>
+      <w:r>
+        <w:drawing>
+          <wp:inline>
+            <wp:extent cx="914400" cy="457200"/>
+            <wp:docPr id="11" name="Nested Drawing" descr="Nested drawing alt"/>
+            <a:graphic>
+              <a:graphicData>
+                <pic:pic>
+                  <pic:blipFill><a:blip r:embed="rDrawing"/></pic:blipFill>
+                </pic:pic>
+              </a:graphicData>
+            </a:graphic>
+          </wp:inline>
+        </w:drawing>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:r>
+        <w:pict>
+          <v:shape id="NestedVml" style="width:36pt;height:18pt">
+            <v:imagedata r:id="rVml" o:title="Nested VML"/>
+          </v:shape>
+        </w:pict>
+      </w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML],
+            ['name' => 'word/media/drawing.png', 'data' => 'drawing bytes'],
+            ['name' => 'word/media/vml-preview.png', 'data' => 'vml bytes'],
+        ]);
+
+        $document = (new DocxReader())->readDocument($package);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $drawing = $document->children[0]->children[0];
+        $vml = $document->children[1]->children[0];
+
+        $t->same('image', $drawing->type);
+        $t->same('word/media/drawing.png', $drawing->attr('url'));
+        $t->same('1in', $drawing->attr('width'));
+        $t->same('0.5in', $drawing->attr('height'));
+        $t->same('Nested drawing alt', $drawing->attr('alt'));
+        $t->same('rDrawing', $drawing->attr('attributes')['data-docx-image-relationship-id']);
+
+        $t->same('image', $vml->type);
+        $t->same('word/media/vml-preview.png', $vml->attr('url'));
+        $t->same('36pt', $vml->attr('width'));
+        $t->same('18pt', $vml->attr('height'));
+        $t->same('Nested VML', $vml->attr('title'));
+        $t->same('rVml', $vml->attr('attributes')['data-docx-image-relationship-id']);
+
+        $t->contains('src="word/media/drawing.png"', $blocks);
+        $t->contains('src="word/media/vml-preview.png"', $blocks);
     },
     'maps upstream docx paragraph block styles to code quotes and definitions' => static function (TestRunner $t): void {
         $stylesXml = <<<'XML'
@@ -748,6 +965,29 @@ XML;
         $t->contains('<span class="docx-content-control docx-content-control-inline" data-docx-content-control-display="inline"', $blocks);
         $t->contains('data-docx-content-control-list-values="draft approved"', $blocks);
         $t->contains('data-docx-content-control-date-full="2026-06-26T00:00:00Z"', $blocks);
+    },
+    'places docx table header rows in table head' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:tbl><w:tr><w:trPr><w:tblHeader/></w:trPr><w:tc><w:p><w:r><w:t>Field</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Value</w:t></w:r></w:p></w:tc></w:tr><w:tr><w:trPr><w:tblHeader w:val="0"/></w:trPr><w:tc><w:p><w:r><w:t>Draft flag</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>False header row</w:t></w:r></w:p></w:tc></w:tr><w:tr><w:tc><w:p><w:r><w:t>Total</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>12</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:body></w:document>');
+
+        $document = (new DocxReader())->read($bytes);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $table = $document->children[0];
+        $head = $table->children[0];
+        $body = $table->children[1];
+
+        $t->same('table', $table->type);
+        $t->same('table_head', $head->type);
+        $t->same(1, count($head->children));
+        $t->same('Field', $head->children[0]->children[0]->attr('text'));
+        $t->same('Value', $head->children[0]->children[1]->attr('text'));
+        $t->same('table_body', $body->type);
+        $t->same(2, count($body->children));
+        $t->same('Draft flag', $body->children[0]->children[0]->attr('text'));
+        $t->same('Total', $body->children[1]->children[0]->attr('text'));
+
+        $t->contains('<thead><tr><th><p>Field</p></th><th><p>Value</p></th></tr></thead>', $blocks);
+        $t->contains('<tbody><tr><td><p>Draft flag</p></td><td><p>False header row</p></td></tr><tr><td><p>Total</p></td><td><p>12</p></td></tr></tbody>', $blocks);
+        $t->true(!str_contains($blocks, '<th><p>Draft flag</p></th>'), 'Explicitly disabled tblHeader rows should stay in the table body');
     },
     'preserves docx comment ranges moves table merges styles and image metadata' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-docx-');
