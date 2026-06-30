@@ -1852,6 +1852,108 @@ XML;
         $t->same('review', $inventory['Pictures/hero.png']['manifestPathFragment']);
         $t->same('Pictures/source hero.png', $inventory['Pictures/source hero.png']['manifestPackagePath']);
     },
+    'summarizes compact ODT manifest package path profile for review packets' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $sourceBytes = 'SOURCEPNG';
+        $objectBytes = '<office:document-content/>';
+        $scriptBytes = 'print("review")';
+        $rdfBytes = '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"/>';
+        $payloadBytes = 'PAYLOAD';
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/source%20hero.png?download=true#asset" manifest:size="' . strlen($sourceBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="application/vnd.oasis.opendocument.chart" manifest:full-path="Object%20Chart/"/>'
+            . '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Object%20Chart/content.xml" manifest:size="' . strlen($objectBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="text/x-python" manifest:full-path="Scripts/python/review.py" manifest:size="' . strlen($scriptBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="application/rdf+xml" manifest:full-path="manifest.rdf" manifest:size="' . strlen($rdfBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="application/octet-stream" manifest:full-path="Payloads/archive" manifest:size="' . strlen($payloadBytes) . '"/>',
+            $manifestXml
+        );
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'Pictures/source hero.png', 'data' => $sourceBytes, 'compressionMethod' => 0],
+                ['name' => 'Object Chart/', 'data' => '', 'compressionMethod' => 0],
+                ['name' => 'Object Chart/content.xml', 'data' => $objectBytes, 'compressionMethod' => 0],
+                ['name' => 'Scripts/python/review.py', 'data' => $scriptBytes, 'compressionMethod' => 0],
+                ['name' => 'manifest.rdf', 'data' => $rdfBytes, 'compressionMethod' => 0],
+                ['name' => 'Payloads/archive', 'data' => $payloadBytes, 'compressionMethod' => 0],
+            ],
+        ))->summarize();
+        $profile = $summary['manifestReview']['manifestPackagePathProfile'];
+        $itemsByPath = [];
+        foreach ($profile['items'] as $item) {
+            $itemsByPath[$item['fullPath']] = $item;
+        }
+
+        $t->same(11, $profile['itemCount']);
+        $t->same(1, $profile['packageRootEntryCount']);
+        $t->same(10, $profile['packagePathEntryCount']);
+        $t->same(1, $profile['directoryEntryCount']);
+        $t->same(9, $profile['fileEntryCount']);
+        $t->same(5, $profile['topLevelEntryCount']);
+        $t->same(5, $profile['nestedEntryCount']);
+        $t->same(3, $profile['maxDepth']);
+        $t->same(3, $profile['uriEncodedPackageReferenceCount']);
+        $t->same(1, $profile['suffixReferenceCount']);
+        $t->same(4, $profile['pathRootCounts']['(package-root)']);
+        $t->same(1, $profile['pathRootCounts']['/']);
+        $t->same(2, $profile['pathRootCounts']['Pictures']);
+        $t->same(2, $profile['pathRootCounts']['Object Chart']);
+        $t->same(1, $profile['pathRootCounts']['Scripts']);
+        $t->same(1, $profile['pathRootCounts']['Payloads']);
+        $t->same([0 => 1, 1 => 5, 2 => 4, 3 => 1], $profile['pathDepthCounts']);
+        $t->same([
+            '(none)' => 1,
+            'png' => 2,
+            'py' => 1,
+            'rdf' => 1,
+            'xml' => 4,
+        ], $profile['fileExtensionCounts']);
+        $t->same(1, $profile['duplicateBasenameCount']);
+        $t->same('content.xml', $profile['duplicateBasenameItems'][0]['baseName']);
+        $t->same(['content.xml', 'Object%20Chart/content.xml'], $profile['duplicateBasenameItems'][0]['paths']);
+
+        $root = $itemsByPath['/'];
+        $t->same('/', $root['pathRoot']);
+        $t->same(0, $root['pathDepth']);
+        $t->same(null, $root['packagePath']);
+        $t->same(true, $root['isPackageRoot']);
+
+        $source = $itemsByPath['Pictures/source%20hero.png?download=true#asset'];
+        $t->same('Pictures/source hero.png', $source['packagePath']);
+        $t->same('Pictures/source%20hero.png', $source['pathReference']);
+        $t->same('?download=true#asset', $source['pathSuffix']);
+        $t->same('download=true', $source['pathQuery']);
+        $t->same('asset', $source['pathFragment']);
+        $t->same('Pictures', $source['pathRoot']);
+        $t->same(2, $source['pathDepth']);
+        $t->same('Pictures/', $source['parentDirectory']);
+        $t->same('source hero.png', $source['baseName']);
+        $t->same('png', $source['extension']);
+        $t->same(true, $source['uriEncodedPackageReference']);
+
+        $objectRoot = $itemsByPath['Object%20Chart/'];
+        $t->same('Object Chart/', $objectRoot['packagePath']);
+        $t->same('Object Chart', $objectRoot['pathRoot']);
+        $t->same(1, $objectRoot['pathDepth']);
+        $t->same('Object Chart', $objectRoot['baseName']);
+        $t->same(null, $objectRoot['extension']);
+        $t->same(true, $objectRoot['isDirectory']);
+        $t->same(true, $objectRoot['uriEncodedPackageReference']);
+
+        $script = $itemsByPath['Scripts/python/review.py'];
+        $t->same('Scripts', $script['pathRoot']);
+        $t->same(3, $script['pathDepth']);
+        $t->same('Scripts/python/', $script['parentDirectory']);
+        $t->same('review.py', $script['baseName']);
+        $t->same('py', $script['extension']);
+
+        $payload = $itemsByPath['Payloads/archive'];
+        $t->same('Payloads', $payload['pathRoot']);
+        $t->same(null, $payload['extension']);
+    },
     'summarizes compact ODT manifest suffix references without marking stripped parts undeclared' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml, $contentXml): void {
         $manifest = str_replace(
             [

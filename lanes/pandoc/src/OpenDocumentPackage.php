@@ -8443,6 +8443,7 @@ final class OpenDocumentPackage
             }
         }
         $summary['manifestPartReferenceSuffixCount'] = count($summary['manifestPartReferenceSuffixItems']);
+        $summary['manifestPackagePathProfile'] = self::manifestPackagePathProfile($entries);
         $summary['preferredViewModes'] = self::manifestPreferredViewModeSummary($entries);
         $summary['manifestEncryption'] = self::manifestEncryptionSummary($entries);
         $summary['diagnosticCount'] = count($summary['diagnostics']);
@@ -8462,6 +8463,175 @@ final class OpenDocumentPackage
         $summary['mediaResources'] = self::manifestMediaResourceRoleSummary($entries);
 
         return $summary;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array<string, mixed>
+     */
+    private static function manifestPackagePathProfile(array $entries): array
+    {
+        $items = [];
+        $pathRootCounts = [];
+        $pathDepthCounts = [];
+        $fileExtensionCounts = [];
+        $basenameItems = [];
+        $packageRootEntryCount = 0;
+        $packagePathEntryCount = 0;
+        $directoryEntryCount = 0;
+        $fileEntryCount = 0;
+        $topLevelEntryCount = 0;
+        $nestedEntryCount = 0;
+        $uriEncodedPackageReferenceCount = 0;
+        $suffixReferenceCount = 0;
+        $maxDepth = 0;
+
+        foreach ($entries as $entry) {
+            $item = self::manifestPackagePathProfileItem($entry);
+            $items[] = $item;
+
+            $pathRoot = $item['pathRoot'];
+            $pathDepth = $item['pathDepth'];
+            $pathRootCounts[$pathRoot] = ($pathRootCounts[$pathRoot] ?? 0) + 1;
+            $pathDepthCounts[$pathDepth] = ($pathDepthCounts[$pathDepth] ?? 0) + 1;
+            $maxDepth = max($maxDepth, $pathDepth);
+
+            if (($item['isPackageRoot'] ?? false) === true) {
+                ++$packageRootEntryCount;
+                continue;
+            }
+
+            ++$packagePathEntryCount;
+            if (($item['isDirectory'] ?? false) === true) {
+                ++$directoryEntryCount;
+            } else {
+                ++$fileEntryCount;
+                $extensionKey = is_string($item['extension'] ?? null) ? $item['extension'] : '(none)';
+                $fileExtensionCounts[$extensionKey] = ($fileExtensionCounts[$extensionKey] ?? 0) + 1;
+                if (is_string($item['baseName'] ?? null) && $item['baseName'] !== '') {
+                    $basenameItems[$item['baseName']][] = [
+                        'manifestIndex' => $item['manifestIndex'],
+                        'fullPath' => $item['fullPath'],
+                        'packagePath' => $item['packagePath'],
+                        'pathRoot' => $item['pathRoot'],
+                        'parentDirectory' => $item['parentDirectory'],
+                        'extension' => $item['extension'],
+                    ];
+                }
+            }
+
+            if ($pathDepth === 1) {
+                ++$topLevelEntryCount;
+            } elseif ($pathDepth > 1) {
+                ++$nestedEntryCount;
+            }
+            if (($item['uriEncodedPackageReference'] ?? false) === true) {
+                ++$uriEncodedPackageReferenceCount;
+            }
+            if (is_string($item['pathSuffix'] ?? null) && $item['pathSuffix'] !== '') {
+                ++$suffixReferenceCount;
+            }
+        }
+
+        $duplicateBasenameItems = [];
+        foreach ($basenameItems as $baseName => $matches) {
+            if (count($matches) < 2) {
+                continue;
+            }
+
+            $duplicateBasenameItems[] = [
+                'baseName' => $baseName,
+                'count' => count($matches),
+                'paths' => array_column($matches, 'fullPath'),
+                'items' => $matches,
+            ];
+        }
+
+        ksort($pathRootCounts, SORT_STRING);
+        ksort($pathDepthCounts, SORT_NUMERIC);
+        ksort($fileExtensionCounts, SORT_STRING);
+        usort(
+            $duplicateBasenameItems,
+            static fn (array $left, array $right): int => strcmp((string) $left['baseName'], (string) $right['baseName'])
+        );
+
+        return [
+            'itemCount' => count($items),
+            'packageRootEntryCount' => $packageRootEntryCount,
+            'packagePathEntryCount' => $packagePathEntryCount,
+            'directoryEntryCount' => $directoryEntryCount,
+            'fileEntryCount' => $fileEntryCount,
+            'topLevelEntryCount' => $topLevelEntryCount,
+            'nestedEntryCount' => $nestedEntryCount,
+            'maxDepth' => $maxDepth,
+            'uriEncodedPackageReferenceCount' => $uriEncodedPackageReferenceCount,
+            'suffixReferenceCount' => $suffixReferenceCount,
+            'pathRootCounts' => $pathRootCounts,
+            'pathDepthCounts' => $pathDepthCounts,
+            'fileExtensionCounts' => $fileExtensionCounts,
+            'duplicateBasenameCount' => count($duplicateBasenameItems),
+            'duplicateBasenameItems' => $duplicateBasenameItems,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @return array<string, mixed>
+     */
+    private static function manifestPackagePathProfileItem(array $entry): array
+    {
+        $fullPath = (string) ($entry['path'] ?? '');
+        $packagePath = is_string($entry['packagePath'] ?? null) ? $entry['packagePath'] : null;
+        $isPackageRoot = $fullPath === '/' || $packagePath === null;
+        $isDirectory = !$isPackageRoot && str_ends_with((string) $packagePath, '/');
+        $segments = [];
+        if ($packagePath !== null) {
+            $trimmedPath = trim($packagePath, '/');
+            $segments = $trimmedPath === '' ? [] : explode('/', $trimmedPath);
+        }
+
+        $pathDepth = count($segments);
+        $baseName = $segments === [] ? null : (string) end($segments);
+        $pathRoot = '/';
+        if (!$isPackageRoot) {
+            $pathRoot = $pathDepth === 1 && !$isDirectory
+                ? '(package-root)'
+                : (string) ($segments[0] ?? '(package-root)');
+        }
+        $parentDirectory = null;
+        if (!$isPackageRoot && $pathDepth > 1) {
+            $parentDirectory = implode('/', array_slice($segments, 0, -1)) . '/';
+        }
+
+        $extension = null;
+        if (!$isPackageRoot && !$isDirectory && is_string($baseName)) {
+            $pathExtension = strtolower(pathinfo($baseName, PATHINFO_EXTENSION));
+            $extension = $pathExtension === '' ? null : $pathExtension;
+        }
+
+        return [
+            'manifestIndex' => $entry['manifestIndex'] ?? null,
+            'fullPath' => $fullPath,
+            'path' => $fullPath,
+            'packagePath' => $packagePath,
+            'pathReference' => $entry['pathReference'] ?? null,
+            'pathSuffix' => $entry['pathSuffix'] ?? null,
+            'pathQuery' => $entry['pathQuery'] ?? null,
+            'pathFragment' => $entry['pathFragment'] ?? null,
+            'pathRoot' => $pathRoot,
+            'pathDepth' => $pathDepth,
+            'parentDirectory' => $parentDirectory,
+            'baseName' => $baseName,
+            'extension' => $extension,
+            'isPackageRoot' => $isPackageRoot,
+            'isDirectory' => ($entry['isDirectory'] ?? false) === true,
+            'exists' => ($entry['exists'] ?? false) === true,
+            'encrypted' => ($entry['encrypted'] ?? false) === true,
+            'uriEncodedPackageReference' => ($entry['uriEncodedPackageReference'] ?? false) === true,
+            'manifestMediaFamily' => $entry['manifestMediaFamily'] ?? null,
+            'mediaType' => $entry['mediaType'] ?? '',
+        ];
     }
 
     /**
