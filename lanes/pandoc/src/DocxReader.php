@@ -46,6 +46,8 @@ final class DocxReader
     /** @var array<string, true> */
     private array $suppressedBookmarkIds = [];
 
+    private int $textWidthTwips = 9360;
+
     private string $revisionMode;
 
     /**
@@ -287,6 +289,7 @@ final class DocxReader
         $this->bodyMetadata = [];
         $document = $this->loadXml($document_xml, 'DOCX document.xml');
         $body = $this->firstElementByLocalName($document, 'body');
+        $this->textWidthTwips = $body instanceof \DOMElement ? $this->bodyTextWidthTwips($body) : 9360;
         if ($body instanceof \DOMElement) {
             $this->commentRangeIds = $this->commentRangeIds($body);
         }
@@ -335,6 +338,34 @@ final class DocxReader
         $metadata['docxAppliedFooterFiles'] = $this->appliedSectionReferenceFiles($sectionReferences, 'footers', $footers);
 
         return new AstNode('document', ['meta' => $metadata], $children);
+    }
+
+    private function bodyTextWidthTwips(\DOMElement $body): int
+    {
+        $sectPr = $this->directChild($body, 'sectPr');
+        if (!$sectPr instanceof \DOMElement) {
+            return 9360;
+        }
+
+        $pgSz = $this->directChild($sectPr, 'pgSz');
+        $pgMar = $this->directChild($sectPr, 'pgMar');
+        if (!$pgSz instanceof \DOMElement || !$pgMar instanceof \DOMElement) {
+            return 9360;
+        }
+
+        $pageWidth = $this->attr($pgSz, self::W_NS, 'w');
+        $leftMargin = $this->attr($pgMar, self::W_NS, 'left');
+        $rightMargin = $this->attr($pgMar, self::W_NS, 'right');
+        $gutter = $this->attr($pgMar, self::W_NS, 'gutter');
+        foreach ([$pageWidth, $leftMargin, $rightMargin, $gutter] as $value) {
+            if ($value === '' || preg_match('/^-?\d+$/', $value) !== 1) {
+                return 9360;
+            }
+        }
+
+        $textWidth = (int) $pageWidth - ((int) $leftMargin + (int) $rightMargin + (int) $gutter);
+
+        return $textWidth > 0 ? $textWidth : 9360;
     }
 
     /**
@@ -3940,7 +3971,7 @@ final class DocxReader
         $attrs = [];
         if ($columnCount > 0) {
             $attrs['alignments'] = array_fill(0, $columnCount, 'default');
-            $attrs['widths'] = array_fill(0, $columnCount, null);
+            $attrs['widths'] = $this->tableGridWidths($table, $columnCount);
         }
 
         $tblPr = $this->directChild($table, 'tblPr');
@@ -3982,6 +4013,55 @@ final class DocxReader
         }
 
         return $attrs;
+    }
+
+    /**
+     * @return list<float>
+     */
+    private function tableGridWidths(\DOMElement $table, int $columnCount): array
+    {
+        $defaultWidths = array_fill(0, $columnCount, 0.0);
+        $tblGrid = $this->directChild($table, 'tblGrid');
+        if (!$tblGrid instanceof \DOMElement) {
+            return $defaultWidths;
+        }
+
+        $widths = [];
+        foreach ($tblGrid->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->localName !== 'gridCol') {
+                continue;
+            }
+            $width = (int) ($this->attr($child, self::W_NS, 'w') ?: '0');
+            if ($width <= 0) {
+                $widths[] = 0.0;
+                continue;
+            }
+            $widths[] = (float) $width;
+        }
+
+        if ($widths === []) {
+            return $defaultWidths;
+        }
+
+        $denominator = $this->textWidthTwips - (10 * (count($widths) - 1));
+        if ($denominator <= 0) {
+            return $defaultWidths;
+        }
+
+        $fractions = array_map(
+            static fn (float $width): float => $width > 0.0 ? $width / $denominator : 0.0,
+            $widths
+        );
+        $total = array_sum($fractions);
+        if ($total > 1.0) {
+            $fractions = array_map(static fn (float $width): float => $width / $total, $fractions);
+        }
+
+        while (count($fractions) < $columnCount) {
+            $fractions[] = 0.0;
+        }
+
+        return array_slice($fractions, 0, $columnCount);
     }
 
     /**

@@ -1960,6 +1960,26 @@ XML;
         $t->contains('<thead><tr><th data-docx-omitted-cell="gridBefore"></th><th><p>Field</p></th><th><p>Value</p></th></tr></thead>', $blocks);
         $t->contains('<tbody><tr><td data-docx-omitted-cell="gridBefore"></td><td data-docx-omitted-cell="gridBefore"></td><td><p>North</p></td><td><p>12</p></td></tr></tbody>', $blocks);
     },
+    'normalizes docx default table widths to native defaults' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:tbl><w:tr><w:tc><w:p><w:r><w:t>Left</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Right</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:body></w:document>');
+
+        $document = (new DocxReader())->read($bytes);
+        $table = $document->children[0];
+        $native = (new NativeWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same(['default', 'default'], $table->attr('alignments'));
+        $t->same([0.0, 0.0], $table->attr('widths'));
+        $t->same(2, substr_count($native, 'ColWidthDefault'));
+    },
+    'maps docx table grid column widths to native fractions' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:tbl><w:tblGrid><w:gridCol w:w="2000"/><w:gridCol w:w="3990"/></w:tblGrid><w:tr><w:tc><w:p><w:r><w:t>Left</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Right</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:sectPr><w:pgSz w:w="10000" w:h="12000"/><w:pgMar w:left="1000" w:right="1000" w:gutter="0"/></w:sectPr></w:body></w:document>');
+
+        $document = (new DocxReader())->read($bytes);
+        $table = $document->children[0];
+
+        $t->same([2000 / 7990, 3990 / 7990], $table->attr('widths'));
+    },
     'reads docx content control wrapped table cells' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
         $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:tbl><w:tr><w:tc><w:p><w:r><w:t>Head</w:t></w:r></w:p></w:tc><w:sdt><w:sdtContent><w:tc><w:p><w:r><w:t>Body copy</w:t></w:r></w:p></w:tc></w:sdtContent></w:sdt><w:tc><w:p><w:r><w:t>Tail</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:body></w:document>');
 
@@ -2167,7 +2187,7 @@ XML],
         $t->same('480', $image->attr('attributes')['data-docx-object-dya-orig']);
 
         $t->same(['default'], $table->attr('alignments'));
-        $t->same([null], $table->attr('widths'));
+        $t->same([0.0], $table->attr('widths'));
         $t->same('DerivedTable', $tableAttributes['data-docx-table-style']);
         $t->same('Derived Table', $tableAttributes['data-docx-table-style-name']);
         $t->same('BaseTable', $tableAttributes['data-docx-table-style-based-on']);
