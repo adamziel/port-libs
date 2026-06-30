@@ -73,9 +73,13 @@ final class MarkdownWriter
         }
 
         $blocks = [];
-        $titleBlock = $this->renderPlainTemplateTitleBlock($document);
-        if ($titleBlock !== '') {
-            $this->appendBlockEntry($blocks, $titleBlock);
+        $metadataPreamble = $this->renderMarkdownMetadataPreamble($document);
+        if ($metadataPreamble !== '') {
+            $this->appendBlockEntry($blocks, $metadataPreamble);
+        }
+        $plainTemplateTitleBlock = $this->renderPlainTemplateTitleBlock($document);
+        if ($plainTemplateTitleBlock !== '') {
+            $this->appendBlockEntry($blocks, $plainTemplateTitleBlock);
         }
         foreach ($this->renderPlainTemplateVariableBlocks($document, 'header-includes') as $block) {
             $this->appendBlockEntry($blocks, $block);
@@ -239,6 +243,418 @@ final class MarkdownWriter
             implode('; ', $authors),
             $date,
         ]);
+    }
+
+    private function renderMarkdownMetadataPreamble(AstNode $document): string
+    {
+        if ($this->isPlainTextVariant()) {
+            return '';
+        }
+
+        $meta = $document->attr('meta', []);
+        if (!is_array($meta) || $meta === []) {
+            return '';
+        }
+
+        $titleBlock = $this->renderMarkdownTitleBlock($meta);
+        if (
+            $titleBlock !== null
+            && !$this->markdownMetadataRequiresYamlBlock($meta)
+            && !$this->yamlMetadataExplicitlyEnabled()
+        ) {
+            return $titleBlock;
+        }
+
+        if ($this->yamlMetadataEnabled()) {
+            return $this->renderYamlMetadataBlock($meta);
+        }
+
+        return $titleBlock ?? '';
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     */
+    private function renderMarkdownTitleBlock(array $meta): ?string
+    {
+        if (!$this->titleBlockEnabled()) {
+            return null;
+        }
+
+        $titleLines = $this->markdownTitleBlockTitleLines($meta);
+        $authorLines = $this->markdownTitleBlockAuthorLines($meta);
+        $dateLines = $this->markdownTitleBlockDateLines($meta);
+
+        $fields = [$titleLines, $authorLines, $dateLines];
+        $lastPopulated = -1;
+        foreach ($fields as $index => $lines) {
+            if ($lines !== []) {
+                $lastPopulated = $index;
+            }
+        }
+
+        if ($lastPopulated < 0) {
+            return null;
+        }
+
+        $lines = [];
+        for ($index = 0; $index <= $lastPopulated; $index++) {
+            $fieldLines = $fields[$index];
+            $first = array_shift($fieldLines);
+            $lines[] = $first === null || $first === '' ? '%' : '% ' . $first;
+
+            foreach ($fieldLines as $line) {
+                $lines[] = '  ' . $line;
+            }
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     * @return list<string>
+     */
+    private function markdownTitleBlockTitleLines(array $meta): array
+    {
+        if (isset($meta['titleInlines']) && is_array($meta['titleInlines'])) {
+            return $this->renderMarkdownMetaInlineLines($meta['titleInlines']);
+        }
+
+        if (isset($meta['title']) && is_array($meta['title']) && $this->arrayIsAstNodeList($meta['title'])) {
+            return $this->renderMarkdownMetaInlineLines($meta['title']);
+        }
+
+        return $this->markdownMetaScalarLines($meta['title'] ?? null);
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     * @return list<string>
+     */
+    private function markdownTitleBlockAuthorLines(array $meta): array
+    {
+        if (isset($meta['authorInlines']) && is_array($meta['authorInlines'])) {
+            return $this->renderMarkdownMetaInlineListLines($meta['authorInlines']);
+        }
+
+        if (array_key_exists('authors', $meta)) {
+            return $this->renderMarkdownMetaAuthorList($meta['authors']);
+        }
+
+        if (!array_key_exists('author', $meta)) {
+            return [];
+        }
+
+        $author = $meta['author'];
+        if (is_array($author) && $this->arrayIsAstNodeList($author)) {
+            return $this->renderMarkdownMetaInlineLines($author);
+        }
+
+        if (is_array($author) && array_is_list($author)) {
+            $authors = [];
+            foreach ($this->renderMarkdownMetaAuthorList($author) as $line) {
+                if ($line !== '') {
+                    $authors[] = $line;
+                }
+            }
+
+            return $authors === [] ? [] : [implode('; ', $authors)];
+        }
+
+        return $this->markdownMetaScalarLines($author);
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     * @return list<string>
+     */
+    private function markdownTitleBlockDateLines(array $meta): array
+    {
+        if (isset($meta['dateInlines']) && is_array($meta['dateInlines'])) {
+            return $this->renderMarkdownMetaInlineLines($meta['dateInlines']);
+        }
+
+        if (isset($meta['date']) && is_array($meta['date']) && $this->arrayIsAstNodeList($meta['date'])) {
+            return $this->renderMarkdownMetaInlineLines($meta['date']);
+        }
+
+        return $this->markdownMetaScalarLines($meta['date'] ?? null);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @return list<string>
+     */
+    private function renderMarkdownMetaInlineLines(array $nodes): array
+    {
+        $lines = [];
+        $current = [];
+        foreach ($nodes as $node) {
+            if ($node->type === 'softbreak' || $node->type === 'linebreak') {
+                $lines[] = $this->normalizeMarkdownMetaLine($this->renderInlines($current));
+                $current = [];
+                continue;
+            }
+
+            $current[] = $node;
+        }
+
+        $lines[] = $this->normalizeMarkdownMetaLine($this->renderInlines($current));
+
+        return $this->nonEmptyMarkdownMetaLines($lines);
+    }
+
+    /**
+     * @param list<mixed> $authors
+     * @return list<string>
+     */
+    private function renderMarkdownMetaInlineListLines(array $authors): array
+    {
+        $lines = [];
+        foreach ($authors as $author) {
+            if (is_array($author) && $this->arrayIsAstNodeList($author)) {
+                $rendered = implode(' ', $this->renderMarkdownMetaInlineLines($author));
+                if ($rendered !== '') {
+                    $lines[] = $rendered;
+                }
+            }
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderMarkdownMetaAuthorList(mixed $value): array
+    {
+        if (is_array($value) && $this->arrayIsAstNodeList($value)) {
+            return $this->renderMarkdownMetaInlineLines($value);
+        }
+
+        if (!is_array($value)) {
+            return $this->markdownMetaScalarLines($value);
+        }
+
+        $lines = [];
+        foreach ($value as $author) {
+            if (is_array($author) && $this->arrayIsAstNodeList($author)) {
+                $rendered = implode(' ', $this->renderMarkdownMetaInlineLines($author));
+            } elseif (is_scalar($author)) {
+                $rendered = implode(' ', $this->markdownMetaScalarLines($author));
+            } else {
+                $rendered = '';
+            }
+
+            $rendered = $this->normalizeMarkdownMetaLine($rendered);
+            if ($rendered !== '') {
+                $lines[] = $rendered;
+            }
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function markdownMetaScalarLines(mixed $value): array
+    {
+        if (!is_scalar($value)) {
+            return [];
+        }
+
+        $text = str_replace(["\r\n", "\r"], "\n", (string) $value);
+        $lines = array_map(fn (string $line): string => $this->normalizeMarkdownMetaLine($line), explode("\n", $text));
+
+        return $this->nonEmptyMarkdownMetaLines($lines);
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return list<string>
+     */
+    private function nonEmptyMarkdownMetaLines(array $lines): array
+    {
+        return array_values(array_filter($lines, static fn (string $line): bool => $line !== ''));
+    }
+
+    private function normalizeMarkdownMetaLine(string $value): string
+    {
+        return trim(preg_replace('/[ \t]+/u', ' ', $value) ?? $value);
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     */
+    private function markdownMetadataRequiresYamlBlock(array $meta): bool
+    {
+        $allowed = [
+            'title' => true,
+            'titleInlines' => true,
+            'author' => true,
+            'authors' => true,
+            'authorInlines' => true,
+            'date' => true,
+            'dateInlines' => true,
+        ];
+        foreach ($meta as $key => $_value) {
+            if (!isset($allowed[$key])) {
+                return true;
+            }
+        }
+
+        if (array_key_exists('author', $meta) && is_string($meta['author']) && str_contains($meta['author'], ';')) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     */
+    private function renderYamlMetadataBlock(array $meta): string
+    {
+        $normalized = $this->normalizedYamlMetadata($meta);
+        if ($normalized === []) {
+            return '';
+        }
+
+        $lines = ['---'];
+        foreach ($normalized as $key => $value) {
+            foreach ($this->renderYamlMetadataValue((string) $key, $value, 0, in_array($key, ['title', 'author', 'date'], true)) as $line) {
+                $lines[] = $line;
+            }
+        }
+        $lines[] = '...';
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     * @return array<string, mixed>
+     */
+    private function normalizedYamlMetadata(array $meta): array
+    {
+        $normalized = [];
+        foreach ($meta as $key => $value) {
+            if ($key === 'titleInlines' || $key === 'dateInlines' || $key === 'authorInlines') {
+                continue;
+            }
+
+            $normalized[$key] = $this->normalizeYamlMetadataValue($value);
+        }
+
+        if (!array_key_exists('title', $normalized) && isset($meta['titleInlines']) && is_array($meta['titleInlines'])) {
+            $normalized['title'] = implode(' ', $this->renderMarkdownMetaInlineLines($meta['titleInlines']));
+        }
+        if (!array_key_exists('date', $normalized) && isset($meta['dateInlines']) && is_array($meta['dateInlines'])) {
+            $normalized['date'] = implode(' ', $this->renderMarkdownMetaInlineLines($meta['dateInlines']));
+        }
+        if (!array_key_exists('author', $normalized) && isset($meta['authorInlines']) && is_array($meta['authorInlines'])) {
+            $normalized['author'] = $this->renderMarkdownMetaInlineListLines($meta['authorInlines']);
+        }
+
+        return array_filter($normalized, static fn (mixed $value): bool => $value !== null && $value !== [] && $value !== '');
+    }
+
+    private function normalizeYamlMetadataValue(mixed $value): mixed
+    {
+        if ($value instanceof AstNode) {
+            return $this->isInlineNode($value)
+                ? $this->renderInlines([$value])
+                : trim(implode("\n", $this->renderBlock($value, 0)));
+        }
+
+        if (is_array($value)) {
+            if ($this->arrayIsAstNodeList($value)) {
+                return implode(' ', $this->renderMarkdownMetaInlineLines($value));
+            }
+
+            $normalized = [];
+            foreach ($value as $key => $item) {
+                $normalized[$key] = $this->normalizeYamlMetadataValue($item);
+            }
+
+            return $normalized;
+        }
+
+        return is_scalar($value) ? $value : null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderYamlMetadataValue(string $key, mixed $value, int $indent, bool $preferQuotedScalar = false): array
+    {
+        $prefix = str_repeat(' ', $indent);
+        if (is_array($value)) {
+            if ($value === []) {
+                return [$prefix . $key . ': []'];
+            }
+
+            if (array_is_list($value)) {
+                $lines = [$prefix . $key . ':'];
+                foreach ($value as $item) {
+                    if (is_array($item)) {
+                        $lines[] = $prefix . '  -';
+                        foreach ($this->renderYamlMetadataMapping($item, $indent + 4) as $line) {
+                            $lines[] = $line;
+                        }
+                    } else {
+                        $lines[] = $prefix . '  - ' . $this->renderYamlScalar($item, $preferQuotedScalar);
+                    }
+                }
+
+                return $lines;
+            }
+
+            $lines = [$prefix . $key . ':'];
+            foreach ($this->renderYamlMetadataMapping($value, $indent + 2) as $line) {
+                $lines[] = $line;
+            }
+
+            return $lines;
+        }
+
+        return [$prefix . $key . ': ' . $this->renderYamlScalar($value, $preferQuotedScalar)];
+    }
+
+    /**
+     * @param array<string|int, mixed> $mapping
+     * @return list<string>
+     */
+    private function renderYamlMetadataMapping(array $mapping, int $indent): array
+    {
+        $lines = [];
+        foreach ($mapping as $key => $value) {
+            foreach ($this->renderYamlMetadataValue((string) $key, $value, $indent) as $line) {
+                $lines[] = $line;
+            }
+        }
+
+        return $lines;
+    }
+
+    private function renderYamlScalar(mixed $value, bool $preferQuoted = false): string
+    {
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+
+        if (is_int($value) || is_float($value)) {
+            return (string) $value;
+        }
+
+        $text = (string) $value;
+        if (!$preferQuoted && preg_match('/^[A-Za-z0-9_.-]+(?: [A-Za-z0-9_.-]+)*$/', $text) === 1) {
+            return $text;
+        }
+
+        return '"' . str_replace(['\\', '"'], ['\\\\', '\\"'], $text) . '"';
     }
 
     private function renderPlainTemplateBodyOverride(AstNode $document): ?string
@@ -9240,6 +9656,111 @@ final class MarkdownWriter
     private function smartEnabled(): bool
     {
         return (bool) ($this->options['smart'] ?? true);
+    }
+
+    private function emojiShortcodesEnabled(): bool
+    {
+        return $this->markdownExtensionOverride('emoji_shortcodes') === true;
+    }
+
+    private function yamlMetadataEnabled(): bool
+    {
+        $options = $this->options;
+        $options['format'] = $this->markdownFormatWithExtensionOption();
+
+        return MarkdownFormatProfile::yamlMetadataEnabled($options, true);
+    }
+
+    private function yamlMetadataExplicitlyEnabled(): bool
+    {
+        if (array_key_exists('yamlMetadata', $this->options)) {
+            $value = $this->options['yamlMetadata'];
+            if (is_bool($value)) {
+                return $value;
+            }
+            if (is_int($value) || is_float($value)) {
+                return $value !== 0;
+            }
+            if (is_string($value)) {
+                return in_array(strtolower(trim($value)), ['1', 'true', 'yes', 'on'], true);
+            }
+        }
+
+        return $this->markdownExtensionOverride('yaml_metadata_block') === true;
+    }
+
+    private function titleBlockEnabled(): bool
+    {
+        $options = $this->options;
+        $options['format'] = $this->markdownFormatWithExtensionOption();
+
+        return MarkdownFormatProfile::titleBlockEnabled($options, true);
+    }
+
+    private function markdownExtensionOverride(string $extension): ?bool
+    {
+        return $this->markdownExtensionOverrides()[$extension] ?? null;
+    }
+
+    /**
+     * @return array<string, bool>
+     */
+    private function markdownExtensionOverrides(): array
+    {
+        return MarkdownFormatProfile::markdownExtensionOverrides($this->markdownFormatWithExtensionOption());
+    }
+
+    private function markdownFormatWithExtensionOption(): string
+    {
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $format = is_scalar($format) ? (string) $format : 'markdown';
+        $extensionSuffix = $this->markdownExtensionOptionSuffix($this->options['extensions'] ?? '');
+        if ($extensionSuffix === '') {
+            return $format;
+        }
+
+        if (str_starts_with($extensionSuffix, '+') || str_starts_with($extensionSuffix, '-')) {
+            return $format . $extensionSuffix;
+        }
+
+        return $format . '+' . $extensionSuffix;
+    }
+
+    private function markdownExtensionOptionSuffix(mixed $extensions): string
+    {
+        if (is_scalar($extensions)) {
+            return trim((string) $extensions);
+        }
+
+        if (!is_array($extensions)) {
+            return '';
+        }
+
+        $tokens = [];
+        foreach ($extensions as $name => $value) {
+            if (is_int($name)) {
+                if (!is_scalar($value)) {
+                    continue;
+                }
+
+                $token = trim((string) $value);
+                if ($token === '') {
+                    continue;
+                }
+                $tokens[] = str_starts_with($token, '+') || str_starts_with($token, '-')
+                    ? $token
+                    : '+' . $token;
+                continue;
+            }
+
+            if (!is_scalar($value)) {
+                continue;
+            }
+
+            $tokens[] = ((bool) $value ? '+' : '-') . (string) $name;
+        }
+
+        return implode('', $tokens);
     }
 
     private function bracketedSpansEnabled(): bool
