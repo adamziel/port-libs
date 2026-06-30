@@ -61,7 +61,7 @@
         "upstreamDocxRunnerExecuted": false,
         "upstreamDocxGoldenPackageRoundTripExecuted": false,
         "writerGoldenEvidenceKind": "writer-golden-package-generated-stable-comparison",
-        "writerGoldenPackageManifestTool": "tools/pandoc-docx-writer-golden-audit.php --json --docx-dir /Users/admin/port-libs-pandoc-docx-parity/.upstream-cache/pandoc-current/test/docx --generate-supported-dir /tmp/pandoc-docx-writer-golden-generated-49aff",
+        "writerGoldenPackageManifestTool": "tools/pandoc-docx-writer-golden-audit.php --json --docx-dir /Users/admin/port-libs-pandoc-docx-parity/.upstream-cache/pandoc-current/test/docx --generate-supported-dir /tmp/pandoc-docx-writer-golden-generated-f41-diagnostics",
         "writerGoldenPackageInventory": {
             "status": "inventory-only-core-writer-present",
             "goldenPackageCount": 38,
@@ -87,7 +87,7 @@
             "sourceDirectory": "/Users/admin/port-libs-pandoc-docx-parity/.upstream-cache/pandoc-current/test/docx",
             "sourceDirectoryPresent": true,
             "outputDirectoryConfigured": true,
-            "outputDirectory": "/tmp/pandoc-docx-writer-golden-generated-49aff",
+            "outputDirectory": "/tmp/pandoc-docx-writer-golden-generated-f41-diagnostics",
             "outputDirectoryPresent": true,
             "expectedGoldenCaseCount": 38,
             "attemptedCaseCount": 38,
@@ -102,7 +102,7 @@
             "run": true,
             "status": "mismatched-stable-package-semantics",
             "generatedDirectoryConfigured": true,
-            "generatedDirectory": "/tmp/pandoc-docx-writer-golden-generated-49aff",
+            "generatedDirectory": "/tmp/pandoc-docx-writer-golden-generated-f41-diagnostics",
             "generatedDirectoryPresent": true,
             "expectedGoldenPackageCount": 38,
             "generatedPackageCount": 38,
@@ -130,7 +130,355 @@
                     "content-types child order and relationship child order"
                 ]
             },
-            "openReason": "generated-docx-package-stable-semantic-mismatches-or-coverage-gaps"
+            "openReason": "generated-docx-package-stable-semantic-mismatches-or-coverage-gaps",
+            "mismatchDiagnostics": {
+                "schemaVersion": 1,
+                "stableMismatchPackageCount": 38,
+                "mismatchKindCounts": {
+                    "binary-part-payloads": 2,
+                    "content-types": 2,
+                    "part-name-set": 2,
+                    "relationships": 5,
+                    "xml-part-semantics": 38
+                },
+                "partNameDeltas": {
+                    "packagesWithMissingParts": 2,
+                    "packagesWithExtraParts": 0,
+                    "missingPartNameCounts": [
+                        {
+                            "partName": "word/media/rId9.jpg",
+                            "count": 2,
+                            "fileSamples": [
+                                "image.docx",
+                                "inline_images.docx"
+                            ]
+                        }
+                    ],
+                    "extraPartNameCounts": []
+                },
+                "contentTypeDeltas": {
+                    "packagesWithMissingRecords": 2,
+                    "packagesWithExtraRecords": 0,
+                    "missingRecordCounts": [
+                        {
+                            "record": {
+                                "kind": "override",
+                                "partName": "/word/media/rId9.jpg",
+                                "contentType": "image/jpeg"
+                            },
+                            "count": 2,
+                            "fileSamples": [
+                                "image.docx",
+                                "inline_images.docx"
+                            ]
+                        }
+                    ],
+                    "extraRecordCounts": []
+                },
+                "relationshipDeltas": {
+                    "packagesWithMissingRecords": 5,
+                    "packagesWithExtraRecords": 3,
+                    "missingRecordCounts": [
+                        {
+                            "record": {
+                                "relationshipPartName": "/word/_rels/document.xml.rels",
+                                "sourcePartName": "/word/document.xml",
+                                "relationshipId": "rId9",
+                                "relationshipType": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image",
+                                "targetMode": "Internal",
+                                "resolvedTarget": "/word/media/rId9.jpg",
+                                "targetStatus": "resolved"
+                            },
+                            "count": 2,
+                            "fileSamples": [
+                                "image.docx",
+                                "inline_images.docx"
+                            ]
+                        },
+                        {
+                            "record": {
+                                "relationshipPartName": "/word/_rels/document.xml.rels",
+                                "sourcePartName": "/word/document.xml",
+                                "relationshipId": "rId10",
+                                "relationshipType": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+                                "targetMode": "External",
+                                "resolvedTarget": "http://wikipedia.org/",
+                                "targetStatus": "resolved"
+                            },
+                            "count": 1,
+                            "fileSamples": [
+                                "link_in_notes.docx"
+                            ]
+                        },
+                        {
+                            "record": {
+                                "relationshipPartName": "/word/_rels/document.xml.rels",
+                                "sourcePartName": "/word/document.xml",
+                                "relationshipId": "rId14",
+                                "relationshipType": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+                                "targetMode": "External",
+                                "resolvedTarget": "http://www.google.com",
+                                "targetStatus": "resolved"
+                            },
+                            "count": 1,
+                            "fileSamples": [
+                                "inline_images.docx"
+                            ]
+                        },
+                        {
+                            "record": {
+                                "relationshipPartName": "/word/_rels/footnotes.xml.rels",
+                                "sourcePartName": "/word/footnotes.xml",
+                                "relationshipId": "rId10",
+                                "relationshipType": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+                                "targetMode": "External",
+                                "resolvedTarget": "http://example.com/",
+                                "targetStatus": "resolved"
+                            },
+                            "count": 1,
+                            "fileSamples": [
+                                "custom_style_preserve.docx"
+                            ]
+                        },
+                        {
+                            "record": {
+                                "relationshipPartName": "/word/_rels/footnotes.xml.rels",
+                                "sourcePartName": "/word/footnotes.xml",
+                                "relationshipId": "rId10",
+                                "relationshipType": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+                                "targetMode": "External",
+                                "resolvedTarget": "http://pandoc.org/README.html#synopsis",
+                                "targetStatus": "resolved"
+                            },
+                            "count": 1,
+                            "fileSamples": [
+                                "links.docx"
+                            ]
+                        },
+                        {
+                            "record": {
+                                "relationshipPartName": "/word/_rels/footnotes.xml.rels",
+                                "sourcePartName": "/word/footnotes.xml",
+                                "relationshipId": "rId10",
+                                "relationshipType": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+                                "targetMode": "External",
+                                "resolvedTarget": "http://wikipedia.org/",
+                                "targetStatus": "resolved"
+                            },
+                            "count": 1,
+                            "fileSamples": [
+                                "link_in_notes.docx"
+                            ]
+                        },
+                        {
+                            "record": {
+                                "relationshipPartName": "/word/_rels/footnotes.xml.rels",
+                                "sourcePartName": "/word/footnotes.xml",
+                                "relationshipId": "rId14",
+                                "relationshipType": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+                                "targetMode": "External",
+                                "resolvedTarget": "http://www.google.com",
+                                "targetStatus": "resolved"
+                            },
+                            "count": 1,
+                            "fileSamples": [
+                                "inline_images.docx"
+                            ]
+                        },
+                        {
+                            "record": {
+                                "relationshipPartName": "/word/_rels/footnotes.xml.rels",
+                                "sourcePartName": "/word/footnotes.xml",
+                                "relationshipId": "rId9",
+                                "relationshipType": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+                                "targetMode": "External",
+                                "resolvedTarget": "http://google.com",
+                                "targetStatus": "resolved"
+                            },
+                            "count": 1,
+                            "fileSamples": [
+                                "links.docx"
+                            ]
+                        }
+                    ],
+                    "extraRecordCounts": [
+                        {
+                            "record": {
+                                "relationshipPartName": "/word/_rels/document.xml.rels",
+                                "sourcePartName": "/word/document.xml",
+                                "relationshipId": "rId9",
+                                "relationshipType": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+                                "targetMode": "External",
+                                "resolvedTarget": "http://example.com/",
+                                "targetStatus": "resolved"
+                            },
+                            "count": 1,
+                            "fileSamples": [
+                                "custom_style_preserve.docx"
+                            ]
+                        },
+                        {
+                            "record": {
+                                "relationshipPartName": "/word/_rels/document.xml.rels",
+                                "sourcePartName": "/word/document.xml",
+                                "relationshipId": "rId9",
+                                "relationshipType": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+                                "targetMode": "External",
+                                "resolvedTarget": "http://wikipedia.org/",
+                                "targetStatus": "resolved"
+                            },
+                            "count": 1,
+                            "fileSamples": [
+                                "link_in_notes.docx"
+                            ]
+                        },
+                        {
+                            "record": {
+                                "relationshipPartName": "/word/_rels/document.xml.rels",
+                                "sourcePartName": "/word/document.xml",
+                                "relationshipId": "rId9",
+                                "relationshipType": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+                                "targetMode": "External",
+                                "resolvedTarget": "http://www.google.com",
+                                "targetStatus": "resolved"
+                            },
+                            "count": 1,
+                            "fileSamples": [
+                                "inline_images.docx"
+                            ]
+                        }
+                    ]
+                },
+                "xmlPartDeltas": {
+                    "packagesWithMissingXmlParts": 0,
+                    "packagesWithExtraXmlParts": 0,
+                    "packagesWithChangedXmlParts": 38,
+                    "missingXmlPartCounts": [],
+                    "extraXmlPartCounts": [],
+                    "changedXmlPartCounts": [
+                        {
+                            "partName": "docProps/app.xml",
+                            "goldenSemanticStatus": "parsed-xml",
+                            "generatedSemanticStatus": "parsed-xml",
+                            "goldenSemanticSha256": "013fdf886bf9ab2450c189da760cd8f121db2abfef60b073c3150508c06f8269",
+                            "generatedSemanticSha256": "dc1f2a1475feb7f44bf1a877254644d2460c243aaef8c9528cfdccb52bc5a33e",
+                            "count": 38,
+                            "fileSamples": [
+                                "block_quotes.docx",
+                                "codeblock.docx",
+                                "comments.docx",
+                                "custom_style_no_reference.docx",
+                                "custom_style_preserve.docx"
+                            ]
+                        },
+                        {
+                            "partName": "docProps/core.xml",
+                            "goldenSemanticStatus": "parsed-xml",
+                            "generatedSemanticStatus": "parsed-xml",
+                            "goldenSemanticSha256": "6a0b0e9b3313458c22b995159467374ad7bad1617e7612c861bab79607ed8ce3",
+                            "generatedSemanticSha256": "1663688324d17128e15b44532022ce2995d436b22343f63831f89e3d7fb3c9e8",
+                            "count": 38,
+                            "fileSamples": [
+                                "block_quotes.docx",
+                                "codeblock.docx",
+                                "comments.docx",
+                                "custom_style_no_reference.docx",
+                                "custom_style_preserve.docx"
+                            ]
+                        },
+                        {
+                            "partName": "word/document.xml",
+                            "goldenSemanticStatus": "parsed-xml",
+                            "generatedSemanticStatus": "parsed-xml",
+                            "goldenSemanticSha256": "8dd626b52231af305e9636d3cf0e255585fb59099a662a66b49b119410c743c0",
+                            "generatedSemanticSha256": "562f2894d8fe22a3d6326a302c7156f5bf223f0855858426f0db90176e503cb5",
+                            "count": 38,
+                            "fileSamples": [
+                                "block_quotes.docx",
+                                "codeblock.docx",
+                                "comments.docx",
+                                "custom_style_no_reference.docx",
+                                "custom_style_preserve.docx"
+                            ]
+                        },
+                        {
+                            "partName": "word/fontTable.xml",
+                            "goldenSemanticStatus": "parsed-xml",
+                            "generatedSemanticStatus": "parsed-xml",
+                            "goldenSemanticSha256": "6c9af6b0aacb8dff72c80c369b435aa69029f578285751146f83ca1c3792099a",
+                            "generatedSemanticSha256": "4f73c5f1edb4187e3b2feec62169f54ca039e22b730d25f9f91ee2dc9c46e9b2",
+                            "count": 38,
+                            "fileSamples": [
+                                "block_quotes.docx",
+                                "codeblock.docx",
+                                "comments.docx",
+                                "custom_style_no_reference.docx",
+                                "custom_style_preserve.docx"
+                            ]
+                        },
+                        {
+                            "partName": "word/numbering.xml",
+                            "goldenSemanticStatus": "parsed-xml",
+                            "generatedSemanticStatus": "parsed-xml",
+                            "goldenSemanticSha256": "34c679d705338f14533f21848b9df1d3244484758810586283881ed1209cd1cc",
+                            "generatedSemanticSha256": "27af9eb2586c09d0065f4e9e897ed8b2e20c465aa7c439607664dfb95937ddea",
+                            "count": 38,
+                            "fileSamples": [
+                                "block_quotes.docx",
+                                "codeblock.docx",
+                                "comments.docx",
+                                "custom_style_no_reference.docx",
+                                "custom_style_preserve.docx"
+                            ]
+                        },
+                        {
+                            "partName": "word/settings.xml",
+                            "goldenSemanticStatus": "parsed-xml",
+                            "generatedSemanticStatus": "parsed-xml",
+                            "goldenSemanticSha256": "64f598ed5ea6fbe31e00c7e529c9b0fa1156e0401c10b278f3c753c440d10777",
+                            "generatedSemanticSha256": "bcc20a7c6f2d455678c1649ab368efa080e733f8a74f9347bb82effe2a8fa18f",
+                            "count": 38,
+                            "fileSamples": [
+                                "block_quotes.docx",
+                                "codeblock.docx",
+                                "comments.docx",
+                                "custom_style_no_reference.docx",
+                                "custom_style_preserve.docx"
+                            ]
+                        },
+                        {
+                            "partName": "word/styles.xml",
+                            "goldenSemanticStatus": "parsed-xml",
+                            "generatedSemanticStatus": "parsed-xml",
+                            "goldenSemanticSha256": "204abcd8045ea37239394e382a3da4a0aab9b088586bdf603a0eb1d062688eff",
+                            "generatedSemanticSha256": "c2540e48a3ec1429e7cad2e989719a70ec15b7059f3d452d2d2b91935507df90",
+                            "count": 38,
+                            "fileSamples": [
+                                "block_quotes.docx",
+                                "codeblock.docx",
+                                "comments.docx",
+                                "custom_style_no_reference.docx",
+                                "custom_style_preserve.docx"
+                            ]
+                        },
+                        {
+                            "partName": "word/theme/theme1.xml",
+                            "goldenSemanticStatus": "parsed-xml",
+                            "generatedSemanticStatus": "parsed-xml",
+                            "goldenSemanticSha256": "756398219bfbfa76afd3b041dafd67d1f835364b76f5a8dd4e6c08318093383e",
+                            "generatedSemanticSha256": "e4cd76adc8fcb320a22fb93b5f6efbad69b77380e87187ef8b814f04f5c0d0c1",
+                            "count": 38,
+                            "fileSamples": [
+                                "block_quotes.docx",
+                                "codeblock.docx",
+                                "comments.docx",
+                                "custom_style_no_reference.docx",
+                                "custom_style_preserve.docx"
+                            ]
+                        }
+                    ]
+                }
+            }
         },
         "defensibleClaim": "bounded DOCX/OpenXML package provenance, selected upstream Native fixture slices, and three current-upstream DOCX drift fixtures",
         "optionalUpstreamCacheManifest": {

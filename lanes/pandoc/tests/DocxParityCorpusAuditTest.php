@@ -116,6 +116,37 @@ XML;
     return ZipPackage::build($parts, $variant ? 'generated comment ignored by semantic comparison' : '');
 };
 
+$diagnosticDocx = static function (bool $generated = false): string {
+    $contentTypes = $generated
+        ? <<<'XML'
+<?xml version="1.0"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/></Types>
+XML
+        : <<<'XML'
+<?xml version="1.0"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>
+XML;
+    $documentRelationships = $generated
+        ? <<<'XML'
+<?xml version="1.0"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/></Relationships>
+XML
+        : <<<'XML'
+<?xml version="1.0"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>
+XML;
+    $documentText = $generated ? 'Generated diagnostic' : 'Golden diagnostic';
+    $parts = [
+        ['name' => '[Content_Types].xml', 'data' => $contentTypes],
+        ['name' => '_rels/.rels', 'data' => '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rDoc" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>'],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationships],
+        ['name' => 'word/document.xml', 'data' => '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>' . $documentText . '</w:t></w:r></w:p></w:body></w:document>'],
+        ['name' => $generated ? 'word/numbering.xml' : 'word/styles.xml', 'data' => '<?xml version="1.0"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+    ];
+
+    return ZipPackage::build($parts);
+};
+
 $writerDocxFromNative = static function (string $native): string {
     $document = (new NativeReader())->read($native);
 
@@ -507,8 +538,44 @@ return [
             $t->same(false, $report['packageComparison']['allStableSemanticsMatch']);
             $t->same('stable-mismatch', $rowsByName['a.docx']['status']);
             $t->true(in_array('xml-part-semantics', $rowsByName['a.docx']['mismatchKinds'], true));
+            $t->same(1, $report['packageComparison']['mismatchDiagnostics']['stableMismatchPackageCount']);
+            $t->same(1, $report['packageComparison']['mismatchDiagnostics']['mismatchKindCounts']['xml-part-semantics']);
+            $t->same(1, $report['packageComparison']['mismatchDiagnostics']['xmlPartDeltas']['packagesWithChangedXmlParts']);
             $t->same('missing-generated', $rowsByName['b.docx']['status']);
             $t->same('unexpected-generated', $rowsByName['c.docx']['status']);
+        } finally {
+            $removeTree($root);
+        }
+    },
+
+    'writer golden comparison summarizes stable mismatch diagnostics' => static function (TestRunner $t) use ($makeTempRoot, $removeTree, $writeFile, $diagnosticDocx): void {
+        $root = $makeTempRoot();
+        try {
+            $docxRoot = '.upstream-cache/pandoc-current/test/docx';
+            $writeFile($root, "{$docxRoot}/golden/diagnostic.docx", $diagnosticDocx(false));
+            $writeFile($root, 'generated-docx/diagnostic.docx', $diagnosticDocx(true));
+
+            $report = (new DocxWriterGoldenManifest($root, DocxWriterGoldenManifest::DEFAULT_RELATIVE_DOCX_DIR, 8, 'generated-docx'))->report();
+            $diagnostics = $report['packageComparison']['mismatchDiagnostics'];
+
+            $t->same(true, $report['packageComparison']['run']);
+            $t->same(1, $diagnostics['stableMismatchPackageCount']);
+            $t->same(1, $diagnostics['partNameDeltas']['packagesWithMissingParts']);
+            $t->same(1, $diagnostics['partNameDeltas']['packagesWithExtraParts']);
+            $t->same('word/styles.xml', $diagnostics['partNameDeltas']['missingPartNameCounts'][0]['partName']);
+            $t->same('word/numbering.xml', $diagnostics['partNameDeltas']['extraPartNameCounts'][0]['partName']);
+            $t->same(1, $diagnostics['contentTypeDeltas']['packagesWithMissingRecords']);
+            $t->same(1, $diagnostics['contentTypeDeltas']['packagesWithExtraRecords']);
+            $t->same('/word/styles.xml', $diagnostics['contentTypeDeltas']['missingRecordCounts'][0]['record']['partName']);
+            $t->same('/word/numbering.xml', $diagnostics['contentTypeDeltas']['extraRecordCounts'][0]['record']['partName']);
+            $t->same(1, $diagnostics['relationshipDeltas']['packagesWithMissingRecords']);
+            $t->same(1, $diagnostics['relationshipDeltas']['packagesWithExtraRecords']);
+            $t->contains('/relationships/styles', $diagnostics['relationshipDeltas']['missingRecordCounts'][0]['record']['relationshipType']);
+            $t->contains('/relationships/numbering', $diagnostics['relationshipDeltas']['extraRecordCounts'][0]['record']['relationshipType']);
+            $t->same(1, $diagnostics['xmlPartDeltas']['packagesWithMissingXmlParts']);
+            $t->same(1, $diagnostics['xmlPartDeltas']['packagesWithExtraXmlParts']);
+            $t->same(1, $diagnostics['xmlPartDeltas']['packagesWithChangedXmlParts']);
+            $t->same('word/document.xml', $diagnostics['xmlPartDeltas']['changedXmlPartCounts'][0]['partName']);
         } finally {
             $removeTree($root);
         }

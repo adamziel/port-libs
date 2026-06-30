@@ -251,6 +251,32 @@ final class DocxWriterGoldenManifest
                 . (int) ($comparison['unexpectedGeneratedPackageCount'] ?? 0)
                 . '; reason='
                 . (string) ($comparison['reason'] ?? 'unknown');
+
+            $diagnostics = $comparison['mismatchDiagnostics'] ?? [];
+            if (is_array($diagnostics) && (int) ($diagnostics['stableMismatchPackageCount'] ?? 0) > 0) {
+                $partDeltas = is_array($diagnostics['partNameDeltas'] ?? null) ? $diagnostics['partNameDeltas'] : [];
+                $contentTypeDeltas = is_array($diagnostics['contentTypeDeltas'] ?? null) ? $diagnostics['contentTypeDeltas'] : [];
+                $relationshipDeltas = is_array($diagnostics['relationshipDeltas'] ?? null) ? $diagnostics['relationshipDeltas'] : [];
+                $xmlPartDeltas = is_array($diagnostics['xmlPartDeltas'] ?? null) ? $diagnostics['xmlPartDeltas'] : [];
+                $lines[] = 'Mismatch diagnostics: stable mismatches='
+                    . (int) ($diagnostics['stableMismatchPackageCount'] ?? 0)
+                    . '; missing-part packages='
+                    . (int) ($partDeltas['packagesWithMissingParts'] ?? 0)
+                    . '; extra-part packages='
+                    . (int) ($partDeltas['packagesWithExtraParts'] ?? 0)
+                    . '; content-type delta packages='
+                    . max(
+                        (int) ($contentTypeDeltas['packagesWithMissingRecords'] ?? 0),
+                        (int) ($contentTypeDeltas['packagesWithExtraRecords'] ?? 0)
+                    )
+                    . '; relationship delta packages='
+                    . max(
+                        (int) ($relationshipDeltas['packagesWithMissingRecords'] ?? 0),
+                        (int) ($relationshipDeltas['packagesWithExtraRecords'] ?? 0)
+                    )
+                    . '; changed-xml packages='
+                    . (int) ($xmlPartDeltas['packagesWithChangedXmlParts'] ?? 0);
+            }
         }
 
         if (($report['skipped'] ?? false) === true) {
@@ -884,6 +910,7 @@ final class DocxWriterGoldenManifest
             'allStableSemanticsMatch' => false,
             'reason' => (string) ($writer['unsupportedReason'] ?? self::OPEN_REASON),
             'requiredBeforeParityClaim' => 'Run the native PHP DocxWriter against upstream writer golden cases and compare package parts, relationships, content types, and document XML semantics.',
+            'mismatchDiagnostics' => self::emptyMismatchDiagnostics(),
             'comparisonRows' => [],
             'comparisonSamples' => [],
         ];
@@ -957,6 +984,12 @@ final class DocxWriterGoldenManifest
             && $missingCount === 0
             && $unexpectedCount === 0
             && $unreadableCount === 0;
+        $mismatchDiagnostics = self::mismatchDiagnostics(
+            $goldenPackageRows,
+            $generatedRows,
+            $comparisonRows,
+            max(8, $this->sampleLimit)
+        );
 
         return array_replace($base, [
             'run' => true,
@@ -973,10 +1006,221 @@ final class DocxWriterGoldenManifest
             'stableMatchPercent' => self::percent($matchedCount, $expectedGoldenPackageCount),
             'allStableSemanticsMatch' => $allMatch,
             'reason' => $allMatch ? self::GENERATED_COMPARISON_MATCH_REASON : self::GENERATED_COMPARISON_MISMATCH_REASON,
+            'mismatchDiagnostics' => $mismatchDiagnostics,
             'comparisonRows' => $comparisonRows,
             'comparisonSamples' => array_slice($comparisonRows, 0, $this->sampleLimit),
             'generatedPackageSamples' => array_slice($generatedRows, 0, $this->sampleLimit),
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function emptyMismatchDiagnostics(): array
+    {
+        return [
+            'schemaVersion' => 1,
+            'stableMismatchPackageCount' => 0,
+            'mismatchKindCounts' => [],
+            'partNameDeltas' => [
+                'packagesWithMissingParts' => 0,
+                'packagesWithExtraParts' => 0,
+                'missingPartNameCounts' => [],
+                'extraPartNameCounts' => [],
+            ],
+            'contentTypeDeltas' => [
+                'packagesWithMissingRecords' => 0,
+                'packagesWithExtraRecords' => 0,
+                'missingRecordCounts' => [],
+                'extraRecordCounts' => [],
+            ],
+            'relationshipDeltas' => [
+                'packagesWithMissingRecords' => 0,
+                'packagesWithExtraRecords' => 0,
+                'missingRecordCounts' => [],
+                'extraRecordCounts' => [],
+            ],
+            'xmlPartDeltas' => [
+                'packagesWithMissingXmlParts' => 0,
+                'packagesWithExtraXmlParts' => 0,
+                'packagesWithChangedXmlParts' => 0,
+                'missingXmlPartCounts' => [],
+                'extraXmlPartCounts' => [],
+                'changedXmlPartCounts' => [],
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $goldenRows
+     * @param list<array<string, mixed>> $generatedRows
+     * @param list<array<string, mixed>> $comparisonRows
+     * @return array<string, mixed>
+     */
+    private static function mismatchDiagnostics(array $goldenRows, array $generatedRows, array $comparisonRows, int $limit): array
+    {
+        $generatedByName = [];
+        foreach ($generatedRows as $row) {
+            $generatedByName[(string) ($row['fileName'] ?? '')] = $row;
+        }
+        $goldenByName = [];
+        foreach ($goldenRows as $row) {
+            $goldenByName[(string) ($row['fileName'] ?? '')] = $row;
+        }
+
+        $kindCounts = [];
+        $missingPartNames = [];
+        $extraPartNames = [];
+        $missingContentTypeRecords = [];
+        $extraContentTypeRecords = [];
+        $missingRelationshipRecords = [];
+        $extraRelationshipRecords = [];
+        $missingXmlParts = [];
+        $extraXmlParts = [];
+        $changedXmlParts = [];
+        $packagesWithMissingParts = 0;
+        $packagesWithExtraParts = 0;
+        $packagesWithMissingContentTypes = 0;
+        $packagesWithExtraContentTypes = 0;
+        $packagesWithMissingRelationships = 0;
+        $packagesWithExtraRelationships = 0;
+        $packagesWithMissingXmlParts = 0;
+        $packagesWithExtraXmlParts = 0;
+        $packagesWithChangedXmlParts = 0;
+        $stableMismatchPackageCount = 0;
+
+        foreach ($comparisonRows as $comparisonRow) {
+            if (($comparisonRow['status'] ?? null) !== 'stable-mismatch') {
+                continue;
+            }
+
+            ++$stableMismatchPackageCount;
+            $fileName = (string) ($comparisonRow['fileName'] ?? '');
+            foreach (self::stringList($comparisonRow['mismatchKinds'] ?? []) as $kind) {
+                $kindCounts[$kind] = ($kindCounts[$kind] ?? 0) + 1;
+            }
+
+            $goldenSemantics = self::rowStableSemantics($goldenByName[$fileName] ?? []);
+            $generatedSemantics = self::rowStableSemantics($generatedByName[$fileName] ?? []);
+
+            $partDelta = self::stringSetDelta(
+                self::stringList($goldenSemantics['partNames'] ?? []),
+                self::stringList($generatedSemantics['partNames'] ?? [])
+            );
+            if ($partDelta['missing'] !== []) {
+                ++$packagesWithMissingParts;
+                foreach ($partDelta['missing'] as $partName) {
+                    self::addDiagnosticBucket($missingPartNames, $partName, ['partName' => $partName], $fileName);
+                }
+            }
+            if ($partDelta['extra'] !== []) {
+                ++$packagesWithExtraParts;
+                foreach ($partDelta['extra'] as $partName) {
+                    self::addDiagnosticBucket($extraPartNames, $partName, ['partName' => $partName], $fileName);
+                }
+            }
+
+            $contentTypeDelta = self::recordSetDelta(
+                self::recordList($goldenSemantics['contentTypes']['records'] ?? []),
+                self::recordList($generatedSemantics['contentTypes']['records'] ?? []),
+                'contentTypeRecordKey'
+            );
+            if ($contentTypeDelta['missing'] !== []) {
+                ++$packagesWithMissingContentTypes;
+                foreach ($contentTypeDelta['missing'] as $record) {
+                    self::addDiagnosticBucket($missingContentTypeRecords, self::contentTypeRecordKey($record), ['record' => $record], $fileName);
+                }
+            }
+            if ($contentTypeDelta['extra'] !== []) {
+                ++$packagesWithExtraContentTypes;
+                foreach ($contentTypeDelta['extra'] as $record) {
+                    self::addDiagnosticBucket($extraContentTypeRecords, self::contentTypeRecordKey($record), ['record' => $record], $fileName);
+                }
+            }
+
+            $relationshipDelta = self::recordSetDelta(
+                self::recordList($goldenSemantics['relationships']['records'] ?? []),
+                self::recordList($generatedSemantics['relationships']['records'] ?? []),
+                'relationshipRecordKey'
+            );
+            if ($relationshipDelta['missing'] !== []) {
+                ++$packagesWithMissingRelationships;
+                foreach ($relationshipDelta['missing'] as $record) {
+                    self::addDiagnosticBucket($missingRelationshipRecords, self::relationshipRecordKey($record), ['record' => $record], $fileName);
+                }
+            }
+            if ($relationshipDelta['extra'] !== []) {
+                ++$packagesWithExtraRelationships;
+                foreach ($relationshipDelta['extra'] as $record) {
+                    self::addDiagnosticBucket($extraRelationshipRecords, self::relationshipRecordKey($record), ['record' => $record], $fileName);
+                }
+            }
+
+            $xmlDelta = self::xmlPartDelta(
+                self::recordList($goldenSemantics['xmlPartRows'] ?? []),
+                self::recordList($generatedSemantics['xmlPartRows'] ?? [])
+            );
+            if ($xmlDelta['missing'] !== []) {
+                ++$packagesWithMissingXmlParts;
+                foreach ($xmlDelta['missing'] as $row) {
+                    $partName = (string) ($row['name'] ?? '');
+                    self::addDiagnosticBucket($missingXmlParts, $partName, ['partName' => $partName], $fileName);
+                }
+            }
+            if ($xmlDelta['extra'] !== []) {
+                ++$packagesWithExtraXmlParts;
+                foreach ($xmlDelta['extra'] as $row) {
+                    $partName = (string) ($row['name'] ?? '');
+                    self::addDiagnosticBucket($extraXmlParts, $partName, ['partName' => $partName], $fileName);
+                }
+            }
+            if ($xmlDelta['changed'] !== []) {
+                ++$packagesWithChangedXmlParts;
+                foreach ($xmlDelta['changed'] as $row) {
+                    $partName = (string) ($row['partName'] ?? '');
+                    $key = implode("\0", [
+                        $partName,
+                        (string) ($row['goldenSemanticStatus'] ?? ''),
+                        (string) ($row['generatedSemanticStatus'] ?? ''),
+                    ]);
+                    self::addDiagnosticBucket($changedXmlParts, $key, $row, $fileName);
+                }
+            }
+        }
+
+        ksort($kindCounts, SORT_STRING);
+
+        return [
+            'schemaVersion' => 1,
+            'stableMismatchPackageCount' => $stableMismatchPackageCount,
+            'mismatchKindCounts' => $kindCounts,
+            'partNameDeltas' => [
+                'packagesWithMissingParts' => $packagesWithMissingParts,
+                'packagesWithExtraParts' => $packagesWithExtraParts,
+                'missingPartNameCounts' => self::topDiagnosticRows($missingPartNames, $limit),
+                'extraPartNameCounts' => self::topDiagnosticRows($extraPartNames, $limit),
+            ],
+            'contentTypeDeltas' => [
+                'packagesWithMissingRecords' => $packagesWithMissingContentTypes,
+                'packagesWithExtraRecords' => $packagesWithExtraContentTypes,
+                'missingRecordCounts' => self::topDiagnosticRows($missingContentTypeRecords, $limit),
+                'extraRecordCounts' => self::topDiagnosticRows($extraContentTypeRecords, $limit),
+            ],
+            'relationshipDeltas' => [
+                'packagesWithMissingRecords' => $packagesWithMissingRelationships,
+                'packagesWithExtraRecords' => $packagesWithExtraRelationships,
+                'missingRecordCounts' => self::topDiagnosticRows($missingRelationshipRecords, $limit),
+                'extraRecordCounts' => self::topDiagnosticRows($extraRelationshipRecords, $limit),
+            ],
+            'xmlPartDeltas' => [
+                'packagesWithMissingXmlParts' => $packagesWithMissingXmlParts,
+                'packagesWithExtraXmlParts' => $packagesWithExtraXmlParts,
+                'packagesWithChangedXmlParts' => $packagesWithChangedXmlParts,
+                'missingXmlPartCounts' => self::topDiagnosticRows($missingXmlParts, $limit),
+                'extraXmlPartCounts' => self::topDiagnosticRows($extraXmlParts, $limit),
+                'changedXmlPartCounts' => self::topDiagnosticRows($changedXmlParts, $limit),
+            ],
+        ];
     }
 
     /**
@@ -1117,6 +1361,219 @@ final class DocxWriterGoldenManifest
         }
 
         return $mismatches;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private static function rowStableSemantics(array $row): array
+    {
+        return is_array($row['stableSemantics'] ?? null) ? $row['stableSemantics'] : [];
+    }
+
+    /**
+     * @param mixed $value
+     * @return list<string>
+     */
+    private static function stringList(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $strings = [];
+        foreach ($value as $item) {
+            if (is_scalar($item)) {
+                $strings[] = (string) $item;
+            }
+        }
+        sort($strings, SORT_STRING);
+
+        return array_values(array_unique($strings));
+    }
+
+    /**
+     * @param list<string> $golden
+     * @param list<string> $generated
+     * @return array{missing:list<string>, extra:list<string>}
+     */
+    private static function stringSetDelta(array $golden, array $generated): array
+    {
+        $missing = array_values(array_diff($golden, $generated));
+        $extra = array_values(array_diff($generated, $golden));
+        sort($missing, SORT_STRING);
+        sort($extra, SORT_STRING);
+
+        return [
+            'missing' => $missing,
+            'extra' => $extra,
+        ];
+    }
+
+    /**
+     * @param mixed $value
+     * @return list<array<string, mixed>>
+     */
+    private static function recordList(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $records = [];
+        foreach ($value as $record) {
+            if (is_array($record)) {
+                $records[] = $record;
+            }
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $golden
+     * @param list<array<string, mixed>> $generated
+     * @return array{missing:list<array<string, mixed>>, extra:list<array<string, mixed>>}
+     */
+    private static function recordSetDelta(array $golden, array $generated, string $keyMethod): array
+    {
+        $goldenByKey = [];
+        foreach ($golden as $record) {
+            $goldenByKey[self::{$keyMethod}($record)] = $record;
+        }
+        $generatedByKey = [];
+        foreach ($generated as $record) {
+            $generatedByKey[self::{$keyMethod}($record)] = $record;
+        }
+
+        $missing = [];
+        foreach (array_diff(array_keys($goldenByKey), array_keys($generatedByKey)) as $key) {
+            $missing[] = $goldenByKey[$key];
+        }
+        $extra = [];
+        foreach (array_diff(array_keys($generatedByKey), array_keys($goldenByKey)) as $key) {
+            $extra[] = $generatedByKey[$key];
+        }
+
+        return [
+            'missing' => $missing,
+            'extra' => $extra,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     */
+    private static function contentTypeRecordKey(array $record): string
+    {
+        return implode("\0", [
+            (string) ($record['kind'] ?? ''),
+            (string) ($record['extension'] ?? ''),
+            (string) ($record['partName'] ?? ''),
+            (string) ($record['contentType'] ?? ''),
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     */
+    private static function relationshipRecordKey(array $record): string
+    {
+        return implode("\0", [
+            (string) ($record['relationshipPartName'] ?? ''),
+            (string) ($record['sourcePartName'] ?? ''),
+            (string) ($record['relationshipId'] ?? ''),
+            (string) ($record['relationshipType'] ?? ''),
+            (string) ($record['targetMode'] ?? ''),
+            (string) ($record['resolvedTarget'] ?? ''),
+            (string) ($record['targetStatus'] ?? ''),
+        ]);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $golden
+     * @param list<array<string, mixed>> $generated
+     * @return array{missing:list<array<string, mixed>>, extra:list<array<string, mixed>>, changed:list<array<string, mixed>>}
+     */
+    private static function xmlPartDelta(array $golden, array $generated): array
+    {
+        $goldenByName = [];
+        foreach ($golden as $row) {
+            $goldenByName[(string) ($row['name'] ?? '')] = $row;
+        }
+        $generatedByName = [];
+        foreach ($generated as $row) {
+            $generatedByName[(string) ($row['name'] ?? '')] = $row;
+        }
+
+        $missing = [];
+        foreach (array_diff(array_keys($goldenByName), array_keys($generatedByName)) as $name) {
+            $missing[] = $goldenByName[$name];
+        }
+        $extra = [];
+        foreach (array_diff(array_keys($generatedByName), array_keys($goldenByName)) as $name) {
+            $extra[] = $generatedByName[$name];
+        }
+        $changed = [];
+        foreach (array_intersect(array_keys($goldenByName), array_keys($generatedByName)) as $name) {
+            $goldenRow = $goldenByName[$name];
+            $generatedRow = $generatedByName[$name];
+            if (($goldenRow['semanticSha256'] ?? null) === ($generatedRow['semanticSha256'] ?? null)) {
+                continue;
+            }
+            $changed[] = [
+                'partName' => $name,
+                'goldenSemanticStatus' => (string) ($goldenRow['semanticStatus'] ?? 'unknown'),
+                'generatedSemanticStatus' => (string) ($generatedRow['semanticStatus'] ?? 'unknown'),
+                'goldenSemanticSha256' => (string) ($goldenRow['semanticSha256'] ?? ''),
+                'generatedSemanticSha256' => (string) ($generatedRow['semanticSha256'] ?? ''),
+            ];
+        }
+
+        return [
+            'missing' => $missing,
+            'extra' => $extra,
+            'changed' => $changed,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $buckets
+     * @param array<string, mixed> $row
+     */
+    private static function addDiagnosticBucket(array &$buckets, string $key, array $row, string $fileName): void
+    {
+        if (!isset($buckets[$key])) {
+            $buckets[$key] = array_replace($row, [
+                'count' => 0,
+                'fileSamples' => [],
+            ]);
+        }
+
+        ++$buckets[$key]['count'];
+        if (count($buckets[$key]['fileSamples']) < 5 && !in_array($fileName, $buckets[$key]['fileSamples'], true)) {
+            $buckets[$key]['fileSamples'][] = $fileName;
+        }
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $buckets
+     * @return list<array<string, mixed>>
+     */
+    private static function topDiagnosticRows(array $buckets, int $limit): array
+    {
+        $rows = array_values($buckets);
+        usort($rows, static function (array $left, array $right): int {
+            $countComparison = ((int) ($right['count'] ?? 0)) <=> ((int) ($left['count'] ?? 0));
+            if ($countComparison !== 0) {
+                return $countComparison;
+            }
+
+            return strcmp(self::stableJson($left), self::stableJson($right));
+        });
+
+        return array_slice($rows, 0, $limit);
     }
 
     /**

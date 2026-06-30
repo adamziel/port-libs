@@ -109,7 +109,7 @@ return [
         $t->same(false, $manifestAudit['upstreamDocxGoldenPackageRoundTripExecuted'] ?? null);
         $t->same('writer-golden-package-generated-stable-comparison', $manifestAudit['writerGoldenEvidenceKind'] ?? null);
         $t->same($manifestAudit['writerGoldenEvidenceKind'] ?? null, $statusAudit['writerGoldenEvidenceKind'] ?? null);
-        $t->same('tools/pandoc-docx-writer-golden-audit.php --json --docx-dir /Users/admin/port-libs-pandoc-docx-parity/.upstream-cache/pandoc-current/test/docx --generate-supported-dir /tmp/pandoc-docx-writer-golden-generated-49aff', $manifestAudit['writerGoldenPackageManifestTool'] ?? null);
+        $t->same('tools/pandoc-docx-writer-golden-audit.php --json --docx-dir /Users/admin/port-libs-pandoc-docx-parity/.upstream-cache/pandoc-current/test/docx --generate-supported-dir /tmp/pandoc-docx-writer-golden-generated-f41-diagnostics', $manifestAudit['writerGoldenPackageManifestTool'] ?? null);
         $t->same(38, $manifestAudit['writerGoldenPackageInventory']['goldenPackageCount'] ?? null);
         $t->same($manifestAudit['writerGoldenPackageInventory'], $statusAudit['writerGoldenPackageInventory'] ?? null);
         $t->same([
@@ -130,7 +130,7 @@ return [
         $t->same('/Users/admin/port-libs-pandoc-docx-parity/.upstream-cache/pandoc-current/test/docx', $manifestAudit['writerGoldenPackageGeneration']['sourceDirectory'] ?? null);
         $t->same(true, $manifestAudit['writerGoldenPackageGeneration']['sourceDirectoryPresent'] ?? null);
         $t->same(true, $manifestAudit['writerGoldenPackageGeneration']['outputDirectoryConfigured'] ?? null);
-        $t->same('/tmp/pandoc-docx-writer-golden-generated-49aff', $manifestAudit['writerGoldenPackageGeneration']['outputDirectory'] ?? null);
+        $t->same('/tmp/pandoc-docx-writer-golden-generated-f41-diagnostics', $manifestAudit['writerGoldenPackageGeneration']['outputDirectory'] ?? null);
         $t->same(true, $manifestAudit['writerGoldenPackageGeneration']['outputDirectoryPresent'] ?? null);
         $t->same(38, $manifestAudit['writerGoldenPackageGeneration']['expectedGoldenCaseCount'] ?? null);
         $t->same(38, $manifestAudit['writerGoldenPackageGeneration']['attemptedCaseCount'] ?? null);
@@ -144,7 +144,7 @@ return [
         $t->same(true, $manifestAudit['writerGoldenPackageComparison']['run'] ?? null);
         $t->same('mismatched-stable-package-semantics', $manifestAudit['writerGoldenPackageComparison']['status'] ?? null);
         $t->same(true, $manifestAudit['writerGoldenPackageComparison']['generatedDirectoryConfigured'] ?? null);
-        $t->same('/tmp/pandoc-docx-writer-golden-generated-49aff', $manifestAudit['writerGoldenPackageComparison']['generatedDirectory'] ?? null);
+        $t->same('/tmp/pandoc-docx-writer-golden-generated-f41-diagnostics', $manifestAudit['writerGoldenPackageComparison']['generatedDirectory'] ?? null);
         $t->same(true, $manifestAudit['writerGoldenPackageComparison']['generatedDirectoryPresent'] ?? null);
         $t->same(38, $manifestAudit['writerGoldenPackageComparison']['expectedGoldenPackageCount'] ?? null);
         $t->same(38, $manifestAudit['writerGoldenPackageComparison']['generatedPackageCount'] ?? null);
@@ -160,6 +160,28 @@ return [
         $t->true(is_array($stableContract), 'writer golden comparison must record stable package semantics');
         $t->contains('non-directory OPC package part-name set', implode("\n", $stableContract['compares'] ?? []));
         $t->contains('raw ZIP package byte equality', implode("\n", $stableContract['ignores'] ?? []));
+        $diagnostics = $manifestAudit['writerGoldenPackageComparison']['mismatchDiagnostics'] ?? null;
+        $t->true(is_array($diagnostics), 'writer golden comparison must record aggregate mismatch diagnostics');
+        $t->same(38, $diagnostics['stableMismatchPackageCount'] ?? null);
+        $t->same(2, $diagnostics['mismatchKindCounts']['binary-part-payloads'] ?? null);
+        $t->same(2, $diagnostics['mismatchKindCounts']['part-name-set'] ?? null);
+        $t->same(2, $diagnostics['mismatchKindCounts']['content-types'] ?? null);
+        $t->same(5, $diagnostics['mismatchKindCounts']['relationships'] ?? null);
+        $t->same(38, $diagnostics['mismatchKindCounts']['xml-part-semantics'] ?? null);
+        $t->same(2, $diagnostics['partNameDeltas']['packagesWithMissingParts'] ?? null);
+        $t->same(0, $diagnostics['partNameDeltas']['packagesWithExtraParts'] ?? null);
+        $t->same('word/media/rId9.jpg', $diagnostics['partNameDeltas']['missingPartNameCounts'][0]['partName'] ?? null);
+        $t->same(2, $diagnostics['partNameDeltas']['missingPartNameCounts'][0]['count'] ?? null);
+        $t->same(2, $diagnostics['contentTypeDeltas']['packagesWithMissingRecords'] ?? null);
+        $t->same(0, $diagnostics['contentTypeDeltas']['packagesWithExtraRecords'] ?? null);
+        $t->same('/word/media/rId9.jpg', $diagnostics['contentTypeDeltas']['missingRecordCounts'][0]['record']['partName'] ?? null);
+        $t->same(5, $diagnostics['relationshipDeltas']['packagesWithMissingRecords'] ?? null);
+        $t->same(3, $diagnostics['relationshipDeltas']['packagesWithExtraRecords'] ?? null);
+        $t->contains('/relationships/image', $diagnostics['relationshipDeltas']['missingRecordCounts'][0]['record']['relationshipType'] ?? '');
+        $t->contains('/relationships/hyperlink', $diagnostics['relationshipDeltas']['extraRecordCounts'][0]['record']['relationshipType'] ?? '');
+        $t->same(38, $diagnostics['xmlPartDeltas']['packagesWithChangedXmlParts'] ?? null);
+        $t->same('docProps/app.xml', $diagnostics['xmlPartDeltas']['changedXmlPartCounts'][0]['partName'] ?? null);
+        $t->same($diagnostics, $statusAudit['writerGoldenPackageComparison']['mismatchDiagnostics'] ?? null);
         $t->same('generated-docx-package-stable-semantic-mismatches-or-coverage-gaps', $manifestAudit['writerGoldenPackageComparison']['openReason'] ?? null);
         $t->same($manifestAudit['writerGoldenPackageComparison'], $statusAudit['writerGoldenPackageComparison'] ?? null);
         $focusedCi = $manifestAudit['focusedCiEvidenceWiring'] ?? null;
