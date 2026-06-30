@@ -29444,6 +29444,9 @@ final class XmlHtmlDom
             if (($allow['invalidAllowDirectiveCount'] ?? 0) > 0) {
                 $summary['iframePolicyIssueCodes'][] = 'invalid-iframe-allow-directive';
             }
+            if (($allow['duplicateAllowDirectiveCount'] ?? 0) > 0) {
+                $summary['iframePolicyIssueCodes'][] = 'duplicate-iframe-allow-directive';
+            }
         }
 
         if ($iframe->hasAttribute('referrerpolicy')) {
@@ -29479,6 +29482,8 @@ final class XmlHtmlDom
         }
 
         $summary['allowFullscreen'] = $iframe->hasAttribute('allowfullscreen');
+        $summary['iframePolicyIssueCount'] = count($summary['iframePolicyIssueCodes']);
+        $summary['iframePolicyValid'] = $summary['iframePolicyIssueCodes'] === [];
 
         return $summary;
     }
@@ -29618,6 +29623,8 @@ final class XmlHtmlDom
     {
         $directives = [];
         $features = [];
+        $featureCounts = [];
+        $duplicateFeatures = [];
         $invalid = [];
 
         foreach (explode(';', $value) as $rawDirective) {
@@ -29641,8 +29648,15 @@ final class XmlHtmlDom
             $valid = $featureValid && $allowListValid;
             if (!$valid) {
                 $invalid[] = $raw;
-            } elseif (!in_array($feature, $features, true)) {
-                $features[] = $feature;
+            } elseif (is_string($feature)) {
+                if (!array_key_exists($feature, $featureCounts)) {
+                    $features[] = $feature;
+                    $featureCounts[$feature] = 0;
+                }
+                ++$featureCounts[$feature];
+                if ($featureCounts[$feature] === 2) {
+                    $duplicateFeatures[] = $feature;
+                }
             }
 
             $directives[] = [
@@ -29659,9 +29673,12 @@ final class XmlHtmlDom
             'allowDirectiveCount' => count($directives),
             'allowDirectives' => $directives,
             'allowFeatures' => $features,
+            'allowFeatureCounts' => $featureCounts,
+            'duplicateAllowFeatures' => $duplicateFeatures,
+            'duplicateAllowDirectiveCount' => count($duplicateFeatures),
             'invalidAllowDirectiveCount' => count($invalid),
             'invalidAllowDirectives' => $invalid,
-            'allowPolicyValid' => $directives !== [] && $invalid === [],
+            'allowPolicyValid' => $directives !== [] && $invalid === [] && $duplicateFeatures === [],
         ];
     }
 
