@@ -331,8 +331,36 @@ return [
             [
                 'meta' => [
                     'title' => 'Testing custom properties',
+                    'subtitle' => $metaInlines([$text('This'), $space(), $text('is'), $space(), $text('a'), $space(), $text('subtitle')]),
                     'author' => ['A. M.'],
                     'category' => $metaInlines([$text('My'), $space(), $text('Category')]),
+                    'abstract' => [
+                        'type' => 'MetaBlocks',
+                        'value' => [
+                            new AstNode('plain', [], [
+                                $text('Quite'),
+                                $space(),
+                                $text('a'),
+                                $space(),
+                                $text('long'),
+                                $space(),
+                                $text('description'),
+                                new AstNode('softbreak'),
+                                $text('spanning'),
+                                $space(),
+                                $text('several'),
+                                $space(),
+                                $text('lines'),
+                            ]),
+                        ],
+                    ],
+                    'Company' => $metaInlines([$text('My'), $space(), $text('Company')]),
+                    'nested-custom' => [
+                        'type' => 'MetaList',
+                        'value' => [
+                            ['custom 7' => $metaInlines([$text('Nested'), $space(), $text('Custom'), $space(), $text('value'), $space(), $text('7')])],
+                        ],
+                    ],
                     'description' => [
                         'type' => 'MetaBlocks',
                         'value' => [
@@ -377,6 +405,8 @@ return [
 
         [, $parts] = $packageParts((new DocxWriter())->write($document));
         $coreXml = $parts['docProps/core.xml'];
+        $customXml = $parts['docProps/custom.xml'];
+        $documentXml = $parts['word/document.xml'];
 
         $t->contains('<dc:title>Testing custom properties</dc:title>', $coreXml);
         $t->contains('<dc:creator>A. M.</dc:creator>', $coreXml);
@@ -385,6 +415,55 @@ return [
         $t->contains('<dc:language>en-US</dc:language>', $coreXml);
         $t->contains('<dc:subject>This is the subject</dc:subject>', $coreXml);
         $t->contains('<cp:keywords>keyword 1, keyword 2</cp:keywords>', $coreXml);
+        $t->contains('<w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t xml:space="preserve">Testing custom properties</w:t></w:r></w:p>', $documentXml);
+        $t->contains('<w:p><w:pPr><w:pStyle w:val="Subtitle"/></w:pPr><w:r><w:t xml:space="preserve">This is a subtitle</w:t></w:r></w:p>', $documentXml);
+        $t->contains('<w:p><w:pPr><w:pStyle w:val="Author"/></w:pPr><w:r><w:t xml:space="preserve">A. M.</w:t></w:r></w:p>', $documentXml);
+        $t->contains('<w:p><w:pPr><w:pStyle w:val="AbstractTitle"/></w:pPr><w:r><w:t xml:space="preserve">Abstract</w:t></w:r></w:p>', $documentXml);
+        $t->contains('<w:p><w:pPr><w:pStyle w:val="Abstract"/></w:pPr><w:r><w:t xml:space="preserve">Quite a long description</w:t></w:r><w:r><w:t xml:space="preserve"> </w:t></w:r><w:r><w:t xml:space="preserve">spanning several lines</w:t></w:r></w:p>', $documentXml);
+        $t->contains('<property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="2" name="subtitle"><vt:lpwstr>This is a subtitle</vt:lpwstr></property>', $customXml);
+        $t->contains('<property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="3" name="abstract"><vt:lpwstr>Quite a long description spanning several lines</vt:lpwstr></property>', $customXml);
+        $t->contains('<property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="4" name="Company"><vt:lpwstr>My Company</vt:lpwstr></property>', $customXml);
+        $t->contains('<property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="5" name="nested-custom"><vt:lpwstr/></property>', $customXml);
+    },
+
+    'writer golden inline formatting case uses native fixture with underline semantics' => static function (TestRunner $t) use ($removeTree, $writeFile, $corePropertiesDocx, $packageParts): void {
+        $root = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'pandoc-docx-writer-inline-source-' . bin2hex(random_bytes(6));
+        if (!mkdir($root, 0777, true) && !is_dir($root)) {
+            throw new RuntimeException('Unable to create DOCX writer inline formatting fixture root');
+        }
+
+        try {
+            $writeFile($root, 'test/docx/golden/inline_formatting.docx', $corePropertiesDocx(
+                'Inline formatting',
+                '2026-06-30T00:00:00Z',
+                '2026-06-30T00:00:00Z'
+            ));
+            $writeFile($root, 'test/docx/inline_formatting.native', '[Para [Str "Some",Space,Str "people",Space,Str "use",Space,Underline [Str "single",Space,Str "underlines",Space,Str "for",Space,Emph [Str "emphasis"]],Str "."]]');
+            $writeFile($root, 'test/docx/inline_formatting_writer.native', '[Para [Str "Some",Space,Str "people",Space,Str "use",Space,Emph [Str "single",Space,Str "underlines",Space,Str "for",Space,Str "emphasis"],Str "."]]');
+
+            $report = (new DocxWriterGoldenManifest(
+                $root,
+                'test/docx',
+                8,
+                null,
+                'generated-docx',
+                ['inline_formatting.docx']
+            ))->report();
+
+            $caseRow = $report['generation']['caseRows'][0] ?? [];
+            $t->same('inline_formatting.native', $caseRow['nativeFile'] ?? null);
+            $t->same('generated', $caseRow['status'] ?? null);
+
+            $generated = file_get_contents($root . DIRECTORY_SEPARATOR . 'generated-docx' . DIRECTORY_SEPARATOR . 'inline_formatting.docx');
+            if (!is_string($generated)) {
+                throw new RuntimeException('Unable to read generated inline formatting fixture');
+            }
+            [, $parts] = $packageParts($generated);
+            $t->contains('<w:rPr><w:u w:val="single"/></w:rPr><w:t xml:space="preserve">single underlines for</w:t>', $parts['word/document.xml']);
+            $t->contains('<w:rPr><w:i/><w:iCs/><w:u w:val="single"/></w:rPr><w:t xml:space="preserve">emphasis</w:t>', $parts['word/document.xml']);
+        } finally {
+            $removeTree($root);
+        }
     },
 
     'writer golden stable comparison ignores volatile core property timestamps only' => static function (TestRunner $t) use ($removeTree, $writeFile, $corePropertiesDocx): void {

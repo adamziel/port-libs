@@ -161,7 +161,7 @@ final class DocxWriter
             ['name' => '_rels/.rels', 'data' => $this->rootRelationshipsXml()],
             ['name' => 'docProps/core.xml', 'data' => $this->corePropertiesXml($document)],
             ['name' => 'docProps/app.xml', 'data' => $this->referencePackagePart('docProps/app.xml') ?? $this->extendedPropertiesXml()],
-            ['name' => 'docProps/custom.xml', 'data' => $this->customPropertiesXml()],
+            ['name' => 'docProps/custom.xml', 'data' => $this->customPropertiesXml($document)],
             ['name' => 'word/document.xml', 'data' => $documentXml],
             ['name' => 'word/_rels/document.xml.rels', 'data' => $this->documentRelationshipsXml()],
             ['name' => 'word/_rels/footnotes.xml.rels', 'data' => $this->footnotesRelationshipsXml()],
@@ -500,11 +500,61 @@ final class DocxWriter
             . "\n";
     }
 
-    private function customPropertiesXml(): string
+    private function customPropertiesXml(AstNode $document): string
     {
+        $properties = '';
+        $pid = 2;
+        foreach ($this->customDocumentProperties($document) as $name => $value) {
+            $properties .= '<property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="' . $pid++ . '" name="' . self::escAttr($name) . '">'
+                . ($value === '' ? '<vt:lpwstr/>' : '<vt:lpwstr>' . self::escText($value) . '</vt:lpwstr>')
+                . '</property>';
+        }
+
         return self::xmlDeclaration()
-            . '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/custom-properties" xmlns:vt="' . self::NS_VT . '"/>'
+            . '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/custom-properties" xmlns:vt="' . self::NS_VT . '">'
+            . $properties
+            . '</Properties>'
             . "\n";
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function customDocumentProperties(AstNode $document): array
+    {
+        $meta = $this->documentMetadata($document);
+        if ($meta === []) {
+            return [];
+        }
+
+        $coreKeys = array_fill_keys([
+            'author',
+            'authorInlines',
+            'category',
+            'created',
+            'creator',
+            'date',
+            'dateInlines',
+            'description',
+            'keywords',
+            'lang',
+            'language',
+            'modified',
+            'subject',
+            'title',
+            'titleInlines',
+        ], true);
+
+        $properties = [];
+        foreach ($meta as $key => $value) {
+            if (!is_string($key) || isset($coreKeys[$key])) {
+                continue;
+            }
+
+            $properties[$key] = $this->metadataCustomPropertyText($value);
+        }
+
+        return $properties;
     }
 
     /**
@@ -563,6 +613,44 @@ final class DocxWriter
         }
 
         return '';
+    }
+
+    private function metadataCustomPropertyText(mixed $value, string $separator = '; '): string
+    {
+        if (is_array($value)) {
+            if (isset($value['type']) && array_key_exists('value', $value)) {
+                return match ($value['type']) {
+                    'MetaInlines' => is_array($value['value']) ? $this->metadataInlineText($value['value']) : '',
+                    'MetaBlocks' => is_array($value['value']) ? $this->metadataBlockText($value['value']) : '',
+                    'MetaList' => is_array($value['value']) ? $this->metadataCustomPropertyListText($value['value'], $separator) : '',
+                    default => '',
+                };
+            }
+
+            return '';
+        }
+
+        if (is_scalar($value) || $value === null) {
+            return (string) $value;
+        }
+
+        return '';
+    }
+
+    /**
+     * @param list<mixed> $items
+     */
+    private function metadataCustomPropertyListText(array $items, string $separator): string
+    {
+        $parts = [];
+        foreach ($items as $item) {
+            $part = $this->metadataCustomPropertyText($item, $separator);
+            if ($part !== '') {
+                $parts[] = $part;
+            }
+        }
+
+        return implode($separator, $parts);
     }
 
     /**
@@ -1080,7 +1168,7 @@ XML;
 
     private function documentXml(AstNode $document): string
     {
-        $blocks = [];
+        $blocks = $this->metadataFrontMatterParagraphsXml($document);
         $previousTopLevelTable = false;
         $bodyParagraphStyle = 'FirstParagraph';
         $openHeadingBookmarks = [];
@@ -1148,6 +1236,74 @@ XML;
             . $this->sectionPropertiesXml()
             . '</w:body></w:document>'
             . "\n";
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function metadataFrontMatterParagraphsXml(AstNode $document): array
+    {
+        $meta = $this->documentMetadata($document);
+        if ($meta === []) {
+            return [];
+        }
+
+        $paragraphs = [];
+        foreach ([
+            'title' => 'Title',
+            'subtitle' => 'Subtitle',
+            'author' => 'Author',
+        ] as $key => $styleId) {
+            if (!array_key_exists($key, $meta)) {
+                continue;
+            }
+
+            $text = $this->metadataText($meta[$key]);
+            if ($text !== '') {
+                $paragraphs[] = $this->textParagraphXml($text, $styleId, []);
+            }
+        }
+
+        if (array_key_exists('abstract', $meta)) {
+            $abstractParagraphs = $this->metadataBlockParagraphsXml($meta['abstract'], 'Abstract');
+            if ($abstractParagraphs !== []) {
+                $paragraphs[] = $this->textParagraphXml('Abstract', 'AbstractTitle', []);
+                array_push($paragraphs, ...$abstractParagraphs);
+            }
+        }
+
+        return $paragraphs;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function metadataBlockParagraphsXml(mixed $value, string $styleId): array
+    {
+        if (is_array($value) && isset($value['type']) && ($value['type'] === 'MetaBlocks') && is_array($value['value'])) {
+            $paragraphs = [];
+            foreach ($value['value'] as $block) {
+                if (!$block instanceof AstNode) {
+                    continue;
+                }
+
+                if ($block->children !== []) {
+                    $paragraphs[] = $this->paragraphWrapperXml($this->renderInlines($block->children, []), $styleId, null);
+                    continue;
+                }
+
+                $text = $this->metadataText($block->attr('text', ''));
+                if ($text !== '') {
+                    $paragraphs[] = $this->textParagraphXml($text, $styleId, []);
+                }
+            }
+
+            return $paragraphs;
+        }
+
+        $text = $this->metadataText($value);
+
+        return $text === '' ? [] : [$this->textParagraphXml($text, $styleId, [])];
     }
 
     /**
