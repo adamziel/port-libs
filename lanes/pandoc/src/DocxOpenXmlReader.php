@@ -853,7 +853,13 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['selectedXmlPartRootChildElementSiblingCounts'] = $selectedXmlParts['rootChildElementSiblingCounts'];
         $packageProvenance['summary']['selectedXmlPartRootChildElements'] = $selectedXmlParts['rootChildElements'];
         $packageProvenance['summary']['selectedXmlPartXmlDeclarationCount'] = $selectedXmlParts['xmlDeclarationCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlDeclarationPartNames'] = $selectedXmlParts['xmlDeclarationPartNames'];
+        $packageProvenance['summary']['selectedXmlPartXmlDeclarationVersionCounts'] = $selectedXmlParts['xmlDeclarationVersionCounts'];
+        $packageProvenance['summary']['selectedXmlPartXmlDeclarationVersions'] = $selectedXmlParts['xmlDeclarationVersions'];
         $packageProvenance['summary']['selectedXmlPartXmlDeclarationEncodingCounts'] = $selectedXmlParts['xmlDeclarationEncodingCounts'];
+        $packageProvenance['summary']['selectedXmlPartXmlDeclarationAttributeCount'] = $selectedXmlParts['xmlDeclarationAttributeCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlDeclarationAttributeNameCounts'] = $selectedXmlParts['xmlDeclarationAttributeNameCounts'];
+        $packageProvenance['summary']['selectedXmlPartXmlDeclarationAttributeNames'] = $selectedXmlParts['xmlDeclarationAttributeNames'];
         $packageProvenance['summary']['selectedXmlPartXmlStandaloneDeclarationCount'] = $selectedXmlParts['xmlStandaloneDeclarationCount'];
         $packageProvenance['summary']['selectedXmlPartXmlStandaloneYesCount'] = $selectedXmlParts['xmlStandaloneYesCount'];
         $packageProvenance['summary']['selectedXmlPartXmlStandaloneNoCount'] = $selectedXmlParts['xmlStandaloneNoCount'];
@@ -31825,7 +31831,13 @@ final class DocxOpenXmlReader
         $rootChildElementSiblingCountCounts = [];
         $rootChildElements = [];
         $xmlDeclarationCount = 0;
+        $xmlDeclarationPartNames = [];
+        $xmlDeclarationVersionCounts = [];
+        $xmlDeclarationVersions = [];
         $xmlDeclarationEncodingCounts = [];
+        $xmlDeclarationAttributeCount = 0;
+        $xmlDeclarationAttributeNameCounts = [];
+        $xmlDeclarationAttributeNames = [];
         $xmlStandaloneDeclarationCount = 0;
         $xmlStandaloneYesCount = 0;
         $xmlStandaloneNoCount = 0;
@@ -32100,6 +32112,25 @@ final class DocxOpenXmlReader
             }
             if (($item['xmlDeclarationPresent'] ?? false) === true) {
                 ++$xmlDeclarationCount;
+                $this->appendUniqueString(
+                    $xmlDeclarationPartNames,
+                    is_string($item['partName'] ?? null) ? $item['partName'] : null,
+                );
+                $version = is_string($item['xmlDeclarationVersion'] ?? null) ? $item['xmlDeclarationVersion'] : '';
+                if ($version !== '') {
+                    $xmlDeclarationVersionCounts[$version] = ($xmlDeclarationVersionCounts[$version] ?? 0) + 1;
+                    $this->appendUniqueString($xmlDeclarationVersions, $version);
+                }
+                $xmlDeclarationAttributeCount += (int) ($item['xmlDeclarationAttributeCount'] ?? 0);
+                foreach (($item['xmlDeclarationAttributeNames'] ?? []) as $attributeName) {
+                    if (!is_string($attributeName) || $attributeName === '') {
+                        continue;
+                    }
+
+                    $xmlDeclarationAttributeNameCounts[$attributeName] =
+                        ($xmlDeclarationAttributeNameCounts[$attributeName] ?? 0) + 1;
+                    $this->appendUniqueString($xmlDeclarationAttributeNames, $attributeName);
+                }
             }
             $encoding = is_string($item['xmlDeclarationEncoding'] ?? null) ? $item['xmlDeclarationEncoding'] : '';
             if ($encoding !== '') {
@@ -32148,7 +32179,9 @@ final class DocxOpenXmlReader
             sort($bucketPartNames, SORT_STRING);
         }
         unset($bucketPartNames);
+        ksort($xmlDeclarationVersionCounts, SORT_STRING);
         ksort($xmlDeclarationEncodingCounts, SORT_STRING);
+        ksort($xmlDeclarationAttributeNameCounts, SORT_STRING);
         sort($rootNamespaces, SORT_STRING);
         sort($rootLocalNames, SORT_STRING);
         sort($rootQualifiedNames, SORT_STRING);
@@ -32162,6 +32195,9 @@ final class DocxOpenXmlReader
         sort($rootChildElementNames, SORT_STRING);
         sort($rootChildElementNamespaces, SORT_STRING);
         sort($rootChildElementPrefixes, SORT_STRING);
+        sort($xmlDeclarationPartNames, SORT_STRING);
+        sort($xmlDeclarationVersions, SORT_STRING);
+        sort($xmlDeclarationAttributeNames, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -32238,7 +32274,13 @@ final class DocxOpenXmlReader
             'rootChildElementSiblingCounts' => array_keys($rootChildElementSiblingCountCounts),
             'rootChildElements' => $rootChildElements,
             'xmlDeclarationCount' => $xmlDeclarationCount,
+            'xmlDeclarationPartNames' => $xmlDeclarationPartNames,
+            'xmlDeclarationVersionCounts' => $xmlDeclarationVersionCounts,
+            'xmlDeclarationVersions' => $xmlDeclarationVersions,
             'xmlDeclarationEncodingCounts' => $xmlDeclarationEncodingCounts,
+            'xmlDeclarationAttributeCount' => $xmlDeclarationAttributeCount,
+            'xmlDeclarationAttributeNameCounts' => $xmlDeclarationAttributeNameCounts,
+            'xmlDeclarationAttributeNames' => $xmlDeclarationAttributeNames,
             'xmlStandaloneDeclarationCount' => $xmlStandaloneDeclarationCount,
             'xmlStandaloneYesCount' => $xmlStandaloneYesCount,
             'xmlStandaloneNoCount' => $xmlStandaloneNoCount,

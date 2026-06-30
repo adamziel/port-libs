@@ -20605,12 +20605,30 @@ XML;
         $t->same(18, $selected['count']);
         $t->same(6, $selected['existingCount']);
         $t->same(5, $selected['xmlDeclarationCount']);
+        $t->same([
+            'docProps/core.xml',
+            'word/document.xml',
+            'word/numbering.xml',
+            'word/settings.xml',
+            'word/styles.xml',
+        ], $selected['xmlDeclarationPartNames']);
+        $t->same(['1.0' => 5], $selected['xmlDeclarationVersionCounts']);
+        $t->same(['1.0'], $selected['xmlDeclarationVersions']);
         $t->same(['UTF-8' => 4, 'windows-1252' => 1], $selected['xmlDeclarationEncodingCounts']);
+        $t->same(11, $selected['xmlDeclarationAttributeCount']);
+        $t->same(['encoding' => 5, 'standalone' => 1, 'version' => 5], $selected['xmlDeclarationAttributeNameCounts']);
+        $t->same(['encoding', 'standalone', 'version'], $selected['xmlDeclarationAttributeNames']);
         $t->same(1, $selected['xmlStandaloneDeclarationCount']);
         $t->same(1, $selected['xmlStandaloneYesCount']);
         $t->same(0, $selected['xmlStandaloneNoCount']);
         $t->same(5, $summary['selectedXmlPartXmlDeclarationCount']);
+        $t->same($selected['xmlDeclarationPartNames'], $summary['selectedXmlPartXmlDeclarationPartNames']);
+        $t->same($selected['xmlDeclarationVersionCounts'], $summary['selectedXmlPartXmlDeclarationVersionCounts']);
+        $t->same($selected['xmlDeclarationVersions'], $summary['selectedXmlPartXmlDeclarationVersions']);
         $t->same($selected['xmlDeclarationEncodingCounts'], $summary['selectedXmlPartXmlDeclarationEncodingCounts']);
+        $t->same(11, $summary['selectedXmlPartXmlDeclarationAttributeCount']);
+        $t->same($selected['xmlDeclarationAttributeNameCounts'], $summary['selectedXmlPartXmlDeclarationAttributeNameCounts']);
+        $t->same($selected['xmlDeclarationAttributeNames'], $summary['selectedXmlPartXmlDeclarationAttributeNames']);
         $t->same(1, $summary['selectedXmlPartXmlStandaloneYesCount']);
 
         $t->same(true, $byKind['settings']['xmlDeclarationPresent']);
@@ -20618,11 +20636,20 @@ XML;
         $t->same('windows-1252', $byKind['settings']['xmlDeclarationEncoding']);
         $t->same(true, $byKind['settings']['xmlDeclarationStandalone']);
         $t->same(3, $byKind['settings']['xmlDeclarationAttributeCount']);
+        $t->same(['version', 'encoding', 'standalone'], $byKind['settings']['xmlDeclarationAttributeNames']);
         $t->same(false, $byKind['theme']['xmlDeclarationPresent']);
         $t->same(null, $byKind['theme']['xmlDeclarationEncoding']);
         $t->same(null, $byKind['theme']['xmlDeclarationStandalone']);
         $t->same('UTF-8', $byKind['document']['xmlDeclarationEncoding']);
         $t->same(null, $byKind['document']['xmlDeclarationStandalone']);
+        $encodedReview = json_encode([
+            $selected['xmlDeclarationPartNames'],
+            $selected['xmlDeclarationAttributeNameCounts'],
+            $summary['selectedXmlPartXmlDeclarationVersions'],
+        ]);
+        $t->true(is_string($encodedReview), 'selected XML declaration metadata should encode for review');
+        $t->true(!str_contains((string) $encodedReview, '<w:settings'), 'selected XML declaration rollups should not expose XML text');
+        $t->true(!str_contains((string) $encodedReview, 'No Declaration Theme'), 'selected XML declaration rollups should not expose selected part attribute values');
     },
     'summarizes docx package xml root namespace declarations for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
