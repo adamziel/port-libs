@@ -773,6 +773,7 @@ final class OdfReader
             $thumbnailPackagePart = is_string($part) && $this->isThumbnailPackagePartName($part);
             $signaturePackagePart = is_string($part) && $this->isPackageSignaturePartName($part);
             $configurationPackagePart = is_string($part) && self::isConfigurationPackagePartName($part);
+            $packageThumbnailPart = is_string($part) && $this->isThumbnailPackagePartName($part);
             $fontPackagePart = is_string($part) && $this->isFontPackagePart($part, $mediaType);
             $rdfMetadataPart = is_string($part) && $this->isRdfPackagePart($part, $mediaType);
             $objectReplacementPackagePart = is_string($part) && $this->isObjectReplacementPackagePartName($part);
@@ -796,6 +797,7 @@ final class OdfReader
                 && !$thumbnailPackagePart
                 && !$signaturePackagePart
                 && !$configurationPackagePart
+                && !$packageThumbnailPart
                 && !$fontPackagePart
                 && !$rdfMetadataPart
                 && !$objectReplacementPackagePart
@@ -825,6 +827,7 @@ final class OdfReader
                 $thumbnailPackagePart,
                 $signaturePackagePart,
                 $configurationPackagePart,
+                $packageThumbnailPart,
                 $fontPackagePart,
                 $rdfMetadataPart,
                 $objectReplacementPackagePart,
@@ -872,6 +875,7 @@ final class OdfReader
                 'thumbnailPackagePart' => $thumbnailPackagePart,
                 'signaturePackagePart' => $signaturePackagePart,
                 'configurationPackagePart' => $configurationPackagePart,
+                'packageThumbnailPart' => $packageThumbnailPart,
                 'fontPackagePart' => $fontPackagePart,
                 'rdfMetadataPart' => $rdfMetadataPart,
                 'objectReplacementPackagePart' => $objectReplacementPackagePart,
@@ -1912,6 +1916,7 @@ final class OdfReader
         bool $thumbnailPackagePart,
         bool $signaturePackagePart,
         bool $configurationPackagePart,
+        bool $packageThumbnailPart,
         bool $fontPackagePart,
         bool $rdfMetadataPart,
         bool $objectReplacementPackagePart,
@@ -1954,6 +1959,9 @@ final class OdfReader
         }
         if ($configurationPackagePart) {
             return 'configuration-package-bytes-blocked';
+        }
+        if ($packageThumbnailPart) {
+            return 'package-thumbnail-bytes-blocked';
         }
         if ($fontPackagePart) {
             return 'font-package-bytes-blocked';
@@ -2161,6 +2169,7 @@ final class OdfReader
                 'thumbnailPackagePart' => ($item['thumbnailPackagePart'] ?? false) === true,
                 'signaturePackagePart' => ($item['signaturePackagePart'] ?? false) === true,
                 'configurationPackagePart' => ($item['configurationPackagePart'] ?? false) === true,
+                'packageThumbnailPart' => ($item['packageThumbnailPart'] ?? false) === true,
                 'fontPackagePart' => ($item['fontPackagePart'] ?? false) === true,
                 'rdfMetadataPart' => ($item['rdfMetadataPart'] ?? false) === true,
                 'objectReplacementPackagePart' => ($item['objectReplacementPackagePart'] ?? false) === true,
@@ -2431,6 +2440,7 @@ final class OdfReader
                 'scriptPackagePart' => $this->isScriptPackagePartName($entry->name),
                 'configurationPackagePart' => self::isConfigurationPackagePartName($entry->name),
                 'signaturePackagePart' => $this->isPackageSignaturePartName($entry->name),
+                'packageThumbnailPart' => $this->isThumbnailPackagePartName($entry->name),
                 'fontPackagePart' => is_array($manifestItem) && ($manifestItem['fontPackagePart'] ?? false) === true,
                 'rdfMetadataPart' => $this->isRdfPackagePart($entry->name, is_array($manifestItem) ? (string) ($manifestItem['mediaType'] ?? '') : null),
                 'objectReplacementPackagePart' => $this->isObjectReplacementPackagePartName($entry->name),

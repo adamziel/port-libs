@@ -1111,6 +1111,7 @@ final class OpenDocumentPackage
                 'embeddedObjectRoot' => is_array($embeddedObjectPackage) && $embeddedObjectPackage['isRoot'] === true,
                 'embeddedObjectContainedPart' => is_array($embeddedObjectPackage) && $embeddedObjectPackage['isRoot'] !== true,
                 'embeddedObjectMediaType' => is_array($embeddedObjectPackage) ? $embeddedObjectPackage['mediaType'] : null,
+                'packageThumbnailPart' => self::isThumbnailPackagePartName($entry->name),
                 'objectReplacementPackagePart' => self::isObjectReplacementPackagePartName($entry->name),
                 'thumbnailPackagePart' => self::isThumbnailPackagePartName($entry->name),
                 'scriptPackagePart' => self::isScriptPackagePartName($entry->name),
@@ -2564,6 +2565,7 @@ final class OpenDocumentPackage
             $thumbnailPackagePart = is_string($packagePath) && self::isThumbnailPackagePartName($packagePath);
             $signaturePackagePart = is_string($packagePath) && self::isSignaturePackagePartName($packagePath);
             $configurationPackagePart = is_string($packagePath) && self::isConfigurationPackagePartName($packagePath);
+            $packageThumbnailPart = is_string($packagePath) && self::isThumbnailPackagePartName($packagePath);
             $fontPackagePart = is_string($packagePath) && self::isFontPackagePart($packagePath, (string) ($entry['mediaType'] ?? ''));
             $rdfMetadataPart = is_string($packagePath) && self::isRdfMetadataPart($packagePath, (string) ($entry['mediaType'] ?? ''));
             $objectReplacementPackagePart = is_string($packagePath) && self::isObjectReplacementPackagePartName($packagePath);
@@ -2605,6 +2607,7 @@ final class OpenDocumentPackage
                 && !$thumbnailPackagePart
                 && !$signaturePackagePart
                 && !$configurationPackagePart
+                && !$packageThumbnailPart
                 && !$fontPackagePart
                 && !$rdfMetadataPart
                 && !$objectReplacementPackagePart
@@ -2709,6 +2712,7 @@ final class OpenDocumentPackage
                 'thumbnailPackagePart' => $thumbnailPackagePart,
                 'signaturePackagePart' => $signaturePackagePart,
                 'configurationPackagePart' => $configurationPackagePart,
+                'packageThumbnailPart' => $packageThumbnailPart,
                 'fontPackagePart' => $fontPackagePart,
                 'rdfMetadataPart' => $rdfMetadataPart,
                 'objectReplacementPackagePart' => $objectReplacementPackagePart,
@@ -2736,6 +2740,7 @@ final class OpenDocumentPackage
                     $thumbnailPackagePart,
                     $signaturePackagePart,
                     $configurationPackagePart,
+                    $packageThumbnailPart,
                     $fontPackagePart,
                     $rdfMetadataPart,
                     $objectReplacementPackagePart,
@@ -2772,6 +2777,7 @@ final class OpenDocumentPackage
         bool $thumbnailPackagePart,
         bool $signaturePackagePart,
         bool $configurationPackagePart,
+        bool $packageThumbnailPart,
         bool $fontPackagePart,
         bool $rdfMetadataPart,
         bool $objectReplacementPackagePart,
@@ -2814,6 +2820,9 @@ final class OpenDocumentPackage
         }
         if ($configurationPackagePart) {
             return 'configuration-package-bytes-blocked';
+        }
+        if ($packageThumbnailPart) {
+            return 'package-thumbnail-bytes-blocked';
         }
         if ($fontPackagePart) {
             return 'font-package-bytes-blocked';
@@ -9187,6 +9196,7 @@ final class OpenDocumentPackage
             'scriptPackagePart' => ($entry['scriptPackagePart'] ?? false) === true,
             'signaturePackagePart' => ($entry['signaturePackagePart'] ?? false) === true,
             'configurationPackagePart' => ($entry['configurationPackagePart'] ?? false) === true,
+            'packageThumbnailPart' => ($entry['packageThumbnailPart'] ?? false) === true,
             'fontPackagePart' => ($entry['fontPackagePart'] ?? false) === true,
             'rdfMetadataPart' => ($entry['rdfMetadataPart'] ?? false) === true,
             'layoutCachePackagePart' => ($entry['layoutCachePackagePart'] ?? false) === true,
@@ -9299,6 +9309,7 @@ final class OpenDocumentPackage
             'scriptPackagePart' => ($entry['scriptPackagePart'] ?? false) === true,
             'signaturePackagePart' => ($entry['signaturePackagePart'] ?? false) === true,
             'configurationPackagePart' => ($entry['configurationPackagePart'] ?? false) === true,
+            'packageThumbnailPart' => ($entry['packageThumbnailPart'] ?? false) === true,
             'fontPackagePart' => ($entry['fontPackagePart'] ?? false) === true,
             'rdfMetadataPart' => ($entry['rdfMetadataPart'] ?? false) === true,
             'layoutCachePackagePart' => ($entry['layoutCachePackagePart'] ?? false) === true,
