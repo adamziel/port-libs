@@ -1648,7 +1648,7 @@
             "bothParsedCount": 74,
             "cachePath": ".upstream-cache/pandoc-current/test/docx",
             "tool": "tools/pandoc-docx-parity-audit.php --fail-on-regression",
-            "claim": "Optional cache regression guard only; no AST equality, writer golden package, upstream Haskell runner, or full DOCX/OpenXML parity is asserted."
+            "claim": "Optional cache regression guard only; no AST equality, writer golden package parity, upstream Haskell runner, or full DOCX/OpenXML parity is asserted."
         },
         "lastObservedParserAcceptance": {
             "observedAt": "2026-06-30",
@@ -1954,7 +1954,7 @@
         },
         "focusedCiEvidenceWiring": {
             "schemaVersion": 1,
-            "status": "focused-ci-evidence-wired-writer-core-local-validation-complete",
+            "status": "focused-ci-evidence-wired-generated-writer-golden-guarded",
             "workflow": ".github/workflows/pandoc-docx.yml",
             "updatedAt": "2026-06-30",
             "commands": {
@@ -1963,7 +1963,7 @@
                 "parserRegressionGuard": "php tools/pandoc-docx-parity-audit.php --json --fail-on-regression",
                 "cacheManifest": "php tools/pandoc-docx-cache-manifest.php --json",
                 "writerCoreTest": "php tools/run-tests.php lanes/pandoc/tests/DocxWriterTest.php",
-                "writerGoldenAudit": "php tools/pandoc-docx-writer-golden-audit.php --json"
+                "writerGoldenAudit": "php tools/pandoc-docx-writer-golden-audit.php --json --generate-supported-dir .port-libs/pandoc-docx-writer-golden/generated"
             },
             "localValidation": {
                 "validatedAt": "2026-06-30",
@@ -1978,9 +1978,14 @@
                 "selectedInventoryWriteStatus": "written-blocked-missing-docx-upstream-source",
                 "writerCoreTestStatus": "passed-1-file-48-assertions-0-failures",
                 "writerGoldenAuditStatus": "skipped_missing_writer_golden_directory",
-                "writerGoldenComparisonStatus": "not-run-generated-directory-not-configured"
+                "writerGoldenComparisonStatus": "not-run-golden-directory-missing",
+                "recordedWriterGoldenEvidenceKind": "writer-golden-package-generated-stable-comparison",
+                "recordedWriterGoldenGeneratedPackageCount": 38,
+                "recordedWriterGoldenComparedPackageCount": 38,
+                "recordedWriterGoldenMatchedPackageCount": 0,
+                "recordedWriterGoldenMismatchedPackageCount": 38
             },
-            "claim": "Focused CI/status wiring only; CI now lints DocxWriter.php and runs DocxWriterTest.php for bounded core writer package coverage. Local commands did not execute Cabal/Tasty, did not admit runner result artifacts, and recorded no generated writer golden package comparison or full DOCX parity claim."
+            "claim": "Focused CI/status wiring only; CI now lints DocxWriter.php, runs DocxWriterTest.php, and invokes the optional writer-golden audit with --generate-supported-dir when the upstream cache is hydrated. The checked-in generated comparison evidence is guarded as 38 generated / 38 compared / 0 matched / 38 mismatched with no full DOCX writer parity claim."
         }
     },
     "nativeImplementation": {

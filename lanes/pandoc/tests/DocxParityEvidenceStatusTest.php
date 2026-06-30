@@ -166,15 +166,23 @@ return [
         $statusFocusedCi = $statusAudit['focusedCiEvidenceWiring'] ?? null;
         $t->true(is_array($focusedCi), 'DOCX parity evidence must record focused CI wiring');
         $t->same($focusedCi, $statusFocusedCi);
-        $t->same('focused-ci-evidence-wired-writer-core-local-validation-complete', $focusedCi['status'] ?? null);
+        $t->same('focused-ci-evidence-wired-generated-writer-golden-guarded', $focusedCi['status'] ?? null);
         $t->same('php tools/run-tests.php lanes/pandoc/tests/DocxWriterTest.php', $focusedCi['commands']['writerCoreTest'] ?? null);
+        $t->same('php tools/pandoc-docx-writer-golden-audit.php --json --generate-supported-dir .port-libs/pandoc-docx-writer-golden/generated', $focusedCi['commands']['writerGoldenAudit'] ?? null);
         $t->same('passed-1-file-48-assertions-0-failures', $focusedCi['localValidation']['writerCoreTestStatus'] ?? null);
         $t->same('skipped_missing_writer_golden_directory', $focusedCi['localValidation']['writerGoldenAuditStatus'] ?? null);
-        $t->same('not-run-generated-directory-not-configured', $focusedCi['localValidation']['writerGoldenComparisonStatus'] ?? null);
+        $t->same('not-run-golden-directory-missing', $focusedCi['localValidation']['writerGoldenComparisonStatus'] ?? null);
+        $t->same('writer-golden-package-generated-stable-comparison', $focusedCi['localValidation']['recordedWriterGoldenEvidenceKind'] ?? null);
+        $t->same(38, $focusedCi['localValidation']['recordedWriterGoldenGeneratedPackageCount'] ?? null);
+        $t->same(38, $focusedCi['localValidation']['recordedWriterGoldenComparedPackageCount'] ?? null);
+        $t->same(0, $focusedCi['localValidation']['recordedWriterGoldenMatchedPackageCount'] ?? null);
+        $t->same(38, $focusedCi['localValidation']['recordedWriterGoldenMismatchedPackageCount'] ?? null);
         $t->contains('DocxWriterTest.php', (string) ($focusedCi['claim'] ?? ''));
-        $t->contains('no generated writer golden package comparison', (string) ($focusedCi['claim'] ?? ''));
+        $t->contains('38 generated / 38 compared / 0 matched / 38 mismatched', (string) ($focusedCi['claim'] ?? ''));
+        $t->contains('no full DOCX writer parity claim', (string) ($focusedCi['claim'] ?? ''));
         $t->contains('php -l lanes/pandoc/src/DocxWriter.php', $workflow);
         $t->contains('php -l lanes/pandoc/tests/DocxWriterTest.php', $workflow);
+        $t->contains('--generate-supported-dir .port-libs/pandoc-docx-writer-golden/generated', $workflow);
         $t->contains('lanes/pandoc/tests/DocxWriterTest.php', $workflow);
 
         $t->same('reported_optional_upstream_docx_cache_manifest', $cacheManifest['status'] ?? null);
@@ -276,6 +284,7 @@ return [
         $t->contains('With `--generate-supported-dir`, it uses the bounded `PortLibs\\Pandoc\\DocxWriter`', $pandocStatus);
         $t->contains('current generated comparison coverage is 38/38 compared, 0/38 matched, 0 missing, and 38 mismatched', $pandocStatus);
         $t->contains('Focused DOCX parity CI now runs the bounded `DocxWriterTest.php` writer-core package test', $pandocStatus);
+        $t->contains('CI invokes the writer-golden audit with `--generate-supported-dir`', $pandocStatus);
         $t->contains('no upstream Haskell/Cabal DOCX runner result, Tasty `--list-tests` output', $pandocStatus);
         $t->contains('2 checked-in current-upstream `.docx` package fixtures', $pandocStatus);
         $t->contains('0 checked-in pinned upstream `.docx` package fixtures', $pandocStatus);

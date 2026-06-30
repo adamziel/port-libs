@@ -98,7 +98,10 @@ jobs:
         run: php tools/pandoc-docx-parity-audit.php --fail-on-regression
 
       - name: Run optional DOCX writer golden manifest audit
-        run: php tools/pandoc-docx-writer-golden-audit.php --json
+        run: |
+          php tools/pandoc-docx-writer-golden-audit.php \
+            --json \
+            --generate-supported-dir .port-libs/pandoc-docx-writer-golden/generated
 
       - name: Run focused DOCX parity tests
         run: |
