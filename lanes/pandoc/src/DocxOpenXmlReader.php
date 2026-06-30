@@ -999,6 +999,26 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['settingsRelationshipMissingContentTypeCount'] = $settingsRelationshipInventory['missingContentTypeCount'];
         $packageProvenance['summary']['settingsRelationshipIssueCount'] = $settingsRelationshipInventory['issueCount'];
         $packageProvenance['summary']['settingsRelationshipIssueCodes'] = $settingsRelationshipInventory['issueCodes'];
+        $settingsPolicy = $this->settingsPolicySummary($settings);
+        if ($settingsPolicy !== []) {
+            $packageProvenance['settingsPolicy'] = $settingsPolicy;
+            $packageProvenance['summary']['settingsPolicyFlagCount'] = $settingsPolicy['flagCount'];
+            $packageProvenance['summary']['settingsPolicyEnabledFlagCount'] = $settingsPolicy['enabledFlagCount'];
+            $packageProvenance['summary']['settingsPolicyDisabledFlagCount'] = $settingsPolicy['disabledFlagCount'];
+            $packageProvenance['summary']['settingsPolicyEnabledFlags'] = $settingsPolicy['enabledFlags'];
+            $packageProvenance['summary']['settingsPolicyDisabledFlags'] = $settingsPolicy['disabledFlags'];
+            $packageProvenance['summary']['settingsDocumentProtectionPresent'] = $settingsPolicy['documentProtectionPresent'];
+            $packageProvenance['summary']['settingsWriteProtectionPresent'] = $settingsPolicy['writeProtectionPresent'];
+            $packageProvenance['summary']['settingsProtectionHashValuePresentCount'] = $settingsPolicy['protectionHashValuePresentCount'];
+            $packageProvenance['summary']['settingsProtectionSaltValuePresentCount'] = $settingsPolicy['protectionSaltValuePresentCount'];
+            $packageProvenance['summary']['settingsHyphenationFlagCount'] = $settingsPolicy['hyphenationFlagCount'];
+            $packageProvenance['summary']['settingsHyphenationEnabledFlags'] = $settingsPolicy['hyphenationEnabledFlags'];
+            $packageProvenance['summary']['settingsHyphenationDisabledFlags'] = $settingsPolicy['hyphenationDisabledFlags'];
+            $packageProvenance['summary']['settingsSavePolicyFlagCount'] = $settingsPolicy['savePolicyFlagCount'];
+            $packageProvenance['summary']['settingsSavePolicyEnabledFlags'] = $settingsPolicy['savePolicyEnabledFlags'];
+            $packageProvenance['summary']['settingsSavePolicyDisabledFlags'] = $settingsPolicy['savePolicyDisabledFlags'];
+            $packageProvenance['summary']['settingsFontEmbeddingPolicyFlags'] = $settingsPolicy['fontEmbeddingPolicyFlags'];
+        }
         $packageProvenance['summary']['attachedTemplateCount'] = $attachedTemplates['count'];
         $packageProvenance['summary']['attachedTemplateRelationshipCount'] = $attachedTemplates['relationshipCount'];
         $packageProvenance['summary']['attachedTemplateReferencedCount'] = $attachedTemplates['referencedCount'];
@@ -40610,6 +40630,227 @@ final class DocxOpenXmlReader
         }
 
         return $settings;
+    }
+
+    /**
+     * @param array<string, mixed> $settings
+     * @return array<string, mixed>
+     */
+    private function settingsPolicySummary(array $settings): array
+    {
+        $flagSummary = $this->settingsBooleanFlagSummary($settings, [
+            'trackRevisions',
+            'doNotTrackMoves',
+            'doNotTrackFormatting',
+            'evenAndOddHeaders',
+            'updateFields',
+        ]);
+
+        $documentProtection = $this->settingsProtectionPolicyMetadata($settings['documentProtection'] ?? null, 'enforcement');
+        $writeProtection = $this->settingsProtectionPolicyMetadata($settings['writeProtection'] ?? null, 'recommended');
+        $hyphenation = $this->settingsHyphenationPolicyMetadata($settings['hyphenation'] ?? null);
+        $savePolicy = $this->settingsSavePolicyMetadata($settings['savePolicy'] ?? null);
+
+        if (
+            $flagSummary['flagCount'] === 0
+            && $documentProtection === null
+            && $writeProtection === null
+            && $hyphenation === null
+            && $savePolicy === null
+        ) {
+            return [];
+        }
+
+        $protectionHashValuePresentCount = 0;
+        $protectionSaltValuePresentCount = 0;
+        foreach ([$documentProtection, $writeProtection] as $protection) {
+            if (!is_array($protection)) {
+                continue;
+            }
+            if (($protection['hashValuePresent'] ?? false) === true) {
+                ++$protectionHashValuePresentCount;
+            }
+            if (($protection['saltValuePresent'] ?? false) === true) {
+                ++$protectionSaltValuePresentCount;
+            }
+        }
+
+        $summary = [
+            'flagCount' => $flagSummary['flagCount'],
+            'enabledFlagCount' => $flagSummary['enabledFlagCount'],
+            'disabledFlagCount' => $flagSummary['disabledFlagCount'],
+            'enabledFlags' => $flagSummary['enabledFlags'],
+            'disabledFlags' => $flagSummary['disabledFlags'],
+            'documentProtectionPresent' => $documentProtection !== null,
+            'writeProtectionPresent' => $writeProtection !== null,
+            'protectionHashValuePresentCount' => $protectionHashValuePresentCount,
+            'protectionSaltValuePresentCount' => $protectionSaltValuePresentCount,
+            'hyphenationFlagCount' => 0,
+            'hyphenationEnabledFlags' => [],
+            'hyphenationDisabledFlags' => [],
+            'savePolicyFlagCount' => 0,
+            'savePolicyEnabledFlags' => [],
+            'savePolicyDisabledFlags' => [],
+            'fontEmbeddingPolicyFlags' => [],
+            'reviewPolicy' => 'settings-policy-metadata-only',
+        ];
+
+        if ($documentProtection !== null) {
+            $summary['documentProtection'] = $documentProtection;
+        }
+        if ($writeProtection !== null) {
+            $summary['writeProtection'] = $writeProtection;
+        }
+        if ($hyphenation !== null) {
+            $summary['hyphenation'] = $hyphenation;
+            $summary['hyphenationFlagCount'] = $hyphenation['flagCount'];
+            $summary['hyphenationEnabledFlags'] = $hyphenation['enabledFlags'];
+            $summary['hyphenationDisabledFlags'] = $hyphenation['disabledFlags'];
+        }
+        if ($savePolicy !== null) {
+            $summary['savePolicy'] = $savePolicy;
+            $summary['savePolicyFlagCount'] = $savePolicy['flagCount'];
+            $summary['savePolicyEnabledFlags'] = $savePolicy['enabledFlags'];
+            $summary['savePolicyDisabledFlags'] = $savePolicy['disabledFlags'];
+            $summary['fontEmbeddingPolicyFlags'] = $savePolicy['fontEmbeddingFlags'];
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param array<string, mixed> $source
+     * @param list<string> $flagNames
+     * @return array{flagCount:int, enabledFlagCount:int, disabledFlagCount:int, enabledFlags:list<string>, disabledFlags:list<string>}
+     */
+    private function settingsBooleanFlagSummary(array $source, array $flagNames): array
+    {
+        $enabledFlags = [];
+        $disabledFlags = [];
+
+        foreach ($flagNames as $flagName) {
+            if (!array_key_exists($flagName, $source) || !is_bool($source[$flagName])) {
+                continue;
+            }
+
+            if ($source[$flagName]) {
+                $enabledFlags[] = $flagName;
+            } else {
+                $disabledFlags[] = $flagName;
+            }
+        }
+
+        return [
+            'flagCount' => count($enabledFlags) + count($disabledFlags),
+            'enabledFlagCount' => count($enabledFlags),
+            'disabledFlagCount' => count($disabledFlags),
+            'enabledFlags' => $enabledFlags,
+            'disabledFlags' => $disabledFlags,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function settingsProtectionPolicyMetadata(mixed $source, string $booleanKey): ?array
+    {
+        if (!is_array($source)) {
+            return null;
+        }
+
+        $metadata = [
+            'attributeCount' => count($source),
+            'hashValuePresent' => false,
+            'saltValuePresent' => false,
+            'reviewPolicy' => 'settings-protection-metadata-only',
+        ];
+
+        foreach (['edit', 'algorithmName', 'cryptProviderType', 'cryptAlgorithmClass', 'cryptAlgorithmType'] as $key) {
+            if (isset($source[$key]) && is_string($source[$key]) && $source[$key] !== '') {
+                $metadata[$key] = $source[$key];
+            }
+        }
+
+        if (isset($source[$booleanKey]) && is_bool($source[$booleanKey])) {
+            $metadata[$booleanKey] = $source[$booleanKey];
+        }
+
+        foreach (['spinCount', 'cryptAlgorithmSid', 'cryptSpinCount'] as $key) {
+            if (isset($source[$key]) && is_int($source[$key])) {
+                $metadata[$key] = $source[$key];
+            }
+        }
+
+        foreach (['hashValue', 'saltValue'] as $key) {
+            if (!isset($source[$key]) || !is_string($source[$key]) || $source[$key] === '') {
+                continue;
+            }
+
+            $metadata[$key . 'Present'] = true;
+            $metadata[$key . 'Length'] = strlen($source[$key]);
+            $metadata[$key . 'Sha256'] = hash('sha256', $source[$key]);
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function settingsHyphenationPolicyMetadata(mixed $source): ?array
+    {
+        if (!is_array($source)) {
+            return null;
+        }
+
+        $flagSummary = $this->settingsBooleanFlagSummary($source, [
+            'autoHyphenation',
+            'doNotHyphenateCaps',
+        ]);
+        $metadata = $flagSummary + [
+            'numericSettingCount' => 0,
+            'reviewPolicy' => 'settings-hyphenation-metadata-only',
+        ];
+
+        foreach (['consecutiveHyphenLimit', 'hyphenationZoneTwips'] as $key) {
+            if (isset($source[$key]) && is_int($source[$key])) {
+                $metadata[$key] = $source[$key];
+                ++$metadata['numericSettingCount'];
+            }
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function settingsSavePolicyMetadata(mixed $source): ?array
+    {
+        if (!is_array($source)) {
+            return null;
+        }
+
+        $flagSummary = $this->settingsBooleanFlagSummary($source, [
+            'saveFormsData',
+            'savePreviewPicture',
+            'doNotEmbedSmartTags',
+            'embedTrueTypeFonts',
+            'embedSystemFonts',
+            'saveSubsetFonts',
+        ]);
+        $fontEmbeddingFlags = [];
+        foreach (['embedTrueTypeFonts', 'embedSystemFonts', 'saveSubsetFonts'] as $flagName) {
+            if (array_key_exists($flagName, $source) && is_bool($source[$flagName])) {
+                $fontEmbeddingFlags[$flagName] = $source[$flagName];
+            }
+        }
+
+        return $flagSummary + [
+            'fontEmbeddingFlagCount' => count($fontEmbeddingFlags),
+            'fontEmbeddingFlags' => $fontEmbeddingFlags,
+            'reviewPolicy' => 'settings-save-policy-metadata-only',
+        ];
     }
 
     /**

@@ -17117,6 +17117,8 @@ XML;
         $docx = $document->attr('docx');
         $settings = $docx['settings'];
         $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $policy = $package['settingsPolicy'];
         $inventory = $package['parts']['docSettings/review-settings.xml'];
         $selectedSettings = $package['selectedXmlParts']['byKind']['settings'];
 
@@ -17162,6 +17164,60 @@ XML;
         $t->same(true, $settings['savePolicy']['embedTrueTypeFonts']);
         $t->same(false, $settings['savePolicy']['embedSystemFonts']);
         $t->same(true, $settings['savePolicy']['saveSubsetFonts']);
+
+        $t->same('settings-policy-metadata-only', $policy['reviewPolicy']);
+        $t->same(0, $policy['flagCount']);
+        $t->same([], $policy['enabledFlags']);
+        $t->same([], $policy['disabledFlags']);
+        $t->same(true, $policy['documentProtectionPresent']);
+        $t->same(true, $policy['writeProtectionPresent']);
+        $t->same(2, $policy['protectionHashValuePresentCount']);
+        $t->same(2, $policy['protectionSaltValuePresentCount']);
+        $t->same('trackedChanges', $policy['documentProtection']['edit']);
+        $t->same(false, $policy['documentProtection']['enforcement']);
+        $t->same('SHA-1', $policy['documentProtection']['algorithmName']);
+        $t->same(true, $policy['documentProtection']['hashValuePresent']);
+        $t->same(strlen('doc-hash'), $policy['documentProtection']['hashValueLength']);
+        $t->same(hash('sha256', 'doc-hash'), $policy['documentProtection']['hashValueSha256']);
+        $t->same(true, $policy['documentProtection']['saltValuePresent']);
+        $t->same(strlen('doc-salt'), $policy['documentProtection']['saltValueLength']);
+        $t->same(5000, $policy['documentProtection']['spinCount']);
+        $t->same(true, $policy['writeProtection']['recommended']);
+        $t->same('SHA-512', $policy['writeProtection']['algorithmName']);
+        $t->same(true, $policy['writeProtection']['hashValuePresent']);
+        $t->same(strlen('write-hash'), $policy['writeProtection']['hashValueLength']);
+        $t->same(true, $policy['writeProtection']['saltValuePresent']);
+        $t->same(100000, $policy['writeProtection']['spinCount']);
+
+        $t->same(2, $policy['hyphenationFlagCount']);
+        $t->same(['autoHyphenation'], $policy['hyphenationEnabledFlags']);
+        $t->same(['doNotHyphenateCaps'], $policy['hyphenationDisabledFlags']);
+        $t->same(2, $policy['hyphenation']['numericSettingCount']);
+        $t->same(360, $policy['hyphenation']['hyphenationZoneTwips']);
+        $t->same(6, $policy['savePolicyFlagCount']);
+        $t->same(['saveFormsData', 'savePreviewPicture', 'doNotEmbedSmartTags', 'embedTrueTypeFonts', 'saveSubsetFonts'], $policy['savePolicyEnabledFlags']);
+        $t->same(['embedSystemFonts'], $policy['savePolicyDisabledFlags']);
+        $t->same([
+            'embedTrueTypeFonts' => true,
+            'embedSystemFonts' => false,
+            'saveSubsetFonts' => true,
+        ], $policy['fontEmbeddingPolicyFlags']);
+
+        $t->same(2, $summary['settingsProtectionHashValuePresentCount']);
+        $t->same(2, $summary['settingsProtectionSaltValuePresentCount']);
+        $t->same(2, $summary['settingsHyphenationFlagCount']);
+        $t->same(['autoHyphenation'], $summary['settingsHyphenationEnabledFlags']);
+        $t->same(['doNotHyphenateCaps'], $summary['settingsHyphenationDisabledFlags']);
+        $t->same(6, $summary['settingsSavePolicyFlagCount']);
+        $t->same(['embedSystemFonts'], $summary['settingsSavePolicyDisabledFlags']);
+        $t->same($policy['fontEmbeddingPolicyFlags'], $summary['settingsFontEmbeddingPolicyFlags']);
+
+        $encodedPolicy = json_encode($policy);
+        $t->true(is_string($encodedPolicy), 'settings policy metadata should encode for review');
+        $t->true(!str_contains((string) $encodedPolicy, 'doc-hash'), 'document protection hash must not be exposed in policy summary');
+        $t->true(!str_contains((string) $encodedPolicy, 'doc-salt'), 'document protection salt must not be exposed in policy summary');
+        $t->true(!str_contains((string) $encodedPolicy, 'write-hash'), 'write protection hash must not be exposed in policy summary');
+        $t->true(!str_contains((string) $encodedPolicy, 'write-salt'), 'write protection salt must not be exposed in policy summary');
     },
     'summarizes docx settings view state for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
