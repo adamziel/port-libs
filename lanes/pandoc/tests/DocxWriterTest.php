@@ -134,8 +134,8 @@ return [
         $t->contains('<w:b/>', $documentXml);
         $t->contains('<w:i/>', $documentXml);
         $t->contains('<w:t xml:space="preserve">  tail</w:t>', $documentXml);
-        $t->contains('<w:numId w:val="1"/>', $documentXml);
-        $t->contains('<w:numId w:val="10"/>', $documentXml);
+        $t->contains('<w:numId w:val="1001"/>', $documentXml);
+        $t->contains('<w:numId w:val="1002"/>', $documentXml);
         $t->contains('<w:hyperlink r:id="rId9">', $documentXml);
         $t->contains('<w:sectPr>', $documentXml);
 
@@ -411,7 +411,7 @@ return [
         $t->contains('<w:t>Feature</w:t>', $documentXml);
         $t->contains('<w:b/>', $documentXml);
         $t->contains('<w:t>paragraph cell</w:t>', $documentXml);
-        $t->contains('<w:numId w:val="1"/>', $documentXml);
+        $t->contains('<w:numId w:val="1001"/>', $documentXml);
         $t->contains('<w:gridSpan w:val="2"/>', $documentXml);
         $t->contains('w:styleId="Table"', $parts['word/styles.xml']);
         $t->contains('w:styleId="BodyText"', $parts['word/styles.xml']);
@@ -638,7 +638,7 @@ return [
         $t->contains('<w:name w:val="Block Text"/>', $parts['word/styles.xml']);
         $t->contains('<w:pStyle w:val="BlockText"/>', $documentXml);
         $t->contains('<w:t>quoted paragraph</w:t>', $documentXml);
-        $t->contains('<w:numId w:val="1"/>', $documentXml);
+        $t->contains('<w:numId w:val="1001"/>', $documentXml);
         $t->contains('<w:t>quoted bullet</w:t>', $documentXml);
         $t->same('blockquote', $roundTrip->children[0]->type);
     },
@@ -677,17 +677,31 @@ return [
         $documentXml = $parts['word/document.xml'];
         $numberingXml = $parts['word/numbering.xml'];
 
-        $t->contains('<w:num w:numId="10"><w:abstractNumId w:val="2"/><w:lvlOverride w:ilvl="0"><w:startOverride w:val="1"/></w:lvlOverride></w:num>', $numberingXml);
-        $t->contains('<w:num w:numId="12"><w:abstractNumId w:val="2"/><w:lvlOverride w:ilvl="0"><w:startOverride w:val="4"/></w:lvlOverride></w:num>', $numberingXml);
+        $t->contains('<w:abstractNum w:abstractNumId="990">', $numberingXml);
+        $t->contains('<w:abstractNum w:abstractNumId="99411">', $numberingXml);
+        $t->contains('<w:abstractNum w:abstractNumId="99711">', $numberingXml);
+        $t->contains('<w:abstractNum w:abstractNumId="99414">', $numberingXml);
+        $t->contains('<w:abstractNum w:abstractNumId="99631">', $numberingXml);
+        $t->contains('<w:abstractNum w:abstractNumId="991">', $numberingXml);
+        $t->contains('<w:num w:numId="1000"><w:abstractNumId w:val="990"/></w:num>', $numberingXml);
+        $t->contains('<w:num w:numId="1001"><w:abstractNumId w:val="99411"/>', $numberingXml);
+        $t->contains('<w:num w:numId="1002"><w:abstractNumId w:val="99711"/>', $numberingXml);
+        $t->contains('<w:num w:numId="1003"><w:abstractNumId w:val="99414"/>', $numberingXml);
+        $t->contains('<w:num w:numId="1004"><w:abstractNumId w:val="99631"/>', $numberingXml);
+        $t->contains('<w:num w:numId="1005"><w:abstractNumId w:val="991"/></w:num>', $numberingXml);
+        $t->contains('<w:num w:numId="1006"><w:abstractNumId w:val="991"/></w:num>', $numberingXml);
+        $t->contains('<w:startOverride w:val="4"/>', $numberingXml);
         $t->contains('<w:numFmt w:val="lowerLetter"/>', $numberingXml);
         $t->contains('<w:numFmt w:val="upperRoman"/>', $numberingXml);
         $t->contains('<w:lvlText w:val="(%1)"/>', $numberingXml);
-        $t->contains('<w:numId w:val="10"/>', $documentXml);
-        $t->contains('<w:numId w:val="11"/>', $documentXml);
-        $t->contains('<w:numId w:val="12"/>', $documentXml);
-        $t->contains('<w:numId w:val="13"/>', $documentXml);
-        $t->contains('<w:numId w:val="3"/></w:numPr></w:pPr><w:r><w:t>continuation</w:t></w:r>', $documentXml);
-        $t->contains('<w:numId w:val="1"/></w:numPr></w:pPr></w:p>', $documentXml);
+        $t->contains('<w:numId w:val="1001"/>', $documentXml);
+        $t->contains('<w:numId w:val="1002"/>', $documentXml);
+        $t->contains('<w:numId w:val="1003"/>', $documentXml);
+        $t->contains('<w:numId w:val="1004"/>', $documentXml);
+        $t->contains('<w:numId w:val="1000"/>', $documentXml);
+        $t->contains('<w:numId w:val="1005"/>', $documentXml);
+        $t->contains('<w:numId w:val="1006"/>', $documentXml);
+        $t->contains('<w:t>continuation</w:t>', $documentXml);
         $t->contains('<w:t>nested first</w:t>', $documentXml);
     },
 
@@ -709,14 +723,19 @@ return [
         $documentXml = $parts['word/document.xml'];
         $numberingXml = $parts['word/numbering.xml'];
 
-        $t->contains('<w:num w:numId="4"><w:abstractNumId w:val="4"/></w:num>', $numberingXml);
-        $t->contains('<w:num w:numId="5"><w:abstractNumId w:val="5"/></w:num>', $numberingXml);
-        $t->contains('<w:lvlText w:val="&#9744;"/>', $numberingXml);
-        $t->contains('<w:lvlText w:val="&#9746;"/>', $numberingXml);
-        $t->contains('<w:numId w:val="4"/></w:numPr></w:pPr><w:r><w:t>Unchecked</w:t></w:r>', $documentXml);
-        $t->contains('<w:numId w:val="5"/></w:numPr></w:pPr><w:r><w:t>Checked</w:t></w:r>', $documentXml);
-        $t->contains('<w:numId w:val="3"/></w:numPr></w:pPr><w:r><w:t>with continuation</w:t></w:r>', $documentXml);
-        $t->contains('<w:numId w:val="5"/></w:numPr></w:pPr><w:r><w:t>Checked sublist</w:t></w:r>', $documentXml);
+        $t->contains('<w:num w:numId="1001"><w:abstractNumId w:val="992"/></w:num>', $numberingXml);
+        $t->contains('<w:num w:numId="1002"><w:abstractNumId w:val="993"/></w:num>', $numberingXml);
+        $t->contains('<w:num w:numId="1003"><w:abstractNumId w:val="993"/></w:num>', $numberingXml);
+        $t->contains('<w:lvlText w:val="' . "\u{2610}" . '"/>', $numberingXml);
+        $t->contains('<w:lvlText w:val="' . "\u{2612}" . '"/>', $numberingXml);
+        $t->contains('<w:numId w:val="1001"/>', $documentXml);
+        $t->contains('<w:numId w:val="1002"/>', $documentXml);
+        $t->contains('<w:numId w:val="1003"/>', $documentXml);
+        $t->contains('<w:numId w:val="1000"/>', $documentXml);
+        $t->contains('<w:t>Unchecked</w:t>', $documentXml);
+        $t->contains('<w:t>Checked</w:t>', $documentXml);
+        $t->contains('<w:t>with continuation</w:t>', $documentXml);
+        $t->contains('<w:t>Checked sublist</w:t>', $documentXml);
         $t->true(!str_contains($documentXml, "\u{2610}"), 'Unchecked task glyph should be carried by numbering, not paragraph text');
         $t->true(!str_contains($documentXml, "\u{2612}"), 'Checked task glyph should be carried by numbering, not paragraph text');
     },

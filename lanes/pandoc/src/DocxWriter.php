@@ -50,11 +50,11 @@ final class DocxWriter
     private const GENERATED_TIMESTAMP = '1980-01-01T00:00:00Z';
     private const GENERATED_DOS_TIME = 0;
     private const GENERATED_DOS_DATE = 33; // 1980-01-01 00:00:00, the earliest valid DOS ZIP date.
-    private const BULLET_NUM_ID = 1;
-    private const ORDERED_NUM_ID = 2;
-    private const CONTINUATION_NUM_ID = 3;
-    private const TASK_UNCHECKED_NUM_ID = 4;
-    private const TASK_CHECKED_NUM_ID = 5;
+    private const CONTINUATION_NUM_ID = 1000;
+    private const CONTINUATION_ABSTRACT_NUM_ID = 990;
+    private const BULLET_ABSTRACT_NUM_ID = 991;
+    private const TASK_UNCHECKED_ABSTRACT_NUM_ID = 992;
+    private const TASK_CHECKED_ABSTRACT_NUM_ID = 993;
     private const TABLE_GRID_WIDTH_DXA = 7920;
 
     /** @var array<string, int> */
@@ -107,17 +107,22 @@ final class DocxWriter
     /** @var array<string, string> */
     private array $customCharacterStyles = [];
 
-    /** @var array<string, array{abstractNumId:int, style:string, delimiter:string}> */
+    /** @var array<string, array{abstractNumId:int, style:string, delimiter:string, start:int}> */
     private array $orderedListDefinitions = [];
 
-    /** @var list<array{numId:int, abstractNumId:int, level:int, start:int}> */
-    private array $orderedListInstances = [];
+    /** @var list<array{numId:int, abstractNumId:int, start:int|null}> */
+    private array $numberingInstances = [];
+
+    /** @var list<int> */
+    private array $numberingAbstractOrder = [];
+
+    /** @var array<int, true> */
+    private array $numberingAbstractsSeen = [];
 
     private int $nextDocumentRelationshipId = 9;
     private int $nextFootnoteId = 9;
     private int $nextBookmarkId = 11;
-    private int $nextNumberingId = 10;
-    private int $nextAbstractNumberingId = 20;
+    private int $nextNumberingId = 1001;
 
     /**
      * @param array<string, mixed> $options
@@ -238,12 +243,13 @@ final class DocxWriter
         $this->customParagraphStyles = [];
         $this->customCharacterStyles = [];
         $this->orderedListDefinitions = [];
-        $this->orderedListInstances = [];
+        $this->numberingInstances = [];
+        $this->numberingAbstractOrder = [];
+        $this->numberingAbstractsSeen = [];
         $this->nextDocumentRelationshipId = 9;
         $this->nextFootnoteId = 9;
         $this->nextBookmarkId = 11;
-        $this->nextNumberingId = 10;
-        $this->nextAbstractNumberingId = 20;
+        $this->nextNumberingId = 1001;
     }
 
     private function contentTypesXml(): string
@@ -1110,7 +1116,7 @@ final class DocxWriter
      */
     private function listXml(AstNode $list, bool $ordered, int $listLevel, ?string $paragraphStyle): array
     {
-        $numId = $ordered ? $this->orderedListNumId($list, $listLevel) : self::BULLET_NUM_ID;
+        $numId = $ordered ? $this->orderedListNumId($list) : null;
         $blocks = [];
         foreach ($list->children as $item) {
             if (!$item instanceof AstNode || $item->type !== 'list_item') {
@@ -1123,9 +1129,11 @@ final class DocxWriter
             }
 
             $taskChecked = $ordered ? null : $this->taskListItemChecked($itemBlocks);
-            $itemNumId = $taskChecked === null
-                ? $numId
-                : ($taskChecked ? self::TASK_CHECKED_NUM_ID : self::TASK_UNCHECKED_NUM_ID);
+            $itemNumId = match ($taskChecked) {
+                true => $this->taskListNumId(true),
+                false => $this->taskListNumId(false),
+                default => $numId ??= $this->bulletListNumId(),
+            };
             $primaryNumbering = ['numId' => $itemNumId, 'level' => $listLevel];
             $continuationNumbering = ['numId' => self::CONTINUATION_NUM_ID, 'level' => $listLevel];
             $numberedParagraphEmitted = false;
@@ -1160,9 +1168,10 @@ final class DocxWriter
                 if ($child->type === 'paragraph' || $child->type === 'plain') {
                     $paragraph = $stripTaskMarker ? $this->stripTaskListMarker($child) : $child;
                     $stripTaskMarker = false;
+                    $style = $child->type === 'plain' ? ($paragraphStyle ?? 'Compact') : $paragraphStyle;
                     $blocks[] = $this->paragraphXml(
                         $paragraph,
-                        $paragraphStyle,
+                        $style,
                         $numberedParagraphEmitted ? $continuationNumbering : $primaryNumbering
                     );
                     $numberedParagraphEmitted = true;
@@ -1202,47 +1211,87 @@ final class DocxWriter
             }
 
             if (!$numberedParagraphEmitted) {
-                $blocks[] = $this->paragraphFromInlinesXml([], $paragraphStyle, $primaryNumbering);
+                $blocks[] = $this->paragraphFromInlinesXml([], $paragraphStyle ?? 'Compact', $primaryNumbering);
             }
         }
 
         return $blocks;
     }
 
-    private function orderedListNumId(AstNode $list, int $listLevel): int
+    private function bulletListNumId(): int
+    {
+        return $this->numberingNumId(self::BULLET_ABSTRACT_NUM_ID, null);
+    }
+
+    private function taskListNumId(bool $checked): int
+    {
+        return $this->numberingNumId($checked ? self::TASK_CHECKED_ABSTRACT_NUM_ID : self::TASK_UNCHECKED_ABSTRACT_NUM_ID, null);
+    }
+
+    private function orderedListNumId(AstNode $list): int
     {
         $start = max(1, (int) $list->attr('start', 1));
         $style = $this->orderedListStyle($list);
         $delimiter = $this->orderedListDelimiter($list);
-        $abstractNumId = $this->orderedListAbstractNumId($style, $delimiter);
-        $numId = $this->nextNumberingId++;
+        $abstractNumId = $this->orderedListAbstractNumId($style, $delimiter, $start);
 
-        $this->orderedListInstances[] = [
+        return $this->numberingNumId($abstractNumId, $start);
+    }
+
+    private function numberingNumId(int $abstractNumId, ?int $start): int
+    {
+        $this->markNumberingAbstractUsed($abstractNumId);
+        $numId = $this->nextNumberingId++;
+        $this->numberingInstances[] = [
             'numId' => $numId,
             'abstractNumId' => $abstractNumId,
-            'level' => max(0, min(8, $listLevel)),
             'start' => $start,
         ];
 
         return $numId;
     }
 
-    private function orderedListAbstractNumId(string $style, string $delimiter): int
+    private function markNumberingAbstractUsed(int $abstractNumId): void
     {
-        if ($style === 'decimal' && ($delimiter === 'period' || $delimiter === 'default')) {
-            return self::ORDERED_NUM_ID;
+        if (isset($this->numberingAbstractsSeen[$abstractNumId])) {
+            return;
         }
 
-        $key = $style . ':' . $delimiter;
+        $this->numberingAbstractsSeen[$abstractNumId] = true;
+        $this->numberingAbstractOrder[] = $abstractNumId;
+    }
+
+    private function orderedListAbstractNumId(string $style, string $delimiter, int $start): int
+    {
+        $key = $style . ':' . $delimiter . ':' . $start;
         if (!isset($this->orderedListDefinitions[$key])) {
             $this->orderedListDefinitions[$key] = [
-                'abstractNumId' => $this->nextAbstractNumberingId++,
+                'abstractNumId' => $this->orderedListAbstractNumIdValue($style, $delimiter, $start),
                 'style' => $style,
                 'delimiter' => $delimiter,
+                'start' => $start,
             ];
         }
 
         return $this->orderedListDefinitions[$key]['abstractNumId'];
+    }
+
+    private function orderedListAbstractNumIdValue(string $style, string $delimiter, int $start): int
+    {
+        $styleBase = match ($style) {
+            'lower_roman' => 99500,
+            'upper_roman' => 99600,
+            'lower_alpha' => 99700,
+            'upper_alpha' => 99800,
+            default => 99400,
+        };
+        $delimiterCode = match ($delimiter) {
+            'one_paren' => 2,
+            'two_parens' => 3,
+            default => 1,
+        };
+
+        return $styleBase + ($delimiterCode * 10) + max(1, min(9, $start));
     }
 
     private function orderedListStyle(AstNode $list): string
@@ -1350,9 +1399,15 @@ final class DocxWriter
                 }
             }
 
-            if ($dropFollowingSpace && ($inline->type === 'space' || $inline->type === 'softbreak')) {
-                $dropFollowingSpace = false;
-                continue;
+            if ($dropFollowingSpace) {
+                if ($inline->type === 'space' || $inline->type === 'softbreak') {
+                    $dropFollowingSpace = false;
+                    continue;
+                }
+                if ($inline->type === 'text' && trim((string) $inline->attr('text', '')) === '') {
+                    $dropFollowingSpace = false;
+                    continue;
+                }
             }
 
             $dropFollowingSpace = false;
@@ -2404,26 +2459,19 @@ final class DocxWriter
 
     private function numberingXml(): string
     {
-        $abstractNums = ''
-            . '<w:abstractNum w:abstractNumId="1"><w:multiLevelType w:val="hybridMultilevel"/>' . $this->bulletLevelsXml('&#8226;', true) . '</w:abstractNum>'
-            . '<w:abstractNum w:abstractNumId="2"><w:multiLevelType w:val="hybridMultilevel"/>' . $this->orderedLevelsXml('decimal', 'period') . '</w:abstractNum>'
-            . '<w:abstractNum w:abstractNumId="3"><w:multiLevelType w:val="hybridMultilevel"/>' . $this->bulletLevelsXml(' ', false) . '</w:abstractNum>'
-            . '<w:abstractNum w:abstractNumId="4"><w:multiLevelType w:val="hybridMultilevel"/>' . $this->bulletLevelsXml('&#9744;', false) . '</w:abstractNum>'
-            . '<w:abstractNum w:abstractNumId="5"><w:multiLevelType w:val="hybridMultilevel"/>' . $this->bulletLevelsXml('&#9746;', false) . '</w:abstractNum>';
-        foreach ($this->orderedListDefinitions as $definition) {
-            $abstractNums .= '<w:abstractNum w:abstractNumId="' . $definition['abstractNumId'] . '"><w:multiLevelType w:val="hybridMultilevel"/>'
-                . $this->orderedLevelsXml($definition['style'], $definition['delimiter'])
-                . '</w:abstractNum>';
+        $abstractNums = $this->abstractNumberingXml(self::CONTINUATION_ABSTRACT_NUM_ID);
+        foreach ($this->numberingAbstractOrder as $abstractNumId) {
+            if ($abstractNumId === self::CONTINUATION_ABSTRACT_NUM_ID) {
+                continue;
+            }
+            $abstractNums .= $this->abstractNumberingXml($abstractNumId);
         }
 
-        $numbers = ''
-            . '<w:num w:numId="' . self::BULLET_NUM_ID . '"><w:abstractNumId w:val="1"/></w:num>'
-            . '<w:num w:numId="' . self::ORDERED_NUM_ID . '"><w:abstractNumId w:val="2"/></w:num>'
-            . '<w:num w:numId="' . self::CONTINUATION_NUM_ID . '"><w:abstractNumId w:val="3"/></w:num>'
-            . '<w:num w:numId="' . self::TASK_UNCHECKED_NUM_ID . '"><w:abstractNumId w:val="4"/></w:num>'
-            . '<w:num w:numId="' . self::TASK_CHECKED_NUM_ID . '"><w:abstractNumId w:val="5"/></w:num>';
-        foreach ($this->orderedListInstances as $instance) {
-            $numbers .= '<w:num w:numId="' . $instance['numId'] . '"><w:abstractNumId w:val="' . $instance['abstractNumId'] . '"/><w:lvlOverride w:ilvl="' . $instance['level'] . '"><w:startOverride w:val="' . $instance['start'] . '"/></w:lvlOverride></w:num>';
+        $numbers = '<w:num w:numId="' . self::CONTINUATION_NUM_ID . '"><w:abstractNumId w:val="' . self::CONTINUATION_ABSTRACT_NUM_ID . '"/></w:num>';
+        foreach ($this->numberingInstances as $instance) {
+            $numbers .= '<w:num w:numId="' . $instance['numId'] . '"><w:abstractNumId w:val="' . $instance['abstractNumId'] . '"/>'
+                . $this->levelOverridesXml($instance['start'])
+                . '</w:num>';
         }
 
         return self::xmlDeclaration()
@@ -2434,29 +2482,92 @@ final class DocxWriter
             . "\n";
     }
 
-    private function bulletLevelsXml(string $levelText, bool $symbolFont): string
+    private function abstractNumberingXml(int $abstractNumId): string
+    {
+        if ($abstractNumId === self::CONTINUATION_ABSTRACT_NUM_ID) {
+            return '<w:abstractNum w:abstractNumId="' . $abstractNumId . '"><w:nsid w:val="0000A990"/><w:multiLevelType w:val="multilevel"/>'
+                . $this->plainBulletLevelsXml(' ')
+                . '</w:abstractNum>';
+        }
+        if ($abstractNumId === self::BULLET_ABSTRACT_NUM_ID) {
+            return '<w:abstractNum w:abstractNumId="' . $abstractNumId . '"><w:nsid w:val="0000A991"/><w:multiLevelType w:val="multilevel"/>'
+                . $this->pandocBulletLevelsXml()
+                . '</w:abstractNum>';
+        }
+        if ($abstractNumId === self::TASK_UNCHECKED_ABSTRACT_NUM_ID) {
+            return '<w:abstractNum w:abstractNumId="' . $abstractNumId . '"><w:nsid w:val="0000A992"/><w:multiLevelType w:val="multilevel"/>'
+                . $this->plainBulletLevelsXml("\u{2610}")
+                . '</w:abstractNum>';
+        }
+        if ($abstractNumId === self::TASK_CHECKED_ABSTRACT_NUM_ID) {
+            return '<w:abstractNum w:abstractNumId="' . $abstractNumId . '"><w:nsid w:val="0000A993"/><w:multiLevelType w:val="multilevel"/>'
+                . $this->plainBulletLevelsXml("\u{2612}")
+                . '</w:abstractNum>';
+        }
+
+        foreach ($this->orderedListDefinitions as $definition) {
+            if ($definition['abstractNumId'] !== $abstractNumId) {
+                continue;
+            }
+
+            return '<w:abstractNum w:abstractNumId="' . $abstractNumId . '"><w:nsid w:val="' . self::escAttr('00A' . (string) $abstractNumId) . '"/><w:multiLevelType w:val="multilevel"/>'
+                . $this->orderedLevelsXml($definition['style'], $definition['delimiter'], $definition['start'])
+                . '</w:abstractNum>';
+        }
+
+        return '';
+    }
+
+    private function levelOverridesXml(?int $start): string
+    {
+        if ($start === null) {
+            return '';
+        }
+
+        $overrides = '';
+        for ($level = 0; $level < 9; $level++) {
+            $overrides .= '<w:lvlOverride w:ilvl="' . $level . '"><w:startOverride w:val="' . $start . '"/></w:lvlOverride>';
+        }
+
+        return $overrides;
+    }
+
+    private function plainBulletLevelsXml(string $levelText): string
     {
         $levels = '';
         for ($level = 0; $level < 9; $level++) {
             $left = 720 + ($level * 720);
-            $levels .= '<w:lvl w:ilvl="' . $level . '"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val="' . $levelText . '"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="' . $left . '" w:hanging="360"/></w:pPr>';
-            if ($symbolFont) {
-                $levels .= '<w:rPr><w:rFonts w:ascii="Symbol" w:hAnsi="Symbol" w:hint="default"/></w:rPr>';
-            }
-            $levels .= '</w:lvl>';
+            $levels .= '<w:lvl w:ilvl="' . $level . '"><w:numFmt w:val="bullet"/><w:lvlText w:val="' . self::escAttr($levelText) . '"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="' . $left . '" w:hanging="360"/></w:pPr></w:lvl>';
         }
 
         return $levels;
     }
 
-    private function orderedLevelsXml(string $style, string $delimiter): string
+    private function pandocBulletLevelsXml(): string
+    {
+        $glyphs = [
+            ['text' => "\u{F0B7}", 'font' => 'Symbol'],
+            ['text' => 'o', 'font' => 'Courier New'],
+            ['text' => "\u{F0A7}", 'font' => 'Wingdings'],
+        ];
+        $levels = '';
+        for ($level = 0; $level < 9; $level++) {
+            $left = 720 + ($level * 720);
+            $glyph = $glyphs[$level % 3];
+            $levels .= '<w:lvl w:ilvl="' . $level . '"><w:numFmt w:val="bullet"/><w:lvlText w:val="' . self::escAttr($glyph['text']) . '"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="' . $left . '" w:hanging="360"/></w:pPr><w:rPr><w:rFonts w:ascii="' . self::escAttr($glyph['font']) . '" w:hAnsi="' . self::escAttr($glyph['font']) . '" w:cs="' . self::escAttr($glyph['font']) . '" w:hint="default"/></w:rPr></w:lvl>';
+        }
+
+        return $levels;
+    }
+
+    private function orderedLevelsXml(string $style, string $delimiter, int $start): string
     {
         $levels = '';
         $format = $this->docxOrderedNumberFormat($style);
         for ($level = 0; $level < 9; $level++) {
             $left = 720 + ($level * 720);
             $text = $this->docxOrderedLevelText($level + 1, $delimiter);
-            $levels .= '<w:lvl w:ilvl="' . $level . '"><w:start w:val="1"/><w:numFmt w:val="' . $format . '"/><w:lvlText w:val="' . $text . '"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="' . $left . '" w:hanging="360"/></w:pPr></w:lvl>';
+            $levels .= '<w:lvl w:ilvl="' . $level . '"><w:start w:val="' . $start . '"/><w:numFmt w:val="' . $format . '"/><w:lvlText w:val="' . $text . '"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="' . $left . '" w:hanging="360"/></w:pPr></w:lvl>';
         }
 
         return $levels;
