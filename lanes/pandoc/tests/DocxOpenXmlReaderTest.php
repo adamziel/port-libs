@@ -8392,6 +8392,123 @@ XML;
         $t->same([$headerContentType => 1], $header['sourceContentTypeBaseCounts']);
         $t->same(['word/header/header-base.xml'], $header['sourceParts']);
     },
+    'summarizes docx relationship source directory base name duplicate provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $wordSource = '<dirBase>word</dirBase>';
+        $customSource = '<dirBase>' . str_repeat('custom', 24) . '</dirBase>';
+        $parts['word/dirbase-shared/source-a.xml'] = $wordSource;
+        $parts['customXml/dirbase-shared/source-b.xml'] = $customSource;
+        $parts['word/media/dirbase-a.png'] = 'directory basename target A';
+        $parts['word/media/dirbase-b.png'] = 'directory basename target B';
+        $parts['word/media/dirbase-missing.png'] = 'missing source directory basename target';
+        $parts['word/media/dirbase-rels.png'] = 'relationship source directory basename target';
+        $parts['word/media/dirbase-invalid.png'] = 'invalid source directory basename target';
+        $parts['word/dirbase-shared/_rels/source-a.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rWordDirBase" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/dirbase-a.png"/>
+</Relationships>
+XML;
+        $parts['customXml/dirbase-shared/_rels/source-b.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rCustomDirBase" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../../word/media/dirbase-b.png"/>
+</Relationships>
+XML;
+        $parts['word/missing-dirbase/_rels/source-missing.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rMissingDirBase" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/dirbase-missing.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/_rels/document.xml.rels.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rRelationshipDirBase" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/dirbase-rels.png"/>
+</Relationships>
+XML;
+        $parts['word/_rels/invalid-dirbase/source.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rInvalidDirBase" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="word/media/dirbase-invalid.png"/>
+</Relationships>
+XML;
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $directoryBaseNames = [];
+        foreach ($summary['relationshipSourceDirectoryBaseNames'] as $directoryBaseName) {
+            $directoryBaseNames[$directoryBaseName['sourceDirectoryBaseNameKey']] = $directoryBaseName;
+        }
+
+        $t->same(2, $summary['relationshipSourceDirectoryBaseNameCounts']['dirbase-shared']);
+        $t->same(2, $summary['relationshipSourceExistingDirectoryBaseNameCounts']['dirbase-shared']);
+        $t->true(in_array('dirbase-shared', $summary['duplicateRelationshipSourceDirectoryBaseNames'], true), 'shared source directory basename should be reported as duplicate across directories');
+
+        $shared = $directoryBaseNames['dirbase-shared'];
+        $t->same('dirbase-shared', $shared['sourceDirectoryBaseName']);
+        $t->same(2, $shared['directoryCount']);
+        $t->same(2, $shared['sourceCount']);
+        $t->same(2, $shared['existingSourceCount']);
+        $t->same(0, $shared['nonExistingSourceCount']);
+        $t->same(2, $shared['relationshipCount']);
+        $t->same(2, $shared['relationshipRecordCount']);
+        $t->same(strlen($wordSource) + strlen($customSource), $shared['existingSourceByteLength']);
+        $t->same(['package-part' => 2], $shared['relationshipSourceKindCounts']);
+        $t->same([
+            'customXml/dirbase-shared' => 1,
+            'word/dirbase-shared' => 1,
+        ], $shared['sourceDirectoryCounts']);
+        $t->same(['source-a.xml' => 1, 'source-b.xml' => 1], $shared['sourceBaseNameCounts']);
+        $t->same(['xml' => 2], $shared['sourcePartExtensionCounts']);
+        $t->same(['application/xml' => 2], $shared['sourceContentTypeBaseCounts']);
+        $t->same(['default' => 2], $shared['sourceContentTypeSourceCounts']);
+        $t->same(['package-part' => 2], $shared['sourceRoleCounts']);
+        $t->same(['customXml/dirbase-shared', 'word/dirbase-shared'], $shared['sourceDirectories']);
+        $t->same(['customXml/dirbase-shared/source-b.xml', 'word/dirbase-shared/source-a.xml'], $shared['sourceParts']);
+        $t->same([
+            'customXml/dirbase-shared/_rels/source-b.xml.rels',
+            'word/dirbase-shared/_rels/source-a.xml.rels',
+        ], $shared['relationshipParts']);
+        $t->same('customXml/dirbase-shared/source-b.xml', $shared['largestExistingSourcePart']['sourcePart']);
+        $t->same('dirbase-shared', $shared['largestExistingSourcePart']['sourceDirectoryBaseName']);
+        $t->same(strlen($customSource), $shared['largestExistingSourcePart']['sourceBytes']);
+        $t->same(hash('sha256', $customSource), $shared['largestExistingSourcePart']['sourceSha256']);
+
+        $missing = $directoryBaseNames['missing-dirbase'];
+        $t->same(1, $summary['relationshipSourceNonExistingDirectoryBaseNameCounts']['missing-dirbase']);
+        $t->same(1, $missing['sourceCount']);
+        $t->same(0, $missing['existingSourceCount']);
+        $t->same(1, $missing['nonExistingSourceCount']);
+        $t->same(['missing-source' => 1], $missing['relationshipSourceKindCounts']);
+        $t->same(['word/missing-dirbase' => 1], $missing['sourceDirectoryCounts']);
+        $t->same(['source-missing.xml' => 1], $missing['sourceBaseNameCounts']);
+        $t->same(['(missing)' => 1], $missing['sourceContentTypeBaseCounts']);
+        $t->same([], $missing['sourceRoleCounts']);
+        $t->same(['word/missing-dirbase/source-missing.xml'], $missing['sourceParts']);
+        $t->same(['word/missing-dirbase/_rels/source-missing.xml.rels'], $missing['relationshipParts']);
+        $t->same(null, $missing['largestExistingSourcePart']);
+
+        $relationshipPart = $directoryBaseNames['_rels'];
+        $t->same(1, $relationshipPart['sourceCount']);
+        $t->same(1, $relationshipPart['existingSourceCount']);
+        $t->same(['relationship-part' => 1], $relationshipPart['relationshipSourceKindCounts']);
+        $t->same(['word/_rels' => 1], $relationshipPart['sourceDirectoryCounts']);
+        $t->same(['document.xml.rels' => 1], $relationshipPart['sourceBaseNameCounts']);
+        $t->same(['office-document-relationships' => 1, 'relationship-part' => 1], $relationshipPart['sourceRoleCounts']);
+        $t->same(['word/_rels/document.xml.rels'], $relationshipPart['sourceParts']);
+        $t->same(['word/_rels/_rels/document.xml.rels.rels'], $relationshipPart['relationshipParts']);
+        $t->same('_rels', $relationshipPart['largestExistingSourcePart']['sourceDirectoryBaseName']);
+
+        $invalid = $directoryBaseNames['(invalid-source)'];
+        $t->same(0, $invalid['directoryCount']);
+        $t->same(1, $invalid['sourceCount']);
+        $t->same(0, $invalid['existingSourceCount']);
+        $t->same(1, $invalid['nonExistingSourceCount']);
+        $t->same(['invalid-source' => 1], $invalid['relationshipSourceKindCounts']);
+        $t->same(['(invalid-source)' => 1], $invalid['sourceDirectoryCounts']);
+        $t->same([], $invalid['sourceParts']);
+        $t->same(['word/_rels/invalid-dirbase/source.xml.rels'], $invalid['relationshipParts']);
+    },
     'summarizes docx relationship source top-level segments for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['customXml/source-segment.xml'] = '<customSegment/>';

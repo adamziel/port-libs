@@ -18597,6 +18597,30 @@ final class DocxOpenXmlReader
             }
         }
         ksort($relationshipSourceBaseNameCounts, SORT_STRING);
+        $relationshipSourceDirectoryBaseNames = $this->relationshipSourceDirectoryBaseNameSummary($relationshipSources);
+        $relationshipSourceDirectoryBaseNameCounts = [];
+        $relationshipSourceExistingDirectoryBaseNameCounts = [];
+        $relationshipSourceNonExistingDirectoryBaseNameCounts = [];
+        $duplicateRelationshipSourceDirectoryBaseNames = [];
+        foreach ($relationshipSourceDirectoryBaseNames as $sourceDirectoryBaseNameSummary) {
+            $directoryBaseNameKey = (string) ($sourceDirectoryBaseNameSummary['sourceDirectoryBaseNameKey'] ?? '');
+            $relationshipSourceDirectoryBaseNameCounts[$directoryBaseNameKey] =
+                (int) ($sourceDirectoryBaseNameSummary['sourceCount'] ?? 0);
+            if ((int) ($sourceDirectoryBaseNameSummary['existingSourceCount'] ?? 0) > 0) {
+                $relationshipSourceExistingDirectoryBaseNameCounts[$directoryBaseNameKey] =
+                    (int) $sourceDirectoryBaseNameSummary['existingSourceCount'];
+            }
+            if ((int) ($sourceDirectoryBaseNameSummary['nonExistingSourceCount'] ?? 0) > 0) {
+                $relationshipSourceNonExistingDirectoryBaseNameCounts[$directoryBaseNameKey] =
+                    (int) $sourceDirectoryBaseNameSummary['nonExistingSourceCount'];
+            }
+            if ((int) ($sourceDirectoryBaseNameSummary['directoryCount'] ?? 0) > 1) {
+                $duplicateRelationshipSourceDirectoryBaseNames[] = $directoryBaseNameKey;
+            }
+        }
+        ksort($relationshipSourceDirectoryBaseNameCounts, SORT_STRING);
+        ksort($relationshipSourceExistingDirectoryBaseNameCounts, SORT_STRING);
+        ksort($relationshipSourceNonExistingDirectoryBaseNameCounts, SORT_STRING);
         $relationshipSourcePartExtensions = $this->relationshipSourcePartExtensionSummary($relationshipSources);
         $relationshipSourcePartExtensionCounts = [];
         $relationshipSourcePartExtensionExistingByteBucketCount = 0;
@@ -19662,6 +19686,13 @@ final class DocxOpenXmlReader
             'duplicateRelationshipSourceBaseNameCount' => count($duplicateRelationshipSourceBaseNames),
             'duplicateRelationshipSourceBaseNames' => $duplicateRelationshipSourceBaseNames,
             'relationshipSourceBaseNames' => $relationshipSourceBaseNames,
+            'relationshipSourceDirectoryBaseNameCount' => count($relationshipSourceDirectoryBaseNames),
+            'relationshipSourceDirectoryBaseNameCounts' => $relationshipSourceDirectoryBaseNameCounts,
+            'relationshipSourceExistingDirectoryBaseNameCounts' => $relationshipSourceExistingDirectoryBaseNameCounts,
+            'relationshipSourceNonExistingDirectoryBaseNameCounts' => $relationshipSourceNonExistingDirectoryBaseNameCounts,
+            'duplicateRelationshipSourceDirectoryBaseNameCount' => count($duplicateRelationshipSourceDirectoryBaseNames),
+            'duplicateRelationshipSourceDirectoryBaseNames' => $duplicateRelationshipSourceDirectoryBaseNames,
+            'relationshipSourceDirectoryBaseNames' => $relationshipSourceDirectoryBaseNames,
             'relationshipSourcePartExtensionCount' => count($relationshipSourcePartExtensions),
             'relationshipSourcePartExtensionCounts' => $relationshipSourcePartExtensionCounts,
             'relationshipSourcePartExtensionExistingByteBucketCount' => $relationshipSourcePartExtensionExistingByteBucketCount,
@@ -22690,13 +22721,16 @@ final class DocxOpenXmlReader
     {
         $directoryBaseNames = [];
         foreach ($relationshipSources as $source) {
+            $sourcePart = is_string($source['sourcePart'] ?? null) ? $source['sourcePart'] : '';
             $directory = is_string($source['sourceDirectory'] ?? null) ? $source['sourceDirectory'] : '';
-            if ($directory === '') {
-                $directoryBaseNameKey = '(invalid-source)';
+            if ($sourcePart === '' || $directory === '') {
                 $directoryBaseName = null;
+                $directoryBaseNameKey = '(invalid-source)';
+                $directoryKey = '(invalid-source)';
             } else {
                 $directoryBaseName = $this->packagePartDirectoryBaseName($directory);
                 $directoryBaseNameKey = $directoryBaseName;
+                $directoryKey = $directory;
             }
 
             if (!isset($directoryBaseNames[$directoryBaseNameKey])) {
@@ -22740,12 +22774,8 @@ final class DocxOpenXmlReader
             $directoryBaseNames[$directoryBaseNameKey]['relationshipSourceKindCounts'][$sourceKind] =
                 ($directoryBaseNames[$directoryBaseNameKey]['relationshipSourceKindCounts'][$sourceKind] ?? 0) + 1;
 
-            $directoryKey = $directory === '' ? '(invalid-source)' : $directory;
             $directoryBaseNames[$directoryBaseNameKey]['sourceDirectoryCounts'][$directoryKey] =
                 ($directoryBaseNames[$directoryBaseNameKey]['sourceDirectoryCounts'][$directoryKey] ?? 0) + 1;
-            if ($directory !== '') {
-                $this->appendUniqueString($directoryBaseNames[$directoryBaseNameKey]['sourceDirectories'], $directory);
-            }
 
             $baseName = is_string($source['sourceBaseName'] ?? null) ? $source['sourceBaseName'] : '';
             $baseNameKey = $baseName === '' ? '(invalid-source)' : $baseName;
@@ -22775,13 +22805,21 @@ final class DocxOpenXmlReader
 
             foreach (($source['sourceRoles'] ?? []) as $role) {
                 $role = (string) $role;
+                if ($role === '') {
+                    continue;
+                }
+
                 $directoryBaseNames[$directoryBaseNameKey]['sourceRoleCounts'][$role] =
                     ($directoryBaseNames[$directoryBaseNameKey]['sourceRoleCounts'][$role] ?? 0) + 1;
             }
 
             $this->appendUniqueString(
+                $directoryBaseNames[$directoryBaseNameKey]['sourceDirectories'],
+                $directoryKey === '(invalid-source)' ? null : $directoryKey,
+            );
+            $this->appendUniqueString(
                 $directoryBaseNames[$directoryBaseNameKey]['sourceParts'],
-                is_string($source['sourcePart'] ?? null) ? $source['sourcePart'] : null,
+                $sourcePart === '' ? null : $sourcePart,
             );
             $this->appendUniqueString(
                 $directoryBaseNames[$directoryBaseNameKey]['relationshipParts'],
@@ -22792,11 +22830,13 @@ final class DocxOpenXmlReader
                 $sourceBytes = (int) $source['sourceBytes'];
                 $directoryBaseNames[$directoryBaseNameKey]['existingSourceByteLength'] += $sourceBytes;
                 $sourceSummary = [
-                    'sourcePart' => is_string($source['sourcePart'] ?? null) ? $source['sourcePart'] : '',
+                    'sourcePart' => $sourcePart,
                     'relationshipsPart' => is_string($source['relationshipsPart'] ?? null) ? $source['relationshipsPart'] : '',
                     'relationshipSourceKind' => $sourceKind,
-                    'sourceDirectory' => $directory === '' ? null : $directory,
+                    'sourceDirectory' => $directoryKey === '(invalid-source)' ? null : $directoryKey,
                     'sourceDirectoryBaseName' => $directoryBaseName,
+                    'sourceBaseName' => $baseName === '' ? null : $baseName,
+                    'sourcePartExtension' => $extension,
                     'sourceBytes' => $sourceBytes,
                     'sourceCrc32' => is_string($source['sourceCrc32'] ?? null) ? $source['sourceCrc32'] : null,
                     'sourceSha256' => is_string($source['sourceSha256'] ?? null) ? $source['sourceSha256'] : null,
@@ -22831,6 +22871,9 @@ final class DocxOpenXmlReader
             sort($summary['sourceParts'], SORT_STRING);
             sort($summary['relationshipParts'], SORT_STRING);
             $summary['directoryCount'] = count($summary['sourceDirectories']);
+            if ($directoryBaseNameKey === '(invalid-source)') {
+                $summary['directoryCount'] = 0;
+            }
             $directoryBaseNames[$directoryBaseNameKey] = $summary;
         }
 
