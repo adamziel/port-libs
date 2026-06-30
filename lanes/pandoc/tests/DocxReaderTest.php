@@ -240,6 +240,19 @@ return [
         $t->same("∨∨( ", $document->children[0]->attr('text'));
         $t->same("∨∨( ", $document->children[0]->children[0]->attr('text'));
     },
+    'reads docx verbatim character style as inline code' => static function (TestRunner $t) use ($buildDocxReaderPackagePartsBytes): void {
+        $bytes = $buildDocxReaderPackagePartsBytes([
+            '[Content_Types].xml' => '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>',
+            'word/styles.xml' => '<?xml version="1.0"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="character" w:styleId="VerbatimChar"><w:name w:val="Verbatim Char"/></w:style></w:styles>',
+            'word/document.xml' => '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t xml:space="preserve">Use </w:t></w:r><w:r><w:rPr><w:rStyle w:val="VerbatimChar"/></w:rPr><w:t xml:space="preserve">inline   code</w:t></w:r><w:r><w:t xml:space="preserve"> here.</w:t></w:r></w:p></w:body></w:document>',
+        ]);
+
+        $paragraph = (new DocxReader())->read($bytes)->children[0];
+
+        $t->same('Use inline code here.', $paragraph->attr('text'));
+        $t->same(['text', 'code', 'text'], array_map(static fn ($node): string => $node->type, $paragraph->children));
+        $t->same('inline   code', $paragraph->children[1]->attr('text'));
+    },
     'merges docx drop-cap frame paragraphs into following paragraph text' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
         $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:pPr><w:framePr w:dropCap="drop" w:lines="3"/></w:pPr><w:r><w:t>D</w:t></w:r></w:p><w:p><w:r><w:t>rop cap.</w:t></w:r></w:p><w:p><w:r><w:t>Next paragraph.</w:t></w:r></w:p><w:p><w:pPr><w:framePr w:dropCap="margin" w:lines="3"/></w:pPr><w:r><w:t>D</w:t></w:r></w:p><w:p><w:r><w:t>rop cap in margin.</w:t></w:r></w:p><w:p><w:r><w:t>Drop cap (not really).</w:t></w:r></w:p></w:body></w:document>');
 
@@ -1370,6 +1383,27 @@ XML);
         $t->contains('RawInline (Format "openxml") "<w:bookmarkStart w:id=\\"2\\" w:name=\\"UnusedAnchor\\"/>"', $native);
         $t->contains('<span id="Fizz" class="anchor" data-pandoc-anchor="empty-target"></span>', $blocks);
         $t->contains('data-pandoc-bookmark-name="UnusedAnchor"', $blocks);
+    },
+    'canonicalizes overlapping referenced docx bookmark aliases to the first anchor' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes(<<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:hyperlink w:anchor="Fizz"><w:r><w:t>One link.</w:t></w:r></w:hyperlink></w:p>
+    <w:p><w:bookmarkStart w:id="1" w:name="Fizz"/><w:bookmarkStart w:id="2" w:name="Pop"/><w:r><w:t>Shared target.</w:t></w:r><w:bookmarkEnd w:id="1"/><w:bookmarkEnd w:id="2"/></w:p>
+    <w:p><w:hyperlink w:anchor="Pop"><w:r><w:t>Alias link.</w:t></w:r></w:hyperlink></w:p>
+  </w:body>
+</w:document>
+XML);
+
+        $document = (new DocxReader())->read($bytes);
+        $target = $document->children[1];
+
+        $t->same('#Fizz', $document->children[0]->children[0]->attr('url'));
+        $t->same('#Fizz', $document->children[2]->children[0]->attr('url'));
+        $t->same(['span', 'text'], array_map(static fn ($node): string => $node->type, $target->children));
+        $t->same('Fizz', $target->children[0]->attr('id'));
+        $t->same('Shared target.', $target->children[1]->attr('text'));
     },
     'preserves empty docx index fields without leaking field instructions' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
         $bytes = $buildDocxReaderPackageBytes(<<<'XML'

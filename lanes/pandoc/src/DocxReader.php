@@ -48,6 +48,9 @@ final class DocxReader
 
     private int $textWidthTwips = 9360;
 
+    /** @var array<string, true> */
+    private array $openRawBookmarkIds = [];
+
     private string $revisionMode;
 
     /**
@@ -474,6 +477,8 @@ final class DocxReader
      */
     private function bodyBlocks(\DOMElement $body, bool $collectBodyMetadata = false): array
     {
+        $previousOpenRawBookmarkIds = $this->openRawBookmarkIds;
+        $this->openRawBookmarkIds = [];
         $blocks = [];
         $pendingListRecords = [];
         $pendingCodeLines = [];
@@ -838,6 +843,8 @@ final class DocxReader
 
         $flushPendingBlocks();
         $flushTableCaption();
+
+        $this->openRawBookmarkIds = $previousOpenRawBookmarkIds;
 
         return $blocks;
     }
@@ -1381,7 +1388,7 @@ final class DocxReader
 
         $children = [
             new AstNode('text', ['text' => $marker]),
-            new AstNode('space'),
+            new AstNode('text', ['text' => ' ']),
             ...$paragraph->children,
         ];
 
@@ -1876,7 +1883,7 @@ final class DocxReader
 
         $this->flushOpenComplexFields($complexFieldStack, $inlines);
 
-        return $this->mergeAdjacentText($inlines);
+        return $this->normalizeInlineSiblings($inlines);
     }
 
     /**
@@ -3073,9 +3080,19 @@ final class DocxReader
             return $nodes;
         }
 
+        $bookmarkAliases = [];
+        $this->collectOverlappingBookmarkAliases($nodes, $linkTargets, $bookmarkAliases);
+        if ($bookmarkAliases !== []) {
+            $nodes = $this->rewriteBookmarkTargetLinks($nodes, $bookmarkAliases);
+            foreach ($bookmarkAliases as $alias => $canonical) {
+                unset($linkTargets[$alias]);
+                $linkTargets[$canonical] = true;
+            }
+        }
+
         $promotedBookmarkIds = [];
 
-        return $this->promoteReferencedBookmarkAnchors($nodes, $linkTargets, $promotedBookmarkIds);
+        return $this->promoteReferencedBookmarkAnchors($nodes, $linkTargets, $promotedBookmarkIds, $bookmarkAliases);
     }
 
     /**
@@ -3101,15 +3118,67 @@ final class DocxReader
     /**
      * @param list<AstNode> $nodes
      * @param array<string, true> $linkTargets
+     * @param array<string, string> $bookmarkAliases
+     */
+    private function collectOverlappingBookmarkAliases(array $nodes, array $linkTargets, array &$bookmarkAliases): void
+    {
+        $count = count($nodes);
+        for ($i = 0; $i < $count; $i++) {
+            $node = $nodes[$i];
+            $starts = [];
+            while ($i < $count) {
+                $bookmark = $this->rawBookmarkStart($nodes[$i]);
+                if ($bookmark === null) {
+                    break;
+                }
+
+                $starts[] = $bookmark;
+                $i++;
+            }
+
+            if (count($starts) > 1) {
+                $canonical = null;
+                foreach ($starts as $bookmark) {
+                    if (!isset($linkTargets[$bookmark['name']])) {
+                        continue;
+                    }
+                    if ($canonical === null) {
+                        $canonical = $bookmark['name'];
+                        continue;
+                    }
+                    $bookmarkAliases[$bookmark['name']] = $canonical;
+                }
+            }
+
+            if ($i >= $count) {
+                break;
+            }
+
+            $node = $nodes[$i];
+            if ($node->children !== []) {
+                $this->collectOverlappingBookmarkAliases($node->children, $linkTargets, $bookmarkAliases);
+            }
+        }
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @param array<string, true> $linkTargets
      * @param array<string, true> $promotedBookmarkIds
+     * @param array<string, string> $bookmarkAliases
      * @return list<AstNode>
      */
-    private function promoteReferencedBookmarkAnchors(array $nodes, array $linkTargets, array &$promotedBookmarkIds): array
+    private function promoteReferencedBookmarkAnchors(array $nodes, array $linkTargets, array &$promotedBookmarkIds, array $bookmarkAliases = []): array
     {
         $rebuilt = [];
         foreach ($nodes as $node) {
             $bookmark = $this->rawBookmarkStart($node);
             if ($bookmark !== null) {
+                if (isset($bookmarkAliases[$bookmark['name']])) {
+                    $promotedBookmarkIds[$bookmark['id']] = true;
+                    continue;
+                }
+
                 if (isset($linkTargets[$bookmark['name']])) {
                     $promotedBookmarkIds[$bookmark['id']] = true;
                     $rebuilt[] = new AstNode('span', [
@@ -3131,7 +3200,7 @@ final class DocxReader
 
             $children = $node->children === []
                 ? []
-                : $this->promoteReferencedBookmarkAnchors($node->children, $linkTargets, $promotedBookmarkIds);
+                : $this->promoteReferencedBookmarkAnchors($node->children, $linkTargets, $promotedBookmarkIds, $bookmarkAliases);
             $rebuilt[] = new AstNode($node->type, $node->attrs, $children);
         }
 
@@ -3299,6 +3368,8 @@ final class DocxReader
                 return null;
             }
 
+            $this->openRawBookmarkIds[$id] = true;
+
             return new AstNode('raw_inline', [
                 'format' => 'openxml',
                 'text' => '<w:bookmarkStart w:id="' . $this->xmlAttr($id) . '" w:name="' . $this->xmlAttr($name) . '"/>',
@@ -3310,6 +3381,11 @@ final class DocxReader
 
             return null;
         }
+
+        if (!isset($this->openRawBookmarkIds[$id])) {
+            return null;
+        }
+        unset($this->openRawBookmarkIds[$id]);
 
         return new AstNode('raw_inline', [
             'format' => 'openxml',
@@ -4371,12 +4447,54 @@ final class DocxReader
                 if ($prop->localName === 'rStyle') {
                     $styleId = $this->attr($prop, self::W_NS, 'val');
                     $style = array_replace($style, $this->styles[$styleId] ?? []);
+                    if ($this->runStyleIsInlineCode($styleId)) {
+                        $style['code'] = true;
+                    }
+                    if ($this->runStyleIsHyperlink($styleId) && !isset($style['underlineFromDirectFormatting'])) {
+                        unset($style['underline']);
+                    }
                 }
             }
-            $style = array_replace($style, $this->runPropertyStyle($rPr));
+            $directStyle = $this->runPropertyStyle($rPr);
+            if (array_key_exists('underline', $directStyle)) {
+                $directStyle['underlineFromDirectFormatting'] = true;
+            }
+            $style = array_replace($style, $directStyle);
         }
 
+        unset($style['underlineFromDirectFormatting']);
+
         return array_filter($style, 'is_bool');
+    }
+
+    private function runStyleIsInlineCode(string $styleId): bool
+    {
+        foreach ($this->styleChainIds($styleId) as $candidateStyleId) {
+            $style = $this->styles[$candidateStyleId] ?? [];
+            foreach ([$candidateStyleId, (string) ($style['styleName'] ?? '')] as $candidate) {
+                $normalized = strtolower(preg_replace('/[^a-z0-9]+/i', '', $candidate) ?? '');
+                if (in_array($normalized, ['verbatimchar', 'sourcecode'], true)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private function runStyleIsHyperlink(string $styleId): bool
+    {
+        foreach ($this->styleChainIds($styleId) as $candidateStyleId) {
+            $style = $this->styles[$candidateStyleId] ?? [];
+            foreach ([$candidateStyleId, (string) ($style['styleName'] ?? '')] as $candidate) {
+                $normalized = strtolower(preg_replace('/[^a-z0-9]+/i', '', $candidate) ?? '');
+                if (in_array($normalized, ['hyperlink', 'lienhypertexte', 'link'], true)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private function runUsesSymbolFont(\DOMElement $run): bool
@@ -4497,6 +4615,10 @@ final class DocxReader
      */
     private function styledRunNodes(array $nodes, array $style): array
     {
+        if (($style['code'] ?? false) && $nodes !== [] && $this->allNodesHaveType($nodes, 'text')) {
+            return [new AstNode('code', ['text' => $this->nodeText(new AstNode('span', [], $nodes))])];
+        }
+
         foreach ([
             'strong' => 'strong',
             'emph' => 'emph',
@@ -5367,6 +5489,54 @@ final class DocxReader
         }
 
         return $merged;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @return list<AstNode>
+     */
+    private function normalizeInlineSiblings(array $nodes): array
+    {
+        $normalized = [];
+        foreach ($nodes as $node) {
+            $children = $node->children === [] ? [] : $this->normalizeInlineSiblings($node->children);
+            $node = new AstNode($node->type, $node->attrs, $children);
+
+            $lastIndex = array_key_last($normalized);
+            $last = $lastIndex === null ? null : $normalized[$lastIndex];
+            if ($this->canMergeInlineSiblings($last, $node)) {
+                /** @var AstNode $last */
+                $normalized[$lastIndex] = new AstNode(
+                    $last->type,
+                    $last->attrs,
+                    $this->normalizeInlineSiblings([...$last->children, ...$node->children])
+                );
+                continue;
+            }
+
+            $normalized[] = $node;
+        }
+
+        return $this->mergeAdjacentText($normalized);
+    }
+
+    private function canMergeInlineSiblings(?AstNode $left, AstNode $right): bool
+    {
+        if (!$left instanceof AstNode || $left->type !== $right->type || $left->attrs !== $right->attrs) {
+            return false;
+        }
+
+        return in_array($right->type, [
+            'emph',
+            'strong',
+            'underline',
+            'strikeout',
+            'small_caps',
+            'superscript',
+            'subscript',
+            'span',
+            'link',
+        ], true);
     }
 
     private function normalizeWordTarget(string $target): string

@@ -302,11 +302,13 @@ final class DocxNativeAstComparisonHarness
                 'inline and block AST shape after local readers normalize native constructors and adjacent text runs',
             ],
             'excludes' => [
-                'local native/parser provenance attrs',
-                'document-level metadata added by local DOCX package parsing',
-                'derived text attrs on plain, paragraph, and heading nodes',
-                'reader-specific adjacent Str/Space text-node segmentation',
-            ],
+            'local native/parser provenance attrs',
+            'document-level metadata added by local DOCX package parsing',
+            'local DOCX raw bookmark markers and visible field/content-control provenance wrappers',
+            'derived text attrs on plain, paragraph, and heading nodes',
+            'DOCX tab separator encoding when upstream native exposes equivalent spacing',
+            'reader-specific adjacent Str/Space text-node segmentation',
+        ],
             'doesNotAssert' => [
                 'upstream Haskell/Cabal runner execution',
                 'DOCX writer golden package parity',
@@ -393,17 +395,33 @@ final class DocxNativeAstComparisonHarness
     {
         $normalized = [];
         foreach ($children as $child) {
-            $node = $this->normalizedNode($child);
-            $lastIndex = count($normalized) - 1;
-            if ($lastIndex >= 0 && $this->isPlainTextNode($normalized[$lastIndex]) && $this->isPlainTextNode($node)) {
-                $normalized[$lastIndex]['attrs']['text'] .= $node['attrs']['text'];
+            $replacementChildren = $this->comparisonReplacementChildren($child);
+            if (is_array($replacementChildren)) {
+                foreach ($replacementChildren as $replacementChild) {
+                    $this->appendNormalizedChild($normalized, $this->normalizedNode($replacementChild));
+                }
                 continue;
             }
 
-            $normalized[] = $node;
+            $this->appendNormalizedChild($normalized, $this->normalizedNode($child));
         }
 
-        return $normalized;
+        return $this->trimBoundaryWhitespaceText($normalized);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $normalized
+     * @param array<string, mixed> $node
+     */
+    private function appendNormalizedChild(array &$normalized, array $node): void
+    {
+            $lastIndex = count($normalized) - 1;
+            if ($lastIndex >= 0 && $this->isPlainTextNode($normalized[$lastIndex]) && $this->isPlainTextNode($node)) {
+                $normalized[$lastIndex]['attrs']['text'] .= $node['attrs']['text'];
+                return;
+            }
+
+            $normalized[] = $node;
     }
 
     /**
@@ -420,8 +438,117 @@ final class DocxNativeAstComparisonHarness
             && ($node['children'] ?? null) === [];
     }
 
+    /**
+     * Returns a replacement child list for DOCX-only comparison wrappers, an
+     * empty list for ignored markers, or null when the node should compare as-is.
+     *
+     * @return list<AstNode>|null
+     */
+    private function comparisonReplacementChildren(AstNode $node): ?array
+    {
+        if ($this->isRawBookmarkInline($node)) {
+            return [];
+        }
+
+        if ($this->isWhitespaceOnlyStyledInline($node)) {
+            return [];
+        }
+
+        if ($this->isTransparentDocxProvenanceSpan($node)) {
+            return $node->children;
+        }
+
+        return null;
+    }
+
+    private function isRawBookmarkInline(AstNode $node): bool
+    {
+        if ($node->type !== 'raw_inline' || $node->attr('format') !== 'openxml') {
+            return false;
+        }
+
+        return preg_match('/^<w:bookmark(?:Start|End)\b/', (string) $node->attr('text', '')) === 1;
+    }
+
+    private function isWhitespaceOnlyStyledInline(AstNode $node): bool
+    {
+        if (!in_array($node->type, ['emph', 'strong', 'underline', 'strikeout', 'small_caps', 'superscript', 'subscript'], true)) {
+            return false;
+        }
+
+        return $this->normalizedInlineText($node) !== '' && trim($this->normalizedInlineText($node)) === '';
+    }
+
+    private function isTransparentDocxProvenanceSpan(AstNode $node): bool
+    {
+        if ($node->type !== 'span') {
+            return false;
+        }
+
+        $classes = $node->attr('classes', []);
+        if (!is_array($classes)) {
+            return false;
+        }
+        $classes = array_map('strval', $classes);
+
+        if (in_array('indexref', $classes, true) || in_array('docx-index-entry', $classes, true)) {
+            return false;
+        }
+
+        return in_array('docx-field', $classes, true)
+            || in_array('docx-generated-field', $classes, true)
+            || in_array('docx-content-control', $classes, true)
+            || in_array('docx-content-control-inline', $classes, true);
+    }
+
+    private function normalizedInlineText(AstNode $node): string
+    {
+        if (array_key_exists('text', $node->attrs) && is_string($node->attrs['text'])) {
+            return $node->attrs['text'];
+        }
+
+        $text = '';
+        foreach ($node->children as $child) {
+            $text .= $this->normalizedInlineText($child);
+        }
+
+        return $text;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     * @return list<array<string, mixed>>
+     */
+    private function trimBoundaryWhitespaceText(array $nodes): array
+    {
+        while ($nodes !== [] && $this->isWhitespaceOnlyPlainTextNode($nodes[0])) {
+            array_shift($nodes);
+        }
+
+        while ($nodes !== [] && $this->isWhitespaceOnlyPlainTextNode($nodes[count($nodes) - 1])) {
+            array_pop($nodes);
+        }
+
+        return array_values($nodes);
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     */
+    private function isWhitespaceOnlyPlainTextNode(array $node): bool
+    {
+        if (!$this->isPlainTextNode($node)) {
+            return false;
+        }
+
+        return trim((string) $node['attrs']['text']) === '';
+    }
+
     private function normalizedValue(mixed $value): mixed
     {
+        if (is_string($value)) {
+            return str_replace("\t", ' ', $value);
+        }
         if ($value instanceof AstNode) {
             return $this->normalizedNode($value);
         }

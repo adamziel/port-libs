@@ -53,6 +53,17 @@ XML);
     $zip->close();
 };
 
+$writeDocxDocument = static function (string $path, string $documentXml): void {
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+        throw new RuntimeException("Unable to create DOCX fixture {$path}");
+    }
+
+    $zip->addFromString('[Content_Types].xml', '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');
+    $zip->addFromString('word/document.xml', $documentXml);
+    $zip->close();
+};
+
 return [
     'skips docx native ast comparison when cache is absent' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $root = $makeTempDir();
@@ -140,6 +151,43 @@ return [
             $t->same('open', $report['orderedRemainingGaps'][2]['status']);
             $t->true(in_array('document-level metadata added by local DOCX package parsing', $report['normalizationPolicy']['excludes'], true));
             $t->true(in_array('reader-specific adjacent Str/Space text-node segmentation', $report['normalizationPolicy']['excludes'], true));
+        } finally {
+            $removeTree($root);
+        }
+    },
+    'normalizes docx provenance wrappers and bookmark markers in ast comparisons' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeDocxDocument): void {
+        $root = $makeTempDir();
+
+        try {
+            $writeDocxDocument($root . '/same.docx', <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:bookmarkStart w:id="1" w:name="_TocLocal"/>
+      <w:r><w:t xml:space="preserve">Last update: </w:t></w:r>
+      <w:fldSimple w:instr=' SAVEDATE \@ "MMMM d, yyyy" \* MERGEFORMAT '>
+        <w:r><w:t>May 1, 2017</w:t></w:r>
+      </w:fldSimple>
+      <w:bookmarkEnd w:id="1"/>
+    </w:p>
+    <w:p>
+      <w:sdt>
+        <w:sdtPr><w:alias w:val="Reviewer"/><w:id w:val="7"/></w:sdtPr>
+        <w:sdtContent><w:r><w:t>Controlled text</w:t></w:r></w:sdtContent>
+      </w:sdt>
+    </w:p>
+  </w:body>
+</w:document>
+XML);
+            file_put_contents($root . '/same.native', '[Para [Str "Last",Space,Str "update:",Space,Str "May",Space,Str "1,",Space,Str "2017"],Para [Str "Controlled",Space,Str "text"]]');
+
+            $report = (new DocxNativeAstComparisonHarness())->run($root);
+
+            $t->same(1, $report['normalizedAstMatchCount']);
+            $t->same(0, $report['normalizedAstMismatchCount']);
+            $t->true(in_array('local DOCX raw bookmark markers and visible field/content-control provenance wrappers', $report['normalizationPolicy']['excludes'], true));
+            $t->true(in_array('DOCX tab separator encoding when upstream native exposes equivalent spacing', $report['normalizationPolicy']['excludes'], true));
         } finally {
             $removeTree($root);
         }
