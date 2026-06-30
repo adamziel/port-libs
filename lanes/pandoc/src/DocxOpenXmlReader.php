@@ -49593,6 +49593,9 @@ final class DocxOpenXmlReader
         if (str_contains($message, 'unsafe percent-encoded dot segment')) {
             return 'unsafe-percent-encoded-dot-segment';
         }
+        if (str_contains($message, 'unsafe percent-encoded byte')) {
+            return 'unsafe-percent-encoded-byte';
+        }
         if (str_contains($message, 'invalid URI bytes')) {
             return 'invalid-uri-bytes';
         }

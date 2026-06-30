@@ -13451,6 +13451,91 @@ XML;
         $t->same(['word/_rels/document.xml.rels'], $summary['relationshipPartsWithInvalidTargetResolution']);
         $t->same(['rMalformedPercent', 'rEncodedSlash', 'rBackslash'], array_column($summary['relationshipsWithInvalidTargetResolution'], 'id'));
     },
+    'flags unsafe docx relationship target URI suffixes without aborting package ingestion' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rBadQueryEscape" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review.png?audit=%ZZ#img"/>' . "\n" .
+            '  <Relationship Id="rBadFragmentByte" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review.png#frag%00"/>' . "\n" .
+            '  <Relationship Id="rRawQuerySpace" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review.png?label=raw value"/>' . "\n" .
+            '  <Relationship Id="rEncodedQuerySpace" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review.png?label=raw%20value"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $relationshipPart = $package['relationshipParts']['word/_rels/document.xml.rels'];
+        $records = [];
+        foreach ($relationshipPart['relationshipRecords'] as $record) {
+            $records[$record['id']] = $record;
+        }
+
+        $t->same('document', $document->type);
+        $t->same(6, $relationshipPart['relationshipRecordCount']);
+        $t->same(6, $relationshipPart['relationshipCount']);
+        $t->same(3, $relationshipPart['invalidRelationshipRecordCount']);
+        $t->same(3, $relationshipPart['relationshipRecordIssueCount']);
+        $t->same(['invalid-relationship-target-uri'], $relationshipPart['relationshipRecordIssueCodes']);
+        $t->same(3, $relationshipPart['invalidTargetResolutionRecordCount']);
+        $t->same([
+            'invalid-uri-bytes',
+            'malformed-percent-escape',
+            'unsafe-percent-encoded-byte',
+        ], $relationshipPart['targetResolutionIssueCodes']);
+
+        $badQuery = $records['rBadQueryEscape'];
+        $t->same(false, $badQuery['targetResolutionValid']);
+        $t->same('internal-tolerant', $badQuery['targetResolutionMode']);
+        $t->same(true, $badQuery['targetResolutionUsedTolerantFallback']);
+        $t->contains('malformed percent escape', $badQuery['targetResolutionError'] ?? '');
+        $t->same(['malformed-percent-escape'], $badQuery['targetResolutionIssueCodes']);
+        $t->same(['invalid-relationship-target-uri'], $badQuery['issues']);
+        $t->same('word/media/review.png', $badQuery['targetPart']);
+        $t->same('?audit=%ZZ#img', $badQuery['targetReferenceSuffix']);
+        $t->same('audit=%ZZ', $badQuery['targetQuery']);
+        $t->same('img', $badQuery['targetFragment']);
+
+        $badFragment = $records['rBadFragmentByte'];
+        $t->same(false, $badFragment['targetResolutionValid']);
+        $t->same(true, $badFragment['targetResolutionUsedTolerantFallback']);
+        $t->contains('unsafe percent-encoded byte', $badFragment['targetResolutionError'] ?? '');
+        $t->same(['unsafe-percent-encoded-byte'], $badFragment['targetResolutionIssueCodes']);
+        $t->same('word/media/review.png', $badFragment['targetPart']);
+        $t->same('#frag%00', $badFragment['targetReferenceSuffix']);
+        $t->same(null, $badFragment['targetQuery']);
+        $t->same('frag%00', $badFragment['targetFragment']);
+
+        $rawQuery = $records['rRawQuerySpace'];
+        $t->same(false, $rawQuery['targetResolutionValid']);
+        $t->same(true, $rawQuery['targetResolutionUsedTolerantFallback']);
+        $t->contains('invalid URI bytes', $rawQuery['targetResolutionError'] ?? '');
+        $t->same(['invalid-uri-bytes'], $rawQuery['targetResolutionIssueCodes']);
+        $t->same('word/media/review.png', $rawQuery['targetPart']);
+        $t->same('?label=raw value', $rawQuery['targetReferenceSuffix']);
+        $t->same('label=raw value', $rawQuery['targetQuery']);
+
+        $validEncoded = $records['rEncodedQuerySpace'];
+        $t->same(true, $validEncoded['targetResolutionValid']);
+        $t->same(false, $validEncoded['targetResolutionUsedTolerantFallback']);
+        $t->same(null, $validEncoded['targetResolutionError']);
+        $t->same([], $validEncoded['targetResolutionIssueCodes']);
+        $t->same(true, $validEncoded['valid']);
+        $t->same([], $validEncoded['issues']);
+        $t->same('word/media/review.png', $validEncoded['targetPart']);
+        $t->same('?label=raw%20value', $validEncoded['targetReferenceSuffix']);
+        $t->same('label=raw%20value', $validEncoded['targetQuery']);
+
+        $t->same(3, $summary['invalidRelationshipRecordCount']);
+        $t->same(3, $summary['relationshipRecordIssueCount']);
+        $t->same(['invalid-relationship-target-uri'], $summary['relationshipRecordIssueCodes']);
+        $t->same(3, $summary['relationshipRecordInvalidTargetResolutionCount']);
+        $t->same($relationshipPart['targetResolutionIssueCodes'], $summary['relationshipRecordTargetResolutionIssueCodes']);
+        $t->same(['word/_rels/document.xml.rels'], $summary['relationshipPartsWithInvalidRecords']);
+        $t->same(['word/_rels/document.xml.rels'], $summary['relationshipPartsWithInvalidTargetResolution']);
+        $t->same(['rBadQueryEscape', 'rBadFragmentByte', 'rRawQuerySpace'], array_column($summary['relationshipsWithInvalidTargetResolution'], 'id'));
+    },
     'reports malformed docx relationship sidecar xml without aborting package ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/review-source.xml'] = '<review-source/>';
