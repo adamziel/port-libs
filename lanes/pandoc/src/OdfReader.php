@@ -745,6 +745,9 @@ final class OdfReader
             }
             $encrypted = ($rawItem['encrypted'] ?? false) === true;
             $declaredSize = is_int($rawItem['declaredSize'] ?? null) ? $rawItem['declaredSize'] : null;
+            if ($isDirectory && $declaredSize !== null) {
+                $diagnostics[] = 'odf-manifest-directory-declared-size';
+            }
             $declaredSizeMismatch = !$encrypted
                 && $declaredSize !== null
                 && $storedByteLength !== null

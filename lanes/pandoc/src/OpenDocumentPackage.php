@@ -2556,6 +2556,9 @@ final class OpenDocumentPackage
             if ($isDirectory) {
                 $diagnostics[] = 'odf-manifest-directory-entry';
             }
+            if ($isDirectory && $declaredSize !== null) {
+                $diagnostics[] = 'odf-manifest-directory-declared-size';
+            }
             if ($encrypted) {
                 $diagnostics[] = 'odf-manifest-encrypted-package-part';
             }

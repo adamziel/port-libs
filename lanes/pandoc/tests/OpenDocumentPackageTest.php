@@ -1085,6 +1085,46 @@ XML,
         $t->same(['odf-manifest-file-entry-missing-media-type'], $inventory['Pictures/nameless.bin']['manifestDiagnostics']);
         $t->same(false, $inventory['Pictures/nameless.bin']['canExposeBytes']);
     },
+    'reports compact ODT manifest directory declared sizes as metadata-only diagnostics' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="" manifest:full-path="Pictures/" manifest:size="24"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            $manifestXml
+        );
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [['name' => 'Pictures/', 'data' => '', 'compressionMethod' => 0]],
+        ))->summarize();
+        $directory = $summary['manifestReview']['directoryItems'][0];
+        $reviewByPath = [];
+        foreach ($summary['manifestReview']['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $inventory = $summary['packageInventory']['parts'];
+
+        $t->same('Pictures/', $directory['path']);
+        $t->same(true, $directory['isDirectory']);
+        $t->same(24, $directory['declaredSize']);
+        $t->same('24', $directory['declaredSizeRaw']);
+        $t->same(true, $directory['declaredSizeValid']);
+        $t->same(false, $directory['declaredSizeMismatch']);
+        $t->same([
+            'odf-manifest-directory-entry',
+            'odf-manifest-directory-declared-size',
+        ], $directory['diagnostics']);
+
+        $t->same(1, $summary['manifestReview']['directoryCount']);
+        $t->same(2, $summary['manifestReview']['diagnosticCount']);
+        $t->same([
+            'odf-manifest-directory-declared-size' => 1,
+            'odf-manifest-directory-entry' => 1,
+        ], $summary['manifestReview']['diagnosticCodeCounts']);
+        $t->same($directory['diagnostics'], $reviewByPath['Pictures/']['diagnostics']);
+        $t->same($directory['diagnostics'], $inventory['Pictures/']['manifestDiagnostics']);
+        $t->same('directory-entry-no-bytes', $inventory['Pictures/']['byteExposurePolicy']);
+    },
     'reports compact ODT audio and video manifest media resources' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $audioBytes = 'AUDIODATA';
         $videoBytes = 'VIDEODATA!';

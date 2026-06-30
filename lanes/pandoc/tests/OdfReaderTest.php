@@ -9462,6 +9462,42 @@ XML;
             static fn (array $item): bool => ($item['isDirectory'] ?? false) === true
         )));
     },
+    'diagnoses ODT manifest directory declared sizes as metadata-only provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifestWithDirectorySize = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            '<manifest:file-entry manifest:full-path="Pictures/" manifest:media-type="" manifest:size="24"/>'
+            . '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithDirectorySize, null, null, [
+            ['name' => 'Pictures/', 'data' => '', 'compressionMethod' => 0],
+        ]));
+        $manifestByPath = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByPath[$item['fullPath']] = $item;
+        }
+        $summary = $result['importReport']['manifest']['mediaTypeSummary'];
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+
+        $directory = $manifestByPath['Pictures/'];
+        $t->same(true, $directory['isDirectory']);
+        $t->same(true, $directory['exists']);
+        $t->same(false, $directory['canExposeBytes']);
+        $t->same(24, $directory['declaredSize']);
+        $t->same('24', $directory['declaredSizeRaw']);
+        $t->same(true, $directory['declaredSizeValid']);
+        $t->same(false, $directory['declaredSizeMismatch']);
+        $t->same(['odf-manifest-directory-declared-size'], $directory['diagnostics']);
+
+        $t->same(1, $summary['diagnosticCount']);
+        $t->same(['odf-manifest-directory-declared-size' => 1], $summary['diagnosticCodeCounts']);
+        $t->same(['Pictures/'], $summary['emptyMediaTypeDirectoryParts']);
+        $t->same('Pictures/', $summary['diagnostics'][0]['part']);
+        $t->same('odf-manifest-directory-declared-size', $summary['diagnostics'][0]['code']);
+        $t->same(['odf-manifest-directory-declared-size'], $provenance['parts']['Pictures/']['manifestDiagnostics']);
+        $t->same('directory-entry-no-bytes', $provenance['parts']['Pictures/']['byteExposurePolicy']);
+    },
     'summarizes ODT manifest media-type package buckets for review handoff' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $objectXml = '<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math>';
         $encryptedHero = <<<'XML'
