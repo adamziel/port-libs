@@ -1678,5 +1678,7 @@
   "mappedOdfManifestDirectoryDeclaredSizeCases": 1,
   "odfManifestDirectoryDeclaredSizeAssertions": 28,
   "mappedOdfMetaInfInvalidDeclaredSizeCases": 1,
-  "odfMetaInfInvalidDeclaredSizeAssertions": 13
+  "odfMetaInfInvalidDeclaredSizeAssertions": 13,
+  "mappedOdfManifestPreferredViewIdentityCases": 1,
+  "odfManifestPreferredViewIdentityAssertions": 8
 }

@@ -1571,6 +1571,8 @@ final class OpenDocumentPackage
                 'manifestPackagePath' => $part['manifestPackagePath'] ?? null,
                 'manifestMediaTypeBase' => $part['manifestMediaTypeBase'] ?? null,
                 'manifestMediaFamily' => $part['manifestMediaFamily'] ?? null,
+                'manifestVersion' => $part['manifestVersion'] ?? null,
+                'manifestPreferredViewMode' => $part['manifestPreferredViewMode'] ?? null,
                 'manifestDeclaredSize' => $part['manifestDeclaredSize'] ?? null,
                 'manifestDeclaredSizeRaw' => $part['manifestDeclaredSizeRaw'] ?? null,
                 'manifestDeclaredSizeValid' => ($part['manifestDeclaredSizeValid'] ?? false) === true,

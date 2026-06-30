@@ -678,6 +678,10 @@ XML;
             $orderByPath[$item['fullPath']] = $item;
         }
         $inventory = $provenance['parts'];
+        $identityEntries = [];
+        foreach ($provenance['packageIdentity']['packageEntries'] as $item) {
+            $identityEntries[$item['part']] = $item;
+        }
 
         $t->same($provenance, $result['document']->attr('manifest')['packageProvenance']);
         $t->same(5, $provenance['manifestFileEntryCount']);
@@ -701,6 +705,10 @@ XML;
         $t->same('page-preview', $inventory['content.xml']['manifestPreferredViewMode']);
         $t->same('1.1', $inventory['Pictures/hero.png']['manifestVersion']);
         $t->same('presentation-slide-show', $inventory['Pictures/hero.png']['manifestPreferredViewMode']);
+        $t->same('1.2', $identityEntries['content.xml']['manifestVersion']);
+        $t->same('page-preview', $identityEntries['content.xml']['manifestPreferredViewMode']);
+        $t->same('1.1', $identityEntries['Pictures/hero.png']['manifestVersion']);
+        $t->same('presentation-slide-show', $identityEntries['Pictures/hero.png']['manifestPreferredViewMode']);
     },
     'preserves typed ODT meta user-defined fields for package review' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $metaWithTypedUserDefined = <<<'XML'

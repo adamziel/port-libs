@@ -336,6 +336,10 @@ return [
             $mediaByPath[$media['path']] = $media;
         }
         $inventory = $summary['packageInventory']['parts'];
+        $identityEntries = [];
+        foreach ($summary['packageIdentity']['packageEntries'] as $item) {
+            $identityEntries[$item['path']] = $item;
+        }
 
         $t->same('1.4', $odt->manifestVersion());
         $t->same('1.4', $summary['manifestVersion']);
@@ -359,6 +363,10 @@ return [
         $t->same('page-preview', $inventory['content.xml']['manifestPreferredViewMode']);
         $t->same('1.1', $inventory['Pictures/hero.png']['manifestVersion']);
         $t->same('thumbnail', $inventory['Pictures/hero.png']['manifestPreferredViewMode']);
+        $t->same('1.2', $identityEntries['content.xml']['manifestVersion']);
+        $t->same('page-preview', $identityEntries['content.xml']['manifestPreferredViewMode']);
+        $t->same('1.1', $identityEntries['Pictures/hero.png']['manifestVersion']);
+        $t->same('thumbnail', $identityEntries['Pictures/hero.png']['manifestPreferredViewMode']);
     },
     'preserves compact ODT manifest custom file-entry attributes in review packets' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifest = str_replace(

@@ -2919,6 +2919,8 @@ final class OdfReader
                 'manifestPartQuery' => $item['manifestPartQuery'] ?? null,
                 'manifestPartFragment' => $item['manifestPartFragment'] ?? null,
                 'manifestMediaTypeBase' => $item['manifestMediaTypeBase'] ?? null,
+                'manifestVersion' => $item['manifestVersion'] ?? null,
+                'manifestPreferredViewMode' => $item['manifestPreferredViewMode'] ?? null,
                 'manifestDeclaredSize' => $item['manifestDeclaredSize'] ?? null,
                 'manifestDeclaredSizeRaw' => $item['manifestDeclaredSizeRaw'] ?? null,
                 'manifestDeclaredSizeInvalid' => ($item['manifestDeclaredSizeInvalid'] ?? false) === true,
