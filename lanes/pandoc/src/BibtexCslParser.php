@@ -1655,7 +1655,7 @@ final class BibtexCslParser
         return array_values(array_filter(
             array_map(
                 static fn (string $key): string => trim($key),
-                self::splitTopLevel($value, ',')
+                self::splitTopLevelAny($value, [',', ';'])
             ),
             static fn (string $key): bool => $key !== ''
         ));
@@ -2594,6 +2594,45 @@ final class BibtexCslParser
             }
 
             if ($char === $separator && $depth === 0) {
+                $parts[] = $buffer;
+                $buffer = '';
+                continue;
+            }
+
+            $buffer .= $char;
+        }
+
+        $parts[] = $buffer;
+
+        return array_map('trim', $parts);
+    }
+
+    /**
+     * @param list<string> $separators
+     * @return list<string>
+     */
+    private static function splitTopLevelAny(string $value, array $separators): array
+    {
+        $parts = [];
+        $buffer = '';
+        $depth = 0;
+        $length = strlen($value);
+        $separatorLookup = array_fill_keys($separators, true);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($char === '{') {
+                $depth++;
+                $buffer .= $char;
+                continue;
+            }
+
+            if ($char === '}') {
+                $depth = max(0, $depth - 1);
+                $buffer .= $char;
+                continue;
+            }
+
+            if ($depth === 0 && isset($separatorLookup[$char])) {
                 $parts[] = $buffer;
                 $buffer = '';
                 continue;
