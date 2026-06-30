@@ -18539,6 +18539,102 @@ XML;
             'followedHyperlink',
         ], $summary['settingsColorSchemeMappingKeys']);
     },
+    'summarizes docx settings locale and spacing provenance for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/docSettings/locale-spacing-settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rLocaleSpacingSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="../docSettings/locale-spacing-settings.xml?locale=review#spacing"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['docSettings/locale-spacing-settings.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:defaultTabStop w:val="1080"/>
+  <w:decimalSymbol w:val=","/>
+  <w:listSeparator w:val=" ; "/>
+  <w:characterSpacingControl w:val="compressPunctuationAndJapaneseKana"/>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $settings = $docx['settings'];
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $localeSpacing = $package['settingsLocaleSpacing'];
+        $inventory = $package['parts']['docSettings/locale-spacing-settings.xml'];
+        $selectedSettings = $package['selectedXmlParts']['byKind']['settings'];
+
+        $t->same('docSettings/locale-spacing-settings.xml', $docx['settingsPart']);
+        $t->same('rLocaleSpacingSettings', $docx['settingsRelationship']['id']);
+        $t->same('../docSettings/locale-spacing-settings.xml?locale=review#spacing', $docx['settingsRelationship']['target']);
+        $t->same('docSettings/locale-spacing-settings.xml', $docx['settingsRelationship']['targetPart']);
+        $t->same('locale=review', $docx['settingsRelationship']['targetQuery']);
+        $t->same('spacing', $docx['settingsRelationship']['targetFragment']);
+        $t->same('settings', $selectedSettings['rootLocalName']);
+        $t->same(true, $selectedSettings['contentTypeMatchesExpected']);
+        $t->true(in_array('settings', $inventory['roles'], true), 'settings inventory role missing');
+
+        $t->same(1080, $settings['defaultTabStopTwips']);
+        $t->same(',', $settings['decimalSymbol']);
+        $t->same(' ; ', $settings['listSeparator']);
+        $t->same('compressPunctuationAndJapaneseKana', $settings['characterSpacingControl']);
+
+        $t->same(true, $localeSpacing['defaultTabStopPresent']);
+        $t->same(1080, $localeSpacing['defaultTabStopTwips']);
+        $t->same('721-1440', $localeSpacing['defaultTabStopBucket']);
+        $t->same(true, $localeSpacing['characterSpacingControlPresent']);
+        $t->same('compressPunctuationAndJapaneseKana', $localeSpacing['characterSpacingControl']);
+        $t->same(true, $localeSpacing['characterSpacingControlKnown']);
+        $t->same(2, $localeSpacing['separatorCount']);
+        $t->same(['decimalSymbol', 'listSeparator'], $localeSpacing['separatorNames']);
+        $t->same(4, $localeSpacing['separatorByteLength']);
+        $t->same(2, $localeSpacing['separatorAsciiCount']);
+        $t->same(1, $localeSpacing['separatorWhitespaceValueCount']);
+        $t->same(0, $localeSpacing['issueCount']);
+        $t->same([], $localeSpacing['issueCodes']);
+        $t->same('settings-locale-spacing-metadata-only', $localeSpacing['reviewPolicy']);
+
+        $decimal = $localeSpacing['separatorItems'][0];
+        $list = $localeSpacing['separatorItems'][1];
+        $t->same('decimalSymbol', $decimal['name']);
+        $t->same(1, $decimal['valueByteLength']);
+        $t->same(true, $decimal['valueAscii']);
+        $t->same(false, $decimal['valueHasWhitespace']);
+        $t->same(sprintf('%08x', crc32(',')), $decimal['valueCrc32']);
+        $t->same(hash('sha256', ','), $decimal['valueSha256']);
+        $t->same('listSeparator', $list['name']);
+        $t->same(3, $list['valueByteLength']);
+        $t->same(true, $list['valueAscii']);
+        $t->same(true, $list['valueHasWhitespace']);
+        $t->same(sprintf('%08x', crc32(' ; ')), $list['valueCrc32']);
+        $t->same(hash('sha256', ' ; '), $list['valueSha256']);
+
+        $t->same(true, $summary['settingsDefaultTabStopPresent']);
+        $t->same(1080, $summary['settingsDefaultTabStopTwips']);
+        $t->same('721-1440', $summary['settingsDefaultTabStopBucket']);
+        $t->same(true, $summary['settingsCharacterSpacingControlPresent']);
+        $t->same('compressPunctuationAndJapaneseKana', $summary['settingsCharacterSpacingControl']);
+        $t->same(true, $summary['settingsCharacterSpacingControlKnown']);
+        $t->same(2, $summary['settingsLocaleSeparatorCount']);
+        $t->same(['decimalSymbol', 'listSeparator'], $summary['settingsLocaleSeparatorNames']);
+        $t->same(4, $summary['settingsLocaleSeparatorByteLength']);
+        $t->same(2, $summary['settingsLocaleSeparatorAsciiCount']);
+        $t->same(1, $summary['settingsLocaleSeparatorWhitespaceValueCount']);
+        $t->same(0, $summary['settingsLocaleSpacingIssueCount']);
+        $t->same([], $summary['settingsLocaleSpacingIssueCodes']);
+
+        $encodedLocaleSpacing = json_encode($localeSpacing);
+        $t->true(is_string($encodedLocaleSpacing), 'locale spacing provenance should encode for review');
+        $t->true(!str_contains((string) $encodedLocaleSpacing, '"value":" ; "'), 'locale spacing provenance should not expose separator values');
+    },
     'summarizes docx settings compatibility provenance for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

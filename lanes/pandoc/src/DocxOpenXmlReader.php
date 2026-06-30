@@ -1219,6 +1219,23 @@ final class DocxOpenXmlReader
             $packageProvenance['summary']['settingsColorSchemeMappingAttributeCount'] = count($colorSchemeMapping);
             $packageProvenance['summary']['settingsColorSchemeMappingKeys'] = array_keys($colorSchemeMapping);
         }
+        $settingsLocaleSpacing = $this->settingsLocaleSpacingProvenance($settings);
+        if ($settingsLocaleSpacing !== []) {
+            $packageProvenance['settingsLocaleSpacing'] = $settingsLocaleSpacing;
+            $packageProvenance['summary']['settingsDefaultTabStopPresent'] = $settingsLocaleSpacing['defaultTabStopPresent'];
+            $packageProvenance['summary']['settingsDefaultTabStopTwips'] = $settingsLocaleSpacing['defaultTabStopTwips'];
+            $packageProvenance['summary']['settingsDefaultTabStopBucket'] = $settingsLocaleSpacing['defaultTabStopBucket'];
+            $packageProvenance['summary']['settingsCharacterSpacingControlPresent'] = $settingsLocaleSpacing['characterSpacingControlPresent'];
+            $packageProvenance['summary']['settingsCharacterSpacingControl'] = $settingsLocaleSpacing['characterSpacingControl'];
+            $packageProvenance['summary']['settingsCharacterSpacingControlKnown'] = $settingsLocaleSpacing['characterSpacingControlKnown'];
+            $packageProvenance['summary']['settingsLocaleSeparatorCount'] = $settingsLocaleSpacing['separatorCount'];
+            $packageProvenance['summary']['settingsLocaleSeparatorNames'] = $settingsLocaleSpacing['separatorNames'];
+            $packageProvenance['summary']['settingsLocaleSeparatorByteLength'] = $settingsLocaleSpacing['separatorByteLength'];
+            $packageProvenance['summary']['settingsLocaleSeparatorAsciiCount'] = $settingsLocaleSpacing['separatorAsciiCount'];
+            $packageProvenance['summary']['settingsLocaleSeparatorWhitespaceValueCount'] = $settingsLocaleSpacing['separatorWhitespaceValueCount'];
+            $packageProvenance['summary']['settingsLocaleSpacingIssueCount'] = $settingsLocaleSpacing['issueCount'];
+            $packageProvenance['summary']['settingsLocaleSpacingIssueCodes'] = $settingsLocaleSpacing['issueCodes'];
+        }
         $viewStateDetails = $settings['viewStateDetails'] ?? null;
         if (is_array($viewStateDetails)) {
             if (isset($viewStateDetails['view'])) {
@@ -43489,6 +43506,14 @@ final class DocxOpenXmlReader
             }
         }
 
+        $characterSpacingControl = $this->firstElement($xpath, '/w:settings/w:characterSpacingControl', $dom);
+        if ($characterSpacingControl instanceof \DOMElement) {
+            $value = $characterSpacingControl->getAttributeNS(self::NS_W, 'val');
+            if ($value !== '') {
+                $settings['characterSpacingControl'] = $value;
+            }
+        }
+
         $themeFontLanguage = $this->firstElement($xpath, '/w:settings/w:themeFontLang', $dom);
         if ($themeFontLanguage instanceof \DOMElement) {
             $themeFontLanguageSettings = $this->wordAttributeMap($themeFontLanguage, ['val', 'eastAsia', 'bidi']);
@@ -43798,6 +43823,109 @@ final class DocxOpenXmlReader
             'enabledFlags' => $enabledFlags,
             'disabledFlags' => $disabledFlags,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $settings
+     * @return array<string, mixed>
+     */
+    private function settingsLocaleSpacingProvenance(array $settings): array
+    {
+        $defaultTabStop = is_int($settings['defaultTabStopTwips'] ?? null)
+            ? (int) $settings['defaultTabStopTwips']
+            : null;
+        $characterSpacingControl = is_string($settings['characterSpacingControl'] ?? null)
+            ? (string) $settings['characterSpacingControl']
+            : null;
+        $knownCharacterSpacingControls = [
+            'doNotCompress',
+            'compressPunctuation',
+            'compressPunctuationAndJapaneseKana',
+        ];
+        $separatorItems = [];
+        $separatorNames = [];
+        $separatorByteLength = 0;
+        $separatorAsciiCount = 0;
+        $separatorWhitespaceValueCount = 0;
+
+        foreach (['decimalSymbol', 'listSeparator'] as $name) {
+            if (!is_string($settings[$name] ?? null)) {
+                continue;
+            }
+
+            $value = (string) $settings[$name];
+            $separatorNames[] = $name;
+            $separatorByteLength += strlen($value);
+            $isAscii = preg_match('/\A[\x00-\x7F]*\z/', $value) === 1;
+            $hasWhitespace = preg_match('/[\x20\x09\x0D\x0A]/', $value) === 1;
+            if ($isAscii) {
+                ++$separatorAsciiCount;
+            }
+            if ($hasWhitespace) {
+                ++$separatorWhitespaceValueCount;
+            }
+
+            $separatorItems[] = [
+                'name' => $name,
+                'valueByteLength' => strlen($value),
+                'valueAscii' => $isAscii,
+                'valueHasWhitespace' => $hasWhitespace,
+                'valueCrc32' => $value === '' ? null : sprintf('%08x', crc32($value)),
+                'valueSha256' => $value === '' ? null : hash('sha256', $value),
+            ];
+        }
+
+        if ($defaultTabStop === null && $characterSpacingControl === null && $separatorItems === []) {
+            return [];
+        }
+
+        $issueCodes = [];
+        if ($defaultTabStop !== null && $defaultTabStop <= 0) {
+            $issueCodes['non-positive-default-tab-stop'] = true;
+        }
+        if ($characterSpacingControl !== null && !in_array($characterSpacingControl, $knownCharacterSpacingControls, true)) {
+            $issueCodes['unknown-character-spacing-control'] = true;
+        }
+        ksort($issueCodes, SORT_STRING);
+        sort($separatorNames, SORT_STRING);
+
+        return [
+            'defaultTabStopPresent' => $defaultTabStop !== null,
+            'defaultTabStopTwips' => $defaultTabStop,
+            'defaultTabStopBucket' => $defaultTabStop === null ? null : $this->settingsDefaultTabStopBucket($defaultTabStop),
+            'characterSpacingControlPresent' => $characterSpacingControl !== null,
+            'characterSpacingControl' => $characterSpacingControl,
+            'characterSpacingControlKnown' => $characterSpacingControl === null
+                ? null
+                : in_array($characterSpacingControl, $knownCharacterSpacingControls, true),
+            'separatorCount' => count($separatorItems),
+            'separatorNames' => $separatorNames,
+            'separatorByteLength' => $separatorByteLength,
+            'separatorAsciiCount' => $separatorAsciiCount,
+            'separatorWhitespaceValueCount' => $separatorWhitespaceValueCount,
+            'separatorItems' => $separatorItems,
+            'issueCount' => count($issueCodes),
+            'issueCodes' => array_keys($issueCodes),
+            'reviewPolicy' => 'settings-locale-spacing-metadata-only',
+        ];
+    }
+
+    private function settingsDefaultTabStopBucket(int $twips): string
+    {
+        if ($twips <= 0) {
+            return 'non-positive';
+        }
+        if ($twips <= 360) {
+            return '1-360';
+        }
+        if ($twips <= 720) {
+            return '361-720';
+        }
+        if ($twips <= 1440) {
+            return '721-1440';
+        }
+
+        return '1441+';
     }
 
     /**
