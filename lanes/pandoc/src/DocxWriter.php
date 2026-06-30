@@ -1456,8 +1456,8 @@ XML;
     {
         $fixed = $this->tableHasExplicitColumnWidths($table, $columnCount);
         $width = $fixed
-            ? '<w:tblW w:w="5000" w:type="pct"/><w:tblLayout w:type="fixed"/>'
-            : '<w:tblW w:w="0" w:type="auto"/>';
+            ? '<w:tblW w:type="pct" w:w="5000"/><w:tblLayout w:type="fixed"/>'
+            : '<w:tblW w:type="auto" w:w="0"/>';
         $firstRow = $hasHeaderRows ? '1' : '0';
         $lookValue = $hasHeaderRows ? '0020' : '0000';
 
@@ -1920,6 +1920,28 @@ XML;
                     continue;
                 }
 
+                if ($node->type === 'text' || $node->type === 'str') {
+                    $boundaryText = $this->splitPlainInlineBoundaryText($nodes, $index, $plain['text']);
+                    if ($boundaryText['leading'] !== '' || $boundaryText['trailing'] !== '') {
+                        if ($boundaryText['leading'] !== '') {
+                            $flushBuffer();
+                            $xml .= $this->textRun($boundaryText['leading'], array_replace($baseFormat, ['preserveSpace' => true]));
+                        }
+
+                        if ($boundaryText['text'] !== '') {
+                            $buffer .= $boundaryText['text'];
+                            $bufferPreserveSpace = $bufferPreserveSpace || $plain['preserveSpace'] || $buffered;
+                            $buffered = true;
+                        }
+
+                        if ($boundaryText['trailing'] !== '') {
+                            $flushBuffer();
+                            $xml .= $this->textRun($boundaryText['trailing'], array_replace($baseFormat, ['preserveSpace' => true]));
+                        }
+                        continue;
+                    }
+                }
+
                 $buffer .= $plain['text'];
                 $bufferPreserveSpace = $bufferPreserveSpace || $plain['preserveSpace'] || $buffered;
                 $buffered = true;
@@ -1932,6 +1954,48 @@ XML;
         $flushBuffer();
 
         return $xml;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @return array{leading:string,text:string,trailing:string}
+     */
+    private function splitPlainInlineBoundaryText(array $nodes, int $index, string $text): array
+    {
+        $leading = '';
+        $trailing = '';
+
+        if ($text !== '' && $this->adjacentInlineUsesSeparateTextBoundarySpace($nodes, $index, -1) && preg_match('/^ +/', $text, $matches) === 1) {
+            $leading = $matches[0];
+            $text = substr($text, strlen($leading));
+        }
+        if ($text !== '' && $this->adjacentInlineUsesSeparateTextBoundarySpace($nodes, $index, 1) && preg_match('/ +$/', $text, $matches) === 1) {
+            $trailing = $matches[0];
+            $text = substr($text, 0, -strlen($trailing));
+        }
+
+        return [
+            'leading' => $leading,
+            'text' => $text,
+            'trailing' => $trailing,
+        ];
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function adjacentInlineUsesSeparateTextBoundarySpace(array $nodes, int $index, int $step): bool
+    {
+        for ($i = $index + $step, $count = count($nodes); $i >= 0 && $i < $count; $i += $step) {
+            $node = $nodes[$i] ?? null;
+            if (!$node instanceof AstNode) {
+                continue;
+            }
+
+            return $node->type === 'image' || $node->type === 'link';
+        }
+
+        return false;
     }
 
     /**

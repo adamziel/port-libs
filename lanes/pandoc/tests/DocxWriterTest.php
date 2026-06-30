@@ -489,8 +489,7 @@ return [
         try {
             $document = $doc([
                 $paragraph([
-                    $text('This picture'),
-                    new AstNode('space'),
+                    $text('This picture '),
                     new AstNode('image', [
                         'url' => 'lalune.jpg',
                         'title' => 'First identicon',
@@ -501,8 +500,7 @@ return [
                     ], [$text('green')]),
                     new AstNode('space'),
                     new AstNode('link', ['url' => 'http://www.google.com'], [
-                        $text('one'),
-                        new AstNode('space'),
+                        $text('one '),
                         new AstNode('image', [
                             'url' => 'lalune.jpg',
                             'title' => 'Second identicon',
@@ -532,6 +530,9 @@ return [
             $t->contains('<wp:extent cx="812800" cy="812800"/>', $documentXml);
             $t->contains('<wp:docPr descr="green" title="First identicon" id="10" name="Picture"/>', $documentXml);
             $t->contains('<wp:docPr descr="red" title="Second identicon" id="12" name="Picture"/>', $documentXml);
+            $t->contains('<w:t xml:space="preserve">This picture</w:t></w:r><w:r><w:t xml:space="preserve"> </w:t></w:r><w:r><w:drawing>', $documentXml);
+            $t->contains('</w:drawing></w:r><w:r><w:t xml:space="preserve"> </w:t></w:r><w:hyperlink r:id="rId14">', $documentXml);
+            $t->contains('<w:t xml:space="preserve">one</w:t></w:r><w:r><w:rPr><w:rStyle w:val="Hyperlink"/></w:rPr><w:t xml:space="preserve"> </w:t></w:r><w:r><w:drawing>', $documentXml);
             $t->contains('<w:hyperlink r:id="rId14">', $documentXml);
         } finally {
             @unlink($imagePath);
@@ -579,7 +580,7 @@ return [
         $t->contains('<w:pStyle w:val="TableCaption"/>', $documentXml);
         $t->contains('<w:tbl>', $documentXml);
         $t->contains('<w:tblStyle w:val="Table"/>', $documentXml);
-        $t->contains('<w:tblW w:w="5000" w:type="pct"/>', $documentXml);
+        $t->contains('<w:tblW w:type="pct" w:w="5000"/>', $documentXml);
         $t->contains('<w:tblLayout w:type="fixed"/>', $documentXml);
         $t->contains('<w:tblLook w:firstRow="1"', $documentXml);
         $t->contains('<w:tblHeader w:val="on"/>', $documentXml);
@@ -838,7 +839,7 @@ return [
         [, $parts] = $packageParts((new DocxWriter())->write($document));
         $documentXml = $parts['word/document.xml'];
 
-        $t->contains('<w:tblW w:w="0" w:type="auto"/>', $documentXml);
+        $t->contains('<w:tblW w:type="auto" w:w="0"/>', $documentXml);
         $t->contains('<w:tblLook w:firstRow="0"', $documentXml);
         $t->contains('<w:tblGrid><w:gridCol w:w="3960"/><w:gridCol w:w="3960"/></w:tblGrid>', $documentXml);
         $t->contains('</w:tbl><w:p/><w:tbl>', $documentXml);
