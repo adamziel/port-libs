@@ -435,6 +435,72 @@ XML;
         );
         $t->same($documentEntry['centralDirectoryRecordSha256'], $rawDocumentEntry['centralDirectoryRecordSha256']);
     },
+    'carries OPC ZIP local header and compressed payload source hashes through manifest preflights' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+</Types>
+XML;
+        $documentXml = '<w:document><w:body><w:p>payload provenance</w:p></w:body></w:document>';
+        $documentCompressed = gzdeflate($documentXml);
+        $documentExtra = pack('vv', 0x5455, 0);
+        $imageBytes = "PNG review bytes\n";
+        $zip = ZipPackage::build([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'compressionMethod' => 0],
+            ['name' => '_rels/.rels', 'data' => '<Relationships/>', 'compressionMethod' => 0],
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'compressionMethod' => 8,
+                'extraFieldData' => $documentExtra,
+            ],
+            ['name' => 'word/media/review.png', 'data' => $imageBytes, 'compressionMethod' => 0],
+        ]);
+
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest(ZipPackage::fromString($zip));
+        $rawSummary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest($zip);
+        $entries = [];
+        foreach ($summary['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+        $rawEntries = [];
+        foreach ($rawSummary['entries'] as $entry) {
+            $rawEntries[$entry['entryName']] = $entry;
+        }
+
+        $documentEntry = $entries['word/document.xml'];
+        $rawDocumentEntry = $rawEntries['word/document.xml'];
+        $contentTypesEntry = $entries['[Content_Types].xml'];
+        $rawContentTypesEntry = $rawEntries['[Content_Types].xml'];
+
+        $t->same(true, $summary['valid']);
+        $t->same(true, $rawSummary['valid']);
+        $t->same(true, $rawSummary['localHeaderSpansValid']);
+        $t->same([], $rawSummary['localHeaderSpanIssues']);
+        $t->same(null, $rawSummary['localHeaderSpanPreflightError']);
+        $t->same(4, $rawSummary['localHeaderSpans']['entryCount']);
+
+        $t->same(30 + strlen('word/document.xml') + strlen($documentExtra), $documentEntry['localHeaderLength']);
+        $t->same($documentEntry['localHeaderOffset'] + $documentEntry['localHeaderLength'], $documentEntry['compressedDataOffset']);
+        $t->same($documentEntry['compressedDataOffset'] + strlen($documentCompressed), $documentEntry['compressedDataEnd']);
+        $t->same(hash('sha256', substr($zip, $documentEntry['localHeaderOffset'], $documentEntry['localHeaderLength'])), $documentEntry['localHeaderSha256']);
+        $t->same(hash('sha256', $documentCompressed), $documentEntry['compressedDataSha256']);
+        $t->same(hash('sha256', substr($zip, $documentEntry['compressedDataOffset'], $documentEntry['compressedSize'])), $documentEntry['compressedDataSha256']);
+
+        $t->same($documentEntry['localHeaderLength'], $rawDocumentEntry['localHeaderLength']);
+        $t->same($documentEntry['localHeaderSha256'], $rawDocumentEntry['localHeaderSha256']);
+        $t->same($documentEntry['compressedDataOffset'], $rawDocumentEntry['compressedDataOffset']);
+        $t->same($documentEntry['compressedDataEnd'], $rawDocumentEntry['compressedDataEnd']);
+        $t->same($documentEntry['compressedDataSha256'], $rawDocumentEntry['compressedDataSha256']);
+
+        $t->same(30 + strlen('[Content_Types].xml'), $contentTypesEntry['localHeaderLength']);
+        $t->same(hash('sha256', $contentTypesXml), $contentTypesEntry['compressedDataSha256']);
+        $t->same($contentTypesEntry['localHeaderLength'], $rawContentTypesEntry['localHeaderLength']);
+        $t->same($contentTypesEntry['localHeaderSha256'], $rawContentTypesEntry['localHeaderSha256']);
+        $t->same($contentTypesEntry['compressedDataSha256'], $rawContentTypesEntry['compressedDataSha256']);
+    },
     'preflights raw ZIP central directory OPC manifest before package construction' => static function (TestRunner $t): void {
         $contentTypesXml = '<Types/>';
         $rootRelationshipsXml = '<Relationships/>';
