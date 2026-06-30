@@ -10621,6 +10621,21 @@ final class DocxOpenXmlReader
         $summary['zipFileEntryCount'] = $zipPackage['fileEntryCount'];
         $summary['zipDirectoryEntryCount'] = $zipPackage['directoryEntryCount'];
         $summary['zipLoadedPartCount'] = $zipPackage['loadedPartCount'];
+        $summary['zipCompressedByteLength'] = (int) ($zipPackage['compressedByteLength'] ?? 0);
+        $summary['zipUncompressedByteLength'] = (int) ($zipPackage['uncompressedByteLength'] ?? 0);
+        $summary['zipExpansionRatio'] = $zipPackage['expansionRatio'] ?? null;
+        $summary['zipZeroByteEntryCount'] = (int) ($zipPackage['zeroByteEntryCount'] ?? 0);
+        $summary['zipZeroByteFileCount'] = (int) ($zipPackage['zeroByteFileCount'] ?? 0);
+        $summary['zipEmptyDirectoryEntryCount'] = (int) ($zipPackage['emptyDirectoryEntryCount'] ?? 0);
+        $summary['zipHasZeroByteEntries'] = ($zipPackage['hasZeroByteEntries'] ?? false) === true;
+        $summary['zipUnknownExpansionRatioEntryCount'] = (int) ($zipPackage['unknownExpansionRatioEntryCount'] ?? 0);
+        $summary['zipHasUnknownExpansionRatioEntries'] = ($zipPackage['hasUnknownExpansionRatioEntries'] ?? false) === true;
+        $summary['zipUnknownExpansionRatioEntries'] = is_array($zipPackage['unknownExpansionRatioEntries'] ?? null)
+            ? $zipPackage['unknownExpansionRatioEntries']
+            : [];
+        $summary['zipLargestUncompressedEntry'] = is_array($zipPackage['largestUncompressedEntry'] ?? null)
+            ? $zipPackage['largestUncompressedEntry']
+            : null;
         $summary['zipUnsupportedCompressionMethodCount'] = $zipPackage['unsupportedCompressionMethodCount'];
         $compressionMethods = is_array($zipPackage['compressionMethods'] ?? null) ? $zipPackage['compressionMethods'] : [];
         $summary['zipSupportedCompressionEntryCount'] = (int) ($compressionMethods['supportedEntryCount'] ?? 0);
@@ -10744,6 +10759,18 @@ final class DocxOpenXmlReader
                 'directoryEntryCount' => 0,
                 'loadedPartCount' => 0,
                 'unsupportedCompressionMethodCount' => 0,
+                'zeroByteEntryCount' => 0,
+                'zeroByteFileCount' => 0,
+                'emptyDirectoryEntryCount' => 0,
+                'hasZeroByteEntries' => false,
+                'unknownExpansionRatioEntryCount' => 0,
+                'hasUnknownExpansionRatioEntries' => false,
+                'compressedByteLength' => 0,
+                'uncompressedByteLength' => 0,
+                'expansionRatio' => null,
+                'largestUncompressedEntry' => null,
+                'zeroByteEntries' => [],
+                'unknownExpansionRatioEntries' => [],
                 'centralDirectoryOrderMatchesLocalHeaderOrder' => null,
                 'centralDirectoryOrderNames' => [],
                 'localHeaderOrderNames' => [],
@@ -10788,9 +10815,22 @@ final class DocxOpenXmlReader
 
         $localHeaderOrder = $sourcePackage->localHeaderOrderPreflight();
         $compressionMethods = $sourcePackage->compressionMethodPreflight();
+        $compressionMethods['methodBuckets'] = $this->zipCompressionBucketsWithExpansionRatios(
+            is_array($compressionMethods['methodBuckets'] ?? null) ? $compressionMethods['methodBuckets'] : [],
+        );
+        $compressionMethods['entries'] = $this->zipCompressionEntriesWithExpansionRatios(
+            is_array($compressionMethods['entries'] ?? null) ? $compressionMethods['entries'] : [],
+        );
+        $sizePreflight = $sourcePackage->sizePreflight();
         $dataDescriptors = $this->zipDataDescriptorProvenance($sourcePackage->dataDescriptorPreflight());
         $extraFields = $sourcePackage->extraFieldPreflight();
         $comments = $sourcePackage->commentPreflight();
+        $sizeEntriesByName = [];
+        foreach (($sizePreflight['entries'] ?? []) as $sizeEntry) {
+            if (is_array($sizeEntry) && is_string($sizeEntry['name'] ?? null)) {
+                $sizeEntriesByName[$sizeEntry['name']] = $sizeEntry;
+            }
+        }
         $extraFieldEntriesByName = [];
         foreach (($extraFields['entries'] ?? []) as $extraFieldEntry) {
             if (is_array($extraFieldEntry) && is_string($extraFieldEntry['name'] ?? null)) {
@@ -10838,6 +10878,10 @@ final class DocxOpenXmlReader
             $localOrder = $localOrderByName[$entry->name] ?? null;
             $extraFieldEntry = $extraFieldEntriesByName[$entry->name] ?? null;
             $commentEntry = $commentEntriesByName[$entry->name] ?? null;
+            $sizeEntry = $sizeEntriesByName[$entry->name] ?? null;
+            $expansionRatio = is_array($sizeEntry) && array_key_exists('expansionRatio', $sizeEntry)
+                ? $sizeEntry['expansionRatio']
+                : self::zipExpansionRatio($entry->uncompressedSize, $entry->compressedSize);
             $summary = [
                 'packagePath' => $entry->name,
                 'partName' => $isDirectory ? null : $entry->name,
@@ -10853,6 +10897,8 @@ final class DocxOpenXmlReader
                 'compressionSupported' => $entry->compressionMethod === 0 || $entry->compressionMethod === 8,
                 'byteLength' => $entry->uncompressedSize,
                 'compressedByteLength' => $entry->compressedSize,
+                'expansionRatio' => $expansionRatio,
+                'hasUnknownExpansionRatio' => $expansionRatio === null && $entry->uncompressedSize > 0,
                 'crc32' => $entry->crc32Hex(),
                 'zipEntryComment' => $entry->comment,
                 'zipEntryCommentLength' => strlen($entry->rawComment),
@@ -10890,6 +10936,20 @@ final class DocxOpenXmlReader
             'directoryEntryCount' => $directoryEntryCount,
             'loadedPartCount' => $loadedPartCount,
             'unsupportedCompressionMethodCount' => (int) $compressionMethods['unsupportedCompressionMethodCount'],
+            'zeroByteEntryCount' => (int) ($sizePreflight['zeroByteEntryCount'] ?? 0),
+            'zeroByteFileCount' => (int) ($sizePreflight['zeroByteFileCount'] ?? 0),
+            'emptyDirectoryEntryCount' => (int) ($sizePreflight['emptyDirectoryEntryCount'] ?? 0),
+            'hasZeroByteEntries' => ($sizePreflight['hasZeroByteEntries'] ?? false) === true,
+            'unknownExpansionRatioEntryCount' => (int) ($sizePreflight['unknownExpansionRatioEntryCount'] ?? 0),
+            'hasUnknownExpansionRatioEntries' => ($sizePreflight['hasUnknownExpansionRatioEntries'] ?? false) === true,
+            'compressedByteLength' => (int) ($sizePreflight['compressedBytes'] ?? 0),
+            'uncompressedByteLength' => (int) ($sizePreflight['uncompressedBytes'] ?? 0),
+            'expansionRatio' => $sizePreflight['expansionRatio'] ?? null,
+            'largestUncompressedEntry' => is_array($sizePreflight['largestEntry'] ?? null) ? $sizePreflight['largestEntry'] : null,
+            'zeroByteEntries' => is_array($sizePreflight['zeroByteEntries'] ?? null) ? $sizePreflight['zeroByteEntries'] : [],
+            'unknownExpansionRatioEntries' => is_array($sizePreflight['unknownExpansionRatioEntries'] ?? null)
+                ? $sizePreflight['unknownExpansionRatioEntries']
+                : [],
             'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],
             'centralDirectoryOrderNames' => $localHeaderOrder['centralDirectoryOrderNames'],
             'localHeaderOrderNames' => $localHeaderOrder['localHeaderOrderNames'],
@@ -11232,6 +11292,8 @@ final class DocxOpenXmlReader
             $partInventory[$partName]['compressionMethodName'] = $entry['compressionMethodName'] ?? null;
             $partInventory[$partName]['compressionSupported'] = $entry['compressionSupported'] ?? null;
             $partInventory[$partName]['compressedByteLength'] = $entry['compressedByteLength'] ?? null;
+            $partInventory[$partName]['zipExpansionRatio'] = $entry['expansionRatio'] ?? null;
+            $partInventory[$partName]['zipHasUnknownExpansionRatio'] = $entry['hasUnknownExpansionRatio'] ?? false;
             $partInventory[$partName]['zipCrc32'] = $entry['crc32'] ?? null;
             $partInventory[$partName]['zipByteExposurePolicy'] = $entry['byteExposurePolicy'] ?? null;
             $partInventory[$partName]['zipCanExposeBytes'] = $entry['canExposeBytes'] ?? null;
@@ -11276,6 +11338,61 @@ final class DocxOpenXmlReader
             8 => 'deflated',
             default => 'unsupported',
         };
+    }
+
+    private static function zipExpansionRatio(int $uncompressedBytes, int $compressedBytes): ?float
+    {
+        if ($uncompressedBytes === 0) {
+            return 0.0;
+        }
+
+        if ($compressedBytes === 0) {
+            return null;
+        }
+
+        return $uncompressedBytes / $compressedBytes;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $buckets
+     * @return list<array<string, mixed>>
+     */
+    private function zipCompressionBucketsWithExpansionRatios(array $buckets): array
+    {
+        foreach ($buckets as &$bucket) {
+            if (!is_array($bucket)) {
+                continue;
+            }
+
+            $bucket['expansionRatio'] = self::zipExpansionRatio(
+                (int) ($bucket['uncompressedBytes'] ?? 0),
+                (int) ($bucket['compressedBytes'] ?? 0),
+            );
+        }
+        unset($bucket);
+
+        return $buckets;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private function zipCompressionEntriesWithExpansionRatios(array $entries): array
+    {
+        foreach ($entries as &$entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $entry['expansionRatio'] = self::zipExpansionRatio(
+                (int) ($entry['uncompressedSize'] ?? 0),
+                (int) ($entry['compressedSize'] ?? 0),
+            );
+        }
+        unset($entry);
+
+        return $entries;
     }
 
     /**
@@ -11582,6 +11699,8 @@ final class DocxOpenXmlReader
         $partZipUncompressedByteLength = 0;
         $partZipDataDescriptorPartCount = 0;
         $partZipUnsupportedCompressionPartCount = 0;
+        $partZipUnknownExpansionRatioPartCount = 0;
+        $partZipUnknownExpansionRatioPartNames = [];
         foreach ($partZipCompressionMethods as $compressionSummary) {
             $compressionMethodKey = (string) ($compressionSummary['compressionMethodKey'] ?? '');
             $partZipCompressionMethodCounts[$compressionMethodKey] = (int) ($compressionSummary['partCount'] ?? 0);
@@ -11589,8 +11708,13 @@ final class DocxOpenXmlReader
             $partZipUncompressedByteLength += (int) ($compressionSummary['uncompressedByteLength'] ?? 0);
             $partZipDataDescriptorPartCount += (int) ($compressionSummary['dataDescriptorPartCount'] ?? 0);
             $partZipUnsupportedCompressionPartCount += (int) ($compressionSummary['unsupportedPartCount'] ?? 0);
+            $partZipUnknownExpansionRatioPartCount += (int) ($compressionSummary['unknownExpansionRatioPartCount'] ?? 0);
+            foreach (($compressionSummary['unknownExpansionRatioPartNames'] ?? []) as $partName) {
+                $this->appendUniqueString($partZipUnknownExpansionRatioPartNames, is_string($partName) ? $partName : null);
+            }
         }
         ksort($partZipCompressionMethodCounts, SORT_STRING);
+        sort($partZipUnknownExpansionRatioPartNames, SORT_STRING);
         $zeroByteParts = $this->zeroBytePackagePartSummary($partInventory);
         $zeroByteRelationshipPartCount = 0;
         $zeroByteMissingContentTypePartCount = 0;
@@ -13991,8 +14115,11 @@ final class DocxOpenXmlReader
             'partZipCompressionMethodCounts' => $partZipCompressionMethodCounts,
             'partZipCompressedByteLength' => $partZipCompressedByteLength,
             'partZipUncompressedByteLength' => $partZipUncompressedByteLength,
+            'partZipExpansionRatio' => self::zipExpansionRatio($partZipUncompressedByteLength, $partZipCompressedByteLength),
             'partZipDataDescriptorPartCount' => $partZipDataDescriptorPartCount,
             'partZipUnsupportedCompressionPartCount' => $partZipUnsupportedCompressionPartCount,
+            'partZipUnknownExpansionRatioPartCount' => $partZipUnknownExpansionRatioPartCount,
+            'partZipUnknownExpansionRatioPartNames' => $partZipUnknownExpansionRatioPartNames,
             'zeroBytePartCount' => count($zeroByteParts),
             'zeroBytePartNames' => array_values(array_map(
                 static fn (array $part): string => (string) $part['partName'],
@@ -14478,6 +14605,8 @@ final class DocxOpenXmlReader
                     'supportedPartCount' => 0,
                     'unsupportedPartCount' => 0,
                     'dataDescriptorPartCount' => 0,
+                    'unknownExpansionRatioPartCount' => 0,
+                    'unknownExpansionRatioPartNames' => [],
                     'contentTypeSourceCounts' => [],
                     'contentTypeBaseCounts' => [],
                     'roleCounts' => [],
@@ -14491,6 +14620,11 @@ final class DocxOpenXmlReader
                 ? (int) $part['compressedByteLength']
                 : 0;
             $bytes = (int) ($part['bytes'] ?? 0);
+            $zipExpansionRatio = is_float($part['zipExpansionRatio'] ?? null) || is_int($part['zipExpansionRatio'] ?? null)
+                ? (float) $part['zipExpansionRatio']
+                : null;
+            $zipHasUnknownExpansionRatio = ($part['zipHasUnknownExpansionRatio'] ?? false) === true
+                || ($zipExpansionRatio === null && $bytes > 0 && $compressedBytes === 0);
             $contentTypeSource = is_string($part['contentTypeSource'] ?? null)
                 ? $part['contentTypeSource']
                 : 'missing';
@@ -14519,6 +14653,10 @@ final class DocxOpenXmlReader
             if (($part['usesDataDescriptor'] ?? false) === true) {
                 ++$methods[$compressionMethodKey]['dataDescriptorPartCount'];
             }
+            if ($zipHasUnknownExpansionRatio) {
+                ++$methods[$compressionMethodKey]['unknownExpansionRatioPartCount'];
+                $methods[$compressionMethodKey]['unknownExpansionRatioPartNames'][] = $partName;
+            }
 
             foreach (($part['roles'] ?? []) as $role) {
                 $role = (string) $role;
@@ -14535,6 +14673,8 @@ final class DocxOpenXmlReader
                 'baseName' => is_string($part['baseName'] ?? null) ? $part['baseName'] : $this->packagePartBaseName($partName),
                 'bytes' => $bytes,
                 'compressedByteLength' => $compressedBytes,
+                'zipExpansionRatio' => $zipExpansionRatio,
+                'zipHasUnknownExpansionRatio' => $zipHasUnknownExpansionRatio,
                 'compressionMethod' => $compressionMethod,
                 'compressionMethodName' => $compressionMethodName,
                 'compressionSupported' => ($part['compressionSupported'] ?? null) === false ? false : true,
@@ -14563,9 +14703,14 @@ final class DocxOpenXmlReader
         ksort($methods, SORT_STRING);
         foreach ($methods as $methodKey => $summary) {
             sort($summary['partNames'], SORT_STRING);
+            sort($summary['unknownExpansionRatioPartNames'], SORT_STRING);
             ksort($summary['contentTypeSourceCounts'], SORT_STRING);
             ksort($summary['contentTypeBaseCounts'], SORT_STRING);
             ksort($summary['roleCounts'], SORT_STRING);
+            $summary['expansionRatio'] = self::zipExpansionRatio(
+                (int) ($summary['uncompressedByteLength'] ?? 0),
+                (int) ($summary['compressedByteLength'] ?? 0),
+            );
             $methods[$methodKey] = $summary;
         }
 
