@@ -29490,6 +29490,7 @@ XML;
             '  <Relationship Id="rBadChart" Type="' . $chartRel . '" Target="charts/bad-chart.xml"/>' . "\n" .
             '  <Relationship Id="rMissingChart" Type="' . $chartRel . '" Target="charts/missing-chart.xml"/>' . "\n" .
             '  <Relationship Id="rExternalChart" Type="' . $chartRel . '" Target="https://example.test/chart.xml?remote=1#chart" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rUnsafeExternalChart" Type="' . $chartRel . '" Target="javascript:alert(1)" TargetMode="External"/>' . "\n" .
             '  <Relationship Id="rWrongType" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review.png"/>' . "\n" .
             '  <Relationship Id="rUnreferencedChart" Type="' . $chartRel . '" Target="charts/unreferenced.xml"/>' . "\n" .
             '</Relationships>',
@@ -29507,6 +29508,7 @@ XML;
             "      <w:r><w:drawing><wp:inline><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart r:id=\"rBadChart\"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>\n" .
             "      <w:r><w:drawing><wp:inline><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart r:id=\"rMissingChart\"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>\n" .
             "      <w:r><w:drawing><wp:inline><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart r:id=\"rExternalChart\"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>\n" .
+            "      <w:r><w:drawing><wp:inline><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart r:id=\"rUnsafeExternalChart\"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>\n" .
             "      <w:r><w:drawing><wp:inline><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart r:id=\"rWrongType\"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>\n" .
             "      <w:r><w:drawing><wp:inline><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>\n" .
             "    </w:p>\n    <w:tbl>",
@@ -29524,38 +29526,47 @@ XML;
         $bad = $charts['byRelationshipId']['rBadChart'];
         $missing = $charts['byRelationshipId']['rMissingChart'];
         $external = $charts['byRelationshipId']['rExternalChart'];
+        $unsafeExternal = $charts['byRelationshipId']['rUnsafeExternalChart'];
         $wrongType = $charts['byRelationshipId']['rWrongType'];
         $unreferenced = $charts['byRelationshipId']['rUnreferencedChart'];
         $relationshipTypes = $docx['packageProvenance']['relationshipTypes'];
         $inventory = $docx['packageProvenance']['parts'];
 
         $t->same($charts, $docx['packageProvenance']['chartParts']);
-        $t->same(7, $charts['count']);
-        $t->same(5, $charts['relationshipCount']);
-        $t->same(6, $charts['referencedCount']);
+        $t->same(8, $charts['count']);
+        $t->same(6, $charts['relationshipCount']);
+        $t->same(7, $charts['referencedCount']);
         $t->same(1, $charts['unreferencedRelationshipCount']);
         $t->same(3, $charts['existingCount']);
         $t->same(1, $charts['missingCount']);
-        $t->same(1, $charts['externalCount']);
+        $t->same(2, $charts['externalCount']);
+        $t->same(1, $charts['allowedExternalTargetCount']);
+        $t->same(1, $charts['unsafeExternalTargetCount']);
         $t->same(1, $charts['unresolvedCount']);
         $t->same(0, $charts['invalidXmlCount']);
         $t->same(1, $charts['unexpectedRootCount']);
         $t->same(1, $charts['unexpectedRelationshipTypeCount']);
         $t->same(0, $charts['missingContentTypeCount']);
         $t->same(1, $charts['unexpectedContentTypeCount']);
-        $t->same(5, $charts['issueCount']);
+        $t->same(6, $charts['issueCount']);
         $t->same([
             'external-chart-part',
+            'external-target-unsafe-scheme',
             'missing-chart-part',
             'missing-relationship-id',
             'unexpected-chart-content-type',
             'unexpected-chart-root',
             'unexpected-relationship-type',
         ], $charts['issueCodes']);
-        $t->same(['rChart', 'rBadChart', 'rMissingChart', 'rExternalChart', 'rWrongType', 'rUnreferencedChart'], $charts['relationshipIds']);
-        $t->same(['rChart', 'rBadChart', 'rMissingChart', 'rExternalChart', 'rWrongType'], $charts['referencedRelationshipIds']);
+        $t->same(['rChart', 'rBadChart', 'rMissingChart', 'rExternalChart', 'rUnsafeExternalChart', 'rWrongType', 'rUnreferencedChart'], $charts['relationshipIds']);
+        $t->same(['rChart', 'rBadChart', 'rMissingChart', 'rExternalChart', 'rUnsafeExternalChart', 'rWrongType'], $charts['referencedRelationshipIds']);
         $t->same(['rUnreferencedChart'], $charts['unreferencedRelationshipIds']);
         $t->same(['word/charts/chart1.xml', 'word/charts/bad-chart.xml', 'word/charts/missing-chart.xml', 'word/charts/unreferenced.xml'], $charts['partNames']);
+        $t->same(['https://example.test/chart.xml?remote=1#chart', 'javascript:alert(1)'], $charts['externalTargets']);
+        $t->same(['javascript:alert(1)'], $charts['unsafeExternalTargets']);
+        $t->same(['absolute-uri' => 2], $charts['externalTargetKindCounts']);
+        $t->same(['https' => 1, 'javascript' => 1], $charts['externalTargetSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme'], $charts['externalTargetIssueCodes']);
         $t->same('chart-part-bytes-blocked', $charts['byteExposurePolicy']);
         $t->same('chart-part-metadata-only', $charts['reviewPolicy']);
 
@@ -29591,24 +29602,43 @@ XML;
         $t->same(['external-chart-part'], $external['issues']);
         $t->same(true, $external['external']);
         $t->same(null, $external['targetPart']);
+        $t->same('absolute-uri', $external['externalTargetKind']);
+        $t->same('https', $external['externalTargetScheme']);
+        $t->same(true, $external['externalTargetAllowed']);
+        $t->same([], $external['externalTargetIssues']);
+        $t->same(['external-chart-part', 'external-target-unsafe-scheme'], $unsafeExternal['issues']);
+        $t->same(true, $unsafeExternal['external']);
+        $t->same('javascript:alert(1)', $unsafeExternal['target']);
+        $t->same('absolute-uri', $unsafeExternal['externalTargetKind']);
+        $t->same('javascript', $unsafeExternal['externalTargetScheme']);
+        $t->same(false, $unsafeExternal['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $unsafeExternal['externalTargetIssues']);
         $t->same(['unexpected-relationship-type'], $wrongType['issues']);
         $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/image', $wrongType['relationshipType']);
         $t->same(false, $unreferenced['referenced']);
         $t->same(true, $unreferenced['exists']);
         $t->same([], $unreferenced['issues']);
 
-        $t->same(7, $summary['chartPartCount']);
-        $t->same(5, $summary['chartPartRelationshipCount']);
-        $t->same(6, $summary['chartPartReferencedCount']);
+        $t->same(8, $summary['chartPartCount']);
+        $t->same(6, $summary['chartPartRelationshipCount']);
+        $t->same(7, $summary['chartPartReferencedCount']);
         $t->same(3, $summary['chartPartExistingCount']);
         $t->same(1, $summary['chartPartMissingCount']);
-        $t->same(1, $summary['chartPartExternalCount']);
-        $t->same(5, $summary['chartPartIssueCount']);
+        $t->same(2, $summary['chartPartExternalCount']);
+        $t->same(1, $summary['chartPartAllowedExternalCount']);
+        $t->same(1, $summary['chartPartUnsafeExternalCount']);
+        $t->same(['external-target-unsafe-scheme'], $summary['chartPartExternalTargetIssueCodes']);
+        $t->same(6, $summary['chartPartIssueCount']);
         $t->same($charts['issueCodes'], $summary['chartPartIssueCodes']);
         $t->same('chart', $relationshipTypes[$chartRel]['label']);
-        $t->same(5, $relationshipTypes[$chartRel]['count']);
+        $t->same(6, $relationshipTypes[$chartRel]['count']);
         $t->same(4, $relationshipTypes[$chartRel]['internalCount']);
-        $t->same(1, $relationshipTypes[$chartRel]['externalCount']);
+        $t->same(2, $relationshipTypes[$chartRel]['externalCount']);
+        $t->same(1, $relationshipTypes[$chartRel]['allowedExternalTargetCount']);
+        $t->same(1, $relationshipTypes[$chartRel]['unsafeExternalTargetCount']);
+        $t->same(['https' => 1, 'javascript' => 1], $relationshipTypes[$chartRel]['externalTargetSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme' => 1], $relationshipTypes[$chartRel]['externalTargetIssueCounts']);
+        $t->same('javascript:alert(1)', $relationshipTypes[$chartRel]['unsafeExternalTargets'][0]['target']);
         $t->same(['word/charts/chart1.xml', 'word/charts/bad-chart.xml', 'word/charts/unreferenced.xml'], $relationshipTypes[$chartRel]['existingTargetParts']);
         $t->true(in_array('chart-part', $inventory['word/charts/chart1.xml']['roles'], true), 'chart inventory role missing');
         $t->true(in_array('chart-part', $inventory['word/charts/unreferenced.xml']['roles'], true), 'unreferenced chart inventory role missing');
