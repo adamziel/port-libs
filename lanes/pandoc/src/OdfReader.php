@@ -2041,6 +2041,7 @@ final class OdfReader
         $packageManifest = $package->packageManifestPreflight();
         $compressionMethods = $package->compressionMethodPreflight();
         $generalPurposeFlags = $package->generalPurposeFlagPreflight();
+        $dataDescriptors = self::zipDataDescriptorProvenance($package->dataDescriptorPreflight());
         $comments = $package->commentPreflight();
         $modificationTimes = $package->modificationTimePreflight();
         $platformMetadata = $package->platformMetadataPreflight();
@@ -2203,6 +2204,25 @@ final class OdfReader
                 'zipDeflateOptionName' => $item['zipDeflateOptionName'] ?? null,
                 'zipRequiresStrictFlagReview' => $item['zipRequiresStrictFlagReview'] ?? null,
                 'zipGeneralPurposeFlagIssues' => $item['zipGeneralPurposeFlagIssues'] ?? [],
+                'generalPurposeFlags' => $item['generalPurposeFlags'] ?? null,
+                'generalPurposeFlagNames' => $item['generalPurposeFlagNames'] ?? [],
+                'usesUtf8Names' => ($item['usesUtf8Names'] ?? false) === true,
+                'usesDataDescriptor' => ($item['usesDataDescriptor'] ?? false) === true,
+                'deflateOptionFlags' => $item['deflateOptionFlags'] ?? null,
+                'deflateOptionName' => $item['deflateOptionName'] ?? null,
+                'requiresGeneralPurposeFlagReview' => ($item['requiresGeneralPurposeFlagReview'] ?? false) === true,
+                'generalPurposeFlagIssues' => $item['generalPurposeFlagIssues'] ?? [],
+                'dataDescriptorHasSignature' => $item['dataDescriptorHasSignature'] ?? null,
+                'dataDescriptorOffset' => $item['dataDescriptorOffset'] ?? null,
+                'dataDescriptorLength' => $item['dataDescriptorLength'] ?? null,
+                'dataDescriptorEnd' => $item['dataDescriptorEnd'] ?? null,
+                'dataDescriptorCrc32Hex' => $item['dataDescriptorCrc32Hex'] ?? null,
+                'dataDescriptorCompressedSize' => $item['dataDescriptorCompressedSize'] ?? null,
+                'dataDescriptorUncompressedSize' => $item['dataDescriptorUncompressedSize'] ?? null,
+                'dataDescriptorValuesMatchCentral' => $item['dataDescriptorValuesMatchCentral'] ?? null,
+                'hasZeroLocalHeaderPlaceholders' => $item['hasZeroLocalHeaderPlaceholders'] ?? null,
+                'dataDescriptorIssueCount' => $item['dataDescriptorIssueCount'] ?? 0,
+                'dataDescriptorIssues' => $item['dataDescriptorIssues'] ?? [],
                 'zipModifiedAt' => $item['zipModifiedAt'] ?? null,
                 'zipTimestampSource' => $item['zipTimestampSource'] ?? null,
                 'zipLocalModifiedAt' => $item['zipLocalModifiedAt'] ?? null,
@@ -2314,6 +2334,7 @@ final class OdfReader
         $sourceRecordEntriesByName = self::zipPreflightEntriesByName($packageManifest);
         $modificationTimeByName = self::zipModificationTimeEntriesByName($modificationTimes);
         $generalPurposeFlagEntriesByName = self::zipPreflightEntriesByName($generalPurposeFlags);
+        $dataDescriptorByName = self::zipPreflightEntriesByName($dataDescriptors);
         $commentEntriesByName = [];
         foreach ($comments['entries'] ?? [] as $entry) {
             $name = $entry['name'] ?? null;
@@ -2343,6 +2364,7 @@ final class OdfReader
             $sourceRecordProvenance = self::zipEntrySourceRecordProvenance($sourceRecordEntriesByName[$entry->name] ?? null);
             $timestampProvenance = self::zipTimestampProvenance($modificationTimeByName[$entry->name] ?? null);
             $generalPurposeFlagProvenance = self::zipGeneralPurposeFlagProvenance($generalPurposeFlagEntriesByName[$entry->name] ?? null);
+            $dataDescriptorProvenance = self::zipDataDescriptorEntryProvenance($dataDescriptorByName[$entry->name] ?? null);
             $platformAttributeProvenance = self::zipPlatformAttributeProvenance(
                 $entry,
                 $platformMetadataByName[$entry->name] ?? null,
@@ -2461,7 +2483,7 @@ final class OdfReader
                 'canExposeBytes' => is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $byteExposurePolicy,
                 'undeclared' => $isUndeclared,
-            ] + $rawNameProvenance + $sourceRecordProvenance + $timestampProvenance + $generalPurposeFlagProvenance + $platformAttributeProvenance;
+            ] + $rawNameProvenance + $sourceRecordProvenance + $timestampProvenance + $generalPurposeFlagProvenance + $dataDescriptorProvenance + $platformAttributeProvenance;
 
             if (is_string($byteExposurePolicy) && $byteExposurePolicy !== '') {
                 $packagePartByteExposurePolicyCounts[$byteExposurePolicy] = ($packagePartByteExposurePolicyCounts[$byteExposurePolicy] ?? 0) + 1;
@@ -2695,6 +2717,19 @@ final class OdfReader
             'zipDeflateOptionEntryCount' => $generalPurposeFlags['deflateOptionEntryCount'],
             'zipStrictFlagReviewEntryCount' => $generalPurposeFlags['strictReviewEntryCount'],
             'zipUnsupportedGeneralPurposeFlagEntryCount' => $generalPurposeFlags['unsupportedFlagEntryCount'],
+            'generalPurposeFlagStrictReviewEntryCount' => $generalPurposeFlags['strictReviewEntryCount'],
+            'generalPurposeFlagDataDescriptorEntryCount' => $generalPurposeFlags['dataDescriptorEntryCount'],
+            'generalPurposeFlagDeflateOptionEntryCount' => $generalPurposeFlags['deflateOptionEntryCount'],
+            'dataDescriptors' => $dataDescriptors,
+            'dataDescriptorEntryCount' => $dataDescriptors['descriptorEntryCount'],
+            'signedDataDescriptorEntryCount' => $dataDescriptors['signedDescriptorEntryCount'],
+            'unsignedDataDescriptorEntryCount' => $dataDescriptors['unsignedDescriptorEntryCount'],
+            'zip64SizedDataDescriptorEntryCount' => $dataDescriptors['zip64SizedDescriptorEntryCount'],
+            'matchedDataDescriptorEntryCount' => $dataDescriptors['matchedDescriptorEntryCount'],
+            'dataDescriptorIssueEntryCount' => $dataDescriptors['issueEntryCount'],
+            'dataDescriptorIssueCount' => $dataDescriptors['issueCount'],
+            'dataDescriptorIssueCodes' => $dataDescriptors['issueCodes'],
+            'dataDescriptorByteLength' => $dataDescriptors['descriptorByteLength'],
             'compressionMethods' => $compressionMethods,
             'comments' => $comments,
             'hasPackageComment' => ($comments['hasPackageComment'] ?? false) === true,
@@ -2844,6 +2879,25 @@ final class OdfReader
                 'zipDeflateOptionName' => $item['zipDeflateOptionName'] ?? null,
                 'zipRequiresStrictFlagReview' => $item['zipRequiresStrictFlagReview'] ?? null,
                 'zipGeneralPurposeFlagIssues' => $item['zipGeneralPurposeFlagIssues'] ?? [],
+                'generalPurposeFlags' => $item['generalPurposeFlags'] ?? null,
+                'generalPurposeFlagNames' => $item['generalPurposeFlagNames'] ?? [],
+                'usesUtf8Names' => ($item['usesUtf8Names'] ?? false) === true,
+                'usesDataDescriptor' => ($item['usesDataDescriptor'] ?? false) === true,
+                'deflateOptionFlags' => $item['deflateOptionFlags'] ?? null,
+                'deflateOptionName' => $item['deflateOptionName'] ?? null,
+                'requiresGeneralPurposeFlagReview' => ($item['requiresGeneralPurposeFlagReview'] ?? false) === true,
+                'generalPurposeFlagIssues' => $item['generalPurposeFlagIssues'] ?? [],
+                'dataDescriptorHasSignature' => $item['dataDescriptorHasSignature'] ?? null,
+                'dataDescriptorOffset' => $item['dataDescriptorOffset'] ?? null,
+                'dataDescriptorLength' => $item['dataDescriptorLength'] ?? null,
+                'dataDescriptorEnd' => $item['dataDescriptorEnd'] ?? null,
+                'dataDescriptorCrc32Hex' => $item['dataDescriptorCrc32Hex'] ?? null,
+                'dataDescriptorCompressedSize' => $item['dataDescriptorCompressedSize'] ?? null,
+                'dataDescriptorUncompressedSize' => $item['dataDescriptorUncompressedSize'] ?? null,
+                'dataDescriptorValuesMatchCentral' => $item['dataDescriptorValuesMatchCentral'] ?? null,
+                'hasZeroLocalHeaderPlaceholders' => $item['hasZeroLocalHeaderPlaceholders'] ?? null,
+                'dataDescriptorIssueCount' => $item['dataDescriptorIssueCount'] ?? 0,
+                'dataDescriptorIssues' => $item['dataDescriptorIssues'] ?? [],
                 'byteLength' => $item['byteLength'] ?? null,
                 'compressedByteLength' => $item['compressedByteLength'] ?? null,
                 'crc32' => $item['crc32'] ?? null,
@@ -3032,6 +3086,15 @@ final class OdfReader
             'eventPackagePartCount' => $provenance['eventPackagePartCount'] ?? 0,
             'extensionPackagePartCount' => $provenance['extensionPackagePartCount'] ?? 0,
             'stylePackageProvenance' => $provenance['stylePackageProvenance'] ?? [],
+            'generalPurposeFlagStrictReviewEntryCount' => $provenance['generalPurposeFlagStrictReviewEntryCount'] ?? 0,
+            'generalPurposeFlagDataDescriptorEntryCount' => $provenance['generalPurposeFlagDataDescriptorEntryCount'] ?? 0,
+            'generalPurposeFlagDeflateOptionEntryCount' => $provenance['generalPurposeFlagDeflateOptionEntryCount'] ?? 0,
+            'dataDescriptorEntryCount' => $provenance['dataDescriptorEntryCount'] ?? 0,
+            'signedDataDescriptorEntryCount' => $provenance['signedDataDescriptorEntryCount'] ?? 0,
+            'unsignedDataDescriptorEntryCount' => $provenance['unsignedDataDescriptorEntryCount'] ?? 0,
+            'dataDescriptorIssueEntryCount' => $provenance['dataDescriptorIssueEntryCount'] ?? 0,
+            'dataDescriptorIssueCount' => $provenance['dataDescriptorIssueCount'] ?? 0,
+            'dataDescriptorByteLength' => $provenance['dataDescriptorByteLength'] ?? 0,
             'centralDirectoryOrderMatchesLocalHeaderOrder' => ($provenance['centralDirectoryOrderMatchesLocalHeaderOrder'] ?? false) === true,
         ];
         $identityJson = json_encode(
@@ -3056,6 +3119,15 @@ final class OdfReader
             'commentedEntryNames' => is_array($comments['commentedEntryNames'] ?? null) ? $comments['commentedEntryNames'] : [],
             'roleCounts' => $provenance['roleCounts'] ?? [],
             'packagePartByteExposurePolicyCounts' => $provenance['packagePartByteExposurePolicyCounts'] ?? [],
+            'generalPurposeFlagStrictReviewEntryCount' => $provenance['generalPurposeFlagStrictReviewEntryCount'] ?? 0,
+            'generalPurposeFlagDataDescriptorEntryCount' => $provenance['generalPurposeFlagDataDescriptorEntryCount'] ?? 0,
+            'generalPurposeFlagDeflateOptionEntryCount' => $provenance['generalPurposeFlagDeflateOptionEntryCount'] ?? 0,
+            'dataDescriptorEntryCount' => $provenance['dataDescriptorEntryCount'] ?? 0,
+            'signedDataDescriptorEntryCount' => $provenance['signedDataDescriptorEntryCount'] ?? 0,
+            'unsignedDataDescriptorEntryCount' => $provenance['unsignedDataDescriptorEntryCount'] ?? 0,
+            'dataDescriptorIssueEntryCount' => $provenance['dataDescriptorIssueEntryCount'] ?? 0,
+            'dataDescriptorIssueCount' => $provenance['dataDescriptorIssueCount'] ?? 0,
+            'dataDescriptorByteLength' => $provenance['dataDescriptorByteLength'] ?? 0,
             'platformMetadataEntryCount' => $provenance['platformMetadataEntryCount'] ?? 0,
             'zipUtf8NameEntryCount' => $provenance['zipUtf8NameEntryCount'] ?? 0,
             'zipDataDescriptorEntryCount' => $provenance['zipDataDescriptorEntryCount'] ?? 0,
@@ -3890,6 +3962,108 @@ final class OdfReader
             'zipDeflateOptionName' => is_string($entry['deflateOptionName'] ?? null) ? $entry['deflateOptionName'] : null,
             'zipRequiresStrictFlagReview' => is_array($entry) ? (($entry['requiresStrictReview'] ?? false) === true) : null,
             'zipGeneralPurposeFlagIssues' => is_array($entry['issues'] ?? null) ? $entry['issues'] : [],
+            'generalPurposeFlags' => is_array($entry) ? ($entry['generalPurposeFlags'] ?? null) : null,
+            'generalPurposeFlagNames' => is_array($entry) ? ($entry['flagNames'] ?? []) : [],
+            'unsupportedGeneralPurposeFlagBits' => is_array($entry) ? ($entry['unsupportedFlagBits'] ?? 0) : 0,
+            'generalPurposeFlagsSupported' => !is_array($entry) || ($entry['isSupportedByReader'] ?? false) === true,
+            'usesUtf8Names' => is_array($entry) && ($entry['usesUtf8Names'] ?? false) === true,
+            'usesDataDescriptor' => is_array($entry) && ($entry['usesDataDescriptor'] ?? false) === true,
+            'deflateOptionFlags' => is_array($entry) ? ($entry['deflateOptionFlags'] ?? 0) : 0,
+            'deflateOptionName' => is_array($entry) ? ($entry['deflateOptionName'] ?? null) : null,
+            'requiresGeneralPurposeFlagReview' => is_array($entry) && ($entry['requiresStrictReview'] ?? false) === true,
+            'generalPurposeFlagIssues' => is_array($entry) ? ($entry['issues'] ?? []) : [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $dataDescriptors
+     * @return array<string, mixed>
+     */
+    private static function zipDataDescriptorProvenance(array $dataDescriptors): array
+    {
+        $issueCodes = [];
+        $issueEntryCount = 0;
+        $matchedDescriptorEntryCount = 0;
+        $descriptorByteLength = 0;
+        $descriptorEntries = is_array($dataDescriptors['descriptorEntries'] ?? null)
+            ? $dataDescriptors['descriptorEntries']
+            : [];
+
+        foreach ($descriptorEntries as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            if (is_int($entry['descriptorLength'] ?? null)) {
+                $descriptorByteLength += $entry['descriptorLength'];
+            }
+
+            $issues = is_array($entry['issues'] ?? null) ? $entry['issues'] : [];
+            if ($issues !== []) {
+                ++$issueEntryCount;
+            }
+            foreach ($issues as $issue) {
+                if (is_string($issue) && !in_array($issue, $issueCodes, true)) {
+                    $issueCodes[] = $issue;
+                }
+            }
+
+            if (($entry['descriptorValuesMatchCentral'] ?? null) === true && $issues === []) {
+                ++$matchedDescriptorEntryCount;
+            }
+        }
+
+        return [
+            'entryCount' => (int) ($dataDescriptors['entryCount'] ?? 0),
+            'descriptorEntryCount' => (int) ($dataDescriptors['descriptorEntryCount'] ?? 0),
+            'signedDescriptorEntryCount' => (int) ($dataDescriptors['signedDescriptorEntryCount'] ?? 0),
+            'unsignedDescriptorEntryCount' => (int) ($dataDescriptors['unsignedDescriptorEntryCount'] ?? 0),
+            'zip64SizedDescriptorEntryCount' => (int) ($dataDescriptors['zip64SizedDescriptorEntryCount'] ?? 0),
+            'matchedDescriptorEntryCount' => $matchedDescriptorEntryCount,
+            'issueEntryCount' => $issueEntryCount,
+            'issueCount' => count($issueCodes),
+            'issueCodes' => $issueCodes,
+            'descriptorByteLength' => $descriptorByteLength,
+            'descriptorEntries' => $descriptorEntries,
+            'entries' => is_array($dataDescriptors['entries'] ?? null) ? $dataDescriptors['entries'] : [],
+            'byteExposurePolicy' => 'odf-zip-data-descriptor-metadata-only',
+            'canExposeBytes' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $entry
+     * @return array<string, mixed>
+     */
+    private static function zipDataDescriptorEntryProvenance(?array $entry): array
+    {
+        $issues = is_array($entry['issues'] ?? null) ? array_values(array_filter(
+            $entry['issues'],
+            static fn (mixed $issue): bool => is_string($issue)
+        )) : [];
+
+        return [
+            'dataDescriptorHasSignature' => is_array($entry) ? ($entry['hasSignature'] ?? null) : null,
+            'dataDescriptorOffset' => is_array($entry) ? ($entry['descriptorOffset'] ?? null) : null,
+            'dataDescriptorValueOffset' => is_array($entry) ? ($entry['valueOffset'] ?? null) : null,
+            'dataDescriptorLength' => is_array($entry) ? ($entry['descriptorLength'] ?? null) : null,
+            'dataDescriptorNextOffset' => is_array($entry) ? ($entry['nextOffset'] ?? null) : null,
+            'dataDescriptorSpan' => is_array($entry) ? ($entry['descriptorSpan'] ?? null) : null,
+            'dataDescriptorEnd' => is_array($entry) ? ($entry['descriptorEnd'] ?? null) : null,
+            'dataDescriptorSurplusBytes' => is_array($entry) ? ($entry['surplusDescriptorBytes'] ?? null) : null,
+            'dataDescriptorTruncatedBytes' => is_array($entry) ? ($entry['truncatedDescriptorBytes'] ?? null) : null,
+            'dataDescriptorCrc32' => is_array($entry) ? ($entry['crc32'] ?? null) : null,
+            'dataDescriptorCrc32Hex' => is_array($entry) ? ($entry['crc32Hex'] ?? null) : null,
+            'dataDescriptorCompressedSize' => is_array($entry) ? ($entry['compressedSize'] ?? null) : null,
+            'dataDescriptorUncompressedSize' => is_array($entry) ? ($entry['uncompressedSize'] ?? null) : null,
+            'dataDescriptorUsesZip64SizedFields' => is_array($entry) && ($entry['usesZip64SizedDescriptor'] ?? false) === true,
+            'dataDescriptorValuesMatchCentral' => is_array($entry) ? ($entry['descriptorValuesMatchCentral'] ?? null) : null,
+            'dataDescriptorLocalHeaderCrc32' => is_array($entry) ? ($entry['localHeaderCrc32'] ?? null) : null,
+            'dataDescriptorLocalHeaderCompressedSize' => is_array($entry) ? ($entry['localHeaderCompressedSize'] ?? null) : null,
+            'dataDescriptorLocalHeaderUncompressedSize' => is_array($entry) ? ($entry['localHeaderUncompressedSize'] ?? null) : null,
+            'hasZeroLocalHeaderPlaceholders' => is_array($entry) ? ($entry['hasZeroLocalHeaderPlaceholders'] ?? null) : null,
+            'dataDescriptorIssueCount' => count($issues),
+            'dataDescriptorIssues' => $issues,
         ];
     }
 
