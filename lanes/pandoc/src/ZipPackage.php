@@ -5250,6 +5250,8 @@ final class ZipPackage
      *     handoffNameHygieneIssueSummaries:list<array<string, mixed>>,
      *     selectedNameHygieneReviewEntries:list<array<string, mixed>>,
      *     handoffNameHygieneReviewEntries:list<array<string, mixed>>,
+     *     expectedKindSummaries:list<array<string, mixed>>,
+     *     handoffExpectedKindSummaries:list<array<string, mixed>>,
      *     declaredContentTypeSummaries:list<array<string, mixed>>,
      *     handoffDeclaredContentTypeSummaries:list<array<string, mixed>>,
      *     declaredContentTypeFamilySummaries:list<array<string, mixed>>,
@@ -5351,6 +5353,8 @@ final class ZipPackage
      *     failedEntries:list<array<string, mixed>>,
      *     handoffEntries:list<array<string, mixed>>,
      *     requirementSummaries:list<array<string, mixed>>,
+     *     statusSummaries:list<array<string, mixed>>,
+     *     byteExposurePolicySummaries:list<array<string, mixed>>,
      *     entries:list<array<string, mixed>>
      * }
      */
@@ -6485,6 +6489,8 @@ final class ZipPackage
         $selectedCrc32Summary = self::entryHandoffCrc32Summary($entries);
         $handoffCrc32Summary = self::entryHandoffCrc32Summary($handoffEntries);
         $requirementSummaries = self::entryHandoffRequirementSummaries($entries);
+        $expectedKindSummaries = self::entryHandoffExpectedKindSummaries($entries);
+        $handoffExpectedKindSummaries = self::entryHandoffExpectedKindSummaries($handoffEntries);
         $statusSummaries = self::entryHandoffStatusSummaries($entries);
         $byteExposurePolicySummaries = self::entryHandoffByteExposurePolicySummaries($entries);
         $handoffByteExposurePolicySummaries = self::entryHandoffByteExposurePolicySummaries($handoffEntries);
@@ -6711,6 +6717,13 @@ final class ZipPackage
             'handoffDeclaredContentTypeIssueCount' => count($handoffDeclaredContentTypeIssues),
             'requestedRoleCount' => count($roleSummaries),
             'requestRequirementSummaryCount' => count($requirementSummaries),
+            'requestExpectedKindSummaryCount' => count($expectedKindSummaries),
+            'handoffExpectedKindSummaryCount' => count($handoffExpectedKindSummaries),
+            'expectedKindEntryCount' => self::entryHandoffSummaryTotal($expectedKindSummaries, 'requestCount'),
+            'handoffExpectedKindEntryCount' => self::entryHandoffSummaryTotal(
+                $handoffExpectedKindSummaries,
+                'requestCount'
+            ),
             'requestStatusSummaryCount' => count($statusSummaries),
             'selectedNameHygieneReviewEntryCount' => count($selectedNameHygieneReviewEntries),
             'selectedNameHygieneIssueCount' => count($selectedNameHygieneIssues),
@@ -6948,6 +6961,8 @@ final class ZipPackage
             'handoffNameHygieneReviewEntries' => $handoffNameHygieneReviewEntries,
             'roleSummaries' => $roleSummaries,
             'requirementSummaries' => $requirementSummaries,
+            'expectedKindSummaries' => $expectedKindSummaries,
+            'handoffExpectedKindSummaries' => $handoffExpectedKindSummaries,
             'statusSummaries' => $statusSummaries,
             'byteExposurePolicySummaries' => $byteExposurePolicySummaries,
             'handoffByteExposurePolicySummaries' => $handoffByteExposurePolicySummaries,
@@ -9959,6 +9974,146 @@ final class ZipPackage
         }
 
         return $summary;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffExpectedKindSummaries(array $entries): array
+    {
+        $summaries = [];
+        $seenNamesByKind = [];
+        $seenHandoffNamesByKind = [];
+        foreach ($entries as $entry) {
+            $kind = is_string($entry['expectedKind'] ?? null) && $entry['expectedKind'] !== ''
+                ? $entry['expectedKind']
+                : 'unknown';
+            if (!isset($summaries[$kind])) {
+                $summaries[$kind] = [
+                    'expectedKind' => $kind,
+                    'requestCount' => 0,
+                    'presentEntryCount' => 0,
+                    'missingEntryCount' => 0,
+                    'actualFileEntryCount' => 0,
+                    'actualDirectoryEntryCount' => 0,
+                    'directoryMismatchEntryCount' => 0,
+                    'handoffEntryCount' => 0,
+                    'handoffUniqueEntryCount' => 0,
+                    'failedEntryCount' => 0,
+                    'duplicateRequestCount' => 0,
+                    'selectedUniqueEntryCount' => 0,
+                    'selectedCompressedBytes' => 0,
+                    'selectedUncompressedBytes' => 0,
+                    'handoffCompressedBytes' => 0,
+                    'handoffUncompressedBytes' => 0,
+                    'roles' => [],
+                    'entryNames' => [],
+                    'selectedEntryNames' => [],
+                    'handoffEntryNames' => [],
+                    'missingEntryNames' => [],
+                    'failedEntryNames' => [],
+                    'issues' => [],
+                    'issueCounts' => [],
+                ];
+                $seenNamesByKind[$kind] = [];
+                $seenHandoffNamesByKind[$kind] = [];
+            }
+
+            ++$summaries[$kind]['requestCount'];
+
+            $role = is_string($entry['role'] ?? null) && $entry['role'] !== ''
+                ? $entry['role']
+                : null;
+            if ($role !== null && !in_array($role, $summaries[$kind]['roles'], true)) {
+                $summaries[$kind]['roles'][] = $role;
+            }
+
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name !== '') {
+                $summaries[$kind]['entryNames'][] = $name;
+            }
+
+            if (($entry['exists'] ?? false) === true) {
+                ++$summaries[$kind]['presentEntryCount'];
+                if (($entry['isDirectory'] ?? false) === true) {
+                    ++$summaries[$kind]['actualDirectoryEntryCount'];
+                } else {
+                    ++$summaries[$kind]['actualFileEntryCount'];
+                }
+
+                if (
+                    ($kind === 'file' && ($entry['isDirectory'] ?? false) === true)
+                    || ($kind === 'directory' && ($entry['isDirectory'] ?? false) !== true)
+                ) {
+                    ++$summaries[$kind]['directoryMismatchEntryCount'];
+                }
+
+                if ($name !== '' && !isset($seenNamesByKind[$kind][$name])) {
+                    $seenNamesByKind[$kind][$name] = true;
+                    ++$summaries[$kind]['selectedUniqueEntryCount'];
+                    $summaries[$kind]['selectedEntryNames'][] = $name;
+                    $summaries[$kind]['selectedCompressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+                    $summaries[$kind]['selectedUncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+                }
+            } else {
+                ++$summaries[$kind]['missingEntryCount'];
+                if ($name !== '') {
+                    $summaries[$kind]['missingEntryNames'][] = $name;
+                }
+            }
+
+            if (($entry['isDuplicateRequest'] ?? false) === true) {
+                ++$summaries[$kind]['duplicateRequestCount'];
+            }
+
+            $issues = array_values(array_filter($entry['issues'] ?? [], 'is_string'));
+            if (($entry['status'] ?? null) === 'ready' && ($entry['exists'] ?? false) === true) {
+                ++$summaries[$kind]['handoffEntryCount'];
+                if ($name !== '' && !isset($seenHandoffNamesByKind[$kind][$name])) {
+                    $seenHandoffNamesByKind[$kind][$name] = true;
+                    ++$summaries[$kind]['handoffUniqueEntryCount'];
+                    $summaries[$kind]['handoffEntryNames'][] = $name;
+                    $summaries[$kind]['handoffCompressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+                    $summaries[$kind]['handoffUncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+                }
+            }
+
+            if ($issues !== []) {
+                ++$summaries[$kind]['failedEntryCount'];
+                if ($name !== '') {
+                    $summaries[$kind]['failedEntryNames'][] = $name;
+                }
+                foreach ($issues as $issue) {
+                    if (!in_array($issue, $summaries[$kind]['issues'], true)) {
+                        $summaries[$kind]['issues'][] = $issue;
+                    }
+                    $summaries[$kind]['issueCounts'][$issue] = ($summaries[$kind]['issueCounts'][$issue] ?? 0) + 1;
+                }
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['roles'], SORT_STRING);
+            sort($summary['issues'], SORT_STRING);
+            ksort($summary['issueCounts'], SORT_STRING);
+        }
+        unset($summary);
+
+        $ordered = [];
+        foreach (['file', 'directory', 'any'] as $kind) {
+            if (isset($summaries[$kind])) {
+                $ordered[] = $summaries[$kind];
+                unset($summaries[$kind]);
+            }
+        }
+
+        ksort($summaries, SORT_STRING);
+        foreach ($summaries as $summary) {
+            $ordered[] = $summary;
+        }
+
+        return $ordered;
     }
 
     /**

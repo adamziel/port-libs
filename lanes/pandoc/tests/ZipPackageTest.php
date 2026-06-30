@@ -13689,6 +13689,159 @@ return [
         ], $summary['issues']);
     },
 
+    'summarizes selected zip handoff expected kinds for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>expected kind handoff</w:p></w:body></w:document>';
+        $stylesXml = '<w:styles/>';
+        $imageBytes = "expected kind image bytes\n";
+        $rawBytes = "oversized expected kind media bytes\n";
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => 'word/styles.xml', 'data' => $stylesXml, 'method' => 0],
+            ['name' => 'word/media/', 'data' => '', 'method' => 0],
+            ['name' => 'word/media/image.png', 'data' => $imageBytes, 'method' => 0],
+            ['name' => 'word/media/raw.bin', 'data' => $rawBytes, 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/styles.xml', 'required' => false, 'kind' => 'directory', 'role' => 'style-directory'],
+            ['name' => 'word/media/', 'required' => false, 'kind' => 'directory', 'role' => 'media-directory'],
+            ['name' => 'word/media/image.png', 'required' => false, 'kind' => 'any', 'role' => 'media'],
+            ['name' => 'word/media/raw.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 8],
+            ['name' => 'word/missing-dir/', 'required' => true, 'kind' => 'directory', 'role' => 'required-directory'],
+        ], 1024);
+        $byExpectedKind = [];
+        foreach ($summary['expectedKindSummaries'] as $kindSummary) {
+            $byExpectedKind[$kindSummary['expectedKind']] = $kindSummary;
+        }
+        $handoffByExpectedKind = [];
+        foreach ($summary['handoffExpectedKindSummaries'] as $kindSummary) {
+            $handoffByExpectedKind[$kindSummary['expectedKind']] = $kindSummary;
+        }
+
+        $t->same(3, $summary['requestExpectedKindSummaryCount']);
+        $t->same(3, $summary['handoffExpectedKindSummaryCount']);
+        $t->same(6, $summary['expectedKindEntryCount']);
+        $t->same(3, $summary['handoffExpectedKindEntryCount']);
+        $t->same(1, $summary['directoryMismatchEntryCount']);
+        $t->same(3, $summary['handoffEntryCount']);
+        $t->same(3, $summary['failedEntryCount']);
+        $t->same(['file', 'directory', 'any'], array_keys($byExpectedKind));
+        $t->same(['file', 'directory', 'any'], array_keys($handoffByExpectedKind));
+        $t->same('file-entry-not-directory', $summary['entries'][1]['issues'][0]);
+        $t->same('any', $summary['entries'][3]['expectedKind']);
+        $t->same('entry-uncompressed-size-exceeds-limit', $summary['entries'][4]['issues'][0]);
+
+        $t->same([
+            'expectedKind' => 'file',
+            'requestCount' => 2,
+            'presentEntryCount' => 2,
+            'missingEntryCount' => 0,
+            'actualFileEntryCount' => 2,
+            'actualDirectoryEntryCount' => 0,
+            'directoryMismatchEntryCount' => 0,
+            'handoffEntryCount' => 1,
+            'handoffUniqueEntryCount' => 1,
+            'failedEntryCount' => 1,
+            'duplicateRequestCount' => 0,
+            'selectedUniqueEntryCount' => 2,
+            'selectedCompressedBytes' => strlen($documentXml) + strlen($rawBytes),
+            'selectedUncompressedBytes' => strlen($documentXml) + strlen($rawBytes),
+            'handoffCompressedBytes' => strlen($documentXml),
+            'handoffUncompressedBytes' => strlen($documentXml),
+            'roles' => ['main-document', 'media'],
+            'entryNames' => ['word/document.xml', 'word/media/raw.bin'],
+            'selectedEntryNames' => ['word/document.xml', 'word/media/raw.bin'],
+            'handoffEntryNames' => ['word/document.xml'],
+            'missingEntryNames' => [],
+            'failedEntryNames' => ['word/media/raw.bin'],
+            'issues' => ['entry-uncompressed-size-exceeds-limit'],
+            'issueCounts' => ['entry-uncompressed-size-exceeds-limit' => 1],
+        ], $byExpectedKind['file']);
+        $t->same([
+            'expectedKind' => 'directory',
+            'requestCount' => 3,
+            'presentEntryCount' => 2,
+            'missingEntryCount' => 1,
+            'actualFileEntryCount' => 1,
+            'actualDirectoryEntryCount' => 1,
+            'directoryMismatchEntryCount' => 1,
+            'handoffEntryCount' => 1,
+            'handoffUniqueEntryCount' => 1,
+            'failedEntryCount' => 2,
+            'duplicateRequestCount' => 0,
+            'selectedUniqueEntryCount' => 2,
+            'selectedCompressedBytes' => strlen($stylesXml),
+            'selectedUncompressedBytes' => strlen($stylesXml),
+            'handoffCompressedBytes' => 0,
+            'handoffUncompressedBytes' => 0,
+            'roles' => ['media-directory', 'required-directory', 'style-directory'],
+            'entryNames' => ['word/styles.xml', 'word/media/', 'word/missing-dir/'],
+            'selectedEntryNames' => ['word/styles.xml', 'word/media/'],
+            'handoffEntryNames' => ['word/media/'],
+            'missingEntryNames' => ['word/missing-dir/'],
+            'failedEntryNames' => ['word/styles.xml', 'word/missing-dir/'],
+            'issues' => ['file-entry-not-directory', 'missing-required-entry'],
+            'issueCounts' => [
+                'file-entry-not-directory' => 1,
+                'missing-required-entry' => 1,
+            ],
+        ], $byExpectedKind['directory']);
+        $t->same([
+            'expectedKind' => 'any',
+            'requestCount' => 1,
+            'presentEntryCount' => 1,
+            'missingEntryCount' => 0,
+            'actualFileEntryCount' => 1,
+            'actualDirectoryEntryCount' => 0,
+            'directoryMismatchEntryCount' => 0,
+            'handoffEntryCount' => 1,
+            'handoffUniqueEntryCount' => 1,
+            'failedEntryCount' => 0,
+            'duplicateRequestCount' => 0,
+            'selectedUniqueEntryCount' => 1,
+            'selectedCompressedBytes' => strlen($imageBytes),
+            'selectedUncompressedBytes' => strlen($imageBytes),
+            'handoffCompressedBytes' => strlen($imageBytes),
+            'handoffUncompressedBytes' => strlen($imageBytes),
+            'roles' => ['media'],
+            'entryNames' => ['word/media/image.png'],
+            'selectedEntryNames' => ['word/media/image.png'],
+            'handoffEntryNames' => ['word/media/image.png'],
+            'missingEntryNames' => [],
+            'failedEntryNames' => [],
+            'issues' => [],
+            'issueCounts' => [],
+        ], $byExpectedKind['any']);
+        $t->same([
+            'expectedKind' => 'directory',
+            'requestCount' => 1,
+            'presentEntryCount' => 1,
+            'missingEntryCount' => 0,
+            'actualFileEntryCount' => 0,
+            'actualDirectoryEntryCount' => 1,
+            'directoryMismatchEntryCount' => 0,
+            'handoffEntryCount' => 1,
+            'handoffUniqueEntryCount' => 1,
+            'failedEntryCount' => 0,
+            'duplicateRequestCount' => 0,
+            'selectedUniqueEntryCount' => 1,
+            'selectedCompressedBytes' => 0,
+            'selectedUncompressedBytes' => 0,
+            'handoffCompressedBytes' => 0,
+            'handoffUncompressedBytes' => 0,
+            'roles' => ['media-directory'],
+            'entryNames' => ['word/media/'],
+            'selectedEntryNames' => ['word/media/'],
+            'handoffEntryNames' => ['word/media/'],
+            'missingEntryNames' => [],
+            'failedEntryNames' => [],
+            'issues' => [],
+            'issueCounts' => [],
+        ], $handoffByExpectedKind['directory']);
+        $t->same($byExpectedKind['any'], $handoffByExpectedKind['any']);
+    },
+
     'summarizes selected zip handoff statuses for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>status policy</w:p></w:body></w:document>';
         $documentRelsXml = '<Relationships><Relationship Id="rIdImage" Target="media/image.png"/></Relationships>';
