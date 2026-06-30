@@ -11569,6 +11569,10 @@ XML;
         $t->same('wp', $content['customManifestChildElements'][0]['prefix']);
         $t->same(1, $content['customManifestChildElements'][0]['attributeCount']);
         $t->same(1, $content['customManifestChildElements'][0]['childElementCount']);
+        $t->same(3, $content['customManifestChildElements'][0]['namespaceDeclarationCount']);
+        $t->same(['xmlns:loext', 'xmlns:manifest', 'xmlns:wp'], $content['customManifestChildElements'][0]['namespaceDeclarationNames']);
+        $t->same('urn:wordpress:review', $content['customManifestChildElements'][0]['namespaceDeclarationMap']['xmlns:wp']);
+        $t->same('urn:libreoffice:manifest', $content['customManifestChildElements'][0]['namespaceDeclarationMap']['xmlns:loext']);
 
         $t->same(2, $hero['manifestChildElementCount']);
         $t->same(['manifest:encryption-data', 'loext:media-policy'], $hero['manifestChildElementNames']);
@@ -11577,6 +11581,9 @@ XML;
         $t->same(1, $hero['customManifestChildElementCount']);
         $t->same(['loext:media-policy'], $hero['customManifestChildElementNames']);
         $t->same('media-policy', $hero['customManifestChildElements'][0]['localName']);
+        $t->same(3, $hero['customManifestChildElements'][0]['namespaceDeclarationCount']);
+        $t->same('urn:libreoffice:manifest', $hero['customManifestChildElements'][0]['namespaceDeclarationMap']['xmlns:loext']);
+        $t->same('urn:wordpress:review', $hero['customManifestChildElements'][0]['namespaceDeclarationMap']['xmlns:wp']);
 
         $t->same(2, $provenance['manifestCustomChildElementEntryCount']);
         $t->same(2, $provenance['manifestCustomChildElementCount']);
@@ -11588,6 +11595,12 @@ XML;
         $t->same(['loext:media-policy'], $inventory['Pictures/hero.png']['customManifestChildElementNames']);
         $t->same(['wp:review-hint'], $identityByPath['content.xml']['customManifestChildElementNames']);
         $t->same(['loext:media-policy'], $identityByPath['Pictures/hero.png']['customManifestChildElementNames']);
+        $t->same($content['customManifestChildElements'][0]['namespaceDeclarationMap'], $order[1]['customManifestChildElements'][0]['namespaceDeclarationMap']);
+        $t->same($hero['customManifestChildElements'][0]['namespaceDeclarationMap'], $order[4]['customManifestChildElements'][0]['namespaceDeclarationMap']);
+        $t->same($content['customManifestChildElements'][0]['namespaceDeclarationMap'], $inventory['content.xml']['customManifestChildElements'][0]['namespaceDeclarationMap']);
+        $t->same($hero['customManifestChildElements'][0]['namespaceDeclarationMap'], $inventory['Pictures/hero.png']['customManifestChildElements'][0]['namespaceDeclarationMap']);
+        $t->same($content['customManifestChildElements'][0]['namespaceDeclarationMap'], $identityByPath['content.xml']['customManifestChildElements'][0]['namespaceDeclarationMap']);
+        $t->same($hero['customManifestChildElements'][0]['namespaceDeclarationMap'], $identityByPath['Pictures/hero.png']['customManifestChildElements'][0]['namespaceDeclarationMap']);
     },
     'summarizes ODT XML package part office versions for provenance review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifestWithSettings = str_replace(

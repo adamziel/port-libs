@@ -1115,6 +1115,17 @@ final class OdfReader
             if ($child->prefix !== '') {
                 $record['prefix'] = $child->prefix;
             }
+            $namespaceDeclarations = $this->manifestElementNamespaceDeclarations($child);
+            $namespaceDeclarationMap = array_map(
+                static fn (array $declaration): string => $declaration['namespaceUri'],
+                $namespaceDeclarations
+            );
+            ksort($namespaceDeclarations, SORT_STRING);
+            ksort($namespaceDeclarationMap, SORT_STRING);
+            $record['namespaceDeclarationCount'] = count($namespaceDeclarations);
+            $record['namespaceDeclarationNames'] = array_keys($namespaceDeclarations);
+            $record['namespaceDeclarations'] = array_values($namespaceDeclarations);
+            $record['namespaceDeclarationMap'] = $namespaceDeclarationMap;
 
             $childElements[] = $record;
             if (!$structural) {
@@ -2664,6 +2675,7 @@ final class OdfReader
                 'manifestNamespaceDeclarationMap' => $item['manifestNamespaceDeclarationMap'] ?? [],
                 'customManifestChildElementCount' => $item['customManifestChildElementCount'] ?? 0,
                 'customManifestChildElementNames' => $item['customManifestChildElementNames'] ?? [],
+                'customManifestChildElements' => $item['customManifestChildElements'] ?? [],
                 'exists' => ($item['exists'] ?? false) === true,
                 'isDirectory' => ($item['isDirectory'] ?? false) === true,
                 'encrypted' => ($item['encrypted'] ?? false) === true,
