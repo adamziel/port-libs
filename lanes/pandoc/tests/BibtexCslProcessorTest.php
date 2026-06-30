@@ -621,6 +621,100 @@ BIB;
         $t->same('Series', $item['collection-editor'][0]['family']);
         $t->same('Will Writer. Role Handoff Chapter. Role Review Sourcebook. 2026.', $bibliography);
     },
+    'carries biblatex auxiliary editorial roles in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@collection{editorial-role-packet,
+  editor      = {Primary, Pat},
+  editortype  = {editorialdirector},
+  editora     = {Compile, Cora and Build, Ben},
+  editoratype = {compiler},
+  editorb     = {Curate, Eli},
+  editorbtype = {curator},
+  editorc     = {Review, Robin},
+  editorctype = {reviewedauthor},
+  title       = {Editorial Role Packet},
+  date        = {2026}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $item = $processor->cslItems($source)['editorial-role-packet'];
+        $bibliography = $processor->renderBibliographyText($item);
+
+        $t->same('book', $item['type']);
+        $t->same('Primary', $item['editor'][0]['family']);
+        $t->same('Primary', $item['editorial-director'][0]['family']);
+        $t->same('Compile', $item['compiler'][0]['family']);
+        $t->same('Build', $item['compiler'][1]['family']);
+        $t->same('Curate', $item['curator'][0]['family']);
+        $t->same('Review', $item['reviewed-author'][0]['family']);
+        $t->same('editor', $item['editorial-roles'][0]['field']);
+        $t->same('editorial-director', $item['editorial-roles'][0]['type']);
+        $t->same('Editorial director', $item['editorial-roles'][0]['label']);
+        $t->same('editora', $item['editorial-roles'][1]['field']);
+        $t->same('compiler', $item['editorial-roles'][1]['type']);
+        $t->same('Compiler', $item['editorial-roles'][1]['label']);
+        $t->same('editorb', $item['editorial-roles'][2]['field']);
+        $t->same('curator', $item['editorial-roles'][2]['type']);
+        $t->same('editorc', $item['editorial-roles'][3]['field']);
+        $t->same('reviewed-author', $item['editorial-roles'][3]['type']);
+        $t->same('reviewedauthor', $item['rawBibtex']['fields']['editorctype']);
+        $t->contains(
+            'BibLaTeX editorial roles: editor Editorial director: Pat Primary; editora Compiler: Cora Compile and Ben Build; editorb Curator: Eli Curate; editorc Reviewed author: Robin Review',
+            $bibliography
+        );
+
+        $styled = CitationCslProcessor::fromItems([$item])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="editorial-role-summary"/>
+        <names variable="compiler"/>
+        <names variable="curator"/>
+        <names variable="reviewed-author"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="editorial-role-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledItem = $styled->item('editorial-role-packet');
+        $t->same('Primary', $styledItem['editorialDirectors'][0]['family']);
+        $t->same('Compile', $styledItem['compilers'][0]['family']);
+        $t->same('Build', $styledItem['compilers'][1]['family']);
+        $t->same('Curate', $styledItem['curators'][0]['family']);
+        $t->same('Review', $styledItem['reviewedAuthors'][0]['family']);
+        $t->same('editorial-director', $styledItem['editorialRoles'][0]['type']);
+        $t->same('compiler', $styledItem['editorialRoles'][1]['type']);
+        $t->same(
+            '[Editorial Role Packet | Editorial direction by Primary, Pat. Compiled by Compile, Cora; Build, Ben. Curated by Curate, Eli. Reviewed author: Review, Robin. | Compile and Build | Curate | Review]',
+            $styled->renderCitationCluster([
+                new AstNode('citation', ['id' => 'editorial-role-packet', 'text' => '[@editorial-role-packet]']),
+            ])
+        );
+        $t->same(
+            'Editorial Role Packet :: Editorial direction by Primary, Pat. Compiled by Compile, Cora; Build, Ben. Curated by Curate, Eli. Reviewed author: Review, Robin.',
+            $styled->renderBibliographyEntry('editorial-role-packet')
+        );
+
+        $document = (new MarkdownReader())->read('Editorial roles @editorial-role-packet remain visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'References'));
+
+        $t->same(['editorial-role-packet'], $handoff['citedKeys']);
+        $t->same('compiler', $handoff['bibliography']->children[0]->attr('cslItem')['editorial-roles'][1]['type'] ?? null);
+        $t->contains('Editorial roles Primary (2026) remain visible.', $blocks);
+        $t->contains('Editorial direction by Primary, Pat. Compiled by Compile, Cora; Build, Ben. Curated by Curate, Eli. Reviewed author: Review, Robin.', $blocks);
+    },
     'carries biblatex short author editor and holder names in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @patent{credit-roles,
