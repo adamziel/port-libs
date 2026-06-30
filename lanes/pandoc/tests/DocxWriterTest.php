@@ -691,12 +691,22 @@ return [
                 new AstNode('link', ['url' => '#a-section-for-testing-link-targets'], [$text('section link')]),
             ]),
             $paragraph([
+                new AstNode('span', ['id' => 'fig:testimg', 'classes' => ['anchor']]),
+                new AstNode('link', ['url' => '#fig:testimg'], [$text('figure link')]),
+            ]),
+            $paragraph([
                 new AstNode('raw_inline', ['format' => 'openxml', 'text' => '<w:bookmarkStart w:id="0" w:name="Aliquam"/>']),
                 $text('Aliquam'),
                 new AstNode('raw_inline', ['format' => 'openxml', 'text' => '<w:bookmarkEnd w:id="0"/>']),
             ]),
             $paragraph([
                 new AstNode('raw_inline', ['format' => 'openxml', 'text' => '<w:fldSimple w:instr="REF ref_fig:testimg" />']),
+            ]),
+            $paragraph([
+                new AstNode('raw_inline', ['format' => 'openxml', 'text' => '<w:fldSimple w:instr=" PAGEREF fig:testimg \h "><w:r><w:t>7</w:t></w:r></w:fldSimple>']),
+            ]),
+            $paragraph([
+                new AstNode('raw_inline', ['format' => 'openxml', 'text' => '<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> REF fig:testimg \h </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>testimg</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r>']),
             ]),
         ]);
 
@@ -705,11 +715,16 @@ return [
 
         $t->contains('<w:bookmarkStart w:id="9" w:name="a-section-for-testing-link-targets"/>', $documentXml);
         $t->contains('<w:hyperlink w:anchor="a-section-for-testing-link-targets">', $documentXml);
+        $t->contains('<w:bookmarkStart w:id="10" w:name="fig:testimg"/>', $documentXml);
+        $t->contains('<w:hyperlink w:anchor="fig:testimg">', $documentXml);
         $t->contains('<w:bookmarkStart w:id="0" w:name="Aliquam"/>', $documentXml);
         $t->contains('<w:bookmarkEnd w:id="0"/>', $documentXml);
         $t->contains('<w:fldSimple w:instr="REF ref_fig:testimg"/>', $documentXml);
+        $t->contains('<w:fldSimple w:instr=" PAGEREF fig:testimg \h "><w:r><w:t>7</w:t></w:r></w:fldSimple>', $documentXml);
+        $t->contains('<w:instrText xml:space="preserve"> REF fig:testimg \h </w:instrText>', $documentXml);
         $t->true(!str_contains($documentXml, '&lt;w:bookmarkStart'), 'Raw bookmark was XML-escaped');
         $t->true(!str_contains($documentXml, '&lt;w:fldSimple'), 'Raw simple field was XML-escaped');
+        $t->true(!str_contains($documentXml, '&lt;w:instrText'), 'Raw complex field was XML-escaped');
     },
 
     'omits empty raw openxml inline fragments' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
@@ -954,13 +969,13 @@ return [
 
         $t->contains('<w:abstractNum w:abstractNumId="990">', $numberingXml);
         $t->contains('<w:abstractNum w:abstractNumId="99411">', $numberingXml);
-        $t->contains('<w:abstractNum w:abstractNumId="99711">', $numberingXml);
+        $t->contains('<w:abstractNum w:abstractNumId="99701">', $numberingXml);
         $t->contains('<w:abstractNum w:abstractNumId="99414">', $numberingXml);
         $t->contains('<w:abstractNum w:abstractNumId="99631">', $numberingXml);
         $t->contains('<w:abstractNum w:abstractNumId="991">', $numberingXml);
         $t->contains('<w:num w:numId="1000"><w:abstractNumId w:val="990"/></w:num>', $numberingXml);
         $t->contains('<w:num w:numId="1001"><w:abstractNumId w:val="99411"/>', $numberingXml);
-        $t->contains('<w:num w:numId="1002"><w:abstractNumId w:val="99711"/>', $numberingXml);
+        $t->contains('<w:num w:numId="1002"><w:abstractNumId w:val="99701"/>', $numberingXml);
         $t->contains('<w:num w:numId="1003"><w:abstractNumId w:val="99414"/>', $numberingXml);
         $t->contains('<w:num w:numId="1004"><w:abstractNumId w:val="99631"/>', $numberingXml);
         $t->contains('<w:num w:numId="1005"><w:abstractNumId w:val="991"/></w:num>', $numberingXml);
@@ -978,6 +993,34 @@ return [
         $t->contains('<w:numId w:val="1006"/>', $documentXml);
         $t->contains('<w:t xml:space="preserve">continuation</w:t>', $documentXml);
         $t->contains('<w:t xml:space="preserve">nested first</w:t>', $documentXml);
+    },
+
+    'emits upstream ordered list marker ids for default example and large starts' => static function (TestRunner $t) use ($doc, $text, $paragraph, $item, $packageParts): void {
+        $document = $doc([
+            new AstNode('ordered_list', ['start' => 1, 'style' => 'default', 'delimiter' => 'default'], [
+                $item([$paragraph([$text('default marker')])]),
+            ]),
+            new AstNode('ordered_list', ['start' => 2, 'style' => 'example', 'delimiter' => 'two_parens'], [
+                $item([$paragraph([$text('example marker')])]),
+            ]),
+            new AstNode('ordered_list', ['start' => 9994, 'style' => 'decimal', 'delimiter' => 'period'], [
+                $item([$paragraph([$text('large start')])]),
+            ]),
+        ]);
+
+        [, $parts] = $packageParts((new DocxWriter())->write($document));
+        $numberingXml = $parts['word/numbering.xml'];
+
+        $t->contains('<w:abstractNum w:abstractNumId="99201">', $numberingXml);
+        $t->contains('<w:abstractNum w:abstractNumId="99332">', $numberingXml);
+        $t->contains('<w:abstractNum w:abstractNumId="99419994">', $numberingXml);
+        $t->contains('<w:num w:numId="1001"><w:abstractNumId w:val="99201"/>', $numberingXml);
+        $t->contains('<w:num w:numId="1002"><w:abstractNumId w:val="99332"/>', $numberingXml);
+        $t->contains('<w:num w:numId="1003"><w:abstractNumId w:val="99419994"/>', $numberingXml);
+        $t->contains('<w:lvl w:ilvl="1"><w:start w:val="1"/><w:numFmt w:val="lowerLetter"/>', $numberingXml);
+        $t->contains('<w:lvl w:ilvl="2"><w:start w:val="1"/><w:numFmt w:val="lowerRoman"/>', $numberingXml);
+        $t->contains('<w:lvlText w:val="(%1)"/>', $numberingXml);
+        $t->contains('<w:startOverride w:val="9994"/>', $numberingXml);
     },
 
     'emits compact placeholder paragraph for list items that begin with nested lists' => static function (TestRunner $t) use ($doc, $text, $paragraph, $item, $packageParts): void {

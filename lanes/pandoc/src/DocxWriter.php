@@ -1656,20 +1656,23 @@ XML;
 
     private function orderedListAbstractNumIdValue(string $style, string $delimiter, int $start): int
     {
-        $styleBase = match ($style) {
-            'lower_roman' => 99500,
-            'upper_roman' => 99600,
-            'lower_alpha' => 99700,
-            'upper_alpha' => 99800,
-            default => 99400,
+        $styleCode = match ($style) {
+            'default' => '2',
+            'example' => '3',
+            'lower_roman' => '5',
+            'upper_roman' => '6',
+            'lower_alpha' => '7',
+            'upper_alpha' => '8',
+            default => '4',
         };
         $delimiterCode = match ($delimiter) {
-            'one_paren' => 2,
-            'two_parens' => 3,
-            default => 1,
+            'default' => '0',
+            'one_paren' => '2',
+            'two_parens' => '3',
+            default => '1',
         };
 
-        return $styleBase + ($delimiterCode * 10) + max(1, min(9, $start));
+        return (int) ('99' . $styleCode . $delimiterCode . (string) max(1, $start));
     }
 
     private function orderedListStyle(AstNode $list): string
@@ -1677,6 +1680,7 @@ XML;
         $style = $list->attr('style', 'decimal');
 
         return match (is_string($style) ? $style : '') {
+            'default',
             'lower_alpha',
             'upper_alpha',
             'lower_roman',
@@ -2258,6 +2262,9 @@ XML;
         if (preg_match('/^<w:fldSimple\s+w:instr="([^"]+)"\s*\/>$/', $xml, $matches) === 1) {
             return '<w:fldSimple w:instr="' . self::escAttr($matches[1]) . '"/>';
         }
+        if (self::isSafeRawOpenXmlInlineFragment($xml)) {
+            return $xml;
+        }
 
         return null;
     }
@@ -2643,9 +2650,9 @@ XML;
 
     private function bookmarkName(string $target): string
     {
-        $name = preg_replace('/[^\p{L}\p{N}_-]/u', '_', $target);
+        $name = preg_replace('/[^\p{L}\p{N}_:-]/u', '_', $target);
         if (!is_string($name)) {
-            $name = preg_replace('/[^A-Za-z0-9_-]/', '_', $target) ?? '';
+            $name = preg_replace('/[^A-Za-z0-9_:-]/', '_', $target) ?? '';
         }
         $name = trim($name, '_');
         if ($name === '') {
@@ -3143,9 +3150,9 @@ XML;
     private function orderedLevelsXml(string $style, string $delimiter, int $start): string
     {
         $levels = '';
-        $format = $this->docxOrderedNumberFormat($style);
         for ($level = 0; $level < 9; $level++) {
             $left = 720 + ($level * 720);
+            $format = $this->docxOrderedNumberFormat($style, $level);
             $text = $this->docxOrderedLevelText($level + 1, $delimiter);
             $levels .= '<w:lvl w:ilvl="' . $level . '"><w:start w:val="' . $start . '"/><w:numFmt w:val="' . $format . '"/><w:lvlText w:val="' . $text . '"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="' . $left . '" w:hanging="360"/></w:pPr></w:lvl>';
         }
@@ -3153,8 +3160,16 @@ XML;
         return $levels;
     }
 
-    private function docxOrderedNumberFormat(string $style): string
+    private function docxOrderedNumberFormat(string $style, int $level): string
     {
+        if ($style === 'default') {
+            return match ($level % 3) {
+                1 => 'lowerLetter',
+                2 => 'lowerRoman',
+                default => 'decimal',
+            };
+        }
+
         return match ($style) {
             'lower_alpha' => 'lowerLetter',
             'upper_alpha' => 'upperLetter',
@@ -3218,5 +3233,49 @@ XML;
         }
 
         return preg_match('/^<\\/?w:[A-Za-z][A-Za-z0-9_.:-]*(\\s|>|\\/)/', $trimmed) === 1;
+    }
+
+    private static function isSafeRawOpenXmlInlineFragment(string $xml): bool
+    {
+        $trimmed = trim($xml);
+        if ($trimmed === '' || str_contains($trimmed, '<?') || stripos($trimmed, '<!DOCTYPE') !== false) {
+            return false;
+        }
+
+        $previous = libxml_use_internal_errors(true);
+        $document = new \DOMDocument();
+        $loaded = $document->loadXML(
+            '<w:root xmlns:w="' . self::NS_W . '" xmlns:r="' . self::NS_R . '">' . $trimmed . '</w:root>',
+            LIBXML_NONET
+        );
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded || !$document->documentElement instanceof \DOMElement) {
+            return false;
+        }
+
+        $allowedRoots = [
+            'bookmarkStart' => true,
+            'bookmarkEnd' => true,
+            'fldSimple' => true,
+            'hyperlink' => true,
+            'proofErr' => true,
+            'r' => true,
+        ];
+        $hasElement = false;
+        foreach ($document->documentElement->childNodes as $child) {
+            if ($child instanceof \DOMText && trim($child->wholeText) === '') {
+                continue;
+            }
+            if (!$child instanceof \DOMElement) {
+                return false;
+            }
+            if ($child->namespaceURI !== self::NS_W || !isset($allowedRoots[$child->localName])) {
+                return false;
+            }
+            $hasElement = true;
+        }
+
+        return $hasElement;
     }
 }
