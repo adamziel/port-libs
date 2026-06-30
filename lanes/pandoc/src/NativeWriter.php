@@ -1023,13 +1023,7 @@ final class NativeWriter
                 return 'MetaList [ ' . implode(' , ', array_map(fn (mixed $item): string => $this->renderMetaValue($item), $value)) . ' ]';
             }
 
-            ksort($value);
-            $pairs = [];
-            foreach ($value as $key => $item) {
-                $pairs[] = '( ' . $this->quote((string) $key) . ' , ' . $this->renderMetaValue($item) . ' )';
-            }
-
-            return 'MetaMap (fromList [ ' . implode(' , ', $pairs) . ' ])';
+            return $this->renderMetaMapValue($value);
         }
 
         return 'MetaString ' . $this->quote((string) $value);

@@ -581,6 +581,48 @@ NATIVE;
         $t->same('raw_inline', $roundTrip->children[1]->children[0]->type);
         $t->same('raw_html_inline', $roundTrip->children[1]->children[2]->type);
     },
+    'hands textual native metadata constructors to pandoc json writer without loss' => static function (TestRunner $t): void {
+        $nativeText = <<<'NATIVE'
+Pandoc
+  Meta { unMeta = fromList
+    [ ( "review" , MetaMap (fromList
+        [ ( "inline" , MetaInlines [ Str "Inline" , Space , Strong [ Str "metadata" ] ] )
+        , ( "body" , MetaBlocks [ Div ( "meta-div" , [ "review" ] , [ ( "data-source" , "native-text" ) ] ) [ Para [ Str "Body" ] ] ] )
+        , ( "tags" , MetaList [ MetaString "native" , MetaBool True ] )
+        ] ) )
+    ] }
+  [ Para [ Str "Body" ] ]
+NATIVE;
+
+        $document = (new NativeReader())->read($nativeText);
+        $json = (new PandocJsonWriter())->toArray($document);
+        $review = $json['meta']['review'];
+        $reviewMap = $review['c'];
+        $textualNative = (new NativeWriter(['standalone' => true]))->write($document);
+        $roundTrip = (new NativeReader())->read(json_encode($json, JSON_THROW_ON_ERROR));
+        $roundTripReview = $roundTrip->attr('meta')['review'];
+
+        $t->same('MetaInlines', $document->attr('meta')['review']['inline']['type']);
+        $t->same('MetaBlocks', $document->attr('meta')['review']['body']['type']);
+        $t->same('MetaList', $document->attr('meta')['review']['tags']['type']);
+        $t->same('MetaMap', $review['t']);
+        $t->same('MetaInlines', $reviewMap['inline']['t']);
+        $t->same(['Str', 'Space', 'Strong'], array_map(static fn (array $inline): string => $inline['t'], $reviewMap['inline']['c']));
+        $t->same('MetaBlocks', $reviewMap['body']['t']);
+        $t->same('Div', $reviewMap['body']['c'][0]['t']);
+        $t->same(['meta-div', ['review'], [['data-source', 'native-text']]], $reviewMap['body']['c'][0]['c'][0]);
+        $t->same('MetaList', $reviewMap['tags']['t']);
+        $t->same('MetaString', $reviewMap['tags']['c'][0]['t']);
+        $t->same('native', $reviewMap['tags']['c'][0]['c']);
+        $t->same('MetaBool', $reviewMap['tags']['c'][1]['t']);
+        $t->same(true, $reviewMap['tags']['c'][1]['c']);
+        $t->contains('MetaInlines [ Str "Inline" , Space , Strong [ Str "metadata" ] ]', $textualNative);
+        $t->contains('MetaBlocks [ Div ( "meta-div" , [ "review" ] , [ ( "data-source" , "native-text" ) ] )', $textualNative);
+        $t->same('MetaMap', $roundTripReview['t']);
+        $t->same('MetaInlines', $roundTripReview['c']['inline']['t']);
+        $t->same('MetaBlocks', $roundTripReview['c']['body']['t']);
+        $t->same('MetaList', $roundTripReview['c']['tags']['t']);
+    },
     'normalizes textual native cite constructors for pandoc json writer handoff' => static function (TestRunner $t): void {
         $nativeText = <<<'NATIVE'
 [ Para

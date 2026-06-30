@@ -335,10 +335,12 @@ final class PandocJsonWriter
     private function writeTypedMetaValue(array $value, array $provenance = [], array $path = []): array
     {
         return match ($value['type']) {
-            'inlines' => ['t' => 'MetaInlines', 'c' => $this->writeInlines($this->metaChildren($value))],
-            'blocks' => ['t' => 'MetaBlocks', 'c' => $this->writeBlocks($this->metaChildren($value))],
-            'list' => ['t' => 'MetaList', 'c' => $this->writeMetaListItems(is_array($value['items'] ?? null) && array_is_list($value['items']) ? $value['items'] : [], $provenance, $path)],
-            'map' => ['t' => 'MetaMap', 'c' => $this->writeMetaMap(is_array($value['items'] ?? null) && !array_is_list($value['items']) ? $value['items'] : [], [], $provenance, $path)],
+            'inlines', 'MetaInlines' => ['t' => 'MetaInlines', 'c' => $this->writeInlines($this->metaChildren($value))],
+            'blocks', 'MetaBlocks' => ['t' => 'MetaBlocks', 'c' => $this->writeBlocks($this->metaChildren($value))],
+            'list', 'MetaList' => ['t' => 'MetaList', 'c' => $this->writeMetaListItems($this->metaListItems($value), $provenance, $path)],
+            'map', 'MetaMap' => ['t' => 'MetaMap', 'c' => $this->writeMetaMap($this->metaMapItems($value), [], $provenance, $path)],
+            'MetaBool' => ['t' => 'MetaBool', 'c' => (bool) $this->metaScalarValue($value)],
+            'MetaString' => ['t' => 'MetaString', 'c' => (string) $this->metaScalarValue($value)],
             default => ['t' => 'MetaString', 'c' => ''],
         };
     }
@@ -583,12 +585,42 @@ final class PandocJsonWriter
      */
     private function metaChildren(array $value): array
     {
-        $children = $value['children'] ?? [];
+        $children = $value['children'] ?? $value['value'] ?? [];
         if (!is_array($children) || !array_is_list($children)) {
             return [];
         }
 
         return array_values(array_filter($children, static fn (mixed $child): bool => $child instanceof AstNode));
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     * @return list<mixed>
+     */
+    private function metaListItems(array $value): array
+    {
+        $items = $value['items'] ?? $value['value'] ?? [];
+
+        return is_array($items) && array_is_list($items) ? $items : [];
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     * @return array<string, mixed>
+     */
+    private function metaMapItems(array $value): array
+    {
+        $items = $value['items'] ?? $value['value'] ?? [];
+
+        return is_array($items) && !array_is_list($items) ? $items : [];
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     */
+    private function metaScalarValue(array $value): mixed
+    {
+        return $value['value'] ?? null;
     }
 
     /**
