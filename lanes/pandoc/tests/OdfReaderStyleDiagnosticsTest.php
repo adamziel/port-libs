@@ -92,4 +92,86 @@ return [
         $t->same('review-extension', $result['styles']['VendorReviewStyle']['family']);
         $t->same('paragraph', $result['styles']['KnownParagraph']['family']);
     },
+    'reports nameless ODT style catalog definitions with source provenance' => static function (TestRunner $t) use ($manifestXml, $contentXml, $metaXml): void {
+        $namelessStylesXml = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+  xmlns:number="urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
+  <office:font-face-decls>
+    <style:font-face svg:font-family="Nameless Sans"/>
+  </office:font-face-decls>
+  <office:automatic-styles>
+    <style:page-layout>
+      <style:page-layout-properties style:print-orientation="portrait"/>
+    </style:page-layout>
+    <number:number-style>
+      <number:number number:min-integer-digits="2"/>
+    </number:number-style>
+  </office:automatic-styles>
+  <office:styles>
+    <text:list-style>
+      <text:list-level-style-number text:level="1" style:num-format="1"/>
+    </text:list-style>
+    <table:table-template/>
+  </office:styles>
+  <office:master-styles>
+    <style:master-page style:display-name="Nameless master page"/>
+  </office:master-styles>
+</office:document-styles>
+XML;
+
+        $result = (new OdfReader())->readPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml],
+            ['name' => 'content.xml', 'data' => $contentXml],
+            ['name' => 'styles.xml', 'data' => $namelessStylesXml],
+            ['name' => 'meta.xml', 'data' => $metaXml],
+        ], 'odt nameless style diagnostics'));
+
+        $styleReport = $result['importReport']['styles'];
+        $diagnosticsByCode = [];
+        foreach ($styleReport['diagnostics'] as $diagnostic) {
+            $diagnosticsByCode[$diagnostic['code']][] = $diagnostic;
+        }
+
+        $expectedCodeCounts = [
+            'odf-data-style-missing-name' => 1,
+            'odf-font-face-missing-name' => 1,
+            'odf-list-style-missing-name' => 1,
+            'odf-master-page-missing-name' => 1,
+            'odf-page-layout-missing-name' => 1,
+            'odf-table-template-missing-name' => 1,
+        ];
+
+        $t->same(0, $styleReport['count']);
+        $t->same(6, $styleReport['diagnosticCount']);
+        $t->same($expectedCodeCounts, $styleReport['diagnosticCodeCounts']);
+        $t->same('styles.xml', $diagnosticsByCode['odf-font-face-missing-name'][0]['sourcePart']);
+        $t->same('office:font-face-decls', $diagnosticsByCode['odf-font-face-missing-name'][0]['sourceContainer']);
+        $t->same('style:font-face', $diagnosticsByCode['odf-font-face-missing-name'][0]['element']);
+        $t->same('office:automatic-styles', $diagnosticsByCode['odf-page-layout-missing-name'][0]['sourceContainer']);
+        $t->same('style:page-layout', $diagnosticsByCode['odf-page-layout-missing-name'][0]['element']);
+        $t->same('number:number-style', $diagnosticsByCode['odf-data-style-missing-name'][0]['element']);
+        $t->same('office:styles', $diagnosticsByCode['odf-list-style-missing-name'][0]['sourceContainer']);
+        $t->same('text:list-style', $diagnosticsByCode['odf-list-style-missing-name'][0]['element']);
+        $t->same('table:table-template', $diagnosticsByCode['odf-table-template-missing-name'][0]['element']);
+        $t->same('office:master-styles', $diagnosticsByCode['odf-master-page-missing-name'][0]['sourceContainer']);
+        $t->same('style:master-page', $diagnosticsByCode['odf-master-page-missing-name'][0]['element']);
+
+        $packageStyles = $result['packageStyles'];
+        $t->same($packageStyles, $result['importReport']['packageStyles']);
+        $t->same($packageStyles, $result['document']->attr('packageStyles'));
+        $t->same(1, $packageStyles['count']);
+        $t->same(6, $packageStyles['diagnosticCount']);
+        $t->same($expectedCodeCounts, $packageStyles['diagnosticCodeCounts']);
+        $t->same(['styles.xml'], $packageStyles['diagnosticSourceParts']);
+        $t->same('odf-style-package-provenance-metadata-only', $packageStyles['byteExposurePolicy']);
+        $t->same(false, $packageStyles['canExposeBytes']);
+        $t->same(6, $packageStyles['items'][0]['diagnosticCount']);
+        $t->same($expectedCodeCounts, $packageStyles['items'][0]['diagnosticCodeCounts']);
+    },
 ];
