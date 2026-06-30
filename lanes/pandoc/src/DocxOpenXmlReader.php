@@ -1973,6 +1973,11 @@ final class DocxOpenXmlReader
                 'target' => $record['target'],
                 'targetMode' => $record['targetMode'],
                 'resolvedTarget' => $record['resolvedTarget'],
+                'targetResolutionMode' => $record['targetResolutionMode'],
+                'targetResolutionValid' => $record['targetResolutionValid'],
+                'targetResolutionError' => $record['targetResolutionError'],
+                'targetResolutionIssueCodes' => $record['targetResolutionIssueCodes'],
+                'targetResolutionUsedTolerantFallback' => $record['targetResolutionUsedTolerantFallback'],
             ];
         }
 
@@ -2036,13 +2041,19 @@ final class DocxOpenXmlReader
             $id = $node->getAttribute('Id');
             $targetMode = $node->getAttribute('TargetMode');
             $target = $node->getAttribute('Target');
+            $targetResolution = $this->relationshipTargetResolution($partName, $target, $targetMode);
             $records[] = [
                 'ordinal' => $recordOrdinal,
                 'id' => $id,
                 'type' => $node->getAttribute('Type'),
                 'target' => $target,
                 'targetMode' => $targetMode,
-                'resolvedTarget' => $target === '' ? '' : $this->resolveRelationshipTarget($partName, $target, $targetMode),
+                'resolvedTarget' => $targetResolution['resolvedTarget'],
+                'targetResolutionMode' => $targetResolution['mode'],
+                'targetResolutionValid' => $targetResolution['valid'],
+                'targetResolutionError' => $targetResolution['error'],
+                'targetResolutionIssueCodes' => $targetResolution['issueCodes'],
+                'targetResolutionUsedTolerantFallback' => $targetResolution['usedTolerantFallback'],
             ];
         }
 
@@ -14951,6 +14962,7 @@ final class DocxOpenXmlReader
         $duplicateRelationshipRecordCount = 0;
         $invalidRelationshipRecordCount = 0;
         $relationshipRecordIssueCount = 0;
+        $relationshipRecordInvalidTargetResolutionCount = 0;
         $relationshipPartInvalidXmlCount = 0;
         $relationshipPartUnexpectedRootCount = 0;
         $relationshipPartIssueCount = 0;
@@ -15027,6 +15039,7 @@ final class DocxOpenXmlReader
         $relationshipSourceExistingParts = [];
         $relationshipPartsWithDuplicateRelationshipIds = [];
         $relationshipPartsWithInvalidRecords = [];
+        $relationshipPartsWithInvalidTargetResolution = [];
         $relationshipPartsWithInvalidXml = [];
         $relationshipPartsWithUnexpectedRoot = [];
         $relationshipPartsWithExplicitInternalTargetMode = [];
@@ -15038,7 +15051,10 @@ final class DocxOpenXmlReader
         $unexpectedRootRelationshipParts = [];
         $relationshipsWithExplicitInternalTargetMode = [];
         $relationshipsWithUnexpectedTargetMode = [];
+        $relationshipsWithInvalidTargetResolution = [];
         $relationshipRecordIssueCodes = [];
+        $relationshipRecordTargetResolutionIssueCounts = [];
+        $relationshipRecordTargetResolutionIssueCodes = [];
         $relationshipPartIssueCodes = [];
         $targetParts = [];
         $partsWithoutContentType = [];
@@ -16812,9 +16828,26 @@ final class DocxOpenXmlReader
             $duplicateRelationshipRecordCount += (int) ($relationshipPart['duplicateRelationshipRecordCount'] ?? 0);
             $invalidRelationshipRecordCount += (int) ($relationshipPart['invalidRelationshipRecordCount'] ?? 0);
             $relationshipRecordIssueCount += (int) ($relationshipPart['relationshipRecordIssueCount'] ?? 0);
+            $relationshipRecordInvalidTargetResolutionCount += (int) ($relationshipPart['invalidTargetResolutionRecordCount'] ?? 0);
             foreach (($relationshipPart['relationshipRecords'] ?? []) as $record) {
                 if (!is_array($record)) {
                     continue;
+                }
+
+                if (($record['targetResolutionValid'] ?? null) === false) {
+                    $relationshipPartsWithInvalidTargetResolution[(string) $relationshipsPart] = true;
+                    $relationshipsWithInvalidTargetResolution[] = $this->relationshipProvenanceSummaryItem($record) + [
+                        'ordinal' => $record['ordinal'] ?? null,
+                        'valid' => (bool) ($record['valid'] ?? false),
+                        'issues' => $record['issues'] ?? [],
+                    ];
+                    foreach (($record['targetResolutionIssueCodes'] ?? []) as $issue) {
+                        if (is_string($issue) && $issue !== '') {
+                            $relationshipRecordTargetResolutionIssueCounts[$issue] =
+                                ($relationshipRecordTargetResolutionIssueCounts[$issue] ?? 0) + 1;
+                            $relationshipRecordTargetResolutionIssueCodes[$issue] = true;
+                        }
+                    }
                 }
 
                 $targetMode = is_string($record['targetMode'] ?? null) ? $record['targetMode'] : '';
@@ -16889,6 +16922,8 @@ final class DocxOpenXmlReader
         ksort($relationshipTargetPathCharacterFlagCounts);
         ksort($relationshipRecordTargetModeCounts);
         ksort($relationshipRecordIssueCodes);
+        ksort($relationshipRecordTargetResolutionIssueCounts);
+        ksort($relationshipRecordTargetResolutionIssueCodes);
         ksort($relationshipPartIssueCodes);
         ksort($relationshipSourceKindCounts);
         ksort($relationshipSourceDirectoryCounts);
@@ -18239,6 +18274,9 @@ final class DocxOpenXmlReader
             'invalidRelationshipRecordCount' => $invalidRelationshipRecordCount,
             'relationshipRecordIssueCount' => $relationshipRecordIssueCount,
             'relationshipRecordIssueCodes' => array_keys($relationshipRecordIssueCodes),
+            'relationshipRecordInvalidTargetResolutionCount' => $relationshipRecordInvalidTargetResolutionCount,
+            'relationshipRecordTargetResolutionIssueCounts' => $relationshipRecordTargetResolutionIssueCounts,
+            'relationshipRecordTargetResolutionIssueCodes' => array_keys($relationshipRecordTargetResolutionIssueCodes),
             'relationshipPartInvalidXmlCount' => $relationshipPartInvalidXmlCount,
             'relationshipPartUnexpectedRootCount' => $relationshipPartUnexpectedRootCount,
             'relationshipPartIssueCount' => $relationshipPartIssueCount,
@@ -18586,6 +18624,7 @@ final class DocxOpenXmlReader
             'relationshipPartsWithPathCharacterTargets' => array_keys($relationshipPartsWithPathCharacterTargets),
             'relationshipPartsWithDuplicateRelationshipIds' => $relationshipPartsWithDuplicateRelationshipIds,
             'relationshipPartsWithInvalidRecords' => $relationshipPartsWithInvalidRecords,
+            'relationshipPartsWithInvalidTargetResolution' => array_keys($relationshipPartsWithInvalidTargetResolution),
             'relationshipPartsWithInvalidXml' => $relationshipPartsWithInvalidXml,
             'relationshipPartsWithUnexpectedRoot' => $relationshipPartsWithUnexpectedRoot,
             'relationshipPartsWithExplicitInternalTargetMode' => array_keys($relationshipPartsWithExplicitInternalTargetMode),
@@ -18609,6 +18648,7 @@ final class DocxOpenXmlReader
             'unexpectedRootRelationshipParts' => $unexpectedRootRelationshipParts,
             'relationshipsWithExplicitInternalTargetMode' => $relationshipsWithExplicitInternalTargetMode,
             'relationshipsWithUnexpectedTargetMode' => $relationshipsWithUnexpectedTargetMode,
+            'relationshipsWithInvalidTargetResolution' => $relationshipsWithInvalidTargetResolution,
         ];
     }
 
@@ -38565,6 +38605,13 @@ final class DocxOpenXmlReader
             'targetMode' => $relationship['targetMode'] ?? '',
             'resolvedTarget' => $relationship['resolvedTarget'] ?? '',
             'external' => (bool) ($relationship['external'] ?? false),
+            'targetResolutionMode' => is_string($relationship['targetResolutionMode'] ?? null) ? $relationship['targetResolutionMode'] : null,
+            'targetResolutionValid' => array_key_exists('targetResolutionValid', $relationship) ? $relationship['targetResolutionValid'] : null,
+            'targetResolutionError' => is_string($relationship['targetResolutionError'] ?? null) ? $relationship['targetResolutionError'] : null,
+            'targetResolutionIssueCodes' => is_array($relationship['targetResolutionIssueCodes'] ?? null)
+                ? array_values(array_map('strval', $relationship['targetResolutionIssueCodes']))
+                : [],
+            'targetResolutionUsedTolerantFallback' => (bool) ($relationship['targetResolutionUsedTolerantFallback'] ?? false),
             'targetPart' => $relationship['targetPart'] ?? null,
             'targetReferenceSuffix' => $relationship['targetReferenceSuffix'] ?? '',
             'targetQuery' => $relationship['targetQuery'] ?? null,
@@ -39791,6 +39838,22 @@ final class DocxOpenXmlReader
         $duplicateItems = $this->duplicateRelationshipIdItems($relationshipRecords);
         $duplicateRecordCount = count(array_filter($relationshipRecords, static fn (array $record): bool => ($record['duplicateId'] ?? false) === true));
         $invalidRecords = array_values(array_filter($relationshipRecords, static fn (array $record): bool => ($record['valid'] ?? true) !== true));
+        $invalidTargetResolutionRecords = array_values(array_filter(
+            $relationshipRecords,
+            static fn (array $record): bool => ($record['targetResolutionValid'] ?? null) === false,
+        ));
+        $targetResolutionIssueCodes = [];
+        $targetResolutionIssueCounts = [];
+        foreach ($invalidTargetResolutionRecords as $record) {
+            foreach (($record['targetResolutionIssueCodes'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $targetResolutionIssueCodes[$issue] = true;
+                    $targetResolutionIssueCounts[$issue] = ($targetResolutionIssueCounts[$issue] ?? 0) + 1;
+                }
+            }
+        }
+        ksort($targetResolutionIssueCodes);
+        ksort($targetResolutionIssueCounts);
         $recordIssueCodes = [];
         $recordIssueCount = 0;
         foreach ($invalidRecords as $record) {
@@ -39827,6 +39890,10 @@ final class DocxOpenXmlReader
             'relationshipRecordIssueCount' => $recordIssueCount,
             'relationshipRecordIssueCodes' => array_keys($recordIssueCodes),
             'invalidRelationshipRecords' => $invalidRecords,
+            'invalidTargetResolutionRecordCount' => count($invalidTargetResolutionRecords),
+            'targetResolutionIssueCounts' => $targetResolutionIssueCounts,
+            'targetResolutionIssueCodes' => array_keys($targetResolutionIssueCodes),
+            'relationshipsWithInvalidTargetResolution' => $invalidTargetResolutionRecords,
             'relationships' => $relationshipSummaries,
             'relationshipRecords' => $relationshipRecords,
         ];
@@ -39947,6 +40014,9 @@ final class DocxOpenXmlReader
         if ($targetMode !== '' && $targetMode !== 'Internal' && $targetMode !== 'External') {
             $issues[] = 'unexpected-relationship-target-mode';
         }
+        if (($record['targetResolutionValid'] ?? null) === false) {
+            $issues[] = 'invalid-relationship-target-uri';
+        }
 
         return $issues;
     }
@@ -40033,6 +40103,13 @@ final class DocxOpenXmlReader
             'targetMode' => $relationship['targetMode'],
             'external' => $external,
             'resolvedTarget' => $relationship['resolvedTarget'],
+            'targetResolutionMode' => is_string($relationship['targetResolutionMode'] ?? null) ? $relationship['targetResolutionMode'] : null,
+            'targetResolutionValid' => array_key_exists('targetResolutionValid', $relationship) ? $relationship['targetResolutionValid'] : null,
+            'targetResolutionError' => is_string($relationship['targetResolutionError'] ?? null) ? $relationship['targetResolutionError'] : null,
+            'targetResolutionIssueCodes' => is_array($relationship['targetResolutionIssueCodes'] ?? null)
+                ? array_values(array_map('strval', $relationship['targetResolutionIssueCodes']))
+                : [],
+            'targetResolutionUsedTolerantFallback' => (bool) ($relationship['targetResolutionUsedTolerantFallback'] ?? false),
             'targetPart' => $targetPart,
             'targetQuery' => $suffix['query'],
             'targetFragment' => $suffix['fragment'],
@@ -48585,19 +48662,97 @@ final class DocxOpenXmlReader
 
     private function resolveRelationshipTarget(string $relsPartName, string $target, string $targetMode): string
     {
+        return $this->relationshipTargetResolution($relsPartName, $target, $targetMode)['resolvedTarget'];
+    }
+
+    /**
+     * @return array{resolvedTarget:string, mode:string, valid:?bool, error:?string, issueCodes:list<string>, usedTolerantFallback:bool}
+     */
+    private function relationshipTargetResolution(string $relsPartName, string $target, string $targetMode): array
+    {
+        if ($target === '') {
+            return [
+                'resolvedTarget' => '',
+                'mode' => 'missing-target',
+                'valid' => null,
+                'error' => null,
+                'issueCodes' => [],
+                'usedTolerantFallback' => false,
+            ];
+        }
+
         if ($targetMode === 'External' || preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $target) === 1) {
-            return $target;
+            return [
+                'resolvedTarget' => $target,
+                'mode' => 'external',
+                'valid' => true,
+                'error' => null,
+                'issueCodes' => [],
+                'usedTolerantFallback' => false,
+            ];
         }
 
         $sourcePart = $this->sourcePartForRelationshipsPart($relsPartName);
         try {
-            return $this->normalizePartName(OpcPackagePath::resolveInternalTarget(
+            $resolvedTarget = $this->normalizePartName(OpcPackagePath::resolveInternalTarget(
                 $sourcePart === '' ? '/' : '/' . $sourcePart,
                 $target,
             ));
-        } catch (\InvalidArgumentException) {
-            return $this->resolveRelationshipTargetTolerantly($sourcePart, $target);
+
+            return [
+                'resolvedTarget' => $resolvedTarget,
+                'mode' => 'internal-opc',
+                'valid' => true,
+                'error' => null,
+                'issueCodes' => [],
+                'usedTolerantFallback' => false,
+            ];
+        } catch (\InvalidArgumentException $error) {
+            return [
+                'resolvedTarget' => $this->resolveRelationshipTargetTolerantly($sourcePart, $target),
+                'mode' => 'internal-tolerant',
+                'valid' => false,
+                'error' => $error->getMessage(),
+                'issueCodes' => [$this->relationshipTargetResolutionIssueCode($error->getMessage())],
+                'usedTolerantFallback' => true,
+            ];
         }
+    }
+
+    private function relationshipTargetResolutionIssueCode(string $message): string
+    {
+        if (str_contains($message, 'malformed percent escape')) {
+            return 'malformed-percent-escape';
+        }
+        if (str_contains($message, 'unsafe percent-encoded path bytes')) {
+            return 'unsafe-percent-encoded-path-bytes';
+        }
+        if (str_contains($message, 'unsafe percent-encoded dot segment')) {
+            return 'unsafe-percent-encoded-dot-segment';
+        }
+        if (str_contains($message, 'invalid URI bytes')) {
+            return 'invalid-uri-bytes';
+        }
+        if (str_contains($message, 'slash-separated')) {
+            return 'invalid-path-separator';
+        }
+        if (str_contains($message, 'URI authority')) {
+            return 'uri-authority-in-internal-target';
+        }
+        if (str_contains($message, 'absolute URI')) {
+            return 'absolute-uri-in-internal-target';
+        }
+        if (str_contains($message, 'traverse above the package root')) {
+            return 'target-traverses-above-package-root';
+        }
+        if (str_contains($message, 'end with a dot')) {
+            return 'target-path-segment-trailing-dot';
+        }
+        if (str_contains($message, 'empty')) {
+            return 'empty-target-path';
+        }
+
+        return 'invalid-internal-target';
     }
 
     private function resolveRelationshipTargetTolerantly(string $sourcePart, string $target): string

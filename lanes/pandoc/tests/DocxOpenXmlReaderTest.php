@@ -13275,6 +13275,97 @@ XML;
         $t->same(['missing-relationship-id'], $summary['invalidRelationshipRecords'][0]['issues']);
         $t->same(1, $summary['relationshipTypeCounts']['(missing-type)']);
     },
+    'reports malformed docx relationship target uri fallback provenance without aborting package ingestion' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rMalformedPercent" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review%zz.png?bad=%zz#img"/>' . "\n" .
+            '  <Relationship Id="rEncodedSlash" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review%2Fescape.png"/>' . "\n" .
+            '  <Relationship Id="rBackslash" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media\\legacy.png"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/media/review%zz.png'] = 'malformed percent target bytes';
+        $parts['word/media/review%2Fescape.png'] = 'encoded slash target bytes';
+        $parts['word/media/legacy.png'] = 'backslash target bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $relationshipPart = $package['relationshipParts']['word/_rels/document.xml.rels'];
+        $relationships = $relationshipPart['relationships'];
+        $records = $relationshipPart['relationshipRecords'];
+        $malformedPercent = $records[2];
+        $encodedSlash = $records[3];
+        $backslash = $records[4];
+
+        $t->same('document', $document->type);
+        $t->same(5, $relationshipPart['relationshipRecordCount']);
+        $t->same(5, $relationshipPart['relationshipCount']);
+        $t->same(3, $relationshipPart['invalidRelationshipRecordCount']);
+        $t->same(3, $relationshipPart['relationshipRecordIssueCount']);
+        $t->same(['invalid-relationship-target-uri'], $relationshipPart['relationshipRecordIssueCodes']);
+        $t->same(3, $relationshipPart['invalidTargetResolutionRecordCount']);
+        $t->same([
+            'invalid-path-separator',
+            'malformed-percent-escape',
+            'unsafe-percent-encoded-path-bytes',
+        ], $relationshipPart['targetResolutionIssueCodes']);
+        $t->same([
+            'invalid-path-separator' => 1,
+            'malformed-percent-escape' => 1,
+            'unsafe-percent-encoded-path-bytes' => 1,
+        ], $relationshipPart['targetResolutionIssueCounts']);
+        $t->same(['rMalformedPercent', 'rEncodedSlash', 'rBackslash'], array_column($relationshipPart['relationshipsWithInvalidTargetResolution'], 'id'));
+
+        $t->same('rMalformedPercent', $malformedPercent['id']);
+        $t->same('word/media/review%zz.png?bad=%zz#img', $malformedPercent['resolvedTarget']);
+        $t->same('word/media/review%zz.png', $malformedPercent['targetPart']);
+        $t->same('bad=%zz', $malformedPercent['targetQuery']);
+        $t->same('img', $malformedPercent['targetFragment']);
+        $t->same(false, $malformedPercent['targetResolutionValid']);
+        $t->same('internal-tolerant', $malformedPercent['targetResolutionMode']);
+        $t->same(true, $malformedPercent['targetResolutionUsedTolerantFallback']);
+        $t->same('OPC internal relationship target query or fragment contains malformed percent escape', $malformedPercent['targetResolutionError']);
+        $t->same(['malformed-percent-escape'], $malformedPercent['targetResolutionIssueCodes']);
+        $t->same(['invalid-relationship-target-uri'], $malformedPercent['issues']);
+        $t->same(true, $malformedPercent['exists']);
+
+        $t->same('word/media/review%2Fescape.png', $encodedSlash['targetPart']);
+        $t->same(false, $encodedSlash['targetResolutionValid']);
+        $t->same('OPC relationship target contains unsafe percent-encoded path bytes', $encodedSlash['targetResolutionError']);
+        $t->same(['unsafe-percent-encoded-path-bytes'], $encodedSlash['targetResolutionIssueCodes']);
+        $t->same(true, $encodedSlash['exists']);
+
+        $t->same('media\\legacy.png', $backslash['target']);
+        $t->same('word/media/legacy.png', $backslash['targetPart']);
+        $t->same(false, $backslash['targetResolutionValid']);
+        $t->same('OPC relationship targets must use slash-separated paths', $backslash['targetResolutionError']);
+        $t->same(['invalid-path-separator'], $backslash['targetResolutionIssueCodes']);
+        $t->same(true, $backslash['exists']);
+
+        $t->same(false, $relationships['rMalformedPercent']['targetResolutionValid']);
+        $t->same('internal-tolerant', $relationships['rEncodedSlash']['targetResolutionMode']);
+        $t->same(['invalid-path-separator'], $relationships['rBackslash']['targetResolutionIssueCodes']);
+        $t->same(7, $summary['relationshipRecordCount']);
+        $t->same(3, $summary['invalidRelationshipRecordCount']);
+        $t->same(3, $summary['relationshipRecordIssueCount']);
+        $t->same(['invalid-relationship-target-uri'], $summary['relationshipRecordIssueCodes']);
+        $t->same(3, $summary['relationshipRecordInvalidTargetResolutionCount']);
+        $t->same([
+            'invalid-path-separator',
+            'malformed-percent-escape',
+            'unsafe-percent-encoded-path-bytes',
+        ], $summary['relationshipRecordTargetResolutionIssueCodes']);
+        $t->same([
+            'invalid-path-separator' => 1,
+            'malformed-percent-escape' => 1,
+            'unsafe-percent-encoded-path-bytes' => 1,
+        ], $summary['relationshipRecordTargetResolutionIssueCounts']);
+        $t->same(['word/_rels/document.xml.rels'], $summary['relationshipPartsWithInvalidRecords']);
+        $t->same(['word/_rels/document.xml.rels'], $summary['relationshipPartsWithInvalidTargetResolution']);
+        $t->same(['rMalformedPercent', 'rEncodedSlash', 'rBackslash'], array_column($summary['relationshipsWithInvalidTargetResolution'], 'id'));
+    },
     'reports malformed docx relationship sidecar xml without aborting package ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/review-source.xml'] = '<review-source/>';
