@@ -143,6 +143,18 @@ return [
 
         $t->throws(InvalidArgumentException::class, static fn (): DocxReader => new DocxReader(['revisionMode' => 'merge']));
     },
+    'reads docx soft and non-breaking hyphen run markers' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Soft hyphen: [</w:t><w:softHyphen/><w:t>]</w:t></w:r></w:p><w:p><w:r><w:t>Non-breaking hyphen: [</w:t><w:noBreakHyphen/><w:t>]</w:t></w:r></w:p></w:body></w:document>');
+
+        $document = (new DocxReader())->read($bytes);
+        $softHyphen = "\u{00AD}";
+        $nonBreakingHyphen = "\u{2011}";
+
+        $t->same("Soft hyphen: [{$softHyphen}]", $document->children[0]->attr('text'));
+        $t->same("Soft hyphen: [{$softHyphen}]", $document->children[0]->children[0]->attr('text'));
+        $t->same("Non-breaking hyphen: [{$nonBreakingHyphen}]", $document->children[1]->attr('text'));
+        $t->same("Non-breaking hyphen: [{$nonBreakingHyphen}]", $document->children[1]->children[0]->attr('text'));
+    },
     'resolves docx paragraph style numbering and explicit numbering suppression' => static function (TestRunner $t): void {
         $package = ZipPackage::fromParts([
             ['name' => 'word/styles.xml', 'data' => <<<'XML'
@@ -610,14 +622,15 @@ XML;
         $meta = $converterDocument->attr('meta');
         $image = $converterDocument->children[0]->children[1];
 
-        $t->same('Native ZIP DOCX', $packageDocument->children[0]->attr('text'));
-        $t->same('Native ZIP DOCX', $converterDocument->children[0]->attr('text'));
+        $t->same('Native ZIP DOCX Unsupported media alt', $packageDocument->children[0]->attr('text'));
+        $t->same('Native ZIP DOCX Unsupported media alt', $converterDocument->children[0]->attr('text'));
         $t->same(4, $meta['docxPackageEntries']);
         $t->same(['word/media/unsupported.bin'], $meta['docxMediaFiles']);
         $t->same(1, $meta['docxRelationshipCount']);
         $t->same('image', $image->type);
         $t->same('word/media/unsupported.bin', $image->attr('url'));
         $t->same('Unsupported media alt', $image->attr('alt'));
+        $t->same('Unsupported media alt', $image->children[0]->attr('text'));
         $t->contains('word/media/unsupported.bin', $blocks);
     },
     'preserves docx numbering levels styles starts and delimiters' => static function (TestRunner $t): void {
@@ -816,6 +829,18 @@ XML],
         $t->true(!str_contains($blocks, '_GoBack'), 'Word _GoBack bookmarks should not leak into rendered output');
         $t->true(!str_contains($blocks, 'pandoc-openxml-bookmark-start'), 'Heading bookmarks should canonicalize to the heading id instead of raw bookmark spans');
     },
+    'suppresses generated docx ole link bookmarks without dropping real bookmarks' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:bookmarkStart w:id="4" w:name="KeepMe"/><w:r><w:t>Kept bookmark</w:t></w:r><w:bookmarkEnd w:id="4"/></w:p><w:p><w:bookmarkStart w:id="9" w:name="OLE_LINK12"/><w:r><w:t>Generated bookmark wrapper</w:t></w:r><w:bookmarkEnd w:id="9"/></w:p></w:body></w:document>');
+
+        $document = (new DocxReader())->read($bytes);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_inline', $document->children[0]->children[0]->type);
+        $t->contains('w:name="KeepMe"', $document->children[0]->children[0]->attr('text'));
+        $t->contains('data-pandoc-bookmark-name="KeepMe"', $blocks);
+        $t->true(!str_contains($blocks, 'OLE_LINK12'), 'generated OLE_LINK bookmarks should not leak into rendered output');
+        $t->true(!str_contains((new NativeWriter())->write($document), 'OLE_LINK12'), 'generated OLE_LINK bookmarks should not leak into native output');
+    },
     'preserves docx hyperlink relationship anchors and tracked change contents' => static function (TestRunner $t): void {
         $package = ZipPackage::fromParts([
             ['name' => 'word/_rels/document.xml.rels', 'data' => '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/review" TargetMode="External"/></Relationships>'],
@@ -934,6 +959,7 @@ XML],
         $t->same('1in', $drawing->attr('width'));
         $t->same('0.5in', $drawing->attr('height'));
         $t->same('Nested drawing alt', $drawing->attr('alt'));
+        $t->same('Nested drawing alt', $drawing->children[0]->attr('text'));
         $t->same('rDrawing', $drawing->attr('attributes')['data-docx-image-relationship-id']);
 
         $t->same('image', $vml->type);
@@ -941,6 +967,7 @@ XML],
         $t->same('36pt', $vml->attr('width'));
         $t->same('18pt', $vml->attr('height'));
         $t->same('Nested VML', $vml->attr('title'));
+        $t->same('Nested VML', $vml->children[0]->attr('text'));
         $t->same('rVml', $vml->attr('attributes')['data-docx-image-relationship-id']);
 
         $t->contains('src="word/media/drawing.png"', $blocks);
@@ -1188,6 +1215,19 @@ XML;
 
         $t->contains('<thead><tr><th data-docx-omitted-cell="gridBefore"></th><th><p>Field</p></th><th><p>Value</p></th></tr></thead>', $blocks);
         $t->contains('<tbody><tr><td data-docx-omitted-cell="gridBefore"></td><td data-docx-omitted-cell="gridBefore"></td><td><p>North</p></td><td><p>12</p></td></tr></tbody>', $blocks);
+    },
+    'reads docx content control wrapped table cells' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:tbl><w:tr><w:tc><w:p><w:r><w:t>Head</w:t></w:r></w:p></w:tc><w:sdt><w:sdtContent><w:tc><w:p><w:r><w:t>Body copy</w:t></w:r></w:p></w:tc></w:sdtContent></w:sdt><w:tc><w:p><w:r><w:t>Tail</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:body></w:document>');
+
+        $document = (new DocxReader())->read($bytes);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $row = $document->children[0]->children[1]->children[0];
+
+        $t->same(3, count($row->children));
+        $t->same('Head', $row->children[0]->attr('text'));
+        $t->same('Body copy', $row->children[1]->attr('text'));
+        $t->same('Tail', $row->children[2]->attr('text'));
+        $t->contains('<td><p>Body copy</p></td>', $blocks);
     },
     'preserves docx comment ranges moves table merges styles and image metadata' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-docx-');

@@ -995,6 +995,14 @@ final class DocxReader
                 $nodes[] = new AstNode('text', ['text' => "\t"]);
                 continue;
             }
+            if ($child->localName === 'softHyphen') {
+                $nodes[] = new AstNode('text', ['text' => "\u{00AD}"]);
+                continue;
+            }
+            if ($child->localName === 'noBreakHyphen') {
+                $nodes[] = new AstNode('text', ['text' => "\u{2011}"]);
+                continue;
+            }
             if ($child->localName === 'br' || $child->localName === 'cr') {
                 $nodes[] = new AstNode('linebreak');
                 continue;
@@ -2028,7 +2036,7 @@ final class DocxReader
             if ($name === '') {
                 return null;
             }
-            if ($name === '_GoBack') {
+            if ($name === '_GoBack' || preg_match('/^OLE_LINK\d*$/', $name) === 1) {
                 $this->suppressedBookmarkIds[$id] = true;
 
                 return null;
@@ -2324,7 +2332,15 @@ final class DocxReader
 
         $attrs['attributes'] = $sourceAttributes;
 
-        return new AstNode('image', $attrs);
+        return new AstNode('image', $attrs, $this->imageAltChildren($alt));
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function imageAltChildren(string $alt): array
+    {
+        return $alt === '' ? [] : [new AstNode('text', ['text' => $alt])];
     }
 
     /**
@@ -2471,7 +2487,7 @@ final class DocxReader
                 $attrs['attributes'] = $sourceAttributes;
             }
 
-            return new AstNode('image', $attrs);
+            return new AstNode('image', $attrs, $this->imageAltChildren((string) $attrs['alt']));
         }
 
         return null;
@@ -2496,10 +2512,7 @@ final class DocxReader
                     ];
                     ++$column;
                 }
-                foreach ($child->childNodes as $cell) {
-                    if (!$cell instanceof \DOMElement || $cell->localName !== 'tc') {
-                        continue;
-                    }
+                foreach ($this->tableRowCellElements($child) as $cell) {
                     $colspan = $this->gridSpan($cell);
                     $cells[] = [
                         'element' => $cell,
@@ -2618,14 +2631,42 @@ final class DocxReader
     private function tableRow(\DOMElement $row): AstNode
     {
         $cells = [];
-        foreach ($row->childNodes as $cell) {
-            if (!$cell instanceof \DOMElement || $cell->localName !== 'tc') {
-                continue;
-            }
+        foreach ($this->tableRowCellElements($row) as $cell) {
             $cells[] = $this->tableCell($cell);
         }
 
         return new AstNode('table_row', [], $cells);
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function tableRowCellElements(\DOMElement $row): array
+    {
+        $cells = [];
+        foreach ($row->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+            if ($child->localName === 'tc') {
+                $cells[] = $child;
+                continue;
+            }
+            if ($child->localName !== 'sdt') {
+                continue;
+            }
+            $content = $this->directChild($child, 'sdtContent');
+            if (!$content instanceof \DOMElement) {
+                continue;
+            }
+            foreach ($content->childNodes as $contentChild) {
+                if ($contentChild instanceof \DOMElement && $contentChild->localName === 'tc') {
+                    $cells[] = $contentChild;
+                }
+            }
+        }
+
+        return $cells;
     }
 
     private function omittedTableCell(string $source): AstNode
