@@ -1069,6 +1069,9 @@ XML;
                     $blocks[] = $blockXml;
                 }
             }
+            if (in_array($child->type, ['blockquote', 'code_block', 'definition_list'], true)) {
+                $bodyParagraphStyle = 'FirstParagraph';
+            }
             $previousTopLevelTable = $child->type === 'table';
         }
         while ($openHeadingBookmarks !== []) {
@@ -1105,7 +1108,8 @@ XML;
             'ordered_list' => $this->listXml($node, true, $listLevel, $paragraphStyle),
             'blockquote' => $this->blockCollectionXml($node->children, $listLevel, 'BlockText'),
             'div' => $this->divXml($node, $listLevel, $paragraphStyle),
-            'code_block' => [$this->textParagraphXml((string) $node->attr('text', ''), 'SourceCode', ['code' => true])],
+            'code_block' => [$this->codeBlockXml($node)],
+            'definition_list' => $this->definitionListXml($node, $listLevel),
             'line_block' => $this->lineBlockXml($node),
             'horizontal_rule' => [$this->horizontalRuleXml()],
             'table' => $this->tableXml($node),
@@ -1180,6 +1184,105 @@ XML;
         if ($inlineBuffer !== []) {
             $blocks[] = $this->paragraphFromInlinesXml($inlineBuffer, $paragraphStyle, null);
         }
+
+        return $blocks;
+    }
+
+    private function codeBlockXml(AstNode $node): string
+    {
+        $text = str_replace(["\r\n", "\r"], "\n", (string) $node->attr('text', ''));
+        $lines = explode("\n", $text);
+        $runs = '';
+        foreach ($lines as $index => $line) {
+            if ($index > 0) {
+                $runs .= '<w:r><w:br/></w:r>';
+            }
+            if ($line !== '') {
+                $runs .= $this->textRun($line, ['code' => true]);
+            }
+        }
+
+        return $this->paragraphWrapperXml($runs === '' ? $this->textRun('', ['code' => true]) : $runs, 'SourceCode', null);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function definitionListXml(AstNode $list, int $listLevel): array
+    {
+        $blocks = [];
+        foreach ($list->children as $item) {
+            if (!$item instanceof AstNode || $item->type !== 'definition_item') {
+                continue;
+            }
+
+            $term = null;
+            foreach ($item->children as $child) {
+                if ($child instanceof AstNode && in_array($child->type, ['term', 'definition_term'], true)) {
+                    $term = $child;
+                    break;
+                }
+            }
+
+            if ($term instanceof AstNode) {
+                $blocks[] = $term->children === []
+                    ? $this->textParagraphXml((string) $term->attr('text', $item->attr('term', '')), 'DefinitionTerm', [])
+                    : $this->paragraphFromInlinesXml($term->children, 'DefinitionTerm', null);
+            } elseif ((string) $item->attr('term', '') !== '') {
+                $blocks[] = $this->textParagraphXml((string) $item->attr('term', ''), 'DefinitionTerm', []);
+            }
+
+            foreach ($item->children as $child) {
+                if (!$child instanceof AstNode || $child->type !== 'definition') {
+                    continue;
+                }
+                foreach ($this->definitionBlocksXml($child->children, $listLevel) as $blockXml) {
+                    $blocks[] = $blockXml;
+                }
+            }
+        }
+
+        return $blocks;
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<string>
+     */
+    private function definitionBlocksXml(array $children, int $listLevel): array
+    {
+        $blocks = [];
+        $inlineBuffer = [];
+        $flushInlines = function () use (&$blocks, &$inlineBuffer): void {
+            if ($inlineBuffer === []) {
+                return;
+            }
+
+            $blocks[] = $this->paragraphFromInlinesXml($inlineBuffer, 'Definition', null);
+            $inlineBuffer = [];
+        };
+
+        foreach ($children as $child) {
+            if (!$child instanceof AstNode) {
+                continue;
+            }
+            if ($this->isInlineNode($child)) {
+                $inlineBuffer[] = $child;
+                continue;
+            }
+
+            $flushInlines();
+            if ($child->type === 'paragraph' || $child->type === 'plain') {
+                $blocks[] = $this->paragraphXml($child, 'Definition', null);
+                continue;
+            }
+
+            foreach ($this->renderBlock($child, $listLevel, 'Definition') as $blockXml) {
+                $blocks[] = $blockXml;
+            }
+        }
+
+        $flushInlines();
 
         return $blocks;
     }

@@ -1000,6 +1000,59 @@ return [
         $t->same('blockquote', $roundTrip->children[0]->type);
     },
 
+    'resets top-level paragraph style after block quotes and code blocks' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
+        $document = $doc([
+            $paragraph([$text('before quote')]),
+            new AstNode('blockquote', [], [
+                $paragraph([$text('quoted')]),
+            ]),
+            $paragraph([$text('after quote')]),
+            new AstNode('code_block', ['text' => "alpha\nbeta"]),
+            $paragraph([$text('after code')]),
+        ]);
+
+        [, $parts] = $packageParts((new DocxWriter())->write($document));
+        $documentXml = $parts['word/document.xml'];
+
+        $t->contains('<w:p><w:pPr><w:pStyle w:val="BlockText"/></w:pPr><w:r><w:t xml:space="preserve">quoted</w:t></w:r></w:p>', $documentXml);
+        $t->contains('<w:p><w:pPr><w:pStyle w:val="FirstParagraph"/></w:pPr><w:r><w:t xml:space="preserve">after quote</w:t></w:r></w:p>', $documentXml);
+        $t->contains('<w:p><w:pPr><w:pStyle w:val="SourceCode"/></w:pPr><w:r><w:rPr><w:rStyle w:val="VerbatimChar"/></w:rPr><w:t xml:space="preserve">alpha</w:t></w:r><w:r><w:br/></w:r><w:r><w:rPr><w:rStyle w:val="VerbatimChar"/></w:rPr><w:t xml:space="preserve">beta</w:t></w:r></w:p>', $documentXml);
+        $t->contains('<w:p><w:pPr><w:pStyle w:val="FirstParagraph"/></w:pPr><w:r><w:t xml:space="preserve">after code</w:t></w:r></w:p>', $documentXml);
+    },
+
+    'emits definition list term and body paragraph styles' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
+        $document = $doc([
+            new AstNode('definition_list', [], [
+                new AstNode('definition_item', ['term' => 'Term 1'], [
+                    new AstNode('term', ['text' => 'Term 1'], [$text('Term'), new AstNode('space'), $text('1')]),
+                    new AstNode('definition', [], [
+                        $paragraph([$text('Definition 1')]),
+                    ]),
+                ]),
+                new AstNode('definition_item', ['term' => 'Term 2 with inline markup'], [
+                    new AstNode('term', ['text' => 'Term 2 with inline markup'], [
+                        $text('Term 2 with'),
+                        new AstNode('space'),
+                        new AstNode('emph', [], [$text('inline markup')]),
+                    ]),
+                    new AstNode('definition', [], [
+                        $paragraph([$text('Definition 2')]),
+                        $paragraph([new AstNode('code', ['text' => '{ some code, part of Definition 2 }'])]),
+                    ]),
+                ]),
+            ]),
+        ]);
+
+        [, $parts] = $packageParts((new DocxWriter())->write($document));
+        $documentXml = $parts['word/document.xml'];
+
+        $t->same(2, substr_count($documentXml, '<w:pStyle w:val="DefinitionTerm"/>'));
+        $t->same(3, substr_count($documentXml, '<w:pStyle w:val="Definition"/>'));
+        $t->contains('<w:p><w:pPr><w:pStyle w:val="DefinitionTerm"/></w:pPr><w:r><w:t xml:space="preserve">Term 1</w:t></w:r></w:p>', $documentXml);
+        $t->contains('<w:p><w:pPr><w:pStyle w:val="DefinitionTerm"/></w:pPr><w:r><w:t xml:space="preserve">Term 2 with</w:t></w:r><w:r><w:t xml:space="preserve"> </w:t></w:r><w:r><w:rPr><w:i/><w:iCs/></w:rPr><w:t xml:space="preserve">inline markup</w:t></w:r></w:p>', $documentXml);
+        $t->contains('<w:p><w:pPr><w:pStyle w:val="Definition"/></w:pPr><w:r><w:rPr><w:rStyle w:val="VerbatimChar"/></w:rPr><w:t xml:space="preserve">{ some code, part of Definition 2 }</w:t></w:r></w:p>', $documentXml);
+    },
+
     'emits list numbering instances for starts styles delimiters and continuations' => static function (TestRunner $t) use ($doc, $text, $paragraph, $plain, $item, $packageParts): void {
         $document = $doc([
             new AstNode('ordered_list', ['start' => 1, 'style' => 'decimal', 'delimiter' => 'period'], [
