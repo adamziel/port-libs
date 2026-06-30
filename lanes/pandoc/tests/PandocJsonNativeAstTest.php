@@ -5480,9 +5480,9 @@ return [
         $retaggedJson = (new PandocJsonWriter())->toArray($retaggedDocument);
         $retaggedNative = json_decode((new NativeWriter())->write($retaggedDocument), true, 512, JSON_THROW_ON_ERROR);
 
-        $t->same('markdown', $retaggedJson['blocks'][0]['c'][0]);
+        $t->same(['t' => 'Format', 'c' => ['markdown'], 'reviewQueue' => 'raw-block-format'], $retaggedJson['blocks'][0]['c'][0]);
         $t->same('**edited**', $retaggedJson['blocks'][0]['c'][1]);
-        $t->same('markdown', $retaggedNative['blocks'][0]['c'][0]);
+        $t->same(['t' => 'Format', 'c' => ['markdown'], 'reviewQueue' => 'raw-block-format'], $retaggedNative['blocks'][0]['c'][0]);
         $t->same('**edited**', $retaggedNative['blocks'][0]['c'][1]);
     },
     'maps html-family raw aliases through json native and wordpress handoff' => static function (TestRunner $t): void {
@@ -7499,7 +7499,7 @@ return [
                 $encodedCaption = $encoded['blocks'][0]['c'][1];
 
                 $t->same('Caption', $encodedCaption['t'], "{$source} {$writer} edited long caption keeps constructor");
-                $t->same(false, array_key_exists('reviewQueue', $encodedCaption), "{$source} {$writer} edited long caption drops stale caption sidecar");
+                $t->same('caption-source', $encodedCaption['reviewQueue'] ?? null, "{$source} {$writer} edited long caption preserves caption wrapper sidecar");
                 $t->same('short-maybe-source', $encodedCaption['c'][0]['reviewQueue'], "{$source} {$writer} edited long caption preserves unchanged short maybe sidecar");
                 $t->same('short-caption-source', $encodedCaption['c'][0]['c']['reviewQueue'], "{$source} {$writer} edited long caption preserves unchanged short caption sidecar");
                 $t->same('Edited', $encodedCaption['c'][1][0]['c'][0]['c'], "{$source} {$writer} edited long caption regenerates text");
@@ -7522,11 +7522,11 @@ return [
                 $encodedCaption = $encoded['blocks'][0]['c'][1];
 
                 $t->same('Caption', $encodedCaption['t'], "{$source} {$writer} edited short caption keeps constructor");
-                $t->same(false, array_key_exists('reviewQueue', $encodedCaption), "{$source} {$writer} edited short caption drops stale caption sidecar");
+                $t->same('caption-source', $encodedCaption['reviewQueue'] ?? null, "{$source} {$writer} edited short caption preserves caption wrapper sidecar");
                 $t->same('Just', $encodedCaption['c'][0]['t'], "{$source} {$writer} edited short caption keeps maybe constructor");
-                $t->same(false, array_key_exists('reviewQueue', $encodedCaption['c'][0]), "{$source} {$writer} edited short caption drops stale short maybe sidecar");
+                $t->same('short-maybe-source', $encodedCaption['c'][0]['reviewQueue'] ?? null, "{$source} {$writer} edited short caption preserves short maybe sidecar");
                 $t->same('ShortCaption', $encodedCaption['c'][0]['c']['t'], "{$source} {$writer} edited short caption keeps helper constructor");
-                $t->same(false, array_key_exists('reviewQueue', $encodedCaption['c'][0]['c']), "{$source} {$writer} edited short caption drops stale short caption sidecar");
+                $t->same('short-caption-source', $encodedCaption['c'][0]['c']['reviewQueue'] ?? null, "{$source} {$writer} edited short caption preserves short caption sidecar");
                 $t->same('Edited', $encodedCaption['c'][0]['c']['c'][0][0]['c'], "{$source} {$writer} edited short caption regenerates text");
                 $t->same($longCaptionNative, $encodedCaption['c'][1][0], "{$source} {$writer} edited short caption preserves unchanged long block payload");
             }
@@ -9034,6 +9034,8 @@ return [
             $edited = new AstNode('document', $document->attrs, [
                 new AstNode('heading', array_replace($heading->attrs, [
                     'id' => 'edited-heading',
+                    'classes' => ['edited', 'source'],
+                    'attributes' => ['data-source' => 'edited-json', 'data-state' => 'reviewed'],
                 ]), $heading->children),
                 new AstNode('paragraph', [], [
                     new AstNode('link', array_replace($link->attrs, [
@@ -9046,8 +9048,48 @@ return [
                 'json' => (new PandocJsonWriter())->toArray($edited),
                 'native' => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
             ] as $writer => $encoded) {
-                $t->same(['t' => 'Attr', 'c' => [['edited-heading', ['review', 'source'], [['data-source', 'json'], ['data-state', 'draft']]]], 'reviewQueue' => 'wrapped-heading-attr'], $encoded['blocks'][0]['c'][1], "{$source} {$writer} regenerates edited wrapped heading Attr constructor");
+                $t->same(['t' => 'Attr', 'c' => [[['edited-heading'], [['edited'], ['source']], [[['data-source'], ['edited-json']], [['data-state'], ['reviewed']]]]], 'reviewQueue' => 'wrapped-heading-attr'], $encoded['blocks'][0]['c'][1], "{$source} {$writer} regenerates edited wrapped heading Attr constructor");
                 $t->same(['wrapped-link', ['external'], [['data-link', 'edited']]], $encoded['blocks'][1]['c'][0]['c'][0], "{$source} {$writer} regenerates edited wrapped link attr tuple");
+            }
+        }
+    },
+    'regenerates edited single wrapped tagged attr scalar payloads' => static function (TestRunner $t): void {
+        $headingAttr = ['t' => 'Attr', 'c' => [[['source-heading'], [['source-class']], [[['data-state'], ['draft']]]]], 'reviewQueue' => 'tagged-attr-scalar-source'];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Header', 'c' => [
+                    2,
+                    $headingAttr,
+                    [['t' => 'Str', 'c' => 'Tagged attr scalar']],
+                ]],
+            ],
+        ];
+        $expectedAttr = ['t' => 'Attr', 'c' => [[['edited-heading'], [['edited-class']], [[['data-state'], ['reviewed']]]]], 'reviewQueue' => 'tagged-attr-scalar-source'];
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $heading = $document->children[0];
+            $edited = new AstNode('document', $document->attrs, [
+                new AstNode('heading', array_replace($heading->attrs, [
+                    'id' => 'edited-heading',
+                    'classes' => ['edited-class'],
+                    'attributes' => ['data-state' => 'reviewed'],
+                ]), $heading->children),
+            ]);
+
+            $t->same('source-heading', $heading->attr('id'), "{$source} unwraps single wrapped Attr id");
+            $t->same(['source-class'], $heading->attr('classes'), "{$source} unwraps single wrapped Attr classes");
+            $t->same(['data-state' => 'draft'], $heading->attr('attributes'), "{$source} unwraps single wrapped Attr key-values");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($edited),
+                'native' => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same($expectedAttr, $encoded['blocks'][0]['c'][1], "{$source} {$writer} regenerates edited Attr scalar wrappers");
             }
         }
     },
@@ -11413,7 +11455,7 @@ return [
                 $t->same('ShortCaption', $shortMaybePayload['c'][0]['t'], "{$label} short caption constructor");
                 $t->same('Edited', $shortMaybePayload['c'][0]['c'][0][0]['c'], "{$label} edited short caption first token");
                 $t->same('short', $shortMaybePayload['c'][0]['c'][0][2]['c'], "{$label} edited short caption last token");
-                $t->same(false, array_key_exists('reviewQueue', $shortMaybePayload['c'][0]), "{$label} edited short caption drops stale sidecar");
+                $t->same('short-caption-source', $shortMaybePayload['c'][0]['reviewQueue'] ?? null, "{$label} edited short caption preserves short caption sidecar");
             }
         }
     },
@@ -11522,7 +11564,7 @@ return [
 
                 $t->same('Caption', $editedTableCaption['t'], "{$label} edited table caption constructor");
                 $t->same(true, array_is_list($editedTableCaption['c']) && count($editedTableCaption['c']) === 1, "{$label} edited table keeps wrapped caption tuple");
-                $t->same(false, array_key_exists('reviewQueue', $editedTableCaption), "{$label} edited table drops stale caption sidecar");
+                $t->same('wrapped-table-caption-source', $editedTableCaption['reviewQueue'] ?? null, "{$label} edited table preserves caption wrapper sidecar");
                 $t->same('wrapped-short-maybe-source', $editedTableCaption['c'][0][0]['reviewQueue'], "{$label} edited table preserves short maybe sidecar");
                 $t->same('Wrapped', $editedTableCaption['c'][0][0]['c']['c'][0][0]['c'], "{$label} edited table preserves short caption text");
                 $t->same('Edited', $editedTableCaption['c'][0][1][0]['c'][0]['c'], "{$label} edited table regenerates long caption text");
@@ -13095,6 +13137,45 @@ return [
         $t->same('Source', $encoded['blocks'][0]['c'][0][0][0]['c']);
         $t->same('Para', $encoded['blocks'][0]['c'][0][1][0][0]['t']);
         $t->same('Plain', $encoded['blocks'][0]['c'][0][1][1][0]['t']);
+    },
+    'preserves native definition term text constructor runs through native json reader' => static function (TestRunner $t): void {
+        $definitionTerm = [
+            ['t' => 'Str', 'c' => 'Source'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => 'Glossary'],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'DefinitionList', 'c' => [
+                    [
+                        $definitionTerm,
+                        [
+                            [
+                                ['t' => 'Plain', 'c' => [
+                                    ['t' => 'Str', 'c' => 'Definition'],
+                                ]],
+                            ],
+                        ],
+                    ],
+                ]],
+            ],
+        ];
+
+        $jsonDocument = (new PandocJsonReader())->readPacket($packet);
+        $nativeDocument = (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR));
+        $jsonTerm = $jsonDocument->children[0]->children[0]->children[0];
+        $nativeTerm = $nativeDocument->children[0]->children[0]->children[0];
+        $nativeTermText = $nativeTerm->children[0] ?? new AstNode('missing');
+        $nativePacket = json_decode((new NativeWriter())->write($nativeDocument), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same(['text', 'space', 'text'], array_map(static fn (AstNode $node): string => $node->type, $jsonTerm->children), 'json reader keeps raw definition term inline constructors');
+        $t->same(['text'], array_map(static fn (AstNode $node): string => $node->type, $nativeTerm->children), 'native reader coalesces definition term text constructor run');
+        $t->same('Source Glossary', $nativeTermText->attr('text'), 'native reader keeps definition term text');
+        $t->same(['Str', 'Space', 'Str'], $nativeTermText->attr('nativeInlineConstructors'), 'native reader records definition term constructors');
+        $t->same($definitionTerm, $nativeTermText->attr('nativeInlineParts'), 'native reader records definition term native parts');
+        $t->same($definitionTerm, $nativePacket['blocks'][0]['c'][0][0], 'native writer preserves definition term constructor parts');
     },
     'passes native definition term linebreaks through wordpress html handoff' => static function (TestRunner $t): void {
         $packet = [
@@ -15733,6 +15814,119 @@ return [
             }
         }
     },
+    'preserves edited enum helper constructors through json and native stacks' => static function (TestRunner $t): void {
+        $listStyle = ['t' => 'DefaultStyle', 'c' => [['legacy-style']], 'reviewQueue' => 'list-style-source'];
+        $listDelimiter = ['t' => 'DefaultDelim', 'c' => [['legacy-delimiter']], 'reviewQueue' => 'list-delimiter-source'];
+        $listAttributes = ['t' => 'ListAttributes', 'c' => [1, $listStyle, $listDelimiter], 'reviewQueue' => 'list-attributes-source'];
+        $quoteType = ['t' => 'SingleQuote', 'c' => [['legacy-quote']], 'reviewQueue' => 'quote-type-source'];
+        $mathType = ['t' => 'InlineMath', 'c' => [['legacy-math']], 'reviewQueue' => 'math-type-source'];
+        $columnAlignment = ['t' => 'AlignDefault', 'c' => [['legacy-column-align']], 'reviewQueue' => 'column-alignment-source'];
+        $cellAlignment = ['t' => 'AlignLeft', 'c' => [['legacy-cell-align']], 'reviewQueue' => 'cell-alignment-source'];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'OrderedList', 'c' => [
+                    $listAttributes,
+                    [[['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'first']]]]],
+                ]],
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Quoted', 'c' => [
+                        $quoteType,
+                        [['t' => 'Str', 'c' => 'quote']],
+                    ]],
+                    ['t' => 'Space'],
+                    ['t' => 'Math', 'c' => [$mathType, 'x + y']],
+                ]],
+                ['t' => 'Table', 'c' => [
+                    ['enum-table', ['json-native'], []],
+                    ['t' => 'Caption', 'c' => [['t' => 'Nothing'], []]],
+                    [[$columnAlignment, ['t' => 'ColWidthDefault']]],
+                    ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                    [
+                        ['t' => 'TableBody', 'c' => [
+                            ['', [], []],
+                            ['t' => 'RowHeadColumns', 'c' => 0],
+                            [],
+                            [
+                                ['t' => 'Row', 'c' => [
+                                    ['', [], []],
+                                    [
+                                        ['t' => 'Cell', 'c' => [
+                                            ['', [], []],
+                                            $cellAlignment,
+                                            ['t' => 'RowSpan', 'c' => 1],
+                                            ['t' => 'ColSpan', 'c' => 1],
+                                            [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'cell']]]],
+                                        ]],
+                                    ],
+                                ]],
+                            ],
+                        ]],
+                    ],
+                    ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+                ]],
+            ],
+        ];
+        $editedDocument = static function (AstNode $document): AstNode {
+            $list = $document->children[0];
+            $paragraph = $document->children[1];
+            $quote = $paragraph->children[0];
+            $math = $paragraph->children[2];
+            $table = $document->children[2];
+            $body = $table->children[0];
+            $row = $body->children[0];
+            $cell = $row->children[0];
+
+            return new AstNode('document', $document->attrs, [
+                new AstNode('ordered_list', array_replace($list->attrs, [
+                    'style' => 'lower_alpha',
+                    'delimiter' => 'one_paren',
+                ]), $list->children),
+                new AstNode('paragraph', $paragraph->attrs, [
+                    new AstNode('quoted', array_replace($quote->attrs, ['kind' => 'double']), $quote->children),
+                    new AstNode('space'),
+                    new AstNode('math', array_replace($math->attrs, ['display' => true]), $math->children),
+                ]),
+                new AstNode('table', array_replace($table->attrs, [
+                    'alignments' => ['center'],
+                ]), [
+                    new AstNode('table_body', $body->attrs, [
+                        new AstNode('table_row', $row->attrs, [
+                            new AstNode('table_cell', array_replace($cell->attrs, [
+                                'align' => 'right',
+                            ]), $cell->children),
+                        ]),
+                    ]),
+                ]),
+            ]);
+        };
+        $encodedCell = static fn (array $packet): array => $packet['blocks'][2]['c'][4][0]['c'][3][0]['c'][1][0];
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($editedDocument($document)),
+                'native' => json_decode((new NativeWriter())->write($editedDocument($document)), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $listAttributesPayload = $encoded['blocks'][0]['c'][0];
+                $quotedPayload = $encoded['blocks'][1]['c'][0]['c'];
+                $mathPayload = $encoded['blocks'][1]['c'][2]['c'];
+                $cellPayload = $encodedCell($encoded)['c'];
+
+                $t->same('ListAttributes', $listAttributesPayload['t'], "{$source} {$writer} preserves ListAttributes wrapper");
+                $t->same('list-attributes-source', $listAttributesPayload['reviewQueue'] ?? null, "{$source} {$writer} preserves ListAttributes sidecar");
+                $t->same(['t' => 'LowerAlpha', 'reviewQueue' => 'list-style-source'], $listAttributesPayload['c'][1], "{$source} {$writer} retags list style sidecar");
+                $t->same(['t' => 'OneParen', 'reviewQueue' => 'list-delimiter-source'], $listAttributesPayload['c'][2], "{$source} {$writer} retags list delimiter sidecar");
+                $t->same(['t' => 'DoubleQuote', 'reviewQueue' => 'quote-type-source'], $quotedPayload[0], "{$source} {$writer} retags quote type sidecar");
+                $t->same(['t' => 'DisplayMath', 'reviewQueue' => 'math-type-source'], $mathPayload[0], "{$source} {$writer} retags math type sidecar");
+                $t->same(['t' => 'AlignCenter', 'reviewQueue' => 'column-alignment-source'], $encoded['blocks'][2]['c'][2][0][0], "{$source} {$writer} retags column alignment sidecar");
+                $t->same(['t' => 'AlignRight', 'reviewQueue' => 'cell-alignment-source'], $cellPayload[1], "{$source} {$writer} retags cell alignment sidecar");
+            }
+        }
+    },
     'serializes native text raw tex inline nodes through pandoc json writers' => static function (TestRunner $t): void {
         $nativeText = <<<'NATIVE'
 Pandoc Meta {unMeta = fromList []} [ Para [ Str "Before", Space, RawInline (Format "tex") "\\alpha", Space, Str "after" ] ]
@@ -15848,10 +16042,10 @@ NATIVE;
             $editedJson = (new PandocJsonWriter())->toArray($edited);
             $editedNative = json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR);
 
-            $t->same('markdown', $editedJson['blocks'][0]['c'][0], "{$source} json writer drops stale raw block format sidecar");
-            $t->same('markdown', $editedNative['blocks'][0]['c'][0], "{$source} native writer drops stale raw block format sidecar");
-            $t->same('html', $editedJson['blocks'][1]['c'][0]['c'][0], "{$source} json writer drops stale raw inline format sidecar");
-            $t->same('html', $editedNative['blocks'][1]['c'][0]['c'][0], "{$source} native writer drops stale raw inline format sidecar");
+            $t->same(['t' => 'Format', 'c' => [['markdown']], 'reviewQueue' => 'raw-block-format-source'], $editedJson['blocks'][0]['c'][0], "{$source} json writer regenerates raw block format sidecar");
+            $t->same(['t' => 'Format', 'c' => [['markdown']], 'reviewQueue' => 'raw-block-format-source'], $editedNative['blocks'][0]['c'][0], "{$source} native writer regenerates raw block format sidecar");
+            $t->same(['t' => 'Format', 'c' => [['html']], 'reviewQueue' => 'raw-inline-format-source'], $editedJson['blocks'][1]['c'][0]['c'][0], "{$source} json writer regenerates raw inline format sidecar");
+            $t->same(['t' => 'Format', 'c' => [['html']], 'reviewQueue' => 'raw-inline-format-source'], $editedNative['blocks'][1]['c'][0]['c'][0], "{$source} native writer regenerates raw inline format sidecar");
         }
     },
     'validates malformed pandoc json packets without shelling out' => static function (TestRunner $t): void {
@@ -15957,6 +16151,136 @@ NATIVE;
             ],
             'blocks' => [],
         ], JSON_THROW_ON_ERROR)));
+    },
+    'accepts single wrapped enum helper constructors through json and native readers' => static function (TestRunner $t): void {
+        $quoteType = [['t' => 'DoubleQuote', 'reviewQueue' => 'quote-type-source']];
+        $citationMode = [['t' => 'SuppressAuthor', 'c' => ['stale'], 'reviewQueue' => 'citation-mode-source']];
+        $listStyle = [['t' => 'UpperRoman', 'reviewQueue' => 'list-style-source']];
+        $listDelimiter = ['Period'];
+        $columnAlignment = [['t' => 'AlignRight', 'reviewQueue' => 'column-alignment-source']];
+        $columnWidth = [['t' => 'ColWidthDefault', 'c' => ['stale'], 'reviewQueue' => 'column-width-source']];
+        $cellAlignment = [['t' => 'AlignCenter', 'reviewQueue' => 'cell-alignment-source']];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Quoted', 'c' => [
+                        $quoteType,
+                        [['t' => 'Str', 'c' => 'Quoted']],
+                    ]],
+                    ['t' => 'Space'],
+                    ['t' => 'Cite', 'c' => [
+                        [[
+                            'citationId' => 'doe2020',
+                            'citationPrefix' => [],
+                            'citationSuffix' => [],
+                            'citationMode' => $citationMode,
+                            'citationNoteNum' => 0,
+                            'citationHash' => 0,
+                        ]],
+                        [['t' => 'Str', 'c' => '-@doe2020']],
+                    ]],
+                ]],
+                ['t' => 'OrderedList', 'c' => [
+                    ['t' => 'ListAttributes', 'c' => [1, $listStyle, $listDelimiter], 'reviewQueue' => 'list-attributes-source'],
+                    [[['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Item']]]]],
+                ]],
+                ['t' => 'Table', 'c' => [
+                    ['', [], []],
+                    ['t' => 'Caption', 'c' => [['t' => 'Nothing'], []]],
+                    [[$columnAlignment, $columnWidth]],
+                    ['t' => 'TableHead', 'c' => [
+                        ['', [], []],
+                        [
+                            ['t' => 'Row', 'c' => [
+                                ['', [], []],
+                                [
+                                    ['t' => 'Cell', 'c' => [
+                                        ['', [], []],
+                                        $cellAlignment,
+                                        ['t' => 'RowSpan', 'c' => 1],
+                                        ['t' => 'ColSpan', 'c' => 1],
+                                        [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Head']]]],
+                                    ]],
+                                ],
+                            ]],
+                        ],
+                    ]],
+                    [],
+                    ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+                ]],
+            ],
+        ];
+        $firstChildOfType = static function (array $children, string $type): ?AstNode {
+            foreach ($children as $child) {
+                if ($child instanceof AstNode && $child->type === $type) {
+                    return $child;
+                }
+            }
+
+            return null;
+        };
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $paragraph = $document->children[0];
+            $quote = $firstChildOfType($paragraph->children, 'quoted') ?? new AstNode('missing');
+            $citation = $firstChildOfType($paragraph->children, 'citation') ?? new AstNode('missing');
+            $list = $document->children[1];
+            $table = $document->children[2];
+            $head = $table->children[0];
+            $row = $head->children[0];
+            $cell = $row->children[0];
+
+            $t->same('double', $quote->attr('kind'), "{$source} unwraps quote type enum");
+            $t->same($quoteType, $quote->attr('quoteTypeNative'), "{$source} records wrapped quote type native");
+            $t->same('suppress_author', $citation->attr('mode'), "{$source} unwraps citation mode enum");
+            $t->same($citationMode, $citation->attr('citationModeNative'), "{$source} records wrapped citation mode native");
+            $t->same('upper_roman', $list->attr('style'), "{$source} unwraps list style enum");
+            $t->same($listStyle, $list->attr('listStyleNative'), "{$source} records wrapped list style native");
+            $t->same('period', $list->attr('delimiter'), "{$source} unwraps string list delimiter enum");
+            $t->same($listDelimiter, $list->attr('listDelimiterNative'), "{$source} records wrapped list delimiter native");
+            $t->same(['right'], $table->attr('alignments'), "{$source} unwraps table column alignment enum");
+            $t->same([null], $table->attr('widths'), "{$source} unwraps default column width enum");
+            $t->same([$columnAlignment], $table->attr('alignmentNatives'), "{$source} records wrapped column alignment native");
+            $t->same([$columnWidth], $table->attr('columnWidthNatives'), "{$source} records wrapped column width native");
+            $t->same('center', $cell->attr('align'), "{$source} unwraps table cell alignment enum");
+            $t->same($cellAlignment, $cell->attr('alignmentNative'), "{$source} records wrapped cell alignment native");
+
+            $editedQuote = new AstNode('quoted', $quote->attrs, [new AstNode('text', ['text' => 'Edited quote'])]);
+            $editedCitation = new AstNode('citation', array_replace($citation->attrs, ['citationNoteNum' => 7]), $citation->children);
+            $editedParagraph = new AstNode('paragraph', [], [$editedQuote, new AstNode('space'), $editedCitation]);
+            $editedList = new AstNode('ordered_list', array_replace($list->attrs, ['start' => 3]), $list->children);
+            $editedCell = new AstNode('table_cell', array_replace($cell->attrs, ['text' => 'Edited cell']), [
+                new AstNode('text', ['text' => 'Edited cell']),
+            ]);
+            $editedRow = new AstNode('table_row', $row->attrs, [$editedCell]);
+            $editedHead = new AstNode('table_head', $head->attrs, [$editedRow]);
+            $editedTable = new AstNode('table', $table->attrs, [$editedHead]);
+            $editedDocument = new AstNode('document', $document->attrs, [$editedParagraph, $editedList, $editedTable]);
+
+            foreach ([
+                'json writer' => (new PandocJsonWriter())->toArray($editedDocument),
+                'native writer' => json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedQuoteType = $encoded['blocks'][0]['c'][0]['c'][0];
+                $encodedCitationMode = $encoded['blocks'][0]['c'][2]['c'][0][0]['citationMode'];
+                $encodedListAttributes = $encoded['blocks'][1]['c'][0];
+                $encodedColumnSpec = $encoded['blocks'][2]['c'][2][0];
+                $encodedCell = $encoded['blocks'][2]['c'][3]['c'][1][0]['c'][1][0];
+
+                $t->same($quoteType, $encodedQuoteType, "{$source} {$writer} preserves rebuilt wrapped quote type");
+                $t->same([['t' => 'SuppressAuthor', 'reviewQueue' => 'citation-mode-source']], $encodedCitationMode, "{$source} {$writer} cleans rebuilt wrapped citation mode");
+                $t->same($listStyle, $encodedListAttributes['c'][1], "{$source} {$writer} preserves rebuilt wrapped list style");
+                $t->same($listDelimiter, $encodedListAttributes['c'][2], "{$source} {$writer} preserves rebuilt wrapped list delimiter");
+                $t->same($columnAlignment, $encodedColumnSpec[0], "{$source} {$writer} preserves rebuilt wrapped column alignment");
+                $t->same([['t' => 'ColWidthDefault', 'reviewQueue' => 'column-width-source']], $encodedColumnSpec[1], "{$source} {$writer} cleans rebuilt wrapped column width");
+                $t->same($cellAlignment, $encodedCell['c'][1], "{$source} {$writer} preserves rebuilt wrapped cell alignment");
+            }
+        }
     },
     'renders wordpress blocks from pandoc json filter input' => static function (TestRunner $t): void {
         $json = <<<'JSON'

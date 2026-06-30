@@ -6,13 +6,27 @@ namespace PortLibs\Pandoc;
 
 final class LatexWriter
 {
+    private readonly array $options;
+
     private int $orderedListLevel = 0;
 
+    private int $nextNoteNumber = 1;
+
+    /** @var array<string, int> */
+    private array $noteAnchorUses = [];
+
+    /** @var list<string> */
+    private array $noteAnchorDiagnostics = [];
+
+    private bool $usedGroupedEndnote = false;
+
     /**
-     * @param array{topLevelDivision?: string, writerTopLevelDivision?: string, highlightMethod?: string|bool, writerHighlightMethod?: string|bool} $options
+     * @param array{topLevelDivision?: string, writerTopLevelDivision?: string, highlightMethod?: string|bool, writerHighlightMethod?: string|bool, groupEndnotes?: bool}|null $options
+     * @param array{topLevelDivision?: string, writerTopLevelDivision?: string, highlightMethod?: string|bool, writerHighlightMethod?: string|bool, groupEndnotes?: bool}|null $overrides
      */
-    public function __construct(private readonly array $options = [])
+    public function __construct(?array $options = [], ?array $overrides = null)
     {
+        $this->options = array_merge($options ?? [], $overrides ?? []);
     }
 
     public function write(AstNode $document): string
@@ -22,7 +36,15 @@ final class LatexWriter
         }
 
         $previousOrderedListLevel = $this->orderedListLevel;
+        $previousNextNoteNumber = $this->nextNoteNumber;
+        $previousNoteAnchorUses = $this->noteAnchorUses;
+        $previousNoteAnchorDiagnostics = $this->noteAnchorDiagnostics;
+        $previousUsedGroupedEndnote = $this->usedGroupedEndnote;
         $this->orderedListLevel = 0;
+        $this->nextNoteNumber = 1;
+        $this->noteAnchorUses = [];
+        $this->noteAnchorDiagnostics = [];
+        $this->usedGroupedEndnote = false;
 
         try {
             $blocks = [];
@@ -32,8 +54,18 @@ final class LatexWriter
                     $blocks[] = implode("\n", $lines);
                 }
             }
+            if ($this->usedGroupedEndnote) {
+                $blocks[] = '\theendnotes';
+            }
+            foreach ($this->noteAnchorDiagnostics as $diagnostic) {
+                $blocks[] = $diagnostic;
+            }
         } finally {
             $this->orderedListLevel = $previousOrderedListLevel;
+            $this->nextNoteNumber = $previousNextNoteNumber;
+            $this->noteAnchorUses = $previousNoteAnchorUses;
+            $this->noteAnchorDiagnostics = $previousNoteAnchorDiagnostics;
+            $this->usedGroupedEndnote = $previousUsedGroupedEndnote;
         }
 
         return implode("\n\n", $blocks);
@@ -51,11 +83,15 @@ final class LatexWriter
             'bullet_list' => $this->renderList($node, false),
             'ordered_list' => $this->renderList($node, true),
             'definition_list' => $this->renderDefinitionList($node),
+            'line_block' => $this->renderLineBlock($node),
             'blockquote' => $this->renderBlockQuote($node),
-            'horizontal_rule' => ['\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}'],
+            'horizontal_rule' => ['\begin{center}', '\rule{0.5\linewidth}{0.5pt}', '\end{center}'],
             'figure' => $this->renderFigure($node),
+            'table' => $this->renderTable($node),
             'raw_tex' => $this->renderRawTexBlock($node),
             'raw_block' => $this->renderRawBlock($node),
+            'raw_html', 'native_block', 'unsupported_command' => $this->renderUnsupportedBlock($node),
+            'div' => $this->renderDiv($node),
             default => [],
         };
     }
@@ -96,7 +132,7 @@ final class LatexWriter
     {
         $format = strtolower((string) $node->attr('format', ''));
         if ($format !== 'tex' && $format !== 'latex') {
-            return [];
+            return $this->renderUnsupportedBlock($node);
         }
 
         return $this->rawBlockLines((string) $node->attr('text', ''));
@@ -112,6 +148,67 @@ final class LatexWriter
         }
 
         return explode("\n", rtrim($text, "\n"));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderUnsupportedBlock(AstNode $node): array
+    {
+        $lines = ['\begin{quote}', '\texttt{' . $this->escapeCodeText('[' . $this->unsupportedBlockReviewText($node) . ']') . '}'];
+        if ($node->children !== []) {
+            $body = $this->renderInlines($node->children, true);
+            if ($body !== '') {
+                $lines[] = '';
+                $lines[] = $body;
+            }
+        }
+        $lines[] = '\end{quote}';
+
+        return $lines;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderDiv(AstNode $node): array
+    {
+        $blocks = [];
+        foreach ($node->children as $child) {
+            $lines = $this->renderBlock($child);
+            if ($lines !== []) {
+                $blocks[] = implode("\n", $lines);
+            }
+        }
+        $body = implode("\n\n", $blocks);
+        $id = $this->blockAnchorId($node);
+        if ($id === '') {
+            return $body === '' ? [] : explode("\n", $body);
+        }
+
+        return [
+            '\hypertarget{' . $this->escapeLinkTarget($id) . '}{%',
+            ...($body === '' ? [] : explode("\n", $body)),
+            '}',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderLineBlock(AstNode $node): array
+    {
+        $lines = ['\begin{flushleft}'];
+        $lineNodes = array_values(array_filter($node->children, static fn (AstNode $child): bool => $child->type === 'line'));
+        foreach ($lineNodes as $index => $line) {
+            $content = $line->children === []
+                ? $this->escapeText((string) $line->attr('text', ''))
+                : $this->renderInlines($line->children, true);
+            $lines[] = $content . ($index === array_key_last($lineNodes) ? '' : '\\\\');
+        }
+        $lines[] = '\end{flushleft}';
+
+        return $lines;
     }
 
     /**
@@ -133,9 +230,9 @@ final class LatexWriter
         }
 
         return [
-            '\begin{Verbatim}',
+            '\begin{verbatim}',
             $text,
-            '\end{Verbatim}',
+            '\end{verbatim}',
         ];
     }
 
@@ -225,12 +322,400 @@ final class LatexWriter
     /**
      * @return list<string>
      */
+    private function renderTable(AstNode $node): array
+    {
+        $headRows = $this->tableHeadRows($node);
+        $bodyRows = $this->tableBodyRows($node, true);
+        $footRows = $this->tableFootRows($node);
+        $rows = [...$headRows, ...$bodyRows, ...$footRows];
+        if ($rows === []) {
+            return [];
+        }
+
+        $columnCount = $this->tableColumnCount($node, $rows);
+        $lines = ['\begin{longtable}{' . $this->tableColumnSpec($node, $columnCount) . '}'];
+        $caption = $this->renderTableCaption($node);
+        if ($caption !== '') {
+            $lines[] = $caption;
+        }
+
+        if ($footRows !== []) {
+            if ($headRows !== []) {
+                $lines[] = '\hline';
+                foreach ($headRows as $row) {
+                    $lines[] = $this->renderTableRow($row, $columnCount);
+                }
+                $lines[] = '\hline';
+            }
+            $lines[] = '\endfirsthead';
+            if ($headRows !== []) {
+                $lines[] = '\hline';
+                foreach ($headRows as $row) {
+                    $lines[] = $this->renderTableRow($row, $columnCount);
+                }
+                $lines[] = '\hline';
+            }
+            $lines[] = '\endhead';
+            $lines[] = '\hline';
+            foreach ($footRows as $row) {
+                $lines[] = $this->renderTableRow($row, $columnCount);
+            }
+            $lines[] = '\hline';
+            $lines[] = '\endfoot';
+            $lines[] = '\hline';
+            foreach ($footRows as $row) {
+                $lines[] = $this->renderTableRow($row, $columnCount);
+            }
+            $lines[] = '\hline';
+            $lines[] = '\endlastfoot';
+            foreach ($bodyRows as $row) {
+                $lines[] = $this->renderTableRow($row, $columnCount);
+            }
+            $lines[] = '\end{longtable}';
+
+            return $lines;
+        }
+
+        if ($headRows !== []) {
+            $lines[] = '\hline';
+            foreach ($headRows as $row) {
+                $lines[] = $this->renderTableRow($row, $columnCount);
+            }
+            $lines[] = '\hline';
+        }
+
+        foreach ($bodyRows as $index => $row) {
+            $lines[] = $this->renderTableRow($row, $columnCount);
+            if ($index < count($bodyRows) - 1) {
+                $lines[] = '\hline';
+            }
+        }
+        $lines[] = '\end{longtable}';
+
+        return $lines;
+    }
+
+    private function renderTableCaption(AstNode $node): string
+    {
+        $caption = $this->renderTableLongCaption($node);
+        if ($caption === '') {
+            return '';
+        }
+
+        $shortCaption = $this->renderTableShortCaption($node);
+        $line = '\caption' . ($shortCaption === '' ? '' : '[' . $shortCaption . ']') . '{' . $caption . '}';
+        $id = (string) $node->attr('id', '');
+
+        return $id === ''
+            ? $line . '\\\\'
+            : $line . '\label{' . $this->escapeLinkTarget($id) . '}';
+    }
+
+    private function renderTableLongCaption(AstNode $node): string
+    {
+        $captionInlines = $node->attr('captionInlines', []);
+        if ($captionInlines !== [] && is_array($captionInlines) && $this->isAstNodeList($captionInlines)) {
+            return $this->renderInlines($captionInlines, true);
+        }
+
+        $captionBlocks = $node->attr('captionBlocks', []);
+        if ($captionBlocks !== [] && is_array($captionBlocks) && $this->isAstNodeList($captionBlocks)) {
+            return $this->renderTableCaptionBlocks($captionBlocks);
+        }
+
+        $caption = (string) $node->attr('caption', '');
+
+        return $caption === '' ? '' : $this->escapeText($caption);
+    }
+
+    private function renderTableShortCaption(AstNode $node): string
+    {
+        $captionInlines = $node->attr('shortCaptionInlines', []);
+        if ($captionInlines !== [] && is_array($captionInlines) && $this->isAstNodeList($captionInlines)) {
+            return $this->renderInlines($captionInlines, true);
+        }
+
+        $captionBlocks = $node->attr('shortCaptionBlocks', []);
+        if ($captionBlocks !== [] && is_array($captionBlocks) && $this->isAstNodeList($captionBlocks)) {
+            return $this->renderTableCaptionBlocks($captionBlocks);
+        }
+
+        $caption = (string) $node->attr('shortCaption', '');
+
+        return $caption === '' ? '' : $this->escapeText($caption);
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     */
+    private function renderTableCaptionBlocks(array $blocks): string
+    {
+        $parts = [];
+        foreach ($blocks as $block) {
+            $part = $this->renderTableCaptionBlock($block);
+            if ($part !== '') {
+                $parts[] = $part;
+            }
+        }
+
+        return implode('\\\\', $parts);
+    }
+
+    private function renderTableCaptionBlock(AstNode $block): string
+    {
+        if ($block->children !== [] && $this->allInlineNodes($block->children)) {
+            return $this->renderInlines($block->children, true);
+        }
+
+        $text = (string) $block->attr('text', '');
+        if ($text !== '') {
+            return $this->escapeText($text);
+        }
+
+        $lines = $this->renderBlock($block);
+
+        return trim(implode(' ', $lines));
+    }
+
+    /**
+     * @param list<AstNode> $rows
+     */
+    private function tableColumnCount(AstNode $table, array $rows): int
+    {
+        $count = max(1, count($this->tableAlignments($table, 0)));
+        foreach ($rows as $row) {
+            $logicalColumns = 0;
+            foreach ($row->children as $cell) {
+                if ($cell->type === 'table_cell') {
+                    $logicalColumns += max(1, (int) $cell->attr('colspan', 1));
+                }
+            }
+            $count = max($count, $logicalColumns);
+        }
+
+        return $count;
+    }
+
+    private function tableColumnSpec(AstNode $table, int $columnCount): string
+    {
+        $columns = [];
+        foreach ($this->tableAlignments($table, $columnCount) as $alignment) {
+            $columns[] = match ($alignment) {
+                'right' => 'r',
+                'center' => 'c',
+                default => 'l',
+            };
+        }
+
+        return implode('', $columns);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableRows(AstNode $table): array
+    {
+        return [
+            ...$this->tableHeadRows($table),
+            ...$this->tableBodyRows($table, true),
+            ...$this->tableFootRows($table),
+        ];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableHeadRows(AstNode $table): array
+    {
+        $head = $this->tableSection($table, 'table_head');
+
+        return $head instanceof AstNode ? $this->tableRowsFromChildren($head->children) : [];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableFootRows(AstNode $table): array
+    {
+        $foot = $this->tableSection($table, 'table_foot');
+
+        return $foot instanceof AstNode ? $this->tableRowsFromChildren($foot->children) : [];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableBodyRows(AstNode $table, bool $includeHeadRows): array
+    {
+        $rows = [];
+        foreach ($table->children as $child) {
+            if ($child->type !== 'table_body') {
+                continue;
+            }
+
+            $bodyRows = $this->tableRowsFromChildren($child->children);
+            $headRows = $this->tableBodyHeadRows($child);
+            if ($includeHeadRows) {
+                array_push($rows, ...$headRows);
+            }
+            foreach ($bodyRows as $row) {
+                if ($this->astNodeListContains($headRows, $row)) {
+                    continue;
+                }
+                $rows[] = $row;
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableBodyHeadRows(AstNode $body): array
+    {
+        $headRows = $body->attr('headRows', []);
+        if (is_array($headRows) && $headRows !== []) {
+            return array_values(array_filter($headRows, static fn (mixed $row): bool => $row instanceof AstNode && $row->type === 'table_row'));
+        }
+
+        $headRowCount = $body->attr('headRowCount', null);
+        if (!is_int($headRowCount) && !(is_string($headRowCount) && preg_match('/^-?\d+$/', $headRowCount) === 1)) {
+            return [];
+        }
+
+        $count = max(0, (int) $headRowCount);
+
+        return $count === 0 ? [] : array_slice($this->tableRowsFromChildren($body->children), 0, $count);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function astNodeListContains(array $nodes, AstNode $needle): bool
+    {
+        foreach ($nodes as $node) {
+            if ($node === $needle) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<AstNode>
+     */
+    private function tableRowsFromChildren(array $children): array
+    {
+        return array_values(array_filter($children, static fn (AstNode $node): bool => $node->type === 'table_row'));
+    }
+
+    private function tableSection(AstNode $table, string $type): ?AstNode
+    {
+        foreach ($table->children as $child) {
+            if ($child->type === $type) {
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function tableAlignments(AstNode $table, int $columnCount): array
+    {
+        $alignments = $table->attr('alignments', []);
+        if (!is_array($alignments)) {
+            $alignments = [];
+        }
+
+        $normalized = [];
+        foreach ($alignments as $alignment) {
+            $normalized[] = in_array($alignment, ['left', 'right', 'center'], true) ? (string) $alignment : 'default';
+        }
+
+        while ($columnCount > 0 && count($normalized) < $columnCount) {
+            $normalized[] = 'default';
+        }
+
+        return $columnCount > 0 ? array_slice($normalized, 0, $columnCount) : $normalized;
+    }
+
+    private function renderTableRow(AstNode $row, int $columnCount): string
+    {
+        $cells = [];
+        $logicalColumns = 0;
+        foreach ($row->children as $cell) {
+            if ($cell->type !== 'table_cell') {
+                continue;
+            }
+
+            $colspan = max(1, (int) $cell->attr('colspan', 1));
+            $content = $this->renderTableCell($cell);
+            if ($colspan > 1) {
+                $align = (string) $cell->attr('align', 'center');
+                $spec = match ($align) {
+                    'right' => 'r',
+                    'left' => 'l',
+                    default => 'c',
+                };
+                $cells[] = '\multicolumn{' . min($colspan, max(1, $columnCount - $logicalColumns)) . '}{' . $spec . '}{' . $content . '}';
+            } else {
+                $cells[] = $content;
+            }
+            $logicalColumns += $colspan;
+        }
+
+        while ($logicalColumns < $columnCount) {
+            $cells[] = '';
+            $logicalColumns++;
+        }
+
+        return implode(' & ', $cells) . '\\\\';
+    }
+
+    private function renderTableCell(AstNode $cell): string
+    {
+        if ($cell->children === []) {
+            return $this->escapeText((string) $cell->attr('text', ''));
+        }
+
+        if ($this->allInlineNodes($cell->children)) {
+            return $this->renderInlines($cell->children, true);
+        }
+
+        $parts = [];
+        foreach ($cell->children as $child) {
+            if ($child->children !== [] && $this->allInlineNodes($child->children)) {
+                $parts[] = $this->renderInlines($child->children, true);
+                continue;
+            }
+
+            $lines = $this->renderBlock($child);
+            if ($lines !== []) {
+                $parts[] = trim(implode(' ', $lines));
+                continue;
+            }
+
+            $text = (string) $child->attr('text', '');
+            if ($text !== '') {
+                $parts[] = $this->escapeText($text);
+            }
+        }
+
+        return implode(' ', array_filter($parts, static fn (string $part): bool => $part !== ''));
+    }
+
+    /**
+     * @return list<string>
+     */
     private function renderDefinitionList(AstNode $node): array
     {
         $lines = ['\begin{description}'];
-        if ($this->definitionListIsTight($node)) {
-            $lines[] = '\tightlist';
-        }
 
         foreach ($node->children as $item) {
             if ($item->type !== 'definition_item') {
@@ -239,10 +724,19 @@ final class LatexWriter
 
             [$term, $definitions] = $this->definitionItemParts($item);
             $termLatex = $this->renderDefinitionTerm($term, $item);
-            foreach ($definitions as $definition) {
+            foreach ($definitions as $definitionIndex => $definition) {
                 $body = $this->renderDefinitionBody($definition);
-                $startsWithHeading = $this->definitionStartsWithHeading($definition);
-                $lines[] = '\item[' . $termLatex . ']' . ($startsWithHeading ? ' ~ ' : '');
+                if ($definitionIndex === 0) {
+                    $startsWithHeading = $this->definitionStartsWithHeading($definition);
+                    $itemLine = '\item[' . $termLatex . ']' . ($startsWithHeading ? ' ~ ' : '');
+                    if (!$startsWithHeading && $body !== []) {
+                        $first = array_shift($body);
+                        $itemLine .= ' ' . $first;
+                    }
+                    $lines[] = $itemLine;
+                } elseif ($body !== []) {
+                    $lines[] = '';
+                }
                 array_push($lines, ...$body);
             }
         }
@@ -260,7 +754,7 @@ final class LatexWriter
         $term = null;
         $definitions = [];
         foreach ($item->children as $child) {
-            if ($child->type === 'term') {
+            if ($child->type === 'term' || $child->type === 'definition_term') {
                 $term = $child;
                 continue;
             }
@@ -352,9 +846,6 @@ final class LatexWriter
         }
 
         $lines = [$ordered ? '\begin{enumerate}' : '\begin{itemize}'];
-        if ($this->listIsTight($node)) {
-            $lines[] = '\tightlist';
-        }
         foreach ($node->children as $item) {
             if ($item->type === 'list_item') {
                 array_push($lines, ...$this->renderListItem($item));
@@ -385,10 +876,6 @@ final class LatexWriter
                 $lines[] = $resetCounter;
             }
 
-            if ($this->listIsTight($node)) {
-                $lines[] = '\tightlist';
-            }
-
             foreach ($node->children as $item) {
                 if ($item->type === 'list_item') {
                     array_push($lines, ...$this->renderListItem($item));
@@ -406,7 +893,7 @@ final class LatexWriter
     {
         $style = (string) $node->attr('style', 'default');
         $delimiter = (string) $node->attr('delimiter', 'default');
-        if ($style === 'default' && $delimiter === 'default') {
+        if (($style === 'default' || $style === 'decimal') && ($delimiter === 'default' || $delimiter === 'period')) {
             return '';
         }
 
@@ -429,7 +916,7 @@ final class LatexWriter
             default => $label . '.',
         };
 
-        return '\def\label' . $counter . '{' . $label . '}';
+        return '\renewcommand{\label' . $counter . '}{' . $label . '}';
     }
 
     private function orderedListResetCounter(AstNode $node, int $level): string
@@ -523,7 +1010,7 @@ final class LatexWriter
         foreach ($item->children as $child) {
             if ($child->type === 'bullet_list' || $child->type === 'ordered_list') {
                 foreach ($this->renderBlock($child) as $line) {
-                    $lines[] = $line === '' ? '' : '  ' . $line;
+                    $lines[] = $line;
                 }
                 continue;
             }
@@ -589,7 +1076,16 @@ final class LatexWriter
             $output .= "\n" . '\addcontentsline{toc}{' . $command . '}{' . $this->escapeText($this->plainHeadingText($node->children)) . '}' . "\n";
         }
 
-        return $output;
+        $id = $this->blockAnchorId($node);
+        if ($id === '') {
+            return $output;
+        }
+
+        return implode("\n", [
+            '\hypertarget{' . $this->escapeLinkTarget($id) . '}{%',
+            $output . '\label{' . $this->escapeLinkTarget($id) . '}',
+            '}',
+        ]);
     }
 
     private function headingCommand(int $level): string
@@ -684,13 +1180,53 @@ final class LatexWriter
     {
         $tokens = [];
         foreach ($nodes as $node) {
+            $nativeCommand = $this->renderNativeInlineCommand($node, $escapeText, $protectImages);
+            if ($nativeCommand !== null) {
+                $tokens[] = [
+                    'kind' => 'text',
+                    'text' => $this->wrapInlineAnchor($node, $nativeCommand),
+                    'styles' => $styles,
+                ];
+                continue;
+            }
+
             if (in_array($node->type, ['emph', 'strong', 'underline', 'strikeout'], true)) {
+                $anchor = $this->inlineAnchorId($node);
+                if ($anchor !== '') {
+                    $style = $node->type;
+                    $tokens[] = [
+                        'kind' => 'text',
+                        'text' => $this->wrapInlineAnchor(
+                            $node,
+                            $this->latexStyleOpen($style) . $this->renderInlines($node->children, $escapeText, $protectImages) . '}'
+                        ),
+                        'styles' => $styles,
+                    ];
+                    continue;
+                }
                 array_push($tokens, ...$this->inlineTokens(
                     $node->children,
                     $escapeText,
                     $protectImages,
                     array_merge($styles, [$node->type])
                 ));
+                continue;
+            }
+
+            if (in_array($node->type, ['span', 'mark', 'quoted', 'native_inline', 'unsupported_command', 'raw_html_inline'], true)) {
+                $text = match ($node->type) {
+                    'span' => $this->renderSpan($node, $escapeText, $protectImages),
+                    'mark' => '\hl{' . $this->renderInlines($node->children, $escapeText, $protectImages) . '}',
+                    'quoted' => $this->renderQuoted($node, $escapeText, $protectImages),
+                    default => $this->renderUnsupportedInline($node),
+                };
+                if ($text !== '') {
+                    $tokens[] = [
+                        'kind' => 'text',
+                        'text' => $this->wrapInlineAnchor($node, $text),
+                        'styles' => $styles,
+                    ];
+                }
                 continue;
             }
 
@@ -714,14 +1250,16 @@ final class LatexWriter
                 'text' => $escapeText
                     ? $this->escapeText((string) $node->attr('text', ''))
                     : (string) $node->attr('text', ''),
-                'softbreak', 'linebreak' => "\n",
-                'code' => $this->renderCode($node, in_array('strikeout', $styles, true)),
-                'math' => $this->renderMath($node),
-                'link' => $this->renderLink($node),
-                'image' => $this->renderImage($node, $protectImages),
+                'space' => ' ',
+                'softbreak' => "\n",
+                'linebreak' => "\\\\\n",
+                'code' => $this->wrapInlineAnchor($node, $this->renderCode($node, in_array('strikeout', $styles, true))),
+                'math' => $this->wrapInlineAnchor($node, $this->renderMath($node)),
+                'link' => $this->wrapInlineAnchor($node, $this->renderLink($node)),
+                'image' => $this->wrapInlineAnchor($node, $this->renderImage($node, $protectImages)),
                 'note' => $this->renderNote($node),
                 'raw_tex', 'raw_tex_inline' => (string) $node->attr('tex', $node->attr('text', '')),
-                'raw_inline' => $this->renderRawInline($node),
+                'raw_inline' => $this->renderRawInline($node) !== '' ? $this->renderRawInline($node) : $this->renderUnsupportedInline($node),
                 default => '',
             };
 
@@ -737,6 +1275,105 @@ final class LatexWriter
         }
 
         return $tokens;
+    }
+
+    private function renderNativeInlineCommand(AstNode $node, bool $escapeText, bool $protectImages): ?string
+    {
+        if (!$this->hasNativeConstructorProvenance($node)) {
+            return null;
+        }
+
+        return match ($node->type) {
+            'underline' => '\underline{' . $this->renderInlines($node->children, $escapeText, $protectImages) . '}',
+            'strikeout' => '\sout{' . $this->renderInlines($node->children, $escapeText, $protectImages) . '}',
+            'superscript' => '\textsuperscript{' . $this->renderInlines($node->children, $escapeText, $protectImages) . '}',
+            'subscript' => '\textsubscript{' . $this->renderInlines($node->children, $escapeText, $protectImages) . '}',
+            'small_caps' => '\textsc{' . $this->renderInlines($node->children, $escapeText, $protectImages) . '}',
+            'quoted' => $this->renderNativeQuotedInline($node, $escapeText, $protectImages),
+            default => null,
+        };
+    }
+
+    private function hasNativeConstructorProvenance(AstNode $node): bool
+    {
+        return $node->attr('constructor') !== null
+            || $node->attr('native') !== null
+            || $node->attr('quoteTypeConstructor') !== null
+            || $node->attr('quoteTypeNative') !== null;
+    }
+
+    private function renderNativeQuotedInline(AstNode $node, bool $escapeText, bool $protectImages): string
+    {
+        $inner = $this->renderInlines($node->children, $escapeText, $protectImages);
+        $quoteType = (string) $node->attr('quoteTypeConstructor', $node->attr('quoteType', ''));
+        if ($quoteType === 'SingleQuote' || strtolower($quoteType) === 'single') {
+            return '`' . $inner . "'";
+        }
+
+        return '``' . $inner . "''";
+    }
+
+    private function renderSpan(AstNode $node, bool $escapeText, bool $protectImages): string
+    {
+        $content = $this->renderInlines($node->children, $escapeText, $protectImages);
+        if ($this->hasClass($node, 'mark') && $this->inlineAnchorId($node) === '') {
+            return '\hl{' . $content . '}';
+        }
+
+        return $content;
+    }
+
+    private function renderQuoted(AstNode $node, bool $escapeText, bool $protectImages): string
+    {
+        $content = $this->renderInlines($node->children, $escapeText, $protectImages);
+
+        return $node->attr('kind') === 'single'
+            ? "`" . $content . "'"
+            : "``" . $content . "''";
+    }
+
+    private function wrapInlineAnchor(AstNode $node, string $content): string
+    {
+        $id = $this->inlineAnchorId($node);
+
+        return $id === ''
+            ? $content
+            : '\protect\hypertarget{' . $this->escapeLinkTarget($id) . '}{' . $content . '}';
+    }
+
+    private function inlineAnchorId(AstNode $node): string
+    {
+        $id = $node->attr('id', null);
+        if (!is_scalar($id) || (string) $id === '') {
+            $attributes = $node->attr('attributes', []);
+            if (is_array($attributes) && isset($attributes['id']) && is_scalar($attributes['id'])) {
+                $id = $attributes['id'];
+            }
+        }
+
+        return is_scalar($id) ? $this->normalizeAnchorId((string) $id) : '';
+    }
+
+    private function blockAnchorId(AstNode $node): string
+    {
+        $id = $node->attr('id', null);
+        if (!is_scalar($id) || (string) $id === '') {
+            $attributes = $node->attr('attributes', []);
+            if (is_array($attributes) && isset($attributes['id']) && is_scalar($attributes['id'])) {
+                $id = $attributes['id'];
+            }
+        }
+
+        return is_scalar($id) ? $this->normalizeAnchorId((string) $id) : '';
+    }
+
+    private function normalizeAnchorId(string $id): string
+    {
+        $id = trim($id);
+        $id = preg_replace('/\s+/u', '-', $id) ?? $id;
+        $id = str_replace('/', '-', $id);
+
+        return $id;
     }
 
     /**
@@ -820,6 +1457,7 @@ final class LatexWriter
 
     private function renderNote(AstNode $node, bool $indentContinuationBlocks = false): string
     {
+        $anchor = $this->nextNoteAnchor($node);
         $blocks = [];
         foreach ($node->children as $child) {
             $lines = $this->renderBlock($child);
@@ -836,7 +1474,66 @@ final class LatexWriter
             }
         }
 
-        return '\footnote{' . implode("\n\n", $blocks) . '}';
+        $command = $this->noteUsesGroupedEndnote($node) ? '\endnote' : '\footnote';
+        if ($command === '\endnote') {
+            $this->usedGroupedEndnote = true;
+        }
+
+        return '\protect\hypertarget{fnref-' . $this->escapeLinkTarget($anchor) . '}{}'
+            . $command . '{\protect\hypertarget{fn-' . $this->escapeLinkTarget($anchor) . '}{}'
+            . implode("\n\n", $blocks)
+            . '}';
+    }
+
+    private function nextNoteAnchor(AstNode $node): string
+    {
+        $number = $this->nextNoteNumber++;
+        $label = $this->noteSourceLabel($node);
+        $base = $label === '' ? (string) $number : $label;
+        $use = $this->noteAnchorUses[strtolower($base)] ?? 0;
+        $this->noteAnchorUses[strtolower($base)] = $use + 1;
+        if ($use === 0) {
+            return $base;
+        }
+
+        $resolved = $base . '-' . ($use + 1);
+        $this->noteAnchorDiagnostics[] = '% pandoc-note-anchor duplicate source=label:' . $base
+            . ' original=fn-' . $base
+            . ' resolved=fn-' . $resolved;
+
+        return $resolved;
+    }
+
+    private function noteSourceLabel(AstNode $node): string
+    {
+        foreach (['label', 'noteLabel'] as $name) {
+            $label = $node->attr($name, null);
+            if (!is_scalar($label)) {
+                continue;
+            }
+            $label = trim(preg_replace('/\s+/', ' ', (string) $label) ?? (string) $label);
+            if ($label !== '' && strlen($label) <= 999 && preg_match('/^[A-Za-z0-9_.:-]+$/', $label) === 1) {
+                return $label;
+            }
+        }
+
+        return '';
+    }
+
+    private function noteUsesGroupedEndnote(AstNode $node): bool
+    {
+        if (($this->options['groupEndnotes'] ?? false) !== true) {
+            return false;
+        }
+
+        foreach (['noteClass', 'sourceType', 'noteType', 'cslNoteType'] as $name) {
+            $value = strtolower((string) $node->attr($name, ''));
+            if ($value === 'endnote') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function indentLatexBlock(string $block, string $indent): string
@@ -853,7 +1550,7 @@ final class LatexWriter
         $label = $this->renderInlines($node->children, true);
 
         if (str_starts_with($url, '#') && strlen($url) > 1) {
-            return '\hyperref[' . $this->escapeLinkTarget(substr($url, 1)) . ']{' . $label . '}';
+            return '\hyperlink{' . $this->escapeLinkTarget(substr($url, 1)) . '}{' . $label . '}';
         }
 
         return '\href{' . $this->escapeUrlArgument($url) . '}{' . $label . '}';
@@ -874,16 +1571,23 @@ final class LatexWriter
             '\\' => '\textbackslash{}',
             '{' => '\{',
             '}' => '\}',
+            '&' => '\&',
         ]);
     }
 
     private function renderMath(AstNode $node): string
     {
         $text = (string) $node->attr('text', '');
+        if (
+            $node->attr('display') !== true
+            && ($node->attr('mathTypeConstructor') !== null || $node->attr('mathTypeNative') !== null)
+        ) {
+            return '$' . $text . '$';
+        }
 
         return $node->attr('display') === true
             ? '\\[' . $text . '\\]'
-            : '\\(' . $text . '\\)';
+            : '$' . $text . '$';
     }
 
     private function renderRawInline(AstNode $node): string
@@ -894,6 +1598,108 @@ final class LatexWriter
         }
 
         return (string) $node->attr('text', '');
+    }
+
+    private function renderUnsupportedInline(AstNode $node): string
+    {
+        return '\texttt{' . $this->escapeCodeText('[' . $this->unsupportedInlineReviewText($node) . ']') . '}';
+    }
+
+    private function unsupportedBlockReviewText(AstNode $node): string
+    {
+        if ($node->type === 'raw_html') {
+            return 'unsupported block command: raw html - ' . (string) $node->attr('text', $node->attr('html', ''));
+        }
+
+        if ($node->type === 'raw_block') {
+            $format = strtolower((string) $node->attr('format', ''));
+
+            return 'unsupported block command: raw ' . ($format === '' ? 'unknown' : $format)
+                . ' - ' . (string) $node->attr('text', '');
+        }
+
+        $command = (string) $node->attr('constructor', $node->attr('command', $node->type));
+        $parts = [];
+        $reason = (string) $node->attr('reason', $node->attr('message', ''));
+        if ($reason !== '') {
+            $parts[] = $reason;
+        }
+        $metadata = $this->unsupportedMetadataText($node);
+        if ($metadata !== '') {
+            $parts[] = $metadata;
+        }
+
+        return 'unsupported block command: ' . $command . ($parts === [] ? '' : ' - ' . implode('; ', $parts));
+    }
+
+    private function unsupportedInlineReviewText(AstNode $node): string
+    {
+        if ($node->type === 'raw_html_inline') {
+            return 'unsupported inline command: raw html - ' . (string) $node->attr('text', $node->attr('html', ''));
+        }
+
+        if ($node->type === 'raw_inline') {
+            $format = strtolower((string) $node->attr('format', ''));
+
+            return 'unsupported inline command: raw ' . ($format === '' ? 'unknown' : $format)
+                . ' - ' . (string) $node->attr('text', '');
+        }
+
+        $command = (string) $node->attr('constructor', $node->attr('command', $node->type));
+        $parts = [];
+        $message = (string) $node->attr('message', $node->attr('reason', ''));
+        if ($message !== '') {
+            $parts[] = $message;
+        }
+        $metadata = $this->unsupportedMetadataText($node);
+        if ($metadata !== '') {
+            $parts[] = $metadata;
+        }
+        $text = (string) $node->attr('text', '');
+        if ($text !== '') {
+            $parts[] = $text;
+        }
+
+        return 'unsupported inline command: ' . $command . ($parts === [] ? '' : ' - ' . implode('; ', $parts));
+    }
+
+    private function unsupportedMetadataText(AstNode $node): string
+    {
+        $parts = [];
+        foreach ([['arguments', 'arguments'], ['args', 'arguments'], ['options', 'options'], ['attributes', 'attributes']] as [$attr, $label]) {
+            $value = $node->attr($attr, null);
+            if ($value === null) {
+                continue;
+            }
+            $rendered = $this->metadataValueText($value);
+            if ($rendered !== '') {
+                $parts[] = $label . ': ' . $rendered;
+            }
+        }
+
+        return implode('; ', $parts);
+    }
+
+    private function metadataValueText(mixed $value): string
+    {
+        if (is_array($value)) {
+            $parts = [];
+            foreach ($value as $key => $item) {
+                $rendered = $this->metadataValueText($item);
+                if ($rendered === '') {
+                    continue;
+                }
+                $parts[] = is_string($key) ? $key . '=' . $rendered : $rendered;
+            }
+
+            return implode(', ', $parts);
+        }
+
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+
+        return is_scalar($value) ? (string) $value : '';
     }
 
     private function renderCode(AstNode $node, bool $insideStrikeout = false): string
@@ -964,16 +1770,17 @@ final class LatexWriter
             $alt = $this->plainInlineText($node->children);
         }
 
-        $options = ['keepaspectratio'];
+        $options = [];
         if ($alt !== '') {
             $options[] = 'alt={' . $this->escapeText($alt) . '}';
         }
 
         $url = (string) $node->attr('url', $node->attr('src', ''));
+        $optionText = $options === [] ? '' : '[' . implode(',', $options) . ']';
 
-        return ($protect ? '\protect' : '') . '\pandocbounded{\includegraphics[' . implode(',', $options) . ']{'
+        return ($protect ? '\protect' : '') . '\includegraphics' . $optionText . '{'
             . $this->escapeImageTarget($url)
-            . '}}';
+            . '}';
     }
 
     private function escapeCodeText(string $text): string
@@ -1012,6 +1819,7 @@ final class LatexWriter
             '\\' => '\textbackslash{}',
             '{' => '\{',
             '}' => '\}',
+            '_' => '\_',
         ]);
     }
 
@@ -1067,6 +1875,48 @@ final class LatexWriter
         }
 
         return true;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function allInlineNodes(array $nodes): bool
+    {
+        foreach ($nodes as $node) {
+            if (!$this->isTableInlineNode($node)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function isTableInlineNode(AstNode $node): bool
+    {
+        return in_array($node->type, [
+            'text',
+            'emph',
+            'strong',
+            'underline',
+            'strikeout',
+            'small_caps',
+            'superscript',
+            'subscript',
+            'span',
+            'quoted',
+            'space',
+            'softbreak',
+            'linebreak',
+            'code',
+            'math',
+            'link',
+            'image',
+            'note',
+            'raw_tex',
+            'raw_tex_inline',
+            'raw_inline',
+            'citation',
+        ], true);
     }
 
     private function isInlineNode(AstNode $node): bool

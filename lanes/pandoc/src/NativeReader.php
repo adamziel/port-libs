@@ -148,7 +148,12 @@ final class NativeReader
             $children = $this->coalesceJsonNativeInlineText($children);
         }
 
-        return new AstNode($node->type, $this->normalizeJsonNativeAttrs($node->attrs), $children);
+        $attrs = $this->normalizeJsonNativeAttrs($node->attrs);
+        if ($node->type === 'softbreak' && $node->attr('constructor') === 'SoftBreak') {
+            $attrs['preserveNativeSoftbreak'] = true;
+        }
+
+        return new AstNode($node->type, $attrs, $children);
     }
 
     /**
@@ -182,6 +187,7 @@ final class NativeReader
             'paragraph',
             'heading',
             'term',
+            'definition_term',
             'line',
             'emph',
             'strong',
@@ -1039,7 +1045,12 @@ final class NativeReader
             return new AstNode('raw_tex_inline', ['format' => $format, 'text' => $text, 'tex' => $text]);
         }
 
-        return new AstNode('raw_inline', ['format' => $format, 'text' => $text]);
+        return new AstNode('raw_inline', [
+            'constructor' => 'RawInline',
+            'native' => ['t' => 'RawInline', 'c' => [$format, $text]],
+            'format' => $format,
+            'text' => $text,
+        ]);
     }
 
     private function isHtmlRawFormat(string $format): bool

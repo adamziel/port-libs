@@ -793,11 +793,40 @@ final class PandocJsonWriter
     {
         $encoded = [];
         foreach ($lines as $line) {
-            $inlines = $this->writeInlines($this->inlineChildrenOrText($line));
+            $inlines = $this->writeInlines($this->lineInlineChildrenOrText($line));
             $encoded[] = $this->reusableInlineListPayload($line->attr('lineNative'), $inlines) ?? $inlines;
         }
 
         return $encoded;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function lineInlineChildrenOrText(AstNode $line): array
+    {
+        if ($line->children !== []) {
+            return $line->children;
+        }
+
+        $text = (string) $line->attr('text', '');
+        if ($text === '') {
+            return [];
+        }
+
+        $parts = preg_split('/(\s+)/u', $text, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
+        if ($parts === false) {
+            return [new AstNode('text', ['text' => $text])];
+        }
+
+        $inlines = [];
+        foreach ($parts as $part) {
+            $inlines[] = preg_match('/^\s+$/u', $part) === 1
+                ? new AstNode('space')
+                : new AstNode('text', ['text' => $part]);
+        }
+
+        return $inlines;
     }
 
     /**
@@ -1015,16 +1044,15 @@ final class PandocJsonWriter
             return $native;
         }
 
-        return [
-            't' => 'Caption',
-            'c' => $isWrappedContent ? [[
-                $shortNative,
-                $caption[1],
-            ]] : [
-                $shortNative,
-                $caption[1],
-            ],
+        $native['c'] = $isWrappedContent ? [[
+            $shortNative,
+            $caption[1],
+        ]] : [
+            $shortNative,
+            $caption[1],
         ];
+
+        return $native;
     }
 
     /**
@@ -1085,13 +1113,17 @@ final class PandocJsonWriter
             }
 
             if ($sourceShort['t'] === 'Just') {
-                return $generatedShort === null
-                    ? ['t' => 'Nothing']
-                    : ['t' => 'Just', 'c' => $this->shortCaptionNativeContent($sourceShort['c'] ?? null, $generatedShort)];
+                if ($generatedShort === null) {
+                    return ['t' => 'Nothing'];
+                }
+
+                $sourceShort['c'] = $this->shortCaptionNativeContent($sourceShort['c'] ?? null, $generatedShort);
+
+                return $sourceShort;
             }
 
             if ($sourceShort['t'] === 'ShortCaption') {
-                return $generatedShort === null ? null : ['t' => 'ShortCaption', 'c' => [$generatedShort]];
+                return $generatedShort === null ? null : $this->regeneratedShortCaptionNative($sourceShort, $generatedShort);
             }
         }
 
@@ -1126,14 +1158,26 @@ final class PandocJsonWriter
             && !array_is_list($sourceShort[0])
             && ($sourceShort[0]['t'] ?? null) === 'ShortCaption'
         ) {
-            return [['t' => 'ShortCaption', 'c' => [$generatedShort]]];
+            return [$this->regeneratedShortCaptionNative($sourceShort[0], $generatedShort)];
         }
 
         if (is_array($sourceShort) && !array_is_list($sourceShort) && ($sourceShort['t'] ?? null) === 'ShortCaption') {
-            return ['t' => 'ShortCaption', 'c' => [$generatedShort]];
+            return $this->regeneratedShortCaptionNative($sourceShort, $generatedShort);
         }
 
         return $generatedShort;
+    }
+
+    /**
+     * @param array<string, mixed> $native
+     * @param list<array<string, mixed>> $generatedShort
+     * @return array<string, mixed>
+     */
+    private function regeneratedShortCaptionNative(array $native, array $generatedShort): array
+    {
+        $native['c'] = [$generatedShort];
+
+        return $native;
     }
 
     /**
@@ -2006,11 +2050,18 @@ final class PandocJsonWriter
 
     private function enumNative(mixed $native, string $constructor): mixed
     {
+        if (is_array($native) && array_is_list($native) && count($native) === 1) {
+            $wrapped = $this->enumNative($native[0], $constructor);
+
+            return $wrapped === null ? null : [$wrapped];
+        }
+
         if (is_string($native) && $native === $constructor) {
             return $native;
         }
 
-        return $this->taggedNative($native, $constructor);
+        return $this->taggedNative($native, $constructor)
+            ?? $this->retaggedEnumNative($native, $constructor);
     }
 
     private function enumNativeAt(mixed $natives, int $index, string $constructor): mixed
@@ -2036,6 +2087,50 @@ final class PandocJsonWriter
         }
 
         return $native;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function retaggedEnumNative(mixed $native, string $constructor): ?array
+    {
+        if (
+            !is_array($native)
+            || array_is_list($native)
+            || !is_string($native['t'] ?? null)
+            || !$this->canRetagNullaryHelperConstructor($native['t'], $constructor)
+        ) {
+            return null;
+        }
+
+        $native['t'] = $constructor;
+        if (array_key_exists('c', $native)) {
+            unset($native['c']);
+        }
+
+        return $native;
+    }
+
+    private function canRetagNullaryHelperConstructor(string $source, string $target): bool
+    {
+        if ($source === $target) {
+            return true;
+        }
+
+        foreach ([
+            ['SingleQuote', 'DoubleQuote'],
+            ['InlineMath', 'DisplayMath'],
+            ['NormalCitation', 'AuthorInText', 'SuppressAuthor'],
+            ['DefaultStyle', 'Decimal', 'Example', 'LowerRoman', 'UpperRoman', 'LowerAlpha', 'UpperAlpha'],
+            ['DefaultDelim', 'Period', 'OneParen', 'TwoParens'],
+            ['AlignLeft', 'AlignRight', 'AlignCenter', 'AlignDefault'],
+        ] as $family) {
+            if (in_array($source, $family, true) && in_array($target, $family, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function columnWidthNativeAt(mixed $natives, int $index, mixed $width): mixed
@@ -2115,14 +2210,14 @@ final class PandocJsonWriter
         return $content === $integer ? $tagged : $this->regeneratedScalarConstructorNative($tagged, $integer);
     }
 
-    private function regeneratedScalarConstructorNative(array $native, int|float $value): array
+    private function regeneratedScalarConstructorNative(array $native, int|float|string $value): array
     {
         $native['c'] = $this->regeneratedScalarConstructorContent($native['c'] ?? null, $value);
 
         return $native;
     }
 
-    private function regeneratedScalarConstructorContent(mixed $content, int|float $value): mixed
+    private function regeneratedScalarConstructorContent(mixed $content, int|float|string $value): mixed
     {
         if (
             is_array($content)
@@ -2688,21 +2783,92 @@ final class PandocJsonWriter
      */
     private function regeneratedAttrNative(array $native, array $generated): array
     {
-        $native['c'] = $this->hasSingleWrappedAttrTupleContent($native['c'] ?? null)
-            ? [$generated]
-            : $generated;
+        $native['c'] = $this->regeneratedAttrTupleContent($native['c'] ?? null, $generated);
 
         return $native;
     }
 
-    private function hasSingleWrappedAttrTupleContent(mixed $content): bool
+    /**
+     * @param array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>} $generated
+     */
+    private function regeneratedAttrTupleContent(mixed $content, array $generated): array
     {
-        return is_array($content)
+        if (
+            is_array($content)
             && array_is_list($content)
             && count($content) === 1
             && is_array($content[0])
             && array_is_list($content[0])
-            && $this->validAttrTuplePrefix($content[0]) !== null;
+            && $this->validAttrTuplePrefix($content[0]) !== null
+        ) {
+            return [$this->regeneratedAttrTupleContent($content[0], $generated)];
+        }
+
+        return $this->regeneratedAttrTuple($content, $generated);
+    }
+
+    /**
+     * @param array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>} $generated
+     */
+    private function regeneratedAttrTuple(mixed $source, array $generated): array
+    {
+        if (!is_array($source) || !array_is_list($source)) {
+            return $generated;
+        }
+
+        return [
+            $this->regeneratedAttrScalar($source[0] ?? null, $generated[0]),
+            $this->regeneratedAttrStringList($source[1] ?? null, $generated[1]),
+            $this->regeneratedAttrKeyValuePairs($source[2] ?? null, $generated[2]),
+        ];
+    }
+
+    /**
+     * @param list<string> $values
+     * @return list<mixed>
+     */
+    private function regeneratedAttrStringList(mixed $source, array $values): array
+    {
+        $sourceList = is_array($source) && array_is_list($source) ? $source : [];
+        $encoded = [];
+        foreach ($values as $index => $value) {
+            $encoded[] = $this->regeneratedAttrScalar($sourceList[$index] ?? ($sourceList[0] ?? null), $value);
+        }
+
+        return $encoded;
+    }
+
+    /**
+     * @param list<array{0:string, 1:string}> $pairs
+     * @return list<mixed>
+     */
+    private function regeneratedAttrKeyValuePairs(mixed $source, array $pairs): array
+    {
+        $sourcePairs = is_array($source) && array_is_list($source) ? $source : [];
+        $encoded = [];
+        foreach ($pairs as $index => $pair) {
+            $sourcePair = $sourcePairs[$index] ?? ($sourcePairs[0] ?? null);
+            if (is_array($sourcePair) && array_is_list($sourcePair) && count($sourcePair) >= 2) {
+                $encoded[] = [
+                    $this->regeneratedAttrScalar($sourcePair[0], $pair[0]),
+                    $this->regeneratedAttrScalar($sourcePair[1], $pair[1]),
+                ];
+                continue;
+            }
+
+            $encoded[] = $pair;
+        }
+
+        return $encoded;
+    }
+
+    private function regeneratedAttrScalar(mixed $source, string $value): mixed
+    {
+        if (is_array($source) && array_is_list($source) && count($source) === 1) {
+            return [$this->regeneratedAttrScalar($source[0], $value)];
+        }
+
+        return $value;
     }
 
     /**
@@ -2881,7 +3047,7 @@ final class PandocJsonWriter
 
         $content = $this->singleWrappedScalarContent($native['c'] ?? null);
 
-        return $content === $format ? $native : $format;
+        return $content === $format ? $native : $this->regeneratedScalarConstructorNative($native, $format);
     }
 
     private function singleWrappedScalarContent(mixed $content): mixed

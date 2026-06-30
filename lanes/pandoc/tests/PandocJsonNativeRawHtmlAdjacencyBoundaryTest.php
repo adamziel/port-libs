@@ -136,9 +136,9 @@ $tests['maps pandoc json native adjacent raw html aliases through markdown and w
             $t->true(!str_contains($markdown, "\n\n\n"), "{$source} markdown avoids surplus raw block boundaries");
             $t->contains('<!-- wp:html -->' . "\n" . $aside . "\n" . '<!-- /wp:html -->', $blocks, "{$source} wordpress html4 raw block");
             $t->contains('<!-- wp:html -->' . "\n" . $section . "\n" . '<!-- /wp:html -->', $blocks, "{$source} wordpress xhtml raw block");
-            $t->contains('<p>' . $span . $em . '<span class="pandoc-raw-opml" data-pandoc-raw-format="opml">&lt;outline text=&quot;disabled-inline&quot;/&gt;</span>Tail</p>', $blocks, "{$source} wordpress adjacent raw inlines and disabled diagnostic");
-            $t->contains('data-pandoc-raw-format="opml"', $blocks, "{$source} wordpress exposes disabled raw diagnostic format");
-            $t->contains('&lt;outline text=&quot;disabled-inline&quot;/&gt;', $blocks, "{$source} wordpress escapes disabled inline raw payload");
+            $t->contains('<p>' . $span . $em . 'Tail</p>', $blocks, "{$source} wordpress adjacent raw inlines and suppresses disabled inline diagnostic");
+            $t->contains('data-pandoc-raw-format="opml"', $blocks, "{$source} wordpress exposes disabled raw block diagnostic format");
+            $t->true(!str_contains($blocks, 'disabled-inline'), "{$source} wordpress keeps disabled inline raw inert");
             $t->contains('&lt;outline text=&quot;disabled-block&quot;/&gt;', $blocks, "{$source} wordpress escapes disabled block raw payload");
             $t->true(!str_contains($blocks, '<outline'), "{$source} wordpress suppresses unsupported raw fallback");
         }

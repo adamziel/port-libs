@@ -120,7 +120,44 @@ final class NativeWriter
             || (is_array($meta) && $this->valueHasTaggedNativeMeta($meta))
             || $this->hasGeneratedNoteLabel($document)
             || $this->hasJsonNativeProvenance($document)
+            || ($this->allowsJsonNativeInlineCompleteness($document) && $this->hasJsonNativeInlineCompletenessNeed($document))
             || $this->hasMixedBlockContainerContent($document);
+    }
+
+    private function allowsJsonNativeInlineCompleteness(AstNode $document): bool
+    {
+        $sourceFormat = $document->attr('sourceFormat', null);
+
+        return $sourceFormat === null
+            || in_array((string) $sourceFormat, ['markdown', 'commonmark'], true);
+    }
+
+    private function hasJsonNativeInlineCompletenessNeed(AstNode $node): bool
+    {
+        if (in_array($node->type, [
+            'code',
+            'link',
+            'image',
+            'note',
+            'span',
+            'math',
+            'quoted',
+            'superscript',
+            'subscript',
+            'small_caps',
+            'citation',
+            'citation_group',
+        ], true)) {
+            return true;
+        }
+
+        foreach ($node->children as $child) {
+            if ($this->hasJsonNativeInlineCompletenessNeed($child)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function valueHasTaggedNativeMeta(mixed $value): bool

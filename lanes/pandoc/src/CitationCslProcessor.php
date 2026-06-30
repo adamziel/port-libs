@@ -1318,10 +1318,10 @@ final class CitationCslProcessor
         }
         $reviewedTitle = self::composedStringField(
             $item,
-            ['reviewed-title', 'reviewedTitle', 'reviewedtitle', 'reviewtitle'],
-            ['reviewed-subtitle', 'reviewedSubtitle', 'reviewedsubtitle', 'reviewsubtitle']
+            ['reviewed-title', 'reviewedTitle', 'reviewedtitle', 'review-title', 'reviewTitle', 'reviewtitle'],
+            ['reviewed-subtitle', 'reviewedSubtitle', 'reviewedsubtitle', 'review-subtitle', 'reviewSubtitle', 'reviewsubtitle']
         );
-        $reviewedGenre = self::firstStringField($item, ['reviewed-genre', 'reviewedGenre', 'reviewedgenre', 'reviewgenre']);
+        $reviewedGenre = self::firstStringField($item, ['reviewed-genre', 'reviewedGenre', 'reviewedgenre', 'review-genre', 'reviewGenre', 'reviewgenre']);
         $risFieldProvenance = is_array($item['risFieldProvenance'] ?? null) ? array_values($item['risFieldProvenance']) : [];
         $orcid = self::firstStringField($item, ['ORCID', 'orcid', 'orcid-id', 'orcidId', 'orcidid']);
         $isni = self::firstStringField($item, ['ISNI', 'isni']);
@@ -11143,8 +11143,8 @@ final class CitationCslProcessor
             'translated-subtitle', 'translatedsubtitle', 'title-translation-subtitle', 'titletranslationsubtitle', 'subtitle-translation', 'subtitletranslation' => (string) ($item['translatedSubtitle'] ?? ''),
             'translated-title-raw', 'translatedtitleraw', 'title-translation-raw', 'titletranslationraw' => $this->rawAliasedVariableValue($item, $variable, ['translated-title', 'translatedTitle', 'translatedtitle', 'title-translation', 'titleTranslation', 'titletranslation']),
             'translated-subtitle-raw', 'translatedsubtitleraw', 'title-translation-subtitle-raw', 'titletranslationsubtitleraw', 'subtitle-translation-raw', 'subtitletranslationraw' => $this->rawAliasedVariableValue($item, $variable, ['translated-subtitle', 'translatedSubtitle', 'translatedsubtitle', 'title-translation-subtitle', 'titleTranslationSubtitle', 'titletranslationsubtitle', 'subtitle-translation', 'subtitleTranslation', 'subtitletranslation']),
-            'reviewed-title', 'reviewedtitle' => (string) ($item['reviewedTitle'] ?? ''),
-            'reviewed-genre', 'reviewedgenre' => (string) ($item['reviewedGenre'] ?? ''),
+            'reviewed-title', 'reviewedtitle', 'review-title', 'reviewtitle' => (string) ($item['reviewedTitle'] ?? ''),
+            'reviewed-genre', 'reviewedgenre', 'review-genre', 'reviewgenre' => (string) ($item['reviewedGenre'] ?? ''),
             'reprint-title', 'reprinttitle' => (string) ($item['reprintTitle'] ?? ''),
             'original-title', 'originaltitle', 'origtitle' => (string) ($item['originalTitle'] ?? ''),
             'original-subtitle', 'originalsubtitle', 'origsubtitle' => (string) ($item['originalSubtitle'] ?? ''),
