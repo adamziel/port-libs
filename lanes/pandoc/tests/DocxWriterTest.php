@@ -9,7 +9,7 @@ use PortLibs\Pandoc\OpcRelationship;
 use PortLibs\Pandoc\OpcRelationships;
 use PortLibs\Pandoc\ZipPackage;
 
-$doc = static fn (array $blocks): AstNode => new AstNode('document', [], $blocks);
+$doc = static fn (array $blocks, array $attrs = []): AstNode => new AstNode('document', $attrs, $blocks);
 $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
 $paragraph = static fn (array $children): AstNode => new AstNode('paragraph', [], $children);
 $plain = static fn (array $children): AstNode => new AstNode('plain', [], $children);
@@ -29,29 +29,37 @@ $packageParts = static function (string $bytes): array {
 
 return [
     'emits deterministic core docx package parts for writer golden comparison' => static function (TestRunner $t) use ($doc, $text, $paragraph, $plain, $item, $packageParts): void {
-        $document = $doc([
-            new AstNode('heading', ['level' => 1], [$text('Package core')]),
-            $paragraph([
-                $text('Alpha'),
-                new AstNode('space'),
-                new AstNode('strong', [], [$text('bold')]),
-                new AstNode('space'),
-                new AstNode('emph', [], [$text('italic')]),
-                $text('  tail'),
-            ]),
-            new AstNode('bullet_list', [], [
-                $item([$plain([$text('bullet one')])]),
-            ]),
-            new AstNode('ordered_list', ['start' => 3], [
-                $item([$plain([$text('step three')])]),
-            ]),
-            $paragraph([
-                $text('See'),
-                new AstNode('space'),
-                new AstNode('link', ['url' => 'https://example.test/audit?x=1&y=2'], [$text('audit')]),
-                $text('.'),
-            ]),
-        ]);
+        $document = $doc(
+            [
+                new AstNode('heading', ['level' => 1], [$text('Package core')]),
+                $paragraph([
+                    $text('Alpha'),
+                    new AstNode('space'),
+                    new AstNode('strong', [], [$text('bold')]),
+                    new AstNode('space'),
+                    new AstNode('emph', [], [$text('italic')]),
+                    $text('  tail'),
+                ]),
+                new AstNode('bullet_list', [], [
+                    $item([$plain([$text('bullet one')])]),
+                ]),
+                new AstNode('ordered_list', ['start' => 3], [
+                    $item([$plain([$text('step three')])]),
+                ]),
+                $paragraph([
+                    $text('See'),
+                    new AstNode('space'),
+                    new AstNode('link', ['url' => 'https://example.test/audit?x=1&y=2'], [$text('audit')]),
+                    $text('.'),
+                ]),
+            ],
+            [
+                'title' => 'Package core',
+                'creator' => 'Port Libs',
+                'description' => 'Generated for writer golden comparison',
+                'created' => '2026-06-30T00:00:00Z',
+            ]
+        );
 
         $writer = new DocxWriter();
         $firstBytes = $writer->write($document);
@@ -62,6 +70,8 @@ return [
         $t->same([
             '[Content_Types].xml',
             '_rels/.rels',
+            'docProps/core.xml',
+            'docProps/app.xml',
             'word/document.xml',
             'word/_rels/document.xml.rels',
             'word/styles.xml',
@@ -72,6 +82,8 @@ return [
         $contentTypes = OpcContentTypes::fromXml($parts['[Content_Types].xml']);
         $t->same('application/vnd.openxmlformats-package.relationships+xml', $contentTypes->defaults()['rels'] ?? null);
         $t->same('application/xml', $contentTypes->defaults()['xml'] ?? null);
+        $t->same('application/vnd.openxmlformats-package.core-properties+xml', $contentTypes->contentTypeForPart('/docProps/core.xml'));
+        $t->same('application/vnd.openxmlformats-officedocument.extended-properties+xml', $contentTypes->contentTypeForPart('/docProps/app.xml'));
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $contentTypes->contentTypeForPart('/word/document.xml'));
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml', $contentTypes->contentTypeForPart('/word/styles.xml'));
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml', $contentTypes->contentTypeForPart('/word/numbering.xml'));
@@ -81,6 +93,8 @@ return [
         $rootDocument = $rootRels->firstOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument');
         $t->true($rootDocument instanceof OpcRelationship, 'Root officeDocument relationship missing');
         $t->same('word/document.xml', $rootDocument?->target);
+        $t->same('docProps/core.xml', $rootRels->firstOfType('http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties')?->target);
+        $t->same('docProps/app.xml', $rootRels->firstOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties')?->target);
 
         $documentRels = OpcRelationships::fromXml($parts['word/_rels/document.xml.rels'], '/word/document.xml');
         $t->same('styles.xml', $documentRels->firstOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles')?->target);
@@ -102,6 +116,13 @@ return [
         $t->contains('<w:hyperlink r:id="rId4">', $documentXml);
         $t->contains('<w:sectPr>', $documentXml);
 
+        $t->contains('<dc:title>Package core</dc:title>', $parts['docProps/core.xml']);
+        $t->contains('<dc:creator>Port Libs</dc:creator>', $parts['docProps/core.xml']);
+        $t->contains('<dc:description>Generated for writer golden comparison</dc:description>', $parts['docProps/core.xml']);
+        $t->contains('<dcterms:created xsi:type="dcterms:W3CDTF">2026-06-30T00:00:00Z</dcterms:created>', $parts['docProps/core.xml']);
+        $t->contains('<dcterms:modified xsi:type="dcterms:W3CDTF">2026-06-30T00:00:00Z</dcterms:modified>', $parts['docProps/core.xml']);
+        $t->contains('<Application>pandoc</Application>', $parts['docProps/app.xml']);
+        $t->contains('<HeadingPairs><vt:vector size="2" baseType="variant">', $parts['docProps/app.xml']);
         $t->contains('w:styleId="Heading1"', $parts['word/styles.xml']);
         $t->contains('w:styleId="Hyperlink"', $parts['word/styles.xml']);
         $t->contains('<w:startOverride w:val="3"/>', $parts['word/numbering.xml']);
@@ -119,6 +140,8 @@ return [
         $t->same([
             '[Content_Types].xml',
             '_rels/.rels',
+            'docProps/core.xml',
+            'docProps/app.xml',
             'word/document.xml',
             'word/_rels/document.xml.rels',
             'word/styles.xml',

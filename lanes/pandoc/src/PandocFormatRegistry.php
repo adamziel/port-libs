@@ -412,7 +412,7 @@ final class PandocFormatRegistry
         'docx' => [
             'status' => 'partial',
             'implementation' => DocxWriter::class,
-            'notes' => 'Bounded DOCX output emits a deterministic OPC ZIP package with [Content_Types].xml, root and document relationships, word/document.xml, styles.xml, numbering.xml, and settings.xml for core paragraph, heading, list, inline formatting, and hyperlink slices. Full upstream Docx writer golden package parity remains open.',
+            'notes' => 'Bounded DOCX output emits a deterministic OPC ZIP package with [Content_Types].xml, root and document relationships, docProps/core.xml, docProps/app.xml, word/document.xml, styles.xml, numbering.xml, and settings.xml for core paragraph, heading, list, inline formatting, metadata, and hyperlink slices. Full upstream Docx writer golden package parity remains open.',
         ],
         'epub' => [
             'status' => 'partial',

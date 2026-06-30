@@ -8,17 +8,28 @@ final class DocxWriter
 {
     private const NS_W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
     private const NS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+    private const NS_CP = 'http://schemas.openxmlformats.org/package/2006/metadata/core-properties';
+    private const NS_DC = 'http://purl.org/dc/elements/1.1/';
+    private const NS_DCTERMS = 'http://purl.org/dc/terms/';
+    private const NS_EP = 'http://schemas.openxmlformats.org/officeDocument/2006/extended-properties';
+    private const NS_VT = 'http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes';
+    private const NS_XSI = 'http://www.w3.org/2001/XMLSchema-instance';
     private const REL_OFFICE_DOCUMENT = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
+    private const REL_CORE_PROPERTIES = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties';
+    private const REL_EXTENDED_PROPERTIES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties';
     private const REL_STYLES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles';
     private const REL_NUMBERING = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
     private const REL_SETTINGS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
     private const REL_HYPERLINK = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+    private const CT_CORE_PROPERTIES = 'application/vnd.openxmlformats-package.core-properties+xml';
+    private const CT_EXTENDED_PROPERTIES = 'application/vnd.openxmlformats-officedocument.extended-properties+xml';
     private const CT_MAIN_DOCUMENT = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
     private const CT_STYLES = 'application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml';
     private const CT_NUMBERING = 'application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml';
     private const CT_SETTINGS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml';
     private const CT_RELATIONSHIPS = 'application/vnd.openxmlformats-package.relationships+xml';
     private const CT_XML = 'application/xml';
+    private const GENERATED_TIMESTAMP = '1980-01-01T00:00:00Z';
     private const GENERATED_DOS_TIME = 0;
     private const GENERATED_DOS_DATE = 33; // 1980-01-01 00:00:00, the earliest valid DOS ZIP date.
     private const BULLET_NUM_ID = 1;
@@ -28,11 +39,13 @@ final class DocxWriter
     private const CORE_PART_ORDER = [
         '[Content_Types].xml' => 0,
         '_rels/.rels' => 1,
-        'word/document.xml' => 2,
-        'word/_rels/document.xml.rels' => 3,
-        'word/styles.xml' => 4,
-        'word/numbering.xml' => 5,
-        'word/settings.xml' => 6,
+        'docProps/core.xml' => 2,
+        'docProps/app.xml' => 3,
+        'word/document.xml' => 4,
+        'word/_rels/document.xml.rels' => 5,
+        'word/styles.xml' => 6,
+        'word/numbering.xml' => 7,
+        'word/settings.xml' => 8,
     ];
 
     /** @var list<OpcRelationship> */
@@ -71,6 +84,8 @@ final class DocxWriter
         return $this->normalizePackageParts([
             ['name' => '[Content_Types].xml', 'data' => $this->contentTypesXml()],
             ['name' => '_rels/.rels', 'data' => $this->rootRelationshipsXml()],
+            ['name' => 'docProps/core.xml', 'data' => $this->corePropertiesXml($document)],
+            ['name' => 'docProps/app.xml', 'data' => $this->extendedPropertiesXml()],
             ['name' => 'word/document.xml', 'data' => $documentXml],
             ['name' => 'word/_rels/document.xml.rels', 'data' => $this->documentRelationshipsXml()],
             ['name' => 'word/styles.xml', 'data' => $this->stylesXml()],
@@ -146,6 +161,8 @@ final class DocxWriter
         $types = new OpcContentTypes();
         $types->addDefault('rels', self::CT_RELATIONSHIPS);
         $types->addDefault('xml', self::CT_XML);
+        $types->addOverride('/docProps/core.xml', self::CT_CORE_PROPERTIES);
+        $types->addOverride('/docProps/app.xml', self::CT_EXTENDED_PROPERTIES);
         $types->addOverride('/word/document.xml', self::CT_MAIN_DOCUMENT);
         $types->addOverride('/word/styles.xml', self::CT_STYLES);
         $types->addOverride('/word/numbering.xml', self::CT_NUMBERING);
@@ -158,8 +175,75 @@ final class DocxWriter
     {
         $relationships = new OpcRelationships('/');
         $relationships->add(new OpcRelationship('rId1', self::REL_OFFICE_DOCUMENT, 'word/document.xml'));
+        $relationships->add(new OpcRelationship('rId2', self::REL_CORE_PROPERTIES, 'docProps/core.xml'));
+        $relationships->add(new OpcRelationship('rId3', self::REL_EXTENDED_PROPERTIES, 'docProps/app.xml'));
 
         return self::xmlDeclaration() . $relationships->toXml() . "\n";
+    }
+
+    private function corePropertiesXml(AstNode $document): string
+    {
+        $title = $this->metadataText($document->attr('title', $this->options['title'] ?? ''));
+        $creator = $this->metadataText($document->attr(
+            'creator',
+            $document->attr('author', $this->options['creator'] ?? $this->options['author'] ?? 'pandoc')
+        ));
+        $description = $this->metadataText($document->attr('description', $this->options['description'] ?? ''));
+        $created = $this->metadataText($document->attr('created', $this->options['created'] ?? self::GENERATED_TIMESTAMP));
+        $modified = $this->metadataText($document->attr('modified', $this->options['modified'] ?? $created));
+
+        return self::xmlDeclaration()
+            . '<cp:coreProperties xmlns:cp="' . self::NS_CP . '" xmlns:dc="' . self::NS_DC . '" xmlns:dcterms="' . self::NS_DCTERMS . '" xmlns:xsi="' . self::NS_XSI . '">'
+            . '<dc:title>' . self::escText($title) . '</dc:title>'
+            . '<dc:creator>' . self::escText($creator) . '</dc:creator>'
+            . '<dc:description>' . self::escText($description) . '</dc:description>'
+            . '<cp:lastModifiedBy>' . self::escText($creator) . '</cp:lastModifiedBy>'
+            . '<cp:revision>1</cp:revision>'
+            . '<dcterms:created xsi:type="dcterms:W3CDTF">' . self::escText($created) . '</dcterms:created>'
+            . '<dcterms:modified xsi:type="dcterms:W3CDTF">' . self::escText($modified) . '</dcterms:modified>'
+            . '</cp:coreProperties>'
+            . "\n";
+    }
+
+    private function extendedPropertiesXml(): string
+    {
+        $application = $this->metadataText($this->options['application'] ?? 'pandoc');
+        $company = $this->metadataText($this->options['company'] ?? '');
+
+        return self::xmlDeclaration()
+            . '<Properties xmlns="' . self::NS_EP . '" xmlns:vt="' . self::NS_VT . '">'
+            . '<Application>' . self::escText($application) . '</Application>'
+            . '<DocSecurity>0</DocSecurity>'
+            . '<ScaleCrop>false</ScaleCrop>'
+            . '<HeadingPairs><vt:vector size="2" baseType="variant"><vt:variant><vt:lpstr>Document</vt:lpstr></vt:variant><vt:variant><vt:i4>1</vt:i4></vt:variant></vt:vector></HeadingPairs>'
+            . '<TitlesOfParts><vt:vector size="1" baseType="lpstr"><vt:lpstr>Document</vt:lpstr></vt:vector></TitlesOfParts>'
+            . '<Company>' . self::escText($company) . '</Company>'
+            . '<LinksUpToDate>false</LinksUpToDate>'
+            . '<SharedDoc>false</SharedDoc>'
+            . '<HyperlinksChanged>false</HyperlinksChanged>'
+            . '<AppVersion>16.0000</AppVersion>'
+            . '</Properties>'
+            . "\n";
+    }
+
+    private function metadataText(mixed $value): string
+    {
+        if (is_array($value)) {
+            $parts = [];
+            foreach ($value as $item) {
+                if (is_scalar($item) || $item === null) {
+                    $parts[] = (string) $item;
+                }
+            }
+
+            return implode('; ', array_filter($parts, static fn (string $part): bool => $part !== ''));
+        }
+
+        if (is_scalar($value) || $value === null) {
+            return (string) $value;
+        }
+
+        return '';
     }
 
     private function documentRelationshipsXml(): string
