@@ -814,6 +814,7 @@ BIB;
   director       = {Director, Drew},
   illustrator    = {Ink, Inez},
   serieseditor   = {Series, Selma},
+  editortranslator = {Garcia, Gia},
   title          = {Role Handoff Chapter},
   booktitle      = {Role Review Sourcebook},
   year           = {2026}
@@ -836,7 +837,34 @@ BIB;
         $t->same('Director', $item['director'][0]['family']);
         $t->same('Ink', $item['illustrator'][0]['family']);
         $t->same('Series', $item['collection-editor'][0]['family']);
+        $t->same('Garcia', $item['editor-translator'][0]['family']);
+        $t->same('Gia', $item['editor-translator'][0]['given']);
         $t->same('Will Writer. Role Handoff Chapter. Role Review Sourcebook. 2026.', $bibliography);
+
+        $styled = CitationCslProcessor::fromItems([$item])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <names variable="editor-translator"/>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="editor-translator"/>
+      <text variable="editorial-role-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('[Garcia]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'roles', 'text' => '[@roles]']),
+        ]));
+        $styledBibliography = $styled->renderBibliographyEntry('roles');
+        $t->contains('Role Handoff Chapter :: Garcia, Gia ::', $styledBibliography);
+        $t->contains('Edited and translated by Garcia, Gia.', $styledBibliography);
     },
     'carries biblatex short author editor and holder names in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
