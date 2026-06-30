@@ -3194,8 +3194,13 @@ XML;
         $t->same(['space ext'], $summary['partRawExtensionCharacterFlagRawExtensions']['whitespace']);
         $t->same(['pct%20ext'], $summary['partRawExtensionCharacterFlagRawExtensions']['percent-encoded-octet']);
         $t->same([$nonAsciiExtension], $summary['partRawExtensionCharacterFlagRawExtensions']['non-ascii']);
+        $t->same(
+            $summary['partRawExtensionCharacterFlagRawExtensions'],
+            $summary['partRawExtensionCharacterFlagExtensions']
+        );
 
         $t->same('MIX', $inventory[$uppercaseExtPart]['rawPartExtension']);
+        $t->same('mix', $inventory[$uppercaseExtPart]['caseFoldRawPartExtension']);
         $t->same('mix', $inventory[$uppercaseExtPart]['partExtension']);
         $t->same(['uppercase'], $inventory[$uppercaseExtPart]['rawPartExtensionCharacterFlags']);
         $t->same(true, $inventory[$uppercaseExtPart]['rawPartExtensionHasUppercase']);
@@ -3227,6 +3232,7 @@ XML;
         $t->same('application/xml', $inventory[$nonAsciiExtPart]['contentTypeBase']);
 
         $t->same(null, $inventory[$extensionlessPart]['rawPartExtension']);
+        $t->same(null, $inventory[$extensionlessPart]['caseFoldRawPartExtension']);
         $t->same([], $inventory[$extensionlessPart]['rawPartExtensionCharacterFlags']);
         $t->same(false, $inventory[$extensionlessPart]['rawPartExtensionHasUppercase']);
         $t->same(false, isset($byPartName[$extensionlessPart]));
@@ -3236,6 +3242,7 @@ XML;
         $t->same('review.MIX', $byPartName[$uppercaseExtPart]['baseName']);
         $t->same('mix', $byPartName[$uppercaseExtPart]['partExtension']);
         $t->same('MIX', $byPartName[$uppercaseExtPart]['rawPartExtension']);
+        $t->same('mix', $byPartName[$uppercaseExtPart]['caseFoldRawPartExtension']);
         $t->same(strlen($parts[$uppercaseExtPart]), $byPartName[$uppercaseExtPart]['bytes']);
         $t->same('default', $byPartName[$uppercaseExtPart]['contentTypeSource']);
         $t->same('application/octet-stream', $byPartName[$uppercaseExtPart]['contentTypeBase']);

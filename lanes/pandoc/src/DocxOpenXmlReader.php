@@ -17866,6 +17866,7 @@ final class DocxOpenXmlReader
             'partRawExtensionCharacterFlagCounts' => $partRawExtensionCharacters['flagCounts'],
             'partRawExtensionCharacterFlagPartNames' => $partRawExtensionCharacters['flagPartNames'],
             'partRawExtensionCharacterFlagRawExtensions' => $partRawExtensionCharacters['flagRawExtensions'],
+            'partRawExtensionCharacterFlagExtensions' => $partRawExtensionCharacters['flagRawExtensions'],
             'partBaseNameCount' => count($partBaseNames),
             'duplicatePartBaseNameCount' => count($duplicatePartBaseNames),
             'duplicatePartBaseNames' => $duplicatePartBaseNames,
@@ -23010,6 +23011,7 @@ final class DocxOpenXmlReader
                     ? $part['partExtension']
                     : $this->packagePartExtension($partName),
                 'rawPartExtension' => $rawPartExtension,
+                'caseFoldRawPartExtension' => $this->packagePartCaseFoldKey($rawPartExtension),
                 'bytes' => (int) ($part['bytes'] ?? 0),
                 'contentTypeSource' => is_string($part['contentTypeSource'] ?? null)
                     ? $part['contentTypeSource']
@@ -41076,6 +41078,9 @@ final class DocxOpenXmlReader
                 'pathSegmentCount' => count($pathSegments),
                 'partExtension' => $partExtension,
                 'rawPartExtension' => $rawPartExtension,
+                'caseFoldRawPartExtension' => $rawPartExtension === null
+                    ? null
+                    : $this->packagePartCaseFoldKey($rawPartExtension),
                 'rawPartExtensionCharacterFlags' => $rawPartExtensionCharacterFlags,
                 'rawPartExtensionHasUppercase' => in_array('uppercase', $rawPartExtensionCharacterFlags, true),
                 'rawPartExtensionHasWhitespace' => in_array('whitespace', $rawPartExtensionCharacterFlags, true),
