@@ -10,6 +10,8 @@
     "odfStyleDiagnosticsAssertions": 41,
     "mappedOdtStyleDiagnosticsCases": 3,
     "odtStyleDiagnosticsAssertions": 46,
+    "mappedOdtDirectReferenceCases": 1,
+    "odtDirectReferenceAssertions": 20,
     "mappedOdfAttachmentLegacyDocumentResourceCases": 1,
     "odfAttachmentLegacyDocumentResourceAssertions": 19,
     "mappedOdfAttachmentInvalidDeclaredSizeCases": 1,
@@ -447,6 +449,9 @@
             "mappedOdtReferenceEmptyParagraphCases": 2,
             "mappedOdtReferenceWordPressFragmentCases": 5,
             "mappedOdtReferenceRoundTripCases": 3,
+            "mappedOdtDirectReferenceAnchorCases": 3,
+            "mappedOdtDirectReferenceLinkTargetCases": 2,
+            "mappedOdtDirectReferenceWordPressFragmentCases": 5,
             "mappedOdtStyleDiagnosticsCases": 3,
             "commandDirectoryArtifacts": 1155,
             "markdownLikeFixtures": 1112,
@@ -842,6 +847,9 @@
         "mappedOdtReferenceEmptyParagraphCases": 2,
         "mappedOdtReferenceWordPressFragmentCases": 5,
         "mappedOdtReferenceRoundTripCases": 3,
+        "mappedOdtDirectReferenceAnchorCases": 3,
+        "mappedOdtDirectReferenceLinkTargetCases": 2,
+        "mappedOdtDirectReferenceWordPressFragmentCases": 5,
         "mappedOdtStyleDiagnosticsCases": 3,
         "docxReviewSpanNativeFixtures": 5,
         "mappedDocxCommentStartSpans": 5,
@@ -1646,7 +1654,7 @@
     "wordpressScenario": "Data Liberation Markdown import path that preserves Pandoc title-block metadata, inline semantics, tables, citations, HTML-reader imports, and WordPress block output. The latest Citation/CSL slice carries legacy BibLaTeX registry and authority identifier plus file/pdf attachment review metadata through WordPress output: identifiers stay metadata-only, safe relative paths stay visible, and unsafe paths remain diagnostics without reading or fetching identifier or attachment targets. The latest Markdown-reader slice adds standalone void area/source/track/embed paragraph handoff so imported captions, media sources, legacy embeds, and image-map hotspots remain WordPress paragraph raw inlines instead of wp:html blocks. Existing HTML reader exports include standalone SVG, button, ins, noscript, applet, object/embed, video/source/track, audio/source/track, map/area, progress, del, linebreak, inline flow, cite/wbr, and pre/code handoffs. LaTeX, HTML writer, Markdown, PlainText/template, Native reader/writer, DOCX, ODT, EPUB, JATS, citation, TOC, wiki-link, and table examples continue to cover downstream WordPress profiles without shelling out to upstream Pandoc.",
     "nextTask": "Open shared-zip-package-core with bounded PHP tests for package entries, central directory, stored/deflated payloads, and OPC-safe path handling; in parallel, expand JSON native AST coverage against upstream JSON/native fixture pairs until every shared AST constructor is covered. Activate XML/HTML DOM after ZIP/JSON gates, then direct DOCX/OpenXML, EPUB3, ODF/OpenDocument, and PPTX/XLSX slices.",
     "currentSlice": {
-        "latestSlice": "OdfReader and OpenDocumentPackage preserve namespace declarations on custom ODF manifest file-entry child elements through manifest review, package inventory, and deterministic package identity metadata."
+        "latestSlice": "OdfReader/OpenDocumentPackage preserve namespace declarations on custom ODF manifest file-entry child elements through manifest review, package inventory, and deterministic package identity metadata while direct OdtReader maps ODT bookmark/reference anchors and links into safe AST fragments with source-name metadata and WordPress-safe href/id output, without invoking upstream Pandoc or office-suite converters."
     },
     "mappedOdfFlatOpenDocumentSidecarCases": 1,
     "odfFlatOpenDocumentSidecarAssertions": 67,

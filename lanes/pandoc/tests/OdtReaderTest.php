@@ -121,6 +121,71 @@ XML);
         $t->contains('Pictures/image.png', $blocks);
         $t->contains('<!-- wp:list -->', $converterBlocks);
     },
+    'maps direct odt bookmarks and references into safe fragments' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary ODT path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary ODT package');
+        }
+        $zip->addFromString('content.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p><text:bookmark-start text:name="an anchor"/>Some text.</text:p>
+      <text:p>A reference to <text:bookmark-ref text:ref-name="an anchor" text:reference-format="text">Some text</text:bookmark-ref>.</text:p>
+      <text:list>
+        <text:list-item><text:p><text:bookmark text:name="list anchor"/>A list item</text:p></text:list-item>
+      </text:list>
+      <text:p><text:reference-mark-start text:name="ref target"/>Reference target<text:reference-mark-end text:name="ref target"/></text:p>
+      <text:p>Number ref <text:reference-ref text:ref-name="ref target" text:reference-format="number">1.</text:reference-ref>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML);
+        $zip->close();
+
+        try {
+            $document = (new OdtReader())->readOdtFile($path);
+            $blocks = (new WordPressBlockWriter())->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $meta = $document->attr('meta');
+        $sourceAnchor = $document->children[0]->children[0];
+        $bookmarkReference = $document->children[1]->children[1];
+        $listAnchor = $document->children[2]->children[0]->children[0]->children[0];
+        $referenceAnchor = $document->children[3]->children[0];
+        $referenceReference = $document->children[4]->children[1];
+
+        $t->same(2, $meta['odtBookmarkCount']);
+        $t->same(1, $meta['odtBookmarkReferenceCount']);
+        $t->same(1, $meta['odtReferenceMarkCount']);
+        $t->same(1, $meta['odtReferenceReferenceCount']);
+        $t->same('span', $sourceAnchor->type);
+        $t->same('an-anchor', $sourceAnchor->attr('id'));
+        $t->same(['anchor', 'odt-bookmark'], $sourceAnchor->attr('classes'));
+        $t->same('link', $bookmarkReference->type);
+        $t->same('#an-anchor', $bookmarkReference->attr('url'));
+        $t->same('list-anchor', $listAnchor->attr('id'));
+        $t->same('ref-target', $referenceAnchor->attr('id'));
+        $t->same(['anchor', 'odt-reference-mark'], $referenceAnchor->attr('classes'));
+        $t->same('link', $referenceReference->type);
+        $t->same('#ref-target', $referenceReference->attr('url'));
+        $t->contains('<span id="an-anchor" class="anchor odt-bookmark" data-odt-bookmark-name="an anchor" data-pandoc-anchor="empty-target"></span>Some text.', $blocks);
+        $t->contains('<a href="#an-anchor" class="odt-bookmark-ref" data-odt-ref-name="an anchor" data-odt-reference-format="text">Some text</a>', $blocks);
+        $t->contains('<span id="list-anchor" class="anchor odt-bookmark" data-odt-bookmark-name="list anchor" data-pandoc-anchor="empty-target"></span>A list item', $blocks);
+        $t->contains('<span id="ref-target" class="anchor odt-reference-mark" data-odt-reference-name="ref target" data-pandoc-anchor="empty-target"></span>Reference target', $blocks);
+        $t->contains('<a href="#ref-target" class="odt-reference-ref" data-odt-ref-name="ref target" data-odt-reference-format="number">1.</a>', $blocks);
+        $t->true(!str_contains($blocks, 'href="#an anchor"'), 'ODT bookmark links should use normalized fragments');
+    },
     'reads odt bytes through the converter input path' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
         if ($path === false) {
