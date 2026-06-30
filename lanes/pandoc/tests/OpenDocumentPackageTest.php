@@ -104,6 +104,13 @@ $buildOdtPackage = static function (
     return ZipPackage::fromParts($parts, 'odt package');
 };
 
+$zipCrc32 = static fn (string $bytes): int => (int) sprintf('%u', crc32($bytes));
+$buildUnicodeExtra = static function (int $id, string $rawBytes, string $utf8Text) use ($zipCrc32): string {
+    $payload = pack('CV', 1, $zipCrc32($rawBytes)) . $utf8Text;
+
+    return pack('vv', $id, strlen($payload)) . $payload;
+};
+
 $buildZipPackageWithCentralDirectoryOrder = static function (array $parts, array $centralOrder): ZipPackage {
     $crc32 = static fn (string $bytes): int => (int) sprintf('%u', crc32($bytes));
     $body = '';
@@ -115,6 +122,8 @@ $buildZipPackageWithCentralDirectoryOrder = static function (array $parts, array
         $data = $part['data'] ?? '';
         $method = $part['compressionMethod'] ?? ($data === '' || str_ends_with($name, '/') ? 0 : 8);
         $flags = $part['generalPurposeFlags'] ?? 0x0800;
+        $localExtra = $part['localExtra'] ?? ($part['extraFieldData'] ?? '');
+        $centralExtra = $part['centralExtra'] ?? ($part['extraFieldData'] ?? $localExtra);
         $compressed = $method === 8 ? gzdeflate($data) : $data;
         $offset = strlen($body);
         $crc = $crc32($data);
@@ -131,9 +140,9 @@ $buildZipPackageWithCentralDirectoryOrder = static function (array $parts, array
             strlen($compressed),
             strlen($data),
             strlen($rawName),
-            0
+            strlen($localExtra)
         );
-        $body .= $rawName . $compressed;
+        $body .= $rawName . $localExtra . $compressed;
 
         $centralRecords[$name] = pack(
             'VvvvvvvVVVvvvvvVV',
@@ -148,13 +157,13 @@ $buildZipPackageWithCentralDirectoryOrder = static function (array $parts, array
             strlen($compressed),
             strlen($data),
             strlen($rawName),
-            0,
+            strlen($centralExtra),
             0,
             0,
             0,
             str_ends_with($name, '/') ? 0x10 : 0,
             $offset
-        ) . $rawName;
+        ) . $rawName . $centralExtra;
     }
 
     $central = '';
@@ -1718,7 +1727,7 @@ XML;
         ], $extensions['png']['roleCounts']);
         $t->same(1, $extensions['(none)']['directoryEntryCount']);
     },
-    'preserves compact ODT raw ZIP entry name provenance in package inventory' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
+    'preserves compact ODT raw ZIP entry name provenance in package inventory and identity' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $buildUnicodeExtra, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $decodedName = "Pictures/caf\xc3\xa9.png";
         $rawName = "Pictures/caf\x82.png";
         $legacyBytes = 'CAFEPNG';
@@ -1748,11 +1757,26 @@ XML;
             $buildZipPackageWithCentralDirectoryOrder($parts, array_column($parts, 'name'))
         )->summarize();
         $inventory = $summary['packageInventory'];
+        $identity = $summary['packageIdentity'];
         $legacy = $inventory['parts'][$decodedName];
+        $identityParts = [];
+        foreach ($identity['packageEntries'] as $part) {
+            $identityParts[$part['path']] = $part;
+        }
+        $identityLegacy = $identityParts[$decodedName];
         $mediaByPath = [];
         foreach ($summary['mediaParts'] as $media) {
             $mediaByPath[$media['path']] = $media;
         }
+        $unicodeRawName = 'Pictures/cafe.png';
+        $unicodePathExtra = $buildUnicodeExtra(0x7075, $unicodeRawName, $decodedName);
+        $unicodeParts = $parts;
+        $unicodeParts[6]['rawName'] = $unicodeRawName;
+        $unicodeParts[6]['localExtra'] = $unicodePathExtra;
+        $unicodeParts[6]['centralExtra'] = $unicodePathExtra;
+        $unicodeIdentity = OpenDocumentPackage::fromPackage(
+            $buildZipPackageWithCentralDirectoryOrder($unicodeParts, array_column($unicodeParts, 'name'))
+        )->summarize()['packageIdentity'];
 
         $t->same(1, $inventory['rawNameProvenanceEntryCount']);
         $t->same(1, $inventory['legacyEncodedNameEntryCount']);
@@ -1762,6 +1786,11 @@ XML;
         $t->same(bin2hex($rawName), $inventory['rawNameProvenanceEntries'][0]['rawNameHex']);
         $t->same('cp437', $inventory['rawNameProvenanceEntries'][0]['nameEncoding']);
         $t->same(false, $inventory['rawNameProvenanceEntries'][0]['rawNameMatchesDecodedName']);
+        $t->same(1, $identity['rawNameProvenanceEntryCount']);
+        $t->same(1, $identity['legacyEncodedNameEntryCount']);
+        $t->same(0, $identity['unicodePathExtraEntryCount']);
+        $t->same(1, $identity['decodedNameDiffersFromRawNameEntryCount']);
+        $t->same($inventory['rawNameProvenanceEntries'], $identity['rawNameProvenanceEntries']);
 
         $t->same('Pictures/caf%C3%A9.png', $legacy['manifestPath']);
         $t->same($decodedName, $legacy['manifestPackagePath']);
@@ -1773,10 +1802,22 @@ XML;
         $t->same(true, $legacy['hasRawNameProvenance']);
         $t->same(true, $legacy['declaredInManifest']);
         $t->same(['manifest-declared', 'media-resource'], $legacy['roles']);
+        $t->same(bin2hex($rawName), $identityLegacy['rawNameHex']);
+        $t->same('cp437', $identityLegacy['nameEncoding']);
+        $t->same(false, $identityLegacy['rawNameMatchesDecodedName']);
+        $t->same(true, $identityLegacy['usesLegacyNameEncoding']);
+        $t->same(false, $identityLegacy['usesUnicodePathExtraField']);
+        $t->same(true, $identityLegacy['hasRawNameProvenance']);
+        $t->same(true, $identityLegacy['declaredInManifest']);
         $t->same(strlen($legacyBytes), $legacy['byteLength']);
         $t->same(strlen($legacyBytes), $mediaByPath['Pictures/caf%C3%A9.png']['byteLength']);
         $t->same($decodedName, $mediaByPath['Pictures/caf%C3%A9.png']['packagePath']);
         $t->same(hash('sha256', $legacyBytes), $mediaByPath['Pictures/caf%C3%A9.png']['byteSha256']);
+        $t->same(1, $unicodeIdentity['rawNameProvenanceEntryCount']);
+        $t->same(0, $unicodeIdentity['legacyEncodedNameEntryCount']);
+        $t->same(1, $unicodeIdentity['unicodePathExtraEntryCount']);
+        $t->same(1, $unicodeIdentity['decodedNameDiffersFromRawNameEntryCount']);
+        $t->true($identity['identitySha256'] !== $unicodeIdentity['identitySha256']);
     },
     'preserves compact ODT ZIP timestamp provenance in package review handoff' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $timestampedBytes = 'TIMESTAMPEDPNG';
