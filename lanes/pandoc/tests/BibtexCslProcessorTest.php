@@ -681,6 +681,106 @@ BIB;
         $t->same('Desk, Archive', $item['rawBibtex']['fields']['shortauthor']);
         $t->same('Ivy Inventor. Credit Role Patent. 2026.', $bibliography);
     },
+    'carries biblatex author role qualifiers in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{compiled-source-manual,
+  author       = {Roe, Pat and {{Migration Desk}}},
+  authortype   = {compiler},
+  entrysubtype = {migration handbook},
+  title        = {Compiled Source Manual},
+  date         = {2026},
+  publisher    = {Review Press}
+}
+
+@incollection{container-type-chapter,
+  author         = {Ng, Nia},
+  bookauthor     = {Smith, Ada and Curator, Eli},
+  bookauthortype = {source volume author},
+  entry-subtype  = {source chapter},
+  title          = {Container Type Chapter},
+  booktitle      = {Migration Sourcebook},
+  date           = {2025},
+  pages          = {44--49}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $compiled = $items['compiled-source-manual'];
+        $chapter = $items['container-type-chapter'];
+
+        $t->same('migration handbook', $compiled['entry-subtype']);
+        $t->same('migration handbook', $compiled['genre']);
+        $t->same('compiler', $compiled['author-type']);
+        $t->same('compiler', $compiled['rawBibtex']['fields']['authortype']);
+        $t->same('source chapter', $chapter['entry-subtype']);
+        $t->same('source volume author', $chapter['container-author-type']);
+        $t->same('Smith', $chapter['container-author'][0]['family'] ?? null);
+        $t->same('Curator', $chapter['container-author'][1]['family'] ?? null);
+        $t->same('source volume author', $chapter['rawBibtex']['fields']['bookauthortype']);
+        $t->same(
+            'Pat Roe and Migration Desk. Compiled Source Manual. Review Press. 2026. Entry subtype: migration handbook. Author type: compiler.',
+            $processor->renderBibliographyText($compiled)
+        );
+        $t->contains('Container author type: source volume author', $processor->renderBibliographyText($chapter));
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Author Role Qualifier Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-author-role-qualifier-review</id>
+    <updated>2026-06-30T04:15:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="entry-subtype"/>
+        <text variable="authortype"/>
+        <text variable="container-author-type"/>
+        <text variable="bookauthortype"/>
+        <names variable="container-author"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="entry-subtype"/>
+      <text variable="author-type"/>
+      <text variable="container-author-type"/>
+      <names variable="container-author"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledCompiled = $styled->item('compiled-source-manual');
+        $styledChapter = $styled->item('container-type-chapter');
+        $t->same('Bounded Legacy BibLaTeX Author Role Qualifier Review', $styled->cslStyleSummary()['title'] ?? null);
+        $t->same('migration handbook', $styledCompiled['entrySubtype'] ?? null);
+        $t->same('compiler', $styledCompiled['authorType'] ?? null);
+        $t->same('source volume author', $styledChapter['containerAuthorType'] ?? null);
+        $t->same('Smith', $styledChapter['containerAuthors'][0]['family'] ?? null);
+        $t->same('[Roe and Desk | migration handbook | compiler; Ng | source chapter | source volume author | source volume author | Smith and Curator]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'compiled-source-manual', 'text' => '[@compiled-source-manual]']),
+            new AstNode('citation', ['id' => 'container-type-chapter', 'text' => '[@container-type-chapter]']),
+        ]));
+        $t->same('Compiled Source Manual :: migration handbook :: compiler', $styled->renderBibliographyEntry('compiled-source-manual'));
+        $t->same('Container Type Chapter :: source chapter :: source volume author :: Smith, Ada; Curator, Eli', $styled->renderBibliographyEntry('container-type-chapter'));
+
+        $document = (new MarkdownReader())->read('Legacy role qualifiers [@compiled-source-manual; @container-type-chapter] stay visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['compiled-source-manual', 'container-type-chapter'], $handoff['citedKeys']);
+        $t->same('compiler', $handoff['items'][0]['author-type'] ?? null);
+        $t->same('source volume author', $handoff['bibliography']->children[1]->attr('cslItem')['container-author-type'] ?? null);
+        $t->contains('<p>Legacy role qualifiers [Roe and Desk | migration handbook | compiler; Ng | source chapter | source volume author | source volume author | Smith and Curator] stay visible.</p>', $blocks);
+        $t->contains('Compiled Source Manual :: migration handbook :: compiler', $blocks);
+        $t->contains('Container Type Chapter :: source chapter :: source volume author :: Smith, Ada; Curator, Eli', $blocks);
+    },
     'carries biblatex legal and patent authority metadata in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @patent{bounded-patent,
@@ -1698,6 +1798,91 @@ BIB;
         $t->same('in press', $handoff['bibliography']->children[1]->attr('cslItem')['status'] ?? null);
         $t->contains('<dt>legacy-status-hyphen</dt>', $blocks);
         $t->contains('Legacy Status Camel Packet', $blocks);
+    },
+    'carries biblatex entry subtype metadata in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@article{legacy-entry-subtype,
+  author       = {Ng, Nia},
+  title        = {Legacy Entry Subtype Packet},
+  journaltitle = {Migration Review},
+  date         = {2026},
+  type         = {review article},
+  entrysubtype = {source-note},
+  status       = {forthcoming}
+}
+
+@online{hyphen-entry-subtype,
+  author        = {Roe, Rae},
+  title         = {Hyphen Entry Subtype Packet},
+  date          = {2025},
+  entry-subtype = {archive-update},
+  pubstate      = {prepublished},
+  url           = {https://example.test/entry-subtype}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $legacy = $items['legacy-entry-subtype'];
+        $hyphen = $items['hyphen-entry-subtype'];
+
+        $t->same('review article', $legacy['genre']);
+        $t->same('source-note', $legacy['entry-subtype']);
+        $t->same('archive-update', $hyphen['entry-subtype']);
+        $t->same('source-note', $legacy['rawBibtex']['fields']['entrysubtype']);
+        $t->same('archive-update', $hyphen['rawBibtex']['fields']['entry-subtype']);
+        $t->contains('Entry subtype: source-note', $processor->renderBibliographyText($legacy));
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Entry Subtype Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-entry-subtype-review</id>
+    <updated>2026-06-30T00:00:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="genre"/>
+        <text variable="entry-subtype"/>
+        <text variable="status"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="entry-subtype"/>
+      <text variable="status"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledLegacy = $styled->item('legacy-entry-subtype');
+        $styledHyphen = $styled->item('hyphen-entry-subtype');
+        $t->same('Bounded Legacy BibLaTeX Entry Subtype Review', $styled->cslStyleSummary()['title'] ?? null);
+        $t->same('source-note', $styledLegacy['entrySubtype'] ?? null);
+        $t->same('archive-update', $styledHyphen['entrySubtype'] ?? null);
+        $t->same('[Legacy Entry Subtype Packet | review article | source-note | forthcoming; Hyphen Entry Subtype Packet | archive-update | prepublished]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-entry-subtype', 'text' => '[@legacy-entry-subtype]']),
+            new AstNode('citation', ['id' => 'hyphen-entry-subtype', 'text' => '[@hyphen-entry-subtype]']),
+        ]));
+        $t->same('Legacy Entry Subtype Packet :: source-note :: forthcoming', $styled->renderBibliographyEntry('legacy-entry-subtype'));
+        $t->same('Hyphen Entry Subtype Packet :: archive-update :: prepublished', $styled->renderBibliographyEntry('hyphen-entry-subtype'));
+
+        $document = (new MarkdownReader())->read('Subtype metadata [@legacy-entry-subtype; @hyphen-entry-subtype] stays reviewable.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['legacy-entry-subtype', 'hyphen-entry-subtype'], $handoff['citedKeys']);
+        $t->same('source-note', $handoff['items'][0]['entry-subtype'] ?? null);
+        $t->same('archive-update', $handoff['bibliography']->children[1]->attr('cslItem')['entry-subtype'] ?? null);
+        $t->contains('<p>Subtype metadata [Legacy Entry Subtype Packet | review article | source-note | forthcoming; Hyphen Entry Subtype Packet | archive-update | prepublished] stays reviewable.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Legacy Entry Subtype Packet :: source-note :: forthcoming</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Hyphen Entry Subtype Packet :: archive-update :: prepublished</dd>', $blocks);
     },
     'carries biblatex rights metadata in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'

@@ -393,6 +393,7 @@ final class BibtexCslProcessor
             'version' => 'Version',
             'status' => 'Status',
             'medium' => 'Medium',
+            'entry-subtype' => 'Entry subtype',
         ] as $field => $label) {
             if ($field === 'status' && in_array((string) ($item['type'] ?? ''), ['patent', 'legislation', 'legal_case'], true)) {
                 continue;
@@ -404,6 +405,14 @@ final class BibtexCslProcessor
         }
         if (($item['thesis-type'] ?? '') !== '') {
             $parts[] = 'Thesis type: ' . (string) $item['thesis-type'];
+        }
+        foreach ([
+            'author-type' => 'Author type',
+            'container-author-type' => 'Container author type',
+        ] as $field => $label) {
+            if (($item[$field] ?? '') !== '') {
+                $parts[] = $label . ': ' . (string) $item[$field];
+            }
         }
         if (($item['source'] ?? '') !== '') {
             $parts[] = 'Source: ' . (string) $item['source'];
@@ -956,6 +965,9 @@ final class BibtexCslProcessor
             'note' => ['note', 'addendum'],
             'name-addon' => ['nameaddon', 'name-addon'],
             'genre' => ['type', 'entrysubtype'],
+            'entry-subtype' => ['entrysubtype', 'entry-subtype'],
+            'author-type' => ['authortype', 'author-type'],
+            'container-author-type' => ['bookauthortype', 'bookauthor-type', 'containerauthortype', 'container-author-type'],
             'patent-type' => ['patenttype', 'patent-type'],
             'jurisdiction' => ['jurisdiction'],
             'related' => ['related'],
