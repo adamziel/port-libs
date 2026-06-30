@@ -1505,14 +1505,24 @@ final class DocxWriter
     private function renderInlines(array $nodes, array $format, string $context = 'document'): string
     {
         $xml = '';
-        $textBuffer = '';
-        $flushText = function () use (&$xml, &$textBuffer, $format): void {
-            if ($textBuffer === '') {
+        $baseFormat = in_array($context, ['comment', 'footnote'], true)
+            ? array_replace($format, ['preserveSpace' => true])
+            : $format;
+        $buffer = '';
+        $bufferPreserveSpace = false;
+        $buffered = false;
+        $flushBuffer = function () use (&$xml, &$buffer, &$bufferPreserveSpace, &$buffered, $baseFormat): void {
+            if (!$buffered) {
                 return;
             }
 
-            $xml .= $this->textRun($textBuffer, $format);
-            $textBuffer = '';
+            $runFormat = $bufferPreserveSpace
+                ? array_replace($baseFormat, ['preserveSpace' => true])
+                : $baseFormat;
+            $xml .= $this->textRun($buffer, $runFormat);
+            $buffer = '';
+            $bufferPreserveSpace = false;
+            $buffered = false;
         };
 
         foreach ($nodes as $node) {
@@ -1520,28 +1530,43 @@ final class DocxWriter
                 continue;
             }
 
-            if ($node->type === 'text' || $node->type === 'str') {
-                $text = (string) $node->attr('text', $node->attr('value', ''));
-                if ($text === '') {
-                    $flushText();
-                    $xml .= $this->textRun('', $format);
-                } else {
-                    $textBuffer .= $text;
-                }
+            $plain = $this->plainInlineRunText($node);
+            if ($plain !== null) {
+                $buffer .= $plain['text'];
+                $bufferPreserveSpace = $bufferPreserveSpace || $plain['preserveSpace'] || $buffered;
+                $buffered = true;
                 continue;
             }
 
-            if ($node->type === 'space' || $node->type === 'softbreak') {
-                $textBuffer .= ' ';
-                continue;
-            }
-
-            $flushText();
-            $xml .= $this->renderInline($node, $format, $context);
+            $flushBuffer();
+            $xml .= $this->renderInline($node, $baseFormat, $context);
         }
-        $flushText();
+        $flushBuffer();
 
         return $xml;
+    }
+
+    /**
+     * @return array{text:string, preserveSpace:bool}|null
+     */
+    private function plainInlineRunText(AstNode $node): ?array
+    {
+        if ($node->type === 'text' || $node->type === 'str') {
+            $text = (string) $node->attr('text', $node->attr('value', ''));
+
+            return [
+                'text' => $text,
+                'preserveSpace' => $text === ' ',
+            ];
+        }
+        if ($node->type === 'space' || $node->type === 'softbreak') {
+            return [
+                'text' => ' ',
+                'preserveSpace' => true,
+            ];
+        }
+
+        return null;
     }
 
     /**
@@ -2137,7 +2162,7 @@ final class DocxWriter
                 $runs .= '<w:r>' . $this->runPropertiesXml($format) . '<w:tab/></w:r>';
                 continue;
             }
-            $space = $this->preserveSpaceAttribute($part);
+            $space = ($format['preserveSpace'] ?? false) === true ? ' xml:space="preserve"' : $this->preserveSpaceAttribute($part);
             $tag = (($format['deleted'] ?? false) === true) ? 'w:delText' : 'w:t';
             $runs .= '<w:r>' . $this->runPropertiesXml($format) . '<' . $tag . $space . '>' . self::escText($part) . '</' . $tag . '></w:r>';
         }

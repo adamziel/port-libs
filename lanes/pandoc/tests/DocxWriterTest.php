@@ -172,9 +172,9 @@ return [
         $url = 'http://example.com/';
         $document = $doc([
             $paragraph([
-                new AstNode('link', ['url' => $url], [$text('first')]),
+                new AstNode('link', ['url' => $url], [$text('first'), new AstNode('space'), $text('link')]),
                 new AstNode('space'),
-                new AstNode('link', ['url' => $url], [$text('second')]),
+                new AstNode('link', ['url' => $url], [$text('second'), new AstNode('space'), $text('link')]),
             ]),
         ]);
 
@@ -183,6 +183,8 @@ return [
         $t->same(1, substr_count($parts['word/_rels/document.xml.rels'], 'relationships/hyperlink'));
         $t->same(1, substr_count($parts['word/_rels/footnotes.xml.rels'], 'relationships/hyperlink'));
         $t->same(2, substr_count($parts['word/document.xml'], '<w:hyperlink r:id="rId9">'));
+        $t->contains('<w:hyperlink r:id="rId9"><w:r><w:rPr><w:rStyle w:val="Hyperlink"/></w:rPr><w:t xml:space="preserve">first link</w:t></w:r></w:hyperlink>', $parts['word/document.xml']);
+        $t->contains('<w:hyperlink r:id="rId9"><w:r><w:rPr><w:rStyle w:val="Hyperlink"/></w:rPr><w:t xml:space="preserve">second link</w:t></w:r></w:hyperlink>', $parts['word/document.xml']);
         $t->contains('Target="http://example.com/"', $parts['word/_rels/document.xml.rels']);
         $t->contains('Target="http://example.com/"', $parts['word/_rels/footnotes.xml.rels']);
     },
@@ -447,6 +449,7 @@ return [
         $t->contains('<w:pStyle w:val="FootnoteText"/>', $footnotesXml);
         $t->contains('<w:footnoteRef/>', $footnotesXml);
         $t->contains('<w:hyperlink r:id="rId10">', $footnotesXml);
+        $t->contains('<w:t xml:space="preserve">http://wikipedia.org/</w:t>', $footnotesXml);
         $t->same('http://wikipedia.org/', $documentRels->firstOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink')?->target);
         $t->same('rId10', $footnoteRels->firstOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink')?->id);
         $t->same('http://wikipedia.org/', $footnoteRels->firstOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink')?->target);
@@ -485,7 +488,7 @@ return [
         $t->contains('<w:comment w:id="0" w:author="Jesse Rosenthal" w:date="2016-05-09T16:13:00Z">', $commentsXml);
         $t->contains('<w:pStyle w:val="CommentText"/>', $commentsXml);
         $t->contains('<w:annotationRef/>', $commentsXml);
-        $t->contains('<w:t>I left a comment.</w:t>', $commentsXml);
+        $t->contains('<w:t xml:space="preserve">I left a comment.</w:t>', $commentsXml);
     },
 
     'preserves raw openxml bookmarks and hyphenated internal link anchors' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
