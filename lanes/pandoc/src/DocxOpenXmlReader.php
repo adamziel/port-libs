@@ -46,6 +46,7 @@ final class DocxOpenXmlReader
     private const MAIL_MERGE_RECIPIENT_DATA_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/recipientData';
     private const MAIL_MERGE_RECIPIENT_DATA_COMPAT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeRecipientData';
     private const WEB_SETTINGS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings';
+    private const PRINTER_SETTINGS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/printerSettings';
     private const FONT_TABLE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable';
     private const FONT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/font';
     private const THEME_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme';
@@ -104,6 +105,7 @@ final class DocxOpenXmlReader
     private const CT_WORD_NUMBERING = 'application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml';
     private const CT_WORD_SETTINGS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml';
     private const CT_WORD_WEB_SETTINGS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.websettings+xml';
+    private const CT_WORD_PRINTER_SETTINGS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.printersettings';
     private const CT_WORD_FONT_TABLE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.fonttable+xml';
     private const CT_OBFUSCATED_FONT = 'application/vnd.openxmlformats-officedocument.obfuscatedfont';
     private const CT_MAIL_MERGE_RECIPIENT_DATA = 'application/vnd.openxmlformats-officedocument.wordprocessingml.mailmergerecipientdata+xml';
@@ -38067,6 +38069,12 @@ final class DocxOpenXmlReader
             $baseNameStem = $this->packagePartBaseNameStem($partName);
             $pathSegments = $this->packagePartPathSegments($partName);
             $roles = array_keys($rolesByPart[$partName] ?? []);
+            if (
+                $contentTypeResolution['contentTypeBase'] === self::CT_WORD_PRINTER_SETTINGS
+                && !in_array('printer-settings', $roles, true)
+            ) {
+                $roles[] = 'printer-settings';
+            }
             if ($roles === []) {
                 $roles = ['package-part'];
             }
@@ -40352,6 +40360,7 @@ final class DocxOpenXmlReader
             self::PEOPLE_REL => 'people',
             self::SETTINGS_REL => 'settings',
             self::WEB_SETTINGS_REL => 'web-settings',
+            self::PRINTER_SETTINGS_REL => 'printer-settings',
             self::ATTACHED_TEMPLATE_REL => 'attached-template',
             self::MAIL_MERGE_SOURCE_REL => 'mail-merge-source',
             self::MAIL_MERGE_HEADER_SOURCE_REL => 'mail-merge-header-source',

@@ -17163,6 +17163,112 @@ XML;
         $t->true(in_array('mail-merge-recipient-data', $packageInventory['word/settings/untyped']['roles'], true), 'settings recipient data inventory role missing');
         $t->true(!isset($docx['media']['word/templates/local-template.dotx']), 'Settings relationship targets must remain metadata-only');
     },
+    'labels docx printer settings sidecars from settings relationships as metadata only provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $printerSettingsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/printerSettings';
+        $printerSettingsContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.printerSettings';
+        $printerSettingsContentTypeBase = 'application/vnd.openxmlformats-officedocument.wordprocessingml.printersettings';
+        $printerBytes = "printer\x00settings\x00metadata";
+        $orphanPrinterBytes = "orphan\x00printer\x00settings";
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' . "\n" .
+            '  <Override PartName="/word/printerSettings/printerSettings1.bin" ContentType="' . $printerSettingsContentType . '"/>' . "\n" .
+            '  <Override PartName="/word/printerSettings/missing.bin" ContentType="' . $printerSettingsContentType . '"/>' . "\n" .
+            '  <Override PartName="/word/printerSettings/orphan.bin" ContentType="' . $printerSettingsContentType . '"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/settings.xml'] = '<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+        $parts['word/_rels/settings.xml.rels'] = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rPrinterLocal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/printerSettings" Target="printerSettings/printerSettings1.bin?tray=main#printer"/>
+  <Relationship Id="rPrinterMissing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/printerSettings" Target="printerSettings/missing.bin"/>
+  <Relationship Id="rPrinterExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/printerSettings" Target="file:///C:/printers/default.bin" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['word/printerSettings/printerSettings1.bin'] = $printerBytes;
+        $parts['word/printerSettings/orphan.bin'] = $orphanPrinterBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $inventory = $docx['settingsRelationshipInventory'];
+        $printerRelationshipType = $package['relationshipTypes'][$printerSettingsRel];
+        $local = $inventory['byRelationshipId']['rPrinterLocal'];
+        $missing = $inventory['byRelationshipId']['rPrinterMissing'];
+        $external = $inventory['byRelationshipId']['rPrinterExternal'];
+
+        $t->same($inventory, $package['settingsRelationships']);
+        $t->same(3, $inventory['relationshipCount']);
+        $t->same(2, $inventory['internalCount']);
+        $t->same(1, $inventory['externalCount']);
+        $t->same(1, $inventory['existingCount']);
+        $t->same(1, $inventory['missingCount']);
+        $t->same(0, $inventory['missingContentTypeCount']);
+        $t->same(2, $inventory['issueCount']);
+        $t->same(['external-target-unsafe-scheme', 'missing-settings-relationship-target'], $inventory['issueCodes']);
+        $t->same([$printerSettingsRel => 3], $inventory['relationshipTypeCounts']);
+        $t->same([
+            'word/printerSettings/printerSettings1.bin',
+            'word/printerSettings/missing.bin',
+        ], $inventory['targetParts']);
+        $t->same(['file:///C:/printers/default.bin'], $inventory['externalTargets']);
+        $t->same([$printerSettingsContentType], $inventory['contentTypes']);
+        $t->same([$printerSettingsContentTypeBase => 2], $inventory['contentTypeBaseCounts']);
+
+        $t->same($printerSettingsRel, $local['relationshipType']);
+        $t->same('printerSettings/printerSettings1.bin?tray=main#printer', $local['target']);
+        $t->same('word/printerSettings/printerSettings1.bin?tray=main#printer', $local['resolvedTarget']);
+        $t->same('word/printerSettings/printerSettings1.bin', $local['targetPart']);
+        $t->same('tray=main', $local['targetQuery']);
+        $t->same('printer', $local['targetFragment']);
+        $t->same('?tray=main#printer', $local['targetReferenceSuffix']);
+        $t->same(true, $local['exists']);
+        $t->same(strlen($printerBytes), $local['byteLength']);
+        $t->same(sprintf('%08x', crc32($printerBytes)), $local['crc32']);
+        $t->same(hash('sha256', $printerBytes), $local['sha256']);
+        $t->same($printerSettingsContentTypeBase, $local['contentTypeBase']);
+        $t->same('override', $local['contentTypeSource']);
+        $t->same('settings-relationship-bytes-blocked', $local['byteExposurePolicy']);
+        $t->same('settings-relationship-metadata-only', $local['reviewPolicy']);
+        $t->same([], $local['issues']);
+        $t->true(!isset($local['bytes']), 'printer settings bytes must remain blocked');
+
+        $t->same(false, $missing['exists']);
+        $t->same('word/printerSettings/missing.bin', $missing['targetPart']);
+        $t->same($printerSettingsContentTypeBase, $missing['contentTypeBase']);
+        $t->same(['missing-settings-relationship-target'], $missing['issues']);
+
+        $t->same(true, $external['external']);
+        $t->same('file', $external['externalTargetScheme']);
+        $t->same(false, $external['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $external['issues']);
+
+        $t->same('printerSettings', $printerRelationshipType['label']);
+        $t->same(3, $printerRelationshipType['count']);
+        $t->same(2, $printerRelationshipType['internalCount']);
+        $t->same(1, $printerRelationshipType['externalCount']);
+        $t->same(1, $printerRelationshipType['existingTargetCount']);
+        $t->same(1, $printerRelationshipType['missingTargetCount']);
+        $t->same(['word/printerSettings/printerSettings1.bin'], $printerRelationshipType['existingTargetParts']);
+        $t->same(['word/printerSettings/missing.bin'], $printerRelationshipType['missingTargetParts']);
+        $t->same(['printer-settings' => 1, 'relationship-target' => 1], $printerRelationshipType['targetRoleCounts']);
+
+        $t->true(in_array('printer-settings', $package['parts']['word/printerSettings/printerSettings1.bin']['roles'], true), 'printer settings inventory role missing');
+        $t->same(['printer-settings'], $package['parts']['word/printerSettings/orphan.bin']['roles']);
+        $t->same(strlen($orphanPrinterBytes), $package['parts']['word/printerSettings/orphan.bin']['bytes']);
+        $t->same($printerSettingsContentTypeBase, $package['parts']['word/printerSettings/orphan.bin']['contentTypeBase']);
+        $t->true(!isset($docx['media']['word/printerSettings/printerSettings1.bin']), 'Printer settings sidecar must not be exposed as document media');
+        $t->true(!isset($docx['media']['word/printerSettings/orphan.bin']), 'Orphan printer settings sidecar must not be exposed as document media');
+    },
     'reports docx mail merge settings package relationships for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
