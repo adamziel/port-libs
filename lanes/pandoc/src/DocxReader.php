@@ -2072,7 +2072,7 @@ final class DocxReader
         }
 
         $attributes = $this->contentControlAttributes($control, 'block');
-        if ($this->shouldUnwrapContentControl($attributes)) {
+        if ($this->shouldUnwrapContentControl($attributes) || $this->isGeneratedTocContentControl($control, $attributes)) {
             return $blocks;
         }
 
@@ -2122,11 +2122,99 @@ final class DocxReader
             $metadata['data-docx-content-control-id'],
             $metadata['data-docx-content-control-metadata']
         );
-        if (($metadata['data-docx-content-control-type'] ?? '') === 'docPartObj') {
-            unset($metadata['data-docx-content-control-type']);
-        }
 
         return $metadata === [];
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     */
+    private function isGeneratedTocContentControl(\DOMElement $control, array $attributes): bool
+    {
+        if (($attributes['data-docx-content-control-type'] ?? '') !== 'docPartObj') {
+            return false;
+        }
+
+        $metadata = $attributes;
+        unset(
+            $metadata['data-docx-content-control-display'],
+            $metadata['data-docx-content-control-id'],
+            $metadata['data-docx-content-control-metadata'],
+            $metadata['data-docx-content-control-type']
+        );
+        if ($metadata !== []) {
+            return false;
+        }
+
+        if ($this->contentControlDocPartGalleryIsToc($control)) {
+            return true;
+        }
+
+        $content = $this->directChild($control, 'sdtContent');
+        return $content instanceof \DOMElement && $this->elementContainsFieldCommand($content, 'TOC');
+    }
+
+    private function contentControlDocPartGalleryIsToc(\DOMElement $control): bool
+    {
+        $properties = $this->directChild($control, 'sdtPr');
+        if (!$properties instanceof \DOMElement) {
+            return false;
+        }
+
+        foreach ($this->descendantElementsByLocalName($properties, 'docPartGallery') as $gallery) {
+            $value = strtolower(preg_replace('/[^a-z0-9]+/i', '', $this->attr($gallery, self::W_NS, 'val')) ?? '');
+            if ($value === 'tableofcontents' || $value === 'toc') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function elementContainsFieldCommand(\DOMElement $element, string $command): bool
+    {
+        foreach ($this->descendantElementsByLocalName($element, 'fldSimple') as $field) {
+            if ($this->fieldInstructionCommand($this->attr($field, self::W_NS, 'instr')) === $command) {
+                return true;
+            }
+        }
+
+        $instruction = '';
+        foreach ($element->getElementsByTagNameNS(self::W_NS, '*') as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+            if ($child->localName === 'fldChar') {
+                $type = strtolower($this->attr($child, self::W_NS, 'fldCharType'));
+                if ($type === 'begin') {
+                    $instruction = '';
+                }
+                if ($type === 'separate' || $type === 'end') {
+                    if ($this->fieldInstructionCommand($instruction) === $command) {
+                        return true;
+                    }
+                    $instruction = '';
+                }
+                continue;
+            }
+            if ($child->localName !== 'instrText') {
+                continue;
+            }
+
+            $instruction .= $child->textContent;
+            if ($this->fieldInstructionCommand($instruction) === $command) {
+                return true;
+            }
+        }
+
+        return $this->fieldInstructionCommand($instruction) === $command;
+    }
+
+    private function fieldInstructionCommand(string $instruction): string
+    {
+        $tokens = $this->fieldInstructionTokens($this->normalizeFieldInstruction($instruction));
+
+        return strtoupper($tokens[0] ?? '');
     }
 
     /**

@@ -1803,6 +1803,33 @@ XML);
         $t->true(!str_contains(strip_tags($blocks), 'TOC \o'), 'TOC instructions should not render as visible text');
         $t->true(!str_contains(strip_tags($blocks), 'INDEX \*'), 'INDEX instructions should not render as visible text');
     },
+    'preserves non-toc docpart content control wrappers' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes(<<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:sdt>
+      <w:sdtPr>
+        <w:id w:val="17"/>
+        <w:docPartObj><w:docPartGallery w:val="Cover Pages"/></w:docPartObj>
+      </w:sdtPr>
+      <w:sdtContent><w:p><w:r><w:t>Cover page content</w:t></w:r></w:p></w:sdtContent>
+    </w:sdt>
+  </w:body>
+</w:document>
+XML);
+
+        $document = (new DocxReader())->read($bytes);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $control = $document->children[0];
+        $attrs = $control->attr('attributes');
+
+        $t->same('div', $control->type);
+        $t->same(['docx-content-control', 'docx-content-control-block'], $control->attr('classes'));
+        $t->same('docPartObj', $attrs['data-docx-content-control-type']);
+        $t->same('Cover page content', $control->children[0]->attr('text'));
+        $t->contains('data-docx-content-control-type="docPartObj"', $blocks);
+    },
     'folds docx table caption paragraphs into adjacent tables' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
         $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>See Table 1.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Caption"/></w:pPr><w:bookmarkStart w:id="1" w:name="_RefTable1"/><w:r><w:t xml:space="preserve">Table </w:t></w:r><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> SEQ Table \* ARABIC </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>1</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r><w:bookmarkEnd w:id="1"/></w:p><w:tbl><w:tr><w:tc><w:p><w:r><w:t>Count</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:bookmarkStart w:id="2" w:name="_TocHeading"/><w:bookmarkEnd w:id="2"/></w:p><w:tbl><w:tr><w:tc><w:p><w:r><w:t>One</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p><w:pPr><w:pStyle w:val="Caption"/></w:pPr><w:bookmarkStart w:id="3" w:name="_RefTable2"/><w:r><w:t xml:space="preserve">Table </w:t></w:r><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> SEQ Table \* ARABIC </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>2</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r><w:bookmarkEnd w:id="3"/></w:p><w:p><w:r><w:t>See Table 2.</w:t></w:r></w:p></w:body></w:document>');
 
