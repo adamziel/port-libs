@@ -21872,20 +21872,38 @@ final class OdfReader
     private function manifestPackagePart(string $path): string
     {
         $path = preg_replace('/[#?].*$/', '', $path) ?? $path;
-        if (preg_match('/%(?![0-9A-Fa-f]{2})/', $path) === 1) {
-            throw new \InvalidArgumentException('Malformed percent escape in ODT manifest full-path: ' . $path);
-        }
-
-        $path = rawurldecode($path);
-        $path = ltrim($path, '/');
         while (str_starts_with($path, './')) {
             $path = substr($path, 2);
         }
+
+        if (preg_match('/%(?![0-9A-Fa-f]{2})/', $path) === 1) {
+            throw new \InvalidArgumentException('Malformed percent escape in ODT package part path: ' . $path);
+        }
+
+        $path = rawurldecode($path);
         if ($path === '') {
             throw new \RuntimeException('ODT package part path must not be empty');
         }
-        if (str_contains($path, '..') || str_contains($path, '\\') || preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $path) === 1) {
+        if (
+            str_starts_with($path, '/')
+            || str_contains($path, '..')
+            || str_contains($path, '\\')
+            || preg_match('/[\x00-\x1F\x7F]/', $path) === 1
+            || preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $path) === 1
+        ) {
             throw new \InvalidArgumentException('ODT package part path is not a safe package-relative path: ' . $path);
+        }
+
+        $segments = explode('/', $path);
+        foreach ($segments as $index => $segment) {
+            $isTrailingDirectorySegment = $index === count($segments) - 1 && $segment === '';
+            if ($isTrailingDirectorySegment) {
+                continue;
+            }
+
+            if ($segment === '' || $segment === '.') {
+                throw new \InvalidArgumentException('ODT package part path is not a safe package-relative path: ' . $path);
+            }
         }
 
         return $path;
