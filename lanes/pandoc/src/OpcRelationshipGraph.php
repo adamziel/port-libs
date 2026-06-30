@@ -1001,6 +1001,9 @@ final class OpcRelationshipGraph
         $packagePartExtensionCounts = [];
         $entryNamesByPackagePartExtension = [];
         $packagePartExtensionSummariesByExtension = [];
+        $packagePartDirectoryRootCounts = [];
+        $entryNamesByPackagePartDirectoryRoot = [];
+        $packagePartDirectoryRootSummariesByRoot = [];
         $compressionMethodCounts = [];
         $entryNamesByCompressionMethod = [];
         $compressionMethodNamesByRole = [];
@@ -1168,6 +1171,16 @@ final class OpcRelationshipGraph
                     $packagePartExtensionSummariesByExtension,
                     $extensionKey,
                     $extension === '' ? null : $extension,
+                    $entry,
+                );
+
+                $directoryRoot = self::zipEntryManifestDirectoryRoot($entry['partName']);
+                $packagePartDirectoryRootCounts[$directoryRoot] = ($packagePartDirectoryRootCounts[$directoryRoot] ?? 0) + 1;
+                $entryNamesByPackagePartDirectoryRoot[$directoryRoot] ??= [];
+                self::appendUniqueString($entryNamesByPackagePartDirectoryRoot[$directoryRoot], $entry['entryName']);
+                self::recordZipEntryManifestDirectoryRootSummary(
+                    $packagePartDirectoryRootSummariesByRoot,
+                    $directoryRoot,
                     $entry,
                 );
             }
@@ -1341,6 +1354,9 @@ final class OpcRelationshipGraph
         ksort($packagePartExtensionCounts, SORT_STRING);
         self::sortStringListMap($entryNamesByPackagePartExtension);
         $packagePartExtensionSummaries = self::zipEntryManifestContentSummaries($packagePartExtensionSummariesByExtension);
+        ksort($packagePartDirectoryRootCounts, SORT_STRING);
+        self::sortStringListMap($entryNamesByPackagePartDirectoryRoot);
+        $packagePartDirectoryRootSummaries = self::zipEntryManifestContentSummaries($packagePartDirectoryRootSummariesByRoot);
         self::sortZipManifestCompressionMethodProvenance(
             $compressionMethodCounts,
             $entryNamesByCompressionMethod,
@@ -1402,6 +1418,10 @@ final class OpcRelationshipGraph
             'packagePartExtensionCounts' => $packagePartExtensionCounts,
             'entryNamesByPackagePartExtension' => $entryNamesByPackagePartExtension,
             'packagePartExtensionSummaries' => $packagePartExtensionSummaries,
+            'packagePartDirectoryRootCount' => count($packagePartDirectoryRootCounts),
+            'packagePartDirectoryRootCounts' => $packagePartDirectoryRootCounts,
+            'entryNamesByPackagePartDirectoryRoot' => $entryNamesByPackagePartDirectoryRoot,
+            'packagePartDirectoryRootSummaries' => $packagePartDirectoryRootSummaries,
             'contentTypeOverrideDeclarationCount' => count($contentTypeOverrideDeclarations),
             'contentTypeUsedOverrideDeclarationCount' => count($contentTypeOverrideDeclarations) - count($contentTypeUnusedOverridePartNames),
             'contentTypeUnusedOverrideDeclarationCount' => count($contentTypeUnusedOverridePartNames),
@@ -1742,6 +1762,9 @@ final class OpcRelationshipGraph
         $packagePartExtensionCounts = [];
         $entryNamesByPackagePartExtension = [];
         $packagePartExtensionSummariesByExtension = [];
+        $packagePartDirectoryRootCounts = [];
+        $entryNamesByPackagePartDirectoryRoot = [];
+        $packagePartDirectoryRootSummariesByRoot = [];
         $relationshipParts = [];
         $fileEntryCount = 0;
         $directoryEntryCount = 0;
@@ -1818,6 +1841,20 @@ final class OpcRelationshipGraph
                     $extensionKey,
                     $extension === '' ? null : $extension,
                     $extensionSummaryEntry,
+                );
+
+                $directoryRoot = self::zipEntryManifestDirectoryRoot($entry['partName']);
+                $packagePartDirectoryRootCounts[$directoryRoot] = ($packagePartDirectoryRootCounts[$directoryRoot] ?? 0) + 1;
+                $entryNamesByPackagePartDirectoryRoot[$directoryRoot] ??= [];
+                self::appendUniqueString($entryNamesByPackagePartDirectoryRoot[$directoryRoot], $entry['entryName']);
+
+                $directoryRootSummaryEntry = $entry;
+                $directoryRootSummaryEntry['compressedSize'] = $entry['byteCountsAreExact'] ? (int) $exactCompressedSize : 0;
+                $directoryRootSummaryEntry['uncompressedSize'] = $entry['byteCountsAreExact'] ? (int) $exactUncompressedSize : 0;
+                self::recordZipEntryManifestDirectoryRootSummary(
+                    $packagePartDirectoryRootSummariesByRoot,
+                    $directoryRoot,
+                    $directoryRootSummaryEntry,
                 );
             }
 
@@ -1956,6 +1993,9 @@ final class OpcRelationshipGraph
         ksort($packagePartExtensionCounts, SORT_STRING);
         self::sortStringListMap($entryNamesByPackagePartExtension);
         $packagePartExtensionSummaries = self::zipEntryManifestContentSummaries($packagePartExtensionSummariesByExtension);
+        ksort($packagePartDirectoryRootCounts, SORT_STRING);
+        self::sortStringListMap($entryNamesByPackagePartDirectoryRoot);
+        $packagePartDirectoryRootSummaries = self::zipEntryManifestContentSummaries($packagePartDirectoryRootSummariesByRoot);
         self::sortZipManifestCompressionMethodProvenance(
             $compressionMethodCounts,
             $entryNamesByCompressionMethod,
@@ -2004,6 +2044,10 @@ final class OpcRelationshipGraph
             'packagePartExtensionCounts' => $packagePartExtensionCounts,
             'entryNamesByPackagePartExtension' => $entryNamesByPackagePartExtension,
             'packagePartExtensionSummaries' => $packagePartExtensionSummaries,
+            'packagePartDirectoryRootCount' => count($packagePartDirectoryRootCounts),
+            'packagePartDirectoryRootCounts' => $packagePartDirectoryRootCounts,
+            'entryNamesByPackagePartDirectoryRoot' => $entryNamesByPackagePartDirectoryRoot,
+            'packagePartDirectoryRootSummaries' => $packagePartDirectoryRootSummaries,
             'equivalentPackagePartNameGroupCount' => count($equivalentPackagePartNameGroups),
             'equivalentPackagePartNameEntryCount' => $equivalentPackagePartNameEntryCount,
             'rawNameCollisionGroupCount' => $rawNameManifest['rawNameCollisionGroupCount'],
@@ -8904,6 +8948,36 @@ final class OpcRelationshipGraph
         ];
 
         self::recordZipEntryManifestContentSummaryEntry($summaries[$extensionKey], $entry);
+    }
+
+    private static function recordZipEntryManifestDirectoryRootSummary(
+        array &$summaries,
+        string $directoryRoot,
+        array $entry
+    ): void {
+        $summaries[$directoryRoot] ??= [
+            'directoryRoot' => $directoryRoot,
+            'entryCount' => 0,
+            'fileEntryCount' => 0,
+            'directoryEntryCount' => 0,
+            'packagePartCount' => 0,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+            'roleCounts' => [],
+            'handoffKindCounts' => [],
+            'entryNames' => [],
+            'partNames' => [],
+        ];
+
+        self::recordZipEntryManifestContentSummaryEntry($summaries[$directoryRoot], $entry);
+    }
+
+    private static function zipEntryManifestDirectoryRoot(string $partName): string
+    {
+        $path = ltrim($partName, '/');
+        $slash = strpos($path, '/');
+
+        return $slash === false ? '/' : substr($path, 0, $slash + 1);
     }
 
     private static function recordZipEntryManifestContentSummaryEntry(array &$summary, array $entry): void

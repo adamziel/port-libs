@@ -1312,6 +1312,14 @@ XML;
         foreach ($rawSummary['packagePartExtensionSummaries'] as $extensionSummary) {
             $rawExtensionSummaries[$extensionSummary['extensionKey']] = $extensionSummary;
         }
+        $directoryRootSummaries = [];
+        foreach ($summary['packagePartDirectoryRootSummaries'] as $directoryRootSummary) {
+            $directoryRootSummaries[$directoryRootSummary['directoryRoot']] = $directoryRootSummary;
+        }
+        $rawDirectoryRootSummaries = [];
+        foreach ($rawSummary['packagePartDirectoryRootSummaries'] as $directoryRootSummary) {
+            $rawDirectoryRootSummaries[$directoryRootSummary['directoryRoot']] = $directoryRootSummary;
+        }
 
         $t->same(true, $summary['valid']);
         $t->same(true, $rawSummary['valid']);
@@ -1330,6 +1338,25 @@ XML;
             'customXml/item1',
         ], $summary['entryNamesByPackagePartExtension']['(none)']);
         $t->same($summary['entryNamesByPackagePartExtension'], $rawSummary['entryNamesByPackagePartExtension']);
+        $t->same(5, $summary['packagePartDirectoryRootCount']);
+        $t->same(5, $rawSummary['packagePartDirectoryRootCount']);
+        $t->same([
+            '/' => 1,
+            '_rels/' => 1,
+            'customXml/' => 1,
+            'docProps/' => 1,
+            'word/' => 5,
+        ], $summary['packagePartDirectoryRootCounts']);
+        $t->same($summary['packagePartDirectoryRootCounts'], $rawSummary['packagePartDirectoryRootCounts']);
+        $t->same(['[Content_Types].xml'], $summary['entryNamesByPackagePartDirectoryRoot']['/']);
+        $t->same([
+            'word/_rels/document.xml.rels',
+            'word/document.xml',
+            'word/embeddings/source.DOCX',
+            'word/media/image.PNG',
+            'word/media/vector.svg',
+        ], $summary['entryNamesByPackagePartDirectoryRoot']['word/']);
+        $t->same($summary['entryNamesByPackagePartDirectoryRoot'], $rawSummary['entryNamesByPackagePartDirectoryRoot']);
         $t->same([
             '[Content_Types].xml',
             'docProps/core.xml',
@@ -1363,6 +1390,53 @@ XML;
             'embedded-package-candidate' => 1,
         ], $extensionSummaries['docx']['roleCounts']);
         $t->same($extensionSummaries['docx'], $rawExtensionSummaries['docx']);
+        $wordBytes = strlen('<w:document/>')
+            + strlen('<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"/>')
+            + strlen('PNGDATA')
+            + strlen('<svg/>')
+            + strlen('DOCXDATA');
+        $t->same([
+            'directoryRoot' => 'word/',
+            'entryCount' => 5,
+            'fileEntryCount' => 5,
+            'directoryEntryCount' => 0,
+            'packagePartCount' => 5,
+            'compressedBytes' => $wordBytes,
+            'uncompressedBytes' => $wordBytes,
+            'roleCounts' => [
+                'embedded-package-candidate' => 1,
+                'media' => 2,
+                'part-relationships' => 1,
+                'xml-part' => 1,
+            ],
+            'handoffKindCounts' => [
+                'embedded-package' => 1,
+                'media' => 2,
+                'relationships+xml' => 1,
+                'xml' => 1,
+            ],
+            'entryNames' => [
+                'word/_rels/document.xml.rels',
+                'word/document.xml',
+                'word/embeddings/source.DOCX',
+                'word/media/image.PNG',
+                'word/media/vector.svg',
+            ],
+            'partNames' => [
+                '/word/_rels/document.xml.rels',
+                '/word/document.xml',
+                '/word/embeddings/source.DOCX',
+                '/word/media/image.PNG',
+                '/word/media/vector.svg',
+            ],
+        ], $directoryRootSummaries['word/']);
+        $t->same($directoryRootSummaries['word/'], $rawDirectoryRootSummaries['word/']);
+        $t->same([
+            'xml-part' => 1,
+        ], $directoryRootSummaries['customXml/']['roleCounts']);
+        $t->same([
+            'binary-part' => 1,
+        ], $rawDirectoryRootSummaries['customXml/']['roleCounts']);
         $t->same(2, $summary['roleCounts']['media']);
         $t->same(2, $rawSummary['roleCounts']['media']);
     },
