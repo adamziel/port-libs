@@ -53,6 +53,17 @@ XML);
     $zip->close();
 };
 
+$writeDocxDocumentXml = static function (string $path, string $documentXml): void {
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+        throw new RuntimeException("Unable to create DOCX fixture {$path}");
+    }
+
+    $zip->addFromString('[Content_Types].xml', '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');
+    $zip->addFromString('word/document.xml', $documentXml);
+    $zip->close();
+};
+
 return [
     'skips upstream docx native comparison when cache is absent' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $root = $makeTempDir();
@@ -83,6 +94,61 @@ return [
             $t->contains('Verdict: smoke-only-not-full-docx-parity', $text);
             $t->contains('orderedRemainingGaps:', $text);
             $t->contains('4. semantic-gap-zero-tolerance [not-evaluated]', $text);
+        } finally {
+            $removeTree($root);
+        }
+    },
+    'keeps field bookmark smoke fixtures out of semantic gap examples' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeDocxDocumentXml): void {
+        $root = $makeTempDir();
+
+        try {
+            $writeDocxDocumentXml($root . '/empty_field.docx', <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:t xml:space="preserve">Index marker </w:t></w:r><w:fldSimple w:instr=" XE &quot;French&quot; "/><w:r><w:t>after</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+XML);
+            file_put_contents($root . '/empty_field.native', '[Para [Str "Index",Space,Str "marker",Space,Span ( "" , [ "indexref" ] , [ ( "entry" , "French" ) ] ) [],Str "after"]]');
+
+            $writeDocxDocumentXml($root . '/pageref.docx', <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:t xml:space="preserve">Page </w:t></w:r><w:fldSimple w:instr=" PAGEREF TargetAnchor \h "><w:r><w:t>7</w:t></w:r></w:fldSimple></w:p>
+    <w:p><w:bookmarkStart w:id="9" w:name="TargetAnchor"/><w:r><w:t>Target paragraph</w:t></w:r><w:bookmarkEnd w:id="9"/></w:p>
+  </w:body>
+</w:document>
+XML);
+            file_put_contents($root . '/pageref.native', '[Para [Str "Page",Space,Str "7"],Para [Str "Target",Space,Str "paragraph"]]');
+
+            $writeDocxDocumentXml($root . '/unused_anchors.docx', <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:bookmarkStart w:id="11" w:name="UnusedAnchor"/><w:r><w:t>Unused anchor text</w:t></w:r><w:bookmarkEnd w:id="11"/></w:p>
+  </w:body>
+</w:document>
+XML);
+            file_put_contents($root . '/unused_anchors.native', '[Para [Str "Unused",Space,Str "anchor",Space,Str "text"]]');
+
+            $report = (new DocxNativeComparisonSmokeHarness())->run($root);
+
+            $t->same('completed', $report['status']);
+            $t->same(3, $report['totalPairCount']);
+            $t->same(3, $report['comparedPairCount']);
+            $t->same(3, $report['bothParsedCount']);
+            $t->same(0, $report['parseFailureCount']);
+            $t->same(3, $report['sameTextCount']);
+            $t->same(3, $report['sameTopTypeSequenceCount']);
+            $t->same(100.0, $report['sameTextPercent']);
+            $t->same(100.0, $report['sameTopTypeSequencePercent']);
+            $t->same(0, $report['semanticGapPairCount']);
+            $t->same('smoke-text-and-top-types-match-not-full-parity', $report['semanticParityStatus']);
+            $t->same([], $report['knownSemanticGapCategories']);
+            $t->same([], $report['semanticGapComparisons']);
+            $t->same('not-observed-in-smoke', $report['orderedRemainingGaps'][3]['status']);
         } finally {
             $removeTree($root);
         }

@@ -349,6 +349,10 @@ final class DocxNativeComparisonSmokeHarness
      */
     private function appendPlainText(AstNode $node, array &$parts): void
     {
+        if ($this->isMetadataOnlyOpenXmlBookmarkInline($node)) {
+            return;
+        }
+
         if (in_array($node->type, self::TEXT_NODE_TYPES, true)) {
             $text = $node->attr('text', '');
             if (is_string($text) && $text !== '') {
@@ -379,6 +383,15 @@ final class DocxNativeComparisonSmokeHarness
                 $parts[] = $text;
             }
         }
+    }
+
+    private function isMetadataOnlyOpenXmlBookmarkInline(AstNode $node): bool
+    {
+        if ($node->type !== 'raw_inline' || $node->attr('format') !== 'openxml') {
+            return false;
+        }
+
+        return preg_match('/^<w:bookmark(?:Start|End)\b/u', trim((string) $node->attr('text', ''))) === 1;
     }
 
     /**
