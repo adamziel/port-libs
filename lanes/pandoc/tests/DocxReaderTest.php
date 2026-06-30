@@ -1576,6 +1576,68 @@ XML;
         $t->contains('data-docx-table-caption-source="preceding-table"><p><span id="_RefTable1" class="anchor"', $blocks);
         $t->contains('data-docx-table-caption-source="following-table"><p><span id="_RefTable2" class="anchor"', $blocks);
     },
+    'folds docx table caption paragraphs without sequence fields' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $documentXml = <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:pPr><w:pStyle w:val="Caption"/></w:pPr><w:r><w:t>Quarterly audit totals</w:t></w:r></w:p>
+    <w:tbl><w:tr><w:tc><w:p><w:r><w:t>Count</w:t></w:r></w:p></w:tc></w:tr></w:tbl>
+    <w:tbl><w:tr><w:tc><w:p><w:r><w:t>Status</w:t></w:r></w:p></w:tc></w:tr></w:tbl>
+    <w:p><w:pPr><w:pStyle w:val="Caption"/></w:pPr><w:r><w:t>Trailing table summary</w:t></w:r></w:p>
+    <w:p><w:r><w:t>After tables.</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+XML;
+        $document = (new DocxReader())->read($buildDocxReaderPackageBytes($documentXml));
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $firstTable = $document->children[0];
+        $secondTable = $document->children[1];
+
+        $t->same(['table', 'table', 'paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('Quarterly audit totals', $firstTable->attr('caption'));
+        $t->same('Trailing table summary', $secondTable->attr('caption'));
+        $t->same('preceding-table', $firstTable->attr('captionSource')['sourcePosition']);
+        $t->same('following-table', $secondTable->attr('captionSource')['sourcePosition']);
+        $t->contains('data-docx-table-caption-source="preceding-table"><p>Quarterly audit totals</p>', $blocks);
+        $t->contains('data-docx-table-caption-source="following-table"><p>Trailing table summary</p>', $blocks);
+    },
+    'cleans nested sequence fields and bookmarks in folded docx table captions' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $documentXml = <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:pPr><w:pStyle w:val="Caption"/></w:pPr>
+      <w:r><w:t xml:space="preserve">Table </w:t></w:r>
+      <w:fldSimple w:instr=" SEQ Table \* ARABIC ">
+        <w:bookmarkStart w:id="9" w:name="_RefNestedTable"/>
+        <w:r><w:t>7</w:t></w:r>
+        <w:bookmarkEnd w:id="9"/>
+      </w:fldSimple>
+      <w:r><w:t>: Nested field caption</w:t></w:r>
+    </w:p>
+    <w:tbl><w:tr><w:tc><w:p><w:r><w:t>Total</w:t></w:r></w:p></w:tc></w:tr></w:tbl>
+  </w:body>
+</w:document>
+XML;
+        $document = (new DocxReader())->read($buildDocxReaderPackageBytes($documentXml));
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $native = (new NativeWriter())->write($document);
+        $table = $document->children[0];
+        $captionInlines = $table->attr('captionInlines');
+
+        $t->same(['table'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('Table 7: Nested field caption', $table->attr('caption'));
+        $t->same(['text', 'span', 'text'], array_map(static fn ($node): string => $node->type, $captionInlines));
+        $t->same('_RefNestedTable', $captionInlines[1]->attr('id'));
+        $t->contains('<span id="_RefNestedTable" class="anchor"', $blocks);
+        $t->contains('>7: Nested field caption</p>', $blocks);
+        $t->true(!str_contains($blocks, 'pandoc-openxml-bookmark'), 'Folded table captions should not leak raw bookmark spans into WordPress output');
+        $t->true(!str_contains($blocks, 'docx-field'), 'Folded table captions should not keep raw field wrappers in WordPress output');
+        $t->true(!str_contains($native, 'RawInline'), 'Folded table captions should not keep raw bookmark inlines in native output');
+        $t->true(!str_contains($native, 'docx-field'), 'Folded table captions should not keep field wrapper attributes in native output');
+    },
     'places docx table header rows in table head' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
         $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:tbl><w:tr><w:trPr><w:tblHeader/></w:trPr><w:tc><w:p><w:r><w:t>Field</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Value</w:t></w:r></w:p></w:tc></w:tr><w:tr><w:trPr><w:tblHeader w:val="0"/></w:trPr><w:tc><w:p><w:r><w:t>Draft flag</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>False header row</w:t></w:r></w:p></w:tc></w:tr><w:tr><w:tc><w:p><w:r><w:t>Total</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>12</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:body></w:document>');
 

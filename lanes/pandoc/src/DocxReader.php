@@ -740,7 +740,11 @@ final class DocxReader
             return true;
         }
 
-        return $this->paragraphHasSequenceField($paragraph, 'Table');
+        if ($this->paragraphHasSequenceField($paragraph, 'Table')) {
+            return true;
+        }
+
+        return $text !== '';
     }
 
     private function paragraphHasCaptionStyle(string $styleId): bool
@@ -833,6 +837,15 @@ final class DocxReader
      */
     private function tableCaptionInlines(array $inlines): array
     {
+        return $this->mergeAdjacentText($this->normalizeTableCaptionInlines($inlines));
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     * @return list<AstNode>
+     */
+    private function normalizeTableCaptionInlines(array $inlines): array
+    {
         $captionInlines = [];
         foreach ($inlines as $inline) {
             $anchor = $this->captionBookmarkAnchor($inline);
@@ -846,7 +859,16 @@ final class DocxReader
             }
 
             if ($this->isSequenceFieldSpan($inline)) {
-                array_push($captionInlines, ...$inline->children);
+                array_push($captionInlines, ...$this->normalizeTableCaptionInlines($inline->children));
+                continue;
+            }
+
+            if ($inline->children !== []) {
+                $captionInlines[] = new AstNode(
+                    $inline->type,
+                    $inline->attrs,
+                    $this->normalizeTableCaptionInlines($inline->children)
+                );
                 continue;
             }
 
