@@ -28124,6 +28124,115 @@ XML;
         $t->same(['apparently-text'], $textPart['internalAttributeNames']);
         $t->same(['internal-text-attribute'], $textPart['platformAttributeIssues']);
     },
+    'summarizes docx source zip timestamps without exposing entry bytes' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $extendedModified = gmmktime(3, 4, 5, 4, 5, 2024);
+        $dosModified = gmmktime(4, 5, 6, 2, 3, 2023);
+        $ntfsModified = gmmktime(7, 8, 10, 1, 2, 2022);
+        $ntfsAccessed = gmmktime(8, 9, 10, 1, 3, 2022);
+        $ntfsCreated = gmmktime(9, 10, 12, 1, 4, 2022);
+        $dosTime = (4 << 11) | (5 << 5) | intdiv(6, 2);
+        $dosDate = ((2023 - 1980) << 9) | (2 << 5) | 3;
+        $zipParts = docx_openxml_reader_zip_parts($parts);
+        foreach ($zipParts as &$zipPart) {
+            if ($zipPart['name'] === 'docProps/core.xml') {
+                $zipPart['extraFieldData'] = docx_openxml_reader_ntfs_timestamp_extra(
+                    $ntfsModified,
+                    $ntfsAccessed,
+                    $ntfsCreated
+                );
+            }
+            if ($zipPart['name'] === 'word/document.xml') {
+                $zipPart['modifiedAt'] = $extendedModified;
+            }
+            if ($zipPart['name'] === 'word/media/review.png') {
+                $zipPart['modifiedDosTime'] = $dosTime;
+                $zipPart['modifiedDosDate'] = $dosDate;
+            }
+        }
+        unset($zipPart);
+
+        $sourcePackage = ZipPackage::fromParts($zipParts);
+        $document = (new DocxOpenXmlReader())->readZipPackage($sourcePackage);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $timestamps = $package['zipPackage']['timestamps'];
+        $coreEntry = $package['zipPackage']['byPackagePath']['docProps/core.xml'];
+        $documentEntry = $package['zipPackage']['byPackagePath']['word/document.xml'];
+        $mediaEntry = $package['zipPackage']['byPackagePath']['word/media/review.png'];
+        $corePart = $package['parts']['docProps/core.xml'];
+        $documentPart = $package['parts']['word/document.xml'];
+        $mediaPart = $package['parts']['word/media/review.png'];
+
+        $t->same('Imported DOCX Heading', $document->children[0]->attr('text'));
+        $t->same(true, $timestamps['present']);
+        $t->same(count($zipParts), $timestamps['entryCount']);
+        $t->same(3, $timestamps['timestampedEntryCount']);
+        $t->same(2, $timestamps['dosTimestampEntryCount']);
+        $t->same(1, $timestamps['extendedTimestampEntryCount']);
+        $t->same(1, $timestamps['ntfsTimestampEntryCount']);
+        $t->same(1, $timestamps['accessedTimestampEntryCount']);
+        $t->same(1, $timestamps['createdTimestampEntryCount']);
+        $t->same(['dos' => 1, 'extended' => 1, 'none' => count($zipParts) - 3, 'ntfs' => 1], $timestamps['sourceCounts']);
+        $t->same(['docProps/core.xml', 'word/document.xml', 'word/media/review.png'], $timestamps['timestampedEntryNames']);
+        $t->same('docProps/core.xml', $timestamps['earliestModifiedEntry']['packagePath']);
+        $t->same($ntfsModified, $timestamps['earliestModifiedEntry']['lastModifiedTimestamp']);
+        $t->same('word/document.xml', $timestamps['latestModifiedEntry']['packagePath']);
+        $t->same($extendedModified, $timestamps['latestModifiedEntry']['lastModifiedTimestamp']);
+        $t->same('docx-zip-timestamp-metadata-only', $timestamps['reviewPolicy']);
+
+        $t->same(true, $coreEntry['hasNtfsTimestamp']);
+        $t->same(false, $coreEntry['hasDosLastModifiedTimestamp']);
+        $t->same('ntfs', $coreEntry['lastModifiedSource']);
+        $t->same($ntfsModified, $coreEntry['ntfsModifiedTimestamp']);
+        $t->same($ntfsAccessed, $coreEntry['ntfsAccessedTimestamp']);
+        $t->same($ntfsCreated, $coreEntry['ntfsCreatedTimestamp']);
+        $t->same($ntfsModified, $coreEntry['lastModifiedTimestamp']);
+        $t->same(gmdate('Y-m-d\TH:i:s\Z', $ntfsModified), $coreEntry['lastModifiedIso8601']);
+
+        $t->same(true, $documentEntry['hasExtendedTimestamp']);
+        $t->same(true, $documentEntry['hasDosLastModifiedTimestamp']);
+        $t->same('extended', $documentEntry['lastModifiedSource']);
+        $t->same($extendedModified, $documentEntry['extendedModifiedTimestamp']);
+        $t->same($extendedModified, $documentEntry['lastModifiedTimestamp']);
+        $t->same(gmdate('Y-m-d\TH:i:s\Z', $extendedModified), $documentEntry['lastModifiedIso8601']);
+        $t->same(sprintf('%04x', $sourcePackage->entry('word/document.xml')->modifiedDosTime()), $documentEntry['modifiedDosTimeHex']);
+        $t->same(sprintf('%04x', $sourcePackage->entry('word/document.xml')->modifiedDosDate()), $documentEntry['modifiedDosDateHex']);
+
+        $t->same(false, $mediaEntry['hasExtendedTimestamp']);
+        $t->same(true, $mediaEntry['hasDosLastModifiedTimestamp']);
+        $t->same('dos', $mediaEntry['lastModifiedSource']);
+        $t->same($dosTime, $mediaEntry['modifiedDosTime']);
+        $t->same($dosDate, $mediaEntry['modifiedDosDate']);
+        $t->same(sprintf('%04x', $dosTime), $mediaEntry['modifiedDosTimeHex']);
+        $t->same(sprintf('%04x', $dosDate), $mediaEntry['modifiedDosDateHex']);
+        $t->same($dosModified, $mediaEntry['dosLastModifiedTimestamp']);
+        $t->same($dosModified, $mediaEntry['lastModifiedTimestamp']);
+        $t->same(gmdate('Y-m-d\TH:i:s\Z', $dosModified), $mediaEntry['lastModifiedIso8601']);
+
+        $t->same(3, $summary['zipTimestampedEntryCount']);
+        $t->same(1, $summary['zipExtendedTimestampEntryCount']);
+        $t->same(1, $summary['zipNtfsTimestampEntryCount']);
+        $t->same($timestamps['sourceCounts'], $summary['zipTimestampSourceCounts']);
+        $t->same($timestamps['timestampedEntryNames'], $summary['zipTimestampedEntryNames']);
+        $t->same($timestamps['timestampedEntries'], $summary['zipTimestampReviewEntries']);
+        $t->same('docx-zip-timestamp-metadata-only', $summary['zipTimestampReviewPolicy']);
+
+        $t->same($ntfsModified, $corePart['zipLastModifiedTimestamp']);
+        $t->same('ntfs', $corePart['zipLastModifiedSource']);
+        $t->same(true, $corePart['zipHasNtfsTimestamp']);
+        $t->same($extendedModified, $documentPart['zipLastModifiedTimestamp']);
+        $t->same('extended', $documentPart['zipLastModifiedSource']);
+        $t->same(true, $documentPart['zipHasExtendedTimestamp']);
+        $t->same($dosModified, $mediaPart['zipLastModifiedTimestamp']);
+        $t->same('dos', $mediaPart['zipLastModifiedSource']);
+        $t->same(false, $mediaPart['zipHasExtendedTimestamp']);
+        $t->same('docx-zip-timestamp-metadata-only', $mediaPart['zipTimestampReviewPolicy']);
+
+        $encoded = json_encode([$timestamps, $summary['zipTimestampReviewEntries']]);
+        $t->true(is_string($encoded), 'timestamp metadata should encode for review');
+        $t->true(!str_contains((string) $encoded, 'fake png bytes'), 'timestamp metadata must not expose entry bytes');
+    },
     'summarizes docx source zip comments without exposing comment text' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $packageComment = 'hidden package review comment';
@@ -28487,6 +28596,26 @@ function docx_openxml_reader_zip_parts(array $parts): array
     }
 
     return $zipParts;
+}
+
+function docx_openxml_reader_ntfs_timestamp_extra(int $modifiedAt, int $accessedAt, int $createdAt): string
+{
+    $payload = pack('V', 0)
+        . pack('vv', 0x0001, 24)
+        . docx_openxml_reader_ntfs_filetime($modifiedAt)
+        . docx_openxml_reader_ntfs_filetime($accessedAt)
+        . docx_openxml_reader_ntfs_filetime($createdAt);
+
+    return pack('vv', 0x000a, strlen($payload)) . $payload;
+}
+
+function docx_openxml_reader_ntfs_filetime(int $timestamp): string
+{
+    $filetime = ($timestamp + 11644473600) * 10000000;
+    $low = $filetime % 4294967296;
+    $high = intdiv($filetime, 4294967296);
+
+    return pack('VV', $low, $high);
 }
 
 /**
