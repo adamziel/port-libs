@@ -524,7 +524,8 @@
             "mappedOdfPythonPackageScriptAliasCases": 1,
             "mappedOdfStyleDiagnosticsCases": 1,
             "mappedOdfAttachmentLegacyDocumentResourceCases": 1,
-            "mappedOdfThumbnailPackagePathCases": 1
+            "mappedOdfThumbnailPackagePathCases": 1,
+            "mappedOdfFlatOpenDocumentSidecarCases": 1
         },
         "mapped": 2308,
         "source": ".upstream-cache/pandoc at 0640c4c9859aa5a3ede082c190fcd5883c24ac83 using git ls-tree path inventory for test/, pandoc-lua-engine/test/, data/, and benchmark/ plus targeted reads of pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, COPYRIGHT, test/test-pandoc.hs, Tests.Command, Tests.Readers.Markdown, Tests.Writers.Native, Tests.Writers.Markdown, Tests.Writers.Plain, Tests.Writers.HTML, Tests.Writers.LaTeX, src/Text/Pandoc/Writers/Markdown.hs, src/Text/Pandoc/Writers/Markdown/Table.hs, src/Text/Pandoc/Writers/Markdown/Inline.hs, src/Text/Pandoc/Writers/LaTeX.hs, src/Text/Pandoc/Options.hs, src/Text/Pandoc/Extensions.hs, src/Text/Pandoc/Shared.hs, src/Text/Pandoc/Writers/HTML.hs, src/Text/Pandoc/Writers/GridTable.hs, src/Text/Pandoc/Writers/Shared.hs, src/Text/Pandoc/Readers/HTML.hs, data/abbreviations, test/command/indented-fences.md, test/command/short-caption.md, test/command/table-with-cell-align.md, test/command/table-with-column-span.md, test/command/rst-writer-gridtable-if-rowspans.md, test/command/nested-table-to-asciidoc-6942.md, test/command/tasklist.md, test/command/nested-spanlike.md, test/command/empty_paragraphs.md, test/command/toc.md, test/command/9792.md, test/command/parse-raw.md, test/command/md-abbrevs.md, test/command/html-read-figure.md, test/command/4162.md, test/command/10825.md, test/command/figures-html.md, test/command/wikilinks_title_after_pipe.md, test/command/wikilinks_title_before_pipe.md, git ls-tree counts for 26 test/command/*.csl files, 70 citeproc/citation Markdown command fixtures, 2 math-targeted Markdown command fixtures, legacy BibLaTeX file/pdf source-file attachment metadata checks, legacy BibLaTeX registry identifier metadata checks, and legacy BibLaTeX authority identifier metadata checks, test/markdown-reader-more.txt, test/markdown-reader-more.native, test/markdown-citations.native, test/docx/notes.native, test/docx/link_in_notes.native, test/docx/task_list.native, test/docx/table_gridbefore.native, test/docx/track_changes_move_all.native, test/docx/track_changes_move_accept.native, test/docx/track_changes_move_reject.native, test/docx/track_changes_insertion_accept.native, test/docx/track_changes_insertion_reject.native, test/docx/track_changes_deletion_accept.native, test/docx/track_changes_deletion_reject.native, test/docx/paragraph_insertion_deletion_accept.native, test/docx/paragraph_insertion_deletion_reject.native, test/docx/track_changes_scrubbed_metadata.native, test/docx/overlapping_targets.native, test/docx/image_vml_as_object.native, test/docx/image_with_textbox_caption.native, test/docx/diagram.native, test/jats-reader.native, test/odt/native/listContinueNumbering2.native, test/odt/native/tableWithSpans.native, test/odt/native/simpleTableWithMultipleHeaderRows.native, test/odt/native/imageWithCaption.native, test/odt/native/orderedListMixed.native, test/epub/wasteland.native, test/epub/features.native, test/epub/formatting.native, test/html-reader.html, test/html-reader.native, test/tables/nordics.html5, test/testsuite.txt, test/testsuite.native, test/lhs-test.markdown+lhs, test/lhs-test-markdown.native, test/pipe-tables.txt, test/pipe-tables.native, test/tables.markdown, and test/tables.native including focused Markdown/HTML/Native/WordPress behavior slices recorded in notes/upstream-inventory.md, raw_tex_inline NativeReader text JSON writer smoke, and shared OPC ZIP central-directory source-record provenance checks.",
@@ -1629,9 +1630,9 @@
         "mappedOdfScriptMediaAliasCases": 1,
         "mappedOdfPythonPackageScriptAliasCases": 1,
         "mappedOdfStyleDiagnosticsCases": 1,
-        "mappedOdtStyleDiagnosticsCases": 2,
         "mappedOdfAttachmentLegacyDocumentResourceCases": 1,
-        "mappedOdfThumbnailPackagePathCases": 1
+        "mappedOdfThumbnailPackagePathCases": 1,
+        "mappedOdfFlatOpenDocumentSidecarCases": 1
     },
     "nativeImplementation": {
         "language": "PHP",
@@ -1641,6 +1642,8 @@
     "wordpressScenario": "Data Liberation Markdown import path that preserves Pandoc title-block metadata, inline semantics, tables, citations, HTML-reader imports, and WordPress block output. The latest Citation/CSL slice carries legacy BibLaTeX registry and authority identifier plus file/pdf attachment review metadata through WordPress output: identifiers stay metadata-only, safe relative paths stay visible, and unsafe paths remain diagnostics without reading or fetching identifier or attachment targets. The latest Markdown-reader slice adds standalone void area/source/track/embed paragraph handoff so imported captions, media sources, legacy embeds, and image-map hotspots remain WordPress paragraph raw inlines instead of wp:html blocks. Existing HTML reader exports include standalone SVG, button, ins, noscript, applet, object/embed, video/source/track, audio/source/track, map/area, progress, del, linebreak, inline flow, cite/wbr, and pre/code handoffs. LaTeX, HTML writer, Markdown, PlainText/template, Native reader/writer, DOCX, ODT, EPUB, JATS, citation, TOC, wiki-link, and table examples continue to cover downstream WordPress profiles without shelling out to upstream Pandoc.",
     "nextTask": "Open shared-zip-package-core with bounded PHP tests for package entries, central directory, stored/deflated payloads, and OPC-safe path handling; in parallel, expand JSON native AST coverage against upstream JSON/native fixture pairs until every shared AST constructor is covered. Activate XML/HTML DOM after ZIP/JSON gates, then direct DOCX/OpenXML, EPUB3, ODF/OpenDocument, and PPTX/XLSX slices.",
     "currentSlice": {
-        "latestSlice": "OdfReader carries packagePath through ODT thumbnail package sidecars and OpenDocumentPackage manifest review now aggregates thumbnail package entries while thumbnail bytes remain metadata-only and out of WordPress handoff."
-    }
+        "latestSlice": "OdfReader and OpenDocumentPackage infer flat OpenDocument XML and ODF database media types for attachment/report/template package sidecars while keeping package bytes metadata-only."
+    },
+    "mappedOdfFlatOpenDocumentSidecarCases": 1,
+    "odfFlatOpenDocumentSidecarAssertions": 67
 }
