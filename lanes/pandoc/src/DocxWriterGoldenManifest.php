@@ -410,6 +410,36 @@ final class DocxWriterGoldenManifest
     }
 
     /**
+     * @param array<string, mixed> $report
+     */
+    public static function hasRequiredGeneratedStableMatches(array $report, int $requiredPackageCount): bool
+    {
+        if ($requiredPackageCount < 0) {
+            throw new \InvalidArgumentException('Required generated stable match count must not be negative');
+        }
+
+        if (($report['skipped'] ?? false) === true) {
+            return false;
+        }
+
+        $comparison = $report['packageComparison'] ?? null;
+        if (!is_array($comparison) || ($comparison['run'] ?? false) !== true) {
+            return false;
+        }
+
+        return ($comparison['status'] ?? null) === 'matched-stable-package-semantics'
+            && ($comparison['allStableSemanticsMatch'] ?? false) === true
+            && (int) ($comparison['expectedGoldenPackageCount'] ?? -1) === $requiredPackageCount
+            && (int) ($comparison['generatedPackageCount'] ?? -1) === $requiredPackageCount
+            && (int) ($comparison['comparedPackageCount'] ?? -1) === $requiredPackageCount
+            && (int) ($comparison['matchedPackageCount'] ?? -1) === $requiredPackageCount
+            && (int) ($comparison['mismatchedPackageCount'] ?? -1) === 0
+            && (int) ($comparison['missingGeneratedPackageCount'] ?? -1) === 0
+            && (int) ($comparison['unexpectedGeneratedPackageCount'] ?? -1) === 0
+            && (int) ($comparison['unreadableComparisonPackageCount'] ?? -1) === 0;
+    }
+
+    /**
      * @return list<array<string, string>>
      */
     public static function expectedUpstreamWriterSourceReferences(): array

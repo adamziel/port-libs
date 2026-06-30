@@ -666,6 +666,85 @@ return [
         }
     },
 
+    'writer golden cli required stable matches gates skips and mismatches' => static function (TestRunner $t) use ($makeTempRoot, $removeTree, $writeFile, $semanticDocx): void {
+        $missingRoot = $makeTempRoot();
+        try {
+            $command = escapeshellarg(PHP_BINARY)
+                . ' '
+                . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-docx-writer-golden-audit.php')
+                . ' --repo-root='
+                . escapeshellarg($missingRoot)
+                . ' --json'
+                . ' --generate-supported-dir=generated-docx'
+                . ' --require-generated-stable-matches=38';
+            $output = [];
+            $exitCode = 0;
+            exec($command, $output, $exitCode);
+            $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same(1, $exitCode);
+            $t->same(DocxWriterGoldenManifest::STATUS_SKIPPED_MISSING_GOLDEN_DIRECTORY, $decoded['status']);
+            $t->same(false, DocxWriterGoldenManifest::hasRequiredGeneratedStableMatches($decoded, 38));
+        } finally {
+            $removeTree($missingRoot);
+        }
+
+        $mismatchRoot = $makeTempRoot();
+        try {
+            $docxRoot = '.upstream-cache/pandoc-current/test/docx';
+            $writeFile($mismatchRoot, "{$docxRoot}/golden/a.docx", $semanticDocx('Golden A'));
+            $writeFile($mismatchRoot, 'generated-docx/a.docx', $semanticDocx('Changed A', true));
+
+            $command = escapeshellarg(PHP_BINARY)
+                . ' '
+                . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-docx-writer-golden-audit.php')
+                . ' --repo-root='
+                . escapeshellarg($mismatchRoot)
+                . ' --json'
+                . ' --generated-dir=generated-docx'
+                . ' --require-generated-stable-matches=1';
+            $output = [];
+            $exitCode = 0;
+            exec($command, $output, $exitCode);
+            $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same(1, $exitCode);
+            $t->same('mismatched-stable-package-semantics', $decoded['packageComparison']['status']);
+            $t->same(0, $decoded['packageComparison']['matchedPackageCount']);
+            $t->same(1, $decoded['packageComparison']['mismatchedPackageCount']);
+            $t->same(false, DocxWriterGoldenManifest::hasRequiredGeneratedStableMatches($decoded, 1));
+        } finally {
+            $removeTree($mismatchRoot);
+        }
+
+        $matchRoot = $makeTempRoot();
+        try {
+            $docxRoot = '.upstream-cache/pandoc-current/test/docx';
+            $writeFile($matchRoot, "{$docxRoot}/golden/a.docx", $semanticDocx('Stable A'));
+            $writeFile($matchRoot, 'generated-docx/a.docx', $semanticDocx('Stable A', true));
+
+            $command = escapeshellarg(PHP_BINARY)
+                . ' '
+                . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-docx-writer-golden-audit.php')
+                . ' --repo-root='
+                . escapeshellarg($matchRoot)
+                . ' --json'
+                . ' --generated-dir=generated-docx'
+                . ' --require-generated-stable-matches=1';
+            $output = [];
+            $exitCode = 0;
+            exec($command, $output, $exitCode);
+            $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same(0, $exitCode);
+            $t->same('matched-stable-package-semantics', $decoded['packageComparison']['status']);
+            $t->same(1, $decoded['packageComparison']['matchedPackageCount']);
+            $t->same(true, DocxWriterGoldenManifest::hasRequiredGeneratedStableMatches($decoded, 1));
+        } finally {
+            $removeTree($matchRoot);
+        }
+    },
+
     'writer golden comparison summarizes stable mismatch diagnostics' => static function (TestRunner $t) use ($makeTempRoot, $removeTree, $writeFile, $diagnosticDocx): void {
         $root = $makeTempRoot();
         try {

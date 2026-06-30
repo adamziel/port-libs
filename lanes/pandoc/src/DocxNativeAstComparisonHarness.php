@@ -290,6 +290,28 @@ final class DocxNativeAstComparisonHarness
     }
 
     /**
+     * @param array<string, mixed> $report
+     */
+    public static function hasRequiredMappedParity(array $report, int $requiredPairCount): bool
+    {
+        if ($requiredPairCount < 0) {
+            throw new \InvalidArgumentException('Required mapped parity count must not be negative');
+        }
+
+        return ($report['skipped'] ?? false) === false
+            && ($report['status'] ?? null) === 'completed'
+            && (int) ($report['totalPairCount'] ?? -1) === $requiredPairCount
+            && (int) ($report['comparedPairCount'] ?? -1) === $requiredPairCount
+            && (int) ($report['docxParsedCount'] ?? -1) === $requiredPairCount
+            && (int) ($report['nativeParsedCount'] ?? -1) === $requiredPairCount
+            && (int) ($report['bothParsedCount'] ?? -1) === $requiredPairCount
+            && (int) ($report['parseFailureCount'] ?? -1) === 0
+            && (int) ($report['normalizedAstMatchCount'] ?? -1) === $requiredPairCount
+            && (int) ($report['normalizedAstMismatchCount'] ?? -1) === 0
+            && ($report['astParityStatus'] ?? null) === 'normalized-ast-equality-observed-not-runner-or-writer-parity';
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private static function normalizationPolicy(): array

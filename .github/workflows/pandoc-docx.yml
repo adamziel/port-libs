@@ -104,17 +104,18 @@ jobs:
       - name: Run optional upstream DOCX/native smoke
         run: php tools/pandoc-docx-native-smoke.php --limit=12
 
-      - name: Run optional upstream DOCX/native AST comparison
-        run: php tools/pandoc-docx-native-ast.php --limit=12
+      - name: Require upstream DOCX/native AST parity evidence
+        run: php tools/pandoc-docx-native-ast.php summary --require-mapped-parity=74
 
       - name: Run optional DOCX parser coverage audit
         run: php tools/pandoc-docx-parity-audit.php --fail-on-regression
 
-      - name: Run optional DOCX writer golden manifest audit
+      - name: Require DOCX writer golden stable comparison
         run: |
           php tools/pandoc-docx-writer-golden-audit.php \
             --json \
-            --generate-supported-dir .port-libs/pandoc-docx-writer-golden/generated
+            --generate-supported-dir .port-libs/pandoc-docx-writer-golden/generated \
+            --require-generated-stable-matches 38
 
       - name: Run focused DOCX parity tests
         run: |

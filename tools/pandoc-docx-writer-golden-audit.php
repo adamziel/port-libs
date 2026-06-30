@@ -26,6 +26,11 @@ Options:
                     Relative paths are resolved from the repository root.
                     When --generated-dir is omitted, this directory is also
                     used for stable package comparison.
+  --require-generated-stable-matches N
+                    Exit 1 unless generated package comparison runs and
+                    records exactly N expected, compared, and stable-matched
+                    packages with no mismatches, missing packages, unexpected
+                    packages, or unreadable packages.
   --case NAME       Focus inventory, generation, and comparison on matching
                     writer-golden case names. NAME may be a golden .docx file,
                     native fixture file, stem, or comma-separated list.
@@ -48,6 +53,7 @@ try {
     $generatedDir = null;
     $generationOutputDir = null;
     $caseFilters = [];
+    $requiredGeneratedStableMatches = null;
     $json = false;
     $args = array_slice($argv, 1);
 
@@ -103,6 +109,22 @@ try {
             $generationOutputDir = substr($arg, strlen('--generate-supported-dir='));
             continue;
         }
+        if ($arg === '--require-generated-stable-matches') {
+            $rawCount = $nextValue('--require-generated-stable-matches');
+            if (!ctype_digit($rawCount)) {
+                throw new InvalidArgumentException('--require-generated-stable-matches must be a non-negative integer');
+            }
+            $requiredGeneratedStableMatches = (int) $rawCount;
+            continue;
+        }
+        if (str_starts_with($arg, '--require-generated-stable-matches=')) {
+            $rawCount = substr($arg, strlen('--require-generated-stable-matches='));
+            if (!ctype_digit($rawCount)) {
+                throw new InvalidArgumentException('--require-generated-stable-matches must be a non-negative integer');
+            }
+            $requiredGeneratedStableMatches = (int) $rawCount;
+            continue;
+        }
         if ($arg === '--case') {
             $caseFilters[] = $nextValue('--case');
             continue;
@@ -132,6 +154,17 @@ try {
         ) . PHP_EOL);
     } else {
         fwrite(STDOUT, DocxWriterGoldenManifest::formatTextReport($report));
+    }
+
+    if (
+        $requiredGeneratedStableMatches !== null
+        && !DocxWriterGoldenManifest::hasRequiredGeneratedStableMatches($report, $requiredGeneratedStableMatches)
+    ) {
+        fwrite(
+            STDERR,
+            "pandoc-docx-writer-golden-audit: generated stable comparison did not match {$requiredGeneratedStableMatches}/{$requiredGeneratedStableMatches} packages" . PHP_EOL
+        );
+        exit(1);
     }
 
     exit(0);

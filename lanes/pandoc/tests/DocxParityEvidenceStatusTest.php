@@ -205,6 +205,9 @@ return [
         $t->contains('php -l lanes/pandoc/src/DocxWriter.php', $workflow);
         $t->contains('php -l lanes/pandoc/tests/DocxWriterTest.php', $workflow);
         $t->contains('--generate-supported-dir .port-libs/pandoc-docx-writer-golden/generated', $workflow);
+        $t->contains('--require-generated-stable-matches 38', $workflow);
+        $t->contains('php tools/pandoc-docx-native-ast.php summary --require-mapped-parity=74', $workflow);
+        $t->true(!str_contains($workflow, 'pandoc-docx-native-ast.php --limit=12'), 'DOCX CI must not gate native AST parity with a capped sample');
         $t->contains('lanes/pandoc/tests/DocxWriterTest.php', $workflow);
 
         $t->same('reported_optional_upstream_docx_cache_manifest', $cacheManifest['status'] ?? null);

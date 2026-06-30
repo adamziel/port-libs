@@ -170,6 +170,86 @@ return [
             $removeTree($root);
         }
     },
+    'cli required mapped parity gates skipped and mismatched native ast evidence' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeDocx): void {
+        $missingRoot = $makeTempDir();
+        $missing = $missingRoot . '/missing/test/docx';
+        try {
+            $command = escapeshellarg(PHP_BINARY)
+                . ' '
+                . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-docx-native-ast.php')
+                . ' --upstream-docx-dir='
+                . escapeshellarg($missing)
+                . ' --json'
+                . ' summary'
+                . ' --require-mapped-parity=1';
+            $output = [];
+            $exitCode = 0;
+            exec($command, $output, $exitCode);
+            $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same(1, $exitCode);
+            $t->same('skipped', $decoded['status']);
+            $t->same(true, $decoded['skipped']);
+            $t->same(false, DocxNativeAstComparisonHarness::hasRequiredMappedParity($decoded, 1));
+        } finally {
+            $removeTree($missingRoot);
+        }
+
+        $mismatchRoot = $makeTempDir();
+        try {
+            $writeDocx($mismatchRoot . '/different.docx', 'Hello docx');
+            file_put_contents($mismatchRoot . '/different.native', '[Para [Str "Hello native"]]');
+
+            $command = escapeshellarg(PHP_BINARY)
+                . ' '
+                . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-docx-native-ast.php')
+                . ' --upstream-docx-dir='
+                . escapeshellarg($mismatchRoot)
+                . ' --json'
+                . ' summary'
+                . ' --require-mapped-parity=1';
+            $output = [];
+            $exitCode = 0;
+            exec($command, $output, $exitCode);
+            $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same(1, $exitCode);
+            $t->same('completed', $decoded['status']);
+            $t->same(1, $decoded['comparedPairCount']);
+            $t->same(0, $decoded['normalizedAstMatchCount']);
+            $t->same(1, $decoded['normalizedAstMismatchCount']);
+            $t->same(false, DocxNativeAstComparisonHarness::hasRequiredMappedParity($decoded, 1));
+        } finally {
+            $removeTree($mismatchRoot);
+        }
+
+        $matchRoot = $makeTempDir();
+        try {
+            $writeDocx($matchRoot . '/same.docx', 'Exact body');
+            file_put_contents($matchRoot . '/same.native', '[Para [Str "Exact",Space,Str "body"]]');
+
+            $command = escapeshellarg(PHP_BINARY)
+                . ' '
+                . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-docx-native-ast.php')
+                . ' --upstream-docx-dir='
+                . escapeshellarg($matchRoot)
+                . ' --json'
+                . ' summary'
+                . ' --require-mapped-parity=1';
+            $output = [];
+            $exitCode = 0;
+            exec($command, $output, $exitCode);
+            $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same(0, $exitCode);
+            $t->same('completed', $decoded['status']);
+            $t->same(1, $decoded['normalizedAstMatchCount']);
+            $t->same(0, $decoded['normalizedAstMismatchCount']);
+            $t->same(true, DocxNativeAstComparisonHarness::hasRequiredMappedParity($decoded, 1));
+        } finally {
+            $removeTree($matchRoot);
+        }
+    },
     'normalizes docx provenance wrappers and bookmark markers in ast comparisons' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeDocxDocument): void {
         $root = $makeTempDir();
 
