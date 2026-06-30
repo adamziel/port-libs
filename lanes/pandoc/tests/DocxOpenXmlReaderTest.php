@@ -15209,7 +15209,7 @@ XML;
             '        <w:id w:val="101"/>' . "\n" .
             '        <w:lock w:val="sdtContentLocked"/>' . "\n" .
             '        <w:text/>' . "\n" .
-            '        <w:dataBinding w:storeItemID="' . $storeItemId . '" w:xpath="/review/reviewer/name[1]" w:prefixMappings="xmlns:review=&quot;urn:example:review&quot;"/>' . "\n" .
+            '        <w:dataBinding w:storeItemID="' . $storeItemId . '" w:xpath="/review:review/review:reviewer/review:name[1]" w:prefixMappings="xmlns:review=&quot;urn:example:review&quot; xmlns:lookup=&quot;urn:example:lookup&quot;"/>' . "\n" .
             '      </w:sdtPr>' . "\n" .
             '      <w:sdtContent><w:p><w:r><w:t>Reviewer: Ada</w:t></w:r></w:p></w:sdtContent>' . "\n" .
             '    </w:sdt>',
@@ -15224,7 +15224,7 @@ XML;
             '          <w:tag w:val="missing-review-field"/>' . "\n" .
             '          <w:id w:val="102"/>' . "\n" .
             '          <w:text/>' . "\n" .
-            '          <w:dataBinding w:storeItemID="' . $missingStoreItemId . '" w:xpath="/review/missing[1]" w:prefixMappings="xmlns:review=&quot;urn:example:review&quot;"/>' . "\n" .
+            '          <w:dataBinding w:storeItemID="' . $missingStoreItemId . '" w:xpath="/missing:review[1]" w:prefixMappings="xmlns:review=&quot;urn:example:review&quot; xmlns:review=&quot;urn:example:duplicate&quot; bad-token"/>' . "\n" .
             '        </w:sdtPr>' . "\n" .
             '        <w:sdtContent><w:r><w:t xml:space="preserve"> unmatched inline</w:t></w:r></w:sdtContent>' . "\n" .
             '      </w:sdt>',
@@ -15271,7 +15271,24 @@ XML;
         $t->same([$storeItemId], $contentControls['matchedStoreItemIds']);
         $t->same(['reviewer-name', 'missing-review-field'], $contentControls['tags']);
         $t->same(1, $contentControls['issueCount']);
-        $t->same(['unmatched-store-item-id'], $contentControls['issueCodes']);
+        $t->same([
+            'duplicate-prefix-mapping-prefix',
+            'malformed-prefix-mapping',
+            'unmapped-xpath-prefix',
+            'unmatched-store-item-id',
+        ], $contentControls['issueCodes']);
+        $t->same(4, $contentControls['prefixMappingDeclarationCount']);
+        $t->same(1, $contentControls['prefixMappingInvalidTokenCount']);
+        $t->same(1, $contentControls['prefixMappingDuplicatePrefixCount']);
+        $t->same(['lookup', 'review'], $contentControls['prefixMappingPrefixes']);
+        $t->same([
+            'urn:example:duplicate' => 1,
+            'urn:example:lookup' => 1,
+            'urn:example:review' => 2,
+        ], $contentControls['prefixMappingNamespaceCounts']);
+        $t->same(['missing' => 1, 'review' => 3], $contentControls['xpathPrefixCounts']);
+        $t->same(1, $contentControls['unmappedXPathPrefixCount']);
+        $t->same(['missing'], $contentControls['unmappedXPathPrefixes']);
         $t->same(2, $summary['contentControlCount']);
         $t->same(2, $summary['contentControlDataBindingCount']);
         $t->same(1, $summary['contentControlMatchedDataBindingCount']);
@@ -15283,7 +15300,24 @@ XML;
         $t->same([$storeItemId], $summary['contentControlMatchedStoreItemIds']);
         $t->same(['reviewer-name', 'missing-review-field'], $summary['contentControlTags']);
         $t->same(1, $summary['contentControlIssueCount']);
-        $t->same(['unmatched-store-item-id'], $summary['contentControlIssueCodes']);
+        $t->same(4, $summary['contentControlPrefixMappingDeclarationCount']);
+        $t->same(1, $summary['contentControlPrefixMappingInvalidTokenCount']);
+        $t->same(1, $summary['contentControlPrefixMappingDuplicatePrefixCount']);
+        $t->same(['lookup', 'review'], $summary['contentControlPrefixMappingPrefixes']);
+        $t->same([
+            'urn:example:duplicate' => 1,
+            'urn:example:lookup' => 1,
+            'urn:example:review' => 2,
+        ], $summary['contentControlPrefixMappingNamespaceCounts']);
+        $t->same(['missing' => 1, 'review' => 3], $summary['contentControlXPathPrefixCounts']);
+        $t->same(1, $summary['contentControlUnmappedXPathPrefixCount']);
+        $t->same(['missing'], $summary['contentControlUnmappedXPathPrefixes']);
+        $t->same([
+            'duplicate-prefix-mapping-prefix',
+            'malformed-prefix-mapping',
+            'unmapped-xpath-prefix',
+            'unmatched-store-item-id',
+        ], $summary['contentControlIssueCodes']);
 
         $t->same('block', $matched['scope']);
         $t->same('Reviewer name', $matched['alias']);
@@ -15295,9 +15329,21 @@ XML;
         $t->same('Reviewer: Ada', $matched['text']);
         $t->same(true, $matched['dataBindingPresent']);
         $t->same($storeItemId, $matched['storeItemId']);
-        $t->same('/review/reviewer/name[1]', $matched['xpath']);
-        $t->same('xmlns:review="urn:example:review"', $matched['prefixMappings']);
-        $t->same(1, $matched['prefixMappingCount']);
+        $t->same('/review:review/review:reviewer/review:name[1]', $matched['xpath']);
+        $t->same('xmlns:review="urn:example:review" xmlns:lookup="urn:example:lookup"', $matched['prefixMappings']);
+        $t->same(2, $matched['prefixMappingCount']);
+        $t->same(2, $matched['prefixMappingDeclarationCount']);
+        $t->same(['lookup', 'review'], $matched['prefixMappingPrefixes']);
+        $t->same(['urn:example:lookup', 'urn:example:review'], $matched['prefixMappingNamespaces']);
+        $t->same([
+            'urn:example:lookup' => 1,
+            'urn:example:review' => 1,
+        ], $matched['prefixMappingNamespaceCounts']);
+        $t->same(0, $matched['prefixMappingInvalidTokenCount']);
+        $t->same(0, $matched['prefixMappingDuplicatePrefixCount']);
+        $t->same(['review'], $matched['xpathPrefixes']);
+        $t->same(['review' => 3], $matched['xpathPrefixCounts']);
+        $t->same([], $matched['unmappedXPathPrefixes']);
         $t->same(true, $matched['matchedStoreItem']);
         $t->same(1, $matched['storeItemReferenceCount']);
         $t->same([], $matched['issues']);
@@ -15319,9 +15365,29 @@ XML;
         $t->same(['r'], $unmatched['contentKinds']);
         $t->same(' unmatched inline', $unmatched['text']);
         $t->same($missingStoreItemId, $unmatched['storeItemId']);
+        $t->same('/missing:review[1]', $unmatched['xpath']);
+        $t->same(3, $unmatched['prefixMappingCount']);
+        $t->same(2, $unmatched['prefixMappingDeclarationCount']);
+        $t->same(['review'], $unmatched['prefixMappingPrefixes']);
+        $t->same([
+            'urn:example:duplicate' => 1,
+            'urn:example:review' => 1,
+        ], $unmatched['prefixMappingNamespaceCounts']);
+        $t->same(1, $unmatched['prefixMappingInvalidTokenCount']);
+        $t->same(['bad-token'], $unmatched['prefixMappingInvalidTokens']);
+        $t->same(1, $unmatched['prefixMappingDuplicatePrefixCount']);
+        $t->same(['review'], $unmatched['prefixMappingDuplicatePrefixes']);
+        $t->same(['missing'], $unmatched['xpathPrefixes']);
+        $t->same(['missing' => 1], $unmatched['xpathPrefixCounts']);
+        $t->same(['missing'], $unmatched['unmappedXPathPrefixes']);
         $t->same(false, $unmatched['matchedStoreItem']);
         $t->same(0, $unmatched['storeItemReferenceCount']);
-        $t->same(['unmatched-store-item-id'], $unmatched['issues']);
+        $t->same([
+            'unmatched-store-item-id',
+            'malformed-prefix-mapping',
+            'duplicate-prefix-mapping-prefix',
+            'unmapped-xpath-prefix',
+        ], $unmatched['issues']);
         $t->same('Reviewer: Ada', $document->children[1]->attr('text'));
         $t->contains('unmatched inline', $document->children[2]->attr('text'));
     },

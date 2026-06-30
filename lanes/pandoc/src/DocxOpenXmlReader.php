@@ -986,6 +986,14 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['contentControlStoreItemIds'] = $contentControls['storeItemIds'];
         $packageProvenance['summary']['contentControlMatchedStoreItemIds'] = $contentControls['matchedStoreItemIds'];
         $packageProvenance['summary']['contentControlTags'] = $contentControls['tags'];
+        $packageProvenance['summary']['contentControlPrefixMappingDeclarationCount'] = $contentControls['prefixMappingDeclarationCount'];
+        $packageProvenance['summary']['contentControlPrefixMappingInvalidTokenCount'] = $contentControls['prefixMappingInvalidTokenCount'];
+        $packageProvenance['summary']['contentControlPrefixMappingDuplicatePrefixCount'] = $contentControls['prefixMappingDuplicatePrefixCount'];
+        $packageProvenance['summary']['contentControlPrefixMappingPrefixes'] = $contentControls['prefixMappingPrefixes'];
+        $packageProvenance['summary']['contentControlPrefixMappingNamespaceCounts'] = $contentControls['prefixMappingNamespaceCounts'];
+        $packageProvenance['summary']['contentControlXPathPrefixCounts'] = $contentControls['xpathPrefixCounts'];
+        $packageProvenance['summary']['contentControlUnmappedXPathPrefixCount'] = $contentControls['unmappedXPathPrefixCount'];
+        $packageProvenance['summary']['contentControlUnmappedXPathPrefixes'] = $contentControls['unmappedXPathPrefixes'];
         $packageProvenance['summary']['contentControlIssueCount'] = $contentControls['issueCount'];
         $packageProvenance['summary']['contentControlIssueCodes'] = $contentControls['issueCodes'];
         $packageProvenance['settingsRelationships'] = $settingsRelationshipInventory;
@@ -9889,6 +9897,14 @@ final class DocxOpenXmlReader
         $matchedStoreItemIds = [];
         $byStoreItemId = [];
         $tags = [];
+        $prefixMappingDeclarationCount = 0;
+        $prefixMappingInvalidTokenCount = 0;
+        $prefixMappingDuplicatePrefixCount = 0;
+        $prefixMappingPrefixes = [];
+        $prefixMappingNamespaceCounts = [];
+        $xpathPrefixCounts = [];
+        $unmappedXPathPrefixes = [];
+        $unmappedXPathPrefixCount = 0;
 
         foreach ($this->elements($xpath, '//w:sdt') as $contentControl) {
             $item = $this->contentControlItem($contentControl, $xpath, $partName, count($items), $storeItemReferences);
@@ -9898,6 +9914,33 @@ final class DocxOpenXmlReader
             $scopeCounts[$scope] = ($scopeCounts[$scope] ?? 0) + 1;
             $tag = is_string($item['tag'] ?? null) ? $item['tag'] : '';
             $this->appendUniqueString($tags, $tag === '' ? null : $tag);
+            $prefixMappingDeclarationCount += (int) ($item['prefixMappingDeclarationCount'] ?? 0);
+            $prefixMappingInvalidTokenCount += (int) ($item['prefixMappingInvalidTokenCount'] ?? 0);
+            $prefixMappingDuplicatePrefixCount += (int) ($item['prefixMappingDuplicatePrefixCount'] ?? 0);
+            foreach (($item['prefixMappingPrefixes'] ?? []) as $prefix) {
+                $this->appendUniqueString($prefixMappingPrefixes, is_string($prefix) ? $prefix : null);
+            }
+            foreach (($item['prefixMappingNamespaceCounts'] ?? []) as $namespace => $count) {
+                if (!is_string($namespace) || $namespace === '') {
+                    continue;
+                }
+                $prefixMappingNamespaceCounts[$namespace] = ($prefixMappingNamespaceCounts[$namespace] ?? 0) + (int) $count;
+            }
+            foreach (($item['xpathPrefixCounts'] ?? []) as $prefix => $count) {
+                if (!is_string($prefix) || $prefix === '') {
+                    continue;
+                }
+                $xpathPrefixCounts[$prefix] = ($xpathPrefixCounts[$prefix] ?? 0) + (int) $count;
+            }
+            $itemUnmappedXPathPrefixes = is_array($item['unmappedXPathPrefixes'] ?? null)
+                ? array_values(array_map('strval', $item['unmappedXPathPrefixes']))
+                : [];
+            if ($itemUnmappedXPathPrefixes !== []) {
+                ++$unmappedXPathPrefixCount;
+                foreach ($itemUnmappedXPathPrefixes as $prefix) {
+                    $this->appendUniqueString($unmappedXPathPrefixes, $prefix);
+                }
+            }
 
             $storeItemId = is_string($item['storeItemId'] ?? null) ? $item['storeItemId'] : '';
             if ($storeItemId !== '') {
@@ -9918,6 +9961,10 @@ final class DocxOpenXmlReader
         ksort($issueCodes, SORT_STRING);
         ksort($scopeCounts, SORT_STRING);
         ksort($byStoreItemId, SORT_STRING);
+        ksort($prefixMappingNamespaceCounts, SORT_STRING);
+        ksort($xpathPrefixCounts, SORT_STRING);
+        sort($prefixMappingPrefixes, SORT_STRING);
+        sort($unmappedXPathPrefixes, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -9930,6 +9977,14 @@ final class DocxOpenXmlReader
             'storeItemIds' => $storeItemIds,
             'matchedStoreItemIds' => $matchedStoreItemIds,
             'tags' => $tags,
+            'prefixMappingDeclarationCount' => $prefixMappingDeclarationCount,
+            'prefixMappingInvalidTokenCount' => $prefixMappingInvalidTokenCount,
+            'prefixMappingDuplicatePrefixCount' => $prefixMappingDuplicatePrefixCount,
+            'prefixMappingPrefixes' => $prefixMappingPrefixes,
+            'prefixMappingNamespaceCounts' => $prefixMappingNamespaceCounts,
+            'xpathPrefixCounts' => $xpathPrefixCounts,
+            'unmappedXPathPrefixCount' => $unmappedXPathPrefixCount,
+            'unmappedXPathPrefixes' => $unmappedXPathPrefixes,
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'issueCodes' => array_keys($issueCodes),
             'byStoreItemId' => $byStoreItemId,
@@ -9955,6 +10010,14 @@ final class DocxOpenXmlReader
             'storeItemIds' => [],
             'matchedStoreItemIds' => [],
             'tags' => [],
+            'prefixMappingDeclarationCount' => 0,
+            'prefixMappingInvalidTokenCount' => 0,
+            'prefixMappingDuplicatePrefixCount' => 0,
+            'prefixMappingPrefixes' => [],
+            'prefixMappingNamespaceCounts' => [],
+            'xpathPrefixCounts' => [],
+            'unmappedXPathPrefixCount' => 0,
+            'unmappedXPathPrefixes' => [],
             'issueCount' => 0,
             'issueCodes' => [],
             'byStoreItemId' => [],
@@ -9981,6 +10044,16 @@ final class DocxOpenXmlReader
         $storeItemId = $dataBinding instanceof \DOMElement ? trim($dataBinding->getAttributeNS(self::NS_W, 'storeItemID')) : '';
         $xpathValue = $dataBinding instanceof \DOMElement ? trim($dataBinding->getAttributeNS(self::NS_W, 'xpath')) : '';
         $prefixMappings = $dataBinding instanceof \DOMElement ? trim($dataBinding->getAttributeNS(self::NS_W, 'prefixMappings')) : '';
+        $prefixMappingSummary = $this->contentControlPrefixMappingSummary($prefixMappings);
+        $xpathPrefixSummary = $this->contentControlXPathPrefixSummary($xpathValue);
+        $mappedPrefixes = array_fill_keys($prefixMappingSummary['prefixes'], true);
+        $mappedPrefixes['xml'] = true;
+        $unmappedXPathPrefixes = [];
+        foreach ($xpathPrefixSummary['prefixes'] as $prefix) {
+            if (!isset($mappedPrefixes[$prefix])) {
+                $unmappedXPathPrefixes[] = $prefix;
+            }
+        }
         $matchingStoreItems = $storeItemId === '' ? [] : ($storeItemReferences['byStoreItemId'][$storeItemId] ?? []);
         $issues = [];
 
@@ -9992,6 +10065,15 @@ final class DocxOpenXmlReader
         }
         if (count($matchingStoreItems) > 1) {
             $issues[] = 'duplicate-store-item-id';
+        }
+        if ($prefixMappingSummary['invalidTokenCount'] > 0) {
+            $issues[] = 'malformed-prefix-mapping';
+        }
+        if ($prefixMappingSummary['duplicatePrefixCount'] > 0) {
+            $issues[] = 'duplicate-prefix-mapping-prefix';
+        }
+        if ($unmappedXPathPrefixes !== []) {
+            $issues[] = 'unmapped-xpath-prefix';
         }
 
         return [
@@ -10011,12 +10093,124 @@ final class DocxOpenXmlReader
             'xpath' => $xpathValue === '' ? null : $xpathValue,
             'prefixMappings' => $prefixMappings === '' ? null : $prefixMappings,
             'prefixMappingCount' => $prefixMappings === '' ? 0 : count(preg_split('/\s+/', $prefixMappings) ?: []),
+            'prefixMappingDeclarationCount' => $prefixMappingSummary['declarationCount'],
+            'prefixMappingDeclarations' => $prefixMappingSummary['declarations'],
+            'prefixMappingPrefixes' => $prefixMappingSummary['prefixes'],
+            'prefixMappingNamespaces' => $prefixMappingSummary['namespaces'],
+            'prefixMappingNamespaceCounts' => $prefixMappingSummary['namespaceCounts'],
+            'prefixMappingInvalidTokenCount' => $prefixMappingSummary['invalidTokenCount'],
+            'prefixMappingInvalidTokens' => $prefixMappingSummary['invalidTokens'],
+            'prefixMappingDuplicatePrefixCount' => $prefixMappingSummary['duplicatePrefixCount'],
+            'prefixMappingDuplicatePrefixes' => $prefixMappingSummary['duplicatePrefixes'],
+            'xpathPrefixes' => $xpathPrefixSummary['prefixes'],
+            'xpathPrefixCounts' => $xpathPrefixSummary['prefixCounts'],
+            'unmappedXPathPrefixes' => $unmappedXPathPrefixes,
             'matchedStoreItem' => $matchingStoreItems !== [],
             'storeItemReferenceCount' => count($matchingStoreItems),
             'storeItemReferences' => $matchingStoreItems,
             'byteExposurePolicy' => 'content-control-data-binding-bytes-blocked',
             'reviewPolicy' => 'content-control-data-binding-metadata-only',
             'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @return array{declarationCount:int, declarations:list<array{prefix:string, prefixLabel:string, namespace:string, namespaceLength:int, namespaceSha256:string}>, prefixes:list<string>, namespaces:list<string>, namespaceCounts:array<string, int>, invalidTokenCount:int, invalidTokens:list<string>, duplicatePrefixCount:int, duplicatePrefixes:list<string>}
+     */
+    private function contentControlPrefixMappingSummary(string $prefixMappings): array
+    {
+        if ($prefixMappings === '') {
+            return [
+                'declarationCount' => 0,
+                'declarations' => [],
+                'prefixes' => [],
+                'namespaces' => [],
+                'namespaceCounts' => [],
+                'invalidTokenCount' => 0,
+                'invalidTokens' => [],
+                'duplicatePrefixCount' => 0,
+                'duplicatePrefixes' => [],
+            ];
+        }
+
+        $declarations = [];
+        $prefixes = [];
+        $namespaces = [];
+        $namespaceCounts = [];
+        $prefixCounts = [];
+        $remaining = $prefixMappings;
+        if (preg_match_all('/xmlns(?::([A-Za-z_][A-Za-z0-9._-]*))?\s*=\s*([\'"])(.*?)\2/u', $prefixMappings, $matches, PREG_SET_ORDER)) {
+            foreach ($matches as $match) {
+                $prefix = is_string($match[1] ?? null) ? $match[1] : '';
+                $namespace = is_string($match[3] ?? null) ? $match[3] : '';
+                $prefixLabel = $prefix === '' ? '(default)' : $prefix;
+                $declarations[] = [
+                    'prefix' => $prefix,
+                    'prefixLabel' => $prefixLabel,
+                    'namespace' => $namespace,
+                    'namespaceLength' => strlen($namespace),
+                    'namespaceSha256' => hash('sha256', $namespace),
+                ];
+                $this->appendUniqueString($prefixes, $prefixLabel);
+                $this->appendUniqueString($namespaces, $namespace);
+                $namespaceCounts[$namespace] = ($namespaceCounts[$namespace] ?? 0) + 1;
+                $prefixCounts[$prefixLabel] = ($prefixCounts[$prefixLabel] ?? 0) + 1;
+                $remaining = str_replace($match[0], ' ', $remaining);
+            }
+        }
+
+        $invalidTokens = [];
+        foreach (preg_split('/\s+/', trim($remaining)) ?: [] as $token) {
+            if ($token === '') {
+                continue;
+            }
+            $this->appendUniqueString($invalidTokens, $token);
+        }
+
+        $duplicatePrefixes = [];
+        foreach ($prefixCounts as $prefix => $count) {
+            if ($count > 1) {
+                $duplicatePrefixes[] = $prefix;
+            }
+        }
+
+        sort($prefixes, SORT_STRING);
+        sort($namespaces, SORT_STRING);
+        sort($duplicatePrefixes, SORT_STRING);
+        ksort($namespaceCounts, SORT_STRING);
+
+        return [
+            'declarationCount' => count($declarations),
+            'declarations' => $declarations,
+            'prefixes' => $prefixes,
+            'namespaces' => $namespaces,
+            'namespaceCounts' => $namespaceCounts,
+            'invalidTokenCount' => count($invalidTokens),
+            'invalidTokens' => $invalidTokens,
+            'duplicatePrefixCount' => count($duplicatePrefixes),
+            'duplicatePrefixes' => $duplicatePrefixes,
+        ];
+    }
+
+    /**
+     * @return array{prefixes:list<string>, prefixCounts:array<string, int>}
+     */
+    private function contentControlXPathPrefixSummary(string $xpath): array
+    {
+        $prefixCounts = [];
+        if ($xpath !== '' && preg_match_all('/(?<![A-Za-z0-9_.-])([A-Za-z_][A-Za-z0-9._-]*):[A-Za-z_][A-Za-z0-9._-]*/u', $xpath, $matches)) {
+            foreach ($matches[1] as $prefix) {
+                if (!is_string($prefix) || $prefix === '') {
+                    continue;
+                }
+                $prefixCounts[$prefix] = ($prefixCounts[$prefix] ?? 0) + 1;
+            }
+        }
+        ksort($prefixCounts, SORT_STRING);
+
+        return [
+            'prefixes' => array_keys($prefixCounts),
+            'prefixCounts' => $prefixCounts,
         ];
     }
 
