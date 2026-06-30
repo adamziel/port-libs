@@ -28208,6 +28208,7 @@ XML;
         $parts['word/_rels/document.xml.rels'] = str_replace(
             '</Relationships>',
             '  <Relationship Id="rSubExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/subDocument" Target="https://example.test/subdocuments/source-review.docx?revision=4#main" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rSubUnsafeExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/subDocument" Target="javascript:alert(1)" TargetMode="External"/>' . "\n" .
             '  <Relationship Id="rSubInternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/subDocument" Target="subdocuments/internal.docx"/>' . "\n" .
             '  <Relationship Id="rSubMissing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/subDocument" Target="subdocuments/missing.docx"/>' . "\n" .
             '  <Relationship Id="rSubUnreferenced" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/subDocument" Target="subdocuments/unreferenced.docx"/>' . "\n" .
@@ -28218,6 +28219,7 @@ XML;
         $parts['word/document.xml'] = str_replace(
             '  </w:body>',
             '    <w:subDoc r:id="rSubExternal"/>' . "\n" .
+            '    <w:subDoc r:id="rSubUnsafeExternal"/>' . "\n" .
             '    <w:subDoc r:id="rSubInternal"/>' . "\n" .
             '    <w:subDoc r:id="rSubMissing"/>' . "\n" .
             '    <w:subDoc r:id="rSubWrongType"/>' . "\n" .
@@ -28237,25 +28239,29 @@ XML;
         $relationshipTypes = $package['relationshipTypes'];
         $subdocumentRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/subDocument';
         $external = $subdocuments['byRelationshipId']['rSubExternal'];
+        $unsafeExternal = $subdocuments['byRelationshipId']['rSubUnsafeExternal'];
         $internal = $subdocuments['byRelationshipId']['rSubInternal'];
         $missing = $subdocuments['byRelationshipId']['rSubMissing'];
         $wrongType = $subdocuments['byRelationshipId']['rSubWrongType'];
         $unknown = $subdocuments['byRelationshipId']['rSubUnknown'];
         $unreferenced = $subdocuments['byRelationshipId']['rSubUnreferenced'];
-        $missingId = $subdocuments['items'][5];
+        $missingId = $subdocuments['items'][6];
 
         $t->same($subdocuments, $package['subdocuments']);
-        $t->same(7, $subdocuments['count']);
-        $t->same(4, $subdocuments['relationshipCount']);
-        $t->same(6, $subdocuments['referencedCount']);
+        $t->same(8, $subdocuments['count']);
+        $t->same(5, $subdocuments['relationshipCount']);
+        $t->same(7, $subdocuments['referencedCount']);
         $t->same(1, $subdocuments['unreferencedRelationshipCount']);
         $t->same(2, $subdocuments['existingCount']);
         $t->same(1, $subdocuments['missingCount']);
-        $t->same(2, $subdocuments['externalCount']);
+        $t->same(3, $subdocuments['externalCount']);
+        $t->same(2, $subdocuments['allowedExternalTargetCount']);
+        $t->same(1, $subdocuments['unsafeExternalTargetCount']);
         $t->same(3, $subdocuments['internalCount']);
-        $t->same(7, $subdocuments['unsupportedCount']);
-        $t->same(6, $subdocuments['issueCount']);
+        $t->same(8, $subdocuments['unsupportedCount']);
+        $t->same(7, $subdocuments['issueCount']);
         $t->same([
+            'external-target-unsafe-scheme',
             'internal-subdocument-target',
             'missing-in-package',
             'missing-relationship-id',
@@ -28266,14 +28272,19 @@ XML;
         $t->same('subdocument-master-document-expansion-not-implemented', $subdocuments['unsupportedReason']);
         $t->same('subdocument-package-bytes-blocked', $subdocuments['byteExposurePolicy']);
         $t->same('subdocument-metadata-only', $subdocuments['reviewPolicy']);
-        $t->same(['rSubExternal', 'rSubInternal', 'rSubMissing', 'rSubWrongType', 'rSubUnknown', 'rSubUnreferenced'], $subdocuments['relationshipIds']);
-        $t->same(['rSubExternal', 'rSubInternal', 'rSubMissing', 'rSubWrongType', 'rSubUnknown'], $subdocuments['referencedRelationshipIds']);
+        $t->same(['rSubExternal', 'rSubUnsafeExternal', 'rSubInternal', 'rSubMissing', 'rSubWrongType', 'rSubUnknown', 'rSubUnreferenced'], $subdocuments['relationshipIds']);
+        $t->same(['rSubExternal', 'rSubUnsafeExternal', 'rSubInternal', 'rSubMissing', 'rSubWrongType', 'rSubUnknown'], $subdocuments['referencedRelationshipIds']);
         $t->same(['rSubUnreferenced'], $subdocuments['unreferencedRelationshipIds']);
         $t->same(['word/subdocuments/internal.docx', 'word/subdocuments/missing.docx', 'word/subdocuments/unreferenced.docx'], $subdocuments['partNames']);
         $t->same([
             'https://example.test/subdocuments/source-review.docx?revision=4#main',
+            'javascript:alert(1)',
             'https://example.test/not-subdocument',
         ], $subdocuments['externalTargets']);
+        $t->same(['javascript:alert(1)'], $subdocuments['unsafeExternalTargets']);
+        $t->same(['absolute-uri' => 3], $subdocuments['externalTargetKindCounts']);
+        $t->same(['https' => 2, 'javascript' => 1], $subdocuments['externalTargetSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme'], $subdocuments['externalTargetIssueCodes']);
 
         $t->same('rSubExternal', $external['relationshipId']);
         $t->same(true, $external['referenced']);
@@ -28285,6 +28296,18 @@ XML;
         $t->same(true, $external['external']);
         $t->same(null, $external['targetPart']);
         $t->same([], $external['issues']);
+        $t->same('absolute-uri', $external['externalTargetKind']);
+        $t->same('https', $external['externalTargetScheme']);
+        $t->same(true, $external['externalTargetAllowed']);
+        $t->same([], $external['externalTargetIssues']);
+
+        $t->same(true, $unsafeExternal['external']);
+        $t->same('javascript:alert(1)', $unsafeExternal['target']);
+        $t->same('absolute-uri', $unsafeExternal['externalTargetKind']);
+        $t->same('javascript', $unsafeExternal['externalTargetScheme']);
+        $t->same(false, $unsafeExternal['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $unsafeExternal['externalTargetIssues']);
+        $t->same(['external-target-unsafe-scheme'], $unsafeExternal['issues']);
 
         $t->same('word/subdocuments/internal.docx', $internal['targetPart']);
         $t->same(true, $internal['exists']);
@@ -28309,20 +28332,28 @@ XML;
         $t->same(true, $unreferenced['exists']);
         $t->same(['internal-subdocument-target'], $unreferenced['issues']);
 
-        $t->same(7, $summary['subdocumentCount']);
-        $t->same(4, $summary['subdocumentRelationshipCount']);
-        $t->same(6, $summary['subdocumentReferencedCount']);
+        $t->same(8, $summary['subdocumentCount']);
+        $t->same(5, $summary['subdocumentRelationshipCount']);
+        $t->same(7, $summary['subdocumentReferencedCount']);
         $t->same(2, $summary['subdocumentExistingCount']);
         $t->same(1, $summary['subdocumentMissingCount']);
-        $t->same(2, $summary['subdocumentExternalCount']);
+        $t->same(3, $summary['subdocumentExternalCount']);
+        $t->same(2, $summary['subdocumentAllowedExternalCount']);
+        $t->same(1, $summary['subdocumentUnsafeExternalCount']);
+        $t->same(['external-target-unsafe-scheme'], $summary['subdocumentExternalTargetIssueCodes']);
         $t->same(3, $summary['subdocumentInternalCount']);
-        $t->same(7, $summary['subdocumentUnsupportedCount']);
-        $t->same(6, $summary['subdocumentIssueCount']);
+        $t->same(8, $summary['subdocumentUnsupportedCount']);
+        $t->same(7, $summary['subdocumentIssueCount']);
         $t->same($subdocuments['issueCodes'], $summary['subdocumentIssueCodes']);
         $t->same('subDocument', $relationshipTypes[$subdocumentRel]['label']);
-        $t->same(4, $relationshipTypes[$subdocumentRel]['count']);
+        $t->same(5, $relationshipTypes[$subdocumentRel]['count']);
         $t->same(3, $relationshipTypes[$subdocumentRel]['internalCount']);
-        $t->same(1, $relationshipTypes[$subdocumentRel]['externalCount']);
+        $t->same(2, $relationshipTypes[$subdocumentRel]['externalCount']);
+        $t->same(1, $relationshipTypes[$subdocumentRel]['allowedExternalTargetCount']);
+        $t->same(1, $relationshipTypes[$subdocumentRel]['unsafeExternalTargetCount']);
+        $t->same(['https' => 1, 'javascript' => 1], $relationshipTypes[$subdocumentRel]['externalTargetSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme' => 1], $relationshipTypes[$subdocumentRel]['externalTargetIssueCounts']);
+        $t->same('javascript:alert(1)', $relationshipTypes[$subdocumentRel]['unsafeExternalTargets'][0]['target']);
         $t->same(['word/subdocuments/internal.docx', 'word/subdocuments/unreferenced.docx'], $relationshipTypes[$subdocumentRel]['existingTargetParts']);
         $t->same(['word/subdocuments/missing.docx'], $relationshipTypes[$subdocumentRel]['missingTargetParts']);
         $t->true(in_array('subdocument', $package['parts']['word/subdocuments/internal.docx']['roles'], true), 'internal subdocument role missing');
