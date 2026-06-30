@@ -27,6 +27,14 @@ final class OdtReader
     /** @var list<string> */
     private array $referencedResources = [];
 
+    private int $bookmarkCount = 0;
+
+    private int $bookmarkReferenceCount = 0;
+
+    private int $referenceMarkCount = 0;
+
+    private int $referenceReferenceCount = 0;
+
     public function read(string $bytes): AstNode
     {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
@@ -118,6 +126,10 @@ final class OdtReader
         }
 
         $this->referencedResources = [];
+        $this->bookmarkCount = 0;
+        $this->bookmarkReferenceCount = 0;
+        $this->referenceMarkCount = 0;
+        $this->referenceReferenceCount = 0;
         $children = $text instanceof \DOMElement ? $this->parseBlockChildren($text) : [];
         if ($children === []) {
             $children[] = new AstNode('paragraph', ['text' => 'No readable ODT body content was found.'], [
@@ -136,6 +148,10 @@ final class OdtReader
         $metadata['odtImageResources'] = $image_resources !== []
             ? $image_resources
             : array_values(array_filter($referenced_resources, fn (string $path): bool => $this->pathLooksLikeImage($path)));
+        $metadata['odtBookmarkCount'] = $this->bookmarkCount;
+        $metadata['odtBookmarkReferenceCount'] = $this->bookmarkReferenceCount;
+        $metadata['odtReferenceMarkCount'] = $this->referenceMarkCount;
+        $metadata['odtReferenceReferenceCount'] = $this->referenceReferenceCount;
 
         return new AstNode('document', ['meta' => $metadata], $children);
     }
@@ -363,6 +379,11 @@ final class OdtReader
                 'url' => $this->attr($element, self::XLINK_NS, 'href'),
                 'title' => '',
             ], $this->parseInlines($element))],
+            'bookmark', 'bookmark-start' => $this->bookmarkAnchor($element),
+            'bookmark-ref' => $this->bookmarkReference($element),
+            'reference-mark', 'reference-mark-start' => $this->referenceMarkAnchor($element),
+            'reference-ref' => $this->referenceReference($element),
+            'bookmark-end', 'reference-mark-end' => [],
             'line-break' => [new AstNode('linebreak')],
             'tab' => [new AstNode('text', ['text' => "\t"])],
             's' => [new AstNode('text', ['text' => str_repeat(' ', max(1, (int) ($this->attr($element, self::TEXT_NS, 'c') ?: '1')))])],
@@ -370,6 +391,123 @@ final class OdtReader
             'note' => [$this->note($element)],
             default => $this->parseInlines($element),
         };
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function bookmarkAnchor(\DOMElement $element): array
+    {
+        $name = $this->attr($element, self::TEXT_NS, 'name');
+        if ($name === '') {
+            return [];
+        }
+
+        ++$this->bookmarkCount;
+
+        return [new AstNode('span', [
+            'sourceFormat' => 'odt',
+            'id' => $this->odtFragmentId($name, 'odt-bookmark'),
+            'classes' => ['anchor', 'odt-bookmark'],
+            'attributes' => [
+                'data-odt-bookmark-name' => $name,
+            ],
+        ])];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function bookmarkReference(\DOMElement $element): array
+    {
+        $name = $this->attr($element, self::TEXT_NS, 'ref-name');
+        if ($name === '') {
+            $name = $this->attr($element, self::TEXT_NS, 'name');
+        }
+        if ($name === '') {
+            return $this->parseInlines($element);
+        }
+
+        ++$this->bookmarkReferenceCount;
+        $children = $this->parseInlines($element);
+        if ($children === []) {
+            $children = [new AstNode('text', ['text' => $name])];
+        }
+
+        $attrs = [
+            'sourceFormat' => 'odt',
+            'url' => '#' . $this->odtFragmentId($name, 'odt-bookmark'),
+            'title' => '',
+            'classes' => ['odt-bookmark-ref'],
+            'attributes' => [
+                'data-odt-ref-name' => $name,
+            ],
+        ];
+        $format = $this->attr($element, self::TEXT_NS, 'reference-format');
+        if ($format !== '') {
+            $attrs['attributes']['data-odt-reference-format'] = $format;
+        }
+
+        return [new AstNode('link', $attrs, $children)];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function referenceMarkAnchor(\DOMElement $element): array
+    {
+        $name = $this->attr($element, self::TEXT_NS, 'name');
+        if ($name === '') {
+            return [];
+        }
+
+        ++$this->referenceMarkCount;
+
+        return [new AstNode('span', [
+            'sourceFormat' => 'odt',
+            'id' => $this->odtFragmentId($name, 'odt-reference'),
+            'classes' => ['anchor', 'odt-reference-mark'],
+            'referenceName' => $name,
+            'attributes' => [
+                'data-odt-reference-name' => $name,
+            ],
+        ])];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function referenceReference(\DOMElement $element): array
+    {
+        $name = $this->attr($element, self::TEXT_NS, 'ref-name');
+        if ($name === '') {
+            $name = $this->attr($element, self::TEXT_NS, 'name');
+        }
+        if ($name === '') {
+            return $this->parseInlines($element);
+        }
+
+        ++$this->referenceReferenceCount;
+        $children = $this->parseInlines($element);
+        if ($children === []) {
+            $children = [new AstNode('text', ['text' => $name])];
+        }
+
+        $attrs = [
+            'sourceFormat' => 'odt',
+            'url' => '#' . $this->odtFragmentId($name, 'odt-reference'),
+            'title' => '',
+            'classes' => ['odt-reference-ref'],
+            'attributes' => [
+                'data-odt-ref-name' => $name,
+            ],
+        ];
+        $format = $this->attr($element, self::TEXT_NS, 'reference-format');
+        if ($format !== '') {
+            $attrs['attributes']['data-odt-reference-format'] = $format;
+        }
+
+        return [new AstNode('link', $attrs, $children)];
     }
 
     private function note(\DOMElement $element): AstNode
@@ -974,6 +1112,14 @@ final class OdtReader
         }
 
         return '';
+    }
+
+    private function odtFragmentId(string $name, string $fallback): string
+    {
+        $id = strtolower(preg_replace('/[^A-Za-z0-9]+/', '-', trim($name)) ?? '');
+        $id = trim($id, '-');
+
+        return $id === '' ? $fallback : $id;
     }
 
     private function odtElementName(\DOMElement $element): string
