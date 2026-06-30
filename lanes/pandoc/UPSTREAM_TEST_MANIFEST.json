@@ -1906,6 +1906,31 @@
                 "admissionRule": "Do not set resultRecorded=true until command transcript, exit code, selected test inventory, and pass/fail counts are captured for the pinned upstream checkout."
             },
             "honestClaim": "This records entry points, fixture closure, and commands for a future targeted run only. It is not an upstream DOCX runner result."
+        },
+        "focusedCiEvidenceWiring": {
+            "schemaVersion": 1,
+            "status": "focused-ci-evidence-wired-local-validation-complete",
+            "workflow": ".github/workflows/pandoc-docx.yml",
+            "updatedAt": "2026-06-30",
+            "commands": {
+                "selectedInventoryPreflight": "php tools/pandoc-docx-upstream-runner-plan.php --json --write-selected-inventory .port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json",
+                "resultArtifactGate": "php tools/pandoc-docx-upstream-runner-plan.php --json --validate-result-artifacts --artifact-root .port-libs/pandoc-runner/artifacts/docx-targeted-run --log-root .port-libs/pandoc-runner/logs",
+                "parserRegressionGuard": "php tools/pandoc-docx-parity-audit.php --json --fail-on-regression",
+                "cacheManifest": "php tools/pandoc-docx-cache-manifest.php --json"
+            },
+            "localValidation": {
+                "validatedAt": "2026-06-30",
+                "upstreamCachePresent": false,
+                "cacheManifestStatus": "skipped_missing_upstream_docx_directory",
+                "parserAuditStatus": "skipped_missing_upstream_docx_directory",
+                "parserRegressionEvaluated": false,
+                "parserRegressionReason": "not-evaluated-source-directory-unavailable",
+                "runnerPreflightStatus": "blocked-missing-docx-upstream-source",
+                "resultArtifactGateStatus": "blocked-missing-targeted-runner-result-artifacts",
+                "resultArtifactGateAdmissionReady": false,
+                "selectedInventoryWriteStatus": "written-blocked-missing-docx-upstream-source"
+            },
+            "claim": "Focused CI/status wiring only; local commands did not execute Cabal/Tasty, did not admit runner result artifacts, did not compare writer golden packages, and did not change the recorded DOCX parity blocker counts."
         }
     },
     "nativeImplementation": {

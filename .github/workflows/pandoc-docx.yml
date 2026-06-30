@@ -44,8 +44,10 @@ jobs:
           php -l lanes/pandoc/src/DocxUpstreamCacheManifest.php
           php -l lanes/pandoc/src/DocxUpstreamRunnerPlan.php
           php -l lanes/pandoc/src/DocxWriterGoldenManifest.php
+          php -l lanes/pandoc/src/MediaBag.php
           php -l lanes/pandoc/src/ZipPackage.php
           php -l lanes/pandoc/src/ZipPackageEntry.php
+          php -l lanes/pandoc/tests/DocxGeneratedFieldMetadataTest.php
           php -l lanes/pandoc/tests/DocxReaderTest.php
           php -l lanes/pandoc/tests/DocxOpenXmlReaderTest.php
           php -l lanes/pandoc/tests/DocxNativeAstComparisonHarnessTest.php
@@ -54,6 +56,7 @@ jobs:
           php -l lanes/pandoc/tests/DocxParityEvidenceStatusTest.php
           php -l lanes/pandoc/tests/DocxUpstreamCacheManifestTest.php
           php -l lanes/pandoc/tests/DocxUpstreamRunnerPlanTest.php
+          php -l lanes/pandoc/tests/MediaBagTest.php
           php -l lanes/pandoc/tests/UpstreamRunnerDependencyAuditTest.php
           php -l lanes/pandoc/tests/ZipPackageTest.php
           php -l tools/pandoc-docx-cache-manifest.php
@@ -70,7 +73,18 @@ jobs:
         run: php tools/pandoc-docx-cache-manifest.php --json
 
       - name: Run optional upstream DOCX runner preflight plan
-        run: php tools/pandoc-docx-upstream-runner-plan.php --json
+        run: |
+          php tools/pandoc-docx-upstream-runner-plan.php \
+            --json \
+            --write-selected-inventory .port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json
+
+      - name: Run optional upstream DOCX runner result artifact gate
+        run: |
+          php tools/pandoc-docx-upstream-runner-plan.php \
+            --json \
+            --validate-result-artifacts \
+            --artifact-root .port-libs/pandoc-runner/artifacts/docx-targeted-run \
+            --log-root .port-libs/pandoc-runner/logs
 
       - name: Run optional upstream DOCX/native smoke
         run: php tools/pandoc-docx-native-smoke.php --limit=12
@@ -79,7 +93,7 @@ jobs:
         run: php tools/pandoc-docx-native-ast.php --limit=12
 
       - name: Run optional DOCX parser coverage audit
-        run: php tools/pandoc-docx-parity-audit.php --max-pairs=12
+        run: php tools/pandoc-docx-parity-audit.php --fail-on-regression
 
       - name: Run optional DOCX writer golden manifest audit
         run: php tools/pandoc-docx-writer-golden-audit.php --json
