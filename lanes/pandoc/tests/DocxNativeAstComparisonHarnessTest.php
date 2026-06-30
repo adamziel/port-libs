@@ -64,6 +64,19 @@ $writeDocxDocument = static function (string $path, string $documentXml): void {
     $zip->close();
 };
 
+$writeDocxParts = static function (string $path, array $parts): void {
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+        throw new RuntimeException("Unable to create DOCX fixture {$path}");
+    }
+
+    foreach ($parts as $name => $data) {
+        $zip->addFromString((string) $name, (string) $data);
+    }
+
+    $zip->close();
+};
+
 return [
     'skips docx native ast comparison when cache is absent' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $root = $makeTempDir();
@@ -188,6 +201,50 @@ XML);
             $t->same(0, $report['normalizedAstMismatchCount']);
             $t->true(in_array('local DOCX raw bookmark markers and visible field/content-control provenance wrappers', $report['normalizationPolicy']['excludes'], true));
             $t->true(in_array('DOCX tab separator encoding when upstream native exposes equivalent spacing', $report['normalizationPolicy']['excludes'], true));
+        } finally {
+            $removeTree($root);
+        }
+    },
+    'compares docx field links and note references without local attribute drift' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeDocxParts): void {
+        $root = $makeTempDir();
+
+        try {
+            $writeDocxParts($root . '/same.docx', [
+                '[Content_Types].xml' => '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/></Types>',
+                'word/document.xml' => <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">See </w:t></w:r>
+      <w:fldSimple w:instr=" PAGEREF TargetAnchor \h "><w:r><w:t>2</w:t></w:r></w:fldSimple>
+      <w:r><w:t xml:space="preserve"> and </w:t></w:r>
+      <w:fldSimple w:instr=' HYPERLINK "https://example.test/source" '><w:r><w:t>source</w:t></w:r></w:fldSimple>
+      <w:r><w:t xml:space="preserve"> with note</w:t></w:r>
+      <w:r><w:footnoteReference w:id="1"/></w:r>
+    </w:p>
+    <w:p><w:bookmarkStart w:id="9" w:name="TargetAnchor"/><w:r><w:t>Target paragraph</w:t></w:r><w:bookmarkEnd w:id="9"/></w:p>
+  </w:body>
+</w:document>
+XML,
+                'word/footnotes.xml' => <<<'XML'
+<?xml version="1.0"?>
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:footnote w:id="1">
+    <w:p><w:r><w:t xml:space="preserve">Foot </w:t></w:r><w:hyperlink w:anchor="TargetAnchor"><w:r><w:t>jump</w:t></w:r></w:hyperlink></w:p>
+  </w:footnote>
+</w:footnotes>
+XML,
+            ]);
+            file_put_contents(
+                $root . '/same.native',
+                '[Para [Str "See",Space,Link ("",[],[]) [Str "2"] ("#TargetAnchor",""),Space,Str "and",Space,Link ("",[],[]) [Str "source"] ("https://example.test/source",""),Space,Str "with",Space,Str "note",Note [Para [Str "Foot",Space,Link ("",[],[]) [Str "jump"] ("#TargetAnchor","")]]],Para [Span ("TargetAnchor",["anchor"],[]) [],Str "Target",Space,Str "paragraph"]]'
+            );
+
+            $report = (new DocxNativeAstComparisonHarness())->run($root);
+
+            $t->same(1, $report['normalizedAstMatchCount']);
+            $t->same(0, $report['normalizedAstMismatchCount']);
         } finally {
             $removeTree($root);
         }

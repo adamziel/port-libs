@@ -1174,20 +1174,22 @@ XML);
         $t->same('link', $simple->type);
         $t->same('https://example.test/simple', $simple->attr('url'));
         $t->same('Simple title', $simple->attr('title'));
-        $t->same('HYPERLINK "https://example.test/simple" \o "Simple title"', $simple->attr('attributes')['data-docx-field']);
+        $t->same(null, $simple->attr('attributes'));
         $t->same('Simple field', $simple->children[0]->attr('text'));
 
         $t->same('link', $complex->type);
         $t->same('https://example.test/complex', $complex->attr('url'));
         $t->same('Complex title', $complex->attr('title'));
+        $t->same(null, $complex->attr('attributes'));
         $t->same('Complex field', $complex->children[0]->attr('text'));
 
         $t->same('link', $local->type);
         $t->same('#LocalTarget', $local->attr('url'));
+        $t->same(null, $local->attr('attributes'));
         $t->same('Local field', $local->children[0]->attr('text'));
 
         $t->contains('<a href="https://example.test/simple" title="Simple title"', $blocks);
-        $t->contains('data-docx-field="HYPERLINK &quot;https://example.test/complex&quot; \o &quot;Complex title&quot;"', $blocks);
+        $t->true(!str_contains($blocks, 'data-docx-field='), 'Field-derived links should not carry local DOCX field attributes');
         $t->contains('<a href="#LocalTarget"', $blocks);
     },
     'canonicalizes docx heading bookmark reference targets' => static function (TestRunner $t): void {
@@ -1240,9 +1242,10 @@ XML],
         $t->same('#target-heading', $directLink->attr('url'));
 
         $t->contains('<h1 id="target-heading">Target Heading</h1>', $blocks);
-        $t->contains('<a href="#target-heading" data-docx-field="PAGEREF _RefHeading \h">2</a>', $blocks);
-        $t->contains('<a href="#target-heading" data-docx-field="REF _RefHeading \h">Target Heading</a>', $blocks);
+        $t->contains('<a href="#target-heading">2</a>', $blocks);
+        $t->contains('<a href="#target-heading">Target Heading</a>', $blocks);
         $t->contains('<a href="#target-heading">Direct heading link</a>', $blocks);
+        $t->true(!str_contains($blocks, 'data-docx-field='), 'Canonicalized field links should render as plain Pandoc links');
         $t->true(!str_contains($blocks, '_GoBack'), 'Word _GoBack bookmarks should not leak into rendered output');
         $t->true(!str_contains($blocks, 'pandoc-openxml-bookmark-start'), 'Heading bookmarks should canonicalize to the heading id instead of raw bookmark spans');
     },
@@ -1342,14 +1345,15 @@ XML);
         $t->same('Source p. ', $outer->children[0]->attr('text'));
         $t->same('link', $pageRef->type);
         $t->same('#TargetAnchor', $pageRef->attr('url'));
-        $t->same('PAGEREF TargetAnchor \h', $pageRef->attr('attributes')['data-docx-field']);
+        $t->same(null, $outer->attr('attributes'));
+        $t->same(null, $pageRef->attr('attributes'));
         $t->same('7', $pageRef->children[0]->attr('text'));
         $t->same(' checked', $outer->children[2]->attr('text'));
         $t->same('span', $target->children[0]->type);
         $t->same('TargetAnchor', $target->children[0]->attr('id'));
         $t->same(['anchor'], $target->children[0]->attr('classes'));
-        $t->contains('Link ( "" , [  ] , [ ( "data-docx-field" , "PAGEREF TargetAnchor \\\\h" ) ] ) [ Str "7" ] ( "#TargetAnchor" , "" )', $native);
-        $t->contains('<a href="https://example.test/nested" title="Nested title" data-docx-field="HYPERLINK &quot;https://example.test/nested&quot; \o &quot;Nested title&quot;">Source p. <span data-docx-field="PAGEREF TargetAnchor \h">7</span> checked</a>', $blocks);
+        $t->contains('Link ( "" , [  ] , [  ] ) [ Str "7" ] ( "#TargetAnchor" , "" )', $native);
+        $t->contains('<a href="https://example.test/nested" title="Nested title">Source p. <span>7</span> checked</a>', $blocks);
     },
     'promotes referenced docx bookmarks to anchor spans while preserving unused anchors as raw openxml' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
         $bytes = $buildDocxReaderPackageBytes(<<<'XML'

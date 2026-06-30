@@ -11,11 +11,12 @@ $defaultDocxDirectory = $repoRoot . '/.upstream-cache/pandoc-current/test/docx';
 $docxDirectory = getenv('PANDOC_UPSTREAM_DOCX_DIR') ?: getenv('PANDOC_DOCX_NATIVE_AST_DIR') ?: $defaultDocxDirectory;
 $limit = 0;
 $json = false;
+$summary = false;
 
 foreach (array_slice($argv, 1) as $argument) {
     if ($argument === '--help' || $argument === '-h') {
         fwrite(STDOUT, <<<'TXT'
-Usage: php tools/pandoc-docx-native-ast.php [--upstream-docx-dir=PATH] [--limit=N] [--json]
+Usage: php tools/pandoc-docx-native-ast.php [--upstream-docx-dir=PATH] [--limit=N] [--json] [summary]
 
 Compares local PHP DOCX reader output with same-basename upstream .native
 expectations by normalized AST shape when the upstream cache is present.
@@ -27,6 +28,11 @@ TXT);
 
     if ($argument === '--json') {
         $json = true;
+        continue;
+    }
+
+    if ($argument === 'summary') {
+        $summary = true;
         continue;
     }
 
@@ -50,6 +56,31 @@ if ($docxDirectory !== '' && !str_starts_with($docxDirectory, DIRECTORY_SEPARATO
 
 $harness = new DocxNativeAstComparisonHarness();
 $report = $harness->run($docxDirectory, ['limit' => $limit]);
+
+if ($summary) {
+    $report = array_intersect_key($report, array_flip([
+        'schemaVersion',
+        'tool',
+        'status',
+        'skipped',
+        'reason',
+        'verdict',
+        'evidenceKind',
+        'upstreamDocxDirectory',
+        'totalPairCount',
+        'comparedPairCount',
+        'docxParsedCount',
+        'nativeParsedCount',
+        'bothParsedCount',
+        'parseFailureCount',
+        'normalizedAstMatchCount',
+        'normalizedAstMismatchCount',
+        'normalizedAstMatchPercent',
+        'astParityStatus',
+        'mismatchCategories',
+        'orderedRemainingGaps',
+    ]));
+}
 
 if ($json) {
     fwrite(STDOUT, json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n");

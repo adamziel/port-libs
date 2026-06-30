@@ -2550,11 +2550,6 @@ final class DocxReader
             return null;
         }
 
-        $attrs = [
-            'id' => $id,
-            'noteType' => $kind,
-        ];
-
         if ($kind === 'footnote') {
             $children = $this->footnotes[$id] ?? [];
         } elseif ($kind === 'endnote') {
@@ -2564,8 +2559,6 @@ final class DocxReader
             if (!is_array($comment)) {
                 return null;
             }
-            $attrs['author'] = $comment['author'];
-            $attrs['date'] = $comment['date'];
             $children = $comment['children'];
         }
 
@@ -2573,7 +2566,7 @@ final class DocxReader
             return null;
         }
 
-        return new AstNode('note', $attrs, $children);
+        return new AstNode('note', [], $children);
     }
 
     private function hyperlink(\DOMElement $hyperlink): ?AstNode
@@ -2622,7 +2615,6 @@ final class DocxReader
         return new AstNode('link', [
             'url' => $target['url'],
             'title' => $target['title'],
-            'attributes' => ['data-docx-field' => $instruction],
         ], $inlines);
     }
 
