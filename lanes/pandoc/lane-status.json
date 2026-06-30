@@ -83,8 +83,34 @@
         },
         "writerGoldenPackageComparison": {
             "run": false,
+            "status": "not-run-generated-directory-not-configured",
+            "generatedDirectoryConfigured": false,
+            "expectedGoldenPackageCount": 38,
             "generatedPackageCount": 0,
             "comparedPackageCount": 0,
+            "matchedPackageCount": 0,
+            "mismatchedPackageCount": 0,
+            "missingGeneratedPackageCount": 38,
+            "unexpectedGeneratedPackageCount": 0,
+            "comparisonCoveragePercent": 0,
+            "stableMatchPercent": 0,
+            "allStableSemanticsMatch": false,
+            "stableComparisonContract": {
+                "compares": [
+                    "DOCX package file names against upstream test/docx/golden/*.docx names",
+                    "non-directory OPC package part-name set",
+                    "OPC [Content_Types].xml Default and Override records sorted by semantic key",
+                    "all OPC .rels relationship records sorted by source part, relationship id, type, target mode, and resolved target",
+                    "XML document-part semantics using namespace/local-name element and attribute records with formatting-only whitespace ignored",
+                    "binary part uncompressed byte size and SHA-256 payload digests"
+                ],
+                "ignores": [
+                    "raw ZIP package byte equality",
+                    "ZIP central-directory order, local-entry order, compression method, comments, and timestamps",
+                    "XML attribute order, namespace prefix spelling, indentation, and formatting-only whitespace",
+                    "content-types child order and relationship child order"
+                ]
+            },
             "openReason": "writer-unsupported-no-DocxWriter-implementation-and-docx-output-registry-unsupported"
         },
         "defensibleClaim": "bounded DOCX/OpenXML package provenance, selected upstream Native fixture slices, and three current-upstream DOCX drift fixtures",

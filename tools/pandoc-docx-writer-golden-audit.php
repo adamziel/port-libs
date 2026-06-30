@@ -16,17 +16,23 @@ Options:
   --repo-root PATH  Repository root. Defaults to the parent of tools/.
   --docx-dir PATH   Upstream DOCX corpus directory, relative to repo root unless absolute.
                     Defaults to .upstream-cache/pandoc-current/test/docx.
+  --generated-dir PATH
+                    Directory containing generated DOCX packages to compare
+                    against golden/*.docx by stable package semantics.
+                    Relative paths are resolved from the repository root.
   --help            Show this help.
 
 The audit is evidence-only. It inventories upstream golden DOCX packages and the
-local writer support status. It does not generate DOCX output or claim writer
-golden package parity.
+local writer support status. When --generated-dir is supplied, it compares those
+generated packages to golden/*.docx by stable package semantics. It does not
+generate DOCX output or claim writer parity without generated comparisons.
 TEXT;
 };
 
 try {
     $repoRoot = dirname(__DIR__);
     $docxDir = DocxWriterGoldenManifest::DEFAULT_RELATIVE_DOCX_DIR;
+    $generatedDir = null;
     $json = false;
     $args = array_slice($argv, 1);
 
@@ -66,11 +72,19 @@ try {
             $docxDir = substr($arg, strlen('--docx-dir='));
             continue;
         }
+        if ($arg === '--generated-dir') {
+            $generatedDir = $nextValue('--generated-dir');
+            continue;
+        }
+        if (str_starts_with($arg, '--generated-dir=')) {
+            $generatedDir = substr($arg, strlen('--generated-dir='));
+            continue;
+        }
 
         throw new InvalidArgumentException("Unknown option: {$arg}");
     }
 
-    $report = (new DocxWriterGoldenManifest($repoRoot, $docxDir))->report();
+    $report = (new DocxWriterGoldenManifest($repoRoot, $docxDir, 8, $generatedDir))->report();
 
     if ($json) {
         fwrite(STDOUT, json_encode(

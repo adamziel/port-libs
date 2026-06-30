@@ -59,6 +59,61 @@ $minimalDocx = static function (string $text) use ($minimalDocxDocumentXml): str
     ]);
 };
 
+$semanticDocx = static function (string $text, bool $variant = false): string {
+    $xmlText = htmlspecialchars($text, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+    $contentTypes = $variant
+        ? <<<'XML'
+<?xml version="1.0"?>
+<ct:Types xmlns:ct="http://schemas.openxmlformats.org/package/2006/content-types">
+  <ct:Override ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml" PartName="/word/document.xml"/>
+  <ct:Default ContentType="image/png" Extension="png"/>
+  <ct:Default ContentType="application/vnd.openxmlformats-package.relationships+xml" Extension="rels"/>
+  <ct:Default ContentType="application/xml" Extension="xml"/>
+</ct:Types>
+XML
+        : <<<'XML'
+<?xml version="1.0"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>
+XML;
+    $rootRelationships = $variant
+        ? <<<'XML'
+<?xml version="1.0"?>
+<rel:Relationships xmlns:rel="http://schemas.openxmlformats.org/package/2006/relationships">
+  <rel:Relationship Target="word/document.xml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Id="rDoc"/>
+</rel:Relationships>
+XML
+        : <<<'XML'
+<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rDoc" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="/word/document.xml"/></Relationships>
+XML;
+    $documentRelationships = $variant
+        ? <<<'XML'
+<?xml version="1.0"?>
+<pr:Relationships xmlns:pr="http://schemas.openxmlformats.org/package/2006/relationships">
+  <pr:Relationship Target="media/image1.png" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Id="rImage"/>
+  <pr:Relationship TargetMode="External" Target="https://example.test/review" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Id="rLink"/>
+</pr:Relationships>
+XML
+        : <<<'XML'
+<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/review" TargetMode="External"/><Relationship Id="rImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/></Relationships>
+XML;
+    $document = $variant
+        ? '<?xml version="1.0"?><x:document xmlns:x="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:rel="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><x:body>' . "\n" . '  <x:p><x:hyperlink rel:id="rLink"><x:r><x:t>' . $xmlText . '</x:t></x:r></x:hyperlink></x:p>' . "\n" . '</x:body></x:document>'
+        : '<?xml version="1.0"?><w:document xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:hyperlink r:id="rLink"><w:r><w:t>' . $xmlText . '</w:t></w:r></w:hyperlink></w:p></w:body></w:document>';
+
+    $parts = [
+        ['name' => '[Content_Types].xml', 'data' => $contentTypes],
+        ['name' => '_rels/.rels', 'data' => $rootRelationships],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationships],
+        ['name' => 'word/document.xml', 'data' => $document],
+        ['name' => 'word/media/image1.png', 'data' => "png-bytes\n"],
+    ];
+    if ($variant) {
+        $parts = array_reverse($parts);
+    }
+
+    return ZipPackage::build($parts, $variant ? 'generated comment ignored by semantic comparison' : '');
+};
+
 return [
     'skips cleanly when local upstream docx cache is absent' => static function (TestRunner $t) use ($makeTempRoot, $removeTree): void {
         $root = $makeTempRoot();
@@ -322,11 +377,92 @@ return [
             $t->same('unsupported', $decoded['localWriter']['status']);
             $t->same(false, $decoded['packageComparison']['run']);
             $t->same(DocxWriterGoldenManifest::OPEN_REASON, $decoded['packageComparison']['reason']);
+            $t->same(1, $decoded['packageComparison']['expectedGoldenPackageCount']);
+            $t->same(0, $decoded['packageComparison']['comparedPackageCount']);
+            $t->same(1, $decoded['packageComparison']['missingGeneratedPackageCount']);
+            $t->true(in_array('raw ZIP package byte equality', $decoded['packageComparison']['stableComparisonContract']['ignores'], true));
             $t->same(1, $decoded['goldenPackageCount']);
             $t->same(1, $decoded['packagePartCount']);
             $t->same('test/docx/golden/writer-output.docx', $decoded['packageRows'][0]['expectedUpstreamGoldenReference']);
             $t->same(['word/document.xml'], $decoded['packageRows'][0]['partNames']);
             $t->same(hash('sha256', $minimalDocxDocumentXml('Writer inventory')), $decoded['packageRows'][0]['partRows'][0]['sha256']);
+            $t->same(1, $decoded['packageRows'][0]['stableSemantics']['xmlPartCount']);
+        } finally {
+            $removeTree($root);
+        }
+    },
+
+    'writer golden comparison matches generated docx packages by stable package semantics' => static function (TestRunner $t) use ($makeTempRoot, $removeTree, $writeFile, $semanticDocx): void {
+        $root = $makeTempRoot();
+        try {
+            $docxRoot = '.upstream-cache/pandoc-current/test/docx';
+            $golden = $semanticDocx('Stable package');
+            $generated = $semanticDocx('Stable package', true);
+            $writeFile($root, "{$docxRoot}/golden/writer-output.docx", $golden);
+            $writeFile($root, 'generated-docx/writer-output.docx', $generated);
+
+            $report = (new DocxWriterGoldenManifest($root, DocxWriterGoldenManifest::DEFAULT_RELATIVE_DOCX_DIR, 8, 'generated-docx'))->report();
+            $text = DocxWriterGoldenManifest::formatTextReport($report);
+
+            $t->same(DocxWriterGoldenManifest::EVIDENCE_KIND_GENERATED_COMPARISON, $report['evidenceKind']);
+            $t->same(true, $report['packageComparison']['run']);
+            $t->same('matched-stable-package-semantics', $report['packageComparison']['status']);
+            $t->same(1, $report['packageComparison']['expectedGoldenPackageCount']);
+            $t->same(1, $report['packageComparison']['generatedPackageCount']);
+            $t->same(1, $report['packageComparison']['comparedPackageCount']);
+            $t->same(1, $report['packageComparison']['matchedPackageCount']);
+            $t->same(0, $report['packageComparison']['mismatchedPackageCount']);
+            $t->same(0, $report['packageComparison']['missingGeneratedPackageCount']);
+            $t->same(0, $report['packageComparison']['unexpectedGeneratedPackageCount']);
+            $t->same(100.0, $report['packageComparison']['comparisonCoveragePercent']);
+            $t->same(true, $report['packageComparison']['allStableSemanticsMatch']);
+            $t->same('stable-match', $report['packageComparison']['comparisonRows'][0]['status']);
+            $t->same([], $report['packageComparison']['comparisonRows'][0]['mismatchKinds']);
+            $t->true(
+                $report['packageComparison']['comparisonRows'][0]['goldenPackageSha256'] !== $report['packageComparison']['comparisonRows'][0]['generatedPackageSha256'],
+                'raw ZIP package bytes should be allowed to differ'
+            );
+            $t->same(
+                $report['packageComparison']['comparisonRows'][0]['goldenStablePackageSha256'],
+                $report['packageComparison']['comparisonRows'][0]['generatedStablePackageSha256']
+            );
+            $t->contains('Generated package comparison: run; compared=1/1; matched=1', $text);
+        } finally {
+            $removeTree($root);
+        }
+    },
+
+    'writer golden comparison reports generated coverage gaps and stable mismatches' => static function (TestRunner $t) use ($makeTempRoot, $removeTree, $writeFile, $semanticDocx): void {
+        $root = $makeTempRoot();
+        try {
+            $docxRoot = '.upstream-cache/pandoc-current/test/docx';
+            $writeFile($root, "{$docxRoot}/golden/a.docx", $semanticDocx('Golden A'));
+            $writeFile($root, "{$docxRoot}/golden/b.docx", $semanticDocx('Golden B'));
+            $writeFile($root, 'generated-docx/a.docx', $semanticDocx('Changed A', true));
+            $writeFile($root, 'generated-docx/c.docx', $semanticDocx('Extra C', true));
+
+            $report = (new DocxWriterGoldenManifest($root, DocxWriterGoldenManifest::DEFAULT_RELATIVE_DOCX_DIR, 8, 'generated-docx'))->report();
+            $rowsByName = [];
+            foreach ($report['packageComparison']['comparisonRows'] as $row) {
+                $rowsByName[$row['fileName']] = $row;
+            }
+
+            $t->same(true, $report['packageComparison']['run']);
+            $t->same('mismatched-stable-package-semantics', $report['packageComparison']['status']);
+            $t->same(DocxWriterGoldenManifest::GENERATED_COMPARISON_MISMATCH_REASON, $report['packageComparison']['reason']);
+            $t->same(2, $report['packageComparison']['expectedGoldenPackageCount']);
+            $t->same(2, $report['packageComparison']['generatedPackageCount']);
+            $t->same(1, $report['packageComparison']['comparedPackageCount']);
+            $t->same(0, $report['packageComparison']['matchedPackageCount']);
+            $t->same(1, $report['packageComparison']['mismatchedPackageCount']);
+            $t->same(1, $report['packageComparison']['missingGeneratedPackageCount']);
+            $t->same(1, $report['packageComparison']['unexpectedGeneratedPackageCount']);
+            $t->same(50.0, $report['packageComparison']['comparisonCoveragePercent']);
+            $t->same(false, $report['packageComparison']['allStableSemanticsMatch']);
+            $t->same('stable-mismatch', $rowsByName['a.docx']['status']);
+            $t->true(in_array('xml-part-semantics', $rowsByName['a.docx']['mismatchKinds'], true));
+            $t->same('missing-generated', $rowsByName['b.docx']['status']);
+            $t->same('unexpected-generated', $rowsByName['c.docx']['status']);
         } finally {
             $removeTree($root);
         }

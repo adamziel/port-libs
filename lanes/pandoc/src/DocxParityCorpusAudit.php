@@ -681,6 +681,9 @@ final class DocxParityCorpusAudit
             ? (string) ($comparison['reason'] ?? DocxWriterGoldenManifest::OPEN_REASON)
             : DocxWriterGoldenManifest::OPEN_REASON;
         $comparisonRun = is_array($comparison) && ($comparison['run'] ?? false) === true ? 'yes' : 'no';
+        $comparisonCoverage = is_array($comparison)
+            ? (int) ($comparison['comparedPackageCount'] ?? 0) . '/' . (int) ($comparison['expectedGoldenPackageCount'] ?? 0)
+            : '0/0';
 
         return [
             [
@@ -701,7 +704,7 @@ final class DocxParityCorpusAudit
                 'rank' => 3,
                 'id' => 'writer-golden-docx-package-parity',
                 'status' => self::GAP_STATUS_OPEN,
-                'currentEvidence' => "golden .docx artifacts inventoried as upstream writer outputs: {$goldenDocxPackageArtifacts}; local DOCX writer status={$writerStatus}; docx output registry={$registryStatus}; generated package comparison run={$comparisonRun}; reason={$writerReason}.",
+                'currentEvidence' => "golden .docx artifacts inventoried as upstream writer outputs: {$goldenDocxPackageArtifacts}; local DOCX writer status={$writerStatus}; docx output registry={$registryStatus}; generated package comparison run={$comparisonRun}; compared={$comparisonCoverage}; reason={$writerReason}.",
                 'evidenceRequired' => 'Generate DOCX output for upstream writer golden cases and compare package parts, relationships, content types, and document XML semantics.',
             ],
             [
@@ -753,10 +756,23 @@ final class DocxParityCorpusAudit
 
         $comparison = $writerGolden['packageComparison'] ?? [];
         if (is_array($comparison)) {
+            $expected = (int) ($comparison['expectedGoldenPackageCount'] ?? 0);
             $lines[] = 'DOCX writer golden package comparison: '
                 . ((($comparison['run'] ?? false) === true) ? 'run' : 'not run')
                 . '; reason='
-                . (string) ($comparison['reason'] ?? DocxWriterGoldenManifest::OPEN_REASON);
+                . (string) ($comparison['reason'] ?? DocxWriterGoldenManifest::OPEN_REASON)
+                . '; compared='
+                . (int) ($comparison['comparedPackageCount'] ?? 0)
+                . '/'
+                . $expected
+                . '; matched='
+                . (int) ($comparison['matchedPackageCount'] ?? 0)
+                . '; mismatched='
+                . (int) ($comparison['mismatchedPackageCount'] ?? 0)
+                . '; missing='
+                . (int) ($comparison['missingGeneratedPackageCount'] ?? $expected)
+                . '; unexpected='
+                . (int) ($comparison['unexpectedGeneratedPackageCount'] ?? 0);
         }
 
         if (($writerGolden['skipped'] ?? false) !== true) {

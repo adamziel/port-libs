@@ -125,8 +125,22 @@ return [
         $t->same('unsupported', $manifestAudit['docxWriterImplementation']['outputRegistryStatus'] ?? null);
         $t->same($manifestAudit['docxWriterImplementation'], $statusAudit['docxWriterImplementation'] ?? null);
         $t->same(false, $manifestAudit['writerGoldenPackageComparison']['run'] ?? null);
+        $t->same('not-run-generated-directory-not-configured', $manifestAudit['writerGoldenPackageComparison']['status'] ?? null);
+        $t->same(false, $manifestAudit['writerGoldenPackageComparison']['generatedDirectoryConfigured'] ?? null);
+        $t->same(38, $manifestAudit['writerGoldenPackageComparison']['expectedGoldenPackageCount'] ?? null);
         $t->same(0, $manifestAudit['writerGoldenPackageComparison']['generatedPackageCount'] ?? null);
         $t->same(0, $manifestAudit['writerGoldenPackageComparison']['comparedPackageCount'] ?? null);
+        $t->same(0, $manifestAudit['writerGoldenPackageComparison']['matchedPackageCount'] ?? null);
+        $t->same(0, $manifestAudit['writerGoldenPackageComparison']['mismatchedPackageCount'] ?? null);
+        $t->same(38, $manifestAudit['writerGoldenPackageComparison']['missingGeneratedPackageCount'] ?? null);
+        $t->same(0, $manifestAudit['writerGoldenPackageComparison']['unexpectedGeneratedPackageCount'] ?? null);
+        $t->same(0, $manifestAudit['writerGoldenPackageComparison']['comparisonCoveragePercent'] ?? null);
+        $t->same(0, $manifestAudit['writerGoldenPackageComparison']['stableMatchPercent'] ?? null);
+        $t->same(false, $manifestAudit['writerGoldenPackageComparison']['allStableSemanticsMatch'] ?? null);
+        $stableContract = $manifestAudit['writerGoldenPackageComparison']['stableComparisonContract'] ?? null;
+        $t->true(is_array($stableContract), 'writer golden comparison must record stable package semantics');
+        $t->contains('non-directory OPC package part-name set', implode("\n", $stableContract['compares'] ?? []));
+        $t->contains('raw ZIP package byte equality', implode("\n", $stableContract['ignores'] ?? []));
         $t->same('writer-unsupported-no-DocxWriter-implementation-and-docx-output-registry-unsupported', $manifestAudit['writerGoldenPackageComparison']['openReason'] ?? null);
         $t->same($manifestAudit['writerGoldenPackageComparison'], $statusAudit['writerGoldenPackageComparison'] ?? null);
 
@@ -225,6 +239,7 @@ return [
         $t->contains('DOCX runner evidence plan records `test:test-pandoc`', $pandocStatus);
         $t->contains('--write-selected-inventory .port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json', $pandocStatus);
         $t->contains('--validate-result-artifacts --artifact-root .port-libs/pandoc-runner/artifacts/docx-targeted-run --log-root .port-libs/pandoc-runner/logs', $pandocStatus);
+        $t->contains('With `--generated-dir`, it compares supplied generated DOCX packages to the golden packages by stable package semantics', $pandocStatus);
         $t->contains('no upstream Haskell/Cabal DOCX runner result, Tasty `--list-tests` output', $pandocStatus);
         $t->contains('2 checked-in current-upstream `.docx` package fixtures', $pandocStatus);
         $t->contains('0 checked-in pinned upstream `.docx` package fixtures', $pandocStatus);
