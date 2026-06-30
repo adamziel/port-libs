@@ -10316,6 +10316,81 @@ XML;
         $t->same(['word/raw/missing.bin'], $missing['targetParts']);
         $t->same(2, $summary['externalRelationshipCount']);
     },
+    'summarizes docx relationship target case-folded base names for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $allCapsPayload = str_repeat('C', 61);
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/media/Review.PNG" ContentType="image/png; profile=target-casefold"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rCaseMixed" Type="' . $imageRel . '" Target="media/Review.PNG?case=mixed#target"/>' . "\n" .
+            '  <Relationship Id="rCaseAllCaps" Type="' . $imageRel . '" Target="media/REVIEW.PNG"/>' . "\n" .
+            '  <Relationship Id="rCaseMissing" Type="' . $imageRel . '" Target="media/review.PnG?missing=1#target"/>' . "\n" .
+            '  <Relationship Id="rCaseExternal" Type="' . $imageRel . '" Target="https://example.test/REVIEW.PNG" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/media/Review.PNG'] = 'mixed case png bytes';
+        $parts['word/media/REVIEW.PNG'] = $allCapsPayload;
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $caseFoldBaseNames = [];
+        foreach ($summary['relationshipTargetCaseFoldBaseNames'] as $baseName) {
+            $caseFoldBaseNames[$baseName['caseFoldBaseName']] = $baseName;
+        }
+        $review = $caseFoldBaseNames['review.png'];
+
+        $t->same(1, $summary['duplicateRelationshipTargetCaseFoldBaseNameCount']);
+        $t->same(['review.png'], $summary['duplicateRelationshipTargetCaseFoldBaseNames']);
+        $t->same(4, $summary['relationshipTargetCaseFoldBaseNameCounts']['review.png']);
+        $t->same(3, $summary['relationshipTargetExistingCaseFoldBaseNameCounts']['review.png']);
+        $t->same(1, $summary['relationshipTargetMissingCaseFoldBaseNameCounts']['review.png']);
+
+        $t->same(4, $review['relationshipCount']);
+        $t->same(3, $review['existingTargetCount']);
+        $t->same(1, $review['missingTargetCount']);
+        $t->same(1, $review['parameterizedTargetCount']);
+        $t->same(4, $review['caseVariantCount']);
+        $t->same(['REVIEW.PNG', 'Review.PNG', 'review.PnG', 'review.png'], $review['caseVariantBaseNames']);
+        $t->same([
+            'REVIEW.PNG' => 1,
+            'Review.PNG' => 1,
+            'review.PnG' => 1,
+            'review.png' => 1,
+        ], $review['baseNameCounts']);
+        $t->same(['default' => 3, 'override' => 1], $review['contentTypeSourceCounts']);
+        $t->same(['image/png' => 4], $review['contentTypeBaseCounts']);
+        $t->same(['word/media' => 4], $review['targetDirectoryCounts']);
+        $t->same([$imageRel => 4], $review['relationshipTypeCounts']);
+        $t->same(['word/document.xml'], $review['sourceParts']);
+        $t->same(['word/_rels/document.xml.rels'], $review['relationshipParts']);
+        $t->same(['rCaseAllCaps', 'rCaseMissing', 'rCaseMixed', 'rImage'], $review['relationshipIds']);
+        $t->same([$imageRel], $review['relationshipTypes']);
+        $t->same(['image/png', 'image/png; profile=target-casefold'], $review['contentTypes']);
+        $t->same([
+            'word/media/REVIEW.PNG',
+            'word/media/Review.PNG',
+            'word/media/review.PnG',
+            'word/media/review.png',
+        ], $review['targetParts']);
+        $t->same(['word/media/REVIEW.PNG', 'word/media/Review.PNG', 'word/media/review.png'], $review['existingTargetParts']);
+        $t->same(['word/media/review.PnG'], $review['missingTargetParts']);
+        $t->same(
+            strlen($parts['word/media/review.png']) + strlen($parts['word/media/Review.PNG']) + strlen($allCapsPayload),
+            $review['existingTargetByteLength']
+        );
+        $t->same('word/media/REVIEW.PNG', $review['largestExistingTargetPart']['partName']);
+        $t->same('REVIEW.PNG', $review['largestExistingTargetPart']['baseName']);
+        $t->same('review.png', $review['largestExistingTargetPart']['caseFoldBaseName']);
+        $t->same(hash('sha256', $allCapsPayload), $review['largestExistingTargetPart']['sha256']);
+        $t->true(!in_array('rCaseExternal', $review['relationshipIds'], true), 'external relationship target should stay out of case-folded package target buckets');
+    },
     'summarizes docx relationship target base name stems for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';

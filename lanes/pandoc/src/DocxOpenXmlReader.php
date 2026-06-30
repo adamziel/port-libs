@@ -15709,6 +15709,10 @@ final class DocxOpenXmlReader
         $relationshipTargetExistingBaseNameCounts = [];
         $relationshipTargetMissingBaseNameCounts = [];
         $relationshipTargetBaseNames = [];
+        $relationshipTargetCaseFoldBaseNameCounts = [];
+        $relationshipTargetExistingCaseFoldBaseNameCounts = [];
+        $relationshipTargetMissingCaseFoldBaseNameCounts = [];
+        $relationshipTargetCaseFoldBaseNames = [];
         $relationshipTargetBaseNameStemCounts = [];
         $relationshipTargetExistingBaseNameStemCounts = [];
         $relationshipTargetMissingBaseNameStemCounts = [];
@@ -16103,6 +16107,9 @@ final class DocxOpenXmlReader
                     $targetBaseName = is_array($targetInventory) && is_string($targetInventory['baseName'] ?? null)
                         ? $targetInventory['baseName']
                         : $this->packagePartBaseName($targetPart);
+                    $targetCaseFoldBaseName = is_array($targetInventory) && is_string($targetInventory['caseFoldBaseName'] ?? null)
+                        ? $targetInventory['caseFoldBaseName']
+                        : $this->packagePartCaseFoldKey($targetBaseName);
                     $targetBaseNameStem = is_array($targetInventory) && is_string($targetInventory['baseNameStem'] ?? null)
                         ? $targetInventory['baseNameStem']
                         : $this->packagePartBaseNameStem($targetPart);
@@ -17000,6 +17007,7 @@ final class DocxOpenXmlReader
                         'targetExists' => ($relationship['exists'] ?? false) === true,
                         'targetDirectory' => $targetDirectory,
                         'targetBaseName' => $targetBaseName,
+                        'targetCaseFoldBaseName' => $targetCaseFoldBaseName,
                         'targetPathDepth' => $targetPathDepth,
                         'targetPartExtension' => is_array($targetInventory) && is_string($targetInventory['partExtension'] ?? null)
                             ? $targetInventory['partExtension']
@@ -17107,6 +17115,114 @@ final class DocxOpenXmlReader
                     }
                     if ($targetContentTypeHasParameters) {
                         ++$relationshipTargetBaseNames[$targetBaseName]['parameterizedTargetCount'];
+                    }
+
+                    if (!isset($relationshipTargetCaseFoldBaseNames[$targetCaseFoldBaseName])) {
+                        $relationshipTargetCaseFoldBaseNames[$targetCaseFoldBaseName] = [
+                            'caseFoldBaseName' => $targetCaseFoldBaseName,
+                            'relationshipCount' => 0,
+                            'existingTargetCount' => 0,
+                            'missingTargetCount' => 0,
+                            'parameterizedTargetCount' => 0,
+                            'caseVariantCount' => 0,
+                            'existingTargetByteLength' => 0,
+                            'baseNameCounts' => [],
+                            'caseVariantBaseNames' => [],
+                            'contentTypeSourceCounts' => [],
+                            'contentTypeBaseCounts' => [],
+                            'targetDirectoryCounts' => [],
+                            'relationshipTypeCounts' => [],
+                            'roleCounts' => [],
+                            'sourceParts' => [],
+                            'relationshipParts' => [],
+                            'relationshipIds' => [],
+                            'relationshipTypes' => [],
+                            'contentTypes' => [],
+                            'targetParts' => [],
+                            'existingTargetParts' => [],
+                            'missingTargetParts' => [],
+                            'largestExistingTargetPart' => null,
+                        ];
+                    }
+
+                    ++$relationshipTargetCaseFoldBaseNames[$targetCaseFoldBaseName]['relationshipCount'];
+                    $relationshipTargetCaseFoldBaseNameCounts[$targetCaseFoldBaseName] =
+                        ($relationshipTargetCaseFoldBaseNameCounts[$targetCaseFoldBaseName] ?? 0) + 1;
+                    $relationshipTargetCaseFoldBaseNames[$targetCaseFoldBaseName]['baseNameCounts'][$targetBaseName] =
+                        ($relationshipTargetCaseFoldBaseNames[$targetCaseFoldBaseName]['baseNameCounts'][$targetBaseName] ?? 0) + 1;
+                    $relationshipTargetCaseFoldBaseNames[$targetCaseFoldBaseName]['contentTypeSourceCounts'][$targetContentTypeSource] =
+                        ($relationshipTargetCaseFoldBaseNames[$targetCaseFoldBaseName]['contentTypeSourceCounts'][$targetContentTypeSource] ?? 0) + 1;
+                    $relationshipTargetCaseFoldBaseNames[$targetCaseFoldBaseName]['contentTypeBaseCounts'][$targetContentTypeKey] =
+                        ($relationshipTargetCaseFoldBaseNames[$targetCaseFoldBaseName]['contentTypeBaseCounts'][$targetContentTypeKey] ?? 0) + 1;
+                    $relationshipTargetCaseFoldBaseNames[$targetCaseFoldBaseName]['targetDirectoryCounts'][$targetDirectory] =
+                        ($relationshipTargetCaseFoldBaseNames[$targetCaseFoldBaseName]['targetDirectoryCounts'][$targetDirectory] ?? 0) + 1;
+                    $relationshipTargetCaseFoldBaseNames[$targetCaseFoldBaseName]['relationshipTypeCounts'][$typeKey] =
+                        ($relationshipTargetCaseFoldBaseNames[$targetCaseFoldBaseName]['relationshipTypeCounts'][$typeKey] ?? 0) + 1;
+                    $this->appendUniqueString(
+                        $relationshipTargetCaseFoldBaseNames[$targetCaseFoldBaseName]['sourceParts'],
+                        is_string($relationship['sourcePart'] ?? null) ? $relationship['sourcePart'] : null,
+                    );
+                    $this->appendUniqueString(
+                        $relationshipTargetCaseFoldBaseNames[$targetCaseFoldBaseName]['relationshipParts'],
+                        is_string($relationship['relationshipsPart'] ?? null) ? $relationship['relationshipsPart'] : null,
+                    );
+                    $this->appendUniqueString(
+                        $relationshipTargetCaseFoldBaseNames[$targetCaseFoldBaseName]['relationshipIds'],
+                        is_string($relationship['id'] ?? null) ? $relationship['id'] : null,
+                    );
+                    $this->appendUniqueString($relationshipTargetCaseFoldBaseNames[$targetCaseFoldBaseName]['relationshipTypes'], $type);
+                    $this->appendUniqueString($relationshipTargetCaseFoldBaseNames[$targetCaseFoldBaseName]['contentTypes'], $targetContentType);
+                    $this->appendUniqueString($relationshipTargetCaseFoldBaseNames[$targetCaseFoldBaseName]['targetParts'], $targetPart);
+                    foreach (array_keys($targetRoles) as $targetRole) {
+                        $relationshipTargetCaseFoldBaseNames[$targetCaseFoldBaseName]['roleCounts'][$targetRole] =
+                            ($relationshipTargetCaseFoldBaseNames[$targetCaseFoldBaseName]['roleCounts'][$targetRole] ?? 0) + 1;
+                    }
+                    if (($relationship['exists'] ?? false) === true) {
+                        ++$relationshipTargetCaseFoldBaseNames[$targetCaseFoldBaseName]['existingTargetCount'];
+                        $relationshipTargetExistingCaseFoldBaseNameCounts[$targetCaseFoldBaseName] =
+                            ($relationshipTargetExistingCaseFoldBaseNameCounts[$targetCaseFoldBaseName] ?? 0) + 1;
+                        $this->appendUniqueString(
+                            $relationshipTargetCaseFoldBaseNames[$targetCaseFoldBaseName]['existingTargetParts'],
+                            $targetPart,
+                        );
+                        if (is_array($targetInventory)) {
+                            $targetCaseFoldSummary = [
+                                'partName' => is_string($targetInventory['partName'] ?? null) ? $targetInventory['partName'] : $targetPart,
+                                'directory' => $targetDirectory,
+                                'baseName' => $targetBaseName,
+                                'caseFoldBaseName' => $targetCaseFoldBaseName,
+                                'bytes' => (int) ($targetInventory['bytes'] ?? 0),
+                                'crc32' => is_string($targetInventory['crc32'] ?? null) ? $targetInventory['crc32'] : null,
+                                'sha256' => is_string($targetInventory['sha256'] ?? null) ? $targetInventory['sha256'] : null,
+                                'contentType' => is_string($targetInventory['contentType'] ?? null) ? $targetInventory['contentType'] : $targetContentType,
+                                'contentTypeBase' => is_string($targetInventory['contentTypeBase'] ?? null) ? $targetInventory['contentTypeBase'] : $targetContentTypeBase,
+                                'contentTypeSource' => is_string($targetInventory['contentTypeSource'] ?? null) ? $targetInventory['contentTypeSource'] : $targetContentTypeSource,
+                                'roles' => array_keys($targetRoles),
+                            ];
+                            $relationshipTargetCaseFoldBaseNames[$targetCaseFoldBaseName]['existingTargetByteLength'] += $targetCaseFoldSummary['bytes'];
+                            $largestTarget = $relationshipTargetCaseFoldBaseNames[$targetCaseFoldBaseName]['largestExistingTargetPart'];
+                            if (
+                                !is_array($largestTarget)
+                                || $targetCaseFoldSummary['bytes'] > (int) ($largestTarget['bytes'] ?? 0)
+                                || (
+                                    $targetCaseFoldSummary['bytes'] === (int) ($largestTarget['bytes'] ?? 0)
+                                    && strcmp($targetCaseFoldSummary['partName'], (string) ($largestTarget['partName'] ?? '')) < 0
+                                )
+                            ) {
+                                $relationshipTargetCaseFoldBaseNames[$targetCaseFoldBaseName]['largestExistingTargetPart'] = $targetCaseFoldSummary;
+                            }
+                        }
+                    } else {
+                        ++$relationshipTargetCaseFoldBaseNames[$targetCaseFoldBaseName]['missingTargetCount'];
+                        $relationshipTargetMissingCaseFoldBaseNameCounts[$targetCaseFoldBaseName] =
+                            ($relationshipTargetMissingCaseFoldBaseNameCounts[$targetCaseFoldBaseName] ?? 0) + 1;
+                        $this->appendUniqueString(
+                            $relationshipTargetCaseFoldBaseNames[$targetCaseFoldBaseName]['missingTargetParts'],
+                            $targetPart,
+                        );
+                    }
+                    if ($targetContentTypeHasParameters) {
+                        ++$relationshipTargetCaseFoldBaseNames[$targetCaseFoldBaseName]['parameterizedTargetCount'];
                     }
 
                     if (!isset($relationshipTargetBaseNameStems[$targetBaseNameStem])) {
@@ -17761,6 +17877,35 @@ final class DocxOpenXmlReader
             array_keys($relationshipTargetBaseNameCounts),
             static fn (string $baseName): bool => ($relationshipTargetBaseNameCounts[$baseName] ?? 0) > 1,
         ));
+        ksort($relationshipTargetCaseFoldBaseNameCounts, SORT_STRING);
+        ksort($relationshipTargetExistingCaseFoldBaseNameCounts, SORT_STRING);
+        ksort($relationshipTargetMissingCaseFoldBaseNameCounts, SORT_STRING);
+        ksort($relationshipTargetCaseFoldBaseNames, SORT_STRING);
+        foreach ($relationshipTargetCaseFoldBaseNames as &$targetCaseFoldBaseNameSummary) {
+            ksort($targetCaseFoldBaseNameSummary['baseNameCounts'], SORT_STRING);
+            ksort($targetCaseFoldBaseNameSummary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($targetCaseFoldBaseNameSummary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($targetCaseFoldBaseNameSummary['targetDirectoryCounts'], SORT_STRING);
+            ksort($targetCaseFoldBaseNameSummary['relationshipTypeCounts'], SORT_STRING);
+            ksort($targetCaseFoldBaseNameSummary['roleCounts'], SORT_STRING);
+            sort($targetCaseFoldBaseNameSummary['sourceParts'], SORT_STRING);
+            sort($targetCaseFoldBaseNameSummary['relationshipParts'], SORT_STRING);
+            sort($targetCaseFoldBaseNameSummary['relationshipIds'], SORT_STRING);
+            sort($targetCaseFoldBaseNameSummary['relationshipTypes'], SORT_STRING);
+            sort($targetCaseFoldBaseNameSummary['contentTypes'], SORT_STRING);
+            sort($targetCaseFoldBaseNameSummary['targetParts'], SORT_STRING);
+            sort($targetCaseFoldBaseNameSummary['existingTargetParts'], SORT_STRING);
+            sort($targetCaseFoldBaseNameSummary['missingTargetParts'], SORT_STRING);
+            $targetCaseFoldBaseNameSummary['caseVariantBaseNames'] = array_keys($targetCaseFoldBaseNameSummary['baseNameCounts']);
+            $targetCaseFoldBaseNameSummary['caseVariantCount'] = count($targetCaseFoldBaseNameSummary['caseVariantBaseNames']);
+        }
+        unset($targetCaseFoldBaseNameSummary);
+        $duplicateRelationshipTargetCaseFoldBaseNames = [];
+        foreach ($relationshipTargetCaseFoldBaseNames as $targetCaseFoldBaseNameSummary) {
+            if ((int) ($targetCaseFoldBaseNameSummary['caseVariantCount'] ?? 0) > 1) {
+                $duplicateRelationshipTargetCaseFoldBaseNames[] = (string) ($targetCaseFoldBaseNameSummary['caseFoldBaseName'] ?? '');
+            }
+        }
         ksort($relationshipTargetBaseNameStemCounts, SORT_STRING);
         ksort($relationshipTargetExistingBaseNameStemCounts, SORT_STRING);
         ksort($relationshipTargetMissingBaseNameStemCounts, SORT_STRING);
@@ -19161,6 +19306,13 @@ final class DocxOpenXmlReader
             'duplicateRelationshipTargetBaseNameCount' => count($duplicateRelationshipTargetBaseNames),
             'duplicateRelationshipTargetBaseNames' => $duplicateRelationshipTargetBaseNames,
             'relationshipTargetBaseNames' => array_values($relationshipTargetBaseNames),
+            'relationshipTargetCaseFoldBaseNameCount' => count($relationshipTargetCaseFoldBaseNames),
+            'relationshipTargetCaseFoldBaseNameCounts' => $relationshipTargetCaseFoldBaseNameCounts,
+            'relationshipTargetExistingCaseFoldBaseNameCounts' => $relationshipTargetExistingCaseFoldBaseNameCounts,
+            'relationshipTargetMissingCaseFoldBaseNameCounts' => $relationshipTargetMissingCaseFoldBaseNameCounts,
+            'duplicateRelationshipTargetCaseFoldBaseNameCount' => count($duplicateRelationshipTargetCaseFoldBaseNames),
+            'duplicateRelationshipTargetCaseFoldBaseNames' => $duplicateRelationshipTargetCaseFoldBaseNames,
+            'relationshipTargetCaseFoldBaseNames' => array_values($relationshipTargetCaseFoldBaseNames),
             'relationshipTargetBaseNameStemCount' => count($relationshipTargetBaseNameStems),
             'relationshipTargetBaseNameStemCounts' => $relationshipTargetBaseNameStemCounts,
             'relationshipTargetExistingBaseNameStemCounts' => $relationshipTargetExistingBaseNameStemCounts,
