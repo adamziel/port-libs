@@ -12452,6 +12452,8 @@ XML;
             'http://schemas.openxmlformats.org/package/2006/RelationshipTransform',
             'http://www.w3.org/TR/2001/REC-xml-c14n-20010315',
         ], $signatures['referenceTransformAlgorithms']);
+        $t->same(3, $signatures['referenceDigestMethodCount']);
+        $t->same(1, $signatures['referenceDigestMethodMissingCount']);
         $t->same(3, $signatures['referenceDigestValueCount']);
         $t->same(1, $signatures['referenceDigestValueMissingCount']);
         $t->same([
@@ -12518,6 +12520,8 @@ XML;
             'http://schemas.openxmlformats.org/package/2006/RelationshipTransform',
             'http://www.w3.org/TR/2001/REC-xml-c14n-20010315',
         ], $signature['referenceTransformAlgorithms']);
+        $t->same(3, $signature['referenceDigestMethodCount']);
+        $t->same(1, $signature['referenceDigestMethodMissingCount']);
         $t->same(3, $signature['referenceDigestValueCount']);
         $t->same(1, $signature['referenceDigestValueMissingCount']);
         $t->same([
@@ -12532,19 +12536,23 @@ XML;
         $t->same('?review=1#body', $signature['references'][0]['targetReferenceSuffix']);
         $t->same(true, $signature['references'][0]['startsAtPackageRoot']);
         $t->same(2, $signature['references'][0]['transformCount']);
+        $t->same(true, $signature['references'][0]['digestMethodPresent']);
         $t->same('http://www.w3.org/2001/04/xmlenc#sha256', $signature['references'][0]['digestMethodAlgorithm']);
         $t->same(true, $signature['references'][0]['digestValuePresent']);
         $t->same(4, $signature['references'][0]['digestValueLength']);
         $t->same('same-document', $signature['references'][1]['uriKind']);
         $t->same(true, $signature['references'][1]['sameDocument']);
         $t->same('#manifestPackageParts', $signature['references'][1]['targetReferenceSuffix']);
+        $t->same(true, $signature['references'][1]['digestMethodPresent']);
         $t->same('external', $signature['references'][2]['uriKind']);
         $t->same(true, $signature['references'][2]['external']);
         $t->same('remote=1', $signature['references'][2]['targetQuery']);
+        $t->same(true, $signature['references'][2]['digestMethodPresent']);
         $t->same(false, $signature['references'][2]['digestValuePresent']);
         $t->same('relative', $signature['references'][3]['uriKind']);
         $t->same(null, $signature['references'][3]['targetPart']);
         $t->same('slot=1', $signature['references'][3]['targetQuery']);
+        $t->same(false, $signature['references'][3]['digestMethodPresent']);
         $t->same(null, $signature['references'][3]['digestMethodAlgorithm']);
         $t->same(15, $signature['references'][3]['digestValueLength']);
         $t->same(['http://www.w3.org/2001/04/xmldsig-more#rsa-sha256'], $signature['signatureMethodAlgorithms']);
@@ -12579,6 +12587,8 @@ XML;
         $t->same($signatures['issueCodes'], $summary['digitalSignatureIssueCodes']);
         $t->same(4, $summary['digitalSignatureReferenceCount']);
         $t->same($signatures['referenceUriKindCounts'], $summary['digitalSignatureReferenceUriKindCounts']);
+        $t->same(3, $summary['digitalSignatureReferenceDigestMethodCount']);
+        $t->same(1, $summary['digitalSignatureReferenceDigestMethodMissingCount']);
         $t->same(1, $summary['digitalSignatureReferenceDigestValueMissingCount']);
         $t->same(1, $summary['digitalSignatureValuePresentCount']);
         $t->same(3, $summary['relationshipTypeCounts'][$originType]);

@@ -249,6 +249,8 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['digitalSignatureReferenceTargetMissingContentTypeCount'] = $digitalSignatures['referenceTargetMissingContentTypeCount'];
         $packageProvenance['summary']['digitalSignatureReferenceTargetSha256Count'] = $digitalSignatures['referenceTargetSha256Count'];
         $packageProvenance['summary']['digitalSignatureReferenceTransformCount'] = $digitalSignatures['referenceTransformCount'];
+        $packageProvenance['summary']['digitalSignatureReferenceDigestMethodCount'] = $digitalSignatures['referenceDigestMethodCount'];
+        $packageProvenance['summary']['digitalSignatureReferenceDigestMethodMissingCount'] = $digitalSignatures['referenceDigestMethodMissingCount'];
         $packageProvenance['summary']['digitalSignatureReferenceDigestValueCount'] = $digitalSignatures['referenceDigestValueCount'];
         $packageProvenance['summary']['digitalSignatureReferenceDigestValueMissingCount'] = $digitalSignatures['referenceDigestValueMissingCount'];
         $packageProvenance['summary']['digitalSignatureValuePresentCount'] = $digitalSignatures['signatureValuePresentCount'];
@@ -31906,6 +31908,8 @@ final class DocxOpenXmlReader
         $referenceTargetMissingCount = 0;
         $referenceTargetMissingContentTypeCount = 0;
         $referenceTransformCount = 0;
+        $referenceDigestMethodCount = 0;
+        $referenceDigestMethodMissingCount = 0;
         $referenceDigestValueCount = 0;
         $referenceDigestValueMissingCount = 0;
         $signatureValuePresentCount = 0;
@@ -31920,6 +31924,8 @@ final class DocxOpenXmlReader
             $referenceTargetMissingCount += (int) ($signature['referenceTargetMissingCount'] ?? 0);
             $referenceTargetMissingContentTypeCount += (int) ($signature['referenceTargetMissingContentTypeCount'] ?? 0);
             $referenceTransformCount += (int) ($signature['referenceTransformCount'] ?? 0);
+            $referenceDigestMethodCount += (int) ($signature['referenceDigestMethodCount'] ?? 0);
+            $referenceDigestMethodMissingCount += (int) ($signature['referenceDigestMethodMissingCount'] ?? 0);
             $referenceDigestValueCount += (int) ($signature['referenceDigestValueCount'] ?? 0);
             $referenceDigestValueMissingCount += (int) ($signature['referenceDigestValueMissingCount'] ?? 0);
             if (($signature['hasSignatureValue'] ?? false) === true) {
@@ -32039,6 +32045,8 @@ final class DocxOpenXmlReader
             'referenceTargetSha256s' => $referenceTargetSha256s,
             'referenceTransformCount' => $referenceTransformCount,
             'referenceTransformAlgorithms' => $referenceTransformAlgorithms,
+            'referenceDigestMethodCount' => $referenceDigestMethodCount,
+            'referenceDigestMethodMissingCount' => $referenceDigestMethodMissingCount,
             'referenceDigestValueCount' => $referenceDigestValueCount,
             'referenceDigestValueMissingCount' => $referenceDigestValueMissingCount,
             'digestMethodAlgorithms' => $digestMethodAlgorithms,
@@ -32388,6 +32396,8 @@ final class DocxOpenXmlReader
             'referenceTargetSha256s' => $metadata['referenceTargetSha256s'],
             'referenceTransformCount' => $metadata['referenceTransformCount'],
             'referenceTransformAlgorithms' => $metadata['referenceTransformAlgorithms'],
+            'referenceDigestMethodCount' => $metadata['referenceDigestMethodCount'],
+            'referenceDigestMethodMissingCount' => $metadata['referenceDigestMethodMissingCount'],
             'referenceDigestValueCount' => $metadata['referenceDigestValueCount'],
             'referenceDigestValueMissingCount' => $metadata['referenceDigestValueMissingCount'],
             'digestMethodAlgorithms' => $metadata['digestMethodAlgorithms'],
@@ -32431,6 +32441,8 @@ final class DocxOpenXmlReader
             'referenceTargetSha256s' => [],
             'referenceTransformCount' => 0,
             'referenceTransformAlgorithms' => [],
+            'referenceDigestMethodCount' => 0,
+            'referenceDigestMethodMissingCount' => 0,
             'referenceDigestValueCount' => 0,
             'referenceDigestValueMissingCount' => 0,
             'digestMethodAlgorithms' => [],
@@ -32508,6 +32520,11 @@ final class DocxOpenXmlReader
             $metadata['referenceTransformCount'] += $item['transformCount'];
             foreach ($item['transformAlgorithms'] as $algorithm) {
                 $this->appendUniqueString($metadata['referenceTransformAlgorithms'], $algorithm);
+            }
+            if ($item['digestMethodPresent']) {
+                ++$metadata['referenceDigestMethodCount'];
+            } else {
+                ++$metadata['referenceDigestMethodMissingCount'];
             }
             if ($item['digestMethodAlgorithm'] !== null) {
                 $this->appendUniqueString($metadata['digestMethodAlgorithms'], $item['digestMethodAlgorithm']);
@@ -32600,6 +32617,7 @@ final class DocxOpenXmlReader
             'targetReviewPolicy' => $targetPart === null ? null : 'digital-signature-reference-target-metadata-only',
             'transformCount' => count($transforms),
             'transformAlgorithms' => $transforms,
+            'digestMethodPresent' => $digestMethod instanceof \DOMElement,
             'digestMethodAlgorithm' => $digestMethod instanceof \DOMElement
                 ? $this->emptyStringToNull($digestMethod->getAttribute('Algorithm'))
                 : null,
