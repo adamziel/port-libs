@@ -5057,6 +5057,8 @@ final class ZipPackage
      *     selectedUnknownExpansionRatioEntryCount:int,
      *     selectedHasUnknownExpansionRatioEntries:bool,
      *     selectedExpansionRatioBucketCount:int,
+     *     selectedEntryExtensionBucketCount:int,
+     *     selectedExtensionlessEntryCount:int,
      *     missingEntryCount:int,
      *     missingRequiredEntryCount:int,
      *     missingOptionalEntryCount:int,
@@ -5064,6 +5066,8 @@ final class ZipPackage
      *     handoffDirectoryRootCount:int,
      *     handoffExtensionBucketCount:int,
      *     handoffExtensionlessFileEntryCount:int,
+     *     handoffEntryExtensionBucketCount:int,
+     *     handoffExtensionlessEntryCount:int,
      *     handoffSizeBucketCount:int,
      *     handoffCompressionMethodBucketCount:int,
      *     handoffExpansionRatioBucketCount:int,
@@ -5270,6 +5274,8 @@ final class ZipPackage
      *     handoffExpansionRatioBucketSummaries:list<array<string, mixed>>,
      *     selectedExtensionSummaries:list<array<string, mixed>>,
      *     handoffExtensionSummaries:list<array<string, mixed>>,
+     *     selectedEntryExtensionSummaries:list<array<string, mixed>>,
+     *     handoffEntryExtensionSummaries:list<array<string, mixed>>,
      *     selectedRelationshipSourceSummaries:list<array<string, mixed>>,
      *     handoffRelationshipSourceSummaries:list<array<string, mixed>>,
      *     selectedRelationshipSourceScopeSummaries:list<array<string, mixed>>,
@@ -5905,6 +5911,9 @@ final class ZipPackage
                 'directoryRoot' => null,
                 'parentDirectory' => null,
                 'leafName' => null,
+                'entryBaseName' => null,
+                'entryExtension' => null,
+                'entryExtensionKey' => null,
                 'packagePartKind' => null,
                 'isRelationshipPart' => false,
                 'relationshipPartName' => null,
@@ -6238,6 +6247,9 @@ final class ZipPackage
             $summary['directoryRoot'] = self::entryHandoffDirectoryRoot($entry->name);
             $summary['parentDirectory'] = self::entryHandoffParentDirectory($entry->name);
             $summary['leafName'] = self::entryHandoffLeafName($entry->name);
+            $summary['entryBaseName'] = self::entryHandoffBaseName($entry->name);
+            $summary['entryExtension'] = self::entryHandoffExtension($entry->name, $isDirectory);
+            $summary['entryExtensionKey'] = $summary['entryExtension'] ?? '(none)';
             $summary['caseFoldName'] = self::caseFoldZipEntryName($entry->name);
             $summary['caseFoldLeafName'] = self::entryHandoffCaseFoldLeafName($entry->name);
             $summary['packagePartKind'] = self::entryHandoffPackagePartKind($entry->name, $isDirectory);
@@ -6427,6 +6439,8 @@ final class ZipPackage
         $handoffRelationshipSourceScopeSummaries = self::entryHandoffRelationshipSourceScopeSummaries($handoffEntries);
         $selectedExtensionSummaries = self::entryHandoffExtensionSummaries($selectedDirectoryRootSummaryEntries);
         $handoffExtensionSummaries = self::entryHandoffExtensionSummaries($handoffEntries);
+        $selectedEntryExtensionSummaries = self::entryHandoffEntryExtensionSummaries($selectedDirectoryRootSummaryEntries);
+        $handoffEntryExtensionSummaries = self::entryHandoffEntryExtensionSummaries($handoffEntries);
         $selectedOrderSummary = self::entryHandoffOrderSummary($selectedDirectoryRootSummaryEntries);
         $handoffOrderSummary = self::entryHandoffOrderSummary($handoffEntries);
         $selectedPathDepthSummaries = self::entryHandoffPathDepthSummaries($selectedDirectoryRootSummaryEntries);
@@ -6540,6 +6554,8 @@ final class ZipPackage
             ),
             'selectedExtensionBucketCount' => count($selectedExtensionSummaries),
             'selectedExtensionlessFileEntryCount' => self::entryHandoffExtensionlessFileEntryCount($selectedExtensionSummaries),
+            'selectedEntryExtensionBucketCount' => count($selectedEntryExtensionSummaries),
+            'selectedExtensionlessEntryCount' => self::entryHandoffEntryExtensionlessEntryCount($selectedEntryExtensionSummaries),
             'selectedSizeBucketCount' => count($selectedSizeBucketSummaries),
             'selectedOrderMismatchEntryCount' => $selectedOrderSummary['mismatchEntryCount'],
             'selectedCentralDirectoryOrderMatchesLocalHeaderOrder' => $selectedOrderSummary['centralDirectoryOrderMatchesLocalHeaderOrder'],
@@ -6617,6 +6633,8 @@ final class ZipPackage
             ),
             'handoffExtensionBucketCount' => count($handoffExtensionSummaries),
             'handoffExtensionlessFileEntryCount' => self::entryHandoffExtensionlessFileEntryCount($handoffExtensionSummaries),
+            'handoffEntryExtensionBucketCount' => count($handoffEntryExtensionSummaries),
+            'handoffExtensionlessEntryCount' => self::entryHandoffEntryExtensionlessEntryCount($handoffEntryExtensionSummaries),
             'handoffSizeBucketCount' => count($handoffSizeBucketSummaries),
             'handoffCompressionMethodBucketCount' => count($handoffCompressionMethodBuckets),
             'handoffExpansionRatioBucketCount' => count($handoffExpansionRatioBucketSummaries),
@@ -7000,6 +7018,8 @@ final class ZipPackage
             'handoffRelationshipSourceScopeSummaries' => $handoffRelationshipSourceScopeSummaries,
             'selectedExtensionSummaries' => $selectedExtensionSummaries,
             'handoffExtensionSummaries' => $handoffExtensionSummaries,
+            'selectedEntryExtensionSummaries' => $selectedEntryExtensionSummaries,
+            'handoffEntryExtensionSummaries' => $handoffEntryExtensionSummaries,
             'selectedOrderSummary' => $selectedOrderSummary,
             'handoffOrderSummary' => $handoffOrderSummary,
             'selectedPathDepthSummaries' => $selectedPathDepthSummaries,
@@ -12566,6 +12586,96 @@ final class ZipPackage
         }
 
         return 0;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffEntryExtensionSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $isDirectory = ($entry['isDirectory'] ?? false) === true;
+            $extension = self::entryHandoffExtension($name, $isDirectory);
+            $extensionKey = $extension ?? '(none)';
+            if (!isset($summaries[$extensionKey])) {
+                $summaries[$extensionKey] = [
+                    'extensionKey' => $extensionKey,
+                    'extension' => $extension,
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'roles' => [],
+                    'entryNames' => [],
+                ];
+            }
+
+            ++$summaries[$extensionKey]['entryCount'];
+            if ($isDirectory) {
+                ++$summaries[$extensionKey]['directoryEntryCount'];
+            } else {
+                ++$summaries[$extensionKey]['fileEntryCount'];
+            }
+
+            $summaries[$extensionKey]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$extensionKey]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$extensionKey]['entryNames'][] = $name;
+
+            $roles = [];
+            if (is_array($entry['roles'] ?? null)) {
+                $roles = array_values(array_filter($entry['roles'], static fn (mixed $role): bool => is_string($role) && $role !== ''));
+            } elseif (is_string($entry['role'] ?? null) && $entry['role'] !== '') {
+                $roles = [$entry['role']];
+            }
+
+            foreach ($roles as $role) {
+                if (!in_array($role, $summaries[$extensionKey]['roles'], true)) {
+                    $summaries[$extensionKey]['roles'][] = $role;
+                }
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['roles'], SORT_STRING);
+            sort($summary['entryNames'], SORT_STRING);
+        }
+        unset($summary);
+
+        ksort($summaries, SORT_STRING);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $extensionSummaries
+     */
+    private static function entryHandoffEntryExtensionlessEntryCount(array $extensionSummaries): int
+    {
+        foreach ($extensionSummaries as $summary) {
+            if (($summary['extension'] ?? null) === null) {
+                return (int) ($summary['entryCount'] ?? 0);
+            }
+        }
+
+        return 0;
+    }
+
+    private static function entryHandoffBaseName(string $name): string
+    {
+        return self::entryHandoffLeafName($name);
+    }
+
+    private static function entryHandoffExtension(string $name, bool $isDirectory): ?string
+    {
+        return $isDirectory ? null : self::entryHandoffFileExtension($name);
     }
 
     private static function entryHandoffFileExtension(string $name): ?string

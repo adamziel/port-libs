@@ -15733,6 +15733,96 @@ return [
         $t->same('ready', $summary['entries'][7]['status']);
     },
 
+    'summarizes selected zip handoff entry extensions for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $contentTypesXml = '<Types/>';
+        $packageRelsXml = '<Relationships/>';
+        $documentXml = '<w:document><w:body><w:p>extension handoff</w:p></w:body></w:document>';
+        $documentRelsXml = '<Relationships><Relationship Id="rIdImage" Target="media/image.PNG"/></Relationships>';
+        $imageBytes = "image bytes\n";
+        $extensionlessBytes = "extensionless media bytes\n";
+        $largeBytes = "large selected media bytes\n";
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'method' => 0],
+            ['name' => '_rels/.rels', 'data' => $packageRelsXml, 'method' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelsXml, 'method' => 0],
+            ['name' => 'word/media/', 'data' => '', 'method' => 0],
+            ['name' => 'word/media/image.PNG', 'data' => $imageBytes, 'method' => 0],
+            ['name' => 'word/media/no-extension', 'data' => $extensionlessBytes, 'method' => 0],
+            ['name' => 'word/media/large.bin', 'data' => $largeBytes, 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => '[Content_Types].xml', 'required' => true, 'kind' => 'file', 'role' => 'content-types'],
+            ['name' => '_rels/.rels', 'required' => true, 'kind' => 'file', 'role' => 'root-relationships'],
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/_rels/document.xml.rels', 'required' => false, 'kind' => 'file', 'role' => 'document-relationships'],
+            ['name' => 'word/media/', 'required' => false, 'kind' => 'directory', 'role' => 'media-directory'],
+            ['name' => 'word/media/image.PNG', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'word/media/no-extension', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'word/media/large.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 8],
+            ['name' => 'customXml/missing.xml', 'required' => false, 'kind' => 'file', 'role' => 'custom-xml'],
+        ], 1024);
+
+        $selectedByExtension = [];
+        foreach ($summary['selectedEntryExtensionSummaries'] as $extensionSummary) {
+            $selectedByExtension[$extensionSummary['extensionKey']] = $extensionSummary;
+        }
+        $handoffByExtension = [];
+        foreach ($summary['handoffEntryExtensionSummaries'] as $extensionSummary) {
+            $handoffByExtension[$extensionSummary['extensionKey']] = $extensionSummary;
+        }
+
+        $t->same(5, $summary['selectedEntryExtensionBucketCount']);
+        $t->same(2, $summary['selectedExtensionlessEntryCount']);
+        $t->same(4, $summary['handoffEntryExtensionBucketCount']);
+        $t->same(2, $summary['handoffExtensionlessEntryCount']);
+        $t->same(['(none)', 'bin', 'png', 'rels', 'xml'], array_keys($selectedByExtension));
+        $t->same(['(none)', 'png', 'rels', 'xml'], array_keys($handoffByExtension));
+
+        $t->same(null, $selectedByExtension['(none)']['extension']);
+        $t->same(2, $selectedByExtension['(none)']['entryCount']);
+        $t->same(1, $selectedByExtension['(none)']['fileEntryCount']);
+        $t->same(1, $selectedByExtension['(none)']['directoryEntryCount']);
+        $t->same(strlen($extensionlessBytes), $selectedByExtension['(none)']['uncompressedBytes']);
+        $t->same(['word/media/', 'word/media/no-extension'], $selectedByExtension['(none)']['entryNames']);
+        $t->same(['media', 'media-directory'], $selectedByExtension['(none)']['roles']);
+
+        $t->same('bin', $selectedByExtension['bin']['extension']);
+        $t->same(1, $selectedByExtension['bin']['entryCount']);
+        $t->same(strlen($largeBytes), $selectedByExtension['bin']['uncompressedBytes']);
+        $t->same(['word/media/large.bin'], $selectedByExtension['bin']['entryNames']);
+        $t->true(!isset($handoffByExtension['bin']), 'oversized bin entry should not enter readable handoff extension buckets');
+
+        $t->same('png', $selectedByExtension['png']['extension']);
+        $t->same(1, $selectedByExtension['png']['entryCount']);
+        $t->same(['word/media/image.PNG'], $selectedByExtension['png']['entryNames']);
+        $t->same($selectedByExtension['png'], $handoffByExtension['png']);
+
+        $t->same('rels', $selectedByExtension['rels']['extension']);
+        $t->same(2, $selectedByExtension['rels']['entryCount']);
+        $t->same(['_rels/.rels', 'word/_rels/document.xml.rels'], $selectedByExtension['rels']['entryNames']);
+        $t->same(['document-relationships', 'root-relationships'], $selectedByExtension['rels']['roles']);
+        $t->same($selectedByExtension['rels'], $handoffByExtension['rels']);
+
+        $t->same('xml', $selectedByExtension['xml']['extension']);
+        $t->same(2, $selectedByExtension['xml']['entryCount']);
+        $t->same(['[Content_Types].xml', 'word/document.xml'], $selectedByExtension['xml']['entryNames']);
+        $t->same(['content-types', 'main-document'], $selectedByExtension['xml']['roles']);
+        $t->same($selectedByExtension['xml'], $handoffByExtension['xml']);
+
+        $t->same('image.PNG', $summary['entries'][5]['entryBaseName']);
+        $t->same('png', $summary['entries'][5]['entryExtension']);
+        $t->same('png', $summary['entries'][5]['entryExtensionKey']);
+        $t->same('media', $summary['entries'][4]['entryBaseName']);
+        $t->same(null, $summary['entries'][4]['entryExtension']);
+        $t->same('(none)', $summary['entries'][4]['entryExtensionKey']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['entries'][7]['issues']);
+        $t->same(null, $summary['entries'][8]['entryExtension']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
+    },
+
     'summarizes selected zip handoff order provenance for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
         $mimetype = 'application/epub+zip';
         $contentTypesXml = '<Types/>';
