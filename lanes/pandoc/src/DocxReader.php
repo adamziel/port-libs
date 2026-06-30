@@ -406,6 +406,7 @@ final class DocxReader
         $pendingTableCaption = null;
         $activeStyleNumbering = [];
         $seenVisibleContent = false;
+        $preserveNextBookmarkOnlyEmptyParagraph = false;
 
         $flushList = function () use (&$blocks, &$pendingListRecords): void {
             if ($pendingListRecords === []) {
@@ -492,12 +493,31 @@ final class DocxReader
                     $flushDefinitionList();
                     $pendingCodeLines[] = $this->codeTextFromParagraph($child);
                     $seenVisibleContent = true;
+                    $preserveNextBookmarkOnlyEmptyParagraph = false;
+                    continue;
+                }
+
+                $shapeBlocks = $this->paragraphFloatingShapeBlocks($child);
+                if ($shapeBlocks !== null) {
+                    $flushPendingBlocks();
+                    array_push($blocks, ...$shapeBlocks);
+                    $seenVisibleContent = true;
+                    $preserveNextBookmarkOnlyEmptyParagraph = true;
                     continue;
                 }
 
                 $paragraph = $this->paragraph($child);
                 if (!$paragraph instanceof AstNode) {
                     $flushCodeBlock();
+                    if ($preserveNextBookmarkOnlyEmptyParagraph && $this->paragraphHasOnlyBookmarkMarkup($child)) {
+                        $flushDropCap();
+                        $flushList();
+                        $flushQuote();
+                        $flushDefinitionList();
+                        $blocks[] = new AstNode('paragraph', ['text' => '']);
+                        $seenVisibleContent = true;
+                    }
+                    $preserveNextBookmarkOnlyEmptyParagraph = false;
                     continue;
                 }
                 $metadataField = $paragraph->type === 'paragraph' ? $this->paragraphMetadataField($styleId) : null;
@@ -518,6 +538,7 @@ final class DocxReader
                     $flushPendingBlocks();
                     $flushTableCaption();
                 }
+                $preserveNextBookmarkOnlyEmptyParagraph = false;
                 if ($paragraph->type === 'paragraph' && $this->paragraphIsDropCapFrame($child)) {
                     $flushPendingBlocks();
                     $pendingDropCap = $paragraph;
@@ -679,6 +700,7 @@ final class DocxReader
                 }
                 $blocks[] = $table;
                 $seenVisibleContent = true;
+                $preserveNextBookmarkOnlyEmptyParagraph = false;
                 continue;
             }
             if ($child->localName === 'sdt') {
@@ -686,6 +708,7 @@ final class DocxReader
                 $flushTableCaption();
                 array_push($blocks, ...$this->contentControlBlocks($child));
                 $seenVisibleContent = true;
+                $preserveNextBookmarkOnlyEmptyParagraph = false;
                 continue;
             }
             if ($child->localName === 'oMathPara') {
@@ -696,6 +719,7 @@ final class DocxReader
                     $blocks[] = new AstNode('plain', [], [$math]);
                     $seenVisibleContent = true;
                 }
+                $preserveNextBookmarkOnlyEmptyParagraph = false;
             }
         }
 
@@ -864,6 +888,271 @@ final class DocxReader
         $instruction = (string) ($attributes['data-docx-field-instruction'] ?? '');
 
         return str_starts_with(strtoupper($instruction), 'SEQ ');
+    }
+
+    /**
+     * @return list<AstNode>|null
+     */
+    private function paragraphFloatingShapeBlocks(\DOMElement $paragraph): ?array
+    {
+        $records = [];
+
+        foreach ($this->transparentChildElements($paragraph) as $child) {
+            if ($this->isIgnorableParagraphShapeBlockElement($child)) {
+                continue;
+            }
+
+            if ($child->localName !== 'r') {
+                return null;
+            }
+
+            $runRecords = $this->runFloatingShapeRecords($child);
+            if ($runRecords === null) {
+                return null;
+            }
+
+            array_push($records, ...$runRecords);
+        }
+
+        if ($records === []) {
+            return null;
+        }
+
+        $images = [];
+        $captionBlocks = [];
+        $textBoxBlocks = [];
+
+        foreach ($records as $record) {
+            if ($record['kind'] === 'image') {
+                $images[] = $record['node'];
+                continue;
+            }
+
+            array_push($textBoxBlocks, ...$record['blocks']);
+            array_push($captionBlocks, ...$record['blocks']);
+        }
+
+        if ($textBoxBlocks === []) {
+            return null;
+        }
+
+        $captionBlocks = $this->stripRawBookmarkInlines($captionBlocks);
+        $textBoxBlocks = $this->stripRawBookmarkInlines($textBoxBlocks);
+
+        if ($images !== []) {
+            return null;
+        }
+
+        return $textBoxBlocks;
+    }
+
+    private function paragraphHasOnlyBookmarkMarkup(\DOMElement $paragraph): bool
+    {
+        $hasBookmark = false;
+        foreach ($this->transparentChildElements($paragraph) as $child) {
+            if ($child->localName === 'bookmarkStart' || $child->localName === 'bookmarkEnd') {
+                $hasBookmark = true;
+                continue;
+            }
+            if ($this->isIgnorableParagraphShapeBlockElement($child)) {
+                continue;
+            }
+
+            return false;
+        }
+
+        return $hasBookmark;
+    }
+
+    private function isIgnorableParagraphShapeBlockElement(\DOMElement $element): bool
+    {
+        return in_array($element->localName, [
+            'pPr',
+            'bookmarkStart',
+            'bookmarkEnd',
+            'proofErr',
+            'permStart',
+            'permEnd',
+        ], true);
+    }
+
+    /**
+     * @return list<array{kind: string, node?: AstNode, blocks?: list<AstNode>}>|null
+     */
+    private function runFloatingShapeRecords(\DOMElement $run): ?array
+    {
+        $records = [];
+
+        foreach ($this->transparentChildElements($run) as $child) {
+            if ($child->localName === 'rPr') {
+                continue;
+            }
+
+            if ($child->localName === 'drawing') {
+                array_push($records, ...$this->drawingFloatingShapeRecords($child));
+                continue;
+            }
+            if ($child->localName === 'pict') {
+                array_push($records, ...$this->vmlFloatingShapeRecords($child, 'vml-pict'));
+                continue;
+            }
+            if ($child->localName === 'object') {
+                array_push($records, ...$this->vmlFloatingShapeRecords($child, 'vml-object'));
+                continue;
+            }
+
+            return null;
+        }
+
+        return $records;
+    }
+
+    /**
+     * @return list<array{kind: string, node?: AstNode, blocks?: list<AstNode>}>
+     */
+    private function drawingFloatingShapeRecords(\DOMElement $drawing): array
+    {
+        $records = [];
+        $image = $this->drawingImage($drawing);
+        if ($image instanceof AstNode) {
+            $records[] = ['kind' => 'image', 'node' => $image];
+        }
+
+        array_push($records, ...$this->textBoxBlockRecords($drawing, 'drawing'));
+
+        return $records;
+    }
+
+    /**
+     * @return list<array{kind: string, node?: AstNode, blocks?: list<AstNode>}>
+     */
+    private function vmlFloatingShapeRecords(\DOMElement $container, string $source): array
+    {
+        $records = [];
+        foreach ($this->descendantElementsByLocalName($container, 'imagedata') as $imageData) {
+            $image = $this->vmlImage($imageData, $container, $source);
+            if ($image instanceof AstNode) {
+                $records[] = ['kind' => 'image', 'node' => $image];
+            }
+        }
+
+        array_push($records, ...$this->textBoxBlockRecords($container, $source));
+
+        return $records;
+    }
+
+    /**
+     * @return list<array{kind: string, blocks: list<AstNode>}>
+     */
+    private function textBoxBlockRecords(\DOMElement $container, string $source): array
+    {
+        $records = [];
+        foreach ($this->descendantElementsByLocalName($container, 'txbxContent') as $textBox) {
+            $blocks = $this->stripRawBookmarkInlines($this->bodyBlocks($textBox));
+            if ($blocks === []) {
+                continue;
+            }
+
+            $records[] = ['kind' => 'textbox', 'blocks' => $blocks];
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param list<AstNode> $captionBlocks
+     */
+    private function figureFromImageAndCaption(AstNode $image, array $captionBlocks): AstNode
+    {
+        $captionInlines = $this->captionInlinesFromBlocks($captionBlocks);
+        $attrs = [
+            'captionBlocks' => $captionBlocks,
+            'caption' => $this->blocksPlainText($captionBlocks),
+        ];
+        if ($captionInlines !== []) {
+            $attrs['captionInlines'] = $captionInlines;
+        }
+
+        return new AstNode('figure', $attrs, [$image]);
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<AstNode>
+     */
+    private function stripRawBookmarkInlines(array $blocks): array
+    {
+        $stripped = [];
+        foreach ($blocks as $block) {
+            $rebuilt = $this->stripRawBookmarkInlinesFromNode($block);
+            if ($rebuilt instanceof AstNode) {
+                $stripped[] = $rebuilt;
+            }
+        }
+
+        return $stripped;
+    }
+
+    private function stripRawBookmarkInlinesFromNode(AstNode $node): ?AstNode
+    {
+        if ($this->isRawBookmarkInline($node)) {
+            return null;
+        }
+
+        if ($node->children === []) {
+            return $node;
+        }
+
+        $children = [];
+        foreach ($node->children as $child) {
+            $rebuilt = $this->stripRawBookmarkInlinesFromNode($child);
+            if ($rebuilt instanceof AstNode) {
+                $children[] = $rebuilt;
+            }
+        }
+
+        $attrs = $node->attrs;
+        if (array_key_exists('text', $attrs) && in_array($node->type, ['paragraph', 'plain', 'heading', 'line', 'term'], true)) {
+            $attrs['text'] = $this->plainText($children);
+        }
+
+        return new AstNode($node->type, $attrs, $children);
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<AstNode>
+     */
+    private function captionInlinesFromBlocks(array $blocks): array
+    {
+        if (count($blocks) !== 1) {
+            return [];
+        }
+
+        $block = $blocks[0];
+        if (!in_array($block->type, ['paragraph', 'plain'], true)) {
+            return [];
+        }
+
+        return $block->children;
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     */
+    private function blocksPlainText(array $blocks): string
+    {
+        $parts = [];
+        foreach ($blocks as $block) {
+            $text = trim($this->nodeText($block));
+            if ($text !== '') {
+                $parts[] = $text;
+            }
+        }
+
+        $text = implode(' ', $parts);
+
+        return trim(preg_replace('/\s+/', ' ', $text) ?? $text);
     }
 
     /**
