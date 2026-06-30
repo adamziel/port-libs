@@ -2027,6 +2027,10 @@ final class PandocJsonReader
 
     private function enumTag(mixed $value, string $context): string
     {
+        if (is_array($value) && array_is_list($value) && count($value) === 1) {
+            return $this->enumTag($value[0], $context);
+        }
+
         if (is_string($value)) {
             return $value;
         }

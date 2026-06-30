@@ -2050,6 +2050,12 @@ final class PandocJsonWriter
 
     private function enumNative(mixed $native, string $constructor): mixed
     {
+        if (is_array($native) && array_is_list($native) && count($native) === 1) {
+            $wrapped = $this->enumNative($native[0], $constructor);
+
+            return $wrapped === null ? null : [$wrapped];
+        }
+
         if (is_string($native) && $native === $constructor) {
             return $native;
         }

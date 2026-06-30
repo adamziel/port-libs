@@ -16110,6 +16110,136 @@ NATIVE;
             'blocks' => [],
         ], JSON_THROW_ON_ERROR)));
     },
+    'accepts single wrapped enum helper constructors through json and native readers' => static function (TestRunner $t): void {
+        $quoteType = [['t' => 'DoubleQuote', 'reviewQueue' => 'quote-type-source']];
+        $citationMode = [['t' => 'SuppressAuthor', 'c' => ['stale'], 'reviewQueue' => 'citation-mode-source']];
+        $listStyle = [['t' => 'UpperRoman', 'reviewQueue' => 'list-style-source']];
+        $listDelimiter = ['Period'];
+        $columnAlignment = [['t' => 'AlignRight', 'reviewQueue' => 'column-alignment-source']];
+        $columnWidth = [['t' => 'ColWidthDefault', 'c' => ['stale'], 'reviewQueue' => 'column-width-source']];
+        $cellAlignment = [['t' => 'AlignCenter', 'reviewQueue' => 'cell-alignment-source']];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Quoted', 'c' => [
+                        $quoteType,
+                        [['t' => 'Str', 'c' => 'Quoted']],
+                    ]],
+                    ['t' => 'Space'],
+                    ['t' => 'Cite', 'c' => [
+                        [[
+                            'citationId' => 'doe2020',
+                            'citationPrefix' => [],
+                            'citationSuffix' => [],
+                            'citationMode' => $citationMode,
+                            'citationNoteNum' => 0,
+                            'citationHash' => 0,
+                        ]],
+                        [['t' => 'Str', 'c' => '-@doe2020']],
+                    ]],
+                ]],
+                ['t' => 'OrderedList', 'c' => [
+                    ['t' => 'ListAttributes', 'c' => [1, $listStyle, $listDelimiter], 'reviewQueue' => 'list-attributes-source'],
+                    [[['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Item']]]]],
+                ]],
+                ['t' => 'Table', 'c' => [
+                    ['', [], []],
+                    ['t' => 'Caption', 'c' => [['t' => 'Nothing'], []]],
+                    [[$columnAlignment, $columnWidth]],
+                    ['t' => 'TableHead', 'c' => [
+                        ['', [], []],
+                        [
+                            ['t' => 'Row', 'c' => [
+                                ['', [], []],
+                                [
+                                    ['t' => 'Cell', 'c' => [
+                                        ['', [], []],
+                                        $cellAlignment,
+                                        ['t' => 'RowSpan', 'c' => 1],
+                                        ['t' => 'ColSpan', 'c' => 1],
+                                        [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Head']]]],
+                                    ]],
+                                ],
+                            ]],
+                        ],
+                    ]],
+                    [],
+                    ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+                ]],
+            ],
+        ];
+        $firstChildOfType = static function (array $children, string $type): ?AstNode {
+            foreach ($children as $child) {
+                if ($child instanceof AstNode && $child->type === $type) {
+                    return $child;
+                }
+            }
+
+            return null;
+        };
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $paragraph = $document->children[0];
+            $quote = $firstChildOfType($paragraph->children, 'quoted') ?? new AstNode('missing');
+            $citation = $firstChildOfType($paragraph->children, 'citation') ?? new AstNode('missing');
+            $list = $document->children[1];
+            $table = $document->children[2];
+            $head = $table->children[0];
+            $row = $head->children[0];
+            $cell = $row->children[0];
+
+            $t->same('double', $quote->attr('kind'), "{$source} unwraps quote type enum");
+            $t->same($quoteType, $quote->attr('quoteTypeNative'), "{$source} records wrapped quote type native");
+            $t->same('suppress_author', $citation->attr('mode'), "{$source} unwraps citation mode enum");
+            $t->same($citationMode, $citation->attr('citationModeNative'), "{$source} records wrapped citation mode native");
+            $t->same('upper_roman', $list->attr('style'), "{$source} unwraps list style enum");
+            $t->same($listStyle, $list->attr('listStyleNative'), "{$source} records wrapped list style native");
+            $t->same('period', $list->attr('delimiter'), "{$source} unwraps string list delimiter enum");
+            $t->same($listDelimiter, $list->attr('listDelimiterNative'), "{$source} records wrapped list delimiter native");
+            $t->same(['right'], $table->attr('alignments'), "{$source} unwraps table column alignment enum");
+            $t->same([null], $table->attr('widths'), "{$source} unwraps default column width enum");
+            $t->same([$columnAlignment], $table->attr('alignmentNatives'), "{$source} records wrapped column alignment native");
+            $t->same([$columnWidth], $table->attr('columnWidthNatives'), "{$source} records wrapped column width native");
+            $t->same('center', $cell->attr('align'), "{$source} unwraps table cell alignment enum");
+            $t->same($cellAlignment, $cell->attr('alignmentNative'), "{$source} records wrapped cell alignment native");
+
+            $editedQuote = new AstNode('quoted', $quote->attrs, [new AstNode('text', ['text' => 'Edited quote'])]);
+            $editedCitation = new AstNode('citation', array_replace($citation->attrs, ['citationNoteNum' => 7]), $citation->children);
+            $editedParagraph = new AstNode('paragraph', [], [$editedQuote, new AstNode('space'), $editedCitation]);
+            $editedList = new AstNode('ordered_list', array_replace($list->attrs, ['start' => 3]), $list->children);
+            $editedCell = new AstNode('table_cell', array_replace($cell->attrs, ['text' => 'Edited cell']), [
+                new AstNode('text', ['text' => 'Edited cell']),
+            ]);
+            $editedRow = new AstNode('table_row', $row->attrs, [$editedCell]);
+            $editedHead = new AstNode('table_head', $head->attrs, [$editedRow]);
+            $editedTable = new AstNode('table', $table->attrs, [$editedHead]);
+            $editedDocument = new AstNode('document', $document->attrs, [$editedParagraph, $editedList, $editedTable]);
+
+            foreach ([
+                'json writer' => (new PandocJsonWriter())->toArray($editedDocument),
+                'native writer' => json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedQuoteType = $encoded['blocks'][0]['c'][0]['c'][0];
+                $encodedCitationMode = $encoded['blocks'][0]['c'][2]['c'][0][0]['citationMode'];
+                $encodedListAttributes = $encoded['blocks'][1]['c'][0];
+                $encodedColumnSpec = $encoded['blocks'][2]['c'][2][0];
+                $encodedCell = $encoded['blocks'][2]['c'][3]['c'][1][0]['c'][1][0];
+
+                $t->same($quoteType, $encodedQuoteType, "{$source} {$writer} preserves rebuilt wrapped quote type");
+                $t->same([['t' => 'SuppressAuthor', 'reviewQueue' => 'citation-mode-source']], $encodedCitationMode, "{$source} {$writer} cleans rebuilt wrapped citation mode");
+                $t->same($listStyle, $encodedListAttributes['c'][1], "{$source} {$writer} preserves rebuilt wrapped list style");
+                $t->same($listDelimiter, $encodedListAttributes['c'][2], "{$source} {$writer} preserves rebuilt wrapped list delimiter");
+                $t->same($columnAlignment, $encodedColumnSpec[0], "{$source} {$writer} preserves rebuilt wrapped column alignment");
+                $t->same([['t' => 'ColWidthDefault', 'reviewQueue' => 'column-width-source']], $encodedColumnSpec[1], "{$source} {$writer} cleans rebuilt wrapped column width");
+                $t->same($cellAlignment, $encodedCell['c'][1], "{$source} {$writer} preserves rebuilt wrapped cell alignment");
+            }
+        }
+    },
     'renders wordpress blocks from pandoc json filter input' => static function (TestRunner $t): void {
         $json = <<<'JSON'
 {
