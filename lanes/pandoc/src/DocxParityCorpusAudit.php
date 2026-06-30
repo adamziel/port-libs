@@ -14,6 +14,7 @@ final class DocxParityCorpusAudit
     public const CLAIM = 'Reports local parser acceptance for paired root-level upstream DOCX/native fixtures plus writer-golden inventory/support status; no AST equality, generated writer package comparison, or upstream Haskell runner parity is asserted.';
     public const GAP_STATUS_OPEN = 'open';
     public const GAP_STATUS_NOT_EVALUATED = 'not-evaluated';
+    public const DOCX_RUNNER_PLAN_STATUS = 'open-no-targeted-runner-result';
     public const PARSER_ACCEPTANCE_BASELINE_NAME = 'local-upstream-docx-parser-acceptance-20260630';
     public const PARSER_ACCEPTANCE_BASELINE_PAIRED_ARTIFACTS = 74;
     public const PARSER_ACCEPTANCE_BASELINE_DOCX_PARSED = 74;
@@ -116,6 +117,7 @@ final class DocxParityCorpusAudit
             'claim' => self::CLAIM,
             'evidenceKind' => 'parser-acceptance-only',
             'verificationScope' => self::verificationScope(),
+            'upstreamDocxRunnerEvidencePlan' => self::upstreamDocxRunnerEvidencePlan(),
             'repoRoot' => $this->repoRoot,
             'upstreamDocxDirectory' => $docxDir,
             'upstreamDocxDirectoryDisplay' => $this->displayPath($docxDir),
@@ -199,6 +201,7 @@ final class DocxParityCorpusAudit
             $lines[] = 'No parser audit was run. This is expected on CI jobs without .upstream-cache.';
             $lines = self::appendWriterGoldenSummary($lines, $report);
             $lines[] = 'No DOCX parity is asserted.';
+            $lines = self::appendUpstreamDocxRunnerEvidencePlan($lines, $report);
             $lines = self::appendOrderedRemainingGaps($lines, $report);
 
             return implode(PHP_EOL, $lines) . PHP_EOL;
@@ -268,6 +271,7 @@ final class DocxParityCorpusAudit
             }
         }
 
+        $lines = self::appendUpstreamDocxRunnerEvidencePlan($lines, $report);
         $lines = self::appendOrderedRemainingGaps($lines, $report);
         $lines[] = 'No AST equality, upstream Haskell runner, or DOCX writer golden package parity is asserted.';
 
@@ -290,6 +294,7 @@ final class DocxParityCorpusAudit
             'claim' => self::CLAIM,
             'evidenceKind' => 'parser-acceptance-only',
             'verificationScope' => self::verificationScope(),
+            'upstreamDocxRunnerEvidencePlan' => self::upstreamDocxRunnerEvidencePlan(),
             'repoRoot' => $this->repoRoot,
             'upstreamDocxDirectory' => $this->absoluteDocxDirectory(),
             'upstreamDocxDirectoryDisplay' => $this->displayPath($this->absoluteDocxDirectory()),
@@ -349,6 +354,107 @@ final class DocxParityCorpusAudit
         return is_array($regression)
             && ($regression['evaluated'] ?? false) === true
             && ($regression['regressed'] ?? false) === true;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function upstreamDocxRunnerEvidencePlan(): array
+    {
+        $dryRunDescriptor = UpstreamRunnerDependencyAudit::expectedCabalPlanCommands()['runner-test-dependencies'];
+        $workspace = UpstreamRunnerDependencyAudit::expectedCabalPlanWorkspace();
+        $futureTargetedDescriptor = [
+            'program' => 'cabal',
+            'arguments' => [
+                'v2-run',
+                '--offline',
+                '--project-dir=.',
+                '--builddir=.port-libs/pandoc-runner/cabal-build/docx-targeted-run',
+                'test:test-pandoc',
+                '--',
+                '--pattern',
+                '($2 == "Readers" || $2 == "Writers") && $3 == "Docx"',
+            ],
+        ];
+
+        return [
+            'status' => self::DOCX_RUNNER_PLAN_STATUS,
+            'evidenceKind' => 'runner-entry-fixture-command-plan-only',
+            'resultRecorded' => false,
+            'runnerExecuted' => false,
+            'upstreamCommit' => UpstreamRunnerDependencyAudit::UPSTREAM_COMMIT,
+            'runnerTarget' => 'test:test-pandoc',
+            'runnerEntryPoint' => [
+                'packageFile' => 'pandoc.cabal',
+                'component' => 'test:test-pandoc',
+                'type' => 'exitcode-stdio-1.0',
+                'mainIs' => 'test-pandoc.hs',
+                'sourceDirectory' => 'test',
+                'entryFile' => 'test/test-pandoc.hs',
+                'entrySemantics' => [
+                    'runs from upstream test directory via inDirectory "test"',
+                    'runs Tasty defaultMain $ tests fp',
+                    'dispatches both DOCX reader and DOCX writer Tasty groups',
+                ],
+            ],
+            'docxReaderEntryPoint' => [
+                'module' => 'Tests.Readers.Docx',
+                'sourceFile' => 'test/Tests/Readers/Docx.hs',
+                'tastyGroup' => 'testGroup "Docx" Tests.Readers.Docx.tests',
+                'entryPointSnippet' => 'Tests.Readers.Docx.tests',
+            ],
+            'docxWriterEntryPoint' => [
+                'module' => 'Tests.Writers.Docx',
+                'sourceFile' => 'test/Tests/Writers/Docx.hs',
+                'tastyGroup' => 'testGroup "Docx" Tests.Writers.Docx.tests',
+                'entryPointSnippet' => 'Tests.Writers.Docx.tests',
+            ],
+            'fixtureClosure' => [
+                'source' => 'pandoc.cabal extra-source-files plus test/test-pandoc.hs DOCX Tasty group dispatch',
+                'entrySourceFiles' => [
+                    'test/test-pandoc.hs',
+                    'test/Tests/Readers/Docx.hs',
+                    'test/Tests/Writers/Docx.hs',
+                ],
+                'readerFixtureGlobs' => [
+                    'test/docx/*.docx',
+                    'test/docx/*.native',
+                ],
+                'writerGoldenFixtureGlobs' => [
+                    'test/docx/golden/*.docx',
+                ],
+                'pinnedInventoryCounts' => [
+                    'docxDirectoryArtifacts' => 233,
+                    'nativeExpectedArtifacts' => 112,
+                    'docxPackageArtifacts' => 121,
+                    'goldenDocxArtifacts' => 38,
+                ],
+            ],
+            'nonMutatingDryRunPlanCommand' => [
+                'descriptor' => 'UpstreamRunnerDependencyAudit::expectedCabalPlanCommands()["runner-test-dependencies"]',
+                'program' => $dryRunDescriptor['program'],
+                'arguments' => $dryRunDescriptor['arguments'],
+                'commandLine' => self::shellCommandLine($dryRunDescriptor['program'], $dryRunDescriptor['arguments']),
+                'targets' => $dryRunDescriptor['targets'],
+                'workingDirectory' => $dryRunDescriptor['workingDirectory'],
+                'buildDirectory' => $dryRunDescriptor['buildDirectory'],
+                'executionPolicy' => $dryRunDescriptor['executionPolicy'],
+                'workspaceEnvironmentVariables' => array_keys($workspace['environmentVariables']),
+                'workspaceBuildDirectory' => $workspace['buildDirectories']['runner-test-dependencies'],
+                'transcriptFile' => $workspace['transcriptFiles']['runner-test-dependencies'],
+                'claim' => 'Descriptor-only Cabal dependency dry-run command; this audit did not execute it.',
+            ],
+            'futureTargetedRunCommand' => [
+                'program' => $futureTargetedDescriptor['program'],
+                'arguments' => $futureTargetedDescriptor['arguments'],
+                'commandLine' => self::shellCommandLine($futureTargetedDescriptor['program'], $futureTargetedDescriptor['arguments']),
+                'workingDirectory' => 'hydrated Pandoc upstream checkout root',
+                'executionPolicy' => 'future targeted runner only after reviewed dry-run plan; not executed by this audit',
+                'tastyPatternSource' => 'Tasty AWK-like pattern fields from test tree: $1 outer group, $2 reader/writer group, $3 Docx subgroup.',
+                'requiredResultArtifact' => 'A future run must record command transcript, exit code, upstream commit, selected test names or --list-tests output, and per-test pass/fail rows before closing upstream-docx-runner-results.',
+            ],
+            'honestClaim' => 'This records entry points, fixture closure, and commands for a future targeted run only. It is not an upstream DOCX runner result.',
+        ];
     }
 
     private function absoluteDocxDirectory(): string
@@ -538,12 +644,14 @@ final class DocxParityCorpusAudit
                 'strict regression guard against the recorded 74/74 parser-acceptance baseline when the optional cache is present',
                 'local DOCX output registry status and expected DocxWriter class/file presence',
                 'upstream writer golden package part names and SHA-256 hashes when the optional cache is present',
+                'static upstream DOCX reader/writer runner entry point, fixture closure, and descriptor-only dry-run command plan',
             ],
             'doesNotAssert' => [
                 'Pandoc AST equality between DOCX reader output and upstream .native expectations',
                 'upstream Haskell/Cabal test-pandoc DOCX runner parity',
                 'DOCX writer golden package round-trip parity',
                 'DOCX writer support merely because upstream golden packages are inventoried',
+                'execution of the future targeted DOCX Tasty runner command',
                 'full DOCX/OpenXML semantic parity',
             ],
         ];
@@ -579,7 +687,7 @@ final class DocxParityCorpusAudit
                 'rank' => 1,
                 'id' => 'upstream-docx-runner-results',
                 'status' => self::GAP_STATUS_OPEN,
-                'currentEvidence' => 'No upstream Haskell/Cabal test-pandoc DOCX reader or writer runner result is recorded by this evidence lane.',
+                'currentEvidence' => 'No upstream Haskell/Cabal test-pandoc DOCX reader or writer runner result is recorded by this evidence lane. Static evidence now records the test:test-pandoc entry point, DOCX reader/writer Tasty groups, DOCX fixture globs, and the descriptor-only Cabal dry-run command needed before a future targeted run.',
                 'evidenceRequired' => 'Record reproducible upstream DOCX reader/writer runner results or a native-PHP equivalent denominator with per-fixture pass/fail rows.',
             ],
             [
@@ -667,6 +775,62 @@ final class DocxParityCorpusAudit
      * @param array<string, mixed> $report
      * @return list<string>
      */
+    private static function appendUpstreamDocxRunnerEvidencePlan(array $lines, array $report): array
+    {
+        $plan = $report['upstreamDocxRunnerEvidencePlan'] ?? null;
+        if (!is_array($plan)) {
+            return $lines;
+        }
+
+        $reader = is_array($plan['docxReaderEntryPoint'] ?? null) ? $plan['docxReaderEntryPoint'] : [];
+        $writer = is_array($plan['docxWriterEntryPoint'] ?? null) ? $plan['docxWriterEntryPoint'] : [];
+        $fixtureClosure = is_array($plan['fixtureClosure'] ?? null) ? $plan['fixtureClosure'] : [];
+        $dryRun = is_array($plan['nonMutatingDryRunPlanCommand'] ?? null) ? $plan['nonMutatingDryRunPlanCommand'] : [];
+        $future = is_array($plan['futureTargetedRunCommand'] ?? null) ? $plan['futureTargetedRunCommand'] : [];
+
+        $lines[] = 'Upstream DOCX runner plan: '
+            . (string) ($plan['status'] ?? self::DOCX_RUNNER_PLAN_STATUS)
+            . '; result recorded='
+            . (($plan['resultRecorded'] ?? false) === true ? 'yes' : 'no')
+            . '; runner executed='
+            . (($plan['runnerExecuted'] ?? false) === true ? 'yes' : 'no');
+        $lines[] = 'DOCX runner entry points: reader '
+            . (string) ($reader['sourceFile'] ?? 'test/Tests/Readers/Docx.hs')
+            . ' -> '
+            . (string) ($reader['entryPointSnippet'] ?? 'Tests.Readers.Docx.tests')
+            . '; writer '
+            . (string) ($writer['sourceFile'] ?? 'test/Tests/Writers/Docx.hs')
+            . ' -> '
+            . (string) ($writer['entryPointSnippet'] ?? 'Tests.Writers.Docx.tests');
+
+        $readerGlobs = is_array($fixtureClosure['readerFixtureGlobs'] ?? null) ? $fixtureClosure['readerFixtureGlobs'] : [];
+        $writerGlobs = is_array($fixtureClosure['writerGoldenFixtureGlobs'] ?? null) ? $fixtureClosure['writerGoldenFixtureGlobs'] : [];
+        $lines[] = 'DOCX fixture closure: '
+            . implode(', ', array_merge(array_map('strval', $readerGlobs), array_map('strval', $writerGlobs)));
+
+        if ($dryRun !== []) {
+            $lines[] = 'Non-mutating Cabal dry-run plan command: '
+                . (string) ($dryRun['commandLine'] ?? '')
+                . ' ['
+                . (string) ($dryRun['executionPolicy'] ?? '')
+                . ']';
+        }
+        if ($future !== []) {
+            $lines[] = 'Future targeted DOCX runner command: '
+                . (string) ($future['commandLine'] ?? '')
+                . ' ['
+                . (string) ($future['executionPolicy'] ?? '')
+                . ']';
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @param array<string, mixed> $report
+     * @return list<string>
+     */
     private static function appendOrderedRemainingGaps(array $lines, array $report): array
     {
         $gaps = $report['orderedRemainingGaps'] ?? [];
@@ -690,6 +854,28 @@ final class DocxParityCorpusAudit
         }
 
         return $lines;
+    }
+
+    /**
+     * @param list<string> $arguments
+     */
+    private static function shellCommandLine(string $program, array $arguments): string
+    {
+        $parts = [self::shellArgument($program)];
+        foreach ($arguments as $argument) {
+            $parts[] = self::shellArgument((string) $argument);
+        }
+
+        return implode(' ', $parts);
+    }
+
+    private static function shellArgument(string $argument): string
+    {
+        if ($argument !== '' && preg_match('/^[A-Za-z0-9_\/:.,=@%+~-]+$/', $argument) === 1) {
+            return $argument;
+        }
+
+        return "'" . str_replace("'", "'\\''", $argument) . "'";
     }
 
     /**

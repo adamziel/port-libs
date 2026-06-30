@@ -40,15 +40,20 @@ $countTrackedFiles = static function (array $patterns) use ($repoRoot): int {
 };
 
 return [
-    'keeps DOCX parity evidence bounded to defensible coverage' => static function (TestRunner $t) use ($readJson, $readText, $countTrackedFiles): void {
+    'keeps DOCX parity evidence bounded to defensible coverage' => static function (TestRunner $t) use ($repoRoot, $readJson, $readText, $countTrackedFiles): void {
         $manifest = $readJson('lanes/pandoc/UPSTREAM_TEST_MANIFEST.json');
         $status = $readJson('lanes/pandoc/lane-status.json');
+        $cacheManifest = $readJson('lanes/pandoc/UPSTREAM_DOCX_CACHE_MANIFEST.json');
         $pandocStatus = $readText('PANDOC_STATUS.md');
 
         $manifestAudit = $manifest['docxParityAudit'] ?? null;
         $statusAudit = $status['docxParityAudit'] ?? null;
         $t->true(is_array($manifestAudit), 'UPSTREAM_TEST_MANIFEST.json must carry DOCX parity audit evidence');
         $t->true(is_array($statusAudit), 'lane-status.json must carry DOCX parity audit evidence');
+        $optionalCacheManifest = $manifestAudit['optionalUpstreamCacheManifest'] ?? null;
+        $statusOptionalCacheManifest = $statusAudit['optionalUpstreamCacheManifest'] ?? null;
+        $t->true(is_array($optionalCacheManifest), 'UPSTREAM_TEST_MANIFEST.json must reference the optional upstream DOCX cache manifest');
+        $t->same($optionalCacheManifest, $statusOptionalCacheManifest);
 
         $t->same('not-full-upstream-docx-parity', $manifestAudit['verdict'] ?? null);
         $t->same($manifestAudit['verdict'], $statusAudit['verdict'] ?? null);
@@ -125,11 +130,78 @@ return [
         $t->same('writer-unsupported-no-DocxWriter-implementation-and-docx-output-registry-unsupported', $manifestAudit['writerGoldenPackageComparison']['openReason'] ?? null);
         $t->same($manifestAudit['writerGoldenPackageComparison'], $statusAudit['writerGoldenPackageComparison'] ?? null);
 
+        $t->same('reported_optional_upstream_docx_cache_manifest', $cacheManifest['status'] ?? null);
+        $t->same(false, $cacheManifest['skipped'] ?? null);
+        $t->same('artifact-identity-manifest-only', $cacheManifest['evidenceKind'] ?? null);
+        $t->same('612e143fbe6d735b612c4800d21e61b7d44e4dca', $cacheManifest['upstream']['commit'] ?? null);
+        $t->same(true, $cacheManifest['upstream']['commitMatchesExpected'] ?? null);
+        $t->same(true, $cacheManifest['source']['workingTreeCleanForTestDocx'] ?? null);
+        $t->same(236, $cacheManifest['artifactCounts']['totalDocxNativeGoldenArtifacts'] ?? null);
+        $t->same(85, $cacheManifest['artifactCounts']['rootDocxPackageArtifacts'] ?? null);
+        $t->same(113, $cacheManifest['artifactCounts']['rootNativeExpectedArtifacts'] ?? null);
+        $t->same(38, $cacheManifest['artifactCounts']['goldenDocxPackageArtifacts'] ?? null);
+        $t->same(123, $cacheManifest['artifactCounts']['totalDocxPackageArtifacts'] ?? null);
+        $t->same(74, $cacheManifest['artifactCounts']['pairedRootDocxNativeStems'] ?? null);
+        $t->same(11, $cacheManifest['artifactCounts']['unpairedRootDocxPackageStems'] ?? null);
+        $t->same(39, $cacheManifest['artifactCounts']['unpairedRootNativeExpectedStems'] ?? null);
+        $t->same(236, count($cacheManifest['artifactRows'] ?? []));
+        $t->same(85, count($cacheManifest['rootDocxPackageStems'] ?? []));
+        $t->same(113, count($cacheManifest['rootNativeExpectedStems'] ?? []));
+        $t->same(38, count($cacheManifest['goldenDocxPackageStems'] ?? []));
+        $t->same('test/docx/0_level_headers.docx', $cacheManifest['artifactRows'][0]['path'] ?? null);
+        $t->same('0d99c52804c856788c773639a36f695e908bff14b07e4b242e377f6131f8941e', $cacheManifest['artifactRows'][0]['sha256'] ?? null);
+        $t->contains('checked-in DOCX package bytes', implode(',', $cacheManifest['claimBoundaries']['doesNotAssert'] ?? []));
+        $t->contains('pinned upstream DOCX package corpus availability in every worktree or CI job', implode(',', $cacheManifest['claimBoundaries']['doesNotAssert'] ?? []));
+        $t->true(filesize($repoRoot . '/lanes/pandoc/UPSTREAM_DOCX_CACHE_MANIFEST.json') < 100000, 'DOCX cache manifest must stay metadata-sized');
+        $t->same('lanes/pandoc/UPSTREAM_DOCX_CACHE_MANIFEST.json', $optionalCacheManifest['reportPath'] ?? null);
+        $t->same('tools/pandoc-docx-cache-manifest.php', $optionalCacheManifest['tool'] ?? null);
+        $t->same($cacheManifest['evidenceKind'], $optionalCacheManifest['evidenceKind'] ?? null);
+        $t->same($cacheManifest['upstream']['commit'], $optionalCacheManifest['upstreamCommit'] ?? null);
+        $t->same($cacheManifest['source']['cachePath'], $optionalCacheManifest['cachePath'] ?? null);
+        $t->same($cacheManifest['artifactSetSha256'], $optionalCacheManifest['artifactSetSha256'] ?? null);
+        $t->same($cacheManifest['artifactCounts']['totalDocxNativeGoldenArtifacts'], $optionalCacheManifest['totalDocxNativeGoldenArtifacts'] ?? null);
+        $t->same($cacheManifest['artifactCounts']['rootDocxPackageArtifacts'], $optionalCacheManifest['rootDocxPackageArtifacts'] ?? null);
+        $t->same($cacheManifest['artifactCounts']['rootNativeExpectedArtifacts'], $optionalCacheManifest['rootNativeExpectedArtifacts'] ?? null);
+        $t->same($cacheManifest['artifactCounts']['goldenDocxPackageArtifacts'], $optionalCacheManifest['goldenDocxPackageArtifacts'] ?? null);
+        $t->same($cacheManifest['artifactCounts']['pairedRootDocxNativeStems'], $optionalCacheManifest['pairedRootDocxNativeStems'] ?? null);
+        $t->contains('without checking in DOCX package bytes', (string) ($optionalCacheManifest['claim'] ?? ''));
+
+        $runnerPlan = $manifestAudit['upstreamDocxRunnerEvidencePlan'] ?? null;
+        $statusRunnerPlan = $statusAudit['upstreamDocxRunnerEvidencePlan'] ?? null;
+        $t->true(is_array($runnerPlan), 'UPSTREAM_TEST_MANIFEST.json must carry a DOCX runner evidence plan');
+        $t->same($runnerPlan, $statusRunnerPlan);
+        $t->same('open-no-targeted-runner-result', $runnerPlan['status'] ?? null);
+        $t->same('runner-entry-fixture-command-plan-only', $runnerPlan['evidenceKind'] ?? null);
+        $t->same(false, $runnerPlan['resultRecorded'] ?? null);
+        $t->same(false, $runnerPlan['runnerExecuted'] ?? null);
+        $t->same('test:test-pandoc', $runnerPlan['runnerTarget'] ?? null);
+        $t->same('test/test-pandoc.hs', $runnerPlan['runnerEntryPoint']['entryFile'] ?? null);
+        $t->same('test/Tests/Readers/Docx.hs', $runnerPlan['docxReaderEntryPoint']['sourceFile'] ?? null);
+        $t->same('Tests.Readers.Docx.tests', $runnerPlan['docxReaderEntryPoint']['entryPointSnippet'] ?? null);
+        $t->same('test/Tests/Writers/Docx.hs', $runnerPlan['docxWriterEntryPoint']['sourceFile'] ?? null);
+        $t->same('Tests.Writers.Docx.tests', $runnerPlan['docxWriterEntryPoint']['entryPointSnippet'] ?? null);
+        $t->same(['test/docx/*.docx', 'test/docx/*.native'], $runnerPlan['fixtureClosure']['readerFixtureGlobs'] ?? null);
+        $t->same(['test/docx/golden/*.docx'], $runnerPlan['fixtureClosure']['writerGoldenFixtureGlobs'] ?? null);
+        $t->same(233, $runnerPlan['fixtureClosure']['pinnedInventoryCounts']['docxDirectoryArtifacts'] ?? null);
+        $t->same(112, $runnerPlan['fixtureClosure']['pinnedInventoryCounts']['nativeExpectedArtifacts'] ?? null);
+        $t->same(121, $runnerPlan['fixtureClosure']['pinnedInventoryCounts']['docxPackageArtifacts'] ?? null);
+        $t->same(38, $runnerPlan['fixtureClosure']['pinnedInventoryCounts']['goldenDocxArtifacts'] ?? null);
+        $t->contains('cabal v2-build --offline --project-dir=.', (string) ($runnerPlan['nonMutatingDryRunPlanCommand']['commandLine'] ?? ''));
+        $t->contains('--dry-run', (string) ($runnerPlan['nonMutatingDryRunPlanCommand']['commandLine'] ?? ''));
+        $t->contains('test:test-pandoc test:test-pandoc-lua-engine', (string) ($runnerPlan['nonMutatingDryRunPlanCommand']['commandLine'] ?? ''));
+        $t->same('descriptor-only; do not execute from this isolated PHP lane', $runnerPlan['nonMutatingDryRunPlanCommand']['executionPolicy'] ?? null);
+        $t->same('($2 == "Readers" || $2 == "Writers") && $3 == "Docx"', $runnerPlan['futureTargetedRunCommand']['arguments'][7] ?? null);
+        $t->contains('not executed by this audit', (string) ($runnerPlan['futureTargetedRunCommand']['executionPolicy'] ?? ''));
+        $t->contains('not an upstream DOCX runner result', (string) ($runnerPlan['honestClaim'] ?? ''));
+
         $t->contains('Full DOCX/OpenXML parity is not defensible', (string) ($status['blocker'] ?? ''));
         $t->contains('no local DocxWriter implementation', (string) ($status['blocker'] ?? ''));
         $t->contains('full upstream DOCX parity is not defensible', $pandocStatus);
+        $t->contains('DOCX runner evidence plan records `test:test-pandoc`', $pandocStatus);
         $t->contains('2 checked-in current-upstream `.docx` package fixtures', $pandocStatus);
         $t->contains('0 checked-in pinned upstream `.docx` package fixtures', $pandocStatus);
+        $t->contains('UPSTREAM_DOCX_CACHE_MANIFEST.json', $pandocStatus);
+        $t->contains('checked-in pinned DOCX package corpus gap remains open', $pandocStatus);
         $t->contains('three current-upstream DOCX drift fixtures', (string) ($manifestAudit['defensibleClaim'] ?? ''));
     },
 ];
