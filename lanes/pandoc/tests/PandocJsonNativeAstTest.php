@@ -5480,9 +5480,9 @@ return [
         $retaggedJson = (new PandocJsonWriter())->toArray($retaggedDocument);
         $retaggedNative = json_decode((new NativeWriter())->write($retaggedDocument), true, 512, JSON_THROW_ON_ERROR);
 
-        $t->same('markdown', $retaggedJson['blocks'][0]['c'][0]);
+        $t->same(['t' => 'Format', 'c' => ['markdown'], 'reviewQueue' => 'raw-block-format'], $retaggedJson['blocks'][0]['c'][0]);
         $t->same('**edited**', $retaggedJson['blocks'][0]['c'][1]);
-        $t->same('markdown', $retaggedNative['blocks'][0]['c'][0]);
+        $t->same(['t' => 'Format', 'c' => ['markdown'], 'reviewQueue' => 'raw-block-format'], $retaggedNative['blocks'][0]['c'][0]);
         $t->same('**edited**', $retaggedNative['blocks'][0]['c'][1]);
     },
     'maps html-family raw aliases through json native and wordpress handoff' => static function (TestRunner $t): void {
@@ -15887,10 +15887,10 @@ NATIVE;
             $editedJson = (new PandocJsonWriter())->toArray($edited);
             $editedNative = json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR);
 
-            $t->same('markdown', $editedJson['blocks'][0]['c'][0], "{$source} json writer drops stale raw block format sidecar");
-            $t->same('markdown', $editedNative['blocks'][0]['c'][0], "{$source} native writer drops stale raw block format sidecar");
-            $t->same('html', $editedJson['blocks'][1]['c'][0]['c'][0], "{$source} json writer drops stale raw inline format sidecar");
-            $t->same('html', $editedNative['blocks'][1]['c'][0]['c'][0], "{$source} native writer drops stale raw inline format sidecar");
+            $t->same(['t' => 'Format', 'c' => [['markdown']], 'reviewQueue' => 'raw-block-format-source'], $editedJson['blocks'][0]['c'][0], "{$source} json writer regenerates raw block format sidecar");
+            $t->same(['t' => 'Format', 'c' => [['markdown']], 'reviewQueue' => 'raw-block-format-source'], $editedNative['blocks'][0]['c'][0], "{$source} native writer regenerates raw block format sidecar");
+            $t->same(['t' => 'Format', 'c' => [['html']], 'reviewQueue' => 'raw-inline-format-source'], $editedJson['blocks'][1]['c'][0]['c'][0], "{$source} json writer regenerates raw inline format sidecar");
+            $t->same(['t' => 'Format', 'c' => [['html']], 'reviewQueue' => 'raw-inline-format-source'], $editedNative['blocks'][1]['c'][0]['c'][0], "{$source} native writer regenerates raw inline format sidecar");
         }
     },
     'validates malformed pandoc json packets without shelling out' => static function (TestRunner $t): void {

@@ -2159,14 +2159,14 @@ final class PandocJsonWriter
         return $content === $integer ? $tagged : $this->regeneratedScalarConstructorNative($tagged, $integer);
     }
 
-    private function regeneratedScalarConstructorNative(array $native, int|float $value): array
+    private function regeneratedScalarConstructorNative(array $native, int|float|string $value): array
     {
         $native['c'] = $this->regeneratedScalarConstructorContent($native['c'] ?? null, $value);
 
         return $native;
     }
 
-    private function regeneratedScalarConstructorContent(mixed $content, int|float $value): mixed
+    private function regeneratedScalarConstructorContent(mixed $content, int|float|string $value): mixed
     {
         if (
             is_array($content)
@@ -2925,7 +2925,7 @@ final class PandocJsonWriter
 
         $content = $this->singleWrappedScalarContent($native['c'] ?? null);
 
-        return $content === $format ? $native : $format;
+        return $content === $format ? $native : $this->regeneratedScalarConstructorNative($native, $format);
     }
 
     private function singleWrappedScalarContent(mixed $content): mixed
