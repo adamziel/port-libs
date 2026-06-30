@@ -542,7 +542,7 @@ return [
         [, $parts] = $packageParts((new DocxWriter())->write($document));
         $documentXml = $parts['word/document.xml'];
 
-        $t->contains('<w:bookmarkStart w:id="11" w:name="a-section-for-testing-link-targets"/>', $documentXml);
+        $t->contains('<w:bookmarkStart w:id="9" w:name="a-section-for-testing-link-targets"/>', $documentXml);
         $t->contains('<w:hyperlink w:anchor="a-section-for-testing-link-targets">', $documentXml);
         $t->contains('<w:bookmarkStart w:id="0" w:name="Aliquam"/>', $documentXml);
         $t->contains('<w:bookmarkEnd w:id="0"/>', $documentXml);
@@ -586,11 +586,11 @@ return [
         [, $parts] = $packageParts((new DocxWriter())->write($document));
         $documentXml = $parts['word/document.xml'];
 
-        $t->contains('<w:bookmarkStart w:id="11" w:name="' . $unicodeAnchor . '"/>', $documentXml);
+        $t->contains('<w:bookmarkStart w:id="9" w:name="' . $unicodeAnchor . '"/>', $documentXml);
         $t->contains('<w:hyperlink w:anchor="' . $openingBookmark . '">', $documentXml);
         $t->contains('<w:hyperlink w:anchor="' . $closingBookmark . '">', $documentXml);
-        $t->contains('<w:bookmarkStart w:id="12" w:name="' . $openingBookmark . '"/>', $documentXml);
-        $t->contains('<w:bookmarkStart w:id="13" w:name="' . $closingBookmark . '"/>', $documentXml);
+        $t->contains('<w:bookmarkStart w:id="10" w:name="' . $openingBookmark . '"/>', $documentXml);
+        $t->contains('<w:bookmarkStart w:id="11" w:name="' . $closingBookmark . '"/>', $documentXml);
         $t->true(!str_contains($documentXml, 'w:anchor="remote-folder-or-longlonglonglonglong-fi"'), 'Long bookmark names should not collide by truncation');
     },
 
@@ -821,8 +821,10 @@ return [
         [, $parts] = $packageParts((new DocxWriter())->write($document));
         $documentXml = $parts['word/document.xml'];
 
+        $t->contains('<w:bookmarkStart w:id="9" w:name="refs"/>', $documentXml);
         $t->contains('<w:p><w:pPr><w:pStyle w:val="Heading1"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1001"/></w:numPr></w:pPr><w:r><w:t xml:space="preserve">three</w:t></w:r></w:p>', $documentXml);
         $t->contains('<w:p><w:pPr><w:pStyle w:val="Bibliography"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1000"/></w:numPr></w:pPr><w:r><w:t xml:space="preserve">four</w:t></w:r></w:p>', $documentXml);
+        $t->contains('<w:bookmarkEnd w:id="9"/>', $documentXml);
     },
 
     'emits task list checkboxes as numbering markers without duplicated text glyphs' => static function (TestRunner $t) use ($doc, $text, $paragraph, $plain, $item, $packageParts): void {

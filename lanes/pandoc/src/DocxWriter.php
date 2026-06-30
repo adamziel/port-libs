@@ -123,7 +123,7 @@ final class DocxWriter
 
     private int $nextDocumentRelationshipId = 9;
     private int $nextFootnoteId = 9;
-    private int $nextBookmarkId = 11;
+    private int $nextBookmarkId = 9;
     private int $nextNumberingId = 1001;
 
     /**
@@ -250,7 +250,7 @@ final class DocxWriter
         $this->numberingAbstractsSeen = [];
         $this->nextDocumentRelationshipId = 9;
         $this->nextFootnoteId = 9;
-        $this->nextBookmarkId = 11;
+        $this->nextBookmarkId = 9;
         $this->nextNumberingId = 1001;
     }
 
@@ -1124,7 +1124,8 @@ XML;
             $paragraphStyle = $customStyle;
         }
 
-        if ($this->nodeAttribute($node, 'id') === 'refs') {
+        $id = $this->nodeAttribute($node, 'id');
+        if ($id === 'refs') {
             $blocks = [];
             $bibliographyStarted = false;
             foreach ($node->children as $child) {
@@ -1145,10 +1146,32 @@ XML;
                 }
             }
 
+            return $this->wrapBlockBookmarkXml($id, $blocks);
+        }
+
+        return $this->wrapBlockBookmarkXml($id, $this->blockCollectionXml($node->children, $listLevel, $paragraphStyle));
+    }
+
+    /**
+     * @param list<string> $blocks
+     * @return list<string>
+     */
+    private function wrapBlockBookmarkXml(string $id, array $blocks): array
+    {
+        if ($id === '') {
             return $blocks;
         }
 
-        return $this->blockCollectionXml($node->children, $listLevel, $paragraphStyle);
+        $bookmarkId = $this->nextBookmarkId++;
+        array_unshift($blocks, '<w:bookmarkStart w:id="' . $bookmarkId . '" w:name="' . self::escAttr($this->bookmarkName($id)) . '"/>');
+        $blocks[] = '<w:bookmarkEnd w:id="' . $bookmarkId . '"/>';
+
+        return $blocks;
+    }
+
+    private function isBookmarkBoundaryXml(string $xml): bool
+    {
+        return str_starts_with($xml, '<w:bookmarkStart ') || str_starts_with($xml, '<w:bookmarkEnd ');
     }
 
     /**
@@ -1542,6 +1565,10 @@ XML;
                 }
 
                 foreach ($this->renderBlock($child, $listLevel + 1, $paragraphStyle) as $blockXml) {
+                    if ($this->isBookmarkBoundaryXml($blockXml)) {
+                        $blocks[] = $blockXml;
+                        continue;
+                    }
                     if (!$numberedParagraphEmitted && str_starts_with($blockXml, '<w:p>')) {
                         $blocks[] = $this->numberedParagraphBlockXml($blockXml, $primaryNumbering);
                         $numberedParagraphEmitted = true;
