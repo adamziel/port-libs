@@ -21165,6 +21165,8 @@ final class XmlHtmlDom
             'effectiveHiddenKeyword' => $keyword,
             'effectiveHiddenState' => $state,
             'effectiveHidden' => true,
+            'effectiveHiddenValid' => $keyword !== null,
+            'effectiveHiddenInvalidValueDefaulted' => $keyword === null,
             'effectiveHiddenUntilFound' => $state === 'until-found',
             'hiddenInherited' => $inherited,
             'hiddenSource' => $inherited ? 'ancestor-hidden' : 'self-hidden',
