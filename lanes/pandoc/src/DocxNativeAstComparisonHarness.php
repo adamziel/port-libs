@@ -613,6 +613,10 @@ final class DocxNativeAstComparisonHarness
             return $value;
         }
         if (array_is_list($value)) {
+            if ($this->isAstNodeList($value)) {
+                return $this->normalizedChildren($value);
+            }
+
             return array_map(fn (mixed $item): mixed => $this->normalizedValue($item), $value);
         }
 
@@ -631,6 +635,20 @@ final class DocxNativeAstComparisonHarness
     private static function isIgnoredAttrKey(string $key): bool
     {
         return isset(self::IGNORED_ATTRS[$key]) || str_starts_with($key, 'data-docx-');
+    }
+
+    /**
+     * @param list<mixed> $value
+     */
+    private function isAstNodeList(array $value): bool
+    {
+        foreach ($value as $item) {
+            if (!$item instanceof AstNode) {
+                return false;
+            }
+        }
+
+        return $value !== [];
     }
 
     private function imageDimensionMirrorsAttrTuple(AstNode $node, string $key, mixed $value): bool

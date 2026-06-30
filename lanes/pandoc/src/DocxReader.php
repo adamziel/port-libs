@@ -1501,11 +1501,11 @@ final class DocxReader
             'caption' => $captionText,
             'captionInlines' => $captionInlines,
             'captionBlocks' => [
-                new AstNode('plain', [], $captionInlines),
+                new AstNode('paragraph', ['text' => $captionText], $captionInlines),
             ],
             'attributes' => $attributes,
         ], [
-            new AstNode('plain', [], [$image]),
+            $image,
         ]);
     }
 
@@ -3602,7 +3602,7 @@ final class DocxReader
         }
 
         $mode = $rid !== '' ? (string) ($this->relationships[$rid]['mode'] ?? '') : '';
-        $url = $mode === 'External' ? $target : $this->normalizeWordTarget($target);
+        $url = $mode === 'External' ? $target : $this->normalizeImageTarget($target);
         $shape = $this->nearestAncestorByLocalName($imageData, 'shape');
 
         $title = $this->attr($imageData, self::OFFICE_NS, 'title');
@@ -3632,13 +3632,21 @@ final class DocxReader
             $style = $shape->getAttribute('style');
             $width = $this->cssStyleDimension($style, 'width');
             if ($width !== '') {
-                $attrs['width'] = $width;
-                $sourceAttributes['width'] = $width;
+                if ($source === 'vml-object') {
+                    $sourceAttributes['data-docx-vml-image-width'] = $width;
+                } else {
+                    $attrs['width'] = $width;
+                    $sourceAttributes['width'] = $width;
+                }
             }
             $height = $this->cssStyleDimension($style, 'height');
             if ($height !== '') {
-                $attrs['height'] = $height;
-                $sourceAttributes['height'] = $height;
+                if ($source === 'vml-object') {
+                    $sourceAttributes['data-docx-vml-image-height'] = $height;
+                } else {
+                    $attrs['height'] = $height;
+                    $sourceAttributes['height'] = $height;
+                }
             }
         }
         if ($source === 'vml-object') {
@@ -3759,7 +3767,7 @@ final class DocxReader
             if ($target === '') {
                 continue;
             }
-            $url = $this->relationships[$rid]['mode'] === 'External' ? $target : $this->normalizeWordTarget($target);
+            $url = $this->relationships[$rid]['mode'] === 'External' ? $target : $this->normalizeImageTarget($target);
 
             $attrs = ['url' => $url, 'title' => '', 'alt' => ''];
             $sourceAttributes = [
@@ -6356,6 +6364,16 @@ final class DocxReader
         return $this->normalizePackageTarget($this->documentPartName, $target);
     }
 
+    private function normalizeImageTarget(string $target): string
+    {
+        $target = $this->normalizeWordTarget($target);
+        if (str_starts_with($target, 'word/media/')) {
+            return substr($target, strlen('word/'));
+        }
+
+        return $target;
+    }
+
     private function emuCssDimension(string $value): string
     {
         if ($value === '' || !is_numeric($value) || (float) $value <= 0.0) {
@@ -6363,7 +6381,10 @@ final class DocxReader
         }
 
         $inches = (float) $value / 914400.0;
-        $formatted = rtrim(rtrim(number_format($inches, 4, '.', ''), '0'), '.');
+        $formatted = json_encode($inches);
+        if (!is_string($formatted)) {
+            $formatted = rtrim(rtrim(sprintf('%.16G', $inches), '0'), '.');
+        }
 
         return ($formatted === '' ? '0' : $formatted) . 'in';
     }

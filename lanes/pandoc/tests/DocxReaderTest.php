@@ -861,7 +861,7 @@ XML],
         $t->contains('<ins', $blocks);
         $t->contains('<del', $blocks);
         $t->contains('<!-- wp:table -->', $blocks);
-        $t->contains('word/media/image1.png', $blocks);
+        $t->contains('media/image1.png', $blocks);
         $t->contains('<!-- wp:list -->', $converterBlocks);
     },
     'selects section-specific docx header and footer references' => static function (TestRunner $t): void {
@@ -1117,10 +1117,10 @@ XML;
         $t->same(['word/media/unsupported.bin'], $meta['docxMediaFiles']);
         $t->same(1, $meta['docxRelationshipCount']);
         $t->same('image', $image->type);
-        $t->same('word/media/unsupported.bin', $image->attr('url'));
+        $t->same('media/unsupported.bin', $image->attr('url'));
         $t->same('Unsupported media alt', $image->attr('alt'));
         $t->same('Unsupported media alt', $image->children[0]->attr('text'));
-        $t->contains('word/media/unsupported.bin', $blocks);
+        $t->contains('media/unsupported.bin', $blocks);
     },
     'preserves docx numbering levels styles starts and delimiters' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-docx-');
@@ -1631,7 +1631,7 @@ XML],
         $vml = $document->children[1]->children[0];
 
         $t->same('image', $drawing->type);
-        $t->same('word/media/drawing.png', $drawing->attr('url'));
+        $t->same('media/drawing.png', $drawing->attr('url'));
         $t->same('1in', $drawing->attr('width'));
         $t->same('0.5in', $drawing->attr('height'));
         $t->same('Nested drawing alt', $drawing->attr('alt'));
@@ -1639,15 +1639,15 @@ XML],
         $t->same('rDrawing', $drawing->attr('attributes')['data-docx-image-relationship-id']);
 
         $t->same('image', $vml->type);
-        $t->same('word/media/vml-preview.png', $vml->attr('url'));
+        $t->same('media/vml-preview.png', $vml->attr('url'));
         $t->same('36pt', $vml->attr('width'));
         $t->same('18pt', $vml->attr('height'));
         $t->same('Nested VML', $vml->attr('title'));
         $t->same('Nested VML', $vml->children[0]->attr('text'));
         $t->same('rVml', $vml->attr('attributes')['data-docx-image-relationship-id']);
 
-        $t->contains('src="word/media/drawing.png"', $blocks);
-        $t->contains('src="word/media/vml-preview.png"', $blocks);
+        $t->contains('src="media/drawing.png"', $blocks);
+        $t->contains('src="media/vml-preview.png"', $blocks);
     },
     'preserves drawingml diagram and chart placeholders' => static function (TestRunner $t): void {
         $package = ZipPackage::fromParts([
@@ -2226,13 +2226,12 @@ XML],
         $document = (new DocxReader())->readDocument($package);
         $blocks = (new WordPressBlockWriter())->write($document);
         $figure = $document->children[0];
-        $image = $figure->children[0]->children[0];
+        $image = $figure->children[0];
 
         $t->same(['figure'], array_map(static fn ($node): string => $node->type, $document->children));
         $t->same('1 Caption text', $figure->attr('caption'));
-        $t->same('plain', $figure->children[0]->type);
         $t->same('image', $image->type);
-        $t->same('word/media/captioned.emf', $image->attr('url'));
+        $t->same('media/captioned.emf', $image->attr('url'));
         $t->same('textbox', $figure->attr('attributes')['data-docx-figure-caption-source']);
         $t->same('CaptionBox', $figure->attr('attributes')['data-docx-vml-shape-id']);
         $t->contains('<figure', $blocks);
@@ -2340,14 +2339,16 @@ XML],
         $t->same('strong italic', $styledText->children[0]->children[0]->attr('text'));
 
         $t->same('image', $image->type);
-        $t->same('word/media/object-preview.png', $image->attr('url'));
+        $t->same('media/object-preview.png', $image->attr('url'));
         $t->same('Object preview', $image->attr('alt'));
         $t->same('Object preview', $image->attr('title'));
-        $t->same('48pt', $image->attr('width'));
-        $t->same('24pt', $image->attr('height'));
+        $t->same(null, $image->attr('width'));
+        $t->same(null, $image->attr('height'));
         $t->same('vml-object', $image->attr('attributes')['data-docx-image-source']);
         $t->same('rIdObject', $image->attr('attributes')['data-docx-image-relationship-id']);
         $t->same('_x0000_i1025', $image->attr('attributes')['data-docx-vml-shape-id']);
+        $t->same('48pt', $image->attr('attributes')['data-docx-vml-image-width']);
+        $t->same('24pt', $image->attr('attributes')['data-docx-vml-image-height']);
         $t->same('960', $image->attr('attributes')['data-docx-object-dxa-orig']);
         $t->same('480', $image->attr('attributes')['data-docx-object-dya-orig']);
 

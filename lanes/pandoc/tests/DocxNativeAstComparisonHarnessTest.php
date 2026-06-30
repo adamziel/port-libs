@@ -250,6 +250,41 @@ XML,
             $removeTree($root);
         }
     },
+    'normalizes docx provenance wrappers inside ast list attributes' => static function (TestRunner $t): void {
+        $harness = new DocxNativeAstComparisonHarness();
+        $method = new ReflectionMethod(DocxNativeAstComparisonHarness::class, 'normalizedNode');
+
+        $docxFigure = new AstNode('figure', [
+            'captionInlines' => [
+                new AstNode('span', [
+                    'classes' => ['docx-field'],
+                    'attributes' => ['data-docx-field-instruction' => 'SEQ Figure'],
+                ], [
+                    new AstNode('text', ['text' => '1']),
+                ]),
+                new AstNode('text', ['text' => ' Caption']),
+            ],
+        ]);
+        $nativeFigure = new AstNode('figure', [
+            'captionInlines' => [
+                new AstNode('text', ['text' => '1']),
+                new AstNode('text', ['text' => ' ']),
+                new AstNode('text', ['text' => 'Caption']),
+            ],
+        ]);
+
+        $normalizedDocx = $method->invoke($harness, $docxFigure);
+        $normalizedNative = $method->invoke($harness, $nativeFigure);
+
+        $t->same($normalizedNative, $normalizedDocx);
+        $t->same([
+            [
+                'type' => 'text',
+                'attrs' => ['text' => '1 Caption'],
+                'children' => [],
+            ],
+        ], $normalizedDocx['attrs']['captionInlines']);
+    },
     'normalizes docx table provenance defaults and mirrored image dimensions in ast comparisons' => static function (TestRunner $t): void {
         $harness = new DocxNativeAstComparisonHarness();
         $method = new ReflectionMethod(DocxNativeAstComparisonHarness::class, 'normalizedNode');
