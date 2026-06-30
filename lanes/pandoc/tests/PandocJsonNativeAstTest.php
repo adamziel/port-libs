@@ -12726,7 +12726,10 @@ return [
                 ]),
             ]),
         ]);
-        $document = new AstNode('document', [], [$sourceTable]);
+        $document = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
+        ], [$sourceTable]);
 
         $jsonPacket = (new PandocJsonWriter())->toArray($document);
         $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);

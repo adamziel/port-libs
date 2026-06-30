@@ -1114,26 +1114,7 @@ final class NativeWriter
             return $text === '' ? [] : [new AstNode('plain', [], $this->textInlines($text))];
         }
 
-        $blocks = [];
-        $inlines = [];
-        foreach ($cell->children as $child) {
-            if ($this->isInlineNode($child)) {
-                $inlines[] = $child;
-                continue;
-            }
-
-            if ($inlines !== []) {
-                $blocks[] = new AstNode('plain', [], $inlines);
-                $inlines = [];
-            }
-            $blocks[] = $child;
-        }
-
-        if ($inlines !== []) {
-            $blocks[] = new AstNode('plain', [], $inlines);
-        }
-
-        return $blocks;
+        return $this->mixedChildrenAsBlocks($cell->children);
     }
 
     /**
@@ -1156,6 +1137,7 @@ final class NativeWriter
     {
         return match ($node->type) {
             'text' => $this->renderTextInline((string) $node->attr('text', '')),
+            'space' => ['Space'],
             'softbreak' => ['SoftBreak'],
             'linebreak' => ['LineBreak'],
             'emph' => ['Emph ' . $this->renderInlineList($node->children)],
@@ -1223,7 +1205,7 @@ final class NativeWriter
     {
         $captionBlocks = $node->attr('captionBlocks', null);
         if (is_array($captionBlocks) && $this->isAstNodeList($captionBlocks)) {
-            return $captionBlocks;
+            return $this->mixedChildrenAsBlocks(array_values($captionBlocks));
         }
 
         $captionInlines = $this->captionInlines($node->attr('captionInlines', null), $node->attr('caption', null));
@@ -1259,9 +1241,18 @@ final class NativeWriter
      */
     private function figureBlocks(AstNode $node): array
     {
+        return $this->mixedChildrenAsBlocks($node->children);
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<AstNode>
+     */
+    private function mixedChildrenAsBlocks(array $children): array
+    {
         $blocks = [];
         $inlines = [];
-        foreach ($node->children as $child) {
+        foreach ($children as $child) {
             if ($this->isInlineNode($child)) {
                 $inlines[] = $child;
                 continue;
@@ -1684,6 +1675,7 @@ final class NativeWriter
     {
         return in_array($node->type, [
             'text',
+            'space',
             'softbreak',
             'linebreak',
             'emph',
