@@ -2052,7 +2052,7 @@ final class DocxOpenXmlReader
     private function firstRelationshipByType(array $relationships, string $relationshipType): ?array
     {
         foreach ($relationships as $relationship) {
-            if ($relationship['type'] === $relationshipType && $relationship['targetMode'] !== 'External') {
+            if ($relationship['type'] === $relationshipType && !$this->isExternalRelationshipTarget($relationship)) {
                 return $relationship;
             }
         }
@@ -2308,7 +2308,7 @@ final class DocxOpenXmlReader
     private function corePropertiesPart(array $parts, array $relationships): array
     {
         foreach ($relationships as $relationship) {
-            if ($relationship['type'] !== self::CORE_PROPERTIES_REL || $relationship['targetMode'] === 'External') {
+            if ($relationship['type'] !== self::CORE_PROPERTIES_REL || $this->isExternalRelationshipTarget($relationship)) {
                 continue;
             }
 
@@ -2340,7 +2340,7 @@ final class DocxOpenXmlReader
     private function rootRelatedPart(array $parts, array $relationships, string $relationshipType, string $fallbackPart): array
     {
         foreach ($relationships as $relationship) {
-            if ($relationship['type'] !== $relationshipType || $relationship['targetMode'] === 'External') {
+            if ($relationship['type'] !== $relationshipType || $this->isExternalRelationshipTarget($relationship)) {
                 continue;
             }
 
@@ -2372,7 +2372,7 @@ final class DocxOpenXmlReader
     private function stylesPart(array $parts, array $relationships, string $documentPart): array
     {
         foreach ($relationships as $relationship) {
-            if ($relationship['type'] !== self::STYLES_REL || $relationship['targetMode'] === 'External') {
+            if ($relationship['type'] !== self::STYLES_REL || $this->isExternalRelationshipTarget($relationship)) {
                 continue;
             }
 
@@ -2404,7 +2404,7 @@ final class DocxOpenXmlReader
     private function numberingPart(array $parts, array $relationships, string $documentPart): array
     {
         foreach ($relationships as $relationship) {
-            if ($relationship['type'] !== self::NUMBERING_REL || $relationship['targetMode'] === 'External') {
+            if ($relationship['type'] !== self::NUMBERING_REL || $this->isExternalRelationshipTarget($relationship)) {
                 continue;
             }
 
@@ -3005,7 +3005,7 @@ final class DocxOpenXmlReader
         string $fallbackFileName
     ): array {
         foreach ($relationships as $relationship) {
-            if ($relationship['type'] !== $relationshipType || $relationship['targetMode'] === 'External') {
+            if ($relationship['type'] !== $relationshipType || $this->isExternalRelationshipTarget($relationship)) {
                 continue;
             }
 
@@ -47500,7 +47500,7 @@ final class DocxOpenXmlReader
         $attrs = ['url' => ''];
         if ($relationshipId !== '' && isset($relationships[$relationshipId])) {
             $relationship = $relationships[$relationshipId];
-            $attrs['url'] = $relationship['targetMode'] === 'External'
+            $attrs['url'] = $this->isExternalRelationshipTarget($relationship)
                 ? $relationship['target']
                 : $relationship['resolvedTarget'];
             $attrs['relationshipId'] = $relationshipId;
@@ -47725,7 +47725,7 @@ final class DocxOpenXmlReader
                 continue;
             }
 
-            $isExternal = $relationship['targetMode'] === 'External';
+            $isExternal = $this->isExternalRelationshipTarget($relationship);
             $url = $isExternal ? $relationship['target'] : $relationship['resolvedTarget'];
             $alt = $this->vmlImageAlt($imageData);
             $title = $this->vmlImageTitle($imageData);

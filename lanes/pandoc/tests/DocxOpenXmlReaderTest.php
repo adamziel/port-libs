@@ -13176,6 +13176,42 @@ XML;
         $t->same('word/media/unexpected-mode.png', $unexpectedRecord['targetPart']);
         $t->same(true, $unexpectedRecord['exists']);
     },
+    'does not select absolute uri relationship targets as local docx package parts' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rRemoteStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="https://example.test/styles.xml?remote=1#style"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $relationshipPart = $package['relationshipParts']['word/_rels/document.xml.rels'];
+        $relationship = $relationshipPart['relationships']['rRemoteStyles'];
+
+        $t->same('word/styles.xml', $docx['stylesPart']);
+        $t->true(!isset($docx['stylesRelationship']), 'absolute URI styles relationship should not override local fallback styles part');
+        $t->same('Heading 1', $docx['styles']['Heading1']['name']);
+        $t->same('Heading 1', $document->children[0]->attr('docxStyleName'));
+
+        $t->same(3, $relationshipPart['relationshipCount']);
+        $t->same(1, $relationshipPart['internalRelationshipCount']);
+        $t->same(2, $relationshipPart['externalRelationshipCount']);
+        $t->same('rRemoteStyles', $relationship['id']);
+        $t->same('', $relationship['targetMode']);
+        $t->same(true, $relationship['external']);
+        $t->same('absolute-uri', $relationship['externalTargetKind']);
+        $t->same('https', $relationship['externalTargetScheme']);
+        $t->same(true, $relationship['externalTargetAllowed']);
+        $t->same(null, $relationship['targetPart']);
+        $t->same(false, $relationship['exists']);
+        $t->same('remote=1', $relationship['targetQuery']);
+        $t->same('style', $relationship['targetFragment']);
+        $t->same('?remote=1#style', $relationship['targetReferenceSuffix']);
+        $t->same(2, $package['summary']['externalRelationshipCount']);
+    },
     'summarizes docx package parts without content type coverage' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/_rels/document.xml.rels'] = str_replace(
