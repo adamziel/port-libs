@@ -1129,6 +1129,34 @@ XML;
         $t->same('Term', $definitionItem->children[0]->attr('text'));
         $t->same(['Definition one', 'Definition two'], array_map(static fn ($node): string => (string) $node->attr('text', ''), $definitionItem->children[1]->children));
     },
+    'keeps styled indented docx paragraphs out of quote fallback' => static function (TestRunner $t): void {
+        $stylesXml = <<<'XML'
+<?xml version="1.0"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:styleId="ImagePara"><w:name w:val="Image Paragraph"/><w:pPr><w:ind w:left="2234"/></w:pPr></w:style>
+  <w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="List Paragraph"/><w:pPr><w:ind w:left="720"/></w:pPr></w:style>
+</w:styles>
+XML;
+        $documentXml = <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:pPr><w:pStyle w:val="ImagePara"/><w:ind w:left="1440"/></w:pPr><w:r><w:t>Styled indent</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="ListParagraph"/><w:ind w:left="1134"/></w:pPr><w:r><w:t>Relative indent</w:t></w:r></w:p>
+    <w:p><w:pPr><w:ind w:left="1440"/></w:pPr><w:r><w:t>Plain indent</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+XML;
+
+        $document = (new DocxReader())->readDocument(ZipPackage::fromParts([
+            ['name' => 'word/styles.xml', 'data' => $stylesXml],
+            ['name' => 'word/document.xml', 'data' => $documentXml],
+        ]));
+
+        $t->same(['paragraph', 'blockquote'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('Styled indent', $document->children[0]->attr('text'));
+        $t->same(['Relative indent', 'Plain indent'], array_map(static fn ($node): string => (string) $node->attr('text', ''), $document->children[1]->children));
+    },
     'unwraps docx smart tags and alternate content fallback in body inline field and table scopes' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
         $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><w:body><w:smartTag w:uri="urn:example" w:element="body"><w:p><w:r><w:t>Wrapped block</w:t></w:r></w:p></w:smartTag><w:p><w:r><w:t>Inline </w:t></w:r><w:smartTag w:uri="urn:example" w:element="inline"><w:r><w:rPr><w:b/></w:rPr><w:t>smart</w:t></w:r></w:smartTag><w:r><w:t> and </w:t></w:r><w:r><mc:AlternateContent><mc:Choice Requires="wps"><w:t>choice</w:t></mc:Choice><mc:Fallback><w:t>fallback</w:t></mc:Fallback></mc:AlternateContent></w:r></w:p><w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText> REF _SmartTarget \h </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:smartTag w:uri="urn:example" w:element="field-result"><w:r><w:t>Smart target</w:t></w:r></w:smartTag><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p><w:tbl><w:tr><w:tc><w:smartTag w:uri="urn:example" w:element="cell"><w:p><w:r><w:t>Cell smart</w:t></w:r></w:p></w:smartTag></w:tc></w:tr></w:tbl></w:body></w:document>');
 

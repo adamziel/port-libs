@@ -559,7 +559,7 @@ final class DocxReader
                     continue;
                 }
 
-                if ($styleBlockKind === 'blockquote' || $this->isIndentedBlockQuoteParagraph($child)) {
+                if ($styleBlockKind === 'blockquote' || $this->isIndentedBlockQuoteParagraph($child, $styleId)) {
                     $flushList();
                     $flushCodeBlock();
                     $flushDefinitionList();
@@ -780,7 +780,7 @@ final class DocxReader
         return null;
     }
 
-    private function isIndentedBlockQuoteParagraph(\DOMElement $paragraph): bool
+    private function isIndentedBlockQuoteParagraph(\DOMElement $paragraph, string $styleId): bool
     {
         $pPr = $this->directChild($paragraph, 'pPr');
         $ind = $pPr instanceof \DOMElement ? $this->directChild($pPr, 'ind') : null;
@@ -789,7 +789,21 @@ final class DocxReader
         }
 
         $left = $this->attr($ind, self::W_NS, 'left');
-        return $left !== '' && is_numeric($left) && (int) $left >= 1000;
+        if ($left === '' || !is_numeric($left)) {
+            return false;
+        }
+
+        $leftTwips = (int) $left;
+        if ($styleId === '') {
+            return $leftTwips >= 1000;
+        }
+
+        $styleLeft = $this->styles[$styleId]['paragraphLeftIndent'] ?? null;
+        if (!is_int($styleLeft)) {
+            return false;
+        }
+
+        return ($leftTwips - $styleLeft) >= 360;
     }
 
     private function codeTextFromParagraph(\DOMElement $paragraph): string
@@ -3127,6 +3141,13 @@ final class DocxReader
                         $entry['basedOn'] = $basedOn;
                     }
                 } elseif ($child->localName === 'pPr') {
+                    $ind = $this->directChild($child, 'ind');
+                    if ($ind instanceof \DOMElement) {
+                        $left = $this->attr($ind, self::W_NS, 'left');
+                        if ($left !== '' && is_numeric($left)) {
+                            $entry['paragraphLeftIndent'] = (int) $left;
+                        }
+                    }
                     foreach ($child->getElementsByTagNameNS(self::W_NS, 'outlineLvl') as $outline) {
                         if ($outline instanceof \DOMElement) {
                             $entry['headingLevel'] = max(1, min(6, (int) ($this->attr($outline, self::W_NS, 'val') ?: '0') + 1));
