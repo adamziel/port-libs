@@ -98,7 +98,7 @@ final class DocxWriterGoldenManifest
         ['goldenFile' => 'inline_images.docx', 'nativeFile' => 'inline_images_writer_test.native'],
         ['goldenFile' => 'link_in_notes.docx', 'nativeFile' => 'link_in_notes.native'],
         ['goldenFile' => 'links.docx', 'nativeFile' => 'links.native'],
-        ['goldenFile' => 'lists.docx', 'nativeFile' => 'lists_writer.native'],
+        ['goldenFile' => 'lists.docx', 'nativeFile' => 'lists.native'],
         ['goldenFile' => 'lists_9994.docx', 'nativeFile' => 'lists_9994.native'],
         ['goldenFile' => 'lists_continuing.docx', 'nativeFile' => 'lists_continuing.native'],
         ['goldenFile' => 'lists_div_bullets.docx', 'nativeFile' => 'lists_div_bullets.native'],

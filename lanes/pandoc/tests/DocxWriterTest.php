@@ -428,6 +428,47 @@ return [
         }
     },
 
+    'writer golden lists case uses reader native fixture instead of lists writer fixture' => static function (TestRunner $t) use ($removeTree, $writeFile, $corePropertiesDocx, $packageParts): void {
+        $root = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'pandoc-docx-writer-lists-source-' . bin2hex(random_bytes(6));
+        if (!mkdir($root, 0777, true) && !is_dir($root)) {
+            throw new RuntimeException('Unable to create DOCX writer lists fixture root');
+        }
+
+        try {
+            $writeFile($root, 'test/docx/golden/lists.docx', $corePropertiesDocx(
+                'Lists',
+                '2026-06-30T00:00:00Z',
+                '2026-06-30T00:00:00Z'
+            ));
+            $writeFile($root, 'test/docx/lists.native', '[Para [Str "reader",Space,Str "fixture"]]');
+            $writeFile($root, 'test/docx/lists_writer.native', '[Para [Str "writer",Space,Str "fixture"]]');
+
+            $report = (new DocxWriterGoldenManifest(
+                $root,
+                'test/docx',
+                8,
+                null,
+                'generated-docx',
+                ['lists.docx']
+            ))->report();
+
+            $caseRow = $report['generation']['caseRows'][0] ?? [];
+            $t->same('lists.native', $caseRow['nativeFile'] ?? null);
+            $t->same('generated', $caseRow['status'] ?? null);
+            $t->same(1, $report['generation']['generatedPackageCount']);
+
+            $generated = file_get_contents($root . DIRECTORY_SEPARATOR . 'generated-docx' . DIRECTORY_SEPARATOR . 'lists.docx');
+            if (!is_string($generated)) {
+                throw new RuntimeException('Unable to read generated lists fixture');
+            }
+            [, $parts] = $packageParts($generated);
+            $t->contains('<w:t xml:space="preserve">reader fixture</w:t>', $parts['word/document.xml']);
+            $t->true(!str_contains($parts['word/document.xml'], 'writer fixture'), 'lists_writer.native should not feed lists.docx generation');
+        } finally {
+            $removeTree($root);
+        }
+    },
+
     'emits local image media parts with document image relationships' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts, $jpeg250x250At120Dpi): void {
         $mediaDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'port-libs-docx-writer-media-' . getmypid() . '-' . bin2hex(random_bytes(4));
         if (!mkdir($mediaDir, 0777, true) && !is_dir($mediaDir)) {
