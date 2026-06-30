@@ -1903,13 +1903,19 @@ XML;
             $buffered = false;
         };
 
-        foreach ($nodes as $node) {
+        foreach ($nodes as $index => $node) {
             if (!$node instanceof AstNode) {
                 continue;
             }
 
             $plain = $this->plainInlineRunText($node);
             if ($plain !== null) {
+                if ($this->isInlineBoundarySpace($nodes, $index, $node)) {
+                    $flushBuffer();
+                    $xml .= $this->textRun($plain['text'], array_replace($baseFormat, ['preserveSpace' => true]));
+                    continue;
+                }
+
                 $buffer .= $plain['text'];
                 $bufferPreserveSpace = $bufferPreserveSpace || $plain['preserveSpace'] || $buffered;
                 $buffered = true;
@@ -1922,6 +1928,40 @@ XML;
         $flushBuffer();
 
         return $xml;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function isInlineBoundarySpace(array $nodes, int $index, AstNode $node): bool
+    {
+        $isSpace = $node->type === 'space' || $node->type === 'softbreak';
+        if (!$isSpace && ($node->type === 'text' || $node->type === 'str')) {
+            $isSpace = (string) $node->attr('text', $node->attr('value', '')) === ' ';
+        }
+        if (!$isSpace) {
+            return false;
+        }
+
+        return $this->adjacentInlineIsNonPlain($nodes, $index, -1)
+            || $this->adjacentInlineIsNonPlain($nodes, $index, 1);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function adjacentInlineIsNonPlain(array $nodes, int $index, int $step): bool
+    {
+        for ($i = $index + $step, $count = count($nodes); $i >= 0 && $i < $count; $i += $step) {
+            $node = $nodes[$i] ?? null;
+            if (!$node instanceof AstNode) {
+                continue;
+            }
+
+            return $this->plainInlineRunText($node) === null;
+        }
+
+        return false;
     }
 
     /**

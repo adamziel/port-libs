@@ -202,6 +202,33 @@ return [
         $t->contains('Target="http://example.com/"', $parts['word/_rels/footnotes.xml.rels']);
     },
 
+    'keeps standalone space runs around inline boundary markup' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
+        $document = $doc([
+            $paragraph([
+                $text('An'),
+                $text(' '),
+                new AstNode('link', ['url' => '#target'], [$text('internal'), $text(' '), $text('link')]),
+                $text(' '),
+                $text('and'),
+                $text(' '),
+                $text('a note'),
+                new AstNode('note', [], [$paragraph([$text('note body')])]),
+                $text(' '),
+                $text('after'),
+            ]),
+        ]);
+
+        [, $parts] = $packageParts((new DocxWriter())->write($document));
+        $documentXml = $parts['word/document.xml'];
+
+        $t->contains('<w:t xml:space="preserve">An</w:t></w:r><w:r><w:t xml:space="preserve"> </w:t></w:r><w:hyperlink w:anchor="target">', $documentXml);
+        $t->contains('</w:hyperlink><w:r><w:t xml:space="preserve"> </w:t></w:r><w:r><w:t xml:space="preserve">and a note</w:t></w:r>', $documentXml);
+        $t->contains('<w:footnoteReference w:id="9"/></w:r><w:r><w:t xml:space="preserve"> </w:t></w:r><w:r><w:t xml:space="preserve">after</w:t></w:r>', $documentXml);
+        $t->contains('<w:t xml:space="preserve">internal link</w:t>', $documentXml);
+        $t->true(!str_contains($documentXml, '<w:t xml:space="preserve">An </w:t></w:r><w:hyperlink'), 'Leading boundary space was folded into the previous run');
+        $t->true(!str_contains($documentXml, '</w:hyperlink><w:r><w:t xml:space="preserve"> and'), 'Trailing boundary space was folded into the following run');
+    },
+
     'emits native document metadata in core properties' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
         $space = static fn (): AstNode => new AstNode('text', ['text' => ' ']);
         $metaInlines = static fn (array $children): array => ['type' => 'MetaInlines', 'value' => $children];
