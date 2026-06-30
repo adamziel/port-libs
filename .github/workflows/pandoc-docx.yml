@@ -38,20 +38,34 @@ jobs:
         run: |
           php -l lanes/pandoc/src/DocxReader.php
           php -l lanes/pandoc/src/DocxOpenXmlReader.php
+          php -l lanes/pandoc/src/DocxNativeComparisonSmokeHarness.php
+          php -l lanes/pandoc/src/DocxParityCorpusAudit.php
           php -l lanes/pandoc/src/ZipPackage.php
           php -l lanes/pandoc/src/ZipPackageEntry.php
           php -l lanes/pandoc/tests/DocxReaderTest.php
           php -l lanes/pandoc/tests/DocxOpenXmlReaderTest.php
+          php -l lanes/pandoc/tests/DocxNativeComparisonSmokeHarnessTest.php
+          php -l lanes/pandoc/tests/DocxParityCorpusAuditTest.php
           php -l lanes/pandoc/tests/DocxParityEvidenceStatusTest.php
           php -l lanes/pandoc/tests/ZipPackageTest.php
+          php -l tools/pandoc-docx-native-smoke.php
+          php -l tools/pandoc-docx-parity-audit.php
 
       - name: Validate DOCX parity status metadata
         run: jq empty lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/lane-status.json porting-summary.json
+
+      - name: Run optional upstream DOCX/native smoke
+        run: php tools/pandoc-docx-native-smoke.php --limit=12
+
+      - name: Run optional DOCX parser coverage audit
+        run: php tools/pandoc-docx-parity-audit.php --max-pairs=12
 
       - name: Run focused DOCX parity tests
         run: |
           php tools/run-tests.php \
             lanes/pandoc/tests/DocxParityEvidenceStatusTest.php \
+            lanes/pandoc/tests/DocxNativeComparisonSmokeHarnessTest.php \
+            lanes/pandoc/tests/DocxParityCorpusAuditTest.php \
             lanes/pandoc/tests/DocxReaderTest.php \
             lanes/pandoc/tests/DocxOpenXmlReaderTest.php \
             lanes/pandoc/tests/DocxGeneratedFieldMetadataTest.php \
