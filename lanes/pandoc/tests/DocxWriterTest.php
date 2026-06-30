@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
+use PortLibs\Pandoc\DocxReader;
 use PortLibs\Pandoc\DocxWriter;
 use PortLibs\Pandoc\OpcContentTypes;
 use PortLibs\Pandoc\OpcRelationship;
@@ -14,6 +15,8 @@ $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $va
 $paragraph = static fn (array $children): AstNode => new AstNode('paragraph', [], $children);
 $plain = static fn (array $children): AstNode => new AstNode('plain', [], $children);
 $item = static fn (array $children): AstNode => new AstNode('list_item', [], $children);
+$cell = static fn (array $children = [], array $attrs = []): AstNode => new AstNode('table_cell', $attrs, $children);
+$row = static fn (array $cells): AstNode => new AstNode('table_row', [], $cells);
 
 $packageParts = static function (string $bytes): array {
     $package = ZipPackage::fromString($bytes);
@@ -128,6 +131,56 @@ return [
         $t->contains('<w:startOverride w:val="3"/>', $parts['word/numbering.xml']);
         $t->contains('<w:settings', $parts['word/settings.xml']);
         $t->contains('<w:compatSetting', $parts['word/settings.xml']);
+    },
+
+    'emits bounded word tables with captions spans and nested cell blocks' => static function (TestRunner $t) use ($doc, $text, $paragraph, $item, $cell, $row, $packageParts): void {
+        $document = $doc([
+            new AstNode('table', [
+                'captionInlines' => [
+                    $text('Table'),
+                    new AstNode('space'),
+                    new AstNode('emph', [], [$text('coverage')]),
+                ],
+                'widths' => [0.25, 0.75],
+            ], [
+                new AstNode('table_head', [], [
+                    $row([
+                        $cell([$text('Feature')]),
+                        $cell([$text('State')]),
+                    ]),
+                ]),
+                new AstNode('table_body', [], [
+                    $row([
+                        $cell([new AstNode('strong', [], [$text('table')])]),
+                        $cell([
+                            $paragraph([$text('paragraph cell')]),
+                            new AstNode('bullet_list', [], [
+                                $item([$paragraph([$text('nested list')])]),
+                            ]),
+                        ]),
+                    ]),
+                    $row([
+                        $cell([$text('wide')], ['colspan' => 2]),
+                    ]),
+                ]),
+            ]),
+        ]);
+
+        [, $parts] = $packageParts((new DocxWriter())->write($document));
+        $documentXml = $parts['word/document.xml'];
+        $roundTrip = (new DocxReader())->read((new DocxWriter())->write($document));
+
+        $t->contains('<w:pStyle w:val="Caption"/>', $documentXml);
+        $t->contains('<w:tbl>', $documentXml);
+        $t->contains('<w:tblGrid><w:gridCol w:w="2160"/><w:gridCol w:w="6480"/></w:tblGrid>', $documentXml);
+        $t->contains('<w:t>Feature</w:t>', $documentXml);
+        $t->contains('<w:b/>', $documentXml);
+        $t->contains('<w:t>paragraph cell</w:t>', $documentXml);
+        $t->contains('<w:numId w:val="1"/>', $documentXml);
+        $t->contains('<w:gridSpan w:val="2"/>', $documentXml);
+        $t->contains('w:styleId="Caption"', $parts['word/styles.xml']);
+        $t->same('table', $roundTrip->children[0]->type);
+        $t->same('Table coverage', $roundTrip->children[0]->attr('caption'));
     },
 
     'normalizes docx package part names and fixed zip timestamps' => static function (TestRunner $t) use ($doc, $text, $paragraph): void {

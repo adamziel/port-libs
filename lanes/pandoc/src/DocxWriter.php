@@ -304,6 +304,7 @@ final class DocxWriter
             'code_block' => [$this->textParagraphXml((string) $node->attr('text', ''), 'SourceCode', ['code' => true])],
             'line_block' => $this->lineBlockXml($node),
             'horizontal_rule' => [$this->horizontalRuleXml()],
+            'table' => $this->tableXml($node),
             default => $this->fallbackBlockXml($node, $listLevel),
         };
     }
@@ -377,6 +378,170 @@ final class DocxWriter
     private function horizontalRuleXml(): string
     {
         return '<w:p><w:pPr><w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="auto"/></w:pBdr></w:pPr></w:p>';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function tableXml(AstNode $table): array
+    {
+        $blocks = [];
+        $caption = $this->tableCaptionInlines($table);
+        if ($caption !== []) {
+            $blocks[] = $this->paragraphFromInlinesXml($caption, 'Caption', null);
+        }
+
+        $columnCount = TableGeometry::columnCount($table);
+        if ($columnCount === 0) {
+            return $blocks;
+        }
+
+        $rowsXml = '';
+        foreach (TableGeometry::sectionRowEntryGroups($table, $columnCount) as $group) {
+            foreach (TableGeometry::layoutRows(array_column($group['rowEntries'], 'row'), $columnCount) as $layoutRow) {
+                $rowsXml .= $this->tableRowXml($layoutRow, $columnCount);
+            }
+        }
+
+        if ($rowsXml === '') {
+            return $blocks;
+        }
+
+        $grid = '';
+        foreach ($this->tableColumnWidths($table, $columnCount) as $width) {
+            $grid .= '<w:gridCol w:w="' . $width . '"/>';
+        }
+
+        $blocks[] = '<w:tbl>'
+            . '<w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblBorders>'
+            . '<w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/>'
+            . '<w:left w:val="single" w:sz="4" w:space="0" w:color="auto"/>'
+            . '<w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/>'
+            . '<w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/>'
+            . '<w:insideH w:val="single" w:sz="4" w:space="0" w:color="auto"/>'
+            . '<w:insideV w:val="single" w:sz="4" w:space="0" w:color="auto"/>'
+            . '</w:tblBorders></w:tblPr>'
+            . '<w:tblGrid>' . $grid . '</w:tblGrid>'
+            . $rowsXml
+            . '</w:tbl>';
+
+        return $blocks;
+    }
+
+    /**
+     * @param array{row:AstNode,cells:list<array{node:AstNode,column:int,colspan:int,rowspan:int}>} $layoutRow
+     */
+    private function tableRowXml(array $layoutRow, int $columnCount): string
+    {
+        $cells = '';
+        $visualColumn = 0;
+        foreach ($layoutRow['cells'] as $layoutCell) {
+            $column = (int) $layoutCell['column'];
+            while ($visualColumn < $column && $visualColumn < $columnCount) {
+                $cells .= $this->tableCellXml(null, 1);
+                $visualColumn++;
+            }
+
+            $colspan = max(1, (int) $layoutCell['colspan']);
+            $cells .= $this->tableCellXml($layoutCell['node'], $colspan);
+            $visualColumn += $colspan;
+        }
+
+        while ($visualColumn < $columnCount) {
+            $cells .= $this->tableCellXml(null, 1);
+            $visualColumn++;
+        }
+
+        return '<w:tr>' . $cells . '</w:tr>';
+    }
+
+    private function tableCellXml(?AstNode $cell, int $colspan): string
+    {
+        $properties = '<w:tcPr><w:tcW w:w="' . (2400 * $colspan) . '" w:type="dxa"/>'
+            . ($colspan > 1 ? '<w:gridSpan w:val="' . $colspan . '"/>' : '')
+            . '</w:tcPr>';
+        if (!$cell instanceof AstNode) {
+            return '<w:tc>' . $properties . '<w:p/></w:tc>';
+        }
+
+        $content = '';
+        if ($cell->children === []) {
+            $text = (string) $cell->attr('text', '');
+            $content = $this->textParagraphXml($text, null, []);
+        } else {
+            foreach ($this->blockCollectionXml($cell->children, 0) as $blockXml) {
+                $content .= $blockXml;
+            }
+        }
+        if ($content === '') {
+            $content = '<w:p/>';
+        }
+
+        return '<w:tc>' . $properties . $content . '</w:tc>';
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableCaptionInlines(AstNode $table): array
+    {
+        $captionInlines = $table->attr('captionInlines', []);
+        if (is_array($captionInlines) && $captionInlines !== []) {
+            $inlines = [];
+            foreach ($captionInlines as $inline) {
+                if (!$inline instanceof AstNode) {
+                    return [];
+                }
+                $inlines[] = $inline;
+            }
+
+            return $inlines;
+        }
+
+        $captionBlocks = $table->attr('captionBlocks', []);
+        if (is_array($captionBlocks) && $captionBlocks !== []) {
+            $texts = [];
+            foreach ($captionBlocks as $block) {
+                if ($block instanceof AstNode) {
+                    $text = trim($this->plainText($block));
+                    if ($text !== '') {
+                        $texts[] = $text;
+                    }
+                }
+            }
+
+            return $texts === [] ? [] : [new AstNode('text', ['text' => implode(' ', $texts)])];
+        }
+
+        $caption = trim((string) $table->attr('caption', ''));
+
+        return $caption === '' ? [] : [new AstNode('text', ['text' => $caption])];
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function tableColumnWidths(AstNode $table, int $columnCount): array
+    {
+        $widths = $table->attr('widths', []);
+        if (!is_array($widths) || $widths === []) {
+            return array_fill(0, $columnCount, 2400);
+        }
+
+        $resolved = [];
+        foreach (array_values($widths) as $width) {
+            $fraction = is_int($width) || is_float($width) ? (float) $width : 0.0;
+            $resolved[] = max(720, (int) round($fraction * 8640));
+            if (count($resolved) >= $columnCount) {
+                break;
+            }
+        }
+
+        while (count($resolved) < $columnCount) {
+            $resolved[] = 2400;
+        }
+
+        return $resolved;
     }
 
     /**
@@ -814,6 +979,7 @@ final class DocxWriter
             . '<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:spacing w:after="240"/></w:pPr><w:rPr><w:b/><w:sz w:val="52"/><w:szCs w:val="52"/></w:rPr></w:style>'
             . $headingStyles
             . '<w:style w:type="paragraph" w:styleId="SourceCode"><w:name w:val="Source Code"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="120" w:after="120"/><w:ind w:left="360" w:right="360"/></w:pPr><w:rPr><w:rStyle w:val="VerbatimChar"/></w:rPr></w:style>'
+            . '<w:style w:type="paragraph" w:styleId="Caption"><w:name w:val="caption"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="120" w:after="120"/></w:pPr><w:rPr><w:i/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:style>'
             . '<w:style w:type="character" w:styleId="VerbatimChar"><w:name w:val="Verbatim Char"/><w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:cs="Consolas"/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:style>'
             . '<w:style w:type="character" w:styleId="Hyperlink"><w:name w:val="Hyperlink"/><w:rPr><w:color w:val="0563C1"/><w:u w:val="single"/></w:rPr></w:style>'
             . '</w:styles>'

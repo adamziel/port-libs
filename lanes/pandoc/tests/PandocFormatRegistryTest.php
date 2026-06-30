@@ -7,6 +7,7 @@ use PortLibs\Pandoc\BibliographyReader;
 use PortLibs\Pandoc\DelimitedTextReader;
 use PortLibs\Pandoc\DocBookReader;
 use PortLibs\Pandoc\DocxReader;
+use PortLibs\Pandoc\DocxWriter;
 use PortLibs\Pandoc\EpubReader;
 use PortLibs\Pandoc\EpubWriter;
 use PortLibs\Pandoc\Fb2Reader;
@@ -203,11 +204,12 @@ return [
         $t->same(OpmlWriter::class, $support['opml']['implementation']);
         $t->same('partial', $support['plain']['status']);
         $t->same(PlainWriter::class, $support['plain']['implementation']);
-        $t->same('unsupported', $support['docx']['status']);
+        $t->same('partial', $support['docx']['status']);
+        $t->same(DocxWriter::class, $support['docx']['implementation']);
         $t->same('unsupported', $support['epub2']['status']);
         $t->same('unsupported', $support['odt']['status']);
         $t->same('unsupported', $support['pdf']['status']);
-        $t->same(58, count(PandocFormatRegistry::unsupportedOutputFormats()));
+        $t->same(57, count(PandocFormatRegistry::unsupportedOutputFormats()));
     },
     'tracks wiki format registry status without claiming direct parity' => static function (TestRunner $t): void {
         $registry = PandocFormatRegistry::wikiFormatRegistry();
