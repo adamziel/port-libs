@@ -8877,6 +8877,72 @@ XML;
         $t->same(['external-target-unsafe-scheme' => 1], $images['externalTargetIssueCounts']);
         $t->same(['rUnsafeScript'], array_column($images['unsafeExternalTargets'], 'id'));
     },
+    'preflights malformed docx external relationship target URI bytes for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $hyperlinkType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rRawExternalSpace" Type="' . $hyperlinkType . '" Target="https://example.test/source packet.html" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rBadExternalEscape" Type="' . $hyperlinkType . '" Target="https://example.test/source%ZZpacket.html" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rEncodedExternalNul" Type="' . $hyperlinkType . '" Target="https://example.test/source%00packet.html" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rUnsafeEncodedScript" Type="' . $hyperlinkType . '" Target="javascript:alert%00(1)" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rEncodedExternalSpace" Type="' . $hyperlinkType . '" Target="https://example.test/source%20packet.html" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $relationships = $package['relationshipParts']['word/_rels/document.xml.rels']['relationships'];
+        $hyperlinks = $package['relationshipTypes'][$hyperlinkType];
+        $unsafeTargets = $summary['unsafeExternalRelationshipTargets'];
+
+        $t->same(6, $summary['externalRelationshipCount']);
+        $t->same(2, $summary['externalRelationshipTargetAllowedCount']);
+        $t->same(4, $summary['externalRelationshipTargetUnsafeCount']);
+        $t->same([
+            'external-target-invalid-uri-byte' => 1,
+            'external-target-malformed-percent-escape' => 1,
+            'external-target-unsafe-percent-encoded-byte' => 2,
+            'external-target-unsafe-scheme' => 1,
+        ], $summary['externalRelationshipTargetIssueCounts']);
+        $t->same(['word/_rels/document.xml.rels'], $summary['relationshipPartsWithUnsafeExternalTargets']);
+        $t->same([
+            'rRawExternalSpace',
+            'rBadExternalEscape',
+            'rEncodedExternalNul',
+            'rUnsafeEncodedScript',
+        ], array_column($unsafeTargets, 'id'));
+
+        $t->same(false, $relationships['rRawExternalSpace']['externalTargetAllowed']);
+        $t->same(['external-target-invalid-uri-byte'], $relationships['rRawExternalSpace']['externalTargetIssues']);
+        $t->same(false, $relationships['rBadExternalEscape']['externalTargetAllowed']);
+        $t->same(['external-target-malformed-percent-escape'], $relationships['rBadExternalEscape']['externalTargetIssues']);
+        $t->same(false, $relationships['rEncodedExternalNul']['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-percent-encoded-byte'], $relationships['rEncodedExternalNul']['externalTargetIssues']);
+        $t->same(false, $relationships['rUnsafeEncodedScript']['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-percent-encoded-byte', 'external-target-unsafe-scheme'], $relationships['rUnsafeEncodedScript']['externalTargetIssues']);
+        $t->same(true, $relationships['rEncodedExternalSpace']['externalTargetAllowed']);
+        $t->same([], $relationships['rEncodedExternalSpace']['externalTargetIssues']);
+
+        $t->same(6, $hyperlinks['externalCount']);
+        $t->same(2, $hyperlinks['allowedExternalTargetCount']);
+        $t->same(4, $hyperlinks['unsafeExternalTargetCount']);
+        $t->same([
+            'external-target-invalid-uri-byte' => 1,
+            'external-target-malformed-percent-escape' => 1,
+            'external-target-unsafe-percent-encoded-byte' => 2,
+            'external-target-unsafe-scheme' => 1,
+        ], $hyperlinks['externalTargetIssueCounts']);
+        $t->same([
+            'rRawExternalSpace',
+            'rBadExternalEscape',
+            'rEncodedExternalNul',
+            'rUnsafeEncodedScript',
+        ], array_column($hyperlinks['unsafeExternalTargets'], 'id'));
+    },
     'summarizes docx document hyperlink relationships for package review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $hyperlinkType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';

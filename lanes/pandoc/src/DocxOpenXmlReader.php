@@ -4710,7 +4710,7 @@ final class DocxOpenXmlReader
             'anchorOnlyCount' => count(array_filter($items, static fn (array $item): bool => $item['referenceKind'] === 'anchor')),
             'anchorRelationshipCount' => count(array_filter($items, static fn (array $item): bool => $item['referenceKind'] === 'relationship-anchor')),
             'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::HYPERLINK_REL && $item['external'] === true)),
-            'unsafeExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => in_array('external-target-unsafe-scheme', $item['issues'], true))),
+            'unsafeExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::HYPERLINK_REL && $item['external'] === true && ($item['externalTargetAllowed'] ?? null) !== true)),
             'internalTargetExistingCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::HYPERLINK_REL && $item['external'] === false && $item['exists'] === true)),
             'internalTargetMissingCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::HYPERLINK_REL && in_array('missing-hyperlink-target', $item['issues'], true))),
             'unknownRelationshipCount' => count(array_filter($items, static fn (array $item): bool => in_array('unknown-relationship', $item['issues'], true))),
@@ -5014,7 +5014,7 @@ final class DocxOpenXmlReader
             'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::IMAGE_REL && $item['external'] === false && $item['exists'] === true)),
             'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-media-part', $item['issues'], true))),
             'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::IMAGE_REL && $item['external'] === true)),
-            'unsafeExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => in_array('external-target-unsafe-scheme', $item['issues'], true))),
+            'unsafeExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::IMAGE_REL && $item['external'] === true && ($item['externalTargetAllowed'] ?? null) !== true)),
             'unresolvedCount' => count(array_filter(
                 $items,
                 static fn (array $item): bool => in_array('missing-relationship-id', $item['issues'], true) || in_array('unknown-relationship', $item['issues'], true),
@@ -5269,7 +5269,7 @@ final class DocxOpenXmlReader
             'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::IMAGE_REL && $item['external'] === false && $item['exists'] === true)),
             'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-header-footer-media-part', $item['issues'], true))),
             'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::IMAGE_REL && $item['external'] === true)),
-            'unsafeExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => in_array('external-target-unsafe-scheme', $item['issues'], true))),
+            'unsafeExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::IMAGE_REL && $item['external'] === true && ($item['externalTargetAllowed'] ?? null) !== true)),
             'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-header-footer-media-content-type', $item['issues'], true))),
             'unexpectedContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-header-footer-media-content-type', $item['issues'], true))),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
@@ -5551,7 +5551,7 @@ final class DocxOpenXmlReader
             'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === false && $item['exists'] === true)),
             'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-header-footer-hyperlink-target', $item['issues'], true))),
             'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
-            'unsafeExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => in_array('external-target-unsafe-scheme', $item['issues'], true))),
+            'unsafeExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true && ($item['externalTargetAllowed'] ?? null) !== true)),
             'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-header-footer-hyperlink-content-type', $item['issues'], true))),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'relationshipKeys' => $relationshipKeys,
@@ -5770,7 +5770,7 @@ final class DocxOpenXmlReader
             'existingCount' => count(array_filter($items, static fn (array $item): bool => ($item['external'] ?? false) === false && ($item['exists'] ?? false) === true)),
             'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-note-comment-media-part', $item['issues'] ?? [], true))),
             'externalCount' => count(array_filter($items, static fn (array $item): bool => ($item['external'] ?? false) === true)),
-            'unsafeExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => in_array('external-target-unsafe-scheme', $item['issues'] ?? [], true))),
+            'unsafeExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true && ($item['externalTargetAllowed'] ?? null) !== true)),
             'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-note-comment-media-content-type', $item['issues'] ?? [], true))),
             'unexpectedContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-note-comment-media-content-type', $item['issues'] ?? [], true))),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => ($item['issues'] ?? []) !== [])),
@@ -5953,7 +5953,7 @@ final class DocxOpenXmlReader
             'existingCount' => count(array_filter($items, static fn (array $item): bool => ($item['external'] ?? false) === false && ($item['exists'] ?? false) === true)),
             'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-note-comment-hyperlink-target', $item['issues'] ?? [], true))),
             'externalCount' => count(array_filter($items, static fn (array $item): bool => ($item['external'] ?? false) === true)),
-            'unsafeExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => in_array('external-target-unsafe-scheme', $item['issues'] ?? [], true))),
+            'unsafeExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true && ($item['externalTargetAllowed'] ?? null) !== true)),
             'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-note-comment-hyperlink-content-type', $item['issues'] ?? [], true))),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => ($item['issues'] ?? []) !== [])),
             'relationshipIds' => $relationshipIds,
@@ -6179,7 +6179,7 @@ final class DocxOpenXmlReader
             'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::IMAGE_REL && $item['external'] === false && $item['exists'] === true)),
             'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-theme-media-part', $item['issues'], true))),
             'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::IMAGE_REL && $item['external'] === true)),
-            'unsafeExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => in_array('external-target-unsafe-scheme', $item['issues'], true))),
+            'unsafeExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipType'] === self::IMAGE_REL && $item['external'] === true && ($item['externalTargetAllowed'] ?? null) !== true)),
             'unresolvedCount' => count(array_filter(
                 $items,
                 static fn (array $item): bool => in_array('missing-relationship-id', $item['issues'], true) || in_array('unknown-relationship', $item['issues'], true),
@@ -46481,15 +46481,45 @@ final class DocxOpenXmlReader
             $kind = 'network-path-reference';
         }
 
-        $allowed = $scheme === null || in_array($scheme, ['http', 'https', 'mailto', 'urn'], true);
-        $issues = $allowed ? [] : ['external-target-unsafe-scheme'];
+        $issues = [];
+        if (preg_match('/[\x00-\x20\x7F]/', $target) === 1) {
+            $issues[] = 'external-target-invalid-uri-byte';
+        }
+        if (preg_match('/[\x00-\x1F\x7F]/', $target) === 1) {
+            $issues[] = 'external-target-control-character';
+        }
+        if (preg_match('/%(?![0-9A-Fa-f]{2})/', $target) === 1) {
+            $issues[] = 'external-target-malformed-percent-escape';
+        } elseif ($this->uriReferenceContainsPercentEncodedControlByte($target)) {
+            $issues[] = 'external-target-unsafe-percent-encoded-byte';
+        }
+        if ($scheme !== null && !in_array($scheme, ['http', 'https', 'mailto', 'urn'], true)) {
+            $issues[] = 'external-target-unsafe-scheme';
+        }
+        $issues = array_values(array_unique($issues));
 
         return [
             'kind' => $kind,
             'scheme' => $scheme,
-            'allowed' => $allowed,
+            'allowed' => $issues === [],
             'issues' => $issues,
         ];
+    }
+
+    private function uriReferenceContainsPercentEncodedControlByte(string $target): bool
+    {
+        if (preg_match_all('/%([0-9A-Fa-f]{2})/', $target, $matches) === 0) {
+            return false;
+        }
+
+        foreach ($matches[1] as $hex) {
+            $byte = hexdec($hex);
+            if ($byte < 0x20 || $byte === 0x7F) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
