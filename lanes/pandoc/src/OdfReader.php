@@ -2039,6 +2039,7 @@ final class OdfReader
         $manifestRootAttributes = $this->manifestRootAttributeProvenance;
         $localHeaderOrder = $package->localHeaderOrderPreflight();
         $packageManifest = $package->packageManifestPreflight();
+        $packageManifestEntriesByName = self::zipPreflightEntriesByName($packageManifest);
         $localHeaders = $package->localHeaderPreflight();
         $compressionMethods = $package->compressionMethodPreflight();
         $generalPurposeFlags = $package->generalPurposeFlagPreflight();
@@ -2113,6 +2114,9 @@ final class OdfReader
         $rawNameProvenanceEntries = [];
         $manifestVersionCounts = [];
         $manifestPreferredViewModeCounts = [];
+        $centralDirectorySourceRecordEntryCount = 0;
+        $centralDirectorySourceRecordByteLength = 0;
+        $centralDirectorySourceRecordSha256Count = 0;
 
         foreach ($manifest as $item) {
             $part = $item['part'] ?? null;
@@ -2359,6 +2363,19 @@ final class OdfReader
                 $packageDirectoryCount++;
             }
             $localOrder = $localOrderByName[$entry->name] ?? null;
+            $packageManifestEntry = $packageManifestEntriesByName[$entry->name] ?? null;
+            $centralDirectoryRecordOffset = is_array($packageManifestEntry)
+                ? ($packageManifestEntry['centralDirectoryRecordOffset'] ?? $entry->centralDirectoryRecordOffset)
+                : $entry->centralDirectoryRecordOffset;
+            $centralDirectoryRecordEnd = is_array($packageManifestEntry)
+                ? ($packageManifestEntry['centralDirectoryRecordEnd'] ?? $entry->centralDirectoryRecordEnd)
+                : $entry->centralDirectoryRecordEnd;
+            $centralDirectoryRecordBytes = is_int($centralDirectoryRecordOffset) && is_int($centralDirectoryRecordEnd)
+                ? max(0, $centralDirectoryRecordEnd - $centralDirectoryRecordOffset)
+                : null;
+            $centralDirectoryRecordSha256 = is_array($packageManifestEntry)
+                ? ($packageManifestEntry['centralDirectoryRecordSha256'] ?? null)
+                : null;
             $commentEntry = $commentEntriesByName[$entry->name] ?? null;
             $embeddedObjectPackage = $this->embeddedObjectPackageMembership($entry->name, $objectPackageRootParts);
             $location = self::packageInventoryEntryLocation($entry->name);
@@ -2395,6 +2412,10 @@ final class OdfReader
                 'part' => $entry->name,
                 'roles' => $roles,
                 'centralDirectoryIndex' => $centralDirectoryIndex,
+                'centralDirectoryRecordOffset' => $centralDirectoryRecordOffset,
+                'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
+                'centralDirectoryRecordEnd' => $centralDirectoryRecordEnd,
+                'centralDirectoryRecordSha256' => $centralDirectoryRecordSha256,
                 'localHeaderOrder' => is_array($localOrder) ? $localOrder['localHeaderOrder'] : null,
                 'localHeaderOffset' => $entry->localHeaderOffset,
                 'matchesCentralDirectoryOrder' => is_array($localOrder)
@@ -2599,6 +2620,13 @@ final class OdfReader
             if (!$rawNameProvenance['rawNameMatchesDecodedName']) {
                 ++$decodedNameDiffersFromRawNameEntryCount;
             }
+            if ($centralDirectoryRecordBytes !== null) {
+                ++$centralDirectorySourceRecordEntryCount;
+                $centralDirectorySourceRecordByteLength += $centralDirectoryRecordBytes;
+            }
+            if (is_string($centralDirectoryRecordSha256) && $centralDirectoryRecordSha256 !== '') {
+                ++$centralDirectorySourceRecordSha256Count;
+            }
         }
         ksort($roleCounts, SORT_STRING);
         ksort($undeclaredRoleCounts, SORT_STRING);
@@ -2725,6 +2753,9 @@ final class OdfReader
             'decodedNameDiffersFromRawNameEntryCount' => $decodedNameDiffersFromRawNameEntryCount,
             'rawNameProvenanceEntries' => $rawNameProvenanceEntries,
             'zipSourceRecords' => self::zipSourceRecordSummary($packageManifest, $parts),
+            'centralDirectorySourceRecordEntryCount' => $centralDirectorySourceRecordEntryCount,
+            'centralDirectorySourceRecordByteLength' => $centralDirectorySourceRecordByteLength,
+            'centralDirectorySourceRecordSha256Count' => $centralDirectorySourceRecordSha256Count,
             'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],
             'localHeaders' => $localHeaders,
             'localHeaderEntryCount' => $localHeaders['entryCount'],
@@ -3089,6 +3120,10 @@ final class OdfReader
                 'part' => $item['part'] ?? null,
                 'roles' => $item['roles'] ?? [],
                 'centralDirectoryIndex' => $item['centralDirectoryIndex'] ?? null,
+                'centralDirectoryRecordOffset' => $item['centralDirectoryRecordOffset'] ?? null,
+                'centralDirectoryRecordBytes' => $item['centralDirectoryRecordBytes'] ?? null,
+                'centralDirectoryRecordEnd' => $item['centralDirectoryRecordEnd'] ?? null,
+                'centralDirectoryRecordSha256' => $item['centralDirectoryRecordSha256'] ?? null,
                 'localHeaderOrder' => $item['localHeaderOrder'] ?? null,
                 'localHeaderLength' => $item['localHeaderLength'] ?? null,
                 'localVariableFieldsLength' => $item['localVariableFieldsLength'] ?? null,

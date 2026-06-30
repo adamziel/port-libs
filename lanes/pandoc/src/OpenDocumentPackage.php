@@ -915,6 +915,7 @@ final class OpenDocumentPackage
 
         $localHeaderOrder = $this->package->localHeaderOrderPreflight();
         $packageManifest = $this->package->packageManifestPreflight();
+        $packageManifestEntriesByName = self::zipPreflightEntriesByName($packageManifest);
         $localHeaders = $this->package->localHeaderPreflight();
         $localHeadersByName = self::zipPreflightEntriesByName($localHeaders);
         $compressionMethods = $this->package->compressionMethodPreflight();
@@ -1007,10 +1008,26 @@ final class OpenDocumentPackage
         $unicodePathExtraEntryCount = 0;
         $decodedNameDiffersFromRawNameEntryCount = 0;
         $rawNameProvenanceEntries = [];
+        $centralDirectorySourceRecordEntryCount = 0;
+        $centralDirectorySourceRecordByteLength = 0;
+        $centralDirectorySourceRecordSha256Count = 0;
         foreach ($this->package->entries() as $centralDirectoryIndex => $entry) {
             $manifestEntry = $this->manifestEntriesByPath[$entry->name] ?? null;
             $isUndeclared = !$entry->isDirectory() && !isset($declaredPackagePaths[$entry->name]);
             $localOrder = $localOrderByName[$entry->name] ?? null;
+            $packageManifestEntry = $packageManifestEntriesByName[$entry->name] ?? null;
+            $centralDirectoryRecordOffset = is_array($packageManifestEntry)
+                ? ($packageManifestEntry['centralDirectoryRecordOffset'] ?? $entry->centralDirectoryRecordOffset)
+                : $entry->centralDirectoryRecordOffset;
+            $centralDirectoryRecordEnd = is_array($packageManifestEntry)
+                ? ($packageManifestEntry['centralDirectoryRecordEnd'] ?? $entry->centralDirectoryRecordEnd)
+                : $entry->centralDirectoryRecordEnd;
+            $centralDirectoryRecordBytes = is_int($centralDirectoryRecordOffset) && is_int($centralDirectoryRecordEnd)
+                ? max(0, $centralDirectoryRecordEnd - $centralDirectoryRecordOffset)
+                : null;
+            $centralDirectoryRecordSha256 = is_array($packageManifestEntry)
+                ? ($packageManifestEntry['centralDirectoryRecordSha256'] ?? null)
+                : null;
             $commentEntry = $commentEntriesByName[$entry->name] ?? null;
             $embeddedObjectPackage = self::embeddedObjectPackageMembership($entry->name, $objectPackageRootParts);
             $location = self::packageInventoryEntryLocation($entry->name);
@@ -1045,6 +1062,10 @@ final class OpenDocumentPackage
                 'path' => $entry->name,
                 'roles' => $roles,
                 'centralDirectoryIndex' => $centralDirectoryIndex,
+                'centralDirectoryRecordOffset' => $centralDirectoryRecordOffset,
+                'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
+                'centralDirectoryRecordEnd' => $centralDirectoryRecordEnd,
+                'centralDirectoryRecordSha256' => $centralDirectoryRecordSha256,
                 'localHeaderOrder' => is_array($localOrder) ? $localOrder['localHeaderOrder'] : null,
                 'localHeaderOffset' => $entry->localHeaderOffset,
                 'matchesCentralDirectoryOrder' => is_array($localOrder)
@@ -1282,6 +1303,13 @@ final class OpenDocumentPackage
             if (!$rawNameProvenance['rawNameMatchesDecodedName']) {
                 ++$decodedNameDiffersFromRawNameEntryCount;
             }
+            if ($centralDirectoryRecordBytes !== null) {
+                ++$centralDirectorySourceRecordEntryCount;
+                $centralDirectorySourceRecordByteLength += $centralDirectoryRecordBytes;
+            }
+            if (is_string($centralDirectoryRecordSha256) && $centralDirectoryRecordSha256 !== '') {
+                ++$centralDirectorySourceRecordSha256Count;
+            }
 
             $parts[$entry->name] = $item;
             if ($isUndeclared) {
@@ -1364,6 +1392,9 @@ final class OpenDocumentPackage
             'decodedNameDiffersFromRawNameEntryCount' => $decodedNameDiffersFromRawNameEntryCount,
             'rawNameProvenanceEntries' => $rawNameProvenanceEntries,
             'zipSourceRecords' => self::zipSourceRecordSummary($packageManifest, $parts),
+            'centralDirectorySourceRecordEntryCount' => $centralDirectorySourceRecordEntryCount,
+            'centralDirectorySourceRecordByteLength' => $centralDirectorySourceRecordByteLength,
+            'centralDirectorySourceRecordSha256Count' => $centralDirectorySourceRecordSha256Count,
             'byteExposurePolicy' => 'odf-package-inventory-metadata-only',
             'canExposeBytes' => false,
             'roles' => array_keys($roleCounts),
@@ -1566,6 +1597,10 @@ final class OpenDocumentPackage
                 'path' => $part['path'] ?? null,
                 'roles' => $part['roles'] ?? [],
                 'centralDirectoryIndex' => $part['centralDirectoryIndex'] ?? null,
+                'centralDirectoryRecordOffset' => $part['centralDirectoryRecordOffset'] ?? null,
+                'centralDirectoryRecordBytes' => $part['centralDirectoryRecordBytes'] ?? null,
+                'centralDirectoryRecordEnd' => $part['centralDirectoryRecordEnd'] ?? null,
+                'centralDirectoryRecordSha256' => $part['centralDirectoryRecordSha256'] ?? null,
                 'localHeaderOrder' => $part['localHeaderOrder'] ?? null,
                 'localHeaderLength' => $part['localHeaderLength'] ?? null,
                 'localVariableFieldsLength' => $part['localVariableFieldsLength'] ?? null,

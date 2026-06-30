@@ -2166,6 +2166,50 @@ XML;
         $t->same('stored', $parts['Thumbnails/thumbnail.png']['compressionMethodName']);
         $t->same(sprintf('%08x', crc32('THUMBNAIL')), $parts['Thumbnails/thumbnail.png']['crc32']);
     },
+    'carries compact ODT central directory source records into package inventory' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
+        $parts = [
+            ['name' => 'mimetype', 'data' => OpenDocumentPackage::TEXT_MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml, 'compressionMethod' => 0],
+            ['name' => 'content.xml', 'data' => $contentXml, 'compressionMethod' => 8],
+            ['name' => 'styles.xml', 'data' => $stylesXml, 'compressionMethod' => 8],
+            ['name' => 'meta.xml', 'data' => $metaXml, 'compressionMethod' => 0],
+            ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+        ];
+        $package = $buildZipPackageWithCentralDirectoryOrder(
+            $parts,
+            ['META-INF/manifest.xml', 'content.xml', 'styles.xml', 'meta.xml', 'Pictures/hero.png', 'mimetype']
+        );
+        $sourceRecords = [];
+        foreach ($package->packageManifestPreflight()['entries'] as $entry) {
+            $sourceRecords[$entry['name']] = $entry;
+        }
+
+        $summary = OpenDocumentPackage::fromPackage($package)->summarize();
+        $inventory = $summary['packageInventory'];
+        $content = $inventory['parts']['content.xml'];
+        $identityEntries = [];
+        foreach ($summary['packageIdentity']['packageEntries'] as $entry) {
+            $identityEntries[$entry['path']] = $entry;
+        }
+        $source = $sourceRecords['content.xml'];
+        $expectedBytes = $source['centralDirectoryRecordEnd'] - $source['centralDirectoryRecordOffset'];
+
+        $t->same(6, $inventory['centralDirectorySourceRecordEntryCount']);
+        $t->same(6, $inventory['centralDirectorySourceRecordSha256Count']);
+        $t->true($inventory['centralDirectorySourceRecordByteLength'] > 6 * 46);
+        $t->same($source['centralDirectoryRecordOffset'], $content['centralDirectoryRecordOffset']);
+        $t->same($expectedBytes, $content['centralDirectoryRecordBytes']);
+        $t->same($source['centralDirectoryRecordEnd'], $content['centralDirectoryRecordEnd']);
+        $t->same($source['centralDirectoryRecordSha256'], $content['centralDirectoryRecordSha256']);
+        $t->same(
+            hash('sha256', substr($package->bytes(), $content['centralDirectoryRecordOffset'], $content['centralDirectoryRecordBytes'])),
+            $content['centralDirectoryRecordSha256']
+        );
+        $t->same($content['centralDirectoryRecordOffset'], $identityEntries['content.xml']['centralDirectoryRecordOffset']);
+        $t->same($content['centralDirectoryRecordBytes'], $identityEntries['content.xml']['centralDirectoryRecordBytes']);
+        $t->same($content['centralDirectoryRecordEnd'], $identityEntries['content.xml']['centralDirectoryRecordEnd']);
+        $t->same($content['centralDirectoryRecordSha256'], $identityEntries['content.xml']['centralDirectoryRecordSha256']);
+    },
     'keeps compact ODT manifest directory package entries out of media handoff' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifest = str_replace(
             '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',

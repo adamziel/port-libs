@@ -67,7 +67,12 @@ $parts = [
 
 return [
     'preflights deterministic ODT reader package identity provenance' => static function (TestRunner $t) use ($parts): void {
-        $result = (new OdfReader())->readPackage(ZipPackage::fromParts($parts, 'odt identity review'));
+        $package = ZipPackage::fromParts($parts, 'odt identity review');
+        $sourceRecords = [];
+        foreach ($package->packageManifestPreflight()['entries'] as $item) {
+            $sourceRecords[$item['name']] = $item;
+        }
+        $result = (new OdfReader())->readPackage($package);
         $provenance = $result['importReport']['manifest']['packageProvenance'];
         $identity = $provenance['packageIdentity'];
         $repeatIdentity = (new OdfReader())->readPackage(ZipPackage::fromParts($parts, 'odt identity review'))['importReport']['manifest']['packageProvenance']['packageIdentity'];
@@ -82,6 +87,10 @@ return [
         $packageEntries = [];
         foreach ($identity['packageEntries'] as $item) {
             $packageEntries[$item['part']] = $item;
+        }
+        $provenanceParts = [];
+        foreach ($provenance['parts'] as $item) {
+            $provenanceParts[$item['part']] = $item;
         }
         $manifestOrderByPart = [];
         foreach ($provenance['manifestFileEntryOrder'] as $item) {
@@ -125,10 +134,17 @@ return [
         $t->same(1, $identity['roleCounts']['script-package']);
         $t->same(1, $identity['packagePartByteExposurePolicyCounts']['script-package-bytes-blocked']);
         $t->same(1, $identity['packagePartByteExposurePolicyCounts']['undeclared-package-entry-no-bytes']);
+        $t->same(count($parts), $provenance['centralDirectorySourceRecordEntryCount']);
+        $t->same(count($parts), $provenance['centralDirectorySourceRecordSha256Count']);
+        $t->true($provenance['centralDirectorySourceRecordByteLength'] > count($parts) * 46);
 
         $hero = $manifestEntries['Pictures/hero.png?cache=1#cover'];
         $script = $manifestEntries['Basic/Standard/Review.xml?macro=approve#entry'];
         $private = $packageEntries['Notes/private.txt'];
+        $contentSource = $sourceRecords['content.xml'];
+        $contentProvenance = $provenanceParts['content.xml'];
+        $contentIdentity = $packageEntries['content.xml'];
+        $contentSourceRecordBytes = $contentSource['centralDirectoryRecordEnd'] - $contentSource['centralDirectoryRecordOffset'];
 
         $t->same('Pictures/hero.png', $hero['part']);
         $t->same('Pictures/hero.png', $hero['partReference']);
@@ -157,6 +173,19 @@ return [
         $t->same('undeclared-package-entry-no-bytes', $private['byteExposurePolicy']);
         $t->same(null, $private['byteSha256'] ?? null);
         $t->same(sprintf('%08x', crc32('PRIVATE-NOTE')), $private['crc32']);
+
+        $t->same($contentSource['centralDirectoryRecordOffset'], $contentProvenance['centralDirectoryRecordOffset']);
+        $t->same($contentSourceRecordBytes, $contentProvenance['centralDirectoryRecordBytes']);
+        $t->same($contentSource['centralDirectoryRecordEnd'], $contentProvenance['centralDirectoryRecordEnd']);
+        $t->same($contentSource['centralDirectoryRecordSha256'], $contentProvenance['centralDirectoryRecordSha256']);
+        $t->same(
+            hash('sha256', substr($package->bytes(), $contentProvenance['centralDirectoryRecordOffset'], $contentProvenance['centralDirectoryRecordBytes'])),
+            $contentProvenance['centralDirectoryRecordSha256']
+        );
+        $t->same($contentProvenance['centralDirectoryRecordOffset'], $contentIdentity['centralDirectoryRecordOffset']);
+        $t->same($contentProvenance['centralDirectoryRecordBytes'], $contentIdentity['centralDirectoryRecordBytes']);
+        $t->same($contentProvenance['centralDirectoryRecordEnd'], $contentIdentity['centralDirectoryRecordEnd']);
+        $t->same($contentProvenance['centralDirectoryRecordSha256'], $contentIdentity['centralDirectoryRecordSha256']);
     },
     'carries ODT package sidecar role counts in rich and compact identities' => static function (TestRunner $t): void {
         $contentXml = <<<'XML'
