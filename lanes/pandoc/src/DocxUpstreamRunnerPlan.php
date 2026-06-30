@@ -162,6 +162,9 @@ final class DocxUpstreamRunnerPlan
                 . (string) ($readiness['status'] ?? 'unknown')
                 . '; blockers='
                 . count(is_array($readiness['blockers'] ?? null) ? $readiness['blockers'] : []);
+            foreach (is_array($readiness['blockers'] ?? null) ? $readiness['blockers'] : [] as $blocker) {
+                $lines[] = 'Local execution blocker: ' . (string) $blocker;
+            }
         }
 
         $artifact = $report['selectedTestInventoryArtifact'] ?? [];

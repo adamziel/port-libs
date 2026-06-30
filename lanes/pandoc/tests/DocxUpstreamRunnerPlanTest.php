@@ -105,6 +105,7 @@ return [
             $t->same(false, $readiness['checks']['upstreamRootPresent']);
             $t->contains('missing DOCX upstream source paths', implode("\n", $readiness['blockers']));
             $t->contains('Local execution readiness: blocked-targeted-docx-runner-local-prerequisites', $text);
+            $t->contains('Local execution blocker: missing DOCX upstream source paths', $text);
             $t->contains('--dry-run --only-dependencies', $report['commands']['dependencyDryRun']['commandLine']);
             $t->contains('--list-tests --pattern', $report['commands']['listDocxTests']['commandLine']);
             $t->contains('($2 == "Readers" || $2 == "Writers") && $3 == "Docx"', $report['commands']['targetedDocxRun']['commandLine']);
