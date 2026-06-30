@@ -839,6 +839,10 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['selectedXmlPartRootChildElementPrefixCount'] = count($selectedXmlParts['rootChildElementPrefixCounts']);
         $packageProvenance['summary']['selectedXmlPartRootChildElementPrefixCounts'] = $selectedXmlParts['rootChildElementPrefixCounts'];
         $packageProvenance['summary']['selectedXmlPartRootChildElementPrefixes'] = $selectedXmlParts['rootChildElementPrefixes'];
+        $packageProvenance['summary']['selectedXmlPartRootChildElementFirstCount'] = $selectedXmlParts['rootChildElementFirstCount'];
+        $packageProvenance['summary']['selectedXmlPartRootChildElementLastCount'] = $selectedXmlParts['rootChildElementLastCount'];
+        $packageProvenance['summary']['selectedXmlPartRootChildElementSiblingCountCounts'] = $selectedXmlParts['rootChildElementSiblingCountCounts'];
+        $packageProvenance['summary']['selectedXmlPartRootChildElementSiblingCounts'] = $selectedXmlParts['rootChildElementSiblingCounts'];
         $packageProvenance['summary']['selectedXmlPartRootChildElements'] = $selectedXmlParts['rootChildElements'];
         $packageProvenance['summary']['selectedXmlPartXmlDeclarationCount'] = $selectedXmlParts['xmlDeclarationCount'];
         $packageProvenance['summary']['selectedXmlPartXmlDeclarationEncodingCounts'] = $selectedXmlParts['xmlDeclarationEncodingCounts'];
@@ -31549,6 +31553,9 @@ final class DocxOpenXmlReader
         $rootChildElementLocalNameCounts = [];
         $rootChildElementPrefixCounts = [];
         $rootChildElementPrefixes = [];
+        $rootChildElementFirstCount = 0;
+        $rootChildElementLastCount = 0;
+        $rootChildElementSiblingCountCounts = [];
         $rootChildElements = [];
         $xmlDeclarationCount = 0;
         $xmlDeclarationEncodingCounts = [];
@@ -31742,11 +31749,25 @@ final class DocxOpenXmlReader
                     'kind' => is_string($item['kind'] ?? null) ? $item['kind'] : '',
                     'partName' => is_string($item['partName'] ?? null) ? $item['partName'] : '',
                     'index' => (int) ($childElement['index'] ?? 0),
+                    'siblingCount' => (int) ($childElement['siblingCount'] ?? $itemRootChildElementCount),
+                    'isFirstChildElement' => ($childElement['isFirstChildElement'] ?? false) === true,
+                    'isLastChildElement' => ($childElement['isLastChildElement'] ?? false) === true,
                     'namespace' => is_string($childElement['namespace'] ?? null) ? $childElement['namespace'] : null,
                     'localName' => is_string($childElement['localName'] ?? null) ? $childElement['localName'] : '',
                     'qualifiedName' => is_string($childElement['qualifiedName'] ?? null) ? $childElement['qualifiedName'] : '',
                     'prefix' => is_string($childElement['prefix'] ?? null) ? $childElement['prefix'] : null,
                 ];
+                $siblingCount = (int) ($childElement['siblingCount'] ?? $itemRootChildElementCount);
+                if ($siblingCount > 0) {
+                    $rootChildElementSiblingCountCounts[$siblingCount] =
+                        ($rootChildElementSiblingCountCounts[$siblingCount] ?? 0) + 1;
+                }
+                if (($childElement['isFirstChildElement'] ?? false) === true) {
+                    ++$rootChildElementFirstCount;
+                }
+                if (($childElement['isLastChildElement'] ?? false) === true) {
+                    ++$rootChildElementLastCount;
+                }
             }
             $rootNamespace = is_string($item['rootNamespace'] ?? null) ? $item['rootNamespace'] : '';
             if ($rootNamespace !== '') {
@@ -31799,6 +31820,7 @@ final class DocxOpenXmlReader
         ksort($rootChildElementNamespaceCounts, SORT_STRING);
         ksort($rootChildElementLocalNameCounts, SORT_STRING);
         ksort($rootChildElementPrefixCounts, SORT_STRING);
+        ksort($rootChildElementSiblingCountCounts, SORT_NUMERIC);
         ksort($existingByteLengthBucketCounts, SORT_STRING);
         ksort($existingByteLengthBucketByteLengths, SORT_STRING);
         ksort($existingByteLengthBucketPartNames, SORT_STRING);
@@ -31884,6 +31906,10 @@ final class DocxOpenXmlReader
             'rootChildElementLocalNameCounts' => $rootChildElementLocalNameCounts,
             'rootChildElementPrefixCounts' => $rootChildElementPrefixCounts,
             'rootChildElementPrefixes' => $rootChildElementPrefixes,
+            'rootChildElementFirstCount' => $rootChildElementFirstCount,
+            'rootChildElementLastCount' => $rootChildElementLastCount,
+            'rootChildElementSiblingCountCounts' => $rootChildElementSiblingCountCounts,
+            'rootChildElementSiblingCounts' => array_keys($rootChildElementSiblingCountCounts),
             'rootChildElements' => $rootChildElements,
             'xmlDeclarationCount' => $xmlDeclarationCount,
             'xmlDeclarationEncodingCounts' => $xmlDeclarationEncodingCounts,
@@ -37465,7 +37491,7 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{validXml:bool, xmlParseError:?string, namespace:?string, localName:?string, qualifiedName:?string, prefix:?string, attributeCount:int, attributeNames:list<string>, attributeNameCounts:array<string, int>, attributeValueByteLength:int, attributes:list<array{name:string, prefix:?string, namespace:?string, localName:string, valueByteLength:int, valueCrc32:?string, valueSha256:?string}>, namespaceDeclarationCount:int, namespacePrefixes:list<string>, childElementCount:int, childElementNames:list<string>, childElementNameCounts:array<string, int>, childElementNamespaceCounts:array<string, int>, childElementNamespaces:list<string>, childElementLocalNameCounts:array<string, int>, childElementPrefixCounts:array<string, int>, childElementPrefixes:list<string>, childElementFirstName:?string, childElementLastName:?string, childElements:list<array{index:int, namespace:?string, localName:string, qualifiedName:string, prefix:?string}>}
+     * @return array{validXml:bool, xmlParseError:?string, namespace:?string, localName:?string, qualifiedName:?string, prefix:?string, attributeCount:int, attributeNames:list<string>, attributeNameCounts:array<string, int>, attributeValueByteLength:int, attributes:list<array{name:string, prefix:?string, namespace:?string, localName:string, valueByteLength:int, valueCrc32:?string, valueSha256:?string}>, namespaceDeclarationCount:int, namespacePrefixes:list<string>, childElementCount:int, childElementNames:list<string>, childElementNameCounts:array<string, int>, childElementNamespaceCounts:array<string, int>, childElementNamespaces:list<string>, childElementLocalNameCounts:array<string, int>, childElementPrefixCounts:array<string, int>, childElementPrefixes:list<string>, childElementFirstName:?string, childElementLastName:?string, childElements:list<array{index:int, siblingCount:int, isFirstChildElement:bool, isLastChildElement:bool, namespace:?string, localName:string, qualifiedName:string, prefix:?string}>}
      */
     private function xmlRootProvenance(string $xml, string $partName): array
     {
@@ -37598,12 +37624,22 @@ final class DocxOpenXmlReader
 
             $childElements[] = [
                 'index' => $childElementIndex,
+                'siblingCount' => 0,
+                'isFirstChildElement' => false,
+                'isLastChildElement' => false,
                 'namespace' => $childNamespace,
                 'localName' => $childLocalName,
                 'qualifiedName' => $childQualifiedName,
                 'prefix' => $childPrefix,
             ];
         }
+        $childElementCount = count($childElements);
+        foreach ($childElements as &$childElement) {
+            $childElement['siblingCount'] = $childElementCount;
+            $childElement['isFirstChildElement'] = $childElement['index'] === 1;
+            $childElement['isLastChildElement'] = $childElement['index'] === $childElementCount;
+        }
+        unset($childElement);
         ksort($attributeNameCounts, SORT_STRING);
         ksort($childElementNameCounts, SORT_STRING);
         ksort($childElementNamespaceCounts, SORT_STRING);
@@ -37641,7 +37677,7 @@ final class DocxOpenXmlReader
             'childElementPrefixCounts' => $childElementPrefixCounts,
             'childElementPrefixes' => $childElementPrefixes,
             'childElementFirstName' => $childElements[0]['qualifiedName'] ?? null,
-            'childElementLastName' => $childElements[count($childElements) - 1]['qualifiedName'] ?? null,
+            'childElementLastName' => $childElements[$childElementCount - 1]['qualifiedName'] ?? null,
             'childElements' => $childElements,
         ];
     }

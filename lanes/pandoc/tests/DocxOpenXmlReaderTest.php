@@ -20144,6 +20144,11 @@ XML;
         $t->same(2, $byKind['settings']['rootChildElementCount']);
         $t->same('w:zoom', $byKind['settings']['rootChildElementFirstName']);
         $t->same('w:docVars', $byKind['settings']['rootChildElementLastName']);
+        $t->same(2, $byKind['settings']['rootChildElements'][0]['siblingCount']);
+        $t->same(true, $byKind['settings']['rootChildElements'][0]['isFirstChildElement']);
+        $t->same(false, $byKind['settings']['rootChildElements'][0]['isLastChildElement']);
+        $t->same(false, $byKind['settings']['rootChildElements'][1]['isFirstChildElement']);
+        $t->same(true, $byKind['settings']['rootChildElements'][1]['isLastChildElement']);
         $t->same(['name'], $byKind['theme']['rootAttributeNames']);
         $t->same(2, $byKind['theme']['rootChildElementCount']);
         $t->same('a:themeElements', $byKind['theme']['rootChildElementFirstName']);
@@ -20154,9 +20159,30 @@ XML;
         $t->same($selected['rootAttributePartNames'], $summary['selectedXmlPartRootAttributePartNames']);
         $t->same($selected['rootChildElementNameCounts'], $summary['selectedXmlPartRootChildElementNameCounts']);
         $t->same($selected['rootChildElementPartNames'], $summary['selectedXmlPartRootChildElementPartNames']);
+        $t->same(6, $selected['rootChildElementFirstCount']);
+        $t->same(6, $selected['rootChildElementLastCount']);
+        $t->same([
+            1 => 1,
+            2 => 6,
+            4 => 4,
+            6 => 6,
+        ], $selected['rootChildElementSiblingCountCounts']);
+        $t->same([1, 2, 4, 6], $selected['rootChildElementSiblingCounts']);
+        $t->same($selected['rootChildElementFirstCount'], $summary['selectedXmlPartRootChildElementFirstCount']);
+        $t->same($selected['rootChildElementLastCount'], $summary['selectedXmlPartRootChildElementLastCount']);
+        $t->same($selected['rootChildElementSiblingCountCounts'], $summary['selectedXmlPartRootChildElementSiblingCountCounts']);
+        $t->same($selected['rootChildElementSiblingCounts'], $summary['selectedXmlPartRootChildElementSiblingCounts']);
         $t->same($selected['rootChildElements'], $summary['selectedXmlPartRootChildElements']);
+        $t->same('w:body', $summary['selectedXmlPartRootChildElements'][0]['qualifiedName']);
+        $t->same(1, $summary['selectedXmlPartRootChildElements'][0]['siblingCount']);
+        $t->same(true, $summary['selectedXmlPartRootChildElements'][0]['isFirstChildElement']);
+        $t->same(true, $summary['selectedXmlPartRootChildElements'][0]['isLastChildElement']);
 
-        $encodedReview = json_encode([$selected['rootAttributes'], $summary['selectedXmlPartRootAttributes']]);
+        $encodedReview = json_encode([
+            $selected['rootAttributes'],
+            $summary['selectedXmlPartRootAttributes'],
+            $summary['selectedXmlPartRootChildElements'],
+        ]);
         $t->true(is_string($encodedReview), 'selected XML root attribute metadata should encode for review');
         $t->true(!str_contains((string) $encodedReview, 'metadata-only'), 'selected XML root attribute metadata should not expose root attribute values');
         $t->true(!str_contains((string) $encodedReview, 'Selected Attribute Theme'), 'selected XML root attribute metadata should not expose theme names');
