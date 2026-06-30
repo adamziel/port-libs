@@ -22416,7 +22416,8 @@ final class XmlHtmlDom
      */
     private static function popoverTargetReferenceSummary(\DOMElement $element, string $targetRaw, ?string $targetId): array
     {
-        $target = $targetId === null ? null : self::htmlElementById($element, $targetId);
+        $targets = $targetId === null ? [] : self::htmlElementsById($element, $targetId);
+        $target = $targets[0] ?? null;
         $issues = [];
 
         if ($targetId === null) {
@@ -22430,6 +22431,14 @@ final class XmlHtmlDom
                 'targetId' => $targetId,
             ];
         } else {
+            if (count($targets) > 1) {
+                $issues[] = [
+                    'code' => 'duplicate-popover-target-element',
+                    'targetId' => $targetId,
+                    'count' => count($targets),
+                ];
+            }
+
             $popoverRaw = self::attributeOrNull($target, 'popover');
             if ($popoverRaw === null) {
                 $issues[] = [
@@ -22449,8 +22458,13 @@ final class XmlHtmlDom
         return [
             'popoverTargetReviewPolicy' => 'popover-target-idref-review',
             'popoverTargetFound' => $target instanceof \DOMElement,
-            'popoverTargetKind' => self::popoverTargetKind($target, $targetRaw, $targetId),
+            'popoverTargetCount' => count($targets),
+            'popoverTargetKind' => self::popoverTargetKind($target, $targetRaw, $targetId, count($targets)),
             'popoverTargetElement' => $target instanceof \DOMElement ? self::popoverTargetElementSummary($target) : null,
+            'popoverTargetElements' => array_map(
+                static fn (\DOMElement $target): array => self::popoverTargetElementSummary($target),
+                $targets
+            ),
             'popoverTargetIssues' => $issues,
             'popoverTargetIssueCodes' => array_values(array_unique(array_map(
                 static fn (array $issue): string => (string) ($issue['code'] ?? ''),
@@ -22460,7 +22474,12 @@ final class XmlHtmlDom
         ];
     }
 
-    private static function popoverTargetKind(?\DOMElement $target, string $targetRaw, ?string $targetId): string
+    private static function popoverTargetKind(
+        ?\DOMElement $target,
+        string $targetRaw,
+        ?string $targetId,
+        int $targetCount
+    ): string
     {
         if (!$target instanceof \DOMElement) {
             if ($targetId === null) {
@@ -22468,6 +22487,9 @@ final class XmlHtmlDom
             }
 
             return 'missing-target';
+        }
+        if ($targetCount > 1) {
+            return 'duplicate-target';
         }
 
         return self::attributeOrNull($target, 'popover') === null ? 'element' : 'popover';
