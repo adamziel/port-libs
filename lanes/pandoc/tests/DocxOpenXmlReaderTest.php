@@ -3766,6 +3766,78 @@ XML;
         $t->true(!isset($byPartName['docProps/core.xml']), 'directory uppercase should not create basename character review');
         $t->true(!isset($byPartName[$directoryUppercaseOnlyPart]), 'directory-only uppercase should not create basename character review');
     },
+    'summarizes docx package directory basename character provenance for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $mixedDirectoryPart = 'reviewdata/Review Pack/item.xml';
+        $percentDirectoryPart = 'reviewdata/data/review%20encoded/item.xml';
+        $nonAsciiDirectoryPart = "reviewdata/caf\xC3\xA9/item.xml";
+        $directoryUppercaseOnlyPart = 'CustomXml/normal.xml';
+        $parts[$mixedDirectoryPart] = '<review-pack-directory/>';
+        $parts[$percentDirectoryPart] = '<encoded-directory/>';
+        $parts[$nonAsciiDirectoryPart] = '<cafe-directory/>';
+        $parts[$directoryUppercaseOnlyPart] = '<directory-uppercase-only/>';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $byPartName = [];
+        foreach ($summary['partDirectoryBaseNameCharacterReviewParts'] as $item) {
+            $byPartName[$item['partName']] = $item;
+        }
+
+        $t->same(5, $summary['partDirectoryBaseNameCharacterReviewPartCount']);
+        $t->same(3, $summary['partDirectoryBaseNameUppercasePartCount']);
+        $t->same(1, $summary['partDirectoryBaseNameWhitespacePartCount']);
+        $t->same(1, $summary['partDirectoryBaseNamePercentEncodedOctetPartCount']);
+        $t->same(1, $summary['partDirectoryBaseNameNonAsciiPartCount']);
+        $t->same([
+            'non-ascii' => 1,
+            'percent-encoded-octet' => 1,
+            'uppercase' => 3,
+            'whitespace' => 1,
+        ], $summary['partDirectoryBaseNameCharacterFlagCounts']);
+        $t->same([$directoryUppercaseOnlyPart, 'docProps/core.xml', $mixedDirectoryPart], $summary['partDirectoryBaseNameCharacterFlagPartNames']['uppercase']);
+        $t->same([$mixedDirectoryPart], $summary['partDirectoryBaseNameCharacterFlagPartNames']['whitespace']);
+        $t->same([$percentDirectoryPart], $summary['partDirectoryBaseNameCharacterFlagPartNames']['percent-encoded-octet']);
+        $t->same([$nonAsciiDirectoryPart], $summary['partDirectoryBaseNameCharacterFlagPartNames']['non-ascii']);
+        $t->same(['CustomXml', 'Review Pack', 'docProps'], $summary['partDirectoryBaseNameCharacterFlagDirectoryBaseNames']['uppercase']);
+        $t->same(['Review Pack'], $summary['partDirectoryBaseNameCharacterFlagDirectoryBaseNames']['whitespace']);
+        $t->same(['review%20encoded'], $summary['partDirectoryBaseNameCharacterFlagDirectoryBaseNames']['percent-encoded-octet']);
+        $t->same(["caf\xC3\xA9"], $summary['partDirectoryBaseNameCharacterFlagDirectoryBaseNames']['non-ascii']);
+
+        $t->same(['uppercase'], $inventory['docProps/core.xml']['directoryBaseNameCharacterFlags']);
+        $t->same(true, $inventory['docProps/core.xml']['directoryBaseNameHasUppercase']);
+        $t->same([], $inventory['[Content_Types].xml']['directoryBaseNameCharacterFlags']);
+        $t->same(false, $inventory['[Content_Types].xml']['directoryBaseNameHasUppercase']);
+        $t->same(['uppercase'], $inventory[$directoryUppercaseOnlyPart]['directoryBaseNameCharacterFlags']);
+        $t->same(true, $inventory[$directoryUppercaseOnlyPart]['directoryBaseNameHasUppercase']);
+        $t->same([], $inventory[$directoryUppercaseOnlyPart]['baseNameCharacterFlags']);
+        $t->same(false, $inventory[$directoryUppercaseOnlyPart]['baseNameHasUppercase']);
+        $t->same(['uppercase', 'whitespace'], $inventory[$mixedDirectoryPart]['directoryBaseNameCharacterFlags']);
+        $t->same(true, $inventory[$mixedDirectoryPart]['directoryBaseNameHasUppercase']);
+        $t->same(true, $inventory[$mixedDirectoryPart]['directoryBaseNameHasWhitespace']);
+        $t->same(false, $inventory[$mixedDirectoryPart]['directoryBaseNameHasPercentEncodedOctet']);
+        $t->same(false, $inventory[$mixedDirectoryPart]['directoryBaseNameHasNonAscii']);
+        $t->same(['percent-encoded-octet'], $inventory[$percentDirectoryPart]['directoryBaseNameCharacterFlags']);
+        $t->same(true, $inventory[$percentDirectoryPart]['directoryBaseNameHasPercentEncodedOctet']);
+        $t->same(['non-ascii'], $inventory[$nonAsciiDirectoryPart]['directoryBaseNameCharacterFlags']);
+        $t->same(true, $inventory[$nonAsciiDirectoryPart]['directoryBaseNameHasNonAscii']);
+
+        $t->same('Review Pack', $byPartName[$mixedDirectoryPart]['directoryBaseName']);
+        $t->same('review pack', $byPartName[$mixedDirectoryPart]['caseFoldDirectoryBaseName']);
+        $t->same('reviewdata/Review Pack', $byPartName[$mixedDirectoryPart]['directory']);
+        $t->same('item.xml', $byPartName[$mixedDirectoryPart]['baseName']);
+        $t->same('default', $byPartName[$mixedDirectoryPart]['contentTypeSource']);
+        $t->same('application/xml', $byPartName[$mixedDirectoryPart]['contentTypeBase']);
+        $t->same(['package-part'], $byPartName[$mixedDirectoryPart]['roles']);
+        $t->same('review%20encoded', $byPartName[$percentDirectoryPart]['directoryBaseName']);
+        $t->same(['percent-encoded-octet'], $byPartName[$percentDirectoryPart]['flags']);
+        $t->same("caf\xC3\xA9", $byPartName[$nonAsciiDirectoryPart]['directoryBaseName']);
+        $t->same(['non-ascii'], $byPartName[$nonAsciiDirectoryPart]['flags']);
+        $t->same('CustomXml', $byPartName[$directoryUppercaseOnlyPart]['directoryBaseName']);
+        $t->same(['uppercase'], $byPartName[$directoryUppercaseOnlyPart]['flags']);
+    },
     'summarizes docx package path segment character provenance for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $mixedSegmentPart = 'reviewdata/Review Pack/item.xml';
