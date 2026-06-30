@@ -9,6 +9,7 @@ use PortLibs\Pandoc\ZipPackage;
 
 $templateManifestXml = '<templates xmlns="urn:example:templates"><template name="letter.ott"/></templates>';
 $templateBytes = 'ODF-TEMPLATE-BYTES';
+$documentTemplateBytes = 'ODF-DOCUMENT-TEMPLATE-BYTES';
 $openXmlTemplateBytes = 'OPENXML-TEMPLATE-BYTES';
 $previewBytes = 'TEMPLATE-PREVIEW-PNG';
 $encryptedBytes = 'ENCRYPTED-TEMPLATE-BYTES';
@@ -17,6 +18,7 @@ $orphanOpenXmlTemplateBytes = 'ORPHAN-OPENXML-TEMPLATE-BYTES';
 
 $templateManifestSize = strlen($templateManifestXml);
 $templateSize = strlen($templateBytes);
+$documentTemplateSize = strlen($documentTemplateBytes);
 $openXmlTemplateSize = strlen($openXmlTemplateBytes);
 $previewSize = strlen($previewBytes);
 $encryptedSize = strlen($encryptedBytes);
@@ -31,6 +33,7 @@ $manifestXml = <<<XML
   <manifest:file-entry manifest:full-path="Templates/Review/" manifest:media-type=""/>
   <manifest:file-entry manifest:full-path="Templates/Review/manifest.xml" manifest:media-type="text/xml" manifest:size="{$templateManifestSize}"/>
   <manifest:file-entry manifest:full-path="Templates/Review/letter.ott" manifest:media-type="application/vnd.oasis.opendocument.text-template" manifest:size="{$templateSize}"/>
+  <manifest:file-entry manifest:full-path="Templates/Review/letter.odt" manifest:media-type="" manifest:size="{$documentTemplateSize}"/>
   <manifest:file-entry manifest:full-path="Templates/Review/letter.dotx" manifest:media-type="" manifest:size="{$openXmlTemplateSize}"/>
   <manifest:file-entry manifest:full-path="Templates/Review/preview.png" manifest:media-type="image/png" manifest:size="{$previewSize}"/>
   <manifest:file-entry manifest:full-path="Templates/Review/missing.ott" manifest:media-type="application/vnd.oasis.opendocument.text-template" manifest:size="21"/>
@@ -85,6 +88,7 @@ $buildPackage = static fn (): ZipPackage => ZipPackage::fromParts([
     ['name' => 'Templates/Review/', 'data' => '', 'compressionMethod' => 0],
     ['name' => 'Templates/Review/manifest.xml', 'data' => $templateManifestXml, 'compressionMethod' => 0],
     ['name' => 'Templates/Review/letter.ott', 'data' => $templateBytes, 'compressionMethod' => 0],
+    ['name' => 'Templates/Review/letter.odt', 'data' => $documentTemplateBytes, 'compressionMethod' => 0],
     ['name' => 'Templates/Review/letter.dotx', 'data' => $openXmlTemplateBytes, 'compressionMethod' => 0],
     ['name' => 'Templates/Review/preview.png', 'data' => $previewBytes, 'compressionMethod' => 0],
     ['name' => 'Templates/Review/encrypted.ott', 'data' => $encryptedBytes, 'compressionMethod' => 0],
@@ -109,6 +113,7 @@ return [
         $buildPackage,
         $templateManifestXml,
         $templateBytes,
+        $documentTemplateBytes,
         $openXmlTemplateBytes,
         $previewBytes,
         $orphanBytes,
@@ -125,9 +130,9 @@ return [
         $t->same($readerTemplates, $result['document']->attr('packageTemplates'));
         $t->same($readerTemplates, $result['metadata']['odfPackageTemplates']);
         $t->same($readerTemplates, $result['importReport']['packageTemplates']);
-        $t->same(9, $readerTemplates['count']);
-        $t->same(6, $readerTemplates['readableCount']);
-        $t->same(7, $readerTemplates['declaredCount']);
+        $t->same(10, $readerTemplates['count']);
+        $t->same(7, $readerTemplates['readableCount']);
+        $t->same(8, $readerTemplates['declaredCount']);
         $t->same(2, $readerTemplates['undeclaredCount']);
         $t->same(1, $readerTemplates['missingCount']);
         $t->same(1, $readerTemplates['directoryCount']);
@@ -142,11 +147,11 @@ return [
         ], $readerTemplates['issueCodes']);
         $t->same([
             'template-directory' => 1,
-            'template-document' => 6,
+            'template-document' => 7,
             'template-manifest' => 1,
             'template-preview-media' => 1,
         ], $readerTemplates['kindCounts']);
-        $t->same(['review' => 9], $readerTemplates['groupCounts']);
+        $t->same(['review' => 10], $readerTemplates['groupCounts']);
         $t->same('template-package-bytes-blocked', $readerTemplates['byteExposurePolicy']);
         $t->same('template-package-metadata-only', $readerTemplates['reviewPolicy']);
 
@@ -169,6 +174,14 @@ return [
         $t->same('application/vnd.oasis.opendocument.text-template', $template['mediaTypeBase']);
         $t->same(strlen($templateBytes), $template['byteLength']);
         $t->same(false, $template['canExposeBytes']);
+
+        $documentTemplate = $readerItems['Templates/Review/letter.odt'];
+        $t->same('template-document', $documentTemplate['kind']);
+        $t->same(OdfReader::MIMETYPE, $documentTemplate['mediaTypeBase']);
+        $t->same(strlen($documentTemplateBytes), $documentTemplate['byteLength']);
+        $t->same(false, $documentTemplate['canExposeBytes']);
+        $t->same(false, $documentTemplate['canExposeAsDocumentMedia']);
+        $t->same([], $documentTemplate['issues']);
 
         $openXmlTemplate = $readerItems['Templates/Review/letter.dotx'];
         $t->same('template-document', $openXmlTemplate['kind']);
@@ -219,22 +232,25 @@ return [
         $t->same(null, $manifestPreview['byteSha256']);
         $t->same('template-package-bytes-blocked', $manifestPreview['byteExposurePolicy']);
         $t->same(['Pictures/hero.png'], array_column($result['media'], 'part'));
-        $t->same(8, $readerProvenance['templatePackagePartCount']);
-        $t->same(8, $readerProvenance['roleCounts']['template-package']);
+        $t->same(9, $readerProvenance['templatePackagePartCount']);
+        $t->same(9, $readerProvenance['roleCounts']['template-package']);
         $t->same(2, $readerProvenance['undeclaredRoleCounts']['template-package']);
         $t->same(['template-package', 'manifest-declared'], $readerProvenance['parts']['Templates/Review/preview.png']['roles']);
+        $t->same(['template-package', 'manifest-declared'], $readerProvenance['parts']['Templates/Review/letter.odt']['roles']);
         $t->same(['template-package', 'undeclared-package-entry'], $readerProvenance['parts']['Templates/Review/orphan.ott']['roles']);
         $t->same(['template-package', 'undeclared-package-entry'], $readerProvenance['parts']['Templates/Review/orphan.potx']['roles']);
         $readerIdentityManifest = $indexBy($readerProvenance['packageIdentity']['manifestEntries'], 'part');
         $readerIdentityPackage = $indexBy($readerProvenance['packageIdentity']['packageEntries'], 'part');
+        $t->same(true, $readerIdentityManifest['Templates/Review/letter.odt']['templatePackagePart']);
         $t->same(true, $readerIdentityManifest['Templates/Review/letter.dotx']['templatePackagePart']);
         $t->same(true, $readerIdentityPackage['Templates/Review/orphan.potx']['templatePackagePart']);
-        $t->same(8, $readerProvenance['packageIdentity']['templatePackagePartCount']);
+        $t->same(9, $readerProvenance['packageIdentity']['templatePackagePartCount']);
 
         $blocks = (new WordPressBlockWriter())->write($result['document']);
         $t->contains('Template package sidecars.', $blocks);
         $t->same(false, str_contains($blocks, $templateManifestXml));
         $t->same(false, str_contains($blocks, $templateBytes));
+        $t->same(false, str_contains($blocks, $documentTemplateBytes));
         $t->same(false, str_contains($blocks, $openXmlTemplateBytes));
         $t->same(false, str_contains($blocks, $previewBytes));
         $t->same(false, str_contains($blocks, $orphanBytes));
@@ -246,9 +262,9 @@ return [
         $reviewByPath = $indexBy($compactSummary['manifestReview']['items'], 'path');
         $inventory = $compactSummary['packageInventory'];
 
-        $t->same(9, $compactTemplates['count']);
-        $t->same(6, $compactTemplates['readableCount']);
-        $t->same(7, $compactTemplates['declaredCount']);
+        $t->same(10, $compactTemplates['count']);
+        $t->same(7, $compactTemplates['readableCount']);
+        $t->same(8, $compactTemplates['declaredCount']);
         $t->same(2, $compactTemplates['undeclaredCount']);
         $t->same(1, $compactTemplates['missingCount']);
         $t->same(1, $compactTemplates['encryptedCount']);
@@ -256,6 +272,9 @@ return [
         $t->same($readerTemplates['kindCounts'], $compactTemplates['kindCounts']);
         $t->same('template-package-bytes-blocked', $compactTemplates['byteExposurePolicy']);
         $t->same('template-package-metadata-only', $compactTemplates['reviewPolicy']);
+        $t->same('template-document', $compactItems['Templates/Review/letter.odt']['kind']);
+        $t->same(OpenDocumentPackage::TEXT_MIMETYPE, $compactItems['Templates/Review/letter.odt']['mediaTypeBase']);
+        $t->same([], $compactItems['Templates/Review/letter.odt']['issues']);
         $t->same('template-document', $compactItems['Templates/Review/letter.dotx']['kind']);
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.template', $compactItems['Templates/Review/letter.dotx']['mediaTypeBase']);
         $t->same('template-document', $compactItems['Templates/Review/orphan.potx']['kind']);
@@ -268,12 +287,12 @@ return [
         $t->same('template-package-bytes-blocked', $reviewByPath['Templates/Review/preview.png']['byteExposurePolicy']);
         $t->same(true, $reviewByPath['Templates/Review/preview.png']['templatePackagePart']);
         $t->same(['Pictures/hero.png'], array_column($compactSummary['mediaParts'], 'packagePath'));
-        $t->same(7, $compactSummary['manifestReview']['templatePackagePartCount']);
-        $t->same(8, $inventory['templatePackagePartCount']);
-        $t->same(8, $inventory['roleCounts']['template-package']);
+        $t->same(8, $compactSummary['manifestReview']['templatePackagePartCount']);
+        $t->same(9, $inventory['templatePackagePartCount']);
+        $t->same(9, $inventory['roleCounts']['template-package']);
         $t->same(2, $inventory['undeclaredRoleCounts']['template-package']);
         $t->same(['template-package', 'undeclared-package-entry'], $inventory['parts']['Templates/Review/orphan.ott']['roles']);
         $t->same(['template-package', 'undeclared-package-entry'], $inventory['parts']['Templates/Review/orphan.potx']['roles']);
-        $t->same(8, $compactSummary['packageIdentity']['templatePackagePartCount']);
+        $t->same(9, $compactSummary['packageIdentity']['templatePackagePartCount']);
     },
 ];
