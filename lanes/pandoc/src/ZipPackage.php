@@ -5037,6 +5037,9 @@ final class ZipPackage
      *     selectedSizeBucketCount:int,
      *     selectedRelationshipSourceCount:int,
      *     selectedRelationshipSourceEntryCount:int,
+     *     selectedRelationshipSourceScopeCount:int,
+     *     selectedRelationshipSourceScopeEntryCount:int,
+     *     selectedRelationshipSourceScopeSourcePartCount:int,
      *     selectedFileEntryCount:int,
      *     selectedDirectoryEntryCount:int,
      *     selectedZeroByteEntryCount:int,
@@ -5066,6 +5069,9 @@ final class ZipPackage
      *     handoffExpansionRatioBucketCount:int,
      *     handoffRelationshipSourceCount:int,
      *     handoffRelationshipSourceEntryCount:int,
+     *     handoffRelationshipSourceScopeCount:int,
+     *     handoffRelationshipSourceScopeEntryCount:int,
+     *     handoffRelationshipSourceScopeSourcePartCount:int,
      *     readableEntryCount:int,
      *     handoffZeroByteEntryCount:int,
      *     handoffZeroByteFileCount:int,
@@ -5264,6 +5270,8 @@ final class ZipPackage
      *     handoffExtensionSummaries:list<array<string, mixed>>,
      *     selectedRelationshipSourceSummaries:list<array<string, mixed>>,
      *     handoffRelationshipSourceSummaries:list<array<string, mixed>>,
+     *     selectedRelationshipSourceScopeSummaries:list<array<string, mixed>>,
+     *     handoffRelationshipSourceScopeSummaries:list<array<string, mixed>>,
      *     selectedCompressionMethodBuckets:list<array{compressionMethod:int,compressionMethodName:string,entryCount:int,compressedBytes:int,uncompressedBytes:int,isSupported:bool}>,
      *     handoffCompressionMethodBuckets:list<array{compressionMethod:int,compressionMethodName:string,entryCount:int,compressedBytes:int,uncompressedBytes:int,isSupported:bool}>,
      *     selectedUnsupportedCompressionMethodEntries:list<array{name:string,compressionMethod:int,isDirectory:bool,compressedSize:int,uncompressedSize:int}>,
@@ -6407,6 +6415,10 @@ final class ZipPackage
             $selectedDirectoryRootSummaryEntries
         );
         $handoffRelationshipSourceSummaries = self::entryHandoffRelationshipSourceSummaries($handoffEntries);
+        $selectedRelationshipSourceScopeSummaries = self::entryHandoffRelationshipSourceScopeSummaries(
+            $selectedDirectoryRootSummaryEntries
+        );
+        $handoffRelationshipSourceScopeSummaries = self::entryHandoffRelationshipSourceScopeSummaries($handoffEntries);
         $selectedExtensionSummaries = self::entryHandoffExtensionSummaries($selectedDirectoryRootSummaryEntries);
         $handoffExtensionSummaries = self::entryHandoffExtensionSummaries($handoffEntries);
         $selectedOrderSummary = self::entryHandoffOrderSummary($selectedDirectoryRootSummaryEntries);
@@ -6504,6 +6516,15 @@ final class ZipPackage
                 $selectedRelationshipSourceSummaries,
                 'entryCount'
             ),
+            'selectedRelationshipSourceScopeCount' => count($selectedRelationshipSourceScopeSummaries),
+            'selectedRelationshipSourceScopeEntryCount' => self::entryHandoffSummaryTotal(
+                $selectedRelationshipSourceScopeSummaries,
+                'entryCount'
+            ),
+            'selectedRelationshipSourceScopeSourcePartCount' => self::entryHandoffSummaryTotal(
+                $selectedRelationshipSourceScopeSummaries,
+                'sourcePartCount'
+            ),
             'selectedExtensionBucketCount' => count($selectedExtensionSummaries),
             'selectedExtensionlessFileEntryCount' => self::entryHandoffExtensionlessFileEntryCount($selectedExtensionSummaries),
             'selectedSizeBucketCount' => count($selectedSizeBucketSummaries),
@@ -6570,6 +6591,15 @@ final class ZipPackage
             'handoffRelationshipSourceEntryCount' => self::entryHandoffSummaryTotal(
                 $handoffRelationshipSourceSummaries,
                 'entryCount'
+            ),
+            'handoffRelationshipSourceScopeCount' => count($handoffRelationshipSourceScopeSummaries),
+            'handoffRelationshipSourceScopeEntryCount' => self::entryHandoffSummaryTotal(
+                $handoffRelationshipSourceScopeSummaries,
+                'entryCount'
+            ),
+            'handoffRelationshipSourceScopeSourcePartCount' => self::entryHandoffSummaryTotal(
+                $handoffRelationshipSourceScopeSummaries,
+                'sourcePartCount'
             ),
             'handoffExtensionBucketCount' => count($handoffExtensionSummaries),
             'handoffExtensionlessFileEntryCount' => self::entryHandoffExtensionlessFileEntryCount($handoffExtensionSummaries),
@@ -6912,6 +6942,8 @@ final class ZipPackage
             'handoffPackagePartKindSummaries' => $handoffPackagePartKindSummaries,
             'selectedRelationshipSourceSummaries' => $selectedRelationshipSourceSummaries,
             'handoffRelationshipSourceSummaries' => $handoffRelationshipSourceSummaries,
+            'selectedRelationshipSourceScopeSummaries' => $selectedRelationshipSourceScopeSummaries,
+            'handoffRelationshipSourceScopeSummaries' => $handoffRelationshipSourceScopeSummaries,
             'selectedExtensionSummaries' => $selectedExtensionSummaries,
             'handoffExtensionSummaries' => $handoffExtensionSummaries,
             'selectedOrderSummary' => $selectedOrderSummary,
@@ -11350,6 +11382,111 @@ final class ZipPackage
         ksort($summaries, SORT_STRING);
 
         return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffRelationshipSourceScopeSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $sourcePartName = is_string($entry['relationshipSourcePartName'] ?? null)
+                ? $entry['relationshipSourcePartName']
+                : null;
+            if ($sourcePartName === null || $sourcePartName === '') {
+                continue;
+            }
+
+            $scope = is_string($entry['relationshipSourceScope'] ?? null) && $entry['relationshipSourceScope'] !== ''
+                ? $entry['relationshipSourceScope']
+                : ($sourcePartName === '/' ? 'package' : 'part');
+            if (!isset($summaries[$scope])) {
+                $summaries[$scope] = [
+                    'relationshipSourceScope' => $scope,
+                    'entryCount' => 0,
+                    'sourcePartCount' => 0,
+                    'sourceDirectoryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'roles' => [],
+                    'relationshipSourcePartNames' => [],
+                    'relationshipSourceDirectories' => [],
+                    'relationshipPartNames' => [],
+                    'entryNames' => [],
+                ];
+            }
+
+            ++$summaries[$scope]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$summaries[$scope]['directoryEntryCount'];
+            } else {
+                ++$summaries[$scope]['fileEntryCount'];
+            }
+
+            $summaries[$scope]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$scope]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+
+            if (!in_array($sourcePartName, $summaries[$scope]['relationshipSourcePartNames'], true)) {
+                $summaries[$scope]['relationshipSourcePartNames'][] = $sourcePartName;
+            }
+
+            $sourceDirectory = is_string($entry['relationshipSourceDirectory'] ?? null)
+                ? $entry['relationshipSourceDirectory']
+                : self::entryHandoffRelationshipSourceDirectory($sourcePartName);
+            if (
+                $sourceDirectory !== ''
+                && !in_array($sourceDirectory, $summaries[$scope]['relationshipSourceDirectories'], true)
+            ) {
+                $summaries[$scope]['relationshipSourceDirectories'][] = $sourceDirectory;
+            }
+
+            $relationshipPartName = is_string($entry['relationshipPartName'] ?? null)
+                ? $entry['relationshipPartName']
+                : null;
+            if (
+                $relationshipPartName !== null
+                && $relationshipPartName !== ''
+                && !in_array($relationshipPartName, $summaries[$scope]['relationshipPartNames'], true)
+            ) {
+                $summaries[$scope]['relationshipPartNames'][] = $relationshipPartName;
+            }
+
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name !== '') {
+                $summaries[$scope]['entryNames'][] = $name;
+            }
+
+            foreach (self::entryHandoffRolesForSummary($entry) as $role) {
+                if (!in_array($role, $summaries[$scope]['roles'], true)) {
+                    $summaries[$scope]['roles'][] = $role;
+                }
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['roles'], SORT_STRING);
+            sort($summary['relationshipSourcePartNames'], SORT_STRING);
+            sort($summary['relationshipSourceDirectories'], SORT_STRING);
+            sort($summary['relationshipPartNames'], SORT_STRING);
+            $summary['sourcePartCount'] = count($summary['relationshipSourcePartNames']);
+            $summary['sourceDirectoryCount'] = count($summary['relationshipSourceDirectories']);
+        }
+        unset($summary);
+
+        $ordered = [];
+        foreach (['package', 'part'] as $scope) {
+            if (isset($summaries[$scope])) {
+                $ordered[$scope] = $summaries[$scope];
+                unset($summaries[$scope]);
+            }
+        }
+        ksort($summaries, SORT_STRING);
+
+        return array_values($ordered + $summaries);
     }
 
     /**

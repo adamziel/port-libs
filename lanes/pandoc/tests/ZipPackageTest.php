@@ -15853,13 +15853,29 @@ return [
         foreach ($summary['handoffRelationshipSourceSummaries'] as $sourceSummary) {
             $handoffBySource[$sourceSummary['relationshipSourcePartName']] = $sourceSummary;
         }
+        $selectedByScope = [];
+        foreach ($summary['selectedRelationshipSourceScopeSummaries'] as $scopeSummary) {
+            $selectedByScope[$scopeSummary['relationshipSourceScope']] = $scopeSummary;
+        }
+        $handoffByScope = [];
+        foreach ($summary['handoffRelationshipSourceScopeSummaries'] as $scopeSummary) {
+            $handoffByScope[$scopeSummary['relationshipSourceScope']] = $scopeSummary;
+        }
 
         $t->same(3, $summary['selectedRelationshipSourceCount']);
         $t->same(3, $summary['selectedRelationshipSourceEntryCount']);
+        $t->same(2, $summary['selectedRelationshipSourceScopeCount']);
+        $t->same(3, $summary['selectedRelationshipSourceScopeEntryCount']);
+        $t->same(3, $summary['selectedRelationshipSourceScopeSourcePartCount']);
         $t->same(2, $summary['handoffRelationshipSourceCount']);
         $t->same(2, $summary['handoffRelationshipSourceEntryCount']);
+        $t->same(2, $summary['handoffRelationshipSourceScopeCount']);
+        $t->same(2, $summary['handoffRelationshipSourceScopeEntryCount']);
+        $t->same(2, $summary['handoffRelationshipSourceScopeSourcePartCount']);
         $t->same(['/', '/customXml/item1.xml', '/word/document.xml'], array_keys($selectedBySource));
         $t->same(['/', '/word/document.xml'], array_keys($handoffBySource));
+        $t->same(['package', 'part'], array_keys($selectedByScope));
+        $t->same(['package', 'part'], array_keys($handoffByScope));
 
         $t->same([
             'relationshipSourcePartName' => '/',
@@ -15903,6 +15919,54 @@ return [
             'entryNames' => ['customXml/_rels/item1.xml.rels'],
         ], $selectedBySource['/customXml/item1.xml']);
         $t->same(false, isset($handoffBySource['/customXml/item1.xml']));
+
+        $t->same([
+            'relationshipSourceScope' => 'package',
+            'entryCount' => 1,
+            'sourcePartCount' => 1,
+            'sourceDirectoryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($rootRelsXml),
+            'uncompressedBytes' => strlen($rootRelsXml),
+            'roles' => ['root-relationships'],
+            'relationshipSourcePartNames' => ['/'],
+            'relationshipSourceDirectories' => ['/'],
+            'relationshipPartNames' => ['/_rels/.rels'],
+            'entryNames' => ['_rels/.rels'],
+        ], $selectedByScope['package']);
+        $t->same($selectedByScope['package'], $handoffByScope['package']);
+
+        $t->same([
+            'relationshipSourceScope' => 'part',
+            'entryCount' => 2,
+            'sourcePartCount' => 2,
+            'sourceDirectoryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($documentRelsXml) + strlen($customRelsXml),
+            'uncompressedBytes' => strlen($documentRelsXml) + strlen($customRelsXml),
+            'roles' => ['custom-xml-relationships', 'document-relationships'],
+            'relationshipSourcePartNames' => ['/customXml/item1.xml', '/word/document.xml'],
+            'relationshipSourceDirectories' => ['/customXml/', '/word/'],
+            'relationshipPartNames' => ['/customXml/_rels/item1.xml.rels', '/word/_rels/document.xml.rels'],
+            'entryNames' => ['word/_rels/document.xml.rels', 'customXml/_rels/item1.xml.rels'],
+        ], $selectedByScope['part']);
+        $t->same([
+            'relationshipSourceScope' => 'part',
+            'entryCount' => 1,
+            'sourcePartCount' => 1,
+            'sourceDirectoryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($documentRelsXml),
+            'uncompressedBytes' => strlen($documentRelsXml),
+            'roles' => ['document-relationships'],
+            'relationshipSourcePartNames' => ['/word/document.xml'],
+            'relationshipSourceDirectories' => ['/word/'],
+            'relationshipPartNames' => ['/word/_rels/document.xml.rels'],
+            'entryNames' => ['word/_rels/document.xml.rels'],
+        ], $handoffByScope['part']);
 
         $t->same(true, $summary['entries'][0]['isRelationshipPart']);
         $t->same('/_rels/.rels', $summary['entries'][0]['relationshipPartName']);
