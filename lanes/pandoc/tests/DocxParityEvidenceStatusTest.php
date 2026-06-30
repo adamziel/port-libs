@@ -81,6 +81,19 @@ return [
         $t->same(2, $manifestAudit['localCurrentUpstreamDocxPackageFixtureFiles'] ?? null);
         $t->same(2, $manifestAudit['localDocxPackageFixtureFiles'] ?? null);
         $t->same(2, $localDocxPackageFixtures);
+        $t->same('parser-acceptance-only', $manifestAudit['parserAcceptanceEvidenceKind'] ?? null);
+        $t->same($manifestAudit['parserAcceptanceEvidenceKind'] ?? null, $statusAudit['parserAcceptanceEvidenceKind'] ?? null);
+        $t->same('local-upstream-docx-parser-acceptance-20260630', $manifestAudit['parserAcceptanceBaseline']['baselineName'] ?? null);
+        $t->same(74, $manifestAudit['parserAcceptanceBaseline']['pairedDocxNativeArtifacts'] ?? null);
+        $t->same(74, $manifestAudit['parserAcceptanceBaseline']['docxParsedCount'] ?? null);
+        $t->same(74, $manifestAudit['parserAcceptanceBaseline']['nativeParsedCount'] ?? null);
+        $t->same(74, $manifestAudit['parserAcceptanceBaseline']['bothParsedCount'] ?? null);
+        $t->same($manifestAudit['parserAcceptanceBaseline'], $statusAudit['parserAcceptanceBaseline'] ?? null);
+        $t->same(74, $manifestAudit['lastObservedParserAcceptance']['pairedDocxNativeArtifacts'] ?? null);
+        $t->same(74, $manifestAudit['lastObservedParserAcceptance']['bothParsedCount'] ?? null);
+        $t->same(0, $manifestAudit['lastObservedParserAcceptance']['bothFailedOrPartialCount'] ?? null);
+        $t->same($manifestAudit['lastObservedParserAcceptance'], $statusAudit['lastObservedParserAcceptance'] ?? null);
+        $t->contains('no AST equality', (string) ($manifestAudit['parserAcceptanceBaseline']['claim'] ?? ''));
         $t->same(
             (int) $manifestAudit['upstreamNativeExpectedArtifacts'] - (int) $manifestAudit['localExactNormalizedNativeFixtureMatches'],
             $manifestAudit['missingPinnedUpstreamNativeFixtures'] ?? null

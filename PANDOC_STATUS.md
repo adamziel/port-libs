@@ -10,7 +10,7 @@ Current DOCX/OpenXML audit: full upstream DOCX parity is not defensible. The pin
 
 Optional DOCX/native smoke: `tools/pandoc-docx-native-smoke.php` compares same-basename upstream `.docx` and `.native` files when `.upstream-cache/pandoc-current/test/docx` or `PANDOC_UPSTREAM_DOCX_DIR` is available. It reports artifact/pair counts, parsed counts, same text/top-type counts, and known semantic gap categories; missing upstream cache is reported as skipped with exit 0 so PR CI does not claim or require full upstream DOCX parity.
 
-Optional DOCX parser coverage audit: `tools/pandoc-docx-parity-audit.php` reports root-level paired upstream `.docx`/`.native` parser acceptance when the local upstream cache is available, counts golden `.docx` artifacts as writer inventory only, and explicitly avoids asserting AST equality, upstream Haskell runner parity, writer golden parity, or full DOCX/OpenXML parity.
+Optional DOCX parser coverage audit: `tools/pandoc-docx-parity-audit.php` reports root-level paired upstream `.docx`/`.native` parser acceptance when the local upstream cache is available, counts golden `.docx` artifacts as writer inventory only, and explicitly avoids asserting AST equality, upstream Haskell runner parity, writer golden parity, or full DOCX/OpenXML parity. Its stable JSON includes a `parserAcceptanceBaseline` and `parserAcceptanceRegression` guard; `--fail-on-regression` exits nonzero only when a present cache regresses below the current 74/74 paired-fixture parser-acceptance baseline.
 
 ODF/ODT is marked ship-ready: 90 local mapped ODF/ODT cases / 20 upstream ODF/ODT cases, with 0 critical ODF/ODT gaps.
 

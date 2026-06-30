@@ -36,6 +36,28 @@
         "localCurrentUpstreamNativeFixtureFiles": 1,
         "localPinnedDocxPackageFixtureFiles": 0,
         "localDocxPackageFixtureFiles": 2,
+        "parserAcceptanceEvidenceKind": "parser-acceptance-only",
+        "parserAcceptanceBaseline": {
+            "baselineName": "local-upstream-docx-parser-acceptance-20260630",
+            "pairedDocxNativeArtifacts": 74,
+            "docxParsedCount": 74,
+            "nativeParsedCount": 74,
+            "bothParsedCount": 74,
+            "cachePath": ".upstream-cache/pandoc-current/test/docx",
+            "tool": "tools/pandoc-docx-parity-audit.php --fail-on-regression",
+            "claim": "Optional cache regression guard only; no AST equality, writer golden package, upstream Haskell runner, or full DOCX/OpenXML parity is asserted."
+        },
+        "lastObservedParserAcceptance": {
+            "observedAt": "2026-06-30",
+            "pairedDocxNativeArtifacts": 74,
+            "docxParsedCount": 74,
+            "docxFailedCount": 0,
+            "nativeParsedCount": 74,
+            "nativeFailedCount": 0,
+            "bothParsedCount": 74,
+            "bothFailedOrPartialCount": 0,
+            "source": "local optional upstream cache"
+        },
         "upstreamDocxRunnerExecuted": false,
         "upstreamDocxGoldenPackageRoundTripExecuted": false,
         "defensibleClaim": "bounded DOCX/OpenXML package provenance, selected upstream Native fixture slices, and three current-upstream DOCX drift fixtures"

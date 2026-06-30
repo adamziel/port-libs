@@ -211,6 +211,49 @@ XML],
         $t->contains('<ul><li>Check footers</li></ul>', $blocks);
         $t->contains('<p>Plain exception</p>', $blocks);
     },
+    'keeps explicitly suppressed same-style numbering as a list item continuation' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            ['name' => 'word/styles.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:styleId="ListNumber">
+    <w:name w:val="List Number"/>
+    <w:pPr><w:numPr><w:numId w:val="7"/></w:numPr></w:pPr>
+  </w:style>
+</w:styles>
+XML],
+            ['name' => 'word/numbering.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:abstractNum w:abstractNumId="8">
+    <w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:pStyle w:val="ListNumber"/><w:lvlText w:val="%1."/></w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="7"><w:abstractNumId w:val="8"/></w:num>
+</w:numbering>
+XML],
+            ['name' => 'word/document.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:pPr><w:pStyle w:val="ListNumber"/></w:pPr><w:r><w:t>One</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="ListNumber"/><w:numPr><w:numId w:val="0"/></w:numPr></w:pPr><w:r><w:t>Two</w:t></w:r><w:r><w:br/></w:r><w:r><w:br/><w:t>Three</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+XML],
+        ]);
+
+        $document = (new DocxReader())->readDocument($package);
+        $native = (new NativeWriter())->write($document);
+        $list = $document->children[0];
+        $item = $list->children[0];
+
+        $t->same(1, count($document->children));
+        $t->same('ordered_list', $list->type);
+        $t->same(1, count($list->children));
+        $t->same(2, count($item->children));
+        $t->same('One', $item->children[0]->attr('text'));
+        $t->contains('Para [ Str "Two" , LineBreak , LineBreak , Str "Three" ]', $native);
+    },
     'preserves docx task-list numbering glyphs and blank bullet continuations' => static function (TestRunner $t): void {
         $package = ZipPackage::fromParts([
             ['name' => 'word/numbering.xml', 'data' => <<<'XML'
@@ -298,6 +341,7 @@ XML],
         $t->same(6, count($document->children));
         $t->same('heading', $document->children[0]->type);
         $t->same('Section 1', $document->children[0]->attr('text'));
+        $t->same('section-1', $document->children[0]->attr('id'));
         $t->same('ordered_list', $document->children[1]->type);
         $t->same(3, count($document->children[1]->children));
         $t->same(1, $document->children[1]->attr('start'));
@@ -307,6 +351,7 @@ XML],
         $t->same('Item 3', $document->children[1]->children[2]->children[0]->attr('text'));
         $t->same('Conclusion', $document->children[2]->attr('text'));
         $t->same('Section 2', $document->children[3]->attr('text'));
+        $t->same('section-2', $document->children[3]->attr('id'));
         $t->same('ordered_list', $document->children[4]->type);
         $t->same(4, count($document->children[4]->children));
         $t->same(1, $document->children[4]->attr('start'));
@@ -371,13 +416,14 @@ XML],
 
         $t->same('heading', $document->children[0]->type);
         $t->same(1, $document->children[0]->attr('level'));
+        $t->same('numeric-style-heading', $document->children[0]->attr('id'));
         $t->same('Numeric style heading', $document->children[0]->attr('text'));
         $t->same('paragraph', $document->children[1]->type);
         $t->same('A derived run', $document->children[1]->attr('text'));
         $t->same('emph', $document->children[1]->children[1]->type);
         $t->same('strong', $document->children[1]->children[1]->children[0]->type);
         $t->same('derived run', $document->children[1]->children[1]->children[0]->children[0]->attr('text'));
-        $t->contains('<h1>Numeric style heading</h1>', $blocks);
+        $t->contains('<h1 id="numeric-style-heading">Numeric style heading</h1>', $blocks);
         $t->contains('A <em><strong>derived run</strong></em>', $blocks);
     },
     'reads docx package body metadata notes headers footers and review spans into shared ast' => static function (TestRunner $t): void {
@@ -421,9 +467,9 @@ XML],
         $t->same(1, $meta['docxComments']);
         $t->same(1, $meta['docxHeaders']);
         $t->same(1, $meta['docxFooters']);
-        $t->contains('class="docx-header"', $blocks);
-        $t->contains('Header text.', $blocks);
-        $t->contains('Footer text.', $blocks);
+        $t->true(!str_contains($blocks, 'class="docx-header"'), 'Header parts should remain out of normal DOCX reader body output');
+        $t->true(!str_contains($blocks, 'Header text.'), 'Header text should remain metadata-only in normal DOCX reader output');
+        $t->true(!str_contains($blocks, 'Footer text.'), 'Footer text should remain metadata-only in normal DOCX reader output');
         $t->contains('<strong>bold</strong>', $blocks);
         $t->contains('<em>italic</em>', $blocks);
         $t->contains('<a href="https://example.test">a link</a>', $blocks);
@@ -463,20 +509,14 @@ XML],
         $t->same('first', $meta['docxSectionReferences'][0]['footers'][0]['type']);
         $t->same('even', $meta['docxSectionReferences'][1]['headers'][0]['type']);
 
-        $t->same('div', $document->children[0]->type);
-        $t->same('word/header1.xml', $document->children[0]->attr('attributes')['data-docx-part']);
-        $t->same('1', $document->children[0]->attr('attributes')['data-docx-section-index']);
-        $t->same('word/header2.xml', $document->children[1]->attr('attributes')['data-docx-part']);
-        $t->same('2', $document->children[1]->attr('attributes')['data-docx-section-index']);
-        $t->same('Section one body', $document->children[2]->attr('text'));
-        $t->same('Section two body', $document->children[3]->attr('text'));
-        $t->same('word/footer1.xml', $document->children[4]->attr('attributes')['data-docx-part']);
-        $t->same('word/footer2.xml', $document->children[5]->attr('attributes')['data-docx-part']);
+        $t->same(2, count($document->children));
+        $t->same('Section one body', $document->children[0]->attr('text'));
+        $t->same('Section two body', $document->children[1]->attr('text'));
 
-        $t->contains('Section one header', $blocks);
-        $t->contains('data-docx-section-index="2"', $blocks);
-        $t->contains('data-docx-section-reference-type="even"', $blocks);
-        $t->contains('Section two footer', $blocks);
+        $t->true(!str_contains($blocks, 'Section one header'), 'Section-referenced header parts should remain out of normal DOCX reader body output');
+        $t->true(!str_contains($blocks, 'data-docx-section-index='), 'Section header/footer attributes should not be emitted in normal body output');
+        $t->true(!str_contains($blocks, 'data-docx-section-reference-type='), 'Section header/footer reference attributes should not be emitted in normal body output');
+        $t->true(!str_contains($blocks, 'Section two footer'), 'Section-referenced footer parts should remain out of normal DOCX reader body output');
         $t->true(!str_contains($blocks, 'Unreferenced header'), 'Unreferenced header parts should not be emitted when section references are available');
         $t->true(!str_contains($blocks, 'Unreferenced footer'), 'Unreferenced footer parts should not be emitted when section references are available');
     },
@@ -713,6 +753,62 @@ XML);
         $t->contains('data-docx-field="HYPERLINK &quot;https://example.test/complex&quot; \o &quot;Complex title&quot;"', $blocks);
         $t->contains('<a href="#LocalTarget"', $blocks);
     },
+    'canonicalizes docx heading bookmark reference targets' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            ['name' => 'word/document.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:pPr><w:pStyle w:val="Heading1"/></w:pPr>
+      <w:bookmarkStart w:id="7" w:name="_RefHeading"/>
+      <w:bookmarkStart w:id="8" w:name="_GoBack"/>
+      <w:bookmarkEnd w:id="8"/>
+      <w:r><w:t>Target Heading</w:t></w:r>
+      <w:bookmarkEnd w:id="7"/>
+    </w:p>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Page </w:t></w:r>
+      <w:fldSimple w:instr=" PAGEREF _RefHeading \h "><w:r><w:t>2</w:t></w:r></w:fldSimple>
+      <w:r><w:t xml:space="preserve"> and ref </w:t></w:r>
+      <w:fldSimple w:instr=" REF _RefHeading \h "><w:r><w:t>Target Heading</w:t></w:r></w:fldSimple>
+    </w:p>
+    <w:p>
+      <w:hyperlink w:anchor="_RefHeading"><w:r><w:t>Direct heading link</w:t></w:r></w:hyperlink>
+    </w:p>
+  </w:body>
+</w:document>
+XML],
+        ]);
+
+        $document = (new DocxReader())->readDocument($package);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $heading = $document->children[0];
+        $fieldParagraph = $document->children[1];
+        $pageRef = $fieldParagraph->children[1];
+        $crossRef = $fieldParagraph->children[3];
+        $directLink = $document->children[2]->children[0];
+
+        $t->same('heading', $heading->type);
+        $t->same('target-heading', $heading->attr('id'));
+        $t->same('Target Heading', $heading->attr('text'));
+        $t->same(1, count($heading->children));
+        $t->same('Target Heading', $heading->children[0]->attr('text'));
+
+        $t->same('link', $pageRef->type);
+        $t->same('#target-heading', $pageRef->attr('url'));
+        $t->same('link', $crossRef->type);
+        $t->same('#target-heading', $crossRef->attr('url'));
+        $t->same('link', $directLink->type);
+        $t->same('#target-heading', $directLink->attr('url'));
+
+        $t->contains('<h1 id="target-heading">Target Heading</h1>', $blocks);
+        $t->contains('<a href="#target-heading" data-docx-field="PAGEREF _RefHeading \h">2</a>', $blocks);
+        $t->contains('<a href="#target-heading" data-docx-field="REF _RefHeading \h">Target Heading</a>', $blocks);
+        $t->contains('<a href="#target-heading">Direct heading link</a>', $blocks);
+        $t->true(!str_contains($blocks, '_GoBack'), 'Word _GoBack bookmarks should not leak into rendered output');
+        $t->true(!str_contains($blocks, 'pandoc-openxml-bookmark-start'), 'Heading bookmarks should canonicalize to the heading id instead of raw bookmark spans');
+    },
     'preserves docx hyperlink relationship anchors and tracked change contents' => static function (TestRunner $t): void {
         $package = ZipPackage::fromParts([
             ['name' => 'word/_rels/document.xml.rels', 'data' => '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/review" TargetMode="External"/></Relationships>'],
@@ -842,6 +938,79 @@ XML],
 
         $t->contains('src="word/media/drawing.png"', $blocks);
         $t->contains('src="word/media/vml-preview.png"', $blocks);
+    },
+    'preserves drawingml diagram and chart placeholders' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            ['name' => 'word/_rels/document.xml.rels', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rDiagramData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="diagrams/review-data.xml"/>
+  <Relationship Id="rDiagramLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout" Target="diagrams/review-layout.xml"/>
+  <Relationship Id="rDiagramStyle" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramQuickStyle" Target="diagrams/review-style.xml"/>
+  <Relationship Id="rDiagramColors" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramColors" Target="diagrams/review-colors.xml"/>
+  <Relationship Id="rChart" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="charts/review-chart.xml"/>
+</Relationships>
+XML],
+            ['name' => 'word/document.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:document
+  xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+  xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+  xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+  xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"
+  xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart">
+  <w:body>
+    <w:p>
+      <w:r>
+        <w:drawing>
+          <wp:inline>
+            <wp:docPr id="19" name="Review workflow" descr="Imported workflow diagram" title="Review workflow"/>
+            <a:graphic>
+              <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram">
+                <dgm:relIds r:dm="rDiagramData" r:lo="rDiagramLayout" r:qs="rDiagramStyle" r:cs="rDiagramColors"/>
+              </a:graphicData>
+            </a:graphic>
+          </wp:inline>
+        </w:drawing>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:r>
+        <w:drawing>
+          <wp:inline>
+            <wp:docPr id="18" name="Review chart" descr="Imported review chart" title="Review chart"/>
+            <a:graphic>
+              <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart">
+                <c:chart r:id="rChart"/>
+              </a:graphicData>
+            </a:graphic>
+          </wp:inline>
+        </w:drawing>
+      </w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML],
+        ]);
+
+        $document = (new DocxReader())->readDocument($package);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $diagram = $document->children[0]->children[0];
+        $chart = $document->children[1]->children[0];
+
+        $t->same('[DIAGRAM]', $document->children[0]->attr('text'));
+        $t->same('span', $diagram->type);
+        $t->same(['diagram'], $diagram->attr('classes'));
+        $t->same('[DIAGRAM]', $diagram->children[0]->attr('text'));
+
+        $t->same('[CHART]', $document->children[1]->attr('text'));
+        $t->same('span', $chart->type);
+        $t->same(['chart'], $chart->attr('classes'));
+        $t->same('[CHART]', $chart->children[0]->attr('text'));
+
+        $t->contains('class="diagram" data-pandoc-diagram="unsupported-docx-diagram"', $blocks);
+        $t->contains('<span class="chart">[CHART]</span>', $blocks);
     },
     'maps upstream docx paragraph block styles to code quotes and definitions' => static function (TestRunner $t): void {
         $stylesXml = <<<'XML'
@@ -988,6 +1157,30 @@ XML;
         $t->contains('<thead><tr><th><p>Field</p></th><th><p>Value</p></th></tr></thead>', $blocks);
         $t->contains('<tbody><tr><td><p>Draft flag</p></td><td><p>False header row</p></td></tr><tr><td><p>Total</p></td><td><p>12</p></td></tr></tbody>', $blocks);
         $t->true(!str_contains($blocks, '<th><p>Draft flag</p></th>'), 'Explicitly disabled tblHeader rows should stay in the table body');
+    },
+    'preserves docx table gridBefore omitted leading cells' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:tbl><w:tr><w:trPr><w:tblHeader/><w:gridBefore w:val="1"/></w:trPr><w:tc><w:p><w:r><w:t>Field</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Value</w:t></w:r></w:p></w:tc></w:tr><w:tr><w:trPr><w:gridBefore w:val="2"/></w:trPr><w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>12</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:body></w:document>');
+
+        $document = (new DocxReader())->read($bytes);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $table = $document->children[0];
+        $headRow = $table->children[0]->children[0];
+        $bodyRow = $table->children[1]->children[0];
+
+        $t->same(3, count($headRow->children));
+        $t->same('', $headRow->children[0]->attr('text'));
+        $t->same(['data-docx-omitted-cell' => 'gridBefore'], $headRow->children[0]->attr('htmlAttributes'));
+        $t->same('Field', $headRow->children[1]->attr('text'));
+        $t->same('Value', $headRow->children[2]->attr('text'));
+
+        $t->same(4, count($bodyRow->children));
+        $t->same(['data-docx-omitted-cell' => 'gridBefore'], $bodyRow->children[0]->attr('htmlAttributes'));
+        $t->same(['data-docx-omitted-cell' => 'gridBefore'], $bodyRow->children[1]->attr('htmlAttributes'));
+        $t->same('North', $bodyRow->children[2]->attr('text'));
+        $t->same('12', $bodyRow->children[3]->attr('text'));
+
+        $t->contains('<thead><tr><th data-docx-omitted-cell="gridBefore"></th><th><p>Field</p></th><th><p>Value</p></th></tr></thead>', $blocks);
+        $t->contains('<tbody><tr><td data-docx-omitted-cell="gridBefore"></td><td data-docx-omitted-cell="gridBefore"></td><td><p>North</p></td><td><p>12</p></td></tr></tbody>', $blocks);
     },
     'preserves docx comment ranges moves table merges styles and image metadata' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-docx-');

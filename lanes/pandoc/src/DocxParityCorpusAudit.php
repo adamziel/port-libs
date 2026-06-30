@@ -12,6 +12,11 @@ final class DocxParityCorpusAudit
     public const STATUS_SKIPPED_UNREADABLE_SOURCE = 'skipped_unreadable_upstream_docx_directory';
     public const VERDICT = 'audit-only-not-full-docx-parity';
     public const CLAIM = 'Reports local parser acceptance for paired root-level upstream DOCX/native fixtures only; no AST equality, writer golden package, or upstream Haskell runner parity is asserted.';
+    public const PARSER_ACCEPTANCE_BASELINE_NAME = 'local-upstream-docx-parser-acceptance-20260630';
+    public const PARSER_ACCEPTANCE_BASELINE_PAIRED_ARTIFACTS = 74;
+    public const PARSER_ACCEPTANCE_BASELINE_DOCX_PARSED = 74;
+    public const PARSER_ACCEPTANCE_BASELINE_NATIVE_PARSED = 74;
+    public const PARSER_ACCEPTANCE_BASELINE_BOTH_PARSED = 74;
 
     private readonly string $repoRoot;
     private readonly string $docxDirectory;
@@ -106,6 +111,7 @@ final class DocxParityCorpusAudit
             'skipped' => false,
             'verdict' => self::VERDICT,
             'claim' => self::CLAIM,
+            'evidenceKind' => 'parser-acceptance-only',
             'repoRoot' => $this->repoRoot,
             'upstreamDocxDirectory' => $docxDir,
             'upstreamDocxDirectoryDisplay' => $this->displayPath($docxDir),
@@ -132,6 +138,19 @@ final class DocxParityCorpusAudit
             'nativeParseCoveragePercent' => self::percent($nativeParsed, $auditedCount),
             'bothParserCoveragePercent' => self::percent($bothParsed, $auditedCount),
             'parseCoverageDenominator' => 'audited paired root-level .docx/.native fixture stems',
+            'parserAcceptanceBaseline' => self::parserAcceptanceBaseline(),
+            'parserAcceptanceRegression' => self::parserAcceptanceRegression(
+                true,
+                $maxPairs,
+                count($pairNames),
+                $auditedCount,
+                $docxParsed,
+                $docxFailed,
+                $nativeParsed,
+                $nativeFailed,
+                $bothParsed,
+                $auditedCount - $bothParsed
+            ),
             'pairRows' => $rows,
             'failureRows' => $failureRows,
             'notes' => [
@@ -201,6 +220,12 @@ final class DocxParityCorpusAudit
             . self::formatPercent($report['bothParserCoveragePercent'] ?? null)
             . ')';
 
+        $regression = $report['parserAcceptanceRegression'] ?? null;
+        if (is_array($regression)) {
+            $lines[] = 'Parser acceptance regression guard: '
+                . self::formatRegressionGuard($regression);
+        }
+
         $docxSamples = $report['docxWithoutNativeSamples'] ?? [];
         if (is_array($docxSamples) && $docxSamples !== []) {
             $lines[] = 'Unpaired DOCX samples: ' . implode(', ', array_map('strval', $docxSamples));
@@ -238,6 +263,7 @@ final class DocxParityCorpusAudit
             'skipped' => true,
             'verdict' => self::VERDICT,
             'claim' => self::CLAIM,
+            'evidenceKind' => 'parser-acceptance-only',
             'repoRoot' => $this->repoRoot,
             'upstreamDocxDirectory' => $this->absoluteDocxDirectory(),
             'upstreamDocxDirectoryDisplay' => $this->displayPath($this->absoluteDocxDirectory()),
@@ -262,6 +288,8 @@ final class DocxParityCorpusAudit
             'docxParseCoveragePercent' => null,
             'nativeParseCoveragePercent' => null,
             'bothParserCoveragePercent' => null,
+            'parserAcceptanceBaseline' => self::parserAcceptanceBaseline(),
+            'parserAcceptanceRegression' => self::parserAcceptanceRegression(false, null, 0, 0, 0, 0, 0, 0, 0, 0),
             'pairRows' => [],
             'failureRows' => [],
             'notes' => [
@@ -269,6 +297,18 @@ final class DocxParityCorpusAudit
                 'No parser coverage or parity result is inferred when the source directory is absent.',
             ],
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $report
+     */
+    public static function hasParserAcceptanceRegression(array $report): bool
+    {
+        $regression = $report['parserAcceptanceRegression'] ?? null;
+
+        return is_array($regression)
+            && ($regression['evaluated'] ?? false) === true
+            && ($regression['regressed'] ?? false) === true;
     }
 
     private function absoluteDocxDirectory(): string
@@ -426,6 +466,124 @@ final class DocxParityCorpusAudit
         }
 
         return number_format((float) $value, 2) . '%';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function parserAcceptanceBaseline(): array
+    {
+        return [
+            'baselineName' => self::PARSER_ACCEPTANCE_BASELINE_NAME,
+            'pairedDocxNativeArtifacts' => self::PARSER_ACCEPTANCE_BASELINE_PAIRED_ARTIFACTS,
+            'docxParsedCount' => self::PARSER_ACCEPTANCE_BASELINE_DOCX_PARSED,
+            'nativeParsedCount' => self::PARSER_ACCEPTANCE_BASELINE_NATIVE_PARSED,
+            'bothParsedCount' => self::PARSER_ACCEPTANCE_BASELINE_BOTH_PARSED,
+            'coverageDenominator' => 'paired root-level upstream .docx/.native fixture stems',
+            'evidenceKind' => 'parser-acceptance-only',
+            'claim' => 'Regression guard for local PHP parser acceptance only; no AST equality, writer golden package, upstream Haskell runner, or full DOCX/OpenXML parity is asserted.',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function parserAcceptanceRegression(
+        bool $sourceDirectoryPresent,
+        ?int $pairAuditLimit,
+        int $pairedDocxNativeArtifacts,
+        int $auditedPairCount,
+        int $docxParsedCount,
+        int $docxFailedCount,
+        int $nativeParsedCount,
+        int $nativeFailedCount,
+        int $bothParsedCount,
+        int $bothFailedOrPartialCount
+    ): array {
+        $evaluated = $sourceDirectoryPresent
+            && ($pairAuditLimit === null || $auditedPairCount >= self::PARSER_ACCEPTANCE_BASELINE_PAIRED_ARTIFACTS);
+        $reason = 'evaluated';
+        if (!$sourceDirectoryPresent) {
+            $reason = 'not-evaluated-source-directory-unavailable';
+        } elseif (!$evaluated) {
+            $reason = 'not-evaluated-audit-limited-below-baseline';
+        }
+
+        $failureReasons = [];
+        if ($evaluated) {
+            if ($pairedDocxNativeArtifacts < self::PARSER_ACCEPTANCE_BASELINE_PAIRED_ARTIFACTS) {
+                $failureReasons[] = 'paired-docx-native-artifact-count-below-baseline';
+            }
+            if ($auditedPairCount < self::PARSER_ACCEPTANCE_BASELINE_PAIRED_ARTIFACTS) {
+                $failureReasons[] = 'audited-pair-count-below-baseline';
+            }
+            if ($docxParsedCount < self::PARSER_ACCEPTANCE_BASELINE_DOCX_PARSED) {
+                $failureReasons[] = 'docx-parser-accepted-count-below-baseline';
+            }
+            if ($nativeParsedCount < self::PARSER_ACCEPTANCE_BASELINE_NATIVE_PARSED) {
+                $failureReasons[] = 'native-parser-accepted-count-below-baseline';
+            }
+            if ($bothParsedCount < self::PARSER_ACCEPTANCE_BASELINE_BOTH_PARSED) {
+                $failureReasons[] = 'both-parser-accepted-count-below-baseline';
+            }
+            if ($docxFailedCount > 0) {
+                $failureReasons[] = 'docx-parse-failures-present';
+            }
+            if ($nativeFailedCount > 0) {
+                $failureReasons[] = 'native-parse-failures-present';
+            }
+            if ($bothFailedOrPartialCount > 0) {
+                $failureReasons[] = 'both-parser-partial-or-failed-pairs-present';
+            }
+        }
+
+        $passed = $evaluated && $failureReasons === [];
+
+        return [
+            'baselineName' => self::PARSER_ACCEPTANCE_BASELINE_NAME,
+            'evaluated' => $evaluated,
+            'passed' => $passed,
+            'regressed' => $evaluated && !$passed,
+            'reason' => $reason,
+            'failureReasons' => $failureReasons,
+            'baselinePairedDocxNativeArtifacts' => self::PARSER_ACCEPTANCE_BASELINE_PAIRED_ARTIFACTS,
+            'baselineDocxParsedCount' => self::PARSER_ACCEPTANCE_BASELINE_DOCX_PARSED,
+            'baselineNativeParsedCount' => self::PARSER_ACCEPTANCE_BASELINE_NATIVE_PARSED,
+            'baselineBothParsedCount' => self::PARSER_ACCEPTANCE_BASELINE_BOTH_PARSED,
+            'actualPairedDocxNativeArtifacts' => $pairedDocxNativeArtifacts,
+            'actualAuditedPairCount' => $auditedPairCount,
+            'actualDocxParsedCount' => $docxParsedCount,
+            'actualDocxFailedCount' => $docxFailedCount,
+            'actualNativeParsedCount' => $nativeParsedCount,
+            'actualNativeFailedCount' => $nativeFailedCount,
+            'actualBothParsedCount' => $bothParsedCount,
+            'actualBothFailedOrPartialCount' => $bothFailedOrPartialCount,
+            'guardrailClaim' => 'Regression guard for parser acceptance only; passing this guard is not DOCX semantic parity.',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $regression
+     */
+    private static function formatRegressionGuard(array $regression): string
+    {
+        $baseline = (int) ($regression['baselineBothParsedCount'] ?? self::PARSER_ACCEPTANCE_BASELINE_BOTH_PARSED);
+        if (($regression['evaluated'] ?? false) !== true) {
+            return 'not evaluated ('
+                . (string) ($regression['reason'] ?? 'unknown')
+                . "; baseline {$baseline}/{$baseline} parser acceptance)";
+        }
+
+        $status = (($regression['passed'] ?? false) === true) ? 'passed' : 'failed';
+        $actual = (int) ($regression['actualBothParsedCount'] ?? 0);
+        $actualDenominator = (int) ($regression['actualAuditedPairCount'] ?? 0);
+        $text = "{$status} (actual {$actual}/{$actualDenominator}; baseline {$baseline}/{$baseline} parser acceptance)";
+        $failureReasons = $regression['failureReasons'] ?? [];
+        if (is_array($failureReasons) && $failureReasons !== []) {
+            $text .= '; reasons=' . implode(',', array_map('strval', $failureReasons));
+        }
+
+        return $text;
     }
 
     /**

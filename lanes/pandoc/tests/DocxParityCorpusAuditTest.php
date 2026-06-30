@@ -63,10 +63,16 @@ return [
 
             $t->same(DocxParityCorpusAudit::STATUS_SKIPPED_MISSING_SOURCE, $report['status']);
             $t->same(true, $report['skipped']);
+            $t->same('parser-acceptance-only', $report['evidenceKind']);
             $t->same(false, $report['sourceDirectoryPresent']);
             $t->same(0, $report['auditedPairCount']);
             $t->same(0, $report['bothParsedCount']);
             $t->same(null, $report['bothParserCoveragePercent']);
+            $t->same(DocxParityCorpusAudit::PARSER_ACCEPTANCE_BASELINE_NAME, $report['parserAcceptanceBaseline']['baselineName']);
+            $t->same(74, $report['parserAcceptanceBaseline']['pairedDocxNativeArtifacts']);
+            $t->same(false, $report['parserAcceptanceRegression']['evaluated']);
+            $t->same(false, $report['parserAcceptanceRegression']['regressed']);
+            $t->same('not-evaluated-source-directory-unavailable', $report['parserAcceptanceRegression']['reason']);
             $t->contains('Result: skipped', $text);
             $t->contains('No DOCX parity is asserted.', $text);
         } finally {
@@ -92,6 +98,7 @@ return [
             $t->same(DocxParityCorpusAudit::STATUS_REPORTED, $report['status']);
             $t->same(false, $report['skipped']);
             $t->same(DocxParityCorpusAudit::VERDICT, $report['verdict']);
+            $t->same('parser-acceptance-only', $report['evidenceKind']);
             $t->same(6, $report['rootDirectoryArtifactCount']);
             $t->same(3, $report['rootDocxPackageArtifacts']);
             $t->same(3, $report['rootNativeExpectedArtifacts']);
@@ -116,7 +123,15 @@ return [
             $t->same('parsed', $report['pairRows'][1]['docxParse']['status']);
             $t->same('parsed', $report['pairRows'][1]['nativeParse']['status']);
             $t->same(1, count($report['failureRows']));
+            $t->same(DocxParityCorpusAudit::PARSER_ACCEPTANCE_BASELINE_NAME, $report['parserAcceptanceBaseline']['baselineName']);
+            $t->same(true, $report['parserAcceptanceRegression']['evaluated']);
+            $t->same(false, $report['parserAcceptanceRegression']['passed']);
+            $t->same(true, $report['parserAcceptanceRegression']['regressed']);
+            $t->true(in_array('paired-docx-native-artifact-count-below-baseline', $report['parserAcceptanceRegression']['failureReasons'], true));
+            $t->true(in_array('docx-parse-failures-present', $report['parserAcceptanceRegression']['failureReasons'], true));
+            $t->true(DocxParityCorpusAudit::hasParserAcceptanceRegression($report));
             $t->contains('Both parsers accepted: 1/2 (50.00%)', $text);
+            $t->contains('Parser acceptance regression guard: failed', $text);
             $t->contains('No AST equality, upstream Haskell runner, or DOCX writer golden package parity is asserted.', $text);
         } finally {
             $removeTree($root);
@@ -145,7 +160,8 @@ return [
                     . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-docx-parity-audit.php')
                     . ' --repo-root='
                     . escapeshellarg($missingRoot)
-                    . ' --json';
+                    . ' --json'
+                    . ' --fail-on-regression';
                 $output = [];
                 $exitCode = 0;
                 exec($command, $output, $exitCode);
@@ -154,9 +170,42 @@ return [
                 $t->same(0, $exitCode);
                 $t->same(DocxParityCorpusAudit::STATUS_SKIPPED_MISSING_SOURCE, $decoded['status']);
                 $t->same(true, $decoded['skipped']);
+                $t->same(false, $decoded['parserAcceptanceRegression']['evaluated']);
+                $t->same(false, $decoded['parserAcceptanceRegression']['regressed']);
             } finally {
                 $removeTree($missingRoot);
             }
+        } finally {
+            $removeTree($root);
+        }
+    },
+
+    'cli fail-on-regression exits nonzero when parser acceptance is below baseline' => static function (TestRunner $t) use ($makeTempRoot, $removeTree, $writeFile, $minimalDocx): void {
+        $root = $makeTempRoot();
+        try {
+            $docxRoot = '.upstream-cache/pandoc-current/test/docx';
+            $writeFile($root, "{$docxRoot}/sample.docx", $minimalDocx('Hello audit'));
+            $writeFile($root, "{$docxRoot}/sample.native", '[ Para [ Str "Hello" , Space , Str "audit" ] ]');
+
+            $command = escapeshellarg(PHP_BINARY)
+                . ' '
+                . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-docx-parity-audit.php')
+                . ' --repo-root='
+                . escapeshellarg($root)
+                . ' --json'
+                . ' --fail-on-regression';
+            $output = [];
+            $exitCode = 0;
+            exec($command, $output, $exitCode);
+            $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same(1, $exitCode);
+            $t->same(DocxParityCorpusAudit::STATUS_REPORTED, $decoded['status']);
+            $t->same(true, $decoded['parserAcceptanceRegression']['evaluated']);
+            $t->same(false, $decoded['parserAcceptanceRegression']['passed']);
+            $t->same(true, $decoded['parserAcceptanceRegression']['regressed']);
+            $t->same(1, $decoded['parserAcceptanceRegression']['actualBothParsedCount']);
+            $t->true(in_array('paired-docx-native-artifact-count-below-baseline', $decoded['parserAcceptanceRegression']['failureReasons'], true));
         } finally {
             $removeTree($root);
         }

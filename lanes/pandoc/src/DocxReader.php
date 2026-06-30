@@ -34,6 +34,12 @@ final class DocxReader
     /** @var array<string, array{author: string, date: string, children: list<AstNode>, text: string}> */
     private array $comments = [];
 
+    /** @var array<string, int> */
+    private array $headingIds = [];
+
+    /** @var array<string, true> */
+    private array $suppressedBookmarkIds = [];
+
     private string $revisionMode;
 
     /**
@@ -221,6 +227,8 @@ final class DocxReader
         $this->endnotes = $endnotes_xml !== '' ? $this->notes($this->loadXml($endnotes_xml, 'DOCX endnotes.xml'), 'endnote') : [];
         $this->comments = $comments_xml !== '' ? $this->comments($this->loadXml($comments_xml, 'DOCX comments.xml')) : [];
 
+        $this->headingIds = [];
+        $this->suppressedBookmarkIds = [];
         $document = $this->loadXml($document_xml, 'DOCX document.xml');
         $body = $this->firstElementByLocalName($document, 'body');
         $headers = $this->partBlocks($header_xmls, 'DOCX header');
@@ -232,12 +240,10 @@ final class DocxReader
         $footerDivs = $sectionReferences === []
             ? $this->partDivs($footers, 'docx-footer')
             : $this->sectionReferenceDivs($sectionReferences, 'footers', $footers, 'docx-footer');
-        $body_children = $body instanceof \DOMElement ? $this->bodyBlocks($body) : [];
-        $children = array_merge(
-            $headerDivs,
-            $body_children,
-            $footerDivs
-        );
+        $this->headingIds = [];
+        $this->suppressedBookmarkIds = [];
+        $children = $body instanceof \DOMElement ? $this->bodyBlocks($body) : [];
+        $children = $this->canonicalizeHeadingBookmarkLinks($children);
         if ($children === []) {
             $children[] = new AstNode('paragraph', ['text' => 'No readable DOCX body content was found.'], [
                 new AstNode('text', ['text' => 'No readable DOCX body content was found.']),
@@ -499,6 +505,35 @@ final class DocxReader
                     continue;
                 }
 
+                if (
+                    $paragraph->type === 'paragraph'
+                    && $this->paragraphExplicitlySuppressesNumbering($child)
+                    && $pendingListRecords !== []
+                ) {
+                    $styleListNumbering = $styleId === '' ? null : $this->paragraphStyleNumbering($styleId);
+                    $lastIndex = array_key_last($pendingListRecords);
+                    $lastRecord = $lastIndex === null ? null : $pendingListRecords[$lastIndex];
+                    if (
+                        $styleListNumbering !== null
+                        && is_array($lastRecord)
+                        && (string) ($lastRecord['attrs']['numId'] ?? '') === $styleListNumbering['numId']
+                        && (int) $lastRecord['level'] === $styleListNumbering['level']
+                    ) {
+                        $flushCodeBlock();
+                        $flushQuote();
+                        $flushDefinitionList();
+                        $pendingListRecords[] = [
+                            'level' => $styleListNumbering['level'],
+                            'ordered' => (bool) $lastRecord['ordered'],
+                            'attrs' => $lastRecord['attrs'],
+                            'groupAttrs' => $lastRecord['groupAttrs'] ?? $lastRecord['attrs'],
+                            'paragraph' => $paragraph,
+                            'continuation' => true,
+                        ];
+                        continue;
+                    }
+                }
+
                 if ($styleBlockKind === 'definition-term') {
                     $flushList();
                     $flushCodeBlock();
@@ -663,7 +698,11 @@ final class DocxReader
 
         $level = $this->headingLevel($paragraph);
         if ($level !== null) {
-            return new AstNode('heading', ['level' => $level, 'text' => $text], $inlines);
+            return new AstNode('heading', [
+                'level' => $level,
+                'id' => $this->uniqueHeadingIdentifier($text),
+                'text' => $text,
+            ], $inlines);
         }
 
         return new AstNode('paragraph', ['text' => $text], $inlines);
@@ -1831,6 +1870,134 @@ final class DocxReader
         return '';
     }
 
+    /**
+     * @param list<AstNode> $nodes
+     * @return list<AstNode>
+     */
+    private function canonicalizeHeadingBookmarkLinks(array $nodes): array
+    {
+        $bookmarkTargets = [];
+        $nodes = $this->collectHeadingBookmarkTargets($nodes, $bookmarkTargets);
+
+        return $bookmarkTargets === [] ? $nodes : $this->rewriteBookmarkTargetLinks($nodes, $bookmarkTargets);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @param array<string, string> $bookmarkTargets
+     * @return list<AstNode>
+     */
+    private function collectHeadingBookmarkTargets(array $nodes, array &$bookmarkTargets): array
+    {
+        $rebuilt = [];
+        foreach ($nodes as $node) {
+            $children = $node->children === [] ? [] : $this->collectHeadingBookmarkTargets($node->children, $bookmarkTargets);
+            $attrs = $node->attrs;
+
+            if ($node->type === 'heading') {
+                $bookmarkNames = $this->rawBookmarkStartNames($children);
+                if ($bookmarkNames !== []) {
+                    $id = (string) ($attrs['id'] ?? '');
+                    if ($id === '') {
+                        $id = $this->headingIdentifierBase((string) ($attrs['text'] ?? $this->plainText($children)));
+                        $attrs['id'] = $id;
+                    }
+                    foreach ($bookmarkNames as $bookmarkName) {
+                        $bookmarkTargets[$bookmarkName] = $id;
+                    }
+                    $children = $this->removeRawBookmarkInlines($children);
+                }
+            }
+
+            $rebuilt[] = new AstNode($node->type, $attrs, $children);
+        }
+
+        return $rebuilt;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @param array<string, string> $bookmarkTargets
+     * @return list<AstNode>
+     */
+    private function rewriteBookmarkTargetLinks(array $nodes, array $bookmarkTargets): array
+    {
+        $rebuilt = [];
+        foreach ($nodes as $node) {
+            $children = $node->children === [] ? [] : $this->rewriteBookmarkTargetLinks($node->children, $bookmarkTargets);
+            $attrs = $node->attrs;
+            if ($node->type === 'link') {
+                $url = (string) ($attrs['url'] ?? '');
+                if (str_starts_with($url, '#')) {
+                    $fragment = substr($url, 1);
+                    if (isset($bookmarkTargets[$fragment])) {
+                        $attrs['url'] = '#' . $bookmarkTargets[$fragment];
+                    }
+                }
+            }
+
+            $rebuilt[] = new AstNode($node->type, $attrs, $children);
+        }
+
+        return $rebuilt;
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     * @return list<string>
+     */
+    private function rawBookmarkStartNames(array $inlines): array
+    {
+        $names = [];
+        foreach ($inlines as $inline) {
+            $name = $this->rawBookmarkStartName($inline);
+            if ($name !== null && $name !== '') {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     * @return list<AstNode>
+     */
+    private function removeRawBookmarkInlines(array $inlines): array
+    {
+        $filtered = [];
+        foreach ($inlines as $inline) {
+            if (!$this->isRawBookmarkInline($inline)) {
+                $filtered[] = $inline;
+            }
+        }
+
+        return $filtered;
+    }
+
+    private function rawBookmarkStartName(AstNode $node): ?string
+    {
+        if ($node->type !== 'raw_inline' || $node->attr('format') !== 'openxml') {
+            return null;
+        }
+
+        $text = (string) $node->attr('text', '');
+        if (preg_match('/^<w:bookmarkStart\b[^>]*\bw:name="([^"]*)"/', $text, $match) !== 1) {
+            return null;
+        }
+
+        return html_entity_decode($match[1], ENT_QUOTES | ENT_XML1, 'UTF-8');
+    }
+
+    private function isRawBookmarkInline(AstNode $node): bool
+    {
+        if ($node->type !== 'raw_inline' || $node->attr('format') !== 'openxml') {
+            return false;
+        }
+
+        return preg_match('/^<w:bookmark(?:Start|End)\b/', (string) $node->attr('text', '')) === 1;
+    }
+
     private function bookmarkRawInline(\DOMElement $bookmark): ?AstNode
     {
         $id = $this->attr($bookmark, self::W_NS, 'id');
@@ -1843,11 +2010,22 @@ final class DocxReader
             if ($name === '') {
                 return null;
             }
+            if ($name === '_GoBack') {
+                $this->suppressedBookmarkIds[$id] = true;
+
+                return null;
+            }
 
             return new AstNode('raw_inline', [
                 'format' => 'openxml',
                 'text' => '<w:bookmarkStart w:id="' . $this->xmlAttr($id) . '" w:name="' . $this->xmlAttr($name) . '"/>',
             ]);
+        }
+
+        if (isset($this->suppressedBookmarkIds[$id])) {
+            unset($this->suppressedBookmarkIds[$id]);
+
+            return null;
         }
 
         return new AstNode('raw_inline', [
@@ -1985,10 +2163,61 @@ final class DocxReader
         $image = $this->drawingImage($drawing);
         if ($image instanceof AstNode) {
             $nodes[] = $image;
+        } else {
+            $placeholder = $this->drawingPlaceholder($drawing);
+            if ($placeholder instanceof AstNode) {
+                $nodes[] = $placeholder;
+            }
         }
         array_push($nodes, ...$this->textBoxSpans($drawing, 'drawing'));
 
         return $nodes;
+    }
+
+    private function drawingPlaceholder(\DOMElement $drawing): ?AstNode
+    {
+        foreach ($drawing->getElementsByTagNameNS(self::A_NS, 'graphicData') as $graphicData) {
+            if (!$graphicData instanceof \DOMElement) {
+                continue;
+            }
+
+            $uri = $graphicData->getAttribute('uri');
+            if ($uri === '') {
+                continue;
+            }
+
+            if (str_contains($uri, '/diagram')) {
+                return $this->drawingPlaceholderSpan('diagram', '[DIAGRAM]');
+            }
+            if (str_contains($uri, '/chart')) {
+                return $this->drawingPlaceholderSpan('chart', '[CHART]');
+            }
+        }
+
+        foreach ($this->descendantElementsByLocalName($drawing, 'relIds') as $relIds) {
+            if (str_contains((string) $relIds->namespaceURI, '/diagram')) {
+                return $this->drawingPlaceholderSpan('diagram', '[DIAGRAM]');
+            }
+        }
+        foreach ($this->descendantElementsByLocalName($drawing, 'chart') as $chart) {
+            if (str_contains((string) $chart->namespaceURI, '/chart')) {
+                return $this->drawingPlaceholderSpan('chart', '[CHART]');
+            }
+        }
+
+        return null;
+    }
+
+    private function drawingPlaceholderSpan(string $class, string $text): AstNode
+    {
+        $attrs = ['classes' => [$class]];
+        if ($class === 'diagram') {
+            $attrs['attributes'] = ['data-pandoc-diagram' => 'unsupported-docx-diagram'];
+        }
+
+        return new AstNode('span', $attrs, [
+            new AstNode('text', ['text' => $text]),
+        ]);
     }
 
     /**
@@ -2238,6 +2467,17 @@ final class DocxReader
             if ($child instanceof \DOMElement && $child->localName === 'tr') {
                 $cells = [];
                 $column = 0;
+                $gridBefore = $this->tableRowGridBefore($child);
+                for ($omitted = 0; $omitted < $gridBefore; ++$omitted) {
+                    $cells[] = [
+                        'element' => null,
+                        'column' => $column,
+                        'colspan' => 1,
+                        'vMerge' => '',
+                        'omitted' => 'gridBefore',
+                    ];
+                    ++$column;
+                }
                 foreach ($child->childNodes as $cell) {
                     if (!$cell instanceof \DOMElement || $cell->localName !== 'tc') {
                         continue;
@@ -2248,6 +2488,7 @@ final class DocxReader
                         'column' => $column,
                         'colspan' => $colspan,
                         'vMerge' => $this->verticalMerge($cell),
+                        'omitted' => '',
                     ];
                     $column += $colspan;
                 }
@@ -2302,7 +2543,15 @@ final class DocxReader
                 if (isset($skip[$key])) {
                     continue;
                 }
-                $rowCells[] = $this->tableCell($cell['element'], (int) $cell['colspan'], (int) ($rowspans[$key] ?? 1), (string) $cell['vMerge']);
+                if (($cell['omitted'] ?? '') === 'gridBefore') {
+                    $rowCells[] = $this->omittedTableCell('gridBefore');
+                    continue;
+                }
+                $element = $cell['element'] ?? null;
+                if (!$element instanceof \DOMElement) {
+                    continue;
+                }
+                $rowCells[] = $this->tableCell($element, (int) $cell['colspan'], (int) ($rowspans[$key] ?? 1), (string) $cell['vMerge']);
             }
             $row = new AstNode('table_row', [], $rowCells);
             if ($rowHeaderFlags[$rowIndex] ?? false) {
@@ -2316,6 +2565,21 @@ final class DocxReader
             new AstNode('table_head', [], $headRows),
             new AstNode('table_body', [], $rows),
         ]);
+    }
+
+    private function tableRowGridBefore(\DOMElement $row): int
+    {
+        $trPr = $this->directChild($row, 'trPr');
+        if (!$trPr instanceof \DOMElement) {
+            return 0;
+        }
+
+        $gridBefore = $this->directChild($trPr, 'gridBefore');
+        if (!$gridBefore instanceof \DOMElement) {
+            return 0;
+        }
+
+        return max(0, (int) ($this->attr($gridBefore, self::W_NS, 'val') ?: '0'));
     }
 
     private function tableRowIsHeader(\DOMElement $row): bool
@@ -2344,6 +2608,16 @@ final class DocxReader
         }
 
         return new AstNode('table_row', [], $cells);
+    }
+
+    private function omittedTableCell(string $source): AstNode
+    {
+        return new AstNode('table_cell', [
+            'text' => '',
+            'colspan' => 1,
+            'rowspan' => 1,
+            'htmlAttributes' => ['data-docx-omitted-cell' => $source],
+        ]);
     }
 
     private function tableCell(\DOMElement $cell, ?int $colspan = null, int $rowspan = 1, string $verticalMerge = ''): AstNode
@@ -2516,6 +2790,26 @@ final class DocxReader
         return $pStyle instanceof \DOMElement ? $this->attr($pStyle, self::W_NS, 'val') : '';
     }
 
+    private function uniqueHeadingIdentifier(string $text): string
+    {
+        $base = $this->headingIdentifierBase($text);
+        $count = $this->headingIds[$base] ?? 0;
+        $this->headingIds[$base] = $count + 1;
+
+        return $count === 0 ? $base : $base . '-' . $count;
+    }
+
+    private function headingIdentifierBase(string $text): string
+    {
+        $identifier = function_exists('mb_strtolower') ? mb_strtolower($text, 'UTF-8') : strtolower($text);
+        $identifier = preg_replace('/\s+/u', '-', $identifier) ?? $identifier;
+        $identifier = preg_replace('/[^\pL\pN_.-]+/u', '', $identifier) ?? $identifier;
+        $identifier = preg_replace('/^[^\pL]+/u', '', $identifier) ?? $identifier;
+        $identifier = trim($identifier, '-');
+
+        return $identifier === '' ? 'section' : $identifier;
+    }
+
     /**
      * @return array{numId: string, level: int}|null
      * @param array{numId: string, level: int}|null $activeStyleNumbering
@@ -2552,6 +2846,23 @@ final class DocxReader
             return null;
         }
 
+        return $this->paragraphStyleNumbering($styleId);
+    }
+
+    private function paragraphExplicitlySuppressesNumbering(\DOMElement $paragraph): bool
+    {
+        $pPr = $this->directChild($paragraph, 'pPr');
+        $numPr = $pPr instanceof \DOMElement ? $this->directChild($pPr, 'numPr') : null;
+        $numId = $numPr instanceof \DOMElement ? $this->directChild($numPr, 'numId') : null;
+
+        return $numId instanceof \DOMElement && $this->attr($numId, self::W_NS, 'val') === '0';
+    }
+
+    /**
+     * @return array{numId: string, level: int}|null
+     */
+    private function paragraphStyleNumbering(string $styleId): ?array
+    {
         foreach ($this->styleChainIds($styleId) as $candidateStyleId) {
             $style = $this->styles[$candidateStyleId] ?? [];
             $numId = (string) ($style['numId'] ?? '');

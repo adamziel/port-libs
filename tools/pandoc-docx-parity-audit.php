@@ -13,6 +13,8 @@ Usage: php tools/pandoc-docx-parity-audit.php [options]
 
 Options:
   --json                 Emit JSON instead of text.
+  --fail-on-regression   Exit 1 when the optional upstream cache is present and
+                         parser acceptance regresses below the 74/74 baseline.
   --repo-root PATH       Repository root. Defaults to the parent of tools/.
   --docx-dir PATH        Upstream DOCX corpus directory, relative to repo root unless absolute.
                          Defaults to .upstream-cache/pandoc-current/test/docx.
@@ -29,6 +31,7 @@ try {
     $docxDir = DocxParityCorpusAudit::DEFAULT_RELATIVE_DOCX_DIR;
     $maxPairs = null;
     $json = false;
+    $failOnRegression = false;
     $args = array_slice($argv, 1);
 
     for ($i = 0, $count = count($args); $i < $count; ++$i) {
@@ -49,6 +52,10 @@ try {
         }
         if ($arg === '--json') {
             $json = true;
+            continue;
+        }
+        if ($arg === '--fail-on-regression') {
+            $failOnRegression = true;
             continue;
         }
         if ($arg === '--repo-root') {
@@ -96,6 +103,11 @@ try {
         ) . PHP_EOL);
     } else {
         fwrite(STDOUT, DocxParityCorpusAudit::formatTextReport($report));
+    }
+
+    if ($failOnRegression && DocxParityCorpusAudit::hasParserAcceptanceRegression($report)) {
+        fwrite(STDERR, 'pandoc-docx-parity-audit: parser acceptance regressed below the 74/74 baseline' . PHP_EOL);
+        exit(1);
     }
 
     exit(0);
