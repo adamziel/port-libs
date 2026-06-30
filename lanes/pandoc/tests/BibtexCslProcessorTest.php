@@ -3359,10 +3359,14 @@ XML);
   sortname       = {Archive Desk},
   sorttitle      = {Label Manual Legacy},
   sortyear       = {2025},
+  sortinit       = {S},
+  sortinithash   = {hash-smith},
   labelprefix    = {WP},
   labelalpha     = {Smi26},
   labeltitle     = {legacy label},
-  extraalpha     = {b}
+  extraalpha     = {b},
+  extradate      = {2},
+  extratitle     = {appendix}
 }
 
 @book{fallback-shorthand,
@@ -3387,18 +3391,71 @@ BIB;
         $t->same('Archive Desk', $labels['sort-name']);
         $t->same('Label Manual Legacy', $labels['sort-title']);
         $t->same('2025', $labels['sort-year']);
+        $t->same('S', $labels['sort-initial']);
+        $t->same('hash-smith', $labels['sort-initial-hash']);
         $t->same('WP', $labels['label-prefix']);
         $t->same('Smi26', $labels['label-alpha']);
         $t->same('legacy label', $labels['label-title']);
         $t->same('b', $labels['extra-alpha']);
+        $t->same('2', $labels['extra-date']);
+        $t->same('appendix', $labels['extra-title']);
         $t->same('LLM', $labels['rawBibtex']['fields']['shorthand']);
         $t->same('010 legacy label', $labels['rawBibtex']['fields']['sortshorthand']);
+        $t->same('S', $labels['rawBibtex']['fields']['sortinit']);
+        $t->same('hash-smith', $labels['rawBibtex']['fields']['sortinithash']);
         $t->same('FSH', $fallback['citation-label']);
         $t->same('FSH', $fallback['shorthand-list-sort-key']);
         $t->same(
-            'Ada Smith. Legacy Label Manual. 2026. Citation label: LLM. Shorthand intro: cited as Legacy Label Manual. Sort shorthand: 010 legacy label. Presort: aa. Sort key: 900-smith. Label prefix: WP. Extra alpha: b.',
+            'Ada Smith. Legacy Label Manual. 2026. Citation label: LLM. Shorthand intro: cited as Legacy Label Manual. Sort shorthand: 010 legacy label. Presort: aa. Sort key: 900-smith. Sort name: Archive Desk. Sort title: Label Manual Legacy. Sort year: 2025. Sort initial: S. Sort initial hash: hash-smith. Label prefix: WP. Label alpha: Smi26. Label title: legacy label. Extra alpha: b. Extra date: 2. Extra title: appendix.',
             $processor->renderBibliographyText($labels)
         );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Sort Initial Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-sort-initial-review</id>
+    <updated>2026-06-30T12:30:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="sort-initial"/>
+        <text variable="sort-initial-hash"/>
+        <text variable="label-alpha"/>
+        <text variable="label-title"/>
+        <text variable="extra-date"/>
+        <text variable="extra-title"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="sort-name"/>
+      <text variable="sort-title"/>
+      <text variable="sort-year"/>
+      <text variable="sort-initial"/>
+      <text variable="sort-initial-hash"/>
+      <text variable="label-alpha"/>
+      <text variable="label-title"/>
+      <text variable="extra-date"/>
+      <text variable="extra-title"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledLabels = $styled->item('legacy-labels');
+        $t->same('Bounded Legacy BibLaTeX Sort Initial Review', $styled->cslStyleSummary()['title'] ?? null);
+        $t->same('S', $styledLabels['sortInitial'] ?? null);
+        $t->same('hash-smith', $styledLabels['sortInitialHash'] ?? null);
+        $t->same('[Legacy Label Manual | S | hash-smith | Smi26 | legacy label | 2 | appendix]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-labels', 'text' => '[@legacy-labels]']),
+        ]));
+        $t->same('Legacy Label Manual :: Archive Desk :: Label Manual Legacy :: 2025 :: S :: hash-smith :: Smi26 :: legacy label :: 2 :: appendix', $styled->renderBibliographyEntry('legacy-labels'));
 
         $document = (new MarkdownReader())->read('Legacy label source @legacy-labels and [@fallback-shorthand] keep shorthand review metadata.');
         $handoff = $processor->citationHandoff($document, $source);
@@ -3407,8 +3464,11 @@ BIB;
 
         $t->same(['legacy-labels', 'fallback-shorthand'], $handoff['citedKeys']);
         $t->same('010 legacy label', $handoff['bibliography']->children[0]->attr('cslItem')['shorthand-list-sort-key'] ?? null);
+        $t->same('hash-smith', $handoff['bibliography']->children[0]->attr('cslItem')['sort-initial-hash'] ?? null);
         $t->same('FSH', $handoff['bibliography']->children[1]->attr('cslItem')['shorthand-list-sort-key'] ?? null);
         $t->contains('Citation label: LLM', $blocks);
+        $t->contains('Sort initial hash: hash-smith', $blocks);
+        $t->contains('Label alpha: Smi26', $blocks);
         $t->contains('Fallback Shorthand Manual', $blocks);
     },
     'carries biblatex index title aliases in legacy csl handoff' => static function (TestRunner $t): void {
