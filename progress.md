@@ -15,7 +15,7 @@
 
 | Format | Token | State | Local mapped cases | Upstream cases | Critical gaps |
 | --- | --- | --- | ---: | ---: | --- |
-| ODF/ODT/OpenDocument | `odt` | ship-ready | 96 | 20 | 0 critical gaps |
+| ODF/ODT/OpenDocument | `odt` | ship-ready | 99 | 20 | 0 critical gaps |
 
 | Evidence | Status |
 | --- | --- |

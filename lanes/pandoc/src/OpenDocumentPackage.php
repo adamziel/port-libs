@@ -1437,6 +1437,7 @@ final class OpenDocumentPackage
                 'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
                 'customManifestChildElementCount' => $entry['customManifestChildElementCount'] ?? 0,
                 'customManifestChildElementNames' => $entry['customManifestChildElementNames'] ?? [],
+                'customManifestChildElements' => $entry['customManifestChildElements'] ?? [],
                 'diagnostics' => $entry['diagnostics'] ?? [],
             ]);
         }
@@ -9331,6 +9332,17 @@ final class OpenDocumentPackage
         if ($child->prefix !== '') {
             $record['prefix'] = $child->prefix;
         }
+        $namespaceDeclarations = self::manifestElementNamespaceDeclarations($child);
+        $namespaceDeclarationMap = array_map(
+            static fn (array $declaration): string => $declaration['namespaceUri'],
+            $namespaceDeclarations
+        );
+        ksort($namespaceDeclarations, SORT_STRING);
+        ksort($namespaceDeclarationMap, SORT_STRING);
+        $record['namespaceDeclarationCount'] = count($namespaceDeclarations);
+        $record['namespaceDeclarationNames'] = array_keys($namespaceDeclarations);
+        $record['namespaceDeclarations'] = array_values($namespaceDeclarations);
+        $record['namespaceDeclarationMap'] = $namespaceDeclarationMap;
 
         return $record;
     }
