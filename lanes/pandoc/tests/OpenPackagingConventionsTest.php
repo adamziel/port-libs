@@ -1397,6 +1397,22 @@ XML;
         foreach ($rawSummary['packagePartDirectoryRootSummaries'] as $directoryRootSummary) {
             $rawDirectoryRootSummaries[$directoryRootSummary['directoryRoot']] = $directoryRootSummary;
         }
+        $segmentSummaries = [];
+        foreach ($summary['packagePartPathSegmentSummaries'] as $segmentSummary) {
+            $segmentSummaries[$segmentSummary['pathSegmentCount']] = $segmentSummary;
+        }
+        $rawSegmentSummaries = [];
+        foreach ($rawSummary['packagePartPathSegmentSummaries'] as $segmentSummary) {
+            $rawSegmentSummaries[$segmentSummary['pathSegmentCount']] = $segmentSummary;
+        }
+        $entries = [];
+        foreach ($summary['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+        $rawEntries = [];
+        foreach ($rawSummary['entries'] as $entry) {
+            $rawEntries[$entry['entryName']] = $entry;
+        }
 
         $t->same(true, $summary['valid']);
         $t->same(true, $rawSummary['valid']);
@@ -1434,6 +1450,31 @@ XML;
             'word/media/vector.svg',
         ], $summary['entryNamesByPackagePartDirectoryRoot']['word/']);
         $t->same($summary['entryNamesByPackagePartDirectoryRoot'], $rawSummary['entryNamesByPackagePartDirectoryRoot']);
+        $t->same([
+            1 => 1,
+            2 => 4,
+            3 => 4,
+        ], $summary['packagePartPathSegmentCounts']);
+        $t->same($summary['packagePartPathSegmentCounts'], $rawSummary['packagePartPathSegmentCounts']);
+        $t->same([
+            1 => ['[Content_Types].xml'],
+            2 => [
+                '_rels/.rels',
+                'customXml/item1',
+                'docProps/core.xml',
+                'word/document.xml',
+            ],
+            3 => [
+                'word/_rels/document.xml.rels',
+                'word/embeddings/source.DOCX',
+                'word/media/image.PNG',
+                'word/media/vector.svg',
+            ],
+        ], $summary['entryNamesByPackagePartPathSegmentCount']);
+        $t->same(
+            $summary['entryNamesByPackagePartPathSegmentCount'],
+            $rawSummary['entryNamesByPackagePartPathSegmentCount']
+        );
         $t->same([
             '[Content_Types].xml',
             'docProps/core.xml',
@@ -1514,6 +1555,41 @@ XML;
         $t->same([
             'binary-part' => 1,
         ], $rawDirectoryRootSummaries['customXml/']['roleCounts']);
+        $t->same(1, $segmentSummaries[1]['pathSegmentCount']);
+        $t->same([
+            'content-types' => 1,
+        ], $segmentSummaries[1]['roleCounts']);
+        $t->same(strlen($contentTypesXml), $segmentSummaries[1]['uncompressedBytes']);
+        $t->same([
+            'document-properties' => 1,
+            'package-relationships' => 1,
+            'xml-part' => 2,
+        ], $segmentSummaries[2]['roleCounts']);
+        $t->same([
+            'relationships+xml' => 1,
+            'xml' => 3,
+        ], $segmentSummaries[2]['handoffKindCounts']);
+        $t->same([
+            'binary-part' => 1,
+            'document-properties' => 1,
+            'package-relationships' => 1,
+            'xml-part' => 1,
+        ], $rawSegmentSummaries[2]['roleCounts']);
+        $t->same([
+            'binary' => 1,
+            'relationships+xml' => 1,
+            'xml' => 2,
+        ], $rawSegmentSummaries[2]['handoffKindCounts']);
+        $t->same([
+            'embedded-package-candidate' => 1,
+            'media' => 2,
+            'part-relationships' => 1,
+        ], $segmentSummaries[3]['roleCounts']);
+        $t->same($segmentSummaries[3], $rawSegmentSummaries[3]);
+        $t->same(1, $entries['[Content_Types].xml']['partNamePathSegmentCount']);
+        $t->same(2, $entries['customXml/item1']['partNamePathSegmentCount']);
+        $t->same(3, $entries['word/media/vector.svg']['partNamePathSegmentCount']);
+        $t->same($entries['word/media/vector.svg']['partNamePathSegmentCount'], $rawEntries['word/media/vector.svg']['partNamePathSegmentCount']);
         $t->same(2, $summary['roleCounts']['media']);
         $t->same(2, $rawSummary['roleCounts']['media']);
     },
