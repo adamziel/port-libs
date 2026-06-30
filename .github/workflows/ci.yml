@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  readability:
+    name: Readability upstream-mapped tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: dom, mbstring
+
+      - name: Syntax check Readability files
+        run: |
+          php -l lanes/readability/src/ArticleExtractor.php
+          php -l lanes/readability/tests/ArticleExtractorTest.php
+
+      - name: Run Readability upstream-mapped tests
+        run: php tools/run-tests.php lanes/readability/tests/ArticleExtractorTest.php
