@@ -15435,6 +15435,7 @@ final class XmlHtmlDom
             $relRaw = self::attributeOrNull($element, 'rel');
             $imageSrcset = self::attributeOrNull($element, 'imagesrcset');
             $imageSizes = self::attributeOrNull($element, 'imagesizes');
+            $media = self::attributeOrNull($element, 'media');
             $blockingRaw = self::attributeOrNull($element, 'blocking');
 
             $summary = [
@@ -15443,7 +15444,7 @@ final class XmlHtmlDom
                 'relRaw' => $relRaw,
                 'relTokens' => $relRaw === null ? [] : self::spaceSeparatedTokens($relRaw),
                 'as' => self::attributeOrNull($element, 'as'),
-                'media' => self::attributeOrNull($element, 'media'),
+                'media' => $media,
                 'hreflang' => self::attributeOrNull($element, 'hreflang'),
                 'mimeType' => self::attributeOrNull($element, 'type'),
                 'crossorigin' => self::attributeOrNull($element, 'crossorigin'),
@@ -15461,7 +15462,9 @@ final class XmlHtmlDom
             return $summary
                 + self::linkResourceReviewSummary($element, $relRaw)
                 + self::srcsetResourceReviewSummary($imageSrcset, 'imageSrcset')
-                + self::sourceSizesReviewSummary($imageSizes, 'imageSizes');
+                + self::sourceSizesReviewSummary($imageSizes, 'imageSizes')
+                + self::responsiveMediaReviewSummary($media, 'media')
+                + self::responsiveSizesReviewSummary($imageSizes, 'responsiveImageSizes');
         }
 
         $content = self::attributeOrNull($element, 'content');
@@ -28432,6 +28435,7 @@ final class XmlHtmlDom
         $summary += self::imageLoadingReviewSummary($image);
         $summary += self::srcsetResourceReviewSummary($srcset, 'srcset');
         $summary += self::sourceSizesReviewSummary($sizes, 'sizes');
+        $summary += self::responsiveSizesReviewSummary($sizes, 'responsiveSizes');
 
         if ($image->hasAttribute('usemap')) {
             $useMap = self::useMapAttributeSummary($image->getAttribute('usemap'));
@@ -29228,6 +29232,7 @@ final class XmlHtmlDom
     private static function sourceElementSummary(\DOMElement $source): array
     {
         $srcset = self::attributeOrNull($source, 'srcset');
+        $media = self::attributeOrNull($source, 'media');
         $sizes = self::attributeOrNull($source, 'sizes');
 
         return [
@@ -29235,10 +29240,12 @@ final class XmlHtmlDom
             'srcset' => $srcset,
             'srcsetCandidates' => self::srcsetCandidateSummaries($srcset),
             'type' => self::attributeOrNull($source, 'type'),
-            'media' => self::attributeOrNull($source, 'media'),
+            'media' => $media,
             'sizes' => $sizes,
         ] + self::srcsetResourceReviewSummary($srcset, 'srcset')
-            + self::sourceSizesReviewSummary($sizes, 'sizes');
+            + self::sourceSizesReviewSummary($sizes, 'sizes')
+            + self::responsiveMediaReviewSummary($media, 'media')
+            + self::responsiveSizesReviewSummary($sizes, 'responsiveSizes');
     }
 
     /**
@@ -30519,6 +30526,312 @@ final class XmlHtmlDom
             'descriptorNormalized' => $descriptor,
             'descriptorValid' => false,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function responsiveMediaReviewSummary(?string $media, string $keyPrefix): array
+    {
+        if ($media === null) {
+            return [];
+        }
+
+        $condition = trim($media);
+        $issues = [];
+        if ($condition === '') {
+            $issues[] = ['code' => 'empty-responsive-media'];
+        } else {
+            if (self::containsUnsafeResponsiveMetadata($condition)) {
+                $issues[] = ['code' => 'unsafe-responsive-media', 'condition' => $condition];
+            }
+            if (!self::cssParenthesesBalanced($condition)) {
+                $issues[] = ['code' => 'invalid-responsive-media-condition', 'condition' => $condition];
+            }
+        }
+
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+
+        return [
+            $keyPrefix . 'ReviewPolicy' => 'html-responsive-media-metadata-review',
+            $keyPrefix . 'Condition' => $condition,
+            $keyPrefix . 'Issues' => $issues,
+            $keyPrefix . 'IssueCodes' => $issueCodes,
+            $keyPrefix . 'Valid' => $issues === [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function responsiveSizesReviewSummary(?string $sizes, string $keyPrefix): array
+    {
+        if ($sizes === null) {
+            return [];
+        }
+
+        $records = [];
+        $issues = [];
+        foreach (self::splitCssCommaList($sizes) as $index => $candidate) {
+            $record = self::responsiveSizeRecord($candidate, $index);
+            $records[] = $record;
+            foreach ($record['issues'] as $issue) {
+                $issues[] = $issue;
+            }
+        }
+
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+
+        return [
+            $keyPrefix . 'ReviewPolicy' => 'html-responsive-sizes-metadata-review',
+            $keyPrefix . 'CandidateCount' => count($records),
+            $keyPrefix . 'CandidateRecords' => $records,
+            $keyPrefix . 'Conditions' => array_values(array_filter(
+                array_map(static fn (array $record): ?string => $record['condition'], $records),
+                static fn (?string $condition): bool => $condition !== null
+            )),
+            $keyPrefix . 'Lengths' => array_values(array_map(
+                static fn (array $record): string => (string) $record['length'],
+                $records
+            )),
+            $keyPrefix . 'Issues' => $issues,
+            $keyPrefix . 'IssueCodes' => $issueCodes,
+            $keyPrefix . 'Valid' => $issues === [],
+        ];
+    }
+
+    /**
+     * @return array{index:int, raw:string, condition:?string, length:string, conditionValid:bool, lengthValid:bool, issues:list<array<string, mixed>>, valid:bool}
+     */
+    private static function responsiveSizeRecord(string $candidate, int $index): array
+    {
+        $raw = trim($candidate);
+        $condition = null;
+        $conditionValid = true;
+        $length = $raw;
+        $issues = [];
+
+        if ($raw === '') {
+            $issues[] = ['code' => 'empty-responsive-size', 'candidateIndex' => $index];
+            $conditionValid = false;
+            $length = '';
+        } elseif ($raw[0] === '(') {
+            $end = self::matchingCssParenthesisOffset($raw, 0);
+            if ($end === null) {
+                $condition = $raw;
+                $conditionValid = false;
+                $length = '';
+                $issues[] = [
+                    'code' => 'invalid-responsive-size-condition',
+                    'candidateIndex' => $index,
+                    'condition' => $raw,
+                ];
+            } else {
+                $condition = trim(substr($raw, 0, $end + 1));
+                $length = trim(substr($raw, $end + 1));
+                if (self::containsUnsafeResponsiveMetadata($condition) || !self::cssParenthesesBalanced($condition)) {
+                    $conditionValid = false;
+                    $issues[] = [
+                        'code' => 'invalid-responsive-size-condition',
+                        'candidateIndex' => $index,
+                        'condition' => $condition,
+                    ];
+                }
+            }
+        }
+
+        if (self::containsUnsafeResponsiveMetadata($raw)) {
+            $issues[] = [
+                'code' => 'unsafe-responsive-size',
+                'candidateIndex' => $index,
+                'raw' => $raw,
+            ];
+        }
+
+        $lengthValid = self::isResponsiveSizeLength($length);
+        if ($length === '') {
+            $issues[] = ['code' => 'missing-responsive-size-length', 'candidateIndex' => $index];
+        } elseif (!$lengthValid) {
+            $issues[] = [
+                'code' => 'invalid-responsive-size-length',
+                'candidateIndex' => $index,
+                'length' => $length,
+            ];
+        }
+
+        return [
+            'index' => $index,
+            'raw' => $raw,
+            'condition' => $condition,
+            'length' => $length,
+            'conditionValid' => $conditionValid,
+            'lengthValid' => $lengthValid,
+            'issues' => $issues,
+            'valid' => $conditionValid && $lengthValid && $issues === [],
+        ];
+    }
+
+    private static function isResponsiveSizeLength(string $length): bool
+    {
+        $length = trim($length);
+        if ($length === '' || self::containsUnsafeResponsiveMetadata($length) || !self::cssParenthesesBalanced($length)) {
+            return false;
+        }
+
+        if (strtolower($length) === 'auto') {
+            return true;
+        }
+
+        if (preg_match('/^0(?:\.0+)?$/', $length) === 1) {
+            return true;
+        }
+
+        if (preg_match('/^[+-]?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)(?:ch|cm|dvb|dvh|dvi|dvmax|dvmin|dvw|em|ex|ic|in|lh|lvb|lvh|lvi|lvmax|lvmin|lvw|mm|pc|pt|px|q|rem|rlh|svb|svh|svi|svmax|svmin|svw|vb|vh|vi|vmax|vmin|vw|%)$/i', $length) === 1) {
+            return true;
+        }
+
+        return preg_match('/^(?:calc|min|max|clamp)\(.+\)$/i', $length) === 1;
+    }
+
+    private static function containsUnsafeResponsiveMetadata(string $value): bool
+    {
+        if (preg_match('/[\p{Cc}\p{Zl}\p{Zp}]/u', $value) === 1 || preg_match('/url\s*\(/i', $value) === 1) {
+            return true;
+        }
+
+        $compacted = strtolower(preg_replace('/[\x00-\x20]+/', '', $value) ?? $value);
+
+        return str_contains($compacted, 'javascript:')
+            || str_contains($compacted, 'vbscript:')
+            || str_contains($compacted, 'data:')
+            || str_contains($compacted, 'file:');
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function splitCssCommaList(string $value): array
+    {
+        $items = [];
+        $start = 0;
+        $depth = 0;
+        $quote = null;
+        $length = strlen($value);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $value[$offset];
+            if ($char === '\\') {
+                $offset++;
+                continue;
+            }
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')' && $depth > 0) {
+                $depth--;
+                continue;
+            }
+            if ($char !== ',' || $depth !== 0) {
+                continue;
+            }
+
+            $items[] = substr($value, $start, $offset - $start);
+            $start = $offset + 1;
+        }
+
+        $items[] = substr($value, $start);
+
+        return $items;
+    }
+
+    private static function cssParenthesesBalanced(string $value): bool
+    {
+        $depth = 0;
+        $quote = null;
+        $length = strlen($value);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $value[$offset];
+            if ($char === '\\') {
+                $offset++;
+                continue;
+            }
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char !== ')') {
+                continue;
+            }
+            if ($depth === 0) {
+                return false;
+            }
+            $depth--;
+        }
+
+        return $depth === 0 && $quote === null;
+    }
+
+    private static function matchingCssParenthesisOffset(string $value, int $openOffset): ?int
+    {
+        $depth = 0;
+        $quote = null;
+        $length = strlen($value);
+        for ($offset = $openOffset; $offset < $length; $offset++) {
+            $char = $value[$offset];
+            if ($char === '\\') {
+                $offset++;
+                continue;
+            }
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char !== ')') {
+                continue;
+            }
+            $depth--;
+            if ($depth === 0) {
+                return $offset;
+            }
+        }
+
+        return null;
     }
 
     /**
