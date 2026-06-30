@@ -24668,6 +24668,116 @@ XML;
         $t->contains('<section class="footnotes" role="doc-endnotes"><ol><li id="fn-1"><p>Footnote <a href="https://example.test/footnote-source">relationship source</a> note.</p>', $blocks);
         $t->contains('<li id="fn-2"><p>Endnote package audit.</p>', $blocks);
     },
+    'summarizes docx footnote and endnote separator records as metadata only provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/notes/separator-footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>' . "\n" .
+            '  <Override PartName="/notes/separator-endnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="../notes/separator-footnotes.xml"/>' . "\n" .
+            '  <Relationship Id="rEndnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes" Target="../notes/separator-endnotes.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['notes/separator-footnotes.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:footnote w:id="-1" w:type="separator"><w:p><w:hyperlink r:id="rFootSeparatorLink"><w:r><w:t>hidden footnote separator text</w:t></w:r></w:hyperlink></w:p></w:footnote>
+  <w:footnote w:id="-2" w:type="continuationSeparator"><w:p><w:r><w:drawing r:embed="rFootMissingImage"/></w:r></w:p></w:footnote>
+  <w:footnote w:id="5"><w:p><w:r><w:t>Visible footnote.</w:t></w:r></w:p></w:footnote>
+</w:footnotes>
+XML;
+        $parts['notes/_rels/separator-footnotes.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rFootSeparatorLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/separator" TargetMode="External"/>
+  <Relationship Id="rFootMissingImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-separator.bin?kind=separator#image"/>
+</Relationships>
+XML;
+        $parts['notes/separator-endnotes.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:endnote w:id="0" w:type="separator"><w:p><w:r><w:drawing r:embed="rEndSeparatorImage"/></w:r></w:p></w:endnote>
+  <w:endnote w:id="1" w:type="continuationNotice"><w:p><w:r><w:t>hidden endnote continuation notice</w:t></w:r></w:p></w:endnote>
+  <w:endnote w:id="8"><w:p><w:r><w:t>Visible endnote.</w:t></w:r></w:p></w:endnote>
+</w:endnotes>
+XML;
+        $parts['notes/_rels/separator-endnotes.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rEndSeparatorImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/end-separator.png"/>
+</Relationships>
+XML;
+        $parts['notes/media/end-separator.png'] = 'separator image bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $footnotes = $docx['footnotes'];
+        $endnotes = $docx['endnotes'];
+        $sidecars = $package['noteRelationshipSidecars'];
+
+        $t->same(1, $footnotes['count']);
+        $t->same(['5'], $footnotes['ids']);
+        $t->same(2, $footnotes['separatorCount']);
+        $t->same(['-1', '-2'], $footnotes['separatorIds']);
+        $t->same(['continuation-separator' => 1, 'separator' => 1], $footnotes['separatorTypeCounts']);
+        $t->same(2, $footnotes['separatorRelationshipCount']);
+        $t->same(['rFootSeparatorLink', 'rFootMissingImage'], $footnotes['separatorRelationshipIds']);
+        $t->same(2, $footnotes['separatorReferencedRelationshipCount']);
+        $t->same(0, $footnotes['separatorMissingRelationshipCount']);
+        $t->same(0, $footnotes['unreferencedRelationshipCount']);
+        $t->same(1, $footnotes['missingRelationshipTargetCount']);
+        $t->same(['missing-target-content-type', 'missing-target-part'], $footnotes['relationshipIssueCodes']);
+        $t->same('docx-note-separator-metadata-only', $footnotes['separatorReviewPolicy']);
+        $t->same('docx-note-separator-bytes-blocked', $footnotes['separatorByteExposurePolicy']);
+        $t->same('separator', $footnotes['separatorById']['-1']['type']);
+        $t->same(1, $footnotes['separatorById']['-1']['paragraphCount']);
+        $t->same(['rFootSeparatorLink'], $footnotes['separatorById']['-1']['relationshipIds']);
+        $t->same('note-separator', $footnotes['relationships']['rFootSeparatorLink']['referenceBacklinks'][0]['itemRole']);
+        $t->same('separator', $footnotes['relationships']['rFootSeparatorLink']['referenceBacklinks'][0]['separatorType']);
+        $t->same(true, $footnotes['relationships']['rFootSeparatorLink']['referenced']);
+        $t->same(false, $footnotes['relationships']['rFootSeparatorLink']['orphaned']);
+        $t->same('notes/media/missing-separator.bin', $footnotes['relationships']['rFootMissingImage']['targetPart']);
+        $t->same('kind=separator', $footnotes['relationships']['rFootMissingImage']['targetQuery']);
+        $t->same('image', $footnotes['relationships']['rFootMissingImage']['targetFragment']);
+
+        $t->same(1, $endnotes['count']);
+        $t->same(['8'], $endnotes['ids']);
+        $t->same(2, $endnotes['separatorCount']);
+        $t->same(['0', '1'], $endnotes['separatorIds']);
+        $t->same(['continuation-notice' => 1, 'separator' => 1], $endnotes['separatorTypeCounts']);
+        $t->same(1, $endnotes['separatorRelationshipCount']);
+        $t->same(['rEndSeparatorImage'], $endnotes['separatorRelationshipIds']);
+        $t->same(1, $endnotes['separatorReferencedRelationshipCount']);
+        $t->same(0, $endnotes['separatorMissingRelationshipCount']);
+        $t->same(0, $endnotes['unreferencedRelationshipCount']);
+        $t->same(1, $endnotes['existingRelationshipTargetCount']);
+        $t->same('notes/media/end-separator.png', $endnotes['relationships']['rEndSeparatorImage']['targetPart']);
+        $t->same('note-separator', $endnotes['relationships']['rEndSeparatorImage']['referenceBacklinks'][0]['itemRole']);
+
+        $t->same(2, $summary['footnotesSeparatorCount']);
+        $t->same(['continuation-separator' => 1, 'separator' => 1], $summary['footnotesSeparatorTypeCounts']);
+        $t->same(2, $summary['footnotesSeparatorRelationshipCount']);
+        $t->same(0, $summary['footnotesSeparatorMissingRelationshipCount']);
+        $t->same(2, $summary['endnotesSeparatorCount']);
+        $t->same(['continuation-notice' => 1, 'separator' => 1], $summary['endnotesSeparatorTypeCounts']);
+        $t->same(1, $summary['endnotesSeparatorRelationshipCount']);
+        $t->same(0, $summary['endnotesSeparatorMissingRelationshipCount']);
+        $t->same(3, $sidecars['referencedRelationshipCount']);
+        $t->same(0, $sidecars['unreferencedRelationshipCount']);
+        $t->same(1, $sidecars['missingTargetCount']);
+
+        $encoded = (string) json_encode($docx);
+        $t->true(!str_contains($encoded, 'hidden footnote separator text'), 'footnote separator text should stay metadata-only');
+        $t->true(!str_contains($encoded, 'hidden endnote continuation notice'), 'endnote separator text should stay metadata-only');
+    },
     'reports malformed docx footnotes and unexpected endnotes roots without aborting package ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

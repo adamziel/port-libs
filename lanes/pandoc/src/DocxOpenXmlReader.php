@@ -890,6 +890,10 @@ final class DocxOpenXmlReader
         $packageProvenance['footnotes'] = $footnotes['summary'];
         $packageProvenance['summary']['footnotesPart'] = $footnotesPart['partName'];
         $packageProvenance['summary']['footnotesCount'] = $footnotes['summary']['count'];
+        $packageProvenance['summary']['footnotesSeparatorCount'] = $footnotes['summary']['separatorCount'];
+        $packageProvenance['summary']['footnotesSeparatorTypeCounts'] = $footnotes['summary']['separatorTypeCounts'];
+        $packageProvenance['summary']['footnotesSeparatorRelationshipCount'] = $footnotes['summary']['separatorRelationshipCount'];
+        $packageProvenance['summary']['footnotesSeparatorMissingRelationshipCount'] = $footnotes['summary']['separatorMissingRelationshipCount'];
         $packageProvenance['summary']['footnotesInvalidXmlCount'] = $footnotes['summary']['invalidXmlCount'];
         $packageProvenance['summary']['footnotesInvalidRootCount'] = $footnotes['summary']['invalidRootCount'];
         $packageProvenance['summary']['footnotesIssueCount'] = $footnotes['summary']['issueCount'];
@@ -897,6 +901,10 @@ final class DocxOpenXmlReader
         $packageProvenance['endnotes'] = $endnotes['summary'];
         $packageProvenance['summary']['endnotesPart'] = $endnotesPart['partName'];
         $packageProvenance['summary']['endnotesCount'] = $endnotes['summary']['count'];
+        $packageProvenance['summary']['endnotesSeparatorCount'] = $endnotes['summary']['separatorCount'];
+        $packageProvenance['summary']['endnotesSeparatorTypeCounts'] = $endnotes['summary']['separatorTypeCounts'];
+        $packageProvenance['summary']['endnotesSeparatorRelationshipCount'] = $endnotes['summary']['separatorRelationshipCount'];
+        $packageProvenance['summary']['endnotesSeparatorMissingRelationshipCount'] = $endnotes['summary']['separatorMissingRelationshipCount'];
         $packageProvenance['summary']['endnotesInvalidXmlCount'] = $endnotes['summary']['invalidXmlCount'];
         $packageProvenance['summary']['endnotesInvalidRootCount'] = $endnotes['summary']['invalidRootCount'];
         $packageProvenance['summary']['endnotesIssueCount'] = $endnotes['summary']['issueCount'];
@@ -11383,13 +11391,26 @@ final class DocxOpenXmlReader
      * @param array<string, mixed> $relationshipDiagnostics
      * @return array<string, mixed>
      */
-    private function noteCollectionSummary(array $items, array $byId, array $relationshipDiagnostics, array $xmlProvenance = []): array
-    {
+    private function noteCollectionSummary(
+        array $items,
+        array $byId,
+        array $relationshipDiagnostics,
+        array $xmlProvenance = [],
+        array $separatorItems = []
+    ): array {
         $relationshipBacklinks = [];
         $referencedRelationshipIds = [];
         $missingReferencedRelationshipIds = [];
         $reconciledItems = [];
         $reconciledById = [];
+        $reconciledSeparatorItems = [];
+        $reconciledSeparatorById = [];
+        $separatorIds = [];
+        $separatorRelationshipIds = [];
+        $separatorReferencedRelationshipIds = [];
+        $separatorMissingRelationshipIds = [];
+        $separatorDuplicateRelationshipIds = [];
+        $separatorTypeCounts = [];
         $relationships = is_array($relationshipDiagnostics['byId'] ?? null) ? $relationshipDiagnostics['byId'] : [];
         $relationshipRecords = is_array($relationshipDiagnostics['relationshipRecords'] ?? null) ? $relationshipDiagnostics['relationshipRecords'] : [];
         $relationshipRecordsById = [];
@@ -11473,6 +11494,77 @@ final class DocxOpenXmlReader
             }
         }
 
+        foreach ($separatorItems as $separatorItem) {
+            $relationshipIds = is_array($separatorItem['relationshipIds'] ?? null) ? $separatorItem['relationshipIds'] : [];
+            $knownRelationshipIds = [];
+            $itemDuplicateRelationshipIds = [];
+            $itemReferencedRelationships = [];
+            $itemReferencedRelationshipItems = [];
+            $itemReferencedRelationshipRecords = [];
+            $itemRelationshipBacklinks = [];
+            $separatorId = is_string($separatorItem['id'] ?? null) ? $separatorItem['id'] : '';
+            $separatorType = is_string($separatorItem['type'] ?? null) && $separatorItem['type'] !== ''
+                ? $separatorItem['type']
+                : 'reserved';
+            $separatorTypeCounts[$separatorType] = ($separatorTypeCounts[$separatorType] ?? 0) + 1;
+            $this->appendUniqueString($separatorIds, $separatorId);
+            foreach ($relationshipIds as $relationshipId) {
+                if (!is_string($relationshipId) || $relationshipId === '') {
+                    continue;
+                }
+
+                $backlink = [
+                    'relationshipId' => $relationshipId,
+                    'itemId' => $separatorId,
+                    'sourceType' => is_string($separatorItem['sourceType'] ?? null) ? $separatorItem['sourceType'] : null,
+                    'itemRole' => 'note-separator',
+                    'separatorType' => $separatorType,
+                    'known' => isset($relationships[$relationshipId]),
+                ];
+                $this->appendUniqueString($referencedRelationshipIds, $relationshipId);
+                $this->appendUniqueString($separatorRelationshipIds, $relationshipId);
+                if (isset($relationships[$relationshipId])) {
+                    $this->appendUniqueString($knownRelationshipIds, $relationshipId);
+                    $this->appendUniqueString($separatorReferencedRelationshipIds, $relationshipId);
+                    $itemReferencedRelationships[$relationshipId] = $relationships[$relationshipId];
+                    $itemReferencedRelationshipItems[] = $relationships[$relationshipId];
+                } else {
+                    $this->appendUniqueString($missingReferencedRelationshipIds, $relationshipId);
+                    $this->appendUniqueString($separatorMissingRelationshipIds, $relationshipId);
+                }
+                if (isset($duplicateRelationshipIdSet[$relationshipId])) {
+                    $this->appendUniqueString($itemDuplicateRelationshipIds, $relationshipId);
+                    $this->appendUniqueString($separatorDuplicateRelationshipIds, $relationshipId);
+                }
+                foreach ($relationshipRecordsById[$relationshipId] ?? [] as $record) {
+                    $itemReferencedRelationshipRecords[] = $record;
+                }
+
+                $relationshipBacklinks[$relationshipId] ??= [];
+                $relationshipBacklinks[$relationshipId][] = $backlink;
+                $itemRelationshipBacklinks[] = $backlink;
+            }
+
+            $separatorItem['knownRelationshipIds'] = $knownRelationshipIds;
+            $separatorItem['knownRelationshipCount'] = count($knownRelationshipIds);
+            $separatorItem['referencedRelationshipIds'] = $knownRelationshipIds;
+            $separatorItem['referencedRelationshipCount'] = count($knownRelationshipIds);
+            $separatorItem['referencedDuplicateRelationshipIds'] = $itemDuplicateRelationshipIds;
+            $separatorItem['referencedRelationships'] = $itemReferencedRelationships;
+            $separatorItem['referencedRelationshipItems'] = $itemReferencedRelationshipItems;
+            $separatorItem['missingRelationshipCount'] = count(is_array($separatorItem['missingRelationshipIds'] ?? null) ? $separatorItem['missingRelationshipIds'] : []);
+            $separatorItem['duplicateRelationshipIds'] = $itemDuplicateRelationshipIds;
+            $separatorItem['duplicateRelationshipCount'] = count($itemDuplicateRelationshipIds);
+            $separatorItem['referencedRelationshipRecordCount'] = count($itemReferencedRelationshipRecords);
+            $separatorItem['referencedRelationshipRecords'] = $itemReferencedRelationshipRecords;
+            $separatorItem['relationshipBacklinks'] = $itemRelationshipBacklinks;
+            $reconciledSeparatorItems[] = $separatorItem;
+            if ($separatorId !== '') {
+                $reconciledSeparatorById[$separatorId] = $separatorItem;
+            }
+        }
+        ksort($separatorTypeCounts);
+
         $unreferencedRelationshipIds = [];
         foreach (($relationshipDiagnostics['relationshipIds'] ?? []) as $relationshipId) {
             if (!is_string($relationshipId) || $relationshipId === '') {
@@ -11511,6 +11603,21 @@ final class DocxOpenXmlReader
             'ids' => array_column($reconciledItems, 'id'),
             'byId' => $reconciledById,
             'items' => $reconciledItems,
+            'separatorCount' => count($reconciledSeparatorItems),
+            'separatorIds' => $separatorIds,
+            'separatorTypeCounts' => $separatorTypeCounts,
+            'separatorItems' => $reconciledSeparatorItems,
+            'separatorById' => $reconciledSeparatorById,
+            'separatorRelationshipCount' => count($separatorRelationshipIds),
+            'separatorRelationshipIds' => $separatorRelationshipIds,
+            'separatorReferencedRelationshipCount' => count($separatorReferencedRelationshipIds),
+            'separatorReferencedRelationshipIds' => $separatorReferencedRelationshipIds,
+            'separatorMissingRelationshipCount' => count($separatorMissingRelationshipIds),
+            'separatorMissingRelationshipIds' => $separatorMissingRelationshipIds,
+            'separatorDuplicateRelationshipCount' => count($separatorDuplicateRelationshipIds),
+            'separatorDuplicateRelationshipIds' => $separatorDuplicateRelationshipIds,
+            'separatorByteExposurePolicy' => 'docx-note-separator-bytes-blocked',
+            'separatorReviewPolicy' => 'docx-note-separator-metadata-only',
             'validXml' => $xmlProvenance['validXml'] ?? null,
             'xmlParseError' => $xmlProvenance['xmlParseError'] ?? null,
             'validRoot' => $xmlProvenance['validRoot'] ?? null,
@@ -45151,6 +45258,7 @@ final class DocxOpenXmlReader
         $items = [];
         $byId = [];
         $nodes = [];
+        $separatorItems = [];
         foreach ($root->childNodes as $note) {
             if (!$note instanceof \DOMElement || $note->namespaceURI !== self::NS_W || $note->localName !== $itemName) {
                 continue;
@@ -45158,6 +45266,10 @@ final class DocxOpenXmlReader
 
             $id = $note->getAttributeNS(self::NS_W, 'id');
             $type = strtolower($note->getAttributeNS(self::NS_W, 'type'));
+            if (in_array($type, ['separator', 'continuationseparator', 'continuationnotice'], true)) {
+                $separatorItems[] = $this->noteSeparatorItem($note, $sourceType, $relationships);
+                continue;
+            }
             if ($id === '' || str_starts_with($id, '-') || in_array($type, ['separator', 'continuationseparator', 'continuationnotice'], true)) {
                 continue;
             }
@@ -45183,8 +45295,65 @@ final class DocxOpenXmlReader
         }
 
         return [
-            'summary' => $this->noteCollectionSummary($items, $byId, $relationshipDiagnostics, $xmlProvenance),
+            'summary' => $this->noteCollectionSummary($items, $byId, $relationshipDiagnostics, $xmlProvenance, $separatorItems),
             'nodes' => $nodes,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $relationships
+     * @return array<string, mixed>
+     */
+    private function noteSeparatorItem(\DOMElement $note, string $sourceType, array $relationships): array
+    {
+        $id = $this->emptyStringToNull($note->getAttributeNS(self::NS_W, 'id'));
+        $rawType = strtolower($note->getAttributeNS(self::NS_W, 'type'));
+        $type = match ($rawType) {
+            'continuationseparator' => 'continuation-separator',
+            'continuationnotice' => 'continuation-notice',
+            'separator' => 'separator',
+            default => $rawType === '' ? 'reserved' : $rawType,
+        };
+        $paragraphCount = 0;
+        $runCount = 0;
+        $drawingCount = 0;
+        $stack = [$note];
+        while ($stack !== []) {
+            $current = array_pop($stack);
+            if (!$current instanceof \DOMElement) {
+                continue;
+            }
+            if ($current !== $note && $current->namespaceURI === self::NS_W) {
+                if ($current->localName === 'p') {
+                    ++$paragraphCount;
+                } elseif ($current->localName === 'r') {
+                    ++$runCount;
+                } elseif ($current->localName === 'drawing' || $current->localName === 'pict') {
+                    ++$drawingCount;
+                }
+            }
+            foreach ($current->childNodes as $child) {
+                if ($child instanceof \DOMElement) {
+                    $stack[] = $child;
+                }
+            }
+        }
+
+        $relationshipIds = $this->relationshipIdsInElement($note);
+
+        return [
+            'id' => $id,
+            'sourceType' => $sourceType,
+            'type' => $type,
+            'rawType' => $rawType === '' ? null : $rawType,
+            'paragraphCount' => $paragraphCount,
+            'runCount' => $runCount,
+            'drawingCount' => $drawingCount,
+            'relationshipCount' => count($relationshipIds),
+            'relationshipIds' => $relationshipIds,
+            'missingRelationshipIds' => $this->missingRelationshipIds($relationshipIds, $relationships),
+            'byteExposurePolicy' => 'docx-note-separator-bytes-blocked',
+            'reviewPolicy' => 'docx-note-separator-metadata-only',
         ];
     }
 
