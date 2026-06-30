@@ -475,6 +475,43 @@ return [
         }
     },
 
+    'seeds heading bookmark ids after image drawing ids' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts, $jpeg250x250At120Dpi): void {
+        $mediaDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'port-libs-docx-writer-media-' . getmypid() . '-' . bin2hex(random_bytes(4));
+        if (!mkdir($mediaDir, 0777, true) && !is_dir($mediaDir)) {
+            throw new RuntimeException('Unable to create DOCX writer media fixture directory');
+        }
+        $imageBytes = $jpeg250x250At120Dpi();
+        $imagePath = $mediaDir . DIRECTORY_SEPARATOR . 'lalune.jpg';
+        if (file_put_contents($imagePath, $imageBytes) === false) {
+            throw new RuntimeException('Unable to write DOCX writer media fixture');
+        }
+
+        try {
+            $document = $doc([
+                $paragraph([
+                    new AstNode('image', [
+                        'id' => 'fig:testimg',
+                        'url' => 'lalune.jpg',
+                        'title' => 'fig:',
+                    ], [$text('testimg')]),
+                ]),
+                new AstNode('heading', ['id' => 'after-image', 'level' => 1], [$text('After image')]),
+            ]);
+
+            [, $parts] = $packageParts((new DocxWriter(['mediaBasePath' => $mediaDir]))->write($document));
+            $documentXml = $parts['word/document.xml'];
+
+            $t->contains('<wp:docPr descr="testimg" title="fig:" id="10" name="Picture"/>', $documentXml);
+            $t->contains('<pic:cNvPr descr="lalune.jpg" id="11" name="Picture"/>', $documentXml);
+            $t->contains('<w:bookmarkStart w:id="12" w:name="fig:testimg"/>', $documentXml);
+            $t->contains('<w:bookmarkStart w:id="13" w:name="after-image"/>', $documentXml);
+            $t->contains('<w:bookmarkEnd w:id="13"/>', $documentXml);
+        } finally {
+            @unlink($imagePath);
+            @rmdir($mediaDir);
+        }
+    },
+
     'deduplicates inline image media and preserves later hyperlink relationship ids' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
         $mediaDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'port-libs-docx-writer-media-' . getmypid() . '-' . bin2hex(random_bytes(4));
         if (!mkdir($mediaDir, 0777, true) && !is_dir($mediaDir)) {
@@ -630,6 +667,35 @@ return [
         $t->same('http://wikipedia.org/', $documentRels->firstOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink')?->target);
         $t->same('rId10', $footnoteRels->firstOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink')?->id);
         $t->same('http://wikipedia.org/', $footnoteRels->firstOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink')?->target);
+    },
+
+    'uses document dynamic ids for notes around hyperlinks and bookmarks' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
+        $document = $doc([
+            $paragraph([
+                $text('First'),
+                new AstNode('note', [], [$paragraph([$text('first note')])]),
+                new AstNode('space'),
+                new AstNode('link', ['url' => 'http://example.com/'], [$text('link')]),
+                new AstNode('space'),
+                $text('second'),
+                new AstNode('note', [], [$paragraph([$text('second note')])]),
+            ]),
+            new AstNode('heading', ['id' => 'after-notes', 'level' => 2], [$text('After notes')]),
+        ]);
+
+        [, $parts] = $packageParts((new DocxWriter())->write($document));
+        $documentXml = $parts['word/document.xml'];
+        $footnotesXml = $parts['word/footnotes.xml'];
+        $documentRels = OpcRelationships::fromXml($parts['word/_rels/document.xml.rels'], '/word/document.xml');
+
+        $t->contains('<w:footnoteReference w:id="9"/>', $documentXml);
+        $t->contains('<w:hyperlink r:id="rId10">', $documentXml);
+        $t->contains('<w:footnoteReference w:id="11"/>', $documentXml);
+        $t->contains('<w:bookmarkStart w:id="12" w:name="after-notes"/>', $documentXml);
+        $t->contains('<w:footnote w:id="9">', $footnotesXml);
+        $t->contains('<w:footnote w:id="11">', $footnotesXml);
+        $t->true(!str_contains($footnotesXml, '<w:footnote w:id="10">'), 'Footnote id collided with hyperlink relationship id');
+        $t->same('http://example.com/', $documentRels->byId('rId10')?->target);
     },
 
     'emits comment ranges and comments part records from native comment spans' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {

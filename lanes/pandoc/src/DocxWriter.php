@@ -148,6 +148,7 @@ final class DocxWriter
         }
 
         $this->resetState();
+        $this->seedBookmarkIds($document);
         $documentXml = $this->documentXml($document);
         $commentsXml = $this->commentsXml();
         $footnotesXml = $this->footnotesXml();
@@ -252,6 +253,90 @@ final class DocxWriter
         $this->nextFootnoteId = 9;
         $this->nextBookmarkId = 9;
         $this->nextNumberingId = 1001;
+    }
+
+    private function seedBookmarkIds(AstNode $document): void
+    {
+        $nextId = $this->nextDocumentRelationshipId;
+        $hyperlinkRelationshipKeys = [];
+        $mediaRelationshipKeys = [];
+        foreach ($document->children as $child) {
+            if ($child instanceof AstNode) {
+                $this->countDynamicIdsBeforeBookmarks($child, 'document', $nextId, $hyperlinkRelationshipKeys, $mediaRelationshipKeys);
+            }
+        }
+
+        $this->nextBookmarkId = max($this->nextBookmarkId, $nextId);
+    }
+
+    /**
+     * @param array<string, true> $hyperlinkRelationshipKeys
+     * @param array<string, true> $mediaRelationshipKeys
+     */
+    private function countDynamicIdsBeforeBookmarks(
+        AstNode $node,
+        string $context,
+        int &$nextId,
+        array &$hyperlinkRelationshipKeys,
+        array &$mediaRelationshipKeys
+    ): void {
+        if ($node->type === 'note') {
+            ++$nextId;
+            foreach ($node->children as $child) {
+                if ($child instanceof AstNode) {
+                    $this->countDynamicIdsBeforeBookmarks($child, 'footnote', $nextId, $hyperlinkRelationshipKeys, $mediaRelationshipKeys);
+                }
+            }
+
+            return;
+        }
+
+        if ($node->type === 'link') {
+            $target = (string) $node->attr('url', $node->attr('href', ''));
+            if ($target !== '' && !str_starts_with($target, '#')) {
+                $key = OpcRelationship::TARGET_MODE_EXTERNAL . "\0" . $target;
+                if (!isset($hyperlinkRelationshipKeys[$key])) {
+                    $hyperlinkRelationshipKeys[$key] = true;
+                    ++$nextId;
+                }
+            }
+        }
+
+        if ($node->type === 'image') {
+            if ($context === 'document') {
+                $source = (string) $node->attr('url', $node->attr('src', ''));
+                $media = $source === '' ? null : $this->resolveImageMedia($source);
+                if ($media !== null) {
+                    $key = $this->mediaSourceKey($source);
+                    if (!isset($mediaRelationshipKeys[$key])) {
+                        $mediaRelationshipKeys[$key] = true;
+                        ++$nextId;
+                    }
+                    $nextId += 2;
+                    if ((string) $node->attr('id', '') !== '') {
+                        ++$nextId;
+                    }
+                }
+            }
+
+            return;
+        }
+
+        if ($node->type === 'span' && $this->hasClass($node, 'comment-start')) {
+            foreach ($node->children as $child) {
+                if ($child instanceof AstNode) {
+                    $this->countDynamicIdsBeforeBookmarks($child, 'comment', $nextId, $hyperlinkRelationshipKeys, $mediaRelationshipKeys);
+                }
+            }
+
+            return;
+        }
+
+        foreach ($node->children as $child) {
+            if ($child instanceof AstNode) {
+                $this->countDynamicIdsBeforeBookmarks($child, $context, $nextId, $hyperlinkRelationshipKeys, $mediaRelationshipKeys);
+            }
+        }
     }
 
     private function contentTypesXml(): string
@@ -2174,10 +2259,8 @@ XML;
 
     private function footnoteReferenceXml(AstNode $node): string
     {
-        $id = $this->nextFootnoteId++;
-        if ($this->nextDocumentRelationshipId <= $id) {
-            $this->nextDocumentRelationshipId = $id + 1;
-        }
+        $id = $this->nextDocumentDynamicId();
+        $this->nextFootnoteId = max($this->nextFootnoteId, $id + 1);
 
         $this->footnotes[] = [
             'id' => $id,
