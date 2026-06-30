@@ -588,6 +588,9 @@ final class BibtexCslProcessor
                 $parts[] = $label . ' ' . (string) $item[$field];
             }
         }
+        if (($item['URL-label'] ?? '') !== '') {
+            $parts[] = 'URL label: ' . rtrim((string) $item['URL-label'], '.');
+        }
         if (($item['URL'] ?? '') !== '') {
             $parts[] = (string) $item['URL'];
         }

@@ -3977,6 +3977,101 @@ XML);
         $t->contains('Date addendum: first source capture', $blocks);
         $t->contains('Event date addendum: hybrid review window', $blocks);
     },
+    'carries biblatex url label aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@online{described-url,
+  author         = {Ng, Nia},
+  title          = {URL Description Packet},
+  date           = {2026},
+  url            = {https://example.test/described-url},
+  urldescription = {primary source snapshot}
+}
+
+@misc{title-url,
+  author   = {Roe, Pat},
+  title    = {URL Title Packet},
+  year     = {2025},
+  url      = {https://example.test/title-url},
+  urltitle = {display caption}
+}
+
+@misc{hyphen-label,
+  author    = {Desk, Archive},
+  title     = {Hyphen URL Label Packet},
+  date      = {2024},
+  url       = {https://example.test/hyphen-label},
+  url-label = {archived landing page}
+}
+
+@misc{label-only,
+  title    = {Label Only URL Metadata},
+  date     = {2023},
+  urltitle = {missing URL caption}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $described = $items['described-url'];
+        $title = $items['title-url'];
+        $hyphen = $items['hyphen-label'];
+        $labelOnly = $items['label-only'];
+
+        $t->same('primary source snapshot', $described['URL-label']);
+        $t->same('display caption', $title['URL-label']);
+        $t->same('archived landing page', $hyphen['URL-label']);
+        $t->same('missing URL caption', $labelOnly['URL-label']);
+        $t->same('primary source snapshot', $described['rawBibtex']['fields']['urldescription']);
+        $t->same('display caption', $title['rawBibtex']['fields']['urltitle']);
+        $t->same('archived landing page', $hyphen['rawBibtex']['fields']['url-label']);
+        $t->same('Label Only URL Metadata. 2023. URL label: missing URL caption.', $processor->renderBibliographyText($labelOnly));
+        $t->same(
+            'Nia Ng. URL Description Packet. 2026. URL label: primary source snapshot. https://example.test/described-url.',
+            $processor->renderBibliographyText($described)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="url-label"/>
+        <text variable="url"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="url-description"/>
+      <text variable="url"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('primary source snapshot', $styled->item('described-url')['urlLabel'] ?? null);
+        $t->same('[URL Description Packet | primary source snapshot | https://example.test/described-url; URL Title Packet | display caption | https://example.test/title-url; Hyphen URL Label Packet | archived landing page | https://example.test/hyphen-label]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'described-url', 'text' => '[@described-url]']),
+            new AstNode('citation', ['id' => 'title-url', 'text' => '[@title-url]']),
+            new AstNode('citation', ['id' => 'hyphen-label', 'text' => '[@hyphen-label]']),
+        ]));
+        $t->same('URL Description Packet :: primary source snapshot :: https://example.test/described-url', $styled->renderBibliographyEntry('described-url'));
+
+        $document = (new MarkdownReader())->read('URL labels cite @described-url, [@title-url], and @hyphen-label.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $bibliographyDocument = new AstNode('document', [], [$handoff['bibliography']]);
+        $blocks = (new WordPressBlockWriter())->write($bibliographyDocument);
+
+        $t->same(['described-url', 'title-url', 'hyphen-label'], $handoff['citedKeys']);
+        $t->same('primary source snapshot', $handoff['items'][0]['URL-label']);
+        $t->same('display caption', $handoff['bibliography']->children[1]->attr('cslItem')['URL-label'] ?? null);
+        $t->contains('URL label: primary source snapshot', $blocks);
+        $t->contains('URL label: display caption', $blocks);
+        $t->contains('URL label: archived landing page', $blocks);
+    },
     'carries legacy biblatex label date metadata in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @article{legacy-label-date,
