@@ -49,6 +49,17 @@ $namedRawHtmlCases = [
     ],
 ];
 
+$extendedRawHtmlContainerCases = [
+    'noscript' => [
+        "before\n<noscript>\nraw *fallback*\n</noscript>\nafter",
+        "<noscript>\nraw *fallback*\n</noscript>",
+    ],
+    'xmp' => [
+        "before\n<xmp>\nraw [label]\n</xmp>\nafter",
+        "<xmp>\nraw [label]\n</xmp>",
+    ],
+];
+
 $topLevelNamedRawHtmlCases = [
     'pre' => [
         "<pre>\nraw *markdown*\n</pre>\n\nAfter",
@@ -90,6 +101,18 @@ return [
     'maps commonmark special raw html starts as paragraph interrupting blocks' =>
         static function (TestRunner $t) use ($blockTypes, $specialRawHtmlCases): void {
             foreach ($specialRawHtmlCases as $name => [$markdown, $expectedRaw]) {
+                $document = (new MarkdownReader(['format' => 'commonmark']))->read($markdown);
+
+                $t->same(['paragraph', 'raw_html', 'paragraph'], $blockTypes($document), $name);
+                $t->same('before', $document->children[0]->attr('text'), $name . ' leading paragraph');
+                $t->same($expectedRaw, $document->children[1]->attr('html'), $name . ' raw html');
+                $t->same('after', $document->children[2]->attr('text'), $name . ' trailing paragraph');
+            }
+        },
+
+    'maps commonmark extended raw html containers as paragraph interrupting blocks' =>
+        static function (TestRunner $t) use ($blockTypes, $extendedRawHtmlContainerCases): void {
+            foreach ($extendedRawHtmlContainerCases as $name => [$markdown, $expectedRaw]) {
                 $document = (new MarkdownReader(['format' => 'commonmark']))->read($markdown);
 
                 $t->same(['paragraph', 'raw_html', 'paragraph'], $blockTypes($document), $name);
@@ -208,7 +231,7 @@ return [
         },
 
     'records commonmark raw html paragraph interrupt completion mapped-case count' =>
-        static function (TestRunner $t) use ($specialRawHtmlCases, $namedRawHtmlCases, $topLevelNamedRawHtmlCases, $blockTagRawHtmlCases, $closingTagRawHtmlCases): void {
-            $t->same(18, count($specialRawHtmlCases) + count($namedRawHtmlCases) + count($topLevelNamedRawHtmlCases) + count($blockTagRawHtmlCases) + count($closingTagRawHtmlCases) + 4);
+        static function (TestRunner $t) use ($specialRawHtmlCases, $namedRawHtmlCases, $topLevelNamedRawHtmlCases, $blockTagRawHtmlCases, $closingTagRawHtmlCases, $extendedRawHtmlContainerCases): void {
+            $t->same(20, count($specialRawHtmlCases) + count($namedRawHtmlCases) + count($topLevelNamedRawHtmlCases) + count($blockTagRawHtmlCases) + count($closingTagRawHtmlCases) + count($extendedRawHtmlContainerCases) + 4);
         },
 ];
