@@ -26872,15 +26872,55 @@ final class XmlHtmlDom
      */
     private static function progressMeasurementSummary(\DOMElement $progress, bool $includeLabels): array
     {
-        $max = self::positiveNumericAttribute($progress, 'max', 1.0);
-        $value = self::numericAttribute($progress, 'value', null);
-        $value = $value === null ? null : self::boundedNumber($value, 0.0, $max);
+        $maxRaw = self::attributeOrNull($progress, 'max');
+        $maxParsed = $maxRaw === null ? null : self::finiteNumericToken($maxRaw);
+        $max = $maxParsed !== null && $maxParsed > 0.0 ? $maxParsed : 1.0;
+        $valueRaw = self::attributeOrNull($progress, 'value');
+        $valueParsed = $valueRaw === null ? null : self::finiteNumericToken($valueRaw);
+        $value = $valueParsed === null ? null : self::boundedNumber($valueParsed, 0.0, $max);
+        $issues = [];
+        if ($maxRaw !== null && $maxParsed === null) {
+            $issues[] = ['code' => 'invalid-progress-max', 'maxRaw' => $maxRaw];
+        } elseif ($maxParsed !== null && $maxParsed <= 0.0) {
+            $issues[] = ['code' => 'non-positive-progress-max', 'maxRaw' => $maxRaw, 'max' => $maxParsed];
+        }
+        if ($valueRaw !== null && $valueParsed === null) {
+            $issues[] = ['code' => 'invalid-progress-value', 'valueRaw' => $valueRaw];
+        } elseif ($valueParsed !== null && $valueParsed < 0.0) {
+            $issues[] = ['code' => 'progress-value-underflow', 'value' => $valueParsed];
+        } elseif ($valueParsed !== null && $valueParsed > $max) {
+            $issues[] = ['code' => 'progress-value-overflow', 'value' => $valueParsed, 'max' => $max];
+        }
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
         $summary = [
             'measurement' => 'progress',
             'value' => $value,
             'max' => $max,
             'position' => $value === null ? null : $value / $max,
             'indeterminate' => $value === null,
+            'progressReviewPolicy' => 'progress-element-static-value-review',
+            'progressMaxRaw' => $maxRaw,
+            'progressMaxParsed' => $maxParsed,
+            'progressMax' => $max,
+            'progressMaxValid' => $maxRaw === null ? null : ($maxParsed !== null && $maxParsed > 0.0),
+            'progressMaxDefaulted' => $maxRaw === null || $maxParsed === null || $maxParsed <= 0.0,
+            'progressValueRaw' => $valueRaw,
+            'progressValueParsed' => $valueParsed,
+            'progressValue' => $value,
+            'progressValueValid' => $valueRaw === null ? null : $valueParsed !== null,
+            'progressValueDefaulted' => $valueRaw === null || $valueParsed === null,
+            'progressValueUnderflow' => $valueParsed !== null && $valueParsed < 0.0,
+            'progressValueOverflow' => $valueParsed !== null && $valueParsed > $max,
+            'progressValueClamped' => $valueParsed !== null && $value !== $valueParsed,
+            'progressPosition' => $value === null ? null : $value / $max,
+            'progressIndeterminate' => $value === null,
+            'progressReviewOnlyNoBrowserValidation' => true,
+            'progressIssues' => $issues,
+            'progressIssueCodes' => $issueCodes,
+            'progressValid' => $issues === [],
         ];
 
         if ($includeLabels) {
@@ -26895,17 +26935,113 @@ final class XmlHtmlDom
      */
     private static function meterMeasurementSummary(\DOMElement $meter, bool $includeLabels): array
     {
-        $min = self::numericAttribute($meter, 'min', 0.0) ?? 0.0;
-        $max = self::numericAttribute($meter, 'max', 1.0) ?? 1.0;
-        if ($max < $min) {
+        $minRaw = self::attributeOrNull($meter, 'min');
+        $minParsed = $minRaw === null ? null : self::finiteNumericToken($minRaw);
+        $min = $minParsed ?? 0.0;
+        $maxRaw = self::attributeOrNull($meter, 'max');
+        $maxParsed = $maxRaw === null ? null : self::finiteNumericToken($maxRaw);
+        $maxCandidate = $maxParsed ?? 1.0;
+        $max = $maxCandidate;
+        if ($maxCandidate < $min) {
             $max = $min;
         }
+        $valueRaw = self::attributeOrNull($meter, 'value');
+        $valueParsed = $valueRaw === null ? null : self::finiteNumericToken($valueRaw);
+        $valueCandidate = $valueParsed ?? $min;
+        $value = self::boundedNumber($valueCandidate, $min, $max);
+
+        $lowRaw = self::attributeOrNull($meter, 'low');
+        $lowParsed = $lowRaw === null ? null : self::finiteNumericToken($lowRaw);
+        $highRaw = self::attributeOrNull($meter, 'high');
+        $highParsed = $highRaw === null ? null : self::finiteNumericToken($highRaw);
+        $optimumRaw = self::attributeOrNull($meter, 'optimum');
+        $optimumParsed = $optimumRaw === null ? null : self::finiteNumericToken($optimumRaw);
+        $lowBoundary = $lowParsed === null ? $min : self::boundedNumber($lowParsed, $min, $max);
+        $highBoundary = $highParsed === null ? $max : self::boundedNumber($highParsed, $min, $max);
+        $optimumCandidate = $optimumParsed ?? (($min + $max) / 2.0);
+        $optimumEffective = self::boundedNumber($optimumCandidate, $min, $max);
+        $thresholdOrderValid = $lowParsed === null || $highParsed === null || $lowParsed <= $highParsed;
+        $issues = [];
+        if ($minRaw !== null && $minParsed === null) {
+            $issues[] = ['code' => 'invalid-meter-min', 'minRaw' => $minRaw];
+        }
+        if ($maxRaw !== null && $maxParsed === null) {
+            $issues[] = ['code' => 'invalid-meter-max', 'maxRaw' => $maxRaw];
+        } elseif ($maxParsed !== null && $maxParsed < $min) {
+            $issues[] = ['code' => 'meter-max-less-than-min', 'min' => $min, 'max' => $maxParsed];
+        }
+        if ($valueRaw !== null && $valueParsed === null) {
+            $issues[] = ['code' => 'invalid-meter-value', 'valueRaw' => $valueRaw];
+        } elseif ($valueParsed !== null && $valueParsed < $min) {
+            $issues[] = ['code' => 'meter-value-underflow', 'value' => $valueParsed, 'min' => $min];
+        } elseif ($valueParsed !== null && $valueParsed > $max) {
+            $issues[] = ['code' => 'meter-value-overflow', 'value' => $valueParsed, 'max' => $max];
+        }
+        if ($lowRaw !== null && $lowParsed === null) {
+            $issues[] = ['code' => 'invalid-meter-low', 'lowRaw' => $lowRaw];
+        }
+        if ($highRaw !== null && $highParsed === null) {
+            $issues[] = ['code' => 'invalid-meter-high', 'highRaw' => $highRaw];
+        }
+        if ($optimumRaw !== null && $optimumParsed === null) {
+            $issues[] = ['code' => 'invalid-meter-optimum', 'optimumRaw' => $optimumRaw];
+        }
+        if (!$thresholdOrderValid) {
+            $issues[] = [
+                'code' => 'meter-low-greater-than-high',
+                'low' => $lowParsed,
+                'high' => $highParsed,
+            ];
+        }
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
 
         $summary = [
             'measurement' => 'meter',
             'min' => $min,
             'max' => $max,
-            'value' => self::boundedNumber(self::numericAttribute($meter, 'value', $min) ?? $min, $min, $max),
+            'value' => $value,
+            'meterReviewPolicy' => 'meter-element-static-range-review',
+            'meterMinRaw' => $minRaw,
+            'meterMinParsed' => $minParsed,
+            'meterMin' => $min,
+            'meterMinValid' => $minRaw === null ? null : $minParsed !== null,
+            'meterMinDefaulted' => $minRaw === null || $minParsed === null,
+            'meterMaxRaw' => $maxRaw,
+            'meterMaxParsed' => $maxParsed,
+            'meterMax' => $max,
+            'meterMaxValid' => $maxRaw === null ? null : $maxParsed !== null,
+            'meterMaxDefaulted' => $maxRaw === null || $maxParsed === null,
+            'meterMaxAdjustedToMin' => $maxCandidate < $min,
+            'meterValueRaw' => $valueRaw,
+            'meterValueParsed' => $valueParsed,
+            'meterValue' => $value,
+            'meterValueValid' => $valueRaw === null ? null : $valueParsed !== null,
+            'meterValueDefaulted' => $valueRaw === null || $valueParsed === null,
+            'meterValueUnderflow' => $valueParsed !== null && $valueParsed < $min,
+            'meterValueOverflow' => $valueParsed !== null && $valueParsed > $max,
+            'meterValueClamped' => $valueParsed !== null && $value !== $valueParsed,
+            'meterLowRaw' => $lowRaw,
+            'meterLowParsed' => $lowParsed,
+            'meterLowBoundary' => $lowBoundary,
+            'meterLowValid' => $lowRaw === null ? null : $lowParsed !== null,
+            'meterHighRaw' => $highRaw,
+            'meterHighParsed' => $highParsed,
+            'meterHighBoundary' => $highBoundary,
+            'meterHighValid' => $highRaw === null ? null : $highParsed !== null,
+            'meterOptimumRaw' => $optimumRaw,
+            'meterOptimumParsed' => $optimumParsed,
+            'meterOptimumEffective' => $optimumEffective,
+            'meterOptimumValid' => $optimumRaw === null ? null : $optimumParsed !== null,
+            'meterThresholdOrderValid' => $thresholdOrderValid,
+            'meterValueZone' => self::meterRangeZone($value, $lowBoundary, $highBoundary),
+            'meterOptimumZone' => self::meterRangeZone($optimumEffective, $lowBoundary, $highBoundary),
+            'meterReviewOnlyNoBrowserValidation' => true,
+            'meterIssues' => $issues,
+            'meterIssueCodes' => $issueCodes,
+            'meterValid' => $issues === [],
         ];
 
         if ($includeLabels) {
@@ -26920,6 +27056,20 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    private static function meterRangeZone(float $value, float $low, float $high): string
+    {
+        $lower = min($low, $high);
+        $upper = max($low, $high);
+        if ($value < $lower) {
+            return 'below-low';
+        }
+        if ($value > $upper) {
+            return 'above-high';
+        }
+
+        return 'between-low-high';
     }
 
     /**
