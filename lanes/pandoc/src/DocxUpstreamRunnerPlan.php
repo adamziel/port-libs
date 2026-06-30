@@ -11,6 +11,9 @@ final class DocxUpstreamRunnerPlan
     public const STATUS_READY = 'preflight-ready-no-runner-executed';
     public const STATUS_BLOCKED_MISSING_UPSTREAM_SOURCE = 'blocked-missing-docx-upstream-source';
     public const EVIDENCE_KIND = 'targeted-docx-runner-preflight-plan-only';
+    public const SELECTED_TEST_INVENTORY_EVIDENCE_KIND = 'static-docx-selected-test-inventory-only';
+    public const SELECTED_TEST_INVENTORY_STATUS_REPORTED = 'reported-static-docx-selected-test-inventory';
+    public const SELECTED_TEST_INVENTORY_STATUS_BLOCKED = 'blocked-missing-docx-upstream-source';
     public const TASTY_PATTERN = '($2 == "Readers" || $2 == "Writers") && $3 == "Docx"';
     public const RUNNER_TARGET = 'test:test-pandoc';
 
@@ -62,6 +65,7 @@ final class DocxUpstreamRunnerPlan
     {
         $sourcePreflight = $this->sourcePreflight();
         $ready = $sourcePreflight['missingFiles'] === [] && $sourcePreflight['missingDirectories'] === [];
+        $selectedTestInventory = $this->selectedTestInventory($sourcePreflight, $ready);
 
         return [
             'schemaVersion' => 1,
@@ -75,6 +79,7 @@ final class DocxUpstreamRunnerPlan
             'claimBoundaries' => [
                 'doesAssert' => [
                     'required DOCX runner source paths and fixture directories to check before a targeted run',
+                    'static selected DOCX reader/writer source and fixture inventory when the upstream checkout is hydrated',
                     'exact Cabal commands and workspace artifact paths a future runner slice can execute',
                     'result artifact contract required before recording upstream DOCX runner evidence',
                 ],
@@ -92,6 +97,7 @@ final class DocxUpstreamRunnerPlan
             'runnerTarget' => self::RUNNER_TARGET,
             'tastyPattern' => self::TASTY_PATTERN,
             'sourcePreflight' => $sourcePreflight,
+            'selectedTestInventory' => $selectedTestInventory,
             'workspace' => $this->workspace(),
             'commands' => $this->commands(),
             'resultArtifactContract' => $this->resultArtifactContract(),
@@ -119,6 +125,24 @@ final class DocxUpstreamRunnerPlan
         if (is_array($source)) {
             $lines[] = 'Missing files: ' . implode(', ', array_map('strval', $source['missingFiles'] ?? []));
             $lines[] = 'Missing directories: ' . implode(', ', array_map('strval', $source['missingDirectories'] ?? []));
+        }
+
+        $inventory = $report['selectedTestInventory'] ?? [];
+        if (is_array($inventory)) {
+            $fixtureCounts = $inventory['fixtures']['counts'] ?? [];
+            $lines[] = 'Selected inventory: '
+                . (string) ($inventory['status'] ?? 'unknown')
+                . '; static label hints='
+                . (int) ($inventory['staticCandidateTestLabelCount'] ?? 0)
+                . '; paired reader fixture stems='
+                . (int) ($fixtureCounts['pairedRootDocxNativeStems'] ?? 0)
+                . '; writer golden packages='
+                . (int) ($fixtureCounts['goldenDocxPackageFiles'] ?? 0);
+        }
+
+        $artifact = $report['selectedTestInventoryArtifact'] ?? [];
+        if (is_array($artifact) && ($artifact['written'] ?? false) === true) {
+            $lines[] = 'Selected inventory artifact: ' . (string) ($artifact['path'] ?? '');
         }
 
         $commands = $report['commands'] ?? [];
@@ -196,6 +220,261 @@ final class DocxUpstreamRunnerPlan
             ],
             'packageBytePolicy' => 'filesystem names/counts only; preflight does not read DOCX package bytes',
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $sourcePreflight
+     * @return array<string, mixed>
+     */
+    private function selectedTestInventory(array $sourcePreflight, bool $ready): array
+    {
+        $base = [
+            'schemaVersion' => 1,
+            'tool' => 'pandoc-docx-upstream-runner-plan',
+            'status' => $ready ? self::SELECTED_TEST_INVENTORY_STATUS_REPORTED : self::SELECTED_TEST_INVENTORY_STATUS_BLOCKED,
+            'evidenceKind' => self::SELECTED_TEST_INVENTORY_EVIDENCE_KIND,
+            'runnerExecuted' => false,
+            'cabalExecuted' => false,
+            'docxPackageBytesRead' => false,
+            'generatedAt' => gmdate('Y-m-d'),
+            'upstream' => [
+                'pinnedCommit' => self::PINNED_UPSTREAM_COMMIT,
+                'expectedCheckoutRoot' => $this->displayPath($this->upstreamRoot),
+            ],
+            'selection' => [
+                'runnerTarget' => self::RUNNER_TARGET,
+                'tastyPattern' => self::TASTY_PATTERN,
+                'selectedGroups' => [
+                    'Tests.Readers.Docx.tests',
+                    'Tests.Writers.Docx.tests',
+                ],
+            ],
+            'claim' => 'Static selected DOCX reader/writer source and fixture inventory only; this is not Tasty --list-tests output and not an upstream DOCX runner result.',
+            'claimBoundaries' => [
+                'doesAssert' => [
+                    'hydrated checkout contains the selected DOCX reader/writer source files required by the planned Tasty pattern',
+                    'filesystem-level names, stems, and byte sizes for selected DOCX root and writer-golden fixtures',
+                    'candidate static source labels extracted from DOCX Haskell test source text',
+                ],
+                'doesNotAssert' => [
+                    'that Cabal, Tasty, or upstream Pandoc tests were executed',
+                    'that the static label hints equal final Tasty --list-tests output',
+                    'that any selected DOCX reader or writer test passes',
+                    'that DOCX package bytes were read, generated, or compared',
+                    'full DOCX/OpenXML parity',
+                ],
+            ],
+            'sourcePreflightSummary' => [
+                'upstreamRootPresent' => $sourcePreflight['upstreamRootPresent'] ?? false,
+                'missingFiles' => $sourcePreflight['missingFiles'] ?? [],
+                'missingDirectories' => $sourcePreflight['missingDirectories'] ?? [],
+            ],
+        ];
+
+        if (!$ready) {
+            $inventory = $base + [
+                'skipped' => true,
+                'reason' => 'Required DOCX runner source paths or fixture directories are missing.',
+                'sourceGroups' => [],
+                'fixtures' => $this->emptyFixtureInventory(),
+                'staticCandidateTestLabelCount' => 0,
+            ];
+            $inventory['inventorySha256'] = hash('sha256', self::canonicalJson($inventory));
+
+            return $inventory;
+        }
+
+        $sourceGroups = [
+            $this->sourceGroupInventory(
+                'reader',
+                'Tests.Readers.Docx',
+                'Tests.Readers.Docx.tests',
+                'test/Tests/Readers/Docx.hs'
+            ),
+            $this->sourceGroupInventory(
+                'writer',
+                'Tests.Writers.Docx',
+                'Tests.Writers.Docx.tests',
+                'test/Tests/Writers/Docx.hs'
+            ),
+        ];
+        $staticCandidateTestLabelCount = array_sum(array_map(
+            static fn (array $group): int => count($group['candidateStaticLabels'] ?? []),
+            $sourceGroups
+        ));
+
+        $inventory = $base + [
+            'skipped' => false,
+            'sourceGroups' => $sourceGroups,
+            'fixtures' => $this->fixtureInventory(),
+            'staticCandidateTestLabelCount' => $staticCandidateTestLabelCount,
+            'staticExtractionLimits' => [
+                'candidateStaticLabels are quoted string literals found on DOCX-relevant Haskell source lines',
+                'dynamic Tasty names, helper-generated cases, and conditional tests still require the future --list-tests runner artifact',
+                'DOCX package files are inventoried by filename and filesystem size only; package bytes are not read or hashed',
+            ],
+        ];
+        $inventory['inventorySha256'] = hash('sha256', self::canonicalJson($inventory));
+
+        return $inventory;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function sourceGroupInventory(string $kind, string $module, string $entryPoint, string $sourceFile): array
+    {
+        $path = $this->upstreamPath($sourceFile);
+        $contents = is_file($path) ? file_get_contents($path) : false;
+        if ($contents === false) {
+            return [
+                'kind' => $kind,
+                'module' => $module,
+                'entryPointSnippet' => $entryPoint,
+                'sourceFile' => $sourceFile,
+                'present' => false,
+                'sourceBytes' => 0,
+                'sourceSha256' => null,
+                'candidateStaticLabels' => [],
+            ];
+        }
+
+        return [
+            'kind' => $kind,
+            'module' => $module,
+            'entryPointSnippet' => $entryPoint,
+            'sourceFile' => $sourceFile,
+            'present' => true,
+            'sourceBytes' => strlen($contents),
+            'sourceSha256' => hash('sha256', $contents),
+            'candidateStaticLabels' => self::candidateStaticLabels($contents),
+        ];
+    }
+
+    /**
+     * @return list<array{label:string,line:int}>
+     */
+    private static function candidateStaticLabels(string $contents): array
+    {
+        $labels = [];
+        $seen = [];
+        $lines = preg_split('/\R/', $contents);
+        if (!is_array($lines)) {
+            return [];
+        }
+
+        foreach ($lines as $index => $line) {
+            if (preg_match('/\b(?:testGroup|testCase|test|golden|Golden|docx|Docx|native|Native)\b/', $line) !== 1) {
+                continue;
+            }
+            if (preg_match_all('/"((?:[^"\\\\]|\\\\.)*)"/', $line, $matches) !== false) {
+                foreach ($matches[1] as $label) {
+                    if ($label === '' || isset($seen[$label])) {
+                        continue;
+                    }
+                    $seen[$label] = true;
+                    $labels[] = [
+                        'label' => $label,
+                        'line' => $index + 1,
+                    ];
+                }
+            }
+        }
+
+        return $labels;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function fixtureInventory(): array
+    {
+        $rootDocxPackages = $this->directFileRows($this->upstreamPath('test/docx'), 'test/docx', 'docx');
+        $rootNativeExpectations = $this->directFileRows($this->upstreamPath('test/docx'), 'test/docx', 'native');
+        $goldenDocxPackages = $this->directFileRows($this->upstreamPath('test/docx/golden'), 'test/docx/golden', 'docx');
+        $rootDocxStems = array_column($rootDocxPackages, 'stem');
+        $rootNativeStems = array_column($rootNativeExpectations, 'stem');
+        $pairedStems = array_values(array_intersect($rootDocxStems, $rootNativeStems));
+        $unpairedDocxStems = array_values(array_diff($rootDocxStems, $rootNativeStems));
+        $unpairedNativeStems = array_values(array_diff($rootNativeStems, $rootDocxStems));
+        sort($pairedStems);
+        sort($unpairedDocxStems);
+        sort($unpairedNativeStems);
+
+        return [
+            'counts' => [
+                'rootDocxPackageFiles' => count($rootDocxPackages),
+                'rootNativeExpectedFiles' => count($rootNativeExpectations),
+                'pairedRootDocxNativeStems' => count($pairedStems),
+                'unpairedRootDocxPackageStems' => count($unpairedDocxStems),
+                'unpairedRootNativeExpectedStems' => count($unpairedNativeStems),
+                'goldenDocxPackageFiles' => count($goldenDocxPackages),
+            ],
+            'pairedRootDocxNativeStems' => $pairedStems,
+            'unpairedRootDocxPackageStems' => $unpairedDocxStems,
+            'unpairedRootNativeExpectedStems' => $unpairedNativeStems,
+            'rootDocxPackages' => $rootDocxPackages,
+            'rootNativeExpectations' => $rootNativeExpectations,
+            'goldenDocxPackages' => $goldenDocxPackages,
+            'packageBytePolicy' => 'filesystem names and byte sizes only; DOCX package bytes are not read or hashed',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyFixtureInventory(): array
+    {
+        return [
+            'counts' => [
+                'rootDocxPackageFiles' => 0,
+                'rootNativeExpectedFiles' => 0,
+                'pairedRootDocxNativeStems' => 0,
+                'unpairedRootDocxPackageStems' => 0,
+                'unpairedRootNativeExpectedStems' => 0,
+                'goldenDocxPackageFiles' => 0,
+            ],
+            'pairedRootDocxNativeStems' => [],
+            'unpairedRootDocxPackageStems' => [],
+            'unpairedRootNativeExpectedStems' => [],
+            'rootDocxPackages' => [],
+            'rootNativeExpectations' => [],
+            'goldenDocxPackages' => [],
+            'packageBytePolicy' => 'filesystem names and byte sizes only; DOCX package bytes are not read or hashed',
+        ];
+    }
+
+    /**
+     * @return list<array{path:string,fileName:string,stem:string,extension:string,bytes:int}>
+     */
+    private function directFileRows(string $directory, string $relativeDirectory, string $extension): array
+    {
+        if (!is_dir($directory)) {
+            return [];
+        }
+
+        $rows = [];
+        foreach (new \DirectoryIterator($directory) as $entry) {
+            if ($entry->isDot() || !$entry->isFile() || strtolower($entry->getExtension()) !== $extension) {
+                continue;
+            }
+
+            $fileName = $entry->getFilename();
+            $rows[] = [
+                'path' => $relativeDirectory . '/' . $fileName,
+                'fileName' => $fileName,
+                'stem' => pathinfo($fileName, PATHINFO_FILENAME),
+                'extension' => $extension,
+                'bytes' => $entry->getSize(),
+            ];
+        }
+
+        usort(
+            $rows,
+            static fn (array $left, array $right): int => $left['path'] <=> $right['path']
+        );
+
+        return $rows;
     }
 
     /**
@@ -397,6 +676,32 @@ final class DocxUpstreamRunnerPlan
     private static function commandLine(array $parts): string
     {
         return implode(' ', array_map(self::shellArgument(...), $parts));
+    }
+
+    private static function canonicalJson(mixed $value): string
+    {
+        return json_encode(
+            self::sortForJson($value),
+            JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR
+        );
+    }
+
+    private static function sortForJson(mixed $value): mixed
+    {
+        if (!is_array($value)) {
+            return $value;
+        }
+
+        if (array_is_list($value)) {
+            return array_map(self::sortForJson(...), $value);
+        }
+
+        ksort($value);
+        foreach ($value as $key => $item) {
+            $value[$key] = self::sortForJson($item);
+        }
+
+        return $value;
     }
 
     private static function shellArgument(string $value): string

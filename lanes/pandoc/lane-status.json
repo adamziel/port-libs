@@ -112,6 +112,20 @@
             "evidenceKind": "runner-entry-fixture-command-plan-only",
             "preflightPlanTool": "tools/pandoc-docx-upstream-runner-plan.php --json --upstream-root .upstream-cache/pandoc-current",
             "preflightEvidenceKind": "targeted-docx-runner-preflight-plan-only",
+            "selectedTestInventoryArtifact": {
+                "command": "tools/pandoc-docx-upstream-runner-plan.php --json --upstream-root .upstream-cache/pandoc-current --write-selected-inventory .port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json",
+                "path": ".port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json",
+                "evidenceKind": "static-docx-selected-test-inventory-only",
+                "statusWhenHydrated": "reported-static-docx-selected-test-inventory",
+                "source": "static DOCX Haskell test source plus filesystem fixture inventory",
+                "contents": [
+                    "selected DOCX reader and writer source group identifiers",
+                    "candidate static labels from DOCX Haskell test source text",
+                    "root test/docx .docx and .native fixture names, stems, and byte sizes",
+                    "writer-golden test/docx/golden .docx fixture names, stems, and byte sizes"
+                ],
+                "executionPolicy": "metadata-only static source/fixture inventory; no Cabal command, Tasty runner, DOCX package-byte read, generated writer output, or pass/fail result is executed or asserted"
+            },
             "resultRecorded": false,
             "runnerExecuted": false,
             "upstreamCommit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
@@ -257,5 +271,5 @@
             "honestClaim": "This records entry points, fixture closure, and commands for a future targeted run only. It is not an upstream DOCX runner result."
         }
     },
-    "latestFocusedSlice": "2026-06-30 docx-r8-writer-runner: added a guarded DOCX upstream runner preflight plan tool that inspects only required source/fixture presence and emits the future dependency dry-run, --list-tests, targeted DOCX run commands, isolated workspace env vars, transcripts, and result.json contract. No Cabal command, upstream Haskell runner, DOCX package-byte comparison, writer output, or full DOCX/OpenXML parity is claimed. Focused validation passed php -l for DocxUpstreamRunnerPlan.php, pandoc-docx-upstream-runner-plan.php, DocxUpstreamRunnerPlanTest.php, and DocxParityEvidenceStatusTest.php; JSON metadata decode for lane-status and UPSTREAM_TEST_MANIFEST; CLI blocked-preflight JSON smoke; and php tools/run-tests.php for DocxUpstreamRunnerPlanTest.php plus DocxParityEvidenceStatusTest.php with 174 assertions and 0 failures."
+    "latestFocusedSlice": "2026-06-30 docx-r9-writer-runner: extended the guarded DOCX upstream runner preflight plan so a hydrated checkout can write .port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json with selected DOCX reader/writer source group identifiers, candidate static Haskell source labels, and root/golden fixture names, stems, and byte sizes. The artifact remains static inventory only: no Cabal command, Tasty --list-tests output, upstream Haskell runner, DOCX package-byte read, generated DocxWriter output, writer package comparison, or full DOCX/OpenXML parity is claimed. Focused validation passed php -l for DocxUpstreamRunnerPlan.php, pandoc-docx-upstream-runner-plan.php, DocxUpstreamRunnerPlanTest.php, and DocxParityEvidenceStatusTest.php; JSON metadata decode for lane-status and UPSTREAM_TEST_MANIFEST; CLI blocked-preflight JSON smoke; and php tools/run-tests.php for DocxUpstreamRunnerPlanTest.php plus DocxParityEvidenceStatusTest.php with 220 assertions and 0 failures."
 }

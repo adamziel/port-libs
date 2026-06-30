@@ -42,6 +42,38 @@ $writeFile = static function (string $root, string $relativePath, string $conten
     file_put_contents($path, $contents);
 };
 
+$hydrateRunnerPlanFixture = static function (string $upstreamRoot) use ($writeFile): void {
+    $readerSource = <<<'HASKELL'
+module Tests.Readers.Docx where
+
+tests = testGroup "Docx"
+  [ testCase "reader simple paragraph" $ pure ()
+  , testCase "reader nested notes" $ pure ()
+  ]
+HASKELL;
+    $writerSource = <<<'HASKELL'
+module Tests.Writers.Docx where
+
+tests = testGroup "Docx"
+  [ golden "writer plain paragraph" "test/docx/golden/plain.docx"
+  ]
+HASKELL;
+
+    foreach (DocxUpstreamRunnerPlan::requiredFiles() as $relativePath) {
+        $contents = match ($relativePath) {
+            'test/Tests/Readers/Docx.hs' => $readerSource,
+            'test/Tests/Writers/Docx.hs' => $writerSource,
+            default => $relativePath . "\n",
+        };
+        $writeFile($upstreamRoot, $relativePath, $contents);
+    }
+
+    $writeFile($upstreamRoot, 'test/docx/a.docx', 'docx-a');
+    $writeFile($upstreamRoot, 'test/docx/a.native', 'native-a');
+    $writeFile($upstreamRoot, 'test/docx/b.docx', 'docx-b');
+    $writeFile($upstreamRoot, 'test/docx/golden/writer.docx', 'golden-writer');
+};
+
 return [
     'reports blocked docx runner preflight without hydrated upstream source' => static function (TestRunner $t) use ($makeTempRoot, $removeTree): void {
         $repoRoot = $makeTempRoot();
@@ -59,27 +91,28 @@ return [
             $t->same(0, $report['sourcePreflight']['artifactCounts']['rootDocxPackageFiles']);
             $t->same(0, $report['sourcePreflight']['artifactCounts']['rootNativeExpectedFiles']);
             $t->same(0, $report['sourcePreflight']['artifactCounts']['goldenDocxPackageFiles']);
+            $t->same(DocxUpstreamRunnerPlan::SELECTED_TEST_INVENTORY_STATUS_BLOCKED, $report['selectedTestInventory']['status']);
+            $t->same(DocxUpstreamRunnerPlan::SELECTED_TEST_INVENTORY_EVIDENCE_KIND, $report['selectedTestInventory']['evidenceKind']);
+            $t->same(true, $report['selectedTestInventory']['skipped']);
+            $t->same(false, $report['selectedTestInventory']['runnerExecuted']);
+            $t->same(false, $report['selectedTestInventory']['cabalExecuted']);
+            $t->same(false, $report['selectedTestInventory']['docxPackageBytesRead']);
             $t->contains('--dry-run --only-dependencies', $report['commands']['dependencyDryRun']['commandLine']);
             $t->contains('--list-tests --pattern', $report['commands']['listDocxTests']['commandLine']);
             $t->contains('($2 == "Readers" || $2 == "Writers") && $3 == "Docx"', $report['commands']['targetedDocxRun']['commandLine']);
             $t->contains('not an upstream DOCX runner result', $report['claim']);
+            $t->contains('Selected inventory: blocked-missing-docx-upstream-source', $text);
             $t->contains('No upstream DOCX runner result or parity claim is asserted.', $text);
         } finally {
             $removeTree($repoRoot);
         }
     },
 
-    'marks docx runner preflight ready with source files fixtures and artifact contract only' => static function (TestRunner $t) use ($makeTempRoot, $removeTree, $writeFile): void {
+    'marks docx runner preflight ready with source files fixtures and artifact contract only' => static function (TestRunner $t) use ($makeTempRoot, $removeTree, $hydrateRunnerPlanFixture): void {
         $repoRoot = $makeTempRoot();
         try {
             $upstreamRoot = $repoRoot . '/cache/pandoc-current';
-            foreach (DocxUpstreamRunnerPlan::requiredFiles() as $relativePath) {
-                $writeFile($upstreamRoot, $relativePath, $relativePath . "\n");
-            }
-            $writeFile($upstreamRoot, 'test/docx/a.docx', 'docx-a');
-            $writeFile($upstreamRoot, 'test/docx/a.native', 'native-a');
-            $writeFile($upstreamRoot, 'test/docx/b.docx', 'docx-b');
-            $writeFile($upstreamRoot, 'test/docx/golden/writer.docx', 'golden-writer');
+            $hydrateRunnerPlanFixture($upstreamRoot);
 
             $report = (new DocxUpstreamRunnerPlan($repoRoot, 'cache/pandoc-current'))->report();
 
@@ -92,6 +125,23 @@ return [
             $t->same(1, $report['sourcePreflight']['artifactCounts']['rootNativeExpectedFiles']);
             $t->same(1, $report['sourcePreflight']['artifactCounts']['goldenDocxPackageFiles']);
             $t->same('filesystem names/counts only; preflight does not read DOCX package bytes', $report['sourcePreflight']['packageBytePolicy']);
+            $inventory = $report['selectedTestInventory'];
+            $t->same(DocxUpstreamRunnerPlan::SELECTED_TEST_INVENTORY_STATUS_REPORTED, $inventory['status']);
+            $t->same(DocxUpstreamRunnerPlan::SELECTED_TEST_INVENTORY_EVIDENCE_KIND, $inventory['evidenceKind']);
+            $t->same(false, $inventory['skipped']);
+            $t->same(false, $inventory['runnerExecuted']);
+            $t->same(false, $inventory['cabalExecuted']);
+            $t->same(false, $inventory['docxPackageBytesRead']);
+            $t->same('Tests.Readers.Docx.tests', $inventory['sourceGroups'][0]['entryPointSnippet']);
+            $t->same('reader simple paragraph', $inventory['sourceGroups'][0]['candidateStaticLabels'][1]['label']);
+            $t->same('writer plain paragraph', $inventory['sourceGroups'][1]['candidateStaticLabels'][1]['label']);
+            $t->same(2, $inventory['fixtures']['counts']['rootDocxPackageFiles']);
+            $t->same(1, $inventory['fixtures']['counts']['rootNativeExpectedFiles']);
+            $t->same(1, $inventory['fixtures']['counts']['pairedRootDocxNativeStems']);
+            $t->same(['a'], $inventory['fixtures']['pairedRootDocxNativeStems']);
+            $t->same(['b'], $inventory['fixtures']['unpairedRootDocxPackageStems']);
+            $t->same('test/docx/golden/writer.docx', $inventory['fixtures']['goldenDocxPackages'][0]['path']);
+            $t->contains('not Tasty --list-tests output', $inventory['claim']);
             $t->same('cache/pandoc-current', $report['commands']['targetedDocxRun']['workingDirectory']);
             $t->same('.port-libs/pandoc-runner/cabal-build/docx-targeted-run', $report['workspace']['directories']['targetedRunBuild']);
             $t->same('.port-libs/pandoc-runner/tmp', $report['workspace']['environmentVariables']['TMPDIR']);
@@ -103,6 +153,49 @@ return [
             $t->contains('record dependencyDryRun transcript first', implode("\n", $report['activationGate']));
             $t->same(false, $report['runnerExecuted']);
             $t->same(false, $report['resultRecorded']);
+        } finally {
+            $removeTree($repoRoot);
+        }
+    },
+
+    'cli writes selected docx test inventory artifact without executing runner' => static function (TestRunner $t) use ($makeTempRoot, $removeTree, $hydrateRunnerPlanFixture): void {
+        $repoRoot = $makeTempRoot();
+        try {
+            $upstreamRoot = $repoRoot . '/cache/pandoc-current';
+            $hydrateRunnerPlanFixture($upstreamRoot);
+            $tool = dirname(__DIR__, 3) . '/tools/pandoc-docx-upstream-runner-plan.php';
+            $artifactRelativePath = 'artifacts/docx-selected-test-inventory.json';
+            $command = escapeshellarg(PHP_BINARY)
+                . ' '
+                . escapeshellarg($tool)
+                . ' --repo-root '
+                . escapeshellarg($repoRoot)
+                . ' --upstream-root cache/pandoc-current --write-selected-inventory '
+                . escapeshellarg($artifactRelativePath)
+                . ' --json 2>&1';
+
+            $output = [];
+            $exitCode = 0;
+            exec($command, $output, $exitCode);
+            $t->same(0, $exitCode, implode("\n", $output));
+
+            $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
+            $t->same(true, $decoded['selectedTestInventoryArtifact']['written']);
+            $t->same($artifactRelativePath, $decoded['selectedTestInventoryArtifact']['path']);
+            $t->same(DocxUpstreamRunnerPlan::SELECTED_TEST_INVENTORY_EVIDENCE_KIND, $decoded['selectedTestInventoryArtifact']['evidenceKind']);
+
+            $artifactPath = $repoRoot . '/' . $artifactRelativePath;
+            $t->true(is_file($artifactPath), 'Selected DOCX inventory artifact should be written');
+            $artifact = json_decode((string) file_get_contents($artifactPath), true, 512, JSON_THROW_ON_ERROR);
+            $t->same(DocxUpstreamRunnerPlan::SELECTED_TEST_INVENTORY_STATUS_REPORTED, $artifact['status']);
+            $t->same(false, $artifact['runnerExecuted']);
+            $t->same(false, $artifact['cabalExecuted']);
+            $t->same(false, $artifact['docxPackageBytesRead']);
+            $t->same('static-docx-selected-test-inventory-only', $artifact['evidenceKind']);
+            $t->same(['Tests.Readers.Docx.tests', 'Tests.Writers.Docx.tests'], $artifact['selection']['selectedGroups']);
+            $t->same(1, $artifact['fixtures']['counts']['pairedRootDocxNativeStems']);
+            $t->same(1, $artifact['fixtures']['counts']['goldenDocxPackageFiles']);
+            $t->contains('not Tasty --list-tests output', $artifact['claim']);
         } finally {
             $removeTree($repoRoot);
         }

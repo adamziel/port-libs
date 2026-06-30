@@ -174,6 +174,14 @@ return [
         $t->same('runner-entry-fixture-command-plan-only', $runnerPlan['evidenceKind'] ?? null);
         $t->same('tools/pandoc-docx-upstream-runner-plan.php --json --upstream-root .upstream-cache/pandoc-current', $runnerPlan['preflightPlanTool'] ?? null);
         $t->same('targeted-docx-runner-preflight-plan-only', $runnerPlan['preflightEvidenceKind'] ?? null);
+        $selectedInventoryArtifact = $runnerPlan['selectedTestInventoryArtifact'] ?? [];
+        $t->true(is_array($selectedInventoryArtifact), 'DOCX runner plan must name the selected test inventory artifact');
+        $t->same('tools/pandoc-docx-upstream-runner-plan.php --json --upstream-root .upstream-cache/pandoc-current --write-selected-inventory .port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json', $selectedInventoryArtifact['command'] ?? null);
+        $t->same('.port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json', $selectedInventoryArtifact['path'] ?? null);
+        $t->same('static-docx-selected-test-inventory-only', $selectedInventoryArtifact['evidenceKind'] ?? null);
+        $t->same('reported-static-docx-selected-test-inventory', $selectedInventoryArtifact['statusWhenHydrated'] ?? null);
+        $t->contains('static source/fixture inventory', (string) ($selectedInventoryArtifact['executionPolicy'] ?? ''));
+        $t->contains('no Cabal command', (string) ($selectedInventoryArtifact['executionPolicy'] ?? ''));
         $t->same(false, $runnerPlan['resultRecorded'] ?? null);
         $t->same(false, $runnerPlan['runnerExecuted'] ?? null);
         $t->same('test:test-pandoc', $runnerPlan['runnerTarget'] ?? null);
@@ -204,6 +212,8 @@ return [
         $t->contains('no local DocxWriter implementation', (string) ($status['blocker'] ?? ''));
         $t->contains('full upstream DOCX parity is not defensible', $pandocStatus);
         $t->contains('DOCX runner evidence plan records `test:test-pandoc`', $pandocStatus);
+        $t->contains('--write-selected-inventory .port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json', $pandocStatus);
+        $t->contains('no upstream Haskell/Cabal DOCX runner result, Tasty `--list-tests` output, DOCX package-byte read', $pandocStatus);
         $t->contains('2 checked-in current-upstream `.docx` package fixtures', $pandocStatus);
         $t->contains('0 checked-in pinned upstream `.docx` package fixtures', $pandocStatus);
         $t->contains('UPSTREAM_DOCX_CACHE_MANIFEST.json', $pandocStatus);
