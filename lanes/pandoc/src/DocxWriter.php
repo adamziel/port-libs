@@ -2914,87 +2914,6 @@ XML;
         return '<w:sectPr><w:footnotePr><w:numRestart w:val="eachSect"/></w:footnotePr></w:sectPr>';
     }
 
-    private function supplementalPandocStylesXml(): string
-    {
-        $paragraphStyles = [
-            'Abstract' => 'Abstract',
-            'AbstractTitle' => 'Abstract Title',
-            'Author' => 'Author',
-            'Bibliography' => 'Bibliography',
-            'CaptionedFigure' => 'Captioned Figure',
-            'Date' => 'Date',
-            'Definition' => 'Definition',
-            'DefinitionTerm' => 'Definition Term',
-            'Figure' => 'Figure',
-            'FigurewithCaption' => 'Figure with Caption',
-            'FootnoteBlockText' => 'Footnote Block Text',
-            'Heading7' => 'heading 7',
-            'Heading8' => 'heading 8',
-            'Heading9' => 'heading 9',
-            'ImageCaption' => 'Image Caption',
-            'NoList' => 'No List',
-            'SectionNumber' => 'Section Number',
-            'Subtitle' => 'Subtitle',
-            'TOCHeading' => 'TOC Heading',
-        ];
-        $characterStyles = [
-            'DefaultParagraphFont' => 'Default Paragraph Font',
-            'BodyTextChar' => 'Body Text Char',
-            'BlockTextChar' => 'Block Text Char',
-            'CaptionChar' => 'Caption Char',
-            'TitleChar' => 'Title Char',
-            'SubtitleChar' => 'Subtitle Char',
-        ];
-        for ($level = 1; $level <= 9; $level++) {
-            $characterStyles['Heading' . $level . 'Char'] = 'Heading ' . $level . ' Char';
-        }
-        foreach ([
-            'AlertTok',
-            'AnnotationTok',
-            'AttributeTok',
-            'BaseNTok',
-            'BuiltInTok',
-            'CharTok',
-            'CommentTok',
-            'CommentVarTok',
-            'ConstantTok',
-            'ControlFlowTok',
-            'DataTypeTok',
-            'DecValTok',
-            'DocumentationTok',
-            'ErrorTok',
-            'ExtensionTok',
-            'FloatTok',
-            'FunctionTok',
-            'ImportTok',
-            'InformationTok',
-            'KeywordTok',
-            'NormalTok',
-            'OperatorTok',
-            'OtherTok',
-            'PreprocessorTok',
-            'RegionMarkerTok',
-            'SpecialCharTok',
-            'SpecialStringTok',
-            'StringTok',
-            'VariableTok',
-            'VerbatimStringTok',
-            'WarningTok',
-        ] as $styleId) {
-            $characterStyles[$styleId] = $styleId;
-        }
-
-        $xml = '';
-        foreach ($paragraphStyles as $styleId => $name) {
-            $xml .= $this->paragraphStyleXml($styleId, $name, 'Normal', false);
-        }
-        foreach ($characterStyles as $styleId => $name) {
-            $xml .= $this->characterStyleXml($styleId, $name, $styleId === 'DefaultParagraphFont' ? null : 'DefaultParagraphFont', false);
-        }
-
-        return $xml;
-    }
-
     private function customStylesXml(): string
     {
         $xml = '';
@@ -3036,50 +2955,32 @@ XML;
 
     private function stylesXml(): string
     {
-        $headingStyles = '';
-        for ($level = 1; $level <= 6; $level++) {
-            $fontSize = (string) max(22, 32 - (($level - 1) * 2));
-            $headingStyles .= '<w:style w:type="paragraph" w:styleId="Heading' . $level . '">'
-                . '<w:name w:val="heading ' . $level . '"/>'
-                . '<w:basedOn w:val="Normal"/>'
-                . '<w:next w:val="Normal"/>'
-                . '<w:uiPriority w:val="' . (9 + $level) . '"/>'
-                . '<w:qFormat/>'
-                . '<w:pPr><w:keepNext/><w:keepLines/><w:spacing w:before="240" w:after="120"/><w:outlineLvl w:val="' . ($level - 1) . '"/></w:pPr>'
-                . '<w:rPr><w:b/><w:sz w:val="' . $fontSize . '"/><w:szCs w:val="' . $fontSize . '"/></w:rPr>'
-                . '</w:style>';
-        }
-        $supplementalStyles = $this->supplementalPandocStylesXml();
+        $stylesXml = self::defaultStylesXml();
         $customStyles = $this->customStylesXml();
-        $commentStyles = $this->comments === []
-            ? ''
-            : '<w:style w:type="paragraph" w:styleId="CommentText"><w:name w:val="comment text"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:after="0"/></w:pPr><w:rPr><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:style>'
-                . '<w:style w:type="character" w:styleId="CommentReference"><w:name w:val="annotation reference"/><w:rPr><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr></w:style>';
 
-        return self::xmlDeclaration()
-            . '<w:styles xmlns:w="' . self::NS_W . '">'
-            . '<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:cstheme="minorBidi" w:eastAsiaTheme="minorEastAsia" w:hAnsiTheme="minorHAnsi"/><w:sz w:val="24"/><w:szCs w:val="24"/><w:lang w:bidi="ar-SA" w:eastAsia="zh-CN" w:val="en-US"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="200"/></w:pPr></w:pPrDefault></w:docDefaults>'
-            . '<w:latentStyles w:count="276" w:defLockedState="0" w:defQFormat="0" w:defSemiHidden="0" w:defUIPriority="0" w:defUnhideWhenUsed="0"/>'
-            . '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>'
-            . '<w:style w:type="paragraph" w:styleId="BodyText"><w:name w:val="Body Text"/><w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:spacing w:before="180" w:after="180"/></w:pPr></w:style>'
-            . '<w:style w:type="paragraph" w:customStyle="1" w:styleId="FirstParagraph"><w:name w:val="First Paragraph"/><w:basedOn w:val="BodyText"/><w:next w:val="BodyText"/><w:qFormat/></w:style>'
-            . '<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:spacing w:after="240"/></w:pPr><w:rPr><w:b/><w:sz w:val="52"/><w:szCs w:val="52"/></w:rPr></w:style>'
-            . $headingStyles
-            . '<w:style w:type="paragraph" w:styleId="BlockText"><w:name w:val="Block Text"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="120" w:after="120"/><w:ind w:left="720" w:right="720"/></w:pPr></w:style>'
-            . '<w:style w:type="paragraph" w:styleId="SourceCode"><w:name w:val="Source Code"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="120" w:after="120"/><w:ind w:left="360" w:right="360"/></w:pPr><w:rPr><w:rStyle w:val="VerbatimChar"/></w:rPr></w:style>'
-            . $supplementalStyles
-            . '<w:style w:type="paragraph" w:customStyle="1" w:styleId="Compact"><w:name w:val="Compact"/><w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:spacing w:before="36" w:after="36"/></w:pPr></w:style>'
-            . '<w:style w:type="table" w:default="1" w:styleId="Table"><w:name w:val="Table"/><w:basedOn w:val="TableNormal"/><w:semiHidden/><w:unhideWhenUsed/><w:qFormat/><w:tblPr><w:tblInd w:w="0" w:type="dxa"/><w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="108" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="108" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblStylePr w:type="firstRow"><w:tcPr><w:tcBorders><w:bottom w:val="single"/></w:tcBorders><w:vAlign w:val="bottom"/></w:tcPr></w:tblStylePr></w:style>'
-            . '<w:style w:type="paragraph" w:styleId="Caption"><w:name w:val="caption"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="120" w:after="120"/></w:pPr><w:rPr><w:i/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:style>'
-            . '<w:style w:type="paragraph" w:customStyle="1" w:styleId="TableCaption"><w:name w:val="Table Caption"/><w:basedOn w:val="Caption"/><w:pPr><w:keepNext/></w:pPr></w:style>'
-            . $customStyles
-            . '<w:style w:type="paragraph" w:styleId="FootnoteText"><w:name w:val="footnote text"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:after="0"/><w:ind w:left="0"/></w:pPr><w:rPr><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:style>'
-            . '<w:style w:type="character" w:styleId="VerbatimChar"><w:name w:val="Verbatim Char"/><w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:cs="Consolas"/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:style>'
-            . '<w:style w:type="character" w:styleId="Hyperlink"><w:name w:val="Hyperlink"/><w:rPr><w:color w:val="0563C1"/><w:u w:val="single"/></w:rPr></w:style>'
-            . '<w:style w:type="character" w:styleId="FootnoteReference"><w:name w:val="footnote reference"/><w:rPr><w:vertAlign w:val="superscript"/></w:rPr></w:style>'
-            . $commentStyles
-            . '</w:styles>'
-            . "\n";
+        if ($customStyles !== '') {
+            $stylesXml = str_replace('</w:styles>', $customStyles . '</w:styles>', $stylesXml);
+        }
+
+        return $stylesXml . "\n";
+    }
+
+    private static function defaultStylesXml(): string
+    {
+        static $stylesXml = null;
+        if ($stylesXml !== null) {
+            return $stylesXml;
+        }
+
+        $path = __DIR__ . '/resources/docx-default-styles.xml';
+        $stylesXml = file_get_contents($path);
+        if (!is_string($stylesXml)) {
+            throw new \RuntimeException("Unable to read DOCX default styles resource: {$path}");
+        }
+
+        $stylesXml = rtrim($stylesXml, "\r\n");
+
+        return $stylesXml;
     }
 
     private function numberingXml(): string
