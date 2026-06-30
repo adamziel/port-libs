@@ -14,20 +14,34 @@ final class DocxWriter
     private const NS_EP = 'http://schemas.openxmlformats.org/officeDocument/2006/extended-properties';
     private const NS_VT = 'http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes';
     private const NS_XSI = 'http://www.w3.org/2001/XMLSchema-instance';
+    private const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
     private const REL_OFFICE_DOCUMENT = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
     private const REL_CORE_PROPERTIES = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties';
     private const REL_EXTENDED_PROPERTIES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties';
+    private const REL_CUSTOM_PROPERTIES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties';
+    private const REL_COMMENTS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
+    private const REL_FOOTNOTES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes';
+    private const REL_THEME = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme';
+    private const REL_FONT_TABLE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable';
+    private const REL_WEB_SETTINGS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings';
     private const REL_STYLES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles';
     private const REL_NUMBERING = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
     private const REL_SETTINGS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
     private const REL_HYPERLINK = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
     private const CT_CORE_PROPERTIES = 'application/vnd.openxmlformats-package.core-properties+xml';
     private const CT_EXTENDED_PROPERTIES = 'application/vnd.openxmlformats-officedocument.extended-properties+xml';
+    private const CT_CUSTOM_PROPERTIES = 'application/vnd.openxmlformats-officedocument.custom-properties+xml';
+    private const CT_COMMENTS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
+    private const CT_FOOTNOTES = 'application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml';
+    private const CT_FONT_TABLE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml';
+    private const CT_THEME = 'application/vnd.openxmlformats-officedocument.theme+xml';
+    private const CT_WEB_SETTINGS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml';
     private const CT_MAIN_DOCUMENT = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
     private const CT_STYLES = 'application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml';
     private const CT_NUMBERING = 'application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml';
     private const CT_SETTINGS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml';
     private const CT_RELATIONSHIPS = 'application/vnd.openxmlformats-package.relationships+xml';
+    private const CT_OBFUSCATED_FONT = 'application/vnd.openxmlformats-officedocument.obfuscatedFont';
     private const CT_XML = 'application/xml';
     private const GENERATED_TIMESTAMP = '1980-01-01T00:00:00Z';
     private const GENERATED_DOS_TIME = 0;
@@ -41,11 +55,18 @@ final class DocxWriter
         '_rels/.rels' => 1,
         'docProps/core.xml' => 2,
         'docProps/app.xml' => 3,
-        'word/document.xml' => 4,
-        'word/_rels/document.xml.rels' => 5,
-        'word/styles.xml' => 6,
-        'word/numbering.xml' => 7,
-        'word/settings.xml' => 8,
+        'docProps/custom.xml' => 4,
+        'word/document.xml' => 5,
+        'word/_rels/document.xml.rels' => 6,
+        'word/_rels/footnotes.xml.rels' => 7,
+        'word/comments.xml' => 8,
+        'word/footnotes.xml' => 9,
+        'word/fontTable.xml' => 10,
+        'word/numbering.xml' => 11,
+        'word/settings.xml' => 12,
+        'word/styles.xml' => 13,
+        'word/theme/theme1.xml' => 14,
+        'word/webSettings.xml' => 15,
     ];
 
     /** @var list<OpcRelationship> */
@@ -54,7 +75,7 @@ final class DocxWriter
     /** @var array<string, array{numId:int, level:int, start:int}> */
     private array $orderedListOverrides = [];
 
-    private int $nextDocumentRelationshipId = 4;
+    private int $nextDocumentRelationshipId = 9;
     private int $nextNumberingId = 10;
 
     /**
@@ -86,11 +107,18 @@ final class DocxWriter
             ['name' => '_rels/.rels', 'data' => $this->rootRelationshipsXml()],
             ['name' => 'docProps/core.xml', 'data' => $this->corePropertiesXml($document)],
             ['name' => 'docProps/app.xml', 'data' => $this->extendedPropertiesXml()],
+            ['name' => 'docProps/custom.xml', 'data' => $this->customPropertiesXml()],
             ['name' => 'word/document.xml', 'data' => $documentXml],
             ['name' => 'word/_rels/document.xml.rels', 'data' => $this->documentRelationshipsXml()],
+            ['name' => 'word/_rels/footnotes.xml.rels', 'data' => $this->footnotesRelationshipsXml()],
+            ['name' => 'word/comments.xml', 'data' => $this->commentsXml()],
+            ['name' => 'word/footnotes.xml', 'data' => $this->footnotesXml()],
+            ['name' => 'word/fontTable.xml', 'data' => $this->fontTableXml()],
             ['name' => 'word/styles.xml', 'data' => $this->stylesXml()],
             ['name' => 'word/numbering.xml', 'data' => $this->numberingXml()],
             ['name' => 'word/settings.xml', 'data' => $this->settingsXml()],
+            ['name' => 'word/theme/theme1.xml', 'data' => $this->themeXml()],
+            ['name' => 'word/webSettings.xml', 'data' => $this->webSettingsXml()],
         ]);
     }
 
@@ -152,7 +180,7 @@ final class DocxWriter
     {
         $this->documentRelationships = [];
         $this->orderedListOverrides = [];
-        $this->nextDocumentRelationshipId = 4;
+        $this->nextDocumentRelationshipId = 9;
         $this->nextNumberingId = 10;
     }
 
@@ -161,12 +189,19 @@ final class DocxWriter
         $types = new OpcContentTypes();
         $types->addDefault('rels', self::CT_RELATIONSHIPS);
         $types->addDefault('xml', self::CT_XML);
+        $types->addDefault('odttf', self::CT_OBFUSCATED_FONT);
         $types->addOverride('/docProps/core.xml', self::CT_CORE_PROPERTIES);
         $types->addOverride('/docProps/app.xml', self::CT_EXTENDED_PROPERTIES);
+        $types->addOverride('/docProps/custom.xml', self::CT_CUSTOM_PROPERTIES);
         $types->addOverride('/word/document.xml', self::CT_MAIN_DOCUMENT);
+        $types->addOverride('/word/comments.xml', self::CT_COMMENTS);
+        $types->addOverride('/word/footnotes.xml', self::CT_FOOTNOTES);
+        $types->addOverride('/word/fontTable.xml', self::CT_FONT_TABLE);
         $types->addOverride('/word/styles.xml', self::CT_STYLES);
         $types->addOverride('/word/numbering.xml', self::CT_NUMBERING);
         $types->addOverride('/word/settings.xml', self::CT_SETTINGS);
+        $types->addOverride('/word/theme/theme1.xml', self::CT_THEME);
+        $types->addOverride('/word/webSettings.xml', self::CT_WEB_SETTINGS);
 
         return self::xmlDeclaration() . $types->toXml() . "\n";
     }
@@ -175,8 +210,9 @@ final class DocxWriter
     {
         $relationships = new OpcRelationships('/');
         $relationships->add(new OpcRelationship('rId1', self::REL_OFFICE_DOCUMENT, 'word/document.xml'));
-        $relationships->add(new OpcRelationship('rId2', self::REL_CORE_PROPERTIES, 'docProps/core.xml'));
-        $relationships->add(new OpcRelationship('rId3', self::REL_EXTENDED_PROPERTIES, 'docProps/app.xml'));
+        $relationships->add(new OpcRelationship('rId3', self::REL_CORE_PROPERTIES, 'docProps/core.xml'));
+        $relationships->add(new OpcRelationship('rId4', self::REL_EXTENDED_PROPERTIES, 'docProps/app.xml'));
+        $relationships->add(new OpcRelationship('rId5', self::REL_CUSTOM_PROPERTIES, 'docProps/custom.xml'));
 
         return self::xmlDeclaration() . $relationships->toXml() . "\n";
     }
@@ -226,6 +262,13 @@ final class DocxWriter
             . "\n";
     }
 
+    private function customPropertiesXml(): string
+    {
+        return self::xmlDeclaration()
+            . '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/custom-properties" xmlns:vt="' . self::NS_VT . '"/>'
+            . "\n";
+    }
+
     private function metadataText(mixed $value): string
     {
         if (is_array($value)) {
@@ -249,14 +292,89 @@ final class DocxWriter
     private function documentRelationshipsXml(): string
     {
         $relationships = new OpcRelationships('/word/document.xml');
-        $relationships->add(new OpcRelationship('rId1', self::REL_STYLES, 'styles.xml'));
-        $relationships->add(new OpcRelationship('rId2', self::REL_NUMBERING, 'numbering.xml'));
-        $relationships->add(new OpcRelationship('rId3', self::REL_SETTINGS, 'settings.xml'));
+        $relationships->add(new OpcRelationship('rId1', self::REL_COMMENTS, 'comments.xml'));
+        $relationships->add(new OpcRelationship('rId2', self::REL_FOOTNOTES, 'footnotes.xml'));
+        $relationships->add(new OpcRelationship('rId3', self::REL_THEME, 'theme/theme1.xml'));
+        $relationships->add(new OpcRelationship('rId4', self::REL_FONT_TABLE, 'fontTable.xml'));
+        $relationships->add(new OpcRelationship('rId5', self::REL_WEB_SETTINGS, 'webSettings.xml'));
+        $relationships->add(new OpcRelationship('rId6', self::REL_SETTINGS, 'settings.xml'));
+        $relationships->add(new OpcRelationship('rId7', self::REL_STYLES, 'styles.xml'));
+        $relationships->add(new OpcRelationship('rId8', self::REL_NUMBERING, 'numbering.xml'));
         foreach ($this->documentRelationships as $relationship) {
             $relationships->add($relationship);
         }
 
         return self::xmlDeclaration() . $relationships->toXml() . "\n";
+    }
+
+    private function footnotesRelationshipsXml(): string
+    {
+        return self::xmlDeclaration()
+            . '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"/>'
+            . "\n";
+    }
+
+    private function commentsXml(): string
+    {
+        return self::xmlDeclaration()
+            . '<w:comments xmlns:w="' . self::NS_W . '" xmlns:r="' . self::NS_R . '"/>'
+            . "\n";
+    }
+
+    private function footnotesXml(): string
+    {
+        return self::xmlDeclaration()
+            . '<w:footnotes xmlns:w="' . self::NS_W . '">'
+            . '<w:footnote w:type="continuationSeparator" w:id="0"><w:p><w:r><w:continuationSeparator/></w:r></w:p></w:footnote>'
+            . '<w:footnote w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:footnote>'
+            . '</w:footnotes>'
+            . "\n";
+    }
+
+    private function fontTableXml(): string
+    {
+        return self::xmlDeclaration()
+            . '<w:fonts xmlns:w="' . self::NS_W . '">'
+            . '<w:font w:name="Calibri"><w:family w:val="swiss"/><w:pitch w:val="variable"/></w:font>'
+            . '<w:font w:name="Times New Roman"><w:family w:val="roman"/><w:pitch w:val="variable"/></w:font>'
+            . '<w:font w:name="Cambria Math"><w:family w:val="roman"/><w:pitch w:val="variable"/></w:font>'
+            . '<w:font w:name="Consolas"><w:family w:val="modern"/><w:pitch w:val="fixed"/></w:font>'
+            . '<w:font w:name="Symbol"><w:family w:val="decorative"/><w:pitch w:val="variable"/></w:font>'
+            . '</w:fonts>'
+            . "\n";
+    }
+
+    private function themeXml(): string
+    {
+        return self::xmlDeclaration()
+            . '<a:theme xmlns:a="' . self::NS_A . '" name="Office Theme">'
+            . '<a:themeElements>'
+            . '<a:clrScheme name="Office">'
+            . '<a:dk1><a:sysClr val="windowText" lastClr="000000"/></a:dk1>'
+            . '<a:lt1><a:sysClr val="window" lastClr="FFFFFF"/></a:lt1>'
+            . '<a:dk2><a:srgbClr val="1F497D"/></a:dk2>'
+            . '<a:lt2><a:srgbClr val="EEECE1"/></a:lt2>'
+            . '<a:accent1><a:srgbClr val="4F81BD"/></a:accent1>'
+            . '<a:accent2><a:srgbClr val="C0504D"/></a:accent2>'
+            . '<a:accent3><a:srgbClr val="9BBB59"/></a:accent3>'
+            . '<a:accent4><a:srgbClr val="8064A2"/></a:accent4>'
+            . '<a:accent5><a:srgbClr val="4BACC6"/></a:accent5>'
+            . '<a:accent6><a:srgbClr val="F79646"/></a:accent6>'
+            . '<a:hlink><a:srgbClr val="0000FF"/></a:hlink>'
+            . '<a:folHlink><a:srgbClr val="800080"/></a:folHlink>'
+            . '</a:clrScheme>'
+            . '<a:fontScheme name="Office"><a:majorFont><a:latin typeface="Cambria"/></a:majorFont><a:minorFont><a:latin typeface="Calibri"/></a:minorFont></a:fontScheme>'
+            . '<a:fmtScheme name="Office"/>'
+            . '</a:themeElements>'
+            . '</a:theme>'
+            . "\n";
+    }
+
+    private function webSettingsXml(): string
+    {
+        return self::xmlDeclaration()
+            . '<w:webSettings xmlns:w="' . self::NS_W . '"><w:allowPNG/><w:doNotSaveAsSingleFile/></w:webSettings>'
+            . "\n";
     }
 
     private static function xmlDeclaration(): string

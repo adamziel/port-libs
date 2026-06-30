@@ -75,22 +75,36 @@ return [
             '_rels/.rels',
             'docProps/core.xml',
             'docProps/app.xml',
+            'docProps/custom.xml',
             'word/document.xml',
             'word/_rels/document.xml.rels',
-            'word/styles.xml',
+            'word/_rels/footnotes.xml.rels',
+            'word/comments.xml',
+            'word/footnotes.xml',
+            'word/fontTable.xml',
             'word/numbering.xml',
             'word/settings.xml',
+            'word/styles.xml',
+            'word/theme/theme1.xml',
+            'word/webSettings.xml',
         ], array_map(static fn ($entry): string => $entry->name, $package->entries()));
 
         $contentTypes = OpcContentTypes::fromXml($parts['[Content_Types].xml']);
         $t->same('application/vnd.openxmlformats-package.relationships+xml', $contentTypes->defaults()['rels'] ?? null);
         $t->same('application/xml', $contentTypes->defaults()['xml'] ?? null);
+        $t->same('application/vnd.openxmlformats-officedocument.obfuscatedFont', $contentTypes->defaults()['odttf'] ?? null);
         $t->same('application/vnd.openxmlformats-package.core-properties+xml', $contentTypes->contentTypeForPart('/docProps/core.xml'));
         $t->same('application/vnd.openxmlformats-officedocument.extended-properties+xml', $contentTypes->contentTypeForPart('/docProps/app.xml'));
+        $t->same('application/vnd.openxmlformats-officedocument.custom-properties+xml', $contentTypes->contentTypeForPart('/docProps/custom.xml'));
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $contentTypes->contentTypeForPart('/word/document.xml'));
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml', $contentTypes->contentTypeForPart('/word/comments.xml'));
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml', $contentTypes->contentTypeForPart('/word/footnotes.xml'));
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml', $contentTypes->contentTypeForPart('/word/fontTable.xml'));
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml', $contentTypes->contentTypeForPart('/word/styles.xml'));
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml', $contentTypes->contentTypeForPart('/word/numbering.xml'));
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml', $contentTypes->contentTypeForPart('/word/settings.xml'));
+        $t->same('application/vnd.openxmlformats-officedocument.theme+xml', $contentTypes->contentTypeForPart('/word/theme/theme1.xml'));
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml', $contentTypes->contentTypeForPart('/word/webSettings.xml'));
 
         $rootRels = OpcRelationships::fromXml($parts['_rels/.rels'], '/');
         $rootDocument = $rootRels->firstOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument');
@@ -98,14 +112,20 @@ return [
         $t->same('word/document.xml', $rootDocument?->target);
         $t->same('docProps/core.xml', $rootRels->firstOfType('http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties')?->target);
         $t->same('docProps/app.xml', $rootRels->firstOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties')?->target);
+        $t->same('docProps/custom.xml', $rootRels->firstOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties')?->target);
 
         $documentRels = OpcRelationships::fromXml($parts['word/_rels/document.xml.rels'], '/word/document.xml');
+        $t->same('comments.xml', $documentRels->firstOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments')?->target);
+        $t->same('footnotes.xml', $documentRels->firstOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes')?->target);
+        $t->same('theme/theme1.xml', $documentRels->firstOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme')?->target);
+        $t->same('fontTable.xml', $documentRels->firstOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable')?->target);
+        $t->same('webSettings.xml', $documentRels->firstOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings')?->target);
         $t->same('styles.xml', $documentRels->firstOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles')?->target);
         $t->same('numbering.xml', $documentRels->firstOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering')?->target);
         $t->same('settings.xml', $documentRels->firstOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings')?->target);
         $hyperlink = $documentRels->firstOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink');
         $t->true($hyperlink instanceof OpcRelationship, 'External hyperlink relationship missing');
-        $t->same('rId4', $hyperlink?->id);
+        $t->same('rId9', $hyperlink?->id);
         $t->same('https://example.test/audit?x=1&y=2', $hyperlink?->target);
         $t->same(OpcRelationship::TARGET_MODE_EXTERNAL, $hyperlink?->targetMode);
 
@@ -116,7 +136,7 @@ return [
         $t->contains('<w:t xml:space="preserve">  tail</w:t>', $documentXml);
         $t->contains('<w:numId w:val="1"/>', $documentXml);
         $t->contains('<w:numId w:val="10"/>', $documentXml);
-        $t->contains('<w:hyperlink r:id="rId4">', $documentXml);
+        $t->contains('<w:hyperlink r:id="rId9">', $documentXml);
         $t->contains('<w:sectPr>', $documentXml);
 
         $t->contains('<dc:title>Package core</dc:title>', $parts['docProps/core.xml']);
@@ -126,11 +146,19 @@ return [
         $t->contains('<dcterms:modified xsi:type="dcterms:W3CDTF">2026-06-30T00:00:00Z</dcterms:modified>', $parts['docProps/core.xml']);
         $t->contains('<Application>pandoc</Application>', $parts['docProps/app.xml']);
         $t->contains('<HeadingPairs><vt:vector size="2" baseType="variant">', $parts['docProps/app.xml']);
+        $t->contains('<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/custom-properties"', $parts['docProps/custom.xml']);
+        $t->contains('<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>', $parts['word/_rels/footnotes.xml.rels']);
+        $t->contains('<w:comments', $parts['word/comments.xml']);
+        $t->contains('<w:separator/>', $parts['word/footnotes.xml']);
+        $t->contains('<w:continuationSeparator/>', $parts['word/footnotes.xml']);
+        $t->contains('<w:font w:name="Calibri"', $parts['word/fontTable.xml']);
         $t->contains('w:styleId="Heading1"', $parts['word/styles.xml']);
         $t->contains('w:styleId="Hyperlink"', $parts['word/styles.xml']);
         $t->contains('<w:startOverride w:val="3"/>', $parts['word/numbering.xml']);
         $t->contains('<w:settings', $parts['word/settings.xml']);
         $t->contains('<w:compatSetting', $parts['word/settings.xml']);
+        $t->contains('<a:theme', $parts['word/theme/theme1.xml']);
+        $t->contains('<w:allowPNG/>', $parts['word/webSettings.xml']);
     },
 
     'emits bounded word tables with captions spans and nested cell blocks' => static function (TestRunner $t) use ($doc, $text, $paragraph, $item, $cell, $row, $packageParts): void {
@@ -195,11 +223,18 @@ return [
             '_rels/.rels',
             'docProps/core.xml',
             'docProps/app.xml',
+            'docProps/custom.xml',
             'word/document.xml',
             'word/_rels/document.xml.rels',
-            'word/styles.xml',
+            'word/_rels/footnotes.xml.rels',
+            'word/comments.xml',
+            'word/footnotes.xml',
+            'word/fontTable.xml',
             'word/numbering.xml',
             'word/settings.xml',
+            'word/styles.xml',
+            'word/theme/theme1.xml',
+            'word/webSettings.xml',
         ], array_column($parts, 'name'));
         foreach ($parts as $part) {
             $t->same(0, $part['modifiedDosTime']);
