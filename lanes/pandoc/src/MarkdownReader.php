@@ -1608,15 +1608,16 @@ final class MarkdownReader
      */
     private function buildRawHtmlDetailsBlocks(string $html): array
     {
-        if (preg_match('/^\s*(<details\b[^>]*>)(.*)(<\/details\s*>)\s*$/isu', $html, $match) !== 1) {
+        $details = $this->splitBalancedHtmlElement($html, 'details');
+        if ($details === null) {
             return [];
         }
 
         $rawHtmlEnabled = $this->htmlRawHtmlEnabled();
-        $inner = (string) $match[2];
+        $inner = $details['inner'];
         $blocks = [];
         if ($rawHtmlEnabled) {
-            $blocks[] = new AstNode('raw_html', ['html' => trim($match[1])]);
+            $blocks[] = new AstNode('raw_html', ['html' => $details['open']]);
         }
 
         [$summary, $body] = $this->extractRawHtmlDetailsSummary($inner);
@@ -1639,7 +1640,7 @@ final class MarkdownReader
         }
 
         if ($rawHtmlEnabled) {
-            $blocks[] = new AstNode('raw_html', ['html' => trim($match[3])]);
+            $blocks[] = new AstNode('raw_html', ['html' => $details['close']]);
         }
 
         return $blocks;
@@ -1659,6 +1660,138 @@ final class MarkdownReader
         $body = substr($inner, 0, $offset) . substr($inner, $offset + strlen($summary));
 
         return [$summary, $body];
+    }
+
+    /**
+     * @return array{open:string, inner:string, close:string}|null
+     */
+    private function splitBalancedHtmlElement(string $html, string $tag): ?array
+    {
+        $source = trim($html);
+        if ($source === '') {
+            return null;
+        }
+
+        $spans = $this->htmlElementTagSpans($source, $tag);
+        $first = $spans[0] ?? null;
+        if (
+            $first === null
+            || $first['start'] !== 0
+            || $first['closing']
+            || $first['selfClosing']
+        ) {
+            return null;
+        }
+
+        $depth = 0;
+        $closing = null;
+        foreach ($spans as $span) {
+            if ($span['closing']) {
+                if ($depth === 0) {
+                    return null;
+                }
+
+                $depth--;
+                if ($depth === 0) {
+                    $closing = $span;
+                    break;
+                }
+                continue;
+            }
+
+            if (!$span['selfClosing']) {
+                $depth++;
+            }
+        }
+
+        if ($closing === null || trim(substr($source, $closing['end'] + 1)) !== '') {
+            return null;
+        }
+
+        $innerStart = $first['end'] + 1;
+
+        return [
+            'open' => $first['text'],
+            'inner' => substr($source, $innerStart, $closing['start'] - $innerStart),
+            'close' => $closing['text'],
+        ];
+    }
+
+    /**
+     * @return list<array{start:int, end:int, text:string, closing:bool, selfClosing:bool}>
+     */
+    private function htmlElementTagSpans(string $html, string $tag): array
+    {
+        $spans = [];
+        $length = strlen($html);
+        $tagLength = strlen($tag);
+        $offset = 0;
+
+        while (($start = strpos($html, '<', $offset)) !== false) {
+            $cursor = $start + 1;
+            $closing = false;
+            if (($html[$cursor] ?? '') === '/') {
+                $closing = true;
+                $cursor++;
+            }
+
+            if (
+                $cursor + $tagLength > $length
+                || strcasecmp(substr($html, $cursor, $tagLength), $tag) !== 0
+            ) {
+                $offset = $start + 1;
+                continue;
+            }
+
+            $afterName = $html[$cursor + $tagLength] ?? '';
+            if ($afterName !== '' && preg_match('/[A-Za-z0-9:-]/', $afterName) === 1) {
+                $offset = $start + 1;
+                continue;
+            }
+
+            $end = $this->findHtmlTagEnd($html, $cursor + $tagLength);
+            if ($end === null) {
+                $offset = $start + 1;
+                continue;
+            }
+
+            $text = substr($html, $start, $end - $start + 1);
+            $spans[] = [
+                'start' => $start,
+                'end' => $end,
+                'text' => $text,
+                'closing' => $closing,
+                'selfClosing' => !$closing && str_ends_with(rtrim($text), '/>'),
+            ];
+            $offset = $end + 1;
+        }
+
+        return $spans;
+    }
+
+    private function findHtmlTagEnd(string $html, int $offset): ?int
+    {
+        $quote = null;
+        for ($cursor = $offset, $length = strlen($html); $cursor < $length; $cursor++) {
+            $char = $html[$cursor];
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '>') {
+                return $cursor;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -4428,12 +4561,9 @@ final class MarkdownReader
     {
         $depth = 0;
         $started = false;
-        $pattern = '/<\/?' . preg_quote($tag, '/') . '\b[^>]*>/i';
 
-        preg_match_all($pattern, $html, $matches);
-        foreach ($matches[0] as $matchedTag) {
-            $matchedTag = strtolower(trim($matchedTag));
-            if (str_starts_with($matchedTag, '</')) {
+        foreach ($this->htmlElementTagSpans($html, $tag) as $matchedTag) {
+            if ($matchedTag['closing']) {
                 if ($started) {
                     $depth--;
                 }
@@ -4441,7 +4571,7 @@ final class MarkdownReader
             }
 
             $started = true;
-            if (!str_ends_with(rtrim($matchedTag), '/>')) {
+            if (!$matchedTag['selfClosing']) {
                 $depth++;
             }
         }
