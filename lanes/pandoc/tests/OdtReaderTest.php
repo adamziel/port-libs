@@ -492,6 +492,91 @@ XML);
         $t->same('paragraph', $document->children[0]->type);
         $t->same('Missing font and known font.', $document->children[0]->attr('text'));
     },
+    'reports direct odt duplicate style catalog diagnostics' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary ODT path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary ODT package');
+        }
+        $zip->addFromString('styles.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+  <office:font-face-decls>
+    <style:font-face style:name="Review Sans"/>
+    <style:font-face style:name="Review Sans"/>
+  </office:font-face-decls>
+  <office:styles>
+    <style:style style:name="DuplicateText" style:family="paragraph"/>
+    <style:style style:name="DuplicateText" style:family="text"><style:text-properties fo:font-style="italic"/></style:style>
+    <text:list-style style:name="DuplicateNumbers">
+      <text:list-level-style-number text:level="1" style:num-format="1"/>
+    </text:list-style>
+    <text:list-style style:name="DuplicateNumbers">
+      <text:list-level-style-bullet text:level="1" text:bullet-char="*"/>
+    </text:list-style>
+  </office:styles>
+</office:document-styles>
+XML);
+        $zip->addFromString('content.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p><text:span text:style-name="DuplicateText">Duplicate style diagnostics</text:span> stay metadata-only.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML);
+        $zip->close();
+
+        try {
+            $document = (new OdtReader())->readOdtFile($path);
+        } finally {
+            @unlink($path);
+        }
+
+        $meta = $document->attr('meta');
+        $diagnosticsByCode = [];
+        foreach ($meta['odtStyleDiagnostics'] as $diagnostic) {
+            $diagnosticsByCode[$diagnostic['code']][] = $diagnostic;
+        }
+
+        $t->same(1, $meta['odtTextStyleCount']);
+        $t->same(1, $meta['odtListStyleCount']);
+        $t->same(3, $meta['odtStyleDiagnosticCount']);
+        $t->same([
+            'odt-font-face-duplicate-name' => 1,
+            'odt-list-style-duplicate-name' => 1,
+            'odt-style-duplicate-name' => 1,
+        ], $meta['odtStyleDiagnosticCodeCounts']);
+
+        $duplicateStyle = $diagnosticsByCode['odt-style-duplicate-name'][0];
+        $t->same('DuplicateText', $duplicateStyle['styleName']);
+        $t->same('paragraph', $duplicateStyle['previousFamily']);
+        $t->same('text', $duplicateStyle['replacementFamily']);
+        $t->same('styles.xml', $duplicateStyle['replacementSourcePart']);
+
+        $duplicateFontFace = $diagnosticsByCode['odt-font-face-duplicate-name'][0];
+        $t->same('Review Sans', $duplicateFontFace['fontFaceName']);
+        $t->same('style:font-face', $duplicateFontFace['replacementElement']);
+
+        $duplicateListStyle = $diagnosticsByCode['odt-list-style-duplicate-name'][0];
+        $t->same('DuplicateNumbers', $duplicateListStyle['listStyleName']);
+        $t->same('text:list-style', $duplicateListStyle['replacementElement']);
+
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('Duplicate style diagnostics stay metadata-only.', $document->children[0]->attr('text'));
+    },
     'reports direct odt style list and content reference diagnostics' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
         if ($path === false) {

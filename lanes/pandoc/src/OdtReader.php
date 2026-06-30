@@ -106,19 +106,25 @@ final class OdtReader
         $content = $this->loadXml($content_xml, 'ODT content.xml');
         $styles = $styles_xml !== '' ? $this->loadXml($styles_xml, 'ODT styles.xml') : null;
         $this->styleDiagnostics = [];
-        $fontFaces = array_replace(
-            $styles instanceof \DOMDocument ? $this->collectFontFaces($styles, 'styles.xml') : [],
+        $fontFaces = $styles instanceof \DOMDocument ? $this->collectFontFaces($styles, 'styles.xml') : [];
+        $this->mergeStyleCollectionItems(
+            $fontFaces,
             $this->collectFontFaces($content, 'content.xml'),
+            'odt-font-face-duplicate-name',
+            'fontFaceName'
         );
-        $this->styleDefinitions = array_replace(
-            $styles instanceof \DOMDocument ? $this->collectStyleDefinitions($styles, 'styles.xml') : [],
+        $this->styleDefinitions = $styles instanceof \DOMDocument ? $this->collectStyleDefinitions($styles, 'styles.xml') : [];
+        $this->mergeStyleCollectionItems(
+            $this->styleDefinitions,
             $this->collectStyleDefinitions($content, 'content.xml'),
+            'odt-style-duplicate-name',
+            'styleName'
         );
         $this->textStyles = $this->textStylesFromDefinitions($this->styleDefinitions);
-        $this->listStyles = array_replace_recursive(
-            $styles instanceof \DOMDocument ? $this->collectListStyles($styles, 'styles.xml') : [],
-            $this->collectListStyles($content, 'content.xml'),
-        );
+        $listStyles = $styles instanceof \DOMDocument ? $this->collectListStyles($styles, 'styles.xml') : [];
+        $contentListStyles = $this->collectListStyles($content, 'content.xml');
+        $this->appendListStyleDuplicateDiagnostics($listStyles, $contentListStyles);
+        $this->listStyles = array_replace_recursive($listStyles, $contentListStyles);
         array_push($this->styleDiagnostics, ...$this->styleReferenceDiagnostics($this->styleDefinitions, $this->listStyles, $fontFaces));
         array_push($this->styleDiagnostics, ...$this->contentStyleReferenceDiagnostics($content));
 
@@ -636,10 +642,16 @@ final class OdtReader
                 continue;
             }
 
-            $fontFaces[$name] = [
-                'sourcePart' => $sourcePart,
-                'element' => $this->odtElementName($fontFace),
-            ];
+            $this->putStyleCollectionItem(
+                $fontFaces,
+                'odt-font-face-duplicate-name',
+                'fontFaceName',
+                $name,
+                [
+                    'sourcePart' => $sourcePart,
+                    'element' => $this->odtElementName($fontFace),
+                ]
+            );
         }
 
         return $fontFaces;
@@ -695,7 +707,13 @@ final class OdtReader
                     $entry['fontName'] = $fontName;
                 }
             }
-            $styles[$name] = $entry;
+            $this->putStyleCollectionItem(
+                $styles,
+                'odt-style-duplicate-name',
+                'styleName',
+                $name,
+                $entry
+            );
         }
 
         return $styles;
@@ -804,6 +822,44 @@ final class OdtReader
     }
 
     /**
+     * @param array<string, array<string, mixed>> $target
+     * @param array<string, array<string, mixed>> $source
+     */
+    private function mergeStyleCollectionItems(array &$target, array $source, string $code, string $nameKey): void
+    {
+        foreach ($source as $name => $item) {
+            $this->putStyleCollectionItem($target, $code, $nameKey, (string) $name, $item);
+        }
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $target
+     * @param array<string, mixed> $item
+     */
+    private function putStyleCollectionItem(array &$target, string $code, string $nameKey, string $name, array $item): void
+    {
+        if (isset($target[$name])) {
+            $diagnostic = [
+                'code' => $code,
+                $nameKey => $name,
+            ];
+            foreach (['family', 'element', 'sourcePart'] as $field) {
+                $previous = $target[$name][$field] ?? null;
+                $replacement = $item[$field] ?? null;
+                if (is_scalar($previous) && (string) $previous !== '') {
+                    $diagnostic['previous' . ucfirst($field)] = (string) $previous;
+                }
+                if (is_scalar($replacement) && (string) $replacement !== '') {
+                    $diagnostic['replacement' . ucfirst($field)] = (string) $replacement;
+                }
+            }
+            $this->styleDiagnostics[] = $diagnostic;
+        }
+
+        $target[$name] = $item;
+    }
+
+    /**
      * @return array<string, array<int, array{ordered: bool, style?: string, delimiter?: string, start?: int}>>
      */
     private function collectListStyles(\DOMDocument $dom, string $sourcePart = ''): array
@@ -824,6 +880,16 @@ final class OdtReader
                     'element' => $this->odtElementName($style),
                 ];
                 continue;
+            }
+            if (isset($styles[$name])) {
+                $this->styleDiagnostics[] = [
+                    'code' => 'odt-list-style-duplicate-name',
+                    'listStyleName' => $name,
+                    'previousElement' => 'text:list-style',
+                    'replacementElement' => $this->odtElementName($style),
+                    'previousSourcePart' => $sourcePart,
+                    'replacementSourcePart' => $sourcePart,
+                ];
             }
 
             foreach ($style->childNodes as $levelStyle) {
@@ -863,6 +929,27 @@ final class OdtReader
         }
 
         return $styles;
+    }
+
+    /**
+     * @param array<string, array<int, array{ordered: bool, style?: string, delimiter?: string, start?: int}>> $target
+     * @param array<string, array<int, array{ordered: bool, style?: string, delimiter?: string, start?: int}>> $source
+     */
+    private function appendListStyleDuplicateDiagnostics(array $target, array $source): void
+    {
+        foreach ($source as $name => $_levels) {
+            if (!isset($target[$name])) {
+                continue;
+            }
+            $this->styleDiagnostics[] = [
+                'code' => 'odt-list-style-duplicate-name',
+                'listStyleName' => (string) $name,
+                'previousElement' => 'text:list-style',
+                'replacementElement' => 'text:list-style',
+                'previousSourcePart' => 'styles.xml',
+                'replacementSourcePart' => 'content.xml',
+            ];
+        }
     }
 
     private function appendStyleDefinitionDiagnostics(\DOMElement $style, string $sourcePart): void
