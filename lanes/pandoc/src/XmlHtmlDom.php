@@ -25473,6 +25473,9 @@ final class XmlHtmlDom
             $summary['lengthRangeValid'] = is_int($summary['minLength'] ?? null) && is_int($summary['maxLength'] ?? null)
                 ? $summary['maxLength'] >= $summary['minLength']
                 : null;
+            if ($name === 'input' || $name === 'textarea') {
+                $summary += self::formControlLengthConstraintReviewSummary($control, $name);
+            }
         }
         if ($control->hasAttribute('min')) {
             $min = self::finiteNumericToken($control->getAttribute('min'));
@@ -25540,6 +25543,127 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function formControlLengthConstraintReviewSummary(\DOMElement $control, string $name): array
+    {
+        $inputType = $name === 'input' ? self::inputType($control) : null;
+        $minRaw = self::attributeOrNull($control, 'minlength');
+        $maxRaw = self::attributeOrNull($control, 'maxlength');
+        $min = $minRaw === null ? null : self::nonNegativeIntegerToken($minRaw, 1000000);
+        $max = $maxRaw === null ? null : self::nonNegativeIntegerToken($maxRaw, 1000000);
+        $applies = $name === 'textarea'
+            || ($inputType !== null && self::inputTypeSupportsLengthConstraint($inputType));
+        $readonly = $name === 'textarea'
+            ? $control->hasAttribute('readonly')
+            : ($inputType !== null && self::inputTypeSupportsReadonlyValue($inputType) && $control->hasAttribute('readonly'));
+        $effectiveDisabled = self::isEffectivelyDisabledFormControl($control);
+        $value = $name === 'textarea' ? $control->textContent : $control->getAttribute('value');
+        $length = self::unicodeCodePointLength($value);
+        $rangeValid = is_int($min) && is_int($max) ? $max >= $min : null;
+        $tooShort = $applies && is_int($min) && $length < $min;
+        $tooLong = $applies && is_int($max) && $length > $max;
+        $issues = [];
+
+        if (!$applies) {
+            $issues[] = [
+                'code' => 'length-constraint-unsupported-control',
+                'element' => $name,
+                'inputType' => $inputType,
+            ];
+        }
+        if ($minRaw !== null && $min === null) {
+            $issues[] = [
+                'code' => 'invalid-minlength-constraint',
+                'raw' => $minRaw,
+            ];
+        }
+        if ($maxRaw !== null && $max === null) {
+            $issues[] = [
+                'code' => 'invalid-maxlength-constraint',
+                'raw' => $maxRaw,
+            ];
+        }
+        if ($rangeValid === false) {
+            $issues[] = [
+                'code' => 'invalid-length-constraint-range',
+                'minLength' => $min,
+                'maxLength' => $max,
+            ];
+        }
+        if ($effectiveDisabled) {
+            $issues[] = ['code' => 'length-constraint-disabled-control'];
+        }
+        if ($readonly) {
+            $issues[] = ['code' => 'length-constraint-readonly-control'];
+        }
+        if ($tooShort && !$effectiveDisabled && !$readonly) {
+            $issues[] = [
+                'code' => 'static-value-too-short',
+                'valueLength' => $length,
+                'minLength' => $min,
+            ];
+        }
+        if ($tooLong && !$effectiveDisabled && !$readonly) {
+            $issues[] = [
+                'code' => 'static-value-too-long',
+                'valueLength' => $length,
+                'maxLength' => $max,
+            ];
+        }
+
+        return [
+            'lengthReviewPolicy' => 'form-control-length-constraint-review',
+            'lengthControlElement' => $name,
+            'lengthControlType' => $inputType,
+            'lengthControlId' => self::attributeOrNull($control, 'id'),
+            'lengthControlName' => self::attributeOrNull($control, 'name'),
+            'lengthConstraintApplies' => $applies,
+            'lengthMinRaw' => $minRaw,
+            'lengthMin' => $min,
+            'lengthMinValid' => $minRaw === null ? null : $min !== null,
+            'lengthMaxRaw' => $maxRaw,
+            'lengthMax' => $max,
+            'lengthMaxValid' => $maxRaw === null ? null : $max !== null,
+            'lengthRangeValid' => $rangeValid,
+            'lengthStaticValueSource' => $name === 'textarea' ? 'textarea-text' : 'value-attribute',
+            'lengthStaticValue' => $value,
+            'lengthStaticValueLength' => $length,
+            'lengthTooShort' => $tooShort,
+            'lengthTooLong' => $tooLong,
+            'lengthEffectiveDisabled' => $effectiveDisabled,
+            'lengthReadonly' => $readonly,
+            'lengthWouldBlockStaticSubmission' => $applies
+                && !$effectiveDisabled
+                && !$readonly
+                && ($tooShort || $tooLong),
+            'lengthReviewOnlyNoFormSubmission' => true,
+            'lengthIssues' => $issues,
+            'lengthIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'lengthValid' => $issues === [],
+        ];
+    }
+
+    private static function inputTypeSupportsLengthConstraint(string $type): bool
+    {
+        return in_array(strtolower($type), ['email', 'password', 'search', 'tel', 'text', 'url'], true);
+    }
+
+    private static function unicodeCodePointLength(string $value): int
+    {
+        if ($value === '') {
+            return 0;
+        }
+
+        $count = preg_match_all('/./us', $value);
+
+        return is_int($count) ? $count : strlen($value);
     }
 
     /**
