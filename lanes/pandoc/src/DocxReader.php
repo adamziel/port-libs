@@ -697,6 +697,9 @@ final class DocxReader
                         'groupAttrs' => $groupAttrs,
                         'paragraph' => $paragraph,
                     ];
+                    if ($this->paragraphUsesCompactListStyle($styleId)) {
+                        $record['compact'] = true;
+                    }
                     if (is_string($list['marker'] ?? null) && $list['marker'] !== '') {
                         $record['marker'] = $list['marker'];
                     }
@@ -1288,7 +1291,7 @@ final class DocxReader
     }
 
     /**
-     * @param list<array{level: int, ordered: bool, attrs: array<string, mixed>, groupAttrs: array<string, mixed>, paragraph: AstNode, marker?: string, continuation?: bool}> $records
+     * @param list<array{level: int, ordered: bool, attrs: array<string, mixed>, groupAttrs: array<string, mixed>, paragraph: AstNode, marker?: string, continuation?: bool, compact?: bool}> $records
      * @return list<AstNode>
      */
     private function listBlocksFromRecords(array $records): array
@@ -1302,7 +1305,7 @@ final class DocxReader
     }
 
     /**
-     * @param list<array{level: int, ordered: bool, attrs: array<string, mixed>, groupAttrs: array<string, mixed>, paragraph: AstNode, marker?: string, continuation?: bool}> $records
+     * @param list<array{level: int, ordered: bool, attrs: array<string, mixed>, groupAttrs: array<string, mixed>, paragraph: AstNode, marker?: string, continuation?: bool, compact?: bool}> $records
      * @return list<AstNode>
      */
     private function listBlocksAtLevel(array $records, int &$index, int $level): array
@@ -1351,7 +1354,12 @@ final class DocxReader
                     continue;
                 }
 
-                $children = [$this->paragraphWithListMarker($record['paragraph'], (string) ($record['marker'] ?? ''))];
+                $paragraph = $this->paragraphWithListMarker($record['paragraph'], (string) ($record['marker'] ?? ''));
+                if (($record['compact'] ?? false) === true) {
+                    $paragraph = $this->compactListParagraph($paragraph);
+                }
+
+                $children = [$paragraph];
                 while ($index < $count && max(1, (int) $records[$index]['level']) > $level) {
                     $nestedLevel = max(1, (int) $records[$index]['level']);
                     array_push($children, ...$this->listBlocksAtLevel($records, $index, $nestedLevel));
@@ -1381,6 +1389,15 @@ final class DocxReader
             ...$paragraph->attrs,
             'text' => trim($marker . ' ' . (string) $paragraph->attr('text', '')),
         ], $children);
+    }
+
+    private function compactListParagraph(AstNode $paragraph): AstNode
+    {
+        if ($paragraph->type !== 'paragraph') {
+            return $paragraph;
+        }
+
+        return new AstNode('plain', $paragraph->attrs, $paragraph->children);
     }
 
     private function paragraph(\DOMElement $paragraph): ?AstNode
@@ -1580,6 +1597,25 @@ final class DocxReader
         }
 
         return null;
+    }
+
+    private function paragraphUsesCompactListStyle(string $styleId): bool
+    {
+        if ($styleId === '') {
+            return false;
+        }
+
+        foreach ($this->styleChainIds($styleId) as $candidateStyleId) {
+            $style = $this->styles[$candidateStyleId] ?? [];
+            foreach ([$candidateStyleId, (string) ($style['styleName'] ?? '')] as $candidate) {
+                $normalized = strtolower(preg_replace('/[^a-z0-9]+/i', '', $candidate) ?? '');
+                if ($normalized === 'compact') {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private function paragraphMetadataField(string $styleId): ?string

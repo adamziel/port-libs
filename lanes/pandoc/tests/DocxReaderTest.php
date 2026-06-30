@@ -315,6 +315,59 @@ XML],
         $t->contains('<ul><li>Check footers</li></ul>', $blocks);
         $t->contains('<p>Plain exception</p>', $blocks);
     },
+    'maps compact styled docx list item paragraphs to plain blocks' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            ['name' => 'word/styles.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:styleId="CompactList">
+    <w:name w:val="Compact"/>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="BodyList">
+    <w:name w:val="Body List"/>
+  </w:style>
+</w:styles>
+XML],
+            ['name' => 'word/numbering.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:abstractNum w:abstractNumId="10">
+    <w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/></w:lvl>
+  </w:abstractNum>
+  <w:abstractNum w:abstractNumId="11">
+    <w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/></w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="10"><w:abstractNumId w:val="10"/></w:num>
+  <w:num w:numId="11"><w:abstractNumId w:val="11"/></w:num>
+</w:numbering>
+XML],
+            ['name' => 'word/document.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:pPr><w:pStyle w:val="CompactList"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="10"/></w:numPr></w:pPr><w:r><w:t>Compact one</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="CompactList"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="10"/></w:numPr></w:pPr><w:r><w:t>Compact two</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="BodyList"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="11"/></w:numPr></w:pPr><w:r><w:t>Regular one</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+XML],
+        ]);
+
+        $document = (new DocxReader())->readDocument($package);
+        $native = (new NativeWriter())->write($document);
+        $compact = $document->children[0];
+        $regular = $document->children[1];
+
+        $t->same(['ordered_list', 'ordered_list'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('plain', $compact->children[0]->children[0]->type);
+        $t->same('plain', $compact->children[1]->children[0]->type);
+        $t->same('Compact one', $compact->children[0]->children[0]->attr('text'));
+        $t->same('Compact two', $compact->children[1]->children[0]->attr('text'));
+        $t->same('paragraph', $regular->children[0]->children[0]->type);
+        $t->same('Regular one', $regular->children[0]->children[0]->attr('text'));
+        $t->contains('Plain [ Str "Compact" , Space , Str "one" ]', $native);
+        $t->contains('Para [ Str "Regular" , Space , Str "one" ]', $native);
+    },
     'keeps explicitly suppressed same-style numbering as a list item continuation' => static function (TestRunner $t): void {
         $package = ZipPackage::fromParts([
             ['name' => 'word/styles.xml', 'data' => <<<'XML'
