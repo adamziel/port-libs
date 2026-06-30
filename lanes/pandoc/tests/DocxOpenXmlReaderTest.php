@@ -3398,6 +3398,77 @@ XML;
         $t->same(2, $word['roleCounts']['document-relationship-target']);
         $t->same(1, $word['roleCounts']['embedded-package']);
     },
+    'summarizes docx package part path segment lengths for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $longPart = 'customXml/length-review/very-long-segment-name-for-review/data.bin';
+        $parts[$longPart] = str_repeat('L', 29);
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $byLengthBucket = [];
+        foreach ($summary['partPathSegmentLengths'] as $bucket) {
+            $byLengthBucket[$bucket['byteLengthBucket']] = $bucket;
+        }
+
+        $t->same([9, 13, 33, 8], $inventory[$longPart]['pathSegmentByteLengths']);
+        $t->same(33, $inventory[$longPart]['pathSegmentMaxByteLength']);
+        $t->same(8, $inventory[$longPart]['pathSegmentMinByteLength']);
+        $t->same([
+            '1-8' => 1,
+            '33-64' => 1,
+            '9-16' => 2,
+        ], $inventory[$longPart]['pathSegmentLengthBuckets']);
+        $t->same([
+            [
+                'pathSegmentIndex' => 0,
+                'segment' => 'customXml',
+                'byteLength' => 9,
+                'byteLengthBucket' => '9-16',
+            ],
+            [
+                'pathSegmentIndex' => 1,
+                'segment' => 'length-review',
+                'byteLength' => 13,
+                'byteLengthBucket' => '9-16',
+            ],
+            [
+                'pathSegmentIndex' => 2,
+                'segment' => 'very-long-segment-name-for-review',
+                'byteLength' => 33,
+                'byteLengthBucket' => '33-64',
+            ],
+            [
+                'pathSegmentIndex' => 3,
+                'segment' => 'data.bin',
+                'byteLength' => 8,
+                'byteLengthBucket' => '1-8',
+            ],
+        ], $inventory[$longPart]['pathSegmentLengthReviews']);
+
+        $t->same(4, $summary['partPathSegmentLengthBucketCount']);
+        $t->same($summary['partPathSegmentOccurrenceCount'], $summary['partPathSegmentLengthOccurrenceCount']);
+        $t->same(33, $summary['partPathSegmentMaxByteLength']);
+
+        $longBucket = $byLengthBucket['33-64'];
+        $t->same(1, $longBucket['occurrenceCount']);
+        $t->same(1, $longBucket['partCount']);
+        $t->same(1, $longBucket['uniqueSegmentCount']);
+        $t->same(33, $longBucket['segmentByteLength']);
+        $t->same(33, $longBucket['maxSegmentByteLength']);
+        $t->same(29, $longBucket['packageByteLength']);
+        $t->same(1, $longBucket['missingContentTypePartCount']);
+        $t->same(['very-long-segment-name-for-review'], $longBucket['segments']);
+        $t->same([$longPart], $longBucket['partNames']);
+        $t->same(['customXml/length-review/very-long-segment-name-for-review'], $longBucket['directories']);
+        $t->same([2 => 1], $longBucket['pathSegmentIndexCounts']);
+        $t->same(['missing' => 1], $longBucket['contentTypeSourceCounts']);
+        $t->same(['(missing)' => 1], $longBucket['contentTypeBaseCounts']);
+        $t->same(['package-part' => 1], $longBucket['roleCounts']);
+        $t->same($longPart, $longBucket['largestPart']['partName']);
+        $t->same(hash('sha256', $parts[$longPart]), $longBucket['largestPart']['sha256']);
+    },
     'summarizes docx package part name character provenance for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $mixedCaseWhitespacePart = 'word/media/Review Draft.PNG';

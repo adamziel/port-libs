@@ -14229,6 +14229,16 @@ final class DocxOpenXmlReader
         foreach ($partPathSegments as $partPathSegment) {
             $partPathSegmentOccurrenceCount += (int) ($partPathSegment['occurrenceCount'] ?? 0);
         }
+        $partPathSegmentLengths = $this->packagePartPathSegmentLengthSummary($partInventory);
+        $partPathSegmentLengthOccurrenceCount = 0;
+        $partPathSegmentMaxByteLength = 0;
+        foreach ($partPathSegmentLengths as $partPathSegmentLength) {
+            $partPathSegmentLengthOccurrenceCount += (int) ($partPathSegmentLength['occurrenceCount'] ?? 0);
+            $partPathSegmentMaxByteLength = max(
+                $partPathSegmentMaxByteLength,
+                (int) ($partPathSegmentLength['maxSegmentByteLength'] ?? 0),
+            );
+        }
         $partPathDepths = $this->packagePartPathDepthSummary($partInventory);
         $parameterizedPartPathDepthCount = 0;
         $parameterizedPartPathDepthBucketCount = 0;
@@ -16897,6 +16907,9 @@ final class DocxOpenXmlReader
             'partTopLevelSegmentCount' => count($partTopLevelSegments),
             'partPathSegmentCount' => count($partPathSegments),
             'partPathSegmentOccurrenceCount' => $partPathSegmentOccurrenceCount,
+            'partPathSegmentLengthBucketCount' => count($partPathSegmentLengths),
+            'partPathSegmentLengthOccurrenceCount' => $partPathSegmentLengthOccurrenceCount,
+            'partPathSegmentMaxByteLength' => $partPathSegmentMaxByteLength,
             'partPathDepthCount' => count($partPathDepths),
             'partPathDepthParameterizedBucketCount' => $parameterizedPartPathDepthBucketCount,
             'partPathDepthParameterizedPartCount' => $parameterizedPartPathDepthCount,
@@ -18015,6 +18028,7 @@ final class DocxOpenXmlReader
             'partDirectoryDepths' => $partDirectoryDepths,
             'partTopLevelSegments' => $partTopLevelSegments,
             'partPathSegments' => $partPathSegments,
+            'partPathSegmentLengths' => $partPathSegmentLengths,
             'partPathDepths' => $partPathDepths,
             'deepestParts' => $deepestParts,
             'partExtensions' => $partExtensions,
@@ -21334,6 +21348,155 @@ final class DocxOpenXmlReader
         }
 
         return array_values($segments);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packagePartPathSegmentLengthSummary(array $partInventory): array
+    {
+        $buckets = [];
+        $partsSeenByBucket = [];
+        foreach ($partInventory as $partName => $part) {
+            $partName = (string) ($part['partName'] ?? $partName);
+            $reviews = is_array($part['pathSegmentLengthReviews'] ?? null)
+                ? $part['pathSegmentLengthReviews']
+                : $this->packagePartPathSegmentLengthReviews($this->packagePartPathSegments($partName));
+            $directory = is_string($part['directory'] ?? null)
+                ? $part['directory']
+                : $this->packagePartDirectory($partName);
+            $baseName = is_string($part['baseName'] ?? null)
+                ? $part['baseName']
+                : $this->packagePartBaseName($partName);
+            $bytes = (int) ($part['bytes'] ?? 0);
+            $contentTypeSource = is_string($part['contentTypeSource'] ?? null)
+                ? $part['contentTypeSource']
+                : 'missing';
+            if ($contentTypeSource === '') {
+                $contentTypeSource = 'missing';
+            }
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null)
+                ? $part['contentTypeBase']
+                : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $partSummary = [
+                'partName' => $partName,
+                'directory' => $directory,
+                'baseName' => $baseName,
+                'bytes' => $bytes,
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeSource' => $contentTypeSource,
+                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+            ];
+
+            foreach ($reviews as $review) {
+                if (!is_array($review)) {
+                    continue;
+                }
+                $bucket = is_string($review['byteLengthBucket'] ?? null)
+                    ? $review['byteLengthBucket']
+                    : '0';
+                $segment = is_string($review['segment'] ?? null) ? $review['segment'] : '';
+                if ($segment === '') {
+                    continue;
+                }
+                $segmentByteLength = (int) ($review['byteLength'] ?? strlen($segment));
+                $pathSegmentIndex = (int) ($review['pathSegmentIndex'] ?? 0);
+
+                if (!isset($buckets[$bucket])) {
+                    $buckets[$bucket] = [
+                        'byteLengthBucket' => $bucket,
+                        'occurrenceCount' => 0,
+                        'partCount' => 0,
+                        'uniqueSegmentCount' => 0,
+                        'packageByteLength' => 0,
+                        'segmentByteLength' => 0,
+                        'maxSegmentByteLength' => 0,
+                        'relationshipPartCount' => 0,
+                        'missingContentTypePartCount' => 0,
+                        'parameterizedPartCount' => 0,
+                        'segments' => [],
+                        'partNames' => [],
+                        'directories' => [],
+                        'pathSegmentIndexCounts' => [],
+                        'contentTypeSourceCounts' => [],
+                        'contentTypeBaseCounts' => [],
+                        'roleCounts' => [],
+                        'largestPart' => null,
+                    ];
+                }
+
+                ++$buckets[$bucket]['occurrenceCount'];
+                $buckets[$bucket]['segmentByteLength'] += $segmentByteLength;
+                $buckets[$bucket]['maxSegmentByteLength'] = max(
+                    $buckets[$bucket]['maxSegmentByteLength'],
+                    $segmentByteLength,
+                );
+                $this->appendUniqueString($buckets[$bucket]['segments'], $segment);
+                $buckets[$bucket]['pathSegmentIndexCounts'][$pathSegmentIndex] =
+                    ($buckets[$bucket]['pathSegmentIndexCounts'][$pathSegmentIndex] ?? 0) + 1;
+
+                if (isset($partsSeenByBucket[$bucket][$partName])) {
+                    continue;
+                }
+
+                $partsSeenByBucket[$bucket][$partName] = true;
+                ++$buckets[$bucket]['partCount'];
+                $buckets[$bucket]['packageByteLength'] += $bytes;
+                $buckets[$bucket]['partNames'][] = $partName;
+                $buckets[$bucket]['directories'][$directory] = true;
+                if (($part['isRelationshipPart'] ?? false) === true) {
+                    ++$buckets[$bucket]['relationshipPartCount'];
+                }
+                if (($part['contentTypeHasParameters'] ?? false) === true) {
+                    ++$buckets[$bucket]['parameterizedPartCount'];
+                }
+                if ($contentTypeSource === 'missing') {
+                    ++$buckets[$bucket]['missingContentTypePartCount'];
+                }
+                $buckets[$bucket]['contentTypeSourceCounts'][$contentTypeSource] =
+                    ($buckets[$bucket]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+                $buckets[$bucket]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                    ($buckets[$bucket]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+                foreach (($part['roles'] ?? []) as $role) {
+                    $role = (string) $role;
+                    $buckets[$bucket]['roleCounts'][$role] =
+                        ($buckets[$bucket]['roleCounts'][$role] ?? 0) + 1;
+                }
+
+                $largestPart = $buckets[$bucket]['largestPart'];
+                if (
+                    !is_array($largestPart)
+                    || $partSummary['bytes'] > (int) ($largestPart['bytes'] ?? 0)
+                    || (
+                        $partSummary['bytes'] === (int) ($largestPart['bytes'] ?? 0)
+                        && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                    )
+                ) {
+                    $buckets[$bucket]['largestPart'] = $partSummary;
+                }
+            }
+        }
+
+        ksort($buckets, SORT_STRING);
+        foreach ($buckets as $bucket => $summary) {
+            $directories = array_keys($summary['directories']);
+            sort($directories, SORT_STRING);
+            sort($summary['segments'], SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+            ksort($summary['pathSegmentIndexCounts'], SORT_NUMERIC);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $summary['directories'] = $directories;
+            $summary['uniqueSegmentCount'] = count($summary['segments']);
+            $buckets[$bucket] = $summary;
+        }
+
+        return array_values($buckets);
     }
 
     /**
@@ -38405,6 +38568,16 @@ final class DocxOpenXmlReader
             }
             sort($pathSegmentCharacterFlags, SORT_STRING);
             ksort($pathSegmentCharacterFlagCounts, SORT_STRING);
+            $pathSegmentLengthReviews = $this->packagePartPathSegmentLengthReviews($pathSegments);
+            $pathSegmentByteLengths = array_column($pathSegmentLengthReviews, 'byteLength');
+            $pathSegmentLengthBuckets = [];
+            foreach ($pathSegmentLengthReviews as $pathSegmentLengthReview) {
+                $bucket = is_string($pathSegmentLengthReview['byteLengthBucket'] ?? null)
+                    ? $pathSegmentLengthReview['byteLengthBucket']
+                    : '0';
+                $pathSegmentLengthBuckets[$bucket] = ($pathSegmentLengthBuckets[$bucket] ?? 0) + 1;
+            }
+            ksort($pathSegmentLengthBuckets, SORT_STRING);
             $xmlRoot = $this->packagePartXmlRootInventory($contents, $partName, $contentTypeResolution, $partExtension);
             $xmlRelationshipReferences = $this->packagePartXmlRelationshipReferenceInventory(
                 $contents,
@@ -38461,6 +38634,11 @@ final class DocxOpenXmlReader
                 'pathSegmentHasWhitespace' => in_array('whitespace', $pathSegmentCharacterFlags, true),
                 'pathSegmentHasPercentEncodedOctet' => in_array('percent-encoded-octet', $pathSegmentCharacterFlags, true),
                 'pathSegmentHasNonAscii' => in_array('non-ascii', $pathSegmentCharacterFlags, true),
+                'pathSegmentLengthReviews' => $pathSegmentLengthReviews,
+                'pathSegmentByteLengths' => $pathSegmentByteLengths,
+                'pathSegmentMaxByteLength' => $pathSegmentByteLengths === [] ? 0 : max($pathSegmentByteLengths),
+                'pathSegmentMinByteLength' => $pathSegmentByteLengths === [] ? 0 : min($pathSegmentByteLengths),
+                'pathSegmentLengthBuckets' => $pathSegmentLengthBuckets,
             ] + $xmlRoot + $xmlRelationshipReferences;
             if ($entry['isRelationshipPart']) {
                 $relationshipSourcePart = $this->relationshipSourcePartForInventory($partName);
@@ -38520,6 +38698,51 @@ final class DocxOpenXmlReader
         }
 
         return $reviews;
+    }
+
+    /**
+     * @param list<string> $pathSegments
+     * @return list<array{pathSegmentIndex:int, segment:string, byteLength:int, byteLengthBucket:string}>
+     */
+    private function packagePartPathSegmentLengthReviews(array $pathSegments): array
+    {
+        $reviews = [];
+        foreach ($pathSegments as $pathSegmentIndex => $segment) {
+            if (!is_string($segment) || $segment === '') {
+                continue;
+            }
+
+            $byteLength = strlen($segment);
+            $reviews[] = [
+                'pathSegmentIndex' => $pathSegmentIndex,
+                'segment' => $segment,
+                'byteLength' => $byteLength,
+                'byteLengthBucket' => $this->packagePartPathSegmentByteLengthBucket($byteLength),
+            ];
+        }
+
+        return $reviews;
+    }
+
+    private function packagePartPathSegmentByteLengthBucket(int $byteLength): string
+    {
+        if ($byteLength <= 0) {
+            return '0';
+        }
+        if ($byteLength <= 8) {
+            return '1-8';
+        }
+        if ($byteLength <= 16) {
+            return '9-16';
+        }
+        if ($byteLength <= 32) {
+            return '17-32';
+        }
+        if ($byteLength <= 64) {
+            return '33-64';
+        }
+
+        return '65+';
     }
 
     /**
