@@ -538,6 +538,23 @@ final class DocxReader
                         ];
                         continue;
                     }
+                    if (
+                        is_array($lastRecord)
+                        && $this->paragraphDirectLeftIndent($child) >= 720
+                    ) {
+                        $flushCodeBlock();
+                        $flushQuote();
+                        $flushDefinitionList();
+                        $pendingListRecords[] = [
+                            'level' => (int) $lastRecord['level'],
+                            'ordered' => (bool) $lastRecord['ordered'],
+                            'attrs' => $lastRecord['attrs'],
+                            'groupAttrs' => $lastRecord['groupAttrs'] ?? $lastRecord['attrs'],
+                            'paragraph' => $paragraph,
+                            'continuation' => true,
+                        ];
+                        continue;
+                    }
                 }
 
                 if ($styleBlockKind === 'definition-term') {
@@ -2935,6 +2952,19 @@ final class DocxReader
         $numId = $numPr instanceof \DOMElement ? $this->directChild($numPr, 'numId') : null;
 
         return $numId instanceof \DOMElement && $this->attr($numId, self::W_NS, 'val') === '0';
+    }
+
+    private function paragraphDirectLeftIndent(\DOMElement $paragraph): int
+    {
+        $pPr = $this->directChild($paragraph, 'pPr');
+        $ind = $pPr instanceof \DOMElement ? $this->directChild($pPr, 'ind') : null;
+        if (!$ind instanceof \DOMElement) {
+            return 0;
+        }
+
+        $left = $this->attr($ind, self::W_NS, 'left');
+
+        return $left !== '' && is_numeric($left) ? (int) $left : 0;
     }
 
     private function paragraphHasDirectConcreteNumbering(\DOMElement $paragraph): bool

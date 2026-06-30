@@ -311,6 +311,48 @@ XML],
         $t->contains('<p>Interruption.</p>', $blocks);
         $t->contains('<ol><li>Bop</li></ol>', $blocks);
     },
+    'keeps indented explicitly suppressed list paragraphs with the active item' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            ['name' => 'word/numbering.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:abstractNum w:abstractNumId="8">
+    <w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/><w:lvlText w:val="•"/></w:lvl>
+    <w:lvl w:ilvl="1"><w:numFmt w:val="bullet"/><w:lvlText w:val="◦"/></w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="7"><w:abstractNumId w:val="8"/></w:num>
+</w:numbering>
+XML],
+            ['name' => 'word/document.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="7"/></w:numPr></w:pPr><w:r><w:t>one</w:t></w:r></w:p>
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="7"/></w:numPr></w:pPr><w:r><w:t>four</w:t></w:r></w:p>
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="0"/></w:numPr><w:ind w:left="1920"/></w:pPr><w:r><w:t>Sub paragraph</w:t></w:r></w:p>
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="7"/></w:numPr></w:pPr><w:r><w:t>two</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+XML],
+        ]);
+
+        $document = (new DocxReader())->readDocument($package);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $list = $document->children[0];
+        $firstItem = $list->children[0];
+        $nestedList = $firstItem->children[1];
+        $nestedItem = $nestedList->children[0];
+
+        $t->same(['bullet_list'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(2, count($list->children));
+        $t->same('one', $firstItem->children[0]->attr('text'));
+        $t->same('bullet_list', $nestedList->type);
+        $t->same(2, count($nestedItem->children));
+        $t->same('four', $nestedItem->children[0]->attr('text'));
+        $t->same('Sub paragraph', $nestedItem->children[1]->attr('text'));
+        $t->same('two', $list->children[1]->children[0]->attr('text'));
+        $t->true(!str_contains($blocks, '<blockquote>'), 'suppressed indented list continuations should not become blockquotes');
+    },
     'preserves docx task-list numbering glyphs and blank bullet continuations' => static function (TestRunner $t): void {
         $package = ZipPackage::fromParts([
             ['name' => 'word/numbering.xml', 'data' => <<<'XML'
