@@ -42,6 +42,7 @@ jobs:
           php -l lanes/pandoc/src/DocxNativeComparisonSmokeHarness.php
           php -l lanes/pandoc/src/DocxParityCorpusAudit.php
           php -l lanes/pandoc/src/DocxUpstreamCacheManifest.php
+          php -l lanes/pandoc/src/DocxUpstreamRunnerPlan.php
           php -l lanes/pandoc/src/DocxWriterGoldenManifest.php
           php -l lanes/pandoc/src/ZipPackage.php
           php -l lanes/pandoc/src/ZipPackageEntry.php
@@ -52,9 +53,11 @@ jobs:
           php -l lanes/pandoc/tests/DocxParityCorpusAuditTest.php
           php -l lanes/pandoc/tests/DocxParityEvidenceStatusTest.php
           php -l lanes/pandoc/tests/DocxUpstreamCacheManifestTest.php
+          php -l lanes/pandoc/tests/DocxUpstreamRunnerPlanTest.php
           php -l lanes/pandoc/tests/UpstreamRunnerDependencyAuditTest.php
           php -l lanes/pandoc/tests/ZipPackageTest.php
           php -l tools/pandoc-docx-cache-manifest.php
+          php -l tools/pandoc-docx-upstream-runner-plan.php
           php -l tools/pandoc-docx-native-ast.php
           php -l tools/pandoc-docx-native-smoke.php
           php -l tools/pandoc-docx-parity-audit.php
@@ -65,6 +68,9 @@ jobs:
 
       - name: Run optional upstream DOCX cache manifest audit
         run: php tools/pandoc-docx-cache-manifest.php --json
+
+      - name: Run optional upstream DOCX runner preflight plan
+        run: php tools/pandoc-docx-upstream-runner-plan.php --json
 
       - name: Run optional upstream DOCX/native smoke
         run: php tools/pandoc-docx-native-smoke.php --limit=12
@@ -83,6 +89,7 @@ jobs:
           php tools/run-tests.php \
             lanes/pandoc/tests/DocxParityEvidenceStatusTest.php \
             lanes/pandoc/tests/DocxUpstreamCacheManifestTest.php \
+            lanes/pandoc/tests/DocxUpstreamRunnerPlanTest.php \
             lanes/pandoc/tests/UpstreamRunnerDependencyAuditTest.php \
             lanes/pandoc/tests/DocxNativeAstComparisonHarnessTest.php \
             lanes/pandoc/tests/DocxNativeComparisonSmokeHarnessTest.php \
