@@ -202,27 +202,6 @@ return [
         $t->contains('Target="http://example.com/"', $parts['word/_rels/footnotes.xml.rels']);
     },
 
-    'splits external hyperlink fragments into relationship target anchors and tooltips' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
-        $document = $doc([
-            $paragraph([
-                $text('See '),
-                new AstNode('link', [
-                    'url' => 'https://example.test/review#Section_2',
-                    'title' => 'Review anchor',
-                ], [$text('anchored link')]),
-                $text('.'),
-            ]),
-        ]);
-
-        [, $parts] = $packageParts((new DocxWriter())->write($document));
-        $documentXml = $parts['word/document.xml'];
-        $documentRels = $parts['word/_rels/document.xml.rels'];
-
-        $t->contains('<w:hyperlink r:id="rId9" w:anchor="Section_2" w:tooltip="Review anchor"><w:r><w:rPr><w:rStyle w:val="Hyperlink"/></w:rPr><w:t xml:space="preserve">anchored link</w:t></w:r></w:hyperlink>', $documentXml);
-        $t->contains('Target="https://example.test/review"', $documentRels);
-        $t->true(!str_contains($documentRels, 'Target="https://example.test/review#Section_2"'), 'External relationship target should not duplicate the hyperlink anchor fragment');
-    },
-
     'keeps standalone space runs around inline boundary markup' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
         $document = $doc([
             $paragraph([
@@ -626,14 +605,7 @@ return [
                 new AstNode('raw_inline', ['format' => 'openxml', 'text' => '<w:bookmarkEnd w:id="0"/>']),
             ]),
             $paragraph([
-                new AstNode('raw_inline', ['format' => 'openxml', 'text' => '<w:bookmarkStart w:name="Reordered" w:id="4"/>']),
-                new AstNode('raw_inline', ['format' => 'openxml', 'text' => '<w:bookmarkEnd w:id="4"></w:bookmarkEnd>']),
-            ]),
-            $paragraph([
                 new AstNode('raw_inline', ['format' => 'openxml', 'text' => '<w:fldSimple w:instr="REF ref_fig:testimg" />']),
-            ]),
-            $paragraph([
-                new AstNode('raw_inline', ['format' => 'openxml', 'text' => '<w:fldSimple w:instr="PAGEREF ref_fig:testimg"><w:r><w:t>1</w:t></w:r></w:fldSimple>']),
             ]),
         ]);
 
@@ -644,10 +616,7 @@ return [
         $t->contains('<w:hyperlink w:anchor="a-section-for-testing-link-targets">', $documentXml);
         $t->contains('<w:bookmarkStart w:id="0" w:name="Aliquam"/>', $documentXml);
         $t->contains('<w:bookmarkEnd w:id="0"/>', $documentXml);
-        $t->contains('<w:bookmarkStart w:name="Reordered" w:id="4"/>', $documentXml);
-        $t->contains('<w:bookmarkEnd w:id="4"/>', $documentXml);
         $t->contains('<w:fldSimple w:instr="REF ref_fig:testimg"/>', $documentXml);
-        $t->contains('<w:fldSimple w:instr="PAGEREF ref_fig:testimg"><w:r><w:t>1</w:t></w:r></w:fldSimple>', $documentXml);
         $t->true(!str_contains($documentXml, '&lt;w:bookmarkStart'), 'Raw bookmark was XML-escaped');
         $t->true(!str_contains($documentXml, '&lt;w:fldSimple'), 'Raw simple field was XML-escaped');
     },
@@ -729,26 +698,6 @@ return [
                         'date' => '2014-06-25T10:40:00Z',
                     ],
                 ], [$text('test')]),
-                new AstNode('span', [
-                    'classes' => ['deletion', 'move-from'],
-                    'attributes' => [
-                        'id' => '8',
-                        'author' => 'Mover',
-                        'date' => '2014-06-25T10:41:00Z',
-                    ],
-                ], [
-                    new AstNode('strong', [], [$text('旧位置')]),
-                ]),
-                new AstNode('span', [
-                    'classes' => ['insertion', 'move-to'],
-                    'attributes' => [
-                        'id' => '8',
-                        'author' => 'Mover',
-                        'date' => '2014-06-25T10:42:00Z',
-                    ],
-                ], [
-                    new AstNode('emph', [], [$text('新位置')]),
-                ]),
                 $text('.'),
             ]),
         ]);
@@ -759,8 +708,6 @@ return [
         $t->contains('<w:r><w:t xml:space="preserve">Here is a </w:t></w:r>', $documentXml);
         $t->contains('<w:del w:id="1" w:author="Author"><w:r><w:delText xml:space="preserve">dummy</w:delText></w:r></w:del>', $documentXml);
         $t->contains('<w:ins w:id="1" w:author="Author" w:date="2014-06-25T10:40:00Z"><w:r><w:t xml:space="preserve">test</w:t></w:r></w:ins>', $documentXml);
-        $t->contains('<w:moveFrom w:id="8" w:author="Mover" w:date="2014-06-25T10:41:00Z"><w:r><w:rPr><w:rFonts w:hint="eastAsia"/><w:b/><w:bCs/></w:rPr><w:delText xml:space="preserve">旧位置</w:delText></w:r></w:moveFrom>', $documentXml);
-        $t->contains('<w:moveTo w:id="8" w:author="Mover" w:date="2014-06-25T10:42:00Z"><w:r><w:rPr><w:rFonts w:hint="eastAsia"/><w:i/><w:iCs/></w:rPr><w:t xml:space="preserve">新位置</w:t></w:r></w:moveTo>', $documentXml);
         $t->true(!str_contains($documentXml, '<w:r><w:t>dummy</w:t></w:r>'), 'Deletion text must use w:delText');
     },
 

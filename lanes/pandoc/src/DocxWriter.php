@@ -2041,38 +2041,15 @@ XML;
             array_replace($format, ['runStyle' => 'Hyperlink']),
             $context
         );
-        $title = (string) $node->attr('title', '');
-        $tooltip = $title === '' ? '' : ' w:tooltip="' . self::escAttr($title) . '"';
         if (str_starts_with($target, '#')) {
             $anchor = $this->bookmarkName(substr($target, 1));
 
-            return '<w:hyperlink w:anchor="' . self::escAttr($anchor) . '"' . $tooltip . '>' . $content . '</w:hyperlink>';
+            return '<w:hyperlink w:anchor="' . self::escAttr($anchor) . '">' . $content . '</w:hyperlink>';
         }
 
-        [$relationshipTarget, $anchor] = $this->hyperlinkRelationshipTargetAndAnchor($target);
-        $relationshipId = $this->addHyperlinkRelationship($relationshipTarget);
-        $anchorXml = $anchor === '' ? '' : ' w:anchor="' . self::escAttr($this->bookmarkName($anchor)) . '"';
+        $relationshipId = $this->addHyperlinkRelationship($target);
 
-        return '<w:hyperlink r:id="' . self::escAttr($relationshipId) . '"' . $anchorXml . $tooltip . '>' . $content . '</w:hyperlink>';
-    }
-
-    /**
-     * @return array{0:string, 1:string}
-     */
-    private function hyperlinkRelationshipTargetAndAnchor(string $target): array
-    {
-        $fragmentOffset = strpos($target, '#');
-        if ($fragmentOffset === false) {
-            return [$target, ''];
-        }
-
-        $relationshipTarget = substr($target, 0, $fragmentOffset);
-        $anchor = substr($target, $fragmentOffset + 1);
-        if ($relationshipTarget === '' || $anchor === '') {
-            return [$target, ''];
-        }
-
-        return [$relationshipTarget, $anchor];
+        return '<w:hyperlink r:id="' . self::escAttr($relationshipId) . '">' . $content . '</w:hyperlink>';
     }
 
     /**
@@ -2152,12 +2129,6 @@ XML;
         }
         if ($this->hasClass($node, 'comment-end')) {
             return $this->commentEndXml($node, $format, $context);
-        }
-        if ($this->hasClass($node, 'move-from')) {
-            return $this->trackedChangeXml('moveFrom', $node, $format, $context);
-        }
-        if ($this->hasClass($node, 'move-to')) {
-            return $this->trackedChangeXml('moveTo', $node, $format, $context);
         }
         if ($this->hasClass($node, 'insertion')) {
             return $this->trackedChangeXml('ins', $node, $format, $context);
@@ -2261,7 +2232,7 @@ XML;
             $attributes .= ' w:date="' . self::escAttr($date) . '"';
         }
 
-        $changeFormat = in_array($tag, ['del', 'moveFrom'], true) ? $format + ['deleted' => true] : $format;
+        $changeFormat = $tag === 'del' ? $format + ['deleted' => true] : $format;
 
         return '<w:' . $tag . $attributes . '>'
             . $this->renderInlines($node->children, $changeFormat, $context)
@@ -2278,72 +2249,17 @@ XML;
         if ($xml === '') {
             return '';
         }
-
-        $safeXml = self::safeRawOpenXmlInlineFragment($xml);
-        if ($safeXml !== null) {
-            return $safeXml;
+        if (preg_match('/^<w:bookmarkStart\s+w:id="([0-9]+)"\s+w:name="([^"]+)"\s*\/>$/', $xml, $matches) === 1) {
+            return '<w:bookmarkStart w:id="' . self::escAttr($matches[1]) . '" w:name="' . self::escAttr($matches[2]) . '"/>';
+        }
+        if (preg_match('/^<w:bookmarkEnd\s+w:id="([0-9]+)"\s*\/>$/', $xml, $matches) === 1) {
+            return '<w:bookmarkEnd w:id="' . self::escAttr($matches[1]) . '"/>';
+        }
+        if (preg_match('/^<w:fldSimple\s+w:instr="([^"]+)"\s*\/>$/', $xml, $matches) === 1) {
+            return '<w:fldSimple w:instr="' . self::escAttr($matches[1]) . '"/>';
         }
 
         return null;
-    }
-
-    private static function safeRawOpenXmlInlineFragment(string $xml): ?string
-    {
-        $trimmed = trim($xml);
-        if ($trimmed === '' || str_contains($trimmed, '<?') || stripos($trimmed, '<!DOCTYPE') !== false) {
-            return null;
-        }
-
-        $dom = new \DOMDocument();
-        $wrapped = '<root xmlns:w="' . self::NS_W . '" xmlns:r="' . self::NS_R . '">' . $trimmed . '</root>';
-        $loaded = $dom->loadXML($wrapped, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
-        if (!$loaded || !$dom->documentElement instanceof \DOMElement) {
-            return null;
-        }
-
-        $xmlOut = '';
-        foreach ($dom->documentElement->childNodes as $child) {
-            if ($child instanceof \DOMText && trim($child->wholeText) === '') {
-                continue;
-            }
-            if (!$child instanceof \DOMElement || !self::isAllowedRawOpenXmlInlineElement($child)) {
-                return null;
-            }
-
-            $fragment = $dom->saveXML($child);
-            if (!is_string($fragment)) {
-                return null;
-            }
-            $xmlOut .= $fragment;
-        }
-
-        return $xmlOut === '' ? '' : $xmlOut;
-    }
-
-    private static function isAllowedRawOpenXmlInlineElement(\DOMElement $element): bool
-    {
-        if ($element->namespaceURI !== self::NS_W) {
-            return false;
-        }
-
-        return in_array($element->localName, [
-            'bookmarkStart',
-            'bookmarkEnd',
-            'commentRangeStart',
-            'commentRangeEnd',
-            'del',
-            'fldSimple',
-            'hyperlink',
-            'ins',
-            'moveFrom',
-            'moveFromRangeEnd',
-            'moveFromRangeStart',
-            'moveTo',
-            'moveToRangeEnd',
-            'moveToRangeStart',
-            'proofErr',
-            'r',
-        ], true);
     }
 
     private function hasClass(AstNode $node, string $class): bool
