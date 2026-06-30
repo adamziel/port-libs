@@ -8599,6 +8599,99 @@ XML,
         $t->same('customXml/target-extension.xml', $xml['largestExistingTargetPart']['partName']);
         $t->same(hash('sha256', $customXmlBytes), $xml['largestExistingTargetPart']['sha256']);
     },
+    'summarizes docx relationship target byte length buckets for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $packageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+        $smallPng = 'small target png bytes';
+        $mediumPayload = str_repeat('M', 1000);
+        $largePayload = str_repeat('L', 20000);
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Default Extension="png" ContentType="image/png"/>',
+            '  <Default Extension="png" ContentType="image/png"/>' . "\n" .
+            '  <Default Extension="bin" ContentType="application/octet-stream"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rEmptyByteTarget" Type="' . $packageRel . '" Target="../customXml/empty-byte-target.bin"/>' . "\n" .
+            '  <Relationship Id="rSmallByteTarget" Type="' . $imageRel . '" Target="media/small-byte-target.png"/>' . "\n" .
+            '  <Relationship Id="rDuplicateSmallByteTarget" Type="' . $imageRel . '" Target="media/small-byte-target.png?dup=1#again"/>' . "\n" .
+            '  <Relationship Id="rMediumByteTarget" Type="' . $packageRel . '" Target="../customXml/medium-byte-target.bin"/>' . "\n" .
+            '  <Relationship Id="rLargeByteTarget" Type="' . $packageRel . '" Target="../customXml/large-byte-target.bin"/>' . "\n" .
+            '  <Relationship Id="rMissingByteTarget" Type="' . $packageRel . '" Target="raw/missing-byte-target.bin"/>' . "\n" .
+            '  <Relationship Id="rExternalByteTarget" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/large-byte-target.bin" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['customXml/empty-byte-target.bin'] = '';
+        $parts['word/media/small-byte-target.png'] = $smallPng;
+        $parts['customXml/medium-byte-target.bin'] = $mediumPayload;
+        $parts['customXml/large-byte-target.bin'] = $largePayload;
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $buckets = [];
+        foreach ($summary['relationshipTargetByteLengthBuckets'] as $bucket) {
+            $buckets[$bucket['targetByteLengthBucket']] = $bucket;
+        }
+
+        $t->same(4, $summary['relationshipTargetByteLengthBucketCount']);
+        $t->same(['empty' => 1, 'small' => 3, 'medium' => 2, 'large' => 2], $summary['relationshipTargetByteLengthBucketCounts']);
+        $t->same(['empty' => 1, 'small' => 2, 'medium' => 2, 'large' => 2], $summary['relationshipTargetByteLengthBucketUniqueTargetCounts']);
+        $t->same(['empty', 'small', 'medium', 'large'], array_column($summary['relationshipTargetByteLengthBuckets'], 'targetByteLengthBucket'));
+
+        $empty = $buckets['empty'];
+        $t->same(1, $empty['relationshipCount']);
+        $t->same(1, $empty['uniqueTargetPartCount']);
+        $t->same(0, $empty['existingTargetPartByteLength']);
+        $t->same(['application/octet-stream' => 1], $empty['targetContentTypeBaseCounts']);
+        $t->same(['default' => 1], $empty['targetContentTypeSourceCounts']);
+        $t->same([$packageRel => 1], $empty['relationshipTypeCounts']);
+        $t->same(['customXml/empty-byte-target.bin'], $empty['targetParts']);
+        $t->same('customXml/empty-byte-target.bin', $empty['largestExistingTargetPart']['targetPart']);
+        $t->same('empty', $empty['largestExistingTargetPart']['targetByteLengthBucket']);
+        $t->same(0, $empty['largestExistingTargetPart']['targetBytes']);
+
+        $small = $buckets['small'];
+        $t->same(3, $small['relationshipCount']);
+        $t->same(2, $small['uniqueTargetPartCount']);
+        $t->same(strlen('fake png bytes') + strlen($smallPng), $small['existingTargetPartByteLength']);
+        $t->same(['image/png' => 3], $small['targetContentTypeBaseCounts']);
+        $t->same(['default' => 3], $small['targetContentTypeSourceCounts']);
+        $t->same([$imageRel => 3], $small['relationshipTypeCounts']);
+        $t->same(['rDuplicateSmallByteTarget', 'rImage', 'rSmallByteTarget'], $small['relationshipIds']);
+        $t->same(['word/media/review.png', 'word/media/small-byte-target.png'], $small['targetParts']);
+        $t->same('word/media/small-byte-target.png', $small['largestExistingTargetPart']['targetPart']);
+        $t->same('small', $small['largestExistingTargetPart']['targetByteLengthBucket']);
+        $t->same(hash('sha256', $smallPng), $small['largestExistingTargetPart']['targetSha256']);
+
+        $medium = $buckets['medium'];
+        $t->same(2, $medium['relationshipCount']);
+        $t->same(2, $medium['uniqueTargetPartCount']);
+        $t->same(['application/octet-stream' => 1, 'application/vnd.openxmlformats-package.core-properties+xml' => 1], $medium['targetContentTypeBaseCounts']);
+        $t->same(['default' => 1, 'override' => 1], $medium['targetContentTypeSourceCounts']);
+        $t->same(['customXml/medium-byte-target.bin', 'docProps/core.xml'], $medium['targetParts']);
+        $t->same('customXml/medium-byte-target.bin', $medium['largestExistingTargetPart']['targetPart']);
+        $t->same(1000, $medium['largestExistingTargetPart']['targetBytes']);
+
+        $large = $buckets['large'];
+        $t->same(2, $large['relationshipCount']);
+        $t->same(2, $large['uniqueTargetPartCount']);
+        $t->same(['application/octet-stream' => 1, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1], $large['targetContentTypeBaseCounts']);
+        $t->same(['default' => 1, 'override' => 1], $large['targetContentTypeSourceCounts']);
+        $t->same(['customXml/large-byte-target.bin', 'word/document.xml'], $large['targetParts']);
+        $t->same('customXml/large-byte-target.bin', $large['largestExistingTargetPart']['targetPart']);
+        $t->same(20000, $large['largestExistingTargetPart']['targetBytes']);
+        $t->same('large', $large['largestExistingTargetPart']['targetByteLengthBucket']);
+
+        $allRelationshipIds = array_merge(...array_column($summary['relationshipTargetByteLengthBuckets'], 'relationshipIds'));
+        $t->true(!in_array('rMissingByteTarget', $allRelationshipIds, true), 'missing targets should not enter byte length buckets');
+        $t->true(!in_array('rExternalByteTarget', $allRelationshipIds, true), 'external targets should not enter byte length buckets');
+        $encoded = json_encode($summary['relationshipTargetByteLengthBuckets']);
+        $t->true(is_string($encoded), 'byte length bucket metadata should encode for review');
+        $t->true(!str_contains((string) $encoded, $largePayload), 'byte length buckets must not expose relationship target bytes');
+    },
     'summarizes docx relationship target directories for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $commentsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
