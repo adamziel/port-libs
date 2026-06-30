@@ -1805,7 +1805,31 @@ final class DocxReader
             }
         }
 
+        $this->flushOpenComplexFields($complexFieldStack, $inlines);
+
         return $this->mergeAdjacentText($inlines);
+    }
+
+    /**
+     * Word can put the outer field end marker in a later empty paragraph while
+     * visible generated field rows live in the current paragraph.
+     *
+     * @param list<array{instruction: string, result: list<AstNode>, separated: bool}> $complexFieldStack
+     * @param list<AstNode> $inlines
+     */
+    private function flushOpenComplexFields(array &$complexFieldStack, array &$inlines): void
+    {
+        while ($complexFieldStack !== []) {
+            $complexField = array_pop($complexFieldStack);
+            if (!is_array($complexField) || !$complexField['separated'] || $complexField['result'] === []) {
+                continue;
+            }
+
+            $field = $this->fieldNode($complexField['instruction'], $complexField['result']);
+            if ($field instanceof AstNode) {
+                $this->appendFieldAwareInlines($inlines, $complexFieldStack, [$field]);
+            }
+        }
     }
 
     /**
@@ -2098,6 +2122,9 @@ final class DocxReader
             $metadata['data-docx-content-control-id'],
             $metadata['data-docx-content-control-metadata']
         );
+        if (($metadata['data-docx-content-control-type'] ?? '') === 'docPartObj') {
+            unset($metadata['data-docx-content-control-type']);
+        }
 
         return $metadata === [];
     }
@@ -3903,14 +3930,14 @@ final class DocxReader
                 continue;
             }
             $styleId = $this->attr($style, self::W_NS, 'val');
+            if ($this->headingZeroStyleMatches($styleId, '')) {
+                return 1;
+            }
             if (isset($this->styles[$styleId]['headingLevel'])) {
                 return max(1, min(6, (int) $this->styles[$styleId]['headingLevel']));
             }
             if (preg_match('/heading\s*([1-6])|Heading([1-6])/i', $styleId, $m)) {
                 return (int) ($m[1] !== '' ? $m[1] : $m[2]);
-            }
-            if ($this->headingZeroStyleMatches($styleId, '')) {
-                return 1;
             }
         }
         return null;

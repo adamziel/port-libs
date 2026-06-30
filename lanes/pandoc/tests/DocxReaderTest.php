@@ -1738,6 +1738,71 @@ XML;
         $t->same(['Test Paragraph1', 'Test Paragraph2', 'Test Paragraph3'], array_map(static fn ($node): string => (string) $node->attr('text', ''), $document->children));
         $t->true(!str_contains($blocks, 'docx-content-control'), 'Metadata-light SDTs should not introduce wrapper blocks');
     },
+    'keeps generated field result rows whose outer fields end in later paragraphs' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes(<<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:sdt>
+      <w:sdtPr><w:id w:val="675549173"/><w:docPartObj/></w:sdtPr>
+      <w:sdtContent>
+        <w:p><w:r><w:t>Contents</w:t></w:r></w:p>
+        <w:p>
+          <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+          <w:r><w:instrText> TOC \o "1-3" \h \z \u </w:instrText></w:r>
+          <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+          <w:r><w:t xml:space="preserve">Title </w:t></w:r>
+          <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+          <w:r><w:instrText> PAGEREF _TocA \h </w:instrText></w:r>
+          <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+          <w:r><w:t>2</w:t></w:r>
+          <w:r><w:fldChar w:fldCharType="end"/></w:r>
+        </w:p>
+        <w:p>
+          <w:r><w:t xml:space="preserve">Second </w:t></w:r>
+          <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+          <w:r><w:instrText> PAGEREF _TocB \h </w:instrText></w:r>
+          <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+          <w:r><w:t>3</w:t></w:r>
+          <w:r><w:fldChar w:fldCharType="end"/></w:r>
+        </w:p>
+        <w:p><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>
+      </w:sdtContent>
+    </w:sdt>
+    <w:p><w:r><w:t>Index:</w:t></w:r></w:p>
+    <w:p>
+      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+      <w:r><w:instrText> INDEX \* MERGEFORMAT </w:instrText></w:r>
+      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+      <w:r><w:t>French</w:t></w:r>
+      <w:r><w:t>, 1</w:t></w:r>
+    </w:p>
+    <w:p><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:bookmarkStart w:id="1" w:name="_TocA"/><w:r><w:t>Title</w:t></w:r><w:bookmarkEnd w:id="1"/></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:bookmarkStart w:id="2" w:name="_TocB"/><w:r><w:t>Second</w:t></w:r><w:bookmarkEnd w:id="2"/></w:p>
+  </w:body>
+</w:document>
+XML);
+
+        $document = (new DocxReader())->read($bytes);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(
+            ['paragraph', 'paragraph', 'paragraph', 'paragraph', 'paragraph', 'heading', 'heading'],
+            array_map(static fn ($node): string => $node->type, $document->children)
+        );
+        $t->same(
+            ['Contents', 'Title 2', 'Second 3', 'Index:', 'French, 1', 'Title', 'Second'],
+            array_map(static fn ($node): string => (string) $node->attr('text', ''), $document->children)
+        );
+        $t->same('span', $document->children[1]->children[0]->type);
+        $t->true(in_array('docx-field-toc', $document->children[1]->children[0]->attr('classes'), true));
+        $t->same('span', $document->children[4]->children[0]->type);
+        $t->true(in_array('docx-field-index', $document->children[4]->children[0]->attr('classes'), true));
+        $t->true(!str_contains($blocks, 'docx-content-control'), 'Generated docPartObj SDTs should not introduce wrapper blocks');
+        $t->true(!str_contains(strip_tags($blocks), 'TOC \o'), 'TOC instructions should not render as visible text');
+        $t->true(!str_contains(strip_tags($blocks), 'INDEX \*'), 'INDEX instructions should not render as visible text');
+    },
     'folds docx table caption paragraphs into adjacent tables' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
         $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>See Table 1.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Caption"/></w:pPr><w:bookmarkStart w:id="1" w:name="_RefTable1"/><w:r><w:t xml:space="preserve">Table </w:t></w:r><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> SEQ Table \* ARABIC </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>1</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r><w:bookmarkEnd w:id="1"/></w:p><w:tbl><w:tr><w:tc><w:p><w:r><w:t>Count</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:bookmarkStart w:id="2" w:name="_TocHeading"/><w:bookmarkEnd w:id="2"/></w:p><w:tbl><w:tr><w:tc><w:p><w:r><w:t>One</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p><w:pPr><w:pStyle w:val="Caption"/></w:pPr><w:bookmarkStart w:id="3" w:name="_RefTable2"/><w:r><w:t xml:space="preserve">Table </w:t></w:r><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> SEQ Table \* ARABIC </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>2</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r><w:bookmarkEnd w:id="3"/></w:p><w:p><w:r><w:t>See Table 2.</w:t></w:r></w:p></w:body></w:document>');
 
