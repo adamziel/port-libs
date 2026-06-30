@@ -7076,12 +7076,18 @@ final class MarkdownWriter
 
     private function renderMath(AstNode $node): string
     {
-        $text = (string) $node->attr('text', '');
+        $text = $this->escapeMathText((string) $node->attr('text', ''));
+        $attrs = $this->renderAttributesTuple($this->linkAttrTuple($node));
         if ((bool) $node->attr('display', false)) {
-            return '$$' . $text . '$$';
+            return '$$' . $text . '$$' . $attrs;
         }
 
-        return '$' . trim($text) . '$';
+        return '$' . trim($text) . '$' . $attrs;
+    }
+
+    private function escapeMathText(string $text): string
+    {
+        return str_replace('$', '\\$', $text);
     }
 
     private function renderRawAttributeInline(AstNode $node): string
