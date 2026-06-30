@@ -873,6 +873,20 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['selectedXmlPartXmlStandaloneDeclarationCount'] = $selectedXmlParts['xmlStandaloneDeclarationCount'];
         $packageProvenance['summary']['selectedXmlPartXmlStandaloneYesCount'] = $selectedXmlParts['xmlStandaloneYesCount'];
         $packageProvenance['summary']['selectedXmlPartXmlStandaloneNoCount'] = $selectedXmlParts['xmlStandaloneNoCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlCommentPartCount'] = $selectedXmlParts['xmlCommentPartCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlCommentCount'] = $selectedXmlParts['xmlCommentCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlCommentByteLength'] = $selectedXmlParts['xmlCommentByteLength'];
+        $packageProvenance['summary']['selectedXmlPartXmlCommentPartNames'] = $selectedXmlParts['xmlCommentPartNames'];
+        $packageProvenance['summary']['selectedXmlPartXmlCommentParentPathCount'] = $selectedXmlParts['xmlCommentParentPathCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlCommentParentPathCounts'] = $selectedXmlParts['xmlCommentParentPathCounts'];
+        $packageProvenance['summary']['selectedXmlPartXmlCommentParentPaths'] = $selectedXmlParts['xmlCommentParentPaths'];
+        $packageProvenance['summary']['selectedXmlPartXmlCommentParentNamespaceCount'] = $selectedXmlParts['xmlCommentParentNamespaceCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlCommentParentNamespaceCounts'] = $selectedXmlParts['xmlCommentParentNamespaceCounts'];
+        $packageProvenance['summary']['selectedXmlPartXmlCommentParentLocalNameCount'] = $selectedXmlParts['xmlCommentParentLocalNameCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlCommentParentLocalNameCounts'] = $selectedXmlParts['xmlCommentParentLocalNameCounts'];
+        $packageProvenance['summary']['selectedXmlPartXmlCommentParentQualifiedNameCount'] = $selectedXmlParts['xmlCommentParentQualifiedNameCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlCommentParentQualifiedNameCounts'] = $selectedXmlParts['xmlCommentParentQualifiedNameCounts'];
+        $packageProvenance['summary']['selectedXmlPartXmlComments'] = $selectedXmlParts['xmlComments'];
         $extendedHeadingPairs = is_array($extendedProperties['headingPairs'] ?? null) ? $extendedProperties['headingPairs'] : [];
         $extendedHeadingPairsVector = is_array($extendedProperties['headingPairsVector'] ?? null)
             ? $extendedProperties['headingPairsVector']
@@ -32788,6 +32802,16 @@ final class DocxOpenXmlReader
         $xmlStandaloneDeclarationCount = 0;
         $xmlStandaloneYesCount = 0;
         $xmlStandaloneNoCount = 0;
+        $xmlCommentPartCount = 0;
+        $xmlCommentCount = 0;
+        $xmlCommentByteLength = 0;
+        $xmlCommentPartNames = [];
+        $xmlCommentParentPathCounts = [];
+        $xmlCommentParentPaths = [];
+        $xmlCommentParentNamespaceCounts = [];
+        $xmlCommentParentLocalNameCounts = [];
+        $xmlCommentParentQualifiedNameCounts = [];
+        $xmlComments = [];
         $selectionSourceCounts = [];
         $relationshipSourcePartCounts = [];
         $relationshipsPartCounts = [];
@@ -33091,6 +33115,68 @@ final class DocxOpenXmlReader
                     ++$xmlStandaloneNoCount;
                 }
             }
+            $itemXmlCommentCount = (int) ($item['xmlCommentCount'] ?? 0);
+            if ($itemXmlCommentCount > 0) {
+                ++$xmlCommentPartCount;
+                $xmlCommentCount += $itemXmlCommentCount;
+                $xmlCommentByteLength += (int) ($item['xmlCommentByteLength'] ?? 0);
+                $this->appendUniqueString(
+                    $xmlCommentPartNames,
+                    is_string($item['partName'] ?? null) ? $item['partName'] : null,
+                );
+            }
+            foreach (($item['xmlCommentParentPathCounts'] ?? []) as $parentPath => $count) {
+                if (!is_string($parentPath) || $parentPath === '') {
+                    continue;
+                }
+
+                $xmlCommentParentPathCounts[$parentPath] =
+                    ($xmlCommentParentPathCounts[$parentPath] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlCommentParentPaths, $parentPath);
+            }
+            foreach (($item['xmlCommentParentNamespaceCounts'] ?? []) as $namespace => $count) {
+                if (!is_string($namespace) || $namespace === '') {
+                    continue;
+                }
+
+                $xmlCommentParentNamespaceCounts[$namespace] =
+                    ($xmlCommentParentNamespaceCounts[$namespace] ?? 0) + (int) $count;
+            }
+            foreach (($item['xmlCommentParentLocalNameCounts'] ?? []) as $localName => $count) {
+                if (!is_string($localName) || $localName === '') {
+                    continue;
+                }
+
+                $xmlCommentParentLocalNameCounts[$localName] =
+                    ($xmlCommentParentLocalNameCounts[$localName] ?? 0) + (int) $count;
+            }
+            foreach (($item['xmlCommentParentQualifiedNameCounts'] ?? []) as $qualifiedName => $count) {
+                if (!is_string($qualifiedName) || $qualifiedName === '') {
+                    continue;
+                }
+
+                $xmlCommentParentQualifiedNameCounts[$qualifiedName] =
+                    ($xmlCommentParentQualifiedNameCounts[$qualifiedName] ?? 0) + (int) $count;
+            }
+            foreach (($item['xmlComments'] ?? []) as $comment) {
+                if (!is_array($comment)) {
+                    continue;
+                }
+
+                $xmlComments[] = [
+                    'kind' => is_string($item['kind'] ?? null) ? $item['kind'] : '',
+                    'partName' => is_string($item['partName'] ?? null) ? $item['partName'] : '',
+                    'ordinal' => (int) ($comment['ordinal'] ?? 0),
+                    'parentPath' => is_string($comment['parentPath'] ?? null) ? $comment['parentPath'] : '/',
+                    'parentDepth' => (int) ($comment['parentDepth'] ?? 0),
+                    'parentNamespace' => is_string($comment['parentNamespace'] ?? null) ? $comment['parentNamespace'] : null,
+                    'parentLocalName' => is_string($comment['parentLocalName'] ?? null) ? $comment['parentLocalName'] : null,
+                    'parentQualifiedName' => is_string($comment['parentQualifiedName'] ?? null) ? $comment['parentQualifiedName'] : null,
+                    'byteLength' => (int) ($comment['byteLength'] ?? 0),
+                    'crc32' => is_string($comment['crc32'] ?? null) ? $comment['crc32'] : null,
+                    'sha256' => is_string($comment['sha256'] ?? null) ? $comment['sha256'] : null,
+                ];
+            }
             foreach (($item['rootNamespacePrefixes'] ?? []) as $prefix) {
                 if (is_string($prefix)) {
                     $this->appendUniqueString($rootNamespacePrefixes, $prefix);
@@ -33129,6 +33215,10 @@ final class DocxOpenXmlReader
         ksort($xmlDeclarationVersionCounts, SORT_STRING);
         ksort($xmlDeclarationEncodingCounts, SORT_STRING);
         ksort($xmlDeclarationAttributeNameCounts, SORT_STRING);
+        ksort($xmlCommentParentPathCounts, SORT_STRING);
+        ksort($xmlCommentParentNamespaceCounts, SORT_STRING);
+        ksort($xmlCommentParentLocalNameCounts, SORT_STRING);
+        ksort($xmlCommentParentQualifiedNameCounts, SORT_STRING);
         sort($rootNamespaces, SORT_STRING);
         sort($rootLocalNames, SORT_STRING);
         sort($rootQualifiedNames, SORT_STRING);
@@ -33145,6 +33235,8 @@ final class DocxOpenXmlReader
         sort($xmlDeclarationPartNames, SORT_STRING);
         sort($xmlDeclarationVersions, SORT_STRING);
         sort($xmlDeclarationAttributeNames, SORT_STRING);
+        sort($xmlCommentPartNames, SORT_STRING);
+        sort($xmlCommentParentPaths, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -33231,6 +33323,20 @@ final class DocxOpenXmlReader
             'xmlStandaloneDeclarationCount' => $xmlStandaloneDeclarationCount,
             'xmlStandaloneYesCount' => $xmlStandaloneYesCount,
             'xmlStandaloneNoCount' => $xmlStandaloneNoCount,
+            'xmlCommentPartCount' => $xmlCommentPartCount,
+            'xmlCommentCount' => $xmlCommentCount,
+            'xmlCommentByteLength' => $xmlCommentByteLength,
+            'xmlCommentPartNames' => $xmlCommentPartNames,
+            'xmlCommentParentPathCount' => count($xmlCommentParentPathCounts),
+            'xmlCommentParentPathCounts' => $xmlCommentParentPathCounts,
+            'xmlCommentParentPaths' => $xmlCommentParentPaths,
+            'xmlCommentParentNamespaceCount' => count($xmlCommentParentNamespaceCounts),
+            'xmlCommentParentNamespaceCounts' => $xmlCommentParentNamespaceCounts,
+            'xmlCommentParentLocalNameCount' => count($xmlCommentParentLocalNameCounts),
+            'xmlCommentParentLocalNameCounts' => $xmlCommentParentLocalNameCounts,
+            'xmlCommentParentQualifiedNameCount' => count($xmlCommentParentQualifiedNameCounts),
+            'xmlCommentParentQualifiedNameCounts' => $xmlCommentParentQualifiedNameCounts,
+            'xmlComments' => $xmlComments,
             'issueCount' => $issueCount,
             'issueKinds' => $issueKinds,
             'byKind' => $byKind,
@@ -33323,6 +33429,14 @@ final class DocxOpenXmlReader
             'xmlDeclarationStandalone' => null,
             'xmlDeclarationAttributeCount' => 0,
             'xmlDeclarationAttributeNames' => [],
+            'xmlCommentCount' => 0,
+            'xmlCommentByteLength' => 0,
+            'xmlCommentParentPathCounts' => [],
+            'xmlCommentParentPaths' => [],
+            'xmlCommentParentNamespaceCounts' => [],
+            'xmlCommentParentLocalNameCounts' => [],
+            'xmlCommentParentQualifiedNameCounts' => [],
+            'xmlComments' => [],
             'validRoot' => null,
             'xmlParseError' => null,
             'expectedContentTypeBase' => $expectedContentTypeBase,
@@ -33420,6 +33534,15 @@ final class DocxOpenXmlReader
         $item['rootChildElementFirstName'] = $root['childElementFirstName'];
         $item['rootChildElementLastName'] = $root['childElementLastName'];
         $item['rootChildElements'] = $root['childElements'];
+        $comments = $this->xmlCommentProvenance($xml, $partName);
+        $item['xmlCommentCount'] = $comments['count'];
+        $item['xmlCommentByteLength'] = $comments['byteLength'];
+        $item['xmlCommentParentPathCounts'] = $comments['parentPathCounts'];
+        $item['xmlCommentParentPaths'] = $comments['parentPaths'];
+        $item['xmlCommentParentNamespaceCounts'] = $comments['parentNamespaceCounts'];
+        $item['xmlCommentParentLocalNameCounts'] = $comments['parentLocalNameCounts'];
+        $item['xmlCommentParentQualifiedNameCounts'] = $comments['parentQualifiedNameCounts'];
+        $item['xmlComments'] = $comments['items'];
         $item['validRoot'] = $root['namespace'] === $expectedRootNamespace && $root['localName'] === $expectedRootLocalName;
         if ($item['validRoot'] === false) {
             $item['issues'][] = 'unexpected-root';

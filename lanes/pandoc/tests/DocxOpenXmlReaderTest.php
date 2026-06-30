@@ -21374,6 +21374,109 @@ XML;
         $t->true(!str_contains((string) $encodedReview, '<w:settings'), 'selected XML declaration rollups should not expose XML text');
         $t->true(!str_contains((string) $encodedReview, 'No Declaration Theme'), 'selected XML declaration rollups should not expose selected part attribute values');
     },
+    'preserves docx selected openxml xml comment provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $settingsRootComment = 'selected-settings-root:hidden-alpha';
+        $settingsBodyComment = 'selected-settings-body:hidden-beta';
+        $themeComment = 'selected-theme:hidden-gamma';
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' . "\n" .
+            '  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' . "\n" .
+            '  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' . "\n" .
+            '  <Override PartName="/word/theme/comment-theme.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettingsComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>' . "\n" .
+            '  <Relationship Id="rThemeComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/comment-theme.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/settings.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<!--{$settingsRootComment}-->
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <!--{$settingsBodyComment}-->
+  <w:updateFields w:val="true"/>
+</w:settings>
+XML;
+        $parts['word/theme/comment-theme.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Comment Theme">
+  <!--{$themeComment}-->
+  <a:themeElements/>
+</a:theme>
+XML;
+
+        $package = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance'];
+        $selected = $package['selectedXmlParts'];
+        $summary = $package['summary'];
+        $settings = $selected['byKind']['settings'];
+        $theme = $selected['byKind']['theme'];
+        $commentByteLength = strlen($settingsRootComment) + strlen($settingsBodyComment) + strlen($themeComment);
+
+        $t->same(18, $selected['count']);
+        $t->same(6, $selected['existingCount']);
+        $t->same(2, $selected['xmlCommentPartCount']);
+        $t->same(3, $selected['xmlCommentCount']);
+        $t->same($commentByteLength, $selected['xmlCommentByteLength']);
+        $t->same(['word/settings.xml', 'word/theme/comment-theme.xml'], $selected['xmlCommentPartNames']);
+        $t->same(['/' => 1, '/a:theme' => 1, '/w:settings' => 1], $selected['xmlCommentParentPathCounts']);
+        $t->same(['/', '/a:theme', '/w:settings'], $selected['xmlCommentParentPaths']);
+        $t->same([
+            '(none)' => 1,
+            'http://schemas.openxmlformats.org/drawingml/2006/main' => 1,
+            'http://schemas.openxmlformats.org/wordprocessingml/2006/main' => 1,
+        ], $selected['xmlCommentParentNamespaceCounts']);
+        $t->same(['(none)' => 1, 'settings' => 1, 'theme' => 1], $selected['xmlCommentParentLocalNameCounts']);
+        $t->same(['(none)' => 1, 'a:theme' => 1, 'w:settings' => 1], $selected['xmlCommentParentQualifiedNameCounts']);
+
+        $t->same(2, $settings['xmlCommentCount']);
+        $t->same(strlen($settingsRootComment) + strlen($settingsBodyComment), $settings['xmlCommentByteLength']);
+        $t->same(['/' => 1, '/w:settings' => 1], $settings['xmlCommentParentPathCounts']);
+        $t->same('/', $settings['xmlComments'][0]['parentPath']);
+        $t->same(null, $settings['xmlComments'][0]['parentNamespace']);
+        $t->same(strlen($settingsRootComment), $settings['xmlComments'][0]['byteLength']);
+        $t->same(sprintf('%08x', crc32($settingsRootComment)), $settings['xmlComments'][0]['crc32']);
+        $t->same(hash('sha256', $settingsRootComment), $settings['xmlComments'][0]['sha256']);
+        $t->same('/w:settings', $settings['xmlComments'][1]['parentPath']);
+        $t->same('http://schemas.openxmlformats.org/wordprocessingml/2006/main', $settings['xmlComments'][1]['parentNamespace']);
+        $t->same('settings', $settings['xmlComments'][1]['parentLocalName']);
+        $t->same('w:settings', $settings['xmlComments'][1]['parentQualifiedName']);
+
+        $t->same(1, $theme['xmlCommentCount']);
+        $t->same(strlen($themeComment), $theme['xmlCommentByteLength']);
+        $t->same(['/a:theme' => 1], $theme['xmlCommentParentPathCounts']);
+        $t->same('a:theme', $theme['xmlComments'][0]['parentQualifiedName']);
+        $t->same(sprintf('%08x', crc32($themeComment)), $theme['xmlComments'][0]['crc32']);
+        $t->same(hash('sha256', $themeComment), $theme['xmlComments'][0]['sha256']);
+
+        $t->same($selected['xmlCommentPartCount'], $summary['selectedXmlPartXmlCommentPartCount']);
+        $t->same($selected['xmlCommentCount'], $summary['selectedXmlPartXmlCommentCount']);
+        $t->same($selected['xmlCommentByteLength'], $summary['selectedXmlPartXmlCommentByteLength']);
+        $t->same($selected['xmlCommentPartNames'], $summary['selectedXmlPartXmlCommentPartNames']);
+        $t->same($selected['xmlCommentParentPathCounts'], $summary['selectedXmlPartXmlCommentParentPathCounts']);
+        $t->same($selected['xmlCommentParentNamespaceCounts'], $summary['selectedXmlPartXmlCommentParentNamespaceCounts']);
+        $t->same($selected['xmlComments'], $summary['selectedXmlPartXmlComments']);
+        $t->same('settings', $summary['selectedXmlPartXmlComments'][0]['kind']);
+        $t->same('word/settings.xml', $summary['selectedXmlPartXmlComments'][0]['partName']);
+        $t->same('theme', $summary['selectedXmlPartXmlComments'][2]['kind']);
+        $t->same('word/theme/comment-theme.xml', $summary['selectedXmlPartXmlComments'][2]['partName']);
+
+        $encodedReview = json_encode([
+            $selected['xmlComments'],
+            $summary['selectedXmlPartXmlComments'],
+            $settings['xmlComments'],
+            $theme['xmlComments'],
+        ]);
+        $t->true(is_string($encodedReview), 'selected XML comment metadata should encode for review');
+        $t->true(!isset($settings['xmlComments'][0]['data']), 'selected XML comment metadata must not expose raw comment text');
+        $t->true(!str_contains((string) $encodedReview, 'hidden-alpha'), 'selected XML comment rollups should not expose comment text');
+        $t->true(!str_contains((string) $encodedReview, 'Comment Theme'), 'selected XML comment rollups should not expose selected part attribute values');
+    },
     'summarizes docx package xml root namespace declarations for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['customXml/ns-review.xml'] = <<<'XML'
