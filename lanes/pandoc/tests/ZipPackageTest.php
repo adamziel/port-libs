@@ -16329,6 +16329,112 @@ return [
         $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
     },
 
+    'summarizes zip package part kind status before reader byte exposure' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $contentTypesXml = '<Types/>';
+        $packageRelsXml = '<Relationships/>';
+        $documentXml = '<w:document><w:body><w:p>kind status handoff</w:p></w:body></w:document>';
+        $documentRelsXml = '<Relationships><Relationship Id="rIdImage" Target="media/image.png"/></Relationships>';
+        $imageBytes = "kind status image bytes\n";
+        $largeBytes = "blocked kind status media bytes\n";
+        $finderMetadata = "finder metadata bytes\n";
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'method' => 0],
+            ['name' => '_rels/.rels', 'data' => $packageRelsXml, 'method' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelsXml, 'method' => 0],
+            ['name' => 'word/media/image.png', 'data' => $imageBytes, 'method' => 0],
+            ['name' => 'word/media/large.bin', 'data' => $largeBytes, 'method' => 0],
+            ['name' => 'word/media/.DS_Store', 'data' => $finderMetadata, 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => '[Content_Types].xml', 'required' => true, 'kind' => 'file', 'role' => 'content-types'],
+            ['name' => '_rels/.rels', 'required' => true, 'kind' => 'file', 'role' => 'root-relationships'],
+            ['name' => 'docProps/core.xml', 'required' => false, 'kind' => 'file', 'role' => 'metadata'],
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/_rels/document.xml.rels', 'required' => false, 'kind' => 'file', 'role' => 'document-relationships'],
+            ['name' => 'word/media/image.png', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'word/media/large.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 8],
+            ['name' => 'word/media/.DS_Store', 'required' => false, 'kind' => 'file', 'role' => 'platform-sidecar'],
+        ], 1024);
+
+        $kindStatusByKind = [];
+        foreach ($summary['packagePartKindStatusSummaries'] as $kindSummary) {
+            $kindStatusByKind[$kindSummary['packagePartKind']] = $kindSummary;
+        }
+        $handoffKindStatusByKind = [];
+        foreach ($summary['handoffPackagePartKindStatusSummaries'] as $kindSummary) {
+            $handoffKindStatusByKind[$kindSummary['packagePartKind']] = $kindSummary;
+        }
+
+        $t->same(6, $summary['packagePartKindStatusSummaryCount']);
+        $t->same(5, $summary['handoffPackagePartKindStatusSummaryCount']);
+        $t->same([
+            'content-types',
+            'markup-part',
+            'media',
+            'metadata',
+            'relationship-part',
+            'root-relationships',
+        ], array_keys($kindStatusByKind));
+        $t->same([
+            'content-types',
+            'markup-part',
+            'media',
+            'relationship-part',
+            'root-relationships',
+        ], array_keys($handoffKindStatusByKind));
+
+        $mediaStatus = $kindStatusByKind['media'];
+        $t->same(3, $mediaStatus['entryCount']);
+        $t->same(3, $mediaStatus['presentEntryCount']);
+        $t->same(1, $mediaStatus['readyEntryCount']);
+        $t->same(2, $mediaStatus['blockedEntryCount']);
+        $t->same(2, $mediaStatus['failedEntryCount']);
+        $t->same(1, $mediaStatus['readableEntryCount']);
+        $t->same(2, $mediaStatus['metadataOnlyEntryCount']);
+        $t->same(strlen($imageBytes) + strlen($largeBytes) + strlen($finderMetadata), $mediaStatus['compressedBytes']);
+        $t->same(strlen($imageBytes) + strlen($largeBytes) + strlen($finderMetadata), $mediaStatus['uncompressedBytes']);
+        $t->same(['metadata-only', 'readable'], $mediaStatus['byteExposurePolicies']);
+        $t->same(['blocked', 'ready'], $mediaStatus['statuses']);
+        $t->same(['media', 'platform-sidecar'], $mediaStatus['roles']);
+        $t->same(['entry-uncompressed-size-exceeds-limit', 'finder-metadata-entry'], $mediaStatus['issues']);
+        $t->same([
+            'entry-uncompressed-size-exceeds-limit' => 1,
+            'finder-metadata-entry' => 1,
+        ], $mediaStatus['issueCounts']);
+        $t->same([
+            'word/media/image.png',
+            'word/media/large.bin',
+            'word/media/.DS_Store',
+        ], $mediaStatus['entryNames']);
+        $t->same(['word/media/image.png'], $mediaStatus['readyEntryNames']);
+        $t->same(['word/media/large.bin', 'word/media/.DS_Store'], $mediaStatus['blockedEntryNames']);
+
+        $metadataStatus = $kindStatusByKind['metadata'];
+        $t->same(1, $metadataStatus['entryCount']);
+        $t->same(0, $metadataStatus['presentEntryCount']);
+        $t->same(1, $metadataStatus['missingEntryCount']);
+        $t->same(1, $metadataStatus['missingByteExposurePolicyEntryCount']);
+        $t->same(['missing'], $metadataStatus['byteExposurePolicies']);
+        $t->same(['missing-optional'], $metadataStatus['statuses']);
+        $t->same(['metadata'], $metadataStatus['roles']);
+        $t->same(['docProps/core.xml'], $metadataStatus['missingEntryNames']);
+        $t->same(false, isset($handoffKindStatusByKind['metadata']));
+
+        $handoffMediaStatus = $handoffKindStatusByKind['media'];
+        $t->same(1, $handoffMediaStatus['entryCount']);
+        $t->same(1, $handoffMediaStatus['readyEntryCount']);
+        $t->same(0, $handoffMediaStatus['blockedEntryCount']);
+        $t->same(1, $handoffMediaStatus['readableEntryCount']);
+        $t->same(['readable'], $handoffMediaStatus['byteExposurePolicies']);
+        $t->same(['ready'], $handoffMediaStatus['statuses']);
+        $t->same([], $handoffMediaStatus['issues']);
+        $t->same(['word/media/image.png'], $handoffMediaStatus['entryNames']);
+        $t->same(['entry-uncompressed-size-exceeds-limit', 'finder-metadata-entry'], $summary['issues']);
+    },
+
     'summarizes selected zip relationship source parts before reader byte exposure' => static function (TestRunner $t) use ($buildZipPackage): void {
         $rootRelsXml = '<Relationships><Relationship Id="rIdDocument" Target="word/document.xml"/></Relationships>';
         $documentXml = '<w:document><w:body><w:p>relationship source handoff</w:p></w:body></w:document>';

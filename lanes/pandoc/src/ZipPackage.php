@@ -6415,6 +6415,8 @@ final class ZipPackage
         $handoffDirectoryRootSummaries = self::entryHandoffDirectoryRootSummaries($handoffEntries);
         $selectedPackagePartKindSummaries = self::entryHandoffPackagePartKindSummaries($selectedDirectoryRootSummaryEntries);
         $handoffPackagePartKindSummaries = self::entryHandoffPackagePartKindSummaries($handoffEntries);
+        $packagePartKindStatusSummaries = self::entryHandoffPackagePartKindStatusSummaries($entries);
+        $handoffPackagePartKindStatusSummaries = self::entryHandoffPackagePartKindStatusSummaries($handoffEntries);
         $selectedRelationshipSourceSummaries = self::entryHandoffRelationshipSourceSummaries(
             $selectedDirectoryRootSummaryEntries
         );
@@ -6521,6 +6523,7 @@ final class ZipPackage
             'selectedPackagePartKindCount' => count($selectedPackagePartKindSummaries),
             'selectedMediaPartEntryCount' => self::entryHandoffKindEntryCount($selectedPackagePartKindSummaries, 'media'),
             'selectedRelationshipPartEntryCount' => self::entryHandoffKindEntryCount($selectedPackagePartKindSummaries, 'relationship-part'),
+            'packagePartKindStatusSummaryCount' => count($packagePartKindStatusSummaries),
             'selectedRelationshipSourceCount' => count($selectedRelationshipSourceSummaries),
             'selectedRelationshipSourceEntryCount' => self::entryHandoffSummaryTotal(
                 $selectedRelationshipSourceSummaries,
@@ -6597,6 +6600,7 @@ final class ZipPackage
             'handoffPackagePartKindCount' => count($handoffPackagePartKindSummaries),
             'handoffMediaPartEntryCount' => self::entryHandoffKindEntryCount($handoffPackagePartKindSummaries, 'media'),
             'handoffRelationshipPartEntryCount' => self::entryHandoffKindEntryCount($handoffPackagePartKindSummaries, 'relationship-part'),
+            'handoffPackagePartKindStatusSummaryCount' => count($handoffPackagePartKindStatusSummaries),
             'handoffRelationshipSourceCount' => count($handoffRelationshipSourceSummaries),
             'handoffRelationshipSourceEntryCount' => self::entryHandoffSummaryTotal(
                 $handoffRelationshipSourceSummaries,
@@ -6988,6 +6992,8 @@ final class ZipPackage
             'handoffExpansionRatioBucketSummaries' => $handoffExpansionRatioBucketSummaries,
             'selectedPackagePartKindSummaries' => $selectedPackagePartKindSummaries,
             'handoffPackagePartKindSummaries' => $handoffPackagePartKindSummaries,
+            'packagePartKindStatusSummaries' => $packagePartKindStatusSummaries,
+            'handoffPackagePartKindStatusSummaries' => $handoffPackagePartKindStatusSummaries,
             'selectedRelationshipSourceSummaries' => $selectedRelationshipSourceSummaries,
             'handoffRelationshipSourceSummaries' => $handoffRelationshipSourceSummaries,
             'selectedRelationshipSourceScopeSummaries' => $selectedRelationshipSourceScopeSummaries,
@@ -11739,6 +11745,131 @@ final class ZipPackage
 
         foreach ($summaries as &$summary) {
             sort($summary['roles'], SORT_STRING);
+        }
+        unset($summary);
+
+        ksort($summaries, SORT_STRING);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffPackagePartKindStatusSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $isDirectory = is_bool($entry['isDirectory'] ?? null)
+                ? $entry['isDirectory']
+                : (($entry['expectedKind'] ?? null) === 'directory');
+            $kind = is_string($entry['packagePartKind'] ?? null) && $entry['packagePartKind'] !== ''
+                ? $entry['packagePartKind']
+                : self::entryHandoffPackagePartKind($name, $isDirectory);
+            if (!isset($summaries[$kind])) {
+                $summaries[$kind] = [
+                    'packagePartKind' => $kind,
+                    'entryCount' => 0,
+                    'presentEntryCount' => 0,
+                    'missingEntryCount' => 0,
+                    'readyEntryCount' => 0,
+                    'blockedEntryCount' => 0,
+                    'failedEntryCount' => 0,
+                    'readableEntryCount' => 0,
+                    'metadataOnlyEntryCount' => 0,
+                    'missingByteExposurePolicyEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'statuses' => [],
+                    'byteExposurePolicies' => [],
+                    'roles' => [],
+                    'issues' => [],
+                    'issueCounts' => [],
+                    'entryNames' => [],
+                    'readyEntryNames' => [],
+                    'blockedEntryNames' => [],
+                    'missingEntryNames' => [],
+                ];
+            }
+
+            ++$summaries[$kind]['entryCount'];
+            $summaries[$kind]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$kind]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$kind]['entryNames'][] = $name;
+
+            if (($entry['exists'] ?? false) === true) {
+                ++$summaries[$kind]['presentEntryCount'];
+            } else {
+                ++$summaries[$kind]['missingEntryCount'];
+                $summaries[$kind]['missingEntryNames'][] = $name;
+            }
+
+            $status = is_string($entry['status'] ?? null) && $entry['status'] !== ''
+                ? $entry['status']
+                : 'unknown';
+            if (!in_array($status, $summaries[$kind]['statuses'], true)) {
+                $summaries[$kind]['statuses'][] = $status;
+            }
+            if ($status === 'ready') {
+                ++$summaries[$kind]['readyEntryCount'];
+                $summaries[$kind]['readyEntryNames'][] = $name;
+            } elseif ($status === 'blocked') {
+                ++$summaries[$kind]['blockedEntryCount'];
+                $summaries[$kind]['blockedEntryNames'][] = $name;
+            } elseif (str_starts_with($status, 'missing-')) {
+                $summaries[$kind]['missingEntryNames'][] = $name;
+            }
+
+            $policy = is_string($entry['byteExposurePolicy'] ?? null) && $entry['byteExposurePolicy'] !== ''
+                ? $entry['byteExposurePolicy']
+                : null;
+            if ($policy !== null && !in_array($policy, $summaries[$kind]['byteExposurePolicies'], true)) {
+                $summaries[$kind]['byteExposurePolicies'][] = $policy;
+            }
+            if ($policy === 'metadata-only') {
+                ++$summaries[$kind]['metadataOnlyEntryCount'];
+            } elseif ($policy === 'missing') {
+                ++$summaries[$kind]['missingByteExposurePolicyEntryCount'];
+            }
+
+            if (($entry['isReadable'] ?? false) === true) {
+                ++$summaries[$kind]['readableEntryCount'];
+            }
+
+            foreach (self::entryHandoffRolesForSummary($entry) as $role) {
+                if (!in_array($role, $summaries[$kind]['roles'], true)) {
+                    $summaries[$kind]['roles'][] = $role;
+                }
+            }
+
+            $entryIssues = array_values(array_filter(
+                is_array($entry['issues'] ?? null) ? $entry['issues'] : [],
+                'is_string'
+            ));
+            if ($entryIssues !== [] && $status !== 'ready') {
+                ++$summaries[$kind]['failedEntryCount'];
+            }
+            foreach ($entryIssues as $issue) {
+                if (!in_array($issue, $summaries[$kind]['issues'], true)) {
+                    $summaries[$kind]['issues'][] = $issue;
+                }
+                $summaries[$kind]['issueCounts'][$issue] = ($summaries[$kind]['issueCounts'][$issue] ?? 0) + 1;
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['statuses'], SORT_STRING);
+            sort($summary['byteExposurePolicies'], SORT_STRING);
+            sort($summary['roles'], SORT_STRING);
+            sort($summary['issues'], SORT_STRING);
+            $summary['missingEntryNames'] = array_values(array_unique($summary['missingEntryNames']));
+            ksort($summary['issueCounts'], SORT_STRING);
         }
         unset($summary);
 
