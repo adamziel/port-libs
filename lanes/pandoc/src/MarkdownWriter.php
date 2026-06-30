@@ -8831,22 +8831,35 @@ final class MarkdownWriter
 
     private function renderLinkDestination(string $url): string
     {
-        $url = str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $url);
         if ($url === '' && $this->opmlNoteMarkdownEnabled()) {
             return '';
         }
 
+        $url = $this->percentEncodeLinkDestinationControls($url);
         if (!$this->linkDestinationNeedsAngles($url)) {
             return $url;
         }
 
-        return '<' . str_replace(['<', '>'], ['\\<', '\\>'], $url) . '>';
+        return '<' . str_replace(
+            ['\\', '<', '>', '"', "'"],
+            ['\\\\', '\\<', '\\>', '\\"', "\\'"],
+            $url
+        ) . '>';
+    }
+
+    private function percentEncodeLinkDestinationControls(string $url): string
+    {
+        return preg_replace_callback(
+            '/[\x00-\x1F\x7F]/',
+            static fn (array $match): string => sprintf('%%%02X', ord($match[0])),
+            $url
+        ) ?? $url;
     }
 
     private function linkDestinationNeedsAngles(string $url): bool
     {
         return $url === ''
-            || preg_match('/[\x00-\x20\x7F<>]/u', $url) === 1;
+            || preg_match('/[ <>()\\\\\'"]/u', $url) === 1;
     }
 
     /**
@@ -9706,11 +9719,17 @@ final class MarkdownWriter
 
     private function escapeLinkTitle(string $title): string
     {
+        $title = $this->normalizeLinkTitleControls($title);
         if ($this->opmlNoteMarkdownEnabled()) {
             return str_replace('\\', '\\\\', $title);
         }
 
         return str_replace(['\\', '"'], ['\\\\', '\\"'], $title);
+    }
+
+    private function normalizeLinkTitleControls(string $title): string
+    {
+        return preg_replace('/[\x00-\x1F\x7F]+/', ' ', $title) ?? $title;
     }
 
     private function referenceLocation(): string
