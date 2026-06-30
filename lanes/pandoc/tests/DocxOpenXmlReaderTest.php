@@ -13259,6 +13259,29 @@ XML;
         $t->same('_xmlsignatures/_rels/origin.sigs.rels', $origin['originRelationshipsPart']);
         $t->same(4, $origin['originRelationshipCount']);
         $t->same(4, $origin['signatureCount']);
+        $t->same(4, $origin['signatures']['referenceCount']);
+        $t->same(['external' => 1, 'package-part' => 1, 'relative' => 1, 'same-document' => 1], $origin['signatures']['referenceUriKindCounts']);
+        $t->same([
+            '/word/document.xml?review=1#body',
+            '#manifestPackageParts',
+            'https://example.test/signature-source.xml?remote=1#sig',
+            'customXml/item1.xml?slot=1#payload',
+        ], $origin['signatures']['referenceUris']);
+        $t->same(1, $origin['signatures']['packageReferenceCount']);
+        $t->same(1, $origin['signatures']['sameDocumentReferenceCount']);
+        $t->same(1, $origin['signatures']['externalReferenceCount']);
+        $t->same(1, $origin['signatures']['relativeReferenceCount']);
+        $t->same(0, $origin['signatures']['emptyReferenceCount']);
+        $t->same(2, $origin['signatures']['referenceTransformCount']);
+        $t->same($signatures['referenceTransformAlgorithms'], $origin['signatures']['referenceTransformAlgorithms']);
+        $t->same(3, $origin['signatures']['referenceDigestMethodCount']);
+        $t->same(1, $origin['signatures']['referenceDigestMethodMissingCount']);
+        $t->same(3, $origin['signatures']['referenceDigestValueCount']);
+        $t->same(1, $origin['signatures']['referenceDigestValueMissingCount']);
+        $t->same($signatures['digestMethodAlgorithms'], $origin['signatures']['digestMethodAlgorithms']);
+        $t->same($signatures['signatureMethodAlgorithms'], $origin['signatures']['signatureMethodAlgorithms']);
+        $t->same($signatures['canonicalizationMethodAlgorithms'], $origin['signatures']['canonicalizationMethodAlgorithms']);
+        $t->same(1, $origin['signatures']['signatureValuePresentCount']);
         $t->same([], $origin['issues']);
 
         $t->same('_xmlsignatures/missing-origin.sigs', $missingOrigin['targetPart']);
@@ -13366,7 +13389,11 @@ XML;
         $t->same($signatures['referenceUriKindCounts'], $summary['digitalSignatureReferenceUriKindCounts']);
         $t->same(3, $summary['digitalSignatureReferenceDigestMethodCount']);
         $t->same(1, $summary['digitalSignatureReferenceDigestMethodMissingCount']);
+        $t->same($signatures['referenceTransformAlgorithms'], $summary['digitalSignatureReferenceTransformAlgorithms']);
+        $t->same($signatures['digestMethodAlgorithms'], $summary['digitalSignatureReferenceDigestMethodAlgorithms']);
         $t->same(1, $summary['digitalSignatureReferenceDigestValueMissingCount']);
+        $t->same($signatures['signatureMethodAlgorithms'], $summary['digitalSignatureSignatureMethodAlgorithms']);
+        $t->same($signatures['canonicalizationMethodAlgorithms'], $summary['digitalSignatureCanonicalizationMethodAlgorithms']);
         $t->same(1, $summary['digitalSignatureValuePresentCount']);
         $t->same(3, $summary['relationshipTypeCounts'][$originType]);
         $t->same(4, $summary['relationshipTypeCounts'][$signatureType]);
