@@ -234,6 +234,10 @@ final class NativeWriter
 
     private function hasJsonNativeProvenance(AstNode $node): bool
     {
+        if ($node->type === 'note' && $this->isValidNoteLabel($node->attr('label'))) {
+            return true;
+        }
+
         foreach ($node->attrs as $attr => $value) {
             if (in_array($attr, self::NATIVE_COMPARISON_PROVENANCE_ATTRS, true) && $value !== null) {
                 return true;
@@ -309,6 +313,10 @@ final class NativeWriter
             return false;
         }
 
+        if ($this->isTaggedMetaValue($value)) {
+            return true;
+        }
+
         foreach ($value as $item) {
             if ($this->valueHasJsonNativeProvenance($item)) {
                 return true;
@@ -316,6 +324,29 @@ final class NativeWriter
         }
 
         return false;
+    }
+
+    private function isValidNoteLabel(mixed $label): bool
+    {
+        return is_string($label)
+            && trim($label) === $label
+            && $label !== ''
+            && preg_match('/[\]\s]/u', $label) !== 1;
+    }
+
+    private function isTaggedMetaValue(array $value): bool
+    {
+        return !array_is_list($value)
+            && isset($value['t'])
+            && is_string($value['t'])
+            && in_array($value['t'], [
+                'MetaString',
+                'MetaBool',
+                'MetaInlines',
+                'MetaBlocks',
+                'MetaList',
+                'MetaMap',
+            ], true);
     }
 
     private function nativeJsonDocument(AstNode $document): AstNode
