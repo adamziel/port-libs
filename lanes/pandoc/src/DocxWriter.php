@@ -1815,6 +1815,9 @@ final class DocxWriter
         if (preg_match('/^<w:bookmarkEnd\s+w:id="([0-9]+)"\s*\/>$/', $xml, $matches) === 1) {
             return '<w:bookmarkEnd w:id="' . self::escAttr($matches[1]) . '"/>';
         }
+        if (preg_match('/^<w:fldSimple\s+w:instr="([^"]+)"\s*\/>$/', $xml, $matches) === 1) {
+            return '<w:fldSimple w:instr="' . self::escAttr($matches[1]) . '"/>';
+        }
 
         return null;
     }

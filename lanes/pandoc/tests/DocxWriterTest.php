@@ -512,6 +512,9 @@ return [
                 $text('Aliquam'),
                 new AstNode('raw_inline', ['format' => 'openxml', 'text' => '<w:bookmarkEnd w:id="0"/>']),
             ]),
+            $paragraph([
+                new AstNode('raw_inline', ['format' => 'openxml', 'text' => '<w:fldSimple w:instr="REF ref_fig:testimg" />']),
+            ]),
         ]);
 
         [, $parts] = $packageParts((new DocxWriter())->write($document));
@@ -521,7 +524,9 @@ return [
         $t->contains('<w:hyperlink w:anchor="a-section-for-testing-link-targets">', $documentXml);
         $t->contains('<w:bookmarkStart w:id="0" w:name="Aliquam"/>', $documentXml);
         $t->contains('<w:bookmarkEnd w:id="0"/>', $documentXml);
+        $t->contains('<w:fldSimple w:instr="REF ref_fig:testimg"/>', $documentXml);
         $t->true(!str_contains($documentXml, '&lt;w:bookmarkStart'), 'Raw bookmark was XML-escaped');
+        $t->true(!str_contains($documentXml, '&lt;w:fldSimple'), 'Raw simple field was XML-escaped');
     },
 
     'uses hashed bookmark names for long internal anchors' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
