@@ -28472,23 +28472,27 @@ final class XmlHtmlDom
                 $policyAttributes[] = $attribute;
             }
         }
-        $issueCodes = [];
+        $issues = [];
 
         if ($loadingRaw !== null && $loading === null) {
-            $issueCodes[] = 'invalid-image-loading';
+            $issues[] = ['code' => 'invalid-image-loading', 'loadingRaw' => $loadingRaw];
         }
         if ($decodingRaw !== null && $decoding === null) {
-            $issueCodes[] = 'invalid-image-decoding';
+            $issues[] = ['code' => 'invalid-image-decoding', 'decodingRaw' => $decodingRaw];
         }
         if ($fetchPriorityRaw !== null && $fetchPriority === null) {
-            $issueCodes[] = 'invalid-image-fetchpriority';
+            $issues[] = ['code' => 'invalid-image-fetchpriority', 'fetchpriorityRaw' => $fetchPriorityRaw];
         }
         if ($crossoriginRaw !== null && $crossorigin === null) {
-            $issueCodes[] = 'invalid-image-crossorigin';
+            $issues[] = ['code' => 'invalid-image-crossorigin', 'crossoriginRaw' => $crossoriginRaw];
         }
         if ($referrerPolicyRaw !== null && $referrerPolicy === null) {
-            $issueCodes[] = 'invalid-image-referrerpolicy';
+            $issues[] = ['code' => 'invalid-image-referrerpolicy', 'referrerpolicyRaw' => $referrerPolicyRaw];
         }
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
 
         return [
             'imageLoadingReviewPolicy' => 'image-loading-metadata-review',
@@ -28509,6 +28513,7 @@ final class XmlHtmlDom
             'imageReferrerPolicy' => $referrerPolicy,
             'imageReferrerPolicyValid' => $referrerPolicyRaw === null ? null : $referrerPolicy !== null,
             'imageLoadingReviewOnlyNoResourceFetch' => true,
+            'imageLoadingIssues' => $issues,
             'imageLoadingIssueCodes' => $issueCodes,
             'imageLoadingIssueCount' => count($issueCodes),
         ];
