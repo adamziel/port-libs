@@ -17159,7 +17159,10 @@ final class OdfReader
         if ($mediaType !== '' && str_starts_with(self::mediaTypeReport($mediaType)['mediaTypeBase'], 'image/')) {
             return 'image-configuration-resource';
         }
-        if (($mediaType !== '' && $this->isXmlMediaType($mediaType)) || str_ends_with(strtolower($part), '.xml')) {
+        if (
+            ($mediaType !== '' && self::isConfigurationXmlMediaTypeBase(self::mediaTypeReport($mediaType)['mediaTypeBase']))
+            || self::isConfigurationXmlPartName($part)
+        ) {
             return 'xml-configuration';
         }
 
@@ -17178,7 +17181,23 @@ final class OdfReader
     {
         $base = self::mediaTypeReport($mediaType)['mediaTypeBase'];
 
-        return $this->isXmlMediaType($mediaType) || str_starts_with($base, 'image/');
+        return self::isConfigurationXmlMediaTypeBase($base) || str_starts_with($base, 'image/');
+    }
+
+    private static function isConfigurationXmlMediaTypeBase(string $mediaTypeBase): bool
+    {
+        $base = strtolower(trim($mediaTypeBase));
+
+        return $base === 'text/xml'
+            || $base === 'application/xml'
+            || $base === 'application/vnd.sun.xml.configuration'
+            || $base === 'application/vnd.sun.xml.ui.configuration'
+            || str_ends_with($base, '+xml');
+    }
+
+    private static function isConfigurationXmlPartName(string $part): bool
+    {
+        return in_array(strtolower(pathinfo($part, PATHINFO_EXTENSION)), ['xml', 'xcu', 'xcs', 'xdl'], true);
     }
 
     /**

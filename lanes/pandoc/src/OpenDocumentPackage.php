@@ -7484,7 +7484,7 @@ final class OpenDocumentPackage
             'svg' => 'image/svg+xml',
             'tif', 'tiff' => 'image/tiff',
             'webp' => 'image/webp',
-            'xml' => 'text/xml',
+            'xml', 'xcu', 'xcs', 'xdl' => 'text/xml',
             default => null,
         };
     }
@@ -7492,7 +7492,7 @@ final class OpenDocumentPackage
     private static function configurationMediaTypeValid(string $path, string $mediaTypeBase, bool $isDirectory): bool
     {
         if ($isDirectory) {
-            return $mediaTypeBase === '';
+            return $mediaTypeBase === '' || self::isConfigurationXmlMediaTypeBase($mediaTypeBase);
         }
 
         if ($mediaTypeBase === '') {
@@ -7510,10 +7510,19 @@ final class OpenDocumentPackage
         }
 
         if ($expectedBase === 'text/xml') {
-            return in_array($mediaTypeBase, ['text/xml', 'application/xml'], true);
+            return self::isConfigurationXmlMediaTypeBase($mediaTypeBase);
         }
 
         return $mediaTypeBase === $expectedBase;
+    }
+
+    private static function isConfigurationXmlMediaTypeBase(string $mediaTypeBase): bool
+    {
+        $base = strtolower(trim($mediaTypeBase));
+
+        return self::isXmlMediaTypeBase($base)
+            || $base === 'application/vnd.sun.xml.configuration'
+            || $base === 'application/vnd.sun.xml.ui.configuration';
     }
 
     /**
@@ -7534,7 +7543,7 @@ final class OpenDocumentPackage
             $kind = $configurationPath === null ? 'configuration-root' : 'configuration-directory';
         } elseif (str_starts_with($mediaTypeBase, 'image/')) {
             $kind = 'configuration-image';
-        } elseif (in_array($mediaTypeBase, ['text/xml', 'application/xml'], true) || $extension === 'xml') {
+        } elseif (self::isConfigurationXmlMediaTypeBase($mediaTypeBase) || in_array($extension, ['xml', 'xcu', 'xcs', 'xdl'], true)) {
             $kind = 'configuration-xml';
         }
 
