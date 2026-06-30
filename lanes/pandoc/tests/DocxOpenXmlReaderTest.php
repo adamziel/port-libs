@@ -29022,6 +29022,181 @@ XML;
         $t->true(in_array('chart-part', $inventory['word/charts/unreferenced.xml']['roles'], true), 'unreferenced chart inventory role missing');
         $t->true(!isset($docx['media']['word/charts/chart1.xml']), 'Chart XML should not be exposed as document media');
     },
+    'summarizes docx chart style and color sidecar package parts' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $chartRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart';
+        $chartStyleRel = 'http://schemas.microsoft.com/office/2011/relationships/chartStyle';
+        $chartColorRel = 'http://schemas.microsoft.com/office/2011/relationships/chartColorStyle';
+        $chartContentType = 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml';
+        $chartStyleContentType = 'application/vnd.ms-office.chartstyle+xml';
+        $chartColorContentType = 'application/vnd.ms-office.chartcolorstyle+xml';
+        $chartXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <c:chart><c:title/><c:plotArea/></c:chart>
+</c:chartSpace>
+XML;
+        $styleXml = '<c15:chartStyle xmlns:c15="http://schemas.microsoft.com/office/drawing/2012/chartStyle" id="201"/>';
+        $colorXml = '<c15:colorStyle xmlns:c15="http://schemas.microsoft.com/office/drawing/2012/chartStyle" meth="cycle"/>';
+        $badStyleXml = '<review-chart-style/>';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/charts/chart-sidecars.xml" ContentType="' . $chartContentType . '"/>' . "\n" .
+            '  <Override PartName="/word/charts/style1.xml" ContentType="' . $chartStyleContentType . '; profile=review-style"/>' . "\n" .
+            '  <Override PartName="/word/charts/colors1.xml" ContentType="' . $chartColorContentType . '; profile=brand-colors"/>' . "\n" .
+            '  <Override PartName="/word/charts/missing-style.xml" ContentType="' . $chartStyleContentType . '"/>' . "\n" .
+            '  <Override PartName="/word/charts/bad-style.xml" ContentType="application/xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rChartSidecars" Type="' . $chartRel . '" Target="charts/chart-sidecars.xml?slot=body#chart"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"',
+            'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"',
+            $parts['word/document.xml']
+        );
+        $parts['word/document.xml'] = str_replace(
+            "      </w:r>\n    </w:p>\n    <w:tbl>",
+            "      </w:r>\n" .
+            "      <w:r><w:drawing><wp:inline><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart r:id=\"rChartSidecars\"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>\n" .
+            "    </w:p>\n    <w:tbl>",
+            $parts['word/document.xml']
+        );
+        $parts['word/charts/chart-sidecars.xml'] = $chartXml;
+        $parts['word/charts/_rels/chart-sidecars.xml.rels'] = <<<XML
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rChartStyle" Type="{$chartStyleRel}" Target="style1.xml?variant=201#style"/>
+  <Relationship Id="rChartColors" Type="{$chartColorRel}" Target="colors1.xml?palette=brand#colors"/>
+  <Relationship Id="rMissingChartStyle" Type="{$chartStyleRel}" Target="missing-style.xml"/>
+  <Relationship Id="rExternalChartColors" Type="{$chartColorRel}" Target="https://example.test/charts/colors.xml?remote=1#colors" TargetMode="External"/>
+  <Relationship Id="rBadChartStyle" Type="{$chartStyleRel}" Target="bad-style.xml"/>
+  <Relationship Id="rIgnoredImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/review.png"/>
+</Relationships>
+XML;
+        $parts['word/charts/style1.xml'] = $styleXml;
+        $parts['word/charts/colors1.xml'] = $colorXml;
+        $parts['word/charts/bad-style.xml'] = $badStyleXml;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $charts = $docx['chartParts'];
+        $chart = $charts['byRelationshipId']['rChartSidecars'];
+        $sidecars = $chart['sidecarParts'];
+        $style = $sidecars['byRelationshipId']['rChartStyle'];
+        $colors = $sidecars['byRelationshipId']['rChartColors'];
+        $missing = $sidecars['byRelationshipId']['rMissingChartStyle'];
+        $external = $sidecars['byRelationshipId']['rExternalChartColors'];
+        $bad = $sidecars['byRelationshipId']['rBadChartStyle'];
+        $relationshipTypes = $package['relationshipTypes'];
+        $inventory = $package['parts'];
+
+        $t->same('word/charts/_rels/chart-sidecars.xml.rels', $chart['chartRelationshipsPart']);
+        $t->same(6, $chart['chartRelationshipCount']);
+        $t->same([], $chart['issues']);
+        $t->same(false, $chart['valid']);
+        $t->same('chart-sidecar-bytes-blocked', $sidecars['byteExposurePolicy']);
+        $t->same('chart-sidecar-metadata-only', $sidecars['reviewPolicy']);
+        $t->same(5, $sidecars['count']);
+        $t->same(5, $sidecars['relationshipCount']);
+        $t->same(4, $sidecars['internalCount']);
+        $t->same(1, $sidecars['externalCount']);
+        $t->same(1, $sidecars['allowedExternalTargetCount']);
+        $t->same(0, $sidecars['unsafeExternalTargetCount']);
+        $t->same(3, $sidecars['existingCount']);
+        $t->same(1, $sidecars['missingCount']);
+        $t->same(0, $sidecars['missingContentTypeCount']);
+        $t->same(1, $sidecars['unexpectedContentTypeCount']);
+        $t->same(0, $sidecars['invalidXmlCount']);
+        $t->same(1, $sidecars['unexpectedRootCount']);
+        $t->same(3, $sidecars['issueCount']);
+        $t->same([
+            'external-chart-sidecar',
+            'missing-chart-sidecar',
+            'unexpected-chart-sidecar-content-type',
+            'unexpected-chart-sidecar-root',
+        ], $sidecars['issueCodes']);
+        $t->same(['chart-color-style' => 2, 'chart-style' => 3], $sidecars['roleCounts']);
+        $t->same(['rChartStyle', 'rChartColors', 'rMissingChartStyle', 'rExternalChartColors', 'rBadChartStyle'], $sidecars['relationshipIds']);
+        $t->same(['word/charts/style1.xml', 'word/charts/colors1.xml', 'word/charts/missing-style.xml', 'word/charts/bad-style.xml'], $sidecars['partNames']);
+        $t->same(['https://example.test/charts/colors.xml?remote=1#colors'], $sidecars['externalTargets']);
+        $t->same([], $sidecars['unsafeExternalTargets']);
+        $t->same([], $sidecars['externalTargetIssueCodes']);
+
+        $t->same('chart-style', $style['role']);
+        $t->same($chartStyleRel, $style['relationshipType']);
+        $t->same('style1.xml?variant=201#style', $style['target']);
+        $t->same('word/charts/style1.xml?variant=201#style', $style['resolvedTarget']);
+        $t->same('word/charts/style1.xml', $style['targetPart']);
+        $t->same('variant=201', $style['targetQuery']);
+        $t->same('style', $style['targetFragment']);
+        $t->same('?variant=201#style', $style['targetReferenceSuffix']);
+        $t->same(strlen($styleXml), $style['byteLength']);
+        $t->same(sprintf('%08x', crc32($styleXml)), $style['crc32']);
+        $t->same(hash('sha256', $styleXml), $style['sha256']);
+        $t->same($chartStyleContentType . '; profile=review-style', $style['contentType']);
+        $t->same($chartStyleContentType, $style['contentTypeBase']);
+        $t->same(['profile' => 'review-style'], $style['contentTypeParameterMap']);
+        $t->same($chartStyleContentType, $style['expectedContentTypeBase']);
+        $t->same('http://schemas.microsoft.com/office/drawing/2012/chartStyle', $style['rootNamespace']);
+        $t->same('chartStyle', $style['rootLocalName']);
+        $t->same('chartStyle', $style['expectedRootLocalName']);
+        $t->same(true, $style['validRoot']);
+        $t->same(true, $style['valid']);
+        $t->same([], $style['issues']);
+
+        $t->same('chart-color-style', $colors['role']);
+        $t->same($chartColorRel, $colors['relationshipType']);
+        $t->same('colors1.xml?palette=brand#colors', $colors['target']);
+        $t->same('word/charts/colors1.xml', $colors['targetPart']);
+        $t->same($chartColorContentType . '; profile=brand-colors', $colors['contentType']);
+        $t->same($chartColorContentType, $colors['contentTypeBase']);
+        $t->same('colorStyle', $colors['rootLocalName']);
+        $t->same(true, $colors['validRoot']);
+        $t->same(true, $colors['valid']);
+
+        $t->same('word/charts/missing-style.xml', $missing['targetPart']);
+        $t->same(false, $missing['exists']);
+        $t->same(['missing-chart-sidecar'], $missing['issues']);
+        $t->same(true, $external['external']);
+        $t->same(null, $external['targetPart']);
+        $t->same('absolute-uri', $external['externalTargetKind']);
+        $t->same('https', $external['externalTargetScheme']);
+        $t->same(true, $external['externalTargetAllowed']);
+        $t->same(['external-chart-sidecar'], $external['issues']);
+        $t->same(['unexpected-chart-sidecar-content-type', 'unexpected-chart-sidecar-root'], $bad['issues']);
+        $t->same('application/xml', $bad['contentType']);
+        $t->same('review-chart-style', $bad['rootLocalName']);
+        $t->same(false, $bad['validRoot']);
+
+        $t->same(5, $summary['chartSidecarPartCount']);
+        $t->same(3, $summary['chartSidecarPartExistingCount']);
+        $t->same(1, $summary['chartSidecarPartMissingCount']);
+        $t->same(1, $summary['chartSidecarPartExternalCount']);
+        $t->same(3, $summary['chartSidecarPartIssueCount']);
+        $t->same($sidecars['issueCodes'], $summary['chartSidecarPartIssueCodes']);
+        $t->same($sidecars['roleCounts'], $summary['chartSidecarPartRoleCounts']);
+        $t->same('chartStyle', $relationshipTypes[$chartStyleRel]['label']);
+        $t->same(3, $relationshipTypes[$chartStyleRel]['count']);
+        $t->same(['word/charts/style1.xml', 'word/charts/bad-style.xml'], $relationshipTypes[$chartStyleRel]['existingTargetParts']);
+        $t->same(['word/charts/missing-style.xml'], $relationshipTypes[$chartStyleRel]['missingTargetParts']);
+        $t->same(2, $relationshipTypes[$chartStyleRel]['targetRoleCounts']['chart-style']);
+        $t->same('chartColorStyle', $relationshipTypes[$chartColorRel]['label']);
+        $t->same(2, $relationshipTypes[$chartColorRel]['count']);
+        $t->same(['word/charts/colors1.xml'], $relationshipTypes[$chartColorRel]['existingTargetParts']);
+        $t->same(1, $relationshipTypes[$chartColorRel]['targetRoleCounts']['chart-color-style']);
+        $t->true(in_array('chart-style', $inventory['word/charts/style1.xml']['roles'], true), 'chart style inventory role missing');
+        $t->true(in_array('chart-color-style', $inventory['word/charts/colors1.xml']['roles'], true), 'chart color style inventory role missing');
+        $t->true(!isset($docx['media']['word/charts/style1.xml']), 'Chart style XML should not be exposed as document media');
+        $t->true(!isset($docx['media']['word/charts/colors1.xml']), 'Chart color style XML should not be exposed as document media');
+    },
     'summarizes docx diagram package parts from smartart relationships' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $dataRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData';
