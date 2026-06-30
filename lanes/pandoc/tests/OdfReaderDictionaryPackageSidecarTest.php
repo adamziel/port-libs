@@ -29,7 +29,7 @@ $manifestXml = <<<XML
   <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>
   <manifest:file-entry manifest:full-path="Dictionaries/en_US/" manifest:media-type=""/>
   <manifest:file-entry manifest:full-path="Dictionaries/en_US/manifest.xml" manifest:media-type="text/xml" manifest:size="{$dictionaryManifestSize}"/>
-  <manifest:file-entry manifest:full-path="Dictionaries/en_US/en_US.dic" manifest:media-type="text/plain" manifest:size="{$dicSize}"/>
+  <manifest:file-entry manifest:full-path="Dictionaries/en_US/en_US.dic" manifest:media-type="text/plain" manifest:size="{$dicSize}bytes"/>
   <manifest:file-entry manifest:full-path="Dictionaries/en_US/en_US.aff" manifest:media-type="text/plain" manifest:size="{$affSize}"/>
   <manifest:file-entry manifest:full-path="Dictionaries/en_US/preview.png" manifest:media-type="image/png" manifest:size="{$previewSize}"/>
   <manifest:file-entry manifest:full-path="Dictionaries/en_US/missing.dic" manifest:media-type="text/plain" manifest:size="21"/>
@@ -118,6 +118,7 @@ return [
     'reports ODT dictionary package sidecars as metadata-only review data' => static function (TestRunner $t) use (
         $buildPackage,
         $dictionaryManifestXml,
+        $dicSize,
         $dicBytes,
         $affBytes,
         $previewBytes,
@@ -146,9 +147,11 @@ return [
         $t->same(1, $readerDictionaries['encryptedCount']);
         $t->same(0, $readerDictionaries['missingMediaTypeCount']);
         $t->same(0, $readerDictionaries['invalidMediaTypeCount']);
-        $t->same(3, $readerDictionaries['issueCount']);
+        $t->same(1, $readerDictionaries['invalidDeclaredSizeCount']);
+        $t->same(4, $readerDictionaries['issueCount']);
         $t->same([
             'odf-dictionary-package-encrypted-part',
+            'odf-dictionary-package-invalid-declared-size',
             'odf-dictionary-package-missing-part',
             'odf-dictionary-package-undeclared-part',
         ], $readerDictionaries['issueCodes']);
@@ -180,6 +183,11 @@ return [
         $t->same('dictionary-word-list', $dictionary['kind']);
         $t->same('text/plain', $dictionary['mediaTypeBase']);
         $t->same(strlen($dicBytes), $dictionary['byteLength']);
+        $t->same(null, $dictionary['declaredSize']);
+        $t->same($dicSize . 'bytes', $dictionary['declaredSizeRaw']);
+        $t->same(false, $dictionary['declaredSizeValid']);
+        $t->same(true, $dictionary['declaredSizeInvalid']);
+        $t->same(['odf-dictionary-package-invalid-declared-size'], $dictionary['issues']);
         $t->same(false, $dictionary['canExposeBytes']);
 
         $affix = $readerItems['Dictionaries/en_US/en_US.aff'];
@@ -254,7 +262,8 @@ return [
         $t->same(1, $compactDictionaries['missingCount']);
         $t->same(1, $compactDictionaries['directoryCount']);
         $t->same(1, $compactDictionaries['encryptedCount']);
-        $t->same(3, $compactDictionaries['issueCount']);
+        $t->same(1, $compactDictionaries['invalidDeclaredSizeCount']);
+        $t->same(4, $compactDictionaries['issueCount']);
         $t->same($readerDictionaries['issueCodes'], $compactDictionaries['issueCodes']);
         $t->same('dictionary-package-bytes-blocked', $compactDictionaries['byteExposurePolicy']);
         $t->same('dictionary-package-metadata-only', $compactDictionaries['reviewPolicy']);
@@ -264,6 +273,11 @@ return [
         $t->same(strlen($dictionaryManifestXml), $compactItems['Dictionaries/en_US/manifest.xml']['byteLength']);
         $t->same(sprintf('%08x', crc32($dictionaryManifestXml)), $compactItems['Dictionaries/en_US/manifest.xml']['crc32']);
         $t->same('dictionary-word-list', $compactItems['Dictionaries/en_US/en_US.dic']['kind']);
+        $t->same(null, $compactItems['Dictionaries/en_US/en_US.dic']['declaredSize']);
+        $t->same($dicSize . 'bytes', $compactItems['Dictionaries/en_US/en_US.dic']['declaredSizeRaw']);
+        $t->same(false, $compactItems['Dictionaries/en_US/en_US.dic']['declaredSizeValid']);
+        $t->same(true, $compactItems['Dictionaries/en_US/en_US.dic']['declaredSizeInvalid']);
+        $t->same(['odf-dictionary-package-invalid-declared-size'], $compactItems['Dictionaries/en_US/en_US.dic']['issues']);
         $t->same('dictionary-preview-media', $compactItems['Dictionaries/en_US/preview.png']['kind']);
         $t->same(['odf-dictionary-package-missing-part'], $compactItems['Dictionaries/en_US/missing.dic']['issues']);
         $t->same(['odf-dictionary-package-encrypted-part'], $compactItems['Dictionaries/en_US/encrypted.dic']['issues']);
