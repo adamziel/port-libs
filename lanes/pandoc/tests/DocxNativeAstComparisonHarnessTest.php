@@ -87,7 +87,7 @@ return [
 
         try {
             $writeDocx($root . '/same.docx', 'Hello world');
-            file_put_contents($root . '/same.native', '[Para [Str "Hello world"]]');
+            file_put_contents($root . '/same.native', '[Para [Str "Hello",Space,Str "world"]]');
 
             $writeDocx($root . '/different.docx', 'Hello docx');
             file_put_contents($root . '/different.native', '[Para [Str "Hello native"]]');
@@ -126,7 +126,7 @@ return [
 
         try {
             $writeDocx($root . '/same.docx', 'Exact body');
-            file_put_contents($root . '/same.native', '[Para [Str "Exact body"]]');
+            file_put_contents($root . '/same.native', '[Para [Str "Exact",Space,Str "body"]]');
 
             $report = (new DocxNativeAstComparisonHarness())->run($root);
 
@@ -139,6 +139,7 @@ return [
             $t->same('writer-golden-docx-package-parity', $report['orderedRemainingGaps'][2]['id']);
             $t->same('open', $report['orderedRemainingGaps'][2]['status']);
             $t->true(in_array('document-level metadata added by local DOCX package parsing', $report['normalizationPolicy']['excludes'], true));
+            $t->true(in_array('reader-specific adjacent Str/Space text-node segmentation', $report['normalizationPolicy']['excludes'], true));
         } finally {
             $removeTree($root);
         }

@@ -8,7 +8,7 @@ final class DocxNativeAstComparisonHarness
 {
     private const DEFAULT_MAX_EXAMPLES = 12;
     private const VERDICT = 'normalized-ast-comparison-not-full-docx-parity';
-    private const CLAIM = 'Compares local PHP DOCX reader output with paired upstream .native fixtures by normalized AST shape; local provenance attrs and derived paragraph text caches are excluded, but no upstream Haskell runner or DOCX writer parity is asserted.';
+    private const CLAIM = 'Compares local PHP DOCX reader output with paired upstream .native fixtures by normalized AST shape; local provenance attrs, derived paragraph text caches, and adjacent text-run segmentation are excluded, but no upstream Haskell runner or DOCX writer parity is asserted.';
 
     /** @var array<string, true> */
     private const IGNORED_ATTRS = [
@@ -299,12 +299,13 @@ final class DocxNativeAstComparisonHarness
                 'node type',
                 'non-provenance node attributes',
                 'child order and child count',
-                'inline and block AST shape after local readers normalize native constructors',
+                'inline and block AST shape after local readers normalize native constructors and adjacent text runs',
             ],
             'excludes' => [
                 'local native/parser provenance attrs',
                 'document-level metadata added by local DOCX package parsing',
                 'derived text attrs on plain, paragraph, and heading nodes',
+                'reader-specific adjacent Str/Space text-node segmentation',
             ],
             'doesNotAssert' => [
                 'upstream Haskell/Cabal runner execution',
@@ -380,8 +381,43 @@ final class DocxNativeAstComparisonHarness
         return [
             'type' => $node->type,
             'attrs' => $attrs,
-            'children' => array_map(fn (AstNode $child): array => $this->normalizedNode($child), $node->children),
+            'children' => $this->normalizedChildren($node->children),
         ];
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<array<string, mixed>>
+     */
+    private function normalizedChildren(array $children): array
+    {
+        $normalized = [];
+        foreach ($children as $child) {
+            $node = $this->normalizedNode($child);
+            $lastIndex = count($normalized) - 1;
+            if ($lastIndex >= 0 && $this->isPlainTextNode($normalized[$lastIndex]) && $this->isPlainTextNode($node)) {
+                $normalized[$lastIndex]['attrs']['text'] .= $node['attrs']['text'];
+                continue;
+            }
+
+            $normalized[] = $node;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     */
+    private function isPlainTextNode(array $node): bool
+    {
+        $attrs = $node['attrs'] ?? null;
+
+        return ($node['type'] ?? null) === 'text'
+            && is_array($attrs)
+            && array_keys($attrs) === ['text']
+            && is_string($attrs['text'])
+            && ($node['children'] ?? null) === [];
     }
 
     private function normalizedValue(mixed $value): mixed
