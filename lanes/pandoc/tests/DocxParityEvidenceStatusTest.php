@@ -45,6 +45,7 @@ return [
         $status = $readJson('lanes/pandoc/lane-status.json');
         $cacheManifest = $readJson('lanes/pandoc/UPSTREAM_DOCX_CACHE_MANIFEST.json');
         $pandocStatus = $readText('PANDOC_STATUS.md');
+        $workflow = $readText('.github/workflows/pandoc-docx.yml');
 
         $manifestAudit = $manifest['docxParityAudit'] ?? null;
         $statusAudit = $status['docxParityAudit'] ?? null;
@@ -143,6 +144,20 @@ return [
         $t->contains('raw ZIP package byte equality', implode("\n", $stableContract['ignores'] ?? []));
         $t->same('generated-docx-directory-not-configured', $manifestAudit['writerGoldenPackageComparison']['openReason'] ?? null);
         $t->same($manifestAudit['writerGoldenPackageComparison'], $statusAudit['writerGoldenPackageComparison'] ?? null);
+        $focusedCi = $manifestAudit['focusedCiEvidenceWiring'] ?? null;
+        $statusFocusedCi = $statusAudit['focusedCiEvidenceWiring'] ?? null;
+        $t->true(is_array($focusedCi), 'DOCX parity evidence must record focused CI wiring');
+        $t->same($focusedCi, $statusFocusedCi);
+        $t->same('focused-ci-evidence-wired-writer-core-local-validation-complete', $focusedCi['status'] ?? null);
+        $t->same('php tools/run-tests.php lanes/pandoc/tests/DocxWriterTest.php', $focusedCi['commands']['writerCoreTest'] ?? null);
+        $t->same('passed-1-file-48-assertions-0-failures', $focusedCi['localValidation']['writerCoreTestStatus'] ?? null);
+        $t->same('skipped_missing_writer_golden_directory', $focusedCi['localValidation']['writerGoldenAuditStatus'] ?? null);
+        $t->same('not-run-generated-directory-not-configured', $focusedCi['localValidation']['writerGoldenComparisonStatus'] ?? null);
+        $t->contains('DocxWriterTest.php', (string) ($focusedCi['claim'] ?? ''));
+        $t->contains('no generated writer golden package comparison', (string) ($focusedCi['claim'] ?? ''));
+        $t->contains('php -l lanes/pandoc/src/DocxWriter.php', $workflow);
+        $t->contains('php -l lanes/pandoc/tests/DocxWriterTest.php', $workflow);
+        $t->contains('lanes/pandoc/tests/DocxWriterTest.php', $workflow);
 
         $t->same('reported_optional_upstream_docx_cache_manifest', $cacheManifest['status'] ?? null);
         $t->same(false, $cacheManifest['skipped'] ?? null);
@@ -241,6 +256,7 @@ return [
         $t->contains('--write-selected-inventory .port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json', $pandocStatus);
         $t->contains('--validate-result-artifacts --artifact-root .port-libs/pandoc-runner/artifacts/docx-targeted-run --log-root .port-libs/pandoc-runner/logs', $pandocStatus);
         $t->contains('With `--generated-dir`, it compares supplied generated DOCX packages to the golden packages by stable package semantics', $pandocStatus);
+        $t->contains('Focused DOCX parity CI now runs the bounded `DocxWriterTest.php` writer-core package test', $pandocStatus);
         $t->contains('no upstream Haskell/Cabal DOCX runner result, Tasty `--list-tests` output', $pandocStatus);
         $t->contains('2 checked-in current-upstream `.docx` package fixtures', $pandocStatus);
         $t->contains('0 checked-in pinned upstream `.docx` package fixtures', $pandocStatus);

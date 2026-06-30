@@ -1935,14 +1935,16 @@
         },
         "focusedCiEvidenceWiring": {
             "schemaVersion": 1,
-            "status": "focused-ci-evidence-wired-local-validation-complete",
+            "status": "focused-ci-evidence-wired-writer-core-local-validation-complete",
             "workflow": ".github/workflows/pandoc-docx.yml",
             "updatedAt": "2026-06-30",
             "commands": {
                 "selectedInventoryPreflight": "php tools/pandoc-docx-upstream-runner-plan.php --json --write-selected-inventory .port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json",
                 "resultArtifactGate": "php tools/pandoc-docx-upstream-runner-plan.php --json --validate-result-artifacts --artifact-root .port-libs/pandoc-runner/artifacts/docx-targeted-run --log-root .port-libs/pandoc-runner/logs",
                 "parserRegressionGuard": "php tools/pandoc-docx-parity-audit.php --json --fail-on-regression",
-                "cacheManifest": "php tools/pandoc-docx-cache-manifest.php --json"
+                "cacheManifest": "php tools/pandoc-docx-cache-manifest.php --json",
+                "writerCoreTest": "php tools/run-tests.php lanes/pandoc/tests/DocxWriterTest.php",
+                "writerGoldenAudit": "php tools/pandoc-docx-writer-golden-audit.php --json"
             },
             "localValidation": {
                 "validatedAt": "2026-06-30",
@@ -1954,9 +1956,12 @@
                 "runnerPreflightStatus": "blocked-missing-docx-upstream-source",
                 "resultArtifactGateStatus": "blocked-missing-targeted-runner-result-artifacts",
                 "resultArtifactGateAdmissionReady": false,
-                "selectedInventoryWriteStatus": "written-blocked-missing-docx-upstream-source"
+                "selectedInventoryWriteStatus": "written-blocked-missing-docx-upstream-source",
+                "writerCoreTestStatus": "passed-1-file-48-assertions-0-failures",
+                "writerGoldenAuditStatus": "skipped_missing_writer_golden_directory",
+                "writerGoldenComparisonStatus": "not-run-generated-directory-not-configured"
             },
-            "claim": "Focused CI/status wiring only; local commands did not execute Cabal/Tasty, did not admit runner result artifacts, did not compare writer golden packages, and did not change the recorded DOCX parity blocker counts."
+            "claim": "Focused CI/status wiring only; CI now lints DocxWriter.php and runs DocxWriterTest.php for bounded core writer package coverage. Local commands did not execute Cabal/Tasty, did not admit runner result artifacts, and recorded no generated writer golden package comparison or full DOCX parity claim."
         }
     },
     "nativeImplementation": {

@@ -43,6 +43,7 @@ jobs:
           php -l lanes/pandoc/src/DocxParityCorpusAudit.php
           php -l lanes/pandoc/src/DocxUpstreamCacheManifest.php
           php -l lanes/pandoc/src/DocxUpstreamRunnerPlan.php
+          php -l lanes/pandoc/src/DocxWriter.php
           php -l lanes/pandoc/src/DocxWriterGoldenManifest.php
           php -l lanes/pandoc/src/MediaBag.php
           php -l lanes/pandoc/src/ZipPackage.php
@@ -56,6 +57,7 @@ jobs:
           php -l lanes/pandoc/tests/DocxParityEvidenceStatusTest.php
           php -l lanes/pandoc/tests/DocxUpstreamCacheManifestTest.php
           php -l lanes/pandoc/tests/DocxUpstreamRunnerPlanTest.php
+          php -l lanes/pandoc/tests/DocxWriterTest.php
           php -l lanes/pandoc/tests/MediaBagTest.php
           php -l lanes/pandoc/tests/UpstreamRunnerDependencyAuditTest.php
           php -l lanes/pandoc/tests/ZipPackageTest.php
@@ -111,5 +113,6 @@ jobs:
             lanes/pandoc/tests/DocxReaderTest.php \
             lanes/pandoc/tests/DocxOpenXmlReaderTest.php \
             lanes/pandoc/tests/DocxGeneratedFieldMetadataTest.php \
+            lanes/pandoc/tests/DocxWriterTest.php \
             lanes/pandoc/tests/ZipPackageTest.php \
             lanes/pandoc/tests/MediaBagTest.php
