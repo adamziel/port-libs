@@ -178,6 +178,7 @@ return [
         $t->same(['id' => '3', 'author' => 'Author'], $children[4]->attr('attributes'));
         $t->same('With a comment!', $children[4]->children[0]->attr('text'));
         $t->same(['comment-end'], $children[6]->attr('classes'));
+        $t->same(['id' => '3'], $children[6]->attr('attributes'));
         $t->same([], array_values(array_filter($children, static fn ($node): bool => $node->type === 'note')));
     },
     'resolves docx tracked revisions by configured revision mode' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
@@ -792,13 +793,14 @@ XML],
         $t->same('heading', $document->children[0]->type);
         $t->same(1, $document->children[0]->attr('level'));
         $t->same('numeric-style-heading', $document->children[0]->attr('id'));
+        $t->same(['Numeric-Heading-Derived'], $document->children[0]->attr('classes'));
         $t->same('Numeric style heading', $document->children[0]->attr('text'));
         $t->same('paragraph', $document->children[1]->type);
         $t->same('A derived run', $document->children[1]->attr('text'));
         $t->same('strong', $document->children[1]->children[1]->type);
         $t->same('emph', $document->children[1]->children[1]->children[0]->type);
         $t->same('derived run', $document->children[1]->children[1]->children[0]->children[0]->attr('text'));
-        $t->contains('<h1 id="numeric-style-heading">Numeric style heading</h1>', $blocks);
+        $t->contains('<h1 id="numeric-style-heading" class="Numeric-Heading-Derived">Numeric style heading</h1>', $blocks);
         $t->contains('A <strong><em>derived run</em></strong>', $blocks);
     },
     'reads docx package body metadata notes headers footers and review spans into shared ast' => static function (TestRunner $t): void {
@@ -1351,6 +1353,41 @@ XML],
         $t->same('paragraph', $paragraph->type);
         $t->same('Plain zero label', $paragraph->attr('text'));
     },
+    'preserves custom docx heading style classes while ignoring body-text outline reset' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            ['name' => 'word/styles.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:pPr><w:outlineLvl w:val="0"/></w:pPr></w:style>
+  <w:style w:type="paragraph" w:styleId="TOCHeading"><w:name w:val="TOC Heading"/><w:basedOn w:val="Heading1"/><w:pPr><w:outlineLvl w:val="9"/></w:pPr></w:style>
+  <w:style w:type="paragraph" w:styleId="Myheading2"><w:name w:val="Myheading2"/></w:style>
+</w:styles>
+XML],
+            ['name' => 'word/document.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:pPr><w:pStyle w:val="TOCHeading"/></w:pPr><w:r><w:t>Contents</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Standard Heading</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Myheading2"/></w:pPr><w:r><w:t>Custom Two</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+XML],
+        ]);
+
+        $document = (new DocxReader())->readDocument($package);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(1, $document->children[0]->attr('level'));
+        $t->same(['TOC-Heading'], $document->children[0]->attr('classes'));
+        $t->same(1, $document->children[1]->attr('level'));
+        $t->same([], $document->children[1]->attr('classes', []));
+        $t->same(2, $document->children[2]->attr('level'));
+        $t->same(['Myheading2'], $document->children[2]->attr('classes'));
+        $t->contains('<h1 id="contents" class="TOC-Heading">Contents</h1>', $blocks);
+        $t->contains('<h1 id="standard-heading">Standard Heading</h1>', $blocks);
+        $t->contains('<h2 id="custom-two" class="Myheading2">Custom Two</h2>', $blocks);
+    },
     'maps direct docx paragraph outline level zero to heading' => static function (TestRunner $t): void {
         $package = ZipPackage::fromParts([
             ['name' => 'word/document.xml', 'data' => <<<'XML'
@@ -1498,11 +1535,11 @@ XML);
 
         $t->same('Index marker after', $paragraph->attr('text'));
         $t->same('span', $index->type);
-        $t->same(['indexref', 'docx-field', 'docx-field-xe', 'docx-index-entry'], $index->attr('classes'));
-        $t->same('French', $index->attr('attributes')['entry']);
-        $t->same('XE "French"', $index->attr('attributes')['data-docx-field-instruction']);
-        $t->contains('Span ( "" , [ "indexref" , "docx-field" , "docx-field-xe" , "docx-index-entry" ]', $native);
-        $t->contains('data-docx-field-instruction="XE &quot;French&quot;"', $blocks);
+        $t->same(['indexref'], $index->attr('classes'));
+        $t->same(['entry' => 'French'], $index->attr('attributes'));
+        $t->contains('Span ( "" , [ "indexref" ] , [ ( "entry" , "French" ) ] )', $native);
+        $t->contains('data-pandoc-index-entry="French"', $blocks);
+        $t->true(!str_contains($native . $blocks, 'data-docx-'), 'index reference fields should not retain local DOCX provenance attrs');
         $t->true(!str_contains(strip_tags($blocks), 'XE "French"'), 'empty field instructions should not render as visible text');
     },
     'suppresses generated docx ole link bookmarks without dropping real bookmarks' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
@@ -1712,6 +1749,7 @@ XML],
         $t->same('[DIAGRAM]', $document->children[0]->attr('text'));
         $t->same('span', $diagram->type);
         $t->same(['diagram'], $diagram->attr('classes'));
+        $t->same([], $diagram->attr('attributes', []));
         $t->same('[DIAGRAM]', $diagram->children[0]->attr('text'));
 
         $t->same('[CHART]', $document->children[1]->attr('text'));
@@ -2270,6 +2308,7 @@ XML],
         $t->same('5', $comment->children[0]->attr('attributes')['id']);
         $t->same('Range Reviewer', $comment->children[0]->attr('attributes')['author']);
         $t->same(['comment-end'], $comment->children[2]->attr('classes'));
+        $t->same(['id' => '5'], $comment->children[2]->attr('attributes'));
         $t->same(['deletion', 'move-from'], $move->children[0]->attr('classes'));
         $t->same(['insertion', 'move-to'], $move->children[2]->attr('classes'));
         $t->same('underline', $move->children[3]->type);

@@ -1440,11 +1440,55 @@ final class DocxReader
         ];
 
         $styleId = $this->paragraphStyleId($paragraph);
-        if ($styleId !== '' && $this->paragraphUsesHeadingZeroStyle($styleId)) {
-            $attrs['classes'] = ['Heading-0'];
+        if ($styleId !== '') {
+            $classes = $this->headingStyleClasses($styleId);
+            if ($classes !== []) {
+                $attrs['classes'] = $classes;
+            }
         }
 
         return $attrs;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function headingStyleClasses(string $styleId): array
+    {
+        if ($this->paragraphUsesHeadingZeroStyle($styleId)) {
+            return ['Heading-0'];
+        }
+
+        $style = $this->styles[$styleId] ?? [];
+        $styleName = is_array($style) ? (string) ($style['styleName'] ?? '') : '';
+        if ($this->isBuiltInHeadingStyle($styleId, $styleName)) {
+            return [];
+        }
+
+        $class = $this->headingStyleClass($styleName !== '' ? $styleName : $styleId);
+
+        return $class === '' ? [] : [$class];
+    }
+
+    private function isBuiltInHeadingStyle(string $styleId, string $styleName): bool
+    {
+        foreach ([$styleId, $styleName] as $candidate) {
+            $normalized = strtolower(preg_replace('/[^a-z0-9]+/i', '', $candidate) ?? '');
+            if (preg_match('/^heading[1-6]$/', $normalized) === 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function headingStyleClass(string $style): string
+    {
+        $class = preg_replace('/\s+/u', '-', trim($style)) ?? trim($style);
+        $class = preg_replace('/[^\pL\pN_.-]+/u', '', $class) ?? $class;
+        $class = trim($class, '-');
+
+        return $class;
     }
 
     /**
@@ -2518,7 +2562,7 @@ final class DocxReader
 
         $comment = $this->comments[$id] ?? [];
         $attributes = ['id' => $id];
-        if (is_array($comment)) {
+        if ($range->localName === 'commentRangeStart' && is_array($comment)) {
             foreach (['author', 'date'] as $key) {
                 $value = (string) ($comment[$key] ?? '');
                 if ($value !== '') {
@@ -2764,48 +2808,22 @@ final class DocxReader
     {
         $switches = $this->fieldSwitches($tokens);
         $entry = $this->fieldTarget($tokens);
-        $classes = [
-            'indexref',
-            'docx-field',
-            'docx-field-xe',
-            'docx-index-entry',
-        ];
-        $attrs = [
-            'data-docx-field' => 'xe',
-            'data-docx-field-instruction' => $instruction,
-            'entry' => $entry,
-            'data-docx-index-entry' => $entry,
-            'data-docx-field-entry' => $entry,
-        ];
+        $attrs = ['entry' => $entry];
         if (isset($switches['t'])) {
-            $classes[] = 'docx-index-entry-cross-reference';
             $attrs['crossref'] = $switches['t'];
-            $attrs['data-docx-field-cross-reference'] = $switches['t'];
         }
         if (isset($switches['y'])) {
-            $classes[] = 'docx-index-entry-yomi';
             $attrs['yomi'] = $switches['y'];
-            $attrs['data-docx-field-yomi'] = $switches['y'];
         }
         if (isset($switches['b'])) {
-            $classes[] = 'docx-index-entry-bold';
             $attrs['bold'] = 'true';
-            $attrs['data-docx-field-bold'] = 'true';
         }
         if (isset($switches['i'])) {
-            $classes[] = 'docx-index-entry-italic';
             $attrs['italic'] = 'true';
-            $attrs['data-docx-field-italic'] = 'true';
-        }
-        if (isset($switches['f'])) {
-            $attrs['data-docx-field-entry-type'] = $switches['f'];
-        }
-        if (isset($switches['r'])) {
-            $attrs['data-docx-field-bookmark'] = $switches['r'];
         }
 
         return new AstNode('span', [
-            'classes' => $classes,
+            'classes' => ['indexref'],
             'attributes' => $attrs,
         ]);
     }
@@ -3560,9 +3578,6 @@ final class DocxReader
     private function drawingPlaceholderSpan(string $class, string $text): AstNode
     {
         $attrs = ['classes' => [$class]];
-        if ($class === 'diagram') {
-            $attrs['attributes'] = ['data-pandoc-diagram' => 'unsupported-docx-diagram'];
-        }
 
         return new AstNode('span', $attrs, [
             new AstNode('text', ['text' => $text]),
@@ -4923,7 +4938,10 @@ final class DocxReader
                     }
                     foreach ($child->getElementsByTagNameNS(self::W_NS, 'outlineLvl') as $outline) {
                         if ($outline instanceof \DOMElement) {
-                            $entry['headingLevel'] = max(1, min(6, (int) ($this->attr($outline, self::W_NS, 'val') ?: '0') + 1));
+                            $outlineLevel = $this->attr($outline, self::W_NS, 'val');
+                            if (preg_match('/^\d+$/', $outlineLevel) === 1 && (int) $outlineLevel < 9) {
+                                $entry['headingLevel'] = max(1, min(6, (int) $outlineLevel + 1));
+                            }
                         }
                     }
                     $styleNumbering = $this->styleParagraphNumbering($child);
