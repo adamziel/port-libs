@@ -496,7 +496,7 @@ XML],
         $t->same('One', $item->children[0]->attr('text'));
         $t->contains('Para [ Str "Two" , LineBreak , LineBreak , Str "Three" ]', $native);
     },
-    'does not continue direct numbering through same-style unnumbered paragraphs' => static function (TestRunner $t): void {
+    'continues direct numbering through same-style unnumbered paragraphs' => static function (TestRunner $t): void {
         $package = ZipPackage::fromParts([
             ['name' => 'word/styles.xml', 'data' => <<<'XML'
 <?xml version="1.0"?>
@@ -536,10 +536,11 @@ XML],
         $t->same('Foo', $document->children[0]->children[0]->children[0]->attr('text'));
         $t->same('Baz', $document->children[0]->children[2]->children[0]->attr('text'));
         $t->same('Interruption.', $document->children[1]->attr('text'));
+        $t->same(4, $document->children[2]->attr('start'));
         $t->same('Bop', $document->children[2]->children[0]->children[0]->attr('text'));
         $t->contains('<ol><li>Foo</li><li>Bar</li><li>Baz</li></ol>', $blocks);
         $t->contains('<p>Interruption.</p>', $blocks);
-        $t->contains('<ol><li>Bop</li></ol>', $blocks);
+        $t->contains('<ol start="4"><li>Bop</li></ol>', $blocks);
     },
     'keeps indented list interruptions between restarted ordered lists as blockquotes' => static function (TestRunner $t): void {
         $package = ZipPackage::fromParts([
@@ -1166,6 +1167,23 @@ XML;
         $t->contains('<ol type="I" data-pandoc-list-style="upper_roman" data-pandoc-list-delimiter="two_parens">', $blocks);
         $t->contains('<ol start="3" type="a"><li>Alpha three<ol type="I"><li>Nested roman</li></ol></li><li>Alpha four</li></ol>', $converterBlocks);
     },
+    'continues docx ordered list starts after intervening paragraphs' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            ['name' => 'word/numbering.xml', 'data' => '<?xml version="1.0"?><w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:abstractNum w:abstractNumId="9"><w:lvl w:ilvl="0"><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/></w:lvl></w:abstractNum><w:num w:numId="21"><w:abstractNumId w:val="9"/></w:num></w:numbering>'],
+            ['name' => 'word/document.xml', 'data' => '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:pPr><w:numPr><w:numId w:val="21"/></w:numPr></w:pPr><w:r><w:t>One</w:t></w:r></w:p><w:p><w:pPr><w:numPr><w:numId w:val="21"/></w:numPr></w:pPr><w:r><w:t>Two</w:t></w:r></w:p><w:p><w:pPr><w:numPr><w:numId w:val="21"/></w:numPr></w:pPr><w:r><w:t>Three</w:t></w:r></w:p><w:p><w:r><w:t>Break</w:t></w:r></w:p><w:p><w:pPr><w:numPr><w:numId w:val="21"/></w:numPr></w:pPr><w:r><w:t>Four</w:t></w:r></w:p></w:body></w:document>'],
+        ]);
+
+        $document = (new DocxReader())->readDocument($package);
+        $blocks = (new WordPressBlockWriter(['preserveListAttributes' => true]))->write($document);
+
+        $t->same(['ordered_list', 'paragraph', 'ordered_list'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(1, $document->children[0]->attr('start'));
+        $t->same(3, count($document->children[0]->children));
+        $t->same('Break', $document->children[1]->attr('text'));
+        $t->same(4, $document->children[2]->attr('start'));
+        $t->same('Four', $document->children[2]->children[0]->children[0]->attr('text'));
+        $t->contains('<ol start="4"><li>Four</li></ol>', $blocks);
+    },
     'reads docx bookmarks reference fields and omml equations into shared ast' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-docx-');
         if ($path === false) {
@@ -1517,6 +1535,25 @@ XML);
         $t->same('Fizz', $target->children[0]->attr('id'));
         $t->same('Shared target.', $target->children[1]->attr('text'));
     },
+    'canonicalizes overlapping docx bookmark aliases to the first unused anchor' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes(<<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:hyperlink w:anchor="Bar"><w:r><w:t>Alias link.</w:t></w:r></w:hyperlink></w:p>
+    <w:p><w:bookmarkStart w:id="2" w:name="Foo"/><w:bookmarkStart w:id="3" w:name="Bar"/><w:r><w:t>Shared target.</w:t></w:r><w:bookmarkEnd w:id="3"/><w:bookmarkEnd w:id="2"/></w:p>
+  </w:body>
+</w:document>
+XML);
+
+        $document = (new DocxReader())->read($bytes);
+        $target = $document->children[1];
+
+        $t->same('#Foo', $document->children[0]->children[0]->attr('url'));
+        $t->same(['span', 'text'], array_map(static fn ($node): string => $node->type, $target->children));
+        $t->same('Foo', $target->children[0]->attr('id'));
+        $t->same('Shared target.', $target->children[1]->attr('text'));
+    },
     'preserves empty docx index fields without leaking field instructions' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
         $bytes = $buildDocxReaderPackageBytes(<<<'XML'
 <?xml version="1.0"?>
@@ -1577,22 +1614,43 @@ XML);
         $t->contains('data-pandoc-change-date="2026-06-30T00:00:00Z"', $blocks);
         $t->contains('>inserted anchor</ins></a> after.', $blocks);
     },
+    'resolves docx footnote hyperlinks against footnote relationships' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            ['name' => 'word/_rels/document.xml.rels', 'data' => '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'],
+            ['name' => 'word/_rels/footnotes.xml.rels', 'data' => '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="http://wikipedia.org/" TargetMode="External"/></Relationships>'],
+            ['name' => 'word/footnotes.xml', 'data' => '<?xml version="1.0"?><w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:footnote w:id="1"><w:p><w:hyperlink r:id="rId1"><w:r><w:t>Wikipedia</w:t></w:r></w:hyperlink></w:p></w:footnote></w:footnotes>'],
+            ['name' => 'word/document.xml', 'data' => '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>See note</w:t></w:r><w:r><w:footnoteReference w:id="1"/></w:r></w:p></w:body></w:document>'],
+        ]);
+
+        $document = (new DocxReader())->readDocument($package);
+        $notes = array_values(array_filter($document->children[0]->children, static fn ($node): bool => $node->type === 'note'));
+        $link = $notes[0]->children[0]->children[0];
+
+        $t->same('link', $link->type);
+        $t->same('http://wikipedia.org/', $link->attr('url'));
+        $t->same('Wikipedia', $link->children[0]->attr('text'));
+    },
     'reads docx packages whose office document part uses an alternate path' => static function (TestRunner $t): void {
         $package = ZipPackage::fromParts([
             ['name' => '_rels/.rels', 'data' => '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdDoc" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="/word/document2.xml"/></Relationships>'],
             ['name' => '[Content_Types].xml', 'data' => '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document2.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>'],
             ['name' => 'word/_rels/document2.xml.rels', 'data' => '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/alternate" TargetMode="External"/></Relationships>'],
-            ['name' => 'word/document2.xml', 'data' => '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body><w:p><w:r><w:t>Alternate </w:t></w:r><w:hyperlink r:id="rIdExternal"><w:r><w:t>document path</w:t></w:r></w:hyperlink></w:p></w:body></w:document>'],
+            ['name' => 'word/document2.xml', 'data' => '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body><w:p><w:r><w:t>Alternate </w:t></w:r><w:hyperlink r:id="rIdExternal"><w:r><w:t>document path</w:t></w:r></w:hyperlink><w:r><w:rPr><w:b/><w:i/><w:u w:val="single"/></w:rPr><w:t xml:space="preserve"> styled</w:t></w:r></w:p></w:body></w:document>'],
         ]);
 
         $document = (new DocxReader())->readDocument($package);
         $paragraph = $document->children[0];
         $link = $paragraph->children[1];
+        $styled = $paragraph->children[2];
 
-        $t->same('Alternate document path', $paragraph->attr('text'));
+        $t->same('Alternate document path styled', $paragraph->attr('text'));
         $t->same('link', $link->type);
         $t->same('https://example.test/alternate', $link->attr('url'));
-        $t->same('document path', $link->children[0]->attr('text'));
+        $t->same('document path ', $link->children[0]->attr('text'));
+        $t->same('emph', $styled->type);
+        $t->same('strong', $styled->children[0]->type);
+        $t->same('underline', $styled->children[0]->children[0]->type);
+        $t->same('styled', $styled->children[0]->children[0]->children[0]->attr('text'));
     },
     'normalizes alternate part drawing and vml image relationship targets' => static function (TestRunner $t): void {
         $package = ZipPackage::fromParts([

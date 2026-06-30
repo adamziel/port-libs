@@ -122,6 +122,9 @@ final class DocxReader
             $this->readOptionalPackagePart($package, $entriesByName, 'word/footnotes.xml'),
             $this->readOptionalPackagePart($package, $entriesByName, 'word/endnotes.xml'),
             $this->readOptionalPackagePart($package, $entriesByName, 'word/comments.xml'),
+            $this->readOptionalPackagePart($package, $entriesByName, $this->relationshipsPartName('word/footnotes.xml')),
+            $this->readOptionalPackagePart($package, $entriesByName, $this->relationshipsPartName('word/endnotes.xml')),
+            $this->readOptionalPackagePart($package, $entriesByName, $this->relationshipsPartName('word/comments.xml')),
             $header_xmls,
             $footer_xmls,
             $entries,
@@ -274,6 +277,9 @@ final class DocxReader
         string $footnotes_xml,
         string $endnotes_xml,
         string $comments_xml,
+        string $footnotes_rels_xml,
+        string $endnotes_rels_xml,
+        string $comments_rels_xml,
         array $header_xmls,
         array $footer_xmls,
         array $entries,
@@ -284,9 +290,12 @@ final class DocxReader
         $this->styles = $styles_xml !== '' ? $this->styles($this->loadXml($styles_xml, 'DOCX styles.xml')) : [];
         $this->numbering = $numbering_xml !== '' ? $this->numbering($this->loadXml($numbering_xml, 'DOCX numbering.xml')) : [];
         $this->relationships = $rels_xml !== '' ? $this->relationships($this->loadXml($rels_xml, 'DOCX document relationships')) : [];
-        $this->footnotes = $footnotes_xml !== '' ? $this->notes($this->loadXml($footnotes_xml, 'DOCX footnotes.xml'), 'footnote') : [];
-        $this->endnotes = $endnotes_xml !== '' ? $this->notes($this->loadXml($endnotes_xml, 'DOCX endnotes.xml'), 'endnote') : [];
-        $this->comments = $comments_xml !== '' ? $this->comments($this->loadXml($comments_xml, 'DOCX comments.xml')) : [];
+        $footnoteRelationships = $footnotes_rels_xml !== '' ? $this->relationships($this->loadXml($footnotes_rels_xml, 'DOCX footnotes relationships')) : [];
+        $endnoteRelationships = $endnotes_rels_xml !== '' ? $this->relationships($this->loadXml($endnotes_rels_xml, 'DOCX endnotes relationships')) : [];
+        $commentRelationships = $comments_rels_xml !== '' ? $this->relationships($this->loadXml($comments_rels_xml, 'DOCX comments relationships')) : [];
+        $this->footnotes = $footnotes_xml !== '' ? $this->notes($this->loadXml($footnotes_xml, 'DOCX footnotes.xml'), 'footnote', $footnoteRelationships) : [];
+        $this->endnotes = $endnotes_xml !== '' ? $this->notes($this->loadXml($endnotes_xml, 'DOCX endnotes.xml'), 'endnote', $endnoteRelationships) : [];
+        $this->comments = $comments_xml !== '' ? $this->comments($this->loadXml($comments_xml, 'DOCX comments.xml'), $commentRelationships) : [];
 
         $this->headingIds = [];
         $this->suppressedBookmarkIds = [];
@@ -492,14 +501,16 @@ final class DocxReader
         $pendingTableCaption = null;
         $pendingBookmarkOnlyEmptyParagraph = null;
         $activeStyleNumbering = [];
+        $listNextStarts = [];
         $seenVisibleContent = false;
         $preserveNextBookmarkOnlyEmptyParagraph = false;
 
-        $flushList = function () use (&$blocks, &$pendingListRecords): void {
+        $flushList = function () use (&$blocks, &$pendingListRecords, &$listNextStarts): void {
             if ($pendingListRecords === []) {
                 return;
             }
             array_push($blocks, ...$this->listBlocksFromRecords($pendingListRecords));
+            $this->updateOrderedListNextStarts($pendingListRecords, $listNextStarts);
             $pendingListRecords = [];
         };
 
@@ -679,6 +690,12 @@ final class DocxReader
                     }
                     $list = $this->numberingListAttributes($numbering['numId'], $numbering['level']);
                     $attrs = $list['attrs'];
+                    if (($list['ordered'] ?? false) === true && ($list['explicitStart'] ?? false) !== true) {
+                        $counterKey = $this->orderedListCounterKey($numbering['numId'], $numbering['level']);
+                        if (isset($listNextStarts[$counterKey])) {
+                            $attrs['start'] = $listNextStarts[$counterKey];
+                        }
+                    }
                     $groupAttrs = $list['groupAttrs'] ?? array_replace($attrs, [
                         'docxNumId' => $numbering['numId'],
                         'docxLevel' => $numbering['level'],
@@ -1305,6 +1322,35 @@ final class DocxReader
 
         $index = 0;
         return $this->listBlocksAtLevel($records, $index, max(1, (int) $records[0]['level']));
+    }
+
+    /**
+     * @param list<array{level: int, ordered: bool, attrs: array<string, mixed>, groupAttrs: array<string, mixed>, paragraph: AstNode, marker?: string, continuation?: bool, compact?: bool}> $records
+     * @param array<string, int> $listNextStarts
+     */
+    private function updateOrderedListNextStarts(array $records, array &$listNextStarts): void
+    {
+        foreach ($records as $record) {
+            if (($record['ordered'] ?? false) !== true || ($record['continuation'] ?? false) === true) {
+                continue;
+            }
+
+            $groupAttrs = $record['groupAttrs'] ?? $record['attrs'];
+            $numId = (string) ($groupAttrs['docxNumId'] ?? '');
+            if ($numId === '') {
+                continue;
+            }
+
+            $level = (int) ($groupAttrs['docxLevel'] ?? $record['level']);
+            $key = $this->orderedListCounterKey($numId, $level);
+            $start = max(1, (int) ($record['attrs']['start'] ?? ($listNextStarts[$key] ?? 1)));
+            $listNextStarts[$key] = max($listNextStarts[$key] ?? $start, $start) + 1;
+        }
+    }
+
+    private function orderedListCounterKey(string $numId, int $level): string
+    {
+        return $numId . ':' . $level;
     }
 
     /**
@@ -3192,16 +3238,11 @@ final class DocxReader
             }
 
             if (count($starts) > 1) {
-                $canonical = null;
+                $canonical = $starts[0]['name'];
                 foreach ($starts as $bookmark) {
-                    if (!isset($linkTargets[$bookmark['name']])) {
-                        continue;
+                    if ($bookmark['name'] !== $canonical && isset($linkTargets[$bookmark['name']])) {
+                        $bookmarkAliases[$bookmark['name']] = $canonical;
                     }
-                    if ($canonical === null) {
-                        $canonical = $bookmark['name'];
-                        continue;
-                    }
-                    $bookmarkAliases[$bookmark['name']] = $canonical;
                 }
             }
 
@@ -3829,7 +3870,7 @@ final class DocxReader
             if ($target === '') {
                 continue;
             }
-            $url = $this->relationships[$rid]['mode'] === 'External' ? $target : $this->normalizeImageTarget($target);
+            $url = ($this->relationships[$rid]['mode'] ?? '') === 'External' ? $target : $this->normalizeImageTarget($target);
 
             $attrs = ['url' => $url, 'title' => '', 'alt' => ''];
             $sourceAttributes = [
@@ -4566,7 +4607,7 @@ final class DocxReader
     }
 
     /**
-     * @return array{ordered: bool, attrs: array<string, mixed>, groupAttrs?: array<string, mixed>, marker?: string, continuation?: bool}
+     * @return array{ordered: bool, attrs: array<string, mixed>, groupAttrs?: array<string, mixed>, marker?: string, continuation?: bool, explicitStart?: bool}
      */
     private function numberingListAttributes(string $numId, int $level): array
     {
@@ -4588,6 +4629,7 @@ final class DocxReader
 
         return [
             'ordered' => true,
+            'explicitStart' => (bool) ($style['startOverride'] ?? false),
             'attrs' => [
                 'start' => max(1, (int) ($style['start'] ?? 1)),
                 'style' => $style['style'] ?? 'decimal',
@@ -5210,7 +5252,7 @@ final class DocxReader
     }
 
     /**
-     * @return array<string, array<int, array{ordered: bool, style?: string, delimiter?: string, start?: int, styleId?: string, text?: string, continuation?: bool, taskChecked?: bool}>>
+     * @return array<string, array<int, array{ordered: bool, style?: string, delimiter?: string, start?: int, startOverride?: bool, styleId?: string, text?: string, continuation?: bool, taskChecked?: bool}>>
      */
     private function numbering(\DOMDocument $dom): array
     {
@@ -5261,6 +5303,7 @@ final class DocxReader
                         $start = $this->attr($override, self::W_NS, 'val');
                         if ($start !== '' && is_numeric($start)) {
                             $overrides[$levelIndex]['start'] = max(1, (int) $start);
+                            $overrides[$levelIndex]['startOverride'] = true;
                         }
                     } elseif ($override->localName === 'lvl') {
                         $overrides[$levelIndex] = array_replace($overrides[$levelIndex] ?? [], $this->numberingLevel($override));
@@ -5280,7 +5323,7 @@ final class DocxReader
     }
 
     /**
-     * @return array{ordered: bool, style?: string, delimiter?: string, start?: int, styleId?: string, text?: string, continuation?: bool, taskChecked?: bool}
+     * @return array{ordered: bool, style?: string, delimiter?: string, start?: int, startOverride?: bool, styleId?: string, text?: string, continuation?: bool, taskChecked?: bool}
      */
     private function numberingLevel(\DOMElement $level): array
     {
@@ -5508,21 +5551,28 @@ final class DocxReader
     /**
      * @return array<string, list<AstNode>>
      */
-    private function notes(\DOMDocument $dom, string $localName): array
+    private function notes(\DOMDocument $dom, string $localName, array $relationships): array
     {
         $notes = [];
-        foreach ($dom->getElementsByTagNameNS(self::W_NS, $localName) as $note) {
-            if (!$note instanceof \DOMElement) {
-                continue;
+
+        $previousRelationships = $this->relationships;
+        $this->relationships = $relationships;
+        try {
+            foreach ($dom->getElementsByTagNameNS(self::W_NS, $localName) as $note) {
+                if (!$note instanceof \DOMElement) {
+                    continue;
+                }
+                $id = $this->attr($note, self::W_NS, 'id');
+                if ($id === '' || (int) $id < 1) {
+                    continue;
+                }
+                $children = $this->bodyBlocks($note);
+                if ($children !== []) {
+                    $notes[$id] = $this->trimLeadingNoteWhitespace($children);
+                }
             }
-            $id = $this->attr($note, self::W_NS, 'id');
-            if ($id === '' || (int) $id < 1) {
-                continue;
-            }
-            $children = $this->bodyBlocks($note);
-            if ($children !== []) {
-                $notes[$id] = $this->trimLeadingNoteWhitespace($children);
-            }
+        } finally {
+            $this->relationships = $previousRelationships;
         }
 
         return $notes;
@@ -5584,28 +5634,35 @@ final class DocxReader
     /**
      * @return array<string, array{author: string, date: string, children: list<AstNode>, inlines: list<AstNode>, text: string}>
      */
-    private function comments(\DOMDocument $dom): array
+    private function comments(\DOMDocument $dom, array $relationships): array
     {
         $comments = [];
-        foreach ($dom->getElementsByTagNameNS(self::W_NS, 'comment') as $comment) {
-            if (!$comment instanceof \DOMElement) {
-                continue;
+
+        $previousRelationships = $this->relationships;
+        $this->relationships = $relationships;
+        try {
+            foreach ($dom->getElementsByTagNameNS(self::W_NS, 'comment') as $comment) {
+                if (!$comment instanceof \DOMElement) {
+                    continue;
+                }
+                $id = $this->attr($comment, self::W_NS, 'id');
+                if ($id === '') {
+                    continue;
+                }
+                $children = $this->bodyBlocks($comment);
+                if ($children === []) {
+                    continue;
+                }
+                $comments[$id] = [
+                    'author' => $this->attr($comment, self::W_NS, 'author'),
+                    'date' => $this->attr($comment, self::W_NS, 'date'),
+                    'children' => $children,
+                    'inlines' => $this->blocksAsInlineNodes($children),
+                    'text' => trim(implode(' ', array_map(fn (AstNode $block): string => $this->nodeText($block), $children))),
+                ];
             }
-            $id = $this->attr($comment, self::W_NS, 'id');
-            if ($id === '') {
-                continue;
-            }
-            $children = $this->bodyBlocks($comment);
-            if ($children === []) {
-                continue;
-            }
-            $comments[$id] = [
-                'author' => $this->attr($comment, self::W_NS, 'author'),
-                'date' => $this->attr($comment, self::W_NS, 'date'),
-                'children' => $children,
-                'inlines' => $this->blocksAsInlineNodes($children),
-                'text' => trim(implode(' ', array_map(fn (AstNode $block): string => $this->nodeText($block), $children))),
-            ];
+        } finally {
+            $this->relationships = $previousRelationships;
         }
 
         return $comments;
@@ -5854,6 +5911,13 @@ final class DocxReader
                     $last->attrs,
                     $this->normalizeInlineSiblings([...$last->children, ...$node->children])
                 );
+                continue;
+            }
+
+            $absorbed = $this->absorbSharedInlineWrapper($last, $node);
+            if ($absorbed instanceof AstNode) {
+                /** @var int $lastIndex */
+                $normalized[$lastIndex] = $absorbed;
                 continue;
             }
 
@@ -6221,6 +6285,41 @@ final class DocxReader
             'span',
             'link',
         ], true);
+    }
+
+    private function absorbSharedInlineWrapper(?AstNode $left, AstNode $right): ?AstNode
+    {
+        if (!$left instanceof AstNode || count($right->children) !== 1) {
+            return null;
+        }
+
+        $inner = $right->children[0];
+        if (
+            $left->type !== $inner->type
+            || $this->inlineComparableAttrs($left) !== $this->inlineComparableAttrs($inner)
+        ) {
+            return null;
+        }
+        if (!in_array($right->type, ['strong', 'emph', 'underline', 'strikeout', 'small_caps', 'superscript', 'subscript'], true)) {
+            return null;
+        }
+
+        $children = $left->children;
+        $replacement = new AstNode($right->type, $right->attrs, $inner->children);
+        $lastIndex = array_key_last($children);
+        $last = $lastIndex === null ? null : $children[$lastIndex];
+        if ($this->canMergeInlineSiblings($last, $replacement)) {
+            /** @var AstNode $last */
+            $children[$lastIndex] = new AstNode(
+                $last->type,
+                $last->attrs,
+                $this->mergeAdjacentText([...$last->children, ...$replacement->children])
+            );
+        } else {
+            $children[] = $replacement;
+        }
+
+        return new AstNode($left->type, $left->attrs, $children);
     }
 
     /**
