@@ -152,6 +152,7 @@ final class DocxWriterGoldenManifest
         ));
 
         $packageComparison = $this->packageComparisonEvidence($writer, $packageRows);
+        $goldenPackageCommonShape = $this->goldenPackageCommonShape($packageRows);
 
         return [
             'schemaVersion' => 1,
@@ -177,10 +178,12 @@ final class DocxWriterGoldenManifest
             'unreadableGoldenPackageCount' => $packageCount - $readablePackages,
             'packagePartCount' => $partCount,
             'readablePackagePartCount' => $readablePartCount,
+            'goldenPackageCommonShape' => $goldenPackageCommonShape,
             'packageRows' => $packageRows,
             'packageSamples' => array_slice($packageRows, 0, $this->sampleLimit),
             'notes' => [
                 'Each part hash is the SHA-256 of the uncompressed package part bytes; raw package bytes are not emitted.',
+                'goldenPackageCommonShape aggregates common and optional package parts, content-type records, and relationship records across readable upstream writer golden DOCX packages.',
                 'These upstream golden DOCX files are expected writer outputs; generated outputs are recorded separately when --generate-supported-dir is supplied.',
                 'Writer parity remains open until generated local DOCX packages match upstream package parts, relationships, content types, and document XML semantics.',
             ],
@@ -266,6 +269,22 @@ final class DocxWriterGoldenManifest
             . (int) ($report['packagePartCount'] ?? 0)
             . '; readable parts: '
             . (int) ($report['readablePackagePartCount'] ?? 0);
+
+        $shape = $report['goldenPackageCommonShape'] ?? [];
+        if (is_array($shape) && (int) ($shape['readablePackageCount'] ?? 0) > 0) {
+            $lines[] = 'Golden package common shape: common parts='
+                . (int) ($shape['commonPartNameCount'] ?? 0)
+                . '; optional parts='
+                . (int) ($shape['optionalPartNameCount'] ?? 0)
+                . '; common content types='
+                . (int) ($shape['commonContentTypeRecordCount'] ?? 0)
+                . '; optional content types='
+                . (int) ($shape['optionalContentTypeRecordCount'] ?? 0)
+                . '; common relationships='
+                . (int) ($shape['commonRelationshipRecordCount'] ?? 0)
+                . '; optional relationships='
+                . (int) ($shape['optionalRelationshipRecordCount'] ?? 0);
+        }
 
         $samples = $report['packageSamples'] ?? [];
         if (is_array($samples) && $samples !== []) {
@@ -362,6 +381,7 @@ final class DocxWriterGoldenManifest
             'unreadableGoldenPackageCount' => 0,
             'packagePartCount' => 0,
             'readablePackagePartCount' => 0,
+            'goldenPackageCommonShape' => self::emptyGoldenPackageCommonShape(),
             'packageRows' => [],
             'packageSamples' => [],
             'notes' => [
@@ -369,6 +389,224 @@ final class DocxWriterGoldenManifest
                 'No writer golden package inventory or parity result is inferred when the golden directory is absent.',
             ],
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $packageRows
+     * @return array<string, mixed>
+     */
+    private function goldenPackageCommonShape(array $packageRows): array
+    {
+        $readableRows = array_values(array_filter(
+            $packageRows,
+            static fn (array $row): bool => ($row['status'] ?? null) === 'readable'
+        ));
+        $readableCount = count($readableRows);
+        if ($readableCount === 0) {
+            return self::emptyGoldenPackageCommonShape(count($packageRows));
+        }
+
+        $partNameCounts = [];
+        $contentTypeRecordCounts = [];
+        $relationshipPartNameCounts = [];
+        $relationshipRecordCounts = [];
+        $relationshipTypeTargetCounts = [];
+        $partCountDistribution = [];
+        $contentTypeRecordCountDistribution = [];
+        $relationshipRecordCountDistribution = [];
+
+        foreach ($readableRows as $row) {
+            $partCount = (string) (int) ($row['partCount'] ?? 0);
+            $partCountDistribution[$partCount] = ($partCountDistribution[$partCount] ?? 0) + 1;
+
+            foreach (array_unique(array_map('strval', $row['partNames'] ?? [])) as $partName) {
+                $partNameCounts[$partName] = ($partNameCounts[$partName] ?? 0) + 1;
+            }
+
+            $semantics = is_array($row['stableSemantics'] ?? null) ? $row['stableSemantics'] : [];
+            $contentTypes = is_array($semantics['contentTypes'] ?? null) ? $semantics['contentTypes'] : [];
+            $contentTypeRecordCount = (string) (int) ($contentTypes['recordCount'] ?? 0);
+            $contentTypeRecordCountDistribution[$contentTypeRecordCount] = ($contentTypeRecordCountDistribution[$contentTypeRecordCount] ?? 0) + 1;
+            foreach ($contentTypes['records'] ?? [] as $record) {
+                if (!is_array($record)) {
+                    continue;
+                }
+                $key = self::stableJson($record);
+                $contentTypeRecordCounts[$key] = ($contentTypeRecordCounts[$key] ?? 0) + 1;
+            }
+
+            $relationships = is_array($semantics['relationships'] ?? null) ? $semantics['relationships'] : [];
+            $relationshipRecordCount = (string) (int) ($relationships['relationshipRecordCount'] ?? 0);
+            $relationshipRecordCountDistribution[$relationshipRecordCount] = ($relationshipRecordCountDistribution[$relationshipRecordCount] ?? 0) + 1;
+            foreach ($relationships['relationshipParts'] ?? [] as $part) {
+                if (!is_array($part)) {
+                    continue;
+                }
+                $relationshipPartName = (string) ($part['relationshipPartName'] ?? '');
+                if ($relationshipPartName === '') {
+                    continue;
+                }
+                $relationshipPartNameCounts[$relationshipPartName] = ($relationshipPartNameCounts[$relationshipPartName] ?? 0) + 1;
+            }
+            foreach ($relationships['records'] ?? [] as $record) {
+                if (!is_array($record)) {
+                    continue;
+                }
+                $key = self::stableJson($record);
+                $relationshipRecordCounts[$key] = ($relationshipRecordCounts[$key] ?? 0) + 1;
+
+                $typeTarget = [
+                    'sourcePartName' => $record['sourcePartName'] ?? null,
+                    'relationshipType' => $record['relationshipType'] ?? null,
+                    'targetMode' => $record['targetMode'] ?? null,
+                    'resolvedTarget' => $record['resolvedTarget'] ?? null,
+                ];
+                $typeTargetKey = self::stableJson($typeTarget);
+                $relationshipTypeTargetCounts[$typeTargetKey] = ($relationshipTypeTargetCounts[$typeTargetKey] ?? 0) + 1;
+            }
+        }
+
+        ksort($partCountDistribution, SORT_NUMERIC);
+        ksort($contentTypeRecordCountDistribution, SORT_NUMERIC);
+        ksort($relationshipRecordCountDistribution, SORT_NUMERIC);
+
+        $commonPartNames = self::commonKeys($partNameCounts, $readableCount);
+        $optionalPartNameRows = self::frequencyRows($partNameCounts, $readableCount, false);
+        $commonContentTypeRecordRows = self::decodedFrequencyRows($contentTypeRecordCounts, $readableCount, true);
+        $optionalContentTypeRecordRows = self::decodedFrequencyRows($contentTypeRecordCounts, $readableCount, false);
+        $commonRelationshipPartNames = self::commonKeys($relationshipPartNameCounts, $readableCount);
+        $optionalRelationshipPartNameRows = self::frequencyRows($relationshipPartNameCounts, $readableCount, false);
+        $commonRelationshipRecordRows = self::decodedFrequencyRows($relationshipRecordCounts, $readableCount, true);
+        $optionalRelationshipRecordRows = self::decodedFrequencyRows($relationshipRecordCounts, $readableCount, false);
+        $commonRelationshipTypeTargetRows = self::decodedFrequencyRows($relationshipTypeTargetCounts, $readableCount, true);
+        $optionalRelationshipTypeTargetRows = self::decodedFrequencyRows($relationshipTypeTargetCounts, $readableCount, false);
+
+        return [
+            'schemaVersion' => 1,
+            'packageCount' => count($packageRows),
+            'readablePackageCount' => $readableCount,
+            'commonThresholdCount' => $readableCount,
+            'partCountDistribution' => $partCountDistribution,
+            'contentTypeRecordCountDistribution' => $contentTypeRecordCountDistribution,
+            'relationshipRecordCountDistribution' => $relationshipRecordCountDistribution,
+            'commonPartNameCount' => count($commonPartNames),
+            'optionalPartNameCount' => count($optionalPartNameRows),
+            'commonPartNames' => $commonPartNames,
+            'optionalPartNameRows' => $optionalPartNameRows,
+            'commonContentTypeRecordCount' => count($commonContentTypeRecordRows),
+            'optionalContentTypeRecordCount' => count($optionalContentTypeRecordRows),
+            'commonContentTypeRecordRows' => $commonContentTypeRecordRows,
+            'optionalContentTypeRecordRows' => $optionalContentTypeRecordRows,
+            'commonRelationshipPartNames' => $commonRelationshipPartNames,
+            'optionalRelationshipPartNameRows' => $optionalRelationshipPartNameRows,
+            'commonRelationshipRecordCount' => count($commonRelationshipRecordRows),
+            'optionalRelationshipRecordCount' => count($optionalRelationshipRecordRows),
+            'commonRelationshipRecordRows' => $commonRelationshipRecordRows,
+            'optionalRelationshipRecordRows' => $optionalRelationshipRecordRows,
+            'commonRelationshipTypeTargetRows' => $commonRelationshipTypeTargetRows,
+            'optionalRelationshipTypeTargetRows' => $optionalRelationshipTypeTargetRows,
+            'claim' => 'Aggregate package-shape inventory only; records common and optional upstream golden DOCX part names, content-type records, and relationship records without asserting generated writer parity.',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function emptyGoldenPackageCommonShape(int $packageCount = 0): array
+    {
+        return [
+            'schemaVersion' => 1,
+            'packageCount' => $packageCount,
+            'readablePackageCount' => 0,
+            'commonThresholdCount' => 0,
+            'partCountDistribution' => [],
+            'contentTypeRecordCountDistribution' => [],
+            'relationshipRecordCountDistribution' => [],
+            'commonPartNameCount' => 0,
+            'optionalPartNameCount' => 0,
+            'commonPartNames' => [],
+            'optionalPartNameRows' => [],
+            'commonContentTypeRecordCount' => 0,
+            'optionalContentTypeRecordCount' => 0,
+            'commonContentTypeRecordRows' => [],
+            'optionalContentTypeRecordRows' => [],
+            'commonRelationshipPartNames' => [],
+            'optionalRelationshipPartNameRows' => [],
+            'commonRelationshipRecordCount' => 0,
+            'optionalRelationshipRecordCount' => 0,
+            'commonRelationshipRecordRows' => [],
+            'optionalRelationshipRecordRows' => [],
+            'commonRelationshipTypeTargetRows' => [],
+            'optionalRelationshipTypeTargetRows' => [],
+            'claim' => 'Aggregate package-shape inventory only; no readable upstream writer golden DOCX packages were available.',
+        ];
+    }
+
+    /**
+     * @param array<string, int> $counts
+     * @return list<string>
+     */
+    private static function commonKeys(array $counts, int $threshold): array
+    {
+        $keys = [];
+        foreach ($counts as $key => $count) {
+            if ($count === $threshold) {
+                $keys[] = $key;
+            }
+        }
+        sort($keys, SORT_STRING);
+
+        return $keys;
+    }
+
+    /**
+     * @param array<string, int> $counts
+     * @return list<array{value:string,count:int}>
+     */
+    private static function frequencyRows(array $counts, int $threshold, bool $common): array
+    {
+        $rows = [];
+        foreach ($counts as $value => $count) {
+            if (($count === $threshold) !== $common) {
+                continue;
+            }
+            $rows[] = [
+                'value' => $value,
+                'count' => $count,
+            ];
+        }
+
+        usort(
+            $rows,
+            static function (array $left, array $right): int {
+                if ($left['count'] !== $right['count']) {
+                    return $right['count'] <=> $left['count'];
+                }
+
+                return strcmp($left['value'], $right['value']);
+            }
+        );
+
+        return $rows;
+    }
+
+    /**
+     * @param array<string, int> $counts
+     * @return list<array<string, mixed>>
+     */
+    private static function decodedFrequencyRows(array $counts, int $threshold, bool $common): array
+    {
+        $rows = [];
+        foreach (self::frequencyRows($counts, $threshold, $common) as $row) {
+            $decoded = json_decode($row['value'], true);
+            if (!is_array($decoded)) {
+                $decoded = ['value' => $row['value']];
+            }
+            $decoded['count'] = $row['count'];
+            $rows[] = $decoded;
+        }
+
+        return $rows;
     }
 
     /**

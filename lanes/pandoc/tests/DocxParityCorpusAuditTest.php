@@ -248,6 +248,13 @@ return [
             $t->same('word/document.xml', $report['writerGoldenEvidence']['packageRows'][0]['partRows'][0]['name']);
             $t->same(hash('sha256', $minimalDocxDocumentXml('Writer inventory')), $report['writerGoldenEvidence']['packageRows'][0]['partRows'][0]['sha256']);
             $t->same(strlen($minimalDocxDocumentXml('Writer inventory')), $report['writerGoldenEvidence']['packageRows'][0]['partRows'][0]['uncompressedBytes']);
+            $shape = $report['writerGoldenEvidence']['goldenPackageCommonShape'];
+            $t->same(1, $shape['packageCount']);
+            $t->same(1, $shape['readablePackageCount']);
+            $t->same(['word/document.xml'], $shape['commonPartNames']);
+            $t->same([], $shape['optionalPartNameRows']);
+            $t->same(0, $shape['commonContentTypeRecordCount']);
+            $t->same(0, $shape['commonRelationshipRecordCount']);
             $t->same('src/Text/Pandoc/Writers/Docx.hs', $report['writerGoldenEvidence']['expectedUpstreamWriterSourceReferences'][0]['path']);
             $t->same(2, $report['pairedDocxNativeArtifacts']);
             $t->same(1, $report['unpairedDocxPackageArtifacts']);
@@ -409,6 +416,13 @@ return [
             $t->same(['word/document.xml'], $decoded['packageRows'][0]['partNames']);
             $t->same(hash('sha256', $minimalDocxDocumentXml('Writer inventory')), $decoded['packageRows'][0]['partRows'][0]['sha256']);
             $t->same(1, $decoded['packageRows'][0]['stableSemantics']['xmlPartCount']);
+            $shape = $decoded['goldenPackageCommonShape'];
+            $t->same(1, $shape['packageCount']);
+            $t->same(1, $shape['readablePackageCount']);
+            $t->same(['word/document.xml'], $shape['commonPartNames']);
+            $t->same([], $shape['optionalPartNameRows']);
+            $t->same(0, $shape['commonContentTypeRecordCount']);
+            $t->same(0, $shape['commonRelationshipRecordCount']);
         } finally {
             $removeTree($root);
         }
@@ -448,6 +462,16 @@ return [
                 $report['packageComparison']['comparisonRows'][0]['goldenStablePackageSha256'],
                 $report['packageComparison']['comparisonRows'][0]['generatedStablePackageSha256']
             );
+            $shape = $report['goldenPackageCommonShape'];
+            $t->same(1, $shape['packageCount']);
+            $t->same(1, $shape['readablePackageCount']);
+            $t->same(5, $shape['commonPartNameCount']);
+            $t->same(0, $shape['optionalPartNameCount']);
+            $t->same(4, $shape['commonContentTypeRecordCount']);
+            $t->same(3, $shape['commonRelationshipRecordCount']);
+            $t->same(['/_rels/.rels', '/word/_rels/document.xml.rels'], $shape['commonRelationshipPartNames']);
+            $t->contains('word/media/image1.png', implode(',', $shape['commonPartNames']));
+            $t->contains('Golden package common shape: common parts=5; optional parts=0', $text);
             $t->contains('Generated package comparison: run; compared=1/1; matched=1', $text);
         } finally {
             $removeTree($root);
