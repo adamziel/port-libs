@@ -14452,6 +14452,8 @@ final class DocxOpenXmlReader
         $relationshipTargetContentTypeParameterValueBuckets = [];
         $relationshipTargetContentTypeSubtypeCounts = [];
         $relationshipTargetContentTypeSubtypes = [];
+        $relationshipTargetContentTypeTreeCounts = [];
+        $relationshipTargetContentTypeTrees = [];
         $relationshipTargetRoleCounts = [];
         $relationshipTargetExistingRoleCounts = [];
         $relationshipTargetMissingRoleCounts = [];
@@ -14849,6 +14851,10 @@ final class DocxOpenXmlReader
                     $targetContentTypeMediaType = $targetContentTypeMediaTypeKey[0] === '('
                         ? null
                         : $targetContentTypeMediaTypeKey;
+                    $targetContentTypeTreeKey = $this->contentTypeTreeKey($targetContentTypeBase);
+                    $targetContentTypeTree = $targetContentTypeTreeKey[0] === '('
+                        ? null
+                        : $targetContentTypeTreeKey;
                     $targetContentTypeParameters = is_array($relationship['contentTypeParameters'] ?? null)
                         ? $relationship['contentTypeParameters']
                         : [];
@@ -16035,6 +16041,111 @@ final class DocxOpenXmlReader
                         }
                     }
 
+                    if (!isset($relationshipTargetContentTypeTrees[$targetContentTypeTreeKey])) {
+                        $relationshipTargetContentTypeTrees[$targetContentTypeTreeKey] = [
+                            'contentTypeTreeKey' => $targetContentTypeTreeKey,
+                            'contentTypeTree' => $targetContentTypeTree,
+                            'relationshipCount' => 0,
+                            'existingTargetCount' => 0,
+                            'missingTargetCount' => 0,
+                            'missingContentTypeTargetCount' => 0,
+                            'invalidContentTypeTargetCount' => 0,
+                            'parameterizedTargetCount' => 0,
+                            'existingTargetPartByteLength' => 0,
+                            'contentTypes' => [],
+                            'contentTypeBaseCounts' => [],
+                            'contentTypeSourceCounts' => [],
+                            'mediaTypeCounts' => [],
+                            'subtypeCounts' => [],
+                            'relationshipTypeCounts' => [],
+                            'targetDirectoryCounts' => [],
+                            'roleCounts' => [],
+                            'sourceParts' => [],
+                            'relationshipParts' => [],
+                            'relationshipIds' => [],
+                            'targetParts' => [],
+                            'largestExistingTargetPart' => null,
+                            '_seenExistingTargetParts' => [],
+                        ];
+                    }
+
+                    ++$relationshipTargetContentTypeTrees[$targetContentTypeTreeKey]['relationshipCount'];
+                    $relationshipTargetContentTypeTreeCounts[$targetContentTypeTreeKey] =
+                        ($relationshipTargetContentTypeTreeCounts[$targetContentTypeTreeKey] ?? 0) + 1;
+                    if (($relationship['exists'] ?? false) === true) {
+                        ++$relationshipTargetContentTypeTrees[$targetContentTypeTreeKey]['existingTargetCount'];
+                    } else {
+                        ++$relationshipTargetContentTypeTrees[$targetContentTypeTreeKey]['missingTargetCount'];
+                    }
+                    if ($targetContentTypeBase === '') {
+                        ++$relationshipTargetContentTypeTrees[$targetContentTypeTreeKey]['missingContentTypeTargetCount'];
+                    } elseif ($targetContentTypeTree === null) {
+                        ++$relationshipTargetContentTypeTrees[$targetContentTypeTreeKey]['invalidContentTypeTargetCount'];
+                    }
+                    if ($targetContentTypeHasParameters) {
+                        ++$relationshipTargetContentTypeTrees[$targetContentTypeTreeKey]['parameterizedTargetCount'];
+                    }
+                    $relationshipTargetContentTypeTrees[$targetContentTypeTreeKey]['contentTypeBaseCounts'][$targetContentTypeKey] =
+                        ($relationshipTargetContentTypeTrees[$targetContentTypeTreeKey]['contentTypeBaseCounts'][$targetContentTypeKey] ?? 0) + 1;
+                    $relationshipTargetContentTypeTrees[$targetContentTypeTreeKey]['contentTypeSourceCounts'][$targetContentTypeSource] =
+                        ($relationshipTargetContentTypeTrees[$targetContentTypeTreeKey]['contentTypeSourceCounts'][$targetContentTypeSource] ?? 0) + 1;
+                    $relationshipTargetContentTypeTrees[$targetContentTypeTreeKey]['mediaTypeCounts'][$targetContentTypeMediaTypeKey] =
+                        ($relationshipTargetContentTypeTrees[$targetContentTypeTreeKey]['mediaTypeCounts'][$targetContentTypeMediaTypeKey] ?? 0) + 1;
+                    $relationshipTargetContentTypeTrees[$targetContentTypeTreeKey]['subtypeCounts'][$targetContentTypeSubtypeKey] =
+                        ($relationshipTargetContentTypeTrees[$targetContentTypeTreeKey]['subtypeCounts'][$targetContentTypeSubtypeKey] ?? 0) + 1;
+                    $relationshipTargetContentTypeTrees[$targetContentTypeTreeKey]['relationshipTypeCounts'][$typeKey] =
+                        ($relationshipTargetContentTypeTrees[$targetContentTypeTreeKey]['relationshipTypeCounts'][$typeKey] ?? 0) + 1;
+                    $relationshipTargetContentTypeTrees[$targetContentTypeTreeKey]['targetDirectoryCounts'][$targetDirectory] =
+                        ($relationshipTargetContentTypeTrees[$targetContentTypeTreeKey]['targetDirectoryCounts'][$targetDirectory] ?? 0) + 1;
+                    foreach (array_keys($targetRoles) as $targetRole) {
+                        $relationshipTargetContentTypeTrees[$targetContentTypeTreeKey]['roleCounts'][$targetRole] =
+                            ($relationshipTargetContentTypeTrees[$targetContentTypeTreeKey]['roleCounts'][$targetRole] ?? 0) + 1;
+                    }
+                    $this->appendUniqueString($relationshipTargetContentTypeTrees[$targetContentTypeTreeKey]['contentTypes'], $targetContentType);
+                    $this->appendUniqueString($relationshipTargetContentTypeTrees[$targetContentTypeTreeKey]['sourceParts'], $sourcePart);
+                    $this->appendUniqueString($relationshipTargetContentTypeTrees[$targetContentTypeTreeKey]['relationshipParts'], $relationshipsPart);
+                    $this->appendUniqueString(
+                        $relationshipTargetContentTypeTrees[$targetContentTypeTreeKey]['relationshipIds'],
+                        is_string($relationship['id'] ?? null) ? $relationship['id'] : null,
+                    );
+                    $this->appendUniqueString($relationshipTargetContentTypeTrees[$targetContentTypeTreeKey]['targetParts'], $targetPart);
+                    if (
+                        ($relationship['exists'] ?? false) === true
+                        && is_array($targetInventory)
+                        && !isset($relationshipTargetContentTypeTrees[$targetContentTypeTreeKey]['_seenExistingTargetParts'][$targetPart])
+                    ) {
+                        $relationshipTargetContentTypeTrees[$targetContentTypeTreeKey]['_seenExistingTargetParts'][$targetPart] = true;
+                        $targetPartSummary = [
+                            'partName' => $targetPart,
+                            'directory' => $targetDirectory,
+                            'baseName' => $targetBaseName,
+                            'targetPathDepth' => $targetPathDepth,
+                            'partExtension' => is_string($targetInventory['partExtension'] ?? null) ? $targetInventory['partExtension'] : $this->packagePartExtension($targetPart),
+                            'bytes' => (int) ($targetInventory['bytes'] ?? 0),
+                            'crc32' => is_string($targetInventory['crc32'] ?? null) ? $targetInventory['crc32'] : null,
+                            'sha256' => is_string($targetInventory['sha256'] ?? null) ? $targetInventory['sha256'] : null,
+                            'contentType' => $targetContentType,
+                            'contentTypeBase' => $targetContentTypeBase,
+                            'contentTypeMediaType' => $targetContentTypeMediaType,
+                            'contentTypeSubtype' => $targetContentTypeSubtype,
+                            'contentTypeTree' => $targetContentTypeTree,
+                            'contentTypeSource' => $targetContentTypeSource,
+                            'roles' => array_keys($targetRoles),
+                        ];
+                        $relationshipTargetContentTypeTrees[$targetContentTypeTreeKey]['existingTargetPartByteLength'] += $targetPartSummary['bytes'];
+                        $largestTargetPart = $relationshipTargetContentTypeTrees[$targetContentTypeTreeKey]['largestExistingTargetPart'];
+                        if (
+                            !is_array($largestTargetPart)
+                            || $targetPartSummary['bytes'] > (int) ($largestTargetPart['bytes'] ?? 0)
+                            || (
+                                $targetPartSummary['bytes'] === (int) ($largestTargetPart['bytes'] ?? 0)
+                                && strcmp($targetPartSummary['partName'], (string) ($largestTargetPart['partName'] ?? '')) < 0
+                            )
+                        ) {
+                            $relationshipTargetContentTypeTrees[$targetContentTypeTreeKey]['largestExistingTargetPart'] = $targetPartSummary;
+                        }
+                    }
+
                     foreach (array_keys($targetRoles) as $targetRole) {
                         if (!isset($relationshipTargetRoles[$targetRole])) {
                             $relationshipTargetRoles[$targetRole] = [
@@ -16457,6 +16568,24 @@ final class DocxOpenXmlReader
             unset($targetContentTypeSubtypeSummary['_seenExistingTargetParts']);
         }
         unset($targetContentTypeSubtypeSummary);
+        ksort($relationshipTargetContentTypeTreeCounts, SORT_STRING);
+        ksort($relationshipTargetContentTypeTrees, SORT_STRING);
+        foreach ($relationshipTargetContentTypeTrees as &$targetContentTypeTreeSummary) {
+            sort($targetContentTypeTreeSummary['contentTypes'], SORT_STRING);
+            sort($targetContentTypeTreeSummary['sourceParts'], SORT_STRING);
+            sort($targetContentTypeTreeSummary['relationshipParts'], SORT_STRING);
+            sort($targetContentTypeTreeSummary['relationshipIds'], SORT_STRING);
+            sort($targetContentTypeTreeSummary['targetParts'], SORT_STRING);
+            ksort($targetContentTypeTreeSummary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($targetContentTypeTreeSummary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($targetContentTypeTreeSummary['mediaTypeCounts'], SORT_STRING);
+            ksort($targetContentTypeTreeSummary['subtypeCounts'], SORT_STRING);
+            ksort($targetContentTypeTreeSummary['relationshipTypeCounts'], SORT_STRING);
+            ksort($targetContentTypeTreeSummary['targetDirectoryCounts'], SORT_STRING);
+            ksort($targetContentTypeTreeSummary['roleCounts'], SORT_STRING);
+            unset($targetContentTypeTreeSummary['_seenExistingTargetParts']);
+        }
+        unset($targetContentTypeTreeSummary);
         ksort($relationshipTargetRoleCounts);
         ksort($relationshipTargetExistingRoleCounts);
         ksort($relationshipTargetMissingRoleCounts);
@@ -17653,6 +17782,9 @@ final class DocxOpenXmlReader
             'relationshipTargetContentTypeSubtypeCount' => count($relationshipTargetContentTypeSubtypes),
             'relationshipTargetContentTypeSubtypeCounts' => $relationshipTargetContentTypeSubtypeCounts,
             'relationshipTargetContentTypeSubtypes' => array_values($relationshipTargetContentTypeSubtypes),
+            'relationshipTargetContentTypeTreeCount' => count($relationshipTargetContentTypeTrees),
+            'relationshipTargetContentTypeTreeCounts' => $relationshipTargetContentTypeTreeCounts,
+            'relationshipTargetContentTypeTrees' => array_values($relationshipTargetContentTypeTrees),
             'relationshipTargetRoleCount' => count($relationshipTargetRoles),
             'relationshipTargetRoleCounts' => $relationshipTargetRoleCounts,
             'relationshipTargetExistingRoleCounts' => $relationshipTargetExistingRoleCounts,

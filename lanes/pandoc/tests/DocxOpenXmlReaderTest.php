@@ -10639,6 +10639,146 @@ XML;
         $t->same([], $missing['contentTypes']);
         $t->same(['word/raw/no-type-subtype.payload'], $missing['targetParts']);
     },
+    'summarizes docx relationship target content type tree buckets for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $commentsType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
+        $jsonType = 'application/vnd.example.review+json';
+        $packageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+        $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
+        $commentsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Default Extension="txt" ContentType="text/plain; charset=UTF-8"/>' . "\n" .
+            '  <Default Extension="json" ContentType="' . $jsonType . '; profile=target-tree"/>' . "\n" .
+            '  <Override PartName="/word/comments-tree.xml" ContentType="' . $commentsType . '; profile=target-tree"/>' . "\n" .
+            '  <Override PartName="/customXml/invalid-tree.dat" ContentType="review-target-tree"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rCommentsTree" Type="' . $commentsRel . '" Target="comments-tree.xml"/>' . "\n" .
+            '  <Relationship Id="rJsonTree" Type="' . $customXmlRel . '" Target="../customXml/review-tree.json"/>' . "\n" .
+            '  <Relationship Id="rTextTree" Type="' . $customXmlRel . '" Target="../customXml/readme-tree.txt"/>' . "\n" .
+            '  <Relationship Id="rInvalidTree" Type="' . $customXmlRel . '" Target="../customXml/invalid-tree.dat"/>' . "\n" .
+            '  <Relationship Id="rMissingContentTypeTree" Type="' . $packageRel . '" Target="raw/no-type-tree.bin"/>' . "\n" .
+            '  <Relationship Id="rMissingTargetTree" Type="' . $commentsRel . '" Target="missing-tree.xml"/>' . "\n" .
+            '  <Relationship Id="rExternalTree" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/tree.json" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/comments-tree.xml'] = '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+        $parts['customXml/review-tree.json'] = str_repeat('J', 4096);
+        $parts['customXml/readme-tree.txt'] = 'relationship target tree notes';
+        $parts['customXml/invalid-tree.dat'] = 'invalid tree target bytes';
+        $parts['word/raw/no-type-tree.bin'] = 'missing content type tree bytes';
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $byTree = [];
+        foreach ($summary['relationshipTargetContentTypeTrees'] as $tree) {
+            $byTree[$tree['contentTypeTreeKey']] = $tree;
+        }
+
+        $t->same(6, $summary['relationshipTargetContentTypeTreeCount']);
+        $t->same([
+            '(invalid)' => 1,
+            '(missing)' => 1,
+            'standard' => 3,
+            'vnd.example' => 1,
+            'vnd.openxmlformats-officedocument' => 2,
+            'vnd.openxmlformats-package' => 1,
+        ], $summary['relationshipTargetContentTypeTreeCounts']);
+        $t->same([
+            '(invalid)',
+            '(missing)',
+            'standard',
+            'vnd.example',
+            'vnd.openxmlformats-officedocument',
+            'vnd.openxmlformats-package',
+        ], array_column($summary['relationshipTargetContentTypeTrees'], 'contentTypeTreeKey'));
+
+        $standard = $byTree['standard'];
+        $t->same('standard', $standard['contentTypeTree']);
+        $t->same(3, $standard['relationshipCount']);
+        $t->same(2, $standard['existingTargetCount']);
+        $t->same(1, $standard['missingTargetCount']);
+        $t->same(0, $standard['missingContentTypeTargetCount']);
+        $t->same(0, $standard['invalidContentTypeTargetCount']);
+        $t->same(1, $standard['parameterizedTargetCount']);
+        $t->same(['application/xml' => 1, 'image/png' => 1, 'text/plain' => 1], $standard['contentTypeBaseCounts']);
+        $t->same(['default' => 3], $standard['contentTypeSourceCounts']);
+        $t->same(['application' => 1, 'image' => 1, 'text' => 1], $standard['mediaTypeCounts']);
+        $t->same(['plain' => 1, 'png' => 1, 'xml' => 1], $standard['subtypeCounts']);
+        $t->same(['customXml' => 1, 'word' => 1, 'word/media' => 1], $standard['targetDirectoryCounts']);
+        $t->same(['rImage', 'rMissingTargetTree', 'rTextTree'], $standard['relationshipIds']);
+        $t->same(['customXml/readme-tree.txt', 'word/media/review.png', 'word/missing-tree.xml'], $standard['targetParts']);
+        $t->same('customXml/readme-tree.txt', $standard['largestExistingTargetPart']['partName']);
+        $t->same('standard', $standard['largestExistingTargetPart']['contentTypeTree']);
+
+        $office = $byTree['vnd.openxmlformats-officedocument'];
+        $t->same('vnd.openxmlformats-officedocument', $office['contentTypeTree']);
+        $t->same(2, $office['relationshipCount']);
+        $t->same(2, $office['existingTargetCount']);
+        $t->same(0, $office['missingTargetCount']);
+        $t->same(1, $office['parameterizedTargetCount']);
+        $t->same([
+            $commentsType => 1,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+        ], $office['contentTypeBaseCounts']);
+        $t->same(['override' => 2], $office['contentTypeSourceCounts']);
+        $t->same(['application' => 2], $office['mediaTypeCounts']);
+        $t->same([
+            'vnd.openxmlformats-officedocument.wordprocessingml.comments+xml' => 1,
+            'vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+        ], $office['subtypeCounts']);
+        $t->same(['word' => 2], $office['targetDirectoryCounts']);
+        $t->same(['word/comments-tree.xml', 'word/document.xml'], $office['targetParts']);
+        $t->same('word/document.xml', $office['largestExistingTargetPart']['partName']);
+        $t->same('vnd.openxmlformats-officedocument', $office['largestExistingTargetPart']['contentTypeTree']);
+
+        $vendor = $byTree['vnd.example'];
+        $t->same('vnd.example', $vendor['contentTypeTree']);
+        $t->same(1, $vendor['relationshipCount']);
+        $t->same(1, $vendor['existingTargetCount']);
+        $t->same(1, $vendor['parameterizedTargetCount']);
+        $t->same([$jsonType => 1], $vendor['contentTypeBaseCounts']);
+        $t->same(['default' => 1], $vendor['contentTypeSourceCounts']);
+        $t->same(['vnd.example.review+json' => 1], $vendor['subtypeCounts']);
+        $t->same([$customXmlRel => 1], $vendor['relationshipTypeCounts']);
+        $t->same(['customXml/review-tree.json'], $vendor['targetParts']);
+        $t->same('customXml/review-tree.json', $vendor['largestExistingTargetPart']['partName']);
+        $t->same('vnd.example', $vendor['largestExistingTargetPart']['contentTypeTree']);
+        $t->same('vnd.example.review+json', $vendor['largestExistingTargetPart']['contentTypeSubtype']);
+
+        $package = $byTree['vnd.openxmlformats-package'];
+        $t->same(1, $package['relationshipCount']);
+        $t->same(1, $package['existingTargetCount']);
+        $t->same(['docProps/core.xml'], $package['targetParts']);
+        $t->same(['override' => 1], $package['contentTypeSourceCounts']);
+
+        $invalid = $byTree['(invalid)'];
+        $t->same(null, $invalid['contentTypeTree']);
+        $t->same(1, $invalid['invalidContentTypeTargetCount']);
+        $t->same(0, $invalid['missingContentTypeTargetCount']);
+        $t->same(['review-target-tree' => 1], $invalid['contentTypeBaseCounts']);
+        $t->same(['(invalid)' => 1], $invalid['mediaTypeCounts']);
+        $t->same(['(invalid)' => 1], $invalid['subtypeCounts']);
+        $t->same(['customXml/invalid-tree.dat'], $invalid['targetParts']);
+
+        $missing = $byTree['(missing)'];
+        $t->same(null, $missing['contentTypeTree']);
+        $t->same(1, $missing['missingContentTypeTargetCount']);
+        $t->same(0, $missing['invalidContentTypeTargetCount']);
+        $t->same(['(missing)' => 1], $missing['contentTypeBaseCounts']);
+        $t->same(['missing' => 1], $missing['contentTypeSourceCounts']);
+        $t->same([], $missing['contentTypes']);
+        $t->same(['word/raw/no-type-tree.bin'], $missing['targetParts']);
+        $t->same('word/raw/no-type-tree.bin', $missing['largestExistingTargetPart']['partName']);
+
+        $encoded = json_encode($summary['relationshipTargetContentTypeTrees']);
+        $t->true(is_string($encoded));
+        $t->true(!str_contains((string) $encoded, $parts['customXml/review-tree.json']), 'tree metadata should not expose target bytes');
+    },
     'summarizes docx relationship target inventory role buckets for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
