@@ -3722,6 +3722,114 @@ XML);
         $t->contains('Submitted date: 2024-03', $blocks);
         $t->contains('Label date: 2023', $blocks);
     },
+    'carries legacy biblatex date markers times seasons and eras in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@online{legacy-date-flags,
+  author              = {Ng, Nia},
+  title               = {Date Flag Legacy Packet},
+  date                = {2026-06?},
+  dateera             = {CE},
+  availableyear       = {2025},
+  availablemonth      = {21},
+  availablehour       = {9},
+  availableminute     = {30},
+  availabletimezone   = {Z},
+  submitted           = {2024-03-01%/2024-04-02?},
+  submittedhour       = {14},
+  submittedminute     = {45},
+  submittedtimezone   = {+0100},
+  submittedendhour    = {16},
+  submittedendminute  = {0},
+  eventdate           = {2025-24},
+  eventdateera        = {CE},
+  labeldate           = {2023%},
+  url                 = {https://example.test/date-flags}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $item = $items['legacy-date-flags'];
+
+        $t->same([[2026, 6]], $item['issued']['date-parts']);
+        $t->same(true, $item['issued']['uncertain'] ?? null);
+        $t->same('2026-06?', $item['issued']['raw'] ?? null);
+        $t->same('ce', $item['issued']['era'] ?? null);
+        $t->same([[2025]], $item['available-date']['date-parts']);
+        $t->same(1, $item['available-date']['season'] ?? null);
+        $t->same('09:30Z', $item['available-date']['time'] ?? null);
+        $t->same([[2024, 3, 1], [2024, 4, 2]], $item['submitted']['date-parts']);
+        $t->same(true, $item['submitted']['circa'] ?? null);
+        $t->same(true, $item['submitted']['uncertain'] ?? null);
+        $t->same('14:45+01:00', $item['submitted']['time'] ?? null);
+        $t->same('16:00', $item['submitted']['end-time'] ?? null);
+        $t->same(4, $item['event-date']['season'] ?? null);
+        $t->same('ce', $item['event-date']['era'] ?? null);
+        $t->same(true, $item['label-date']['circa'] ?? null);
+        $t->same(true, $item['label-date']['uncertain'] ?? null);
+        $t->contains('Date markers: issued uncertain (2026-06?); submitted circa and uncertain (2024-03-01%/2024-04-02?); label-date circa and uncertain (2023%)', $processor->renderBibliographyText($item));
+        $t->contains('Date times: available-date 09:30Z; submitted 14:45+01:00/16:00', $processor->renderBibliographyText($item));
+        $t->contains('Date seasons: available-date Spring; event-date Winter', $processor->renderBibliographyText($item));
+        $t->contains('Date eras: issued ce; event-date ce', $processor->renderBibliographyText($item));
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Date Metadata Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-date-metadata-review</id>
+    <updated>2026-06-30T00:00:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="date-marker-summary"/>
+        <text variable="time-summary"/>
+        <text variable="season-summary"/>
+        <text variable="era-summary"/>
+        <date variable="available-date"/>
+        <text variable="submitted-time"/>
+        <text variable="submitted-end-time"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="date-marker-summary"/>
+      <text variable="time-summary"/>
+      <text variable="season-summary"/>
+      <text variable="era-summary"/>
+      <date variable="available-date"/>
+      <text variable="submitted-time"/>
+      <text variable="submitted-end-time"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledItem = $styled->item('legacy-date-flags');
+        $t->same('Bounded Legacy BibLaTeX Date Metadata Review', $styled->cslStyleSummary()['title'] ?? null);
+        $t->same('Spring 2025', $styledItem['availableDate']['display'] ?? null);
+        $t->same('14:45+01:00', $styledItem['submittedDate']['time'] ?? null);
+        $t->same('16:00', $styledItem['submittedDate']['endTime'] ?? null);
+        $t->same('Date seasons: available-date Spring; event-date Winter', $styledItem['dateSeasonSummary'] ?? null);
+        $t->same('[Date Flag Legacy Packet | Date markers: issued uncertain (2026-06?); submitted circa and uncertain (2024-03-01%/2024-04-02?); label-date circa and uncertain (2023%) | Date times: available-date 09:30Z; submitted 14:45+01:00/16:00 | Date seasons: available-date Spring; event-date Winter | Date eras: issued ce; event-date ce | Spring 2025 | 14:45+01:00 | 16:00]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-date-flags', 'text' => '[@legacy-date-flags]']),
+        ]));
+        $t->same('Date Flag Legacy Packet :: Date markers: issued uncertain (2026-06?); submitted circa and uncertain (2024-03-01%/2024-04-02?); label-date circa and uncertain (2023%) :: Date times: available-date 09:30Z; submitted 14:45+01:00/16:00 :: Date seasons: available-date Spring; event-date Winter :: Date eras: issued ce; event-date ce :: Spring 2025 :: 14:45+01:00 :: 16:00', $styled->renderBibliographyEntry('legacy-date-flags'));
+
+        $document = (new MarkdownReader())->read('Date flags [@legacy-date-flags] stay reviewable.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['legacy-date-flags'], $handoff['citedKeys']);
+        $t->same('09:30Z', $handoff['items'][0]['available-date']['time'] ?? null);
+        $t->same(4, $handoff['bibliography']->children[0]->attr('cslItem')['event-date']['season'] ?? null);
+        $t->contains('<p>Date flags [Date Flag Legacy Packet | Date markers: issued uncertain (2026-06?); submitted circa and uncertain (2024-03-01%/2024-04-02?); label-date circa and uncertain (2023%) | Date times: available-date 09:30Z; submitted 14:45+01:00/16:00 | Date seasons: available-date Spring; event-date Winter | Date eras: issued ce; event-date ce | Spring 2025 | 14:45+01:00 | 16:00] stay reviewable.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Date Flag Legacy Packet :: Date markers: issued uncertain (2026-06?); submitted circa and uncertain (2024-03-01%/2024-04-02?); label-date circa and uncertain (2023%) :: Date times: available-date 09:30Z; submitted 14:45+01:00/16:00 :: Date seasons: available-date Spring; event-date Winter :: Date eras: issued ce; event-date ce :: Spring 2025 :: 14:45+01:00 :: 16:00</dd>', $blocks);
+    },
     'carries legacy biblatex source file attachment policy metadata' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @online{legacy-file-source,

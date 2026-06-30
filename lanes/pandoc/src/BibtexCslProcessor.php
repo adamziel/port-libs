@@ -468,6 +468,9 @@ final class BibtexCslProcessor
         if ($labelDate !== '') {
             $parts[] = 'Label date: ' . $labelDate;
         }
+        foreach ($this->dateMetadataBibliographyParts($item) as $part) {
+            $parts[] = $part;
+        }
         if (($item['rights'] ?? '') !== '') {
             $parts[] = 'Rights: ' . (string) $item['rights'];
         }
@@ -1132,65 +1135,134 @@ final class BibtexCslProcessor
             $item['citation-aliases'] = $citationAliases;
         }
 
-        $date = $this->dateParts($fields);
+        $date = $this->dateObjectFromFields($fields, ['date'], ['year', 'month', 'day'], [
+            'hour' => 'hour',
+            'minute' => 'minute',
+            'second' => 'second',
+            'timezone' => 'timezone',
+            'endhour' => 'endhour',
+            'endminute' => 'endminute',
+            'endsecond' => 'endsecond',
+            'endtimezone' => 'endtimezone',
+        ], ['endyear', 'endmonth', 'endday']);
         if ($date !== null) {
-            $item['issued'] = ['date-parts' => [$date]];
+            $item['issued'] = $this->dateWithEra($date, $fields, ['dateera']);
         }
 
-        $accessed = $this->datePartsFromFields($fields, ['urldate', 'accessed', 'accessdate'], []);
+        $accessed = $this->dateObjectFromFields($fields, ['urldate', 'accessed', 'accessdate'], ['urlyear', 'urlmonth', 'urlday'], [
+            'hour' => 'urlhour',
+            'minute' => 'urlminute',
+            'second' => 'urlsecond',
+            'timezone' => 'urltimezone',
+            'endhour' => 'urlendhour',
+            'endminute' => 'urlendminute',
+            'endsecond' => 'urlendsecond',
+            'endtimezone' => 'urlendtimezone',
+        ], ['urlendyear', 'urlendmonth', 'urlendday']);
         if ($accessed !== null) {
-            $item['accessed'] = ['date-parts' => [$accessed]];
+            $item['accessed'] = $this->dateWithEra($accessed, $fields, ['urldateera', 'url-date-era', 'accesseddateera', 'accessed-date-era']);
         }
 
-        $originalDate = $this->datePartsFromFields(
+        $originalDate = $this->dateObjectFromFields(
             $fields,
             ['origdate', 'originaldate', 'original-date'],
-            ['origyear', 'origmonth', 'origday']
-        ) ?? $this->datePartsFromFields(
+            ['origyear', 'origmonth', 'origday'],
+            [
+                'hour' => 'orighour',
+                'minute' => 'origminute',
+                'second' => 'origsecond',
+                'timezone' => 'origtimezone',
+                'endhour' => 'origendhour',
+                'endminute' => 'origendminute',
+                'endsecond' => 'origendsecond',
+                'endtimezone' => 'origendtimezone',
+            ],
+            ['origendyear', 'origendmonth', 'origendday']
+        ) ?? $this->dateObjectFromFields(
             $fields,
             [],
-            ['originalyear', 'originalmonth', 'originalday']
+            ['originalyear', 'originalmonth', 'originalday'],
+            [],
+            ['originalendyear', 'originalendmonth', 'originalendday']
         );
         if ($originalDate !== null) {
-            $item['original-date'] = ['date-parts' => [$originalDate]];
+            $item['original-date'] = $this->dateWithEra($originalDate, $fields, ['origdateera', 'originaldateera', 'original-date-era']);
         }
 
-        $reprintDate = $this->datePartsFromFields($fields, ['reprintdate', 'reprint-date'], ['reprintyear', 'reprintmonth', 'reprintday']);
+        $reprintDate = $this->dateObjectFromFields($fields, ['reprintdate', 'reprint-date'], ['reprintyear', 'reprintmonth', 'reprintday'], [
+            'hour' => 'reprinthour',
+            'minute' => 'reprintminute',
+            'second' => 'reprintsecond',
+            'timezone' => 'reprinttimezone',
+            'endhour' => 'reprintendhour',
+            'endminute' => 'reprintendminute',
+            'endsecond' => 'reprintendsecond',
+            'endtimezone' => 'reprintendtimezone',
+        ], ['reprintendyear', 'reprintendmonth', 'reprintendday']);
         if ($reprintDate !== null) {
-            $item['reprint-date'] = ['date-parts' => [$reprintDate]];
+            $item['reprint-date'] = $this->dateWithEra($reprintDate, $fields, ['reprintdateera', 'reprint-date-era']);
         }
 
-        $labelDate = $this->datePartsFromFields($fields, ['labeldate', 'label-date'], ['labelyear', 'labelmonth', 'labelday'])
-            ?? $this->datePartsFromFields($fields, [], ['label-year', 'label-month', 'label-day']);
+        $labelDate = $this->dateObjectFromFields($fields, ['labeldate', 'label-date'], ['labelyear', 'labelmonth', 'labelday'], [], ['labelendyear', 'labelendmonth', 'labelendday'])
+            ?? $this->dateObjectFromFields($fields, [], ['label-year', 'label-month', 'label-day']);
         if ($labelDate !== null) {
-            $item['label-date'] = ['date-parts' => [$labelDate]];
+            $item['label-date'] = $this->dateWithEra($labelDate, $fields, ['labeldateera', 'label-date-era']);
         }
 
-        $eventDate = $this->datePartsFromFields($fields, ['eventdate', 'event-date'], ['eventyear', 'eventmonth', 'eventday']);
+        $eventDate = $this->dateObjectFromFields($fields, ['eventdate', 'event-date'], ['eventyear', 'eventmonth', 'eventday'], [
+            'hour' => 'eventhour',
+            'minute' => 'eventminute',
+            'second' => 'eventsecond',
+            'timezone' => 'eventtimezone',
+            'endhour' => 'eventendhour',
+            'endminute' => 'eventendminute',
+            'endsecond' => 'eventendsecond',
+            'endtimezone' => 'eventendtimezone',
+        ], ['eventendyear', 'eventendmonth', 'eventendday']);
         if ($eventDate !== null) {
-            $item['event-date'] = ['date-parts' => [$eventDate]];
+            $item['event-date'] = $this->dateWithEra($eventDate, $fields, ['eventdateera', 'event-date-era']);
         }
 
-        $availableDate = $this->dateRangePartsFromFields(
+        $availableDate = $this->dateObjectFromFields(
             $fields,
             ['availabledate', 'available-date'],
             ['availableyear', 'availablemonth', 'availableday'],
-            ['availableenddate', 'available-end-date'],
-            ['availableendyear', 'availableendmonth', 'availableendday']
+            [
+                'hour' => 'availablehour',
+                'minute' => 'availableminute',
+                'second' => 'availablesecond',
+                'timezone' => 'availabletimezone',
+                'endhour' => 'availableendhour',
+                'endminute' => 'availableendminute',
+                'endsecond' => 'availableendsecond',
+                'endtimezone' => 'availableendtimezone',
+            ],
+            ['availableendyear', 'availableendmonth', 'availableendday'],
+            ['availableenddate', 'available-end-date']
         );
         if ($availableDate !== null) {
-            $item['available-date'] = ['date-parts' => $availableDate];
+            $item['available-date'] = $this->dateWithEra($availableDate, $fields, ['availabledateera', 'available-date-era']);
         }
 
-        $submittedDate = $this->dateRangePartsFromFields(
+        $submittedDate = $this->dateObjectFromFields(
             $fields,
             ['submitted', 'submitteddate', 'submitted-date', 'submissiondate', 'submission-date'],
             ['submittedyear', 'submittedmonth', 'submittedday'],
-            ['submittedenddate', 'submitted-end-date', 'submissionenddate', 'submission-end-date'],
-            ['submittedendyear', 'submittedendmonth', 'submittedendday']
+            [
+                'hour' => 'submittedhour',
+                'minute' => 'submittedminute',
+                'second' => 'submittedsecond',
+                'timezone' => 'submittedtimezone',
+                'endhour' => 'submittedendhour',
+                'endminute' => 'submittedendminute',
+                'endsecond' => 'submittedendsecond',
+                'endtimezone' => 'submittedendtimezone',
+            ],
+            ['submittedendyear', 'submittedendmonth', 'submittedendday'],
+            ['submittedenddate', 'submitted-end-date', 'submissionenddate', 'submission-end-date']
         );
         if ($submittedDate !== null) {
-            $item['submitted'] = ['date-parts' => $submittedDate];
+            $item['submitted'] = $this->dateWithEra($submittedDate, $fields, ['submitteddateera', 'submitted-date-era']);
         }
 
         $keywords = $this->keywordList($this->firstField($fields, ['keywords', 'keyword', 'keyword-list', 'keywordlist']));
@@ -1899,6 +1971,489 @@ final class BibtexCslProcessor
         }
 
         return strtoupper($value);
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @param list<string> $dateFields
+     * @param list<string> $partFields
+     * @param array<string, string> $timeFields
+     * @param list<string> $endPartFields
+     * @param list<string> $endDateFields
+     * @return array<string, mixed>|null
+     */
+    private function dateObjectFromFields(array $fields, array $dateFields, array $partFields, array $timeFields = [], array $endPartFields = [], array $endDateFields = []): ?array
+    {
+        foreach ($dateFields as $field) {
+            $value = trim((string) ($fields[$field] ?? ''));
+            if ($value === '') {
+                continue;
+            }
+
+            $date = $this->dateObjectFromValue($value, $field);
+            if ($date === null) {
+                return null;
+            }
+
+            $end = $this->dateObjectFromEndFields($fields, $endDateFields, $endPartFields);
+            $dateParts = $date['date-parts'] ?? [];
+            $endParts = is_array($end) ? ($end['date-parts'][0] ?? []) : [];
+            if (
+                is_array($dateParts)
+                && count($dateParts) === 1
+                && is_array($endParts)
+                && $endParts !== []
+                && ($date['season'] ?? null) === null
+                && ($end['season'] ?? null) === null
+            ) {
+                $date['date-parts'][] = $endParts;
+            }
+
+            return $this->dateWithTimeParts($date, $fields, $timeFields, $field);
+        }
+
+        if ($partFields === [] || trim((string) ($fields[$partFields[0]] ?? '')) === '') {
+            return null;
+        }
+
+        $start = $this->datePartInfoFromSplitFields($fields, $partFields);
+        if ($start === null || $start['parts'] === []) {
+            return null;
+        }
+
+        $dateParts = [$start['parts']];
+        $season = $start['season'];
+        $end = $this->dateObjectFromEndFields($fields, $endDateFields, $endPartFields);
+        if ($end !== null) {
+            $endParts = $end['date-parts'][0] ?? [];
+            if (is_array($endParts) && $endParts !== [] && $season === null && ($end['season'] ?? null) === null) {
+                $dateParts[] = $endParts;
+            }
+        }
+
+        $date = ['date-parts' => $dateParts];
+        if ($season !== null) {
+            $date['season'] = $season;
+        }
+
+        return $this->dateWithTimeParts($date, $fields, $timeFields, $partFields[0]);
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @param list<string> $dateFields
+     * @param list<string> $partFields
+     * @return array<string, mixed>|null
+     */
+    private function dateObjectFromEndFields(array $fields, array $dateFields, array $partFields): ?array
+    {
+        foreach ($dateFields as $field) {
+            $value = trim((string) ($fields[$field] ?? ''));
+            if ($value === '') {
+                continue;
+            }
+
+            return $this->dateObjectFromValue($value, $field);
+        }
+
+        if ($partFields === [] || trim((string) ($fields[$partFields[0]] ?? '')) === '') {
+            return null;
+        }
+
+        $end = $this->datePartInfoFromSplitFields($fields, $partFields);
+        if ($end === null || $end['parts'] === []) {
+            return null;
+        }
+
+        $date = ['date-parts' => [$end['parts']]];
+        if ($end['season'] !== null) {
+            $date['season'] = $end['season'];
+        }
+
+        return $date;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function dateObjectFromValue(string $date, string $field): ?array
+    {
+        $date = trim($date);
+        if ($date === '') {
+            return null;
+        }
+
+        $range = $this->dateRangeObjectFromValue($date, $field);
+        if ($range !== null) {
+            return $range;
+        }
+
+        if (preg_match('/^(-?\d{1,6})(?:[-\/](\d{1,2})(?:[-\/](\d{1,2}))?)?([?~%])?$/', $date, $matches) !== 1) {
+            return null;
+        }
+
+        $parts = [(int) $matches[1]];
+        $season = null;
+        if (($matches[2] ?? '') !== '') {
+            $month = (int) $matches[2];
+            $season = $this->seasonFromBiblatexDateMonthCode($month);
+            if ($season !== null) {
+                if (($matches[3] ?? '') !== '') {
+                    return null;
+                }
+
+                $dateObject = $this->dateObjectWithMarkers([[(int) $matches[1]]], (string) ($matches[4] ?? ''), $date);
+                $dateObject['season'] = $season;
+
+                return $dateObject;
+            }
+
+            $parts[] = $month;
+        }
+
+        if (($matches[3] ?? '') !== '') {
+            $parts[] = (int) $matches[3];
+        }
+
+        return $this->dateObjectWithMarkers([$parts], (string) ($matches[4] ?? ''), $date);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function dateRangeObjectFromValue(string $date, string $field): ?array
+    {
+        if (substr_count($date, '/') !== 1) {
+            return null;
+        }
+
+        [$start, $end] = array_map('trim', explode('/', $date, 2));
+        if ($start !== '' && $end !== '') {
+            $startParts = $this->dateRangeSideParts($start, $field);
+            $endParts = $this->dateRangeSideParts($end, $field);
+            if ($startParts === null || $endParts === null) {
+                return null;
+            }
+
+            return $this->dateObjectWithMarkers([$startParts, $endParts], $this->dateRangeMarker($date), $date);
+        }
+
+        $endpoint = $start === '' ? $end : $start;
+        if ($endpoint === '') {
+            return null;
+        }
+
+        $parts = $this->dateRangeSideParts($endpoint, $field);
+        if ($parts === null) {
+            return null;
+        }
+
+        $range = $this->dateObjectWithMarkers([$parts], $this->dateRangeMarker($date), $date);
+        $range['open-ended'] = $start === '' ? 'start' : 'end';
+        $range['raw'] = $date;
+
+        return $range;
+    }
+
+    /**
+     * @return list<int>|null
+     */
+    private function dateRangeSideParts(string $value, string $field): ?array
+    {
+        if (preg_match('/^(-?\d{1,6})(?:-(\d{1,2})(?:-(\d{1,2}))?)?([?~%])?$/', $value, $matches) !== 1) {
+            return null;
+        }
+
+        $parts = [(int) $matches[1]];
+        if (($matches[2] ?? '') !== '') {
+            $month = (int) $matches[2];
+            if ($this->seasonFromBiblatexDateMonthCode($month) !== null || $month < 1 || $month > 12) {
+                return null;
+            }
+            $parts[] = $month;
+        }
+
+        if (($matches[3] ?? '') !== '') {
+            $day = (int) $matches[3];
+            if ($day < 1 || $day > 31) {
+                return null;
+            }
+            $parts[] = $day;
+        }
+
+        return $parts;
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @param list<string> $partFields
+     * @return array{parts:list<int>, season:int|null}|null
+     */
+    private function datePartInfoFromSplitFields(array $fields, array $partFields): ?array
+    {
+        $yearField = $partFields[0] ?? null;
+        if ($yearField === null || trim((string) ($fields[$yearField] ?? '')) === '') {
+            return null;
+        }
+
+        $parts = [(int) $fields[$yearField]];
+        $season = null;
+        $monthField = $partFields[1] ?? null;
+        if ($monthField !== null && trim((string) ($fields[$monthField] ?? '')) !== '') {
+            $month = $this->biblatexMonthNumber((string) $fields[$monthField]);
+            if ($month === null) {
+                return ['parts' => $parts, 'season' => null];
+            }
+
+            $season = $this->seasonFromBiblatexDateMonthCode($month);
+            if ($season !== null) {
+                return ['parts' => $parts, 'season' => $season];
+            }
+
+            $parts[] = $month;
+        }
+
+        $dayField = $partFields[2] ?? null;
+        if ($dayField !== null && trim((string) ($fields[$dayField] ?? '')) !== '') {
+            $parts[] = (int) $fields[$dayField];
+        }
+
+        return ['parts' => $parts, 'season' => $season];
+    }
+
+    /**
+     * @param list<list<int>> $dateParts
+     * @return array<string, mixed>
+     */
+    private function dateObjectWithMarkers(array $dateParts, string $marker, string $raw): array
+    {
+        $date = ['date-parts' => $dateParts];
+        [$circa, $uncertain] = $this->dateMarkerFlags($marker);
+        if ($circa) {
+            $date['circa'] = true;
+        }
+
+        if ($uncertain) {
+            $date['uncertain'] = true;
+        }
+
+        if ($circa || $uncertain) {
+            $date['raw'] = $raw;
+        }
+
+        return $date;
+    }
+
+    private function dateRangeMarker(string $date): string
+    {
+        $circa = false;
+        $uncertain = false;
+        foreach (array_map('trim', explode('/', $date, 2)) as $side) {
+            if (preg_match('/([?~%])$/', $side, $matches) !== 1) {
+                continue;
+            }
+
+            [$sideCirca, $sideUncertain] = $this->dateMarkerFlags($matches[1]);
+            $circa = $circa || $sideCirca;
+            $uncertain = $uncertain || $sideUncertain;
+        }
+
+        if ($circa && $uncertain) {
+            return '%';
+        }
+
+        return $circa ? '~' : ($uncertain ? '?' : '');
+    }
+
+    /**
+     * @return array{0:bool, 1:bool}
+     */
+    private function dateMarkerFlags(string $marker): array
+    {
+        return match ($marker) {
+            '~' => [true, false],
+            '?' => [false, true],
+            '%' => [true, true],
+            default => [false, false],
+        };
+    }
+
+    private function biblatexMonthNumber(string $value): ?int
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        if (preg_match('/^\d+$/', $value) === 1) {
+            return (int) $value;
+        }
+
+        $lookup = strtolower(substr($value, 0, 3));
+        $months = [
+            'jan' => 1,
+            'feb' => 2,
+            'mar' => 3,
+            'apr' => 4,
+            'may' => 5,
+            'jun' => 6,
+            'jul' => 7,
+            'aug' => 8,
+            'sep' => 9,
+            'oct' => 10,
+            'nov' => 11,
+            'dec' => 12,
+        ];
+
+        return $months[$lookup] ?? null;
+    }
+
+    private function seasonFromBiblatexDateMonthCode(int $month): ?int
+    {
+        return match ($month) {
+            21 => 1,
+            22 => 2,
+            23 => 3,
+            24 => 4,
+            default => null,
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $date
+     * @param array<string, string> $fields
+     * @param array<string, string> $timeFields
+     * @return array<string, mixed>
+     */
+    private function dateWithTimeParts(array $date, array $fields, array $timeFields, string $field): array
+    {
+        if ($timeFields === []) {
+            return $date;
+        }
+
+        $time = $this->timeFromDatePartFields($fields, $timeFields, '', $field);
+        if ($time !== '') {
+            $date['time'] = $time;
+        }
+
+        $endTime = $this->timeFromDatePartFields($fields, $timeFields, 'end', $field);
+        if ($endTime !== '') {
+            $date['end-time'] = $endTime;
+        }
+
+        return $date;
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @param array<string, string> $timeFields
+     */
+    private function timeFromDatePartFields(array $fields, array $timeFields, string $prefix, string $field): string
+    {
+        $hourKey = $timeFields[$prefix . 'hour'] ?? null;
+        $minuteKey = $timeFields[$prefix . 'minute'] ?? null;
+        $secondKey = $timeFields[$prefix . 'second'] ?? null;
+        $timezoneKey = $timeFields[$prefix . 'timezone'] ?? null;
+
+        $hour = $hourKey === null ? '' : trim((string) ($fields[$hourKey] ?? ''));
+        $minute = $minuteKey === null ? '' : trim((string) ($fields[$minuteKey] ?? ''));
+        $second = $secondKey === null ? '' : trim((string) ($fields[$secondKey] ?? ''));
+        $timezone = $timezoneKey === null ? '' : trim((string) ($fields[$timezoneKey] ?? ''));
+
+        if ($hour === '' && $minute === '' && $second === '' && $timezone === '') {
+            return '';
+        }
+
+        if ($hour === '') {
+            return '';
+        }
+
+        $display = $this->twoDigitTimePart($hour, 0, 23);
+        if ($display === '') {
+            return '';
+        }
+
+        if ($minute !== '' || $second !== '') {
+            $minutePart = $this->twoDigitTimePart($minute === '' ? '0' : $minute, 0, 59);
+            if ($minutePart === '') {
+                return '';
+            }
+            $display .= ':' . $minutePart;
+        }
+
+        if ($second !== '') {
+            $secondPart = $this->twoDigitTimePart($second, 0, 59);
+            if ($secondPart === '') {
+                return '';
+            }
+            $display .= ':' . $secondPart;
+        }
+
+        if ($timezone !== '') {
+            $normalizedTimezone = $this->normalizedDateTimeZone($timezone);
+            if ($normalizedTimezone === '') {
+                return '';
+            }
+            $display .= $normalizedTimezone;
+        }
+
+        return $display;
+    }
+
+    private function twoDigitTimePart(string $value, int $min, int $max): string
+    {
+        if (preg_match('/^\d{1,2}$/', $value) !== 1) {
+            return '';
+        }
+
+        $number = (int) $value;
+        if ($number < $min || $number > $max) {
+            return '';
+        }
+
+        return str_pad((string) $number, 2, '0', STR_PAD_LEFT);
+    }
+
+    private function normalizedDateTimeZone(string $value): string
+    {
+        $value = strtoupper(trim($value));
+        if ($value === 'Z') {
+            return 'Z';
+        }
+
+        if (preg_match('/^([+-])(\d{2})(?::?(\d{2}))?$/', $value, $matches) !== 1) {
+            return '';
+        }
+
+        $hour = (int) $matches[2];
+        $minute = isset($matches[3]) && $matches[3] !== '' ? (int) $matches[3] : 0;
+        if ($hour > 23 || $minute > 59) {
+            return '';
+        }
+
+        return $matches[1] . str_pad((string) $hour, 2, '0', STR_PAD_LEFT) . ':' . str_pad((string) $minute, 2, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * @param array<string, mixed> $date
+     * @param array<string, string> $fields
+     * @param list<string> $eraFields
+     * @return array<string, mixed>
+     */
+    private function dateWithEra(array $date, array $fields, array $eraFields): array
+    {
+        foreach ($eraFields as $field) {
+            $era = trim((string) ($fields[$field] ?? ''));
+            if ($era === '') {
+                continue;
+            }
+
+            $date['era'] = strtolower(str_replace('_', '-', $era));
+
+            return $date;
+        }
+
+        return $date;
     }
 
     /**
@@ -3156,6 +3711,11 @@ final class BibtexCslProcessor
             return '';
         }
 
+        $display = trim((string) ($date['display'] ?? ''));
+        if ($display !== '') {
+            return $display;
+        }
+
         $literal = trim((string) ($date['literal'] ?? ''));
         if ($literal !== '') {
             return $literal;
@@ -3170,13 +3730,166 @@ final class BibtexCslProcessor
         foreach ($dateParts as $datePart) {
             if (is_array($datePart)) {
                 $part = $this->datePartDisplay($datePart);
+                if ($part !== '' && is_int($date['season'] ?? null) && count($datePart) === 1) {
+                    $season = $this->dateSeasonName((int) $date['season']);
+                    $part = $season === '' ? $part : $season . ' ' . $part;
+                }
                 if ($part !== '') {
                     $parts[] = $part;
                 }
             }
         }
 
-        return implode('/', $parts);
+        $text = implode('/', $parts);
+        if ($text === '') {
+            return '';
+        }
+
+        $openEnded = trim((string) ($date['open-ended'] ?? $date['openEnded'] ?? ''));
+        if ($openEnded === 'start') {
+            return '/' . $text;
+        }
+
+        return $openEnded === 'end' ? $text . '/' : $text;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return list<string>
+     */
+    private function dateMetadataBibliographyParts(array $item): array
+    {
+        $dates = [
+            'issued' => $item['issued'] ?? null,
+            'accessed' => $item['accessed'] ?? null,
+            'available-date' => $item['available-date'] ?? null,
+            'original-date' => $item['original-date'] ?? null,
+            'reprint-date' => $item['reprint-date'] ?? null,
+            'submitted' => $item['submitted'] ?? null,
+            'event-date' => $item['event-date'] ?? null,
+            'label-date' => $item['label-date'] ?? null,
+        ];
+
+        return array_values(array_filter([
+            $this->dateMarkerSummary($dates),
+            $this->dateTimeSummary($dates),
+            $this->dateSeasonSummary($dates),
+            $this->dateEraSummary($dates),
+        ], static fn (string $part): bool => $part !== ''));
+    }
+
+    /**
+     * @param array<string, mixed> $dates
+     */
+    private function dateMarkerSummary(array $dates): string
+    {
+        $parts = [];
+        foreach ($dates as $label => $date) {
+            if (!is_array($date)) {
+                continue;
+            }
+
+            $status = $this->dateMarkerStatus($date);
+            if ($status === '') {
+                continue;
+            }
+
+            $raw = trim((string) ($date['raw'] ?? ''));
+            $parts[] = $label . ' ' . $status . ($raw === '' ? '' : ' (' . $raw . ')');
+        }
+
+        return $parts === [] ? '' : 'Date markers: ' . implode('; ', $parts);
+    }
+
+    /**
+     * @param array<string, mixed> $date
+     */
+    private function dateMarkerStatus(array $date): string
+    {
+        $circa = ($date['circa'] ?? false) === true;
+        $uncertain = ($date['uncertain'] ?? false) === true;
+        if ($circa && $uncertain) {
+            return 'circa and uncertain';
+        }
+
+        if ($circa) {
+            return 'circa';
+        }
+
+        return $uncertain ? 'uncertain' : '';
+    }
+
+    /**
+     * @param array<string, mixed> $dates
+     */
+    private function dateTimeSummary(array $dates): string
+    {
+        $parts = [];
+        foreach ($dates as $label => $date) {
+            if (!is_array($date)) {
+                continue;
+            }
+
+            $time = trim((string) ($date['time'] ?? ''));
+            $endTime = trim((string) ($date['end-time'] ?? $date['endTime'] ?? ''));
+            if ($time === '' && $endTime === '') {
+                continue;
+            }
+
+            $parts[] = $label . ' ' . ($time !== '' ? $time : '?') . ($endTime === '' ? '' : '/' . $endTime);
+        }
+
+        return $parts === [] ? '' : 'Date times: ' . implode('; ', $parts);
+    }
+
+    /**
+     * @param array<string, mixed> $dates
+     */
+    private function dateSeasonSummary(array $dates): string
+    {
+        $parts = [];
+        foreach ($dates as $label => $date) {
+            if (!is_array($date) || !is_int($date['season'] ?? null)) {
+                continue;
+            }
+
+            $parts[] = $label . ' ' . $this->dateSeasonName((int) $date['season']);
+        }
+
+        return $parts === [] ? '' : 'Date seasons: ' . implode('; ', $parts);
+    }
+
+    /**
+     * @param array<string, mixed> $dates
+     */
+    private function dateEraSummary(array $dates): string
+    {
+        $parts = [];
+        foreach ($dates as $label => $date) {
+            if (!is_array($date)) {
+                continue;
+            }
+
+            $era = trim((string) ($date['era'] ?? ''));
+            if ($era === '') {
+                continue;
+            }
+
+            $parts[] = $label . ' ' . $era;
+        }
+
+        return $parts === [] ? '' : 'Date eras: ' . implode('; ', $parts);
+    }
+
+    private function dateSeasonName(int $season): string
+    {
+        return match ($season) {
+            1 => 'Spring',
+            2 => 'Summer',
+            3 => 'Autumn',
+            4 => 'Winter',
+            default => '',
+        };
     }
 
     /**
