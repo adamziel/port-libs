@@ -34,7 +34,7 @@ $manifestXml = <<<XML
   <manifest:file-entry manifest:full-path="Templates/Review/manifest.xml" manifest:media-type="text/xml" manifest:size="{$templateManifestSize}"/>
   <manifest:file-entry manifest:full-path="Templates/Review/letter.ott" manifest:media-type="application/vnd.oasis.opendocument.text-template" manifest:size="{$templateSize}"/>
   <manifest:file-entry manifest:full-path="Templates/Review/letter.odt" manifest:media-type="" manifest:size="{$documentTemplateSize}"/>
-  <manifest:file-entry manifest:full-path="Templates/Review/letter.dotx" manifest:media-type="" manifest:size="{$openXmlTemplateSize}"/>
+  <manifest:file-entry manifest:full-path="Templates/Review/letter.dotx" manifest:media-type="" manifest:size="{$openXmlTemplateSize}bytes"/>
   <manifest:file-entry manifest:full-path="Templates/Review/preview.png" manifest:media-type="image/png" manifest:size="{$previewSize}"/>
   <manifest:file-entry manifest:full-path="Templates/Review/missing.ott" manifest:media-type="application/vnd.oasis.opendocument.text-template" manifest:size="21"/>
   <manifest:file-entry manifest:full-path="Templates/Review/encrypted.ott" manifest:media-type="application/vnd.oasis.opendocument.text-template" manifest:size="{$encryptedSize}">
@@ -139,9 +139,11 @@ return [
         $t->same(1, $readerTemplates['encryptedCount']);
         $t->same(0, $readerTemplates['missingMediaTypeCount']);
         $t->same(0, $readerTemplates['invalidMediaTypeCount']);
-        $t->same(4, $readerTemplates['issueCount']);
+        $t->same(1, $readerTemplates['invalidDeclaredSizeCount']);
+        $t->same(5, $readerTemplates['issueCount']);
         $t->same([
             'odf-template-package-encrypted-part',
+            'odf-template-package-invalid-declared-size',
             'odf-template-package-missing-part',
             'odf-template-package-undeclared-part',
         ], $readerTemplates['issueCodes']);
@@ -187,9 +189,13 @@ return [
         $t->same('template-document', $openXmlTemplate['kind']);
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.template', $openXmlTemplate['mediaTypeBase']);
         $t->same(strlen($openXmlTemplateBytes), $openXmlTemplate['byteLength']);
+        $t->same(null, $openXmlTemplate['declaredSize']);
+        $t->same(sprintf('%dbytes', strlen($openXmlTemplateBytes)), $openXmlTemplate['declaredSizeRaw']);
+        $t->same(false, $openXmlTemplate['declaredSizeValid']);
+        $t->same(true, $openXmlTemplate['declaredSizeInvalid']);
         $t->same(false, $openXmlTemplate['canExposeBytes']);
         $t->same(false, $openXmlTemplate['canExposeAsDocumentMedia']);
-        $t->same([], $openXmlTemplate['issues']);
+        $t->same(['odf-template-package-invalid-declared-size'], $openXmlTemplate['issues']);
 
         $preview = $readerItems['Templates/Review/preview.png'];
         $t->same('template-preview-media', $preview['kind']);
@@ -268,6 +274,8 @@ return [
         $t->same(2, $compactTemplates['undeclaredCount']);
         $t->same(1, $compactTemplates['missingCount']);
         $t->same(1, $compactTemplates['encryptedCount']);
+        $t->same(1, $compactTemplates['invalidDeclaredSizeCount']);
+        $t->same(5, $compactTemplates['issueCount']);
         $t->same($readerTemplates['issueCodes'], $compactTemplates['issueCodes']);
         $t->same($readerTemplates['kindCounts'], $compactTemplates['kindCounts']);
         $t->same('template-package-bytes-blocked', $compactTemplates['byteExposurePolicy']);
@@ -277,6 +285,11 @@ return [
         $t->same([], $compactItems['Templates/Review/letter.odt']['issues']);
         $t->same('template-document', $compactItems['Templates/Review/letter.dotx']['kind']);
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.template', $compactItems['Templates/Review/letter.dotx']['mediaTypeBase']);
+        $t->same(null, $compactItems['Templates/Review/letter.dotx']['declaredSize']);
+        $t->same(sprintf('%dbytes', strlen($openXmlTemplateBytes)), $compactItems['Templates/Review/letter.dotx']['declaredSizeRaw']);
+        $t->same(false, $compactItems['Templates/Review/letter.dotx']['declaredSizeValid']);
+        $t->same(true, $compactItems['Templates/Review/letter.dotx']['declaredSizeInvalid']);
+        $t->same(['odf-template-package-invalid-declared-size'], $compactItems['Templates/Review/letter.dotx']['issues']);
         $t->same('template-document', $compactItems['Templates/Review/orphan.potx']['kind']);
         $t->same('application/vnd.openxmlformats-officedocument.presentationml.template', $compactItems['Templates/Review/orphan.potx']['mediaTypeBase']);
         $t->same(['odf-template-package-undeclared-part'], $compactItems['Templates/Review/orphan.potx']['issues']);
