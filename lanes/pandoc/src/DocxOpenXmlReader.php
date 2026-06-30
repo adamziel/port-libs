@@ -80,6 +80,7 @@ final class DocxOpenXmlReader
     private const THUMBNAIL_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail';
     private const DIGITAL_SIGNATURE_ORIGIN_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin';
     private const DIGITAL_SIGNATURE_SIGNATURE_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature';
+    private const ENCRYPTED_PACKAGE_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/encrypted-package';
     private const STANDARD_PACKAGE_ROOT_RELATIONSHIP_TYPES = [
         self::OFFICE_DOCUMENT_REL,
         self::CORE_PROPERTIES_REL,
@@ -88,6 +89,7 @@ final class DocxOpenXmlReader
         self::THUMBNAIL_REL,
         self::DIGITAL_SIGNATURE_ORIGIN_REL,
         self::DIGITAL_SIGNATURE_SIGNATURE_REL,
+        self::ENCRYPTED_PACKAGE_REL,
     ];
     private const NS_XMLDSIG = 'http://www.w3.org/2000/09/xmldsig#';
     private const CT_WORD_DOCUMENT = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
@@ -131,6 +133,7 @@ final class DocxOpenXmlReader
     private const CT_VBA_DATA = 'application/vnd.ms-word.vbadata+xml';
     private const CT_DIGITAL_SIGNATURE_ORIGIN = 'application/vnd.openxmlformats-package.digital-signature-origin';
     private const CT_DIGITAL_SIGNATURE_XMLSIGNATURE = 'application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml';
+    private const CT_ENCRYPTED_PACKAGE = 'application/vnd.openxmlformats-package.encrypted-package';
 
     public function readFile(string $path): AstNode
     {
@@ -242,6 +245,21 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['digitalSignatureReferenceDigestValueCount'] = $digitalSignatures['referenceDigestValueCount'];
         $packageProvenance['summary']['digitalSignatureReferenceDigestValueMissingCount'] = $digitalSignatures['referenceDigestValueMissingCount'];
         $packageProvenance['summary']['digitalSignatureValuePresentCount'] = $digitalSignatures['signatureValuePresentCount'];
+        $encryptedPackages = $this->packageEncryptedPackageProvenance($parts, $rootRelationships, $contentTypes);
+        $packageProvenance['encryptedPackages'] = $encryptedPackages;
+        $packageProvenance['summary']['encryptedPackageCount'] = $encryptedPackages['count'];
+        $packageProvenance['summary']['encryptedPackageExistingCount'] = $encryptedPackages['existingCount'];
+        $packageProvenance['summary']['encryptedPackageMissingCount'] = $encryptedPackages['missingCount'];
+        $packageProvenance['summary']['encryptedPackageExternalCount'] = $encryptedPackages['externalCount'];
+        $packageProvenance['summary']['encryptedPackageAllowedExternalCount'] = $encryptedPackages['allowedExternalCount'];
+        $packageProvenance['summary']['encryptedPackageUnsafeExternalCount'] = $encryptedPackages['unsafeExternalCount'];
+        $packageProvenance['summary']['encryptedPackageInvalidCount'] = $encryptedPackages['invalidCount'];
+        $packageProvenance['summary']['encryptedPackageIssueCount'] = $encryptedPackages['issueCount'];
+        $packageProvenance['summary']['encryptedPackageIssueCodes'] = $encryptedPackages['issueCodes'];
+        $packageProvenance['summary']['encryptedPackageExternalTargetIssueCodes'] = $encryptedPackages['externalTargetIssueCodes'];
+        $packageProvenance['summary']['encryptedPackageTargetParts'] = $encryptedPackages['targetParts'];
+        $packageProvenance['summary']['encryptedPackageExternalTargets'] = $encryptedPackages['externalTargets'];
+        $packageProvenance['summary']['encryptedPackageContentTypes'] = $encryptedPackages['contentTypes'];
         $packageRootResources = $this->packageRootRelationshipResources($parts, $rootRelationships, $contentTypes);
         $packageProvenance['packageRootRelationshipResources'] = $packageRootResources;
         $packageProvenance['summary']['packageRootRelationshipResourceCount'] = $packageRootResources['count'];
@@ -27984,6 +28002,168 @@ final class DocxOpenXmlReader
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
      * @return array<string, mixed>
      */
+    private function packageEncryptedPackageProvenance(array $parts, array $rootRelationships, array $contentTypes): array
+    {
+        $relationships = [];
+        foreach ($rootRelationships as $relationship) {
+            if ($relationship['type'] === self::ENCRYPTED_PACKAGE_REL) {
+                $relationships[] = $relationship;
+            }
+        }
+
+        $items = [];
+        $byRelationshipId = [];
+        $relationshipIds = [];
+        $targetParts = [];
+        $externalTargets = [];
+        $unsafeExternalTargets = [];
+        $contentTypesSeen = [];
+        $externalTargetIssueCodes = [];
+        $issueCodes = [];
+        $hasMultipleRelationships = count($relationships) > 1;
+
+        foreach ($relationships as $relationship) {
+            $summary = $this->relationshipInventorySummary($parts, $relationship, '/', '_rels/.rels', $contentTypes);
+            $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+            $external = (bool) ($summary['external'] ?? false);
+            $exists = (bool) ($summary['exists'] ?? false);
+            $contentTypeBase = is_string($summary['contentTypeBase'] ?? null) ? $summary['contentTypeBase'] : '';
+            $relationshipsPart = $targetPart === null ? null : $this->relationshipsPartFor($targetPart);
+            $targetHasRelationships = $relationshipsPart !== null && isset($parts[$relationshipsPart]);
+            $issues = [];
+
+            if ($hasMultipleRelationships) {
+                $issues[] = 'multiple-encrypted-package-relationships';
+            }
+            if ($external) {
+                $issues[] = 'external-encrypted-package-target';
+                foreach (($summary['externalTargetIssues'] ?? []) as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $issues[] = $issue;
+                        $externalTargetIssueCodes[$issue] = true;
+                    }
+                }
+            } elseif (!$exists) {
+                $issues[] = 'missing-encrypted-package-part';
+            }
+            if (!$external && ($summary['contentTypeSource'] ?? '') === 'missing') {
+                $issues[] = 'missing-encrypted-package-content-type';
+            } elseif (!$external && $contentTypeBase !== '' && $contentTypeBase !== self::CT_ENCRYPTED_PACKAGE) {
+                $issues[] = 'invalid-encrypted-package-content-type';
+            }
+            if ($targetHasRelationships) {
+                $issues[] = 'encrypted-package-target-has-relationships';
+            }
+
+            $issues = array_values(array_unique($issues));
+            foreach ($issues as $issue) {
+                $issueCodes[$issue] = true;
+            }
+
+            $item = [
+                'source' => '/',
+                'id' => $summary['id'],
+                'type' => $summary['type'],
+                'target' => $summary['target'],
+                'targetMode' => $summary['targetMode'],
+                'resolvedTarget' => $summary['resolvedTarget'],
+                'targetPart' => $targetPart,
+                'targetQuery' => $summary['targetQuery'],
+                'targetFragment' => $summary['targetFragment'],
+                'targetReferenceSuffix' => $summary['targetReferenceSuffix'],
+                'targetParentTraversalCount' => $summary['targetParentTraversalCount'],
+                'targetHasParentTraversal' => $summary['targetHasParentTraversal'],
+                'targetStartsAtPackageRoot' => $summary['targetStartsAtPackageRoot'],
+                'sameSourcePart' => $summary['sameSourcePart'],
+                'externalTargetKind' => $summary['externalTargetKind'],
+                'externalTargetScheme' => $summary['externalTargetScheme'],
+                'externalTargetAllowed' => $summary['externalTargetAllowed'],
+                'externalTargetIssues' => $summary['externalTargetIssues'],
+                'contentType' => $summary['contentType'],
+                'contentTypeBase' => $summary['contentTypeBase'],
+                'contentTypeHasParameters' => $summary['contentTypeHasParameters'],
+                'contentTypeParameterCount' => $summary['contentTypeParameterCount'],
+                'contentTypeParameters' => $summary['contentTypeParameters'],
+                'contentTypeParameterMap' => $summary['contentTypeParameterMap'],
+                'contentTypeSource' => $summary['contentTypeSource'],
+                'defaultExtension' => $summary['defaultExtension'],
+                'overridePartName' => $summary['overridePartName'],
+                'expectedContentTypeBase' => self::CT_ENCRYPTED_PACKAGE,
+                'external' => $external,
+                'exists' => $exists,
+                'relationshipsPart' => '_rels/.rels',
+                'targetRelationshipsPart' => $relationshipsPart,
+                'targetHasRelationships' => $targetHasRelationships,
+                'byteLength' => $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null,
+                'crc32' => $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null,
+                'sha256' => $targetPart !== null && $exists ? hash('sha256', $parts[$targetPart]) : null,
+                'canExposeBytes' => false,
+                'byteExposurePolicy' => 'encrypted-package-bytes-blocked',
+                'reviewPolicy' => 'encrypted-package-metadata-only',
+                'valid' => $issues === [],
+                'issues' => $issues,
+                'relationship' => $summary,
+            ];
+
+            $items[] = $item;
+            $byRelationshipId[(string) $item['id']] = $item;
+            $relationshipIds[] = (string) $item['id'];
+            $this->appendUniqueString($targetParts, $targetPart);
+            if ($external) {
+                $this->appendUniqueString($externalTargets, is_string($summary['target'] ?? null) ? $summary['target'] : null);
+                if (($summary['externalTargetAllowed'] ?? null) !== true) {
+                    $this->appendUniqueString($unsafeExternalTargets, is_string($summary['target'] ?? null) ? $summary['target'] : null);
+                }
+            }
+            $this->appendUniqueString($contentTypesSeen, is_string($summary['contentType'] ?? null) ? $summary['contentType'] : null);
+        }
+
+        ksort($issueCodes, SORT_STRING);
+        ksort($externalTargetIssueCodes, SORT_STRING);
+
+        return [
+            'present' => $items !== [],
+            'count' => count($items),
+            'existingCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['external'] === false && $item['exists'] === true,
+            )),
+            'missingCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['external'] === false && $item['exists'] === false,
+            )),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'allowedExternalCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['external'] === true && ($item['externalTargetAllowed'] ?? null) === true,
+            )),
+            'unsafeExternalCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['external'] === true && ($item['externalTargetAllowed'] ?? null) !== true,
+            )),
+            'invalidCount' => count(array_filter($items, static fn (array $item): bool => $item['valid'] !== true)),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'relationshipIds' => $relationshipIds,
+            'targetParts' => $targetParts,
+            'externalTargets' => $externalTargets,
+            'unsafeExternalTargets' => $unsafeExternalTargets,
+            'contentTypes' => $contentTypesSeen,
+            'externalTargetIssueCodes' => array_keys($externalTargetIssueCodes),
+            'issueCodes' => array_keys($issueCodes),
+            'byteExposurePolicy' => 'encrypted-package-bytes-blocked',
+            'reviewPolicy' => 'encrypted-package-metadata-only',
+            'canExposeBytes' => false,
+            'byRelationshipId' => $byRelationshipId,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $rootRelationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
     private function packageRootRelationshipResources(array $parts, array $rootRelationships, array $contentTypes): array
     {
         $items = [];
@@ -39068,6 +39248,7 @@ final class DocxOpenXmlReader
             self::THUMBNAIL_REL => 'package-thumbnail',
             self::DIGITAL_SIGNATURE_ORIGIN_REL => 'digital-signature-origin',
             self::DIGITAL_SIGNATURE_SIGNATURE_REL => 'digital-signature-signature',
+            self::ENCRYPTED_PACKAGE_REL => 'encrypted-package',
             default => null,
         };
     }

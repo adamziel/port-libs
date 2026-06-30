@@ -314,6 +314,106 @@ XML;
         $t->same(1, $package['summary']['digitalSignatureOriginCount']);
         $t->same(1, $package['summary']['digitalSignatureSignatureCount']);
     },
+    'surfaces docx encrypted package relationships as metadata only provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $encryptedRelationshipType = 'http://schemas.openxmlformats.org/package/2006/relationships/encrypted-package';
+        $encryptedContentType = 'application/vnd.openxmlformats-package.encrypted-package';
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/EncryptedPackage" ContentType="' . $encryptedContentType . '"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rEncryptedPackage" Type="' . $encryptedRelationshipType . '" Target="EncryptedPackage?cipher=aes#payload"/>' . "\n" .
+            '  <Relationship Id="rExternalEncryptedPackage" Type="' . $encryptedRelationshipType . '" Target="file:///tmp/review-encrypted.docx" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['EncryptedPackage'] = 'encrypted package bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $encryptedPackages = $package['encryptedPackages'];
+        $encrypted = $encryptedPackages['byRelationshipId']['rEncryptedPackage'];
+        $external = $encryptedPackages['byRelationshipId']['rExternalEncryptedPackage'];
+        $inventory = $package['parts']['EncryptedPackage'];
+        $relationshipType = $package['relationshipTypes'][$encryptedRelationshipType];
+
+        $t->same('Imported DOCX Heading', $document->children[0]->attr('text'));
+        $t->same(true, $encryptedPackages['present']);
+        $t->same(2, $encryptedPackages['count']);
+        $t->same(1, $encryptedPackages['existingCount']);
+        $t->same(0, $encryptedPackages['missingCount']);
+        $t->same(1, $encryptedPackages['externalCount']);
+        $t->same(0, $encryptedPackages['allowedExternalCount']);
+        $t->same(1, $encryptedPackages['unsafeExternalCount']);
+        $t->same(2, $encryptedPackages['invalidCount']);
+        $t->same(2, $encryptedPackages['issueCount']);
+        $t->same(['EncryptedPackage'], $encryptedPackages['targetParts']);
+        $t->same(['file:///tmp/review-encrypted.docx'], $encryptedPackages['externalTargets']);
+        $t->same([$encryptedContentType], $encryptedPackages['contentTypes']);
+        $t->same([
+            'external-encrypted-package-target',
+            'external-target-unsafe-scheme',
+            'multiple-encrypted-package-relationships',
+        ], $encryptedPackages['issueCodes']);
+        $t->same(['external-target-unsafe-scheme'], $encryptedPackages['externalTargetIssueCodes']);
+        $t->same('encrypted-package-bytes-blocked', $encryptedPackages['byteExposurePolicy']);
+        $t->same('encrypted-package-metadata-only', $encryptedPackages['reviewPolicy']);
+        $t->same(false, $encryptedPackages['canExposeBytes']);
+
+        $t->same('EncryptedPackage?cipher=aes#payload', $encrypted['resolvedTarget']);
+        $t->same('EncryptedPackage', $encrypted['targetPart']);
+        $t->same('cipher=aes', $encrypted['targetQuery']);
+        $t->same('payload', $encrypted['targetFragment']);
+        $t->same('?cipher=aes#payload', $encrypted['targetReferenceSuffix']);
+        $t->same(true, $encrypted['exists']);
+        $t->same($encryptedContentType, $encrypted['contentType']);
+        $t->same($encryptedContentType, $encrypted['contentTypeBase']);
+        $t->same('override', $encrypted['contentTypeSource']);
+        $t->same(strlen($parts['EncryptedPackage']), $encrypted['byteLength']);
+        $t->same(hash('sha256', $parts['EncryptedPackage']), $encrypted['sha256']);
+        $t->same(false, $encrypted['canExposeBytes']);
+        $t->same('encrypted-package-bytes-blocked', $encrypted['byteExposurePolicy']);
+        $t->same(['multiple-encrypted-package-relationships'], $encrypted['issues']);
+
+        $t->same(true, $external['external']);
+        $t->same(null, $external['targetPart']);
+        $t->same('file', $external['externalTargetScheme']);
+        $t->same(false, $external['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $external['externalTargetIssues']);
+        $t->same([
+            'multiple-encrypted-package-relationships',
+            'external-encrypted-package-target',
+            'external-target-unsafe-scheme',
+        ], $external['issues']);
+
+        $t->true(in_array('encrypted-package', $inventory['roles'], true), 'encrypted package inventory role missing');
+        $t->true(in_array('root-relationship-target', $inventory['roles'], true), 'encrypted package root target role missing');
+        $t->same(2, $relationshipType['count']);
+        $t->same(1, $relationshipType['existingTargetCount']);
+        $t->same(1, $relationshipType['externalCount']);
+        $t->same(1, $relationshipType['unsafeExternalTargetCount']);
+        $t->same(1, $relationshipType['targetRoleCounts']['encrypted-package'] ?? 0);
+
+        $t->same(2, $summary['encryptedPackageCount']);
+        $t->same(1, $summary['encryptedPackageExistingCount']);
+        $t->same(1, $summary['encryptedPackageExternalCount']);
+        $t->same(1, $summary['encryptedPackageUnsafeExternalCount']);
+        $t->same(2, $summary['encryptedPackageIssueCount']);
+        $t->same($encryptedPackages['issueCodes'], $summary['encryptedPackageIssueCodes']);
+        $t->same(['EncryptedPackage'], $summary['encryptedPackageTargetParts']);
+        $t->same(['file:///tmp/review-encrypted.docx'], $summary['encryptedPackageExternalTargets']);
+        $t->same([$encryptedContentType], $summary['encryptedPackageContentTypes']);
+        $t->same(0, $summary['packageRootRelationshipResourceCount']);
+
+        $encoded = json_encode($encryptedPackages);
+        $t->true(is_string($encoded), 'encrypted-package metadata should encode for review');
+        $t->true(!str_contains((string) $encoded, $parts['EncryptedPackage']), 'encrypted package bytes must not be exposed');
+    },
     'summarizes docx relationship part target states for package handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/_rels/document.xml.rels'] = str_replace(
