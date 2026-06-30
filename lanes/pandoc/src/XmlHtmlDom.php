@@ -19773,8 +19773,7 @@ final class XmlHtmlDom
         $summary += self::effectiveHiddenSummary($element, $attributes);
 
         if (array_key_exists('inert', $attributes)) {
-            $summary['inertRaw'] = $attributes['inert'];
-            $summary['inert'] = true;
+            $summary += self::inertAttributeSummary($element, $attributes['inert']);
         }
 
         $summary += self::effectiveInertSummary($element, $attributes);
@@ -20304,6 +20303,49 @@ final class XmlHtmlDom
      * @param array<string, string> $attributes
      * @return array<string, mixed>
      */
+    private static function inertAttributeSummary(\DOMElement $element, string $raw): array
+    {
+        $canonical = trim($raw) === '' || strtolower(trim($raw)) === 'inert';
+        $issues = [];
+        if (!$canonical) {
+            $issues[] = [
+                'code' => 'noncanonical-html-inert-value',
+                'inertRaw' => $raw,
+            ];
+        }
+
+        $summary = [
+            'inertReviewPolicy' => 'html-inert-subtree-review',
+            'inertRaw' => $raw,
+            'inert' => true,
+            'inertCanonical' => $canonical,
+            'inertNoncanonicalValue' => !$canonical,
+            'inertSuppressesFocus' => true,
+            'inertSuppressesUserInteraction' => true,
+            'inertRemovesFromAccessibilityTree' => true,
+            'inertBrowserEventDispatch' => false,
+            'inertReviewHandoffPolicy' => 'metadata-only-no-browser-inert-processing',
+            'inertElement' => self::htmlElementName($element),
+            'inertIssues' => $issues,
+            'inertIssueCodes' => array_values(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            )),
+            'inertValid' => $issues === [],
+        ];
+
+        $elementId = self::attributeOrNull($element, 'id');
+        if ($elementId !== null && $elementId !== '') {
+            $summary['inertElementId'] = $elementId;
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @return array<string, mixed>
+     */
     private static function effectiveInertSummary(\DOMElement $element, array $attributes): array
     {
         if (array_key_exists('inert', $attributes)) {
@@ -20329,11 +20371,16 @@ final class XmlHtmlDom
         bool $inherited
     ): array {
         $summary = [
+            'inertSubtreeReviewPolicy' => 'html-inert-subtree-review',
             'effectiveInertRaw' => $raw,
             'effectiveInert' => true,
+            'effectiveInertSuppressesFocus' => true,
+            'effectiveInertSuppressesUserInteraction' => true,
+            'effectiveInertRemovesFromAccessibilityTree' => true,
             'inertInherited' => $inherited,
             'inertSource' => $inherited ? 'ancestor-inert' : 'self-inert',
             'inertSourceElement' => self::htmlElementName($source),
+            'inertReviewHandoffPolicy' => 'metadata-only-no-browser-inert-processing',
         ];
 
         $sourceId = self::attributeOrNull($source, 'id');
