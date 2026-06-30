@@ -12,6 +12,8 @@ final class DocxParityCorpusAudit
     public const STATUS_SKIPPED_UNREADABLE_SOURCE = 'skipped_unreadable_upstream_docx_directory';
     public const VERDICT = 'audit-only-not-full-docx-parity';
     public const CLAIM = 'Reports local parser acceptance for paired root-level upstream DOCX/native fixtures only; no AST equality, writer golden package, or upstream Haskell runner parity is asserted.';
+    public const GAP_STATUS_OPEN = 'open';
+    public const GAP_STATUS_NOT_EVALUATED = 'not-evaluated';
     public const PARSER_ACCEPTANCE_BASELINE_NAME = 'local-upstream-docx-parser-acceptance-20260630';
     public const PARSER_ACCEPTANCE_BASELINE_PAIRED_ARTIFACTS = 74;
     public const PARSER_ACCEPTANCE_BASELINE_DOCX_PARSED = 74;
@@ -112,6 +114,7 @@ final class DocxParityCorpusAudit
             'verdict' => self::VERDICT,
             'claim' => self::CLAIM,
             'evidenceKind' => 'parser-acceptance-only',
+            'verificationScope' => self::verificationScope(),
             'repoRoot' => $this->repoRoot,
             'upstreamDocxDirectory' => $docxDir,
             'upstreamDocxDirectoryDisplay' => $this->displayPath($docxDir),
@@ -151,6 +154,15 @@ final class DocxParityCorpusAudit
                 $bothParsed,
                 $auditedCount - $bothParsed
             ),
+            'orderedRemainingGaps' => self::orderedRemainingGaps(
+                true,
+                count($pairNames),
+                $auditedCount,
+                $docxFailed,
+                $nativeFailed,
+                $auditedCount - $bothParsed,
+                $inventory['goldenDocxPackageArtifacts']
+            ),
             'pairRows' => $rows,
             'failureRows' => $failureRows,
             'notes' => [
@@ -179,6 +191,7 @@ final class DocxParityCorpusAudit
             $lines[] = 'Reason: ' . (string) ($report['reason'] ?? 'source directory unavailable');
             $lines[] = 'No parser audit was run. This is expected on CI jobs without .upstream-cache.';
             $lines[] = 'No DOCX parity is asserted.';
+            $lines = self::appendOrderedRemainingGaps($lines, $report);
 
             return implode(PHP_EOL, $lines) . PHP_EOL;
         }
@@ -246,6 +259,7 @@ final class DocxParityCorpusAudit
             }
         }
 
+        $lines = self::appendOrderedRemainingGaps($lines, $report);
         $lines[] = 'No AST equality, upstream Haskell runner, or DOCX writer golden package parity is asserted.';
 
         return implode(PHP_EOL, $lines) . PHP_EOL;
@@ -264,6 +278,7 @@ final class DocxParityCorpusAudit
             'verdict' => self::VERDICT,
             'claim' => self::CLAIM,
             'evidenceKind' => 'parser-acceptance-only',
+            'verificationScope' => self::verificationScope(),
             'repoRoot' => $this->repoRoot,
             'upstreamDocxDirectory' => $this->absoluteDocxDirectory(),
             'upstreamDocxDirectoryDisplay' => $this->displayPath($this->absoluteDocxDirectory()),
@@ -290,6 +305,7 @@ final class DocxParityCorpusAudit
             'bothParserCoveragePercent' => null,
             'parserAcceptanceBaseline' => self::parserAcceptanceBaseline(),
             'parserAcceptanceRegression' => self::parserAcceptanceRegression(false, null, 0, 0, 0, 0, 0, 0, 0, 0),
+            'orderedRemainingGaps' => self::orderedRemainingGaps(false, 0, 0, 0, 0, 0, 0),
             'pairRows' => [],
             'failureRows' => [],
             'notes' => [
@@ -483,6 +499,118 @@ final class DocxParityCorpusAudit
             'evidenceKind' => 'parser-acceptance-only',
             'claim' => 'Regression guard for local PHP parser acceptance only; no AST equality, writer golden package, upstream Haskell runner, or full DOCX/OpenXML parity is asserted.',
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function verificationScope(): array
+    {
+        return [
+            'asserts' => [
+                'root-level same-stem upstream .docx/.native fixture inventory counts',
+                'local PHP DocxReader parser acceptance for audited .docx fixtures',
+                'local PHP NativeReader parser acceptance for audited .native fixtures',
+                'strict regression guard against the recorded 74/74 parser-acceptance baseline when the optional cache is present',
+            ],
+            'doesNotAssert' => [
+                'Pandoc AST equality between DOCX reader output and upstream .native expectations',
+                'upstream Haskell/Cabal test-pandoc DOCX runner parity',
+                'DOCX writer golden package round-trip parity',
+                'full DOCX/OpenXML semantic parity',
+            ],
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function orderedRemainingGaps(
+        bool $sourceDirectoryPresent,
+        int $pairedDocxNativeArtifacts,
+        int $auditedPairCount,
+        int $docxFailedCount,
+        int $nativeFailedCount,
+        int $bothFailedOrPartialCount,
+        int $goldenDocxPackageArtifacts
+    ): array {
+        $sourceEvidence = $sourceDirectoryPresent
+            ? "optional upstream cache present; {$auditedPairCount}/{$pairedDocxNativeArtifacts} paired root-level stems audited for parser acceptance"
+            : 'optional upstream DOCX cache absent; no live corpus parser acceptance was measured in this worktree';
+
+        return [
+            [
+                'rank' => 1,
+                'id' => 'upstream-docx-runner-results',
+                'status' => self::GAP_STATUS_OPEN,
+                'currentEvidence' => 'No upstream Haskell/Cabal test-pandoc DOCX reader or writer runner result is recorded by this evidence lane.',
+                'evidenceRequired' => 'Record reproducible upstream DOCX reader/writer runner results or a native-PHP equivalent denominator with per-fixture pass/fail rows.',
+            ],
+            [
+                'rank' => 2,
+                'id' => 'docx-native-ast-equality',
+                'status' => self::GAP_STATUS_OPEN,
+                'currentEvidence' => $sourceEvidence . '; AST equality is not compared.',
+                'evidenceRequired' => 'Compare local DOCX reader AST output against the paired upstream .native expectation for each fixture and report exact mismatches.',
+            ],
+            [
+                'rank' => 3,
+                'id' => 'writer-golden-docx-package-parity',
+                'status' => self::GAP_STATUS_OPEN,
+                'currentEvidence' => "golden .docx artifacts counted as writer inventory only: {$goldenDocxPackageArtifacts}; no generated DOCX package comparison was run.",
+                'evidenceRequired' => 'Generate DOCX output for upstream writer golden cases and compare package parts, relationships, content types, and document XML semantics.',
+            ],
+            [
+                'rank' => 4,
+                'id' => 'parser-failure-zero-tolerance',
+                'status' => !$sourceDirectoryPresent
+                    ? self::GAP_STATUS_NOT_EVALUATED
+                    : (($docxFailedCount === 0 && $nativeFailedCount === 0 && $bothFailedOrPartialCount === 0)
+                        ? 'covered-by-current-parser-acceptance-evidence'
+                        : self::GAP_STATUS_OPEN),
+                'currentEvidence' => $sourceDirectoryPresent
+                    ? "docx failures={$docxFailedCount}; native failures={$nativeFailedCount}; partial-or-failed pairs={$bothFailedOrPartialCount}"
+                    : 'optional upstream DOCX cache absent; parser failure counts are unavailable for this run',
+                'evidenceRequired' => 'Keep DOCX and native parser failure counts at zero for the full audited paired corpus before treating parser acceptance as current.',
+            ],
+            [
+                'rank' => 5,
+                'id' => 'checked-in-pinned-docx-package-corpus',
+                'status' => self::GAP_STATUS_OPEN,
+                'currentEvidence' => 'The lane evidence records checked-in current-upstream drift DOCX packages and synthetic ZIP/XML package slices, not a checked-in pinned upstream DOCX package corpus.',
+                'evidenceRequired' => 'Check in or otherwise reproducibly hydrate the pinned upstream DOCX package corpus used by parity evidence, with fixture identity and provenance.',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @param array<string, mixed> $report
+     * @return list<string>
+     */
+    private static function appendOrderedRemainingGaps(array $lines, array $report): array
+    {
+        $gaps = $report['orderedRemainingGaps'] ?? [];
+        if (!is_array($gaps) || $gaps === []) {
+            return $lines;
+        }
+
+        $lines[] = 'Ordered remaining full DOCX parity gaps:';
+        foreach ($gaps as $gap) {
+            if (!is_array($gap)) {
+                continue;
+            }
+            $lines[] = sprintf(
+                '%d. %s [%s]: current=%s required=%s',
+                (int) ($gap['rank'] ?? 0),
+                (string) ($gap['id'] ?? 'unknown-gap'),
+                (string) ($gap['status'] ?? 'unknown'),
+                (string) ($gap['currentEvidence'] ?? ''),
+                (string) ($gap['evidenceRequired'] ?? '')
+            );
+        }
+
+        return $lines;
     }
 
     /**

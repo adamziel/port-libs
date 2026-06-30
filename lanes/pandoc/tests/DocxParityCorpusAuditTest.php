@@ -64,6 +64,8 @@ return [
             $t->same(DocxParityCorpusAudit::STATUS_SKIPPED_MISSING_SOURCE, $report['status']);
             $t->same(true, $report['skipped']);
             $t->same('parser-acceptance-only', $report['evidenceKind']);
+            $t->true(in_array('local PHP DocxReader parser acceptance for audited .docx fixtures', $report['verificationScope']['asserts'], true));
+            $t->true(in_array('full DOCX/OpenXML semantic parity', $report['verificationScope']['doesNotAssert'], true));
             $t->same(false, $report['sourceDirectoryPresent']);
             $t->same(0, $report['auditedPairCount']);
             $t->same(0, $report['bothParsedCount']);
@@ -73,8 +75,13 @@ return [
             $t->same(false, $report['parserAcceptanceRegression']['evaluated']);
             $t->same(false, $report['parserAcceptanceRegression']['regressed']);
             $t->same('not-evaluated-source-directory-unavailable', $report['parserAcceptanceRegression']['reason']);
+            $t->same('upstream-docx-runner-results', $report['orderedRemainingGaps'][0]['id']);
+            $t->same('docx-native-ast-equality', $report['orderedRemainingGaps'][1]['id']);
+            $t->same('not-evaluated', $report['orderedRemainingGaps'][3]['status']);
             $t->contains('Result: skipped', $text);
             $t->contains('No DOCX parity is asserted.', $text);
+            $t->contains('Ordered remaining full DOCX parity gaps:', $text);
+            $t->contains('2. docx-native-ast-equality [open]', $text);
         } finally {
             $removeTree($root);
         }
@@ -99,6 +106,8 @@ return [
             $t->same(false, $report['skipped']);
             $t->same(DocxParityCorpusAudit::VERDICT, $report['verdict']);
             $t->same('parser-acceptance-only', $report['evidenceKind']);
+            $t->true(in_array('strict regression guard against the recorded 74/74 parser-acceptance baseline when the optional cache is present', $report['verificationScope']['asserts'], true));
+            $t->true(in_array('DOCX writer golden package round-trip parity', $report['verificationScope']['doesNotAssert'], true));
             $t->same(6, $report['rootDirectoryArtifactCount']);
             $t->same(3, $report['rootDocxPackageArtifacts']);
             $t->same(3, $report['rootNativeExpectedArtifacts']);
@@ -130,8 +139,16 @@ return [
             $t->true(in_array('paired-docx-native-artifact-count-below-baseline', $report['parserAcceptanceRegression']['failureReasons'], true));
             $t->true(in_array('docx-parse-failures-present', $report['parserAcceptanceRegression']['failureReasons'], true));
             $t->true(DocxParityCorpusAudit::hasParserAcceptanceRegression($report));
+            $t->same(['upstream-docx-runner-results', 'docx-native-ast-equality', 'writer-golden-docx-package-parity', 'parser-failure-zero-tolerance', 'checked-in-pinned-docx-package-corpus'], array_map(
+                static fn (array $gap): string => (string) $gap['id'],
+                $report['orderedRemainingGaps']
+            ));
+            $t->same('open', $report['orderedRemainingGaps'][3]['status']);
+            $t->contains('docx failures=1; native failures=1; partial-or-failed pairs=1', $report['orderedRemainingGaps'][3]['currentEvidence']);
             $t->contains('Both parsers accepted: 1/2 (50.00%)', $text);
             $t->contains('Parser acceptance regression guard: failed', $text);
+            $t->contains('Ordered remaining full DOCX parity gaps:', $text);
+            $t->contains('3. writer-golden-docx-package-parity [open]', $text);
             $t->contains('No AST equality, upstream Haskell runner, or DOCX writer golden package parity is asserted.', $text);
         } finally {
             $removeTree($root);

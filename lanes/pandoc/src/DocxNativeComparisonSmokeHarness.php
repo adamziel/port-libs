@@ -7,6 +7,8 @@ namespace PortLibs\Pandoc;
 final class DocxNativeComparisonSmokeHarness
 {
     private const DEFAULT_MAX_EXAMPLES = 5;
+    private const VERDICT = 'smoke-only-not-full-docx-parity';
+    private const CLAIM = 'Compares local PHP DOCX reader output with paired upstream .native fixtures by plain text and top-level node type sequence only; no full AST equality, upstream runner, or writer golden parity is asserted.';
 
     /** @var list<string> */
     private const TEXT_NODE_TYPES = [
@@ -59,8 +61,14 @@ final class DocxNativeComparisonSmokeHarness
 
         if (!is_dir($docxDirectory)) {
             return [
+                'schemaVersion' => 1,
+                'tool' => 'pandoc-docx-native-smoke',
                 'status' => 'skipped',
+                'skipped' => true,
                 'reason' => 'upstream-cache-missing',
+                'verdict' => self::VERDICT,
+                'claim' => self::CLAIM,
+                'evidenceKind' => 'docx-native-reader-smoke-comparison',
                 'upstreamDocxDirectory' => $docxDirectory,
                 'docxArtifactCount' => 0,
                 'nativeArtifactCount' => 0,
@@ -72,11 +80,15 @@ final class DocxNativeComparisonSmokeHarness
                 'parseFailureCount' => 0,
                 'sameTextCount' => 0,
                 'sameTopTypeSequenceCount' => 0,
+                'sameTextPercent' => null,
+                'sameTopTypeSequencePercent' => null,
                 'semanticGapPairCount' => 0,
+                'semanticParityStatus' => 'not-evaluated-source-directory-unavailable',
                 'knownSemanticGapCategories' => [],
                 'parseFailures' => [],
                 'comparisons' => [],
                 'semanticGapComparisons' => [],
+                'orderedRemainingGaps' => self::orderedRemainingGaps(false, 0, 0, 0, 0, 0),
             ];
         }
 
@@ -175,8 +187,14 @@ final class DocxNativeComparisonSmokeHarness
         ksort($categoryCounts);
 
         return [
+            'schemaVersion' => 1,
+            'tool' => 'pandoc-docx-native-smoke',
             'status' => 'completed',
+            'skipped' => false,
             'reason' => null,
+            'verdict' => self::VERDICT,
+            'claim' => self::CLAIM,
+            'evidenceKind' => 'docx-native-reader-smoke-comparison',
             'upstreamDocxDirectory' => $docxDirectory,
             'docxArtifactCount' => count($docxFiles),
             'nativeArtifactCount' => count($nativeFiles),
@@ -188,11 +206,22 @@ final class DocxNativeComparisonSmokeHarness
             'parseFailureCount' => count($parseFailures),
             'sameTextCount' => $sameTextCount,
             'sameTopTypeSequenceCount' => $sameTopTypeSequenceCount,
+            'sameTextPercent' => self::percent($sameTextCount, count($pairNames)),
+            'sameTopTypeSequencePercent' => self::percent($sameTopTypeSequenceCount, count($pairNames)),
             'semanticGapPairCount' => $semanticGapPairCount,
+            'semanticParityStatus' => self::semanticParityStatus(count($parseFailures), $semanticGapPairCount, count($pairNames)),
             'knownSemanticGapCategories' => array_values($categoryCounts),
             'parseFailures' => array_slice($parseFailures, 0, $maxExamples),
             'comparisons' => $comparisons,
             'semanticGapComparisons' => $semanticGapComparisons,
+            'orderedRemainingGaps' => self::orderedRemainingGaps(
+                true,
+                count($pairNames),
+                count($parseFailures),
+                $semanticGapPairCount,
+                $sameTextCount,
+                $sameTopTypeSequenceCount
+            ),
         ];
     }
 
@@ -203,11 +232,14 @@ final class DocxNativeComparisonSmokeHarness
     {
         $lines = [
             'Pandoc DOCX/native smoke: ' . (string) $report['status'],
+            'Verdict: ' . (string) ($report['verdict'] ?? self::VERDICT),
+            'Claim: ' . (string) ($report['claim'] ?? self::CLAIM),
             'upstreamDocxDirectory=' . (string) $report['upstreamDocxDirectory'],
         ];
 
         if (($report['status'] ?? '') === 'skipped') {
             $lines[] = 'reason=' . (string) ($report['reason'] ?? 'unknown');
+            $lines = self::appendOrderedRemainingGaps($lines, $report);
 
             return implode("\n", $lines) . "\n";
         }
@@ -227,10 +259,13 @@ final class DocxNativeComparisonSmokeHarness
             (int) $report['parseFailureCount'],
         );
         $lines[] = sprintf(
-            'same: text=%d topTypeSequence=%d semanticGapPairs=%d',
+            'same: text=%d (%s) topTypeSequence=%d (%s) semanticGapPairs=%d semanticParityStatus=%s',
             (int) $report['sameTextCount'],
+            self::formatPercent($report['sameTextPercent'] ?? null),
             (int) $report['sameTopTypeSequenceCount'],
+            self::formatPercent($report['sameTopTypeSequencePercent'] ?? null),
             (int) $report['semanticGapPairCount'],
+            (string) ($report['semanticParityStatus'] ?? 'unknown'),
         );
 
         $categories = $report['knownSemanticGapCategories'] ?? [];
@@ -252,6 +287,8 @@ final class DocxNativeComparisonSmokeHarness
                 );
             }
         }
+
+        $lines = self::appendOrderedRemainingGaps($lines, $report);
 
         return implode("\n", $lines) . "\n";
     }
@@ -413,5 +450,119 @@ final class DocxNativeComparisonSmokeHarness
         if (count($categoryCounts[$category]['examples']) < $maxExamples) {
             $categoryCounts[$category]['examples'][] = $fixture;
         }
+    }
+
+    private static function percent(int $numerator, int $denominator): ?float
+    {
+        if ($denominator === 0) {
+            return null;
+        }
+
+        return round(($numerator / $denominator) * 100, 2);
+    }
+
+    private static function formatPercent(mixed $value): string
+    {
+        if (!is_int($value) && !is_float($value)) {
+            return 'n/a';
+        }
+
+        return number_format((float) $value, 2) . '%';
+    }
+
+    private static function semanticParityStatus(int $parseFailureCount, int $semanticGapPairCount, int $comparedPairCount): string
+    {
+        if ($comparedPairCount === 0) {
+            return 'not-evaluated-no-paired-fixtures';
+        }
+        if ($parseFailureCount > 0) {
+            return 'blocked-by-parse-failures';
+        }
+        if ($semanticGapPairCount > 0) {
+            return 'semantic-gaps-observed';
+        }
+
+        return 'smoke-text-and-top-types-match-not-full-parity';
+    }
+
+    /**
+     * @param list<string> $lines
+     * @param array<string, mixed> $report
+     * @return list<string>
+     */
+    private static function appendOrderedRemainingGaps(array $lines, array $report): array
+    {
+        $gaps = $report['orderedRemainingGaps'] ?? [];
+        if (!is_array($gaps) || $gaps === []) {
+            return $lines;
+        }
+
+        $lines[] = 'orderedRemainingGaps:';
+        foreach ($gaps as $gap) {
+            if (!is_array($gap)) {
+                continue;
+            }
+            $lines[] = sprintf(
+                '%d. %s [%s] current=%s required=%s',
+                (int) ($gap['rank'] ?? 0),
+                (string) ($gap['id'] ?? 'unknown-gap'),
+                (string) ($gap['status'] ?? 'unknown'),
+                (string) ($gap['currentEvidence'] ?? ''),
+                (string) ($gap['evidenceRequired'] ?? '')
+            );
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function orderedRemainingGaps(
+        bool $sourceDirectoryPresent,
+        int $comparedPairCount,
+        int $parseFailureCount,
+        int $semanticGapPairCount,
+        int $sameTextCount,
+        int $sameTopTypeSequenceCount
+    ): array {
+        $sourceEvidence = $sourceDirectoryPresent
+            ? "compared pairs={$comparedPairCount}; parse failures={$parseFailureCount}; semantic gap pairs={$semanticGapPairCount}; same text={$sameTextCount}; same top-type sequence={$sameTopTypeSequenceCount}"
+            : 'optional upstream DOCX cache absent; smoke comparison did not run';
+
+        return [
+            [
+                'rank' => 1,
+                'id' => 'upstream-docx-runner-results',
+                'status' => 'open',
+                'currentEvidence' => 'No upstream Haskell/Cabal test-pandoc DOCX reader or writer runner result is recorded by this smoke lane.',
+                'evidenceRequired' => 'Record reproducible upstream DOCX reader/writer runner results or a native-PHP equivalent denominator with per-fixture pass/fail rows.',
+            ],
+            [
+                'rank' => 2,
+                'id' => 'full-ast-equality',
+                'status' => 'open',
+                'currentEvidence' => $sourceEvidence . '; the smoke compares only plain text and top-level node type sequences.',
+                'evidenceRequired' => 'Compare full AST structure, attributes, inline nodes, block nodes, metadata, notes, tables, and raw OpenXML payload handling against upstream .native expectations.',
+            ],
+            [
+                'rank' => 3,
+                'id' => 'writer-golden-docx-package-parity',
+                'status' => 'open',
+                'currentEvidence' => 'The smoke harness reads paired DOCX/native fixtures only; it does not generate DOCX or compare golden writer packages.',
+                'evidenceRequired' => 'Generate DOCX output for upstream writer golden cases and compare package parts, relationships, content types, and document XML semantics.',
+            ],
+            [
+                'rank' => 4,
+                'id' => 'semantic-gap-zero-tolerance',
+                'status' => !$sourceDirectoryPresent
+                    ? 'not-evaluated'
+                    : (($parseFailureCount === 0 && $semanticGapPairCount === 0)
+                        ? 'not-observed-in-smoke'
+                        : 'open'),
+                'currentEvidence' => $sourceEvidence,
+                'evidenceRequired' => 'Keep parse failures and semantic smoke gaps at zero across the full paired corpus before treating text/top-type smoke evidence as current.',
+            ],
+        ];
     }
 }

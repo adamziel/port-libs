@@ -61,14 +61,28 @@ return [
         try {
             $harness = new DocxNativeComparisonSmokeHarness();
             $report = $harness->run($missing);
+            $text = $harness->formatReport($report);
 
+            $t->same(1, $report['schemaVersion']);
+            $t->same('pandoc-docx-native-smoke', $report['tool']);
             $t->same('skipped', $report['status']);
+            $t->same(true, $report['skipped']);
             $t->same('upstream-cache-missing', $report['reason']);
+            $t->same('smoke-only-not-full-docx-parity', $report['verdict']);
+            $t->same('docx-native-reader-smoke-comparison', $report['evidenceKind']);
             $t->same(0, $report['totalPairCount']);
             $t->same(0, $report['comparedPairCount']);
             $t->same(0, $report['parseFailureCount']);
+            $t->same(null, $report['sameTextPercent']);
+            $t->same(null, $report['sameTopTypeSequencePercent']);
+            $t->same('not-evaluated-source-directory-unavailable', $report['semanticParityStatus']);
             $t->same([], $report['semanticGapComparisons']);
-            $t->contains('Pandoc DOCX/native smoke: skipped', $harness->formatReport($report));
+            $t->same('upstream-docx-runner-results', $report['orderedRemainingGaps'][0]['id']);
+            $t->same('not-evaluated', $report['orderedRemainingGaps'][3]['status']);
+            $t->contains('Pandoc DOCX/native smoke: skipped', $text);
+            $t->contains('Verdict: smoke-only-not-full-docx-parity', $text);
+            $t->contains('orderedRemainingGaps:', $text);
+            $t->contains('4. semantic-gap-zero-tolerance [not-evaluated]', $text);
         } finally {
             $removeTree($root);
         }
@@ -91,6 +105,9 @@ return [
             );
 
             $t->same('completed', $report['status']);
+            $t->same(false, $report['skipped']);
+            $t->same('smoke-only-not-full-docx-parity', $report['verdict']);
+            $t->same('docx-native-reader-smoke-comparison', $report['evidenceKind']);
             $t->same(2, $report['docxArtifactCount']);
             $t->same(2, $report['nativeArtifactCount']);
             $t->same(2, $report['totalPairCount']);
@@ -101,12 +118,19 @@ return [
             $t->same(0, $report['parseFailureCount']);
             $t->same(1, $report['sameTextCount']);
             $t->same(2, $report['sameTopTypeSequenceCount']);
+            $t->same(50.0, $report['sameTextPercent']);
+            $t->same(100.0, $report['sameTopTypeSequencePercent']);
             $t->same(1, $report['semanticGapPairCount']);
+            $t->same('semantic-gaps-observed', $report['semanticParityStatus']);
             $t->same('raw-bookmark', $report['semanticGapComparisons'][0]['fixture']);
+            $t->same('full-ast-equality', $report['orderedRemainingGaps'][1]['id']);
+            $t->same('open', $report['orderedRemainingGaps'][3]['status']);
             $t->true(in_array('raw-openxml-field-or-bookmark-markup', $categoryNames, true));
             $t->true(in_array('field-bookmark-cross-reference-resolution', $categoryNames, true));
             $t->true(in_array('text-normalization', $categoryNames, true));
-            $t->contains('same: text=1 topTypeSequence=2 semanticGapPairs=1', $harness->formatReport($report));
+            $text = $harness->formatReport($report);
+            $t->contains('same: text=1 (50.00%) topTypeSequence=2 (100.00%) semanticGapPairs=1 semanticParityStatus=semantic-gaps-observed', $text);
+            $t->contains('2. full-ast-equality [open]', $text);
         } finally {
             $removeTree($root);
         }
