@@ -16801,7 +16801,7 @@ XML);
         $t->same('page', $citation->attr('cslLocator')['label'] ?? null);
         $t->same('plate A', $citation->attr('cslLocator')['value'] ?? null);
         $t->same('explicit', $citation->attr('cslLocator')['sourceClass'] ?? null);
-        $t->same('(Vale | page | plate A | defaulted | page plate A [citation-locator-unlabeled-page-fallback/info] | citation-locator-unlabeled-page-fallback; Vale | section | 9 | inferred; Vale | page | appendix A | explicit | page appendix A [citation-locator-explicit-value-defaulted-page/info] | citation-locator-explicit-value-defaulted-page)', $processor->renderCitationCluster([
+        $t->same('(Vale | page | plate A | defaulted | page plate A [citation-locator-unlabeled-page-fallback/info] | citation-locator-unlabeled-page-fallback; Vale | section | 9 | inferred; Vale | page | appendix A | defaulted | page appendix A [citation-locator-explicit-value-defaulted-page/info] | citation-locator-explicit-value-defaulted-page)', $processor->renderCitationCluster([
             new AstNode('citation', ['id' => 'locator-summary-source', 'text' => '[@locator-summary-source, plate A]', 'locator' => 'plate A']),
             new AstNode('citation', ['id' => 'locator-summary-source', 'text' => '[@locator-summary-source, sec. 9]', 'locator' => 'sec. 9']),
             new AstNode('citation', ['id' => 'locator-summary-source', 'text' => '[@locator-summary-source, appendix A]', 'locatorValue' => 'appendix A']),
@@ -16810,6 +16810,76 @@ XML);
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Locator summaries (Vale | page | plate A | explicit | page plate A [citation-locator-unlabeled-page-fallback/info] | citation-locator-unlabeled-page-fallback; Vale | page | plate B | explicit | page plate B [citation-locator-unlabeled-page-fallback/info] | citation-locator-unlabeled-page-fallback) remain visible.</p>', $blocks);
         $t->contains('<dt>Vale 2026</dt><dd>Locator Summary Packet</dd>', $blocks);
+    },
+    'distinguishes bounded direct ast locator source metadata for defaulted page values' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'locator-source-class-source',
+                'type' => 'report',
+                'title' => 'Locator Source Class Packet',
+                'author' => [
+                    ['family' => 'Vale', 'given' => 'Rae'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Direct AST Locator Source Review</title>
+    <id>https://example.test/styles/bounded-direct-ast-locator-source-review</id>
+    <updated>2026-06-28T00:00:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="citation-locator-label"/>
+        <text variable="locator"/>
+        <text variable="citation-locator-source"/>
+        <text variable="citation-locator-diagnostic-reasons"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $defaultedPage = new AstNode('citation', [
+            'id' => 'locator-source-class-source',
+            'text' => '[@locator-source-class-source, appendix A]',
+            'locatorValue' => 'appendix A',
+        ]);
+        $explicitPage = new AstNode('citation', [
+            'id' => 'locator-source-class-source',
+            'text' => '[@locator-source-class-source, p. appendix B]',
+            'locatorLabel' => 'page',
+            'locatorValue' => 'appendix B',
+        ]);
+
+        $defaultedDiagnostics = $processor->citationLocatorDiagnostics($defaultedPage);
+        $t->same(['citation-locator-explicit-value-defaulted-page'], array_column($defaultedDiagnostics, 'reason'));
+        $t->same('defaulted', $processor->normalizeCitation($defaultedPage)->attr('cslLocator')['sourceClass'] ?? null);
+        $t->same([], $processor->citationLocatorDiagnostics($explicitPage));
+        $t->same(
+            '[Vale | page | appendix A | defaulted | citation-locator-explicit-value-defaulted-page; Vale | page | appendix B | explicit]',
+            $processor->renderCitationCluster([$defaultedPage, $explicitPage])
+        );
+
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Direct AST locators ']),
+                new AstNode('citation_group', [], [$defaultedPage, $explicitPage]),
+                new AstNode('text', ['text' => ' stay reviewable.']),
+            ]),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct AST locators [Vale | page | appendix A | defaulted | citation-locator-explicit-value-defaulted-page; Vale | page | appendix B | explicit] stay reviewable.</p>', $blocks);
+        $t->contains('<dt>Vale 2026</dt><dd>Locator Source Class Packet</dd>', $blocks);
     },
     'infers pandoc json citation suffix locators for diagnostics' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([

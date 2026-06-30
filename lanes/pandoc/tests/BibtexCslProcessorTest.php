@@ -94,6 +94,126 @@ BIB;
         $t->same('Import note attached', $item['note']);
         $t->same('Nia Ng. Obscure Archive Packet: Source Review Appendix. 2026. https://example.test/preprint.', $bibliography);
     },
+    'carries compact biblatex csl aliases in legacy handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@article{alias-journal,
+  author              = {Doe, Jane},
+  title               = {Alias Journal Packet},
+  title-short         = {Alias packet},
+  title-addon         = {review appendix},
+  journal-title       = {Journal of Alias Imports},
+  journal-subtitle    = {Source Desk},
+  journal-title-addon = {online dossier},
+  date                = {2026},
+  pages               = {A12--A18},
+  eISSN               = {EISSN 2468 1357},
+  url                 = {https://example.test/alias-journal},
+  url-description     = {archived review copy}
+}
+
+@incollection{alias-chapter,
+  author                = {Ng, Nia},
+  title                 = {Alias Chapter Packet},
+  book-title            = {Migration Alias Handbook},
+  book-subtitle         = {Reviewer Edition},
+  book-title-addon      = {internal packet},
+  collection-title-text = {Alias Review Series},
+  date                  = {2025},
+  pages                 = {77--81},
+  isbn13                = {ISBN-13: 978-1-4028-9462-6}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $journal = $items['alias-journal'];
+        $chapter = $items['alias-chapter'];
+
+        $t->same('article-journal', $journal['type']);
+        $t->same('Alias packet', $journal['short-title']);
+        $t->same('review appendix', $journal['title-addon']);
+        $t->same('Journal of Alias Imports: Source Desk', $journal['container-title']);
+        $t->same('online dossier', $journal['container-title-addon']);
+        $t->same('A12-A18', $journal['page']);
+        $t->same('A12', $journal['page-first']);
+        $t->same('2468-1357', $journal['ISSN']);
+        $t->same('archived review copy', $journal['URL-label']);
+        $t->same('Journal of Alias Imports', $journal['rawBibtex']['fields']['journal-title']);
+        $t->same('EISSN 2468 1357', $journal['rawBibtex']['fields']['eissn']);
+        $t->same('chapter', $chapter['type']);
+        $t->same('Migration Alias Handbook: Reviewer Edition', $chapter['container-title']);
+        $t->same('internal packet', $chapter['container-title-addon']);
+        $t->same('Alias Review Series', $chapter['collection-title']);
+        $t->same('77', $chapter['page-first']);
+        $t->same('978-1-4028-9462-6', $chapter['ISBN']);
+        $t->same('Migration Alias Handbook', $chapter['rawBibtex']['fields']['book-title']);
+        $t->same('ISBN-13: 978-1-4028-9462-6', $chapter['rawBibtex']['fields']['isbn13']);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Alias Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-alias-review</id>
+    <updated>2026-06-29T00:45:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="short-title"/>
+        <text variable="title-addon"/>
+        <text variable="container-title"/>
+        <text variable="container-title-addon"/>
+        <text variable="collection-title"/>
+        <text variable="page-first"/>
+        <text variable="ISSN"/>
+        <text variable="ISBN"/>
+        <text variable="url-label"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="container-title"/>
+      <text variable="container-title-addon"/>
+      <text variable="collection-title"/>
+      <text variable="page-first"/>
+      <text variable="ISSN"/>
+      <text variable="ISBN"/>
+      <text variable="url-label"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledJournal = $styled->item('alias-journal');
+        $styledChapter = $styled->item('alias-chapter');
+        $t->same('Bounded Legacy BibLaTeX Alias Review', $styled->cslStyleSummary()['title'] ?? null);
+        $t->same('A12', $styledJournal['pageFirst'] ?? null);
+        $t->same('2468-1357', $styledJournal['issn'] ?? null);
+        $t->same('archived review copy', $styledJournal['urlLabel'] ?? null);
+        $t->same('77', $styledChapter['pageFirst'] ?? null);
+        $t->same('978-1-4028-9462-6', $styledChapter['isbn'] ?? null);
+        $t->same('[Doe | Alias packet | review appendix | Journal of Alias Imports: Source Desk | online dossier | A12 | 2468-1357 | archived review copy; Ng | Migration Alias Handbook: Reviewer Edition | internal packet | Alias Review Series | 77 | 978-1-4028-9462-6]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'alias-journal', 'text' => '[@alias-journal]']),
+            new AstNode('citation', ['id' => 'alias-chapter', 'text' => '[@alias-chapter]']),
+        ]));
+        $t->same('Alias Journal Packet :: Journal of Alias Imports: Source Desk :: online dossier :: A12 :: 2468-1357 :: archived review copy', $styled->renderBibliographyEntry('alias-journal'));
+        $t->same('Alias Chapter Packet :: Migration Alias Handbook: Reviewer Edition :: internal packet :: Alias Review Series :: 77 :: 978-1-4028-9462-6', $styled->renderBibliographyEntry('alias-chapter'));
+
+        $document = (new MarkdownReader())->read('Alias journal @alias-journal and chapter [@alias-chapter] keep compact CSL metadata.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['alias-journal', 'alias-chapter'], $handoff['citedKeys']);
+        $t->same('A12', $handoff['bibliography']->children[0]->attr('cslItem')['page-first'] ?? null);
+        $t->same('978-1-4028-9462-6', $handoff['bibliography']->children[1]->attr('cslItem')['ISBN'] ?? null);
+        $t->contains('<p>Alias journal Doe (2026) and chapter [Ng | Migration Alias Handbook: Reviewer Edition | internal packet | Alias Review Series | 77 | 978-1-4028-9462-6] keep compact CSL metadata.</p>', $blocks);
+        $t->contains('<dt>Doe 2026</dt><dd>Alias Journal Packet :: Journal of Alias Imports: Source Desk :: online dossier :: A12 :: 2468-1357 :: archived review copy</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Alias Chapter Packet :: Migration Alias Handbook: Reviewer Edition :: internal packet :: Alias Review Series :: 77 :: 978-1-4028-9462-6</dd>', $blocks);
+    },
     'carries legacy biblatex registry identifiers in bibliography handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @article{legacy-pubmed,
@@ -811,6 +931,7 @@ XML);
   author            = {Writer, Willa},
   compiler          = {Compiler, Cal},
   editorialdirector = {Director, Edna},
+  editortranslator  = {Translator, Theo},
   redactor          = {Redactor, Rae},
   commentator       = {Commentator, Cam},
   annotator         = {Annotator, Ada},
@@ -818,6 +939,8 @@ XML);
   continuator       = {Continuator, Chen},
   reviser           = {Reviser, Remy},
   collaborator      = {Collaborator, Cora and Partner, Priya},
+  seriescreator     = {Series, Stella},
+  seriescreator+an  = {1=series imported from legacy catalog},
   introduction      = {Intro, Ira},
   foreword          = {Foreword, Finn},
   afterword         = {Afterword, Ari},
@@ -833,6 +956,7 @@ BIB;
         $t->same('Writer', $item['author'][0]['family']);
         $t->same('Compiler', $item['compiler'][0]['family']);
         $t->same('Director', $item['editorial-director'][0]['family']);
+        $t->same('Translator', $item['editor-translator'][0]['family']);
         $t->same('Redactor', $item['redactor'][0]['family']);
         $t->same('Commentator', $item['commentator'][0]['family']);
         $t->same('Annotator', $item['annotator'][0]['family']);
@@ -841,11 +965,49 @@ BIB;
         $t->same('Reviser', $item['reviser'][0]['family']);
         $t->same('Collaborator', $item['collaborator'][0]['family']);
         $t->same('Partner', $item['collaborator'][1]['family']);
+        $t->same('Series', $item['series-creator'][0]['family']);
+        $t->same([['part' => 'name', 'value' => 'series imported from legacy catalog']], $item['series-creator'][0]['annotations'] ?? null);
         $t->same('Intro', $item['introduction'][0]['family']);
         $t->same('Foreword', $item['foreword'][0]['family']);
         $t->same('Afterword', $item['afterword'][0]['family']);
+        $t->same('Translator, Theo', $item['rawBibtex']['fields']['editortranslator']);
         $t->same('Director, Edna', $item['rawBibtex']['fields']['editorialdirector']);
-        $t->same('Willa Writer. Secondary Credit Packet. 2026.', $bibliography);
+        $t->same('Willa Writer. Secondary Credit Packet. 2026. Name annotations: Series creator 1: series imported from legacy catalog.', $bibliography);
+
+        $styled = CitationCslProcessor::fromItems([$item])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="editor-translator"/>
+        <names variable="series-creator"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="editor-translator"/>
+      <names variable="series-creator"/>
+      <text variable="name-annotation-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $styledItem = $styled->item('secondary-credits');
+        $t->same('Translator', $styledItem['editorTranslators'][0]['family'] ?? null);
+        $t->same('Series', $styledItem['seriesCreators'][0]['family'] ?? null);
+        $t->same('series imported from legacy catalog', $styledItem['seriesCreators'][0]['annotations'][0]['value'] ?? null);
+        $t->same('[Translator | Series]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'secondary-credits', 'text' => '[@secondary-credits]']),
+        ]));
+        $t->same('Secondary Credit Packet :: Translator, Theo :: Series, Stella :: Series creator 1: series imported from legacy catalog', $styled->renderBibliographyEntry('secondary-credits'));
+
+        $document = (new MarkdownReader())->read('Secondary legacy credits [@secondary-credits] stay reviewable.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Secondary legacy credits [Translator | Series] stay reviewable.</p>', $blocks);
+        $t->contains('<dt>Writer 2026</dt><dd>Secondary Credit Packet :: Translator, Theo :: Series, Stella :: Series creator 1: series imported from legacy catalog</dd>', $blocks);
     },
     'carries biblatex secondary editor roles in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -1058,8 +1220,9 @@ XML);
 }
 BIB;
 
-        $item = (new BibtexCslProcessor())->cslItems($source)['translated-manual'];
-        $bibliography = (new BibtexCslProcessor())->renderBibliographyText($item);
+        $processor = new BibtexCslProcessor();
+        $item = $processor->cslItems($source)['translated-manual'];
+        $bibliography = $processor->renderBibliographyText($item);
 
         $t->same('book', $item['type']);
         $t->same('Migration Manual', $item['title']);
@@ -1076,7 +1239,221 @@ BIB;
         $t->same('2.1.0', $item['version']);
         $t->same('revised', $item['status']);
         $t->same('print-on-demand packet', $item['medium']);
-        $t->same('Gia Garcia. Migration Manual. Review Press. 2026.', $bibliography);
+        $t->same('Gia Garcia. Migration Manual. Review Press. 2026. Collection: Review Sources. Collection abbreviation: RS. Collection number: 7. Edition: 2. Version: 2.1.0. Status: revised. Medium: print-on-demand packet.', $bibliography);
+
+        $styled = CitationCslProcessor::fromItems([$item])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="collection-title"/>
+        <text variable="collection-title" form="short"/>
+        <text variable="collection-number"/>
+        <text variable="edition"/>
+        <text variable="version"/>
+        <text variable="status"/>
+        <text variable="medium"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="collection-title"/>
+      <text variable="collection-title" form="short"/>
+      <text variable="collection-number"/>
+      <text variable="edition"/>
+      <text variable="version"/>
+      <text variable="status"/>
+      <text variable="medium"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('[Migration Manual | Review Sources | RS | 7 | 2 | 2.1.0 | revised | print-on-demand packet]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'translated-manual', 'text' => '[@translated-manual]']),
+        ]));
+        $t->same('Migration Manual :: Review Sources :: RS :: 7 :: 2 :: 2.1.0 :: revised :: print-on-demand packet', $styled->renderBibliographyEntry('translated-manual'));
+
+        $document = (new MarkdownReader())->read('Release state [@translated-manual] stays visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Release state [Migration Manual | Review Sources | RS | 7 | 2 | 2.1.0 | revised | print-on-demand packet] stays visible.</p>', $blocks);
+        $t->contains('<dt>Garcia 2026</dt><dd>Migration Manual :: Review Sources :: RS :: 7 :: 2 :: 2.1.0 :: revised :: print-on-demand packet</dd>', $blocks);
+    },
+    'carries compact biblatex original publication aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{compact-original,
+  author                 = {Diaz, Dana},
+  title                  = {Migration Manual Reissue},
+  originaltitle          = {Manual de Migracion},
+  originalsubtitle       = {Appendix de Archivo},
+  originaltitleaddon     = {compact source note},
+  originalyear           = {2019},
+  originalmonth          = {7},
+  originalday            = {2},
+  originalpublisher      = {Archivo Desk},
+  originalpublisherplace = {Seville},
+  publisher              = {Review Press},
+  date                   = {2026}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $item = $processor->cslItems($source)['compact-original'];
+
+        $t->same('Migration Manual Reissue', $item['title']);
+        $t->same('Manual de Migracion: Appendix de Archivo', $item['original-title']);
+        $t->same('compact source note', $item['original-title-addon']);
+        $t->same([2019, 7, 2], $item['original-date']['date-parts'][0]);
+        $t->same('Archivo Desk', $item['original-publisher']);
+        $t->same('Seville', $item['original-publisher-place']);
+        $t->same('Manual de Migracion', $item['rawBibtex']['fields']['originaltitle']);
+        $t->same('2019', $item['rawBibtex']['fields']['originalyear']);
+
+        $styled = CitationCslProcessor::fromItems([$item])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Compact Original Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-compact-original-review</id>
+    <updated>2026-06-29T22:00:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="original-title"/>
+        <text variable="original-title-addon"/>
+        <date variable="original-date"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="original-title"/>
+      <text variable="original-title-addon"/>
+      <date variable="original-date"/>
+      <text variable="original-publisher"/>
+      <text variable="original-publisher-place"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledItem = $styled->item('compact-original');
+        $t->same('Bounded Legacy BibLaTeX Compact Original Review', $styled->cslStyleSummary()['title'] ?? null);
+        $t->same('Manual de Migracion: Appendix de Archivo', $styledItem['originalTitle'] ?? null);
+        $t->same('compact source note', $styledItem['originalTitleAddon'] ?? null);
+        $t->same('2019-07-02', $styledItem['originalDate']['display'] ?? null);
+        $t->same('[Migration Manual Reissue | Manual de Migracion: Appendix de Archivo | compact source note | 2019-07-02]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'compact-original', 'text' => '[@compact-original]']),
+        ]));
+        $t->same('Migration Manual Reissue :: Manual de Migracion: Appendix de Archivo :: compact source note :: 2019-07-02 :: Archivo Desk :: Seville', $styled->renderBibliographyEntry('compact-original'));
+
+        $document = (new MarkdownReader())->read('Compact original publication [@compact-original] remains visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['compact-original'], $handoff['citedKeys']);
+        $t->same([[2019, 7, 2]], $handoff['bibliography']->children[0]->attr('cslItem')['original-date']['date-parts'] ?? null);
+        $t->contains('<p>Compact original publication [Migration Manual Reissue | Manual de Migracion: Appendix de Archivo | compact source note | 2019-07-02] remains visible.</p>', $blocks);
+        $t->contains('<dt>Diaz 2026</dt><dd>Migration Manual Reissue :: Manual de Migracion: Appendix de Archivo :: compact source note :: 2019-07-02 :: Archivo Desk :: Seville</dd>', $blocks);
+    },
+    'carries biblatex reprint title and original genre in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{legacy-facsimile,
+  author       = {Garcia, Gia},
+  title        = {Migration Manual},
+  origtitle    = {Manual de Migracion},
+  origtype     = {field manual},
+  reprinttitle = {Facsimile Source Packet},
+  publisher    = {Review Press},
+  date         = {2026}
+}
+
+@article{legacy-archive-reprint,
+  author         = {Ng, Nia},
+  title          = {Archive Reprint Notice},
+  journaltitle   = {Review Journal},
+  original-genre = {archive bulletin},
+  reprint-title  = {Updated Source Reprint},
+  date           = {2025}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $facsimile = $items['legacy-facsimile'];
+        $archive = $items['legacy-archive-reprint'];
+
+        $t->same('field manual', $facsimile['original-genre']);
+        $t->same('Facsimile Source Packet', $facsimile['reprint-title']);
+        $t->same('field manual', $facsimile['rawBibtex']['fields']['origtype']);
+        $t->same('Facsimile Source Packet', $facsimile['rawBibtex']['fields']['reprinttitle']);
+        $t->same('archive bulletin', $archive['original-genre']);
+        $t->same('Updated Source Reprint', $archive['reprint-title']);
+        $t->same('archive bulletin', $archive['rawBibtex']['fields']['original-genre']);
+        $t->same('Updated Source Reprint', $archive['rawBibtex']['fields']['reprint-title']);
+        $t->contains('Original genre: field manual', $processor->renderBibliographyText($facsimile));
+        $t->contains('Reprint title: Facsimile Source Packet', $processor->renderBibliographyText($facsimile));
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Reprint Provenance Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-reprint-provenance-review</id>
+    <updated>2026-06-29T15:20:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="original-genre"/>
+        <text variable="reprint-title"/>
+        <text variable="origtype"/>
+        <text variable="reprinttitle"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="original-genre"/>
+      <text variable="reprint-title"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledFacsimile = $styled->item('legacy-facsimile');
+        $styledArchive = $styled->item('legacy-archive-reprint');
+        $t->same('Bounded Legacy BibLaTeX Reprint Provenance Review', $styled->cslStyleSummary()['title'] ?? null);
+        $t->same('field manual', $styledFacsimile['originalGenre'] ?? null);
+        $t->same('Facsimile Source Packet', $styledFacsimile['reprintTitle'] ?? null);
+        $t->same('archive bulletin', $styledArchive['originalGenre'] ?? null);
+        $t->same('Updated Source Reprint', $styledArchive['reprintTitle'] ?? null);
+        $t->same('[Garcia | field manual | Facsimile Source Packet | field manual | Facsimile Source Packet; Ng | archive bulletin | Updated Source Reprint | archive bulletin | Updated Source Reprint]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-facsimile', 'text' => '[@legacy-facsimile]']),
+            new AstNode('citation', ['id' => 'legacy-archive-reprint', 'text' => '[@legacy-archive-reprint]']),
+        ]));
+        $t->same('Migration Manual :: field manual :: Facsimile Source Packet', $styled->renderBibliographyEntry('legacy-facsimile'));
+        $t->same('Archive Reprint Notice :: archive bulletin :: Updated Source Reprint', $styled->renderBibliographyEntry('legacy-archive-reprint'));
+
+        $document = (new MarkdownReader())->read('Legacy reprint sources [@legacy-facsimile; @legacy-archive-reprint] retain provenance.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['legacy-facsimile', 'legacy-archive-reprint'], $handoff['citedKeys']);
+        $t->same('field manual', $handoff['items'][0]['original-genre'] ?? null);
+        $t->same('Updated Source Reprint', $handoff['bibliography']->children[1]->attr('cslItem')['reprint-title'] ?? null);
+        $t->contains('<p>Legacy reprint sources [Garcia | field manual | Facsimile Source Packet | field manual | Facsimile Source Packet; Ng | archive bulletin | Updated Source Reprint | archive bulletin | Updated Source Reprint] retain provenance.</p>', $blocks);
+        $t->contains('<dt>Garcia 2026</dt><dd>Migration Manual :: field manual :: Facsimile Source Packet</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Archive Reprint Notice :: archive bulletin :: Updated Source Reprint</dd>', $blocks);
     },
     'carries biblatex translated title aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -2978,6 +3355,99 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Literal List Review Manual :: Review Press; Archive Desk :: New York; London :: Archivo Press; Migration Desk :: Madrid; Barcelona :: spanish; basque :: english; french</dd>', $blocks);
         $t->contains('<dt>Curator 2025</dt><dd>Event List Proceedings :: Migration Desk :: Portland Convention Center; Remote Stream</dd>', $blocks);
     },
+    'carries biblatex available and submitted dates in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@online{availability-packet,
+  author            = {Ng, Nia},
+  title             = {Legacy Availability Packet},
+  date              = {2026},
+  availabledate     = {2025-04-03/2025-04-05},
+  submittedyear     = {2024},
+  submittedmonth    = {3},
+  submittedendyear  = {2024},
+  submittedendmonth = {4},
+  url               = {https://example.test/availability-packet}
+}
+
+@article{submitted-literal,
+  author         = {Roe, Pat},
+  title          = {Submitted Literal Packet},
+  journaltitle   = {Migration Availability Review},
+  date           = {2025},
+  availableyear  = {2025},
+  availablemonth = {1},
+  submitted      = {2025-02-10}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $availability = $items['availability-packet'];
+        $submitted = $items['submitted-literal'];
+
+        $t->same(['date-parts' => [[2025, 4, 3], [2025, 4, 5]]], $availability['available-date']);
+        $t->same(['date-parts' => [[2024, 3], [2024, 4]]], $availability['submitted']);
+        $t->same(['date-parts' => [[2025, 1]]], $submitted['available-date']);
+        $t->same(['date-parts' => [[2025, 2, 10]]], $submitted['submitted']);
+        $t->same('2025-04-03/2025-04-05', $availability['rawBibtex']['fields']['availabledate']);
+        $t->same('2024', $availability['rawBibtex']['fields']['submittedendyear']);
+        $t->same('2025-02-10', $submitted['rawBibtex']['fields']['submitted']);
+        $t->same(
+            'Nia Ng. Legacy Availability Packet. 2026. Available date: 2025-04-03/2025-04-05. Submitted date: 2024-03/2024-04. https://example.test/availability-packet.',
+            $processor->renderBibliographyText($availability)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Availability Date Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-availability-date-review</id>
+    <updated>2026-06-29T00:20:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <date variable="available-date"/>
+        <date variable="submitted"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="available-date"/>
+      <date variable="submitted"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledAvailability = $styled->item('availability-packet');
+        $styledSubmitted = $styled->item('submitted-literal');
+        $t->same('2025-04-03/2025-04-05', $styledAvailability['availableDate']['display'] ?? null);
+        $t->same('2024-03/2024-04', $styledAvailability['submittedDate']['display'] ?? null);
+        $t->same('2025-01', $styledSubmitted['availableDate']['display'] ?? null);
+        $t->same('2025-02-10', $styledSubmitted['submittedDate']['display'] ?? null);
+        $t->same('[Ng | 2025-04-03/2025-04-05 | 2024-03/2024-04; Roe | 2025-01 | 2025-02-10]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'availability-packet', 'text' => '[@availability-packet]']),
+            new AstNode('citation', ['id' => 'submitted-literal', 'text' => '[@submitted-literal]']),
+        ]));
+        $t->same('Legacy Availability Packet :: 2025-04-03/2025-04-05 :: 2024-03/2024-04', $styled->renderBibliographyEntry('availability-packet'));
+        $t->same('Submitted Literal Packet :: 2025-01 :: 2025-02-10', $styled->renderBibliographyEntry('submitted-literal'));
+
+        $document = (new MarkdownReader())->read('Availability review [@availability-packet; @submitted-literal] stays visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['availability-packet', 'submitted-literal'], $handoff['citedKeys']);
+        $t->same([[2025, 4, 3], [2025, 4, 5]], $handoff['items'][0]['available-date']['date-parts']);
+        $t->same([[2025, 2, 10]], $handoff['bibliography']->children[1]->attr('cslItem')['submitted']['date-parts'] ?? null);
+        $t->contains('<p>Availability review [Ng | 2025-04-03/2025-04-05 | 2024-03/2024-04; Roe | 2025-01 | 2025-02-10] stays visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Legacy Availability Packet :: 2025-04-03/2025-04-05 :: 2024-03/2024-04</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Submitted Literal Packet :: 2025-01 :: 2025-02-10</dd>', $blocks);
+    },
     'carries biblatex date addendum aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @online{legacy-date-addendum,
@@ -3078,6 +3548,287 @@ XML);
         $t->same('review facsimile release', $handoff['bibliography']->children[0]->attr('cslItem')['reprint-date-addon'] ?? null);
         $t->contains('Date addendum: first source capture', $blocks);
         $t->contains('Event date addendum: hybrid review window', $blocks);
+    },
+    'carries legacy biblatex label date metadata in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@article{legacy-label-date,
+  author       = {Smith, Ada},
+  title        = {Label Date Review Packet},
+  journaltitle = {Source Dating Review},
+  date         = {2026},
+  labeldate    = {2025-12-31}
+}
+
+@report{split-label-date,
+  author     = {Ng, Nia},
+  title      = {Split Label Date Packet},
+  institution = {Review Desk},
+  year       = {2024},
+  labelyear  = {2023},
+  labelmonth = {4}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $legacy = $items['legacy-label-date'];
+        $split = $items['split-label-date'];
+
+        $t->same([2025, 12, 31], $legacy['label-date']['date-parts'][0]);
+        $t->same([2023, 4], $split['label-date']['date-parts'][0]);
+        $t->same('2025-12-31', $legacy['rawBibtex']['fields']['labeldate']);
+        $t->same('4', $split['rawBibtex']['fields']['labelmonth']);
+        $t->same(
+            'Ada Smith. Label Date Review Packet. Source Dating Review. 2026. Label date: 2025-12-31.',
+            $processor->renderBibliographyText($legacy)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <date variable="label-date"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="label-date"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledLegacy = $styled->item('legacy-label-date');
+        $styledSplit = $styled->item('split-label-date');
+        $t->same('2025-12-31', $styledLegacy['labelDate']['display'] ?? null);
+        $t->same('2023-04', $styledSplit['labelDate']['display'] ?? null);
+        $t->same('[Smith | 2025-12-31; Ng | 2023-04]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-label-date', 'text' => '[@legacy-label-date]']),
+            new AstNode('citation', ['id' => 'split-label-date', 'text' => '[@split-label-date]']),
+        ]));
+        $t->same('Label Date Review Packet :: 2025-12-31', $styled->renderBibliographyEntry('legacy-label-date'));
+        $t->same('Split Label Date Packet :: 2023-04', $styled->renderBibliographyEntry('split-label-date'));
+
+        $document = (new MarkdownReader())->read('Label dates [@legacy-label-date; @split-label-date] stay reviewable.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['legacy-label-date', 'split-label-date'], $handoff['citedKeys']);
+        $t->same([2025, 12, 31], $handoff['items'][0]['label-date']['date-parts'][0] ?? null);
+        $t->same([2023, 4], $handoff['bibliography']->children[1]->attr('cslItem')['label-date']['date-parts'][0] ?? null);
+        $t->contains('<p>Label dates [Smith | 2025-12-31; Ng | 2023-04] stay reviewable.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Label Date Review Packet :: 2025-12-31</dd>', $blocks);
+        $t->contains('<dt>Ng 2024</dt><dd>Split Label Date Packet :: 2023-04</dd>', $blocks);
+    },
+    'carries biblatex available submitted and label dates in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@online{legacy-review-window,
+  author        = {Roe, Pat},
+  title         = {Availability Window Packet},
+  date          = {2026-06-12},
+  availabledate = {2025-04-03},
+  submitteddate = {2024-03-09},
+  labeldate     = {2026-05},
+  url           = {https://example.test/availability-window}
+}
+
+@report{legacy-split-window,
+  author         = {Ng, Nia},
+  title          = {Split Window Packet},
+  year           = {2025},
+  availableyear  = {2025},
+  availablemonth = {4},
+  availableday   = {5},
+  submittedyear  = {2024},
+  submittedmonth = {3},
+  labelyear      = {2023},
+  publisher      = {Review Press}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $window = $items['legacy-review-window'];
+        $split = $items['legacy-split-window'];
+
+        $t->same([[2025, 4, 3]], $window['available-date']['date-parts']);
+        $t->same([[2024, 3, 9]], $window['submitted']['date-parts']);
+        $t->same([2026, 5], $window['label-date']['date-parts'][0]);
+        $t->same([[2025, 4, 5]], $split['available-date']['date-parts']);
+        $t->same([[2024, 3]], $split['submitted']['date-parts']);
+        $t->same([2023], $split['label-date']['date-parts'][0]);
+        $t->same('2025-04-03', $window['rawBibtex']['fields']['availabledate']);
+        $t->same('2024', $split['rawBibtex']['fields']['submittedyear']);
+        $t->contains('Available date: 2025-04-03', $processor->renderBibliographyText($window));
+        $t->contains('Submitted date: 2024-03-09', $processor->renderBibliographyText($window));
+        $t->contains('Label date: 2026-05', $processor->renderBibliographyText($window));
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Review Window Date Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-review-window-date-review</id>
+    <updated>2026-06-29T00:00:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <date variable="available-date"/>
+        <date variable="submitted"/>
+        <date variable="label-date"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="available-date"/>
+      <date variable="submitted"/>
+      <date variable="label-date"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $styledWindow = $styled->item('legacy-review-window');
+        $styledSplit = $styled->item('legacy-split-window');
+        $t->same('Bounded Legacy BibLaTeX Review Window Date Review', $summary['title'] ?? null);
+        $t->same([2025, 4, 3], $styledWindow['availableDate']['parts'] ?? null);
+        $t->same([2024, 3], $styledSplit['submittedDate']['parts'] ?? null);
+        $t->same('[Availability Window Packet | 2025-04-03 | 2024-03-09 | 2026-05; Split Window Packet | 2025-04-05 | 2024-03 | 2023]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-review-window', 'text' => '[@legacy-review-window]']),
+            new AstNode('citation', ['id' => 'legacy-split-window', 'text' => '[@legacy-split-window]']),
+        ]));
+        $t->same('Availability Window Packet :: 2025-04-03 :: 2024-03-09 :: 2026-05', $styled->renderBibliographyEntry('legacy-review-window'));
+        $t->same('Split Window Packet :: 2025-04-05 :: 2024-03 :: 2023', $styled->renderBibliographyEntry('legacy-split-window'));
+
+        $document = (new MarkdownReader())->read('Review windows cite @legacy-review-window and [@legacy-split-window].');
+        $handoff = $processor->citationHandoff($document, $source);
+        $bibliographyDocument = new AstNode('document', [], [$handoff['bibliography']]);
+        $blocks = (new WordPressBlockWriter())->write($bibliographyDocument);
+
+        $t->same(['legacy-review-window', 'legacy-split-window'], $handoff['citedKeys']);
+        $t->same([[2025, 4, 3]], $handoff['bibliography']->children[0]->attr('cslItem')['available-date']['date-parts'] ?? null);
+        $t->same([[2024, 3]], $handoff['bibliography']->children[1]->attr('cslItem')['submitted']['date-parts'] ?? null);
+        $t->contains('Available date: 2025-04-03', $blocks);
+        $t->contains('Submitted date: 2024-03', $blocks);
+        $t->contains('Label date: 2023', $blocks);
+    },
+    'carries legacy biblatex date markers times seasons and eras in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@online{legacy-date-flags,
+  author              = {Ng, Nia},
+  title               = {Date Flag Legacy Packet},
+  date                = {2026-06?},
+  dateera             = {CE},
+  availableyear       = {2025},
+  availablemonth      = {21},
+  availablehour       = {9},
+  availableminute     = {30},
+  availabletimezone   = {Z},
+  submitted           = {2024-03-01%/2024-04-02?},
+  submittedhour       = {14},
+  submittedminute     = {45},
+  submittedtimezone   = {+0100},
+  submittedendhour    = {16},
+  submittedendminute  = {0},
+  eventdate           = {2025-24},
+  eventdateera        = {CE},
+  labeldate           = {2023%},
+  url                 = {https://example.test/date-flags}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $item = $items['legacy-date-flags'];
+
+        $t->same([[2026, 6]], $item['issued']['date-parts']);
+        $t->same(true, $item['issued']['uncertain'] ?? null);
+        $t->same('2026-06?', $item['issued']['raw'] ?? null);
+        $t->same('ce', $item['issued']['era'] ?? null);
+        $t->same([[2025]], $item['available-date']['date-parts']);
+        $t->same(1, $item['available-date']['season'] ?? null);
+        $t->same('09:30Z', $item['available-date']['time'] ?? null);
+        $t->same([[2024, 3, 1], [2024, 4, 2]], $item['submitted']['date-parts']);
+        $t->same(true, $item['submitted']['circa'] ?? null);
+        $t->same(true, $item['submitted']['uncertain'] ?? null);
+        $t->same('14:45+01:00', $item['submitted']['time'] ?? null);
+        $t->same('16:00', $item['submitted']['end-time'] ?? null);
+        $t->same(4, $item['event-date']['season'] ?? null);
+        $t->same('ce', $item['event-date']['era'] ?? null);
+        $t->same(true, $item['label-date']['circa'] ?? null);
+        $t->same(true, $item['label-date']['uncertain'] ?? null);
+        $t->contains('Date markers: issued uncertain (2026-06?); submitted circa and uncertain (2024-03-01%/2024-04-02?); label-date circa and uncertain (2023%)', $processor->renderBibliographyText($item));
+        $t->contains('Date times: available-date 09:30Z; submitted 14:45+01:00/16:00', $processor->renderBibliographyText($item));
+        $t->contains('Date seasons: available-date Spring; event-date Winter', $processor->renderBibliographyText($item));
+        $t->contains('Date eras: issued ce; event-date ce', $processor->renderBibliographyText($item));
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Date Metadata Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-date-metadata-review</id>
+    <updated>2026-06-30T00:00:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="date-marker-summary"/>
+        <text variable="time-summary"/>
+        <text variable="season-summary"/>
+        <text variable="era-summary"/>
+        <date variable="available-date"/>
+        <text variable="submitted-time"/>
+        <text variable="submitted-end-time"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="date-marker-summary"/>
+      <text variable="time-summary"/>
+      <text variable="season-summary"/>
+      <text variable="era-summary"/>
+      <date variable="available-date"/>
+      <text variable="submitted-time"/>
+      <text variable="submitted-end-time"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledItem = $styled->item('legacy-date-flags');
+        $t->same('Bounded Legacy BibLaTeX Date Metadata Review', $styled->cslStyleSummary()['title'] ?? null);
+        $t->same('Spring 2025', $styledItem['availableDate']['display'] ?? null);
+        $t->same('14:45+01:00', $styledItem['submittedDate']['time'] ?? null);
+        $t->same('16:00', $styledItem['submittedDate']['endTime'] ?? null);
+        $t->same('Date seasons: available-date Spring; event-date Winter', $styledItem['dateSeasonSummary'] ?? null);
+        $t->same('[Date Flag Legacy Packet | Date markers: issued uncertain (2026-06?); submitted circa and uncertain (2024-03-01%/2024-04-02?); label-date circa and uncertain (2023%) | Date times: available-date 09:30Z; submitted 14:45+01:00/16:00 | Date seasons: available-date Spring; event-date Winter | Date eras: issued ce; event-date ce | Spring 2025 | 14:45+01:00 | 16:00]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-date-flags', 'text' => '[@legacy-date-flags]']),
+        ]));
+        $t->same('Date Flag Legacy Packet :: Date markers: issued uncertain (2026-06?); submitted circa and uncertain (2024-03-01%/2024-04-02?); label-date circa and uncertain (2023%) :: Date times: available-date 09:30Z; submitted 14:45+01:00/16:00 :: Date seasons: available-date Spring; event-date Winter :: Date eras: issued ce; event-date ce :: Spring 2025 :: 14:45+01:00 :: 16:00', $styled->renderBibliographyEntry('legacy-date-flags'));
+
+        $document = (new MarkdownReader())->read('Date flags [@legacy-date-flags] stay reviewable.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['legacy-date-flags'], $handoff['citedKeys']);
+        $t->same('09:30Z', $handoff['items'][0]['available-date']['time'] ?? null);
+        $t->same(4, $handoff['bibliography']->children[0]->attr('cslItem')['event-date']['season'] ?? null);
+        $t->contains('<p>Date flags [Date Flag Legacy Packet | Date markers: issued uncertain (2026-06?); submitted circa and uncertain (2024-03-01%/2024-04-02?); label-date circa and uncertain (2023%) | Date times: available-date 09:30Z; submitted 14:45+01:00/16:00 | Date seasons: available-date Spring; event-date Winter | Date eras: issued ce; event-date ce | Spring 2025 | 14:45+01:00 | 16:00] stay reviewable.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Date Flag Legacy Packet :: Date markers: issued uncertain (2026-06?); submitted circa and uncertain (2024-03-01%/2024-04-02?); label-date circa and uncertain (2023%) :: Date times: available-date 09:30Z; submitted 14:45+01:00/16:00 :: Date seasons: available-date Spring; event-date Winter :: Date eras: issued ce; event-date ce :: Spring 2025 :: 14:45+01:00 :: 16:00</dd>', $blocks);
     },
     'carries legacy biblatex source file attachment policy metadata' => static function (TestRunner $t): void {
         $source = <<<'BIB'
