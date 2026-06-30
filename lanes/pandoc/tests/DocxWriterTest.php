@@ -166,6 +166,25 @@ return [
         $t->contains('<w:allowPNG/>', $parts['word/webSettings.xml']);
     },
 
+    'reuses external hyperlink relationships for repeated targets' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
+        $url = 'http://example.com/';
+        $document = $doc([
+            $paragraph([
+                new AstNode('link', ['url' => $url], [$text('first')]),
+                new AstNode('space'),
+                new AstNode('link', ['url' => $url], [$text('second')]),
+            ]),
+        ]);
+
+        [, $parts] = $packageParts((new DocxWriter())->write($document));
+
+        $t->same(1, substr_count($parts['word/_rels/document.xml.rels'], 'relationships/hyperlink'));
+        $t->same(1, substr_count($parts['word/_rels/footnotes.xml.rels'], 'relationships/hyperlink'));
+        $t->same(2, substr_count($parts['word/document.xml'], '<w:hyperlink r:id="rId9">'));
+        $t->contains('Target="http://example.com/"', $parts['word/_rels/document.xml.rels']);
+        $t->contains('Target="http://example.com/"', $parts['word/_rels/footnotes.xml.rels']);
+    },
+
     'emits local image media parts with document image relationships' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
         $mediaDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'port-libs-docx-writer-media-' . getmypid() . '-' . bin2hex(random_bytes(4));
         if (!mkdir($mediaDir, 0777, true) && !is_dir($mediaDir)) {

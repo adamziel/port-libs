@@ -82,6 +82,9 @@ final class DocxWriter
     /** @var list<OpcRelationship> */
     private array $footnoteRelationships = [];
 
+    /** @var array<string, string> */
+    private array $hyperlinkRelationshipIds = [];
+
     /** @var list<array{name:string, data:string, contentType:string, source:string, relationshipId:string}> */
     private array $mediaParts = [];
 
@@ -219,6 +222,7 @@ final class DocxWriter
     {
         $this->documentRelationships = [];
         $this->footnoteRelationships = [];
+        $this->hyperlinkRelationshipIds = [];
         $this->mediaParts = [];
         $this->mediaPartsBySource = [];
         $this->footnotes = [];
@@ -1543,6 +1547,11 @@ final class DocxWriter
 
     private function addHyperlinkRelationship(string $target): string
     {
+        $key = OpcRelationship::TARGET_MODE_EXTERNAL . "\0" . $target;
+        if (isset($this->hyperlinkRelationshipIds[$key])) {
+            return $this->hyperlinkRelationshipIds[$key];
+        }
+
         $id = $this->addDocumentRelationship(
             self::REL_HYPERLINK,
             $target,
@@ -1554,6 +1563,7 @@ final class DocxWriter
             $target,
             OpcRelationship::TARGET_MODE_EXTERNAL
         );
+        $this->hyperlinkRelationshipIds[$key] = $id;
 
         return $id;
     }
