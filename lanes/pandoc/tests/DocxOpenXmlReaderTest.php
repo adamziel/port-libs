@@ -17911,6 +17911,125 @@ XML;
         $t->true(in_array('mail-merge-recipient-data', $packageInventory['word/settings/untyped']['roles'], true), 'settings recipient data inventory role missing');
         $t->true(!isset($docx['media']['word/templates/local-template.dotx']), 'Settings relationship targets must remain metadata-only');
     },
+    'summarizes docx settings relationship target path shapes for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $templateRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate';
+        $mailMergeSourceRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeSource';
+        $mailMergeHeaderRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeHeaderSource';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' . "\n" .
+            '  <Override PartName="/templates/root-template.dotx" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml"/>' . "\n" .
+            '  <Override PartName="/word/settings/source.xml" ContentType="application/xml; profile=settings-source"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml?paths=review#settings"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/settings.xml'] = '<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+        $parts['word/_rels/settings.xml.rels'] = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rParentTemplate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate" Target="../templates/root-template.dotx?scope=parent#template"/>
+  <Relationship Id="rPackageRootSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeSource" Target="/word/settings/source.xml?scope=root#source"/>
+  <Relationship Id="rSelfHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeHeaderSource" Target="settings.xml#self"/>
+  <Relationship Id="rNetworkSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeSource" Target="//cdn.example.test/source.csv?cache=1#net" TargetMode="External"/>
+  <Relationship Id="rUnsafeSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeSource" Target="ftp://example.test/source.csv" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['templates/root-template.dotx'] = 'parent template metadata';
+        $parts['word/settings/source.xml'] = '<source/>';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $inventory = $docx['settingsRelationshipInventory'];
+
+        $t->same($inventory, $package['settingsRelationships']);
+        $t->same(5, $inventory['count']);
+        $t->same(5, $inventory['relationshipCount']);
+        $t->same(3, $inventory['internalCount']);
+        $t->same(2, $inventory['externalCount']);
+        $t->same(1, $inventory['allowedExternalTargetCount']);
+        $t->same(1, $inventory['unsafeExternalTargetCount']);
+        $t->same(3, $inventory['existingCount']);
+        $t->same(0, $inventory['missingCount']);
+        $t->same(0, $inventory['missingContentTypeCount']);
+        $t->same(1, $inventory['issueCount']);
+        $t->same(['external-target-unsafe-scheme'], $inventory['issueCodes']);
+        $t->same(1, $inventory['targetParentTraversalRelationshipCount']);
+        $t->same(1, $inventory['targetParentTraversalSegmentCount']);
+        $t->same(['rParentTemplate'], $inventory['targetParentTraversalRelationshipIds']);
+        $t->same(1, $inventory['targetStartsAtPackageRootCount']);
+        $t->same(['rPackageRootSource'], $inventory['targetStartsAtPackageRootRelationshipIds']);
+        $t->same(1, $inventory['sameSourcePartCount']);
+        $t->same(['rSelfHeader'], $inventory['sameSourcePartRelationshipIds']);
+        $t->same(1, $summary['settingsRelationshipTargetParentTraversalCount']);
+        $t->same(1, $summary['settingsRelationshipTargetParentTraversalSegmentCount']);
+        $t->same(1, $summary['settingsRelationshipTargetStartsAtPackageRootCount']);
+        $t->same(1, $summary['settingsRelationshipSameSourceTargetCount']);
+
+        $parent = $inventory['byRelationshipId']['rParentTemplate'];
+        $t->same($templateRel, $parent['relationshipType']);
+        $t->same('../templates/root-template.dotx?scope=parent#template', $parent['target']);
+        $t->same('templates/root-template.dotx?scope=parent#template', $parent['resolvedTarget']);
+        $t->same('templates/root-template.dotx', $parent['targetPart']);
+        $t->same(1, $parent['targetParentTraversalCount']);
+        $t->same(true, $parent['targetHasParentTraversal']);
+        $t->same(false, $parent['targetStartsAtPackageRoot']);
+        $t->same(false, $parent['sameSourcePart']);
+        $t->same('scope=parent', $parent['targetQuery']);
+        $t->same('template', $parent['targetFragment']);
+        $t->same([], $parent['issues']);
+
+        $root = $inventory['byRelationshipId']['rPackageRootSource'];
+        $t->same($mailMergeSourceRel, $root['relationshipType']);
+        $t->same('/word/settings/source.xml?scope=root#source', $root['target']);
+        $t->same('word/settings/source.xml?scope=root#source', $root['resolvedTarget']);
+        $t->same('word/settings/source.xml', $root['targetPart']);
+        $t->same(true, $root['targetStartsAtPackageRoot']);
+        $t->same(false, $root['targetHasParentTraversal']);
+        $t->same(false, $root['sameSourcePart']);
+        $t->same('application/xml; profile=settings-source', $root['contentType']);
+        $t->same(['profile' => 'settings-source'], $root['contentTypeParameterMap']);
+
+        $self = $inventory['byRelationshipId']['rSelfHeader'];
+        $t->same($mailMergeHeaderRel, $self['relationshipType']);
+        $t->same('settings.xml#self', $self['target']);
+        $t->same('word/settings.xml#self', $self['resolvedTarget']);
+        $t->same('word/settings.xml', $self['targetPart']);
+        $t->same(true, $self['sameSourcePart']);
+        $t->same(false, $self['targetHasParentTraversal']);
+        $t->same(false, $self['targetStartsAtPackageRoot']);
+
+        $network = $inventory['byRelationshipId']['rNetworkSource'];
+        $t->same(true, $network['external']);
+        $t->same('network-path-reference', $network['externalTargetKind']);
+        $t->same(null, $network['externalTargetScheme']);
+        $t->same(true, $network['externalTargetAllowed']);
+        $t->same('cache=1', $network['targetQuery']);
+        $t->same('net', $network['targetFragment']);
+        $t->same([], $network['issues']);
+
+        $unsafe = $inventory['byRelationshipId']['rUnsafeSource'];
+        $t->same(true, $unsafe['external']);
+        $t->same('absolute-uri', $unsafe['externalTargetKind']);
+        $t->same('ftp', $unsafe['externalTargetScheme']);
+        $t->same(false, $unsafe['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $unsafe['issues']);
+
+        $partsInventory = $package['parts'];
+        $t->true(in_array('attached-template', $partsInventory['templates/root-template.dotx']['roles'], true), 'settings parent template inventory role missing');
+        $t->true(in_array('mail-merge-source', $partsInventory['word/settings/source.xml']['roles'], true), 'settings package-root source inventory role missing');
+        $t->true(in_array('settings', $partsInventory['word/settings.xml']['roles'], true), 'settings source part inventory role missing');
+        $t->true(!isset($docx['media']['templates/root-template.dotx']), 'Settings parent template must remain metadata-only');
+        $t->true(!isset($docx['media']['word/settings/source.xml']), 'Settings package-root source must remain metadata-only');
+    },
     'labels docx printer settings sidecars from settings relationships as metadata only provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $printerSettingsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/printerSettings';

@@ -1097,6 +1097,10 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['settingsRelationshipMissingContentTypeCount'] = $settingsRelationshipInventory['missingContentTypeCount'];
         $packageProvenance['summary']['settingsRelationshipIssueCount'] = $settingsRelationshipInventory['issueCount'];
         $packageProvenance['summary']['settingsRelationshipIssueCodes'] = $settingsRelationshipInventory['issueCodes'];
+        $packageProvenance['summary']['settingsRelationshipTargetParentTraversalCount'] = $settingsRelationshipInventory['targetParentTraversalRelationshipCount'];
+        $packageProvenance['summary']['settingsRelationshipTargetParentTraversalSegmentCount'] = $settingsRelationshipInventory['targetParentTraversalSegmentCount'];
+        $packageProvenance['summary']['settingsRelationshipTargetStartsAtPackageRootCount'] = $settingsRelationshipInventory['targetStartsAtPackageRootCount'];
+        $packageProvenance['summary']['settingsRelationshipSameSourceTargetCount'] = $settingsRelationshipInventory['sameSourcePartCount'];
         $settingsPolicy = $this->settingsPolicySummary($settings);
         if ($settingsPolicy !== []) {
             $packageProvenance['settingsPolicy'] = $settingsPolicy;
@@ -9264,6 +9268,10 @@ final class DocxOpenXmlReader
         $contentTypesSeen = [];
         $contentTypeBaseCounts = [];
         $issueCodes = [];
+        $targetParentTraversalRelationshipIds = [];
+        $targetStartsAtPackageRootRelationshipIds = [];
+        $sameSourcePartRelationshipIds = [];
+        $targetParentTraversalSegmentCount = 0;
 
         foreach ($settingsRelationships as $relationship) {
             $summary = $this->relationshipInventorySummary(
@@ -9375,6 +9383,16 @@ final class DocxOpenXmlReader
             foreach ($issues as $issue) {
                 $issueCodes[$issue] = true;
             }
+            if (($summary['targetHasParentTraversal'] ?? false) === true) {
+                $this->appendUniqueString($targetParentTraversalRelationshipIds, $relationshipId);
+                $targetParentTraversalSegmentCount += (int) ($summary['targetParentTraversalCount'] ?? 0);
+            }
+            if (($summary['targetStartsAtPackageRoot'] ?? false) === true) {
+                $this->appendUniqueString($targetStartsAtPackageRootRelationshipIds, $relationshipId);
+            }
+            if (($summary['sameSourcePart'] ?? false) === true) {
+                $this->appendUniqueString($sameSourcePartRelationshipIds, $relationshipId);
+            }
         }
 
         ksort($relationshipTypeCounts, SORT_STRING);
@@ -9406,6 +9424,13 @@ final class DocxOpenXmlReader
             'externalTargetKindCounts' => $externalTargetKindCounts,
             'externalTargetSchemeCounts' => $externalTargetSchemeCounts,
             'targetReferenceSuffixes' => $targetReferenceSuffixes,
+            'targetParentTraversalRelationshipCount' => count($targetParentTraversalRelationshipIds),
+            'targetParentTraversalSegmentCount' => $targetParentTraversalSegmentCount,
+            'targetParentTraversalRelationshipIds' => $targetParentTraversalRelationshipIds,
+            'targetStartsAtPackageRootCount' => count($targetStartsAtPackageRootRelationshipIds),
+            'targetStartsAtPackageRootRelationshipIds' => $targetStartsAtPackageRootRelationshipIds,
+            'sameSourcePartCount' => count($sameSourcePartRelationshipIds),
+            'sameSourcePartRelationshipIds' => $sameSourcePartRelationshipIds,
             'contentTypes' => $contentTypesSeen,
             'contentTypeBaseCounts' => $contentTypeBaseCounts,
             'issueCodes' => array_keys($issueCodes),
