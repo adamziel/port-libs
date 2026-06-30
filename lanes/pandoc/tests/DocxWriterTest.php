@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\DocxReader;
 use PortLibs\Pandoc\DocxWriter;
+use PortLibs\Pandoc\DocxWriterGoldenManifest;
 use PortLibs\Pandoc\OpcContentTypes;
 use PortLibs\Pandoc\OpcRelationship;
 use PortLibs\Pandoc\OpcRelationships;
@@ -28,6 +29,55 @@ $packageParts = static function (string $bytes): array {
     }
 
     return [$package, $parts];
+};
+$removeTree = static function (string $path) use (&$removeTree): void {
+    if (!is_dir($path)) {
+        return;
+    }
+
+    foreach (new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+    ) as $entry) {
+        if ($entry->isDir()) {
+            rmdir($entry->getPathname());
+        } else {
+            unlink($entry->getPathname());
+        }
+    }
+
+    rmdir($path);
+};
+$writeFile = static function (string $root, string $relativePath, string $contents): void {
+    $path = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
+    $directory = dirname($path);
+    if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
+        throw new RuntimeException('Unable to create DOCX writer audit fixture directory');
+    }
+
+    if (file_put_contents($path, $contents) === false) {
+        throw new RuntimeException('Unable to write DOCX writer audit fixture');
+    }
+};
+$corePropertiesDocx = static function (string $title, string $created, string $modified): string {
+    $xmlTitle = htmlspecialchars($title, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+    $xmlCreated = htmlspecialchars($created, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+    $xmlModified = htmlspecialchars($modified, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+
+    return ZipPackage::build([
+        [
+            'name' => 'docProps/core.xml',
+            'data' => '<?xml version="1.0" encoding="UTF-8"?>'
+                . '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"'
+                . ' xmlns:dc="http://purl.org/dc/elements/1.1/"'
+                . ' xmlns:dcterms="http://purl.org/dc/terms/"'
+                . ' xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'
+                . '<dc:title>' . $xmlTitle . '</dc:title>'
+                . '<dcterms:created xsi:type="dcterms:W3CDTF">' . $xmlCreated . '</dcterms:created>'
+                . '<dcterms:modified xsi:type="dcterms:W3CDTF">' . $xmlModified . '</dcterms:modified>'
+                . '</cp:coreProperties>',
+        ],
+    ]);
 };
 $jpeg250x250At120Dpi = static function (): string {
     $bytes = hex2bin('FFD8FFE000104A46494600010101007800780000FFC000110800FA00FA03011100021100031100FFD9');
@@ -335,6 +385,47 @@ return [
         $t->contains('<dc:language>en-US</dc:language>', $coreXml);
         $t->contains('<dc:subject>This is the subject</dc:subject>', $coreXml);
         $t->contains('<cp:keywords>keyword 1, keyword 2</cp:keywords>', $coreXml);
+    },
+
+    'writer golden stable comparison ignores volatile core property timestamps only' => static function (TestRunner $t) use ($removeTree, $writeFile, $corePropertiesDocx): void {
+        $root = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'pandoc-docx-writer-core-stable-' . bin2hex(random_bytes(6));
+        if (!mkdir($root, 0777, true) && !is_dir($root)) {
+            throw new RuntimeException('Unable to create DOCX writer stable comparison fixture root');
+        }
+
+        try {
+            $writeFile($root, 'test/docx/golden/core.docx', $corePropertiesDocx(
+                'Core title',
+                '2025-08-04T18:53:46Z',
+                '2025-08-04T18:53:46Z'
+            ));
+            $writeFile($root, 'generated-docx/core.docx', $corePropertiesDocx(
+                'Core title',
+                '1980-01-01T00:00:00Z',
+                '1980-01-01T00:00:00Z'
+            ));
+
+            $matchingReport = (new DocxWriterGoldenManifest($root, 'test/docx', 8, 'generated-docx'))->report();
+            $t->same('matched-stable-package-semantics', $matchingReport['packageComparison']['status']);
+            $t->same(1, $matchingReport['packageComparison']['matchedPackageCount']);
+            $t->same(0, $matchingReport['packageComparison']['mismatchedPackageCount']);
+            $t->same('stable-match', $matchingReport['packageComparison']['comparisonRows'][0]['status']);
+
+            $writeFile($root, 'generated-docx/core.docx', $corePropertiesDocx(
+                'Changed title',
+                '1980-01-01T00:00:00Z',
+                '1980-01-01T00:00:00Z'
+            ));
+
+            $changedReport = (new DocxWriterGoldenManifest($root, 'test/docx', 8, 'generated-docx'))->report();
+            $t->same('mismatched-stable-package-semantics', $changedReport['packageComparison']['status']);
+            $t->same(0, $changedReport['packageComparison']['matchedPackageCount']);
+            $t->same(1, $changedReport['packageComparison']['mismatchedPackageCount']);
+            $t->same(['xml-part-semantics'], $changedReport['packageComparison']['comparisonRows'][0]['mismatchKinds']);
+            $t->same('docProps/core.xml', $changedReport['packageComparison']['comparisonRows'][0]['mismatchDetails']['xmlPartDeltas']['changedXmlParts'][0]['partName']);
+        } finally {
+            $removeTree($root);
+        }
     },
 
     'emits local image media parts with document image relationships' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts, $jpeg250x250At120Dpi): void {

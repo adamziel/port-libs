@@ -8,6 +8,7 @@ final class DocxWriterGoldenManifest
 {
     private const NS_WORDPROCESSINGML = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
     private const NS_OFFICE_RELATIONSHIPS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+    private const NS_DCTERMS = 'http://purl.org/dc/terms/';
     private const NS_WORDPROCESSING_DRAWING = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
     private const NS_DRAWINGML = 'http://schemas.openxmlformats.org/drawingml/2006/main';
     private const NS_DRAWINGML_PICTURE = 'http://schemas.openxmlformats.org/drawingml/2006/picture';
@@ -1538,6 +1539,7 @@ final class DocxWriterGoldenManifest
             'ignores' => [
                 'raw ZIP package byte equality',
                 'ZIP central-directory order, local-entry order, compression method, comments, and timestamps',
+                'docProps/core.xml dcterms:created and dcterms:modified values, which reflect writer run time when the native source has no timestamp',
                 'XML attribute order, namespace prefix spelling, indentation, and formatting-only whitespace',
                 'content-types child order and relationship child order',
             ],
@@ -2266,7 +2268,7 @@ final class DocxWriterGoldenManifest
                 throw new \RuntimeException("XML part has no document element: {$name}");
             }
 
-            $xmlSemantics = self::xmlNodeSemantics($dom->documentElement);
+            $xmlSemantics = self::stableXmlNodeSemantics($name, $dom->documentElement);
             $xmlFeatureCounts = self::xmlFeatureCounts($dom);
 
             return array_replace($row, [
@@ -2704,7 +2706,70 @@ final class DocxWriterGoldenManifest
             throw new \RuntimeException("XML part has no document element: {$label}");
         }
 
-        return self::xmlNodeSemantics($dom->documentElement);
+        return self::stableXmlNodeSemantics($label, $dom->documentElement);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function stableXmlNodeSemantics(string $partName, \DOMElement $root): array
+    {
+        $semantics = self::xmlNodeSemantics($root);
+
+        return self::normalizeStableXmlSemantics($partName, $semantics);
+    }
+
+    /**
+     * @param array<string, mixed> $semantics
+     * @return array<string, mixed>
+     */
+    private static function normalizeStableXmlSemantics(string $partName, array $semantics): array
+    {
+        if ($partName !== 'docProps/core.xml') {
+            return $semantics;
+        }
+
+        return self::normalizeCorePropertiesTimestampSemantics($semantics);
+    }
+
+    /**
+     * @param array<string, mixed> $semantics
+     * @return array<string, mixed>
+     */
+    private static function normalizeCorePropertiesTimestampSemantics(array $semantics): array
+    {
+        if (($semantics['kind'] ?? null) !== 'element') {
+            return $semantics;
+        }
+
+        $namespace = (string) ($semantics['namespace'] ?? '');
+        $name = (string) ($semantics['name'] ?? '');
+        if (
+            $namespace === self::NS_DCTERMS
+            && in_array($name, ['created', 'modified'], true)
+            && is_array($semantics['children'] ?? null)
+        ) {
+            $semantics['children'] = [
+                [
+                    'kind' => 'text',
+                    'value' => '{core-property-timestamp}',
+                ],
+            ];
+
+            return $semantics;
+        }
+
+        if (is_array($semantics['children'] ?? null)) {
+            $children = [];
+            foreach ($semantics['children'] as $child) {
+                $children[] = is_array($child)
+                    ? self::normalizeCorePropertiesTimestampSemantics($child)
+                    : $child;
+            }
+            $semantics['children'] = $children;
+        }
+
+        return $semantics;
     }
 
     private static function loadXmlDocument(string $xml, string $label): \DOMDocument
