@@ -384,6 +384,9 @@ final class OpenDocumentPackage
                     'zipLocalTimestampSource' => $entry['zipLocalTimestampSource'],
                     'zipTimestampIssues' => $entry['zipTimestampIssues'],
                     'declaredSize' => $entry['size'],
+                    'declaredSizeRaw' => $entry['declaredSizeRaw'] ?? null,
+                    'declaredSizeValid' => ($entry['declaredSizeValid'] ?? false) === true,
+                    'declaredSizeInvalid' => ($entry['declaredSizeInvalid'] ?? false) === true,
                     'declaredSizeMismatch' => $entry['declaredSizeMismatch'],
                     'missingMediaType' => ($entry['missingMediaType'] ?? false) === true,
                     'encrypted' => $entry['encrypted'],
@@ -573,6 +576,9 @@ final class OpenDocumentPackage
             'manifestVersion' => is_array($manifestEntry) ? ($manifestEntry['version'] ?? null) : null,
             'manifestPreferredViewMode' => is_array($manifestEntry) ? ($manifestEntry['preferredViewMode'] ?? null) : null,
             'manifestDeclaredSize' => is_array($manifestEntry) ? ($manifestEntry['declaredSize'] ?? $manifestEntry['size'] ?? null) : null,
+            'manifestDeclaredSizeRaw' => is_array($manifestEntry) ? ($manifestEntry['declaredSizeRaw'] ?? null) : null,
+            'manifestDeclaredSizeValid' => is_array($manifestEntry) && ($manifestEntry['declaredSizeValid'] ?? false) === true,
+            'manifestDeclaredSizeInvalid' => is_array($manifestEntry) && ($manifestEntry['declaredSizeInvalid'] ?? false) === true,
             'manifestDeclaredSizeMismatch' => is_array($manifestEntry) && ($manifestEntry['declaredSizeMismatch'] ?? false) === true,
         ];
     }
@@ -753,9 +759,9 @@ final class OpenDocumentPackage
                 'manifestMediaTypeParameters' => is_array($manifestEntry) ? ($manifestEntry['mediaTypeParameters'] ?? []) : [],
                 'manifestMediaTypeParameterMap' => is_array($manifestEntry) ? ($manifestEntry['mediaTypeParameterMap'] ?? []) : [],
                 'manifestDeclaredSize' => is_array($manifestEntry) ? ($manifestEntry['declaredSize'] ?? $manifestEntry['size'] ?? null) : null,
-                'manifestDeclaredSizeRaw' => null,
-                'manifestDeclaredSizeValid' => is_array($manifestEntry) && is_int($manifestEntry['size'] ?? null),
-                'manifestDeclaredSizeInvalid' => false,
+                'manifestDeclaredSizeRaw' => is_array($manifestEntry) ? ($manifestEntry['declaredSizeRaw'] ?? null) : null,
+                'manifestDeclaredSizeValid' => is_array($manifestEntry) && ($manifestEntry['declaredSizeValid'] ?? false) === true,
+                'manifestDeclaredSizeInvalid' => is_array($manifestEntry) && ($manifestEntry['declaredSizeInvalid'] ?? false) === true,
                 'manifestDeclaredSizeMismatch' => is_array($manifestEntry) && ($manifestEntry['declaredSizeMismatch'] ?? false) === true,
                 'manifestDiagnostics' => is_array($manifestEntry) ? ($manifestEntry['diagnostics'] ?? []) : [],
                 'exists' => $entry instanceof ZipPackageEntry,
@@ -1053,6 +1059,9 @@ final class OpenDocumentPackage
                 'customManifestChildElementNames' => is_array($manifestEntry) ? ($manifestEntry['customManifestChildElementNames'] ?? []) : [],
                 'customManifestChildElements' => is_array($manifestEntry) ? ($manifestEntry['customManifestChildElements'] ?? []) : [],
                 'manifestDeclaredSize' => is_array($manifestEntry) ? $manifestEntry['declaredSize'] : null,
+                'manifestDeclaredSizeRaw' => is_array($manifestEntry) ? ($manifestEntry['declaredSizeRaw'] ?? null) : null,
+                'manifestDeclaredSizeValid' => is_array($manifestEntry) && ($manifestEntry['declaredSizeValid'] ?? false) === true,
+                'manifestDeclaredSizeInvalid' => is_array($manifestEntry) && ($manifestEntry['declaredSizeInvalid'] ?? false) === true,
                 'manifestDeclaredSizeMismatch' => is_array($manifestEntry) && ($manifestEntry['declaredSizeMismatch'] ?? false) === true,
                 'manifestMissingMediaType' => is_array($manifestEntry) && ($manifestEntry['missingMediaType'] ?? false) === true,
                 'manifestDiagnostics' => is_array($manifestEntry) ? ($manifestEntry['diagnostics'] ?? []) : [],
@@ -1387,6 +1396,9 @@ final class OpenDocumentPackage
                 'storedCrc32' => $entry['storedCrc32'] ?? null,
                 'byteSha256' => $entry['byteSha256'] ?? null,
                 'declaredSize' => $entry['declaredSize'] ?? null,
+                'declaredSizeRaw' => $entry['declaredSizeRaw'] ?? null,
+                'declaredSizeValid' => ($entry['declaredSizeValid'] ?? false) === true,
+                'declaredSizeInvalid' => ($entry['declaredSizeInvalid'] ?? false) === true,
                 'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
                 'customManifestChildElementCount' => $entry['customManifestChildElementCount'] ?? 0,
                 'customManifestChildElementNames' => $entry['customManifestChildElementNames'] ?? [],
@@ -1460,6 +1472,10 @@ final class OpenDocumentPackage
                 'manifestPackagePath' => $part['manifestPackagePath'] ?? null,
                 'manifestMediaTypeBase' => $part['manifestMediaTypeBase'] ?? null,
                 'manifestMediaFamily' => $part['manifestMediaFamily'] ?? null,
+                'manifestDeclaredSize' => $part['manifestDeclaredSize'] ?? null,
+                'manifestDeclaredSizeRaw' => $part['manifestDeclaredSizeRaw'] ?? null,
+                'manifestDeclaredSizeValid' => ($part['manifestDeclaredSizeValid'] ?? false) === true,
+                'manifestDeclaredSizeInvalid' => ($part['manifestDeclaredSizeInvalid'] ?? false) === true,
                 'manifestDeclaredSizeMismatch' => ($part['manifestDeclaredSizeMismatch'] ?? false) === true,
                 'customManifestChildElementCount' => $part['customManifestChildElementCount'] ?? 0,
                 'customManifestChildElementNames' => $part['customManifestChildElementNames'] ?? [],
@@ -2444,6 +2460,9 @@ final class OpenDocumentPackage
                 && $declaredSize !== $storedByteLength;
             $diagnostics = is_array($entry['diagnostics'] ?? null) ? array_values($entry['diagnostics']) : [];
 
+            if (($entry['declaredSizeInvalid'] ?? false) === true) {
+                $diagnostics[] = 'odf-manifest-invalid-declared-size';
+            }
             if (!$exists) {
                 $diagnostics[] = 'odf-manifest-missing-package-part';
             }
@@ -2496,6 +2515,9 @@ final class OpenDocumentPackage
                 'storedCrc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
                 'byteSha256' => self::packageEntryByteSha256($package, $packagePath, $canExposeBytes),
                 'declaredSize' => $declaredSize,
+                'declaredSizeRaw' => $entry['declaredSizeRaw'] ?? null,
+                'declaredSizeValid' => ($entry['declaredSizeValid'] ?? false) === true,
+                'declaredSizeInvalid' => ($entry['declaredSizeInvalid'] ?? false) === true,
                 'declaredSizeMismatch' => $declaredSizeMismatch,
                 'embeddedObjectPackagePart' => $embeddedObjectPackagePart,
                 'embeddedObjectRootPart' => is_array($embeddedObjectPackage) ? $embeddedObjectPackage['rootPart'] : null,
@@ -7471,6 +7493,8 @@ final class OpenDocumentPackage
             'directoryCount' => 0,
             'encryptedCount' => 0,
             'declaredSizeMismatchCount' => 0,
+            'invalidDeclaredSizeCount' => 0,
+            'invalidDeclaredSizeItems' => [],
             'storedByteLength' => 0,
             'compressedByteLength' => 0,
             'exposableByteLength' => 0,
@@ -7776,6 +7800,10 @@ final class OpenDocumentPackage
             if (($entry['declaredSizeMismatch'] ?? false) === true) {
                 ++$summary['declaredSizeMismatchCount'];
                 $summary['declaredSizeMismatches'][] = $item;
+            }
+            if (($entry['declaredSizeInvalid'] ?? false) === true) {
+                ++$summary['invalidDeclaredSizeCount'];
+                $summary['invalidDeclaredSizeItems'][] = $item;
             }
             if (is_int($entry['storedByteLength'] ?? null)) {
                 $summary['storedByteLength'] += $entry['storedByteLength'];
@@ -8530,6 +8558,11 @@ final class OpenDocumentPackage
             'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
             'storedByteLength' => $entry['storedByteLength'] ?? null,
             'compressedByteLength' => $entry['compressedByteLength'] ?? null,
+            'declaredSize' => $entry['declaredSize'] ?? null,
+            'declaredSizeRaw' => $entry['declaredSizeRaw'] ?? null,
+            'declaredSizeValid' => ($entry['declaredSizeValid'] ?? false) === true,
+            'declaredSizeInvalid' => ($entry['declaredSizeInvalid'] ?? false) === true,
+            'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
             'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? null,
         ];
     }
@@ -8639,6 +8672,9 @@ final class OpenDocumentPackage
             'zipLocalTimestampSource' => $entry['zipLocalTimestampSource'] ?? null,
             'zipTimestampIssues' => $entry['zipTimestampIssues'] ?? [],
             'declaredSize' => $entry['declaredSize'] ?? null,
+            'declaredSizeRaw' => $entry['declaredSizeRaw'] ?? null,
+            'declaredSizeValid' => ($entry['declaredSizeValid'] ?? false) === true,
+            'declaredSizeInvalid' => ($entry['declaredSizeInvalid'] ?? false) === true,
             'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
             'missingMediaType' => ($entry['missingMediaType'] ?? false) === true,
             'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? null,
@@ -8712,6 +8748,11 @@ final class OpenDocumentPackage
             'zipLocalTimestampSource' => $entry['zipLocalTimestampSource'] ?? null,
             'zipTimestampIssues' => $entry['zipTimestampIssues'] ?? [],
             'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
+            'declaredSize' => $entry['declaredSize'] ?? null,
+            'declaredSizeRaw' => $entry['declaredSizeRaw'] ?? null,
+            'declaredSizeValid' => ($entry['declaredSizeValid'] ?? false) === true,
+            'declaredSizeInvalid' => ($entry['declaredSizeInvalid'] ?? false) === true,
+            'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
             'missingMediaType' => ($entry['missingMediaType'] ?? false) === true,
             'diagnostics' => $entry['diagnostics'] ?? [],
         ];
@@ -8875,7 +8916,7 @@ final class OpenDocumentPackage
      *     version:string|null,
      *     rootAttributes:array<string, mixed>,
      *     rootExtensionElements:array<string, mixed>,
-     *     entries:list<array{manifestIndex:int, path:string, packagePath:string|null, pathReference:string|null, pathSuffix:string|null, pathQuery:string|null, pathFragment:string|null, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null}>
+     *     entries:list<array{manifestIndex:int, path:string, packagePath:string|null, pathReference:string|null, pathSuffix:string|null, pathQuery:string|null, pathFragment:string|null, mediaType:string, version:string|null, size:int|null, declaredSizeRaw:string|null, declaredSizeValid:bool, declaredSizeInvalid:bool, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null}>
      * }
      */
     private static function parseManifest(string $xml): array
@@ -8911,9 +8952,8 @@ final class OpenDocumentPackage
             $attributeProvenance = self::manifestFileEntryAttributeProvenance($child);
             $childElementProvenance = self::manifestFileEntryChildElementProvenance($child);
 
-            $size = self::manifestSize(
-                self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'size'),
-                $path
+            $declaredSize = self::manifestDeclaredSize(
+                self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'size')
             );
             $encryption = self::manifestEncryption($child);
             $entries[] = [
@@ -8932,7 +8972,10 @@ final class OpenDocumentPackage
                 'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
                 'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
                 'version' => self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'version'),
-                'size' => $size,
+                'size' => $declaredSize['value'],
+                'declaredSizeRaw' => $declaredSize['raw'],
+                'declaredSizeValid' => $declaredSize['valid'],
+                'declaredSizeInvalid' => $declaredSize['invalid'],
                 'preferredViewMode' => self::optionalString(self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'preferred-view-mode')),
                 'manifestAttributeCount' => $attributeProvenance['attributeCount'],
                 'manifestAttributeNames' => $attributeProvenance['attributeNames'],
@@ -10257,25 +10300,48 @@ final class OpenDocumentPackage
         return trim($text);
     }
 
-    private static function manifestSize(?string $value, string $path): ?int
+    /**
+     * @return array{raw:string|null,value:int|null,valid:bool,invalid:bool}
+     */
+    private static function manifestDeclaredSize(?string $value): array
     {
         $value = $value === null ? '' : trim($value);
         if ($value === '') {
-            return null;
+            return [
+                'raw' => null,
+                'value' => null,
+                'valid' => false,
+                'invalid' => false,
+            ];
         }
 
         if (!ctype_digit($value)) {
-            throw new \InvalidArgumentException('ODF manifest:size for ' . $path . ' must be a non-negative integer');
+            return [
+                'raw' => $value,
+                'value' => null,
+                'valid' => false,
+                'invalid' => true,
+            ];
         }
 
         $normalized = ltrim($value, '0');
         $normalized = $normalized === '' ? '0' : $normalized;
         $max = (string) PHP_INT_MAX;
         if (strlen($normalized) > strlen($max) || (strlen($normalized) === strlen($max) && strcmp($normalized, $max) > 0)) {
-            throw new \InvalidArgumentException('ODF manifest:size for ' . $path . ' exceeds platform integer bounds');
+            return [
+                'raw' => $value,
+                'value' => null,
+                'valid' => false,
+                'invalid' => true,
+            ];
         }
 
-        return (int) $normalized;
+        return [
+            'raw' => $value,
+            'value' => (int) $normalized,
+            'valid' => true,
+            'invalid' => false,
+        ];
     }
 
     /**
