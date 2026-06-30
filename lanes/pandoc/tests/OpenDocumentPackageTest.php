@@ -402,6 +402,7 @@ return [
         }
         $order = $summary['manifestReview']['manifestFileEntryOrder'];
         $inventory = $summary['packageInventory']['parts'];
+        $identity = $summary['packageIdentity'];
 
         $t->same(4, $rootAttributeProvenance['attributeCount']);
         $t->same(['loext:generator', 'manifest:version', 'wp:review-source', 'xml:lang'], $rootAttributeProvenance['attributeNames']);
@@ -452,6 +453,17 @@ return [
         $t->same('sha256-content', $inventory['content.xml']['customManifestAttributeMap']['loext:checksum']);
         $t->same(3, $inventory['Pictures/hero.png']['customManifestAttributeCount']);
         $t->same('en-US', $inventory['Pictures/hero.png']['customManifestAttributeMap']['xml:lang']);
+
+        $t->same(3, $identity['manifestRootCustomAttributeCount']);
+        $t->same(['loext:generator', 'wp:review-source', 'xml:lang'], $identity['manifestRootCustomAttributeNames']);
+        $t->same($rootAttributeProvenance['customAttributeMap'], $identity['manifestRootCustomAttributeMap']);
+        $t->same($rootAttributeProvenance['namespaceDeclarationCount'], $identity['manifestRootNamespaceDeclarationCount']);
+        $t->same($rootAttributeProvenance['namespaceDeclarationNames'], $identity['manifestRootNamespaceDeclarationNames']);
+        $t->same($rootAttributeProvenance['namespaceDeclarationMap'], $identity['manifestRootNamespaceDeclarationMap']);
+
+        $changedManifest = str_replace('wp:review-source="migration-queue"', 'wp:review-source="archive-queue"', $manifest);
+        $changedIdentity = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $changedManifest))->summarize()['packageIdentity'];
+        $t->true($identity['identitySha256'] !== $changedIdentity['identitySha256']);
     },
     'includes compact ODT manifest root provenance in package identity' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifest = str_replace(
