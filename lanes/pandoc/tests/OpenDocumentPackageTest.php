@@ -4628,6 +4628,90 @@ XML;
         $t->same('odf-package-inventory-metadata-only', $inventory['byteExposurePolicy']);
         $t->same(false, $inventory['canExposeBytes']);
     },
+    'includes compact ODT manifest provenance in package identity metadata' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifest = str_replace(
+            [
+                '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">',
+                '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml"/>',
+                '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            ],
+            [
+                '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" xmlns:wp="urn:wordpress:review" manifest:version="1.3" wp:review-source="identity">',
+                '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml" manifest:preferred-view-mode="page-preview" wp:review-priority="high"/>',
+                '<manifest:file-entry manifest:media-type="image/jpeg; profile=&quot;review cover&quot;" manifest:full-path="Pictures/hero.png" manifest:size="7" manifest:preferred-view-mode="thumbnail" wp:media-role="cover"/>',
+            ],
+            $manifestXml
+        );
+
+        $identityForManifest = static fn (string $manifestXml): array => OpenDocumentPackage::fromPackage(
+            $buildOdtPackage(manifest: $manifestXml)
+        )->summarize()['packageIdentity'];
+
+        $identity = $identityForManifest($manifest);
+        $repeatIdentity = $identityForManifest($manifest);
+        $changedPreferredViewIdentity = $identityForManifest(str_replace(
+            'manifest:preferred-view-mode="thumbnail"',
+            'manifest:preferred-view-mode="presentation-slide-show"',
+            $manifest
+        ));
+        $changedCustomAttributeIdentity = $identityForManifest(str_replace(
+            'wp:review-priority="high"',
+            'wp:review-priority="low"',
+            $manifest
+        ));
+        $changedMediaParameterIdentity = $identityForManifest(str_replace(
+            'profile=&quot;review cover&quot;',
+            'profile=&quot;review alternate&quot;',
+            $manifest
+        ));
+
+        $manifestEntries = [];
+        foreach ($identity['manifestEntries'] as $entry) {
+            $manifestEntries[$entry['path']] = $entry;
+        }
+        $packageEntries = [];
+        foreach ($identity['packageEntries'] as $entry) {
+            $packageEntries[$entry['path']] = $entry;
+        }
+
+        $content = $manifestEntries['content.xml'];
+        $hero = $manifestEntries['Pictures/hero.png'];
+        $packageContent = $packageEntries['content.xml'];
+        $packageHero = $packageEntries['Pictures/hero.png'];
+
+        $t->same($identity['identitySha256'], $repeatIdentity['identitySha256']);
+        $t->true($identity['identitySha256'] !== $changedPreferredViewIdentity['identitySha256']);
+        $t->true($identity['identitySha256'] !== $changedCustomAttributeIdentity['identitySha256']);
+        $t->true($identity['identitySha256'] !== $changedMediaParameterIdentity['identitySha256']);
+
+        $t->same(2, $identity['manifestRootAttributeCount']);
+        $t->same(['manifest:version', 'wp:review-source'], $identity['manifestRootAttributeNames']);
+        $t->same(1, $identity['manifestRootCustomAttributeCount']);
+        $t->same(['wp:review-source'], $identity['manifestRootCustomAttributeNames']);
+        $t->same(['wp:review-source' => 'identity'], $identity['manifestRootCustomAttributeMap']);
+        $t->same(2, $identity['manifestRootNamespaceDeclarationCount']);
+        $t->same('urn:wordpress:review', $identity['manifestRootNamespaceDeclarationMap']['xmlns:wp']);
+
+        $t->same('page-preview', $content['preferredViewMode']);
+        $t->same(1, $content['customManifestAttributeCount']);
+        $t->same(['wp:review-priority'], $content['customManifestAttributeNames']);
+        $t->same(['wp:review-priority' => 'high'], $content['customManifestAttributeMap']);
+        $t->same('page-preview', $packageContent['manifestPreferredViewMode']);
+        $t->same(['wp:review-priority' => 'high'], $packageContent['customManifestAttributeMap']);
+
+        $t->same('image/jpeg; profile="review cover"', $hero['mediaType']);
+        $t->same('image/jpeg', $hero['mediaTypeBase']);
+        $t->same(true, $hero['mediaTypeHasParameters']);
+        $t->same(1, $hero['mediaTypeParameterCount']);
+        $t->same(['profile' => 'review cover'], $hero['mediaTypeParameterMap']);
+        $t->same('thumbnail', $hero['preferredViewMode']);
+        $t->same(['wp:media-role' => 'cover'], $hero['customManifestAttributeMap']);
+        $t->same('image/jpeg; profile="review cover"', $packageHero['manifestMediaType']);
+        $t->same(true, $packageHero['manifestMediaTypeHasParameters']);
+        $t->same(['profile' => 'review cover'], $packageHero['manifestMediaTypeParameterMap']);
+        $t->same('thumbnail', $packageHero['manifestPreferredViewMode']);
+        $t->same(['wp:media-role' => 'cover'], $packageHero['customManifestAttributeMap']);
+    },
     'surfaces compact ODT ZIP platform attributes as metadata-only provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifestWithPlatformParts = str_replace(
             '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
