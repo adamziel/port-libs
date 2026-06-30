@@ -18944,6 +18944,119 @@ XML;
         $t->same(['mail-merge-recipient-data' => 1, 'relationship-target' => 1], $relationshipType['targetRoleCounts']);
         $t->same('?batch=review#records', $relationshipType['relationships'][0]['targetReferenceSuffix']);
     },
+    'summarizes docx mail merge recipient data record diagnostics for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $recipientDataBytes = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:recipients xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:recipientData>
+    <w:active w:val="0"/>
+    <w:column w:val="4"/>
+    <w:uniqueTag w:val="excluded-secret-recipient-key"/>
+  </w:recipientData>
+  <w:recipientData>
+    <w:column w:val="7"/>
+    <w:hash w:val="implicit-secret-recipient-hash"/>
+  </w:recipientData>
+  <w:recipientData>
+    <w:active w:val="1"/>
+  </w:recipientData>
+</w:recipients>
+XML;
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' . "\n" .
+            '  <Override PartName="/word/recipient-diagnostics.xml" ContentType="application/vnd.ms-word.mailMergeRecipientData+xml; profile=recipient-diagnostics"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/_rels/settings.xml.rels'] = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rRecipientDiagnostics" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeRecipientData" Target="recipient-diagnostics.xml?batch=diagnostics#records" TargetMode="Internal"/>
+</Relationships>
+XML;
+        $parts['word/settings.xml'] = <<<'XML'
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:mailMerge>
+    <w:mainDocumentType w:val="formLetters"/>
+    <w:dataType w:val="native"/>
+    <w:odso>
+      <w:recipientData r:id="rRecipientDiagnostics"/>
+    </w:odso>
+  </w:mailMerge>
+</w:settings>
+XML;
+        $parts['word/recipient-diagnostics.xml'] = $recipientDataBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $mailMerge = $docx['settings']['mailMerge'];
+        $recipientData = $mailMerge['recipientData'];
+        $records = $recipientData['records'];
+        $summary = $docx['packageProvenance']['summary'];
+
+        $t->same(1, $mailMerge['relationshipCount']);
+        $t->same(1, $mailMerge['issueCount']);
+        $t->same(['missing-recipient-column', 'missing-recipient-unique-tag'], $mailMerge['issueCodes']);
+
+        $t->same('rRecipientDiagnostics', $recipientData['id']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeRecipientData', $recipientData['relationshipType']);
+        $t->same('word/recipient-diagnostics.xml', $recipientData['targetPart']);
+        $t->same('batch=diagnostics', $recipientData['targetQuery']);
+        $t->same('records', $recipientData['targetFragment']);
+        $t->same(true, $recipientData['contentTypeMatchesExpected']);
+        $t->same('application/vnd.ms-word.mailMergeRecipientData+xml; profile=recipient-diagnostics', $recipientData['contentType']);
+        $t->same('application/vnd.ms-word.mailmergerecipientdata+xml', $recipientData['contentTypeBase']);
+        $t->same(['profile' => 'recipient-diagnostics'], $recipientData['contentTypeParameterMap']);
+        $t->same(3, $recipientData['recordCount']);
+        $t->same(2, $recipientData['includedRecordCount']);
+        $t->same(1, $recipientData['explicitIncludedRecordCount']);
+        $t->same(1, $recipientData['implicitIncludedRecordCount']);
+        $t->same(1, $recipientData['excludedRecordCount']);
+        $t->same(2, $recipientData['uniqueTagCount']);
+        $t->same(['hash' => 1, 'uniqueTag' => 1], $recipientData['uniqueTagKindCounts']);
+        $t->same([4, 7], $recipientData['columnIndexes']);
+        $t->same(1, $recipientData['recordIssueCount']);
+        $t->same(['missing-recipient-column', 'missing-recipient-unique-tag'], $recipientData['recordIssueCodes']);
+        $t->same(2, $recipientData['issueCount']);
+        $t->same(['missing-recipient-column', 'missing-recipient-unique-tag'], $recipientData['issues']);
+
+        $t->same(false, $records[0]['included']);
+        $t->same('uniqueTag', $records[0]['uniqueTagKind']);
+        $t->same(true, $records[1]['included']);
+        $t->same(null, $records[1]['active']);
+        $t->same('hash', $records[1]['uniqueTagKind']);
+        $t->same(true, $records[2]['included']);
+        $t->same(true, $records[2]['active']);
+        $t->same(null, $records[2]['columnIndex']);
+        $t->same(null, $records[2]['uniqueTagKind']);
+        $t->same(['missing-recipient-column', 'missing-recipient-unique-tag'], $records[2]['issues']);
+
+        $t->same(3, $summary['mailMergeRecipientDataRecordCount']);
+        $t->same(2, $summary['mailMergeRecipientDataIncludedRecordCount']);
+        $t->same(1, $summary['mailMergeRecipientDataExplicitIncludedRecordCount']);
+        $t->same(1, $summary['mailMergeRecipientDataImplicitIncludedRecordCount']);
+        $t->same(1, $summary['mailMergeRecipientDataExcludedRecordCount']);
+        $t->same(2, $summary['mailMergeRecipientDataUniqueTagCount']);
+        $t->same([4, 7], $summary['mailMergeRecipientDataColumnIndexes']);
+        $t->same(['hash' => 1, 'uniqueTag' => 1], $summary['mailMergeRecipientDataUniqueTagKindCounts']);
+        $t->same(1, $summary['mailMergeRecipientDataRecordIssueCount']);
+        $t->same(['missing-recipient-column', 'missing-recipient-unique-tag'], $summary['mailMergeRecipientDataRecordIssueCodes']);
+        $t->same(2, $summary['mailMergeRecipientDataIssueCount']);
+        $t->same(['missing-recipient-column', 'missing-recipient-unique-tag'], $summary['mailMergeRecipientDataIssueCodes']);
+
+        $encoded = json_encode([$recipientData, $summary]);
+        $t->true(is_string($encoded), 'recipient diagnostics should encode for review');
+        $t->true(!str_contains((string) $encoded, 'excluded-secret-recipient-key'), 'recipient unique tag values must not be exposed');
+        $t->true(!str_contains((string) $encoded, 'implicit-secret-recipient-hash'), 'recipient hash values must not be exposed');
+    },
     'preserves docx settings review protection hyphenation and save policy metadata' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

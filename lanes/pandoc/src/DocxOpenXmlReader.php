@@ -1236,9 +1236,25 @@ final class DocxOpenXmlReader
             $recipientData = $mailMerge['recipientData'] ?? null;
             if (is_array($recipientData)) {
                 $packageProvenance['summary']['mailMergeRecipientDataRecordCount'] = (int) ($recipientData['recordCount'] ?? 0);
+                $packageProvenance['summary']['mailMergeRecipientDataIncludedRecordCount'] = (int) ($recipientData['includedRecordCount'] ?? 0);
+                $packageProvenance['summary']['mailMergeRecipientDataExplicitIncludedRecordCount'] = (int) ($recipientData['explicitIncludedRecordCount'] ?? 0);
+                $packageProvenance['summary']['mailMergeRecipientDataImplicitIncludedRecordCount'] = (int) ($recipientData['implicitIncludedRecordCount'] ?? 0);
                 $packageProvenance['summary']['mailMergeRecipientDataExcludedRecordCount'] = (int) ($recipientData['excludedRecordCount'] ?? 0);
                 $packageProvenance['summary']['mailMergeRecipientDataUniqueTagCount'] = (int) ($recipientData['uniqueTagCount'] ?? 0);
-                $packageProvenance['summary']['mailMergeRecipientDataIssueCount'] = count($recipientData['issues'] ?? []);
+                $packageProvenance['summary']['mailMergeRecipientDataColumnIndexes'] = is_array($recipientData['columnIndexes'] ?? null)
+                    ? $recipientData['columnIndexes']
+                    : [];
+                $packageProvenance['summary']['mailMergeRecipientDataUniqueTagKindCounts'] = is_array($recipientData['uniqueTagKindCounts'] ?? null)
+                    ? $recipientData['uniqueTagKindCounts']
+                    : [];
+                $packageProvenance['summary']['mailMergeRecipientDataRecordIssueCount'] = (int) ($recipientData['recordIssueCount'] ?? 0);
+                $packageProvenance['summary']['mailMergeRecipientDataRecordIssueCodes'] = is_array($recipientData['recordIssueCodes'] ?? null)
+                    ? $recipientData['recordIssueCodes']
+                    : [];
+                $packageProvenance['summary']['mailMergeRecipientDataIssueCount'] = (int) ($recipientData['issueCount'] ?? count($recipientData['issues'] ?? []));
+                $packageProvenance['summary']['mailMergeRecipientDataIssueCodes'] = is_array($recipientData['issues'] ?? null)
+                    ? $recipientData['issues']
+                    : [];
             }
         }
         $themeFontLanguage = $settings['themeFontLanguage'] ?? null;
@@ -46237,8 +46253,12 @@ final class DocxOpenXmlReader
         $item['implicitIncludedRecordCount'] = 0;
         $item['excludedRecordCount'] = 0;
         $item['uniqueTagCount'] = 0;
+        $item['uniqueTagKindCounts'] = [];
         $item['columnIndexes'] = [];
         $item['uniqueTagSha256s'] = [];
+        $item['recordIssueCount'] = 0;
+        $item['recordIssueCodes'] = [];
+        $item['issueCount'] = 0;
         $item['records'] = [];
 
         if (($item['external'] ?? null) === true) {
@@ -46350,6 +46370,40 @@ final class DocxOpenXmlReader
     {
         $item['issues'] = array_values(array_unique(array_map('strval', $item['issues'] ?? [])));
         sort($item['issues'], SORT_STRING);
+        $item['issueCount'] = count($item['issues']);
+
+        $recordIssueCount = 0;
+        $recordIssueCodes = [];
+        $uniqueTagKindCounts = [];
+        $records = is_array($item['records'] ?? null) ? $item['records'] : [];
+        foreach ($records as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            $recordIssues = is_array($record['issues'] ?? null)
+                ? array_values(array_unique(array_map('strval', $record['issues'])))
+                : [];
+            if ($recordIssues !== []) {
+                ++$recordIssueCount;
+                foreach ($recordIssues as $issue) {
+                    if ($issue !== '') {
+                        $recordIssueCodes[$issue] = true;
+                    }
+                }
+            }
+
+            $uniqueTagKind = is_string($record['uniqueTagKind'] ?? null) ? $record['uniqueTagKind'] : '';
+            if ($uniqueTagKind !== '') {
+                $uniqueTagKindCounts[$uniqueTagKind] = ($uniqueTagKindCounts[$uniqueTagKind] ?? 0) + 1;
+            }
+        }
+
+        ksort($recordIssueCodes, SORT_STRING);
+        ksort($uniqueTagKindCounts, SORT_STRING);
+        $item['recordIssueCount'] = $recordIssueCount;
+        $item['recordIssueCodes'] = array_keys($recordIssueCodes);
+        $item['uniqueTagKindCounts'] = $uniqueTagKindCounts;
 
         return $item;
     }
