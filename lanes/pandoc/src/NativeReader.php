@@ -995,19 +995,46 @@ final class NativeReader
 
     private function parseCitationInline(): AstNode
     {
-        $citations = $this->parseList(fn (): array => $this->parseCitationRecord());
+        $citations = $this->parseList(fn (): AstNode => $this->parseCitationRecord());
         $display = $this->parseInlineList();
+        $displayText = $this->plainInlineText($display);
 
-        return new AstNode('citation', [
-            'citations' => $citations,
-            'text' => $this->plainInlineText($display),
-        ], $display);
+        if (count($citations) === 1) {
+            $citation = $citations[0];
+            $attrs = $citation->attrs;
+            if ($displayText !== '') {
+                $attrs['text'] = $displayText;
+            }
+
+            return new AstNode('citation', $attrs, $display);
+        }
+
+        $attrs = [];
+        if ($displayText !== '') {
+            $attrs['text'] = $displayText;
+        }
+        if ($display !== []) {
+            $attrs['citationSourceInlines'] = $display;
+        }
+
+        return new AstNode('citation_group', $attrs, $citations);
     }
 
     /**
-     * @return array<string, mixed>
+     * @param list<AstNode> $prefix
+     * @param list<AstNode> $suffix
      */
-    private function parseCitationRecord(): array
+    private function citationRecordSourceText(string $id, string $mode, array $prefix, array $suffix): string
+    {
+        $prefixText = $this->plainInlineText($prefix);
+        $suffixText = $this->plainInlineText($suffix);
+        $token = ($mode === 'suppress_author' ? '-@' : '@') . $id;
+        $text = $prefixText === '' ? $token : $prefixText . ' ' . $token;
+
+        return $suffixText === '' ? $text : $text . ', ' . $suffixText;
+    }
+
+    private function parseCitationRecord(): AstNode
     {
         $this->expectIdentifier('Citation');
         $this->expectSymbol('{');
@@ -1026,14 +1053,27 @@ final class NativeReader
             $this->acceptSymbol(',');
         }
 
-        return [
-            'id' => (string) ($fields['citationId'] ?? ''),
-            'prefix' => $fields['citationPrefix'] ?? [],
-            'suffix' => $fields['citationSuffix'] ?? [],
-            'mode' => (string) ($fields['citationMode'] ?? 'normal'),
-            'noteNum' => (int) ($fields['citationNoteNum'] ?? 1),
-            'hash' => (int) ($fields['citationHash'] ?? 0),
+        $id = (string) ($fields['citationId'] ?? '');
+        $prefix = $fields['citationPrefix'] ?? [];
+        $suffix = $fields['citationSuffix'] ?? [];
+        $mode = (string) ($fields['citationMode'] ?? 'normal');
+        $attrs = [
+            'id' => $id,
+            'text' => $this->citationRecordSourceText($id, $mode, $prefix, $suffix),
+            'mode' => $mode,
+            'citationNoteNum' => (int) ($fields['citationNoteNum'] ?? 1),
+            'citationHash' => (int) ($fields['citationHash'] ?? 0),
         ];
+        if ($prefix !== []) {
+            $attrs['prefix'] = $prefix;
+        }
+        if ($suffix !== []) {
+            $attrs['suffix'] = $suffix;
+        }
+
+        return new AstNode('citation', $attrs, [
+            new AstNode('text', ['text' => $attrs['text']]),
+        ]);
     }
 
     private function parseRawInline(): AstNode

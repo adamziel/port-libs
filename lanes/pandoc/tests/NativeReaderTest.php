@@ -10,6 +10,7 @@ use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\NativeReader;
 use PortLibs\Pandoc\NativeWriter;
 use PortLibs\Pandoc\PandocJsonReader;
+use PortLibs\Pandoc\PandocJsonWriter;
 use PortLibs\Pandoc\TableGeometry;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
@@ -472,6 +473,54 @@ NATIVE;
             $t->same('raw_markdown', $roundTrip->children[1]->children[0]->type, "{$source} preserves markdown raw inline alias");
             $t->same('raw_inline', $roundTrip->children[1]->children[2]->type, "{$source} preserves generic raw inline");
         }
+    },
+    'normalizes textual native cite constructors for pandoc json writer handoff' => static function (TestRunner $t): void {
+        $nativeText = <<<'NATIVE'
+[ Para
+  [ Cite
+      [ Citation { citationId = "doe1901" , citationPrefix = [] , citationSuffix = [] , citationMode = AuthorInText , citationNoteNum = 0 , citationHash = 1901 } ]
+      [ Str "@doe1901" ]
+  , Space
+  , Cite
+      [ Citation { citationId = "smith1899" , citationPrefix = [ Str "see" ] , citationSuffix = [ Str "p." , Space , Str "7" ] , citationMode = NormalCitation , citationNoteNum = 0 , citationHash = 1899 }
+      , Citation { citationId = "roe1902" , citationPrefix = [] , citationSuffix = [] , citationMode = SuppressAuthor , citationNoteNum = 0 , citationHash = 1902 }
+      ]
+      [ Str "[see" , Space , Str "@smith1899," , Space , Str "p." , Space , Str "7;" , Space , Str "-@roe1902]" ]
+  ]
+]
+NATIVE;
+
+        $document = (new NativeReader())->read($nativeText);
+        $paragraph = $document->children[0];
+        $single = $paragraph->children[0];
+        $cluster = $paragraph->children[2];
+        $json = (new PandocJsonWriter())->toArray($document);
+        $jsonRoundTrip = (new NativeReader())->read(json_encode($json, JSON_THROW_ON_ERROR));
+        $nativeJson = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $blocksOnlyRoundTrip = (new NativeReader())->read((new NativeWriter(['blocksOnly' => true]))->write($document));
+
+        $t->same('citation', $single->type);
+        $t->same('doe1901', $single->attr('id'));
+        $t->same('author_in_text', $single->attr('mode'));
+        $t->same('@doe1901', $single->attr('text'));
+        $t->same('citation_group', $cluster->type);
+        $t->same('[see @smith1899, p. 7; -@roe1902]', $cluster->attr('text'));
+        $t->same(['smith1899', 'roe1902'], array_map(static fn (AstNode $node): string => $node->attr('id'), $cluster->children));
+        $t->same('see', $cluster->children[0]->attr('prefix')[0]->attr('text'));
+        $t->same('p.', $cluster->children[0]->attr('suffix')[0]->attr('text'));
+        $t->same('suppress_author', $cluster->children[1]->attr('mode'));
+
+        $t->same('Cite', $json['blocks'][0]['c'][0]['t']);
+        $t->same('doe1901', $json['blocks'][0]['c'][0]['c'][0][0]['citationId']);
+        $t->same('AuthorInText', $json['blocks'][0]['c'][0]['c'][0][0]['citationMode']['t']);
+        $t->same('Cite', $json['blocks'][0]['c'][2]['t']);
+        $t->same(['smith1899', 'roe1902'], array_column($json['blocks'][0]['c'][2]['c'][0], 'citationId'));
+        $t->same('SuppressAuthor', $json['blocks'][0]['c'][2]['c'][0][1]['citationMode']['t']);
+        $t->same('Cite', $nativeJson['blocks'][0]['c'][0]['t']);
+        $t->same('Cite', $nativeJson['blocks'][0]['c'][2]['t']);
+        $t->same('citation', $jsonRoundTrip->children[0]->children[0]->type);
+        $t->same('citation_group', $jsonRoundTrip->children[0]->children[2]->type);
+        $t->same('citation_group', $blocksOnlyRoundTrip->children[0]->children[2]->type);
     },
     'preserves raw html through markdown writer serialization boundaries' => static function (TestRunner $t): void {
         $rawHtmlDocument = new AstNode('document', [], [

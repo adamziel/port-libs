@@ -1324,7 +1324,7 @@ final class NativeWriter
             'note' => ['Note ' . $this->renderBlockList($node->children, 0)],
             'quoted' => ['Quoted ' . (((string) $node->attr('kind', 'double')) === 'single' ? 'SingleQuote' : 'DoubleQuote') . ' ' . $this->renderInlineList($node->children)],
             'math' => ['Math ' . ($this->mathIsDisplay($node) ? 'DisplayMath' : 'InlineMath') . ' ' . $this->quote((string) $node->attr('text', ''))],
-            'citation' => [$this->renderCitation($node)],
+            'citation', 'citation_group' => [$this->renderCitation($node)],
             'raw_html_inline' => ['RawInline (Format ' . $this->quote($this->rawFormat($node, 'html')) . ') ' . $this->quote($this->rawText($node, 'html'))],
             'raw_tex', 'raw_tex_inline' => ['RawInline (Format ' . $this->quote($this->rawFormat($node, 'tex')) . ') ' . $this->quote($this->rawText($node, 'tex'))],
             'raw_markdown', 'raw_inline' => ['RawInline (Format ' . $this->quote($this->rawFormat($node, 'markdown')) . ') ' . $this->quote($this->rawText($node, 'markdown'))],
@@ -1418,12 +1418,31 @@ final class NativeWriter
     private function renderCitation(AstNode $node): string
     {
         $citations = $this->citationEntries($node);
-        $display = $node->children;
-        if ($display === []) {
-            $display = $this->textInlines((string) $node->attr('text', $this->citationDisplayText($citations)));
-        }
+        $display = $this->citationDisplayInlines($node, $citations);
 
         return 'Cite [ ' . implode(' , ', array_map(fn (array $citation): string => $this->renderCitationEntry($citation), $citations)) . ' ] ' . $this->renderInlineList($display);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $citations
+     * @return list<AstNode>
+     */
+    private function citationDisplayInlines(AstNode $node, array $citations): array
+    {
+        if ($node->type === 'citation_group') {
+            $sourceInlines = $node->attr('citationSourceInlines', null);
+            if ($this->isInlineNodeList($sourceInlines)) {
+                return $sourceInlines;
+            }
+
+            return $this->textInlines((string) $node->attr('text', $this->citationDisplayText($citations)));
+        }
+
+        if ($node->children !== []) {
+            return $node->children;
+        }
+
+        return $this->textInlines((string) $node->attr('text', $this->citationDisplayText($citations)));
     }
 
     /**
@@ -1431,6 +1450,18 @@ final class NativeWriter
      */
     private function citationEntries(AstNode $node): array
     {
+        if ($node->type === 'citation_group') {
+            $entries = [];
+            foreach ($node->children as $child) {
+                if ($child->type === 'citation') {
+                    $entries[] = $this->citationEntryFromNode($child);
+                }
+            }
+            if ($entries !== []) {
+                return $entries;
+            }
+        }
+
         $citations = $node->attr('citations', null);
         if (is_array($citations) && $citations !== []) {
             $entries = [];
@@ -1835,11 +1866,27 @@ final class NativeWriter
             'quoted',
             'math',
             'citation',
+            'citation_group',
             'raw_html_inline',
             'raw_tex_inline',
             'raw_inline',
             'span',
         ], true);
+    }
+
+    private function isInlineNodeList(mixed $value): bool
+    {
+        if (!is_array($value) || $value === []) {
+            return false;
+        }
+
+        foreach ($value as $item) {
+            if (!$item instanceof AstNode || !$this->isInlineNode($item)) {
+                return false;
+            }
+        }
+
+        return array_is_list($value);
     }
 
     /**
