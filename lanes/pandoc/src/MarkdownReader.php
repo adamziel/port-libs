@@ -7904,7 +7904,7 @@ final class MarkdownReader
             return $this->htmlRawHtmlEnabled();
         }
 
-        if (preg_match('/^ {0,3}<(script|pre|style|textarea)(?:[ \t>]|\/>)/i', $expanded) === 1) {
+        if (preg_match('/^ {0,3}<(script|pre|style|textarea|noscript|xmp)(?:[ \t>]|\/>)/i', $expanded) === 1) {
             return $this->htmlRawHtmlEnabled();
         }
 
