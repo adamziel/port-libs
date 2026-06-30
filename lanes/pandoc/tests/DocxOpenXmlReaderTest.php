@@ -3063,6 +3063,107 @@ XML;
         $t->same('xml', $inventory['word/Diagram.XML']['partExtension']);
         $t->same(true, $inventory['word/Diagram.XML']['partExtensionWasNormalized']);
     },
+    'summarizes docx package part raw extension character provenance for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $nonAsciiExtension = "caf\xC3\xA9";
+        $uppercaseExtPart = 'word/media/review.MIX';
+        $whitespaceExtPart = 'customXml/review.space ext';
+        $percentExtPart = 'customXml/review.pct%20ext';
+        $nonAsciiExtPart = 'customXml/review.' . $nonAsciiExtension;
+        $extensionlessPart = 'customXml/no-extension';
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Default Extension="MIX" ContentType="application/octet-stream; profile=raw-extension"/>' . "\n" .
+            '  <Default Extension="space ext" ContentType="application/xml; profile=space-extension"/>' . "\n" .
+            '  <Default Extension="' . $nonAsciiExtension . '" ContentType="application/xml; profile=cafe-extension"/>' . "\n" .
+            '  <Override PartName="/customXml/no-extension" ContentType="application/xml; profile=no-extension"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts[$uppercaseExtPart] = 'uppercase raw extension bytes';
+        $parts[$whitespaceExtPart] = '<space-extension/>';
+        $parts[$percentExtPart] = '<percent-extension/>';
+        $parts[$nonAsciiExtPart] = '<cafe-extension/>';
+        $parts[$extensionlessPart] = '<no-extension/>';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $byPartName = [];
+        foreach ($summary['partRawExtensionCharacterReviewParts'] as $item) {
+            $byPartName[$item['partName']] = $item;
+        }
+
+        $t->same(4, $summary['partRawExtensionCharacterReviewPartCount']);
+        $t->same(1, $summary['partRawExtensionUppercasePartCount']);
+        $t->same(1, $summary['partRawExtensionWhitespacePartCount']);
+        $t->same(1, $summary['partRawExtensionPercentEncodedOctetPartCount']);
+        $t->same(1, $summary['partRawExtensionNonAsciiPartCount']);
+        $t->same([
+            'non-ascii' => 1,
+            'percent-encoded-octet' => 1,
+            'uppercase' => 1,
+            'whitespace' => 1,
+        ], $summary['partRawExtensionCharacterFlagCounts']);
+        $t->same([$uppercaseExtPart], $summary['partRawExtensionCharacterFlagPartNames']['uppercase']);
+        $t->same([$whitespaceExtPart], $summary['partRawExtensionCharacterFlagPartNames']['whitespace']);
+        $t->same([$percentExtPart], $summary['partRawExtensionCharacterFlagPartNames']['percent-encoded-octet']);
+        $t->same([$nonAsciiExtPart], $summary['partRawExtensionCharacterFlagPartNames']['non-ascii']);
+        $t->same(['MIX'], $summary['partRawExtensionCharacterFlagRawExtensions']['uppercase']);
+        $t->same(['space ext'], $summary['partRawExtensionCharacterFlagRawExtensions']['whitespace']);
+        $t->same(['pct%20ext'], $summary['partRawExtensionCharacterFlagRawExtensions']['percent-encoded-octet']);
+        $t->same([$nonAsciiExtension], $summary['partRawExtensionCharacterFlagRawExtensions']['non-ascii']);
+
+        $t->same('MIX', $inventory[$uppercaseExtPart]['rawPartExtension']);
+        $t->same('mix', $inventory[$uppercaseExtPart]['partExtension']);
+        $t->same(['uppercase'], $inventory[$uppercaseExtPart]['rawPartExtensionCharacterFlags']);
+        $t->same(true, $inventory[$uppercaseExtPart]['rawPartExtensionHasUppercase']);
+        $t->same(false, $inventory[$uppercaseExtPart]['rawPartExtensionHasWhitespace']);
+        $t->same(false, $inventory[$uppercaseExtPart]['rawPartExtensionHasPercentEncodedOctet']);
+        $t->same(false, $inventory[$uppercaseExtPart]['rawPartExtensionHasNonAscii']);
+        $t->same(true, $inventory[$uppercaseExtPart]['partExtensionHasUppercase']);
+        $t->same(true, $inventory[$uppercaseExtPart]['partExtensionWasNormalized']);
+        $t->same('default', $inventory[$uppercaseExtPart]['contentTypeSource']);
+        $t->same('application/octet-stream', $inventory[$uppercaseExtPart]['contentTypeBase']);
+
+        $t->same(['whitespace'], $inventory[$whitespaceExtPart]['rawPartExtensionCharacterFlags']);
+        $t->same(true, $inventory[$whitespaceExtPart]['rawPartExtensionHasWhitespace']);
+        $t->same(false, $inventory[$whitespaceExtPart]['rawPartExtensionHasUppercase']);
+        $t->same('space ext', $inventory[$whitespaceExtPart]['rawPartExtension']);
+        $t->same('space ext', $inventory[$whitespaceExtPart]['partExtension']);
+        $t->same('application/xml', $inventory[$whitespaceExtPart]['contentTypeBase']);
+
+        $t->same(['percent-encoded-octet'], $inventory[$percentExtPart]['rawPartExtensionCharacterFlags']);
+        $t->same(true, $inventory[$percentExtPart]['rawPartExtensionHasPercentEncodedOctet']);
+        $t->same(false, $inventory[$percentExtPart]['rawPartExtensionHasWhitespace']);
+        $t->same('pct%20ext', $inventory[$percentExtPart]['rawPartExtension']);
+        $t->same('missing', $inventory[$percentExtPart]['contentTypeSource']);
+
+        $t->same(['non-ascii'], $inventory[$nonAsciiExtPart]['rawPartExtensionCharacterFlags']);
+        $t->same(true, $inventory[$nonAsciiExtPart]['rawPartExtensionHasNonAscii']);
+        $t->same(false, $inventory[$nonAsciiExtPart]['rawPartExtensionHasPercentEncodedOctet']);
+        $t->same($nonAsciiExtension, $inventory[$nonAsciiExtPart]['rawPartExtension']);
+        $t->same('application/xml', $inventory[$nonAsciiExtPart]['contentTypeBase']);
+
+        $t->same(null, $inventory[$extensionlessPart]['rawPartExtension']);
+        $t->same([], $inventory[$extensionlessPart]['rawPartExtensionCharacterFlags']);
+        $t->same(false, $inventory[$extensionlessPart]['rawPartExtensionHasUppercase']);
+        $t->same(false, isset($byPartName[$extensionlessPart]));
+
+        $t->same(['uppercase'], $byPartName[$uppercaseExtPart]['flags']);
+        $t->same('word/media', $byPartName[$uppercaseExtPart]['directory']);
+        $t->same('review.MIX', $byPartName[$uppercaseExtPart]['baseName']);
+        $t->same('mix', $byPartName[$uppercaseExtPart]['partExtension']);
+        $t->same('MIX', $byPartName[$uppercaseExtPart]['rawPartExtension']);
+        $t->same(strlen($parts[$uppercaseExtPart]), $byPartName[$uppercaseExtPart]['bytes']);
+        $t->same('default', $byPartName[$uppercaseExtPart]['contentTypeSource']);
+        $t->same('application/octet-stream', $byPartName[$uppercaseExtPart]['contentTypeBase']);
+        $t->same(['package-part'], $byPartName[$uppercaseExtPart]['roles']);
+        $t->same(['whitespace'], $byPartName[$whitespaceExtPart]['flags']);
+        $t->same(['percent-encoded-octet'], $byPartName[$percentExtPart]['flags']);
+        $t->same(['non-ascii'], $byPartName[$nonAsciiExtPart]['flags']);
+    },
     'summarizes docx package part content type syntax suffix buckets for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
