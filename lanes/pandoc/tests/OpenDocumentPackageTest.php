@@ -4754,17 +4754,19 @@ XML;
         $t->same(1, count($summary['mediaParts']), 'settings.xml must remain outside media handoff');
     },
     'surfaces compact ODT ZIP package comments as metadata-only provenance' => static function (TestRunner $t) use ($manifestXml, $contentXml, $stylesXml, $metaXml): void {
-        $package = ZipPackage::fromParts([
+        $parts = [
             ['name' => 'mimetype', 'data' => OpenDocumentPackage::TEXT_MIMETYPE, 'compressionMethod' => 0],
             ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml, 'comment' => 'manifest review'],
             ['name' => 'content.xml', 'data' => $contentXml, 'comment' => 'body review'],
             ['name' => 'styles.xml', 'data' => $stylesXml],
             ['name' => 'meta.xml', 'data' => $metaXml],
             ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0, 'comment' => 'media review'],
-        ], 'odt package review');
+        ];
+        $package = ZipPackage::fromParts($parts, 'odt package review');
 
         $summary = OpenDocumentPackage::fromPackage($package)->summarize();
         $inventory = $summary['packageInventory'];
+        $identity = $summary['packageIdentity'];
         $comments = $inventory['comments'];
         $content = $inventory['parts']['content.xml'];
         $hero = $inventory['parts']['Pictures/hero.png'];
@@ -4776,6 +4778,20 @@ XML;
         foreach ($summary['manifestReview']['manifestFileEntryOrder'] as $item) {
             $manifestOrderByPath[$item['path']] = $item;
         }
+        $repeatIdentity = OpenDocumentPackage::fromPackage(ZipPackage::fromParts(
+            $parts,
+            'odt package review'
+        ))->summarize()['packageIdentity'];
+        $changedPackageCommentIdentity = OpenDocumentPackage::fromPackage(ZipPackage::fromParts(
+            $parts,
+            'odt package review changed'
+        ))->summarize()['packageIdentity'];
+        $changedEntryCommentParts = $parts;
+        $changedEntryCommentParts[2]['comment'] = 'body review changed';
+        $changedEntryCommentIdentity = OpenDocumentPackage::fromPackage(ZipPackage::fromParts(
+            $changedEntryCommentParts,
+            'odt package review'
+        ))->summarize()['packageIdentity'];
 
         $t->same($comments, $package->commentPreflight());
         $t->same($comments, $summary['packageInventory']['comments']);
@@ -4790,6 +4806,16 @@ XML;
         $t->same(true, $inventory['hasEntryComments']);
         $t->same(3, $inventory['entryCommentCount']);
         $t->same(['META-INF/manifest.xml', 'content.xml', 'Pictures/hero.png'], $inventory['commentedEntryNames']);
+        $t->same(true, $identity['hasPackageComment']);
+        $t->same(true, $identity['hasEntryComments']);
+        $t->same(3, $identity['entryCommentCount']);
+        $t->same(['META-INF/manifest.xml', 'content.xml', 'Pictures/hero.png'], $identity['commentedEntryNames']);
+        $t->same('odt package review', $identity['comments']['packageComment']);
+        $t->same(['META-INF/manifest.xml', 'content.xml', 'Pictures/hero.png'], $identity['comments']['commentedEntryNames']);
+        $t->same($comments['entries'], $identity['comments']['entries']);
+        $t->same($identity['identitySha256'], $repeatIdentity['identitySha256']);
+        $t->true($identity['identitySha256'] !== $changedPackageCommentIdentity['identitySha256']);
+        $t->true($identity['identitySha256'] !== $changedEntryCommentIdentity['identitySha256']);
 
         $t->same('body review', $content['zipEntryComment']);
         $t->same(strlen('body review'), $content['zipEntryCommentLength']);

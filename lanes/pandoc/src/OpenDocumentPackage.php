@@ -1740,6 +1740,7 @@ final class OpenDocumentPackage
             ]);
         }
 
+        $comments = is_array($packageInventory['comments'] ?? null) ? $packageInventory['comments'] : [];
         $payload = [
             'identityVersion' => 1,
             'packageType' => 'opendocument-text',
@@ -1826,6 +1827,13 @@ final class OpenDocumentPackage
             'zipExtendedTimestampEntryCount' => $packageInventory['zipExtendedTimestampEntryCount'] ?? 0,
             'zipNtfsTimestampEntryCount' => $packageInventory['zipNtfsTimestampEntryCount'] ?? 0,
             'zipInvalidDosTimestampEntryCount' => $packageInventory['zipInvalidDosTimestampEntryCount'] ?? 0,
+            'comments' => [
+                'hasPackageComment' => ($comments['hasPackageComment'] ?? false) === true,
+                'packageComment' => $comments['packageComment'] ?? null,
+                'entryCommentCount' => $comments['entryCommentCount'] ?? 0,
+                'commentedEntryNames' => $comments['commentedEntryNames'] ?? [],
+                'entries' => $comments['entries'] ?? [],
+            ],
             'totalByteLength' => $packageInventory['totalByteLength'] ?? 0,
             'totalCompressedByteLength' => $packageInventory['totalCompressedByteLength'] ?? 0,
             'exposableByteLength' => $packageInventory['exposableByteLength'] ?? 0,
@@ -1840,6 +1848,10 @@ final class OpenDocumentPackage
         $payload['identityPayloadByteLength'] = strlen($identityJson);
         $payload['byteExposurePolicy'] = 'odf-package-identity-metadata-only';
         $payload['canExposeBytes'] = false;
+        $payload['hasPackageComment'] = ($comments['hasPackageComment'] ?? false) === true;
+        $payload['hasEntryComments'] = ($comments['hasEntryComments'] ?? false) === true;
+        $payload['entryCommentCount'] = is_int($comments['entryCommentCount'] ?? null) ? $comments['entryCommentCount'] : 0;
+        $payload['commentedEntryNames'] = is_array($comments['commentedEntryNames'] ?? null) ? $comments['commentedEntryNames'] : [];
 
         return $payload;
     }
