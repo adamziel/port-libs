@@ -513,6 +513,8 @@ final class OpenDocumentPackage
         $dosAttributesByName = self::zipPreflightEntriesByName($dosAttributes);
         $internalAttributes = $this->package->internalAttributePreflight();
         $internalAttributesByName = self::zipPreflightEntriesByName($internalAttributes);
+        $extraFields = $this->package->extraFieldPreflight();
+        $extraFieldsByName = self::zipPreflightEntriesByName($extraFields);
         $objectPackageRootParts = self::embeddedObjectPackageRootParts($this->manifestEntries);
         $localOrderByName = [];
         foreach ($localHeaderOrder['entries'] as $entry) {
@@ -579,6 +581,7 @@ final class OpenDocumentPackage
             $commentEntry = $commentEntriesByName[$entry->name] ?? null;
             $embeddedObjectPackage = self::embeddedObjectPackageMembership($entry->name, $objectPackageRootParts);
             $rawNameProvenance = self::zipEntryRawNameProvenance($entry);
+            $extraFieldProvenance = self::zipExtraFieldProvenance($extraFieldsByName[$entry->name] ?? null);
             $timestampProvenance = self::zipTimestampProvenance($modificationTimeByName[$entry->name] ?? null);
             $platformAttributeProvenance = self::zipPlatformAttributeProvenance(
                 $entry,
@@ -686,7 +689,7 @@ final class OpenDocumentPackage
                 'canExposeBytes' => is_array($manifestEntry) && ($manifestEntry['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $byteExposurePolicy,
                 'undeclared' => $isUndeclared,
-            ] + $rawNameProvenance + $timestampProvenance + $platformAttributeProvenance;
+            ] + $rawNameProvenance + $extraFieldProvenance + $timestampProvenance + $platformAttributeProvenance;
 
             foreach ($roles as $role) {
                 $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
@@ -855,6 +858,23 @@ final class OpenDocumentPackage
             'unsupportedCompressionPartNames' => array_keys($unsupportedCompressionPartNames),
             'localHeaderOrder' => $localHeaderOrder,
             'compressionMethods' => $compressionMethods,
+            'extraFields' => $extraFields,
+            'hasZipExtraFields' => $extraFields['extraFieldEntryCount'] > 0,
+            'extraFieldEntryCount' => $extraFields['extraFieldEntryCount'],
+            'duplicateExtraFieldEntryCount' => $extraFields['duplicateExtraFieldEntryCount'],
+            'duplicateCentralExtraFieldEntryCount' => $extraFields['duplicateCentralExtraFieldEntryCount'],
+            'duplicateLocalExtraFieldEntryCount' => $extraFields['duplicateLocalExtraFieldEntryCount'],
+            'mismatchedExtraFieldEntryCount' => $extraFields['mismatchedExtraFieldEntryCount'],
+            'mismatchedExtraFieldValueEntryCount' => $extraFields['mismatchedExtraFieldValueEntryCount'],
+            'centralOnlyExtraFieldEntryCount' => $extraFields['centralOnlyExtraFieldEntryCount'],
+            'localOnlyExtraFieldEntryCount' => $extraFields['localOnlyExtraFieldEntryCount'],
+            'extraFieldIdCount' => $extraFields['extraFieldIdCount'],
+            'centralExtraFieldIdCount' => $extraFields['centralExtraFieldIdCount'],
+            'localExtraFieldIdCount' => $extraFields['localExtraFieldIdCount'],
+            'sharedExtraFieldIdCount' => $extraFields['sharedExtraFieldIdCount'],
+            'centralOnlyExtraFieldIdCount' => $extraFields['centralOnlyExtraFieldIdCount'],
+            'localOnlyExtraFieldIdCount' => $extraFields['localOnlyExtraFieldIdCount'],
+            'extraFieldIdUsage' => $extraFields['extraFieldIdUsage'],
             'comments' => $comments,
             'hasPackageComment' => ($comments['hasPackageComment'] ?? false) === true,
             'hasEntryComments' => ($comments['hasEntryComments'] ?? false) === true,
@@ -983,6 +1003,25 @@ final class OpenDocumentPackage
                 'platformMetadataIssues' => $part['platformMetadataIssues'] ?? [],
                 'platformAttributeIssues' => $part['platformAttributeIssues'] ?? [],
                 'hasPlatformAttributeProvenance' => ($part['hasPlatformAttributeProvenance'] ?? false) === true,
+                'zipExtraFieldIds' => $part['zipExtraFieldIds'] ?? [],
+                'extraFieldIdCount' => $part['extraFieldIdCount'] ?? 0,
+                'centralExtraFieldIds' => $part['centralExtraFieldIds'] ?? [],
+                'localExtraFieldIds' => $part['localExtraFieldIds'] ?? [],
+                'centralExtraFieldRecordCount' => $part['centralExtraFieldRecordCount'] ?? 0,
+                'localExtraFieldRecordCount' => $part['localExtraFieldRecordCount'] ?? 0,
+                'duplicateCentralExtraFieldIds' => $part['duplicateCentralExtraFieldIds'] ?? [],
+                'duplicateLocalExtraFieldIds' => $part['duplicateLocalExtraFieldIds'] ?? [],
+                'centralOnlyExtraFieldIds' => $part['centralOnlyExtraFieldIds'] ?? [],
+                'localOnlyExtraFieldIds' => $part['localOnlyExtraFieldIds'] ?? [],
+                'mismatchedExtraFieldValueIds' => $part['mismatchedExtraFieldValueIds'] ?? [],
+                'centralLocalExtraFieldIdsMatch' => ($part['centralLocalExtraFieldIdsMatch'] ?? false) === true,
+                'centralLocalExtraFieldValuesMatch' => ($part['centralLocalExtraFieldValuesMatch'] ?? false) === true,
+                'hasCentralExtraFields' => ($part['hasCentralExtraFields'] ?? false) === true,
+                'hasLocalExtraFields' => ($part['hasLocalExtraFields'] ?? false) === true,
+                'hasZipExtraFieldProvenance' => ($part['hasZipExtraFieldProvenance'] ?? false) === true,
+                'hasDuplicateExtraFieldIds' => ($part['hasDuplicateExtraFieldIds'] ?? false) === true,
+                'hasMismatchedExtraFieldIds' => ($part['hasMismatchedExtraFieldIds'] ?? false) === true,
+                'hasMismatchedExtraFieldValues' => ($part['hasMismatchedExtraFieldValues'] ?? false) === true,
                 'declaredInManifest' => ($part['declaredInManifest'] ?? false) === true,
                 'manifestIndex' => $part['manifestIndex'] ?? null,
                 'manifestPath' => $part['manifestPath'] ?? null,
@@ -1019,6 +1058,18 @@ final class OpenDocumentPackage
             'undeclaredEntryCount' => $packageInventory['undeclaredEntryCount'] ?? 0,
             'unsupportedCompressionMethodCount' => $packageInventory['unsupportedCompressionMethodCount'] ?? 0,
             'encryptedCount' => count($this->encryptedManifestEntries()),
+            'hasZipExtraFields' => ($packageInventory['hasZipExtraFields'] ?? false) === true,
+            'extraFieldEntryCount' => $packageInventory['extraFieldEntryCount'] ?? 0,
+            'duplicateExtraFieldEntryCount' => $packageInventory['duplicateExtraFieldEntryCount'] ?? 0,
+            'mismatchedExtraFieldEntryCount' => $packageInventory['mismatchedExtraFieldEntryCount'] ?? 0,
+            'mismatchedExtraFieldValueEntryCount' => $packageInventory['mismatchedExtraFieldValueEntryCount'] ?? 0,
+            'extraFieldIdCount' => $packageInventory['extraFieldIdCount'] ?? 0,
+            'centralExtraFieldIdCount' => $packageInventory['centralExtraFieldIdCount'] ?? 0,
+            'localExtraFieldIdCount' => $packageInventory['localExtraFieldIdCount'] ?? 0,
+            'sharedExtraFieldIdCount' => $packageInventory['sharedExtraFieldIdCount'] ?? 0,
+            'centralOnlyExtraFieldIdCount' => $packageInventory['centralOnlyExtraFieldIdCount'] ?? 0,
+            'localOnlyExtraFieldIdCount' => $packageInventory['localOnlyExtraFieldIdCount'] ?? 0,
+            'extraFieldIdUsage' => $packageInventory['extraFieldIdUsage'] ?? [],
             'platformMetadataEntryCount' => $packageInventory['platformMetadataEntryCount'] ?? 0,
             'knownCreatorHostSystemEntryCount' => $packageInventory['knownCreatorHostSystemEntryCount'] ?? 0,
             'unknownCreatorHostSystemEntryCount' => $packageInventory['unknownCreatorHostSystemEntryCount'] ?? 0,
@@ -1134,6 +1185,63 @@ final class OpenDocumentPackage
         }
 
         return $entriesByName;
+    }
+
+    /**
+     * @param array<string, mixed>|null $entry
+     * @return list<int>
+     */
+    private static function zipPreflightIntegerList(?array $entry, string $key): array
+    {
+        if (!is_array($entry[$key] ?? null)) {
+            return [];
+        }
+
+        $values = [];
+        foreach ($entry[$key] as $value) {
+            if (is_int($value)) {
+                $values[] = $value;
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param array<string, mixed>|null $entry
+     * @return array<string, mixed>
+     */
+    private static function zipExtraFieldProvenance(?array $entry): array
+    {
+        $centralExtraFieldIds = self::zipPreflightIntegerList($entry, 'centralExtraFieldIds');
+        $localExtraFieldIds = self::zipPreflightIntegerList($entry, 'localExtraFieldIds');
+        $zipExtraFieldIds = array_values(array_unique(array_merge($centralExtraFieldIds, $localExtraFieldIds)));
+        sort($zipExtraFieldIds, SORT_NUMERIC);
+        $centralOnlyExtraFieldIds = self::zipPreflightIntegerList($entry, 'centralOnlyExtraFieldIds');
+        $localOnlyExtraFieldIds = self::zipPreflightIntegerList($entry, 'localOnlyExtraFieldIds');
+        $mismatchedExtraFieldValueIds = self::zipPreflightIntegerList($entry, 'mismatchedExtraFieldValueIds');
+
+        return [
+            'zipExtraFieldIds' => $zipExtraFieldIds,
+            'extraFieldIdCount' => count($zipExtraFieldIds),
+            'centralExtraFieldIds' => $centralExtraFieldIds,
+            'localExtraFieldIds' => $localExtraFieldIds,
+            'centralExtraFieldRecordCount' => count($centralExtraFieldIds),
+            'localExtraFieldRecordCount' => count($localExtraFieldIds),
+            'duplicateCentralExtraFieldIds' => self::zipPreflightIntegerList($entry, 'duplicateCentralExtraFieldIds'),
+            'duplicateLocalExtraFieldIds' => self::zipPreflightIntegerList($entry, 'duplicateLocalExtraFieldIds'),
+            'centralOnlyExtraFieldIds' => $centralOnlyExtraFieldIds,
+            'localOnlyExtraFieldIds' => $localOnlyExtraFieldIds,
+            'mismatchedExtraFieldValueIds' => $mismatchedExtraFieldValueIds,
+            'centralLocalExtraFieldIdsMatch' => $centralOnlyExtraFieldIds === [] && $localOnlyExtraFieldIds === [],
+            'centralLocalExtraFieldValuesMatch' => $mismatchedExtraFieldValueIds === [],
+            'hasCentralExtraFields' => $centralExtraFieldIds !== [],
+            'hasLocalExtraFields' => $localExtraFieldIds !== [],
+            'hasZipExtraFieldProvenance' => $zipExtraFieldIds !== [],
+            'hasDuplicateExtraFieldIds' => ($entry['hasDuplicateExtraFieldIds'] ?? false) === true,
+            'hasMismatchedExtraFieldIds' => ($entry['hasMismatchedExtraFieldIds'] ?? false) === true,
+            'hasMismatchedExtraFieldValues' => ($entry['hasMismatchedExtraFieldValues'] ?? false) === true,
+        ];
     }
 
     /**

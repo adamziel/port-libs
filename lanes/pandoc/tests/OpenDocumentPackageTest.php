@@ -4280,6 +4280,69 @@ XML;
         $t->same('odf-package-inventory-metadata-only', $inventory['byteExposurePolicy']);
         $t->same(false, $inventory['canExposeBytes']);
     },
+    'surfaces compact ODT ZIP extra fields as metadata-only package provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifestWithReviewImage = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . "\n  "
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/review.png"/>',
+            $manifestXml
+        );
+        $extraField = pack('vva*', 0xcafe, strlen('odf-review'), 'odf-review');
+        $package = $buildOdtPackage(
+            manifest: $manifestWithReviewImage,
+            extraParts: [
+                [
+                    'name' => 'Pictures/review.png',
+                    'data' => 'REVIEWPNG',
+                    'compressionMethod' => 0,
+                    'extraFieldData' => $extraField,
+                ],
+            ],
+        );
+
+        $summary = OpenDocumentPackage::fromPackage($package)->summarize();
+        $inventory = $summary['packageInventory'];
+        $extraFields = $inventory['extraFields'];
+        $review = $inventory['parts']['Pictures/review.png'];
+        $identityParts = [];
+        foreach ($summary['packageIdentity']['packageEntries'] as $packageEntry) {
+            $identityParts[$packageEntry['path']] = $packageEntry;
+        }
+
+        $t->same($package->extraFieldPreflight(), $extraFields);
+        $t->same(true, $inventory['hasZipExtraFields']);
+        $t->same(1, $inventory['extraFieldEntryCount']);
+        $t->same(0, $inventory['duplicateExtraFieldEntryCount']);
+        $t->same(0, $inventory['mismatchedExtraFieldEntryCount']);
+        $t->same(0, $inventory['mismatchedExtraFieldValueEntryCount']);
+        $t->same(1, $inventory['extraFieldIdCount']);
+        $t->same(1, $inventory['centralExtraFieldIdCount']);
+        $t->same(1, $inventory['localExtraFieldIdCount']);
+        $t->same(1, $inventory['sharedExtraFieldIdCount']);
+
+        $t->same([0xcafe], $review['zipExtraFieldIds']);
+        $t->same([0xcafe], $review['centralExtraFieldIds']);
+        $t->same([0xcafe], $review['localExtraFieldIds']);
+        $t->same(1, $review['extraFieldIdCount']);
+        $t->same(1, $review['centralExtraFieldRecordCount']);
+        $t->same(1, $review['localExtraFieldRecordCount']);
+        $t->same([], $review['duplicateCentralExtraFieldIds']);
+        $t->same([], $review['duplicateLocalExtraFieldIds']);
+        $t->same([], $review['centralOnlyExtraFieldIds']);
+        $t->same([], $review['localOnlyExtraFieldIds']);
+        $t->same([], $review['mismatchedExtraFieldValueIds']);
+        $t->same(true, $review['centralLocalExtraFieldIdsMatch']);
+        $t->same(true, $review['centralLocalExtraFieldValuesMatch']);
+        $t->same(true, $review['hasCentralExtraFields']);
+        $t->same(true, $review['hasLocalExtraFields']);
+        $t->same(true, $review['hasZipExtraFieldProvenance']);
+        $t->same(false, $review['hasDuplicateExtraFieldIds']);
+        $t->same(false, $review['hasMismatchedExtraFieldIds']);
+        $t->same(false, $review['hasMismatchedExtraFieldValues']);
+        $t->same([0xcafe], $identityParts['Pictures/review.png']['zipExtraFieldIds']);
+        $t->same(true, $summary['packageIdentity']['hasZipExtraFields']);
+    },
     'surfaces compact ODT ZIP platform attributes as metadata-only provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifestWithPlatformParts = str_replace(
             '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
