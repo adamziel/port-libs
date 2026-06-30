@@ -406,6 +406,14 @@ final class BibtexCslProcessor
         if (($item['thesis-type'] ?? '') !== '') {
             $parts[] = 'Thesis type: ' . (string) $item['thesis-type'];
         }
+        foreach ([
+            'author-type' => 'Author type',
+            'container-author-type' => 'Container author type',
+        ] as $field => $label) {
+            if (($item[$field] ?? '') !== '') {
+                $parts[] = $label . ': ' . (string) $item[$field];
+            }
+        }
         if (($item['source'] ?? '') !== '') {
             $parts[] = 'Source: ' . (string) $item['source'];
         }
@@ -958,6 +966,8 @@ final class BibtexCslProcessor
             'name-addon' => ['nameaddon', 'name-addon'],
             'genre' => ['type', 'entrysubtype'],
             'entry-subtype' => ['entrysubtype', 'entry-subtype'],
+            'author-type' => ['authortype', 'author-type'],
+            'container-author-type' => ['bookauthortype', 'bookauthor-type', 'containerauthortype', 'container-author-type'],
             'patent-type' => ['patenttype', 'patent-type'],
             'jurisdiction' => ['jurisdiction'],
             'related' => ['related'],
