@@ -3853,6 +3853,96 @@ XML;
         $t->true(!isset($byPartName['docProps/core.xml']), 'directory uppercase should not create basename character review');
         $t->true(!isset($byPartName[$directoryUppercaseOnlyPart]), 'directory-only uppercase should not create basename character review');
     },
+    'summarizes docx package basename stem character provenance for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $mixedCaseWhitespaceStemPart = 'word/media/Review Draft.png';
+        $uppercaseExtensionOnlyPart = 'word/media/review.PNG';
+        $percentEncodedStemPart = 'word/data/review%20encoded.xml';
+        $nonAsciiStemPart = "word/data/caf\xC3\xA9.xml";
+        $directoryUppercaseOnlyPart = 'CustomXml/normal.xml';
+        $parts[$mixedCaseWhitespaceStemPart] = 'mixed case basename stem image bytes';
+        $parts[$uppercaseExtensionOnlyPart] = 'uppercase extension only image bytes';
+        $parts[$percentEncodedStemPart] = '<encoded-basename-stem/>';
+        $parts[$nonAsciiStemPart] = '<cafe-basename-stem/>';
+        $parts[$directoryUppercaseOnlyPart] = '<directory-uppercase-only/>';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $byPartName = [];
+        foreach ($summary['partBaseNameStemCharacterReviewParts'] as $item) {
+            $byPartName[$item['partName']] = $item;
+        }
+
+        $t->same(4, $summary['partBaseNameStemCharacterReviewPartCount']);
+        $t->same(2, $summary['partBaseNameStemUppercasePartCount']);
+        $t->same(1, $summary['partBaseNameStemWhitespacePartCount']);
+        $t->same(1, $summary['partBaseNameStemPercentEncodedOctetPartCount']);
+        $t->same(1, $summary['partBaseNameStemNonAsciiPartCount']);
+        $t->same([
+            'non-ascii' => 1,
+            'percent-encoded-octet' => 1,
+            'uppercase' => 2,
+            'whitespace' => 1,
+        ], $summary['partBaseNameStemCharacterFlagCounts']);
+        $t->same(['[Content_Types].xml', $mixedCaseWhitespaceStemPart], $summary['partBaseNameStemCharacterFlagPartNames']['uppercase']);
+        $t->same([$mixedCaseWhitespaceStemPart], $summary['partBaseNameStemCharacterFlagPartNames']['whitespace']);
+        $t->same([$percentEncodedStemPart], $summary['partBaseNameStemCharacterFlagPartNames']['percent-encoded-octet']);
+        $t->same([$nonAsciiStemPart], $summary['partBaseNameStemCharacterFlagPartNames']['non-ascii']);
+        $t->same(['Review Draft', '[Content_Types]'], $summary['partBaseNameStemCharacterFlagBaseNameStems']['uppercase']);
+        $t->same(['Review Draft'], $summary['partBaseNameStemCharacterFlagBaseNameStems']['whitespace']);
+        $t->same(['review%20encoded'], $summary['partBaseNameStemCharacterFlagBaseNameStems']['percent-encoded-octet']);
+        $t->same(["caf\xC3\xA9"], $summary['partBaseNameStemCharacterFlagBaseNameStems']['non-ascii']);
+
+        $t->same('[Content_Types]', $inventory['[Content_Types].xml']['baseNameStem']);
+        $t->same(['uppercase'], $inventory['[Content_Types].xml']['baseNameStemCharacterFlags']);
+        $t->same(true, $inventory['[Content_Types].xml']['baseNameStemHasUppercase']);
+        $t->same(false, $inventory['docProps/core.xml']['baseNameStemHasUppercase']);
+        $t->same([], $inventory[$directoryUppercaseOnlyPart]['baseNameStemCharacterFlags']);
+        $t->same(true, $inventory[$directoryUppercaseOnlyPart]['partNameHasUppercase']);
+        $t->same(false, $inventory[$directoryUppercaseOnlyPart]['baseNameStemHasUppercase']);
+
+        $t->same('review', $inventory[$uppercaseExtensionOnlyPart]['baseNameStem']);
+        $t->same(['uppercase'], $inventory[$uppercaseExtensionOnlyPart]['baseNameCharacterFlags']);
+        $t->same([], $inventory[$uppercaseExtensionOnlyPart]['baseNameStemCharacterFlags']);
+        $t->same(true, $inventory[$uppercaseExtensionOnlyPart]['baseNameHasUppercase']);
+        $t->same(false, $inventory[$uppercaseExtensionOnlyPart]['baseNameStemHasUppercase']);
+        $t->same(true, $inventory[$uppercaseExtensionOnlyPart]['rawPartExtensionHasUppercase']);
+
+        $t->same(['uppercase', 'whitespace'], $inventory[$mixedCaseWhitespaceStemPart]['baseNameStemCharacterFlags']);
+        $t->same(true, $inventory[$mixedCaseWhitespaceStemPart]['baseNameStemHasUppercase']);
+        $t->same(true, $inventory[$mixedCaseWhitespaceStemPart]['baseNameStemHasWhitespace']);
+        $t->same(false, $inventory[$mixedCaseWhitespaceStemPart]['baseNameStemHasPercentEncodedOctet']);
+        $t->same(false, $inventory[$mixedCaseWhitespaceStemPart]['baseNameStemHasNonAscii']);
+        $t->same('Review Draft.png', $byPartName[$mixedCaseWhitespaceStemPart]['baseName']);
+        $t->same('Review Draft', $byPartName[$mixedCaseWhitespaceStemPart]['baseNameStem']);
+        $t->same('review draft', $byPartName[$mixedCaseWhitespaceStemPart]['caseFoldBaseNameStem']);
+        $t->same('word/media', $byPartName[$mixedCaseWhitespaceStemPart]['directory']);
+        $t->same('png', $byPartName[$mixedCaseWhitespaceStemPart]['partExtension']);
+        $t->same('default', $byPartName[$mixedCaseWhitespaceStemPart]['contentTypeSource']);
+        $t->same('image/png', $byPartName[$mixedCaseWhitespaceStemPart]['contentTypeBase']);
+        $t->same(['package-part'], $byPartName[$mixedCaseWhitespaceStemPart]['roles']);
+
+        $t->same(['percent-encoded-octet'], $inventory[$percentEncodedStemPart]['baseNameStemCharacterFlags']);
+        $t->same(true, $inventory[$percentEncodedStemPart]['baseNameStemHasPercentEncodedOctet']);
+        $t->same(false, $inventory[$percentEncodedStemPart]['baseNameStemHasWhitespace']);
+        $t->same('review%20encoded', $byPartName[$percentEncodedStemPart]['baseNameStem']);
+        $t->same(['percent-encoded-octet'], $byPartName[$percentEncodedStemPart]['flags']);
+
+        $t->same(['non-ascii'], $inventory[$nonAsciiStemPart]['baseNameStemCharacterFlags']);
+        $t->same(true, $inventory[$nonAsciiStemPart]['baseNameStemHasNonAscii']);
+        $t->same(false, $inventory[$nonAsciiStemPart]['baseNameStemHasPercentEncodedOctet']);
+        $t->same("caf\xC3\xA9", $byPartName[$nonAsciiStemPart]['baseNameStem']);
+        $t->same(['non-ascii'], $byPartName[$nonAsciiStemPart]['flags']);
+
+        $t->same(['uppercase'], $byPartName['[Content_Types].xml']['flags']);
+        $t->same('/', $byPartName['[Content_Types].xml']['directory']);
+        $t->same(['content-types'], $byPartName['[Content_Types].xml']['roles']);
+        $t->true(!isset($byPartName['docProps/core.xml']), 'directory uppercase should not create basename stem character review');
+        $t->true(!isset($byPartName[$directoryUppercaseOnlyPart]), 'directory-only uppercase should not create basename stem character review');
+        $t->true(!isset($byPartName[$uppercaseExtensionOnlyPart]), 'extension-only uppercase should not create basename stem character review');
+    },
     'summarizes docx package directory basename character provenance for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $mixedDirectoryPart = 'reviewdata/Review Pack/item.xml';
