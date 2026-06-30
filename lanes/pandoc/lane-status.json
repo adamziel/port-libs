@@ -110,6 +110,8 @@
         "upstreamDocxRunnerEvidencePlan": {
             "status": "open-no-targeted-runner-result",
             "evidenceKind": "runner-entry-fixture-command-plan-only",
+            "preflightPlanTool": "tools/pandoc-docx-upstream-runner-plan.php --json --upstream-root .upstream-cache/pandoc-current",
+            "preflightEvidenceKind": "targeted-docx-runner-preflight-plan-only",
             "resultRecorded": false,
             "runnerExecuted": false,
             "upstreamCommit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
@@ -194,6 +196,24 @@
                 "transcriptFile": ".port-libs/pandoc-runner/logs/runner-test-dependencies.txt",
                 "claim": "Descriptor-only Cabal dependency dry-run command; this audit did not execute it."
             },
+            "futureListTestsCommand": {
+                "program": "cabal",
+                "arguments": [
+                    "v2-run",
+                    "--offline",
+                    "--project-dir=.",
+                    "--builddir=.port-libs/pandoc-runner/cabal-build/docx-targeted-run",
+                    "test:test-pandoc",
+                    "--",
+                    "--list-tests",
+                    "--pattern",
+                    "($2 == \"Readers\" || $2 == \"Writers\") && $3 == \"Docx\""
+                ],
+                "commandLine": "cabal v2-run --offline --project-dir=. --builddir=.port-libs/pandoc-runner/cabal-build/docx-targeted-run test:test-pandoc -- --list-tests --pattern '($2 == \"Readers\" || $2 == \"Writers\") && $3 == \"Docx\"'",
+                "workingDirectory": "hydrated Pandoc upstream checkout root",
+                "executionPolicy": "future targeted test inventory only after reviewed dry-run plan; not executed by this audit",
+                "requiredResultArtifact": "Record selected DOCX test names before any targeted runner pass/fail result is admitted."
+            },
             "futureTargetedRunCommand": {
                 "program": "cabal",
                 "arguments": [
@@ -212,8 +232,30 @@
                 "tastyPatternSource": "Tasty AWK-like pattern fields from test tree: $1 outer group, $2 reader/writer group, $3 Docx subgroup.",
                 "requiredResultArtifact": "A future run must record command transcript, exit code, upstream commit, selected test names or --list-tests output, and per-test pass/fail rows before closing upstream-docx-runner-results."
             },
+            "resultArtifactContract": {
+                "requiredBeforeResultRecorded": [
+                    ".port-libs/pandoc-runner/logs/runner-test-dependencies.txt",
+                    ".port-libs/pandoc-runner/logs/docx-targeted-list-tests.txt",
+                    ".port-libs/pandoc-runner/logs/docx-targeted-run.txt",
+                    ".port-libs/pandoc-runner/artifacts/docx-targeted-run/result.json"
+                ],
+                "resultJsonRequiredFields": [
+                    "upstreamCommit",
+                    "commandLine",
+                    "exitCode",
+                    "runnerTarget",
+                    "tastyPattern",
+                    "selectedTestCount",
+                    "passedCount",
+                    "failedCount",
+                    "skippedCount",
+                    "startedAtUtc",
+                    "finishedAtUtc"
+                ],
+                "admissionRule": "Do not set resultRecorded=true until command transcript, exit code, selected test inventory, and pass/fail counts are captured for the pinned upstream checkout."
+            },
             "honestClaim": "This records entry points, fixture closure, and commands for a future targeted run only. It is not an upstream DOCX runner result."
         }
     },
-    "latestFocusedSlice": "2026-06-30 pandoc-docx-upstream-parity: DocxReader and DocxOpenXmlReader cover current-upstream DOCX drift fixtures for lists_restart_8367 and ns0-reference, style-derived numbering, smartTag/AlternateContent unwrapping, hyperlink anchors with tracked changes, per-picture drawing docPr metadata, and package-level odttf font content types. ZipPackageEntry now accepts central-directory Info-ZIP UT fields that carry modified time only while local headers carry access metadata. Direct full DOCX parity remains blocked by missing pinned upstream runner/golden package evidence. Focused validation passed php -l for touched DOCX/ZIP files, jq metadata validation, and php tools/run-tests.php for DocxParityEvidenceStatusTest.php, DocxReaderTest.php, DocxOpenXmlReaderTest.php, DocxGeneratedFieldMetadataTest.php, ZipPackageTest.php, and MediaBagTest.php with 15,663 assertions and 0 failures."
+    "latestFocusedSlice": "2026-06-30 docx-r8-writer-runner: added a guarded DOCX upstream runner preflight plan tool that inspects only required source/fixture presence and emits the future dependency dry-run, --list-tests, targeted DOCX run commands, isolated workspace env vars, transcripts, and result.json contract. No Cabal command, upstream Haskell runner, DOCX package-byte comparison, writer output, or full DOCX/OpenXML parity is claimed. Focused validation passed php -l for DocxUpstreamRunnerPlan.php, pandoc-docx-upstream-runner-plan.php, DocxUpstreamRunnerPlanTest.php, and DocxParityEvidenceStatusTest.php; JSON metadata decode for lane-status and UPSTREAM_TEST_MANIFEST; CLI blocked-preflight JSON smoke; and php tools/run-tests.php for DocxUpstreamRunnerPlanTest.php plus DocxParityEvidenceStatusTest.php with 174 assertions and 0 failures."
 }

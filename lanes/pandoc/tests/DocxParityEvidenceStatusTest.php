@@ -172,6 +172,8 @@ return [
         $t->same($runnerPlan, $statusRunnerPlan);
         $t->same('open-no-targeted-runner-result', $runnerPlan['status'] ?? null);
         $t->same('runner-entry-fixture-command-plan-only', $runnerPlan['evidenceKind'] ?? null);
+        $t->same('tools/pandoc-docx-upstream-runner-plan.php --json --upstream-root .upstream-cache/pandoc-current', $runnerPlan['preflightPlanTool'] ?? null);
+        $t->same('targeted-docx-runner-preflight-plan-only', $runnerPlan['preflightEvidenceKind'] ?? null);
         $t->same(false, $runnerPlan['resultRecorded'] ?? null);
         $t->same(false, $runnerPlan['runnerExecuted'] ?? null);
         $t->same('test:test-pandoc', $runnerPlan['runnerTarget'] ?? null);
@@ -190,7 +192,11 @@ return [
         $t->contains('--dry-run', (string) ($runnerPlan['nonMutatingDryRunPlanCommand']['commandLine'] ?? ''));
         $t->contains('test:test-pandoc test:test-pandoc-lua-engine', (string) ($runnerPlan['nonMutatingDryRunPlanCommand']['commandLine'] ?? ''));
         $t->same('descriptor-only; do not execute from this isolated PHP lane', $runnerPlan['nonMutatingDryRunPlanCommand']['executionPolicy'] ?? null);
+        $t->contains('--list-tests --pattern', (string) ($runnerPlan['futureListTestsCommand']['commandLine'] ?? ''));
+        $t->same('($2 == "Readers" || $2 == "Writers") && $3 == "Docx"', $runnerPlan['futureListTestsCommand']['arguments'][8] ?? null);
         $t->same('($2 == "Readers" || $2 == "Writers") && $3 == "Docx"', $runnerPlan['futureTargetedRunCommand']['arguments'][7] ?? null);
+        $t->contains('.port-libs/pandoc-runner/artifacts/docx-targeted-run/result.json', implode(',', $runnerPlan['resultArtifactContract']['requiredBeforeResultRecorded'] ?? []));
+        $t->contains('exitCode', implode(',', $runnerPlan['resultArtifactContract']['resultJsonRequiredFields'] ?? []));
         $t->contains('not executed by this audit', (string) ($runnerPlan['futureTargetedRunCommand']['executionPolicy'] ?? ''));
         $t->contains('not an upstream DOCX runner result', (string) ($runnerPlan['honestClaim'] ?? ''));
 

@@ -1722,6 +1722,8 @@
         "upstreamDocxRunnerEvidencePlan": {
             "status": "open-no-targeted-runner-result",
             "evidenceKind": "runner-entry-fixture-command-plan-only",
+            "preflightPlanTool": "tools/pandoc-docx-upstream-runner-plan.php --json --upstream-root .upstream-cache/pandoc-current",
+            "preflightEvidenceKind": "targeted-docx-runner-preflight-plan-only",
             "resultRecorded": false,
             "runnerExecuted": false,
             "upstreamCommit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
@@ -1806,6 +1808,24 @@
                 "transcriptFile": ".port-libs/pandoc-runner/logs/runner-test-dependencies.txt",
                 "claim": "Descriptor-only Cabal dependency dry-run command; this audit did not execute it."
             },
+            "futureListTestsCommand": {
+                "program": "cabal",
+                "arguments": [
+                    "v2-run",
+                    "--offline",
+                    "--project-dir=.",
+                    "--builddir=.port-libs/pandoc-runner/cabal-build/docx-targeted-run",
+                    "test:test-pandoc",
+                    "--",
+                    "--list-tests",
+                    "--pattern",
+                    "($2 == \"Readers\" || $2 == \"Writers\") && $3 == \"Docx\""
+                ],
+                "commandLine": "cabal v2-run --offline --project-dir=. --builddir=.port-libs/pandoc-runner/cabal-build/docx-targeted-run test:test-pandoc -- --list-tests --pattern '($2 == \"Readers\" || $2 == \"Writers\") && $3 == \"Docx\"'",
+                "workingDirectory": "hydrated Pandoc upstream checkout root",
+                "executionPolicy": "future targeted test inventory only after reviewed dry-run plan; not executed by this audit",
+                "requiredResultArtifact": "Record selected DOCX test names before any targeted runner pass/fail result is admitted."
+            },
             "futureTargetedRunCommand": {
                 "program": "cabal",
                 "arguments": [
@@ -1823,6 +1843,28 @@
                 "executionPolicy": "future targeted runner only after reviewed dry-run plan; not executed by this audit",
                 "tastyPatternSource": "Tasty AWK-like pattern fields from test tree: $1 outer group, $2 reader/writer group, $3 Docx subgroup.",
                 "requiredResultArtifact": "A future run must record command transcript, exit code, upstream commit, selected test names or --list-tests output, and per-test pass/fail rows before closing upstream-docx-runner-results."
+            },
+            "resultArtifactContract": {
+                "requiredBeforeResultRecorded": [
+                    ".port-libs/pandoc-runner/logs/runner-test-dependencies.txt",
+                    ".port-libs/pandoc-runner/logs/docx-targeted-list-tests.txt",
+                    ".port-libs/pandoc-runner/logs/docx-targeted-run.txt",
+                    ".port-libs/pandoc-runner/artifacts/docx-targeted-run/result.json"
+                ],
+                "resultJsonRequiredFields": [
+                    "upstreamCommit",
+                    "commandLine",
+                    "exitCode",
+                    "runnerTarget",
+                    "tastyPattern",
+                    "selectedTestCount",
+                    "passedCount",
+                    "failedCount",
+                    "skippedCount",
+                    "startedAtUtc",
+                    "finishedAtUtc"
+                ],
+                "admissionRule": "Do not set resultRecorded=true until command transcript, exit code, selected test inventory, and pass/fail counts are captured for the pinned upstream checkout."
             },
             "honestClaim": "This records entry points, fixture closure, and commands for a future targeted run only. It is not an upstream DOCX runner result."
         }

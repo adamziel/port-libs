@@ -1,0 +1,415 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PortLibs\Pandoc;
+
+final class DocxUpstreamRunnerPlan
+{
+    public const DEFAULT_RELATIVE_UPSTREAM_ROOT = '.upstream-cache/pandoc-current';
+    public const PINNED_UPSTREAM_COMMIT = '0640c4c9859aa5a3ede082c190fcd5883c24ac83';
+    public const STATUS_READY = 'preflight-ready-no-runner-executed';
+    public const STATUS_BLOCKED_MISSING_UPSTREAM_SOURCE = 'blocked-missing-docx-upstream-source';
+    public const EVIDENCE_KIND = 'targeted-docx-runner-preflight-plan-only';
+    public const TASTY_PATTERN = '($2 == "Readers" || $2 == "Writers") && $3 == "Docx"';
+    public const RUNNER_TARGET = 'test:test-pandoc';
+
+    /** @var list<string> */
+    private const REQUIRED_FILES = [
+        'cabal.project',
+        'pandoc.cabal',
+        'test/test-pandoc.hs',
+        'test/Tests/Readers/Docx.hs',
+        'test/Tests/Writers/Docx.hs',
+        'data/default.docx',
+    ];
+
+    /** @var list<string> */
+    private const REQUIRED_DIRECTORIES = [
+        'test/docx',
+        'test/docx/golden',
+    ];
+
+    /** @var array<string, string> */
+    private const WORKSPACE_ENVIRONMENT = [
+        'CABAL_DIR' => '.port-libs/pandoc-runner/cabal-home',
+        'CABAL_CONFIG' => '.port-libs/pandoc-runner/cabal-config/config',
+        'XDG_CACHE_HOME' => '.port-libs/pandoc-runner/cache',
+        'XDG_STATE_HOME' => '.port-libs/pandoc-runner/state',
+        'TMPDIR' => '.port-libs/pandoc-runner/tmp',
+    ];
+
+    private readonly string $repoRoot;
+    private readonly string $upstreamRoot;
+
+    public function __construct(string $repoRoot, string $upstreamRoot = self::DEFAULT_RELATIVE_UPSTREAM_ROOT)
+    {
+        if ($repoRoot === '') {
+            throw new \InvalidArgumentException('Repository root must not be empty');
+        }
+        if ($upstreamRoot === '') {
+            throw new \InvalidArgumentException('Upstream root must not be empty');
+        }
+
+        $this->repoRoot = rtrim($repoRoot, DIRECTORY_SEPARATOR);
+        $this->upstreamRoot = $this->absolutePath($upstreamRoot);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function report(): array
+    {
+        $sourcePreflight = $this->sourcePreflight();
+        $ready = $sourcePreflight['missingFiles'] === [] && $sourcePreflight['missingDirectories'] === [];
+
+        return [
+            'schemaVersion' => 1,
+            'tool' => 'pandoc-docx-upstream-runner-plan',
+            'status' => $ready ? self::STATUS_READY : self::STATUS_BLOCKED_MISSING_UPSTREAM_SOURCE,
+            'evidenceKind' => self::EVIDENCE_KIND,
+            'runnerExecuted' => false,
+            'resultRecorded' => false,
+            'willExecute' => false,
+            'claim' => 'Preflight-only plan for a future targeted upstream DOCX Tasty run; this is not an upstream DOCX runner result.',
+            'claimBoundaries' => [
+                'doesAssert' => [
+                    'required DOCX runner source paths and fixture directories to check before a targeted run',
+                    'exact Cabal commands and workspace artifact paths a future runner slice can execute',
+                    'result artifact contract required before recording upstream DOCX runner evidence',
+                ],
+                'doesNotAssert' => [
+                    'that Cabal or upstream Pandoc tests were executed',
+                    'that selected DOCX reader or writer tests pass',
+                    'that local PHP DOCX parsing, writing, or package output matches upstream',
+                    'full DOCX/OpenXML parity',
+                ],
+            ],
+            'upstream' => [
+                'pinnedCommit' => self::PINNED_UPSTREAM_COMMIT,
+                'expectedCheckoutRoot' => $this->displayPath($this->upstreamRoot),
+            ],
+            'runnerTarget' => self::RUNNER_TARGET,
+            'tastyPattern' => self::TASTY_PATTERN,
+            'sourcePreflight' => $sourcePreflight,
+            'workspace' => $this->workspace(),
+            'commands' => $this->commands(),
+            'resultArtifactContract' => $this->resultArtifactContract(),
+            'activationGate' => $this->activationGate($ready),
+            'executionPolicy' => 'This PHP tool emits preflight evidence and command descriptors only; it never invokes Cabal or upstream Pandoc tests.',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $report
+     */
+    public static function formatTextReport(array $report): string
+    {
+        $lines = [
+            'Pandoc DOCX upstream runner preflight plan',
+            'Status: ' . (string) ($report['status'] ?? 'unknown'),
+            'Evidence kind: ' . (string) ($report['evidenceKind'] ?? self::EVIDENCE_KIND),
+            'Runner executed: ' . self::boolText($report['runnerExecuted'] ?? false),
+            'Result recorded: ' . self::boolText($report['resultRecorded'] ?? false),
+            'Upstream root: ' . (string) ($report['upstream']['expectedCheckoutRoot'] ?? ''),
+            'Pinned upstream commit: ' . (string) ($report['upstream']['pinnedCommit'] ?? self::PINNED_UPSTREAM_COMMIT),
+        ];
+
+        $source = $report['sourcePreflight'] ?? [];
+        if (is_array($source)) {
+            $lines[] = 'Missing files: ' . implode(', ', array_map('strval', $source['missingFiles'] ?? []));
+            $lines[] = 'Missing directories: ' . implode(', ', array_map('strval', $source['missingDirectories'] ?? []));
+        }
+
+        $commands = $report['commands'] ?? [];
+        if (is_array($commands)) {
+            foreach (['dependencyDryRun', 'listDocxTests', 'targetedDocxRun'] as $name) {
+                $command = $commands[$name] ?? null;
+                if (is_array($command)) {
+                    $lines[] = $name . ': ' . (string) ($command['commandLine'] ?? '');
+                }
+            }
+        }
+
+        $lines[] = 'No upstream DOCX runner result or parity claim is asserted.';
+
+        return implode(PHP_EOL, $lines) . PHP_EOL;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function requiredFiles(): array
+    {
+        return self::REQUIRED_FILES;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function requiredDirectories(): array
+    {
+        return self::REQUIRED_DIRECTORIES;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function sourcePreflight(): array
+    {
+        $presentFiles = [];
+        $missingFiles = [];
+        foreach (self::REQUIRED_FILES as $relativePath) {
+            $absolutePath = $this->upstreamPath($relativePath);
+            if ($this->hasNonEmptyFile($absolutePath)) {
+                $presentFiles[] = $relativePath;
+            } else {
+                $missingFiles[] = $relativePath;
+            }
+        }
+
+        $presentDirectories = [];
+        $missingDirectories = [];
+        foreach (self::REQUIRED_DIRECTORIES as $relativePath) {
+            $absolutePath = $this->upstreamPath($relativePath);
+            if (is_dir($absolutePath)) {
+                $presentDirectories[] = $relativePath;
+            } else {
+                $missingDirectories[] = $relativePath;
+            }
+        }
+
+        return [
+            'upstreamRoot' => $this->upstreamRoot,
+            'upstreamRootDisplay' => $this->displayPath($this->upstreamRoot),
+            'upstreamRootPresent' => is_dir($this->upstreamRoot),
+            'requiredFiles' => self::REQUIRED_FILES,
+            'presentFiles' => $presentFiles,
+            'missingFiles' => $missingFiles,
+            'requiredDirectories' => self::REQUIRED_DIRECTORIES,
+            'presentDirectories' => $presentDirectories,
+            'missingDirectories' => $missingDirectories,
+            'artifactCounts' => [
+                'rootDocxPackageFiles' => $this->countDirectFiles($this->upstreamPath('test/docx'), 'docx'),
+                'rootNativeExpectedFiles' => $this->countDirectFiles($this->upstreamPath('test/docx'), 'native'),
+                'goldenDocxPackageFiles' => $this->countDirectFiles($this->upstreamPath('test/docx/golden'), 'docx'),
+            ],
+            'packageBytePolicy' => 'filesystem names/counts only; preflight does not read DOCX package bytes',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function workspace(): array
+    {
+        return [
+            'root' => '.port-libs/pandoc-runner',
+            'directories' => [
+                'dependencyBuild' => '.port-libs/pandoc-runner/cabal-build/runner-test-dependencies',
+                'targetedRunBuild' => '.port-libs/pandoc-runner/cabal-build/docx-targeted-run',
+                'logs' => '.port-libs/pandoc-runner/logs',
+                'artifacts' => '.port-libs/pandoc-runner/artifacts/docx-targeted-run',
+                'tmp' => '.port-libs/pandoc-runner/tmp',
+            ],
+            'environmentVariables' => self::WORKSPACE_ENVIRONMENT,
+        ];
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private function commands(): array
+    {
+        return [
+            'dependencyDryRun' => $this->commandDescriptor(
+                'dependencyDryRun',
+                [
+                    'v2-build',
+                    '--offline',
+                    '--project-dir=.',
+                    '--builddir=.port-libs/pandoc-runner/cabal-build/runner-test-dependencies',
+                    '--dry-run',
+                    '--only-dependencies',
+                    '--enable-tests',
+                    '--disable-benchmarks',
+                    'test:test-pandoc',
+                    'test:test-pandoc-lua-engine',
+                ],
+                '.port-libs/pandoc-runner/logs/runner-test-dependencies.txt',
+                'non-mutating dependency plan only; record transcript before any targeted run'
+            ),
+            'listDocxTests' => $this->commandDescriptor(
+                'listDocxTests',
+                [
+                    'v2-run',
+                    '--offline',
+                    '--project-dir=.',
+                    '--builddir=.port-libs/pandoc-runner/cabal-build/docx-targeted-run',
+                    self::RUNNER_TARGET,
+                    '--',
+                    '--list-tests',
+                    '--pattern',
+                    self::TASTY_PATTERN,
+                ],
+                '.port-libs/pandoc-runner/logs/docx-targeted-list-tests.txt',
+                'future inventory command only; run after reviewed dependency dry-run'
+            ),
+            'targetedDocxRun' => $this->commandDescriptor(
+                'targetedDocxRun',
+                [
+                    'v2-run',
+                    '--offline',
+                    '--project-dir=.',
+                    '--builddir=.port-libs/pandoc-runner/cabal-build/docx-targeted-run',
+                    self::RUNNER_TARGET,
+                    '--',
+                    '--pattern',
+                    self::TASTY_PATTERN,
+                ],
+                '.port-libs/pandoc-runner/logs/docx-targeted-run.txt',
+                'future targeted runner only; not executed by this PHP preflight'
+            ),
+        ];
+    }
+
+    /**
+     * @param list<string> $arguments
+     * @return array<string, mixed>
+     */
+    private function commandDescriptor(string $name, array $arguments, string $transcriptFile, string $executionPolicy): array
+    {
+        return [
+            'name' => $name,
+            'program' => 'cabal',
+            'arguments' => $arguments,
+            'commandLine' => self::commandLine(array_merge(['cabal'], $arguments)),
+            'workingDirectory' => $this->displayPath($this->upstreamRoot),
+            'environmentVariables' => self::WORKSPACE_ENVIRONMENT,
+            'transcriptFile' => $transcriptFile,
+            'executionPolicy' => $executionPolicy,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function resultArtifactContract(): array
+    {
+        return [
+            'requiredBeforeResultRecorded' => [
+                '.port-libs/pandoc-runner/logs/runner-test-dependencies.txt',
+                '.port-libs/pandoc-runner/logs/docx-targeted-list-tests.txt',
+                '.port-libs/pandoc-runner/logs/docx-targeted-run.txt',
+                '.port-libs/pandoc-runner/artifacts/docx-targeted-run/result.json',
+            ],
+            'resultJsonRequiredFields' => [
+                'upstreamCommit',
+                'commandLine',
+                'exitCode',
+                'runnerTarget',
+                'tastyPattern',
+                'selectedTestCount',
+                'passedCount',
+                'failedCount',
+                'skippedCount',
+                'startedAtUtc',
+                'finishedAtUtc',
+            ],
+            'admissionRule' => 'Do not set resultRecorded=true until command transcript, exit code, selected test inventory, and pass/fail counts are captured for the pinned upstream checkout.',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function activationGate(bool $ready): array
+    {
+        if (!$ready) {
+            return [
+                'hydrate Pandoc upstream checkout at ' . self::PINNED_UPSTREAM_COMMIT,
+                'restore required DOCX Tasty source files and fixture directories',
+                'rerun this preflight tool before executing Cabal commands',
+            ];
+        }
+
+        return [
+            'record dependencyDryRun transcript first',
+            'record listDocxTests transcript before the targeted run',
+            'record targetedDocxRun transcript and result.json before claiming any upstream DOCX runner result',
+        ];
+    }
+
+    private function absolutePath(string $path): string
+    {
+        if (str_starts_with($path, DIRECTORY_SEPARATOR)) {
+            return rtrim($path, DIRECTORY_SEPARATOR);
+        }
+
+        return $this->repoRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $path);
+    }
+
+    private function upstreamPath(string $relativePath): string
+    {
+        return $this->upstreamRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
+    }
+
+    private function displayPath(string $path): string
+    {
+        $root = $this->repoRoot . DIRECTORY_SEPARATOR;
+        if (str_starts_with($path, $root)) {
+            return str_replace(DIRECTORY_SEPARATOR, '/', substr($path, strlen($root)));
+        }
+
+        return $path;
+    }
+
+    private function hasNonEmptyFile(string $path): bool
+    {
+        if (!is_file($path)) {
+            return false;
+        }
+
+        $size = filesize($path);
+
+        return $size !== false && $size > 0;
+    }
+
+    private function countDirectFiles(string $directory, string $extension): int
+    {
+        if (!is_dir($directory)) {
+            return 0;
+        }
+
+        $count = 0;
+        foreach (new \DirectoryIterator($directory) as $entry) {
+            if (!$entry->isDot() && $entry->isFile() && strtolower($entry->getExtension()) === $extension) {
+                ++$count;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param list<string> $parts
+     */
+    private static function commandLine(array $parts): string
+    {
+        return implode(' ', array_map(self::shellArgument(...), $parts));
+    }
+
+    private static function shellArgument(string $value): string
+    {
+        if (preg_match('/^[A-Za-z0-9_.,:\/=@%+-]+$/', $value) === 1) {
+            return $value;
+        }
+
+        return escapeshellarg($value);
+    }
+
+    private static function boolText(mixed $value): string
+    {
+        return $value === true ? 'yes' : 'no';
+    }
+}
