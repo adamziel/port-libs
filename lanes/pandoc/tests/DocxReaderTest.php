@@ -181,6 +181,24 @@ return [
         $t->same(['id' => '3'], $children[6]->attr('attributes'));
         $t->same([], array_values(array_filter($children, static fn ($node): bool => $node->type === 'note')));
     },
+    'nests adjacent docx comment range ends to match native inline granularity' => static function (TestRunner $t) use ($buildDocxReaderPackagePartsBytes): void {
+        $bytes = $buildDocxReaderPackagePartsBytes([
+            '[Content_Types].xml' => '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/></Types>',
+            'word/comments.xml' => '<?xml version="1.0"?><w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:comment w:id="7" w:author="Outer"><w:p><w:r><w:t>Outer note.</w:t></w:r></w:p></w:comment><w:comment w:id="8" w:author="Inner"><w:p><w:r><w:t>Inner note.</w:t></w:r></w:p></w:comment></w:comments>',
+            'word/document.xml' => '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>One </w:t></w:r><w:commentRangeStart w:id="7"/><w:r><w:t>outer </w:t></w:r><w:commentRangeStart w:id="8"/><w:r><w:t>inner</w:t></w:r><w:commentRangeEnd w:id="7"/><w:commentRangeEnd w:id="8"/><w:r><w:t>.</w:t></w:r></w:p></w:body></w:document>',
+        ]);
+
+        $paragraph = (new DocxReader())->read($bytes)->children[0];
+        $outerEnd = $paragraph->children[5];
+
+        $t->same(['text', 'span', 'text', 'span', 'text', 'span', 'text'], array_map(static fn ($node): string => $node->type, $paragraph->children));
+        $t->same('inner', $paragraph->children[4]->attr('text'));
+        $t->same(['comment-end'], $outerEnd->attr('classes'));
+        $t->same(['id' => '7'], $outerEnd->attr('attributes'));
+        $t->same(1, count($outerEnd->children));
+        $t->same(['comment-end'], $outerEnd->children[0]->attr('classes'));
+        $t->same(['id' => '8'], $outerEnd->children[0]->attr('attributes'));
+    },
     'resolves docx tracked revisions by configured revision mode' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
         $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t xml:space="preserve">Base </w:t></w:r><w:ins w:author="Insert Reviewer" w:date="2026-06-26T12:00:00Z"><w:r><w:t xml:space="preserve">inserted </w:t></w:r></w:ins><w:del w:author="Delete Reviewer" w:date="2026-06-26T12:01:00Z"><w:r><w:delText xml:space="preserve">deleted </w:delText></w:r></w:del><w:moveFrom w:id="9" w:author="Move Reviewer" w:date="2026-06-26T12:02:00Z"><w:r><w:delText xml:space="preserve">moved-from </w:delText></w:r></w:moveFrom><w:moveTo w:id="9" w:author="Move Reviewer" w:date="2026-06-26T12:03:00Z"><w:r><w:t xml:space="preserve">moved-to </w:t></w:r></w:moveTo><w:r><w:t>tail</w:t></w:r></w:p></w:body></w:document>');
 

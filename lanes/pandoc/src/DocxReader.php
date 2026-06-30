@@ -5925,6 +5925,7 @@ final class DocxReader
         }
 
         $normalized = $this->mergeInlineWrapperSandwiches($normalized);
+        $normalized = $this->collapseAdjacentCommentEndSpans($normalized);
         $withBoundaryWhitespace = [];
         foreach ($normalized as $node) {
             array_push($withBoundaryWhitespace, ...$this->splitInlineBoundaryWhitespace($node));
@@ -6354,6 +6355,54 @@ final class DocxReader
         }
 
         return $merged;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @return list<AstNode>
+     */
+    private function collapseAdjacentCommentEndSpans(array $nodes): array
+    {
+        $collapsed = [];
+        $count = count($nodes);
+        for ($index = 0; $index < $count; ++$index) {
+            $node = $nodes[$index];
+            if (!$this->isEmptyCommentEndSpan($node)) {
+                $collapsed[] = $node;
+                continue;
+            }
+
+            $run = [$node];
+            while (isset($nodes[$index + 1]) && $this->isEmptyCommentEndSpan($nodes[$index + 1])) {
+                $run[] = $nodes[++$index];
+            }
+
+            if (count($run) === 1) {
+                $collapsed[] = $node;
+                continue;
+            }
+
+            $nested = array_pop($run);
+            while ($run !== []) {
+                $parent = array_pop($run);
+                $nested = new AstNode($parent->type, $parent->attrs, [$nested]);
+            }
+
+            $collapsed[] = $nested;
+        }
+
+        return $collapsed;
+    }
+
+    private function isEmptyCommentEndSpan(AstNode $node): bool
+    {
+        if ($node->type !== 'span' || $node->children !== []) {
+            return false;
+        }
+
+        $classes = $node->attr('classes', []);
+
+        return is_array($classes) && $classes === ['comment-end'];
     }
 
     private function canMergeInlineSandwich(AstNode $left, AstNode $middle, AstNode $right): bool
