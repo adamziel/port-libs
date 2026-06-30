@@ -367,6 +367,93 @@ XML);
         $t->same('paragraph', $document->children[0]->type);
         $t->same('Missing next style and known next style.', $document->children[0]->attr('text'));
     },
+    'reports direct odt style list and content reference diagnostics' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary ODT path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary ODT package');
+        }
+        $zip->addFromString('styles.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:styles>
+    <text:list-style style:name="KnownNumbers">
+      <text:list-level-style-number text:level="1" style:num-format="1"/>
+    </text:list-style>
+    <style:style style:name="ReviewParagraph" style:family="paragraph" style:list-style-name="MissingNumbers"/>
+    <style:style style:name="KnownParagraph" style:family="paragraph" style:list-style-name="KnownNumbers"/>
+  </office:styles>
+</office:document-styles>
+XML);
+        $zip->addFromString('content.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:h text:outline-level="2" text:style-name="MissingHeadingStyle">Missing heading style</text:h>
+      <text:p text:style-name="MissingParagraphStyle">Missing paragraph style.</text:p>
+      <text:p text:style-name="KnownParagraph">Known paragraph style.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML);
+        $zip->close();
+
+        try {
+            $document = (new OdtReader())->readOdtFile($path);
+        } finally {
+            @unlink($path);
+        }
+
+        $meta = $document->attr('meta');
+        $diagnosticsByCode = [];
+        foreach ($meta['odtStyleDiagnostics'] as $diagnostic) {
+            $diagnosticsByCode[$diagnostic['code']][] = $diagnostic;
+        }
+
+        $t->same(0, $meta['odtTextStyleCount']);
+        $t->same(1, $meta['odtListStyleCount']);
+        $t->same(3, $meta['odtStyleDiagnosticCount']);
+        $t->same([
+            'odt-content-missing-style' => 2,
+            'odt-style-missing-list-style' => 1,
+        ], $meta['odtStyleDiagnosticCodeCounts']);
+
+        $missingListStyle = $diagnosticsByCode['odt-style-missing-list-style'][0];
+        $t->same('styles.xml', $missingListStyle['sourcePart']);
+        $t->same('style:style', $missingListStyle['element']);
+        $t->same('ReviewParagraph', $missingListStyle['styleName']);
+        $t->same('MissingNumbers', $missingListStyle['listStyleName']);
+        $t->same('paragraph', $missingListStyle['family']);
+
+        $missingHeadingStyle = $diagnosticsByCode['odt-content-missing-style'][0];
+        $t->same('content.xml', $missingHeadingStyle['sourcePart']);
+        $t->same('text:h', $missingHeadingStyle['element']);
+        $t->same('text:style-name', $missingHeadingStyle['attribute']);
+        $t->same('MissingHeadingStyle', $missingHeadingStyle['styleName']);
+
+        $missingParagraphStyle = $diagnosticsByCode['odt-content-missing-style'][1];
+        $t->same('content.xml', $missingParagraphStyle['sourcePart']);
+        $t->same('text:p', $missingParagraphStyle['element']);
+        $t->same('text:style-name', $missingParagraphStyle['attribute']);
+        $t->same('MissingParagraphStyle', $missingParagraphStyle['styleName']);
+
+        $t->same('heading', $document->children[0]->type);
+        $t->same('Missing heading style', $document->children[0]->attr('text'));
+        $t->same('paragraph', $document->children[1]->type);
+        $t->same('Missing paragraph style.', $document->children[1]->attr('text'));
+        $t->same('paragraph', $document->children[2]->type);
+        $t->same('Known paragraph style.', $document->children[2]->attr('text'));
+    },
     'preserves odt footnotes through the converter input path' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
         if ($path === false) {
