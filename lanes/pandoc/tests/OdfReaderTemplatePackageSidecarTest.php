@@ -32,7 +32,7 @@ $manifestXml = <<<XML
   <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>
   <manifest:file-entry manifest:full-path="Templates/Review/" manifest:media-type=""/>
   <manifest:file-entry manifest:full-path="Templates/Review/manifest.xml" manifest:media-type="text/xml" manifest:size="{$templateManifestSize}"/>
-  <manifest:file-entry manifest:full-path="Templates/Review/letter.ott" manifest:media-type="application/vnd.oasis.opendocument.text-template" manifest:size="{$templateSize}"/>
+  <manifest:file-entry manifest:full-path="Templates/Review/letter.ott" manifest:media-type="application/vnd.oasis.opendocument.text-template" manifest:size="{$templateSize}bytes"/>
   <manifest:file-entry manifest:full-path="Templates/Review/letter.odt" manifest:media-type="" manifest:size="{$documentTemplateSize}"/>
   <manifest:file-entry manifest:full-path="Templates/Review/letter.dotx" manifest:media-type="" manifest:size="{$openXmlTemplateSize}bytes"/>
   <manifest:file-entry manifest:full-path="Templates/Review/preview.png" manifest:media-type="image/png" manifest:size="{$previewSize}"/>
@@ -113,6 +113,7 @@ return [
         $buildPackage,
         $templateManifestXml,
         $templateBytes,
+        $templateSize,
         $documentTemplateBytes,
         $openXmlTemplateBytes,
         $previewBytes,
@@ -139,8 +140,8 @@ return [
         $t->same(1, $readerTemplates['encryptedCount']);
         $t->same(0, $readerTemplates['missingMediaTypeCount']);
         $t->same(0, $readerTemplates['invalidMediaTypeCount']);
-        $t->same(1, $readerTemplates['invalidDeclaredSizeCount']);
-        $t->same(5, $readerTemplates['issueCount']);
+        $t->same(2, $readerTemplates['invalidDeclaredSizeCount']);
+        $t->same(6, $readerTemplates['issueCount']);
         $t->same([
             'odf-template-package-encrypted-part',
             'odf-template-package-invalid-declared-size',
@@ -175,6 +176,11 @@ return [
         $t->same('template-document', $template['kind']);
         $t->same('application/vnd.oasis.opendocument.text-template', $template['mediaTypeBase']);
         $t->same(strlen($templateBytes), $template['byteLength']);
+        $t->same(null, $template['declaredSize']);
+        $t->same($templateSize . 'bytes', $template['declaredSizeRaw']);
+        $t->same(false, $template['declaredSizeValid']);
+        $t->same(true, $template['declaredSizeInvalid']);
+        $t->same(['odf-template-package-invalid-declared-size'], $template['issues']);
         $t->same(false, $template['canExposeBytes']);
 
         $documentTemplate = $readerItems['Templates/Review/letter.odt'];
@@ -274,12 +280,17 @@ return [
         $t->same(2, $compactTemplates['undeclaredCount']);
         $t->same(1, $compactTemplates['missingCount']);
         $t->same(1, $compactTemplates['encryptedCount']);
-        $t->same(1, $compactTemplates['invalidDeclaredSizeCount']);
-        $t->same(5, $compactTemplates['issueCount']);
+        $t->same(2, $compactTemplates['invalidDeclaredSizeCount']);
+        $t->same(6, $compactTemplates['issueCount']);
         $t->same($readerTemplates['issueCodes'], $compactTemplates['issueCodes']);
         $t->same($readerTemplates['kindCounts'], $compactTemplates['kindCounts']);
         $t->same('template-package-bytes-blocked', $compactTemplates['byteExposurePolicy']);
         $t->same('template-package-metadata-only', $compactTemplates['reviewPolicy']);
+        $t->same(null, $compactItems['Templates/Review/letter.ott']['declaredSize']);
+        $t->same($templateSize . 'bytes', $compactItems['Templates/Review/letter.ott']['declaredSizeRaw']);
+        $t->same(false, $compactItems['Templates/Review/letter.ott']['declaredSizeValid']);
+        $t->same(true, $compactItems['Templates/Review/letter.ott']['declaredSizeInvalid']);
+        $t->same(['odf-template-package-invalid-declared-size'], $compactItems['Templates/Review/letter.ott']['issues']);
         $t->same('template-document', $compactItems['Templates/Review/letter.odt']['kind']);
         $t->same(OpenDocumentPackage::TEXT_MIMETYPE, $compactItems['Templates/Review/letter.odt']['mediaTypeBase']);
         $t->same([], $compactItems['Templates/Review/letter.odt']['issues']);
