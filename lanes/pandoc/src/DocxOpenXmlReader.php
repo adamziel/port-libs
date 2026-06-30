@@ -14653,6 +14653,7 @@ final class DocxOpenXmlReader
         }
         ksort($partDirectoryDepthCounts, SORT_NUMERIC);
         $partTopLevelSegments = $this->packagePartTopLevelSegmentSummary($partInventory);
+        $partTopLevelSegmentCharacters = $this->packagePartTopLevelSegmentCharacterSummary($partInventory);
         $partPathSegments = $this->packagePartPathSegmentSummary($partInventory);
         $partPathSegmentOccurrenceCount = 0;
         foreach ($partPathSegments as $partPathSegment) {
@@ -18509,6 +18510,14 @@ final class DocxOpenXmlReader
             'partDirectoryBaseNames' => $partDirectoryBaseNames,
             'partDirectoryDepths' => $partDirectoryDepths,
             'partTopLevelSegments' => $partTopLevelSegments,
+            'partTopLevelSegmentCharacterReviewPartCount' => $partTopLevelSegmentCharacters['partCount'],
+            'partTopLevelSegmentUppercasePartCount' => count($partTopLevelSegmentCharacters['flagPartNames']['uppercase'] ?? []),
+            'partTopLevelSegmentWhitespacePartCount' => count($partTopLevelSegmentCharacters['flagPartNames']['whitespace'] ?? []),
+            'partTopLevelSegmentPercentEncodedOctetPartCount' => count($partTopLevelSegmentCharacters['flagPartNames']['percent-encoded-octet'] ?? []),
+            'partTopLevelSegmentNonAsciiPartCount' => count($partTopLevelSegmentCharacters['flagPartNames']['non-ascii'] ?? []),
+            'partTopLevelSegmentCharacterFlagCounts' => $partTopLevelSegmentCharacters['flagCounts'],
+            'partTopLevelSegmentCharacterFlagPartNames' => $partTopLevelSegmentCharacters['flagPartNames'],
+            'partTopLevelSegmentCharacterFlagSegments' => $partTopLevelSegmentCharacters['flagSegments'],
             'partPathSegments' => $partPathSegments,
             'partPathSegmentLengths' => $partPathSegmentLengths,
             'partPathDepths' => $partPathDepths,
@@ -18520,6 +18529,7 @@ final class DocxOpenXmlReader
             'partBaseNameStems' => $partBaseNameStems,
             'partCaseFoldBaseNames' => $partCaseFoldBaseNames,
             'partDirectoryBaseNameCharacterReviewParts' => $partDirectoryBaseNameCharacters['parts'],
+            'partTopLevelSegmentCharacterReviewParts' => $partTopLevelSegmentCharacters['parts'],
             'partNameCharacterReviewParts' => $partNameCharacters['parts'],
             'partBaseNameCharacterReviewParts' => $partBaseNameCharacters['parts'],
             'partPathSegmentCharacterReviewSegments' => $partPathSegmentCharacters['segments'],
@@ -25150,6 +25160,88 @@ final class DocxOpenXmlReader
             'flagCounts' => $flagCounts,
             'flagPartNames' => $flagPartNames,
             'flagDirectoryBaseNames' => $flagDirectoryBaseNames,
+            'parts' => $items,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return array{partCount:int, flagCounts:array<string, int>, flagPartNames:array<string, list<string>>, flagSegments:array<string, list<string>>, parts:list<array<string, mixed>>}
+     */
+    private function packagePartTopLevelSegmentCharacterSummary(array $partInventory): array
+    {
+        $flagCounts = [];
+        $flagPartNames = [];
+        $flagSegments = [];
+        $items = [];
+        foreach ($partInventory as $partName => $part) {
+            $partName = (string) ($part['partName'] ?? $partName);
+            $topLevelSegment = is_string($part['topLevelSegment'] ?? null)
+                ? $part['topLevelSegment']
+                : ($this->packagePartPathSegments($partName)[0] ?? '');
+            $flags = is_array($part['topLevelSegmentCharacterFlags'] ?? null)
+                ? array_values(array_map('strval', $part['topLevelSegmentCharacterFlags']))
+                : ($topLevelSegment === '' ? [] : $this->packagePartNameCharacterFlags($topLevelSegment));
+            $flags = array_values(array_filter($flags, static fn (string $flag): bool => $flag !== ''));
+            if ($flags === []) {
+                continue;
+            }
+
+            foreach ($flags as $flag) {
+                $flagCounts[$flag] = ($flagCounts[$flag] ?? 0) + 1;
+                $flagPartNames[$flag] ??= [];
+                $flagSegments[$flag] ??= [];
+                $this->appendUniqueString($flagPartNames[$flag], $partName);
+                $this->appendUniqueString($flagSegments[$flag], $topLevelSegment);
+            }
+
+            $items[] = [
+                'partName' => $partName,
+                'topLevelSegment' => $topLevelSegment,
+                'caseFoldTopLevelSegment' => $this->packagePartCaseFoldKey($topLevelSegment),
+                'directory' => is_string($part['directory'] ?? null)
+                    ? $part['directory']
+                    : $this->packagePartDirectory($partName),
+                'baseName' => is_string($part['baseName'] ?? null)
+                    ? $part['baseName']
+                    : $this->packagePartBaseName($partName),
+                'pathSegmentCount' => is_int($part['pathSegmentCount'] ?? null)
+                    ? $part['pathSegmentCount']
+                    : count($this->packagePartPathSegments($partName)),
+                'bytes' => (int) ($part['bytes'] ?? 0),
+                'contentTypeSource' => is_string($part['contentTypeSource'] ?? null)
+                    ? $part['contentTypeSource']
+                    : 'missing',
+                'contentTypeBase' => is_string($part['contentTypeBase'] ?? null)
+                    ? $part['contentTypeBase']
+                    : '',
+                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+                'flags' => $flags,
+            ];
+        }
+
+        ksort($flagCounts, SORT_STRING);
+        ksort($flagPartNames, SORT_STRING);
+        foreach ($flagPartNames as &$partNames) {
+            sort($partNames, SORT_STRING);
+        }
+        unset($partNames);
+        ksort($flagSegments, SORT_STRING);
+        foreach ($flagSegments as &$segments) {
+            sort($segments, SORT_STRING);
+        }
+        unset($segments);
+
+        usort(
+            $items,
+            static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName']),
+        );
+
+        return [
+            'partCount' => count($items),
+            'flagCounts' => $flagCounts,
+            'flagPartNames' => $flagPartNames,
+            'flagSegments' => $flagSegments,
             'parts' => $items,
         ];
     }
@@ -40229,6 +40321,10 @@ final class DocxOpenXmlReader
             $directoryBaseNameCharacterFlags = $directoryBaseName === '/'
                 ? []
                 : $this->packagePartNameCharacterFlags($directoryBaseName);
+            $topLevelSegment = $pathSegments[0] ?? '';
+            $topLevelSegmentCharacterFlags = $topLevelSegment === ''
+                ? []
+                : $this->packagePartNameCharacterFlags($topLevelSegment);
             $pathSegmentLengthReviews = $this->packagePartPathSegmentLengthReviews($pathSegments);
             $pathSegmentByteLengths = array_column($pathSegmentLengthReviews, 'byteLength');
             $pathSegmentLengthBuckets = [];
@@ -40259,7 +40355,7 @@ final class DocxOpenXmlReader
                 'caseFoldBaseName' => $this->packagePartCaseFoldKey($baseName),
                 'caseFoldBaseNameStem' => $this->packagePartCaseFoldKey($baseNameStem),
                 'pathSegments' => $pathSegments,
-                'topLevelSegment' => $pathSegments[0] ?? '',
+                'topLevelSegment' => $topLevelSegment,
                 'pathSegmentCount' => count($pathSegments),
                 'partExtension' => $partExtension,
                 'rawPartExtension' => $rawPartExtension,
@@ -40302,6 +40398,11 @@ final class DocxOpenXmlReader
                 'directoryBaseNameHasWhitespace' => in_array('whitespace', $directoryBaseNameCharacterFlags, true),
                 'directoryBaseNameHasPercentEncodedOctet' => in_array('percent-encoded-octet', $directoryBaseNameCharacterFlags, true),
                 'directoryBaseNameHasNonAscii' => in_array('non-ascii', $directoryBaseNameCharacterFlags, true),
+                'topLevelSegmentCharacterFlags' => $topLevelSegmentCharacterFlags,
+                'topLevelSegmentHasUppercase' => in_array('uppercase', $topLevelSegmentCharacterFlags, true),
+                'topLevelSegmentHasWhitespace' => in_array('whitespace', $topLevelSegmentCharacterFlags, true),
+                'topLevelSegmentHasPercentEncodedOctet' => in_array('percent-encoded-octet', $topLevelSegmentCharacterFlags, true),
+                'topLevelSegmentHasNonAscii' => in_array('non-ascii', $topLevelSegmentCharacterFlags, true),
                 'pathSegmentCharacterReviews' => $pathSegmentCharacterReviews,
                 'pathSegmentCharacterReviewCount' => count($pathSegmentCharacterReviews),
                 'pathSegmentCharacterFlags' => $pathSegmentCharacterFlags,

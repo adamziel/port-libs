@@ -2402,6 +2402,86 @@ XML;
         $t->same('word/document.xml', $word['largestPart']['partName']);
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $word['largestPart']['contentTypeBase']);
     },
+    'summarizes docx package top-level segment character provenance for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $mixedTopLevelPart = 'Review Pack/item.xml';
+        $percentTopLevelPart = 'review%20encoded/item.xml';
+        $nonAsciiTopLevelPart = "caf\xC3\xA9/item.xml";
+        $directoryUppercaseOnlyPart = 'CustomXml/normal.xml';
+        $baseNameUppercaseOnlyPart = 'reviewdata/Normal.xml';
+        $parts[$mixedTopLevelPart] = '<review-pack-root/>';
+        $parts[$percentTopLevelPart] = '<encoded-root/>';
+        $parts[$nonAsciiTopLevelPart] = '<cafe-root/>';
+        $parts[$directoryUppercaseOnlyPart] = '<root-uppercase-only/>';
+        $parts[$baseNameUppercaseOnlyPart] = '<basename-uppercase-only/>';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $byPartName = [];
+        foreach ($summary['partTopLevelSegmentCharacterReviewParts'] as $item) {
+            $byPartName[$item['partName']] = $item;
+        }
+
+        $t->same(6, $summary['partTopLevelSegmentCharacterReviewPartCount']);
+        $t->same(4, $summary['partTopLevelSegmentUppercasePartCount']);
+        $t->same(1, $summary['partTopLevelSegmentWhitespacePartCount']);
+        $t->same(1, $summary['partTopLevelSegmentPercentEncodedOctetPartCount']);
+        $t->same(1, $summary['partTopLevelSegmentNonAsciiPartCount']);
+        $t->same([
+            'non-ascii' => 1,
+            'percent-encoded-octet' => 1,
+            'uppercase' => 4,
+            'whitespace' => 1,
+        ], $summary['partTopLevelSegmentCharacterFlagCounts']);
+        $t->same([$directoryUppercaseOnlyPart, $mixedTopLevelPart, '[Content_Types].xml', 'docProps/core.xml'], $summary['partTopLevelSegmentCharacterFlagPartNames']['uppercase']);
+        $t->same([$mixedTopLevelPart], $summary['partTopLevelSegmentCharacterFlagPartNames']['whitespace']);
+        $t->same([$percentTopLevelPart], $summary['partTopLevelSegmentCharacterFlagPartNames']['percent-encoded-octet']);
+        $t->same([$nonAsciiTopLevelPart], $summary['partTopLevelSegmentCharacterFlagPartNames']['non-ascii']);
+        $t->same(['CustomXml', 'Review Pack', '[Content_Types].xml', 'docProps'], $summary['partTopLevelSegmentCharacterFlagSegments']['uppercase']);
+        $t->same(['Review Pack'], $summary['partTopLevelSegmentCharacterFlagSegments']['whitespace']);
+        $t->same(['review%20encoded'], $summary['partTopLevelSegmentCharacterFlagSegments']['percent-encoded-octet']);
+        $t->same(["caf\xC3\xA9"], $summary['partTopLevelSegmentCharacterFlagSegments']['non-ascii']);
+
+        $t->same(['uppercase'], $inventory['[Content_Types].xml']['topLevelSegmentCharacterFlags']);
+        $t->same(true, $inventory['[Content_Types].xml']['topLevelSegmentHasUppercase']);
+        $t->same(['uppercase'], $inventory['docProps/core.xml']['topLevelSegmentCharacterFlags']);
+        $t->same(true, $inventory['docProps/core.xml']['topLevelSegmentHasUppercase']);
+        $t->same(['uppercase'], $inventory[$directoryUppercaseOnlyPart]['topLevelSegmentCharacterFlags']);
+        $t->same(true, $inventory[$directoryUppercaseOnlyPart]['topLevelSegmentHasUppercase']);
+        $t->same([], $inventory[$directoryUppercaseOnlyPart]['baseNameCharacterFlags']);
+        $t->same(false, $inventory[$directoryUppercaseOnlyPart]['baseNameHasUppercase']);
+        $t->same([], $inventory[$baseNameUppercaseOnlyPart]['topLevelSegmentCharacterFlags']);
+        $t->same(false, $inventory[$baseNameUppercaseOnlyPart]['topLevelSegmentHasUppercase']);
+        $t->same(['uppercase'], $inventory[$baseNameUppercaseOnlyPart]['baseNameCharacterFlags']);
+
+        $t->same(['uppercase', 'whitespace'], $inventory[$mixedTopLevelPart]['topLevelSegmentCharacterFlags']);
+        $t->same(true, $inventory[$mixedTopLevelPart]['topLevelSegmentHasUppercase']);
+        $t->same(true, $inventory[$mixedTopLevelPart]['topLevelSegmentHasWhitespace']);
+        $t->same(false, $inventory[$mixedTopLevelPart]['topLevelSegmentHasPercentEncodedOctet']);
+        $t->same(false, $inventory[$mixedTopLevelPart]['topLevelSegmentHasNonAscii']);
+        $t->same(['percent-encoded-octet'], $inventory[$percentTopLevelPart]['topLevelSegmentCharacterFlags']);
+        $t->same(true, $inventory[$percentTopLevelPart]['topLevelSegmentHasPercentEncodedOctet']);
+        $t->same(['non-ascii'], $inventory[$nonAsciiTopLevelPart]['topLevelSegmentCharacterFlags']);
+        $t->same(true, $inventory[$nonAsciiTopLevelPart]['topLevelSegmentHasNonAscii']);
+
+        $t->same('Review Pack', $byPartName[$mixedTopLevelPart]['topLevelSegment']);
+        $t->same('review pack', $byPartName[$mixedTopLevelPart]['caseFoldTopLevelSegment']);
+        $t->same('Review Pack', $byPartName[$mixedTopLevelPart]['directory']);
+        $t->same('item.xml', $byPartName[$mixedTopLevelPart]['baseName']);
+        $t->same(2, $byPartName[$mixedTopLevelPart]['pathSegmentCount']);
+        $t->same('default', $byPartName[$mixedTopLevelPart]['contentTypeSource']);
+        $t->same('application/xml', $byPartName[$mixedTopLevelPart]['contentTypeBase']);
+        $t->same(['package-part'], $byPartName[$mixedTopLevelPart]['roles']);
+        $t->same('review%20encoded', $byPartName[$percentTopLevelPart]['topLevelSegment']);
+        $t->same(['percent-encoded-octet'], $byPartName[$percentTopLevelPart]['flags']);
+        $t->same("caf\xC3\xA9", $byPartName[$nonAsciiTopLevelPart]['topLevelSegment']);
+        $t->same(['non-ascii'], $byPartName[$nonAsciiTopLevelPart]['flags']);
+        $t->same('CustomXml', $byPartName[$directoryUppercaseOnlyPart]['topLevelSegment']);
+        $t->same(['uppercase'], $byPartName[$directoryUppercaseOnlyPart]['flags']);
+        $t->true(!isset($byPartName[$baseNameUppercaseOnlyPart]), 'base-name-only uppercase should not create top-level segment review');
+    },
     'summarizes docx package directory content type buckets for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
