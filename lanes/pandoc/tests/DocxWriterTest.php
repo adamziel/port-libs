@@ -469,6 +469,57 @@ return [
         }
     },
 
+    'writer golden inline formatting uses reader native underline fixture' => static function (TestRunner $t) use ($removeTree, $writeFile, $corePropertiesDocx, $packageParts): void {
+        $root = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'pandoc-docx-writer-inline-source-' . bin2hex(random_bytes(6));
+        if (!mkdir($root, 0777, true) && !is_dir($root)) {
+            throw new RuntimeException('Unable to create DOCX writer inline formatting fixture root');
+        }
+
+        try {
+            $writeFile($root, 'test/docx/golden/inline_formatting.docx', $corePropertiesDocx(
+                'Inline formatting',
+                '2026-06-30T00:00:00Z',
+                '2026-06-30T00:00:00Z'
+            ));
+            $writeFile(
+                $root,
+                'test/docx/inline_formatting.native',
+                '[Para [Str "Some",Space,Underline [Str "under",Space,Emph [Str "emphasis"]]]]'
+            );
+            $writeFile(
+                $root,
+                'test/docx/inline_formatting_writer.native',
+                '[Para [Str "Some",Space,Emph [Str "writer",Space,Str "fixture"]]]'
+            );
+
+            $report = (new DocxWriterGoldenManifest(
+                $root,
+                'test/docx',
+                8,
+                null,
+                'generated-docx',
+                ['inline_formatting.docx']
+            ))->report();
+
+            $caseRow = $report['generation']['caseRows'][0] ?? [];
+            $t->same('inline_formatting.native', $caseRow['nativeFile'] ?? null);
+            $t->same('generated', $caseRow['status'] ?? null);
+            $t->same(1, $report['generation']['generatedPackageCount']);
+
+            $generated = file_get_contents($root . DIRECTORY_SEPARATOR . 'generated-docx' . DIRECTORY_SEPARATOR . 'inline_formatting.docx');
+            if (!is_string($generated)) {
+                throw new RuntimeException('Unable to read generated inline formatting fixture');
+            }
+            [, $parts] = $packageParts($generated);
+            $t->contains('<w:rPr><w:u w:val="single"/></w:rPr><w:t xml:space="preserve">under</w:t>', $parts['word/document.xml']);
+            $t->contains('<w:rPr><w:u w:val="single"/></w:rPr><w:t xml:space="preserve"> </w:t>', $parts['word/document.xml']);
+            $t->contains('<w:rPr><w:i/><w:iCs/><w:u w:val="single"/></w:rPr><w:t xml:space="preserve">emphasis</w:t>', $parts['word/document.xml']);
+            $t->true(!str_contains($parts['word/document.xml'], 'writer fixture'), 'inline_formatting_writer.native should not feed inline_formatting.docx generation');
+        } finally {
+            $removeTree($root);
+        }
+    },
+
     'emits local image media parts with document image relationships' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts, $jpeg250x250At120Dpi): void {
         $mediaDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'port-libs-docx-writer-media-' . getmypid() . '-' . bin2hex(random_bytes(4));
         if (!mkdir($mediaDir, 0777, true) && !is_dir($mediaDir)) {
