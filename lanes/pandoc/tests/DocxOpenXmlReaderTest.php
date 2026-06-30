@@ -20045,6 +20045,123 @@ XML;
         $t->same(0, $byKind['comments']['rootNamespaceDeclarationCount']);
         $t->same([], $byKind['comments']['rootNamespacePrefixes']);
     },
+    'summarizes docx selected openxml root attributes and child elements for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' . "\n" .
+            '  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' . "\n" .
+            '  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' . "\n" .
+            '  <Override PartName="/word/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettingsRootReview" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>' . "\n" .
+            '  <Relationship Id="rThemeRootReview" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/styles.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" mc:Ignorable="w14" w:docDefaults="metadata-only">
+  <w:docDefaults/>
+  <w:style w:type="paragraph" w:styleId="ReviewRoot"/>
+</w:styles>
+XML;
+        $parts['word/settings.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml" mc:Ignorable="w15" w:rsidR="00112233">
+  <w:zoom w:percent="125"/>
+  <w:docVars><w:docVar w:name="root-review" w:val="hidden-value"/></w:docVars>
+</w:settings>
+XML;
+        $parts['word/theme/theme1.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Selected Attribute Theme">
+  <a:themeElements/>
+  <a:objectDefaults/>
+</a:theme>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $selected = $package['selectedXmlParts'];
+        $summary = $package['summary'];
+        $byKind = $selected['byKind'];
+        $expectedAttributeValueByteLength = strlen('w14')
+            + strlen('metadata-only')
+            + strlen('w15')
+            + strlen('00112233')
+            + strlen('Selected Attribute Theme');
+
+        $t->same(18, $selected['count']);
+        $t->same(6, $selected['existingCount']);
+        $t->same(3, $selected['rootAttributePartCount']);
+        $t->same(5, $selected['rootAttributeCount']);
+        $t->same([
+            'mc:Ignorable' => 2,
+            'name' => 1,
+            'w:docDefaults' => 1,
+            'w:rsidR' => 1,
+        ], $selected['rootAttributeNameCounts']);
+        $t->same(['mc:Ignorable', 'name', 'w:docDefaults', 'w:rsidR'], $selected['rootAttributeNames']);
+        $t->same($expectedAttributeValueByteLength, $selected['rootAttributeValueByteLength']);
+        $t->same(['word/settings.xml', 'word/styles.xml', 'word/theme/theme1.xml'], $selected['rootAttributePartNames']);
+        $t->same([
+            '(none)' => 1,
+            'http://schemas.openxmlformats.org/markup-compatibility/2006' => 2,
+            'http://schemas.openxmlformats.org/wordprocessingml/2006/main' => 2,
+        ], $selected['rootAttributeNamespaceCounts']);
+        $t->same([
+            'http://schemas.openxmlformats.org/markup-compatibility/2006',
+            'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
+        ], $selected['rootAttributeNamespaces']);
+        $t->same(['(none)' => 1, 'mc' => 2, 'w' => 2], $selected['rootAttributePrefixCounts']);
+        $t->same(['mc', 'w'], $selected['rootAttributePrefixes']);
+
+        $t->same(6, $selected['rootChildElementPartCount']);
+        $t->same(17, $selected['rootChildElementCount']);
+        $t->same(6, $selected['rootChildElementMaxCount']);
+        $t->same([
+            'docProps/core.xml',
+            'word/document.xml',
+            'word/numbering.xml',
+            'word/settings.xml',
+            'word/styles.xml',
+            'word/theme/theme1.xml',
+        ], $selected['rootChildElementPartNames']);
+        $t->same(2, $selected['rootChildElementNameCounts']['w:abstractNum']);
+        $t->same(2, $selected['rootChildElementNameCounts']['w:num']);
+        $t->same(1, $selected['rootChildElementNameCounts']['a:objectDefaults']);
+        $t->same(1, $selected['rootChildElementNameCounts']['w:docVars']);
+        $t->same(9, $selected['rootChildElementPrefixCounts']['w']);
+        $t->same(['a', 'cp', 'dc', 'dcterms', 'w'], $selected['rootChildElementPrefixes']);
+
+        $t->same(['mc:Ignorable', 'w:rsidR'], $byKind['settings']['rootAttributeNames']);
+        $t->same(strlen('w15') + strlen('00112233'), $byKind['settings']['rootAttributeValueByteLength']);
+        $t->same(2, $byKind['settings']['rootChildElementCount']);
+        $t->same('w:zoom', $byKind['settings']['rootChildElementFirstName']);
+        $t->same('w:docVars', $byKind['settings']['rootChildElementLastName']);
+        $t->same(['name'], $byKind['theme']['rootAttributeNames']);
+        $t->same(2, $byKind['theme']['rootChildElementCount']);
+        $t->same('a:themeElements', $byKind['theme']['rootChildElementFirstName']);
+        $t->same('a:objectDefaults', $byKind['theme']['rootChildElementLastName']);
+
+        $t->same($selected['rootAttributeNameCounts'], $summary['selectedXmlPartRootAttributeNameCounts']);
+        $t->same($selected['rootAttributeNames'], $summary['selectedXmlPartRootAttributeNames']);
+        $t->same($selected['rootAttributePartNames'], $summary['selectedXmlPartRootAttributePartNames']);
+        $t->same($selected['rootChildElementNameCounts'], $summary['selectedXmlPartRootChildElementNameCounts']);
+        $t->same($selected['rootChildElementPartNames'], $summary['selectedXmlPartRootChildElementPartNames']);
+        $t->same($selected['rootChildElements'], $summary['selectedXmlPartRootChildElements']);
+
+        $encodedReview = json_encode([$selected['rootAttributes'], $summary['selectedXmlPartRootAttributes']]);
+        $t->true(is_string($encodedReview), 'selected XML root attribute metadata should encode for review');
+        $t->true(!str_contains((string) $encodedReview, 'metadata-only'), 'selected XML root attribute metadata should not expose root attribute values');
+        $t->true(!str_contains((string) $encodedReview, 'Selected Attribute Theme'), 'selected XML root attribute metadata should not expose theme names');
+        $t->true(!str_contains((string) $encodedReview, 'hidden-value'), 'selected XML root attribute metadata should not expose descendant XML values');
+    },
     'summarizes docx selected openxml root name rollups for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
