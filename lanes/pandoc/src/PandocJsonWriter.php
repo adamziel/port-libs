@@ -2783,21 +2783,92 @@ final class PandocJsonWriter
      */
     private function regeneratedAttrNative(array $native, array $generated): array
     {
-        $native['c'] = $this->hasSingleWrappedAttrTupleContent($native['c'] ?? null)
-            ? [$generated]
-            : $generated;
+        $native['c'] = $this->regeneratedAttrTupleContent($native['c'] ?? null, $generated);
 
         return $native;
     }
 
-    private function hasSingleWrappedAttrTupleContent(mixed $content): bool
+    /**
+     * @param array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>} $generated
+     */
+    private function regeneratedAttrTupleContent(mixed $content, array $generated): array
     {
-        return is_array($content)
+        if (
+            is_array($content)
             && array_is_list($content)
             && count($content) === 1
             && is_array($content[0])
             && array_is_list($content[0])
-            && $this->validAttrTuplePrefix($content[0]) !== null;
+            && $this->validAttrTuplePrefix($content[0]) !== null
+        ) {
+            return [$this->regeneratedAttrTupleContent($content[0], $generated)];
+        }
+
+        return $this->regeneratedAttrTuple($content, $generated);
+    }
+
+    /**
+     * @param array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>} $generated
+     */
+    private function regeneratedAttrTuple(mixed $source, array $generated): array
+    {
+        if (!is_array($source) || !array_is_list($source)) {
+            return $generated;
+        }
+
+        return [
+            $this->regeneratedAttrScalar($source[0] ?? null, $generated[0]),
+            $this->regeneratedAttrStringList($source[1] ?? null, $generated[1]),
+            $this->regeneratedAttrKeyValuePairs($source[2] ?? null, $generated[2]),
+        ];
+    }
+
+    /**
+     * @param list<string> $values
+     * @return list<mixed>
+     */
+    private function regeneratedAttrStringList(mixed $source, array $values): array
+    {
+        $sourceList = is_array($source) && array_is_list($source) ? $source : [];
+        $encoded = [];
+        foreach ($values as $index => $value) {
+            $encoded[] = $this->regeneratedAttrScalar($sourceList[$index] ?? ($sourceList[0] ?? null), $value);
+        }
+
+        return $encoded;
+    }
+
+    /**
+     * @param list<array{0:string, 1:string}> $pairs
+     * @return list<mixed>
+     */
+    private function regeneratedAttrKeyValuePairs(mixed $source, array $pairs): array
+    {
+        $sourcePairs = is_array($source) && array_is_list($source) ? $source : [];
+        $encoded = [];
+        foreach ($pairs as $index => $pair) {
+            $sourcePair = $sourcePairs[$index] ?? ($sourcePairs[0] ?? null);
+            if (is_array($sourcePair) && array_is_list($sourcePair) && count($sourcePair) >= 2) {
+                $encoded[] = [
+                    $this->regeneratedAttrScalar($sourcePair[0], $pair[0]),
+                    $this->regeneratedAttrScalar($sourcePair[1], $pair[1]),
+                ];
+                continue;
+            }
+
+            $encoded[] = $pair;
+        }
+
+        return $encoded;
+    }
+
+    private function regeneratedAttrScalar(mixed $source, string $value): mixed
+    {
+        if (is_array($source) && array_is_list($source) && count($source) === 1) {
+            return [$this->regeneratedAttrScalar($source[0], $value)];
+        }
+
+        return $value;
     }
 
     /**
