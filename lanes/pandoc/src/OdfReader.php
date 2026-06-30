@@ -12425,6 +12425,12 @@ final class OdfReader
             }
             $name = self::attr($listStyle, self::STYLE_NS, 'name');
             if ($name === '') {
+                $this->appendMissingStyleCollectionNameDiagnostic(
+                    $diagnostics,
+                    $listStyle,
+                    $sourcePart,
+                    'odf-list-style-missing-name'
+                );
                 continue;
             }
             $this->putStyleCollectionItem(
@@ -12449,6 +12455,12 @@ final class OdfReader
             }
             $name = self::attr($tableTemplate, self::TABLE_NS, 'name');
             if ($name === '') {
+                $this->appendMissingStyleCollectionNameDiagnostic(
+                    $diagnostics,
+                    $tableTemplate,
+                    $sourcePart,
+                    'odf-table-template-missing-name'
+                );
                 continue;
             }
             $this->putStyleCollectionItem(
@@ -12471,6 +12483,12 @@ final class OdfReader
             }
             $name = self::attr($pageLayout, self::STYLE_NS, 'name');
             if ($name === '') {
+                $this->appendMissingStyleCollectionNameDiagnostic(
+                    $diagnostics,
+                    $pageLayout,
+                    $sourcePart,
+                    'odf-page-layout-missing-name'
+                );
                 continue;
             }
             $this->putStyleCollectionItem(
@@ -12493,6 +12511,12 @@ final class OdfReader
             }
             $name = self::attr($masterPage, self::STYLE_NS, 'name');
             if ($name === '') {
+                $this->appendMissingStyleCollectionNameDiagnostic(
+                    $diagnostics,
+                    $masterPage,
+                    $sourcePart,
+                    'odf-master-page-missing-name'
+                );
                 continue;
             }
             $this->putStyleCollectionItem(
@@ -12553,6 +12577,17 @@ final class OdfReader
         }
 
         return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private function appendMissingStyleCollectionNameDiagnostic(array &$diagnostics, \DOMElement $element, string $sourcePart, string $code): void
+    {
+        $diagnostics[] = self::withoutEmpty([
+            'code' => $code,
+            'element' => $this->odfElementName($element),
+        ] + $this->styleDefinitionSourceMetadata($element, $sourcePart));
     }
 
     /**
@@ -12626,6 +12661,12 @@ final class OdfReader
         foreach (self::childElements($container, 'font-face', self::STYLE_NS) as $fontFace) {
             $name = self::attr($fontFace, self::STYLE_NS, 'name');
             if ($name === '') {
+                $this->appendMissingStyleCollectionNameDiagnostic(
+                    $diagnostics,
+                    $fontFace,
+                    $sourcePart,
+                    'odf-font-face-missing-name'
+                );
                 continue;
             }
 
@@ -12669,7 +12710,14 @@ final class OdfReader
         foreach (self::childElements($element) as $child) {
             if ($child->namespaceURI === self::NUMBER_NS && $this->isDataStyleElementName($child->localName)) {
                 $name = self::attr($child, self::STYLE_NS, 'name');
-                if ($name !== '') {
+                if ($name === '') {
+                    $this->appendMissingStyleCollectionNameDiagnostic(
+                        $diagnostics,
+                        $child,
+                        $sourcePart,
+                        'odf-data-style-missing-name'
+                    );
+                } else {
                     $this->putStyleCollectionItem(
                         $styles,
                         $diagnostics,
@@ -13726,6 +13774,7 @@ final class OdfReader
             self::TEXT_NS => 'text',
             self::STYLE_NS => 'style',
             self::TABLE_NS => 'table',
+            self::NUMBER_NS => 'number',
             self::DRAW_NS => 'draw',
             self::FORM_NS => 'form',
             self::SVG_NS => 'svg',

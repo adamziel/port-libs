@@ -6,8 +6,8 @@
     "odfManifestMissingMediaTypeAssertions": 22,
     "mappedOdfManifestNamespaceDeclarationCases": 1,
     "odfManifestNamespaceDeclarationAssertions": 34,
-    "mappedOdfStyleDiagnosticsCases": 1,
-    "odfStyleDiagnosticsAssertions": 17,
+    "mappedOdfStyleDiagnosticsCases": 2,
+    "odfStyleDiagnosticsAssertions": 41,
     "mappedOdtStyleDiagnosticsCases": 3,
     "odtStyleDiagnosticsAssertions": 46,
     "mappedOdfAttachmentLegacyDocumentResourceCases": 1,
@@ -522,7 +522,7 @@
             "mappedOdfBeanShellPackageScriptCases": 1,
             "mappedOdfScriptMediaAliasCases": 1,
             "mappedOdfPythonPackageScriptAliasCases": 1,
-            "mappedOdfStyleDiagnosticsCases": 1,
+            "mappedOdfStyleDiagnosticsCases": 2,
             "mappedOdfAttachmentLegacyDocumentResourceCases": 1,
             "mappedOdfThumbnailPackagePathCases": 1,
             "mappedOdfFlatOpenDocumentSidecarCases": 1
@@ -1629,7 +1629,7 @@
         "mappedOdfBeanShellPackageScriptCases": 1,
         "mappedOdfScriptMediaAliasCases": 1,
         "mappedOdfPythonPackageScriptAliasCases": 1,
-        "mappedOdfStyleDiagnosticsCases": 1,
+        "mappedOdfStyleDiagnosticsCases": 2,
         "mappedOdfAttachmentLegacyDocumentResourceCases": 1,
         "mappedOdfThumbnailPackagePathCases": 1,
         "mappedOdfFlatOpenDocumentSidecarCases": 1
