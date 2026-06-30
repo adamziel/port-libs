@@ -1651,9 +1651,13 @@ XML;
         );
         $parts['word/embeddings/review.bin'] = str_repeat('B', 31);
         $parts['customXml/no-type.payload'] = str_repeat('M', 17);
+        $parts['customXml/empty.bin'] = '';
+        $parts['word/media/full-resolution-review.png'] = str_repeat('P', 70000);
 
         $document = (new DocxOpenXmlReader())->readPackage($parts);
-        $summary = $document->attr('docx')['packageProvenance']['summary'];
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
 
         $relationshipPartBytes = strlen($parts['_rels/.rels']) + strlen($parts['word/_rels/document.xml.rels']);
         $overrideBytes = strlen($parts['word/document.xml']) + strlen($parts['docProps/core.xml']);
@@ -1662,15 +1666,72 @@ XML;
         $packagePartBytes = strlen($parts['word/styles.xml'])
             + strlen($parts['word/numbering.xml'])
             + strlen($parts['word/embeddings/review.bin'])
-            + strlen($parts['customXml/no-type.payload']);
+            + strlen($parts['customXml/no-type.payload'])
+            + strlen($parts['customXml/empty.bin'])
+            + strlen($parts['word/media/full-resolution-review.png']);
+        $byteBucketFor = static function (int $bytes): string {
+            if ($bytes <= 0) {
+                return 'empty';
+            }
+            if ($bytes <= 64) {
+                return 'small';
+            }
+            if ($bytes <= 1024) {
+                return 'medium';
+            }
+            if ($bytes <= 65536) {
+                return 'large';
+            }
+
+            return 'huge';
+        };
+        $expectedBucketCounts = [];
+        $expectedBucketByteLengths = [];
+        foreach ($parts as $contents) {
+            $bytes = strlen($contents);
+            $bucket = $byteBucketFor($bytes);
+            $expectedBucketCounts[$bucket] = ($expectedBucketCounts[$bucket] ?? 0) + 1;
+            $expectedBucketByteLengths[$bucket] = ($expectedBucketByteLengths[$bucket] ?? 0) + $bytes;
+        }
+        $bucketOrder = ['empty' => 0, 'small' => 1, 'medium' => 2, 'large' => 3, 'huge' => 4];
+        uksort(
+            $expectedBucketCounts,
+            static fn (string $left, string $right): int => $bucketOrder[$left] <=> $bucketOrder[$right],
+        );
+        uksort(
+            $expectedBucketByteLengths,
+            static fn (string $left, string $right): int => $bucketOrder[$left] <=> $bucketOrder[$right],
+        );
+        $bucketRows = [];
+        foreach ($summary['partByteLengthBuckets'] as $bucketRow) {
+            $bucketRows[$bucketRow['byteLengthBucket']] = $bucketRow;
+        }
 
         $t->same(array_sum(array_map('strlen', $parts)), $summary['packageByteLength']);
         $t->same($relationshipPartBytes, $summary['relationshipPartByteLength']);
         $t->same($missingBytes, $summary['missingContentTypePartByteLength']);
-        $t->same(['default' => 7, 'missing' => 1, 'override' => 2], $summary['contentTypeSourceCounts']);
+        $t->same(['default' => 9, 'missing' => 1, 'override' => 2], $summary['contentTypeSourceCounts']);
         $t->same($defaultBytes, $summary['contentTypeSourceByteLengths']['default']);
         $t->same($missingBytes, $summary['contentTypeSourceByteLengths']['missing']);
         $t->same($overrideBytes, $summary['contentTypeSourceByteLengths']['override']);
+        $t->same($expectedBucketCounts, $summary['partByteLengthBucketCounts']);
+        $t->same($expectedBucketByteLengths, $summary['partByteLengthBucketByteLengths']);
+        $t->same(5, $summary['partByteLengthBucketCount']);
+        $t->same('empty', $inventory['customXml/empty.bin']['byteLengthBucket']);
+        $t->same('small', $inventory['word/embeddings/review.bin']['byteLengthBucket']);
+        $t->same('small', $inventory['customXml/no-type.payload']['byteLengthBucket']);
+        $t->same('large', $inventory['word/document.xml']['byteLengthBucket']);
+        $t->same('huge', $inventory['word/media/full-resolution-review.png']['byteLengthBucket']);
+        $t->same(1, $summary['partByteLengthBucketMissingContentTypeCounts']['small']);
+        $t->same(2, $summary['partByteLengthBucketRelationshipPartCounts']['medium']);
+        $t->same(['default' => 2, 'missing' => 1], $bucketRows['small']['contentTypeSourceCounts']);
+        $t->same(['document-relationship-target' => 1, 'package-part' => 2], $bucketRows['small']['roleCounts']);
+        $t->same('customXml/empty.bin', $bucketRows['empty']['largestPart']['partName']);
+        $t->same('word/document.xml', $bucketRows['large']['largestPart']['partName']);
+        $t->same('word/media/full-resolution-review.png', $bucketRows['huge']['largestPart']['partName']);
+        $t->same(70000, $bucketRows['huge']['largestPart']['bytes']);
+        $t->same(['package-part'], $bucketRows['huge']['largestPart']['roles']);
+        $t->true(in_array('word/media/full-resolution-review.png', $bucketRows['huge']['partNames'], true), 'huge bucket should include the full-resolution media part');
 
         $t->same(strlen($parts['[Content_Types].xml']), $summary['roleByteLengths']['content-types']);
         $t->same($relationshipPartBytes, $summary['roleByteLengths']['relationship-part']);
@@ -1680,6 +1741,55 @@ XML;
         $t->same($overrideBytes, $summary['roleByteLengths']['root-relationship-target']);
         $t->same(strlen($parts['word/media/review.png']), $summary['roleByteLengths']['document-relationship-target']);
         $t->same($packagePartBytes, $summary['roleByteLengths']['package-part']);
+    },
+    'classifies docx package part byte length buckets for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Default Extension="bin" ContentType="application/octet-stream"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['customXml/empty.bin'] = '';
+        $parts['customXml/small.bin'] = str_repeat('S', 64);
+        $parts['customXml/medium.bin'] = str_repeat('M', 1024);
+        $parts['customXml/large.bin'] = str_repeat('L', 65536);
+        $parts['customXml/huge.bin'] = str_repeat('H', 65537);
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $bucketRows = [];
+        foreach ($summary['partByteLengthBuckets'] as $bucketRow) {
+            $bucketRows[$bucketRow['byteLengthBucket']] = $bucketRow;
+        }
+
+        $t->same('empty', $inventory['customXml/empty.bin']['byteLengthBucket']);
+        $t->same('small', $inventory['customXml/small.bin']['byteLengthBucket']);
+        $t->same('medium', $inventory['customXml/medium.bin']['byteLengthBucket']);
+        $t->same('large', $inventory['customXml/large.bin']['byteLengthBucket']);
+        $t->same('huge', $inventory['customXml/huge.bin']['byteLengthBucket']);
+        $t->same(5, $summary['partByteLengthBucketCount']);
+        $t->same(1, $summary['partByteLengthBucketCounts']['empty']);
+        $t->true(($summary['partByteLengthBucketCounts']['small'] ?? 0) >= 2, 'small bucket should include the review image and explicit small fixture');
+        $t->true(($summary['partByteLengthBucketCounts']['medium'] ?? 0) >= 1, 'medium bucket should include XML package parts');
+        $t->true(($summary['partByteLengthBucketCounts']['large'] ?? 0) >= 2, 'large bucket should include the document and explicit large fixture');
+        $t->same(1, $summary['partByteLengthBucketCounts']['huge']);
+        $t->same(0, $summary['partByteLengthBucketByteLengths']['empty']);
+        $t->same(65537, $summary['partByteLengthBucketByteLengths']['huge']);
+        $t->same(0, $summary['partByteLengthBucketMissingContentTypeCounts']['empty']);
+        $t->same(0, $summary['partByteLengthBucketRelationshipPartCounts']['huge']);
+        $t->same('customXml/empty.bin', $bucketRows['empty']['largestPart']['partName']);
+        $t->same('customXml/huge.bin', $bucketRows['huge']['largestPart']['partName']);
+        $t->same(65537, $bucketRows['huge']['largestPart']['bytes']);
+        $t->same('huge', $bucketRows['huge']['largestPart']['byteLengthBucket']);
+        $t->same('application/octet-stream', $bucketRows['huge']['largestPart']['contentTypeBase']);
+        $t->same(['package-part'], $bucketRows['huge']['largestPart']['roles']);
+        $t->true(in_array('customXml/small.bin', $bucketRows['small']['partNames'], true), 'small bucket should include bounded fixture member');
+        $t->true(in_array('customXml/medium.bin', $bucketRows['medium']['partNames'], true), 'medium bucket should include bounded fixture member');
+        $t->true(in_array('customXml/large.bin', $bucketRows['large']['partNames'], true), 'large bucket should include bounded fixture member');
+        $t->true(in_array('customXml/huge.bin', $bucketRows['huge']['partNames'], true), 'huge bucket should include bounded fixture member');
     },
     'summarizes largest docx package parts for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
