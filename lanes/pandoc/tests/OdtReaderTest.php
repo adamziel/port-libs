@@ -432,6 +432,66 @@ XML);
         $t->same('paragraph', $document->children[0]->type);
         $t->same('Missing next style and known next style.', $document->children[0]->attr('text'));
     },
+    'reports direct odt missing style font face diagnostics' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary ODT path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary ODT package');
+        }
+        $zip->addFromString('styles.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+  <office:font-face-decls>
+    <style:font-face style:name="Known Sans"/>
+  </office:font-face-decls>
+  <office:styles>
+    <style:style style:name="MissingFontStyle" style:family="text"><style:text-properties style:font-name="Missing Sans" fo:font-style="italic"/></style:style>
+    <style:style style:name="KnownFontStyle" style:family="text"><style:text-properties style:font-name="Known Sans" fo:font-weight="bold"/></style:style>
+  </office:styles>
+</office:document-styles>
+XML);
+        $zip->addFromString('content.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p><text:span text:style-name="MissingFontStyle">Missing font</text:span> and <text:span text:style-name="KnownFontStyle">known font</text:span>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML);
+        $zip->close();
+
+        try {
+            $document = (new OdtReader())->readOdtFile($path);
+        } finally {
+            @unlink($path);
+        }
+
+        $meta = $document->attr('meta');
+        $diagnostic = $meta['odtStyleDiagnostics'][0];
+
+        $t->same(2, $meta['odtTextStyleCount']);
+        $t->same(1, $meta['odtStyleDiagnosticCount']);
+        $t->same(['odt-style-missing-font-face' => 1], $meta['odtStyleDiagnosticCodeCounts']);
+        $t->same('styles.xml', $diagnostic['sourcePart']);
+        $t->same('style:style', $diagnostic['element']);
+        $t->same('MissingFontStyle', $diagnostic['styleName']);
+        $t->same('Missing Sans', $diagnostic['fontName']);
+        $t->same('text', $diagnostic['family']);
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('Missing font and known font.', $document->children[0]->attr('text'));
+    },
     'reports direct odt style list and content reference diagnostics' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
         if ($path === false) {

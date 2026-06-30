@@ -12,10 +12,10 @@ final class OdtReader
     private const FO_NS = 'urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0';
     private const XLINK_NS = 'http://www.w3.org/1999/xlink';
 
-    /** @var array<string, array{strong?: bool, emph?: bool, family?: string, parentName?: string, nextStyleName?: string, listStyleName?: string, sourcePart?: string, element?: string}> */
+    /** @var array<string, array{strong?: bool, emph?: bool, family?: string, parentName?: string, nextStyleName?: string, listStyleName?: string, fontName?: string, sourcePart?: string, element?: string}> */
     private array $textStyles = [];
 
-    /** @var array<string, array{strong?: bool, emph?: bool, family?: string, parentName?: string, nextStyleName?: string, listStyleName?: string, sourcePart?: string, element?: string}> */
+    /** @var array<string, array{strong?: bool, emph?: bool, family?: string, parentName?: string, nextStyleName?: string, listStyleName?: string, fontName?: string, sourcePart?: string, element?: string}> */
     private array $styleDefinitions = [];
 
     /** @var array<string, array<int, array{ordered: bool, style?: string, delimiter?: string, start?: int}>> */
@@ -106,6 +106,10 @@ final class OdtReader
         $content = $this->loadXml($content_xml, 'ODT content.xml');
         $styles = $styles_xml !== '' ? $this->loadXml($styles_xml, 'ODT styles.xml') : null;
         $this->styleDiagnostics = [];
+        $fontFaces = array_replace(
+            $styles instanceof \DOMDocument ? $this->collectFontFaces($styles, 'styles.xml') : [],
+            $this->collectFontFaces($content, 'content.xml'),
+        );
         $this->styleDefinitions = array_replace(
             $styles instanceof \DOMDocument ? $this->collectStyleDefinitions($styles, 'styles.xml') : [],
             $this->collectStyleDefinitions($content, 'content.xml'),
@@ -115,7 +119,7 @@ final class OdtReader
             $styles instanceof \DOMDocument ? $this->collectListStyles($styles, 'styles.xml') : [],
             $this->collectListStyles($content, 'content.xml'),
         );
-        array_push($this->styleDiagnostics, ...$this->styleReferenceDiagnostics($this->styleDefinitions, $this->listStyles));
+        array_push($this->styleDiagnostics, ...$this->styleReferenceDiagnostics($this->styleDefinitions, $this->listStyles, $fontFaces));
         array_push($this->styleDiagnostics, ...$this->contentStyleReferenceDiagnostics($content));
 
         $metadata = $meta_xml !== '' ? $this->metadata($this->loadXml($meta_xml, 'ODT meta.xml')) : [];
@@ -618,7 +622,31 @@ final class OdtReader
     }
 
     /**
-     * @return array<string, array{strong?: bool, emph?: bool, family?: string, parentName?: string, nextStyleName?: string, listStyleName?: string, sourcePart?: string, element?: string}>
+     * @return array<string, array{sourcePart?: string, element?: string}>
+     */
+    private function collectFontFaces(\DOMDocument $dom, string $sourcePart = ''): array
+    {
+        $fontFaces = [];
+        foreach ($dom->getElementsByTagName('*') as $fontFace) {
+            if (!$fontFace instanceof \DOMElement || $fontFace->localName !== 'font-face') {
+                continue;
+            }
+            $name = $this->attr($fontFace, self::STYLE_NS, 'name');
+            if ($name === '') {
+                continue;
+            }
+
+            $fontFaces[$name] = [
+                'sourcePart' => $sourcePart,
+                'element' => $this->odtElementName($fontFace),
+            ];
+        }
+
+        return $fontFaces;
+    }
+
+    /**
+     * @return array<string, array{strong?: bool, emph?: bool, family?: string, parentName?: string, nextStyleName?: string, listStyleName?: string, fontName?: string, sourcePart?: string, element?: string}>
      */
     private function collectStyleDefinitions(\DOMDocument $dom, string $sourcePart = ''): array
     {
@@ -662,6 +690,10 @@ final class OdtReader
                 if ($fontStyle === 'italic' || $fontStyle === 'oblique') {
                     $entry['emph'] = true;
                 }
+                $fontName = $this->attr($props, self::STYLE_NS, 'font-name');
+                if ($fontName !== '') {
+                    $entry['fontName'] = $fontName;
+                }
             }
             $styles[$name] = $entry;
         }
@@ -670,8 +702,8 @@ final class OdtReader
     }
 
     /**
-     * @param array<string, array{strong?: bool, emph?: bool, family?: string, parentName?: string, nextStyleName?: string, listStyleName?: string, sourcePart?: string, element?: string}> $styles
-     * @return array<string, array{strong?: bool, emph?: bool, family?: string, parentName?: string, nextStyleName?: string, listStyleName?: string, sourcePart?: string, element?: string}>
+     * @param array<string, array{strong?: bool, emph?: bool, family?: string, parentName?: string, nextStyleName?: string, listStyleName?: string, fontName?: string, sourcePart?: string, element?: string}> $styles
+     * @return array<string, array{strong?: bool, emph?: bool, family?: string, parentName?: string, nextStyleName?: string, listStyleName?: string, fontName?: string, sourcePart?: string, element?: string}>
      */
     private function textStylesFromDefinitions(array $styles): array
     {
@@ -691,9 +723,10 @@ final class OdtReader
     /**
      * @param array<string, array<string, mixed>> $styles
      * @param array<string, array<int, array{ordered: bool, style?: string, delimiter?: string, start?: int}>> $listStyles
+     * @param array<string, array<string, mixed>> $fontFaces
      * @return list<array<string, mixed>>
      */
-    private function styleReferenceDiagnostics(array $styles, array $listStyles): array
+    private function styleReferenceDiagnostics(array $styles, array $listStyles, array $fontFaces): array
     {
         $diagnostics = [];
         foreach ($styles as $styleName => $style) {
@@ -723,6 +756,15 @@ final class OdtReader
                 $styleName,
                 'listStyleName',
                 (string) ($style['listStyleName'] ?? '')
+            );
+            $this->appendMissingStyleReferenceDiagnostic(
+                $diagnostics,
+                $fontFaces,
+                $style,
+                'odt-style-missing-font-face',
+                $styleName,
+                'fontName',
+                (string) ($style['fontName'] ?? '')
             );
         }
 
