@@ -5513,6 +5513,13 @@ final class ZipPackage
                 'exists' => $entry !== null,
                 'isDirectory' => null,
                 'directoryRoot' => null,
+                'parentDirectory' => null,
+                'leafName' => null,
+                'entryBaseName' => null,
+                'entryExtension' => null,
+                'entryExtensionKey' => null,
+                'pathDepth' => null,
+                'packagePartKind' => null,
                 'compressionMethod' => null,
                 'compressionMethodName' => null,
                 'rawName' => null,
@@ -5765,7 +5772,7 @@ final class ZipPackage
             $compressedDataOffset = $localHeader['dataStart'];
             $compressedDataEnd = $compressedDataOffset + $entry->compressedSize;
             $summary['isDirectory'] = $isDirectory;
-            $summary['directoryRoot'] = self::entryHandoffDirectoryRoot($entry->name);
+            $summary = array_merge($summary, self::entryNameProfile($entry->name, $isDirectory));
             $summary['compressionMethod'] = $entry->compressionMethod;
             $summary['compressionMethodName'] = self::compressionMethodName($entry->compressionMethod);
             $summary = array_merge($summary, self::entryRawNameHandoffProvenance($entry));
@@ -5878,6 +5885,10 @@ final class ZipPackage
 
         $selectedDirectoryRootSummaries = self::entryHandoffDirectoryRootSummaries($selectedDirectoryRootSummaryEntries);
         $handoffDirectoryRootSummaries = self::entryHandoffDirectoryRootSummaries($handoffEntries);
+        $selectedLeafNameSummaries = self::entryLeafNameSummaries($selectedDirectoryRootSummaryEntries);
+        $selectedSharedLeafNameSummaries = self::sharedEntryLeafNameSummaries($selectedDirectoryRootSummaryEntries);
+        $handoffLeafNameSummaries = self::entryLeafNameSummaries($handoffEntries);
+        $handoffSharedLeafNameSummaries = self::sharedEntryLeafNameSummaries($handoffEntries);
         $roleSummaries = self::entryHandoffRoleSummaries($entries);
 
         return [
@@ -5886,6 +5897,9 @@ final class ZipPackage
             'optionalEntryCount' => $optionalEntryCount,
             'presentEntryCount' => count($presentNames),
             'selectedUniqueEntryCount' => count($selectedEntriesByName),
+            'selectedLeafNameCount' => count($selectedLeafNameSummaries),
+            'selectedSharedLeafNameCount' => count($selectedSharedLeafNameSummaries),
+            'selectedSharedLeafNameEntryCount' => self::sharedEntryLeafNameEntryCount($selectedDirectoryRootSummaryEntries),
             'selectedDirectoryRootCount' => count($selectedDirectoryRootSummaries),
             'selectedFileEntryCount' => $selectedFileEntryCount,
             'selectedDirectoryEntryCount' => $selectedDirectoryEntryCount,
@@ -5906,6 +5920,9 @@ final class ZipPackage
             'missingRequiredEntryCount' => $missingRequiredEntryCount,
             'missingOptionalEntryCount' => $missingOptionalEntryCount,
             'handoffEntryCount' => count($handoffEntries),
+            'handoffLeafNameCount' => count($handoffLeafNameSummaries),
+            'handoffSharedLeafNameCount' => count($handoffSharedLeafNameSummaries),
+            'handoffSharedLeafNameEntryCount' => self::sharedEntryLeafNameEntryCount($handoffEntries),
             'handoffDirectoryRootCount' => count($handoffDirectoryRootSummaries),
             'readableEntryCount' => count($handoffEntries),
             'handoffZeroByteEntryCount' => count($handoffZeroByteEntries),
@@ -5984,6 +6001,10 @@ final class ZipPackage
             'roleSummaries' => $roleSummaries,
             'selectedDirectoryRootSummaries' => $selectedDirectoryRootSummaries,
             'handoffDirectoryRootSummaries' => $handoffDirectoryRootSummaries,
+            'selectedLeafNameSummaries' => $selectedLeafNameSummaries,
+            'selectedSharedLeafNameSummaries' => $selectedSharedLeafNameSummaries,
+            'handoffLeafNameSummaries' => $handoffLeafNameSummaries,
+            'handoffSharedLeafNameSummaries' => $handoffSharedLeafNameSummaries,
             'selectedCompressionMethodBuckets' => self::compressionMethodBuckets($selectedCompressionMethodBuckets),
             'selectedUnsupportedCompressionMethodEntries' => $selectedUnsupportedCompressionMethodEntries,
             'selectedZeroByteEntries' => $selectedZeroByteEntries,
@@ -6472,6 +6493,193 @@ final class ZipPackage
         $separator = strpos($name, '/');
 
         return $separator === false ? '/' : substr($name, 0, $separator + 1);
+    }
+
+    /**
+     * @return array{
+     *     directoryRoot:string,
+     *     parentDirectory:string,
+     *     leafName:string,
+     *     entryBaseName:string,
+     *     entryExtension:?string,
+     *     entryExtensionKey:string,
+     *     pathDepth:int,
+     *     packagePartKind:string
+     * }
+     */
+    private static function entryNameProfile(string $name, bool $isDirectory): array
+    {
+        $trimmedName = $isDirectory ? rtrim($name, '/') : $name;
+        $profileName = $trimmedName === '' ? $name : $trimmedName;
+        $separator = strrpos($profileName, '/');
+        $leafName = $separator === false ? $profileName : substr($profileName, $separator + 1);
+        $parentDirectory = $separator === false ? '/' : substr($profileName, 0, $separator + 1);
+        $pathDepth = $profileName === ''
+            ? 0
+            : count(array_values(array_filter(explode('/', $profileName), static fn (string $part): bool => $part !== '')));
+
+        $dot = strrpos($leafName, '.');
+        $entryBaseName = $dot === false ? $leafName : substr($leafName, 0, $dot);
+        $entryExtension = $dot === false ? null : substr($leafName, $dot + 1);
+        $entryExtensionKey = $entryExtension === null || $entryExtension === ''
+            ? ($isDirectory ? '(directory)' : '(none)')
+            : strtolower($entryExtension);
+
+        return [
+            'directoryRoot' => self::entryHandoffDirectoryRoot($name),
+            'parentDirectory' => $parentDirectory,
+            'leafName' => $leafName,
+            'entryBaseName' => $entryBaseName,
+            'entryExtension' => $entryExtension === '' ? null : $entryExtension,
+            'entryExtensionKey' => $entryExtensionKey,
+            'pathDepth' => $pathDepth,
+            'packagePartKind' => self::entryPackagePartKind($name, $isDirectory, $entryExtensionKey),
+        ];
+    }
+
+    private static function entryPackagePartKind(string $name, bool $isDirectory, string $entryExtensionKey): string
+    {
+        if ($isDirectory) {
+            return 'directory';
+        }
+
+        if ($name === '[Content_Types].xml') {
+            return 'content-types';
+        }
+
+        if ($name === '_rels/.rels') {
+            return 'package-relationships';
+        }
+
+        if (str_contains($name, '/_rels/') && str_ends_with($name, '.rels')) {
+            return 'part-relationships';
+        }
+
+        if (str_starts_with($name, 'docProps/')) {
+            return 'document-properties';
+        }
+
+        if (str_starts_with($name, '_xmlsignatures/')) {
+            return 'digital-signature';
+        }
+
+        if (str_contains($name, '/embeddings/') || in_array($entryExtensionKey, ['docx', 'epub', 'odt', 'odp', 'ods', 'pptx', 'xlsx'], true)) {
+            return 'embedded-package-candidate';
+        }
+
+        if (str_contains($name, '/media/')) {
+            return 'media';
+        }
+
+        return in_array($entryExtensionKey, ['xml', 'rels', 'xhtml', 'html', 'htm', 'opf', 'ncx', 'svg'], true)
+            ? 'xml-part'
+            : 'binary-part';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryLeafNameSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $isDirectory = ($entry['isDirectory'] ?? false) === true;
+            $profile = is_string($entry['leafName'] ?? null)
+                ? [
+                    'leafName' => $entry['leafName'],
+                    'entryBaseName' => $entry['entryBaseName'] ?? null,
+                    'entryExtension' => $entry['entryExtension'] ?? null,
+                    'entryExtensionKey' => $entry['entryExtensionKey'] ?? null,
+                    'directoryRoot' => $entry['directoryRoot'] ?? null,
+                    'parentDirectory' => $entry['parentDirectory'] ?? null,
+                    'packagePartKind' => $entry['packagePartKind'] ?? null,
+                ]
+                : self::entryNameProfile($name, $isDirectory);
+            $leafName = (string) $profile['leafName'];
+            if (!isset($summaries[$leafName])) {
+                $summaries[$leafName] = [
+                    'leafName' => $leafName,
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'entryBaseNames' => [],
+                    'entryExtensionKeys' => [],
+                    'directoryRoots' => [],
+                    'parentDirectories' => [],
+                    'packagePartKinds' => [],
+                    'entryNames' => [],
+                ];
+            }
+
+            ++$summaries[$leafName]['entryCount'];
+            if ($isDirectory) {
+                ++$summaries[$leafName]['directoryEntryCount'];
+            } else {
+                ++$summaries[$leafName]['fileEntryCount'];
+            }
+
+            $summaries[$leafName]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$leafName]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$leafName]['entryNames'][] = $name;
+            foreach ([
+                'entryBaseNames' => $profile['entryBaseName'] ?? null,
+                'entryExtensionKeys' => $profile['entryExtensionKey'] ?? null,
+                'directoryRoots' => $profile['directoryRoot'] ?? null,
+                'parentDirectories' => $profile['parentDirectory'] ?? null,
+                'packagePartKinds' => $profile['packagePartKind'] ?? null,
+            ] as $field => $value) {
+                if (is_string($value) && $value !== '' && !in_array($value, $summaries[$leafName][$field], true)) {
+                    $summaries[$leafName][$field][] = $value;
+                }
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['entryNames'], SORT_STRING);
+            sort($summary['entryBaseNames'], SORT_STRING);
+            sort($summary['entryExtensionKeys'], SORT_STRING);
+            sort($summary['directoryRoots'], SORT_STRING);
+            sort($summary['parentDirectories'], SORT_STRING);
+            sort($summary['packagePartKinds'], SORT_STRING);
+        }
+        unset($summary);
+
+        ksort($summaries, SORT_STRING);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function sharedEntryLeafNameSummaries(array $entries): array
+    {
+        return array_values(array_filter(
+            self::entryLeafNameSummaries($entries),
+            static fn (array $summary): bool => $summary['entryCount'] > 1
+        ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     */
+    private static function sharedEntryLeafNameEntryCount(array $entries): int
+    {
+        $count = 0;
+        foreach (self::sharedEntryLeafNameSummaries($entries) as $summary) {
+            $count += (int) $summary['entryCount'];
+        }
+
+        return $count;
     }
 
     /**
@@ -12986,10 +13194,12 @@ final class ZipPackage
         $localRecordBytes = 0;
         $dataDescriptorEntryCount = 0;
         $dataDescriptorBytes = 0;
+        $leafNameSummaryEntries = [];
 
         foreach ($this->entries as $centralDirectoryIndex => $entry) {
             $localHeader = $this->readLocalHeader($entry);
             $isDirectory = $entry->isDirectory();
+            $nameProfile = self::entryNameProfile($entry->name, $isDirectory);
             if ($isDirectory) {
                 ++$directoryEntryCount;
             } else {
@@ -13061,6 +13271,14 @@ final class ZipPackage
             $summary = [
                 'name' => $entry->name,
                 'isDirectory' => $isDirectory,
+                'directoryRoot' => $nameProfile['directoryRoot'],
+                'parentDirectory' => $nameProfile['parentDirectory'],
+                'leafName' => $nameProfile['leafName'],
+                'entryBaseName' => $nameProfile['entryBaseName'],
+                'entryExtension' => $nameProfile['entryExtension'],
+                'entryExtensionKey' => $nameProfile['entryExtensionKey'],
+                'pathDepth' => $nameProfile['pathDepth'],
+                'packagePartKind' => $nameProfile['packagePartKind'],
                 'centralDirectoryIndex' => $centralDirectoryIndex,
                 'localHeaderOrder' => $localHeaderOrder,
                 'compressionMethod' => $entry->compressionMethod,
@@ -13088,6 +13306,7 @@ final class ZipPackage
                 'centralDirectoryRecordEnd' => $entry->centralDirectoryRecordEnd,
                 'centralDirectoryRecordSha256' => $centralDirectoryRecordSha256,
             ];
+            $leafNameSummaryEntries[] = $summary;
             $entries[] = $summary;
             $manifestEntries[] = [
                 'name' => $summary['name'],
@@ -13139,6 +13358,11 @@ final class ZipPackage
             'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
             'localHeaderOrderNames' => $localHeaderOrderNames,
             'centralDirectoryOrderMatchesLocalHeaderOrder' => $centralDirectoryOrderNames === $localHeaderOrderNames,
+            'leafNameCount' => count(self::entryLeafNameSummaries($leafNameSummaryEntries)),
+            'sharedLeafNameCount' => count(self::sharedEntryLeafNameSummaries($leafNameSummaryEntries)),
+            'sharedLeafNameEntryCount' => self::sharedEntryLeafNameEntryCount($leafNameSummaryEntries),
+            'leafNameSummaries' => self::entryLeafNameSummaries($leafNameSummaryEntries),
+            'sharedLeafNameSummaries' => self::sharedEntryLeafNameSummaries($leafNameSummaryEntries),
             'entries' => $entries,
         ];
     }
