@@ -9,6 +9,7 @@ use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\NativeReader;
 use PortLibs\Pandoc\NativeWriter;
+use PortLibs\Pandoc\PandocJsonReader;
 use PortLibs\Pandoc\TableGeometry;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
@@ -417,6 +418,60 @@ return [
         $t->same('review-span', $roundTripChildren[11]->attr('id'));
         $t->same(['native-review'], $roundTripChildren[11]->attr('classes'));
         $t->same(['data-source' => 'shared-ast'], $roundTripChildren[11]->attr('attributes'));
+    },
+    'maps textual native markdown raw constructors like pandoc json raw aliases' => static function (TestRunner $t): void {
+        $rawBlockText = "| A | B |\n| - | - |";
+        $jsonPacket = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'RawBlock', 'c' => [['t' => 'Format', 'c' => 'markdown+pipe_tables'], $rawBlockText]],
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'RawInline', 'c' => [['t' => 'Format', 'c' => 'gfm'], '**inline**']],
+                    ['t' => 'Space'],
+                    ['t' => 'RawInline', 'c' => [['t' => 'Format', 'c' => 'opml'], '<outline/>']],
+                ]],
+            ],
+        ];
+        $nativeText = <<<'NATIVE'
+[ RawBlock (Format "markdown+pipe_tables") "| A | B |\n| - | - |"
+, Para [ RawInline (Format "gfm") "**inline**" , Space , RawInline (Format "opml") "<outline/>" ]
+]
+NATIVE;
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($jsonPacket),
+            'native text' => (new NativeReader())->read($nativeText),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $rawBlock = $document->children[0];
+            $paragraph = $document->children[1];
+            $markdownInline = $paragraph->children[0];
+            $genericInline = $paragraph->children[2];
+
+            $t->same('raw_markdown', $rawBlock->type, "{$source} block markdown raw alias");
+            $t->same('markdown+pipe_tables', $rawBlock->attr('format'), "{$source} block raw format");
+            $t->same($rawBlockText, $rawBlock->attr('markdown'), "{$source} block markdown payload");
+            $t->same('raw_markdown', $markdownInline->type, "{$source} inline markdown raw alias");
+            $t->same('gfm', $markdownInline->attr('format'), "{$source} inline raw format");
+            $t->same('**inline**', $markdownInline->attr('markdown'), "{$source} inline markdown payload");
+            $t->same('raw_inline', $genericInline->type, "{$source} unsupported raw inline remains generic");
+            $t->same('opml', $genericInline->attr('format'), "{$source} generic inline format");
+        }
+
+        $nativeDocument = $documents['native text'];
+        $jsonRoundTrip = (new NativeReader())->read((new NativeWriter())->write(new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
+        ], $nativeDocument->children)));
+        $textRoundTrip = (new NativeReader())->read((new NativeWriter(['blocksOnly' => true]))->write($nativeDocument));
+
+        foreach (['json writer' => $jsonRoundTrip, 'native text writer' => $textRoundTrip] as $source => $roundTrip) {
+            $t->same('raw_markdown', $roundTrip->children[0]->type, "{$source} preserves markdown raw block alias");
+            $t->same('raw_markdown', $roundTrip->children[1]->children[0]->type, "{$source} preserves markdown raw inline alias");
+            $t->same('raw_inline', $roundTrip->children[1]->children[2]->type, "{$source} preserves generic raw inline");
+        }
     },
     'preserves raw html through markdown writer serialization boundaries' => static function (TestRunner $t): void {
         $rawHtmlDocument = new AstNode('document', [], [
