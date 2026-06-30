@@ -674,9 +674,17 @@ final class DocxParityCorpusAudit
             ? "optional upstream cache present; {$auditedPairCount}/{$pairedDocxNativeArtifacts} paired root-level stems audited for parser acceptance"
             : 'optional upstream DOCX cache absent; no live corpus parser acceptance was measured in this worktree';
         $writer = $writerGoldenEvidence['localWriter'] ?? [];
+        $generation = $writerGoldenEvidence['generation'] ?? [];
         $comparison = $writerGoldenEvidence['packageComparison'] ?? [];
         $writerStatus = is_array($writer) ? (string) ($writer['status'] ?? 'unknown') : 'unknown';
         $registryStatus = is_array($writer) ? (string) ($writer['registryStatus'] ?? 'unknown') : 'unknown';
+        $generationRun = is_array($generation) && ($generation['run'] ?? false) === true ? 'yes' : 'no';
+        $generationCoverage = is_array($generation)
+            ? (int) ($generation['generatedPackageCount'] ?? 0) . '/' . (int) ($generation['expectedGoldenCaseCount'] ?? 0)
+            : '0/0';
+        $generationReason = is_array($generation)
+            ? (string) ($generation['reason'] ?? DocxWriterGoldenManifest::GENERATION_DIRECTORY_NOT_CONFIGURED_REASON)
+            : DocxWriterGoldenManifest::GENERATION_DIRECTORY_NOT_CONFIGURED_REASON;
         $writerReason = is_array($comparison)
             ? (string) ($comparison['reason'] ?? DocxWriterGoldenManifest::OPEN_REASON)
             : DocxWriterGoldenManifest::OPEN_REASON;
@@ -704,7 +712,7 @@ final class DocxParityCorpusAudit
                 'rank' => 3,
                 'id' => 'writer-golden-docx-package-parity',
                 'status' => self::GAP_STATUS_OPEN,
-                'currentEvidence' => "golden .docx artifacts inventoried as upstream writer outputs: {$goldenDocxPackageArtifacts}; local DOCX writer status={$writerStatus}; docx output registry={$registryStatus}; generated package comparison run={$comparisonRun}; compared={$comparisonCoverage}; reason={$writerReason}.",
+                'currentEvidence' => "golden .docx artifacts inventoried as upstream writer outputs: {$goldenDocxPackageArtifacts}; local DOCX writer status={$writerStatus}; docx output registry={$registryStatus}; generated package production run={$generationRun}; generated={$generationCoverage}; generation reason={$generationReason}; generated package comparison run={$comparisonRun}; compared={$comparisonCoverage}; comparison reason={$writerReason}.",
                 'evidenceRequired' => 'Generate DOCX output for upstream writer golden cases and compare package parts, relationships, content types, and document XML semantics.',
             ],
             [
@@ -752,6 +760,23 @@ final class DocxParityCorpusAudit
                 . self::formatBool($writer['fileExists'] ?? false)
                 . '; registryStatus='
                 . (string) ($writer['registryStatus'] ?? 'unknown');
+        }
+
+        $generation = $writerGolden['generation'] ?? [];
+        if (is_array($generation)) {
+            $expected = (int) ($generation['expectedGoldenCaseCount'] ?? 0);
+            $lines[] = 'DOCX writer golden package generation: '
+                . ((($generation['run'] ?? false) === true) ? 'run' : 'not run')
+                . '; reason='
+                . (string) ($generation['reason'] ?? DocxWriterGoldenManifest::GENERATION_DIRECTORY_NOT_CONFIGURED_REASON)
+                . '; generated='
+                . (int) ($generation['generatedPackageCount'] ?? 0)
+                . '/'
+                . $expected
+                . '; skipped='
+                . (int) ($generation['skippedCaseCount'] ?? $expected)
+                . '; failed='
+                . (int) ($generation['failedCaseCount'] ?? 0);
         }
 
         $comparison = $writerGolden['packageComparison'] ?? [];

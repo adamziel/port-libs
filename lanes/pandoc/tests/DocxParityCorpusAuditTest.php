@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\DocxParityCorpusAudit;
+use PortLibs\Pandoc\DocxWriter;
 use PortLibs\Pandoc\DocxWriterGoldenManifest;
+use PortLibs\Pandoc\NativeReader;
 use PortLibs\Pandoc\ZipPackage;
 
 $makeTempRoot = static function (): string {
@@ -112,6 +114,22 @@ XML;
     }
 
     return ZipPackage::build($parts, $variant ? 'generated comment ignored by semantic comparison' : '');
+};
+
+$writerDocxFromNative = static function (string $native): string {
+    $document = (new NativeReader())->read($native);
+
+    return (new DocxWriter())->write($document);
+};
+
+$findRowByGoldenFile = static function (array $rows, string $goldenFile): array {
+    foreach ($rows as $row) {
+        if (is_array($row) && ($row['goldenFile'] ?? null) === $goldenFile) {
+            return $row;
+        }
+    }
+
+    throw new RuntimeException("Missing generation row for {$goldenFile}");
 };
 
 return [
@@ -467,6 +485,83 @@ return [
             $t->true(in_array('xml-part-semantics', $rowsByName['a.docx']['mismatchKinds'], true));
             $t->same('missing-generated', $rowsByName['b.docx']['status']);
             $t->same('unexpected-generated', $rowsByName['c.docx']['status']);
+        } finally {
+            $removeTree($root);
+        }
+    },
+
+    'writer golden generation records absent upstream source blocker' => static function (TestRunner $t) use ($makeTempRoot, $removeTree): void {
+        $root = $makeTempRoot();
+        try {
+            $command = escapeshellarg(PHP_BINARY)
+                . ' '
+                . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-docx-writer-golden-audit.php')
+                . ' --repo-root='
+                . escapeshellarg($root)
+                . ' --json'
+                . ' --generate-supported-dir=generated-docx';
+            $output = [];
+            $exitCode = 0;
+            exec($command, $output, $exitCode);
+            $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same(0, $exitCode);
+            $t->same(DocxWriterGoldenManifest::STATUS_SKIPPED_MISSING_GOLDEN_DIRECTORY, $decoded['status']);
+            $t->same(false, $decoded['generation']['run']);
+            $t->same('not-run-upstream-docx-source-directory-missing', $decoded['generation']['status']);
+            $t->same(DocxWriterGoldenManifest::GENERATION_SOURCE_DIRECTORY_MISSING_REASON, $decoded['generation']['reason']);
+            $t->same(true, $decoded['generation']['outputDirectoryConfigured']);
+            $t->same(38, $decoded['generation']['expectedGoldenCaseCount']);
+            $t->same(0, $decoded['generation']['generatedPackageCount']);
+            $t->same(38, $decoded['generation']['skippedCaseCount']);
+            $t->same(0, $decoded['generation']['failedCaseCount']);
+            $t->same(1, $decoded['generation']['blockerCounts'][DocxWriterGoldenManifest::GENERATION_SOURCE_DIRECTORY_MISSING_REASON]);
+            $t->same(false, $decoded['packageComparison']['run']);
+            $t->same('not-run-golden-directory-missing', $decoded['packageComparison']['status']);
+            $t->same(DocxWriterGoldenManifest::GOLDEN_DIRECTORY_MISSING_REASON, $decoded['packageComparison']['reason']);
+            $t->same(38, $decoded['packageComparison']['missingGeneratedPackageCount']);
+        } finally {
+            $removeTree($root);
+        }
+    },
+
+    'writer golden generation writes supported subset and compares stable package semantics' => static function (TestRunner $t) use ($makeTempRoot, $removeTree, $writeFile, $writerDocxFromNative, $findRowByGoldenFile): void {
+        $root = $makeTempRoot();
+        try {
+            $docxRoot = '.upstream-cache/pandoc-current/test/docx';
+            $native = '[ Para [ Str "Generated" , Space , Str "subset" ] ]';
+            $writeFile($root, "{$docxRoot}/comments.native", $native);
+            $writeFile($root, "{$docxRoot}/golden/comments.docx", $writerDocxFromNative($native));
+
+            $report = (new DocxWriterGoldenManifest(
+                $root,
+                DocxWriterGoldenManifest::DEFAULT_RELATIVE_DOCX_DIR,
+                8,
+                null,
+                'generated-docx'
+            ))->report();
+            $text = DocxWriterGoldenManifest::formatTextReport($report);
+            $commentsGeneration = $findRowByGoldenFile($report['generation']['caseRows'], 'comments.docx');
+
+            $t->same(DocxWriterGoldenManifest::EVIDENCE_KIND_GENERATED_COMPARISON, $report['evidenceKind']);
+            $t->same(true, $report['generation']['run']);
+            $t->same('generated-supported-writer-golden-subset', $report['generation']['status']);
+            $t->same(38, $report['generation']['expectedGoldenCaseCount']);
+            $t->same(1, $report['generation']['attemptedCaseCount']);
+            $t->same(1, $report['generation']['generatedPackageCount']);
+            $t->same(37, $report['generation']['skippedCaseCount']);
+            $t->same(0, $report['generation']['failedCaseCount']);
+            $t->same('generated', $commentsGeneration['status']);
+            $t->same(true, is_file($root . '/generated-docx/comments.docx'));
+            $t->same(true, $report['packageComparison']['run']);
+            $t->same('matched-stable-package-semantics', $report['packageComparison']['status']);
+            $t->same(1, $report['packageComparison']['expectedGoldenPackageCount']);
+            $t->same(1, $report['packageComparison']['generatedPackageCount']);
+            $t->same(1, $report['packageComparison']['matchedPackageCount']);
+            $t->same(0, $report['packageComparison']['missingGeneratedPackageCount']);
+            $t->same(true, $report['packageComparison']['allStableSemanticsMatch']);
+            $t->contains('Generated package production: run; generated=1/38', $text);
+            $t->contains('Generated package comparison: run; compared=1/1; matched=1', $text);
         } finally {
             $removeTree($root);
         }

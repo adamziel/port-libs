@@ -20,12 +20,20 @@ Options:
                     Directory containing generated DOCX packages to compare
                     against golden/*.docx by stable package semantics.
                     Relative paths are resolved from the repository root.
+  --generate-supported-dir PATH
+                    Generate DOCX packages for the pinned upstream writer
+                    golden native inputs supported by the bounded PHP writer.
+                    Relative paths are resolved from the repository root.
+                    When --generated-dir is omitted, this directory is also
+                    used for stable package comparison.
   --help            Show this help.
 
 The audit is evidence-only. It inventories upstream golden DOCX packages and the
-local writer support status. When --generated-dir is supplied, it compares those
-generated packages to golden/*.docx by stable package semantics. It does not
-generate DOCX output or claim writer parity without generated comparisons.
+local writer support status. When --generate-supported-dir is supplied, it uses
+the bounded PHP DocxWriter to generate packages from the pinned upstream writer
+golden native inputs it can read. When --generated-dir or --generate-supported-dir
+is supplied, it compares those generated packages to golden/*.docx by stable
+package semantics. It does not claim writer parity without generated comparisons.
 TEXT;
 };
 
@@ -33,6 +41,7 @@ try {
     $repoRoot = dirname(__DIR__);
     $docxDir = DocxWriterGoldenManifest::DEFAULT_RELATIVE_DOCX_DIR;
     $generatedDir = null;
+    $generationOutputDir = null;
     $json = false;
     $args = array_slice($argv, 1);
 
@@ -80,11 +89,19 @@ try {
             $generatedDir = substr($arg, strlen('--generated-dir='));
             continue;
         }
+        if ($arg === '--generate-supported-dir') {
+            $generationOutputDir = $nextValue('--generate-supported-dir');
+            continue;
+        }
+        if (str_starts_with($arg, '--generate-supported-dir=')) {
+            $generationOutputDir = substr($arg, strlen('--generate-supported-dir='));
+            continue;
+        }
 
         throw new InvalidArgumentException("Unknown option: {$arg}");
     }
 
-    $report = (new DocxWriterGoldenManifest($repoRoot, $docxDir, 8, $generatedDir))->report();
+    $report = (new DocxWriterGoldenManifest($repoRoot, $docxDir, 8, $generatedDir, $generationOutputDir))->report();
 
     if ($json) {
         fwrite(STDOUT, json_encode(

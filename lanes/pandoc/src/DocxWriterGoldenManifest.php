@@ -17,22 +17,76 @@ final class DocxWriterGoldenManifest
     public const EXPECTED_WRITER_RELATIVE_PATH = 'lanes/pandoc/src/DocxWriter.php';
     public const OPEN_REASON = 'writer-unsupported-no-DocxWriter-implementation-and-docx-output-registry-unsupported';
     public const COMPARISON_NOT_RECORDED_REASON = 'docx-writer-comparison-still-not-recorded';
+    public const GENERATION_DIRECTORY_NOT_CONFIGURED_REASON = 'docx-writer-generation-directory-not-configured';
+    public const GENERATION_SOURCE_DIRECTORY_MISSING_REASON = 'upstream-docx-source-directory-missing';
+    public const GENERATION_SOURCE_DIRECTORY_UNREADABLE_REASON = 'upstream-docx-source-directory-unreadable';
+    public const GENERATION_OUTPUT_DIRECTORY_UNWRITABLE_REASON = 'docx-writer-generation-output-directory-unwritable';
+    public const GENERATION_WRITER_UNAVAILABLE_REASON = 'docx-writer-implementation-unavailable';
+    public const GENERATION_WRITE_FAILED_REASON = 'docx-writer-generation-failed';
     public const GENERATED_DIRECTORY_NOT_CONFIGURED_REASON = 'generated-docx-directory-not-configured';
     public const GENERATED_DIRECTORY_MISSING_REASON = 'generated-docx-directory-missing';
     public const GENERATED_DIRECTORY_UNREADABLE_REASON = 'generated-docx-directory-unreadable';
+    public const GOLDEN_DIRECTORY_MISSING_REASON = 'upstream-writer-golden-directory-missing';
+    public const GOLDEN_DIRECTORY_UNREADABLE_REASON = 'upstream-writer-golden-directory-unreadable';
     public const GENERATED_COMPARISON_MISMATCH_REASON = 'generated-docx-package-stable-semantic-mismatches-or-coverage-gaps';
     public const GENERATED_COMPARISON_MATCH_REASON = 'all-generated-docx-packages-match-upstream-golden-stable-semantics';
     public const CLAIM = 'Inventories upstream golden DOCX packages and local writer support status; when generated DOCX packages are supplied, compares them to upstream writer golden packages by stable package semantics. No writer parity is asserted without generated comparisons.';
 
+    /**
+     * @var list<array{goldenFile:string, nativeFile:string, referenceDoc?:string}>
+     */
+    private const WRITER_GOLDEN_CASES = [
+        ['goldenFile' => 'block_quotes.docx', 'nativeFile' => 'block_quotes.native'],
+        ['goldenFile' => 'codeblock.docx', 'nativeFile' => 'codeblock.native'],
+        ['goldenFile' => 'comments.docx', 'nativeFile' => 'comments.native'],
+        ['goldenFile' => 'custom_style_no_reference.docx', 'nativeFile' => 'custom_style.native'],
+        ['goldenFile' => 'custom_style_preserve.docx', 'nativeFile' => 'custom-style-preserve.native'],
+        ['goldenFile' => 'custom_style_reference.docx', 'nativeFile' => 'custom_style.native', 'referenceDoc' => 'custom-style-reference.docx'],
+        ['goldenFile' => 'definition_list.docx', 'nativeFile' => 'definition_list.native'],
+        ['goldenFile' => 'document-properties.docx', 'nativeFile' => 'document-properties.native'],
+        ['goldenFile' => 'document-properties-short-desc.docx', 'nativeFile' => 'document-properties-short-desc.native'],
+        ['goldenFile' => 'headers.docx', 'nativeFile' => 'headers.native'],
+        ['goldenFile' => 'image.docx', 'nativeFile' => 'image_writer_test.native'],
+        ['goldenFile' => 'inline_code.docx', 'nativeFile' => 'inline_code.native'],
+        ['goldenFile' => 'inline_formatting.docx', 'nativeFile' => 'inline_formatting_writer.native'],
+        ['goldenFile' => 'inline_images.docx', 'nativeFile' => 'inline_images_writer_test.native'],
+        ['goldenFile' => 'link_in_notes.docx', 'nativeFile' => 'link_in_notes.native'],
+        ['goldenFile' => 'links.docx', 'nativeFile' => 'links_writer.native'],
+        ['goldenFile' => 'lists.docx', 'nativeFile' => 'lists_writer.native'],
+        ['goldenFile' => 'lists_9994.docx', 'nativeFile' => 'lists_9994.native'],
+        ['goldenFile' => 'lists_continuing.docx', 'nativeFile' => 'lists_continuing.native'],
+        ['goldenFile' => 'lists_div_bullets.docx', 'nativeFile' => 'lists_div_bullets.native'],
+        ['goldenFile' => 'lists_multiple_initial.docx', 'nativeFile' => 'lists_multiple_initial.native'],
+        ['goldenFile' => 'lists_restarting.docx', 'nativeFile' => 'lists_restarting.native'],
+        ['goldenFile' => 'nested_anchors_in_header.docx', 'nativeFile' => 'nested_anchors_in_header.native'],
+        ['goldenFile' => 'notes.docx', 'nativeFile' => 'notes.native'],
+        ['goldenFile' => 'raw-blocks.docx', 'nativeFile' => 'raw-blocks.native'],
+        ['goldenFile' => 'raw-bookmarks.docx', 'nativeFile' => 'raw-bookmarks.native'],
+        ['goldenFile' => 'table_one_row.docx', 'nativeFile' => 'table_one_row.native'],
+        ['goldenFile' => 'table_with_list_cell.docx', 'nativeFile' => 'table_with_list_cell.native'],
+        ['goldenFile' => 'tables.docx', 'nativeFile' => 'tables.native'],
+        ['goldenFile' => 'tables-default-widths.docx', 'nativeFile' => 'tables-default-widths.native'],
+        ['goldenFile' => 'tables_separated_with_rawblock.docx', 'nativeFile' => 'tables_separated_with_rawblock.native'],
+        ['goldenFile' => 'task_list.docx', 'nativeFile' => 'task_list.native'],
+        ['goldenFile' => 'track_changes_deletion.docx', 'nativeFile' => 'track_changes_deletion_all.native'],
+        ['goldenFile' => 'track_changes_insertion.docx', 'nativeFile' => 'track_changes_insertion_all.native'],
+        ['goldenFile' => 'track_changes_move.docx', 'nativeFile' => 'track_changes_move_all.native'],
+        ['goldenFile' => 'track_changes_scrubbed_metadata.docx', 'nativeFile' => 'track_changes_scrubbed_metadata.native'],
+        ['goldenFile' => 'unicode.docx', 'nativeFile' => 'unicode.native'],
+        ['goldenFile' => 'verbatim_subsuper.docx', 'nativeFile' => 'verbatim_subsuper.native'],
+    ];
+
     private readonly string $repoRoot;
     private readonly string $docxDirectory;
     private readonly ?string $generatedDocxDirectory;
+    private readonly ?string $generationOutputDirectory;
 
     public function __construct(
         string $repoRoot,
         string $docxDirectory = self::DEFAULT_RELATIVE_DOCX_DIR,
         private readonly int $sampleLimit = 8,
-        ?string $generatedDocxDirectory = null
+        ?string $generatedDocxDirectory = null,
+        ?string $generationOutputDirectory = null
     ) {
         if ($repoRoot === '') {
             throw new \InvalidArgumentException('Repository root must not be empty');
@@ -43,13 +97,17 @@ final class DocxWriterGoldenManifest
         if ($generatedDocxDirectory === '') {
             throw new \InvalidArgumentException('Generated DOCX directory must not be empty when provided');
         }
+        if ($generationOutputDirectory === '') {
+            throw new \InvalidArgumentException('Generated DOCX output directory must not be empty when provided');
+        }
         if ($sampleLimit < 0) {
             throw new \InvalidArgumentException('Sample limit must not be negative');
         }
 
         $this->repoRoot = rtrim($repoRoot, DIRECTORY_SEPARATOR);
         $this->docxDirectory = $docxDirectory;
-        $this->generatedDocxDirectory = $generatedDocxDirectory;
+        $this->generationOutputDirectory = $generationOutputDirectory;
+        $this->generatedDocxDirectory = $generatedDocxDirectory ?? $generationOutputDirectory;
     }
 
     /**
@@ -59,19 +117,22 @@ final class DocxWriterGoldenManifest
     {
         $goldenDir = $this->absoluteGoldenDirectory();
         $writer = $this->localWriterEvidence();
+        $generation = $this->generationEvidence($writer);
 
         if (!is_dir($goldenDir)) {
             return $this->skipReport(
                 self::STATUS_SKIPPED_MISSING_GOLDEN_DIRECTORY,
                 "Upstream DOCX writer golden directory does not exist: {$goldenDir}",
-                $writer
+                $writer,
+                $generation
             );
         }
         if (!is_readable($goldenDir)) {
             return $this->skipReport(
                 self::STATUS_SKIPPED_UNREADABLE_GOLDEN_DIRECTORY,
                 "Upstream DOCX writer golden directory is not readable: {$goldenDir}",
-                $writer
+                $writer,
+                $generation
             );
         }
 
@@ -109,6 +170,7 @@ final class DocxWriterGoldenManifest
             'goldenDirectoryPresent' => true,
             'expectedUpstreamWriterSourceReferences' => self::expectedUpstreamWriterSourceReferences(),
             'localWriter' => $writer,
+            'generation' => $generation,
             'packageComparison' => $packageComparison,
             'goldenPackageCount' => $packageCount,
             'readableGoldenPackageCount' => $readablePackages,
@@ -119,7 +181,7 @@ final class DocxWriterGoldenManifest
             'packageSamples' => array_slice($packageRows, 0, $this->sampleLimit),
             'notes' => [
                 'Each part hash is the SHA-256 of the uncompressed package part bytes; raw package bytes are not emitted.',
-                'These upstream golden DOCX files are expected writer outputs, not generated during this audit.',
+                'These upstream golden DOCX files are expected writer outputs; generated outputs are recorded separately when --generate-supported-dir is supplied.',
                 'Writer parity remains open until generated local DOCX packages match upstream package parts, relationships, content types, and document XML semantics.',
             ],
         ];
@@ -147,6 +209,23 @@ final class DocxWriterGoldenManifest
                 . self::boolText($writer['fileExists'] ?? false)
                 . '; registryStatus='
                 . (string) ($writer['registryStatus'] ?? 'unknown');
+        }
+
+        $generation = $report['generation'] ?? [];
+        if (is_array($generation)) {
+            $expected = (int) ($generation['expectedGoldenCaseCount'] ?? self::PINNED_UPSTREAM_GOLDEN_PACKAGE_COUNT);
+            $lines[] = 'Generated package production: '
+                . ((($generation['run'] ?? false) === true) ? 'run' : 'not run')
+                . '; generated='
+                . (int) ($generation['generatedPackageCount'] ?? 0)
+                . '/'
+                . $expected
+                . '; skipped='
+                . (int) ($generation['skippedCaseCount'] ?? 0)
+                . '; failed='
+                . (int) ($generation['failedCaseCount'] ?? 0)
+                . '; reason='
+                . (string) ($generation['reason'] ?? 'unknown');
         }
 
         $comparison = $report['packageComparison'] ?? [];
@@ -248,9 +327,10 @@ final class DocxWriterGoldenManifest
 
     /**
      * @param array<string, mixed> $writer
+     * @param array<string, mixed> $generation
      * @return array<string, mixed>
      */
-    private function skipReport(string $status, string $reason, array $writer): array
+    private function skipReport(string $status, string $reason, array $writer, array $generation): array
     {
         return [
             'schemaVersion' => 1,
@@ -268,7 +348,15 @@ final class DocxWriterGoldenManifest
             'reason' => $reason,
             'expectedUpstreamWriterSourceReferences' => self::expectedUpstreamWriterSourceReferences(),
             'localWriter' => $writer,
-            'packageComparison' => $this->packageComparisonEvidence($writer, [], self::PINNED_UPSTREAM_GOLDEN_PACKAGE_COUNT),
+            'generation' => $generation,
+            'packageComparison' => $this->packageComparisonEvidence(
+                $writer,
+                [],
+                self::PINNED_UPSTREAM_GOLDEN_PACKAGE_COUNT,
+                $status === self::STATUS_SKIPPED_MISSING_GOLDEN_DIRECTORY
+                    ? self::GOLDEN_DIRECTORY_MISSING_REASON
+                    : self::GOLDEN_DIRECTORY_UNREADABLE_REASON
+            ),
             'goldenPackageCount' => 0,
             'readableGoldenPackageCount' => 0,
             'unreadableGoldenPackageCount' => 0,
@@ -318,7 +406,221 @@ final class DocxWriterGoldenManifest
      * @param array<string, mixed> $writer
      * @return array<string, mixed>
      */
-    private function packageComparisonEvidence(array $writer, array $goldenPackageRows, ?int $expectedGoldenPackageCount = null): array
+    private function generationEvidence(array $writer): array
+    {
+        $outputDir = $this->absoluteGenerationOutputDirectory();
+        $outputDirConfigured = $outputDir !== null;
+        $sourceDir = $this->absoluteDocxDirectory();
+        $expectedCount = count(self::WRITER_GOLDEN_CASES);
+        $base = [
+            'run' => false,
+            'status' => 'not-run',
+            'reason' => self::GENERATION_DIRECTORY_NOT_CONFIGURED_REASON,
+            'sourceDirectory' => $sourceDir,
+            'sourceDirectoryDisplay' => $this->displayPath($sourceDir),
+            'sourceDirectoryPresent' => is_dir($sourceDir),
+            'outputDirectoryConfigured' => $outputDirConfigured,
+            'outputDirectory' => $outputDir,
+            'outputDirectoryDisplay' => $outputDir === null ? null : $this->displayPath($outputDir),
+            'outputDirectoryPresent' => $outputDir !== null && is_dir($outputDir),
+            'expectedGoldenCaseCount' => $expectedCount,
+            'attemptedCaseCount' => 0,
+            'generatedPackageCount' => 0,
+            'skippedCaseCount' => $outputDirConfigured ? 0 : $expectedCount,
+            'failedCaseCount' => 0,
+            'generationCoveragePercent' => self::percent(0, $expectedCount),
+            'blockerCounts' => $outputDirConfigured ? [] : [self::GENERATION_DIRECTORY_NOT_CONFIGURED_REASON => 1],
+            'caseRows' => $outputDirConfigured ? [] : $this->generationCaseRows('skipped-generation-directory-not-configured', self::GENERATION_DIRECTORY_NOT_CONFIGURED_REASON),
+            'caseSamples' => [],
+        ];
+
+        if ($outputDir === null) {
+            return array_replace($base, [
+                'status' => 'not-run-generation-directory-not-configured',
+                'caseSamples' => array_slice($base['caseRows'], 0, $this->sampleLimit),
+            ]);
+        }
+
+        if (($writer['status'] ?? null) === 'unsupported') {
+            $rows = $this->generationCaseRows('skipped-writer-unavailable', self::GENERATION_WRITER_UNAVAILABLE_REASON);
+
+            return array_replace($base, [
+                'status' => 'not-run-writer-unavailable',
+                'reason' => self::GENERATION_WRITER_UNAVAILABLE_REASON,
+                'skippedCaseCount' => $expectedCount,
+                'blockerCounts' => [self::GENERATION_WRITER_UNAVAILABLE_REASON => 1],
+                'caseRows' => $rows,
+                'caseSamples' => array_slice($rows, 0, $this->sampleLimit),
+            ]);
+        }
+
+        if (!is_dir($sourceDir)) {
+            $rows = $this->generationCaseRows('skipped-upstream-source-directory-missing', self::GENERATION_SOURCE_DIRECTORY_MISSING_REASON);
+
+            return array_replace($base, [
+                'status' => 'not-run-upstream-docx-source-directory-missing',
+                'reason' => self::GENERATION_SOURCE_DIRECTORY_MISSING_REASON,
+                'skippedCaseCount' => $expectedCount,
+                'blockerCounts' => [self::GENERATION_SOURCE_DIRECTORY_MISSING_REASON => 1],
+                'caseRows' => $rows,
+                'caseSamples' => array_slice($rows, 0, $this->sampleLimit),
+            ]);
+        }
+
+        if (!is_readable($sourceDir)) {
+            $rows = $this->generationCaseRows('skipped-upstream-source-directory-unreadable', self::GENERATION_SOURCE_DIRECTORY_UNREADABLE_REASON);
+
+            return array_replace($base, [
+                'status' => 'not-run-upstream-docx-source-directory-unreadable',
+                'reason' => self::GENERATION_SOURCE_DIRECTORY_UNREADABLE_REASON,
+                'sourceDirectoryPresent' => true,
+                'skippedCaseCount' => $expectedCount,
+                'blockerCounts' => [self::GENERATION_SOURCE_DIRECTORY_UNREADABLE_REASON => 1],
+                'caseRows' => $rows,
+                'caseSamples' => array_slice($rows, 0, $this->sampleLimit),
+            ]);
+        }
+
+        if ((!is_dir($outputDir) && !mkdir($outputDir, 0777, true) && !is_dir($outputDir)) || !is_writable($outputDir)) {
+            $rows = $this->generationCaseRows('skipped-output-directory-unwritable', self::GENERATION_OUTPUT_DIRECTORY_UNWRITABLE_REASON);
+
+            return array_replace($base, [
+                'status' => 'not-run-output-directory-unwritable',
+                'reason' => self::GENERATION_OUTPUT_DIRECTORY_UNWRITABLE_REASON,
+                'sourceDirectoryPresent' => true,
+                'skippedCaseCount' => $expectedCount,
+                'blockerCounts' => [self::GENERATION_OUTPUT_DIRECTORY_UNWRITABLE_REASON => 1],
+                'caseRows' => $rows,
+                'caseSamples' => array_slice($rows, 0, $this->sampleLimit),
+            ]);
+        }
+
+        $nativeReader = new NativeReader();
+        $writerInstance = new DocxWriter();
+        $rows = [];
+        $generated = 0;
+        $skipped = 0;
+        $failed = 0;
+        $blockerCounts = [];
+
+        foreach (self::WRITER_GOLDEN_CASES as $case) {
+            $nativeFile = $case['nativeFile'];
+            $goldenFile = $case['goldenFile'];
+            $nativePath = $sourceDir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $nativeFile);
+            $outputPath = $outputDir . DIRECTORY_SEPARATOR . $goldenFile;
+            $row = [
+                'goldenFile' => $goldenFile,
+                'nativeFile' => $nativeFile,
+                'nativeSource' => $this->displayPath($nativePath),
+                'generatedPackage' => $this->displayPath($outputPath),
+            ];
+            if (isset($case['referenceDoc'])) {
+                $row['referenceDoc'] = $case['referenceDoc'];
+                $row['referenceDocHandled'] = false;
+            }
+
+            if (!is_file($nativePath)) {
+                ++$skipped;
+                $reason = 'native-source-missing';
+                $blockerCounts[$reason] = ($blockerCounts[$reason] ?? 0) + 1;
+                $rows[] = array_replace($row, [
+                    'status' => 'skipped-native-source-missing',
+                    'reason' => $reason,
+                ]);
+                continue;
+            }
+
+            try {
+                $native = file_get_contents($nativePath);
+                if (!is_string($native)) {
+                    throw new \RuntimeException("Unable to read native fixture: {$nativePath}");
+                }
+                $document = $nativeReader->read($native);
+                $docx = $writerInstance->write($document);
+                if (file_put_contents($outputPath, $docx) === false) {
+                    throw new \RuntimeException("Unable to write generated DOCX package: {$outputPath}");
+                }
+
+                ++$generated;
+                $rows[] = array_replace($row, [
+                    'status' => 'generated',
+                    'reason' => 'generated-docx-package',
+                    'packageBytes' => strlen($docx),
+                    'packageSha256' => hash('sha256', $docx),
+                ]);
+            } catch (\Throwable $throwable) {
+                ++$failed;
+                $blockerCounts[self::GENERATION_WRITE_FAILED_REASON] = ($blockerCounts[self::GENERATION_WRITE_FAILED_REASON] ?? 0) + 1;
+                $rows[] = array_replace($row, [
+                    'status' => 'failed',
+                    'reason' => self::GENERATION_WRITE_FAILED_REASON,
+                    'errorClass' => $throwable::class,
+                    'message' => self::oneLine($throwable->getMessage()),
+                ]);
+            }
+        }
+
+        $status = $generated === $expectedCount && $failed === 0 && $skipped === 0
+            ? 'generated-all-writer-golden-cases'
+            : ($generated > 0 ? 'generated-supported-writer-golden-subset' : 'generated-no-writer-golden-packages');
+
+        return array_replace($base, [
+            'run' => true,
+            'status' => $status,
+            'reason' => $status,
+            'sourceDirectoryPresent' => true,
+            'outputDirectoryPresent' => true,
+            'attemptedCaseCount' => $expectedCount - $skipped,
+            'generatedPackageCount' => $generated,
+            'skippedCaseCount' => $skipped,
+            'failedCaseCount' => $failed,
+            'generationCoveragePercent' => self::percent($generated, $expectedCount),
+            'blockerCounts' => $blockerCounts,
+            'caseRows' => $rows,
+            'caseSamples' => array_slice($rows, 0, $this->sampleLimit),
+        ]);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function generationCaseRows(string $status, string $reason): array
+    {
+        $sourceDir = $this->absoluteDocxDirectory();
+        $outputDir = $this->absoluteGenerationOutputDirectory();
+        $rows = [];
+        foreach (self::WRITER_GOLDEN_CASES as $case) {
+            $nativePath = $sourceDir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $case['nativeFile']);
+            $row = [
+                'goldenFile' => $case['goldenFile'],
+                'nativeFile' => $case['nativeFile'],
+                'nativeSource' => $this->displayPath($nativePath),
+                'status' => $status,
+                'reason' => $reason,
+            ];
+            if ($outputDir !== null) {
+                $row['generatedPackage'] = $this->displayPath($outputDir . DIRECTORY_SEPARATOR . $case['goldenFile']);
+            }
+            if (isset($case['referenceDoc'])) {
+                $row['referenceDoc'] = $case['referenceDoc'];
+                $row['referenceDocHandled'] = false;
+            }
+            $rows[] = $row;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param array<string, mixed> $writer
+     * @return array<string, mixed>
+     */
+    private function packageComparisonEvidence(
+        array $writer,
+        array $goldenPackageRows,
+        ?int $expectedGoldenPackageCount = null,
+        ?string $goldenUnavailableReason = null
+    ): array
     {
         $expectedGoldenPackageCount ??= count($goldenPackageRows);
         $generatedDir = $this->absoluteGeneratedDirectory();
@@ -356,6 +658,17 @@ final class DocxWriterGoldenManifest
             return array_replace($base, [
                 'status' => 'not-run-generated-directory-not-configured',
                 'reason' => $reason,
+            ]);
+        }
+
+        if ($goldenUnavailableReason !== null) {
+            $status = $goldenUnavailableReason === self::GOLDEN_DIRECTORY_UNREADABLE_REASON
+                ? 'not-run-golden-directory-unreadable'
+                : 'not-run-golden-directory-missing';
+
+            return array_replace($base, [
+                'status' => $status,
+                'reason' => $goldenUnavailableReason,
             ]);
         }
 
@@ -1144,6 +1457,19 @@ final class DocxWriterGoldenManifest
         }
 
         return $this->repoRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $this->generatedDocxDirectory);
+    }
+
+    private function absoluteGenerationOutputDirectory(): ?string
+    {
+        if ($this->generationOutputDirectory === null) {
+            return null;
+        }
+
+        if (str_starts_with($this->generationOutputDirectory, DIRECTORY_SEPARATOR)) {
+            return rtrim($this->generationOutputDirectory, DIRECTORY_SEPARATOR);
+        }
+
+        return $this->repoRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $this->generationOutputDirectory);
     }
 
     private function displayPath(string $path): string

@@ -1663,8 +1663,8 @@
         },
         "upstreamDocxRunnerExecuted": false,
         "upstreamDocxGoldenPackageRoundTripExecuted": false,
-        "writerGoldenEvidenceKind": "writer-golden-package-inventory-only",
-        "writerGoldenPackageManifestTool": "tools/pandoc-docx-writer-golden-audit.php --json",
+        "writerGoldenEvidenceKind": "writer-golden-package-generated-stable-comparison",
+        "writerGoldenPackageManifestTool": "tools/pandoc-docx-writer-golden-audit.php --json --docx-dir /Users/admin/port-libs-pandoc-docx-parity/.upstream-cache/pandoc-current/test/docx --generate-supported-dir /tmp/pandoc-docx-writer-golden-generated-49aff",
         "writerGoldenPackageInventory": {
             "status": "inventory-only-core-writer-present",
             "goldenPackageCount": 38,
@@ -1684,18 +1684,37 @@
             "outputRegistryStatus": "partial",
             "unsupportedReason": "docx-writer-comparison-still-not-recorded"
         },
+        "writerGoldenPackageGeneration": {
+            "run": true,
+            "status": "generated-all-writer-golden-cases",
+            "sourceDirectory": "/Users/admin/port-libs-pandoc-docx-parity/.upstream-cache/pandoc-current/test/docx",
+            "sourceDirectoryPresent": true,
+            "outputDirectoryConfigured": true,
+            "outputDirectory": "/tmp/pandoc-docx-writer-golden-generated-49aff",
+            "outputDirectoryPresent": true,
+            "expectedGoldenCaseCount": 38,
+            "attemptedCaseCount": 38,
+            "generatedPackageCount": 38,
+            "skippedCaseCount": 0,
+            "failedCaseCount": 0,
+            "generationCoveragePercent": 100,
+            "blockerCounts": [],
+            "openReason": "generated-all-writer-golden-cases"
+        },
         "writerGoldenPackageComparison": {
-            "run": false,
-            "status": "not-run-generated-directory-not-configured",
-            "generatedDirectoryConfigured": false,
+            "run": true,
+            "status": "mismatched-stable-package-semantics",
+            "generatedDirectoryConfigured": true,
+            "generatedDirectory": "/tmp/pandoc-docx-writer-golden-generated-49aff",
+            "generatedDirectoryPresent": true,
             "expectedGoldenPackageCount": 38,
-            "generatedPackageCount": 0,
-            "comparedPackageCount": 0,
+            "generatedPackageCount": 38,
+            "comparedPackageCount": 38,
             "matchedPackageCount": 0,
-            "mismatchedPackageCount": 0,
-            "missingGeneratedPackageCount": 38,
+            "mismatchedPackageCount": 38,
+            "missingGeneratedPackageCount": 0,
             "unexpectedGeneratedPackageCount": 0,
-            "comparisonCoveragePercent": 0,
+            "comparisonCoveragePercent": 100,
             "stableMatchPercent": 0,
             "allStableSemanticsMatch": false,
             "stableComparisonContract": {
@@ -1714,7 +1733,7 @@
                     "content-types child order and relationship child order"
                 ]
             },
-            "openReason": "generated-docx-directory-not-configured"
+            "openReason": "generated-docx-package-stable-semantic-mismatches-or-coverage-gaps"
         },
         "packageFixtureCoverage": "synthetic ZIP/XML DOCX package fixtures plus two checked-in current-upstream DOCX package drift fixtures; no checked-in pinned upstream DOCX package corpus",
         "defensibleClaim": "bounded DOCX/OpenXML package provenance, selected upstream Native fixture slices, and three current-upstream DOCX drift fixtures",
