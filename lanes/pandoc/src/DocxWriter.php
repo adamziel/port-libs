@@ -2705,10 +2705,66 @@ XML;
                 continue;
             }
             $tag = (($format['deleted'] ?? false) === true) ? 'w:delText' : 'w:t';
-            $runs .= '<w:r>' . $this->runPropertiesXml($format) . '<' . $tag . ' xml:space="preserve">' . self::escText($part) . '</' . $tag . '></w:r>';
+            foreach (self::textScriptChunks($part) as $chunk) {
+                $chunkFormat = $chunk['eastAsia']
+                    ? array_replace($format, ['eastAsia' => true])
+                    : $format;
+                $runs .= '<w:r>' . $this->runPropertiesXml($chunkFormat) . '<' . $tag . ' xml:space="preserve">' . self::escText($chunk['text']) . '</' . $tag . '></w:r>';
+            }
         }
 
         return $runs;
+    }
+
+    /**
+     * @return list<array{text:string, eastAsia:bool}>
+     */
+    private static function textScriptChunks(string $text): array
+    {
+        if (!self::containsCjk($text)) {
+            return [['text' => $text, 'eastAsia' => false]];
+        }
+
+        $tokens = preg_split('/(\s+)/u', $text, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
+        if ($tokens === false || $tokens === []) {
+            return [['text' => $text, 'eastAsia' => false]];
+        }
+
+        $groups = [];
+        foreach ($tokens as $token) {
+            $lastIndex = count($groups) - 1;
+            if ($lastIndex >= 0 && self::shouldJoinScriptChunk($groups[$lastIndex], $token)) {
+                $groups[$lastIndex] .= $token;
+                continue;
+            }
+
+            $groups[] = $token;
+        }
+
+        return array_map(
+            static fn (string $group): array => ['text' => $group, 'eastAsia' => self::containsCjk($group)],
+            $groups
+        );
+    }
+
+    private static function shouldJoinScriptChunk(string $left, string $right): bool
+    {
+        $leftHasCjk = self::containsCjk($left);
+        $rightHasCjk = self::containsCjk($right);
+
+        return (!$leftHasCjk && !$rightHasCjk)
+            || (self::isUnicodeSpace($left) && !$rightHasCjk)
+            || (self::isUnicodeSpace($right) && !$leftHasCjk);
+    }
+
+    private static function containsCjk(string $text): bool
+    {
+        return preg_match('/[\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}]/u', $text) === 1;
+    }
+
+    private static function isUnicodeSpace(string $text): bool
+    {
+        return preg_match('/^\s+$/u', $text) === 1;
     }
 
     /**
@@ -2744,9 +2800,11 @@ XML;
         }
         if (($format['bold'] ?? false) === true) {
             $props[] = '<w:b/>';
+            $props[] = '<w:bCs/>';
         }
         if (($format['italic'] ?? false) === true) {
             $props[] = '<w:i/>';
+            $props[] = '<w:iCs/>';
         }
         if (($format['underline'] ?? false) === true) {
             $props[] = '<w:u w:val="single"/>';
@@ -2759,6 +2817,9 @@ XML;
         }
         if (isset($format['verticalAlign']) && is_string($format['verticalAlign'])) {
             $props[] = '<w:vertAlign w:val="' . self::escAttr($format['verticalAlign']) . '"/>';
+        }
+        if (($format['eastAsia'] ?? false) === true) {
+            array_unshift($props, '<w:rFonts w:hint="eastAsia"/>');
         }
 
         return $props === [] ? '' : '<w:rPr>' . implode('', $props) . '</w:rPr>';

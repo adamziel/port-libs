@@ -229,6 +229,49 @@ return [
         $t->true(!str_contains($documentXml, '</w:hyperlink><w:r><w:t xml:space="preserve"> and'), 'Trailing boundary space was folded into the following run');
     },
 
+    'splits native inline spaces and east asian text into upstream-like runs' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
+        $space = $text(' ');
+        $document = $doc([
+            $paragraph([
+                $text('Hello,'),
+                $space,
+                $text('世界.'),
+                $space,
+                $text('This'),
+                $space,
+                $text('costs'),
+                $space,
+                $text('€10.'),
+            ]),
+            $paragraph([
+                $text('An'),
+                $space,
+                new AstNode('link', ['url' => 'http://example.com/'], [$text('external'), $space, $text('link')]),
+                $space,
+                $text('to'),
+                $space,
+                $text('site.'),
+            ]),
+            $paragraph([
+                new AstNode('strong', [], [
+                    $text('bold'),
+                    $space,
+                    new AstNode('emph', [], [$text('bold'), $space, $text('italics')]),
+                ]),
+            ]),
+        ]);
+
+        [, $parts] = $packageParts((new DocxWriter())->write($document));
+        $documentXml = $parts['word/document.xml'];
+
+        $t->contains('<w:t xml:space="preserve">Hello, </w:t></w:r><w:r><w:rPr><w:rFonts w:hint="eastAsia"/></w:rPr><w:t xml:space="preserve">世界.</w:t></w:r><w:r><w:t xml:space="preserve"> This costs €10.</w:t>', $documentXml);
+        $t->contains('<w:t xml:space="preserve">An</w:t></w:r><w:r><w:t xml:space="preserve"> </w:t></w:r><w:hyperlink r:id="rId9">', $documentXml);
+        $t->contains('</w:hyperlink><w:r><w:t xml:space="preserve"> </w:t></w:r><w:r><w:t xml:space="preserve">to site.</w:t>', $documentXml);
+        $t->contains('<w:rPr><w:b/><w:bCs/></w:rPr><w:t xml:space="preserve">bold</w:t>', $documentXml);
+        $t->contains('<w:rPr><w:b/><w:bCs/></w:rPr><w:t xml:space="preserve"> </w:t>', $documentXml);
+        $t->contains('<w:rPr><w:b/><w:bCs/><w:i/><w:iCs/></w:rPr><w:t xml:space="preserve">bold italics</w:t>', $documentXml);
+    },
+
     'emits native document metadata in core properties' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
         $space = static fn (): AstNode => new AstNode('text', ['text' => ' ']);
         $metaInlines = static fn (array $children): array => ['type' => 'MetaInlines', 'value' => $children];
