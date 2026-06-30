@@ -166,6 +166,10 @@ final class MarkdownReader
 
         for ($index = 0, $count = count($lines); $index < $count; $index++) {
             $line = $lines[$index];
+            if ($paragraph === [] && $listStack === [] && $this->isNeutralWriterSeparatorLine($line)) {
+                continue;
+            }
+
             $codeBlock = $this->tryReadFencedCodeBlock($lines, $index);
             if ($codeBlock !== null) {
                 $this->flushParagraph($paragraph, $blocks);
@@ -7550,6 +7554,11 @@ final class MarkdownReader
         $index = min($cursor, $count - 1);
 
         return new AstNode('raw_html', ['html' => implode("\n", $content)]);
+    }
+
+    private function isNeutralWriterSeparatorLine(string $line): bool
+    {
+        return preg_match('/^ {0,3}<!-- -->[ \t]*$/', $line) === 1;
     }
 
     /**

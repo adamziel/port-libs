@@ -74,6 +74,18 @@ $tests = [
             $t->same('bullet_list', $nestedList->type);
             $t->same('bar', $nestedText->attr('text'));
         },
+
+    'keeps real html comments while skipping neutral writer separators' =>
+        static function (TestRunner $t): void {
+            $neutral = (new MarkdownReader())->read("alpha\n\n<!-- -->\n\nbeta");
+            $realComment = (new MarkdownReader())->read('<!-- writer comment -->');
+
+            $t->same(2, count($neutral->children));
+            $t->same('paragraph', ($neutral->children[0] ?? new AstNode('missing'))->type);
+            $t->same('paragraph', ($neutral->children[1] ?? new AstNode('missing'))->type);
+            $t->same('raw_html', ($realComment->children[0] ?? new AstNode('missing'))->type);
+            $t->same('<!-- writer comment -->', $realComment->children[0]->attr('html'));
+        },
 ];
 
 return $tests;
