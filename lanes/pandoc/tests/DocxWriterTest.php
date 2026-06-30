@@ -979,6 +979,110 @@ return [
         $t->same(1, substr_count($stylesXml, 'w:styleId="Hyperlink"'));
     },
 
+    'keeps soft breaks as separate preserved runs in custom style output' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
+        $document = $doc([
+            $paragraph([
+                $text('Alpha'),
+                new AstNode('softbreak'),
+                $text('Beta'),
+                new AstNode('space'),
+                new AstNode('span', ['attributes' => ['custom-style' => 'Emphatic']], [
+                    $text('really'),
+                    new AstNode('softbreak'),
+                    $text('cool'),
+                ]),
+            ]),
+        ]);
+
+        [, $parts] = $packageParts((new DocxWriter())->write($document));
+        $documentXml = $parts['word/document.xml'];
+
+        $t->contains('<w:t xml:space="preserve">Alpha</w:t></w:r><w:r><w:t xml:space="preserve"> </w:t></w:r><w:r><w:t xml:space="preserve">Beta</w:t>', $documentXml);
+        $t->contains('<w:r><w:rPr><w:rStyle w:val="Emphatic"/></w:rPr><w:t xml:space="preserve">really</w:t></w:r><w:r><w:rPr><w:rStyle w:val="Emphatic"/></w:rPr><w:t xml:space="preserve"> </w:t></w:r><w:r><w:rPr><w:rStyle w:val="Emphatic"/></w:rPr><w:t xml:space="preserve">cool</w:t></w:r>', $documentXml);
+    },
+
+    'reuses reference docx XML sidecars and merges generated custom package semantics' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts, $removeTree): void {
+        $tmpDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'docx-writer-reference-' . bin2hex(random_bytes(4));
+        if (!mkdir($tmpDir, 0777, true) && !is_dir($tmpDir)) {
+            throw new RuntimeException('Unable to create DOCX writer reference fixture directory');
+        }
+
+        $referencePath = $tmpDir . DIRECTORY_SEPARATOR . 'reference.docx';
+        $appXml = '<?xml version="1.0" encoding="UTF-8"?><Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Application>Reference App</Application></Properties>';
+        $fontTableXml = '<?xml version="1.0" encoding="UTF-8"?><w:fonts xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:font w:name="Reference Font"/></w:fonts>';
+        $themeXml = '<?xml version="1.0" encoding="UTF-8"?><a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Reference Theme"><a:themeElements/></a:theme>';
+        $webSettingsXml = '<?xml version="1.0" encoding="UTF-8"?><w:webSettings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:allowPNG/></w:webSettings>';
+        $stylesXml = '<?xml version="1.0" encoding="UTF-8"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+            . '<w:style w:type="paragraph" w:styleId="BodyText"><w:name w:val="Body Text"/></w:style>'
+            . '<w:style w:type="character" w:customStyle="1" w:styleId="Emphatic"><w:name w:val="Emphatic"/></w:style>'
+            . '<w:style w:type="paragraph" w:customStyle="1" w:styleId="MyBlockStyle"><w:name w:val="My Block Style"/></w:style>'
+            . '<w:style w:type="paragraph" w:customStyle="1" w:styleId="SourceCode"><w:name w:val="Source Code"/></w:style>'
+            . '</w:styles>';
+        $numberingXml = '<?xml version="1.0" encoding="UTF-8"?><w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+            . '<w:abstractNum w:abstractNumId="0"><w:nsid w:val="AAAA0000"/></w:abstractNum>'
+            . '<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>'
+            . '</w:numbering>';
+        $referenceDocumentXml = '<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p/><w:sectPr w:rsidR="00ABCDEF"><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/><w:cols w:space="720"/></w:sectPr></w:body></w:document>';
+        $settingsXml = '<?xml version="1.0" encoding="UTF-8"?><w:settings xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">'
+            . '<w:zoom w:percent="128"/><w:embedSystemFonts/><w:stylePaneFormatFilter w:val="0004" w:latentStyles="1"/><w:doNotTrackMoves/><w:defaultTabStop w:val="720"/><w:characterSpacingControl w:val="doNotCompress"/>'
+            . '<w:footnotePr/><w:endnotePr/><m:mathPr/><w:themeFontLang w:val="en-US"/><w15:docId w15:val="{REFERENCE}"/></w:settings>';
+
+        try {
+            if (file_put_contents($referencePath, ZipPackage::build([
+                ['name' => 'docProps/app.xml', 'data' => $appXml],
+                ['name' => 'word/fontTable.xml', 'data' => $fontTableXml],
+                ['name' => 'word/theme/theme1.xml', 'data' => $themeXml],
+                ['name' => 'word/webSettings.xml', 'data' => $webSettingsXml],
+                ['name' => 'word/styles.xml', 'data' => $stylesXml],
+                ['name' => 'word/numbering.xml', 'data' => $numberingXml],
+                ['name' => 'word/settings.xml', 'data' => $settingsXml],
+                ['name' => 'word/document.xml', 'data' => $referenceDocumentXml],
+            ])) === false) {
+                throw new RuntimeException('Unable to write DOCX writer reference fixture');
+            }
+
+            $document = $doc([
+                new AstNode('div', ['attributes' => ['custom-style' => 'My Block Style']], [
+                    $paragraph([$text('reference block style')]),
+                ]),
+                new AstNode('div', ['attributes' => ['custom-style' => 'New Style']], [
+                    $paragraph([$text('new block style')]),
+                ]),
+                $paragraph([
+                    new AstNode('span', ['attributes' => ['custom-style' => 'Emphatic']], [$text('reference character style')]),
+                ]),
+            ]);
+
+            [, $parts] = $packageParts((new DocxWriter(['referenceDocxPath' => $referencePath]))->write($document));
+
+            $t->same($appXml, $parts['docProps/app.xml']);
+            $t->same($fontTableXml, $parts['word/fontTable.xml']);
+            $t->same($themeXml, $parts['word/theme/theme1.xml']);
+            $t->same($webSettingsXml, $parts['word/webSettings.xml']);
+            $t->contains('<w:pStyle w:val="MyBlockStyle"/>', $parts['word/document.xml']);
+            $t->contains('<w:pStyle w:val="NewStyle"/>', $parts['word/document.xml']);
+            $t->contains('<w:rStyle w:val="Emphatic"/>', $parts['word/document.xml']);
+            $t->contains('<w:sectPr w:rsidR="00ABCDEF"><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/><w:cols w:space="720"/></w:sectPr>', $parts['word/document.xml']);
+            $t->same(1, substr_count($parts['word/styles.xml'], 'w:styleId="Emphatic"'));
+            $t->same(1, substr_count($parts['word/styles.xml'], 'w:styleId="MyBlockStyle"'));
+            $t->contains('w:styleId="NewStyle"', $parts['word/styles.xml']);
+            $t->true(strpos($parts['word/styles.xml'], 'w:styleId="NewStyle"') < strpos($parts['word/styles.xml'], 'w:styleId="SourceCode"'), 'Generated custom styles should precede SourceCode');
+            $t->contains('w:abstractNumId="0"', $parts['word/numbering.xml']);
+            $t->contains('w:abstractNumId="990"', $parts['word/numbering.xml']);
+            $t->contains('w:numId="1"', $parts['word/numbering.xml']);
+            $t->contains('w:numId="1000"', $parts['word/numbering.xml']);
+            $t->contains('<w:zoom w:percent="128"/>', $parts['word/settings.xml']);
+            $t->contains('<w:proofState w:grammar="clean" w:spelling="clean"/>', $parts['word/settings.xml']);
+            $t->contains('<w:savePreviewPicture/>', $parts['word/settings.xml']);
+            $t->true(!str_contains($parts['word/settings.xml'], '<w:footnotePr'), 'Reference footnote settings should be removed from generated settings');
+            $t->true(!str_contains($parts['word/settings.xml'], '<w:endnotePr'), 'Reference endnote settings should be removed from generated settings');
+            $t->true(!str_contains($parts['word/settings.xml'], '<m:mathPr'), 'Reference math settings should be removed from generated settings');
+            $t->true(!str_contains($parts['word/settings.xml'], 'docId'), 'Reference volatile document id should be removed from generated settings');
+        } finally {
+            $removeTree($tmpDir);
+        }
+    },
+
     'emits block text style for simple block quotes' => static function (TestRunner $t) use ($doc, $text, $paragraph, $plain, $item, $packageParts): void {
         $document = $doc([
             new AstNode('blockquote', [], [

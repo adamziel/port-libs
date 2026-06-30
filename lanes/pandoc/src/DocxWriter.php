@@ -121,6 +121,9 @@ final class DocxWriter
     /** @var array<int, true> */
     private array $numberingAbstractsSeen = [];
 
+    private ?ZipPackage $referencePackage = null;
+    private bool $referencePackageLoaded = false;
+
     private int $nextDocumentRelationshipId = 9;
     private int $nextFootnoteId = 9;
     private int $nextBookmarkId = 9;
@@ -157,19 +160,19 @@ final class DocxWriter
             ['name' => '[Content_Types].xml', 'data' => $this->contentTypesXml()],
             ['name' => '_rels/.rels', 'data' => $this->rootRelationshipsXml()],
             ['name' => 'docProps/core.xml', 'data' => $this->corePropertiesXml($document)],
-            ['name' => 'docProps/app.xml', 'data' => $this->extendedPropertiesXml()],
+            ['name' => 'docProps/app.xml', 'data' => $this->referencePackagePart('docProps/app.xml') ?? $this->extendedPropertiesXml()],
             ['name' => 'docProps/custom.xml', 'data' => $this->customPropertiesXml()],
             ['name' => 'word/document.xml', 'data' => $documentXml],
             ['name' => 'word/_rels/document.xml.rels', 'data' => $this->documentRelationshipsXml()],
             ['name' => 'word/_rels/footnotes.xml.rels', 'data' => $this->footnotesRelationshipsXml()],
             ['name' => 'word/comments.xml', 'data' => $commentsXml],
             ['name' => 'word/footnotes.xml', 'data' => $footnotesXml],
-            ['name' => 'word/fontTable.xml', 'data' => $this->fontTableXml()],
+            ['name' => 'word/fontTable.xml', 'data' => $this->referencePackagePart('word/fontTable.xml') ?? $this->fontTableXml()],
             ['name' => 'word/styles.xml', 'data' => $this->stylesXml()],
             ['name' => 'word/numbering.xml', 'data' => $this->numberingXml()],
             ['name' => 'word/settings.xml', 'data' => $this->settingsXml()],
-            ['name' => 'word/theme/theme1.xml', 'data' => $this->themeXml()],
-            ['name' => 'word/webSettings.xml', 'data' => $this->webSettingsXml()],
+            ['name' => 'word/theme/theme1.xml', 'data' => $this->referencePackagePart('word/theme/theme1.xml') ?? $this->themeXml()],
+            ['name' => 'word/webSettings.xml', 'data' => $this->referencePackagePart('word/webSettings.xml') ?? $this->webSettingsXml()],
         ];
 
         foreach ($this->mediaParts as $mediaPart) {
@@ -253,6 +256,58 @@ final class DocxWriter
         $this->nextFootnoteId = 9;
         $this->nextBookmarkId = 9;
         $this->nextNumberingId = 1001;
+    }
+
+    private function referenceDocxPath(): ?string
+    {
+        foreach (['referenceDocxPath', 'referenceDocPath', 'referenceDoc'] as $key) {
+            $value = $this->options[$key] ?? null;
+            if (is_string($value) && $value !== '') {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    private function referencePackage(): ?ZipPackage
+    {
+        if ($this->referencePackageLoaded) {
+            return $this->referencePackage;
+        }
+
+        $this->referencePackageLoaded = true;
+        $path = $this->referenceDocxPath();
+        if ($path === null) {
+            return null;
+        }
+        if (!is_file($path)) {
+            throw new \RuntimeException("DOCX reference package does not exist: {$path}");
+        }
+
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new \RuntimeException("Unable to read DOCX reference package: {$path}");
+        }
+
+        $this->referencePackage = ZipPackage::fromString($bytes);
+
+        return $this->referencePackage;
+    }
+
+    private function referencePackagePart(string $partName, int $maxUncompressedBytes = 2097152): ?string
+    {
+        $package = $this->referencePackage();
+        if ($package === null) {
+            return null;
+        }
+
+        $name = self::normalizePackagePartName($partName);
+        if (!in_array($name, $package->names(), true)) {
+            return null;
+        }
+
+        return $package->read($name, $maxUncompressedBytes);
     }
 
     private function seedBookmarkIds(AstNode $document): void
@@ -1190,6 +1245,7 @@ XML;
     {
         $blocks = [];
         $inlineBuffer = [];
+        $openHeadingBookmarks = [];
         foreach ($children as $child) {
             if (!$child instanceof AstNode) {
                 continue;
@@ -1202,12 +1258,33 @@ XML;
                 $blocks[] = $this->paragraphFromInlinesXml($inlineBuffer, $paragraphStyle, null);
                 $inlineBuffer = [];
             }
+            if ($child->type === 'heading') {
+                $level = max(1, min(9, (int) $child->attr('level', 1)));
+                while ($openHeadingBookmarks !== [] && $openHeadingBookmarks[count($openHeadingBookmarks) - 1]['level'] >= $level) {
+                    $bookmark = array_pop($openHeadingBookmarks);
+                    $blocks[] = '<w:bookmarkEnd w:id="' . $bookmark['id'] . '"/>';
+                }
+
+                $bookmark = $this->headingBookmark($child);
+                if ($bookmark !== null) {
+                    $blocks[] = '<w:bookmarkStart w:id="' . $bookmark['id'] . '" w:name="' . self::escAttr($bookmark['name']) . '"/>';
+                }
+                $blocks[] = $this->headingParagraphXml($child);
+                if ($bookmark !== null) {
+                    $openHeadingBookmarks[] = ['id' => $bookmark['id'], 'level' => $level];
+                }
+                continue;
+            }
             foreach ($this->renderBlock($child, $listLevel, $paragraphStyle) as $blockXml) {
                 $blocks[] = $blockXml;
             }
         }
         if ($inlineBuffer !== []) {
             $blocks[] = $this->paragraphFromInlinesXml($inlineBuffer, $paragraphStyle, null);
+        }
+        while ($openHeadingBookmarks !== []) {
+            $bookmark = array_pop($openHeadingBookmarks);
+            $blocks[] = '<w:bookmarkEnd w:id="' . $bookmark['id'] . '"/>';
         }
 
         return $blocks;
@@ -2122,6 +2199,12 @@ XML;
 
         foreach ($nodes as $index => $node) {
             if (!$node instanceof AstNode) {
+                continue;
+            }
+
+            if ($node->type === 'softbreak') {
+                $flushBuffer();
+                $xml .= $this->textRun(' ', array_replace($baseFormat, ['preserveSpace' => true]));
                 continue;
             }
 
@@ -3189,12 +3272,46 @@ XML;
 
     private function sectionPropertiesXml(): string
     {
+        $referenceDocument = $this->referencePackagePart('word/document.xml');
+        if ($referenceDocument !== null) {
+            $sectionProperties = $this->referenceSectionPropertiesXml($referenceDocument);
+            if ($sectionProperties !== null) {
+                return $sectionProperties;
+            }
+        }
+
         return '<w:sectPr><w:footnotePr><w:numRestart w:val="eachSect"/></w:footnotePr></w:sectPr>';
     }
 
-    private function customStylesXml(): string
+    private function referenceSectionPropertiesXml(string $documentXml): ?string
     {
-        $defaultStyleNamesByType = self::defaultStyleNamesByType();
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument();
+        $loaded = $dom->loadXML($documentXml, LIBXML_NONET);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded) {
+            return null;
+        }
+
+        $sectionProperties = $dom->getElementsByTagNameNS(self::NS_W, 'sectPr');
+        if ($sectionProperties->length === 0) {
+            return null;
+        }
+
+        $last = $sectionProperties->item($sectionProperties->length - 1);
+        if (!$last instanceof \DOMElement) {
+            return null;
+        }
+
+        $xml = $dom->saveXML($last);
+
+        return is_string($xml) && $xml !== '' ? $xml : null;
+    }
+
+    private function customStylesXml(string $baseStylesXml): string
+    {
+        $defaultStyleNamesByType = self::styleNamesByType($baseStylesXml);
         $xml = '';
         ksort($this->customParagraphStyles, SORT_STRING);
         foreach ($this->customParagraphStyles as $styleId => $name) {
@@ -3240,14 +3357,30 @@ XML;
 
     private function stylesXml(): string
     {
-        $stylesXml = self::defaultStylesXml();
-        $customStyles = $this->customStylesXml();
+        $stylesXml = rtrim($this->referencePackagePart('word/styles.xml') ?? self::defaultStylesXml(), "\r\n");
+        $customStyles = $this->customStylesXml($stylesXml);
 
         if ($customStyles !== '') {
-            $stylesXml = str_replace('</w:styles>', $customStyles . '</w:styles>', $stylesXml);
+            $stylesXml = self::insertCustomStylesXml($stylesXml, $customStyles);
         }
 
         return $stylesXml . "\n";
+    }
+
+    private static function insertCustomStylesXml(string $stylesXml, string $customStyles): string
+    {
+        if (preg_match('/<w:style\b(?=[^>]*\bw:styleId="SourceCode")/u', $stylesXml, $matches, PREG_OFFSET_CAPTURE) === 1) {
+            $offset = $matches[0][1];
+
+            return substr($stylesXml, 0, $offset) . $customStyles . substr($stylesXml, $offset);
+        }
+
+        $closingOffset = strrpos($stylesXml, '</w:styles>');
+        if ($closingOffset === false) {
+            return $stylesXml . $customStyles;
+        }
+
+        return substr($stylesXml, 0, $closingOffset) . $customStyles . substr($stylesXml, $closingOffset);
     }
 
     private static function defaultStylesXml(): string
@@ -3271,13 +3404,8 @@ XML;
     /**
      * @return array{paragraph: array<string, true>, character: array<string, true>}
      */
-    private static function defaultStyleNamesByType(): array
+    private static function styleNamesByType(string $stylesXml): array
     {
-        static $styleNamesByType = null;
-        if ($styleNamesByType !== null) {
-            return $styleNamesByType;
-        }
-
         $styleNamesByType = [
             'paragraph' => [],
             'character' => [],
@@ -3285,7 +3413,7 @@ XML;
 
         $previous = libxml_use_internal_errors(true);
         $dom = new \DOMDocument();
-        $loaded = $dom->loadXML(self::defaultStylesXml(), LIBXML_NONET);
+        $loaded = $dom->loadXML($stylesXml, LIBXML_NONET);
         libxml_clear_errors();
         libxml_use_internal_errors($previous);
 
@@ -3321,27 +3449,137 @@ XML;
 
     private function numberingXml(): string
     {
-        $abstractNums = $this->abstractNumberingXml(self::CONTINUATION_ABSTRACT_NUM_ID);
-        foreach ($this->numberingAbstractOrder as $abstractNumId) {
-            if ($abstractNumId === self::CONTINUATION_ABSTRACT_NUM_ID) {
-                continue;
-            }
-            $abstractNums .= $this->abstractNumberingXml($abstractNumId);
-        }
-
-        $numbers = '<w:num w:numId="' . self::CONTINUATION_NUM_ID . '"><w:abstractNumId w:val="' . self::CONTINUATION_ABSTRACT_NUM_ID . '"/></w:num>';
-        foreach ($this->numberingInstances as $instance) {
-            $numbers .= '<w:num w:numId="' . $instance['numId'] . '"><w:abstractNumId w:val="' . $instance['abstractNumId'] . '"/>'
-                . $this->levelOverridesXml($instance['start'])
-                . '</w:num>';
+        $fragments = $this->numberingFragments();
+        $referenceNumbering = $this->referencePackagePart('word/numbering.xml');
+        if ($referenceNumbering !== null) {
+            return $this->mergeReferenceNumberingXml($referenceNumbering, $fragments['abstractNums'], $fragments['numbers']);
         }
 
         return self::xmlDeclaration()
             . '<w:numbering xmlns:w="' . self::NS_W . '">'
-            . $abstractNums
-            . $numbers
+            . implode('', array_column($fragments['abstractNums'], 'xml'))
+            . implode('', array_column($fragments['numbers'], 'xml'))
             . '</w:numbering>'
             . "\n";
+    }
+
+    /**
+     * @return array{
+     *     abstractNums:list<array{id:int, xml:string}>,
+     *     numbers:list<array{id:int, xml:string}>
+     * }
+     */
+    private function numberingFragments(): array
+    {
+        $abstractNums = [
+            [
+                'id' => self::CONTINUATION_ABSTRACT_NUM_ID,
+                'xml' => $this->abstractNumberingXml(self::CONTINUATION_ABSTRACT_NUM_ID),
+            ],
+        ];
+        foreach ($this->numberingAbstractOrder as $abstractNumId) {
+            if ($abstractNumId === self::CONTINUATION_ABSTRACT_NUM_ID) {
+                continue;
+            }
+            $abstractNums[] = [
+                'id' => $abstractNumId,
+                'xml' => $this->abstractNumberingXml($abstractNumId),
+            ];
+        }
+
+        $numbers = [
+            [
+                'id' => self::CONTINUATION_NUM_ID,
+                'xml' => '<w:num w:numId="' . self::CONTINUATION_NUM_ID . '"><w:abstractNumId w:val="' . self::CONTINUATION_ABSTRACT_NUM_ID . '"/></w:num>',
+            ],
+        ];
+        foreach ($this->numberingInstances as $instance) {
+            $numbers[] = [
+                'id' => $instance['numId'],
+                'xml' => '<w:num w:numId="' . $instance['numId'] . '"><w:abstractNumId w:val="' . $instance['abstractNumId'] . '"/>'
+                    . $this->levelOverridesXml($instance['start'])
+                    . '</w:num>',
+            ];
+        }
+
+        return [
+            'abstractNums' => $abstractNums,
+            'numbers' => $numbers,
+        ];
+    }
+
+    /**
+     * @param list<array{id:int, xml:string}> $abstractNums
+     * @param list<array{id:int, xml:string}> $numbers
+     */
+    private function mergeReferenceNumberingXml(string $referenceNumbering, array $abstractNums, array $numbers): string
+    {
+        $existingAbstractIds = $this->wordElementIntegerIds($referenceNumbering, 'abstractNum', 'abstractNumId');
+        $existingNumIds = $this->wordElementIntegerIds($referenceNumbering, 'num', 'numId');
+        $abstractXml = '';
+        foreach ($abstractNums as $fragment) {
+            if (!isset($existingAbstractIds[$fragment['id']])) {
+                $abstractXml .= $fragment['xml'];
+            }
+        }
+
+        $numberXml = '';
+        foreach ($numbers as $fragment) {
+            if (!isset($existingNumIds[$fragment['id']])) {
+                $numberXml .= $fragment['xml'];
+            }
+        }
+
+        $xml = rtrim($referenceNumbering, "\r\n");
+        if ($abstractXml !== '') {
+            if (preg_match('/<w:num\b/u', $xml, $matches, PREG_OFFSET_CAPTURE) === 1) {
+                $offset = $matches[0][1];
+                $xml = substr($xml, 0, $offset) . $abstractXml . substr($xml, $offset);
+            } else {
+                $xml = self::insertBeforeClosingTag($xml, 'w:numbering', $abstractXml);
+            }
+        }
+
+        if ($numberXml !== '') {
+            $xml = self::insertBeforeClosingTag($xml, 'w:numbering', $numberXml);
+        }
+
+        return $xml . "\n";
+    }
+
+    /**
+     * @return array<int, true>
+     */
+    private function wordElementIntegerIds(string $xml, string $elementName, string $attributeName): array
+    {
+        $ids = [];
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument();
+        $loaded = $dom->loadXML($xml, LIBXML_NONET);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded) {
+            return $ids;
+        }
+
+        foreach ($dom->getElementsByTagNameNS(self::NS_W, $elementName) as $element) {
+            if (!$element instanceof \DOMElement || !$element->hasAttributeNS(self::NS_W, $attributeName)) {
+                continue;
+            }
+            $ids[(int) $element->getAttributeNS(self::NS_W, $attributeName)] = true;
+        }
+
+        return $ids;
+    }
+
+    private static function insertBeforeClosingTag(string $xml, string $tagName, string $insert): string
+    {
+        $closingOffset = strrpos($xml, '</' . $tagName . '>');
+        if ($closingOffset === false) {
+            return $xml . $insert;
+        }
+
+        return substr($xml, 0, $closingOffset) . $insert . substr($xml, $closingOffset);
     }
 
     private function abstractNumberingXml(int $abstractNumId): string
@@ -3466,6 +3704,110 @@ XML;
     }
 
     private function settingsXml(): string
+    {
+        $referenceSettings = $this->referencePackagePart('word/settings.xml');
+        if ($referenceSettings !== null) {
+            return $this->referenceSettingsXml($referenceSettings);
+        }
+
+        return $this->defaultSettingsXml();
+    }
+
+    private function referenceSettingsXml(string $settingsXml): string
+    {
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument();
+        $loaded = $dom->loadXML($settingsXml, LIBXML_NONET);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded || !$dom->documentElement instanceof \DOMElement) {
+            return $this->defaultSettingsXml();
+        }
+
+        $root = $dom->documentElement;
+        $this->removeChildElements($root, self::NS_W, ['footnotePr', 'endnotePr']);
+        $this->removeChildElements($root, 'http://schemas.openxmlformats.org/officeDocument/2006/math', ['mathPr']);
+        $this->removeChildElements($root, 'http://schemas.microsoft.com/office/word/2012/wordml', ['docId']);
+        $this->insertWordEmptyChildAfter($dom, $root, 'proofState', ['grammar' => 'clean', 'spelling' => 'clean'], 'embedSystemFonts');
+        $this->insertWordEmptyChildAfter($dom, $root, 'savePreviewPicture', [], 'characterSpacingControl');
+
+        $xml = $dom->saveXML($root);
+        if (!is_string($xml)) {
+            return $this->defaultSettingsXml();
+        }
+
+        return self::xmlDeclaration() . $xml . "\n";
+    }
+
+    /**
+     * @param list<string> $localNames
+     */
+    private function removeChildElements(\DOMElement $root, string $namespace, array $localNames): void
+    {
+        $remove = [];
+        foreach ($root->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+            if ((string) ($child->namespaceURI ?? '') === $namespace && in_array($child->localName, $localNames, true)) {
+                $remove[] = $child;
+            }
+        }
+
+        foreach ($remove as $child) {
+            $root->removeChild($child);
+        }
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     */
+    private function insertWordEmptyChildAfter(
+        \DOMDocument $dom,
+        \DOMElement $root,
+        string $localName,
+        array $attributes,
+        string $afterLocalName
+    ): void {
+        if ($this->hasDirectChild($root, self::NS_W, $localName)) {
+            return;
+        }
+
+        $element = $dom->createElementNS(self::NS_W, 'w:' . $localName);
+        foreach ($attributes as $name => $value) {
+            $element->setAttributeNS(self::NS_W, 'w:' . $name, $value);
+        }
+
+        $after = $this->firstDirectChild($root, self::NS_W, $afterLocalName);
+        if (!$after instanceof \DOMElement || !$after->nextSibling instanceof \DOMNode) {
+            $root->appendChild($element);
+            return;
+        }
+
+        $root->insertBefore($element, $after->nextSibling);
+    }
+
+    private function hasDirectChild(\DOMElement $root, string $namespace, string $localName): bool
+    {
+        return $this->firstDirectChild($root, $namespace, $localName) instanceof \DOMElement;
+    }
+
+    private function firstDirectChild(\DOMElement $root, string $namespace, string $localName): ?\DOMElement
+    {
+        foreach ($root->childNodes as $child) {
+            if (
+                $child instanceof \DOMElement
+                && (string) ($child->namespaceURI ?? '') === $namespace
+                && $child->localName === $localName
+            ) {
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
+    private function defaultSettingsXml(): string
     {
         return self::xmlDeclaration()
             . '<w:settings xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:r="' . self::NS_R . '" xmlns:sl="http://schemas.openxmlformats.org/schemaLibrary/2006/main" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="' . self::NS_W . '" xmlns:w10="urn:schemas-microsoft-com:office:word">'

@@ -1054,9 +1054,9 @@ final class DocxWriterGoldenManifest
         }
 
         $nativeReader = new NativeReader();
-        $writerInstance = new DocxWriter([
+        $baseWriterOptions = [
             'mediaBasePaths' => array_values(array_unique([$sourceDir, dirname($sourceDir)])),
-        ]);
+        ];
         $rows = [];
         $generated = 0;
         $skipped = 0;
@@ -1074,9 +1074,14 @@ final class DocxWriterGoldenManifest
                 'nativeSource' => $this->displayPath($nativePath),
                 'generatedPackage' => $this->displayPath($outputPath),
             ];
+            $writerOptions = $baseWriterOptions;
+            $referencePath = null;
             if (isset($case['referenceDoc'])) {
+                $referencePath = $sourceDir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $case['referenceDoc']);
                 $row['referenceDoc'] = $case['referenceDoc'];
-                $row['referenceDocHandled'] = false;
+                $row['referenceDocSource'] = $this->displayPath($referencePath);
+                $row['referenceDocHandled'] = true;
+                $writerOptions['referenceDocxPath'] = $referencePath;
             }
 
             if (!is_file($nativePath)) {
@@ -1089,6 +1094,16 @@ final class DocxWriterGoldenManifest
                 ]);
                 continue;
             }
+            if ($referencePath !== null && !is_file($referencePath)) {
+                ++$skipped;
+                $reason = 'reference-doc-missing';
+                $blockerCounts[$reason] = ($blockerCounts[$reason] ?? 0) + 1;
+                $rows[] = array_replace($row, [
+                    'status' => 'skipped-reference-doc-missing',
+                    'reason' => $reason,
+                ]);
+                continue;
+            }
 
             try {
                 $native = file_get_contents($nativePath);
@@ -1096,6 +1111,7 @@ final class DocxWriterGoldenManifest
                     throw new \RuntimeException("Unable to read native fixture: {$nativePath}");
                 }
                 $document = $nativeReader->read($native);
+                $writerInstance = new DocxWriter($writerOptions);
                 $docx = $writerInstance->write($document);
                 if (file_put_contents($outputPath, $docx) === false) {
                     throw new \RuntimeException("Unable to write generated DOCX package: {$outputPath}");
