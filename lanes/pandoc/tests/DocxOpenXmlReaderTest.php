@@ -3988,6 +3988,74 @@ XML;
         $t->same("caf\xC3\xA9", $bySegmentReview[$nonAsciiSegmentPart . '#1']['segment']);
         $t->same(['non-ascii'], $bySegmentReview[$nonAsciiSegmentPart . '#1']['flags']);
     },
+    'summarizes docx package part path shape provenance for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $extensionlessPart = 'customXml/data/store/raw';
+        $parts[$extensionlessPart] = 'raw extensionless custom xml payload';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $byPartName = [];
+        foreach ($summary['partPathShapeReviewParts'] as $item) {
+            $byPartName[$item['partName']] = $item;
+        }
+
+        $t->same(9, $summary['partPathShapeReviewPartCount']);
+        $t->same([
+            'content-types-item' => 1,
+            'extensioned' => 8,
+            'extensionless' => 1,
+            'multi-segment' => 8,
+            'nested' => 8,
+            'package-root-relationships' => 1,
+            'relationship-directory' => 2,
+            'relationship-sidecar' => 2,
+            'root-level' => 1,
+            'single-segment' => 1,
+        ], $summary['partPathShapeFlagCounts']);
+        $t->same([$extensionlessPart], $summary['partPathShapeFlagPartNames']['extensionless']);
+        $t->same(['_rels/.rels', 'word/_rels/document.xml.rels'], $summary['partPathShapeFlagPartNames']['relationship-sidecar']);
+        $t->same(['[Content_Types].xml'], $summary['partPathShapeFlagPartNames']['root-level']);
+
+        $t->same([
+            'content-types-item',
+            'single-segment',
+            'root-level',
+            'extensioned',
+        ], $inventory['[Content_Types].xml']['partPathShapeFlags']);
+        $t->same(true, $inventory['[Content_Types].xml']['partPathIsPackageControlPart']);
+        $t->same(true, $inventory['[Content_Types].xml']['partPathIsRootLevel']);
+        $t->same(false, $inventory['[Content_Types].xml']['partPathIsExtensionless']);
+
+        $t->same([
+            'package-root-relationships',
+            'relationship-sidecar',
+            'relationship-directory',
+            'multi-segment',
+            'nested',
+            'extensioned',
+        ], $inventory['_rels/.rels']['partPathShapeFlags']);
+        $t->same(true, $inventory['_rels/.rels']['partPathIsPackageControlPart']);
+        $t->same(true, $inventory['_rels/.rels']['partPathIsRelationshipSidecar']);
+        $t->same(true, $inventory['_rels/.rels']['partPathIsNested']);
+
+        $t->same([
+            'multi-segment',
+            'nested',
+            'extensionless',
+        ], $inventory[$extensionlessPart]['partPathShapeFlags']);
+        $t->same(true, $inventory[$extensionlessPart]['partPathIsExtensionless']);
+        $t->same(false, $inventory[$extensionlessPart]['partPathIsPackageControlPart']);
+        $t->same('missing', $inventory[$extensionlessPart]['contentTypeSource']);
+
+        $t->same($inventory[$extensionlessPart]['partPathShapeFlags'], $byPartName[$extensionlessPart]['flags']);
+        $t->same(4, $byPartName[$extensionlessPart]['pathSegmentCount']);
+        $t->same(3, $byPartName[$extensionlessPart]['directoryDepth']);
+        $t->same('customXml', $byPartName[$extensionlessPart]['topLevelSegment']);
+        $t->same(['package-part'], $byPartName[$extensionlessPart]['roles']);
+    },
     'preserves docx content type parameters across package provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
