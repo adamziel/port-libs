@@ -426,7 +426,7 @@ XML],
     <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="4"/></w:numPr></w:pPr><w:r><w:t>Bar</w:t></w:r></w:p>
     <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="4"/></w:numPr></w:pPr><w:r><w:t>Baz</w:t></w:r></w:p>
     <w:p><w:pPr><w:ind w:left="360"/></w:pPr></w:p>
-    <w:p><w:pPr><w:ind w:left="360"/></w:pPr><w:r><w:t>Interruption</w:t></w:r></w:p>
+    <w:p><w:pPr><w:ind w:left="360"/><w:outlineLvl w:val="2"/></w:pPr><w:r><w:t>Interruption</w:t></w:r></w:p>
     <w:p><w:pPr><w:ind w:left="360"/></w:pPr></w:p>
     <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="5"/></w:numPr></w:pPr><w:r><w:t>Bop.</w:t></w:r></w:p>
   </w:body>
@@ -441,6 +441,7 @@ XML],
         $t->same(2, $document->children[0]->attr('start'));
         $t->same('Foo', $document->children[0]->children[0]->children[0]->attr('text'));
         $t->same('Baz', $document->children[0]->children[2]->children[0]->attr('text'));
+        $t->same('paragraph', $document->children[1]->children[0]->type);
         $t->same('Interruption', $document->children[1]->children[0]->attr('text'));
         $t->same(1, $document->children[2]->attr('start'));
         $t->same('Bop.', $document->children[2]->children[0]->children[0]->attr('text'));

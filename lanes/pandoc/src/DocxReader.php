@@ -3795,12 +3795,6 @@ final class DocxReader
                 return (int) ($m[1] !== '' ? $m[1] : $m[2]);
             }
         }
-        foreach ($paragraph->getElementsByTagNameNS(self::W_NS, 'outlineLvl') as $outline) {
-            if ($outline instanceof \DOMElement) {
-                return max(1, min(6, (int) ($this->attr($outline, self::W_NS, 'val') ?: '0') + 1));
-            }
-        }
-
         return null;
     }
 
