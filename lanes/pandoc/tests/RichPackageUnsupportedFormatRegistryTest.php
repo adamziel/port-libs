@@ -29,10 +29,10 @@ return [
         $t->same(9, $report['denominators']['sourceAliasExtensions']);
         $t->same(9, $report['denominators']['richPackageExtensions']);
         $t->same(['supported' => 6, 'unsupported' => 0, 'total' => 6], $report['directSupport']['input']);
-        $t->same(['supported' => 2, 'unsupported' => 9, 'total' => 11], $report['directSupport']['output']);
+        $t->same(['supported' => 3, 'unsupported' => 8, 'total' => 11], $report['directSupport']['output']);
         $t->same(0, count($report['unsupportedDiagnostics']['input']));
-        $t->same(9, count($report['unsupportedDiagnostics']['output']));
-        $t->same(8, count($report['extensionDiagnostics']));
+        $t->same(8, count($report['unsupportedDiagnostics']['output']));
+        $t->same(7, count($report['extensionDiagnostics']));
     },
 
     'keeps bounded native rich package readers distinct from unsupported writers' => static function (TestRunner $t): void {
@@ -51,11 +51,11 @@ return [
         $t->same(['shared-zip-package-core', 'opc-xml-relationships-core', 'docx-openxml-core'], $docxInput['gates']);
         $t->same([], $docxInput['diagnostics']);
 
-        $t->same('unsupported-rich-package-output', $docxOutput['state']);
-        $t->same('pandoc.rich-package.output.unsupported-format', $docxOutput['code']);
-        $t->same(false, $docxOutput['countsAsDirectSupport']);
-        $t->same(null, $docxOutput['component']);
-        $t->contains('writer-component-missing', implode(',', $docxOutput['diagnostics']));
+        $t->same('bounded-native-rich-package-output', $docxOutput['state']);
+        $t->same('pandoc.rich-package.output.bounded-native', $docxOutput['code']);
+        $t->same(true, $docxOutput['countsAsDirectSupport']);
+        $t->same('DocxWriter', $docxOutput['component']);
+        $t->same([], $docxOutput['diagnostics']);
         $t->contains('docx-openxml-writer-core', implode(',', $docxOutput['gates']));
 
         $t->same('OdtReader', $odtInput['component']);
@@ -121,7 +121,6 @@ return [
         $t->same(['pdf-engine-handoff-core'], $pdfOutput['gates']);
         $t->contains('renderer-engine-disallowed', implode(',', $pdfOutput['diagnostics']));
         $t->same([
-            'docx',
             'odt',
             'opendocument',
             'epub2',
@@ -236,7 +235,6 @@ return [
         $t->same([], $xlsx['unsupportedOutputFormats']);
         $t->same([], $xlsx['unsupportedDirections']);
         $t->same([
-            '.docx',
             '.epub',
             '.fodt',
             '.icml',

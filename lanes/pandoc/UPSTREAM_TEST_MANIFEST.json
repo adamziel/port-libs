@@ -1666,7 +1666,7 @@
         "writerGoldenEvidenceKind": "writer-golden-package-inventory-only",
         "writerGoldenPackageManifestTool": "tools/pandoc-docx-writer-golden-audit.php --json",
         "writerGoldenPackageInventory": {
-            "status": "inventory-only-writer-unsupported",
+            "status": "inventory-only-core-writer-present",
             "goldenPackageCount": 38,
             "packagePartNamesAndHashesAvailableWhenCachePresent": true,
             "expectedUpstreamWriterSourceReferences": [
@@ -1679,10 +1679,10 @@
         "docxWriterImplementation": {
             "expectedClass": "PortLibs\\Pandoc\\DocxWriter",
             "expectedPath": "lanes/pandoc/src/DocxWriter.php",
-            "classExists": false,
-            "fileExists": false,
-            "outputRegistryStatus": "unsupported",
-            "unsupportedReason": "writer-unsupported-no-DocxWriter-implementation-and-docx-output-registry-unsupported"
+            "classExists": true,
+            "fileExists": true,
+            "outputRegistryStatus": "partial",
+            "unsupportedReason": "docx-writer-comparison-still-not-recorded"
         },
         "writerGoldenPackageComparison": {
             "run": false,
@@ -1714,14 +1714,14 @@
                     "content-types child order and relationship child order"
                 ]
             },
-            "openReason": "writer-unsupported-no-DocxWriter-implementation-and-docx-output-registry-unsupported"
+            "openReason": "generated-docx-directory-not-configured"
         },
         "packageFixtureCoverage": "synthetic ZIP/XML DOCX package fixtures plus two checked-in current-upstream DOCX package drift fixtures; no checked-in pinned upstream DOCX package corpus",
         "defensibleClaim": "bounded DOCX/OpenXML package provenance, selected upstream Native fixture slices, and three current-upstream DOCX drift fixtures",
         "missingEvidenceChecklist": [
             "Run or faithfully reproduce upstream test/docx reader cases for all pinned .docx inputs and expected .native outputs.",
             "Add checked-in evidence or a reproducible cache gate for the 89 pinned upstream DOCX native fixture names missing from local exact fixture coverage.",
-            "Implement and register a native PHP DocxWriter before exercising upstream golden DOCX writer fixtures and comparing generated DOCX package structure/content, not just Markdown or WordPress handoff text.",
+            "Run the native PHP DocxWriter against upstream golden DOCX writer fixtures and compare generated DOCX package structure/content, not just Markdown or WordPress handoff text.",
             "Record upstream Haskell test-pandoc DOCX reader/writer runner results or an accepted native-PHP equivalent denominator with per-fixture pass/fail rows.",
             "Keep package-ingestion provenance, ZIP/OPC policy, macro/ActiveX external-target policy, and media byte-exposure checks separate from full DOCX semantic parity.",
             "Do not treat aggregate focused-check counts above the static upstream file denominator as full DOCX parity."

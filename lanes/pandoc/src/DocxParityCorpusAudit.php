@@ -175,7 +175,7 @@ final class DocxParityCorpusAudit
             'failureRows' => $failureRows,
             'notes' => [
                 'Root-level .docx/.native stem pairs are reader fixtures; golden/*.docx files are counted as writer package inventory only.',
-                'The writer-golden manifest records package names and SHA-256 part hashes only; it does not generate PHP DOCX output.',
+                'The writer-golden manifest records package names, SHA-256 part hashes, and local writer support status only; it does not run generated package comparison.',
                 'Parser acceptance means the local PHP reader returned an AST node without throwing; it is not an equality comparison against Pandoc output.',
                 'This audit does not execute upstream Haskell/Cabal tests, compare generated DOCX packages, or claim full DOCX/OpenXML parity.',
             ],

@@ -130,15 +130,15 @@ return [
             $t->true(in_array('DOCX writer support merely because upstream golden packages are inventoried', $report['verificationScope']['doesNotAssert'], true));
             $t->same(false, $report['sourceDirectoryPresent']);
             $t->same(DocxWriterGoldenManifest::EVIDENCE_KIND, $report['writerGoldenEvidenceKind']);
-            $t->same(DocxWriterGoldenManifest::OPEN_REASON, $report['docxWriterUnsupportedReason']);
+            $t->same(DocxWriterGoldenManifest::COMPARISON_NOT_RECORDED_REASON, $report['docxWriterUnsupportedReason']);
             $t->same(false, $report['writerGoldenPackageComparisonRun']);
             $t->same(DocxWriterGoldenManifest::STATUS_SKIPPED_MISSING_GOLDEN_DIRECTORY, $report['writerGoldenEvidence']['status']);
-            $t->same('unsupported', $report['writerGoldenEvidence']['localWriter']['status']);
-            $t->same(false, $report['writerGoldenEvidence']['localWriter']['classExists']);
+            $t->same('implementation-present-or-registered', $report['writerGoldenEvidence']['localWriter']['status']);
+            $t->same(true, $report['writerGoldenEvidence']['localWriter']['classExists']);
             $t->same(false, $report['writerGoldenEvidence']['localWriter']['fileExists']);
-            $t->same('unsupported', $report['writerGoldenEvidence']['localWriter']['registryStatus']);
+            $t->same('partial', $report['writerGoldenEvidence']['localWriter']['registryStatus']);
             $t->same(false, $report['writerGoldenEvidence']['packageComparison']['run']);
-            $t->same(DocxWriterGoldenManifest::OPEN_REASON, $report['writerGoldenEvidence']['packageComparison']['reason']);
+            $t->same(DocxWriterGoldenManifest::GENERATED_DIRECTORY_NOT_CONFIGURED_REASON, $report['writerGoldenEvidence']['packageComparison']['reason']);
             $t->same(0, $report['auditedPairCount']);
             $t->same(0, $report['bothParsedCount']);
             $t->same(null, $report['bothParserCoveragePercent']);
@@ -171,8 +171,9 @@ return [
             $t->same('docx-native-ast-equality', $report['orderedRemainingGaps'][1]['id']);
             $t->same('not-evaluated', $report['orderedRemainingGaps'][3]['status']);
             $t->contains('Result: skipped', $text);
-            $t->contains('DOCX writer implementation: unsupported', $text);
-            $t->contains('DOCX writer golden package comparison: not run; reason=' . DocxWriterGoldenManifest::OPEN_REASON, $text);
+            $t->contains('DOCX writer implementation: implementation-present-or-registered', $text);
+            $t->contains('registryStatus=partial', $text);
+            $t->contains('DOCX writer golden package comparison: not run; reason=' . DocxWriterGoldenManifest::GENERATED_DIRECTORY_NOT_CONFIGURED_REASON, $text);
             $t->contains('No DOCX parity is asserted.', $text);
             $t->contains('Upstream DOCX runner plan: open-no-targeted-runner-result; result recorded=no; runner executed=no', $text);
             $t->contains('DOCX runner entry points: reader test/Tests/Readers/Docx.hs -> Tests.Readers.Docx.tests; writer test/Tests/Writers/Docx.hs -> Tests.Writers.Docx.tests', $text);
@@ -211,16 +212,16 @@ return [
             $t->same(3, $report['rootNativeExpectedArtifacts']);
             $t->same(1, $report['goldenDocxPackageArtifacts']);
             $t->same(DocxWriterGoldenManifest::EVIDENCE_KIND, $report['writerGoldenEvidenceKind']);
-            $t->same(DocxWriterGoldenManifest::OPEN_REASON, $report['docxWriterUnsupportedReason']);
+            $t->same(DocxWriterGoldenManifest::COMPARISON_NOT_RECORDED_REASON, $report['docxWriterUnsupportedReason']);
             $t->same(false, $report['writerGoldenPackageComparisonRun']);
             $t->same(DocxWriterGoldenManifest::STATUS_REPORTED, $report['writerGoldenEvidence']['status']);
             $t->same(1, $report['writerGoldenEvidence']['goldenPackageCount']);
             $t->same(1, $report['writerGoldenEvidence']['readableGoldenPackageCount']);
             $t->same(1, $report['writerGoldenEvidence']['packagePartCount']);
             $t->same(1, $report['writerGoldenEvidence']['readablePackagePartCount']);
-            $t->same('unsupported', $report['writerGoldenEvidence']['localWriter']['status']);
-            $t->same('unsupported', $report['writerGoldenEvidence']['localWriter']['registryStatus']);
-            $t->same(false, $report['writerGoldenEvidence']['localWriter']['classExists']);
+            $t->same('implementation-present-or-registered', $report['writerGoldenEvidence']['localWriter']['status']);
+            $t->same('partial', $report['writerGoldenEvidence']['localWriter']['registryStatus']);
+            $t->same(true, $report['writerGoldenEvidence']['localWriter']['classExists']);
             $t->same(false, $report['writerGoldenEvidence']['localWriter']['fileExists']);
             $t->same(false, $report['writerGoldenEvidence']['packageComparison']['run']);
             $t->same('writer-output.docx', $report['writerGoldenEvidence']['packageRows'][0]['fileName']);
@@ -261,13 +262,13 @@ return [
                 static fn (array $gap): string => (string) $gap['id'],
                 $report['orderedRemainingGaps']
             ));
-            $t->contains('local DOCX writer status=unsupported', $report['orderedRemainingGaps'][2]['currentEvidence']);
-            $t->contains('docx output registry=unsupported', $report['orderedRemainingGaps'][2]['currentEvidence']);
+            $t->contains('local DOCX writer status=implementation-present-or-registered', $report['orderedRemainingGaps'][2]['currentEvidence']);
+            $t->contains('docx output registry=partial', $report['orderedRemainingGaps'][2]['currentEvidence']);
             $t->contains('generated package comparison run=no', $report['orderedRemainingGaps'][2]['currentEvidence']);
-            $t->contains(DocxWriterGoldenManifest::OPEN_REASON, $report['orderedRemainingGaps'][2]['currentEvidence']);
+            $t->contains(DocxWriterGoldenManifest::GENERATED_DIRECTORY_NOT_CONFIGURED_REASON, $report['orderedRemainingGaps'][2]['currentEvidence']);
             $t->same('open', $report['orderedRemainingGaps'][3]['status']);
             $t->contains('docx failures=1; native failures=1; partial-or-failed pairs=1', $report['orderedRemainingGaps'][3]['currentEvidence']);
-            $t->contains('DOCX writer implementation: unsupported', $text);
+            $t->contains('DOCX writer implementation: implementation-present-or-registered', $text);
             $t->contains('Writer golden package parts inventoried: 1/1 hashed readable parts', $text);
             $t->contains('Both parsers accepted: 1/2 (50.00%)', $text);
             $t->contains('Parser acceptance regression guard: failed', $text);
@@ -354,7 +355,7 @@ return [
         }
     },
 
-    'writer golden cli reports package hashes and unsupported writer status' => static function (TestRunner $t) use ($makeTempRoot, $removeTree, $writeFile, $minimalDocx, $minimalDocxDocumentXml): void {
+    'writer golden cli reports package hashes and present writer status' => static function (TestRunner $t) use ($makeTempRoot, $removeTree, $writeFile, $minimalDocx, $minimalDocxDocumentXml): void {
         $root = $makeTempRoot();
         try {
             $docxRoot = '.upstream-cache/pandoc-current/test/docx';
@@ -374,9 +375,12 @@ return [
             $t->same(0, $exitCode);
             $t->same(DocxWriterGoldenManifest::STATUS_REPORTED, $decoded['status']);
             $t->same(DocxWriterGoldenManifest::EVIDENCE_KIND, $decoded['evidenceKind']);
-            $t->same('unsupported', $decoded['localWriter']['status']);
+            $t->same('implementation-present-or-registered', $decoded['localWriter']['status']);
+            $t->same(true, $decoded['localWriter']['classExists']);
+            $t->same(false, $decoded['localWriter']['fileExists']);
+            $t->same('partial', $decoded['localWriter']['registryStatus']);
             $t->same(false, $decoded['packageComparison']['run']);
-            $t->same(DocxWriterGoldenManifest::OPEN_REASON, $decoded['packageComparison']['reason']);
+            $t->same(DocxWriterGoldenManifest::GENERATED_DIRECTORY_NOT_CONFIGURED_REASON, $decoded['packageComparison']['reason']);
             $t->same(1, $decoded['packageComparison']['expectedGoldenPackageCount']);
             $t->same(0, $decoded['packageComparison']['comparedPackageCount']);
             $t->same(1, $decoded['packageComparison']['missingGeneratedPackageCount']);

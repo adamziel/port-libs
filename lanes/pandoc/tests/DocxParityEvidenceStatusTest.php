@@ -119,10 +119,10 @@ return [
         ], $manifestAudit['writerGoldenPackageInventory']['expectedUpstreamWriterSourceReferences'] ?? null);
         $t->same('PortLibs\\Pandoc\\DocxWriter', $manifestAudit['docxWriterImplementation']['expectedClass'] ?? null);
         $t->same('lanes/pandoc/src/DocxWriter.php', $manifestAudit['docxWriterImplementation']['expectedPath'] ?? null);
-        $t->same(false, $manifestAudit['docxWriterImplementation']['classExists'] ?? null);
-        $t->same(false, $manifestAudit['docxWriterImplementation']['fileExists'] ?? null);
-        $t->same(false, is_file(dirname(__DIR__) . '/src/DocxWriter.php'));
-        $t->same('unsupported', $manifestAudit['docxWriterImplementation']['outputRegistryStatus'] ?? null);
+        $t->same(true, $manifestAudit['docxWriterImplementation']['classExists'] ?? null);
+        $t->same(true, $manifestAudit['docxWriterImplementation']['fileExists'] ?? null);
+        $t->same(true, is_file(dirname(__DIR__) . '/src/DocxWriter.php'));
+        $t->same('partial', $manifestAudit['docxWriterImplementation']['outputRegistryStatus'] ?? null);
         $t->same($manifestAudit['docxWriterImplementation'], $statusAudit['docxWriterImplementation'] ?? null);
         $t->same(false, $manifestAudit['writerGoldenPackageComparison']['run'] ?? null);
         $t->same('not-run-generated-directory-not-configured', $manifestAudit['writerGoldenPackageComparison']['status'] ?? null);
@@ -141,7 +141,7 @@ return [
         $t->true(is_array($stableContract), 'writer golden comparison must record stable package semantics');
         $t->contains('non-directory OPC package part-name set', implode("\n", $stableContract['compares'] ?? []));
         $t->contains('raw ZIP package byte equality', implode("\n", $stableContract['ignores'] ?? []));
-        $t->same('writer-unsupported-no-DocxWriter-implementation-and-docx-output-registry-unsupported', $manifestAudit['writerGoldenPackageComparison']['openReason'] ?? null);
+        $t->same('generated-docx-directory-not-configured', $manifestAudit['writerGoldenPackageComparison']['openReason'] ?? null);
         $t->same($manifestAudit['writerGoldenPackageComparison'], $statusAudit['writerGoldenPackageComparison'] ?? null);
 
         $t->same('reported_optional_upstream_docx_cache_manifest', $cacheManifest['status'] ?? null);
@@ -234,7 +234,8 @@ return [
         $t->contains('not an upstream DOCX runner result', (string) ($runnerPlan['honestClaim'] ?? ''));
 
         $t->contains('Full DOCX/OpenXML parity is not defensible', (string) ($status['blocker'] ?? ''));
-        $t->contains('no local DocxWriter implementation', (string) ($status['blocker'] ?? ''));
+        $t->contains('core DocxWriter', (string) ($status['blocker'] ?? ''));
+        $t->contains('generated writer-golden package comparison has not run', (string) ($status['blocker'] ?? ''));
         $t->contains('full upstream DOCX parity is not defensible', $pandocStatus);
         $t->contains('DOCX runner evidence plan records `test:test-pandoc`', $pandocStatus);
         $t->contains('--write-selected-inventory .port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json', $pandocStatus);
@@ -243,6 +244,8 @@ return [
         $t->contains('no upstream Haskell/Cabal DOCX runner result, Tasty `--list-tests` output', $pandocStatus);
         $t->contains('2 checked-in current-upstream `.docx` package fixtures', $pandocStatus);
         $t->contains('0 checked-in pinned upstream `.docx` package fixtures', $pandocStatus);
+        $t->contains('core `PortLibs\\Pandoc\\DocxWriter` implementation registered as partial output support', $pandocStatus);
+        $t->contains('generated writer-golden package comparison remains unrecorded', $pandocStatus);
         $t->contains('UPSTREAM_DOCX_CACHE_MANIFEST.json', $pandocStatus);
         $t->contains('checked-in pinned DOCX package corpus gap remains open', $pandocStatus);
         $t->contains('three current-upstream DOCX drift fixtures', (string) ($manifestAudit['defensibleClaim'] ?? ''));
