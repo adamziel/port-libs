@@ -1542,6 +1542,128 @@ XML;
             $t->throws(\InvalidArgumentException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $encodedControlManifest)));
         }
     },
+    'preserves compact ODT package path segment character provenance for review packets' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $mixedCaseWhitespacePart = 'Pictures/Review Draft.PNG';
+        $multiSegmentPart = 'ReviewAssets/Review Folder/review%20encoded.xml';
+        $nonAsciiPart = "Data/caf\xC3\xA9.xml";
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/Review%20Draft.PNG" manifest:size="14"/>'
+            . '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="ReviewAssets/Review%20Folder/review%2520encoded.xml" manifest:size="17"/>'
+            . '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Data/caf%C3%A9.xml" manifest:size="14"/>',
+            $manifestXml
+        );
+
+        $package = $buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => $mixedCaseWhitespacePart, 'data' => 'review png data', 'compressionMethod' => 0],
+                ['name' => $multiSegmentPart, 'data' => '<encoded-review/>', 'compressionMethod' => 0],
+                ['name' => $nonAsciiPart, 'data' => '<cafe-review/>', 'compressionMethod' => 0],
+            ],
+        );
+        $summary = OpenDocumentPackage::fromPackage($package)->summarize();
+        $inventory = $summary['packageInventory']['parts'];
+        $readerProvenance = (new OdfReader())->readPackage($package)['importReport']['manifest']['packageProvenance'];
+        $reviewByPath = [];
+        foreach ($summary['packageInventory']['packagePathSegmentCharacterReviewParts'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $readerReviewByPart = [];
+        foreach ($readerProvenance['packagePathSegmentCharacterReviewParts'] as $item) {
+            $readerReviewByPart[$item['part']] = $item;
+        }
+
+        $expectedUppercasePartNames = [
+            'META-INF/manifest.xml',
+            'Pictures/hero.png',
+            $mixedCaseWhitespacePart,
+            $multiSegmentPart,
+            $nonAsciiPart,
+        ];
+        sort($expectedUppercasePartNames, SORT_STRING);
+        $expectedUppercaseSegments = [
+            'Data',
+            'META-INF',
+            'Pictures',
+            'Review Draft.PNG',
+            'Review Folder',
+            'ReviewAssets',
+        ];
+        sort($expectedUppercaseSegments, SORT_STRING);
+
+        $t->same(5, $summary['packageInventory']['packagePathSegmentCharacterReviewPartCount']);
+        $t->same(9, $summary['packageInventory']['packagePathSegmentCharacterReviewSegmentCount']);
+        $t->same(5, $summary['packageInventory']['packagePathSegmentUppercasePartCount']);
+        $t->same(2, $summary['packageInventory']['packagePathSegmentWhitespacePartCount']);
+        $t->same(1, $summary['packageInventory']['packagePathSegmentPercentEncodedOctetPartCount']);
+        $t->same(1, $summary['packageInventory']['packagePathSegmentNonAsciiPartCount']);
+        $t->same([
+            'non-ascii' => 1,
+            'percent-encoded-octet' => 1,
+            'uppercase' => 7,
+            'whitespace' => 2,
+        ], $summary['packageInventory']['packagePathSegmentCharacterFlagCounts']);
+        $t->same($expectedUppercasePartNames, $summary['packageInventory']['packagePathSegmentCharacterFlagPartNames']['uppercase']);
+        $t->same([$mixedCaseWhitespacePart, $multiSegmentPart], $summary['packageInventory']['packagePathSegmentCharacterFlagPartNames']['whitespace']);
+        $t->same([$multiSegmentPart], $summary['packageInventory']['packagePathSegmentCharacterFlagPartNames']['percent-encoded-octet']);
+        $t->same([$nonAsciiPart], $summary['packageInventory']['packagePathSegmentCharacterFlagPartNames']['non-ascii']);
+        $t->same($expectedUppercaseSegments, $summary['packageInventory']['packagePathSegmentCharacterFlagSegments']['uppercase']);
+        $t->same(['Review Draft.PNG', 'Review Folder'], $summary['packageInventory']['packagePathSegmentCharacterFlagSegments']['whitespace']);
+        $t->same(['review%20encoded.xml'], $summary['packageInventory']['packagePathSegmentCharacterFlagSegments']['percent-encoded-octet']);
+        $t->same(["caf\xC3\xA9.xml"], $summary['packageInventory']['packagePathSegmentCharacterFlagSegments']['non-ascii']);
+
+        $t->same([
+            [
+                'index' => 0,
+                'segment' => 'ReviewAssets',
+                'flags' => ['uppercase'],
+            ],
+            [
+                'index' => 1,
+                'segment' => 'Review Folder',
+                'flags' => ['uppercase', 'whitespace'],
+            ],
+            [
+                'index' => 2,
+                'segment' => 'review%20encoded.xml',
+                'flags' => ['percent-encoded-octet'],
+            ],
+        ], $inventory[$multiSegmentPart]['pathSegmentCharacterFlags']);
+        $t->same(3, $inventory[$multiSegmentPart]['pathSegmentCharacterFlaggedSegmentCount']);
+        $t->same(true, $inventory[$multiSegmentPart]['pathSegmentHasUppercase']);
+        $t->same(true, $inventory[$multiSegmentPart]['pathSegmentHasWhitespace']);
+        $t->same(true, $inventory[$multiSegmentPart]['pathSegmentHasPercentEncodedOctet']);
+        $t->same(false, $inventory[$multiSegmentPart]['pathSegmentHasNonAscii']);
+        $t->same([
+            [
+                'index' => 0,
+                'segment' => 'Data',
+                'flags' => ['uppercase'],
+            ],
+            [
+                'index' => 1,
+                'segment' => "caf\xC3\xA9.xml",
+                'flags' => ['non-ascii'],
+            ],
+        ], $inventory[$nonAsciiPart]['pathSegmentCharacterFlags']);
+        $t->same(true, $inventory[$nonAsciiPart]['pathSegmentHasNonAscii']);
+
+        $t->same(3, $reviewByPath[$multiSegmentPart]['flaggedSegmentCount']);
+        $t->same(['ReviewAssets', 'Review Folder', 'review%20encoded.xml'], $reviewByPath[$multiSegmentPart]['pathSegments']);
+        $t->same('text/xml', $reviewByPath[$multiSegmentPart]['manifestMediaTypeBase']);
+        $t->same('package-bytes-exposable', $reviewByPath[$multiSegmentPart]['byteExposurePolicy']);
+        $t->same(['percent-encoded-octet', 'uppercase', 'whitespace'], $reviewByPath[$multiSegmentPart]['flags']);
+        $t->same($inventory[$multiSegmentPart]['pathSegmentCharacterFlags'], $reviewByPath[$multiSegmentPart]['flaggedSegments']);
+
+        $t->same($summary['packageInventory']['packagePathSegmentCharacterFlagCounts'], $readerProvenance['packagePathSegmentCharacterFlagCounts']);
+        $t->same($summary['packageInventory']['packagePathSegmentCharacterFlagPartNames'], $readerProvenance['packagePathSegmentCharacterFlagPartNames']);
+        $t->same($summary['packageInventory']['packagePathSegmentCharacterFlagSegments'], $readerProvenance['packagePathSegmentCharacterFlagSegments']);
+        $t->same($inventory[$multiSegmentPart]['pathSegmentCharacterFlags'], $readerProvenance['parts'][$multiSegmentPart]['pathSegmentCharacterFlags']);
+        $t->same($reviewByPath[$multiSegmentPart]['flaggedSegments'], $readerReviewByPart[$multiSegmentPart]['flaggedSegments']);
+        $t->same($summary['packageInventory']['packagePathSegmentCharacterReviewSegmentCount'], $readerProvenance['packagePathSegmentCharacterReviewSegmentCount']);
+    },
     'keeps compact ODT URI encoded manifest parts declared in package inventory' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $sourceBytes = 'SRCIMAGE';
         $manifest = str_replace(

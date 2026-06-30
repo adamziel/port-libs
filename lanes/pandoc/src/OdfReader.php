@@ -2383,6 +2383,8 @@ final class OdfReader
             $embeddedObjectPackage = $this->embeddedObjectPackageMembership($entry->name, $objectPackageRootParts);
             $location = self::packageInventoryEntryLocation($entry->name);
             $roles = $this->packagePartRoles($entry, $manifestItem, $isUndeclared, $objectPackageRootParts);
+            $pathSegments = self::packagePathSegments($entry->name);
+            $pathSegmentCharacterFlags = self::packagePathSegmentCharacterFlags($pathSegments);
             $rawNameProvenance = $this->zipEntryRawNameProvenance($entry);
             $sourceRecordProvenance = self::zipEntrySourceRecordProvenance($sourceRecordEntriesByName[$entry->name] ?? null);
             $timestampProvenance = self::zipTimestampProvenance($modificationTimeByName[$entry->name] ?? null);
@@ -2414,6 +2416,9 @@ final class OdfReader
 
             $parts[$entry->name] = [
                 'part' => $entry->name,
+                'path' => $entry->name,
+                'pathSegments' => $pathSegments,
+                'pathSegmentCount' => count($pathSegments),
                 'roles' => $roles,
                 'centralDirectoryIndex' => $centralDirectoryIndex,
                 'centralDirectoryRecordOffset' => $centralDirectoryRecordOffset,
@@ -2516,6 +2521,12 @@ final class OdfReader
                 'canExposeBytes' => is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $byteExposurePolicy,
                 'undeclared' => $isUndeclared,
+                'pathSegmentCharacterFlags' => $pathSegmentCharacterFlags,
+                'pathSegmentCharacterFlaggedSegmentCount' => count($pathSegmentCharacterFlags),
+                'pathSegmentHasUppercase' => self::pathSegmentCharacterHasFlag($pathSegmentCharacterFlags, 'uppercase'),
+                'pathSegmentHasWhitespace' => self::pathSegmentCharacterHasFlag($pathSegmentCharacterFlags, 'whitespace'),
+                'pathSegmentHasPercentEncodedOctet' => self::pathSegmentCharacterHasFlag($pathSegmentCharacterFlags, 'percent-encoded-octet'),
+                'pathSegmentHasNonAscii' => self::pathSegmentCharacterHasFlag($pathSegmentCharacterFlags, 'non-ascii'),
             ] + $rawNameProvenance + $sourceRecordProvenance + $timestampProvenance + $localHeaderProvenance + $generalPurposeFlagProvenance + $dataDescriptorProvenance + $extraFieldProvenance + $platformAttributeProvenance;
 
             if (is_string($byteExposurePolicy) && $byteExposurePolicy !== '') {
@@ -2632,6 +2643,7 @@ final class OdfReader
                 ++$centralDirectorySourceRecordSha256Count;
             }
         }
+        $pathSegmentCharacters = self::packagePathSegmentCharacterSummary($parts);
         ksort($roleCounts, SORT_STRING);
         ksort($undeclaredRoleCounts, SORT_STRING);
         ksort($roleByteLengths, SORT_STRING);
@@ -2760,6 +2772,16 @@ final class OdfReader
             'centralDirectorySourceRecordEntryCount' => $centralDirectorySourceRecordEntryCount,
             'centralDirectorySourceRecordByteLength' => $centralDirectorySourceRecordByteLength,
             'centralDirectorySourceRecordSha256Count' => $centralDirectorySourceRecordSha256Count,
+            'packagePathSegmentCharacterReviewPartCount' => $pathSegmentCharacters['partCount'],
+            'packagePathSegmentCharacterReviewSegmentCount' => $pathSegmentCharacters['segmentCount'],
+            'packagePathSegmentUppercasePartCount' => count($pathSegmentCharacters['flagPartNames']['uppercase'] ?? []),
+            'packagePathSegmentWhitespacePartCount' => count($pathSegmentCharacters['flagPartNames']['whitespace'] ?? []),
+            'packagePathSegmentPercentEncodedOctetPartCount' => count($pathSegmentCharacters['flagPartNames']['percent-encoded-octet'] ?? []),
+            'packagePathSegmentNonAsciiPartCount' => count($pathSegmentCharacters['flagPartNames']['non-ascii'] ?? []),
+            'packagePathSegmentCharacterFlagCounts' => $pathSegmentCharacters['flagCounts'],
+            'packagePathSegmentCharacterFlagPartNames' => $pathSegmentCharacters['flagPartNames'],
+            'packagePathSegmentCharacterFlagSegments' => $pathSegmentCharacters['flagSegments'],
+            'packagePathSegmentCharacterReviewParts' => $pathSegmentCharacters['parts'],
             'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],
             'localHeaders' => $localHeaders,
             'localHeaderEntryCount' => $localHeaders['entryCount'],
@@ -3039,6 +3061,231 @@ final class OdfReader
         }
 
         return array_values($summaries);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $parts
+     * @return array{partCount:int, segmentCount:int, flagCounts:array<string, int>, flagPartNames:array<string, list<string>>, flagSegments:array<string, list<string>>, parts:list<array<string, mixed>>}
+     */
+    private static function packagePathSegmentCharacterSummary(array $parts): array
+    {
+        $flagCounts = [];
+        $flagPartNames = [];
+        $flagSegments = [];
+        $items = [];
+        $segmentCount = 0;
+        foreach ($parts as $partName => $part) {
+            $partName = (string) ($part['part'] ?? $part['path'] ?? $partName);
+            $segments = is_array($part['pathSegments'] ?? null)
+                ? self::normalizePackagePathSegments($part['pathSegments'])
+                : self::packagePathSegments($partName);
+            $segmentFlags = is_array($part['pathSegmentCharacterFlags'] ?? null)
+                ? self::normalizePackagePathSegmentCharacterFlags($part['pathSegmentCharacterFlags'])
+                : self::packagePathSegmentCharacterFlags($segments);
+            if ($segmentFlags === []) {
+                continue;
+            }
+
+            $partFlags = [];
+            foreach ($segmentFlags as $segmentFlag) {
+                $segment = (string) ($segmentFlag['segment'] ?? '');
+                $flags = is_array($segmentFlag['flags'] ?? null)
+                    ? array_values(array_map('strval', $segmentFlag['flags']))
+                    : [];
+                foreach ($flags as $flag) {
+                    if ($flag === '') {
+                        continue;
+                    }
+
+                    $flagCounts[$flag] = ($flagCounts[$flag] ?? 0) + 1;
+                    $flagSegments[$flag][$segment] = true;
+                    $partFlags[$flag] = true;
+                }
+            }
+
+            if ($partFlags === []) {
+                continue;
+            }
+
+            $segmentCount += count($segmentFlags);
+            ksort($partFlags, SORT_STRING);
+            foreach (array_keys($partFlags) as $flag) {
+                $flagPartNames[$flag][] = $partName;
+            }
+
+            $items[] = [
+                'path' => is_string($part['path'] ?? null) ? $part['path'] : $partName,
+                'part' => $partName,
+                'pathSegments' => $segments,
+                'pathSegmentCount' => is_int($part['pathSegmentCount'] ?? null)
+                    ? $part['pathSegmentCount']
+                    : count($segments),
+                'flaggedSegmentCount' => count($segmentFlags),
+                'centralDirectoryIndex' => $part['centralDirectoryIndex'] ?? null,
+                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+                'declaredInManifest' => ($part['declaredInManifest'] ?? false) === true,
+                'manifestFullPath' => is_string($part['manifestFullPath'] ?? null) ? $part['manifestFullPath'] : null,
+                'manifestMediaTypeBase' => is_string($part['manifestMediaTypeBase'] ?? null)
+                    ? $part['manifestMediaTypeBase']
+                    : null,
+                'isDirectory' => ($part['isDirectory'] ?? false) === true,
+                'byteExposurePolicy' => is_string($part['byteExposurePolicy'] ?? null) ? $part['byteExposurePolicy'] : null,
+                'flags' => array_keys($partFlags),
+                'flaggedSegments' => $segmentFlags,
+            ];
+        }
+
+        ksort($flagCounts, SORT_STRING);
+        ksort($flagPartNames, SORT_STRING);
+        foreach ($flagPartNames as &$partNames) {
+            sort($partNames, SORT_STRING);
+        }
+        unset($partNames);
+        ksort($flagSegments, SORT_STRING);
+        foreach ($flagSegments as &$segments) {
+            $segments = array_keys($segments);
+            sort($segments, SORT_STRING);
+        }
+        unset($segments);
+        usort(
+            $items,
+            static fn (array $left, array $right): int => strcmp((string) $left['part'], (string) $right['part']),
+        );
+
+        return [
+            'partCount' => count($items),
+            'segmentCount' => $segmentCount,
+            'flagCounts' => $flagCounts,
+            'flagPartNames' => $flagPartNames,
+            'flagSegments' => $flagSegments,
+            'parts' => $items,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function packagePathSegments(string $path): array
+    {
+        return array_values(array_filter(
+            explode('/', trim($path, '/')),
+            static fn (string $segment): bool => $segment !== '',
+        ));
+    }
+
+    /**
+     * @param list<mixed> $segments
+     * @return list<string>
+     */
+    private static function normalizePackagePathSegments(array $segments): array
+    {
+        return array_values(array_filter(
+            array_map(
+                static fn (mixed $segment): string => is_scalar($segment) ? (string) $segment : '',
+                $segments,
+            ),
+            static fn (string $segment): bool => $segment !== '',
+        ));
+    }
+
+    /**
+     * @param list<string> $segments
+     * @return list<array{index:int, segment:string, flags:list<string>}>
+     */
+    private static function packagePathSegmentCharacterFlags(array $segments): array
+    {
+        $items = [];
+        foreach ($segments as $index => $segment) {
+            $flags = self::packagePathCharacterFlags((string) $segment);
+            if ($flags === []) {
+                continue;
+            }
+
+            $items[] = [
+                'index' => (int) $index,
+                'segment' => (string) $segment,
+                'flags' => $flags,
+            ];
+        }
+
+        return $items;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function packagePathCharacterFlags(string $path): array
+    {
+        $flags = [];
+        if (preg_match('/[A-Z]/', $path) === 1) {
+            $flags[] = 'uppercase';
+        }
+        if (preg_match('/[ \t\r\n\f\v]/', $path) === 1) {
+            $flags[] = 'whitespace';
+        }
+        if (preg_match('/%[0-9A-Fa-f]{2}/', $path) === 1) {
+            $flags[] = 'percent-encoded-octet';
+        }
+        if (preg_match('/[^\x00-\x7F]/', $path) === 1) {
+            $flags[] = 'non-ascii';
+        }
+
+        return $flags;
+    }
+
+    /**
+     * @param list<mixed> $flaggedSegments
+     * @return list<array{index:int, segment:string, flags:list<string>}>
+     */
+    private static function normalizePackagePathSegmentCharacterFlags(array $flaggedSegments): array
+    {
+        $items = [];
+        foreach ($flaggedSegments as $position => $flaggedSegment) {
+            if (!is_array($flaggedSegment)) {
+                continue;
+            }
+
+            $segment = is_scalar($flaggedSegment['segment'] ?? null)
+                ? (string) $flaggedSegment['segment']
+                : '';
+            $flags = is_array($flaggedSegment['flags'] ?? null)
+                ? array_values(array_filter(
+                    array_map(
+                        static fn (mixed $flag): string => is_scalar($flag) ? (string) $flag : '',
+                        $flaggedSegment['flags'],
+                    ),
+                    static fn (string $flag): bool => $flag !== '',
+                ))
+                : [];
+            $flags = array_values(array_unique($flags));
+            if ($segment === '' || $flags === []) {
+                continue;
+            }
+
+            $items[] = [
+                'index' => is_numeric($flaggedSegment['index'] ?? null)
+                    ? (int) $flaggedSegment['index']
+                    : (int) $position,
+                'segment' => $segment,
+                'flags' => $flags,
+            ];
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param list<array{index:int, segment:string, flags:list<string>}> $flaggedSegments
+     */
+    private static function pathSegmentCharacterHasFlag(array $flaggedSegments, string $flag): bool
+    {
+        foreach ($flaggedSegments as $flaggedSegment) {
+            if (in_array($flag, $flaggedSegment['flags'] ?? [], true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
