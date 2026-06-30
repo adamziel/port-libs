@@ -12983,10 +12983,12 @@ final class ZipPackage
         $unsupportedCompressionMethodCount = 0;
         $compressedBytes = 0;
         $uncompressedBytes = 0;
+        $directoryRootSummaryEntries = [];
 
         foreach ($this->entries as $centralDirectoryIndex => $entry) {
             $localHeader = $this->readLocalHeader($entry);
             $isDirectory = $entry->isDirectory();
+            $directoryRoot = self::entryHandoffDirectoryRoot($entry->name);
             if ($isDirectory) {
                 ++$directoryEntryCount;
             } else {
@@ -13027,6 +13029,7 @@ final class ZipPackage
             $summary = [
                 'name' => $entry->name,
                 'isDirectory' => $isDirectory,
+                'directoryRoot' => $directoryRoot,
                 'centralDirectoryIndex' => $centralDirectoryIndex,
                 'localHeaderOrder' => $localHeaderOrder,
                 'compressionMethod' => $entry->compressionMethod,
@@ -13046,6 +13049,12 @@ final class ZipPackage
                 'centralDirectoryRecordSha256' => $centralDirectoryRecordSha256,
             ];
             $entries[] = $summary;
+            $directoryRootSummaryEntries[] = [
+                'name' => $summary['name'],
+                'isDirectory' => $summary['isDirectory'],
+                'compressedSize' => $summary['compressedSize'],
+                'uncompressedSize' => $summary['uncompressedSize'],
+            ];
             $manifestEntries[] = [
                 'name' => $summary['name'],
                 'isDirectory' => $summary['isDirectory'],
@@ -13063,6 +13072,7 @@ final class ZipPackage
 
         $centralDirectoryOrderNames = $this->names();
         $localHeaderOrderNames = $this->localNames();
+        $directoryRootSummaries = self::entryHandoffDirectoryRootSummaries($directoryRootSummaryEntries);
         $manifestPayload = [
             'manifestVersion' => 'zip-package-manifest-v1',
             'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
@@ -13085,6 +13095,12 @@ final class ZipPackage
             'storedEntryCount' => $storedEntryCount,
             'deflatedEntryCount' => $deflatedEntryCount,
             'unsupportedCompressionMethodCount' => $unsupportedCompressionMethodCount,
+            'directoryRootCount' => count($directoryRootSummaries),
+            'directoryRoots' => array_map(
+                static fn (array $summary): string => (string) $summary['directoryRoot'],
+                $directoryRootSummaries
+            ),
+            'directoryRootSummaries' => $directoryRootSummaries,
             'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
             'localHeaderOrderNames' => $localHeaderOrderNames,
             'centralDirectoryOrderMatchesLocalHeaderOrder' => $centralDirectoryOrderNames === $localHeaderOrderNames,

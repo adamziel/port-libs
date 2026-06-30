@@ -836,6 +836,67 @@ return [
         $t->same($manifest, $raw['strictImport']['packageManifest']);
     },
 
+    'summarizes zip package manifest directory roots for package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $contentTypesXml = '<Types/>';
+        $packageRelsXml = '<Relationships/>';
+        $coreXml = '<cp:coreProperties/>';
+        $documentXml = '<w:document><w:body><w:p>directory root manifest</w:p></w:body></w:document>';
+        $imageBytes = "manifest image bytes\n";
+        $zip = $buildZipPackage([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'method' => 0],
+            ['name' => '_rels/.rels', 'data' => $packageRelsXml, 'method' => 0],
+            ['name' => 'docProps/core.xml', 'data' => $coreXml, 'method' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => 'word/media/', 'data' => '', 'method' => 0],
+            ['name' => 'word/media/image.png', 'data' => $imageBytes, 'method' => 0],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $strict = $package->strictImportPreflight(2048, 100.0, 2048);
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+
+        $byRoot = [];
+        foreach ($manifest['directoryRootSummaries'] as $rootSummary) {
+            $byRoot[$rootSummary['directoryRoot']] = $rootSummary;
+        }
+
+        $t->same(4, $manifest['directoryRootCount']);
+        $t->same(['/', '_rels/', 'docProps/', 'word/'], $manifest['directoryRoots']);
+        $t->same(['/', '_rels/', 'docProps/', 'word/'], array_keys($byRoot));
+
+        $t->same(1, $byRoot['/']['entryCount']);
+        $t->same(1, $byRoot['/']['fileEntryCount']);
+        $t->same(0, $byRoot['/']['directoryEntryCount']);
+        $t->same(strlen($contentTypesXml), $byRoot['/']['compressedBytes']);
+        $t->same(strlen($contentTypesXml), $byRoot['/']['uncompressedBytes']);
+        $t->same([], $byRoot['/']['roles']);
+        $t->same(['[Content_Types].xml'], $byRoot['/']['entryNames']);
+
+        $wordBytes = strlen($documentXml) + strlen($imageBytes);
+        $t->same(3, $byRoot['word/']['entryCount']);
+        $t->same(2, $byRoot['word/']['fileEntryCount']);
+        $t->same(1, $byRoot['word/']['directoryEntryCount']);
+        $t->same($wordBytes, $byRoot['word/']['compressedBytes']);
+        $t->same($wordBytes, $byRoot['word/']['uncompressedBytes']);
+        $t->same([], $byRoot['word/']['roles']);
+        $t->same([
+            'word/document.xml',
+            'word/media/',
+            'word/media/image.png',
+        ], $byRoot['word/']['entryNames']);
+
+        $t->same('/', $manifest['entries'][0]['directoryRoot']);
+        $t->same('_rels/', $manifest['entries'][1]['directoryRoot']);
+        $t->same('docProps/', $manifest['entries'][2]['directoryRoot']);
+        $t->same('word/', $manifest['entries'][3]['directoryRoot']);
+        $t->same('word/', $manifest['entries'][4]['directoryRoot']);
+        $t->same('word/', $manifest['entries'][5]['directoryRoot']);
+        $t->same($manifest, $strict['packageManifest']);
+        $t->same($manifest, $raw['packageManifest']);
+        $t->same($manifest, $raw['strictImport']['packageManifest']);
+    },
+
     'preflights zip package manifest compressed payload hashes for package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>manifest payload hash</w:p></w:body></w:document>';
         $mediaBytes = "stored image bytes\n";
