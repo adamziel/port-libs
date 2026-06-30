@@ -273,6 +273,50 @@ return [
         $t->true(in_array('custom-xml-part', $inventory['customXml/review data.xml']['roles'], true), 'decoded custom XML target role missing');
         $t->true(in_array('rEncodedImage', array_column($package['relationshipTypes']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/image']['relationships'], 'id'), true), 'encoded image relationship type row missing');
     },
+    'preserves quoted docx content type parameter semicolons for package provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/customXml/quoted-parameters.xml" ContentType="application/xml; profile=&quot;custom;review&quot;; note=&quot;review\&quot;packet&quot;"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rQuotedCustomXml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/quoted-parameters.xml?slot=quoted#payload"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['customXml/quoted-parameters.xml'] = '<review quoted="true"/>';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $override = $package['contentTypesPart']['overrides']['customXml/quoted-parameters.xml'];
+        $relationship = $package['relationshipParts']['word/_rels/document.xml.rels']['relationships']['rQuotedCustomXml'];
+        $inventory = $package['parts']['customXml/quoted-parameters.xml'];
+        $relationshipType = $package['relationshipTypes']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml'];
+
+        $t->same('application/xml; profile="custom;review"; note="review\"packet"', $override['contentType']);
+        $t->same('application/xml', $override['contentTypeBase']);
+        $t->same(true, $override['contentTypeHasParameters']);
+        $t->same(2, $override['contentTypeParameterCount']);
+        $t->same([
+            ['name' => 'profile', 'value' => 'custom;review', 'raw' => 'profile="custom;review"'],
+            ['name' => 'note', 'value' => 'review"packet', 'raw' => 'note="review\"packet"'],
+        ], $override['contentTypeParameters']);
+        $t->same(['profile' => 'custom;review', 'note' => 'review"packet'], $override['contentTypeParameterMap']);
+
+        $t->same('customXml/quoted-parameters.xml?slot=quoted#payload', $relationship['resolvedTarget']);
+        $t->same('customXml/quoted-parameters.xml', $relationship['targetPart']);
+        $t->same('application/xml', $relationship['contentTypeBase']);
+        $t->same(2, $relationship['contentTypeParameterCount']);
+        $t->same(['profile' => 'custom;review', 'note' => 'review"packet'], $relationship['contentTypeParameterMap']);
+
+        $t->same('application/xml', $inventory['contentTypeBase']);
+        $t->same(['profile' => 'custom;review', 'note' => 'review"packet'], $inventory['contentTypeParameterMap']);
+        $t->true(in_array('rQuotedCustomXml', array_column($relationshipType['relationships'], 'id'), true), 'quoted customXml relationship row missing');
+        $t->same(1, $relationshipType['parameterizedContentTypeTargetCount']);
+    },
     'selects internal docx office document relationship when external root link is present' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['_rels/.rels'] = str_replace(

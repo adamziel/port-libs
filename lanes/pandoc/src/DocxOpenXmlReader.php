@@ -22668,7 +22668,7 @@ final class DocxOpenXmlReader
      */
     private function contentTypeReport(string $contentType): array
     {
-        $segments = explode(';', $contentType);
+        $segments = $this->contentTypeSegments($contentType);
         $base = strtolower(trim((string) array_shift($segments)));
         $parameters = [];
         $parameterMap = [];
@@ -22707,6 +22707,51 @@ final class DocxOpenXmlReader
             'contentTypeParameters' => $parameters,
             'contentTypeParameterMap' => $parameterMap,
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function contentTypeSegments(string $contentType): array
+    {
+        $segments = [];
+        $current = '';
+        $inQuote = false;
+        $escaped = false;
+        $length = strlen($contentType);
+
+        for ($index = 0; $index < $length; $index++) {
+            $char = $contentType[$index];
+            if ($escaped) {
+                $current .= $char;
+                $escaped = false;
+                continue;
+            }
+
+            if ($inQuote && $char === '\\') {
+                $current .= $char;
+                $escaped = true;
+                continue;
+            }
+
+            if ($char === '"') {
+                $inQuote = !$inQuote;
+                $current .= $char;
+                continue;
+            }
+
+            if ($char === ';' && !$inQuote) {
+                $segments[] = $current;
+                $current = '';
+                continue;
+            }
+
+            $current .= $char;
+        }
+
+        $segments[] = $current;
+
+        return $segments;
     }
 
     private function contentTypeStructuredSyntaxSuffix(string $contentTypeBase): ?string
