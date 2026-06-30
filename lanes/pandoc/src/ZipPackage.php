@@ -5118,6 +5118,12 @@ final class ZipPackage
      *     handoffDeclaredContentTypeIssueCount:int,
      *     selectedNameHygieneReviewEntryCount:int,
      *     selectedNameHygieneIssueCount:int,
+     *     selectedNameHygieneLeadingOrTrailingWhitespaceEntryCount:int,
+     *     selectedNameHygieneTrailingDotSegmentEntryCount:int,
+     *     selectedNameHygieneWindowsReservedNameEntryCount:int,
+     *     selectedNameHygieneWindowsAlternateDataStreamEntryCount:int,
+     *     selectedNameHygieneUnicodeFormatControlEntryCount:int,
+     *     selectedNameHygieneUnicodeBidiControlEntryCount:int,
      *     handoffNameHygieneReviewEntryCount:int,
      *     handoffNameHygieneIssueCount:int,
      *     selectedRawNameProvenanceEntryCount:int,
@@ -5536,6 +5542,12 @@ final class ZipPackage
         $selectedUnknownExpansionRatioEntries = [];
         $selectedNameHygieneReviewEntries = [];
         $selectedNameHygieneIssues = [];
+        $selectedNameHygieneLeadingOrTrailingWhitespaceEntryCount = 0;
+        $selectedNameHygieneTrailingDotSegmentEntryCount = 0;
+        $selectedNameHygieneWindowsReservedNameEntryCount = 0;
+        $selectedNameHygieneWindowsAlternateDataStreamEntryCount = 0;
+        $selectedNameHygieneUnicodeFormatControlEntryCount = 0;
+        $selectedNameHygieneUnicodeBidiControlEntryCount = 0;
         $selectedRawNameProvenanceEntries = [];
         $selectedLegacyEncodedNameEntryCount = 0;
         $selectedUnicodePathExtraEntryCount = 0;
@@ -5669,6 +5681,24 @@ final class ZipPackage
                 $selectedUnknownExpansionRatioEntries[] = $selectedEntrySizeSummary;
             }
             $nameHygiene = self::entryNameHygieneSummary($entry->name, $isDirectory);
+            if (in_array('segment-leading-or-trailing-whitespace', $nameHygiene['issues'], true)) {
+                $selectedNameHygieneLeadingOrTrailingWhitespaceEntryCount++;
+            }
+            if (in_array('segment-trailing-dot', $nameHygiene['issues'], true)) {
+                $selectedNameHygieneTrailingDotSegmentEntryCount++;
+            }
+            if (in_array('segment-windows-reserved-name', $nameHygiene['issues'], true)) {
+                $selectedNameHygieneWindowsReservedNameEntryCount++;
+            }
+            if (in_array('segment-windows-alternate-data-stream', $nameHygiene['issues'], true)) {
+                $selectedNameHygieneWindowsAlternateDataStreamEntryCount++;
+            }
+            if (in_array('segment-unicode-format-control', $nameHygiene['issues'], true)) {
+                $selectedNameHygieneUnicodeFormatControlEntryCount++;
+            }
+            if (in_array('segment-bidi-format-control', $nameHygiene['issues'], true)) {
+                $selectedNameHygieneUnicodeBidiControlEntryCount++;
+            }
             if ($nameHygiene['hasNameHygieneIssue']) {
                 foreach ($nameHygiene['issues'] as $nameHygieneIssue) {
                     self::appendUniqueIssue($selectedNameHygieneIssues, $nameHygieneIssue);
@@ -6749,6 +6779,12 @@ final class ZipPackage
             'requestStatusSummaryCount' => count($statusSummaries),
             'selectedNameHygieneReviewEntryCount' => count($selectedNameHygieneReviewEntries),
             'selectedNameHygieneIssueCount' => count($selectedNameHygieneIssues),
+            'selectedNameHygieneLeadingOrTrailingWhitespaceEntryCount' => $selectedNameHygieneLeadingOrTrailingWhitespaceEntryCount,
+            'selectedNameHygieneTrailingDotSegmentEntryCount' => $selectedNameHygieneTrailingDotSegmentEntryCount,
+            'selectedNameHygieneWindowsReservedNameEntryCount' => $selectedNameHygieneWindowsReservedNameEntryCount,
+            'selectedNameHygieneWindowsAlternateDataStreamEntryCount' => $selectedNameHygieneWindowsAlternateDataStreamEntryCount,
+            'selectedNameHygieneUnicodeFormatControlEntryCount' => $selectedNameHygieneUnicodeFormatControlEntryCount,
+            'selectedNameHygieneUnicodeBidiControlEntryCount' => $selectedNameHygieneUnicodeBidiControlEntryCount,
             'handoffNameHygieneReviewEntryCount' => count($handoffNameHygieneReviewEntries),
             'handoffNameHygieneIssueCount' => count($handoffNameHygieneIssues),
             'selectedRawNameProvenanceEntryCount' => count($selectedRawNameProvenanceEntries),

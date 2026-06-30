@@ -16134,6 +16134,133 @@ return [
         $t->same([$summary['entries'][0], $bidiEntry, $adsEntry, $reservedEntry], $summary['handoffEntries']);
     },
 
+    'summarizes selected zip entry name hygiene counters before reader handoff' => static function (TestRunner $t): void {
+        $bidiName = "word/media/review\u{202e}gnp.txt";
+        $package = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>selected name hygiene</w:p></w:body></w:document>',
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/source-image.png',
+                'data' => "safe selected media placeholder\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/ leading.png',
+                'data' => "leading selected media placeholder\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/trailing./review.png',
+                'data' => "trailing dot selected media placeholder\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/CON',
+                'data' => "reserved selected media placeholder\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/review.png:Zone.Identifier',
+                'data' => "ads selected media placeholder\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => $bidiName,
+                'data' => "bidi selected media placeholder\n",
+                'compressionMethod' => 0,
+            ],
+        ]);
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => '/word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/media/source-image.png', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'word/media/ leading.png', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'word/media/trailing./review.png', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'word/media/CON', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'word/media/review.png:Zone.Identifier', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => $bidiName, 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'word/media/missing.png', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+        ], 2048);
+
+        $reviewNames = array_map(
+            static fn (array $entry): string => $entry['name'],
+            $summary['selectedNameHygieneReviewEntries']
+        );
+
+        $t->same(8, $summary['requestedEntryCount']);
+        $t->same(7, $summary['presentEntryCount']);
+        $t->same(7, $summary['selectedUniqueEntryCount']);
+        $t->same(5, $summary['selectedNameHygieneReviewEntryCount']);
+        $t->same(6, $summary['selectedNameHygieneIssueCount']);
+        $t->same(1, $summary['selectedNameHygieneLeadingOrTrailingWhitespaceEntryCount']);
+        $t->same(1, $summary['selectedNameHygieneTrailingDotSegmentEntryCount']);
+        $t->same(1, $summary['selectedNameHygieneWindowsReservedNameEntryCount']);
+        $t->same(1, $summary['selectedNameHygieneWindowsAlternateDataStreamEntryCount']);
+        $t->same(1, $summary['selectedNameHygieneUnicodeFormatControlEntryCount']);
+        $t->same(1, $summary['selectedNameHygieneUnicodeBidiControlEntryCount']);
+        $t->same([
+            'segment-leading-or-trailing-whitespace',
+            'segment-trailing-dot',
+            'segment-windows-reserved-name',
+            'segment-windows-alternate-data-stream',
+            'segment-unicode-format-control',
+            'segment-bidi-format-control',
+        ], $summary['selectedNameHygieneIssues']);
+        $t->same([
+            'word/media/ leading.png',
+            'word/media/trailing./review.png',
+            'word/media/CON',
+            'word/media/review.png:Zone.Identifier',
+            $bidiName,
+        ], $reviewNames);
+        $t->same(7, $summary['handoffEntryCount']);
+        $t->same(7, $summary['readableEntryCount']);
+        $t->same(0, $summary['failedEntryCount']);
+        $t->same(true, $summary['isSupportedByBoundedReader']);
+        $t->same([], $summary['issues']);
+
+        $safeEntry = $summary['entries'][1];
+        $t->same('word/media/source-image.png', $safeEntry['name']);
+        $t->same('word/media/source-image.png', $safeEntry['nameHygienePath']);
+        $t->same(['word', 'media', 'source-image.png'], $safeEntry['nameHygieneSegments']);
+        $t->same(false, $safeEntry['hasNameHygieneIssue']);
+        $t->same([], $safeEntry['nameHygieneIssues']);
+        $t->same([], $safeEntry['nameHygieneFlaggedSegments']);
+
+        $leadingEntry = $summary['entries'][2];
+        $t->same(true, $leadingEntry['hasNameHygieneIssue']);
+        $t->same(['segment-leading-or-trailing-whitespace'], $leadingEntry['nameHygieneIssues']);
+        $t->same(2, $leadingEntry['nameHygieneFlaggedSegments'][0]['index']);
+        $t->same(' leading.png', $leadingEntry['nameHygieneFlaggedSegments'][0]['segment']);
+
+        $trailingDotEntry = $summary['entries'][3];
+        $t->same(['segment-trailing-dot'], $trailingDotEntry['nameHygieneIssues']);
+        $t->same('trailing.', $trailingDotEntry['nameHygieneFlaggedSegments'][0]['segment']);
+
+        $reservedEntry = $summary['entries'][4];
+        $t->same(['segment-windows-reserved-name'], $reservedEntry['nameHygieneIssues']);
+        $t->same('CON', $reservedEntry['nameHygieneFlaggedSegments'][0]['segment']);
+
+        $adsEntry = $summary['entries'][5];
+        $t->same(['segment-windows-alternate-data-stream'], $adsEntry['nameHygieneIssues']);
+        $t->same('review.png:Zone.Identifier', $adsEntry['nameHygieneFlaggedSegments'][0]['segment']);
+
+        $bidiEntry = $summary['entries'][6];
+        $t->same(['segment-unicode-format-control', 'segment-bidi-format-control'], $bidiEntry['nameHygieneIssues']);
+        $t->same(['right-to-left-override'], $bidiEntry['nameHygieneFlaggedSegments'][0]['unicodeFormatControlNames']);
+        $t->same(['right-to-left-override'], $bidiEntry['nameHygieneFlaggedSegments'][0]['bidiControlNames']);
+        $t->same("bidi selected media placeholder\n", $package->read('/' . $bidiName));
+
+        $missingEntry = $summary['entries'][7];
+        $t->same(false, $missingEntry['exists']);
+        $t->same(null, $missingEntry['nameHygienePath']);
+        $t->same([], $missingEntry['nameHygieneSegments']);
+        $t->same([], $missingEntry['nameHygieneIssues']);
+    },
+
     'summarizes selected zip handoff timestamp provenance before reader byte exposure' => static function (TestRunner $t) use ($buildZipPackage, $buildNtfsExtra): void {
         $documentModifiedAt = 1780479017;
         $mediaModifiedAt = 1780479027;
