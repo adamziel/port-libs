@@ -29015,12 +29015,16 @@ XML;
     },
     'summarizes docx source zip comments without exposing comment text' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
-        $packageComment = 'hidden package review comment';
-        $entryComment = 'hidden document entry review comment';
+        $packageComment = "hidden package review comment\u{202E}";
+        $entryComment = "hidden document entry review comment\u{200D}";
+        $bidiEntryComment = "hidden media entry review comment\u{202E}";
         $zipParts = docx_openxml_reader_zip_parts($parts);
         foreach ($zipParts as &$zipPart) {
             if ($zipPart['name'] === 'word/document.xml') {
                 $zipPart['comment'] = $entryComment;
+            }
+            if ($zipPart['name'] === 'word/media/review.png') {
+                $zipPart['comment'] = $bidiEntryComment;
             }
         }
         unset($zipPart);
@@ -29039,43 +29043,160 @@ XML;
         $t->same(true, $comments['hasComments']);
         $t->same(true, $comments['hasPackageComment']);
         $t->same(true, $comments['hasEntryComments']);
+        $t->same(false, $comments['hasCommentControlBytes']);
+        $t->same(true, $comments['hasCommentUnicodeFormatControls']);
+        $t->same(true, $comments['hasCommentBidiControls']);
         $t->same(strlen($packageComment), $comments['packageCommentLength']);
         $t->same('utf-8', $comments['packageCommentEncoding']);
-        $t->same(1, $comments['entryCommentCount']);
-        $t->same(['word/document.xml'], $comments['commentedEntryNames']);
-        $t->same(['package-or-entry-comments'], $comments['issueCodes']);
+        $t->same(false, $comments['packageCommentHasControlBytes']);
+        $t->same([], $comments['packageCommentControlByteOffsets']);
+        $t->same(true, $comments['packageCommentHasUnicodeFormatControls']);
+        $t->same(true, $comments['packageCommentHasBidiControls']);
+        $t->same(['right-to-left-override'], $comments['packageCommentUnicodeFormatControlNames']);
+        $t->same(['right-to-left-override'], $comments['packageCommentBidiControlNames']);
+        $t->same([
+            'package-comment-unicode-format-control',
+            'package-comment-bidi-format-control',
+        ], $comments['packageCommentIssues']);
+        $t->same(2, $comments['entryCommentCount']);
+        $t->same(['word/document.xml', 'word/media/review.png'], $comments['commentedEntryNames']);
+        $t->same(0, $comments['commentControlByteEntryCount']);
+        $t->same(2, $comments['commentUnicodeFormatControlEntryCount']);
+        $t->same(1, $comments['commentBidiControlEntryCount']);
+        $t->same([
+            'comment-bidi-format-controls',
+            'comment-unicode-format-controls',
+            'entry-comment-bidi-format-control',
+            'entry-comment-unicode-format-control',
+            'package-comment-bidi-format-control',
+            'package-comment-unicode-format-control',
+            'package-or-entry-comments',
+        ], $comments['issueCodes']);
         $t->same('docx-zip-comment-metadata-only', $comments['reviewPolicy']);
 
         $t->same('word/document.xml', $comments['commentedEntries'][0]['name']);
         $t->same(true, $comments['commentedEntries'][0]['hasComment']);
         $t->same(strlen($entryComment), $comments['commentedEntries'][0]['commentLength']);
         $t->same('utf-8', $comments['commentedEntries'][0]['commentEncoding']);
-        $t->same([], $comments['commentedEntries'][0]['issues']);
+        $t->same(false, $comments['commentedEntries'][0]['hasControlBytes']);
+        $t->same(true, $comments['commentedEntries'][0]['hasUnicodeFormatControls']);
+        $t->same(false, $comments['commentedEntries'][0]['hasBidiControls']);
+        $t->same(['zero-width-joiner'], $comments['commentedEntries'][0]['unicodeFormatControlNames']);
+        $t->same(['entry-comment-unicode-format-control'], $comments['commentedEntries'][0]['issues']);
+        $t->same('word/media/review.png', $comments['commentedEntries'][1]['name']);
+        $t->same(false, $comments['commentedEntries'][1]['hasControlBytes']);
+        $t->same([], $comments['commentedEntries'][1]['commentControlByteOffsets']);
+        $t->same(true, $comments['commentedEntries'][1]['hasUnicodeFormatControls']);
+        $t->same(true, $comments['commentedEntries'][1]['hasBidiControls']);
+        $t->same(['right-to-left-override'], $comments['commentedEntries'][1]['unicodeFormatControlNames']);
+        $t->same(['right-to-left-override'], $comments['commentedEntries'][1]['bidiControlNames']);
+        $t->same([
+            'entry-comment-unicode-format-control',
+            'entry-comment-bidi-format-control',
+        ], $comments['commentedEntries'][1]['issues']);
 
         $t->same(true, $summary['zipCommentPreflightPresent']);
         $t->same(true, $summary['zipHasComments']);
         $t->same(true, $summary['zipHasPackageComment']);
         $t->same(true, $summary['zipHasEntryComments']);
+        $t->same(false, $summary['zipHasCommentControlBytes']);
+        $t->same(true, $summary['zipHasCommentUnicodeFormatControls']);
+        $t->same(true, $summary['zipHasCommentBidiControls']);
         $t->same(strlen($packageComment), $summary['zipPackageCommentLength']);
         $t->same('utf-8', $summary['zipPackageCommentEncoding']);
-        $t->same(1, $summary['zipEntryCommentCount']);
-        $t->same(['word/document.xml'], $summary['zipCommentedEntryNames']);
-        $t->same(1, $summary['zipCommentIssueCount']);
-        $t->same(['package-or-entry-comments'], $summary['zipCommentIssueCodes']);
+        $t->same(false, $summary['zipPackageCommentHasControlBytes']);
+        $t->same([], $summary['zipPackageCommentControlByteOffsets']);
+        $t->same(true, $summary['zipPackageCommentHasUnicodeFormatControls']);
+        $t->same(true, $summary['zipPackageCommentHasBidiControls']);
+        $t->same(['right-to-left-override'], $summary['zipPackageCommentUnicodeFormatControlNames']);
+        $t->same(['right-to-left-override'], $summary['zipPackageCommentBidiControlNames']);
+        $t->same($comments['packageCommentIssues'], $summary['zipPackageCommentIssues']);
+        $t->same(2, $summary['zipEntryCommentCount']);
+        $t->same(['word/document.xml', 'word/media/review.png'], $summary['zipCommentedEntryNames']);
+        $t->same(0, $summary['zipCommentControlByteEntryCount']);
+        $t->same(2, $summary['zipCommentUnicodeFormatControlEntryCount']);
+        $t->same(1, $summary['zipCommentBidiControlEntryCount']);
+        $t->same([], $summary['zipCommentControlByteEntryNames']);
+        $t->same(['word/document.xml', 'word/media/review.png'], $summary['zipCommentUnicodeFormatControlEntryNames']);
+        $t->same(['word/media/review.png'], $summary['zipCommentBidiControlEntryNames']);
+        $t->same($comments['commentedEntries'], $summary['zipCommentReviewEntries']);
+        $t->same($comments['commentControlByteEntries'], $summary['zipCommentControlByteEntries']);
+        $t->same($comments['commentUnicodeFormatControlEntries'], $summary['zipCommentUnicodeFormatControlEntries']);
+        $t->same($comments['commentBidiControlEntries'], $summary['zipCommentBidiControlEntries']);
+        $t->same(7, $summary['zipCommentIssueCount']);
+        $t->same($comments['issueCodes'], $summary['zipCommentIssueCodes']);
 
         $t->same(true, $documentEntry['hasZipEntryComment']);
         $t->same(strlen($entryComment), $documentEntry['zipEntryCommentLength']);
         $t->same('utf-8', $documentEntry['zipEntryCommentEncoding']);
+        $t->same(false, $documentEntry['zipEntryCommentHasControlBytes']);
+        $t->same(true, $documentEntry['zipEntryCommentHasUnicodeFormatControls']);
+        $t->same(false, $documentEntry['zipEntryCommentHasBidiControls']);
+        $t->same(['entry-comment-unicode-format-control'], $documentEntry['zipEntryCommentIssues']);
         $t->same('docx-zip-comment-metadata-only', $documentEntry['zipCommentReviewPolicy']);
         $t->same(true, $documentPart['zipEntryCommentPresent']);
         $t->same(strlen($entryComment), $documentPart['zipEntryCommentLength']);
         $t->same('utf-8', $documentPart['zipEntryCommentEncoding']);
+        $t->same(false, $documentPart['zipEntryCommentHasControlBytes']);
+        $t->same(true, $documentPart['zipEntryCommentHasUnicodeFormatControls']);
+        $t->same(false, $documentPart['zipEntryCommentHasBidiControls']);
+        $t->same(['entry-comment-unicode-format-control'], $documentPart['zipEntryCommentIssues']);
         $t->same('docx-zip-comment-metadata-only', $documentPart['zipCommentReviewPolicy']);
 
         $encoded = json_encode($package);
         $t->true(is_string($encoded), 'comment metadata should encode for review');
         $t->true(!str_contains((string) $encoded, $packageComment), 'package comment text should not be exposed');
         $t->true(!str_contains((string) $encoded, $entryComment), 'entry comment text should not be exposed');
+        $t->true(!str_contains((string) $encoded, $bidiEntryComment), 'entry bidi comment text should not be exposed');
+    },
+    'summarizes docx source zip comment control diagnostics for package handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $packageComment = "package handoff joiner\u{200D}";
+        $documentComment = "document handoff bidi\u{202B}";
+        $mediaComment = "media handoff mark\u{200E}";
+        $zipParts = docx_openxml_reader_zip_parts($parts);
+        foreach ($zipParts as &$zipPart) {
+            if ($zipPart['name'] === 'word/document.xml') {
+                $zipPart['comment'] = $documentComment;
+            }
+            if ($zipPart['name'] === 'word/media/review.png') {
+                $zipPart['comment'] = $mediaComment;
+            }
+        }
+        unset($zipPart);
+
+        $document = (new DocxOpenXmlReader())->readZipPackage(ZipPackage::fromParts($zipParts, $packageComment));
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $comments = $package['zipPackage']['comments'];
+
+        $t->same(false, $summary['zipHasCommentControlBytes']);
+        $t->same(true, $summary['zipHasCommentUnicodeFormatControls']);
+        $t->same(true, $summary['zipHasCommentBidiControls']);
+        $t->same(false, $summary['zipPackageCommentHasControlBytes']);
+        $t->same([], $summary['zipPackageCommentControlByteOffsets']);
+        $t->same(true, $summary['zipPackageCommentHasUnicodeFormatControls']);
+        $t->same(false, $summary['zipPackageCommentHasBidiControls']);
+        $t->same(['zero-width-joiner'], $summary['zipPackageCommentUnicodeFormatControlNames']);
+        $t->same([], $summary['zipPackageCommentBidiControlNames']);
+        $t->same([
+            'package-comment-unicode-format-control',
+        ], $summary['zipPackageCommentIssues']);
+        $t->same(['word/document.xml', 'word/media/review.png'], $summary['zipCommentedEntryNames']);
+        $t->same([], $summary['zipCommentControlByteEntryNames']);
+        $t->same(['word/document.xml', 'word/media/review.png'], $summary['zipCommentUnicodeFormatControlEntryNames']);
+        $t->same(['word/document.xml', 'word/media/review.png'], $summary['zipCommentBidiControlEntryNames']);
+        $t->same($comments['commentedEntries'], $summary['zipCommentReviewEntries']);
+        $t->same($comments['commentControlByteEntries'], $summary['zipCommentControlByteEntries']);
+        $t->same($comments['commentUnicodeFormatControlEntries'], $summary['zipCommentUnicodeFormatControlEntries']);
+        $t->same($comments['commentBidiControlEntries'], $summary['zipCommentBidiControlEntries']);
+        $t->same('docx-zip-comment-metadata-only', $summary['zipCommentReviewPolicy']);
+
+        $encoded = json_encode($summary);
+        $t->true(is_string($encoded), 'summary comment metadata should encode for review');
+        $t->true(!str_contains((string) $encoded, $packageComment), 'package comment text should not be exposed');
+        $t->true(!str_contains((string) $encoded, $documentComment), 'document comment text should not be exposed');
+        $t->true(!str_contains((string) $encoded, $mediaComment), 'media comment text should not be exposed');
     },
     'summarizes docx note and comment relationship sidecars without exposing target bytes' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();

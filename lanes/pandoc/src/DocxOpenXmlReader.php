@@ -11988,21 +11988,75 @@ final class DocxOpenXmlReader
         $summary['zipHasComments'] = (bool) ($zipComments['hasComments'] ?? false);
         $summary['zipHasPackageComment'] = (bool) ($zipComments['hasPackageComment'] ?? false);
         $summary['zipHasEntryComments'] = (bool) ($zipComments['hasEntryComments'] ?? false);
+        $summary['zipHasCommentControlBytes'] = (bool) ($zipComments['hasCommentControlBytes'] ?? false);
+        $summary['zipHasCommentUnicodeFormatControls'] =
+            (bool) ($zipComments['hasCommentUnicodeFormatControls'] ?? false);
+        $summary['zipHasCommentBidiControls'] = (bool) ($zipComments['hasCommentBidiControls'] ?? false);
         $summary['zipPackageCommentLength'] = (int) ($zipComments['packageCommentLength'] ?? 0);
         $summary['zipPackageCommentEncoding'] = $zipComments['packageCommentEncoding'] ?? null;
+        $summary['zipPackageCommentHasControlBytes'] =
+            (bool) ($zipComments['packageCommentHasControlBytes'] ?? false);
+        $summary['zipPackageCommentControlByteOffsets'] =
+            is_array($zipComments['packageCommentControlByteOffsets'] ?? null)
+                ? $zipComments['packageCommentControlByteOffsets']
+                : [];
+        $summary['zipPackageCommentHasUnicodeFormatControls'] =
+            (bool) ($zipComments['packageCommentHasUnicodeFormatControls'] ?? false);
+        $summary['zipPackageCommentHasBidiControls'] =
+            (bool) ($zipComments['packageCommentHasBidiControls'] ?? false);
+        $summary['zipPackageCommentUnicodeFormatControlNames'] =
+            is_array($zipComments['packageCommentUnicodeFormatControlNames'] ?? null)
+                ? $zipComments['packageCommentUnicodeFormatControlNames']
+                : [];
+        $summary['zipPackageCommentBidiControlNames'] =
+            is_array($zipComments['packageCommentBidiControlNames'] ?? null)
+                ? $zipComments['packageCommentBidiControlNames']
+                : [];
+        $summary['zipPackageCommentIssues'] = is_array($zipComments['packageCommentIssues'] ?? null)
+            ? $zipComments['packageCommentIssues']
+            : [];
         $summary['zipEntryCommentCount'] = (int) ($zipComments['entryCommentCount'] ?? 0);
         $summary['zipCommentedEntryNames'] = is_array($zipComments['commentedEntryNames'] ?? null)
             ? $zipComments['commentedEntryNames']
+            : [];
+        $zipCommentedEntries = is_array($zipComments['commentedEntries'] ?? null)
+            ? $zipComments['commentedEntries']
+            : [];
+        $zipCommentControlByteEntries = is_array($zipComments['commentControlByteEntries'] ?? null)
+            ? $zipComments['commentControlByteEntries']
+            : [];
+        $zipCommentUnicodeFormatControlEntries =
+            is_array($zipComments['commentUnicodeFormatControlEntries'] ?? null)
+                ? $zipComments['commentUnicodeFormatControlEntries']
+                : [];
+        $zipCommentBidiControlEntries = is_array($zipComments['commentBidiControlEntries'] ?? null)
+            ? $zipComments['commentBidiControlEntries']
             : [];
         $summary['zipCommentControlByteEntryCount'] = (int) ($zipComments['commentControlByteEntryCount'] ?? 0);
         $summary['zipCommentUnicodeFormatControlEntryCount'] =
             (int) ($zipComments['commentUnicodeFormatControlEntryCount'] ?? 0);
         $summary['zipCommentBidiControlEntryCount'] = (int) ($zipComments['commentBidiControlEntryCount'] ?? 0);
+        $summary['zipCommentControlByteEntryNames'] = array_values(array_map(
+            static fn (array $entry): string => is_string($entry['name'] ?? null) ? $entry['name'] : '',
+            $zipCommentControlByteEntries
+        ));
+        $summary['zipCommentUnicodeFormatControlEntryNames'] = array_values(array_map(
+            static fn (array $entry): string => is_string($entry['name'] ?? null) ? $entry['name'] : '',
+            $zipCommentUnicodeFormatControlEntries
+        ));
+        $summary['zipCommentBidiControlEntryNames'] = array_values(array_map(
+            static fn (array $entry): string => is_string($entry['name'] ?? null) ? $entry['name'] : '',
+            $zipCommentBidiControlEntries
+        ));
         $summary['zipCommentIssueCount'] = (int) ($zipComments['issueCount'] ?? 0);
         $summary['zipCommentIssueCodes'] = is_array($zipComments['issueCodes'] ?? null)
             ? $zipComments['issueCodes']
             : [];
         $summary['zipCommentReviewPolicy'] = $zipComments['reviewPolicy'] ?? 'docx-zip-comment-metadata-only';
+        $summary['zipCommentReviewEntries'] = $zipCommentedEntries;
+        $summary['zipCommentControlByteEntries'] = $zipCommentControlByteEntries;
+        $summary['zipCommentUnicodeFormatControlEntries'] = $zipCommentUnicodeFormatControlEntries;
+        $summary['zipCommentBidiControlEntries'] = $zipCommentBidiControlEntries;
         $zipNamePolicy = $zipPackage['namePolicy'];
         $summary['zipNamePolicyValid'] = $zipNamePolicy['valid'];
         $summary['zipNamePolicyIssueCount'] = $zipNamePolicy['issueCount'];
