@@ -2083,8 +2083,10 @@ XML;
         $table = $document->children[0];
         $head = $table->children[0];
         $body = $table->children[1];
+        $foot = $table->children[2];
 
         $t->same('table', $table->type);
+        $t->same(['table_head', 'table_body', 'table_foot'], array_map(static fn ($node): string => $node->type, $table->children));
         $t->same('table_head', $head->type);
         $t->same(1, count($head->children));
         $t->same('Field', $head->children[0]->children[0]->attr('text'));
@@ -2093,6 +2095,7 @@ XML;
         $t->same(2, count($body->children));
         $t->same('Draft flag', $body->children[0]->children[0]->attr('text'));
         $t->same('Total', $body->children[1]->children[0]->attr('text'));
+        $t->same([], $foot->children);
 
         $t->contains('<thead><tr><th><p>Field</p></th><th><p>Value</p></th></tr></thead>', $blocks);
         $t->contains('<tbody><tr><td><p>Draft flag</p></td><td><p>False header row</p></td></tr><tr><td><p>Total</p></td><td><p>12</p></td></tr></tbody>', $blocks);

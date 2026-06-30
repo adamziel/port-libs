@@ -302,13 +302,16 @@ final class DocxNativeAstComparisonHarness
                 'inline and block AST shape after local readers normalize native constructors and adjacent text runs',
             ],
             'excludes' => [
-            'local native/parser provenance attrs',
-            'document-level metadata added by local DOCX package parsing',
-            'local DOCX raw bookmark markers and visible field/content-control provenance wrappers',
-            'derived text attrs on plain, paragraph, and heading nodes',
-            'DOCX tab separator encoding when upstream native exposes equivalent spacing',
-            'reader-specific adjacent Str/Space text-node segmentation',
-        ],
+                'local native/parser provenance attrs',
+                'document-level metadata added by local DOCX package parsing',
+                'local DOCX raw bookmark markers and visible field/content-control provenance wrappers',
+                'DOCX data-docx-* provenance attributes retained for local writer diagnostics',
+                'derived text attrs on plain, paragraph, heading, and table_cell nodes',
+                'default table cell spans and row-head counts omitted by native Attr tuples',
+                'DOCX tab separator encoding when upstream native exposes equivalent spacing',
+                'reader-specific adjacent Str/Space text-node segmentation',
+                'floating-point serialization noise in table column width fractions',
+            ],
             'doesNotAssert' => [
                 'upstream Haskell/Cabal runner execution',
                 'DOCX writer golden package parity',
@@ -367,16 +370,30 @@ final class DocxNativeAstComparisonHarness
     {
         $attrs = [];
         foreach ($node->attrs as $key => $value) {
-            if (isset(self::IGNORED_ATTRS[(string) $key])) {
+            $key = (string) $key;
+            if (self::isIgnoredAttrKey($key)) {
                 continue;
             }
             if ($node->type === 'document' && $key === 'meta') {
                 continue;
             }
-            if ($key === 'text' && in_array($node->type, ['plain', 'paragraph', 'heading'], true)) {
+            if ($key === 'text' && in_array($node->type, ['plain', 'paragraph', 'heading', 'table_cell'], true)) {
                 continue;
             }
-            $attrs[(string) $key] = $this->normalizedValue($value);
+            if ($node->type === 'table_cell' && in_array($key, ['colspan', 'rowspan'], true) && (int) $value === 1) {
+                continue;
+            }
+            if ($node->type === 'table_body' && $key === 'rowHeadColumns' && (int) $value === 0) {
+                continue;
+            }
+            if ($node->type === 'image' && in_array($key, ['width', 'height'], true) && $this->imageDimensionMirrorsAttrTuple($node, $key, $value)) {
+                continue;
+            }
+            $normalizedValue = $this->normalizedValue($value);
+            if (in_array($key, ['attributes', 'htmlAttributes'], true) && $normalizedValue === []) {
+                continue;
+            }
+            $attrs[$key] = $normalizedValue;
         }
         ksort($attrs, SORT_STRING);
 
@@ -549,6 +566,9 @@ final class DocxNativeAstComparisonHarness
         if (is_string($value)) {
             return str_replace("\t", ' ', $value);
         }
+        if (is_float($value)) {
+            return round($value, 12);
+        }
         if ($value instanceof AstNode) {
             return $this->normalizedNode($value);
         }
@@ -561,7 +581,7 @@ final class DocxNativeAstComparisonHarness
 
         $normalized = [];
         foreach ($value as $key => $item) {
-            if (isset(self::IGNORED_ATTRS[(string) $key])) {
+            if (self::isIgnoredAttrKey((string) $key)) {
                 continue;
             }
             $normalized[(string) $key] = $this->normalizedValue($item);
@@ -569,6 +589,21 @@ final class DocxNativeAstComparisonHarness
         ksort($normalized, SORT_STRING);
 
         return $normalized;
+    }
+
+    private static function isIgnoredAttrKey(string $key): bool
+    {
+        return isset(self::IGNORED_ATTRS[$key]) || str_starts_with($key, 'data-docx-');
+    }
+
+    private function imageDimensionMirrorsAttrTuple(AstNode $node, string $key, mixed $value): bool
+    {
+        $attributes = $node->attr('attributes', []);
+        if (!is_array($attributes) || !array_key_exists($key, $attributes)) {
+            return false;
+        }
+
+        return $this->normalizedValue($attributes[$key]) === $this->normalizedValue($value);
     }
 
     private function firstDifference(mixed $docx, mixed $native, string $path = 'root'): ?string

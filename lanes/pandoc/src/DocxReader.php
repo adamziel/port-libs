@@ -3922,6 +3922,7 @@ final class DocxReader
         return new AstNode('table', $this->tableAttributes($table, $this->tableColumnCountFromRowSpecs($rowSpecs)), [
             new AstNode('table_head', [], $headRows),
             new AstNode('table_body', [], $rows),
+            new AstNode('table_foot'),
         ]);
     }
 

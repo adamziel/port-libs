@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\DocxNativeAstComparisonHarness;
 
 $makeTempDir = static function (): string {
@@ -240,11 +241,95 @@ XML,
                 $root . '/same.native',
                 '[Para [Str "See",Space,Link ("",[],[]) [Str "2"] ("#TargetAnchor",""),Space,Str "and",Space,Link ("",[],[]) [Str "source"] ("https://example.test/source",""),Space,Str "with",Space,Str "note",Note [Para [Str "Foot",Space,Link ("",[],[]) [Str "jump"] ("#TargetAnchor","")]]],Para [Span ("TargetAnchor",["anchor"],[]) [],Str "Target",Space,Str "paragraph"]]'
             );
+            $report = (new DocxNativeAstComparisonHarness())->run($root);
+
+            $t->same(1, $report['normalizedAstMatchCount']);
+            $t->same(0, $report['normalizedAstMismatchCount']);
+        } finally {
+            $removeTree($root);
+        }
+    },
+    'normalizes docx table provenance defaults and mirrored image dimensions in ast comparisons' => static function (TestRunner $t): void {
+        $harness = new DocxNativeAstComparisonHarness();
+        $method = new ReflectionMethod(DocxNativeAstComparisonHarness::class, 'normalizedNode');
+
+        $table = new AstNode('table', [
+            'alignments' => ['default'],
+            'htmlAttributes' => [
+                'data-docx-table-style' => 'DerivedTable',
+                'data-docx-table-style-name' => 'Derived Table',
+            ],
+            'widths' => [0.33333333333333331],
+        ], [
+            new AstNode('table_body', ['rowHeadColumns' => 0], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', [
+                        'text' => 'Ready',
+                        'colspan' => 1,
+                        'rowspan' => 1,
+                        'htmlAttributes' => ['data-docx-vmerge' => 'restart'],
+                    ], [
+                        new AstNode('paragraph', [], [new AstNode('text', ['text' => 'Ready'])]),
+                    ]),
+                ]),
+            ]),
+        ]);
+        $image = new AstNode('image', [
+            'url' => 'media/image1.png',
+            'title' => '',
+            'alt' => 'Chart',
+            'width' => '2in',
+            'height' => '1in',
+            'attributes' => [
+                'width' => '2in',
+                'height' => '1in',
+                'data-docx-image-relationship-id' => 'rId7',
+            ],
+        ], [new AstNode('text', ['text' => 'Chart'])]);
+
+        $normalizedTable = $method->invoke($harness, $table);
+        $normalizedImage = $method->invoke($harness, $image);
+
+        $t->same([
+            'alignments' => ['default'],
+            'widths' => [0.333333333333],
+        ], $normalizedTable['attrs']);
+        $t->same([], $normalizedTable['children'][0]['attrs']);
+        $t->same([], $normalizedTable['children'][0]['children'][0]['children'][0]['attrs']);
+        $t->same([
+            'alt' => 'Chart',
+            'attributes' => ['height' => '1in', 'width' => '2in'],
+            'title' => '',
+            'url' => 'media/image1.png',
+        ], $normalizedImage['attrs']);
+    },
+    'matches one row docx table against native table shape after focused normalization' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeDocxDocument): void {
+        $root = $makeTempDir();
+
+        try {
+            $writeDocxDocument($root . '/table_one_row.docx', <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:tbl>
+      <w:tblGrid><w:gridCol w:w="3000"/></w:tblGrid>
+      <w:tr><w:tc><w:p><w:r><w:t>Ready</w:t></w:r></w:p></w:tc></w:tr>
+    </w:tbl>
+  </w:body>
+</w:document>
+XML);
+            file_put_contents($root . '/table_one_row.native', <<<'NATIVE'
+[ Table ( "" , [  ] , [  ] ) (Caption Nothing []) [ ( AlignDefault , ColWidth 0.320512820512821 ) ] (TableHead ( "" , [  ] , [  ] ) [  ]) [ TableBody ( "" , [  ] , [  ] ) (RowHeadColumns 0) [  ] [ Row ( "" , [  ] , [  ] ) [ Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Para [ Str "Ready" ] ] ] ] ] (TableFoot ( "" , [  ] , [  ] ) [  ]) ]
+NATIVE);
 
             $report = (new DocxNativeAstComparisonHarness())->run($root);
 
             $t->same(1, $report['normalizedAstMatchCount']);
             $t->same(0, $report['normalizedAstMismatchCount']);
+            $t->same('normalized-ast-equality-observed-not-runner-or-writer-parity', $report['astParityStatus']);
+            $t->true(in_array('DOCX data-docx-* provenance attributes retained for local writer diagnostics', $report['normalizationPolicy']['excludes'], true));
+            $t->true(in_array('default table cell spans and row-head counts omitted by native Attr tuples', $report['normalizationPolicy']['excludes'], true));
+            $t->true(in_array('floating-point serialization noise in table column width fractions', $report['normalizationPolicy']['excludes'], true));
         } finally {
             $removeTree($root);
         }
