@@ -147,7 +147,9 @@ final class MarkdownReader
         $previousHtmlQuoteDepth = $this->htmlQuoteDepth;
         $this->htmlQuoteDepth = 0;
         $documentAttrs = [];
-        [$lines, $titleBlock] = $this->extractTitleBlock($lines);
+        [$lines, $titleBlock] = $this->titleBlockEnabled()
+            ? $this->extractTitleBlock($lines)
+            : [$lines, null];
         [$lines, $references, $footnotes] = $this->extractReferenceDefinitions($lines);
         $lines = $this->splitMixedHtmlFlowLines($lines);
         [$exampleReferences, $exampleNumbersByLine] = $this->collectNumberedExampleReferences($lines);
@@ -519,7 +521,11 @@ final class MarkdownReader
      */
     private function metadataPlainText(array $lines): string
     {
-        return trim(preg_replace('/[ \t]*\n[ \t]*/', ' ', implode("\n", $lines)) ?? '');
+        return trim(preg_replace(
+            '/[ \t]*\n[ \t]*/',
+            ' ',
+            $this->plainTextFromInlines($this->metadataInlines($lines))
+        ) ?? '');
     }
 
     /**
@@ -10215,6 +10221,67 @@ final class MarkdownReader
         $content = trim($content);
 
         return [$content, $content];
+    }
+
+    private function titleBlockEnabled(): bool
+    {
+        $options = $this->options;
+        $options['format'] = $this->markdownFormatWithExtensionOption();
+
+        return MarkdownFormatProfile::titleBlockEnabled($options, true);
+    }
+
+    private function markdownFormatWithExtensionOption(): string
+    {
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $format = is_scalar($format) ? (string) $format : 'markdown';
+        $extensionSuffix = $this->markdownExtensionOptionSuffix($this->options['extensions'] ?? '');
+        if ($extensionSuffix === '') {
+            return $format;
+        }
+
+        if (str_starts_with($extensionSuffix, '+') || str_starts_with($extensionSuffix, '-')) {
+            return $format . $extensionSuffix;
+        }
+
+        return $format . '+' . $extensionSuffix;
+    }
+
+    private function markdownExtensionOptionSuffix(mixed $extensions): string
+    {
+        if (is_scalar($extensions)) {
+            return trim((string) $extensions);
+        }
+
+        if (!is_array($extensions)) {
+            return '';
+        }
+
+        $tokens = [];
+        foreach ($extensions as $name => $value) {
+            if (is_int($name)) {
+                if (!is_scalar($value)) {
+                    continue;
+                }
+
+                $token = trim((string) $value);
+                if ($token === '') {
+                    continue;
+                }
+                $tokens[] = str_starts_with($token, '+') || str_starts_with($token, '-')
+                    ? $token
+                    : '+' . $token;
+                continue;
+            }
+
+            if (!is_scalar($value)) {
+                continue;
+            }
+
+            $tokens[] = ((bool) $value ? '+' : '-') . (string) $name;
+        }
+
+        return implode('', $tokens);
     }
 
     /**
