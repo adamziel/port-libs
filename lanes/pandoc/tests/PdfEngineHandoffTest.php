@@ -11565,14 +11565,116 @@ MARKDOWN);
                 'angleUnits' => [],
             ],
         ];
+        $expectedPolicy = [
+            'reviewStatus' => 'ok',
+            'pageCount' => 2,
+            'viewportCount' => 3,
+            'pagesWithViewports' => [1, 2],
+            'pageWithViewportCount' => 2,
+            'namedViewportCount' => 3,
+            'bboxCount' => 3,
+            'missingBBoxCount' => 0,
+            'measureCount' => 2,
+            'measureSubtypes' => ['RL' => 2],
+            'scaleRatioCount' => 2,
+            'unitFormatCount' => 8,
+            'unitCategories' => [
+                'xUnits' => 3,
+                'yUnits' => 1,
+                'distanceUnits' => 2,
+                'areaUnits' => 1,
+                'angleUnits' => 1,
+            ],
+            'units' => ['cm', 'deg', 'ft', 'in', 'm', 'sq m'],
+            'issues' => [],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
 
         $t->same(true, $result['ok']);
         $t->same($expected, $result['pdfPageViewports'] ?? null);
-        $t->contains('pdf-byte-page-viewports:3', implode(',', $result['diagnostics']));
-        $t->contains('pdf-byte-page-viewport-measures:2', implode(',', $result['diagnostics']));
-        $t->contains('pdf-byte-page-viewport-unit-formats:8', implode(',', $result['diagnostics']));
+        $t->same($expectedPolicy, $result['pdfPageViewportPolicy'] ?? null);
+        $t->contains('pdf-byte-page-viewports:3', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-measures:2', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-unit-formats:8', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-policy:ok', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-policy-viewports:3', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-policy-pages:2', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-policy-measures:2', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-policy-unit-category:xUnits:3', $diagnostics);
         $t->same(true, $sequence['ok']);
         $t->same($expected, $sequence['finalPdfPageViewports'] ?? null);
+        $t->same($expectedPolicy, $sequence['finalPdfPageViewportPolicy'] ?? null);
+    },
+
+    'fake runner summarizes bounded pdf page viewport review policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'typst', 'outputPath' => 'packets/viewport-policy.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /VP << /Type /Viewport /Name (Draft scale) /Measure << /Type /Measure /X [<< /U (ft) /C 0 >>] >> >> >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/viewport-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/viewport-policy.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'pageCount' => 1,
+            'viewportCount' => 1,
+            'pagesWithViewports' => [1],
+            'pageWithViewportCount' => 1,
+            'namedViewportCount' => 1,
+            'bboxCount' => 0,
+            'missingBBoxCount' => 1,
+            'measureCount' => 1,
+            'measureSubtypes' => [],
+            'scaleRatioCount' => 0,
+            'unitFormatCount' => 1,
+            'unitCategories' => [
+                'xUnits' => 1,
+            ],
+            'units' => ['ft'],
+            'issues' => [
+                'nonpositive-unit-conversion',
+                'viewport-measure-missing-scale-ratio',
+                'viewport-measure-missing-subtype',
+                'viewport-missing-bbox',
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expectedPolicy, $result['pdfPageViewportPolicy'] ?? null);
+        $t->contains('pdf-byte-page-viewport-policy:review', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-policy-missing-boxes:1', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-policy-unit-category:xUnits:1', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-policy-issues:4', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-policy-issue:nonpositive-unit-conversion:1', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-policy-issue:viewport-missing-bbox:1', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expectedPolicy, $sequence['finalPdfPageViewportPolicy'] ?? null);
     },
 
     'fake runner extracts bounded pdf font resources and embedded font streams from produced bytes' => static function (TestRunner $t) use ($document): void {
