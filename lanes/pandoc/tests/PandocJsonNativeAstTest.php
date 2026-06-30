@@ -15772,6 +15772,119 @@ return [
             }
         }
     },
+    'preserves edited enum helper constructors through json and native stacks' => static function (TestRunner $t): void {
+        $listStyle = ['t' => 'DefaultStyle', 'c' => [['legacy-style']], 'reviewQueue' => 'list-style-source'];
+        $listDelimiter = ['t' => 'DefaultDelim', 'c' => [['legacy-delimiter']], 'reviewQueue' => 'list-delimiter-source'];
+        $listAttributes = ['t' => 'ListAttributes', 'c' => [1, $listStyle, $listDelimiter], 'reviewQueue' => 'list-attributes-source'];
+        $quoteType = ['t' => 'SingleQuote', 'c' => [['legacy-quote']], 'reviewQueue' => 'quote-type-source'];
+        $mathType = ['t' => 'InlineMath', 'c' => [['legacy-math']], 'reviewQueue' => 'math-type-source'];
+        $columnAlignment = ['t' => 'AlignDefault', 'c' => [['legacy-column-align']], 'reviewQueue' => 'column-alignment-source'];
+        $cellAlignment = ['t' => 'AlignLeft', 'c' => [['legacy-cell-align']], 'reviewQueue' => 'cell-alignment-source'];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'OrderedList', 'c' => [
+                    $listAttributes,
+                    [[['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'first']]]]],
+                ]],
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Quoted', 'c' => [
+                        $quoteType,
+                        [['t' => 'Str', 'c' => 'quote']],
+                    ]],
+                    ['t' => 'Space'],
+                    ['t' => 'Math', 'c' => [$mathType, 'x + y']],
+                ]],
+                ['t' => 'Table', 'c' => [
+                    ['enum-table', ['json-native'], []],
+                    ['t' => 'Caption', 'c' => [['t' => 'Nothing'], []]],
+                    [[$columnAlignment, ['t' => 'ColWidthDefault']]],
+                    ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                    [
+                        ['t' => 'TableBody', 'c' => [
+                            ['', [], []],
+                            ['t' => 'RowHeadColumns', 'c' => 0],
+                            [],
+                            [
+                                ['t' => 'Row', 'c' => [
+                                    ['', [], []],
+                                    [
+                                        ['t' => 'Cell', 'c' => [
+                                            ['', [], []],
+                                            $cellAlignment,
+                                            ['t' => 'RowSpan', 'c' => 1],
+                                            ['t' => 'ColSpan', 'c' => 1],
+                                            [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'cell']]]],
+                                        ]],
+                                    ],
+                                ]],
+                            ],
+                        ]],
+                    ],
+                    ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+                ]],
+            ],
+        ];
+        $editedDocument = static function (AstNode $document): AstNode {
+            $list = $document->children[0];
+            $paragraph = $document->children[1];
+            $quote = $paragraph->children[0];
+            $math = $paragraph->children[2];
+            $table = $document->children[2];
+            $body = $table->children[0];
+            $row = $body->children[0];
+            $cell = $row->children[0];
+
+            return new AstNode('document', $document->attrs, [
+                new AstNode('ordered_list', array_replace($list->attrs, [
+                    'style' => 'lower_alpha',
+                    'delimiter' => 'one_paren',
+                ]), $list->children),
+                new AstNode('paragraph', $paragraph->attrs, [
+                    new AstNode('quoted', array_replace($quote->attrs, ['kind' => 'double']), $quote->children),
+                    new AstNode('space'),
+                    new AstNode('math', array_replace($math->attrs, ['display' => true]), $math->children),
+                ]),
+                new AstNode('table', array_replace($table->attrs, [
+                    'alignments' => ['center'],
+                ]), [
+                    new AstNode('table_body', $body->attrs, [
+                        new AstNode('table_row', $row->attrs, [
+                            new AstNode('table_cell', array_replace($cell->attrs, [
+                                'align' => 'right',
+                            ]), $cell->children),
+                        ]),
+                    ]),
+                ]),
+            ]);
+        };
+        $encodedCell = static fn (array $packet): array => $packet['blocks'][2]['c'][4][0]['c'][3][0]['c'][1][0];
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($editedDocument($document)),
+                'native' => json_decode((new NativeWriter())->write($editedDocument($document)), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $listAttributesPayload = $encoded['blocks'][0]['c'][0];
+                $quotedPayload = $encoded['blocks'][1]['c'][0]['c'];
+                $mathPayload = $encoded['blocks'][1]['c'][2]['c'];
+                $cellPayload = $encodedCell($encoded)['c'];
+
+                $t->same('ListAttributes', $listAttributesPayload['t'], "{$source} {$writer} preserves ListAttributes wrapper");
+                $t->same('list-attributes-source', $listAttributesPayload['reviewQueue'] ?? null, "{$source} {$writer} preserves ListAttributes sidecar");
+                $t->same(['t' => 'LowerAlpha', 'reviewQueue' => 'list-style-source'], $listAttributesPayload['c'][1], "{$source} {$writer} retags list style sidecar");
+                $t->same(['t' => 'OneParen', 'reviewQueue' => 'list-delimiter-source'], $listAttributesPayload['c'][2], "{$source} {$writer} retags list delimiter sidecar");
+                $t->same(['t' => 'DoubleQuote', 'reviewQueue' => 'quote-type-source'], $quotedPayload[0], "{$source} {$writer} retags quote type sidecar");
+                $t->same(['t' => 'DisplayMath', 'reviewQueue' => 'math-type-source'], $mathPayload[0], "{$source} {$writer} retags math type sidecar");
+                $t->same(['t' => 'AlignCenter', 'reviewQueue' => 'column-alignment-source'], $encoded['blocks'][2]['c'][2][0][0], "{$source} {$writer} retags column alignment sidecar");
+                $t->same(['t' => 'AlignRight', 'reviewQueue' => 'cell-alignment-source'], $cellPayload[1], "{$source} {$writer} retags cell alignment sidecar");
+            }
+        }
+    },
     'serializes native text raw tex inline nodes through pandoc json writers' => static function (TestRunner $t): void {
         $nativeText = <<<'NATIVE'
 Pandoc Meta {unMeta = fromList []} [ Para [ Str "Before", Space, RawInline (Format "tex") "\\alpha", Space, Str "after" ] ]

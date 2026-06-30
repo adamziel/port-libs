@@ -2054,7 +2054,8 @@ final class PandocJsonWriter
             return $native;
         }
 
-        return $this->taggedNative($native, $constructor);
+        return $this->taggedNative($native, $constructor)
+            ?? $this->retaggedEnumNative($native, $constructor);
     }
 
     private function enumNativeAt(mixed $natives, int $index, string $constructor): mixed
@@ -2080,6 +2081,50 @@ final class PandocJsonWriter
         }
 
         return $native;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function retaggedEnumNative(mixed $native, string $constructor): ?array
+    {
+        if (
+            !is_array($native)
+            || array_is_list($native)
+            || !is_string($native['t'] ?? null)
+            || !$this->canRetagNullaryHelperConstructor($native['t'], $constructor)
+        ) {
+            return null;
+        }
+
+        $native['t'] = $constructor;
+        if (array_key_exists('c', $native)) {
+            unset($native['c']);
+        }
+
+        return $native;
+    }
+
+    private function canRetagNullaryHelperConstructor(string $source, string $target): bool
+    {
+        if ($source === $target) {
+            return true;
+        }
+
+        foreach ([
+            ['SingleQuote', 'DoubleQuote'],
+            ['InlineMath', 'DisplayMath'],
+            ['NormalCitation', 'AuthorInText', 'SuppressAuthor'],
+            ['DefaultStyle', 'Decimal', 'Example', 'LowerRoman', 'UpperRoman', 'LowerAlpha', 'UpperAlpha'],
+            ['DefaultDelim', 'Period', 'OneParen', 'TwoParens'],
+            ['AlignLeft', 'AlignRight', 'AlignCenter', 'AlignDefault'],
+        ] as $family) {
+            if (in_array($source, $family, true) && in_array($target, $family, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function columnWidthNativeAt(mixed $natives, int $index, mixed $width): mixed
