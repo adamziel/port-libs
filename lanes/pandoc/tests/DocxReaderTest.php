@@ -840,6 +840,57 @@ XML],
         $t->true(!str_contains($blocks, 'HeaderOnly'), 'Header-only anchors should not promote body anchors or leak into body output');
         $t->true(!str_contains($blocks, 'Footer boundary text'), 'Related footer parts should stay metadata-only');
     },
+    'keeps header-only nested anchors metadata-only without fallback body text' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            ['name' => 'word/_rels/document.xml.rels', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
+</Relationships>
+XML],
+            ['name' => 'word/header1.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:p>
+    <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+    <w:r><w:instrText> HYPERLINK "https://example.test/header" </w:instrText></w:r>
+    <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+    <w:r><w:t xml:space="preserve">Header page </w:t></w:r>
+    <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+    <w:r><w:instrText> PAGEREF HeaderOnly \h </w:instrText></w:r>
+    <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+    <w:r><w:t>1</w:t></w:r>
+    <w:r><w:fldChar w:fldCharType="end"/></w:r>
+    <w:r><w:fldChar w:fldCharType="end"/></w:r>
+    <w:bookmarkStart w:id="10" w:name="HeaderOnly"/>
+    <w:r><w:t>Header anchored label</w:t></w:r>
+    <w:bookmarkEnd w:id="10"/>
+  </w:p>
+</w:hdr>
+XML],
+            ['name' => 'word/document.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:body>
+    <w:sectPr><w:headerReference w:type="default" r:id="rHeader"/></w:sectPr>
+  </w:body>
+</w:document>
+XML],
+        ]);
+
+        $document = (new DocxReader())->readDocument($package);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $meta = $document->attr('meta');
+
+        $t->same([], $document->children);
+        $t->same(1, $meta['docxHeaders']);
+        $t->same(0, $meta['docxFooters']);
+        $t->same(['word/header1.xml'], $meta['docxHeaderFiles']);
+        $t->same(['word/header1.xml'], $meta['docxAppliedHeaderFiles']);
+        $t->true(!str_contains($blocks, 'Header page'), 'Header-only text should remain metadata-only');
+        $t->true(!str_contains($blocks, 'HeaderOnly'), 'Header-only anchors should remain metadata-only');
+        $t->true(!str_contains($blocks, 'No readable DOCX body content was found.'), 'Header-only packages should not synthesize body fallback text');
+    },
     'reads docx bytes through the converter input path' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-docx-');
         if ($path === false) {

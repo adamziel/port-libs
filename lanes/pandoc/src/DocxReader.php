@@ -305,7 +305,7 @@ final class DocxReader
         $children = $body instanceof \DOMElement ? $this->bodyBlocks($body, true) : [];
         $children = $this->canonicalizeHeadingBookmarkLinks($children);
         $children = $this->canonicalizeReferencedBookmarkAnchors($children);
-        if ($children === []) {
+        if ($children === [] && $header_xmls === [] && $footer_xmls === []) {
             $children[] = new AstNode('paragraph', ['text' => 'No readable DOCX body content was found.'], [
                 new AstNode('text', ['text' => 'No readable DOCX body content was found.']),
             ]);

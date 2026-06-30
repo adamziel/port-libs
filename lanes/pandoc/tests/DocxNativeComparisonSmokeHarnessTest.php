@@ -234,7 +234,7 @@ XML);
             $removeTree($root);
         }
     },
-    'clears targeted docx smoke gaps for heading zero and anchor before heading boundaries' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeDocxParts): void {
+    'clears targeted docx smoke gaps for heading zero anchors and nested header anchors' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeDocxParts): void {
         $root = $makeTempDir();
 
         try {
@@ -271,12 +271,50 @@ XML,
                 '[Para [Link ("",[],[]) [Str "Jump"] ("#referenced-title","")],Para [],Header 1 ("referenced-title",[],[]) [Str "Referenced",Space,Str "title"]]'
             );
 
+            $writeDocxParts($root . '/nested_anchors_in_header.docx', [
+                'word/_rels/document.xml.rels' => <<<'XML'
+<?xml version="1.0"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
+</Relationships>
+XML,
+                'word/header1.xml' => <<<'XML'
+<?xml version="1.0"?>
+<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:p>
+    <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+    <w:r><w:instrText> HYPERLINK "https://example.test/header" </w:instrText></w:r>
+    <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+    <w:r><w:t xml:space="preserve">Header page </w:t></w:r>
+    <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+    <w:r><w:instrText> PAGEREF HeaderOnly \h </w:instrText></w:r>
+    <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+    <w:r><w:t>1</w:t></w:r>
+    <w:r><w:fldChar w:fldCharType="end"/></w:r>
+    <w:r><w:fldChar w:fldCharType="end"/></w:r>
+    <w:bookmarkStart w:id="10" w:name="HeaderOnly"/>
+    <w:r><w:t>Header anchored label</w:t></w:r>
+    <w:bookmarkEnd w:id="10"/>
+  </w:p>
+</w:hdr>
+XML,
+                'word/document.xml' => <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:body>
+    <w:sectPr><w:headerReference w:type="default" r:id="rHeader"/></w:sectPr>
+  </w:body>
+</w:document>
+XML,
+            ]);
+            file_put_contents($root . '/nested_anchors_in_header.native', '[]');
+
             $report = (new DocxNativeComparisonSmokeHarness())->run($root, ['maxExamples' => 5]);
 
             $t->same('completed', $report['status']);
-            $t->same(2, $report['comparedPairCount']);
-            $t->same(2, $report['sameTextCount']);
-            $t->same(2, $report['sameTopTypeSequenceCount']);
+            $t->same(3, $report['comparedPairCount']);
+            $t->same(3, $report['sameTextCount']);
+            $t->same(3, $report['sameTopTypeSequenceCount']);
             $t->same(0, $report['semanticGapPairCount']);
             $t->same([], $report['semanticGapComparisons']);
             $t->same('smoke-text-and-top-types-match-not-full-parity', $report['semanticParityStatus']);
