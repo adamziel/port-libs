@@ -14895,6 +14895,7 @@ final class XmlHtmlDom
             $summary['effectiveDisabled'] = self::isEffectivelyDisabledFormControl($node);
             $summary['required'] = $node->hasAttribute('required');
             $summary += self::formControlConstraintSummary($node, $name);
+            $summary += self::formRequiredValueReviewSummary($node, $name, $inputType);
             if ($inputType === 'file' || $node->hasAttribute('accept') || $node->hasAttribute('capture')) {
                 $summary += self::fileInputReviewSummary($node, $inputType);
             }
@@ -14926,6 +14927,7 @@ final class XmlHtmlDom
             $summary['readonly'] = $node->hasAttribute('readonly');
             $summary['required'] = $node->hasAttribute('required');
             $summary += self::formControlConstraintSummary($node, $name);
+            $summary += self::formRequiredValueReviewSummary($node, $name, null);
             if ($node->hasAttribute('placeholder')) {
                 $summary['placeholder'] = $node->getAttribute('placeholder');
             }
@@ -16329,7 +16331,12 @@ final class XmlHtmlDom
     /**
      * @return array<string, mixed>
      */
-    private static function metaContentSecurityPolicySummary(?string $content, string $httpEquiv): array
+    private static function metaContentSecurityPolicySummary(
+        ?string $content,
+        string $httpEquiv,
+        string $reviewPolicy = 'meta-content-security-policy-review',
+        string $missingContentIssueCode = 'missing-meta-csp-content'
+    ): array
     {
         $raw = $content ?? '';
         $directives = [];
@@ -16435,7 +16442,7 @@ final class XmlHtmlDom
         ));
         $issues = [];
         if ($content === null || trim($content) === '') {
-            $issues[] = ['code' => 'missing-meta-csp-content'];
+            $issues[] = ['code' => $missingContentIssueCode];
         }
         foreach ($invalidDirectiveNames as $name) {
             $issues[] = ['code' => 'invalid-csp-directive-name', 'nameRaw' => $name];
@@ -16458,7 +16465,7 @@ final class XmlHtmlDom
         }
 
         return [
-            'contentSecurityPolicyReviewPolicy' => 'meta-content-security-policy-review',
+            'contentSecurityPolicyReviewPolicy' => $reviewPolicy,
             'contentSecurityPolicyHttpEquiv' => $httpEquiv,
             'contentSecurityPolicyRaw' => $content,
             'contentSecurityPolicyByteLength' => strlen($raw),
@@ -19689,6 +19696,12 @@ final class XmlHtmlDom
             }
         }
 
+        if (array_key_exists('aria-hidden', $attributes)) {
+            $summary += self::ariaHiddenAttributeSummary($element, $attributes['aria-hidden']);
+        }
+
+        $summary += self::effectiveAriaHiddenSummary($element, $attributes);
+
         if (array_key_exists('role', $attributes)) {
             $role = self::htmlRoleAttributeSummary($attributes['role']);
             $summary['roleAttributeReviewPolicy'] = 'html-role-token-list-review';
@@ -20168,7 +20181,8 @@ final class XmlHtmlDom
     {
         $anchorTarget = trim($anchorRaw);
         $anchorTargetValid = $anchorTarget !== '' && self::isHtmlIdReferenceToken($anchorTarget);
-        $target = $anchorTargetValid ? self::htmlElementById($element, $anchorTarget) : null;
+        $targets = $anchorTargetValid ? self::htmlElementsById($element, $anchorTarget) : [];
+        $target = $targets[0] ?? null;
         $issues = [];
 
         if ($anchorTarget === '') {
@@ -20183,6 +20197,12 @@ final class XmlHtmlDom
                 'code' => 'missing-html-anchor-positioning-target-element',
                 'anchorTarget' => $anchorTarget,
             ];
+        } elseif (count($targets) > 1) {
+            $issues[] = [
+                'code' => 'duplicate-html-anchor-positioning-target-element',
+                'anchorTarget' => $anchorTarget,
+                'count' => count($targets),
+            ];
         }
 
         $issueCodes = array_values(array_unique(array_map(
@@ -20196,8 +20216,13 @@ final class XmlHtmlDom
             'anchorTarget' => $anchorTarget === '' ? null : $anchorTarget,
             'anchorTargetValid' => $anchorTargetValid,
             'anchorTargetFound' => $target instanceof \DOMElement,
-            'anchorTargetKind' => self::anchorPositioningTargetKind($target, $anchorTarget, $anchorTargetValid),
+            'anchorTargetCount' => count($targets),
+            'anchorTargetKind' => self::anchorPositioningTargetKind($target, $anchorTarget, $anchorTargetValid, count($targets)),
             'anchorTargetElement' => $target instanceof \DOMElement ? self::anchorPositioningTargetSummary($target) : null,
+            'anchorTargetElements' => array_map(
+                static fn (\DOMElement $target): array => self::anchorPositioningTargetSummary($target),
+                $targets
+            ),
             'anchorIssues' => $issues,
             'anchorIssueCodes' => $issueCodes,
             'anchorReferencesTarget' => $issues === [],
@@ -20207,10 +20232,11 @@ final class XmlHtmlDom
     private static function anchorPositioningTargetKind(
         ?\DOMElement $target,
         string $anchorTarget,
-        bool $anchorTargetValid
+        bool $anchorTargetValid,
+        int $targetCount
     ): string {
         if ($target instanceof \DOMElement) {
-            return 'element';
+            return $targetCount > 1 ? 'duplicate-target' : 'element';
         }
         if ($anchorTarget === '') {
             return 'missing-reference';
@@ -23531,6 +23557,144 @@ final class XmlHtmlDom
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    private static function ariaHiddenAttributeSummary(\DOMElement $element, string $raw): array
+    {
+        $state = self::ariaHiddenState($raw);
+        $issues = [];
+        if ($state === null) {
+            $issues[] = [
+                'code' => 'invalid-aria-hidden-token',
+                'ariaHiddenRaw' => $raw,
+            ];
+        }
+
+        $summary = [
+            'ariaHiddenReviewPolicy' => 'aria-hidden-subtree-review',
+            'ariaHiddenRaw' => $raw,
+            'ariaHiddenKeyword' => self::ariaHiddenKeyword($state),
+            'ariaHiddenState' => $state === null ? 'invalid' : ($state ? 'hidden' : 'visible'),
+            'ariaHidden' => $state,
+            'ariaHiddenValid' => $state !== null,
+            'ariaHiddenHidesSubtree' => $state === true,
+            'ariaHiddenInvalidValueIgnored' => $state === null,
+            'ariaHiddenReviewHandoffPolicy' => 'metadata-only-no-accessibility-tree',
+            'ariaHiddenElement' => self::htmlElementName($element),
+            'ariaHiddenIssues' => $issues,
+            'ariaHiddenIssueCodes' => array_values(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            )),
+        ];
+
+        $elementId = self::attributeOrNull($element, 'id');
+        if ($elementId !== null && $elementId !== '') {
+            $summary['ariaHiddenElementId'] = $elementId;
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @return array<string, mixed>
+     */
+    private static function effectiveAriaHiddenSummary(\DOMElement $element, array $attributes): array
+    {
+        if (array_key_exists('aria-hidden', $attributes)) {
+            $state = self::ariaHiddenState($attributes['aria-hidden']);
+            if ($state === true) {
+                return self::ariaHiddenProvenanceSummary(
+                    $element,
+                    $attributes['aria-hidden'],
+                    $state,
+                    true,
+                    false,
+                    'self-aria-hidden'
+                );
+            }
+        }
+
+        for ($ancestor = $element->parentNode; $ancestor instanceof \DOMElement; $ancestor = $ancestor->parentNode) {
+            $ancestorAttributes = self::htmlAttributes($ancestor);
+            if (!array_key_exists('aria-hidden', $ancestorAttributes)) {
+                continue;
+            }
+
+            $state = self::ariaHiddenState($ancestorAttributes['aria-hidden']);
+            if ($state === true) {
+                return self::ariaHiddenProvenanceSummary(
+                    $ancestor,
+                    $ancestorAttributes['aria-hidden'],
+                    $state,
+                    true,
+                    true,
+                    'ancestor-aria-hidden'
+                );
+            }
+        }
+
+        if (array_key_exists('aria-hidden', $attributes)) {
+            $state = self::ariaHiddenState($attributes['aria-hidden']);
+
+            return self::ariaHiddenProvenanceSummary(
+                $element,
+                $attributes['aria-hidden'],
+                $state,
+                false,
+                false,
+                $state === false ? 'self-aria-hidden' : 'invalid-aria-hidden-ignored'
+            );
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function ariaHiddenProvenanceSummary(
+        \DOMElement $source,
+        string $raw,
+        ?bool $state,
+        bool $effective,
+        bool $inherited,
+        string $sourceKind
+    ): array {
+        $summary = [
+            'effectiveAriaHiddenRaw' => $raw,
+            'effectiveAriaHiddenKeyword' => self::ariaHiddenKeyword($state),
+            'effectiveAriaHiddenState' => $effective ? 'hidden' : 'visible',
+            'effectiveAriaHidden' => $effective,
+            'ariaHiddenInherited' => $inherited,
+            'ariaHiddenSource' => $sourceKind,
+            'ariaHiddenSourceElement' => self::htmlElementName($source),
+        ];
+
+        $sourceId = self::attributeOrNull($source, 'id');
+        if ($sourceId !== null && $sourceId !== '') {
+            $summary['ariaHiddenSourceElementId'] = $sourceId;
+        }
+
+        return $summary;
+    }
+
+    private static function ariaHiddenState(string $raw): ?bool
+    {
+        return match (strtolower(trim($raw))) {
+            'true' => true,
+            'false' => false,
+            default => null,
+        };
+    }
+
+    private static function ariaHiddenKeyword(?bool $state): ?string
+    {
+        return $state === null ? null : ($state ? 'true' : 'false');
+    }
+
+    /**
      * @return array<string, true>
      */
     private static function htmlDocumentElementIds(\DOMElement $element): array
@@ -25297,6 +25461,7 @@ final class XmlHtmlDom
             $summary['dirnameRaw'] = $control->getAttribute('dirname');
             $summary['dirname'] = $dirname['name'];
             $summary['dirnameValid'] = $dirname['valid'];
+            $summary += self::formControlDirnameReviewSummary($control, $dirname);
         }
         if ($control->hasAttribute('size')) {
             $size = self::positiveIntegerToken($control->getAttribute('size'), 1000000);
@@ -25306,6 +25471,285 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function formRequiredValueReviewSummary(
+        \DOMElement $control,
+        string $name,
+        ?string $inputType
+    ): array {
+        if (!$control->hasAttribute('required') || !in_array($name, ['input', 'textarea'], true)) {
+            return [];
+        }
+
+        $type = $name === 'input' ? ($inputType ?? self::inputType($control)) : null;
+        $applies = $name === 'textarea'
+            || ($type !== null && self::inputTypeSupportsRequiredValue($type));
+        $readonly = $name === 'textarea'
+            ? $control->hasAttribute('readonly')
+            : ($type !== null && self::inputTypeSupportsReadonlyValue($type) && $control->hasAttribute('readonly'));
+        $effectiveDisabled = self::isEffectivelyDisabledFormControl($control);
+        $value = self::formRequiredStaticValueSummary($control, $name, $type, $applies);
+        $issues = [];
+
+        if (!$applies) {
+            $issues[] = [
+                'code' => 'required-control-unsupported',
+                'element' => $name,
+                'inputType' => $type,
+            ];
+        }
+        if ($effectiveDisabled) {
+            $issues[] = ['code' => 'required-control-disabled'];
+        }
+        if ($readonly) {
+            $issues[] = ['code' => 'required-control-readonly'];
+        }
+        if ($applies && !$effectiveDisabled && !$readonly && $value['missing'] === true) {
+            $issues[] = [
+                'code' => 'required-control-value-missing',
+                'valueSource' => $value['source'],
+            ];
+        }
+
+        $summary = [
+            'requiredValueReviewPolicy' => 'form-control-required-value-review',
+            'requiredValueElement' => $name,
+            'requiredValueInputType' => $type,
+            'requiredValueControlId' => self::attributeOrNull($control, 'id'),
+            'requiredValueControlName' => self::attributeOrNull($control, 'name'),
+            'requiredValueApplies' => $applies,
+            'requiredValueEffectiveDisabled' => $effectiveDisabled,
+            'requiredValueReadonly' => $readonly,
+            'requiredValueSource' => $value['source'],
+            'requiredValueStaticValue' => $value['value'],
+            'requiredValueStaticValueLength' => is_string($value['value']) ? strlen($value['value']) : null,
+            'requiredValuePresent' => $value['present'],
+            'requiredValueMissing' => $value['missing'],
+            'requiredValueWouldBlockStaticSubmission' => $applies
+                && !$effectiveDisabled
+                && !$readonly
+                && $value['missing'] === true,
+            'requiredValueReviewOnlyNoFormSubmission' => true,
+            'requiredValueIssues' => $issues,
+            'requiredValueIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'requiredValueValid' => $issues === [],
+        ];
+
+        if ($type === 'radio') {
+            $summary += self::radioRequiredValueReviewSummary($control);
+        }
+
+        return $summary;
+    }
+
+    private static function inputTypeSupportsRequiredValue(string $type): bool
+    {
+        return !in_array(strtolower($type), ['button', 'color', 'hidden', 'image', 'range', 'reset', 'submit'], true);
+    }
+
+    private static function inputTypeSupportsReadonlyValue(string $type): bool
+    {
+        return in_array(strtolower($type), [
+            'date',
+            'datetime-local',
+            'email',
+            'month',
+            'number',
+            'password',
+            'search',
+            'tel',
+            'text',
+            'time',
+            'url',
+            'week',
+        ], true);
+    }
+
+    /**
+     * @return array{source:string, value:?string, present:?bool, missing:?bool}
+     */
+    private static function formRequiredStaticValueSummary(
+        \DOMElement $control,
+        string $name,
+        ?string $inputType,
+        bool $applies
+    ): array {
+        if (!$applies) {
+            return [
+                'source' => 'unsupported-control',
+                'value' => null,
+                'present' => null,
+                'missing' => null,
+            ];
+        }
+
+        if ($name === 'textarea') {
+            $value = $control->textContent;
+
+            return [
+                'source' => 'textarea-text',
+                'value' => $value,
+                'present' => $value !== '',
+                'missing' => $value === '',
+            ];
+        }
+
+        if ($inputType === 'checkbox') {
+            $checked = $control->hasAttribute('checked');
+
+            return [
+                'source' => 'checked-state',
+                'value' => $checked ? self::formInputSubmittedValue($control) : null,
+                'present' => $checked,
+                'missing' => !$checked,
+            ];
+        }
+
+        if ($inputType === 'radio') {
+            $radio = self::radioGroupRequiredValueSummary($control);
+
+            return [
+                'source' => 'radio-group-checked-state',
+                'value' => $radio['checkedValues'][0] ?? null,
+                'present' => $radio['checked'],
+                'missing' => !$radio['checked'],
+            ];
+        }
+
+        if ($inputType === 'file') {
+            return [
+                'source' => 'file-input-static-selection',
+                'value' => null,
+                'present' => false,
+                'missing' => true,
+            ];
+        }
+
+        $value = $control->getAttribute('value');
+
+        return [
+            'source' => 'value-attribute',
+            'value' => $value,
+            'present' => $value !== '',
+            'missing' => $value === '',
+        ];
+    }
+
+    private static function formInputSubmittedValue(\DOMElement $input): string
+    {
+        $value = self::attributeOrNull($input, 'value');
+
+        return $value ?? 'on';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function radioRequiredValueReviewSummary(\DOMElement $radio): array
+    {
+        $group = self::radioGroupRequiredValueSummary($radio);
+
+        return [
+            'requiredValueRadioGroupName' => $group['name'],
+            'requiredValueRadioGroupSize' => count($group['controls']),
+            'requiredValueRadioGroupRequiredCount' => $group['requiredCount'],
+            'requiredValueRadioGroupChecked' => $group['checked'],
+            'requiredValueRadioGroupCheckedIds' => $group['checkedIds'],
+            'requiredValueRadioGroupCheckedValues' => $group['checkedValues'],
+            'requiredValueRadioGroupControls' => $group['controls'],
+        ];
+    }
+
+    /**
+     * @return array{name:string, checked:bool, checkedIds:list<string>, checkedValues:list<string>, requiredCount:int, controls:list<array<string, mixed>>}
+     */
+    private static function radioGroupRequiredValueSummary(\DOMElement $radio): array
+    {
+        $document = $radio->ownerDocument;
+        $name = self::attributeOrNull($radio, 'name') ?? '';
+        $owner = self::formOwnerElement($radio);
+        $controls = [];
+        $checkedIds = [];
+        $checkedValues = [];
+        $requiredCount = 0;
+
+        if (!$document instanceof \DOMDocument) {
+            return [
+                'name' => $name,
+                'checked' => $radio->hasAttribute('checked'),
+                'checkedIds' => $radio->hasAttribute('checked') ? array_values(array_filter([self::attributeOrNull($radio, 'id')])) : [],
+                'checkedValues' => $radio->hasAttribute('checked') ? [self::formInputSubmittedValue($radio)] : [],
+                'requiredCount' => $radio->hasAttribute('required') ? 1 : 0,
+                'controls' => [self::radioRequiredValueControlSummary($radio, true)],
+            ];
+        }
+
+        foreach ($document->getElementsByTagName('input') as $candidate) {
+            if (!$candidate instanceof \DOMElement || self::inputType($candidate) !== 'radio') {
+                continue;
+            }
+            if ((self::attributeOrNull($candidate, 'name') ?? '') !== $name) {
+                continue;
+            }
+            if (!self::sameFormOwner($owner, self::formOwnerElement($candidate))) {
+                continue;
+            }
+
+            $current = $candidate->isSameNode($radio);
+            $checked = $candidate->hasAttribute('checked');
+            if ($candidate->hasAttribute('required')) {
+                ++$requiredCount;
+            }
+            if ($checked) {
+                $id = self::attributeOrNull($candidate, 'id');
+                if ($id !== null && $id !== '') {
+                    $checkedIds[] = $id;
+                }
+                $checkedValues[] = self::formInputSubmittedValue($candidate);
+            }
+            $controls[] = self::radioRequiredValueControlSummary($candidate, $current);
+        }
+
+        return [
+            'name' => $name,
+            'checked' => $checkedValues !== [],
+            'checkedIds' => $checkedIds,
+            'checkedValues' => $checkedValues,
+            'requiredCount' => $requiredCount,
+            'controls' => $controls,
+        ];
+    }
+
+    private static function sameFormOwner(?\DOMElement $left, ?\DOMElement $right): bool
+    {
+        if (!$left instanceof \DOMElement || !$right instanceof \DOMElement) {
+            return !$left instanceof \DOMElement && !$right instanceof \DOMElement;
+        }
+
+        return $left->isSameNode($right);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function radioRequiredValueControlSummary(\DOMElement $radio, bool $current): array
+    {
+        return [
+            'id' => self::attributeOrNull($radio, 'id'),
+            'name' => self::attributeOrNull($radio, 'name'),
+            'value' => self::formInputSubmittedValue($radio),
+            'checked' => $radio->hasAttribute('checked'),
+            'required' => $radio->hasAttribute('required'),
+            'effectiveDisabled' => self::isEffectivelyDisabledFormControl($radio),
+            'current' => $current,
+        ];
     }
 
     private static function nonNegativeIntegerToken(string $value, int $max): ?int
@@ -25571,6 +26015,106 @@ final class XmlHtmlDom
         return [
             'name' => $name === '' ? null : $name,
             'valid' => $name !== '' && self::isHtmlReferenceToken($name),
+        ];
+    }
+
+    /**
+     * @param array{name:?string, valid:bool} $dirname
+     * @return array<string, mixed>
+     */
+    private static function formControlDirnameReviewSummary(\DOMElement $control, array $dirname): array
+    {
+        $raw = $control->getAttribute('dirname');
+        $controlName = self::attributeOrNull($control, 'name');
+        $direction = self::formControlDirnameDirectionSummary($control);
+        $form = self::formOwnerElement($control);
+        $effectiveDisabled = self::isEffectivelyDisabledFormControl($control);
+        $issues = [];
+
+        if (!$dirname['valid']) {
+            $issues[] = [
+                'code' => trim($raw) === '' ? 'empty-form-control-dirname' : 'invalid-form-control-dirname',
+                'dirnameRaw' => $raw,
+            ];
+        }
+        if ($controlName !== null && $controlName !== '' && $dirname['name'] === $controlName) {
+            $issues[] = [
+                'code' => 'dirname-name-collides-with-control-name',
+                'name' => $controlName,
+            ];
+        }
+
+        $summary = [
+            'dirnameReviewPolicy' => 'form-control-dirname-directionality-review',
+            'dirnameName' => $dirname['name'],
+            'dirnameSubmitName' => $dirname['name'],
+            'dirnameControlElement' => self::htmlElementName($control),
+            'dirnameControlName' => $controlName,
+            'dirnameControlType' => self::htmlElementName($control) === 'input' ? self::inputType($control) : null,
+            'dirnameFormOwnerId' => $form instanceof \DOMElement ? self::attributeOrNull($form, 'id') : null,
+            'dirnameFormOwnerFound' => $form instanceof \DOMElement,
+            'dirnameEffectiveDisabled' => $effectiveDisabled,
+            'dirnameDirectionState' => $direction['state'],
+            'dirnameDirectionRaw' => $direction['raw'],
+            'dirnameDirection' => $direction['submitted'],
+            'dirnameSubmittedDirection' => $direction['submitted'],
+            'dirnameDirectionResolved' => $direction['resolved'],
+            'dirnameDirectionSource' => $direction['source'],
+            'dirnameDirectionSourceElement' => $direction['sourceElement'],
+            'dirnameDirectionInherited' => $direction['inherited'],
+            'dirnameDirectionDefaulted' => $direction['defaulted'],
+            'dirnameDirectionNeutralDefaulted' => $direction['neutralDefaulted'],
+            'dirnameWouldSubmitDirection' => $dirname['valid'] && $form instanceof \DOMElement && !$effectiveDisabled,
+            'dirnameReviewOnlyNoFormSubmission' => true,
+            'dirnameIssues' => $issues,
+            'dirnameIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'dirnameIssueCount' => count($issues),
+        ];
+
+        if ($direction['sourceElementId'] !== null) {
+            $summary['dirnameDirectionSourceElementId'] = $direction['sourceElementId'];
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @return array{raw:?string, state:string, resolved:?string, submitted:string, source:string, sourceElement:?string, sourceElementId:?string, inherited:bool, defaulted:bool, neutralDefaulted:bool}
+     */
+    private static function formControlDirnameDirectionSummary(\DOMElement $control): array
+    {
+        $effective = self::effectiveDirectionSummary($control, self::htmlAttributes($control));
+        if ($effective !== []) {
+            $resolved = $effective['effectiveDirectionResolved'] ?? null;
+
+            return [
+                'raw' => is_string($effective['effectiveDirectionRaw'] ?? null) ? $effective['effectiveDirectionRaw'] : null,
+                'state' => is_string($effective['effectiveDirection'] ?? null) ? $effective['effectiveDirection'] : 'ltr',
+                'resolved' => is_string($resolved) ? $resolved : null,
+                'submitted' => in_array($resolved, ['ltr', 'rtl'], true) ? $resolved : 'ltr',
+                'source' => is_string($effective['directionSource'] ?? null) ? $effective['directionSource'] : 'self-dir',
+                'sourceElement' => is_string($effective['directionSourceElement'] ?? null) ? $effective['directionSourceElement'] : self::htmlElementName($control),
+                'sourceElementId' => is_string($effective['directionSourceElementId'] ?? null) ? $effective['directionSourceElementId'] : null,
+                'inherited' => (bool) ($effective['directionInherited'] ?? false),
+                'defaulted' => false,
+                'neutralDefaulted' => ($effective['effectiveDirection'] ?? null) === 'auto' && !in_array($resolved, ['ltr', 'rtl'], true),
+            ];
+        }
+
+        return [
+            'raw' => null,
+            'state' => 'ltr',
+            'resolved' => 'ltr',
+            'submitted' => 'ltr',
+            'source' => 'html-default',
+            'sourceElement' => null,
+            'sourceElementId' => null,
+            'inherited' => false,
+            'defaulted' => true,
+            'neutralDefaulted' => false,
         ];
     }
 
@@ -27685,6 +28229,7 @@ final class XmlHtmlDom
 
         if ($name === 'video') {
             $summary['poster'] = self::attributeOrNull($element, 'poster');
+            $summary += self::videoPosterReviewSummary($element);
         }
 
         $fallbackText = self::normalizedTextWithoutMediaResourceChildren($element);
@@ -27693,6 +28238,51 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function videoPosterReviewSummary(\DOMElement $video): array
+    {
+        $posterRaw = self::attributeOrNull($video, 'poster');
+        $posterUrl = self::hyperlinkUrlReviewSummary($posterRaw);
+        $issues = [];
+
+        if ($posterRaw !== null) {
+            if (trim($posterRaw) === '') {
+                $issues[] = ['code' => 'empty-video-poster'];
+            } elseif ($posterUrl['unsafe'] === true) {
+                $issues[] = [
+                    'code' => 'unsafe-video-poster-url',
+                    'poster' => $posterRaw,
+                    'scheme' => $posterUrl['scheme'],
+                ];
+            } elseif ($posterUrl['kind'] === 'absolute' && !in_array($posterUrl['scheme'], ['http', 'https'], true)) {
+                $issues[] = [
+                    'code' => 'non-http-video-poster-url',
+                    'poster' => $posterRaw,
+                    'scheme' => $posterUrl['scheme'],
+                ];
+            }
+        }
+
+        return [
+            'videoPosterReviewPolicy' => 'video-poster-resource-provenance-review',
+            'videoPosterRaw' => $posterRaw,
+            'videoPosterPresent' => $posterRaw !== null,
+            'videoPosterKind' => $posterUrl['kind'],
+            'videoPosterScheme' => $posterUrl['scheme'],
+            'videoPosterUnsafe' => $posterUrl['unsafe'],
+            'videoPosterReviewOnlyNoResourceFetch' => true,
+            'videoPosterIssues' => $issues,
+            'videoPosterIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'videoPosterIssueCount' => count($issues),
+            'videoPosterValid' => $posterRaw === null ? null : $issues === [],
+        ];
     }
 
     /**
@@ -28034,6 +28624,7 @@ final class XmlHtmlDom
             'loading' => self::attributeOrNull($iframe, 'loading'),
             'referrerpolicy' => self::attributeOrNull($iframe, 'referrerpolicy'),
             'allow' => self::attributeOrNull($iframe, 'allow'),
+            'csp' => self::attributeOrNull($iframe, 'csp'),
             'sandboxTokens' => $iframe->hasAttribute('sandbox') ? self::spaceSeparatedTokens($iframe->getAttribute('sandbox')) : [],
             'allowFullscreen' => $iframe->hasAttribute('allowfullscreen'),
             'credentialless' => $iframe->hasAttribute('credentialless'),
@@ -28112,6 +28703,14 @@ final class XmlHtmlDom
             }
         }
 
+        if ($iframe->hasAttribute('csp')) {
+            $csp = self::iframeContentSecurityPolicyReviewSummary($iframe->getAttribute('csp'));
+            $summary += $csp;
+            if (($csp['iframeCspValid'] ?? true) !== true) {
+                self::appendUniqueString($summary['iframePolicyIssueCodes'], 'invalid-iframe-csp');
+            }
+        }
+
         $summary['allowFullscreen'] = $iframe->hasAttribute('allowfullscreen');
 
         return $summary;
@@ -28157,6 +28756,41 @@ final class XmlHtmlDom
             ))),
             'iframeCredentiallessValid' => $issues === [],
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function iframeContentSecurityPolicyReviewSummary(string $content): array
+    {
+        $summary = self::metaContentSecurityPolicySummary(
+            $content,
+            'csp',
+            'iframe-content-security-policy-review',
+            'missing-iframe-csp-content'
+        );
+
+        return [
+            'iframeCspReviewPolicy' => 'iframe-content-security-policy-review',
+            'iframeCspSourceAttribute' => 'csp',
+            'iframeCspRaw' => $content,
+            'iframeCspByteLength' => $summary['contentSecurityPolicyByteLength'],
+            'iframeCspSha256' => $summary['contentSecurityPolicySha256'],
+            'iframeCspDirectiveCount' => $summary['cspDirectiveCount'],
+            'iframeCspDirectiveNames' => $summary['cspDirectiveNames'],
+            'iframeCspDirectiveNameCounts' => $summary['cspDirectiveNameCounts'],
+            'iframeCspDirectiveKinds' => $summary['cspDirectiveKinds'],
+            'iframeCspFetchDirectiveNames' => $summary['cspFetchDirectiveNames'],
+            'iframeCspSchemeSources' => $summary['cspSchemeSources'],
+            'iframeCspNetworkSources' => $summary['cspNetworkSources'],
+            'iframeCspReportEndpoints' => $summary['cspReportEndpoints'],
+            'iframeCspUnsafeKeywords' => $summary['cspUnsafeKeywords'],
+            'iframeCspIssues' => $summary['cspIssues'],
+            'iframeCspIssueCodes' => $summary['cspIssueCodes'],
+            'iframeCspValid' => $summary['contentSecurityPolicyValid'],
+            'iframeCspReviewOnlyNoFrameFetch' => true,
+            'iframeCspBrowserEnforcement' => false,
+        ] + $summary;
     }
 
     /**
