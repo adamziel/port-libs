@@ -76,9 +76,11 @@ jobs:
 
       - name: Run optional upstream DOCX runner preflight plan
         run: |
+          mkdir -p .port-libs/pandoc-runner/artifacts/docx-targeted-run .port-libs/pandoc-runner/logs
           php tools/pandoc-docx-upstream-runner-plan.php \
             --json \
-            --write-selected-inventory .port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json
+            --write-selected-inventory .port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json \
+            > .port-libs/pandoc-runner/artifacts/docx-targeted-run/preflight-plan.json
 
       - name: Run optional upstream DOCX runner result artifact gate
         run: |
@@ -86,7 +88,18 @@ jobs:
             --json \
             --validate-result-artifacts \
             --artifact-root .port-libs/pandoc-runner/artifacts/docx-targeted-run \
-            --log-root .port-libs/pandoc-runner/logs
+            --log-root .port-libs/pandoc-runner/logs \
+            > .port-libs/pandoc-runner/artifacts/docx-targeted-run/result-artifact-gate.json
+
+      - name: Upload optional upstream DOCX runner evidence artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pandoc-docx-runner-evidence
+          path: |
+            .port-libs/pandoc-runner/artifacts/docx-targeted-run/*.json
+            .port-libs/pandoc-runner/logs/*.txt
+          if-no-files-found: warn
 
       - name: Run optional upstream DOCX/native smoke
         run: php tools/pandoc-docx-native-smoke.php --limit=12

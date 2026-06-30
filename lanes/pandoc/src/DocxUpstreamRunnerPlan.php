@@ -22,6 +22,11 @@ final class DocxUpstreamRunnerPlan
     public const DEFAULT_RELATIVE_LOG_ROOT = '.port-libs/pandoc-runner/logs';
     public const LOCAL_READINESS_STATUS_READY = 'ready-for-targeted-docx-runner-execution';
     public const LOCAL_READINESS_STATUS_BLOCKED = 'blocked-targeted-docx-runner-local-prerequisites';
+    public const PINNED_SOURCE_STATUS_MATCHED = 'matched-pinned-upstream-commit';
+    public const PINNED_SOURCE_STATUS_MISMATCHED = 'mismatched-pinned-upstream-commit';
+    public const PINNED_SOURCE_STATUS_ROOT_MISSING = 'not-checked-upstream-root-missing';
+    public const PINNED_SOURCE_STATUS_GIT_MISSING = 'not-checked-git-executable-missing';
+    public const PINNED_SOURCE_STATUS_NOT_GIT_CHECKOUT = 'not-checked-not-a-git-checkout';
     public const TASTY_PATTERN = '($2 == "Readers" || $2 == "Writers") && $3 == "Docx"';
     public const RUNNER_TARGET = 'test:test-pandoc';
     public const MINIMUM_SUGGESTED_FREE_BYTES = 1073741824;
@@ -94,6 +99,7 @@ final class DocxUpstreamRunnerPlan
             'claimBoundaries' => [
                 'doesAssert' => [
                     'required DOCX runner source paths and fixture directories to check before a targeted run',
+                    'whether the hydrated upstream root can be tied to the pinned Pandoc commit before result admission',
                     'static selected DOCX reader/writer source and fixture inventory when the upstream checkout is hydrated',
                     'exact Cabal commands and workspace artifact paths a future runner slice can execute',
                     'result artifact contract required before recording upstream DOCX runner evidence',
@@ -141,6 +147,13 @@ final class DocxUpstreamRunnerPlan
         if (is_array($source)) {
             $lines[] = 'Missing files: ' . implode(', ', array_map('strval', $source['missingFiles'] ?? []));
             $lines[] = 'Missing directories: ' . implode(', ', array_map('strval', $source['missingDirectories'] ?? []));
+            $pinnedSource = $source['pinnedSource'] ?? [];
+            if (is_array($pinnedSource)) {
+                $lines[] = 'Pinned source: '
+                    . (string) ($pinnedSource['status'] ?? 'unknown')
+                    . '; observed='
+                    . (string) ($pinnedSource['observedCommit'] ?? 'none');
+            }
         }
 
         $inventory = $report['selectedTestInventory'] ?? [];
@@ -239,17 +252,21 @@ final class DocxUpstreamRunnerPlan
                 $missingDirectories[] = $relativePath;
             }
         }
+        $pinnedSource = $this->pinnedSourceEvidence();
 
         return [
             'upstreamRoot' => $this->upstreamRoot,
             'upstreamRootDisplay' => $this->displayPath($this->upstreamRoot),
             'upstreamRootPresent' => is_dir($this->upstreamRoot),
+            'pinnedSource' => $pinnedSource,
             'requiredFiles' => self::REQUIRED_FILES,
             'presentFiles' => $presentFiles,
             'missingFiles' => $missingFiles,
             'requiredDirectories' => self::REQUIRED_DIRECTORIES,
             'presentDirectories' => $presentDirectories,
             'missingDirectories' => $missingDirectories,
+            'sourceBlockers' => $this->sourceBlockers($missingFiles, $missingDirectories, $pinnedSource),
+            'hydrationPlan' => $this->hydrationPlan(),
             'artifactCounts' => [
                 'rootDocxPackageFiles' => $this->countDirectFiles($this->upstreamPath('test/docx'), 'docx'),
                 'rootNativeExpectedFiles' => $this->countDirectFiles($this->upstreamPath('test/docx'), 'native'),
@@ -270,6 +287,8 @@ final class DocxUpstreamRunnerPlan
         $freeBytesRaw = disk_free_space($this->repoRoot);
         $freeBytes = $freeBytesRaw === false ? null : (int) $freeBytesRaw;
         $sufficientDisk = $freeBytes === null ? null : $freeBytes >= self::MINIMUM_SUGGESTED_FREE_BYTES;
+        $pinnedSource = is_array($sourcePreflight['pinnedSource'] ?? null) ? $sourcePreflight['pinnedSource'] : [];
+        $pinnedSourceMatched = ($pinnedSource['matchesPinnedCommit'] ?? false) === true;
 
         $blockers = [];
         if (!$sourceReady) {
@@ -279,6 +298,14 @@ final class DocxUpstreamRunnerPlan
                 . implode(',', array_map('strval', $sourcePreflight['missingFiles'] ?? []))
                 . '; directories='
                 . implode(',', array_map('strval', $sourcePreflight['missingDirectories'] ?? []));
+        }
+        if ($sourceReady && !$pinnedSourceMatched) {
+            $blockers[] = 'pinned upstream commit is not verified for targeted runner admission: status='
+                . (string) ($pinnedSource['status'] ?? 'unknown')
+                . '; expectedCommit='
+                . self::PINNED_UPSTREAM_COMMIT
+                . '; observedCommit='
+                . (string) ($pinnedSource['observedCommit'] ?? 'none');
         }
         if ($cabalPath === null) {
             $blockers[] = 'cabal executable not found on PATH';
@@ -301,6 +328,11 @@ final class DocxUpstreamRunnerPlan
             'checks' => [
                 'sourcePreflightReady' => $sourceReady,
                 'upstreamRootPresent' => (bool) ($sourcePreflight['upstreamRootPresent'] ?? false),
+                'pinnedSourceStatus' => $pinnedSource['status'] ?? null,
+                'sourceCommit' => $pinnedSource['observedCommit'] ?? null,
+                'sourceCommitMatchesPinned' => $pinnedSourceMatched,
+                'gitExecutable' => $pinnedSource['gitExecutable'] ?? null,
+                'requiredPathGitStatusEntries' => $pinnedSource['requiredPathStatusEntries'] ?? [],
                 'cabalExecutable' => $cabalPath,
                 'ghcExecutable' => $ghcPath,
                 'freeBytes' => $freeBytes,
@@ -330,6 +362,9 @@ final class DocxUpstreamRunnerPlan
             'upstream' => [
                 'pinnedCommit' => self::PINNED_UPSTREAM_COMMIT,
                 'expectedCheckoutRoot' => $this->displayPath($this->upstreamRoot),
+                'sourceCommit' => $sourcePreflight['pinnedSource']['observedCommit'] ?? null,
+                'sourceCommitMatchesPinned' => $sourcePreflight['pinnedSource']['matchesPinnedCommit'] ?? false,
+                'sourceCommitEvidenceStatus' => $sourcePreflight['pinnedSource']['status'] ?? null,
             ],
             'selection' => [
                 'runnerTarget' => self::RUNNER_TARGET,
@@ -743,6 +778,12 @@ final class DocxUpstreamRunnerPlan
         if (!is_array($upstream) || ($upstream['pinnedCommit'] ?? null) !== self::PINNED_UPSTREAM_COMMIT) {
             $problems[] = 'Selected test inventory artifact upstream pinnedCommit does not match the DOCX runner commit';
         }
+        if (!is_array($upstream) || ($upstream['sourceCommit'] ?? null) !== self::PINNED_UPSTREAM_COMMIT) {
+            $problems[] = 'Selected test inventory artifact sourceCommit must match the pinned DOCX runner commit';
+        }
+        if (!is_array($upstream) || ($upstream['sourceCommitMatchesPinned'] ?? null) !== true) {
+            $problems[] = 'Selected test inventory artifact sourceCommitMatchesPinned must be true before gating a runner result';
+        }
 
         $selection = $selectedInventory['selection'] ?? null;
         if (!is_array($selection)) {
@@ -860,6 +901,10 @@ final class DocxUpstreamRunnerPlan
                 'artifacts' => '.port-libs/pandoc-runner/artifacts/docx-targeted-run',
                 'tmp' => '.port-libs/pandoc-runner/tmp',
             ],
+            'evidenceReports' => [
+                'preflightPlan' => '.port-libs/pandoc-runner/artifacts/docx-targeted-run/preflight-plan.json',
+                'resultArtifactGate' => '.port-libs/pandoc-runner/artifacts/docx-targeted-run/result-artifact-gate.json',
+            ],
             'environmentVariables' => self::WORKSPACE_ENVIRONMENT,
         ];
     }
@@ -952,6 +997,10 @@ final class DocxUpstreamRunnerPlan
                 '.port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json',
                 '.port-libs/pandoc-runner/artifacts/docx-targeted-run/result.json',
             ],
+            'ciEvidenceReports' => [
+                '.port-libs/pandoc-runner/artifacts/docx-targeted-run/preflight-plan.json',
+                '.port-libs/pandoc-runner/artifacts/docx-targeted-run/result-artifact-gate.json',
+            ],
             'resultJsonRequiredFields' => [
                 'runnerExecuted',
                 'upstreamCommit',
@@ -983,14 +1032,139 @@ final class DocxUpstreamRunnerPlan
             return [
                 'hydrate Pandoc upstream checkout at ' . self::PINNED_UPSTREAM_COMMIT,
                 'restore required DOCX Tasty source files and fixture directories',
+                'verify the upstream root HEAD equals ' . self::PINNED_UPSTREAM_COMMIT,
                 'rerun this preflight tool before executing Cabal commands',
             ];
         }
 
         return [
+            'verify selectedTestInventory upstream.sourceCommitMatchesPinned=true',
             'record dependencyDryRun transcript first',
             'record listDocxTests transcript before the targeted run',
             'record targetedDocxRun transcript and result.json before claiming any upstream DOCX runner result',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function pinnedSourceEvidence(): array
+    {
+        if (!is_dir($this->upstreamRoot)) {
+            return [
+                'status' => self::PINNED_SOURCE_STATUS_ROOT_MISSING,
+                'expectedCommit' => self::PINNED_UPSTREAM_COMMIT,
+                'observedCommit' => null,
+                'matchesPinnedCommit' => false,
+                'gitExecutable' => self::executableOnPath('git'),
+                'requiredPathStatusEntries' => [],
+            ];
+        }
+
+        $gitPath = self::executableOnPath('git');
+        if ($gitPath === null) {
+            return [
+                'status' => self::PINNED_SOURCE_STATUS_GIT_MISSING,
+                'expectedCommit' => self::PINNED_UPSTREAM_COMMIT,
+                'observedCommit' => null,
+                'matchesPinnedCommit' => false,
+                'gitExecutable' => null,
+                'requiredPathStatusEntries' => [],
+            ];
+        }
+
+        $head = self::runLocalCommand(['git', '-C', $this->upstreamRoot, 'rev-parse', 'HEAD']);
+        if (($head['exitCode'] ?? 1) !== 0) {
+            return [
+                'status' => self::PINNED_SOURCE_STATUS_NOT_GIT_CHECKOUT,
+                'expectedCommit' => self::PINNED_UPSTREAM_COMMIT,
+                'observedCommit' => null,
+                'matchesPinnedCommit' => false,
+                'gitExecutable' => $gitPath,
+                'revParseExitCode' => $head['exitCode'],
+                'revParseOutput' => $head['output'],
+                'requiredPathStatusEntries' => [],
+            ];
+        }
+
+        $observedCommit = trim(implode("\n", array_map('strval', $head['output'] ?? [])));
+        $matchesPinnedCommit = hash_equals(self::PINNED_UPSTREAM_COMMIT, $observedCommit);
+        $status = $matchesPinnedCommit
+            ? self::PINNED_SOURCE_STATUS_MATCHED
+            : self::PINNED_SOURCE_STATUS_MISMATCHED;
+        $requiredPathStatus = self::runLocalCommand(array_merge(
+            ['git', '-C', $this->upstreamRoot, 'status', '--short', '--untracked-files=no', '--'],
+            self::REQUIRED_FILES,
+            self::REQUIRED_DIRECTORIES
+        ));
+
+        return [
+            'status' => $status,
+            'expectedCommit' => self::PINNED_UPSTREAM_COMMIT,
+            'observedCommit' => $observedCommit,
+            'matchesPinnedCommit' => $matchesPinnedCommit,
+            'gitExecutable' => $gitPath,
+            'requiredPathStatusExitCode' => $requiredPathStatus['exitCode'],
+            'requiredPathStatusEntries' => array_values(array_filter(
+                array_map('strval', $requiredPathStatus['output'] ?? []),
+                static fn (string $line): bool => $line !== ''
+            )),
+        ];
+    }
+
+    /**
+     * @param list<string> $missingFiles
+     * @param list<string> $missingDirectories
+     * @param array<string, mixed> $pinnedSource
+     * @return list<array<string, mixed>>
+     */
+    private function sourceBlockers(array $missingFiles, array $missingDirectories, array $pinnedSource): array
+    {
+        $blockers = [];
+        foreach ($missingFiles as $path) {
+            $blockers[] = [
+                'kind' => 'missing-required-file',
+                'path' => $path,
+                'action' => 'hydrate the pinned Pandoc checkout before attempting the DOCX runner',
+            ];
+        }
+        foreach ($missingDirectories as $path) {
+            $blockers[] = [
+                'kind' => 'missing-required-directory',
+                'path' => $path,
+                'action' => 'hydrate the pinned Pandoc DOCX fixture directory before attempting the DOCX runner',
+            ];
+        }
+        if (($missingFiles === [] && $missingDirectories === []) && ($pinnedSource['matchesPinnedCommit'] ?? false) !== true) {
+            $blockers[] = [
+                'kind' => 'unverified-pinned-upstream-commit',
+                'expectedCommit' => self::PINNED_UPSTREAM_COMMIT,
+                'observedCommit' => $pinnedSource['observedCommit'] ?? null,
+                'status' => $pinnedSource['status'] ?? 'unknown',
+                'action' => 'checkout the pinned Pandoc commit and rerun the preflight before recording result artifacts',
+            ];
+        }
+
+        return $blockers;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function hydrationPlan(): array
+    {
+        $target = $this->displayPath($this->upstreamRoot);
+
+        return [
+            'targetPath' => $target,
+            'upstreamCommit' => self::PINNED_UPSTREAM_COMMIT,
+            'commands' => [
+                'git clone --filter=blob:none https://github.com/jgm/pandoc.git ' . self::shellArgument($target),
+                'git -C ' . self::shellArgument($target) . ' checkout ' . self::PINNED_UPSTREAM_COMMIT,
+                'git -C ' . self::shellArgument($target) . ' sparse-checkout set cabal.project pandoc.cabal test/test-pandoc.hs test/Tests/Readers/Docx.hs test/Tests/Writers/Docx.hs test/docx data/default.docx',
+                'php tools/pandoc-docx-upstream-runner-plan.php --json --write-selected-inventory .port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json',
+            ],
+            'note' => 'Hydration commands are descriptors only; this preflight does not clone, fetch, run Cabal, or execute Tasty.',
         ];
     }
 
@@ -1106,6 +1280,22 @@ final class DocxUpstreamRunnerPlan
         }
 
         return null;
+    }
+
+    /**
+     * @param list<string> $parts
+     * @return array{exitCode:int, output:list<string>}
+     */
+    private static function runLocalCommand(array $parts): array
+    {
+        $output = [];
+        $exitCode = 0;
+        exec(self::commandLine($parts) . ' 2>&1', $output, $exitCode);
+
+        return [
+            'exitCode' => $exitCode,
+            'output' => array_slice(array_map('strval', $output), 0, 40),
+        ];
     }
 
     private static function boolText(mixed $value): string

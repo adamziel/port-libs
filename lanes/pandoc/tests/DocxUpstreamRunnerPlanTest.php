@@ -74,6 +74,17 @@ HASKELL;
     $writeFile($upstreamRoot, 'test/docx/golden/writer.docx', 'golden-writer');
 };
 
+$markSelectedInventoryPinned = static function (string $inventoryPath): void {
+    $inventory = json_decode((string) file_get_contents($inventoryPath), true, 512, JSON_THROW_ON_ERROR);
+    $inventory['upstream']['sourceCommit'] = DocxUpstreamRunnerPlan::PINNED_UPSTREAM_COMMIT;
+    $inventory['upstream']['sourceCommitMatchesPinned'] = true;
+    $inventory['upstream']['sourceCommitEvidenceStatus'] = DocxUpstreamRunnerPlan::PINNED_SOURCE_STATUS_MATCHED;
+    file_put_contents(
+        $inventoryPath,
+        json_encode($inventory, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n"
+    );
+};
+
 return [
     'reports blocked docx runner preflight without hydrated upstream source' => static function (TestRunner $t) use ($makeTempRoot, $removeTree): void {
         $repoRoot = $makeTempRoot();
@@ -88,6 +99,9 @@ return [
             $t->same(false, $report['willExecute']);
             $t->same(DocxUpstreamRunnerPlan::requiredFiles(), $report['sourcePreflight']['missingFiles']);
             $t->same(DocxUpstreamRunnerPlan::requiredDirectories(), $report['sourcePreflight']['missingDirectories']);
+            $t->same(DocxUpstreamRunnerPlan::PINNED_SOURCE_STATUS_ROOT_MISSING, $report['sourcePreflight']['pinnedSource']['status']);
+            $t->same(false, $report['sourcePreflight']['pinnedSource']['matchesPinnedCommit']);
+            $t->same(count(DocxUpstreamRunnerPlan::requiredFiles()) + count(DocxUpstreamRunnerPlan::requiredDirectories()), count($report['sourcePreflight']['sourceBlockers']));
             $t->same(0, $report['sourcePreflight']['artifactCounts']['rootDocxPackageFiles']);
             $t->same(0, $report['sourcePreflight']['artifactCounts']['rootNativeExpectedFiles']);
             $t->same(0, $report['sourcePreflight']['artifactCounts']['goldenDocxPackageFiles']);
@@ -103,9 +117,11 @@ return [
             $t->same(false, $readiness['resultRecordedByThisTool']);
             $t->same(false, $readiness['checks']['sourcePreflightReady']);
             $t->same(false, $readiness['checks']['upstreamRootPresent']);
+            $t->same(false, $readiness['checks']['sourceCommitMatchesPinned']);
             $t->contains('missing DOCX upstream source paths', implode("\n", $readiness['blockers']));
             $t->contains('Local execution readiness: blocked-targeted-docx-runner-local-prerequisites', $text);
             $t->contains('Local execution blocker: missing DOCX upstream source paths', $text);
+            $t->contains('Pinned source: not-checked-upstream-root-missing', $text);
             $t->contains('--dry-run --only-dependencies', $report['commands']['dependencyDryRun']['commandLine']);
             $t->contains('--list-tests --pattern', $report['commands']['listDocxTests']['commandLine']);
             $t->contains('($2 == "Readers" || $2 == "Writers") && $3 == "Docx"', $report['commands']['targetedDocxRun']['commandLine']);
@@ -130,6 +146,8 @@ return [
             $t->same([], $report['sourcePreflight']['missingDirectories']);
             $t->same(DocxUpstreamRunnerPlan::requiredFiles(), $report['sourcePreflight']['presentFiles']);
             $t->same(DocxUpstreamRunnerPlan::requiredDirectories(), $report['sourcePreflight']['presentDirectories']);
+            $t->same(null, $report['sourcePreflight']['pinnedSource']['observedCommit']);
+            $t->same(false, $report['sourcePreflight']['pinnedSource']['matchesPinnedCommit']);
             $t->same(2, $report['sourcePreflight']['artifactCounts']['rootDocxPackageFiles']);
             $t->same(1, $report['sourcePreflight']['artifactCounts']['rootNativeExpectedFiles']);
             $t->same(1, $report['sourcePreflight']['artifactCounts']['goldenDocxPackageFiles']);
@@ -141,6 +159,8 @@ return [
             $t->same(false, $inventory['runnerExecuted']);
             $t->same(false, $inventory['cabalExecuted']);
             $t->same(false, $inventory['docxPackageBytesRead']);
+            $t->same(null, $inventory['upstream']['sourceCommit']);
+            $t->same(false, $inventory['upstream']['sourceCommitMatchesPinned']);
             $t->same('Tests.Readers.Docx.tests', $inventory['sourceGroups'][0]['entryPointSnippet']);
             $t->same('reader simple paragraph', $inventory['sourceGroups'][0]['candidateStaticLabels'][1]['label']);
             $t->same('writer plain paragraph', $inventory['sourceGroups'][1]['candidateStaticLabels'][1]['label']);
@@ -154,6 +174,7 @@ return [
             $readiness = $report['localExecutionReadiness'];
             $t->same(true, $readiness['checks']['sourcePreflightReady']);
             $t->same(true, $readiness['checks']['upstreamRootPresent']);
+            $t->same(false, $readiness['checks']['sourceCommitMatchesPinned']);
             $t->same(false, $readiness['runnerExecutionAttemptedByThisTool']);
             $t->same(false, $readiness['resultRecordedByThisTool']);
             $t->true(is_array($readiness['blockers']), 'Readiness blockers must be a list even when local tooling availability varies');
@@ -164,8 +185,9 @@ return [
             $t->same('($2 == "Readers" || $2 == "Writers") && $3 == "Docx"', $report['tastyPattern']);
             $t->contains('.port-libs/pandoc-runner/logs/docx-targeted-run.txt', implode(',', $report['resultArtifactContract']['requiredBeforeResultRecorded']));
             $t->contains('result.json', implode(',', $report['resultArtifactContract']['requiredBeforeResultRecorded']));
+            $t->contains('preflight-plan.json', implode(',', $report['resultArtifactContract']['ciEvidenceReports']));
             $t->contains('exitCode', implode(',', $report['resultArtifactContract']['resultJsonRequiredFields']));
-            $t->contains('record dependencyDryRun transcript first', implode("\n", $report['activationGate']));
+            $t->contains('verify selectedTestInventory upstream.sourceCommitMatchesPinned=true', implode("\n", $report['activationGate']));
             $t->same(false, $report['runnerExecuted']);
             $t->same(false, $report['resultRecorded']);
         } finally {
@@ -206,6 +228,8 @@ return [
             $t->same(false, $artifact['runnerExecuted']);
             $t->same(false, $artifact['cabalExecuted']);
             $t->same(false, $artifact['docxPackageBytesRead']);
+            $t->same(null, $artifact['upstream']['sourceCommit']);
+            $t->same(false, $artifact['upstream']['sourceCommitMatchesPinned']);
             $t->same('static-docx-selected-test-inventory-only', $artifact['evidenceKind']);
             $t->same(['Tests.Readers.Docx.tests', 'Tests.Writers.Docx.tests'], $artifact['selection']['selectedGroups']);
             $t->same(1, $artifact['fixtures']['counts']['pairedRootDocxNativeStems']);
@@ -216,7 +240,7 @@ return [
         }
     },
 
-    'cli validates targeted runner result artifacts without executing runner' => static function (TestRunner $t) use ($makeTempRoot, $removeTree, $hydrateRunnerPlanFixture, $writeFile): void {
+    'cli validates targeted runner result artifacts without executing runner' => static function (TestRunner $t) use ($makeTempRoot, $removeTree, $hydrateRunnerPlanFixture, $writeFile, $markSelectedInventoryPinned): void {
         $repoRoot = $makeTempRoot();
         try {
             $upstreamRoot = $repoRoot . '/cache/pandoc-current';
@@ -238,6 +262,7 @@ return [
             $writeExitCode = 0;
             exec($writeInventoryCommand, $writeOutput, $writeExitCode);
             $t->same(0, $writeExitCode, implode("\n", $writeOutput));
+            $markSelectedInventoryPinned($repoRoot . '/' . $selectedInventoryPath);
 
             $writeFile($repoRoot, $logRoot . '/runner-test-dependencies.txt', "dependency dry-run transcript\n");
             $writeFile($repoRoot, $logRoot . '/docx-targeted-list-tests.txt', "Readers.Docx.reader simple paragraph\nWriters.Docx.writer plain paragraph\n");
@@ -380,6 +405,7 @@ return [
             $t->same(DocxUpstreamRunnerPlan::RESULT_ARTIFACT_GATE_STATUS_INVALID, $gate['status']);
             $t->same(false, $gate['admissionReady']);
             $t->contains('Selected test inventory artifact tastyPattern does not match the targeted DOCX pattern', $problems);
+            $t->contains('Selected test inventory artifact sourceCommitMatchesPinned must be true before gating a runner result', $problems);
             $t->contains('result.json commandLine must exactly match the targeted DOCX runner command descriptor', $problems);
             $t->contains('result.json selectedTestCount must be greater than zero for a targeted DOCX runner result', $problems);
             $t->contains('result.json finishedAtUtc must not be earlier than startedAtUtc', $problems);
