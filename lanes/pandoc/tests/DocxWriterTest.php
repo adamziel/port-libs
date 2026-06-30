@@ -166,6 +166,8 @@ return [
         $t->contains('<w:continuationSeparator/>', $parts['word/footnotes.xml']);
         $t->contains('<w:font w:name="Aptos"', $parts['word/fontTable.xml']);
         $t->contains('<w:font w:name="Courier New"', $parts['word/fontTable.xml']);
+        $t->contains('<w:rFonts w:asciiTheme="minorHAnsi" w:cstheme="minorBidi" w:eastAsiaTheme="minorEastAsia" w:hAnsiTheme="minorHAnsi"/>', $parts['word/styles.xml']);
+        $t->contains('<w:latentStyles w:count="276" w:defLockedState="0" w:defQFormat="0" w:defSemiHidden="0" w:defUIPriority="0" w:defUnhideWhenUsed="0"/>', $parts['word/styles.xml']);
         $t->contains('w:styleId="Heading1"', $parts['word/styles.xml']);
         $t->contains('w:styleId="Hyperlink"', $parts['word/styles.xml']);
         $t->contains('<w:startOverride w:val="3"/>', $parts['word/numbering.xml']);
@@ -173,6 +175,9 @@ return [
         $t->contains('<w:embedSystemFonts/>', $parts['word/settings.xml']);
         $t->contains('<w:clrSchemeMapping', $parts['word/settings.xml']);
         $t->contains('<a:theme', $parts['word/theme/theme1.xml']);
+        $t->contains('<a:srgbClr val="156082"/>', $parts['word/theme/theme1.xml']);
+        $t->contains('<a:latin typeface="Aptos Display" panose="02110004020202020204"/>', $parts['word/theme/theme1.xml']);
+        $t->contains('<a:latin typeface="Aptos" panose="02110004020202020204"/>', $parts['word/theme/theme1.xml']);
         $t->contains('<w:allowPNG/>', $parts['word/webSettings.xml']);
     },
 
