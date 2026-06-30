@@ -89,17 +89,28 @@ final class DocxReader
             }
         }
 
-        ksort($header_xmls);
-        ksort($footer_xmls);
-
         $documentPartName = $this->mainDocumentPartName($package, $entriesByName);
         $documentRelationshipsPartName = $this->relationshipsPartName($documentPartName);
+        $documentRelationshipsXml = $this->readOptionalPackagePart($package, $entriesByName, $documentRelationshipsPartName);
+        if ($documentRelationshipsXml !== '') {
+            $this->collectRelatedHeaderFooterParts(
+                $package,
+                $entriesByName,
+                $documentPartName,
+                $documentRelationshipsXml,
+                $header_xmls,
+                $footer_xmls
+            );
+        }
+
+        ksort($header_xmls);
+        ksort($footer_xmls);
 
         return $this->readPackage(
             $this->readRequiredPackagePart($package, $entriesByName, $documentPartName),
             $this->readOptionalPackagePart($package, $entriesByName, 'word/styles.xml'),
             $this->readOptionalPackagePart($package, $entriesByName, 'word/numbering.xml'),
-            $this->readOptionalPackagePart($package, $entriesByName, $documentRelationshipsPartName),
+            $documentRelationshipsXml,
             $this->readOptionalPackagePart($package, $entriesByName, 'docProps/core.xml'),
             $this->readOptionalPackagePart($package, $entriesByName, 'word/footnotes.xml'),
             $this->readOptionalPackagePart($package, $entriesByName, 'word/endnotes.xml'),
@@ -124,6 +135,43 @@ final class DocxReader
         }
 
         return $this->read($bytes);
+    }
+
+    /**
+     * @param array<string, ZipPackageEntry> $entriesByName
+     * @param array<string, string> $headerXmls
+     * @param array<string, string> $footerXmls
+     */
+    private function collectRelatedHeaderFooterParts(
+        ZipPackage $package,
+        array $entriesByName,
+        string $documentPartName,
+        string $relationshipsXml,
+        array &$headerXmls,
+        array &$footerXmls
+    ): void {
+        $relationships = $this->relationships($this->loadXml($relationshipsXml, 'DOCX document relationships'));
+        foreach ($relationships as $relationship) {
+            $type = (string) ($relationship['type'] ?? '');
+            if ($type !== self::R_NS . '/header' && $type !== self::R_NS . '/footer') {
+                continue;
+            }
+            if ((string) ($relationship['mode'] ?? '') === 'External') {
+                continue;
+            }
+
+            $partName = $this->normalizePackageTarget($documentPartName, (string) ($relationship['target'] ?? ''));
+            $entry = $entriesByName[$partName] ?? null;
+            if (!$entry instanceof ZipPackageEntry || !$this->isReadablePackageEntry($entry)) {
+                continue;
+            }
+
+            if ($type === self::R_NS . '/header') {
+                $headerXmls[$partName] ??= $package->read($partName);
+            } else {
+                $footerXmls[$partName] ??= $package->read($partName);
+            }
+        }
     }
 
     /**

@@ -765,6 +765,81 @@ XML],
         $t->true(!str_contains($blocks, 'Unreferenced header'), 'Unreferenced header parts should not be emitted when section references are available');
         $t->true(!str_contains($blocks, 'Unreferenced footer'), 'Unreferenced footer parts should not be emitted when section references are available');
     },
+    'tracks related section header and footer targets without leaking nested header anchors' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            ['name' => 'word/_rels/document.xml.rels', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rCustomHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="headers/custom-header.xml"/>
+  <Relationship Id="rCustomFooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footers/custom-footer.xml"/>
+</Relationships>
+XML],
+            ['name' => 'word/headers/custom-header.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:p>
+    <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+    <w:r><w:instrText> HYPERLINK "https://example.test/header" </w:instrText></w:r>
+    <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+    <w:r><w:t xml:space="preserve">Header page </w:t></w:r>
+    <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+    <w:r><w:instrText> PAGEREF HeaderOnly \h </w:instrText></w:r>
+    <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+    <w:r><w:t>1</w:t></w:r>
+    <w:r><w:fldChar w:fldCharType="end"/></w:r>
+    <w:r><w:fldChar w:fldCharType="end"/></w:r>
+    <w:bookmarkStart w:id="10" w:name="HeaderOnly"/>
+    <w:r><w:t>Header anchored label</w:t></w:r>
+    <w:bookmarkEnd w:id="10"/>
+  </w:p>
+</w:hdr>
+XML],
+            ['name' => 'word/footers/custom-footer.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:p><w:r><w:t>Footer boundary text</w:t></w:r></w:p>
+</w:ftr>
+XML],
+            ['name' => 'word/document.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:body>
+    <w:p><w:hyperlink w:anchor="BodyAnchor"><w:r><w:t>Body jump</w:t></w:r></w:hyperlink></w:p>
+    <w:p><w:bookmarkStart w:id="20" w:name="BodyAnchor"/><w:r><w:t>Body target</w:t></w:r><w:bookmarkEnd w:id="20"/></w:p>
+    <w:sectPr><w:headerReference w:type="default" r:id="rCustomHeader"/><w:footerReference w:type="default" r:id="rCustomFooter"/></w:sectPr>
+  </w:body>
+</w:document>
+XML],
+        ]);
+
+        $document = (new DocxReader())->readDocument($package);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $meta = $document->attr('meta');
+        $bodyLink = $document->children[0]->children[0];
+        $bodyTarget = $document->children[1];
+
+        $t->same(1, $meta['docxHeaders']);
+        $t->same(1, $meta['docxFooters']);
+        $t->same(1, $meta['docxHeaderPartCount']);
+        $t->same(1, $meta['docxFooterPartCount']);
+        $t->same(['word/headers/custom-header.xml'], $meta['docxHeaderFiles']);
+        $t->same(['word/footers/custom-footer.xml'], $meta['docxFooterFiles']);
+        $t->same(['word/headers/custom-header.xml'], $meta['docxAppliedHeaderFiles']);
+        $t->same(['word/footers/custom-footer.xml'], $meta['docxAppliedFooterFiles']);
+        $t->same('word/headers/custom-header.xml', $meta['docxSectionReferences'][0]['headers'][0]['part']);
+        $t->same('word/footers/custom-footer.xml', $meta['docxSectionReferences'][0]['footers'][0]['part']);
+
+        $t->same('link', $bodyLink->type);
+        $t->same('#BodyAnchor', $bodyLink->attr('url'));
+        $t->same('span', $bodyTarget->children[0]->type);
+        $t->same('BodyAnchor', $bodyTarget->children[0]->attr('id'));
+        $t->same(['anchor'], $bodyTarget->children[0]->attr('classes'));
+        $t->contains('<a href="#BodyAnchor">Body jump</a>', $blocks);
+        $t->contains('<span id="BodyAnchor" class="anchor" data-pandoc-anchor="empty-target"></span>Body target', $blocks);
+        $t->true(!str_contains($blocks, 'Header page'), 'Nested header link labels should stay out of normal body output');
+        $t->true(!str_contains($blocks, 'HeaderOnly'), 'Header-only anchors should not promote body anchors or leak into body output');
+        $t->true(!str_contains($blocks, 'Footer boundary text'), 'Related footer parts should stay metadata-only');
+    },
     'reads docx bytes through the converter input path' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-docx-');
         if ($path === false) {
