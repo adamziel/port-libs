@@ -444,6 +444,53 @@ return [
         $t->true(!str_contains($documentXml, '&lt;w:bookmarkStart'), 'Raw bookmark was XML-escaped');
     },
 
+    'passes through raw openxml block fragments around normal paragraphs' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
+        $document = $doc([
+            $paragraph([$text('Cell compartments')]),
+            new AstNode('raw_block', ['format' => 'openxml', 'text' => '<w:tbl><w:tr><w:tc>']),
+            $paragraph([$text('Ribosome')]),
+            new AstNode('raw_block', ['format' => 'openxml', 'text' => '</w:tc><w:tc>']),
+            $paragraph([$text('Lysosome')]),
+            new AstNode('raw_block', ['format' => 'openxml', 'text' => '</w:tc></w:tr></w:tbl>']),
+        ]);
+
+        [, $parts] = $packageParts((new DocxWriter())->write($document));
+        $documentXml = $parts['word/document.xml'];
+
+        $t->contains('<w:tbl><w:tr><w:tc><w:p><w:r><w:t>Ribosome</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Lysosome</w:t></w:r></w:p></w:tc></w:tr></w:tbl>', $documentXml);
+        $t->true(!str_contains($documentXml, '&lt;w:tbl'), 'Raw OpenXML table fragment was XML-escaped');
+    },
+
+    'emits insertion and deletion spans as tracked change markup' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
+        $document = $doc([
+            $paragraph([
+                $text('Here is a '),
+                new AstNode('span', [
+                    'classes' => ['deletion'],
+                    'attributes' => [
+                        'author' => 'Author',
+                    ],
+                ], [$text('dummy')]),
+                new AstNode('span', [
+                    'classes' => ['insertion'],
+                    'attributes' => [
+                        'author' => 'Author',
+                        'date' => '2014-06-25T10:40:00Z',
+                    ],
+                ], [$text('test')]),
+                $text('.'),
+            ]),
+        ]);
+
+        [, $parts] = $packageParts((new DocxWriter())->write($document));
+        $documentXml = $parts['word/document.xml'];
+
+        $t->contains('<w:r><w:t xml:space="preserve">Here is a </w:t></w:r>', $documentXml);
+        $t->contains('<w:del w:id="1" w:author="Author"><w:r><w:delText>dummy</w:delText></w:r></w:del>', $documentXml);
+        $t->contains('<w:ins w:id="1" w:author="Author" w:date="2014-06-25T10:40:00Z"><w:r><w:t>test</w:t></w:r></w:ins>', $documentXml);
+        $t->true(!str_contains($documentXml, '<w:r><w:t>dummy</w:t></w:r>'), 'Deletion text must use w:delText');
+    },
+
     'preserves empty raw block as a table separator paragraph' => static function (TestRunner $t) use ($doc, $text, $cell, $row, $packageParts): void {
         $simpleTable = static fn (string $left, string $right): AstNode => new AstNode('table', ['widths' => [0.0, 0.0]], [
             new AstNode('table_head', [], []),

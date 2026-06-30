@@ -677,6 +677,9 @@ final class DocxWriter
         if ($text === '') {
             return '<w:p/>';
         }
+        if (strtolower((string) $node->attr('format', '')) === 'openxml' && self::isSafeRawOpenXmlFragment($text)) {
+            return $text;
+        }
 
         return $this->textParagraphXml($text, $paragraphStyle, []);
     }
@@ -1298,12 +1301,41 @@ final class DocxWriter
     private function renderInlines(array $nodes, array $format, string $context = 'document'): string
     {
         $xml = '';
+        $textBuffer = '';
+        $flushText = function () use (&$xml, &$textBuffer, $format): void {
+            if ($textBuffer === '') {
+                return;
+            }
+
+            $xml .= $this->textRun($textBuffer, $format);
+            $textBuffer = '';
+        };
+
         foreach ($nodes as $node) {
             if (!$node instanceof AstNode) {
                 continue;
             }
+
+            if ($node->type === 'text' || $node->type === 'str') {
+                $text = (string) $node->attr('text', $node->attr('value', ''));
+                if ($text === '') {
+                    $flushText();
+                    $xml .= $this->textRun('', $format);
+                } else {
+                    $textBuffer .= $text;
+                }
+                continue;
+            }
+
+            if ($node->type === 'space' || $node->type === 'softbreak') {
+                $textBuffer .= ' ';
+                continue;
+            }
+
+            $flushText();
             $xml .= $this->renderInline($node, $format, $context);
         }
+        $flushText();
 
         return $xml;
     }
@@ -1451,6 +1483,12 @@ final class DocxWriter
         if ($this->hasClass($node, 'comment-end')) {
             return $this->commentEndXml($node, $format, $context);
         }
+        if ($this->hasClass($node, 'insertion')) {
+            return $this->trackedChangeXml('ins', $node, $format, $context);
+        }
+        if ($this->hasClass($node, 'deletion')) {
+            return $this->trackedChangeXml('del', $node, $format, $context);
+        }
 
         $content = $this->renderInlines($node->children, $format, $context);
         $id = (string) $node->attr('id', '');
@@ -1498,6 +1536,33 @@ final class DocxWriter
         return '<w:commentRangeEnd w:id="' . self::escAttr($id) . '"/>'
             . '<w:r><w:rPr><w:rStyle w:val="CommentReference"/></w:rPr><w:commentReference w:id="' . self::escAttr($id) . '"/></w:r>'
             . $this->renderInlines($node->children, $format, $context);
+    }
+
+    /**
+     * @param array<string, bool|string> $format
+     */
+    private function trackedChangeXml(string $tag, AstNode $node, array $format, string $context): string
+    {
+        $id = $this->nodeAttribute($node, 'id');
+        if ($id === '') {
+            $id = '1';
+        }
+
+        $attributes = ' w:id="' . self::escAttr($id) . '"';
+        $author = $this->nodeAttribute($node, 'author');
+        if ($author !== '') {
+            $attributes .= ' w:author="' . self::escAttr($author) . '"';
+        }
+        $date = $this->nodeAttribute($node, 'date');
+        if ($date !== '') {
+            $attributes .= ' w:date="' . self::escAttr($date) . '"';
+        }
+
+        $changeFormat = $tag === 'del' ? $format + ['deleted' => true] : $format;
+
+        return '<w:' . $tag . $attributes . '>'
+            . $this->renderInlines($node->children, $changeFormat, $context)
+            . '</w:' . $tag . '>';
     }
 
     private function rawOpenXmlInlineXml(AstNode $node): ?string
@@ -1839,7 +1904,8 @@ final class DocxWriter
                 continue;
             }
             $space = $this->preserveSpaceAttribute($part);
-            $runs .= '<w:r>' . $this->runPropertiesXml($format) . '<w:t' . $space . '>' . self::escText($part) . '</w:t></w:r>';
+            $tag = (($format['deleted'] ?? false) === true) ? 'w:delText' : 'w:t';
+            $runs .= '<w:r>' . $this->runPropertiesXml($format) . '<' . $tag . $space . '>' . self::escText($part) . '</' . $tag . '></w:r>';
         }
 
         return $runs;
@@ -2135,5 +2201,15 @@ final class DocxWriter
     private static function escAttr(string $value): string
     {
         return htmlspecialchars($value, ENT_XML1 | ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+
+    private static function isSafeRawOpenXmlFragment(string $xml): bool
+    {
+        $trimmed = trim($xml);
+        if ($trimmed === '' || str_contains($trimmed, '<?') || stripos($trimmed, '<!DOCTYPE') !== false) {
+            return false;
+        }
+
+        return preg_match('/^<\\/?w:[A-Za-z][A-Za-z0-9_.:-]*(\\s|>|\\/)/', $trimmed) === 1;
     }
 }
