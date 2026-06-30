@@ -2046,6 +2046,7 @@ final class OdfReader
         $dataDescriptors = self::zipDataDescriptorProvenance($package->dataDescriptorPreflight());
         $comments = $package->commentPreflight();
         $modificationTimes = $package->modificationTimePreflight();
+        $extraFields = $package->extraFieldPreflight();
         $platformMetadata = $package->platformMetadataPreflight();
         $permissions = $package->permissionPreflight();
         $creatorHostSystems = $package->creatorHostSystemPreflight();
@@ -2348,6 +2349,7 @@ final class OdfReader
                 $commentEntriesByName[$name] = $entry;
             }
         }
+        $extraFieldsByName = self::zipPreflightEntriesByName($extraFields);
         $platformMetadataByName = self::zipPreflightEntriesByName($platformMetadata);
         $permissionsByName = self::zipPreflightEntriesByName($permissions);
         $creatorHostSystemsByName = self::zipPreflightEntriesByName($creatorHostSystems);
@@ -2377,6 +2379,7 @@ final class OdfReader
                 ? ($packageManifestEntry['centralDirectoryRecordSha256'] ?? null)
                 : null;
             $commentEntry = $commentEntriesByName[$entry->name] ?? null;
+            $extraFieldEntry = $extraFieldsByName[$entry->name] ?? null;
             $embeddedObjectPackage = $this->embeddedObjectPackageMembership($entry->name, $objectPackageRootParts);
             $location = self::packageInventoryEntryLocation($entry->name);
             $roles = $this->packagePartRoles($entry, $manifestItem, $isUndeclared, $objectPackageRootParts);
@@ -2386,6 +2389,7 @@ final class OdfReader
             $generalPurposeFlagProvenance = self::zipGeneralPurposeFlagProvenance($generalPurposeFlagEntriesByName[$entry->name] ?? null);
             $dataDescriptorProvenance = self::zipDataDescriptorEntryProvenance($dataDescriptorByName[$entry->name] ?? null);
             $localHeaderProvenance = self::zipLocalHeaderProvenance($localHeadersByName[$entry->name] ?? null);
+            $extraFieldProvenance = self::zipExtraFieldProvenance($extraFieldEntry);
             $platformAttributeProvenance = self::zipPlatformAttributeProvenance(
                 $entry,
                 $platformMetadataByName[$entry->name] ?? null,
@@ -2512,7 +2516,7 @@ final class OdfReader
                 'canExposeBytes' => is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $byteExposurePolicy,
                 'undeclared' => $isUndeclared,
-            ] + $rawNameProvenance + $sourceRecordProvenance + $timestampProvenance + $localHeaderProvenance + $generalPurposeFlagProvenance + $dataDescriptorProvenance + $platformAttributeProvenance;
+            ] + $rawNameProvenance + $sourceRecordProvenance + $timestampProvenance + $localHeaderProvenance + $generalPurposeFlagProvenance + $dataDescriptorProvenance + $extraFieldProvenance + $platformAttributeProvenance;
 
             if (is_string($byteExposurePolicy) && $byteExposurePolicy !== '') {
                 $packagePartByteExposurePolicyCounts[$byteExposurePolicy] = ($packagePartByteExposurePolicyCounts[$byteExposurePolicy] ?? 0) + 1;
@@ -2793,6 +2797,22 @@ final class OdfReader
             'hasEntryComments' => ($comments['hasEntryComments'] ?? false) === true,
             'entryCommentCount' => is_int($comments['entryCommentCount'] ?? null) ? $comments['entryCommentCount'] : 0,
             'commentedEntryNames' => is_array($comments['commentedEntryNames'] ?? null) ? $comments['commentedEntryNames'] : [],
+            'extraFields' => $extraFields,
+            'zipExtraFieldEntryCount' => $extraFields['extraFieldEntryCount'],
+            'zipDuplicateExtraFieldEntryCount' => $extraFields['duplicateExtraFieldEntryCount'],
+            'zipDuplicateCentralExtraFieldEntryCount' => $extraFields['duplicateCentralExtraFieldEntryCount'],
+            'zipDuplicateLocalExtraFieldEntryCount' => $extraFields['duplicateLocalExtraFieldEntryCount'],
+            'zipMismatchedExtraFieldEntryCount' => $extraFields['mismatchedExtraFieldEntryCount'],
+            'zipMismatchedExtraFieldValueEntryCount' => $extraFields['mismatchedExtraFieldValueEntryCount'],
+            'zipCentralOnlyExtraFieldEntryCount' => $extraFields['centralOnlyExtraFieldEntryCount'],
+            'zipLocalOnlyExtraFieldEntryCount' => $extraFields['localOnlyExtraFieldEntryCount'],
+            'zipExtraFieldIdCount' => $extraFields['extraFieldIdCount'],
+            'zipCentralExtraFieldIdCount' => $extraFields['centralExtraFieldIdCount'],
+            'zipLocalExtraFieldIdCount' => $extraFields['localExtraFieldIdCount'],
+            'zipSharedExtraFieldIdCount' => $extraFields['sharedExtraFieldIdCount'],
+            'zipCentralOnlyExtraFieldIdCount' => $extraFields['centralOnlyExtraFieldIdCount'],
+            'zipLocalOnlyExtraFieldIdCount' => $extraFields['localOnlyExtraFieldIdCount'],
+            'zipExtraFieldIdUsage' => $extraFields['extraFieldIdUsage'],
             'modificationTimes' => $modificationTimes,
             'zipTimestampEntryCount' => $modificationTimes['timestampEntryCount'],
             'zipDosTimestampEntryCount' => $modificationTimes['dosTimestampEntryCount'],
@@ -3242,6 +3262,19 @@ final class OdfReader
                 'zipLocalModifiedAt' => $item['zipLocalModifiedAt'] ?? null,
                 'zipLocalTimestampSource' => $item['zipLocalTimestampSource'] ?? null,
                 'zipTimestampIssues' => $item['zipTimestampIssues'] ?? [],
+                'centralExtraFieldIds' => $item['centralExtraFieldIds'] ?? [],
+                'localExtraFieldIds' => $item['localExtraFieldIds'] ?? [],
+                'duplicateCentralExtraFieldIds' => $item['duplicateCentralExtraFieldIds'] ?? [],
+                'duplicateLocalExtraFieldIds' => $item['duplicateLocalExtraFieldIds'] ?? [],
+                'centralOnlyExtraFieldIds' => $item['centralOnlyExtraFieldIds'] ?? [],
+                'localOnlyExtraFieldIds' => $item['localOnlyExtraFieldIds'] ?? [],
+                'mismatchedExtraFieldValueIds' => $item['mismatchedExtraFieldValueIds'] ?? [],
+                'hasCentralExtraFields' => ($item['hasCentralExtraFields'] ?? false) === true,
+                'hasLocalExtraFields' => ($item['hasLocalExtraFields'] ?? false) === true,
+                'hasZipExtraFieldProvenance' => ($item['hasZipExtraFieldProvenance'] ?? false) === true,
+                'hasDuplicateExtraFieldIds' => ($item['hasDuplicateExtraFieldIds'] ?? false) === true,
+                'hasMismatchedExtraFieldIds' => ($item['hasMismatchedExtraFieldIds'] ?? false) === true,
+                'hasMismatchedExtraFieldValues' => ($item['hasMismatchedExtraFieldValues'] ?? false) === true,
                 'declaredInManifest' => ($item['declaredInManifest'] ?? false) === true,
                 'manifestIndex' => $item['manifestIndex'] ?? null,
                 'manifestFullPath' => $item['manifestFullPath'] ?? null,
@@ -3336,6 +3369,19 @@ final class OdfReader
             'zipExtendedTimestampEntryCount' => $provenance['zipExtendedTimestampEntryCount'] ?? 0,
             'zipNtfsTimestampEntryCount' => $provenance['zipNtfsTimestampEntryCount'] ?? 0,
             'zipInvalidDosTimestampEntryCount' => $provenance['zipInvalidDosTimestampEntryCount'] ?? 0,
+            'zipExtraFieldEntryCount' => $provenance['zipExtraFieldEntryCount'] ?? 0,
+            'zipDuplicateExtraFieldEntryCount' => $provenance['zipDuplicateExtraFieldEntryCount'] ?? 0,
+            'zipMismatchedExtraFieldEntryCount' => $provenance['zipMismatchedExtraFieldEntryCount'] ?? 0,
+            'zipMismatchedExtraFieldValueEntryCount' => $provenance['zipMismatchedExtraFieldValueEntryCount'] ?? 0,
+            'zipCentralOnlyExtraFieldEntryCount' => $provenance['zipCentralOnlyExtraFieldEntryCount'] ?? 0,
+            'zipLocalOnlyExtraFieldEntryCount' => $provenance['zipLocalOnlyExtraFieldEntryCount'] ?? 0,
+            'zipExtraFieldIdCount' => $provenance['zipExtraFieldIdCount'] ?? 0,
+            'zipCentralExtraFieldIdCount' => $provenance['zipCentralExtraFieldIdCount'] ?? 0,
+            'zipLocalExtraFieldIdCount' => $provenance['zipLocalExtraFieldIdCount'] ?? 0,
+            'zipSharedExtraFieldIdCount' => $provenance['zipSharedExtraFieldIdCount'] ?? 0,
+            'zipCentralOnlyExtraFieldIdCount' => $provenance['zipCentralOnlyExtraFieldIdCount'] ?? 0,
+            'zipLocalOnlyExtraFieldIdCount' => $provenance['zipLocalOnlyExtraFieldIdCount'] ?? 0,
+            'zipExtraFieldIdUsage' => $provenance['zipExtraFieldIdUsage'] ?? [],
             'comments' => [
                 'hasPackageComment' => ($comments['hasPackageComment'] ?? false) === true,
                 'packageComment' => $comments['packageComment'] ?? null,
@@ -3439,6 +3485,19 @@ final class OdfReader
             'zipExtendedTimestampEntryCount' => $provenance['zipExtendedTimestampEntryCount'] ?? 0,
             'zipNtfsTimestampEntryCount' => $provenance['zipNtfsTimestampEntryCount'] ?? 0,
             'zipInvalidDosTimestampEntryCount' => $provenance['zipInvalidDosTimestampEntryCount'] ?? 0,
+            'zipExtraFieldEntryCount' => $provenance['zipExtraFieldEntryCount'] ?? 0,
+            'zipDuplicateExtraFieldEntryCount' => $provenance['zipDuplicateExtraFieldEntryCount'] ?? 0,
+            'zipMismatchedExtraFieldEntryCount' => $provenance['zipMismatchedExtraFieldEntryCount'] ?? 0,
+            'zipMismatchedExtraFieldValueEntryCount' => $provenance['zipMismatchedExtraFieldValueEntryCount'] ?? 0,
+            'zipCentralOnlyExtraFieldEntryCount' => $provenance['zipCentralOnlyExtraFieldEntryCount'] ?? 0,
+            'zipLocalOnlyExtraFieldEntryCount' => $provenance['zipLocalOnlyExtraFieldEntryCount'] ?? 0,
+            'zipExtraFieldIdCount' => $provenance['zipExtraFieldIdCount'] ?? 0,
+            'zipCentralExtraFieldIdCount' => $provenance['zipCentralExtraFieldIdCount'] ?? 0,
+            'zipLocalExtraFieldIdCount' => $provenance['zipLocalExtraFieldIdCount'] ?? 0,
+            'zipSharedExtraFieldIdCount' => $provenance['zipSharedExtraFieldIdCount'] ?? 0,
+            'zipCentralOnlyExtraFieldIdCount' => $provenance['zipCentralOnlyExtraFieldIdCount'] ?? 0,
+            'zipLocalOnlyExtraFieldIdCount' => $provenance['zipLocalOnlyExtraFieldIdCount'] ?? 0,
+            'zipExtraFieldIdUsage' => $provenance['zipExtraFieldIdUsage'] ?? [],
             'manifestEntries' => $manifestEntries,
             'packageEntries' => $packageEntries,
             'scriptPackagePartCount' => $provenance['scriptPackagePartCount'] ?? 0,
@@ -4191,6 +4250,56 @@ final class OdfReader
         }
 
         return $entriesByName;
+    }
+
+    /**
+     * @param array<string, mixed>|null $extraFieldEntry
+     * @return array<string, mixed>
+     */
+    private static function zipExtraFieldProvenance(?array $extraFieldEntry): array
+    {
+        $centralExtraFieldIds = is_array($extraFieldEntry)
+            && is_array($extraFieldEntry['centralExtraFieldIds'] ?? null)
+            ? $extraFieldEntry['centralExtraFieldIds']
+            : [];
+        $localExtraFieldIds = is_array($extraFieldEntry)
+            && is_array($extraFieldEntry['localExtraFieldIds'] ?? null)
+            ? $extraFieldEntry['localExtraFieldIds']
+            : [];
+
+        return [
+            'centralExtraFieldIds' => $centralExtraFieldIds,
+            'localExtraFieldIds' => $localExtraFieldIds,
+            'duplicateCentralExtraFieldIds' => is_array($extraFieldEntry)
+                && is_array($extraFieldEntry['duplicateCentralExtraFieldIds'] ?? null)
+                ? $extraFieldEntry['duplicateCentralExtraFieldIds']
+                : [],
+            'duplicateLocalExtraFieldIds' => is_array($extraFieldEntry)
+                && is_array($extraFieldEntry['duplicateLocalExtraFieldIds'] ?? null)
+                ? $extraFieldEntry['duplicateLocalExtraFieldIds']
+                : [],
+            'centralOnlyExtraFieldIds' => is_array($extraFieldEntry)
+                && is_array($extraFieldEntry['centralOnlyExtraFieldIds'] ?? null)
+                ? $extraFieldEntry['centralOnlyExtraFieldIds']
+                : [],
+            'localOnlyExtraFieldIds' => is_array($extraFieldEntry)
+                && is_array($extraFieldEntry['localOnlyExtraFieldIds'] ?? null)
+                ? $extraFieldEntry['localOnlyExtraFieldIds']
+                : [],
+            'mismatchedExtraFieldValueIds' => is_array($extraFieldEntry)
+                && is_array($extraFieldEntry['mismatchedExtraFieldValueIds'] ?? null)
+                ? $extraFieldEntry['mismatchedExtraFieldValueIds']
+                : [],
+            'hasCentralExtraFields' => $centralExtraFieldIds !== [],
+            'hasLocalExtraFields' => $localExtraFieldIds !== [],
+            'hasZipExtraFieldProvenance' => $centralExtraFieldIds !== [] || $localExtraFieldIds !== [],
+            'hasDuplicateExtraFieldIds' => is_array($extraFieldEntry)
+                && ($extraFieldEntry['hasDuplicateExtraFieldIds'] ?? false) === true,
+            'hasMismatchedExtraFieldIds' => is_array($extraFieldEntry)
+                && ($extraFieldEntry['hasMismatchedExtraFieldIds'] ?? false) === true,
+            'hasMismatchedExtraFieldValues' => is_array($extraFieldEntry)
+                && ($extraFieldEntry['hasMismatchedExtraFieldValues'] ?? false) === true,
+        ];
     }
 
     /**

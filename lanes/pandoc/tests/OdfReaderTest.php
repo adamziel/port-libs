@@ -13121,6 +13121,67 @@ XML;
             $t->same($expectedIssues, $item['zipGeneralPurposeFlagIssues'], "{$context} issues");
         }
     },
+    'surfaces ODT ZIP extra fields in rich package provenance' => static function (TestRunner $t) use ($manifestXml, $contentXml, $stylesXml, $metaXml): void {
+        $customExtraField = pack('vva*', 0xcafe, strlen('odf-review'), 'odf-review');
+        $package = ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml],
+            ['name' => 'content.xml', 'data' => $contentXml, 'extraFieldData' => $customExtraField],
+            ['name' => 'styles.xml', 'data' => $stylesXml],
+            ['name' => 'meta.xml', 'data' => $metaXml],
+            ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+        ]);
+
+        $result = (new OdfReader())->readPackage($package);
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $documentProvenance = $result['document']->attr('manifest')['packageProvenance'];
+        $extraFields = $provenance['extraFields'];
+        $content = $provenance['parts']['content.xml'];
+        $extraFieldEntries = [];
+        foreach ($extraFields['entries'] as $entry) {
+            $extraFieldEntries[$entry['name']] = $entry;
+        }
+        $identityParts = [];
+        foreach ($provenance['packageIdentity']['packageEntries'] as $entry) {
+            $identityParts[$entry['part']] = $entry;
+        }
+
+        $expectedIds = [0xcafe];
+        $t->same($package->extraFieldPreflight(), $extraFields);
+        $t->same($provenance, $documentProvenance);
+        $t->same(1, $provenance['zipExtraFieldEntryCount']);
+        $t->same(0, $provenance['zipDuplicateExtraFieldEntryCount']);
+        $t->same(0, $provenance['zipMismatchedExtraFieldEntryCount']);
+        $t->same(0, $provenance['zipMismatchedExtraFieldValueEntryCount']);
+        $t->same(1, $provenance['zipExtraFieldIdCount']);
+        $t->same(1, $provenance['zipCentralExtraFieldIdCount']);
+        $t->same(1, $provenance['zipLocalExtraFieldIdCount']);
+        $t->same(1, $provenance['zipSharedExtraFieldIdCount']);
+        $t->same(0, $provenance['zipCentralOnlyExtraFieldIdCount']);
+        $t->same(0, $provenance['zipLocalOnlyExtraFieldIdCount']);
+
+        $t->same($expectedIds, $content['centralExtraFieldIds']);
+        $t->same($expectedIds, $content['localExtraFieldIds']);
+        $t->same(true, $content['hasCentralExtraFields']);
+        $t->same(true, $content['hasLocalExtraFields']);
+        $t->same(true, $content['hasZipExtraFieldProvenance']);
+        $t->same(false, $content['hasDuplicateExtraFieldIds']);
+        $t->same(false, $content['hasMismatchedExtraFieldIds']);
+        $t->same(false, $content['hasMismatchedExtraFieldValues']);
+        $t->same([], $provenance['parts']['styles.xml']['centralExtraFieldIds']);
+        $t->same(false, $provenance['parts']['styles.xml']['hasZipExtraFieldProvenance']);
+
+        $t->same($expectedIds, $extraFieldEntries['content.xml']['centralExtraFieldIds']);
+        $t->same($expectedIds, $extraFieldEntries['content.xml']['localExtraFieldIds']);
+        $t->same('0xcafe', $provenance['zipExtraFieldIdUsage'][0]['idHex']);
+        $t->same(['content.xml'], $provenance['zipExtraFieldIdUsage'][0]['centralEntryNames']);
+        $t->same(['content.xml'], $provenance['zipExtraFieldIdUsage'][0]['localEntryNames']);
+        $t->same($expectedIds, $identityParts['content.xml']['centralExtraFieldIds']);
+        $t->same($expectedIds, $identityParts['content.xml']['localExtraFieldIds']);
+        $t->same(true, $identityParts['content.xml']['hasZipExtraFieldProvenance']);
+        $t->same(1, $provenance['packageIdentity']['zipExtraFieldEntryCount']);
+        $t->same(1, $provenance['packageIdentity']['zipExtraFieldIdCount']);
+    },
     'rejects malformed ODT packages before conversion handoff' => static function (TestRunner $t) use ($buildOdtPackage, $buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml): void {
         $reader = new OdfReader();
 

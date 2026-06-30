@@ -4970,6 +4970,65 @@ XML;
         $t->same('thumbnail', $packageHero['manifestPreferredViewMode']);
         $t->same(['wp:media-role' => 'cover'], $packageHero['customManifestAttributeMap']);
     },
+    'surfaces compact ODT ZIP extra fields as metadata-only provenance' => static function (TestRunner $t) use ($manifestXml, $contentXml, $stylesXml, $metaXml): void {
+        $customExtraField = pack('vva*', 0xcafe, strlen('odf-review'), 'odf-review');
+        $package = ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => OpenDocumentPackage::TEXT_MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml],
+            ['name' => 'content.xml', 'data' => $contentXml, 'extraFieldData' => $customExtraField],
+            ['name' => 'styles.xml', 'data' => $stylesXml],
+            ['name' => 'meta.xml', 'data' => $metaXml],
+            ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+        ]);
+
+        $summary = OpenDocumentPackage::fromPackage($package)->summarize();
+        $inventory = $summary['packageInventory'];
+        $extraFields = $inventory['extraFields'];
+        $content = $inventory['parts']['content.xml'];
+        $extraFieldEntries = [];
+        foreach ($extraFields['entries'] as $entry) {
+            $extraFieldEntries[$entry['name']] = $entry;
+        }
+        $identityParts = [];
+        foreach ($summary['packageIdentity']['packageEntries'] as $entry) {
+            $identityParts[$entry['path']] = $entry;
+        }
+
+        $expectedIds = [0xcafe];
+        $t->same($package->extraFieldPreflight(), $extraFields);
+        $t->same(1, $inventory['zipExtraFieldEntryCount']);
+        $t->same(0, $inventory['zipDuplicateExtraFieldEntryCount']);
+        $t->same(0, $inventory['zipMismatchedExtraFieldEntryCount']);
+        $t->same(0, $inventory['zipMismatchedExtraFieldValueEntryCount']);
+        $t->same(1, $inventory['zipExtraFieldIdCount']);
+        $t->same(1, $inventory['zipCentralExtraFieldIdCount']);
+        $t->same(1, $inventory['zipLocalExtraFieldIdCount']);
+        $t->same(1, $inventory['zipSharedExtraFieldIdCount']);
+        $t->same(0, $inventory['zipCentralOnlyExtraFieldIdCount']);
+        $t->same(0, $inventory['zipLocalOnlyExtraFieldIdCount']);
+
+        $t->same($expectedIds, $content['centralExtraFieldIds']);
+        $t->same($expectedIds, $content['localExtraFieldIds']);
+        $t->same(true, $content['hasCentralExtraFields']);
+        $t->same(true, $content['hasLocalExtraFields']);
+        $t->same(true, $content['hasZipExtraFieldProvenance']);
+        $t->same(false, $content['hasDuplicateExtraFieldIds']);
+        $t->same(false, $content['hasMismatchedExtraFieldIds']);
+        $t->same(false, $content['hasMismatchedExtraFieldValues']);
+        $t->same([], $inventory['parts']['styles.xml']['centralExtraFieldIds']);
+        $t->same(false, $inventory['parts']['styles.xml']['hasZipExtraFieldProvenance']);
+
+        $t->same($expectedIds, $extraFieldEntries['content.xml']['centralExtraFieldIds']);
+        $t->same($expectedIds, $extraFieldEntries['content.xml']['localExtraFieldIds']);
+        $t->same('0xcafe', $inventory['zipExtraFieldIdUsage'][0]['idHex']);
+        $t->same(['content.xml'], $inventory['zipExtraFieldIdUsage'][0]['centralEntryNames']);
+        $t->same(['content.xml'], $inventory['zipExtraFieldIdUsage'][0]['localEntryNames']);
+        $t->same($expectedIds, $identityParts['content.xml']['centralExtraFieldIds']);
+        $t->same($expectedIds, $identityParts['content.xml']['localExtraFieldIds']);
+        $t->same(true, $identityParts['content.xml']['hasZipExtraFieldProvenance']);
+        $t->same(1, $summary['packageIdentity']['zipExtraFieldEntryCount']);
+        $t->same(1, $summary['packageIdentity']['zipExtraFieldIdCount']);
+    },
     'surfaces compact ODT ZIP platform attributes as metadata-only provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifestWithPlatformParts = str_replace(
             '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
