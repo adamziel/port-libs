@@ -723,12 +723,14 @@ final class OdfReader
 
         $items = [];
         $objectPackageRootParts = $this->objectPackageRootParts($rawItems);
+        $commentEntriesByName = self::zipPreflightEntriesByName($package->commentPreflight());
         foreach ($rawItems as $rawItem) {
             $part = $rawItem['part'] ?? null;
             $mediaType = (string) ($rawItem['mediaType'] ?? '');
             $isDirectory = is_string($part) && str_ends_with($part, '/');
             $exists = $part === null || $isDirectory || $package->has($part);
             $zipEntry = $exists && is_string($part) && $part !== '' && !$isDirectory ? $package->entry($part) : null;
+            $commentEntry = $zipEntry instanceof ZipPackageEntry ? ($commentEntriesByName[$zipEntry->name] ?? null) : null;
             $storedByteLength = $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null;
             $compressionMethod = $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressionMethod : null;
             $hasSupportedCompression = $compressionMethod === null || $compressionMethod === 0 || $compressionMethod === 8;
@@ -831,6 +833,11 @@ final class OdfReader
                 'crc32' => $canExposeBytes && $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
                 'storedCrc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
                 'byteSha256' => $this->packageEntryByteSha256($package, $part, $canExposeBytes),
+                'zipEntryComment' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->comment : null,
+                'zipEntryCommentLength' => $zipEntry instanceof ZipPackageEntry ? strlen($zipEntry->rawComment) : null,
+                'zipEntryCommentEncoding' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->commentEncoding : null,
+                'zipEntryHasComment' => $zipEntry instanceof ZipPackageEntry && $zipEntry->comment !== '',
+                'zipEntryCommentIssues' => is_array($commentEntry) ? ($commentEntry['issues'] ?? []) : [],
                 'declaredSizeMismatch' => $declaredSizeMismatch,
                 'embeddedObjectPackagePart' => $embeddedObjectPackagePart,
                 'embeddedObjectRootPart' => is_array($embeddedObjectPackage) ? $embeddedObjectPackage['rootPart'] : null,
@@ -2141,6 +2148,11 @@ final class OdfReader
                 'eventPackagePart' => ($item['eventPackagePart'] ?? false) === true,
                 'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $item['byteExposurePolicy'] ?? null,
+                'zipEntryComment' => $item['zipEntryComment'] ?? null,
+                'zipEntryCommentLength' => $item['zipEntryCommentLength'] ?? null,
+                'zipEntryCommentEncoding' => $item['zipEntryCommentEncoding'] ?? null,
+                'zipEntryHasComment' => ($item['zipEntryHasComment'] ?? false) === true,
+                'zipEntryCommentIssues' => $item['zipEntryCommentIssues'] ?? [],
                 'diagnostics' => $item['diagnostics'] ?? [],
             ];
             $manifestByteExposurePolicy = $item['byteExposurePolicy'] ?? null;

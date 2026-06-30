@@ -12765,6 +12765,14 @@ XML;
         $comments = $provenance['comments'];
         $content = $provenance['parts']['content.xml'];
         $hero = $provenance['parts']['Pictures/hero.png'];
+        $manifestByPath = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByPath[$item['fullPath']] = $item;
+        }
+        $manifestOrderByPath = [];
+        foreach ($provenance['manifestFileEntryOrder'] as $item) {
+            $manifestOrderByPath[$item['fullPath']] = $item;
+        }
 
         $t->same($comments, $package->commentPreflight());
         $t->same($provenance, $documentProvenance);
@@ -12787,6 +12795,18 @@ XML;
         $t->same('media review', $hero['zipEntryComment']);
         $t->same(true, $hero['zipEntryHasComment']);
         $t->same('package-bytes-exposable', $hero['byteExposurePolicy']);
+        $t->same('body review', $manifestByPath['content.xml']['zipEntryComment']);
+        $t->same(strlen('body review'), $manifestByPath['content.xml']['zipEntryCommentLength']);
+        $t->same('utf-8', $manifestByPath['content.xml']['zipEntryCommentEncoding']);
+        $t->same(true, $manifestByPath['content.xml']['zipEntryHasComment']);
+        $t->same([], $manifestByPath['content.xml']['zipEntryCommentIssues']);
+        $t->same('media review', $manifestByPath['Pictures/hero.png']['zipEntryComment']);
+        $t->same('body review', $manifestOrderByPath['content.xml']['zipEntryComment']);
+        $t->same(strlen('body review'), $manifestOrderByPath['content.xml']['zipEntryCommentLength']);
+        $t->same('utf-8', $manifestOrderByPath['content.xml']['zipEntryCommentEncoding']);
+        $t->same(true, $manifestOrderByPath['content.xml']['zipEntryHasComment']);
+        $t->same([], $manifestOrderByPath['content.xml']['zipEntryCommentIssues']);
+        $t->same('media review', $manifestOrderByPath['Pictures/hero.png']['zipEntryComment']);
         $t->same(1, count($result['media']));
         $t->same('Pictures/hero.png', $result['media'][0]['part']);
         $t->same(0, $provenance['undeclaredEntryCount']);

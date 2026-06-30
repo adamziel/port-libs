@@ -4499,6 +4499,14 @@ XML;
         $comments = $inventory['comments'];
         $content = $inventory['parts']['content.xml'];
         $hero = $inventory['parts']['Pictures/hero.png'];
+        $manifestReviewByPath = [];
+        foreach ($summary['manifestReview']['items'] as $item) {
+            $manifestReviewByPath[$item['path']] = $item;
+        }
+        $manifestOrderByPath = [];
+        foreach ($summary['manifestReview']['manifestFileEntryOrder'] as $item) {
+            $manifestOrderByPath[$item['path']] = $item;
+        }
 
         $t->same($comments, $package->commentPreflight());
         $t->same($comments, $summary['packageInventory']['comments']);
@@ -4522,6 +4530,18 @@ XML;
         $t->same('media review', $hero['zipEntryComment']);
         $t->same(true, $hero['zipEntryHasComment']);
         $t->same('package-bytes-exposable', $hero['byteExposurePolicy']);
+        $t->same('body review', $manifestReviewByPath['content.xml']['zipEntryComment']);
+        $t->same(strlen('body review'), $manifestReviewByPath['content.xml']['zipEntryCommentLength']);
+        $t->same('utf-8', $manifestReviewByPath['content.xml']['zipEntryCommentEncoding']);
+        $t->same(true, $manifestReviewByPath['content.xml']['zipEntryHasComment']);
+        $t->same([], $manifestReviewByPath['content.xml']['zipEntryCommentIssues']);
+        $t->same('media review', $manifestReviewByPath['Pictures/hero.png']['zipEntryComment']);
+        $t->same('body review', $manifestOrderByPath['content.xml']['zipEntryComment']);
+        $t->same(strlen('body review'), $manifestOrderByPath['content.xml']['zipEntryCommentLength']);
+        $t->same('utf-8', $manifestOrderByPath['content.xml']['zipEntryCommentEncoding']);
+        $t->same(true, $manifestOrderByPath['content.xml']['zipEntryHasComment']);
+        $t->same([], $manifestOrderByPath['content.xml']['zipEntryCommentIssues']);
+        $t->same('media review', $manifestOrderByPath['Pictures/hero.png']['zipEntryComment']);
         $t->same(1, count($summary['mediaParts']));
         $t->same('Pictures/hero.png', $summary['mediaParts'][0]['path']);
         $t->same('odf-package-inventory-metadata-only', $inventory['byteExposurePolicy']);

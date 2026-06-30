@@ -2435,6 +2435,7 @@ final class OpenDocumentPackage
     {
         $hydrated = [];
         $modificationTimeByName = self::zipModificationTimeEntriesByName($package->modificationTimePreflight());
+        $commentEntriesByName = self::zipPreflightEntriesByName($package->commentPreflight());
         $objectPackageRootParts = self::embeddedObjectPackageRootParts($entries);
         foreach ($entries as $entry) {
             $isRoot = $entry['path'] === '/';
@@ -2466,6 +2467,7 @@ final class OpenDocumentPackage
             $zipEntry = (!$isRoot && is_string($packagePath) && $package->has($packagePath))
                 ? $package->entry($packagePath)
                 : null;
+            $commentEntry = $zipEntry instanceof ZipPackageEntry ? ($commentEntriesByName[$zipEntry->name] ?? null) : null;
             $timestampProvenance = $zipEntry instanceof ZipPackageEntry
                 ? self::zipTimestampProvenance($modificationTimeByName[$zipEntry->name] ?? null)
                 : self::zipTimestampProvenance(null);
@@ -2562,6 +2564,11 @@ final class OpenDocumentPackage
                 'crc32' => $canExposeBytes && $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
                 'storedCrc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
                 'byteSha256' => self::packageEntryByteSha256($package, $packagePath, $canExposeBytes),
+                'zipEntryComment' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->comment : null,
+                'zipEntryCommentLength' => $zipEntry instanceof ZipPackageEntry ? strlen($zipEntry->rawComment) : null,
+                'zipEntryCommentEncoding' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->commentEncoding : null,
+                'zipEntryHasComment' => $zipEntry instanceof ZipPackageEntry && $zipEntry->comment !== '',
+                'zipEntryCommentIssues' => is_array($commentEntry) ? ($commentEntry['issues'] ?? []) : [],
                 'declaredSize' => $declaredSize,
                 'declaredSizeRaw' => $entry['declaredSizeRaw'] ?? null,
                 'declaredSizeValid' => ($entry['declaredSizeValid'] ?? false) === true,
@@ -8806,6 +8813,11 @@ final class OpenDocumentPackage
             'crc32' => $entry['crc32'] ?? null,
             'storedCrc32' => $entry['storedCrc32'] ?? null,
             'byteSha256' => $entry['byteSha256'] ?? null,
+            'zipEntryComment' => $entry['zipEntryComment'] ?? null,
+            'zipEntryCommentLength' => $entry['zipEntryCommentLength'] ?? null,
+            'zipEntryCommentEncoding' => $entry['zipEntryCommentEncoding'] ?? null,
+            'zipEntryHasComment' => ($entry['zipEntryHasComment'] ?? false) === true,
+            'zipEntryCommentIssues' => $entry['zipEntryCommentIssues'] ?? [],
             'zipModifiedAt' => $entry['zipModifiedAt'] ?? null,
             'zipTimestampSource' => $entry['zipTimestampSource'] ?? null,
             'zipModifiedDosTime' => $entry['zipModifiedDosTime'] ?? null,
@@ -8893,6 +8905,11 @@ final class OpenDocumentPackage
             'templatePackagePart' => ($entry['templatePackagePart'] ?? false) === true,
             'dictionaryPackagePart' => ($entry['dictionaryPackagePart'] ?? false) === true,
             'eventPackagePart' => ($entry['eventPackagePart'] ?? false) === true,
+            'zipEntryComment' => $entry['zipEntryComment'] ?? null,
+            'zipEntryCommentLength' => $entry['zipEntryCommentLength'] ?? null,
+            'zipEntryCommentEncoding' => $entry['zipEntryCommentEncoding'] ?? null,
+            'zipEntryHasComment' => ($entry['zipEntryHasComment'] ?? false) === true,
+            'zipEntryCommentIssues' => $entry['zipEntryCommentIssues'] ?? [],
             'zipModifiedAt' => $entry['zipModifiedAt'] ?? null,
             'zipTimestampSource' => $entry['zipTimestampSource'] ?? null,
             'zipLocalModifiedAt' => $entry['zipLocalModifiedAt'] ?? null,
