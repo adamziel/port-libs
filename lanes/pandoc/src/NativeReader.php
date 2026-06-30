@@ -904,6 +904,10 @@ final class NativeReader
             return new AstNode('raw_tex', ['format' => $format, 'text' => $text, 'tex' => $text]);
         }
 
+        if ($this->isMarkdownRawFormat($format)) {
+            return new AstNode('raw_markdown', ['format' => $format, 'text' => $text, 'markdown' => $text]);
+        }
+
         return new AstNode('raw_block', ['format' => $format, 'text' => $text]);
     }
 
@@ -1045,12 +1049,35 @@ final class NativeReader
             return new AstNode('raw_tex_inline', ['format' => $format, 'text' => $text, 'tex' => $text]);
         }
 
+        if ($this->isMarkdownRawFormat($format)) {
+            return new AstNode('raw_markdown', ['format' => $format, 'text' => $text, 'markdown' => $text]);
+        }
+
         return new AstNode('raw_inline', [
             'constructor' => 'RawInline',
             'native' => ['t' => 'RawInline', 'c' => [$format, $text]],
             'format' => $format,
             'text' => $text,
         ]);
+    }
+
+    private function isMarkdownRawFormat(string $format): bool
+    {
+        $normalized = strtolower(str_replace('-', '+', $format));
+        $baseFormat = explode('+', $normalized, 2)[0];
+        $formats = [
+            'markdown',
+            'markdown_strict',
+            'markdown_phpextra',
+            'markdown_github',
+            'markdown_mmd',
+            'pandoc',
+            'commonmark',
+            'commonmark_x',
+            'gfm',
+        ];
+
+        return in_array($normalized, $formats, true) || in_array($baseFormat, $formats, true);
     }
 
     private function isHtmlRawFormat(string $format): bool
