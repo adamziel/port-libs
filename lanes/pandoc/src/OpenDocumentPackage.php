@@ -915,6 +915,8 @@ final class OpenDocumentPackage
 
         $localHeaderOrder = $this->package->localHeaderOrderPreflight();
         $packageManifest = $this->package->packageManifestPreflight();
+        $localHeaders = $this->package->localHeaderPreflight();
+        $localHeadersByName = self::zipPreflightEntriesByName($localHeaders);
         $compressionMethods = $this->package->compressionMethodPreflight();
         $generalPurposeFlags = $this->package->generalPurposeFlagPreflight();
         $generalPurposeFlagEntriesByName = self::zipPreflightEntriesByName($generalPurposeFlags);
@@ -1021,6 +1023,7 @@ final class OpenDocumentPackage
                 $dosAttributesByName[$entry->name] ?? null,
                 $internalAttributesByName[$entry->name] ?? null
             );
+            $localHeaderProvenance = self::zipLocalHeaderProvenance($localHeadersByName[$entry->name] ?? null);
             if ($entry->isDirectory()) {
                 ++$packageDirectoryCount;
             }
@@ -1139,7 +1142,7 @@ final class OpenDocumentPackage
                 'canExposeBytes' => is_array($manifestEntry) && ($manifestEntry['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $byteExposurePolicy,
                 'undeclared' => $isUndeclared,
-            ] + $rawNameProvenance + $sourceRecordProvenance + $timestampProvenance + $generalPurposeFlagProvenance + $dataDescriptorProvenance + $platformAttributeProvenance;
+            ] + $rawNameProvenance + $sourceRecordProvenance + $timestampProvenance + $localHeaderProvenance + $generalPurposeFlagProvenance + $dataDescriptorProvenance + $platformAttributeProvenance;
 
             foreach ($roles as $role) {
                 $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
@@ -1352,6 +1355,16 @@ final class OpenDocumentPackage
             'canExposeBytes' => false,
             'roles' => array_keys($roleCounts),
             'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],
+            'localHeaders' => $localHeaders,
+            'localHeaderEntryCount' => $localHeaders['entryCount'],
+            'localHeaderBytes' => $localHeaders['localHeaderBytes'],
+            'localFixedHeaderBytes' => $localHeaders['localFixedHeaderBytes'],
+            'localVariableFieldBytes' => $localHeaders['localVariableFieldBytes'],
+            'localNameBytes' => $localHeaders['localNameBytes'],
+            'localExtraFieldBytes' => $localHeaders['localExtraFieldBytes'],
+            'localExtraFieldEntryCount' => $localHeaders['localExtraFieldEntryCount'],
+            'localExtraFieldRecordCount' => $localHeaders['localExtraFieldRecordCount'],
+            'localExtraFieldRecordIds' => $localHeaders['localExtraFieldRecordIds'],
             'roleByteLengths' => $roleByteLengths,
             'roleCompressedByteLengths' => $roleCompressedByteLengths,
             'unsupportedCompressionPartNames' => array_keys($unsupportedCompressionPartNames),
@@ -1541,6 +1554,25 @@ final class OpenDocumentPackage
                 'roles' => $part['roles'] ?? [],
                 'centralDirectoryIndex' => $part['centralDirectoryIndex'] ?? null,
                 'localHeaderOrder' => $part['localHeaderOrder'] ?? null,
+                'localHeaderLength' => $part['localHeaderLength'] ?? null,
+                'localVariableFieldsLength' => $part['localVariableFieldsLength'] ?? null,
+                'localNameLength' => $part['localNameLength'] ?? null,
+                'localExtraFieldLength' => $part['localExtraFieldLength'] ?? null,
+                'localExtraFieldRecordCount' => $part['localExtraFieldRecordCount'] ?? null,
+                'localExtraFieldIds' => $part['localExtraFieldIds'] ?? [],
+                'localExtraFieldRecords' => $part['localExtraFieldRecords'] ?? [],
+                'hasLocalExtraFields' => ($part['hasLocalExtraFields'] ?? false) === true,
+                'localDataStart' => $part['localDataStart'] ?? null,
+                'localCompressedDataEnd' => $part['localCompressedDataEnd'] ?? null,
+                'localRecordEnd' => $part['localRecordEnd'] ?? null,
+                'localRecordContiguousWithNext' => ($part['localRecordContiguousWithNext'] ?? false) === true,
+                'localHeaderUsesDataDescriptor' => ($part['localHeaderUsesDataDescriptor'] ?? false) === true,
+                'localHeaderDescriptorOffset' => $part['localHeaderDescriptorOffset'] ?? null,
+                'localHeaderDescriptorLength' => $part['localHeaderDescriptorLength'] ?? null,
+                'localHeaderGeneralPurposeFlags' => $part['localHeaderGeneralPurposeFlags'] ?? null,
+                'localHeaderCrc32Hex' => $part['localHeaderCrc32Hex'] ?? null,
+                'localHeaderCompressedSize' => $part['localHeaderCompressedSize'] ?? null,
+                'localHeaderUncompressedSize' => $part['localHeaderUncompressedSize'] ?? null,
                 'compressionMethod' => $part['compressionMethod'] ?? null,
                 'compressionMethodName' => $part['compressionMethodName'] ?? null,
                 'zipGeneralPurposeFlags' => $part['zipGeneralPurposeFlags'] ?? null,
@@ -1723,6 +1755,13 @@ final class OpenDocumentPackage
             'undeclaredEntryCount' => $packageInventory['undeclaredEntryCount'] ?? 0,
             'unsupportedCompressionMethodCount' => $packageInventory['unsupportedCompressionMethodCount'] ?? 0,
             'encryptedCount' => count($this->encryptedManifestEntries()),
+            'localHeaderEntryCount' => $packageInventory['localHeaderEntryCount'] ?? 0,
+            'localHeaderBytes' => $packageInventory['localHeaderBytes'] ?? 0,
+            'localVariableFieldBytes' => $packageInventory['localVariableFieldBytes'] ?? 0,
+            'localExtraFieldBytes' => $packageInventory['localExtraFieldBytes'] ?? 0,
+            'localExtraFieldEntryCount' => $packageInventory['localExtraFieldEntryCount'] ?? 0,
+            'localExtraFieldRecordCount' => $packageInventory['localExtraFieldRecordCount'] ?? 0,
+            'localExtraFieldRecordIds' => $packageInventory['localExtraFieldRecordIds'] ?? [],
             'platformMetadataEntryCount' => $packageInventory['platformMetadataEntryCount'] ?? 0,
             'zipUtf8NameEntryCount' => $packageInventory['zipUtf8NameEntryCount'] ?? 0,
             'zipDataDescriptorEntryCount' => $packageInventory['zipDataDescriptorEntryCount'] ?? 0,
@@ -1979,6 +2018,50 @@ final class OpenDocumentPackage
             'canExposeBytes' => false,
             'byteExposurePolicy' => 'zip-source-record-provenance-metadata-only',
             'items' => $items,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $localHeader
+     * @return array<string, mixed>
+     */
+    private static function zipLocalHeaderProvenance(?array $localHeader): array
+    {
+        if (!is_array($localHeader)) {
+            return [];
+        }
+
+        $crc32 = $localHeader['localHeaderCrc32'] ?? null;
+
+        return [
+            'localHeaderLength' => $localHeader['localHeaderLength'] ?? null,
+            'localFixedHeaderOffset' => $localHeader['localFixedHeaderOffset'] ?? null,
+            'localFixedHeaderLength' => $localHeader['localFixedHeaderLength'] ?? null,
+            'localVariableFieldsOffset' => $localHeader['localVariableFieldsOffset'] ?? null,
+            'localVariableFieldsLength' => $localHeader['localVariableFieldsLength'] ?? null,
+            'localNameOffset' => $localHeader['localNameOffset'] ?? null,
+            'localNameLength' => $localHeader['localNameLength'] ?? null,
+            'localExtraFieldOffset' => $localHeader['localExtraFieldOffset'] ?? null,
+            'localExtraFieldLength' => $localHeader['localExtraFieldLength'] ?? null,
+            'localExtraFieldRecordCount' => $localHeader['localExtraFieldRecordCount'] ?? 0,
+            'localExtraFieldIds' => is_array($localHeader['localExtraFieldIds'] ?? null) ? $localHeader['localExtraFieldIds'] : [],
+            'localExtraFieldStructureIssues' => is_array($localHeader['localExtraFieldStructureIssues'] ?? null) ? $localHeader['localExtraFieldStructureIssues'] : [],
+            'localExtraFieldRecords' => is_array($localHeader['localExtraFieldRecords'] ?? null) ? $localHeader['localExtraFieldRecords'] : [],
+            'hasLocalExtraFields' => ($localHeader['hasLocalExtraFields'] ?? false) === true,
+            'localDataStart' => $localHeader['dataStart'] ?? null,
+            'localCompressedDataEnd' => $localHeader['compressedDataEnd'] ?? null,
+            'localRecordEnd' => $localHeader['recordEnd'] ?? null,
+            'nextLocalHeaderOrCentralDirectoryOffset' => $localHeader['nextOffset'] ?? null,
+            'localRecordContiguousWithNext' => ($localHeader['isContiguousWithNext'] ?? false) === true,
+            'localHeaderUsesDataDescriptor' => ($localHeader['usesDataDescriptor'] ?? false) === true,
+            'localHeaderDescriptorOffset' => $localHeader['descriptorOffset'] ?? null,
+            'localHeaderDescriptorLength' => $localHeader['descriptorLength'] ?? null,
+            'localHeaderGeneralPurposeFlags' => $localHeader['generalPurposeFlags'] ?? null,
+            'localHeaderCrc32' => $crc32,
+            'localHeaderCrc32Hex' => is_int($crc32) ? sprintf('%08x', $crc32) : null,
+            'localHeaderCompressedSize' => $localHeader['localHeaderCompressedSize'] ?? null,
+            'localHeaderUncompressedSize' => $localHeader['localHeaderUncompressedSize'] ?? null,
+            'hasZeroLocalHeaderPlaceholders' => $localHeader['hasZeroLocalHeaderPlaceholders'] ?? null,
         ];
     }
 
