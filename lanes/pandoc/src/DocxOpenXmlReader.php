@@ -15374,6 +15374,12 @@ final class DocxOpenXmlReader
         $relationshipRecordExplicitInternalTargetModeCount = 0;
         $relationshipRecordExplicitExternalTargetModeCount = 0;
         $relationshipRecordUnexpectedTargetModeCount = 0;
+        $relationshipRecordExternalTargetReferenceCount = 0;
+        $relationshipRecordImplicitInternalExternalTargetCount = 0;
+        $relationshipRecordExplicitInternalExternalTargetCount = 0;
+        $relationshipRecordUnexpectedModeExternalTargetCount = 0;
+        $relationshipRecordExternalTargetModeMismatchCount = 0;
+        $relationshipRecordTargetReferenceKindCounts = [];
         $relationshipSourceKindCounts = [];
         $relationshipSourceDirectoryCounts = [];
         $relationshipSourceContentTypeCounts = [];
@@ -15447,6 +15453,7 @@ final class DocxOpenXmlReader
         $relationshipPartsWithUnexpectedRoot = [];
         $relationshipPartsWithExplicitInternalTargetMode = [];
         $relationshipPartsWithUnexpectedTargetMode = [];
+        $relationshipPartsWithExternalTargetModeMismatch = [];
         $duplicateRelationshipIds = [];
         $duplicateRelationshipIdItems = [];
         $invalidRelationshipRecords = [];
@@ -15455,6 +15462,7 @@ final class DocxOpenXmlReader
         $relationshipsWithExplicitInternalTargetMode = [];
         $relationshipsWithUnexpectedTargetMode = [];
         $relationshipsWithInvalidTargetResolution = [];
+        $relationshipsWithExternalTargetModeMismatch = [];
         $relationshipRecordIssueCodes = [];
         $relationshipRecordTargetResolutionIssueCounts = [];
         $relationshipRecordTargetResolutionIssueCodes = [];
@@ -17256,6 +17264,32 @@ final class DocxOpenXmlReader
                 $targetMode = is_string($record['targetMode'] ?? null) ? $record['targetMode'] : '';
                 $targetModeKey = $targetMode === '' ? '(implicit-internal)' : $targetMode;
                 $relationshipRecordTargetModeCounts[$targetModeKey] = ($relationshipRecordTargetModeCounts[$targetModeKey] ?? 0) + 1;
+                $targetReferenceKind = is_string($record['targetReferenceKind'] ?? null)
+                    ? $record['targetReferenceKind']
+                    : '';
+                if ($targetReferenceKind !== '') {
+                    $relationshipRecordTargetReferenceKindCounts[$targetReferenceKind] =
+                        ($relationshipRecordTargetReferenceKindCounts[$targetReferenceKind] ?? 0) + 1;
+                }
+                if (($record['targetRequiresExternalTargetMode'] ?? false) === true) {
+                    ++$relationshipRecordExternalTargetReferenceCount;
+                    if ($targetMode === '') {
+                        ++$relationshipRecordImplicitInternalExternalTargetCount;
+                    } elseif ($targetMode === 'Internal') {
+                        ++$relationshipRecordExplicitInternalExternalTargetCount;
+                    } elseif ($targetMode !== 'External') {
+                        ++$relationshipRecordUnexpectedModeExternalTargetCount;
+                    }
+                }
+                if (($record['targetModeMismatch'] ?? false) === true) {
+                    ++$relationshipRecordExternalTargetModeMismatchCount;
+                    $relationshipPartsWithExternalTargetModeMismatch[(string) $relationshipsPart] = true;
+                    $relationshipsWithExternalTargetModeMismatch[] = $this->relationshipProvenanceSummaryItem($record) + [
+                        'ordinal' => $record['ordinal'] ?? null,
+                        'valid' => (bool) ($record['valid'] ?? false),
+                        'issues' => $record['issues'] ?? [],
+                    ];
+                }
 
                 if ($targetMode === '') {
                     ++$relationshipRecordImplicitInternalTargetModeCount;
@@ -17324,6 +17358,7 @@ final class DocxOpenXmlReader
         ksort($externalRelationshipTargetIssueCounts);
         ksort($relationshipTargetPathCharacterFlagCounts);
         ksort($relationshipRecordTargetModeCounts);
+        ksort($relationshipRecordTargetReferenceKindCounts);
         ksort($relationshipRecordIssueCodes);
         ksort($relationshipRecordTargetResolutionIssueCounts);
         ksort($relationshipRecordTargetResolutionIssueCodes);
@@ -18689,6 +18724,12 @@ final class DocxOpenXmlReader
             'relationshipRecordExplicitInternalTargetModeCount' => $relationshipRecordExplicitInternalTargetModeCount,
             'relationshipRecordExplicitExternalTargetModeCount' => $relationshipRecordExplicitExternalTargetModeCount,
             'relationshipRecordUnexpectedTargetModeCount' => $relationshipRecordUnexpectedTargetModeCount,
+            'relationshipRecordTargetReferenceKindCounts' => $relationshipRecordTargetReferenceKindCounts,
+            'relationshipRecordExternalTargetReferenceCount' => $relationshipRecordExternalTargetReferenceCount,
+            'relationshipRecordImplicitInternalExternalTargetCount' => $relationshipRecordImplicitInternalExternalTargetCount,
+            'relationshipRecordExplicitInternalExternalTargetCount' => $relationshipRecordExplicitInternalExternalTargetCount,
+            'relationshipRecordUnexpectedModeExternalTargetCount' => $relationshipRecordUnexpectedModeExternalTargetCount,
+            'relationshipRecordExternalTargetModeMismatchCount' => $relationshipRecordExternalTargetModeMismatchCount,
             'relationshipIdRecordCount' => $relationshipIdTopology['idRecordCount'],
             'relationshipIdEmptyRecordCount' => $relationshipIdTopology['emptyIdRecordCount'],
             'relationshipIdUniqueCount' => $relationshipIdTopology['uniqueIdCount'],
@@ -19032,6 +19073,7 @@ final class DocxOpenXmlReader
             'relationshipPartsWithUnexpectedRoot' => $relationshipPartsWithUnexpectedRoot,
             'relationshipPartsWithExplicitInternalTargetMode' => array_keys($relationshipPartsWithExplicitInternalTargetMode),
             'relationshipPartsWithUnexpectedTargetMode' => array_keys($relationshipPartsWithUnexpectedTargetMode),
+            'relationshipPartsWithExternalTargetModeMismatch' => array_keys($relationshipPartsWithExternalTargetModeMismatch),
             'relationshipPartsWithUnsafeExternalTargets' => array_keys($relationshipPartsWithUnsafeExternalTargets),
             'missingContentTypePartByteLength' => $missingContentTypePartByteLength,
             'partsWithoutContentType' => $partsWithoutContentType,
@@ -19052,6 +19094,7 @@ final class DocxOpenXmlReader
             'relationshipsWithExplicitInternalTargetMode' => $relationshipsWithExplicitInternalTargetMode,
             'relationshipsWithUnexpectedTargetMode' => $relationshipsWithUnexpectedTargetMode,
             'relationshipsWithInvalidTargetResolution' => $relationshipsWithInvalidTargetResolution,
+            'relationshipsWithExternalTargetModeMismatch' => $relationshipsWithExternalTargetModeMismatch,
         ];
     }
 
@@ -39030,6 +39073,13 @@ final class DocxOpenXmlReader
             'targetHasPercentEncodedOctet' => (bool) ($relationship['targetHasPercentEncodedOctet'] ?? false),
             'targetHasWhitespace' => (bool) ($relationship['targetHasWhitespace'] ?? false),
             'targetHasNonAscii' => (bool) ($relationship['targetHasNonAscii'] ?? false),
+            'targetReferenceKind' => is_string($relationship['targetReferenceKind'] ?? null) ? $relationship['targetReferenceKind'] : null,
+            'targetReferenceScheme' => is_string($relationship['targetReferenceScheme'] ?? null) ? $relationship['targetReferenceScheme'] : null,
+            'targetRequiresExternalTargetMode' => (bool) ($relationship['targetRequiresExternalTargetMode'] ?? false),
+            'targetModeMismatch' => (bool) ($relationship['targetModeMismatch'] ?? false),
+            'targetModeMismatchIssues' => is_array($relationship['targetModeMismatchIssues'] ?? null)
+                ? array_values(array_map('strval', $relationship['targetModeMismatchIssues']))
+                : [],
             'externalTargetKind' => is_string($relationship['externalTargetKind'] ?? null) ? $relationship['externalTargetKind'] : null,
             'externalTargetScheme' => is_string($relationship['externalTargetScheme'] ?? null) ? $relationship['externalTargetScheme'] : null,
             'externalTargetAllowed' => is_bool($relationship['externalTargetAllowed'] ?? null) ? $relationship['externalTargetAllowed'] : null,
@@ -39502,6 +39552,11 @@ final class DocxOpenXmlReader
                         'externalTargetKindCounts' => [],
                         'externalTargetSchemeCounts' => [],
                         'externalTargetIssueCounts' => [],
+                        'targetReferenceKindCounts' => [],
+                        'externalTargetReferenceCount' => 0,
+                        'externalTargetModeMismatchCount' => 0,
+                        'targetModeMismatchIssueCounts' => [],
+                        'externalTargetModeMismatches' => [],
                         'existingTargetPartByteLength' => 0,
                         'relationshipParts' => [],
                         'sourceParts' => [],
@@ -39558,6 +39613,29 @@ final class DocxOpenXmlReader
                 $sourceContentTypeSource = is_string($relationship['sourceContentTypeSource'] ?? null)
                     ? $relationship['sourceContentTypeSource']
                     : '';
+                $targetReferenceKind = is_string($relationship['targetReferenceKind'] ?? null)
+                    ? $relationship['targetReferenceKind']
+                    : '';
+                if ($targetReferenceKind !== '') {
+                    $types[$typeKey]['targetReferenceKindCounts'][$targetReferenceKind] =
+                        ($types[$typeKey]['targetReferenceKindCounts'][$targetReferenceKind] ?? 0) + 1;
+                }
+                if (($relationship['targetRequiresExternalTargetMode'] ?? false) === true) {
+                    ++$types[$typeKey]['externalTargetReferenceCount'];
+                }
+                if (($relationship['targetModeMismatch'] ?? false) === true) {
+                    ++$types[$typeKey]['externalTargetModeMismatchCount'];
+                    $types[$typeKey]['externalTargetModeMismatches'][] = $this->relationshipProvenanceSummaryItem($relationship);
+                    foreach (($relationship['targetModeMismatchIssues'] ?? []) as $issue) {
+                        $issue = (string) $issue;
+                        if ($issue === '') {
+                            continue;
+                        }
+
+                        $types[$typeKey]['targetModeMismatchIssueCounts'][$issue] =
+                            ($types[$typeKey]['targetModeMismatchIssueCounts'][$issue] ?? 0) + 1;
+                    }
+                }
 
                 $types[$typeKey]['count']++;
                 $types[$typeKey]['sourceKindCounts'][$sourceKind] =
@@ -39755,6 +39833,13 @@ final class DocxOpenXmlReader
                     'targetHasPercentEncodedOctet' => (bool) ($relationship['targetHasPercentEncodedOctet'] ?? false),
                     'targetHasWhitespace' => (bool) ($relationship['targetHasWhitespace'] ?? false),
                     'targetHasNonAscii' => (bool) ($relationship['targetHasNonAscii'] ?? false),
+                    'targetReferenceKind' => is_string($relationship['targetReferenceKind'] ?? null) ? $relationship['targetReferenceKind'] : null,
+                    'targetReferenceScheme' => is_string($relationship['targetReferenceScheme'] ?? null) ? $relationship['targetReferenceScheme'] : null,
+                    'targetRequiresExternalTargetMode' => (bool) ($relationship['targetRequiresExternalTargetMode'] ?? false),
+                    'targetModeMismatch' => (bool) ($relationship['targetModeMismatch'] ?? false),
+                    'targetModeMismatchIssues' => is_array($relationship['targetModeMismatchIssues'] ?? null)
+                        ? array_values(array_map('strval', $relationship['targetModeMismatchIssues']))
+                        : [],
                     'externalTargetKind' => is_string($relationship['externalTargetKind'] ?? null) ? $relationship['externalTargetKind'] : null,
                     'externalTargetScheme' => is_string($relationship['externalTargetScheme'] ?? null) ? $relationship['externalTargetScheme'] : null,
                     'externalTargetAllowed' => is_bool($relationship['externalTargetAllowed'] ?? null) ? $relationship['externalTargetAllowed'] : null,
@@ -39777,6 +39862,8 @@ final class DocxOpenXmlReader
             ksort($type['externalTargetKindCounts']);
             ksort($type['externalTargetSchemeCounts']);
             ksort($type['externalTargetIssueCounts']);
+            ksort($type['targetReferenceKindCounts']);
+            ksort($type['targetModeMismatchIssueCounts']);
             sort($type['targetPartExtensions'], SORT_STRING);
             ksort($type['targetContentTypeSourceCounts']);
             ksort($type['targetRoleCounts']);
@@ -40420,6 +40507,9 @@ final class DocxOpenXmlReader
         if (($record['targetResolutionValid'] ?? null) === false) {
             $issues[] = 'invalid-relationship-target-uri';
         }
+        foreach ($this->relationshipTargetModeDeclarationProvenance((string) ($record['target'] ?? ''), $targetMode)['issues'] as $issue) {
+            $issues[] = $issue;
+        }
 
         return $issues;
     }
@@ -40496,6 +40586,10 @@ final class DocxOpenXmlReader
             $targetPart,
             $external,
         );
+        $targetModeDeclaration = $this->relationshipTargetModeDeclarationProvenance(
+            $relationship['target'],
+            $relationship['targetMode'],
+        );
 
         return [
             'id' => $relationship['id'],
@@ -40528,6 +40622,11 @@ final class DocxOpenXmlReader
             'targetHasPercentEncodedOctet' => $targetPath['hasPercentEncodedOctet'],
             'targetHasWhitespace' => $targetPath['hasWhitespace'],
             'targetHasNonAscii' => $targetPath['hasNonAscii'],
+            'targetReferenceKind' => $targetModeDeclaration['targetReferenceKind'],
+            'targetReferenceScheme' => $targetModeDeclaration['targetReferenceScheme'],
+            'targetRequiresExternalTargetMode' => $targetModeDeclaration['targetRequiresExternalTargetMode'],
+            'targetModeMismatch' => $targetModeDeclaration['targetModeMismatch'],
+            'targetModeMismatchIssues' => $targetModeDeclaration['issues'],
             'externalTargetKind' => is_array($externalPolicy) ? $externalPolicy['kind'] : null,
             'externalTargetScheme' => is_array($externalPolicy) ? $externalPolicy['scheme'] : null,
             'externalTargetAllowed' => is_array($externalPolicy) ? $externalPolicy['allowed'] : null,
@@ -40542,6 +40641,41 @@ final class DocxOpenXmlReader
             'contentTypeSource' => $contentTypeResolution['contentTypeSource'],
             'defaultExtension' => $contentTypeResolution['defaultExtension'],
             'overridePartName' => $contentTypeResolution['overridePartName'],
+        ];
+    }
+
+    /**
+     * @return array{targetReferenceKind:string, targetReferenceScheme:?string, targetRequiresExternalTargetMode:bool, targetModeMismatch:bool, issues:list<string>}
+     */
+    private function relationshipTargetModeDeclarationProvenance(string $target, string $targetMode): array
+    {
+        $scheme = null;
+        $kind = 'relative-reference';
+        if ($target === '') {
+            $kind = 'empty-target';
+        } elseif (preg_match('/^([A-Za-z][A-Za-z0-9+.-]*):/', $target, $match) === 1) {
+            $scheme = strtolower($match[1]);
+            $kind = 'absolute-uri';
+        } elseif (str_starts_with($target, '//')) {
+            $kind = 'network-path-reference';
+        }
+
+        $requiresExternalMode = $kind === 'absolute-uri' || $kind === 'network-path-reference';
+        $issues = [];
+        if ($requiresExternalMode && $targetMode === '') {
+            $issues[] = 'external-target-reference-with-implicit-internal-target-mode';
+        } elseif ($requiresExternalMode && $targetMode === 'Internal') {
+            $issues[] = 'external-target-reference-with-explicit-internal-target-mode';
+        } elseif ($requiresExternalMode && $targetMode !== 'External') {
+            $issues[] = 'external-target-reference-with-unexpected-target-mode';
+        }
+
+        return [
+            'targetReferenceKind' => $kind,
+            'targetReferenceScheme' => $scheme,
+            'targetRequiresExternalTargetMode' => $requiresExternalMode,
+            'targetModeMismatch' => $issues !== [],
+            'issues' => $issues,
         ];
     }
 

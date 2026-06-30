@@ -13556,6 +13556,85 @@ XML;
         $t->same('?remote=1#style', $relationship['targetReferenceSuffix']);
         $t->same(2, $package['summary']['externalRelationshipCount']);
     },
+    'flags docx external shaped relationship targets without external target mode' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $hyperlinkType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rImplicitRemote" Type="' . $hyperlinkType . '" Target="https://example.test/implicit?review=1#link"/>' . "\n" .
+            '  <Relationship Id="rInternalNetwork" Type="' . $hyperlinkType . '" Target="//cdn.example.test/internal-mode.html?review=1#link" TargetMode="Internal"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $records = [];
+        foreach ($package['relationshipParts']['word/_rels/document.xml.rels']['relationshipRecords'] as $record) {
+            $records[$record['id']] = $record;
+        }
+        $implicit = $records['rImplicitRemote'];
+        $internalNetwork = $records['rInternalNetwork'];
+        $hyperlinks = $package['relationshipTypes'][$hyperlinkType];
+
+        $t->same(6, $summary['relationshipRecordCount']);
+        $t->same(2, $summary['invalidRelationshipRecordCount']);
+        $t->same(3, $summary['relationshipRecordExternalTargetReferenceCount']);
+        $t->same(1, $summary['relationshipRecordImplicitInternalExternalTargetCount']);
+        $t->same(1, $summary['relationshipRecordExplicitInternalExternalTargetCount']);
+        $t->same(0, $summary['relationshipRecordUnexpectedModeExternalTargetCount']);
+        $t->same(2, $summary['relationshipRecordExternalTargetModeMismatchCount']);
+        $t->same([
+            'absolute-uri' => 2,
+            'network-path-reference' => 1,
+            'relative-reference' => 3,
+        ], $summary['relationshipRecordTargetReferenceKindCounts']);
+        $t->same([
+            'external-target-reference-with-explicit-internal-target-mode',
+            'external-target-reference-with-implicit-internal-target-mode',
+            'invalid-relationship-target-uri',
+        ], $summary['relationshipRecordIssueCodes']);
+        $t->same(['word/_rels/document.xml.rels'], $summary['relationshipPartsWithExternalTargetModeMismatch']);
+        $t->same(['rImplicitRemote', 'rInternalNetwork'], array_column($summary['relationshipsWithExternalTargetModeMismatch'], 'id'));
+
+        $t->same('absolute-uri', $implicit['targetReferenceKind']);
+        $t->same('https', $implicit['targetReferenceScheme']);
+        $t->same(true, $implicit['targetRequiresExternalTargetMode']);
+        $t->same(true, $implicit['targetModeMismatch']);
+        $t->same(['external-target-reference-with-implicit-internal-target-mode'], $implicit['targetModeMismatchIssues']);
+        $t->same(false, $implicit['valid']);
+        $t->same(['external-target-reference-with-implicit-internal-target-mode'], $implicit['issues']);
+        $t->same(true, $implicit['external']);
+        $t->same(null, $implicit['targetPart']);
+        $t->same(true, $implicit['externalTargetAllowed']);
+
+        $t->same('network-path-reference', $internalNetwork['targetReferenceKind']);
+        $t->same(null, $internalNetwork['targetReferenceScheme']);
+        $t->same(true, $internalNetwork['targetRequiresExternalTargetMode']);
+        $t->same(true, $internalNetwork['targetModeMismatch']);
+        $t->same(['external-target-reference-with-explicit-internal-target-mode'], $internalNetwork['targetModeMismatchIssues']);
+        $t->same(false, $internalNetwork['valid']);
+        $t->same([
+            'invalid-relationship-target-uri',
+            'external-target-reference-with-explicit-internal-target-mode',
+        ], $internalNetwork['issues']);
+        $t->same(false, $internalNetwork['external']);
+        $t->same('cdn.example.test/internal-mode.html', $internalNetwork['targetPart']);
+        $t->same(false, $internalNetwork['exists']);
+
+        $t->same(3, $hyperlinks['externalTargetReferenceCount']);
+        $t->same(2, $hyperlinks['externalTargetModeMismatchCount']);
+        $t->same([
+            'absolute-uri' => 2,
+            'network-path-reference' => 1,
+        ], $hyperlinks['targetReferenceKindCounts']);
+        $t->same([
+            'external-target-reference-with-explicit-internal-target-mode' => 1,
+            'external-target-reference-with-implicit-internal-target-mode' => 1,
+        ], $hyperlinks['targetModeMismatchIssueCounts']);
+        $t->same(['rImplicitRemote', 'rInternalNetwork'], array_column($hyperlinks['externalTargetModeMismatches'], 'id'));
+    },
     'summarizes docx package parts without content type coverage' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/_rels/document.xml.rels'] = str_replace(
