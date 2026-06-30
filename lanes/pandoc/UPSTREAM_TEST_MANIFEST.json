@@ -12,6 +12,8 @@
     "odtStyleDiagnosticsAssertions": 46,
     "mappedOdfAttachmentLegacyDocumentResourceCases": 1,
     "odfAttachmentLegacyDocumentResourceAssertions": 19,
+    "mappedOdfAttachmentInvalidDeclaredSizeCases": 1,
+    "odfAttachmentInvalidDeclaredSizeAssertions": 12,
     "mappedOdfThumbnailPackagePathCases": 1,
     "odfThumbnailPackagePathAssertions": 85,
     "mappedOdfBeanShellPackageScriptCases": 1,
