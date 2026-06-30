@@ -32,7 +32,7 @@ $manifestXml = <<<XML
   <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>
   <manifest:file-entry manifest:full-path="Attachments/Review/" manifest:media-type=""/>
   <manifest:file-entry manifest:full-path="Attachments/Review/manifest.xml" manifest:media-type="text/xml" manifest:size="{$attachmentManifestSize}"/>
-  <manifest:file-entry manifest:full-path="Attachments/Review/source.pdf" manifest:media-type="application/pdf" manifest:size="{$sourcePdfSize}"/>
+  <manifest:file-entry manifest:full-path="Attachments/Review/source.pdf" manifest:media-type="application/pdf" manifest:size="{$sourcePdfSize}bytes"/>
   <manifest:file-entry manifest:full-path="Attachments/Review/source.odt" manifest:media-type="application/vnd.oasis.opendocument.text" manifest:size="{$sourceOdtSize}"/>
   <manifest:file-entry manifest:full-path="Attachments/Review/preview.png" manifest:media-type="image/png" manifest:size="{$previewSize}"/>
   <manifest:file-entry manifest:full-path="Attachments/Review/missing.dat" manifest:media-type="application/octet-stream" manifest:size="21"/>
@@ -113,6 +113,7 @@ return [
         $buildPackage,
         $attachmentManifestXml,
         $sourcePdfBytes,
+        $sourcePdfSize,
         $sourceOdtBytes,
         $sourceRtfBytes,
         $previewBytes,
@@ -139,9 +140,11 @@ return [
         $t->same(1, $readerAttachments['encryptedCount']);
         $t->same(0, $readerAttachments['missingMediaTypeCount']);
         $t->same(0, $readerAttachments['invalidMediaTypeCount']);
-        $t->same(4, $readerAttachments['issueCount']);
+        $t->same(1, $readerAttachments['invalidDeclaredSizeCount']);
+        $t->same(5, $readerAttachments['issueCount']);
         $t->same([
             'odf-attachment-package-encrypted-part',
+            'odf-attachment-package-invalid-declared-size',
             'odf-attachment-package-missing-part',
             'odf-attachment-package-undeclared-part',
         ], $readerAttachments['issueCodes']);
@@ -175,6 +178,11 @@ return [
         $t->same('attachment-document-resource', $sourcePdf['kind']);
         $t->same('application/pdf', $sourcePdf['mediaTypeBase']);
         $t->same(strlen($sourcePdfBytes), $sourcePdf['byteLength']);
+        $t->same(null, $sourcePdf['declaredSize']);
+        $t->same($sourcePdfSize . 'bytes', $sourcePdf['declaredSizeRaw']);
+        $t->same(false, $sourcePdf['declaredSizeValid']);
+        $t->same(true, $sourcePdf['declaredSizeInvalid']);
+        $t->same(['odf-attachment-package-invalid-declared-size'], $sourcePdf['issues']);
         $t->same(false, $sourcePdf['canExposeAsDocumentMedia']);
 
         $sourceOdt = $readerItems['Attachments/Review/source.odt'];
@@ -267,7 +275,8 @@ return [
         $t->same(1, $compactAttachments['missingCount']);
         $t->same(1, $compactAttachments['directoryCount']);
         $t->same(1, $compactAttachments['encryptedCount']);
-        $t->same(4, $compactAttachments['issueCount']);
+        $t->same(1, $compactAttachments['invalidDeclaredSizeCount']);
+        $t->same(5, $compactAttachments['issueCount']);
         $t->same($readerAttachments['issueCodes'], $compactAttachments['issueCodes']);
         $t->same('attachment-package-bytes-blocked', $compactAttachments['byteExposurePolicy']);
         $t->same('attachment-package-metadata-only', $compactAttachments['reviewPolicy']);
@@ -277,6 +286,11 @@ return [
         $t->same(strlen($attachmentManifestXml), $compactItems['Attachments/Review/manifest.xml']['byteLength']);
         $t->same(sprintf('%08x', crc32($attachmentManifestXml)), $compactItems['Attachments/Review/manifest.xml']['crc32']);
         $t->same('attachment-document-resource', $compactItems['Attachments/Review/source.pdf']['kind']);
+        $t->same(null, $compactItems['Attachments/Review/source.pdf']['declaredSize']);
+        $t->same($sourcePdfSize . 'bytes', $compactItems['Attachments/Review/source.pdf']['declaredSizeRaw']);
+        $t->same(false, $compactItems['Attachments/Review/source.pdf']['declaredSizeValid']);
+        $t->same(true, $compactItems['Attachments/Review/source.pdf']['declaredSizeInvalid']);
+        $t->same(['odf-attachment-package-invalid-declared-size'], $compactItems['Attachments/Review/source.pdf']['issues']);
         $t->same('attachment-document-resource', $compactItems['Attachments/Review/source.odt']['kind']);
         $t->same('application/vnd.oasis.opendocument.text', $compactItems['Attachments/Review/source.odt']['mediaTypeBase']);
         $t->same('attachment-document-resource', $compactItems['Attachments/Review/source.rtf']['kind']);
