@@ -300,6 +300,30 @@ return [
         $t->same('Keep middle space', $document->children[1]->attr('text'));
         $t->same('Keep middle space', $document->children[1]->children[0]->attr('text'));
     },
+    'normalizes docx scalar text whitespace at inline boundaries' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t xml:space="preserve">And back to the normal </w:t></w:r><w:r><w:t xml:space="preserve"> style.</w:t></w:r></w:p><w:p><w:r><w:t xml:space="preserve">State of Documentation </w:t></w:r></w:p><w:p><w:r><w:tab/></w:r><w:r><w:t>Tab-indented text.</w:t></w:r></w:p><w:p><w:r><w:t xml:space="preserve">See Table 5.1. </w:t></w:r></w:p><w:p><w:r><w:t xml:space="preserve">Trailing </w:t></w:r><w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">formatting   </w:t></w:r></w:p><w:p><w:r><w:t xml:space="preserve">Turn my </w:t></w:r><w:r><w:rPr><w:i/></w:rPr><w:t xml:space="preserve">formatting </w:t></w:r><w:r><w:t>off after the spaces.</w:t></w:r></w:p></w:body></w:document>');
+
+        $document = (new DocxReader())->read($bytes);
+        $paragraphs = $document->children;
+
+        $t->same('And back to the normal style.', $paragraphs[0]->attr('text'));
+        $t->same('And back to the normal style.', $paragraphs[0]->children[0]->attr('text'));
+        $t->same('State of Documentation', $paragraphs[1]->attr('text'));
+        $t->same('State of Documentation', $paragraphs[1]->children[0]->attr('text'));
+        $t->same('Tab-indented text.', $paragraphs[2]->attr('text'));
+        $t->same('Tab-indented text.', $paragraphs[2]->children[0]->attr('text'));
+        $t->same('See Table 5.1.', $paragraphs[3]->attr('text'));
+        $t->same('See Table 5.1.', $paragraphs[3]->children[0]->attr('text'));
+        $t->same('Trailing formatting', $paragraphs[4]->attr('text'));
+        $t->same('Trailing ', $paragraphs[4]->children[0]->attr('text'));
+        $t->same('strong', $paragraphs[4]->children[1]->type);
+        $t->same('formatting', $paragraphs[4]->children[1]->children[0]->attr('text'));
+        $t->same('Turn my formatting off after the spaces.', $paragraphs[5]->attr('text'));
+        $t->same('Turn my ', $paragraphs[5]->children[0]->attr('text'));
+        $t->same('emph', $paragraphs[5]->children[1]->type);
+        $t->same('formatting', $paragraphs[5]->children[1]->children[0]->attr('text'));
+        $t->same(' off after the spaces.', $paragraphs[5]->children[2]->attr('text'));
+    },
     'merges docx drop-cap frame paragraphs into following paragraph text' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
         $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:pPr><w:framePr w:dropCap="drop" w:lines="3"/></w:pPr><w:r><w:t>D</w:t></w:r></w:p><w:p><w:r><w:t>rop cap.</w:t></w:r></w:p><w:p><w:r><w:t>Next paragraph.</w:t></w:r></w:p><w:p><w:pPr><w:framePr w:dropCap="margin" w:lines="3"/></w:pPr><w:r><w:t>D</w:t></w:r></w:p><w:p><w:r><w:t>rop cap in margin.</w:t></w:r></w:p><w:p><w:r><w:t>Drop cap (not really).</w:t></w:r></w:p></w:body></w:document>');
 
@@ -2266,7 +2290,7 @@ XML],
         $t->contains('class="comment-start" data-pandoc-comment-id="5" data-pandoc-comment-author="Range Reviewer"', $blocks);
         $t->contains('<del class="deletion move-from" data-pandoc-change-author="Mover"', $blocks);
         $t->contains('<ins class="insertion move-to" data-pandoc-change-author="Mover"', $blocks);
-        $t->contains('<sup><del><u> styled</u></del></sup>', $blocks);
+        $t->contains('new spot </ins><sup><del><u>styled</u></del></sup>', $blocks);
         $t->contains('<table data-docx-table-style="ReviewTable">', $blocks);
         $t->contains('data-docx-vmerge="restart" rowspan="2" style="background-color:#FFFF00; vertical-align:middle"', $blocks);
         $t->contains('<td><p>Bottom</p></td>', $blocks);

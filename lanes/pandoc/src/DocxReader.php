@@ -1409,7 +1409,7 @@ final class DocxReader
 
     private function paragraph(\DOMElement $paragraph): ?AstNode
     {
-        $inlines = $this->trimInlineBoundaryText($this->inlineChildren($paragraph));
+        $inlines = $this->inlineChildren($paragraph);
         $text = $this->plainText($inlines);
         $level = $this->headingLevel($paragraph);
         if ($text === '' && !$this->hasNonWhitespaceInlineContent($inlines)) {
@@ -1821,7 +1821,7 @@ final class DocxReader
     /**
      * @return list<AstNode>
      */
-    private function inlineChildren(\DOMElement $container): array
+    private function inlineChildren(\DOMElement $container, bool $trimBoundaries = true): array
     {
         $inlines = [];
         $complexFieldStack = [];
@@ -1847,7 +1847,7 @@ final class DocxReader
                 if ($field instanceof AstNode) {
                     $this->appendFieldAwareInlines($inlines, $complexFieldStack, [$field]);
                 } else {
-                    $this->appendFieldAwareInlines($inlines, $complexFieldStack, $this->inlineChildren($child));
+                    $this->appendFieldAwareInlines($inlines, $complexFieldStack, $this->inlineChildren($child, false));
                 }
                 continue;
             }
@@ -1883,7 +1883,9 @@ final class DocxReader
 
         $this->flushOpenComplexFields($complexFieldStack, $inlines);
 
-        return $this->normalizeInlineSiblings($inlines);
+        $inlines = $this->normalizeInlineSiblings($inlines);
+
+        return $trimBoundaries ? $this->normalizeInlineWhitespace($inlines) : $inlines;
     }
 
     /**
@@ -2114,11 +2116,11 @@ final class DocxReader
         $accepted = $change->localName === 'ins' || $change->localName === 'moveTo';
 
         if ($this->revisionMode === 'accept') {
-            return $accepted ? $this->inlineChildren($change) : [];
+            return $accepted ? $this->inlineChildren($change, false) : [];
         }
 
         if ($this->revisionMode === 'reject') {
-            return $accepted ? [] : $this->inlineChildren($change);
+            return $accepted ? [] : $this->inlineChildren($change, false);
         }
 
         $span = $this->trackedChangeSpan($change);
@@ -2168,7 +2170,7 @@ final class DocxReader
             return [];
         }
 
-        $inlines = $this->inlineChildren($content);
+        $inlines = $this->inlineChildren($content, false);
         if ($inlines === []) {
             $inlines = $this->blocksAsInlineNodes($this->bodyBlocks($content));
         }
@@ -2488,7 +2490,7 @@ final class DocxReader
 
     private function trackedChangeSpan(\DOMElement $change): ?AstNode
     {
-        $children = $this->inlineChildren($change);
+        $children = $this->inlineChildren($change, false);
         if ($children === []) {
             return null;
         }
@@ -2571,7 +2573,7 @@ final class DocxReader
 
     private function hyperlink(\DOMElement $hyperlink): ?AstNode
     {
-        $inlines = $this->inlineChildren($hyperlink);
+        $inlines = $this->inlineChildren($hyperlink, false);
         if ($inlines === []) {
             return null;
         }
@@ -2589,7 +2591,7 @@ final class DocxReader
 
     private function simpleField(\DOMElement $field): ?AstNode
     {
-        $inlines = $this->inlineChildren($field);
+        $inlines = $this->inlineChildren($field, false);
 
         return $this->fieldNode($this->attr($field, self::W_NS, 'instr'), $inlines);
     }
@@ -5469,11 +5471,17 @@ final class DocxReader
     {
         $merged = [];
         foreach ($nodes as $node) {
+            if ($node->type === 'text') {
+                $attrs = $node->attrs;
+                $attrs['text'] = $this->normalizeInlineTextWhitespace((string) ($attrs['text'] ?? ''));
+                $node = new AstNode('text', $attrs, $node->children);
+            }
+
             $lastIndex = array_key_last($merged);
             $last = $lastIndex === null ? null : $merged[$lastIndex];
             if ($node->type === 'text' && $last instanceof AstNode && $last->type === 'text') {
                 $merged[$lastIndex] = new AstNode('text', [
-                    'text' => (string) $last->attr('text', '') . (string) $node->attr('text', ''),
+                    'text' => $this->normalizeInlineTextWhitespace((string) $last->attr('text', '') . (string) $node->attr('text', '')),
                 ]);
                 continue;
             }
@@ -5481,6 +5489,11 @@ final class DocxReader
         }
 
         return $merged;
+    }
+
+    private function normalizeInlineTextWhitespace(string $text): string
+    {
+        return preg_replace('/[ \t\r\n]+/u', ' ', $text) ?? str_replace("\t", ' ', $text);
     }
 
     /**
@@ -5516,31 +5529,332 @@ final class DocxReader
      * @param list<AstNode> $nodes
      * @return list<AstNode>
      */
-    private function trimInlineBoundaryText(array $nodes): array
+    private function normalizeInlineWhitespace(array $nodes): array
     {
-        $firstIndex = array_key_first($nodes);
-        if ($firstIndex !== null && $nodes[$firstIndex]->type === 'text') {
-            $text = (string) $nodes[$firstIndex]->attr('text', '');
-            $trimmed = preg_replace('/^\s+/u', '', $text) ?? $text;
-            if ($trimmed === '') {
-                unset($nodes[$firstIndex]);
-            } elseif ($trimmed !== $text) {
-                $nodes[$firstIndex] = new AstNode('text', ['text' => $trimmed]);
+        $nodes = $this->externalizeFormattingBoundaryWhitespace($nodes);
+        $nodes = $this->collapseInlineBoundaryWhitespace($nodes);
+        $nodes = $this->removeLeadingInlineWhitespace($nodes);
+        $nodes = $this->removeTrailingInlineWhitespace($nodes);
+
+        return $this->pruneEmptyInlineNodes($nodes);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @return list<AstNode>
+     */
+    private function externalizeFormattingBoundaryWhitespace(array $nodes): array
+    {
+        $normalized = array_values($nodes);
+        $count = count($normalized);
+        for ($index = 0; $index < $count; ++$index) {
+            $node = $normalized[$index] ?? null;
+            if (!$node instanceof AstNode || !$this->isInlineFormattingContainer($node)) {
+                continue;
+            }
+
+            if ($index > 0 && $this->inlineNodeStartsWithSpace($node)) {
+                $previous = $normalized[$index - 1] ?? null;
+                if ($previous instanceof AstNode && $this->inlineNodeContainsText($previous)) {
+                    $node = $this->trimLeadingInlineNode($node);
+                    if (!$node instanceof AstNode) {
+                        unset($normalized[$index]);
+                        continue;
+                    }
+                    $normalized[$index] = $node;
+                    if (!$this->inlineNodeEndsWithSpace($previous)) {
+                        $normalized[$index - 1] = $this->appendTrailingSpaceToInlineNode($previous);
+                    }
+                }
+            }
+
+            if ($index < $count - 1 && $this->inlineNodeEndsWithSpace($node)) {
+                $next = $normalized[$index + 1] ?? null;
+                if ($next instanceof AstNode && $this->inlineNodeContainsText($next)) {
+                    $node = $this->trimTrailingInlineNode($node);
+                    if (!$node instanceof AstNode) {
+                        unset($normalized[$index]);
+                        continue;
+                    }
+                    $normalized[$index] = $node;
+                    if (!$this->inlineNodeStartsWithSpace($next)) {
+                        $normalized[$index + 1] = $this->prependLeadingSpaceToInlineNode($next);
+                    }
+                }
             }
         }
 
-        $lastIndex = array_key_last($nodes);
-        if ($lastIndex !== null && $nodes[$lastIndex]->type === 'text') {
-            $text = (string) $nodes[$lastIndex]->attr('text', '');
-            $trimmed = preg_replace('/\s+$/u', '', $text) ?? $text;
-            if ($trimmed === '') {
-                unset($nodes[$lastIndex]);
-            } elseif ($trimmed !== $text) {
-                $nodes[$lastIndex] = new AstNode('text', ['text' => $trimmed]);
+        return array_values($normalized);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @return list<AstNode>
+     */
+    private function collapseInlineBoundaryWhitespace(array $nodes): array
+    {
+        $collapsed = [];
+        foreach ($nodes as $node) {
+            while ($collapsed !== [] && $this->inlineNodeEndsWithSpace($collapsed[array_key_last($collapsed)])) {
+                $trimmed = $this->trimLeadingInlineNode($node);
+                if ($trimmed instanceof AstNode) {
+                    $node = $trimmed;
+                    break;
+                }
+                continue 2;
+            }
+
+            $collapsed[] = $node;
+        }
+
+        return $collapsed;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @return list<AstNode>
+     */
+    private function removeLeadingInlineWhitespace(array $nodes): array
+    {
+        $trimmed = [];
+        $count = count($nodes);
+        for ($index = 0; $index < $count; ++$index) {
+            $node = $this->trimLeadingInlineNode($nodes[$index]);
+            if (!$node instanceof AstNode) {
+                continue;
+            }
+
+            $trimmed[] = $node;
+            for ($tail = $index + 1; $tail < $count; ++$tail) {
+                $trimmed[] = $nodes[$tail];
+            }
+
+            return $trimmed;
+        }
+
+        return [];
+    }
+
+    private function trimLeadingInlineNode(AstNode $node): ?AstNode
+    {
+        if ($node->type === 'text') {
+            $attrs = $node->attrs;
+            $attrs['text'] = ltrim((string) ($attrs['text'] ?? ''), ' ');
+
+            return $attrs['text'] === '' ? null : new AstNode('text', $attrs, $node->children);
+        }
+
+        if ($node->children === []) {
+            return $node;
+        }
+
+        $children = $this->removeLeadingInlineWhitespace($node->children);
+        if ($children === [] && $this->isPrunableInlineContainer($node)) {
+            return null;
+        }
+
+        return new AstNode($node->type, $node->attrs, $children);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @return list<AstNode>
+     */
+    private function removeTrailingInlineWhitespace(array $nodes): array
+    {
+        $trimmed = [];
+        for ($index = count($nodes) - 1; $index >= 0; --$index) {
+            $node = $this->trimTrailingInlineNode($nodes[$index]);
+            if (!$node instanceof AstNode) {
+                continue;
+            }
+
+            $trimmed[] = $node;
+            for ($head = $index - 1; $head >= 0; --$head) {
+                $trimmed[] = $nodes[$head];
+            }
+
+            return array_reverse($trimmed);
+        }
+
+        return [];
+    }
+
+    private function trimTrailingInlineNode(AstNode $node): ?AstNode
+    {
+        if ($node->type === 'text') {
+            $attrs = $node->attrs;
+            $attrs['text'] = rtrim((string) ($attrs['text'] ?? ''), ' ');
+
+            return $attrs['text'] === '' ? null : new AstNode('text', $attrs, $node->children);
+        }
+
+        if ($node->children === []) {
+            return $node;
+        }
+
+        $children = $this->removeTrailingInlineWhitespace($node->children);
+        if ($children === [] && $this->isPrunableInlineContainer($node)) {
+            return null;
+        }
+
+        return new AstNode($node->type, $node->attrs, $children);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @return list<AstNode>
+     */
+    private function pruneEmptyInlineNodes(array $nodes): array
+    {
+        $pruned = [];
+        foreach ($nodes as $node) {
+            if ($node->type === 'text' && (string) $node->attr('text', '') === '') {
+                continue;
+            }
+
+            if ($node->children !== []) {
+                $children = $this->pruneEmptyInlineNodes($node->children);
+                if ($children === [] && $this->isPrunableInlineContainer($node)) {
+                    continue;
+                }
+                $node = new AstNode($node->type, $node->attrs, $children);
+            }
+
+            $pruned[] = $node;
+        }
+
+        return $pruned;
+    }
+
+    private function inlineNodeStartsWithSpace(AstNode $node): bool
+    {
+        if ($node->type === 'text') {
+            return str_starts_with((string) $node->attr('text', ''), ' ');
+        }
+
+        foreach ($node->children as $child) {
+            if ($this->inlineNodeStartsWithSpace($child)) {
+                return true;
+            }
+            if ($this->inlineNodeContainsText($child)) {
+                return false;
             }
         }
 
-        return array_values($nodes);
+        return false;
+    }
+
+    private function inlineNodeEndsWithSpace(AstNode $node): bool
+    {
+        if ($node->type === 'text') {
+            return str_ends_with((string) $node->attr('text', ''), ' ');
+        }
+
+        for ($index = count($node->children) - 1; $index >= 0; --$index) {
+            $child = $node->children[$index];
+            if ($this->inlineNodeEndsWithSpace($child)) {
+                return true;
+            }
+            if ($this->inlineNodeContainsText($child)) {
+                return false;
+            }
+        }
+
+        return false;
+    }
+
+    private function inlineNodeContainsText(AstNode $node): bool
+    {
+        if ($node->type === 'text') {
+            return true;
+        }
+
+        foreach ($node->children as $child) {
+            if ($this->inlineNodeContainsText($child)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function prependLeadingSpaceToInlineNode(AstNode $node): AstNode
+    {
+        if ($node->type === 'text') {
+            $attrs = $node->attrs;
+            $attrs['text'] = ' ' . (string) ($attrs['text'] ?? '');
+
+            return new AstNode('text', $attrs, $node->children);
+        }
+
+        if ($node->children === []) {
+            return $node;
+        }
+
+        $children = $node->children;
+        foreach ($children as $index => $child) {
+            if (!$this->inlineNodeContainsText($child)) {
+                continue;
+            }
+            $children[$index] = $this->prependLeadingSpaceToInlineNode($child);
+            break;
+        }
+
+        return new AstNode($node->type, $node->attrs, $children);
+    }
+
+    private function appendTrailingSpaceToInlineNode(AstNode $node): AstNode
+    {
+        if ($node->type === 'text') {
+            $attrs = $node->attrs;
+            $attrs['text'] = (string) ($attrs['text'] ?? '') . ' ';
+
+            return new AstNode('text', $attrs, $node->children);
+        }
+
+        if ($node->children === []) {
+            return $node;
+        }
+
+        $children = $node->children;
+        for ($index = count($children) - 1; $index >= 0; --$index) {
+            if (!$this->inlineNodeContainsText($children[$index])) {
+                continue;
+            }
+            $children[$index] = $this->appendTrailingSpaceToInlineNode($children[$index]);
+            break;
+        }
+
+        return new AstNode($node->type, $node->attrs, $children);
+    }
+
+    private function isInlineFormattingContainer(AstNode $node): bool
+    {
+        return in_array($node->type, [
+            'emph',
+            'strong',
+            'underline',
+            'strikeout',
+            'small_caps',
+            'superscript',
+            'subscript',
+        ], true);
+    }
+
+    private function isPrunableInlineContainer(AstNode $node): bool
+    {
+        return in_array($node->type, [
+            'emph',
+            'strong',
+            'underline',
+            'strikeout',
+            'small_caps',
+            'superscript',
+            'subscript',
+            'span',
+            'link',
+        ], true);
     }
 
     private function canMergeInlineSiblings(?AstNode $left, AstNode $right): bool
