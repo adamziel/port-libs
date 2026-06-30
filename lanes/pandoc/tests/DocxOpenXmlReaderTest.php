@@ -29041,6 +29041,7 @@ XML;
             '  <Relationship Id="rBadBibliography" Type="' . $bibliographyRel . '" Target="bibliography-bad.xml"/>' . "\n" .
             '  <Relationship Id="rMissingBibliography" Type="' . $bibliographyRel . '" Target="bibliography-missing.xml"/>' . "\n" .
             '  <Relationship Id="rExternalBibliography" Type="' . $bibliographyRel . '" Target="https://example.test/bibliography.xml?remote=1#refs" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rUnsafeExternalBibliography" Type="' . $bibliographyRel . '" Target="javascript:alert(1)" TargetMode="External"/>' . "\n" .
             '</Relationships>',
             $parts['word/_rels/document.xml.rels']
         );
@@ -29057,17 +29058,20 @@ XML;
         $bad = $bibliographies['byRelationshipId']['rBadBibliography'];
         $missing = $bibliographies['byRelationshipId']['rMissingBibliography'];
         $external = $bibliographies['byRelationshipId']['rExternalBibliography'];
+        $unsafeExternal = $bibliographies['byRelationshipId']['rUnsafeExternalBibliography'];
         $orphan = $bibliographies['byPartName']['word/bibliography-orphan.xml'];
         $relationshipTypes = $package['relationshipTypes'];
         $inventory = $package['parts'];
 
         $t->same($bibliographies, $package['bibliographyParts']);
-        $t->same(5, $bibliographies['count']);
-        $t->same(4, $bibliographies['relationshipCount']);
+        $t->same(6, $bibliographies['count']);
+        $t->same(5, $bibliographies['relationshipCount']);
         $t->same(1, $bibliographies['orphanPartCount']);
         $t->same(3, $bibliographies['existingCount']);
         $t->same(1, $bibliographies['missingCount']);
-        $t->same(1, $bibliographies['externalCount']);
+        $t->same(2, $bibliographies['externalCount']);
+        $t->same(1, $bibliographies['allowedExternalTargetCount']);
+        $t->same(1, $bibliographies['unsafeExternalTargetCount']);
         $t->same(0, $bibliographies['invalidXmlCount']);
         $t->same(1, $bibliographies['unexpectedRootCount']);
         $t->same(0, $bibliographies['missingContentTypeCount']);
@@ -29085,14 +29089,19 @@ XML;
         $t->same(1, $bibliographies['authorPersonCount']);
         $t->same([
             'external-bibliography-part',
+            'external-target-unsafe-scheme',
             'missing-bibliography-part',
             'unexpected-bibliography-content-type',
             'unexpected-bibliography-root',
         ], $bibliographies['issueCodes']);
-        $t->same(['rBibliography', 'rBadBibliography', 'rMissingBibliography', 'rExternalBibliography'], $bibliographies['relationshipIds']);
+        $t->same(['rBibliography', 'rBadBibliography', 'rMissingBibliography', 'rExternalBibliography', 'rUnsafeExternalBibliography'], $bibliographies['relationshipIds']);
         $t->same(['word/bibliography.xml', 'word/bibliography-bad.xml', 'word/bibliography-missing.xml', 'word/bibliography-orphan.xml'], $bibliographies['partNames']);
         $t->same(['word/bibliography-orphan.xml'], $bibliographies['orphanPartNames']);
-        $t->same(['https://example.test/bibliography.xml?remote=1#refs'], $bibliographies['externalTargets']);
+        $t->same(['https://example.test/bibliography.xml?remote=1#refs', 'javascript:alert(1)'], $bibliographies['externalTargets']);
+        $t->same(['javascript:alert(1)'], $bibliographies['unsafeExternalTargets']);
+        $t->same(['absolute-uri' => 2], $bibliographies['externalTargetKindCounts']);
+        $t->same(['https' => 1, 'javascript' => 1], $bibliographies['externalTargetSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme'], $bibliographies['externalTargetIssueCodes']);
         $t->same('bibliography-part-bytes-blocked', $bibliographies['byteExposurePolicy']);
         $t->same('bibliography-part-metadata-only', $bibliographies['reviewPolicy']);
 
@@ -29139,6 +29148,19 @@ XML;
         $t->same(null, $external['targetPart']);
         $t->same('remote=1', $external['targetQuery']);
         $t->same('refs', $external['targetFragment']);
+        $t->same('absolute-uri', $external['externalTargetKind']);
+        $t->same('https', $external['externalTargetScheme']);
+        $t->same(true, $external['externalTargetAllowed']);
+        $t->same([], $external['externalTargetIssues']);
+        $t->same(['external-bibliography-part'], $external['issues']);
+
+        $t->same(true, $unsafeExternal['external']);
+        $t->same('javascript:alert(1)', $unsafeExternal['target']);
+        $t->same('absolute-uri', $unsafeExternal['externalTargetKind']);
+        $t->same('javascript', $unsafeExternal['externalTargetScheme']);
+        $t->same(false, $unsafeExternal['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $unsafeExternal['externalTargetIssues']);
+        $t->same(['external-bibliography-part', 'external-target-unsafe-scheme'], $unsafeExternal['issues']);
         $t->same(false, $orphan['relationshipPresent']);
         $t->same(true, $orphan['orphan']);
         $t->same('word/bibliography-orphan.xml', $orphan['partName']);
@@ -29148,19 +29170,27 @@ XML;
         $t->same([], $orphan['issues']);
         $t->same(true, $orphan['valid']);
 
-        $t->same(5, $summary['bibliographyPartCount']);
-        $t->same(4, $summary['bibliographyPartRelationshipCount']);
+        $t->same(6, $summary['bibliographyPartCount']);
+        $t->same(5, $summary['bibliographyPartRelationshipCount']);
         $t->same(1, $summary['bibliographyPartOrphanCount']);
         $t->same(3, $summary['bibliographyPartExistingCount']);
         $t->same(1, $summary['bibliographyPartMissingCount']);
-        $t->same(1, $summary['bibliographyPartExternalCount']);
+        $t->same(2, $summary['bibliographyPartExternalCount']);
+        $t->same(1, $summary['bibliographyPartAllowedExternalCount']);
+        $t->same(1, $summary['bibliographyPartUnsafeExternalCount']);
+        $t->same(['external-target-unsafe-scheme'], $summary['bibliographyPartExternalTargetIssueCodes']);
         $t->same(3, $summary['bibliographyPartSourceCount']);
-        $t->same(3, $summary['bibliographyPartIssueCount']);
+        $t->same(4, $summary['bibliographyPartIssueCount']);
         $t->same($bibliographies['issueCodes'], $summary['bibliographyPartIssueCodes']);
         $t->same('bibliography', $relationshipTypes[$bibliographyRel]['label']);
-        $t->same(4, $relationshipTypes[$bibliographyRel]['count']);
+        $t->same(5, $relationshipTypes[$bibliographyRel]['count']);
         $t->same(3, $relationshipTypes[$bibliographyRel]['internalCount']);
-        $t->same(1, $relationshipTypes[$bibliographyRel]['externalCount']);
+        $t->same(2, $relationshipTypes[$bibliographyRel]['externalCount']);
+        $t->same(1, $relationshipTypes[$bibliographyRel]['allowedExternalTargetCount']);
+        $t->same(1, $relationshipTypes[$bibliographyRel]['unsafeExternalTargetCount']);
+        $t->same(['https' => 1, 'javascript' => 1], $relationshipTypes[$bibliographyRel]['externalTargetSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme' => 1], $relationshipTypes[$bibliographyRel]['externalTargetIssueCounts']);
+        $t->same('javascript:alert(1)', $relationshipTypes[$bibliographyRel]['unsafeExternalTargets'][0]['target']);
         $t->same(['word/bibliography.xml', 'word/bibliography-bad.xml'], $relationshipTypes[$bibliographyRel]['existingTargetParts']);
         $t->same(['word/bibliography-missing.xml'], $relationshipTypes[$bibliographyRel]['missingTargetParts']);
         $t->true(in_array('bibliography-part', $inventory['word/bibliography.xml']['roles'], true), 'bibliography inventory role missing');

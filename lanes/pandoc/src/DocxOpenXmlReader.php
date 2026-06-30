@@ -711,6 +711,9 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['bibliographyPartExistingCount'] = $bibliographyParts['existingCount'];
         $packageProvenance['summary']['bibliographyPartMissingCount'] = $bibliographyParts['missingCount'];
         $packageProvenance['summary']['bibliographyPartExternalCount'] = $bibliographyParts['externalCount'];
+        $packageProvenance['summary']['bibliographyPartAllowedExternalCount'] = $bibliographyParts['allowedExternalTargetCount'];
+        $packageProvenance['summary']['bibliographyPartUnsafeExternalCount'] = $bibliographyParts['unsafeExternalTargetCount'];
+        $packageProvenance['summary']['bibliographyPartExternalTargetIssueCodes'] = $bibliographyParts['externalTargetIssueCodes'];
         $packageProvenance['summary']['bibliographyPartSourceCount'] = $bibliographyParts['sourceCount'];
         $packageProvenance['summary']['bibliographyPartIssueCount'] = $bibliographyParts['issueCount'];
         $packageProvenance['summary']['bibliographyPartIssueCodes'] = $bibliographyParts['issueCodes'];
@@ -6642,6 +6645,10 @@ final class DocxOpenXmlReader
 
         $partNames = [];
         $externalTargets = [];
+        $unsafeExternalTargets = [];
+        $externalTargetKindCounts = [];
+        $externalTargetSchemeCounts = [];
+        $externalTargetIssueCodes = [];
         $contentTypesSeen = [];
         $issueCodes = [];
         $sourceTypeCounts = [];
@@ -6656,6 +6663,20 @@ final class DocxOpenXmlReader
             $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
             if (($item['external'] ?? false) === true) {
                 $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+                if (($item['externalTargetAllowed'] ?? null) !== true) {
+                    $this->appendUniqueString($unsafeExternalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+                }
+
+                $kind = is_string($item['externalTargetKind'] ?? null) ? $item['externalTargetKind'] : '(unknown)';
+                $externalTargetKindCounts[$kind] = ($externalTargetKindCounts[$kind] ?? 0) + 1;
+                $scheme = is_string($item['externalTargetScheme'] ?? null) ? $item['externalTargetScheme'] : '(none)';
+                $externalTargetSchemeCounts[$scheme] = ($externalTargetSchemeCounts[$scheme] ?? 0) + 1;
+
+                foreach (($item['externalTargetIssues'] ?? []) as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $externalTargetIssueCodes[$issue] = true;
+                    }
+                }
             }
             foreach (($item['issues'] ?? []) as $issue) {
                 if (is_string($issue) && $issue !== '') {
@@ -6679,6 +6700,9 @@ final class DocxOpenXmlReader
         sort($sourceTags, SORT_STRING);
         ksort($sourceTypeCounts, SORT_STRING);
         ksort($issueCodes, SORT_STRING);
+        ksort($externalTargetKindCounts, SORT_STRING);
+        ksort($externalTargetSchemeCounts, SORT_STRING);
+        ksort($externalTargetIssueCodes, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -6687,6 +6711,8 @@ final class DocxOpenXmlReader
             'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === false && $item['exists'] === true)),
             'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-bibliography-part', $item['issues'], true))),
             'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'allowedExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true && ($item['externalTargetAllowed'] ?? null) === true)),
+            'unsafeExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true && ($item['externalTargetAllowed'] ?? null) !== true)),
             'invalidXmlCount' => count(array_filter($items, static fn (array $item): bool => in_array('invalid-bibliography-xml', $item['issues'], true))),
             'unexpectedRootCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-bibliography-root', $item['issues'], true))),
             'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-bibliography-content-type', $item['issues'], true))),
@@ -6702,6 +6728,10 @@ final class DocxOpenXmlReader
             'orphanPartNames' => $orphanPartNames,
             'partNames' => $partNames,
             'externalTargets' => $externalTargets,
+            'unsafeExternalTargets' => $unsafeExternalTargets,
+            'externalTargetKindCounts' => $externalTargetKindCounts,
+            'externalTargetSchemeCounts' => $externalTargetSchemeCounts,
+            'externalTargetIssueCodes' => array_keys($externalTargetIssueCodes),
             'contentTypes' => $contentTypesSeen,
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'issueCodes' => array_keys($issueCodes),
@@ -6744,6 +6774,10 @@ final class DocxOpenXmlReader
         $item['targetQuery'] = $summary['targetQuery'];
         $item['targetFragment'] = $summary['targetFragment'];
         $item['targetReferenceSuffix'] = $summary['targetReferenceSuffix'];
+        $item['externalTargetKind'] = $summary['externalTargetKind'];
+        $item['externalTargetScheme'] = $summary['externalTargetScheme'];
+        $item['externalTargetAllowed'] = $summary['externalTargetAllowed'];
+        $item['externalTargetIssues'] = $summary['externalTargetIssues'];
         $item['exists'] = $exists;
         $item['byteLength'] = $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null;
         $item['crc32'] = $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null;
@@ -6761,6 +6795,12 @@ final class DocxOpenXmlReader
 
         if ($item['external'] === true) {
             $item['issues'][] = 'external-bibliography-part';
+            foreach ($item['externalTargetIssues'] as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $item['issues'][] = $issue;
+                }
+            }
+
             return $item;
         }
 
@@ -6834,6 +6874,10 @@ final class DocxOpenXmlReader
             'targetQuery' => null,
             'targetFragment' => null,
             'targetReferenceSuffix' => '',
+            'externalTargetKind' => null,
+            'externalTargetScheme' => null,
+            'externalTargetAllowed' => null,
+            'externalTargetIssues' => [],
             'exists' => false,
             'byteLength' => null,
             'crc32' => null,
