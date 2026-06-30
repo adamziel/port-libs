@@ -128,6 +128,55 @@ return [
             $t->true(!str_contains($mathml, '<mi>\\'), $path . ' leaves no literal TeX command identifiers in MathML');
         }
     },
+    'promotes complex texmath reader fixtures into plainmath conformance corpus' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $fixtures = [
+            'test/reader/tex/complex_number.test' => [
+                'tex' => 'c = \\overbrace { \\underbrace{a}_\\text{real} + \\underbrace{b\\mathrm{i}}_\\text{imaginary} }^\\text{complex number}',
+                'fragments' => [
+                    '<mi>c</mi><mo>=</mo><msup><mover><mrow>',
+                    '<msub><munder><mi>a</mi><mo>⏟</mo></munder><mtext>real</mtext></msub>',
+                    '<msub><munder><mrow><mi>b</mi><mstyle mathvariant="normal"><mi>i</mi></mstyle></mrow><mo>⏟</mo></munder><mtext>imaginary</mtext></msub>',
+                    '<mo>⏞</mo></mover><mtext>complex number</mtext></msup>',
+                    '<annotation encoding="application/x-tex">c = \\overbrace { \\underbrace{a}_\\text{real} + \\underbrace{b\\mathrm{i}}_\\text{imaginary} }^\\text{complex number}</annotation>',
+                ],
+            ],
+            'test/reader/tex/deMorgans_law.test' => [
+                'tex' => '\\neg(p\\wedge q)\\iff(\\neg p)\\vee(\\neg q) \\overline{\\bigcup_{i=1}^{n} A_{i}}=\\bigcap_{i=1}^{n} \\overline{A_{i}}',
+                'fragments' => [
+                    '<mo>¬</mo><mo>(</mo><mi>p</mi><mo>∧</mo><mi>q</mi><mo>)</mo><mo>⇔</mo><mo>(</mo><mo>¬</mo><mi>p</mi><mo>)</mo><mo>∨</mo><mo>(</mo><mo>¬</mo><mi>q</mi><mo>)</mo>',
+                    '<mover accent="true"><mrow><msubsup><mo>⋃</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></msubsup><msub><mi>A</mi><mi>i</mi></msub></mrow><mo>‾</mo></mover>',
+                    '<msubsup><mo>⋂</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></msubsup><mover accent="true"><msub><mi>A</mi><mi>i</mi></msub><mo>‾</mo></mover>',
+                    '<annotation encoding="application/x-tex">\\neg(p\\wedge q)\\iff(\\neg p)\\vee(\\neg q) \\overline{\\bigcup_{i=1}^{n} A_{i}}=\\bigcap_{i=1}^{n} \\overline{A_{i}}</annotation>',
+                ],
+            ],
+            'test/reader/tex/divergence.test' => [
+                'tex' => '\\nabla \\cdot \\vec{v} = \\frac{\\partial v_x}{\\partial x} + \\frac{\\partial v_y}{\\partial y} + \\frac{\\partial v_z}{\\partial z}',
+                'fragments' => [
+                    '<mo>∇</mo><mo>⋅</mo><mover accent="true"><mi>v</mi><mo>→</mo></mover><mo>=</mo>',
+                    '<mfrac><mrow><mo>∂</mo><msub><mi>v</mi><mi>x</mi></msub></mrow><mrow><mo>∂</mo><mi>x</mi></mrow></mfrac>',
+                    '<mfrac><mrow><mo>∂</mo><msub><mi>v</mi><mi>y</mi></msub></mrow><mrow><mo>∂</mo><mi>y</mi></mrow></mfrac>',
+                    '<mfrac><mrow><mo>∂</mo><msub><mi>v</mi><mi>z</mi></msub></mrow><mrow><mo>∂</mo><mi>z</mi></mrow></mfrac>',
+                    '<annotation encoding="application/x-tex">\\nabla \\cdot \\vec{v} = \\frac{\\partial v_x}{\\partial x} + \\frac{\\partial v_y}{\\partial y} + \\frac{\\partial v_z}{\\partial z}</annotation>',
+                ],
+            ],
+        ];
+
+        foreach ($fixtures as $path => $fixture) {
+            $mathml = $converter->texToMathMl($fixture['tex'], true);
+            $dom = new \DOMDocument('1.0', 'UTF-8');
+
+            $t->true(
+                $dom->loadXML($mathml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING),
+                $path . ' emits well-formed MathML'
+            );
+            $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $mathml);
+            foreach ($fixture['fragments'] as $fragment) {
+                $t->contains($fragment, $mathml);
+            }
+            $t->true(!str_contains($mathml, '<mi>\\'), $path . ' leaves no literal TeX command identifiers in MathML');
+        }
+    },
     'promotes texmath atom coercion fixtures into plainmath conformance corpus' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $fixtures = [

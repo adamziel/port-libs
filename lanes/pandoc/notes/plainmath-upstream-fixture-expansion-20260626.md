@@ -48,6 +48,23 @@ MathML enclosure mapping. They remain static PHP assertions against
 `MathTexConverter`; no TexMath, Pandoc, TeX engine, browser renderer, or
 external converter is invoked by the test.
 
+## 2026-06-30 Addendum
+
+Added three more passing fixture-backed cases from `jgm/texmath`
+`test/reader/tex` source fixtures:
+
+- `test/reader/tex/complex_number.test`
+- `test/reader/tex/deMorgans_law.test`
+- `test/reader/tex/divergence.test`
+
+The added cases cover nested overbrace/underbrace text annotations, Boolean and
+set relation operators with overlines, and vector divergence partial
+derivatives. The current local worktree did not include a hydrated TexMath
+checkout, so fixture names and bodies were confirmed read-only from the primary
+`jgm/texmath` raw fixture source on 2026-06-30. The committed PHP tests remain
+static assertions against `MathTexConverter`; no TexMath, Pandoc, TeX engine,
+browser renderer, or external converter is invoked by the test.
+
 ## Counts
 
 - Static upstream denominator remains `2,276` inspected upstream Pandoc
@@ -55,6 +72,10 @@ external converter is invoked by the test.
 - Focused mapped behavior checks: `2,304 -> 2,308` after the 2026-06-29
   addendum.
 - PlainMath static TexMath fixture cases: `7 -> 11` after the 2026-06-29
+  addendum.
+- Focused mapped behavior checks: `2,310 -> 2,313` after the 2026-06-30
+  addendum.
+- PlainMath static TexMath fixture cases: `11 -> 14` after the 2026-06-30
   addendum.
 
 ## Verification
@@ -69,3 +90,5 @@ Expected result: the focused PlainMath conformance test file passes without
 external converter execution.
 
 2026-06-29 result: `1` file, `103` assertions, `0` failures.
+
+2026-06-30 result: `1` file, `126` assertions, `0` failures.
