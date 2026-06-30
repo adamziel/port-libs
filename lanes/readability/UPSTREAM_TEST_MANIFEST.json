@@ -39,7 +39,7 @@
         },
         "runnerStatus": {
             "executed": true,
-            "summary": "The old missing node_modules/mocha blocker is resolved. The upstream cache includes the implementation files and lockfile required by the test harness; `npm ci --no-audit --fund=false` installed Mocha/jsdom dependencies from the lockfile; canonical `npm test` was rerun on 2026-06-30 and passes 1984 Mocha tests in 17s. Native PHP coverage maps all 130 copied Mozilla fixture pages plus the API/static semantics represented by the upstream denominator; focused `php tools/run-tests.php lanes/readability/tests/ArticleExtractorTest.php` passes 192 tests / 2278 assertions / 0 failures. CI now runs that focused upstream-mapped Readability suite on pull requests and pushes to main.",
+            "summary": "The old missing node_modules/mocha blocker is resolved. The upstream cache includes the implementation files and lockfile required by the test harness; `npm ci --no-audit --fund=false` installed Mocha/jsdom dependencies from the lockfile; canonical `npm test` was rerun on 2026-06-30 and passes 1984 Mocha tests in 17s. Native PHP coverage maps all 130 copied Mozilla fixture pages plus the API/static semantics represented by the upstream denominator; focused `php tools/run-tests.php lanes/readability/tests/ArticleExtractorTest.php` passes 192 tests / 2278 assertions / 0 failures. CI now runs that focused upstream-mapped Readability suite on pull requests and pushes.",
             "environment": {
                 "node": "24.16.0",
                 "npm": "11.13.0"
