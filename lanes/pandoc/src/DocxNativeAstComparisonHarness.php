@@ -308,6 +308,8 @@ final class DocxNativeAstComparisonHarness
                 'DOCX data-docx-* provenance attributes retained for local writer diagnostics',
                 'DOCX table captionSource retained for local writer diagnostics',
                 'derived text attrs on plain, paragraph, heading, and table_cell nodes',
+                'derived figure caption inline caches when caption blocks are present',
+                'DOCX package media target roots when upstream native uses document-relative media paths',
                 'default table cell alignment, spans, and row-head counts omitted by native Attr tuples',
                 'DOCX tab separator encoding when upstream native exposes equivalent spacing',
                 'reader-specific adjacent Str/Space text-node segmentation',
@@ -390,6 +392,9 @@ final class DocxNativeAstComparisonHarness
             if ($node->type === 'table' && $key === 'captionSource') {
                 continue;
             }
+            if ($this->isDerivedFigureCaptionInlineCache($node, $key)) {
+                continue;
+            }
             if ($node->type === 'table_cell' && in_array($key, ['colspan', 'rowspan'], true) && (int) $value === 1) {
                 continue;
             }
@@ -407,6 +412,9 @@ final class DocxNativeAstComparisonHarness
                 $attrs[$key] = $this->normalizedCaptionBlockListValue($value);
                 continue;
             }
+            if ($node->type === 'image' && $key === 'url' && is_string($value)) {
+                $value = $this->normalizedImageUrl($value);
+            }
             $normalizedValue = $this->normalizedValue($value);
             if (in_array($key, ['attributes', 'htmlAttributes'], true) && $normalizedValue === []) {
                 continue;
@@ -420,6 +428,44 @@ final class DocxNativeAstComparisonHarness
             'attrs' => $attrs,
             'children' => $this->normalizedChildren($node->children),
         ];
+    }
+
+    private function isDerivedFigureCaptionInlineCache(AstNode $node, string $key): bool
+    {
+        if ($node->type !== 'figure') {
+            return false;
+        }
+
+        $blockKey = match ($key) {
+            'captionInlines' => 'captionBlocks',
+            'shortCaptionInlines' => 'shortCaptionBlocks',
+            default => null,
+        };
+        if ($blockKey === null) {
+            return false;
+        }
+
+        $blocks = $node->attr($blockKey, null);
+        if (!is_array($blocks) || $blocks === [] || !array_is_list($blocks)) {
+            return false;
+        }
+
+        foreach ($blocks as $block) {
+            if (!$block instanceof AstNode) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function normalizedImageUrl(string $url): string
+    {
+        if (str_starts_with($url, 'word/media/')) {
+            return substr($url, strlen('word/'));
+        }
+
+        return $url;
     }
 
     private function isIgnoredTableCellAttr(AstNode $node, string $key, mixed $value): bool
@@ -466,8 +512,8 @@ final class DocxNativeAstComparisonHarness
         foreach ($children as $child) {
             $replacementChildren = $this->comparisonReplacementChildren($child);
             if (is_array($replacementChildren)) {
-                foreach ($replacementChildren as $replacementChild) {
-                    $this->appendNormalizedChild($normalized, $this->normalizedNode($replacementChild));
+                foreach ($this->normalizedChildren($replacementChildren) as $replacementChild) {
+                    $this->appendNormalizedChild($normalized, $replacementChild);
                 }
                 continue;
             }

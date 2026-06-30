@@ -262,15 +262,15 @@ return [
         $boldUnderline = $document->children[1]->children[0];
         $boldItalicUnderline = $document->children[2]->children[0];
 
-        $t->same('underline', $italicUnderline->type);
-        $t->same('emph', $italicUnderline->children[0]->type);
+        $t->same('emph', $italicUnderline->type);
+        $t->same('underline', $italicUnderline->children[0]->type);
         $t->same('italic underlined', $italicUnderline->children[0]->children[0]->attr('text'));
-        $t->same('underline', $boldUnderline->type);
-        $t->same('strong', $boldUnderline->children[0]->type);
+        $t->same('strong', $boldUnderline->type);
+        $t->same('underline', $boldUnderline->children[0]->type);
         $t->same('bold underlined', $boldUnderline->children[0]->children[0]->attr('text'));
-        $t->same('underline', $boldItalicUnderline->type);
+        $t->same('emph', $boldItalicUnderline->type);
         $t->same('strong', $boldItalicUnderline->children[0]->type);
-        $t->same('emph', $boldItalicUnderline->children[0]->children[0]->type);
+        $t->same('underline', $boldItalicUnderline->children[0]->children[0]->type);
         $t->same('bold italic underlined', $boldItalicUnderline->children[0]->children[0]->children[0]->attr('text'));
     },
     'wraps docx verbatim superscript and subscript around inline code' => static function (TestRunner $t) use ($buildDocxReaderPackagePartsBytes): void {
@@ -797,11 +797,11 @@ XML],
         $t->same('Numeric style heading', $document->children[0]->attr('text'));
         $t->same('paragraph', $document->children[1]->type);
         $t->same('A derived run', $document->children[1]->attr('text'));
-        $t->same('strong', $document->children[1]->children[1]->type);
-        $t->same('emph', $document->children[1]->children[1]->children[0]->type);
+        $t->same('emph', $document->children[1]->children[1]->type);
+        $t->same('strong', $document->children[1]->children[1]->children[0]->type);
         $t->same('derived run', $document->children[1]->children[1]->children[0]->children[0]->attr('text'));
         $t->contains('<h1 id="numeric-style-heading" class="Numeric-Heading-Derived">Numeric style heading</h1>', $blocks);
-        $t->contains('A <strong><em>derived run</em></strong>', $blocks);
+        $t->contains('A <em><strong>derived run</strong></em>', $blocks);
     },
     'reads docx package body metadata notes headers footers and review spans into shared ast' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-docx-');
@@ -2280,7 +2280,10 @@ XML],
         $t->same(['figure'], array_map(static fn ($node): string => $node->type, $document->children));
         $t->same('1 Caption text', $figure->attr('caption'));
         $t->same('image', $image->type);
+        $t->same('paragraph', $figure->attr('captionBlocks')[0]->type);
         $t->same('media/captioned.emf', $image->attr('url'));
+        $t->same('2.3680555555555554in', $image->attr('width'));
+        $t->same('0.9340277777777778in', $image->attr('height'));
         $t->same('textbox', $figure->attr('attributes')['data-docx-figure-caption-source']);
         $t->same('CaptionBox', $figure->attr('attributes')['data-docx-vml-shape-id']);
         $t->contains('<figure', $blocks);
@@ -2322,9 +2325,9 @@ XML],
         $t->same(['id' => '5'], $comment->children[2]->attr('attributes'));
         $t->same(['deletion', 'move-from'], $move->children[0]->attr('classes'));
         $t->same(['insertion', 'move-to'], $move->children[2]->attr('classes'));
-        $t->same('underline', $move->children[3]->type);
+        $t->same('superscript', $move->children[3]->type);
         $t->same('strikeout', $move->children[3]->children[0]->type);
-        $t->same('superscript', $move->children[3]->children[0]->children[0]->type);
+        $t->same('underline', $move->children[3]->children[0]->children[0]->type);
         $t->same('ReviewTable', $table->attr('htmlAttributes')['data-docx-table-style']);
         $firstCell = $table->children[1]->children[0]->children[0];
         $secondRow = $table->children[1]->children[1];
@@ -2342,7 +2345,7 @@ XML],
         $t->contains('class="comment-start" data-pandoc-comment-id="5" data-pandoc-comment-author="Range Reviewer"', $blocks);
         $t->contains('<del class="deletion move-from" data-pandoc-change-author="Mover"', $blocks);
         $t->contains('<ins class="insertion move-to" data-pandoc-change-author="Mover"', $blocks);
-        $t->contains('new spot </ins><u><del><sup>styled</sup></del></u>', $blocks);
+        $t->contains('new spot </ins><sup><del><u>styled</u></del></sup>', $blocks);
         $t->contains('<table data-docx-table-style="ReviewTable">', $blocks);
         $t->contains('data-docx-vmerge="restart" rowspan="2" style="background-color:#FFFF00; vertical-align:middle"', $blocks);
         $t->contains('<td>Bottom</td>', $blocks);
@@ -2384,8 +2387,8 @@ XML],
         $t->same(['docx-textbox'], $textBox->attr('classes'));
         $t->same('vml-pict', $textBox->attr('attributes')['data-docx-textbox-source']);
         $t->same('TextBox1', $textBox->attr('attributes')['data-docx-vml-shape-id']);
-        $t->same('strong', $styledText->type);
-        $t->same('emph', $styledText->children[0]->type);
+        $t->same('emph', $styledText->type);
+        $t->same('strong', $styledText->children[0]->type);
         $t->same('strong italic', $styledText->children[0]->children[0]->attr('text'));
 
         $t->same('image', $image->type);
@@ -2412,7 +2415,7 @@ XML],
         $t->same('center', $tableAttributes['data-docx-table-style-align']);
 
         $t->contains('<span class="docx-textbox" data-docx-textbox-source="vml-pict"', $blocks);
-        $t->contains('Boxed <strong><em>strong italic</em></strong>', $blocks);
+        $t->contains('Boxed <em><strong>strong italic</strong></em>', $blocks);
         $t->contains('data-docx-image-source="vml-object"', $blocks);
         $t->contains('data-docx-vml-shape-id="_x0000_i1025"', $blocks);
         $t->contains('data-docx-table-style-chain="BaseTable DerivedTable"', $blocks);

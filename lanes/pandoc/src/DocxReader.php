@@ -4856,14 +4856,14 @@ final class DocxReader
     {
         return [
             'code',
-            'subscript',
-            'superscript',
+            'underline',
             'strikeout',
             'small_caps',
             'mark',
-            'emph',
             'strong',
-            'underline',
+            'emph',
+            'subscript',
+            'superscript',
         ];
     }
 
@@ -4954,14 +4954,14 @@ final class DocxReader
     private function runStyleNodeTypes(): array
     {
         return [
-            'subscript' => 'subscript',
-            'superscript' => 'superscript',
+            'underline' => 'underline',
             'strikeout' => 'strikeout',
             'small_caps' => 'small_caps',
             'mark' => 'span',
-            'emph' => 'emph',
             'strong' => 'strong',
-            'underline' => 'underline',
+            'emph' => 'emph',
+            'subscript' => 'subscript',
+            'superscript' => 'superscript',
         ];
     }
 

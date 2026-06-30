@@ -192,10 +192,20 @@ return [
         <w:sdtContent><w:r><w:t>Controlled text</w:t></w:r></w:sdtContent>
       </w:sdt>
     </w:p>
+    <w:p>
+      <w:sdt>
+        <w:sdtPr><w:alias w:val="Citation"/><w:tag w:val="CitaviPlaceholder#unit"/><w:id w:val="8"/></w:sdtPr>
+        <w:sdtContent>
+          <w:fldSimple w:instr=' ADDIN CitationProvider '>
+            <w:r><w:t>Nested field</w:t></w:r>
+          </w:fldSimple>
+        </w:sdtContent>
+      </w:sdt>
+    </w:p>
   </w:body>
 </w:document>
 XML);
-            file_put_contents($root . '/same.native', '[Para [Str "Last",Space,Str "update:",Space,Str "May",Space,Str "1,",Space,Str "2017"],Para [Str "Controlled",Space,Str "text"]]');
+            file_put_contents($root . '/same.native', '[Para [Str "Last",Space,Str "update:",Space,Str "May",Space,Str "1,",Space,Str "2017"],Para [Str "Controlled",Space,Str "text"],Para [Str "Nested",Space,Str "field"]]');
 
             $report = (new DocxNativeAstComparisonHarness())->run($root);
 
@@ -311,7 +321,7 @@ XML,
             ]),
         ]);
         $image = new AstNode('image', [
-            'url' => 'media/image1.png',
+            'url' => 'word/media/image1.png',
             'title' => '',
             'alt' => 'Chart',
             'width' => '2in',
@@ -338,6 +348,40 @@ XML,
             'title' => '',
             'url' => 'media/image1.png',
         ], $normalizedImage['attrs']);
+    },
+    'normalizes derived figure caption inline caches when caption blocks match' => static function (TestRunner $t): void {
+        $harness = new DocxNativeAstComparisonHarness();
+        $method = new ReflectionMethod(DocxNativeAstComparisonHarness::class, 'normalizedNode');
+        $captionBlocks = [
+            new AstNode('paragraph', ['text' => 'One two'], [
+                new AstNode('text', ['text' => 'One']),
+                new AstNode('text', ['text' => ' two']),
+            ]),
+        ];
+
+        $docxFigure = new AstNode('figure', [
+            'caption' => 'One two',
+            'captionBlocks' => $captionBlocks,
+            'captionInlines' => [
+                new AstNode('text', ['text' => 'One two']),
+            ],
+        ]);
+        $nativeFigure = new AstNode('figure', [
+            'caption' => 'One two',
+            'captionBlocks' => $captionBlocks,
+            'captionInlines' => [
+                new AstNode('text', ['text' => 'One']),
+                new AstNode('text', ['text' => ' ']),
+                new AstNode('text', ['text' => 'two']),
+            ],
+        ]);
+
+        $normalizedDocx = $method->invoke($harness, $docxFigure);
+        $normalizedNative = $method->invoke($harness, $nativeFigure);
+
+        $t->same($normalizedNative, $normalizedDocx);
+        $t->same('paragraph', $normalizedDocx['attrs']['captionBlocks'][0]['type']);
+        $t->true(!array_key_exists('captionInlines', $normalizedDocx['attrs']));
     },
     'matches one row docx table against native table shape after focused normalization' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeDocxDocument): void {
         $root = $makeTempDir();
