@@ -2939,24 +2939,26 @@ XML;
         $xml = '';
         ksort($this->customParagraphStyles, SORT_STRING);
         foreach ($this->customParagraphStyles as $styleId => $name) {
-            $xml .= $this->paragraphStyleXml($styleId, $name, 'Normal', true);
+            $xml .= $this->paragraphStyleXml($styleId, $name, 'BodyText', true, true);
         }
         ksort($this->customCharacterStyles, SORT_STRING);
         foreach ($this->customCharacterStyles as $styleId => $name) {
-            $xml .= $this->characterStyleXml($styleId, $name, 'DefaultParagraphFont', true);
+            $xml .= $this->characterStyleXml($styleId, $name, 'BodyTextChar', true);
         }
 
         return $xml;
     }
 
-    private function paragraphStyleXml(string $styleId, string $name, ?string $basedOn, bool $custom): string
+    private function paragraphStyleXml(string $styleId, string $name, ?string $basedOn, bool $custom, bool $qFormat = false): string
     {
         $customAttr = $custom ? ' w:customStyle="1"' : '';
         $basedOnXml = $basedOn === null ? '' : '<w:basedOn w:val="' . self::escAttr($basedOn) . '"/>';
+        $qFormatXml = $qFormat ? '<w:qFormat/>' : '';
 
         return '<w:style w:type="paragraph"' . $customAttr . ' w:styleId="' . self::escAttr($styleId) . '">'
             . '<w:name w:val="' . self::escAttr($name) . '"/>'
             . $basedOnXml
+            . $qFormatXml
             . '</w:style>';
     }
 

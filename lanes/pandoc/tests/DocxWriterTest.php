@@ -725,6 +725,8 @@ return [
         $t->contains('w:styleId="MyStyle"', $stylesXml);
         $t->contains('w:styleId="MyBlockStyle"', $stylesXml);
         $t->contains('<w:name w:val="My Block Style"/>', $stylesXml);
+        $t->contains('<w:style w:type="paragraph" w:customStyle="1" w:styleId="MyBlockStyle"><w:name w:val="My Block Style"/><w:basedOn w:val="BodyText"/><w:qFormat/></w:style>', $stylesXml);
+        $t->contains('<w:style w:type="character" w:customStyle="1" w:styleId="Emphatic"><w:name w:val="Emphatic"/><w:basedOn w:val="BodyTextChar"/></w:style>', $stylesXml);
         $t->contains('w:styleId="Heading9Char"', $stylesXml);
         $t->contains('w:styleId="NormalTok"', $stylesXml);
         $t->true(!str_contains($stylesXml, 'w:styleId="CommentText"'), 'Comment-only style should not be emitted for non-comment documents');
