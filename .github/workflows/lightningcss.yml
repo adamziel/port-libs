@@ -35,13 +35,17 @@ jobs:
         run: |
           jq . lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json >/dev/null
           jq . lanes/lightningcss/lane-status.json >/dev/null
-          test "$(jq -r '.mapped' lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json)" = "3532"
-          test "$(jq -r '.benchmarkDenominator.total' lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json)" = "3532"
-          test "$(jq -r '.benchmarkDenominator.mapped' lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json)" = "3532"
-          test "$(jq -r '.focusedCoverage.remaining' lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json)" = "0"
-          test "$(jq -r '.estimatedProgress' lanes/lightningcss/lane-status.json)" = "100"
-          test "$(jq -r '.phpPass' lanes/lightningcss/lane-status.json)" = "10837"
-          test "$(jq -r '.phpFail' lanes/lightningcss/lane-status.json)" = "0"
+          jq -e '
+            .mapped == 3532
+            and .benchmarkDenominator.total == 3532
+            and .benchmarkDenominator.mapped == 3532
+            and .focusedCoverage.remaining == 0
+          ' lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json >/dev/null
+          jq -e '
+            .estimatedProgress == 100
+            and .phpPass == 10837
+            and .phpFail == 0
+          ' lanes/lightningcss/lane-status.json >/dev/null
 
       - name: Run LightningCSS PHP tests
         shell: bash
