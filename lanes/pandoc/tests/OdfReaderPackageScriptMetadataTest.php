@@ -292,6 +292,83 @@ return [
         $t->same('script-package-bytes-blocked', $compactReview['Scripts/ruby/review.rb']['byteExposurePolicy']);
         $t->same(['Pictures/hero.png'], array_column($compactSummary['mediaParts'], 'path'));
     },
+    'reports ODT script package invalid declared sizes as metadata-only diagnostics' => static function (TestRunner $t) use (
+        $buildPackage,
+        $indexBy,
+        $manifestXml,
+        $basicModuleXml
+    ): void {
+        $invalidSizeManifest = str_replace(
+            'manifest:full-path="Basic/Standard/Review.xml" manifest:media-type="text/xml" manifest:size="' . strlen($basicModuleXml) . '"',
+            'manifest:full-path="Basic/Standard/Review.xml" manifest:media-type="text/xml" manifest:size="macro-bytes"',
+            $manifestXml
+        );
+        $package = $buildPackage($invalidSizeManifest);
+        $result = (new OdfReader())->readPackage($package);
+        $scripts = $result['packageScripts'];
+        $items = $indexBy($scripts['items'], 'part');
+        $manifestByPart = $indexBy($result['manifest'], 'part');
+        $runtimeParts = $indexBy($result['scriptMetadata']['parts'], 'part');
+
+        $t->same(1, $scripts['invalidDeclaredSizeCount']);
+        $t->same([
+            'odf-script-encrypted-package-part',
+            'odf-script-invalid-declared-size',
+            'odf-script-missing-package-part',
+            'odf-script-undeclared-package-part',
+        ], $scripts['issueCodes']);
+        $t->same(4, $scripts['issueCount']);
+
+        $script = $items['Basic/Standard/Review.xml'];
+        $t->same(null, $script['declaredSize']);
+        $t->same('macro-bytes', $script['declaredSizeRaw']);
+        $t->same(false, $script['declaredSizeValid']);
+        $t->same(true, $script['declaredSizeInvalid']);
+        $t->same(false, $script['declaredSizeMismatch']);
+        $t->same(true, $script['valid']);
+        $t->same(strlen($basicModuleXml), $script['byteLength']);
+        $t->same('script-package-bytes-blocked', $script['byteExposurePolicy']);
+        $t->same(['odf-script-invalid-declared-size'], $script['issues']);
+
+        $manifestScript = $manifestByPart['Basic/Standard/Review.xml'];
+        $t->same(null, $manifestScript['declaredSize']);
+        $t->same('macro-bytes', $manifestScript['declaredSizeRaw']);
+        $t->same(false, $manifestScript['declaredSizeValid']);
+        $t->same(true, $manifestScript['declaredSizeInvalid']);
+        $t->same(false, $manifestScript['declaredSizeMismatch']);
+        $t->same(['odf-manifest-invalid-declared-size'], $manifestScript['diagnostics']);
+        $t->same(false, $manifestScript['canExposeBytes']);
+        $t->same('script-package-bytes-blocked', $manifestScript['byteExposurePolicy']);
+        $t->same(null, $manifestScript['byteSha256']);
+
+        $runtimeScript = $runtimeParts['Basic/Standard/Review.xml'];
+        $t->same(null, $runtimeScript['declaredSize']);
+        $t->same('macro-bytes', $runtimeScript['declaredSizeRaw']);
+        $t->same(false, $runtimeScript['declaredSizeValid']);
+        $t->same(true, $runtimeScript['declaredSizeInvalid']);
+        $t->same(['odf-script-package-invalid-declared-size'], $runtimeScript['diagnostics']);
+        $t->same(false, $runtimeScript['canExposeBytes']);
+        $t->same(null, $runtimeScript['byteLength']);
+        $t->same(strlen($basicModuleXml), $runtimeScript['storedByteLength']);
+
+        $compactSummary = OpenDocumentPackage::fromPackage($package)->summarize();
+        $compactScripts = $compactSummary['packageScripts'];
+        $compactItems = $indexBy($compactScripts['items'], 'part');
+        $compactReview = $indexBy($compactSummary['manifestReview']['items'], 'path');
+
+        $t->same(1, $compactScripts['invalidDeclaredSizeCount']);
+        $t->same($scripts['issueCodes'], $compactScripts['issueCodes']);
+        $t->same(4, $compactScripts['issueCount']);
+        $t->same('macro-bytes', $compactItems['Basic/Standard/Review.xml']['declaredSizeRaw']);
+        $t->same(false, $compactItems['Basic/Standard/Review.xml']['declaredSizeValid']);
+        $t->same(true, $compactItems['Basic/Standard/Review.xml']['declaredSizeInvalid']);
+        $t->same(['odf-script-invalid-declared-size'], $compactItems['Basic/Standard/Review.xml']['issues']);
+        $t->same('macro-bytes', $compactReview['Basic/Standard/Review.xml']['declaredSizeRaw']);
+        $t->same(true, $compactReview['Basic/Standard/Review.xml']['declaredSizeInvalid']);
+        $t->same(['odf-manifest-invalid-declared-size'], $compactReview['Basic/Standard/Review.xml']['diagnostics']);
+        $t->same(false, $compactReview['Basic/Standard/Review.xml']['canExposeBytes']);
+        $t->same('script-package-bytes-blocked', $compactReview['Basic/Standard/Review.xml']['byteExposurePolicy']);
+    },
     'accepts ODT BeanShell package script media-type aliases as metadata-only review data' => static function (TestRunner $t) use (
         $buildPackage,
         $indexBy,

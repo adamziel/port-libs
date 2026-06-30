@@ -16376,6 +16376,9 @@ final class OdfReader
             if (!$mediaTypeValid) {
                 $issues[] = 'odf-script-invalid-media-type';
             }
+            if (($item['declaredSizeInvalid'] ?? false) === true) {
+                $issues[] = 'odf-script-invalid-declared-size';
+            }
             foreach ($issues as $issue) {
                 $issueCodes[$issue] = true;
             }
@@ -16434,6 +16437,9 @@ final class OdfReader
                 'storedByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
                 'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
                 'declaredSize' => $item['declaredSize'] ?? null,
+                'declaredSizeRaw' => $item['declaredSizeRaw'] ?? null,
+                'declaredSizeValid' => ($item['declaredSizeValid'] ?? false) === true,
+                'declaredSizeInvalid' => ($item['declaredSizeInvalid'] ?? false) === true,
                 'declaredSizeMismatch' => ($item['declaredSizeMismatch'] ?? false) === true,
                 'canExposeBytes' => false,
                 'canExposeAsDocumentMedia' => false,
@@ -16465,6 +16471,7 @@ final class OdfReader
                 $items,
                 static fn (array $item): bool => $item['mediaTypeValid'] !== true,
             )),
+            'invalidDeclaredSizeCount' => count(array_filter($items, static fn (array $item): bool => $item['declaredSizeInvalid'] === true)),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'issueCodes' => array_keys($issueCodes),
             'scriptContainers' => array_keys($containers),
@@ -16760,6 +16767,9 @@ final class OdfReader
         if ($encrypted) {
             $diagnostics[] = 'odf-script-package-encrypted-part';
         }
+        if (($item['declaredSizeInvalid'] ?? false) === true) {
+            $diagnostics[] = 'odf-script-package-invalid-declared-size';
+        }
 
         $hrefs = [];
         foreach ($references as $reference) {
@@ -16791,6 +16801,9 @@ final class OdfReader
             'storedByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
             'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
             'declaredSize' => $item['declaredSize'] ?? null,
+            'declaredSizeRaw' => $item['declaredSizeRaw'] ?? null,
+            'declaredSizeValid' => ($item['declaredSizeValid'] ?? false) === true,
+            'declaredSizeInvalid' => ($item['declaredSizeInvalid'] ?? false) === true,
             'declaredSizeMismatch' => ($item['declaredSizeMismatch'] ?? false) === true,
             'encryption' => $item['encryption'] ?? null,
             'eventReferences' => $references,
