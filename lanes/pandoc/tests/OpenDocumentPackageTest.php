@@ -1644,6 +1644,80 @@ XML;
             'Dictionaries/en_US/preview.png',
         ], array_column($mediaResources['packageRolePrecedenceItems'], 'part'));
     },
+    'summarizes compact ODT package inventory directory and extension buckets' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $reviewImage = 'REVIEWPNG';
+        $scriptXml = '<script:module xmlns:script="urn:oasis:names:tc:opendocument:xmlns:script:1.0"/>';
+        $thumbnail = 'THUMBNAIL';
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/review.png" manifest:size="' . strlen($reviewImage) . '"/>'
+            . '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Basic/Standard/Module1.xml" manifest:size="' . strlen($scriptXml) . '"/>',
+            $manifestXml
+        );
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'Pictures/', 'data' => '', 'compressionMethod' => 0],
+                ['name' => 'Pictures/review.png', 'data' => $reviewImage, 'compressionMethod' => 0],
+                ['name' => 'Basic/Standard/Module1.xml', 'data' => $scriptXml, 'compressionMethod' => 0],
+                ['name' => 'Thumbnails/thumbnail.png', 'data' => $thumbnail, 'compressionMethod' => 0],
+            ],
+        ))->summarize();
+        $inventory = $summary['packageInventory'];
+        $parts = $inventory['parts'];
+        $directories = [];
+        foreach ($inventory['packagePathDirectorySummaries'] as $item) {
+            $directories[$item['directory']] = $item;
+        }
+        $extensions = [];
+        foreach ($inventory['packagePathExtensionSummaries'] as $item) {
+            $extensions[$item['extension'] ?? '(none)'] = $item;
+        }
+
+        $t->same(5, $inventory['packagePathDirectoryCount']);
+        $t->same(['/', 'Basic/Standard', 'META-INF', 'Pictures', 'Thumbnails'], $inventory['packagePathDirectories']);
+        $t->same(3, $inventory['packagePathExtensionCount']);
+        $t->same([null, 'png', 'xml'], $inventory['packagePathExtensions']);
+
+        $t->same('Pictures', $parts['Pictures/review.png']['directory']);
+        $t->same(1, $parts['Pictures/review.png']['directoryDepth']);
+        $t->same('review.png', $parts['Pictures/review.png']['baseName']);
+        $t->same('png', $parts['Pictures/review.png']['extension']);
+        $t->same('/', $parts['Pictures/']['directory']);
+        $t->same('Pictures', $parts['Pictures/']['baseName']);
+        $t->same(null, $parts['Pictures/']['extension']);
+
+        $t->same(2, $directories['Pictures']['entryCount']);
+        $t->same(2, $directories['Pictures']['fileEntryCount']);
+        $t->same(2, $directories['Pictures']['manifestDeclaredEntryCount']);
+        $t->same(strlen('PNGDATA') + strlen($reviewImage), $directories['Pictures']['byteLength']);
+        $t->same([
+            'manifest-declared' => 2,
+            'media-resource' => 2,
+        ], $directories['Pictures']['roleCounts']);
+        $t->same(['image' => 2], $directories['Pictures']['manifestMediaFamilyCounts']);
+        $t->same(['package-bytes-exposable' => 2], $directories['Pictures']['byteExposurePolicyCounts']);
+
+        $t->same(1, $directories['Basic/Standard']['entryCount']);
+        $t->same(['manifest-declared' => 1, 'script-package' => 1], $directories['Basic/Standard']['roleCounts']);
+        $t->same(['script-package-bytes-blocked' => 1], $directories['Basic/Standard']['byteExposurePolicyCounts']);
+        $t->same(1, $directories['Thumbnails']['undeclaredEntryCount']);
+        $t->same(['package-thumbnail' => 1, 'undeclared-package-entry' => 1], $directories['Thumbnails']['roleCounts']);
+
+        $t->same(3, $extensions['png']['entryCount']);
+        $t->same(2, $extensions['png']['manifestDeclaredEntryCount']);
+        $t->same(1, $extensions['png']['undeclaredEntryCount']);
+        $t->same(strlen('PNGDATA') + strlen($reviewImage) + strlen($thumbnail), $extensions['png']['byteLength']);
+        $t->same([
+            'manifest-declared' => 2,
+            'media-resource' => 2,
+            'package-thumbnail' => 1,
+            'undeclared-package-entry' => 1,
+        ], $extensions['png']['roleCounts']);
+        $t->same(1, $extensions['(none)']['directoryEntryCount']);
+    },
     'preserves compact ODT raw ZIP entry name provenance in package inventory' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $decodedName = "Pictures/caf\xc3\xa9.png";
         $rawName = "Pictures/caf\x82.png";

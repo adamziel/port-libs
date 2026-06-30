@@ -1013,6 +1013,7 @@ final class OpenDocumentPackage
             $localOrder = $localOrderByName[$entry->name] ?? null;
             $commentEntry = $commentEntriesByName[$entry->name] ?? null;
             $embeddedObjectPackage = self::embeddedObjectPackageMembership($entry->name, $objectPackageRootParts);
+            $location = self::packageInventoryEntryLocation($entry->name);
             $rawNameProvenance = self::zipEntryRawNameProvenance($entry);
             $timestampProvenance = self::zipTimestampProvenance($modificationTimeByName[$entry->name] ?? null);
             $platformAttributeProvenance = self::zipPlatformAttributeProvenance(
@@ -1061,6 +1062,10 @@ final class OpenDocumentPackage
                 'zipEntryHasComment' => $entry->comment !== '',
                 'zipEntryCommentIssues' => is_array($commentEntry) ? ($commentEntry['issues'] ?? []) : [],
                 'isDirectory' => $entry->isDirectory(),
+                'directory' => $location['directory'],
+                'directoryDepth' => $location['directoryDepth'],
+                'baseName' => $location['baseName'],
+                'extension' => $location['extension'],
                 'declaredInManifest' => is_array($manifestEntry),
                 'manifestIndex' => is_array($manifestEntry) ? $manifestEntry['manifestIndex'] : null,
                 'manifestPath' => is_array($manifestEntry) ? $manifestEntry['path'] : null,
@@ -1293,6 +1298,8 @@ final class OpenDocumentPackage
         ksort($manifestMediaFamilyCounts, SORT_STRING);
         ksort($manifestMediaFamilyByteLengths, SORT_STRING);
         ksort($manifestMediaFamilyCompressedByteLengths, SORT_STRING);
+        $directorySummaries = self::packageInventoryDirectorySummaries(array_values($parts));
+        $extensionSummaries = self::packageInventoryExtensionSummaries(array_values($parts));
 
         return [
             'entryCount' => count($parts),
@@ -1300,6 +1307,12 @@ final class OpenDocumentPackage
             'undeclaredEntryCount' => count($undeclaredEntries),
             'undeclaredEntries' => $undeclaredEntries,
             'packageDirectoryCount' => $packageDirectoryCount,
+            'packagePathDirectoryCount' => count($directorySummaries),
+            'packagePathDirectories' => array_column($directorySummaries, 'directory'),
+            'packagePathDirectorySummaries' => $directorySummaries,
+            'packagePathExtensionCount' => count($extensionSummaries),
+            'packagePathExtensions' => array_column($extensionSummaries, 'extension'),
+            'packagePathExtensionSummaries' => $extensionSummaries,
             'roleCounts' => $roleCounts,
             'undeclaredRoleCounts' => $undeclaredRoleCounts,
             'corePackagePartCount' => $corePackagePartCount,
@@ -1829,6 +1842,203 @@ final class OpenDocumentPackage
         $payload['canExposeBytes'] = false;
 
         return $payload;
+    }
+
+    /**
+     * @return array{directory:string, directoryDepth:int, baseName:string, extension:?string}
+     */
+    private static function packageInventoryEntryLocation(string $packagePath): array
+    {
+        $name = trim($packagePath, '/');
+        $name = rtrim($name, '/');
+
+        if ($name === '') {
+            return [
+                'directory' => '/',
+                'directoryDepth' => 0,
+                'baseName' => '',
+                'extension' => null,
+            ];
+        }
+
+        $slash = strrpos($name, '/');
+        $directory = $slash === false ? '/' : substr($name, 0, $slash);
+        $baseName = $slash === false ? $name : substr($name, $slash + 1);
+        $extension = null;
+        $dot = strrpos($baseName, '.');
+        if ($dot !== false && $dot < strlen($baseName) - 1) {
+            $extension = strtolower(substr($baseName, $dot + 1));
+        }
+
+        return [
+            'directory' => $directory,
+            'directoryDepth' => $directory === '/' ? 0 : count(explode('/', $directory)),
+            'baseName' => $baseName,
+            'extension' => $extension,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function packageInventoryDirectorySummaries(array $entries): array
+    {
+        $directories = [];
+        foreach ($entries as $entry) {
+            $directory = is_string($entry['directory'] ?? null) ? $entry['directory'] : '/';
+            if (!isset($directories[$directory])) {
+                $directories[$directory] = self::emptyPackageInventoryLocationSummary([
+                    'directory' => $directory,
+                    'directoryDepth' => is_int($entry['directoryDepth'] ?? null) ? $entry['directoryDepth'] : 0,
+                ]);
+            }
+
+            self::addPackageInventoryLocationSummaryEntry($directories[$directory], $entry);
+        }
+
+        return self::normalizePackageInventoryLocationSummaries($directories);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function packageInventoryExtensionSummaries(array $entries): array
+    {
+        $extensions = [];
+        foreach ($entries as $entry) {
+            $extension = is_string($entry['extension'] ?? null) ? $entry['extension'] : null;
+            $key = $extension ?? '';
+            if (!isset($extensions[$key])) {
+                $extensions[$key] = self::emptyPackageInventoryLocationSummary([
+                    'extension' => $extension,
+                ]);
+            }
+
+            self::addPackageInventoryLocationSummaryEntry($extensions[$key], $entry);
+        }
+
+        return self::normalizePackageInventoryLocationSummaries($extensions);
+    }
+
+    /**
+     * @param array<string, mixed> $identity
+     * @return array<string, mixed>
+     */
+    private static function emptyPackageInventoryLocationSummary(array $identity): array
+    {
+        return $identity + [
+            'entryCount' => 0,
+            'fileEntryCount' => 0,
+            'directoryEntryCount' => 0,
+            'byteLength' => 0,
+            'compressedByteLength' => 0,
+            'manifestDeclaredEntryCount' => 0,
+            'undeclaredEntryCount' => 0,
+            'encryptedEntryCount' => 0,
+            'unsupportedCompressionMethodCount' => 0,
+            'exposableEntryCount' => 0,
+            'blockedEntryCount' => 0,
+            'roleCounts' => [],
+            'manifestMediaFamilyCounts' => [],
+            'compressionMethodCounts' => [],
+            'compressionMethodByteLengths' => [],
+            'compressionMethodCompressedByteLengths' => [],
+            'byteExposurePolicyCounts' => [],
+            'byteExposurePolicyByteLengths' => [],
+            'byteExposurePolicyCompressedByteLengths' => [],
+            'packagePaths' => [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $summary
+     * @param array<string, mixed> $entry
+     */
+    private static function addPackageInventoryLocationSummaryEntry(array &$summary, array $entry): void
+    {
+        ++$summary['entryCount'];
+        if (($entry['isDirectory'] ?? false) === true) {
+            ++$summary['directoryEntryCount'];
+        } else {
+            ++$summary['fileEntryCount'];
+        }
+
+        $byteLength = (int) ($entry['byteLength'] ?? 0);
+        $compressedByteLength = (int) ($entry['compressedByteLength'] ?? 0);
+        $summary['byteLength'] += $byteLength;
+        $summary['compressedByteLength'] += $compressedByteLength;
+        $summary['packagePaths'][] = (string) ($entry['path'] ?? '');
+
+        if (($entry['declaredInManifest'] ?? false) === true) {
+            ++$summary['manifestDeclaredEntryCount'];
+        }
+        if (($entry['undeclared'] ?? false) === true) {
+            ++$summary['undeclaredEntryCount'];
+        }
+        if (($entry['encrypted'] ?? false) === true) {
+            ++$summary['encryptedEntryCount'];
+        }
+        if (!in_array($entry['compressionMethod'] ?? null, [0, 8], true)) {
+            ++$summary['unsupportedCompressionMethodCount'];
+        }
+        if (($entry['canExposeBytes'] ?? false) === true) {
+            ++$summary['exposableEntryCount'];
+        } else {
+            ++$summary['blockedEntryCount'];
+        }
+
+        foreach (is_array($entry['roles'] ?? null) ? $entry['roles'] : [] as $role) {
+            if (!is_string($role) || $role === '') {
+                continue;
+            }
+
+            $summary['roleCounts'][$role] = ($summary['roleCounts'][$role] ?? 0) + 1;
+        }
+
+        $manifestMediaFamily = is_string($entry['manifestMediaFamily'] ?? null) && $entry['manifestMediaFamily'] !== ''
+            ? $entry['manifestMediaFamily']
+            : null;
+        if ($manifestMediaFamily !== null) {
+            $summary['manifestMediaFamilyCounts'][$manifestMediaFamily] = ($summary['manifestMediaFamilyCounts'][$manifestMediaFamily] ?? 0) + 1;
+        }
+
+        $compressionMethodName = is_string($entry['compressionMethodName'] ?? null) && $entry['compressionMethodName'] !== ''
+            ? $entry['compressionMethodName']
+            : 'unknown';
+        $summary['compressionMethodCounts'][$compressionMethodName] = ($summary['compressionMethodCounts'][$compressionMethodName] ?? 0) + 1;
+        $summary['compressionMethodByteLengths'][$compressionMethodName] = ($summary['compressionMethodByteLengths'][$compressionMethodName] ?? 0) + $byteLength;
+        $summary['compressionMethodCompressedByteLengths'][$compressionMethodName] = ($summary['compressionMethodCompressedByteLengths'][$compressionMethodName] ?? 0) + $compressedByteLength;
+
+        $byteExposurePolicy = is_string($entry['byteExposurePolicy'] ?? null) && $entry['byteExposurePolicy'] !== ''
+            ? $entry['byteExposurePolicy']
+            : 'unknown';
+        $summary['byteExposurePolicyCounts'][$byteExposurePolicy] = ($summary['byteExposurePolicyCounts'][$byteExposurePolicy] ?? 0) + 1;
+        $summary['byteExposurePolicyByteLengths'][$byteExposurePolicy] = ($summary['byteExposurePolicyByteLengths'][$byteExposurePolicy] ?? 0) + $byteLength;
+        $summary['byteExposurePolicyCompressedByteLengths'][$byteExposurePolicy] = ($summary['byteExposurePolicyCompressedByteLengths'][$byteExposurePolicy] ?? 0) + $compressedByteLength;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $summaries
+     * @return list<array<string, mixed>>
+     */
+    private static function normalizePackageInventoryLocationSummaries(array $summaries): array
+    {
+        ksort($summaries, SORT_STRING);
+        foreach ($summaries as $key => $summary) {
+            ksort($summary['roleCounts'], SORT_STRING);
+            ksort($summary['manifestMediaFamilyCounts'], SORT_STRING);
+            ksort($summary['compressionMethodCounts'], SORT_STRING);
+            ksort($summary['compressionMethodByteLengths'], SORT_STRING);
+            ksort($summary['compressionMethodCompressedByteLengths'], SORT_STRING);
+            ksort($summary['byteExposurePolicyCounts'], SORT_STRING);
+            ksort($summary['byteExposurePolicyByteLengths'], SORT_STRING);
+            ksort($summary['byteExposurePolicyCompressedByteLengths'], SORT_STRING);
+            $summaries[$key] = $summary;
+        }
+
+        return array_values($summaries);
     }
 
     /**

@@ -11895,6 +11895,82 @@ XML;
         $t->same(['package-thumbnail', 'undeclared-package-entry'], $provenance['parts']['Thumbnails/thumbnail.png']['roles']);
         $t->same('package-thumbnail-bytes-blocked', $provenance['parts']['Thumbnails/thumbnail.png']['byteExposurePolicy']);
     },
+    'summarizes ODT package inventory path directory and extension buckets for review handoff' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $reviewImage = 'REVIEWPNG';
+        $scriptXml = '<script:module xmlns:script="urn:oasis:names:tc:opendocument:xmlns:script:1.0"/>';
+        $thumbnail = 'THUMBNAIL';
+        $manifestWithPathBuckets = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>'
+            . '<manifest:file-entry manifest:full-path="Pictures/review.png" manifest:media-type="image/png"/>'
+            . '<manifest:file-entry manifest:full-path="Basic/Standard/Module1.xml" manifest:media-type="text/xml"/>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithPathBuckets, null, null, [
+            ['name' => 'Pictures/', 'data' => '', 'compressionMethod' => 0],
+            ['name' => 'Pictures/review.png', 'data' => $reviewImage, 'compressionMethod' => 0],
+            ['name' => 'Basic/Standard/Module1.xml', 'data' => $scriptXml, 'compressionMethod' => 0],
+            ['name' => 'Thumbnails/thumbnail.png', 'data' => $thumbnail, 'compressionMethod' => 0],
+        ]));
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $documentProvenance = $result['document']->attr('manifest')['packageProvenance'];
+        $parts = $provenance['parts'];
+        $directories = [];
+        foreach ($provenance['packagePathDirectorySummaries'] as $item) {
+            $directories[$item['directory']] = $item;
+        }
+        $extensions = [];
+        foreach ($provenance['packagePathExtensionSummaries'] as $item) {
+            $extensions[$item['extension'] ?? '(none)'] = $item;
+        }
+
+        $t->same($provenance, $documentProvenance);
+        $t->same(5, $provenance['packagePathDirectoryCount']);
+        $t->same(['/', 'Basic/Standard', 'META-INF', 'Pictures', 'Thumbnails'], $provenance['packagePathDirectories']);
+        $t->same(3, $provenance['packagePathExtensionCount']);
+        $t->same([null, 'png', 'xml'], $provenance['packagePathExtensions']);
+
+        $t->same('Pictures', $parts['Pictures/review.png']['directory']);
+        $t->same(1, $parts['Pictures/review.png']['directoryDepth']);
+        $t->same('review.png', $parts['Pictures/review.png']['baseName']);
+        $t->same('png', $parts['Pictures/review.png']['extension']);
+        $t->same('/', $parts['Pictures/']['directory']);
+        $t->same('Pictures', $parts['Pictures/']['baseName']);
+        $t->same(null, $parts['Pictures/']['extension']);
+
+        $t->same(2, $directories['Pictures']['entryCount']);
+        $t->same(2, $directories['Pictures']['fileEntryCount']);
+        $t->same(2, $directories['Pictures']['manifestDeclaredEntryCount']);
+        $t->same(strlen('PNGDATA') + strlen($reviewImage), $directories['Pictures']['byteLength']);
+        $t->same([
+            'manifest-declared' => 2,
+            'media-resource' => 2,
+        ], $directories['Pictures']['roleCounts']);
+        $t->same(['package-bytes-exposable' => 2], $directories['Pictures']['byteExposurePolicyCounts']);
+
+        $t->same(1, $directories['Basic/Standard']['entryCount']);
+        $t->same(['manifest-declared' => 1, 'script-package' => 1], $directories['Basic/Standard']['roleCounts']);
+        $t->same(['script-package-bytes-blocked' => 1], $directories['Basic/Standard']['byteExposurePolicyCounts']);
+        $t->same(1, $directories['Thumbnails']['undeclaredEntryCount']);
+        $t->same(['package-thumbnail' => 1, 'undeclared-package-entry' => 1], $directories['Thumbnails']['roleCounts']);
+
+        $t->same(3, $extensions['png']['entryCount']);
+        $t->same(2, $extensions['png']['manifestDeclaredEntryCount']);
+        $t->same(1, $extensions['png']['undeclaredEntryCount']);
+        $t->same(strlen('PNGDATA') + strlen($reviewImage) + strlen($thumbnail), $extensions['png']['byteLength']);
+        $t->same([
+            'manifest-declared' => 2,
+            'media-resource' => 2,
+            'package-thumbnail' => 1,
+            'undeclared-package-entry' => 1,
+        ], $extensions['png']['roleCounts']);
+        $t->same([
+            'package-bytes-exposable' => 2,
+            'package-thumbnail-bytes-blocked' => 1,
+        ], $extensions['png']['byteExposurePolicyCounts']);
+        $t->same(1, $extensions['(none)']['directoryEntryCount']);
+    },
     'reports ODT package media SHA-256 provenance without exposing blocked sidecars' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $reviewImage = 'REVIEWPNG';
         $scriptBytes = 'alert("blocked");';
