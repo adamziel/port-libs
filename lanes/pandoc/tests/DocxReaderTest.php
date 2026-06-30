@@ -849,10 +849,10 @@ XML;
 
         $t->same('Equation target', $target->attr('text'));
         $t->same('See Equation target: x^{2}+y', $reference->attr('text'));
-        $t->same('raw_inline', $target->children[0]->type);
-        $t->same('openxml', $target->children[0]->attr('format'));
-        $t->contains('w:name="_RefEquation"', $target->children[0]->attr('text'));
-        $t->same('raw_inline', $target->children[2]->type);
+        $t->same('span', $target->children[0]->type);
+        $t->same('_RefEquation', $target->children[0]->attr('id'));
+        $t->same(['anchor'], $target->children[0]->attr('classes'));
+        $t->same('text', $target->children[1]->type);
         $t->same('link', $reference->children[1]->type);
         $t->same('#_RefEquation', $reference->children[1]->attr('url'));
         $t->same('math', $reference->children[3]->type);
@@ -861,8 +861,7 @@ XML;
         $t->same('math', $display->children[0]->type);
         $t->same(true, $display->children[0]->attr('display'));
         $t->same('\\frac{1}{n}', $display->children[0]->attr('text'));
-        $t->contains('class="pandoc-openxml-bookmark-start"', $blocks);
-        $t->contains('data-pandoc-bookmark-name="_RefEquation"', $blocks);
+        $t->contains('<span id="_RefEquation" class="anchor" data-pandoc-anchor="empty-target"></span>', $blocks);
         $t->contains('<a href="#_RefEquation"', $blocks);
         $t->contains('>Equation target</a>', $blocks);
         $t->contains('<span class="math inline">\\(x^{2}+y\\)</span>', $blocks);
@@ -976,6 +975,112 @@ XML],
         $t->contains('<a href="#target-heading">Direct heading link</a>', $blocks);
         $t->true(!str_contains($blocks, '_GoBack'), 'Word _GoBack bookmarks should not leak into rendered output');
         $t->true(!str_contains($blocks, 'pandoc-openxml-bookmark-start'), 'Heading bookmarks should canonicalize to the heading id instead of raw bookmark spans');
+    },
+    'preserves nested docx instrText fields inside linked field results' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes(<<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+      <w:r><w:instrText> HYPERLINK "https://example.test/nested" \o "Nested title" </w:instrText></w:r>
+      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+      <w:r><w:t xml:space="preserve">Source p. </w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+      <w:r><w:instrText> PAGEREF TargetAnchor \h </w:instrText></w:r>
+      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+      <w:r><w:t>7</w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+      <w:r><w:t xml:space="preserve"> checked</w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+    </w:p>
+    <w:p><w:bookmarkStart w:id="9" w:name="TargetAnchor"/><w:r><w:t>Target paragraph</w:t></w:r><w:bookmarkEnd w:id="9"/></w:p>
+  </w:body>
+</w:document>
+XML);
+
+        $document = (new DocxReader())->read($bytes);
+        $paragraph = $document->children[0];
+        $outer = $paragraph->children[0];
+        $pageRef = $outer->children[1];
+        $target = $document->children[1];
+        $native = (new NativeWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Source p. 7 checked', $paragraph->attr('text'));
+        $t->same('link', $outer->type);
+        $t->same('https://example.test/nested', $outer->attr('url'));
+        $t->same('Nested title', $outer->attr('title'));
+        $t->same('text', $outer->children[0]->type);
+        $t->same('Source p. ', $outer->children[0]->attr('text'));
+        $t->same('link', $pageRef->type);
+        $t->same('#TargetAnchor', $pageRef->attr('url'));
+        $t->same('PAGEREF TargetAnchor \h', $pageRef->attr('attributes')['data-docx-field']);
+        $t->same('7', $pageRef->children[0]->attr('text'));
+        $t->same(' checked', $outer->children[2]->attr('text'));
+        $t->same('span', $target->children[0]->type);
+        $t->same('TargetAnchor', $target->children[0]->attr('id'));
+        $t->same(['anchor'], $target->children[0]->attr('classes'));
+        $t->contains('Link ( "" , [  ] , [ ( "data-docx-field" , "PAGEREF TargetAnchor \\\\h" ) ] ) [ Str "7" ] ( "#TargetAnchor" , "" )', $native);
+        $t->contains('<a href="https://example.test/nested" title="Nested title" data-docx-field="HYPERLINK &quot;https://example.test/nested&quot; \o &quot;Nested title&quot;">Source p. <span data-docx-field="PAGEREF TargetAnchor \h">7</span> checked</a>', $blocks);
+    },
+    'promotes referenced docx bookmarks to anchor spans while preserving unused anchors as raw openxml' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes(<<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:hyperlink w:anchor="Fizz"><w:r><w:t>One link to one target.</w:t></w:r></w:hyperlink></w:p>
+    <w:p><w:bookmarkStart w:id="1" w:name="Fizz"/><w:bookmarkStart w:id="2" w:name="UnusedAnchor"/><w:r><w:t>This is a target with two names.</w:t></w:r><w:bookmarkEnd w:id="1"/><w:bookmarkEnd w:id="2"/></w:p>
+  </w:body>
+</w:document>
+XML);
+
+        $document = (new DocxReader())->read($bytes);
+        $link = $document->children[0]->children[0];
+        $target = $document->children[1];
+        $native = (new NativeWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('link', $link->type);
+        $t->same('#Fizz', $link->attr('url'));
+        $t->same('span', $target->children[0]->type);
+        $t->same('Fizz', $target->children[0]->attr('id'));
+        $t->same(['anchor'], $target->children[0]->attr('classes'));
+        $t->same('raw_inline', $target->children[1]->type);
+        $t->contains('w:name="UnusedAnchor"', $target->children[1]->attr('text'));
+        $t->same('text', $target->children[2]->type);
+        $t->same('This is a target with two names.', $target->children[2]->attr('text'));
+        $t->same('raw_inline', $target->children[3]->type);
+        $t->contains('w:id="2"', $target->children[3]->attr('text'));
+        $t->contains('Span ( "Fizz" , [ "anchor" ] , [  ] ) [  ]', $native);
+        $t->contains('RawInline (Format "openxml") "<w:bookmarkStart w:id=\\"2\\" w:name=\\"UnusedAnchor\\"/>"', $native);
+        $t->contains('<span id="Fizz" class="anchor" data-pandoc-anchor="empty-target"></span>', $blocks);
+        $t->contains('data-pandoc-bookmark-name="UnusedAnchor"', $blocks);
+    },
+    'preserves empty docx index fields without leaking field instructions' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes(<<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:t>Index marker </w:t></w:r><w:fldSimple w:instr=" XE &quot;French&quot; "/><w:r><w:t>after</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+XML);
+
+        $document = (new DocxReader())->read($bytes);
+        $paragraph = $document->children[0];
+        $index = $paragraph->children[1];
+        $native = (new NativeWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Index marker after', $paragraph->attr('text'));
+        $t->same('span', $index->type);
+        $t->same(['indexref', 'docx-field', 'docx-field-xe', 'docx-index-entry'], $index->attr('classes'));
+        $t->same('French', $index->attr('attributes')['entry']);
+        $t->same('XE "French"', $index->attr('attributes')['data-docx-field-instruction']);
+        $t->contains('Span ( "" , [ "indexref" , "docx-field" , "docx-field-xe" , "docx-index-entry" ]', $native);
+        $t->contains('data-docx-field-instruction="XE &quot;French&quot;"', $blocks);
+        $t->true(!str_contains(strip_tags($blocks), 'XE "French"'), 'empty field instructions should not render as visible text');
     },
     'suppresses generated docx ole link bookmarks without dropping real bookmarks' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
         $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:bookmarkStart w:id="4" w:name="KeepMe"/><w:r><w:t>Kept bookmark</w:t></w:r><w:bookmarkEnd w:id="4"/></w:p><w:p><w:bookmarkStart w:id="9" w:name="OLE_LINK12"/><w:r><w:t>Generated bookmark wrapper</w:t></w:r><w:bookmarkEnd w:id="9"/></w:p></w:body></w:document>');

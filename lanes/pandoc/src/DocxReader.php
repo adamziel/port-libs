@@ -244,6 +244,7 @@ final class DocxReader
         $this->suppressedBookmarkIds = [];
         $children = $body instanceof \DOMElement ? $this->bodyBlocks($body) : [];
         $children = $this->canonicalizeHeadingBookmarkLinks($children);
+        $children = $this->canonicalizeReferencedBookmarkAnchors($children);
         if ($children === []) {
             $children[] = new AstNode('paragraph', ['text' => 'No readable DOCX body content was found.'], [
                 new AstNode('text', ['text' => 'No readable DOCX body content was found.']),
@@ -947,99 +948,136 @@ final class DocxReader
     private function inlineChildren(\DOMElement $container): array
     {
         $inlines = [];
-        $complexField = null;
+        $complexFieldStack = [];
         foreach ($this->transparentChildElements($container) as $child) {
             if ($child->localName === 'r') {
                 $events = $this->runFieldEvents($child);
                 if ($events !== []) {
-                    foreach ($events as $event) {
-                        if ($event['type'] === 'begin') {
-                            $complexField = [
-                                'instruction' => '',
-                                'result' => [],
-                                'separated' => false,
-                            ];
-                            continue;
-                        }
-                        if ($complexField === null) {
-                            continue;
-                        }
-                        if ($event['type'] === 'instr' && !$complexField['separated']) {
-                            $complexField['instruction'] .= $event['value'];
-                            continue;
-                        }
-                        if ($event['type'] === 'separate') {
-                            $complexField['separated'] = true;
-                            continue;
-                        }
-                        if ($event['type'] === 'end') {
-                            $field = $this->fieldNode($complexField['instruction'], $complexField['result']);
-                            if ($field instanceof AstNode) {
-                                $inlines[] = $field;
-                            }
-                            $complexField = null;
-                        }
-                    }
+                    $this->applyRunFieldEvents($events, $complexFieldStack, $inlines);
                     continue;
                 }
-                if ($complexField !== null) {
-                    if ($complexField['separated']) {
-                        array_push($complexField['result'], ...$this->run($child));
-                    }
-                    continue;
-                }
-                array_push($inlines, ...$this->run($child));
+                $this->appendFieldAwareInlines($inlines, $complexFieldStack, $this->run($child));
                 continue;
             }
             if ($child->localName === 'hyperlink') {
                 $link = $this->hyperlink($child);
                 if ($link instanceof AstNode) {
-                    $inlines[] = $link;
+                    $this->appendFieldAwareInlines($inlines, $complexFieldStack, [$link]);
                 }
                 continue;
             }
             if ($child->localName === 'fldSimple') {
                 $field = $this->simpleField($child);
                 if ($field instanceof AstNode) {
-                    $inlines[] = $field;
+                    $this->appendFieldAwareInlines($inlines, $complexFieldStack, [$field]);
                 } else {
-                    array_push($inlines, ...$this->inlineChildren($child));
+                    $this->appendFieldAwareInlines($inlines, $complexFieldStack, $this->inlineChildren($child));
                 }
                 continue;
             }
             if ($child->localName === 'sdt') {
-                array_push($inlines, ...$this->contentControlInlines($child));
+                $this->appendFieldAwareInlines($inlines, $complexFieldStack, $this->contentControlInlines($child));
                 continue;
             }
             if ($child->localName === 'bookmarkStart' || $child->localName === 'bookmarkEnd') {
                 $bookmark = $this->bookmarkRawInline($child);
                 if ($bookmark instanceof AstNode) {
-                    $inlines[] = $bookmark;
+                    $this->appendFieldAwareInlines($inlines, $complexFieldStack, [$bookmark]);
                 }
                 continue;
             }
             if ($child->localName === 'commentRangeStart' || $child->localName === 'commentRangeEnd') {
                 $commentRange = $this->commentRangeSpan($child);
                 if ($commentRange instanceof AstNode) {
-                    $inlines[] = $commentRange;
+                    $this->appendFieldAwareInlines($inlines, $complexFieldStack, [$commentRange]);
                 }
                 continue;
             }
             if ($child->localName === 'oMath' || $child->localName === 'oMathPara') {
                 $math = $this->ommlMath($child, $child->localName === 'oMathPara');
                 if ($math instanceof AstNode) {
-                    $inlines[] = $math;
+                    $this->appendFieldAwareInlines($inlines, $complexFieldStack, [$math]);
                 }
                 continue;
             }
             if (in_array($child->localName, ['ins', 'del', 'moveFrom', 'moveTo'], true)) {
-                foreach ($this->trackedChangeInlines($child) as $inline) {
-                    $inlines[] = $inline;
-                }
+                $this->appendFieldAwareInlines($inlines, $complexFieldStack, $this->trackedChangeInlines($child));
             }
         }
 
         return $this->mergeAdjacentText($inlines);
+    }
+
+    /**
+     * @param list<array{type: string, value: string}> $events
+     * @param list<array{instruction: string, result: list<AstNode>, separated: bool}> $complexFieldStack
+     * @param list<AstNode> $inlines
+     */
+    private function applyRunFieldEvents(array $events, array &$complexFieldStack, array &$inlines): void
+    {
+        foreach ($events as $event) {
+            if ($event['type'] === 'begin') {
+                $complexFieldStack[] = [
+                    'instruction' => '',
+                    'result' => [],
+                    'separated' => false,
+                ];
+                continue;
+            }
+
+            $topIndex = array_key_last($complexFieldStack);
+            if ($topIndex === null) {
+                continue;
+            }
+
+            if ($event['type'] === 'instr') {
+                if (!$complexFieldStack[$topIndex]['separated']) {
+                    $complexFieldStack[$topIndex]['instruction'] .= $event['value'];
+                }
+                continue;
+            }
+
+            if ($event['type'] === 'separate') {
+                $complexFieldStack[$topIndex]['separated'] = true;
+                continue;
+            }
+
+            if ($event['type'] !== 'end') {
+                continue;
+            }
+
+            $complexField = array_pop($complexFieldStack);
+            if (!is_array($complexField)) {
+                continue;
+            }
+
+            $field = $this->fieldNode($complexField['instruction'], $complexField['result']);
+            if ($field instanceof AstNode) {
+                $this->appendFieldAwareInlines($inlines, $complexFieldStack, [$field]);
+            }
+        }
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     * @param list<array{instruction: string, result: list<AstNode>, separated: bool}> $complexFieldStack
+     * @param list<AstNode> $nodes
+     */
+    private function appendFieldAwareInlines(array &$inlines, array &$complexFieldStack, array $nodes): void
+    {
+        if ($nodes === []) {
+            return;
+        }
+
+        $topIndex = array_key_last($complexFieldStack);
+        if ($topIndex === null) {
+            array_push($inlines, ...$nodes);
+            return;
+        }
+
+        if ($complexFieldStack[$topIndex]['separated']) {
+            array_push($complexFieldStack[$topIndex]['result'], ...$nodes);
+        }
     }
 
     /**
@@ -2029,6 +2067,83 @@ final class DocxReader
 
     /**
      * @param list<AstNode> $nodes
+     * @return list<AstNode>
+     */
+    private function canonicalizeReferencedBookmarkAnchors(array $nodes): array
+    {
+        $linkTargets = [];
+        $this->collectInternalLinkFragments($nodes, $linkTargets);
+        if ($linkTargets === []) {
+            return $nodes;
+        }
+
+        $promotedBookmarkIds = [];
+
+        return $this->promoteReferencedBookmarkAnchors($nodes, $linkTargets, $promotedBookmarkIds);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @param array<string, true> $linkTargets
+     */
+    private function collectInternalLinkFragments(array $nodes, array &$linkTargets): void
+    {
+        foreach ($nodes as $node) {
+            if ($node->type === 'link') {
+                $url = (string) ($node->attrs['url'] ?? '');
+                if (str_starts_with($url, '#') && strlen($url) > 1) {
+                    $linkTargets[substr($url, 1)] = true;
+                }
+            }
+
+            if ($node->children !== []) {
+                $this->collectInternalLinkFragments($node->children, $linkTargets);
+            }
+        }
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @param array<string, true> $linkTargets
+     * @param array<string, true> $promotedBookmarkIds
+     * @return list<AstNode>
+     */
+    private function promoteReferencedBookmarkAnchors(array $nodes, array $linkTargets, array &$promotedBookmarkIds): array
+    {
+        $rebuilt = [];
+        foreach ($nodes as $node) {
+            $bookmark = $this->rawBookmarkStart($node);
+            if ($bookmark !== null) {
+                if (isset($linkTargets[$bookmark['name']])) {
+                    $promotedBookmarkIds[$bookmark['id']] = true;
+                    $rebuilt[] = new AstNode('span', [
+                        'id' => $bookmark['name'],
+                        'classes' => ['anchor'],
+                    ]);
+                    continue;
+                }
+
+                $rebuilt[] = $node;
+                continue;
+            }
+
+            $bookmarkEndId = $this->rawBookmarkEndId($node);
+            if ($bookmarkEndId !== null && isset($promotedBookmarkIds[$bookmarkEndId])) {
+                unset($promotedBookmarkIds[$bookmarkEndId]);
+                continue;
+            }
+
+            $children = $node->children === []
+                ? []
+                : $this->promoteReferencedBookmarkAnchors($node->children, $linkTargets, $promotedBookmarkIds);
+            $rebuilt[] = new AstNode($node->type, $node->attrs, $children);
+        }
+
+        return $rebuilt;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
      * @param array<string, string> $bookmarkTargets
      * @return list<AstNode>
      */
@@ -2122,12 +2237,39 @@ final class DocxReader
 
     private function rawBookmarkStartName(AstNode $node): ?string
     {
+        $bookmark = $this->rawBookmarkStart($node);
+
+        return $bookmark['name'] ?? null;
+    }
+
+    /**
+     * @return array{id: string, name: string}|null
+     */
+    private function rawBookmarkStart(AstNode $node): ?array
+    {
         if ($node->type !== 'raw_inline' || $node->attr('format') !== 'openxml') {
             return null;
         }
 
         $text = (string) $node->attr('text', '');
-        if (preg_match('/^<w:bookmarkStart\b[^>]*\bw:name="([^"]*)"/', $text, $match) !== 1) {
+        if (preg_match('/^<w:bookmarkStart\b(?=[^>]*\bw:id="([^"]*)")(?=[^>]*\bw:name="([^"]*)")/', $text, $match) !== 1) {
+            return null;
+        }
+
+        return [
+            'id' => html_entity_decode($match[1], ENT_QUOTES | ENT_XML1, 'UTF-8'),
+            'name' => html_entity_decode($match[2], ENT_QUOTES | ENT_XML1, 'UTF-8'),
+        ];
+    }
+
+    private function rawBookmarkEndId(AstNode $node): ?string
+    {
+        if ($node->type !== 'raw_inline' || $node->attr('format') !== 'openxml') {
+            return null;
+        }
+
+        $text = (string) $node->attr('text', '');
+        if (preg_match('/^<w:bookmarkEnd\b[^>]*\bw:id="([^"]*)"/', $text, $match) !== 1) {
             return null;
         }
 
