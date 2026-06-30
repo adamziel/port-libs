@@ -1301,6 +1301,21 @@ XML;
         $t->contains('data-docx-content-control-list-values="draft approved"', $blocks);
         $t->contains('data-docx-content-control-date-full="2026-06-26T00:00:00Z"', $blocks);
     },
+    'unwraps docx content controls that only carry generated ids' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:sdt><w:sdtPr><w:id w:val="100"/></w:sdtPr><w:sdtContent><w:sdt><w:sdtPr><w:id w:val="101"/></w:sdtPr><w:sdtContent><w:p><w:r><w:t>Generated block</w:t></w:r></w:p></w:sdtContent></w:sdt></w:sdtContent></w:sdt><w:p><w:r><w:t>Inline </w:t></w:r><w:sdt><w:sdtPr><w:id w:val="102"/></w:sdtPr><w:sdtContent><w:r><w:t>generated</w:t></w:r></w:sdtContent></w:sdt><w:r><w:t> control</w:t></w:r></w:p></w:body></w:document>');
+
+        $document = (new DocxReader())->read($bytes);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(2, count($document->children));
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('Generated block', $document->children[0]->attr('text'));
+        $t->same('paragraph', $document->children[1]->type);
+        $t->same('Inline generated control', $document->children[1]->attr('text'));
+        $t->true(!str_contains($blocks, 'docx-content-control'), 'generated-id-only content controls should not emit provenance wrappers');
+        $t->contains('<p>Generated block</p>', $blocks);
+        $t->contains('<p>Inline generated control</p>', $blocks);
+    },
     'places docx table header rows in table head' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
         $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:tbl><w:tr><w:trPr><w:tblHeader/></w:trPr><w:tc><w:p><w:r><w:t>Field</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Value</w:t></w:r></w:p></w:tc></w:tr><w:tr><w:trPr><w:tblHeader w:val="0"/></w:trPr><w:tc><w:p><w:r><w:t>Draft flag</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>False header row</w:t></w:r></w:p></w:tc></w:tr><w:tr><w:tc><w:p><w:r><w:t>Total</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>12</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:body></w:document>');
 

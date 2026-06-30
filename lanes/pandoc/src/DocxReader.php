@@ -1203,9 +1203,14 @@ final class DocxReader
             return [];
         }
 
+        $attrs = $this->contentControlAttributes($control, 'block');
+        if ($this->contentControlHasOnlyGeneratedIdAttributes($attrs)) {
+            return $blocks;
+        }
+
         return [new AstNode('div', [
             'classes' => ['docx-content-control', 'docx-content-control-block'],
-            'attributes' => $this->contentControlAttributes($control, 'block'),
+            'attributes' => $attrs,
         ], $blocks)];
     }
 
@@ -1227,9 +1232,14 @@ final class DocxReader
             return [];
         }
 
+        $attrs = $this->contentControlAttributes($control, 'inline');
+        if ($this->contentControlHasOnlyGeneratedIdAttributes($attrs)) {
+            return $inlines;
+        }
+
         return [new AstNode('span', [
             'classes' => ['docx-content-control', 'docx-content-control-inline'],
-            'attributes' => $this->contentControlAttributes($control, 'inline'),
+            'attributes' => $attrs,
         ], $inlines)];
     }
 
@@ -1318,6 +1328,20 @@ final class DocxReader
         }
 
         return $attrs;
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     */
+    private function contentControlHasOnlyGeneratedIdAttributes(array $attrs): bool
+    {
+        foreach (array_keys($attrs) as $name) {
+            if (!in_array($name, ['data-docx-content-control-display', 'data-docx-content-control-id'], true)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function contentControlTypeElement(\DOMElement $properties): ?\DOMElement
