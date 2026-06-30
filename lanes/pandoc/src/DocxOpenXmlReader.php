@@ -1061,6 +1061,15 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['contentControlShowingPlaceholderCount'] = $contentControls['showingPlaceholderCount'];
         $packageProvenance['summary']['contentControlTypeCounts'] = $contentControls['controlTypeCounts'];
         $packageProvenance['summary']['contentControlContentKindCounts'] = $contentControls['contentKindCounts'];
+        $packageProvenance['summary']['contentControlTextByteLength'] = $contentControls['textByteLength'];
+        $packageProvenance['summary']['contentControlTextNonWhitespaceByteLength'] = $contentControls['textNonWhitespaceByteLength'];
+        $packageProvenance['summary']['contentControlTextDigestCount'] = $contentControls['textDigestCount'];
+        $packageProvenance['summary']['contentControlTextWhitespaceOnlyCount'] = $contentControls['textWhitespaceOnlyCount'];
+        $packageProvenance['summary']['contentControlTextLeadingWhitespaceCount'] = $contentControls['textLeadingWhitespaceCount'];
+        $packageProvenance['summary']['contentControlTextTrailingWhitespaceCount'] = $contentControls['textTrailingWhitespaceCount'];
+        $packageProvenance['summary']['contentControlTextLineBreakCount'] = $contentControls['textLineBreakCount'];
+        $packageProvenance['summary']['contentControlTextByteLengthBucketCounts'] = $contentControls['textByteLengthBucketCounts'];
+        $packageProvenance['summary']['contentControlTextShapeCounts'] = $contentControls['textShapeCounts'];
         $packageProvenance['summary']['contentControlPrefixMappingDeclarationCount'] = $contentControls['prefixMappingDeclarationCount'];
         $packageProvenance['summary']['contentControlPrefixMappingInvalidTokenCount'] = $contentControls['prefixMappingInvalidTokenCount'];
         $packageProvenance['summary']['contentControlPrefixMappingDuplicatePrefixCount'] = $contentControls['prefixMappingDuplicatePrefixCount'];
@@ -9985,6 +9994,15 @@ final class DocxOpenXmlReader
         $placeholderDocPartValues = [];
         $controlTypeCounts = [];
         $contentKindCounts = [];
+        $textByteLength = 0;
+        $textNonWhitespaceByteLength = 0;
+        $textDigestCount = 0;
+        $textWhitespaceOnlyCount = 0;
+        $textLeadingWhitespaceCount = 0;
+        $textTrailingWhitespaceCount = 0;
+        $textLineBreakCount = 0;
+        $textByteLengthBucketCounts = [];
+        $textShapeCounts = [];
         $placeholderCount = 0;
         $temporaryCount = 0;
         $showingPlaceholderCount = 0;
@@ -10027,6 +10045,29 @@ final class DocxOpenXmlReader
                     continue;
                 }
                 $contentKindCounts[$contentKind] = ($contentKindCounts[$contentKind] ?? 0) + 1;
+            }
+            $textByteLength += (int) ($item['textByteLength'] ?? 0);
+            $textNonWhitespaceByteLength += (int) ($item['textNonWhitespaceByteLength'] ?? 0);
+            if (($item['textDigestPresent'] ?? false) === true) {
+                ++$textDigestCount;
+            }
+            if (($item['textWhitespaceOnly'] ?? false) === true) {
+                ++$textWhitespaceOnlyCount;
+            }
+            if (($item['textHasLeadingWhitespace'] ?? false) === true) {
+                ++$textLeadingWhitespaceCount;
+            }
+            if (($item['textHasTrailingWhitespace'] ?? false) === true) {
+                ++$textTrailingWhitespaceCount;
+            }
+            $textLineBreakCount += (int) ($item['textLineBreakCount'] ?? 0);
+            $textByteLengthBucket = is_string($item['textByteLengthBucket'] ?? null) ? $item['textByteLengthBucket'] : '';
+            if ($textByteLengthBucket !== '') {
+                $textByteLengthBucketCounts[$textByteLengthBucket] = ($textByteLengthBucketCounts[$textByteLengthBucket] ?? 0) + 1;
+            }
+            $textShape = is_string($item['textShape'] ?? null) ? $item['textShape'] : '';
+            if ($textShape !== '') {
+                $textShapeCounts[$textShape] = ($textShapeCounts[$textShape] ?? 0) + 1;
             }
             $prefixMappingDeclarationCount += (int) ($item['prefixMappingDeclarationCount'] ?? 0);
             $prefixMappingInvalidTokenCount += (int) ($item['prefixMappingInvalidTokenCount'] ?? 0);
@@ -10081,6 +10122,8 @@ final class DocxOpenXmlReader
         ksort($appearanceValueCounts, SORT_STRING);
         ksort($controlTypeCounts, SORT_STRING);
         ksort($contentKindCounts, SORT_STRING);
+        ksort($textByteLengthBucketCounts, SORT_STRING);
+        ksort($textShapeCounts, SORT_STRING);
         sort($placeholderDocPartValues, SORT_STRING);
         sort($prefixMappingPrefixes, SORT_STRING);
         sort($unmappedXPathPrefixes, SORT_STRING);
@@ -10106,6 +10149,15 @@ final class DocxOpenXmlReader
             'showingPlaceholderCount' => $showingPlaceholderCount,
             'controlTypeCounts' => $controlTypeCounts,
             'contentKindCounts' => $contentKindCounts,
+            'textByteLength' => $textByteLength,
+            'textNonWhitespaceByteLength' => $textNonWhitespaceByteLength,
+            'textDigestCount' => $textDigestCount,
+            'textWhitespaceOnlyCount' => $textWhitespaceOnlyCount,
+            'textLeadingWhitespaceCount' => $textLeadingWhitespaceCount,
+            'textTrailingWhitespaceCount' => $textTrailingWhitespaceCount,
+            'textLineBreakCount' => $textLineBreakCount,
+            'textByteLengthBucketCounts' => $textByteLengthBucketCounts,
+            'textShapeCounts' => $textShapeCounts,
             'prefixMappingDeclarationCount' => $prefixMappingDeclarationCount,
             'prefixMappingInvalidTokenCount' => $prefixMappingInvalidTokenCount,
             'prefixMappingDuplicatePrefixCount' => $prefixMappingDuplicatePrefixCount,
@@ -10149,6 +10201,15 @@ final class DocxOpenXmlReader
             'showingPlaceholderCount' => 0,
             'controlTypeCounts' => [],
             'contentKindCounts' => [],
+            'textByteLength' => 0,
+            'textNonWhitespaceByteLength' => 0,
+            'textDigestCount' => 0,
+            'textWhitespaceOnlyCount' => 0,
+            'textLeadingWhitespaceCount' => 0,
+            'textTrailingWhitespaceCount' => 0,
+            'textLineBreakCount' => 0,
+            'textByteLengthBucketCounts' => [],
+            'textShapeCounts' => [],
             'prefixMappingDeclarationCount' => 0,
             'prefixMappingInvalidTokenCount' => 0,
             'prefixMappingDuplicatePrefixCount' => 0,
@@ -10189,6 +10250,8 @@ final class DocxOpenXmlReader
         $mappedPrefixes['xml'] = true;
         $unmappedXPathPrefixes = [];
         $placeholder = $this->contentControlPlaceholder($properties);
+        $text = $this->contentControlText($contentControl, $xpath);
+        $textProvenance = $this->contentControlTextProvenance($text);
         foreach ($xpathPrefixSummary['prefixes'] as $prefix) {
             if (!isset($mappedPrefixes[$prefix])) {
                 $unmappedXPathPrefixes[] = $prefix;
@@ -10231,7 +10294,18 @@ final class DocxOpenXmlReader
             'showingPlaceholder' => $this->childElement($properties, 'showingPlcHdr') instanceof \DOMElement,
             'controlType' => $this->contentControlType($properties),
             'contentKinds' => $this->contentControlContentKinds($content),
-            'text' => $this->contentControlText($contentControl, $xpath),
+            'text' => $text,
+            'textByteLength' => $textProvenance['byteLength'],
+            'textNonWhitespaceByteLength' => $textProvenance['nonWhitespaceByteLength'],
+            'textLineBreakCount' => $textProvenance['lineBreakCount'],
+            'textHasLeadingWhitespace' => $textProvenance['hasLeadingWhitespace'],
+            'textHasTrailingWhitespace' => $textProvenance['hasTrailingWhitespace'],
+            'textWhitespaceOnly' => $textProvenance['whitespaceOnly'],
+            'textDigestPresent' => $textProvenance['digestPresent'],
+            'textCrc32' => $textProvenance['crc32'],
+            'textSha256' => $textProvenance['sha256'],
+            'textByteLengthBucket' => $textProvenance['byteLengthBucket'],
+            'textShape' => $textProvenance['shape'],
             'relationshipIds' => $this->relationshipIdsInElement($contentControl),
             'dataBindingPresent' => $dataBinding instanceof \DOMElement,
             'storeItemId' => $storeItemId === '' ? null : $storeItemId,
@@ -10461,6 +10535,57 @@ final class DocxOpenXmlReader
         }
 
         return $text;
+    }
+
+    /**
+     * @return array{byteLength:int, nonWhitespaceByteLength:int, lineBreakCount:int, hasLeadingWhitespace:bool, hasTrailingWhitespace:bool, whitespaceOnly:bool, digestPresent:bool, crc32:?string, sha256:?string, byteLengthBucket:string, shape:string}
+     */
+    private function contentControlTextProvenance(string $text): array
+    {
+        $byteLength = strlen($text);
+        $nonWhitespaceText = preg_replace('/\s+/u', '', $text);
+        if (!is_string($nonWhitespaceText)) {
+            $nonWhitespaceText = preg_replace('/\s+/', '', $text);
+        }
+        if (!is_string($nonWhitespaceText)) {
+            $nonWhitespaceText = $text;
+        }
+
+        $lineBreakMatches = preg_match_all('/\r\n|\r|\n/', $text, $lineBreaks);
+        $lineBreakCount = is_int($lineBreakMatches) ? $lineBreakMatches : 0;
+        $hasLeadingWhitespace = $text !== '' && preg_match('/^\s/u', $text) === 1;
+        $hasTrailingWhitespace = $text !== '' && preg_match('/\s$/u', $text) === 1;
+        $hasNonWhitespace = $text !== '' && preg_match('/\S/u', $text) === 1;
+        $whitespaceOnly = $text !== '' && !$hasNonWhitespace;
+        $digestPresent = $byteLength > 0;
+        $shape = 'plain';
+        if ($text === '') {
+            $shape = 'empty';
+        } elseif ($whitespaceOnly) {
+            $shape = 'whitespace-only';
+        } elseif ($lineBreakCount > 0) {
+            $shape = 'contains-line-break';
+        } elseif ($hasLeadingWhitespace && $hasTrailingWhitespace) {
+            $shape = 'surrounding-whitespace';
+        } elseif ($hasLeadingWhitespace) {
+            $shape = 'leading-whitespace';
+        } elseif ($hasTrailingWhitespace) {
+            $shape = 'trailing-whitespace';
+        }
+
+        return [
+            'byteLength' => $byteLength,
+            'nonWhitespaceByteLength' => strlen($nonWhitespaceText),
+            'lineBreakCount' => $lineBreakCount,
+            'hasLeadingWhitespace' => $hasLeadingWhitespace,
+            'hasTrailingWhitespace' => $hasTrailingWhitespace,
+            'whitespaceOnly' => $whitespaceOnly,
+            'digestPresent' => $digestPresent,
+            'crc32' => $digestPresent ? sprintf('%08x', crc32($text)) : null,
+            'sha256' => $digestPresent ? hash('sha256', $text) : null,
+            'byteLengthBucket' => $this->packagePartByteLengthBucket($byteLength),
+            'shape' => $shape,
+        ];
     }
 
     /**
