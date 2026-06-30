@@ -2069,6 +2069,9 @@ XML;
         if ($this->hasClass($node, 'deletion')) {
             return $this->trackedChangeXml('del', $node, $format, $context);
         }
+        if ($this->hasClass($node, 'indexref')) {
+            return $this->indexReferenceFieldXml($node, $format, $context);
+        }
 
         $customStyle = $this->customStyleId($node);
         if ($customStyle !== null) {
@@ -2088,6 +2091,24 @@ XML;
         return '<w:bookmarkStart w:id="' . $bookmarkId . '" w:name="' . self::escAttr($name) . '"/>'
             . $content
             . '<w:bookmarkEnd w:id="' . $bookmarkId . '"/>';
+    }
+
+    private function indexReferenceFieldXml(AstNode $node, array $format, string $context): string
+    {
+        $entry = $this->nodeAttribute($node, 'entry');
+        if ($entry === '') {
+            return $this->renderInlines($node->children, $format, $context);
+        }
+
+        return '<w:r><w:fldChar w:fldCharType="begin"/></w:r>'
+            . '<w:r><w:instrText xml:space="preserve"> XE ' . self::escText(self::fieldInstructionQuotedString($entry)) . ' </w:instrText></w:r>'
+            . '<w:r><w:fldChar w:fldCharType="end"/></w:r>'
+            . $this->renderInlines($node->children, $format, $context);
+    }
+
+    private static function fieldInstructionQuotedString(string $value): string
+    {
+        return '"' . str_replace(['\\', '"'], ['\\\\', '\\"'], $value) . '"';
     }
 
     private function commentStartXml(AstNode $node): string
@@ -2158,6 +2179,9 @@ XML;
         }
 
         $xml = trim((string) $node->attr('text', ''));
+        if ($xml === '') {
+            return '';
+        }
         if (preg_match('/^<w:bookmarkStart\s+w:id="([0-9]+)"\s+w:name="([^"]+)"\s*\/>$/', $xml, $matches) === 1) {
             return '<w:bookmarkStart w:id="' . self::escAttr($matches[1]) . '" w:name="' . self::escAttr($matches[2]) . '"/>';
         }

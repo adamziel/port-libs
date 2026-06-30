@@ -506,6 +506,23 @@ return [
         $t->contains('<w:t xml:space="preserve">I left a comment.</w:t>', $commentsXml);
     },
 
+    'emits invisible index reference fields from native indexref spans' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
+        $document = $doc([
+            $paragraph([
+                $text('David French'),
+                new AstNode('span', ['classes' => ['indexref'], 'attributes' => ['entry' => 'French']]),
+                $text(' Belding'),
+            ]),
+        ]);
+
+        [, $parts] = $packageParts((new DocxWriter())->write($document));
+        $documentXml = $parts['word/document.xml'];
+
+        $t->contains('<w:t xml:space="preserve">David French</w:t></w:r><w:r><w:fldChar w:fldCharType="begin"/></w:r>', $documentXml);
+        $t->contains('<w:instrText xml:space="preserve"> XE "French" </w:instrText>', $documentXml);
+        $t->contains('<w:r><w:fldChar w:fldCharType="end"/></w:r><w:r><w:t xml:space="preserve"> Belding</w:t></w:r>', $documentXml);
+    },
+
     'preserves raw openxml bookmarks and hyphenated internal link anchors' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
         $document = $doc([
             new AstNode('heading', ['level' => 2, 'id' => 'a-section-for-testing-link-targets'], [$text('A section')]),
@@ -532,6 +549,22 @@ return [
         $t->contains('<w:fldSimple w:instr="REF ref_fig:testimg"/>', $documentXml);
         $t->true(!str_contains($documentXml, '&lt;w:bookmarkStart'), 'Raw bookmark was XML-escaped');
         $t->true(!str_contains($documentXml, '&lt;w:fldSimple'), 'Raw simple field was XML-escaped');
+    },
+
+    'omits empty raw openxml inline fragments' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
+        $document = $doc([
+            $paragraph([
+                $text('Before'),
+                new AstNode('raw_inline', ['format' => 'openxml', 'text' => '']),
+                $text(' after'),
+            ]),
+        ]);
+
+        [, $parts] = $packageParts((new DocxWriter())->write($document));
+        $documentXml = $parts['word/document.xml'];
+
+        $t->contains('<w:t xml:space="preserve">Before</w:t></w:r><w:r><w:t xml:space="preserve"> after</w:t>', $documentXml);
+        $t->true(!str_contains($documentXml, '<w:r/></w:p>'), 'Empty raw OpenXML inline emitted an empty run');
     },
 
     'uses hashed bookmark names for long internal anchors' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
