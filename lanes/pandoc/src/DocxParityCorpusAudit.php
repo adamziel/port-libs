@@ -11,7 +11,7 @@ final class DocxParityCorpusAudit
     public const STATUS_SKIPPED_MISSING_SOURCE = 'skipped_missing_upstream_docx_directory';
     public const STATUS_SKIPPED_UNREADABLE_SOURCE = 'skipped_unreadable_upstream_docx_directory';
     public const VERDICT = 'audit-only-not-full-docx-parity';
-    public const CLAIM = 'Reports local parser acceptance for paired root-level upstream DOCX/native fixtures only; no AST equality, writer golden package, or upstream Haskell runner parity is asserted.';
+    public const CLAIM = 'Reports local parser acceptance for paired root-level upstream DOCX/native fixtures plus writer-golden inventory/support status; no AST equality, generated writer package comparison, or upstream Haskell runner parity is asserted.';
     public const GAP_STATUS_OPEN = 'open';
     public const GAP_STATUS_NOT_EVALUATED = 'not-evaluated';
     public const PARSER_ACCEPTANCE_BASELINE_NAME = 'local-upstream-docx-parser-acceptance-20260630';
@@ -62,6 +62,7 @@ final class DocxParityCorpusAudit
             return $this->skipReport(self::STATUS_SKIPPED_UNREADABLE_SOURCE, $exception->getMessage());
         }
 
+        $writerGoldenEvidence = (new DocxWriterGoldenManifest($this->repoRoot, $this->docxDirectory, $this->sampleLimit))->report();
         $pairNames = $inventory['pairNames'];
         $auditedPairNames = $maxPairs === null ? $pairNames : array_slice($pairNames, 0, $maxPairs);
         $rows = [];
@@ -123,6 +124,10 @@ final class DocxParityCorpusAudit
             'rootDocxPackageArtifacts' => count($inventory['docxByStem']),
             'rootNativeExpectedArtifacts' => count($inventory['nativeByStem']),
             'goldenDocxPackageArtifacts' => $inventory['goldenDocxPackageArtifacts'],
+            'writerGoldenEvidence' => $writerGoldenEvidence,
+            'writerGoldenEvidenceKind' => $writerGoldenEvidence['evidenceKind'] ?? DocxWriterGoldenManifest::EVIDENCE_KIND,
+            'docxWriterUnsupportedReason' => $writerGoldenEvidence['localWriter']['unsupportedReason'] ?? DocxWriterGoldenManifest::OPEN_REASON,
+            'writerGoldenPackageComparisonRun' => $writerGoldenEvidence['packageComparison']['run'] ?? false,
             'pairedDocxNativeArtifacts' => count($pairNames),
             'unpairedDocxPackageArtifacts' => count($inventory['docxWithoutNative']),
             'unpairedNativeExpectedArtifacts' => count($inventory['nativeWithoutDocx']),
@@ -161,12 +166,14 @@ final class DocxParityCorpusAudit
                 $docxFailed,
                 $nativeFailed,
                 $auditedCount - $bothParsed,
-                $inventory['goldenDocxPackageArtifacts']
+                $inventory['goldenDocxPackageArtifacts'],
+                $writerGoldenEvidence
             ),
             'pairRows' => $rows,
             'failureRows' => $failureRows,
             'notes' => [
                 'Root-level .docx/.native stem pairs are reader fixtures; golden/*.docx files are counted as writer package inventory only.',
+                'The writer-golden manifest records package names and SHA-256 part hashes only; it does not generate PHP DOCX output.',
                 'Parser acceptance means the local PHP reader returned an AST node without throwing; it is not an equality comparison against Pandoc output.',
                 'This audit does not execute upstream Haskell/Cabal tests, compare generated DOCX packages, or claim full DOCX/OpenXML parity.',
             ],
@@ -190,6 +197,7 @@ final class DocxParityCorpusAudit
             $lines[] = 'Result: skipped';
             $lines[] = 'Reason: ' . (string) ($report['reason'] ?? 'source directory unavailable');
             $lines[] = 'No parser audit was run. This is expected on CI jobs without .upstream-cache.';
+            $lines = self::appendWriterGoldenSummary($lines, $report);
             $lines[] = 'No DOCX parity is asserted.';
             $lines = self::appendOrderedRemainingGaps($lines, $report);
 
@@ -207,6 +215,7 @@ final class DocxParityCorpusAudit
         $lines[] = 'Golden DOCX artifacts: '
             . (int) ($report['goldenDocxPackageArtifacts'] ?? 0)
             . ' counted as writer inventory only';
+        $lines = self::appendWriterGoldenSummary($lines, $report);
         $lines[] = 'Audited pairs: ' . $audited
             . ((int) ($report['unauditedPairCount'] ?? 0) > 0
                 ? ' (' . (int) $report['unauditedPairCount'] . ' not audited by limit)'
@@ -270,6 +279,8 @@ final class DocxParityCorpusAudit
      */
     private function skipReport(string $status, string $reason): array
     {
+        $writerGoldenEvidence = (new DocxWriterGoldenManifest($this->repoRoot, $this->docxDirectory, $this->sampleLimit))->report();
+
         return [
             'schemaVersion' => 1,
             'tool' => 'pandoc-docx-parity-audit',
@@ -288,6 +299,10 @@ final class DocxParityCorpusAudit
             'rootDocxPackageArtifacts' => 0,
             'rootNativeExpectedArtifacts' => 0,
             'goldenDocxPackageArtifacts' => 0,
+            'writerGoldenEvidence' => $writerGoldenEvidence,
+            'writerGoldenEvidenceKind' => $writerGoldenEvidence['evidenceKind'] ?? DocxWriterGoldenManifest::EVIDENCE_KIND,
+            'docxWriterUnsupportedReason' => $writerGoldenEvidence['localWriter']['unsupportedReason'] ?? DocxWriterGoldenManifest::OPEN_REASON,
+            'writerGoldenPackageComparisonRun' => $writerGoldenEvidence['packageComparison']['run'] ?? false,
             'pairedDocxNativeArtifacts' => 0,
             'unpairedDocxPackageArtifacts' => 0,
             'unpairedNativeExpectedArtifacts' => 0,
@@ -305,7 +320,16 @@ final class DocxParityCorpusAudit
             'bothParserCoveragePercent' => null,
             'parserAcceptanceBaseline' => self::parserAcceptanceBaseline(),
             'parserAcceptanceRegression' => self::parserAcceptanceRegression(false, null, 0, 0, 0, 0, 0, 0, 0, 0),
-            'orderedRemainingGaps' => self::orderedRemainingGaps(false, 0, 0, 0, 0, 0, 0),
+            'orderedRemainingGaps' => self::orderedRemainingGaps(
+                false,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                $writerGoldenEvidence
+            ),
             'pairRows' => [],
             'failureRows' => [],
             'notes' => [
@@ -512,11 +536,14 @@ final class DocxParityCorpusAudit
                 'local PHP DocxReader parser acceptance for audited .docx fixtures',
                 'local PHP NativeReader parser acceptance for audited .native fixtures',
                 'strict regression guard against the recorded 74/74 parser-acceptance baseline when the optional cache is present',
+                'local DOCX output registry status and expected DocxWriter class/file presence',
+                'upstream writer golden package part names and SHA-256 hashes when the optional cache is present',
             ],
             'doesNotAssert' => [
                 'Pandoc AST equality between DOCX reader output and upstream .native expectations',
                 'upstream Haskell/Cabal test-pandoc DOCX runner parity',
                 'DOCX writer golden package round-trip parity',
+                'DOCX writer support merely because upstream golden packages are inventoried',
                 'full DOCX/OpenXML semantic parity',
             ],
         ];
@@ -532,11 +559,20 @@ final class DocxParityCorpusAudit
         int $docxFailedCount,
         int $nativeFailedCount,
         int $bothFailedOrPartialCount,
-        int $goldenDocxPackageArtifacts
+        int $goldenDocxPackageArtifacts,
+        array $writerGoldenEvidence = []
     ): array {
         $sourceEvidence = $sourceDirectoryPresent
             ? "optional upstream cache present; {$auditedPairCount}/{$pairedDocxNativeArtifacts} paired root-level stems audited for parser acceptance"
             : 'optional upstream DOCX cache absent; no live corpus parser acceptance was measured in this worktree';
+        $writer = $writerGoldenEvidence['localWriter'] ?? [];
+        $comparison = $writerGoldenEvidence['packageComparison'] ?? [];
+        $writerStatus = is_array($writer) ? (string) ($writer['status'] ?? 'unknown') : 'unknown';
+        $registryStatus = is_array($writer) ? (string) ($writer['registryStatus'] ?? 'unknown') : 'unknown';
+        $writerReason = is_array($comparison)
+            ? (string) ($comparison['reason'] ?? DocxWriterGoldenManifest::OPEN_REASON)
+            : DocxWriterGoldenManifest::OPEN_REASON;
+        $comparisonRun = is_array($comparison) && ($comparison['run'] ?? false) === true ? 'yes' : 'no';
 
         return [
             [
@@ -557,7 +593,7 @@ final class DocxParityCorpusAudit
                 'rank' => 3,
                 'id' => 'writer-golden-docx-package-parity',
                 'status' => self::GAP_STATUS_OPEN,
-                'currentEvidence' => "golden .docx artifacts counted as writer inventory only: {$goldenDocxPackageArtifacts}; no generated DOCX package comparison was run.",
+                'currentEvidence' => "golden .docx artifacts inventoried as upstream writer outputs: {$goldenDocxPackageArtifacts}; local DOCX writer status={$writerStatus}; docx output registry={$registryStatus}; generated package comparison run={$comparisonRun}; reason={$writerReason}.",
                 'evidenceRequired' => 'Generate DOCX output for upstream writer golden cases and compare package parts, relationships, content types, and document XML semantics.',
             ],
             [
@@ -581,6 +617,49 @@ final class DocxParityCorpusAudit
                 'evidenceRequired' => 'Check in or otherwise reproducibly hydrate the pinned upstream DOCX package corpus used by parity evidence, with fixture identity and provenance.',
             ],
         ];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @param array<string, mixed> $report
+     * @return list<string>
+     */
+    private static function appendWriterGoldenSummary(array $lines, array $report): array
+    {
+        $writerGolden = $report['writerGoldenEvidence'] ?? [];
+        if (!is_array($writerGolden)) {
+            return $lines;
+        }
+
+        $writer = $writerGolden['localWriter'] ?? [];
+        if (is_array($writer)) {
+            $lines[] = 'DOCX writer implementation: '
+                . (string) ($writer['status'] ?? 'unknown')
+                . '; classExists='
+                . self::formatBool($writer['classExists'] ?? false)
+                . '; fileExists='
+                . self::formatBool($writer['fileExists'] ?? false)
+                . '; registryStatus='
+                . (string) ($writer['registryStatus'] ?? 'unknown');
+        }
+
+        $comparison = $writerGolden['packageComparison'] ?? [];
+        if (is_array($comparison)) {
+            $lines[] = 'DOCX writer golden package comparison: '
+                . ((($comparison['run'] ?? false) === true) ? 'run' : 'not run')
+                . '; reason='
+                . (string) ($comparison['reason'] ?? DocxWriterGoldenManifest::OPEN_REASON);
+        }
+
+        if (($writerGolden['skipped'] ?? false) !== true) {
+            $lines[] = 'Writer golden package parts inventoried: '
+                . (int) ($writerGolden['readablePackagePartCount'] ?? 0)
+                . '/'
+                . (int) ($writerGolden['packagePartCount'] ?? 0)
+                . ' hashed readable parts';
+        }
+
+        return $lines;
     }
 
     /**
@@ -712,6 +791,11 @@ final class DocxParityCorpusAudit
         }
 
         return $text;
+    }
+
+    private static function formatBool(mixed $value): string
+    {
+        return $value === true ? 'yes' : 'no';
     }
 
     /**

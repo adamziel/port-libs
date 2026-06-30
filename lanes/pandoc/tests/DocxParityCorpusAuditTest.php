@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\DocxParityCorpusAudit;
+use PortLibs\Pandoc\DocxWriterGoldenManifest;
 use PortLibs\Pandoc\ZipPackage;
 
 $makeTempRoot = static function (): string {
@@ -43,13 +44,17 @@ $writeFile = static function (string $root, string $relativePath, string $conten
     file_put_contents($path, $contents);
 };
 
-$minimalDocx = static function (string $text): string {
+$minimalDocxDocumentXml = static function (string $text): string {
     $xmlText = htmlspecialchars($text, ENT_XML1 | ENT_QUOTES, 'UTF-8');
 
+    return '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>' . $xmlText . '</w:t></w:r></w:p></w:body></w:document>';
+};
+
+$minimalDocx = static function (string $text) use ($minimalDocxDocumentXml): string {
     return ZipPackage::build([
         [
             'name' => 'word/document.xml',
-            'data' => '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>' . $xmlText . '</w:t></w:r></w:p></w:body></w:document>',
+            'data' => $minimalDocxDocumentXml($text),
         ],
     ]);
 };
@@ -65,8 +70,20 @@ return [
             $t->same(true, $report['skipped']);
             $t->same('parser-acceptance-only', $report['evidenceKind']);
             $t->true(in_array('local PHP DocxReader parser acceptance for audited .docx fixtures', $report['verificationScope']['asserts'], true));
+            $t->true(in_array('local DOCX output registry status and expected DocxWriter class/file presence', $report['verificationScope']['asserts'], true));
             $t->true(in_array('full DOCX/OpenXML semantic parity', $report['verificationScope']['doesNotAssert'], true));
+            $t->true(in_array('DOCX writer support merely because upstream golden packages are inventoried', $report['verificationScope']['doesNotAssert'], true));
             $t->same(false, $report['sourceDirectoryPresent']);
+            $t->same(DocxWriterGoldenManifest::EVIDENCE_KIND, $report['writerGoldenEvidenceKind']);
+            $t->same(DocxWriterGoldenManifest::OPEN_REASON, $report['docxWriterUnsupportedReason']);
+            $t->same(false, $report['writerGoldenPackageComparisonRun']);
+            $t->same(DocxWriterGoldenManifest::STATUS_SKIPPED_MISSING_GOLDEN_DIRECTORY, $report['writerGoldenEvidence']['status']);
+            $t->same('unsupported', $report['writerGoldenEvidence']['localWriter']['status']);
+            $t->same(false, $report['writerGoldenEvidence']['localWriter']['classExists']);
+            $t->same(false, $report['writerGoldenEvidence']['localWriter']['fileExists']);
+            $t->same('unsupported', $report['writerGoldenEvidence']['localWriter']['registryStatus']);
+            $t->same(false, $report['writerGoldenEvidence']['packageComparison']['run']);
+            $t->same(DocxWriterGoldenManifest::OPEN_REASON, $report['writerGoldenEvidence']['packageComparison']['reason']);
             $t->same(0, $report['auditedPairCount']);
             $t->same(0, $report['bothParsedCount']);
             $t->same(null, $report['bothParserCoveragePercent']);
@@ -79,6 +96,8 @@ return [
             $t->same('docx-native-ast-equality', $report['orderedRemainingGaps'][1]['id']);
             $t->same('not-evaluated', $report['orderedRemainingGaps'][3]['status']);
             $t->contains('Result: skipped', $text);
+            $t->contains('DOCX writer implementation: unsupported', $text);
+            $t->contains('DOCX writer golden package comparison: not run; reason=' . DocxWriterGoldenManifest::OPEN_REASON, $text);
             $t->contains('No DOCX parity is asserted.', $text);
             $t->contains('Ordered remaining full DOCX parity gaps:', $text);
             $t->contains('2. docx-native-ast-equality [open]', $text);
@@ -87,7 +106,7 @@ return [
         }
     },
 
-    'reports paired upstream docx native parser coverage without asserting parity' => static function (TestRunner $t) use ($makeTempRoot, $removeTree, $writeFile, $minimalDocx): void {
+    'reports paired upstream docx native parser coverage without asserting parity' => static function (TestRunner $t) use ($makeTempRoot, $removeTree, $writeFile, $minimalDocx, $minimalDocxDocumentXml): void {
         $root = $makeTempRoot();
         try {
             $docxRoot = '.upstream-cache/pandoc-current/test/docx';
@@ -112,6 +131,26 @@ return [
             $t->same(3, $report['rootDocxPackageArtifacts']);
             $t->same(3, $report['rootNativeExpectedArtifacts']);
             $t->same(1, $report['goldenDocxPackageArtifacts']);
+            $t->same(DocxWriterGoldenManifest::EVIDENCE_KIND, $report['writerGoldenEvidenceKind']);
+            $t->same(DocxWriterGoldenManifest::OPEN_REASON, $report['docxWriterUnsupportedReason']);
+            $t->same(false, $report['writerGoldenPackageComparisonRun']);
+            $t->same(DocxWriterGoldenManifest::STATUS_REPORTED, $report['writerGoldenEvidence']['status']);
+            $t->same(1, $report['writerGoldenEvidence']['goldenPackageCount']);
+            $t->same(1, $report['writerGoldenEvidence']['readableGoldenPackageCount']);
+            $t->same(1, $report['writerGoldenEvidence']['packagePartCount']);
+            $t->same(1, $report['writerGoldenEvidence']['readablePackagePartCount']);
+            $t->same('unsupported', $report['writerGoldenEvidence']['localWriter']['status']);
+            $t->same('unsupported', $report['writerGoldenEvidence']['localWriter']['registryStatus']);
+            $t->same(false, $report['writerGoldenEvidence']['localWriter']['classExists']);
+            $t->same(false, $report['writerGoldenEvidence']['localWriter']['fileExists']);
+            $t->same(false, $report['writerGoldenEvidence']['packageComparison']['run']);
+            $t->same('writer-output.docx', $report['writerGoldenEvidence']['packageRows'][0]['fileName']);
+            $t->same('test/docx/golden/writer-output.docx', $report['writerGoldenEvidence']['packageRows'][0]['expectedUpstreamGoldenReference']);
+            $t->same(['word/document.xml'], $report['writerGoldenEvidence']['packageRows'][0]['partNames']);
+            $t->same('word/document.xml', $report['writerGoldenEvidence']['packageRows'][0]['partRows'][0]['name']);
+            $t->same(hash('sha256', $minimalDocxDocumentXml('Writer inventory')), $report['writerGoldenEvidence']['packageRows'][0]['partRows'][0]['sha256']);
+            $t->same(strlen($minimalDocxDocumentXml('Writer inventory')), $report['writerGoldenEvidence']['packageRows'][0]['partRows'][0]['uncompressedBytes']);
+            $t->same('src/Text/Pandoc/Writers/Docx.hs', $report['writerGoldenEvidence']['expectedUpstreamWriterSourceReferences'][0]['path']);
             $t->same(2, $report['pairedDocxNativeArtifacts']);
             $t->same(1, $report['unpairedDocxPackageArtifacts']);
             $t->same(1, $report['unpairedNativeExpectedArtifacts']);
@@ -143,8 +182,14 @@ return [
                 static fn (array $gap): string => (string) $gap['id'],
                 $report['orderedRemainingGaps']
             ));
+            $t->contains('local DOCX writer status=unsupported', $report['orderedRemainingGaps'][2]['currentEvidence']);
+            $t->contains('docx output registry=unsupported', $report['orderedRemainingGaps'][2]['currentEvidence']);
+            $t->contains('generated package comparison run=no', $report['orderedRemainingGaps'][2]['currentEvidence']);
+            $t->contains(DocxWriterGoldenManifest::OPEN_REASON, $report['orderedRemainingGaps'][2]['currentEvidence']);
             $t->same('open', $report['orderedRemainingGaps'][3]['status']);
             $t->contains('docx failures=1; native failures=1; partial-or-failed pairs=1', $report['orderedRemainingGaps'][3]['currentEvidence']);
+            $t->contains('DOCX writer implementation: unsupported', $text);
+            $t->contains('Writer golden package parts inventoried: 1/1 hashed readable parts', $text);
             $t->contains('Both parsers accepted: 1/2 (50.00%)', $text);
             $t->contains('Parser acceptance regression guard: failed', $text);
             $t->contains('Ordered remaining full DOCX parity gaps:', $text);
@@ -223,6 +268,39 @@ return [
             $t->same(true, $decoded['parserAcceptanceRegression']['regressed']);
             $t->same(1, $decoded['parserAcceptanceRegression']['actualBothParsedCount']);
             $t->true(in_array('paired-docx-native-artifact-count-below-baseline', $decoded['parserAcceptanceRegression']['failureReasons'], true));
+        } finally {
+            $removeTree($root);
+        }
+    },
+
+    'writer golden cli reports package hashes and unsupported writer status' => static function (TestRunner $t) use ($makeTempRoot, $removeTree, $writeFile, $minimalDocx, $minimalDocxDocumentXml): void {
+        $root = $makeTempRoot();
+        try {
+            $docxRoot = '.upstream-cache/pandoc-current/test/docx';
+            $writeFile($root, "{$docxRoot}/golden/writer-output.docx", $minimalDocx('Writer inventory'));
+
+            $command = escapeshellarg(PHP_BINARY)
+                . ' '
+                . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-docx-writer-golden-audit.php')
+                . ' --repo-root='
+                . escapeshellarg($root)
+                . ' --json';
+            $output = [];
+            $exitCode = 0;
+            exec($command, $output, $exitCode);
+            $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same(0, $exitCode);
+            $t->same(DocxWriterGoldenManifest::STATUS_REPORTED, $decoded['status']);
+            $t->same(DocxWriterGoldenManifest::EVIDENCE_KIND, $decoded['evidenceKind']);
+            $t->same('unsupported', $decoded['localWriter']['status']);
+            $t->same(false, $decoded['packageComparison']['run']);
+            $t->same(DocxWriterGoldenManifest::OPEN_REASON, $decoded['packageComparison']['reason']);
+            $t->same(1, $decoded['goldenPackageCount']);
+            $t->same(1, $decoded['packagePartCount']);
+            $t->same('test/docx/golden/writer-output.docx', $decoded['packageRows'][0]['expectedUpstreamGoldenReference']);
+            $t->same(['word/document.xml'], $decoded['packageRows'][0]['partNames']);
+            $t->same(hash('sha256', $minimalDocxDocumentXml('Writer inventory')), $decoded['packageRows'][0]['partRows'][0]['sha256']);
         } finally {
             $removeTree($root);
         }

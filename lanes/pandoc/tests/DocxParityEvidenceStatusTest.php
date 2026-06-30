@@ -101,8 +101,32 @@ return [
         $t->true((int) $manifestAudit['missingPinnedUpstreamNativeFixtures'] > 0, 'DOCX parity audit must not hide missing upstream native fixtures');
         $t->same(false, $manifestAudit['upstreamDocxRunnerExecuted'] ?? null);
         $t->same(false, $manifestAudit['upstreamDocxGoldenPackageRoundTripExecuted'] ?? null);
+        $t->same('writer-golden-package-inventory-only', $manifestAudit['writerGoldenEvidenceKind'] ?? null);
+        $t->same($manifestAudit['writerGoldenEvidenceKind'] ?? null, $statusAudit['writerGoldenEvidenceKind'] ?? null);
+        $t->same('tools/pandoc-docx-writer-golden-audit.php --json', $manifestAudit['writerGoldenPackageManifestTool'] ?? null);
+        $t->same(38, $manifestAudit['writerGoldenPackageInventory']['goldenPackageCount'] ?? null);
+        $t->same($manifestAudit['writerGoldenPackageInventory'], $statusAudit['writerGoldenPackageInventory'] ?? null);
+        $t->same([
+            'src/Text/Pandoc/Writers/Docx.hs',
+            'test/Tests/Writers/Docx.hs',
+            'test/docx/golden/*.docx',
+            'data/default.docx',
+        ], $manifestAudit['writerGoldenPackageInventory']['expectedUpstreamWriterSourceReferences'] ?? null);
+        $t->same('PortLibs\\Pandoc\\DocxWriter', $manifestAudit['docxWriterImplementation']['expectedClass'] ?? null);
+        $t->same('lanes/pandoc/src/DocxWriter.php', $manifestAudit['docxWriterImplementation']['expectedPath'] ?? null);
+        $t->same(false, $manifestAudit['docxWriterImplementation']['classExists'] ?? null);
+        $t->same(false, $manifestAudit['docxWriterImplementation']['fileExists'] ?? null);
+        $t->same(false, is_file(dirname(__DIR__) . '/src/DocxWriter.php'));
+        $t->same('unsupported', $manifestAudit['docxWriterImplementation']['outputRegistryStatus'] ?? null);
+        $t->same($manifestAudit['docxWriterImplementation'], $statusAudit['docxWriterImplementation'] ?? null);
+        $t->same(false, $manifestAudit['writerGoldenPackageComparison']['run'] ?? null);
+        $t->same(0, $manifestAudit['writerGoldenPackageComparison']['generatedPackageCount'] ?? null);
+        $t->same(0, $manifestAudit['writerGoldenPackageComparison']['comparedPackageCount'] ?? null);
+        $t->same('writer-unsupported-no-DocxWriter-implementation-and-docx-output-registry-unsupported', $manifestAudit['writerGoldenPackageComparison']['openReason'] ?? null);
+        $t->same($manifestAudit['writerGoldenPackageComparison'], $statusAudit['writerGoldenPackageComparison'] ?? null);
 
         $t->contains('Full DOCX/OpenXML parity is not defensible', (string) ($status['blocker'] ?? ''));
+        $t->contains('no local DocxWriter implementation', (string) ($status['blocker'] ?? ''));
         $t->contains('full upstream DOCX parity is not defensible', $pandocStatus);
         $t->contains('2 checked-in current-upstream `.docx` package fixtures', $pandocStatus);
         $t->contains('0 checked-in pinned upstream `.docx` package fixtures', $pandocStatus);
