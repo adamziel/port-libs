@@ -38,7 +38,7 @@ return [
         $t->same('build/review-packet.tex', $plan['sourceFile']);
         $t->same('build/review-packet.pdf', $plan['outputFile']);
         $t->same(['xelatex', '-halt-on-error', '-interaction=nonstopmode', '-file-line-error', 'build/review-packet.tex'], $plan['argv']);
-        $t->contains('Reviewer formula \\(E = mc^2\\) keeps raw source \\cite{packet}.', (string) $plan['sourceBytes']);
+        $t->contains('Reviewer formula $E = mc^2$ keeps raw source \\cite{packet}.', (string) $plan['sourceBytes']);
         $t->same(hash('sha256', (string) $plan['sourceBytes']), $plan['sourceSha256']);
         $t->same('PDF Handoff Packet', $plan['metadata']['title']);
         $t->same(['Migration Desk', 'Content Reviewer'], $plan['metadata']['author']);
@@ -20496,6 +20496,10 @@ MARKDOWN);
             'maxNextDepth' => 0,
             'scriptActionCount' => 0,
             'remoteTargetCount' => 3,
+            'remoteTargetSchemes' => [
+                'https' => 2,
+                'mailto' => 1,
+            ],
             'launchActionCount' => 0,
             'formActionCount' => 0,
             'issues' => [
@@ -20527,6 +20531,7 @@ MARKDOWN);
             'actionTypes' => ['URI' => 1],
             'scriptActionCount' => 0,
             'remoteTargetCount' => 1,
+            'remoteTargetSchemes' => ['mailto' => 1],
             'launchActionCount' => 0,
             'issues' => [
                 'page-open-action',
@@ -20545,9 +20550,12 @@ MARKDOWN);
         $t->same($expectedPagePolicy, $result['pdfPageActionPolicy'] ?? null);
         $t->contains('pdf-byte-active-action-type:URI:3', $diagnostics);
         $t->contains('pdf-byte-active-action-policy-remote-targets:3', $diagnostics);
+        $t->contains('pdf-byte-active-action-policy-remote-scheme:https:2', $diagnostics);
+        $t->contains('pdf-byte-active-action-policy-remote-scheme:mailto:1', $diagnostics);
         $t->contains('pdf-byte-active-action-policy-issue:uri-action:1', $diagnostics);
         $t->contains('pdf-byte-page-action-type:URI:1', $diagnostics);
         $t->contains('pdf-byte-page-action-policy-type:URI:1', $diagnostics);
+        $t->contains('pdf-byte-page-action-policy-remote-scheme:mailto:1', $diagnostics);
         $t->contains('pdf-byte-page-action-policy-issue:uri-action:1', $diagnostics);
         $t->same(true, $sequence['ok']);
         $t->same($expectedActiveActions, $sequence['finalPdfActiveActions']);
@@ -20804,6 +20812,7 @@ MARKDOWN);
             ],
             'scriptActionCount' => 1,
             'remoteTargetCount' => 1,
+            'remoteTargetSchemes' => ['https' => 1],
             'launchActionCount' => 1,
             'issues' => [
                 'launch-action',
@@ -20824,6 +20833,7 @@ MARKDOWN);
         $t->contains('pdf-byte-page-action-type:JavaScript:1', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-page-action-type:Launch:1', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-page-action-scripts:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-action-policy-remote-scheme:https:1', implode(',', $result['diagnostics']));
         $t->same(true, $sequence['ok']);
         $t->same($expected, $sequence['finalPdfPageActions'] ?? null);
         $t->same($expectedPolicy, $sequence['finalPdfPageActionPolicy'] ?? null);
@@ -20879,6 +20889,7 @@ MARKDOWN);
             'actionTypes' => ['Named' => 1, 'SubmitForm' => 1],
             'scriptActionCount' => 0,
             'remoteTargetCount' => 1,
+            'remoteTargetSchemes' => ['mailto' => 1],
             'launchActionCount' => 0,
             'issues' => [
                 'page-close-action',
@@ -20895,6 +20906,7 @@ MARKDOWN);
         $t->contains('pdf-byte-page-action-policy:review', $diagnostics);
         $t->contains('pdf-byte-page-action-policy-actions:2', $diagnostics);
         $t->contains('pdf-byte-page-action-policy-remote-targets:1', $diagnostics);
+        $t->contains('pdf-byte-page-action-policy-remote-scheme:mailto:1', $diagnostics);
         $t->contains('pdf-byte-page-action-policy-trigger:C:1', $diagnostics);
         $t->contains('pdf-byte-page-action-policy-trigger:O:1', $diagnostics);
         $t->contains('pdf-byte-page-action-policy-type:SubmitForm:1', $diagnostics);
@@ -21131,6 +21143,7 @@ MARKDOWN);
             'maxNextDepth' => 3,
             'scriptActionCount' => 2,
             'remoteTargetCount' => 1,
+            'remoteTargetSchemes' => ['https' => 1],
             'launchActionCount' => 1,
             'formActionCount' => 2,
             'issues' => [
@@ -21150,6 +21163,7 @@ MARKDOWN);
         $t->contains('pdf-byte-active-action-policy:review', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-active-action-policy-chained-actions:6', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-active-action-policy-chain-depth:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-active-action-policy-remote-scheme:https:1', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-active-action-policy-issue:deep-next-action-chain:1', implode(',', $result['diagnostics']));
         $t->same(true, $sequence['ok']);
         $t->same($expected, $sequence['finalPdfActiveActions']);
