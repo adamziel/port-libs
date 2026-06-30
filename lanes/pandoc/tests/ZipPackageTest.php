@@ -1044,6 +1044,111 @@ return [
         $t->same($profile, $raw['strictImport']['packagePartProfile']);
     },
 
+    'summarizes zip package manifest source byte spans for package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentName = 'word/document.xml';
+        $commentsName = 'word/comments.xml';
+        $documentXml = '<w:document><w:body><w:p>manifest-wide source spans</w:p></w:body></w:document>';
+        $commentsXml = '<w:comments><w:comment>manifest descriptor source span</w:comment></w:comments>';
+        $commentsExtra = pack('vva*', 0xb0b0, strlen('manifest-source-span'), 'manifest-source-span');
+        $documentComment = 'document manifest source span';
+        $commentsComment = 'comments manifest source span';
+        $zip = $buildZipPackage([
+            [
+                'name' => $documentName,
+                'data' => $documentXml,
+                'method' => 0,
+                'comment' => $documentComment,
+            ],
+            [
+                'name' => $commentsName,
+                'data' => $commentsXml,
+                'method' => 8,
+                'descriptor' => true,
+                'descriptorSignature' => true,
+                'localExtra' => $commentsExtra,
+                'centralExtra' => $commentsExtra,
+                'comment' => $commentsComment,
+            ],
+        ]);
+        $commentsCompressed = gzdeflate($commentsXml);
+        if ($commentsCompressed === false) {
+            throw new RuntimeException('Unable to deflate comments fixture');
+        }
+
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 4096, 100.0, 4096);
+        $documentEntry = $manifest['entries'][0];
+        $commentsEntry = $manifest['entries'][1];
+
+        $t->same(2, $manifest['sourceByteSpanEntryCount']);
+        $t->same(0, $manifest['sourceByteSpanIssueCount']);
+        $t->same([], $manifest['sourceByteSpanIssues']);
+        $t->same($documentEntry['localRecordBytes'] + $commentsEntry['localRecordBytes'], $manifest['sourceLocalRecordBytes']);
+        $t->same($documentEntry['localHeaderBytes'] + $commentsEntry['localHeaderBytes'], $manifest['sourceLocalHeaderBytes']);
+        $t->same(60, $manifest['sourceLocalFixedHeaderBytes']);
+        $t->same(strlen($documentName) + strlen($commentsName) + strlen($commentsExtra), $manifest['sourceLocalHeaderVariableFieldBytes']);
+        $t->same(strlen($documentName) + strlen($commentsName), $manifest['sourceLocalRawNameBytes']);
+        $t->same(strlen($commentsExtra), $manifest['sourceLocalExtraFieldBytes']);
+        $t->same(strlen($commentsExtra), $manifest['sourceLocalReviewFieldBytes']);
+        $t->same(strlen($documentXml) + strlen($commentsCompressed), $manifest['sourceCompressedDataBytes']);
+        $t->same(16, $manifest['sourceDataDescriptorBytes']);
+        $t->same($documentEntry['centralDirectoryRecordBytes'] + $commentsEntry['centralDirectoryRecordBytes'], $manifest['sourceCentralDirectoryRecordBytes']);
+        $t->same(92, $manifest['sourceCentralDirectoryFixedHeaderBytes']);
+        $t->same(
+            strlen($documentName) + strlen($documentComment) + strlen($commentsName) + strlen($commentsExtra) + strlen($commentsComment),
+            $manifest['sourceCentralDirectoryVariableFieldBytes']
+        );
+        $t->same(strlen($documentName) + strlen($commentsName), $manifest['sourceCentralDirectoryRawNameBytes']);
+        $t->same(strlen($commentsExtra), $manifest['sourceCentralDirectoryExtraFieldBytes']);
+        $t->same(strlen($documentComment) + strlen($commentsComment), $manifest['sourceCentralDirectoryRawCommentBytes']);
+        $t->same(strlen($commentsExtra) + strlen($documentComment) + strlen($commentsComment), $manifest['sourceCentralDirectoryReviewFieldBytes']);
+        $t->same($manifest['sourceLocalRecordBytes'] + $manifest['sourceCentralDirectoryRecordBytes'], $manifest['sourceTotalRecordBytes']);
+
+        $t->same(0, $documentEntry['localRecordOffset']);
+        $t->same(30 + strlen($documentName), $documentEntry['localHeaderBytes']);
+        $t->same(strlen($documentName), $documentEntry['localHeaderVariableFieldBytes']);
+        $t->same(hash('sha256', $documentName), $documentEntry['localHeaderVariableFieldSha256']);
+        $t->same(0, $documentEntry['localHeaderReviewFieldBytes']);
+        $t->same(strlen($documentXml), $documentEntry['compressedDataBytes']);
+        $t->same(hash('sha256', $documentXml), $documentEntry['compressedDataSha256']);
+        $t->same(false, $documentEntry['sourceByteSpanIncludesDataDescriptor']);
+        $t->same(0, $documentEntry['dataDescriptorBytes']);
+        $t->same(null, $documentEntry['dataDescriptorSha256']);
+        $t->same(46, $documentEntry['centralDirectoryFixedHeaderBytes']);
+        $t->same(strlen($documentName) + strlen($documentComment), $documentEntry['centralDirectoryVariableFieldBytes']);
+        $t->same(strlen($documentComment), $documentEntry['centralDirectoryRawCommentBytes']);
+        $t->same(hash('sha256', $documentComment), $documentEntry['centralDirectoryRawCommentSha256']);
+        $t->same(strlen($documentComment), $documentEntry['centralDirectoryReviewFieldBytes']);
+        $t->same([], $documentEntry['sourceByteSpanIssues']);
+
+        $t->same($documentEntry['localRecordEnd'], $commentsEntry['localRecordOffset']);
+        $t->same(30 + strlen($commentsName) + strlen($commentsExtra), $commentsEntry['localHeaderBytes']);
+        $t->same(strlen($commentsName) + strlen($commentsExtra), $commentsEntry['localHeaderVariableFieldBytes']);
+        $t->same(strlen($commentsExtra), $commentsEntry['localExtraFieldBytes']);
+        $t->same(strlen($commentsExtra), $commentsEntry['localHeaderReviewFieldBytes']);
+        $t->same(hash('sha256', $commentsExtra), $commentsEntry['localExtraFieldSha256']);
+        $t->same(strlen($commentsCompressed), $commentsEntry['compressedDataBytes']);
+        $t->same(hash('sha256', $commentsCompressed), $commentsEntry['compressedDataSha256']);
+        $t->same(true, $commentsEntry['sourceByteSpanIncludesDataDescriptor']);
+        $t->same($commentsEntry['compressedDataEnd'], $commentsEntry['dataDescriptorOffset']);
+        $t->same(16, $commentsEntry['dataDescriptorBytes']);
+        $t->same($commentsEntry['dataDescriptorOffset'] + 16, $commentsEntry['dataDescriptorEnd']);
+        $t->same(hash('sha256', substr($zip, $commentsEntry['dataDescriptorOffset'], 16)), $commentsEntry['dataDescriptorSha256']);
+        $t->same(46, $commentsEntry['centralDirectoryFixedHeaderBytes']);
+        $t->same(strlen($commentsName) + strlen($commentsExtra) + strlen($commentsComment), $commentsEntry['centralDirectoryVariableFieldBytes']);
+        $t->same(strlen($commentsExtra), $commentsEntry['centralDirectoryExtraFieldBytes']);
+        $t->same(hash('sha256', $commentsExtra), $commentsEntry['centralDirectoryExtraFieldSha256']);
+        $t->same(strlen($commentsComment), $commentsEntry['centralDirectoryRawCommentBytes']);
+        $t->same(hash('sha256', $commentsComment), $commentsEntry['centralDirectoryRawCommentSha256']);
+        $t->same(strlen($commentsExtra) + strlen($commentsComment), $commentsEntry['centralDirectoryReviewFieldBytes']);
+        $t->same($commentsEntry['localRecordBytes'] + $commentsEntry['centralDirectoryRecordBytes'], $commentsEntry['sourceRecordBytes']);
+        $t->same([], $commentsEntry['sourceByteSpanIssues']);
+
+        $t->same($manifest, $raw['packageManifest']);
+        $t->same($manifest, $raw['strictImport']['packageManifest']);
+    },
+
     'preflights zip local header spans for stored and streamed package entries' => static function (TestRunner $t) use ($buildZipPackage): void {
         $mimetype = 'application/epub+zip';
         $documentXml = '<w:document><w:p>local header span inventory</w:p></w:document>';

@@ -19452,6 +19452,24 @@ final class ZipPackage
         $unsupportedCompressionMethodCount = 0;
         $compressedBytes = 0;
         $uncompressedBytes = 0;
+        $sourceLocalRecordBytes = 0;
+        $sourceLocalHeaderBytes = 0;
+        $sourceLocalFixedHeaderBytes = 0;
+        $sourceLocalHeaderVariableFieldBytes = 0;
+        $sourceLocalRawNameBytes = 0;
+        $sourceLocalExtraFieldBytes = 0;
+        $sourceLocalReviewFieldBytes = 0;
+        $sourceCompressedDataBytes = 0;
+        $sourceDataDescriptorBytes = 0;
+        $sourceCentralDirectoryRecordBytes = 0;
+        $sourceCentralDirectoryFixedHeaderBytes = 0;
+        $sourceCentralDirectoryVariableFieldBytes = 0;
+        $sourceCentralDirectoryRawNameBytes = 0;
+        $sourceCentralDirectoryExtraFieldBytes = 0;
+        $sourceCentralDirectoryRawCommentBytes = 0;
+        $sourceCentralDirectoryReviewFieldBytes = 0;
+        $sourceTotalRecordBytes = 0;
+        $sourceByteSpanIssues = [];
 
         foreach ($this->entries as $centralDirectoryIndex => $entry) {
             $localHeader = $this->readLocalHeader($entry);
@@ -19493,6 +19511,32 @@ final class ZipPackage
                     );
                 }
             }
+            $dataDescriptorProvenance = $this->entryDataDescriptorHandoffProvenance($entry, $localHeader);
+            $sourceByteSpanProvenance = $this->entrySourceByteSpanHandoffProvenance(
+                $entry,
+                $localHeader,
+                $dataDescriptorProvenance
+            );
+            $sourceLocalRecordBytes += $sourceByteSpanProvenance['localRecordBytes'];
+            $sourceLocalHeaderBytes += $sourceByteSpanProvenance['localHeaderBytes'];
+            $sourceLocalFixedHeaderBytes += $sourceByteSpanProvenance['localFixedHeaderBytes'];
+            $sourceLocalHeaderVariableFieldBytes += $sourceByteSpanProvenance['localHeaderVariableFieldBytes'];
+            $sourceLocalRawNameBytes += $sourceByteSpanProvenance['localRawNameBytes'];
+            $sourceLocalExtraFieldBytes += $sourceByteSpanProvenance['localExtraFieldBytes'];
+            $sourceLocalReviewFieldBytes += $sourceByteSpanProvenance['localHeaderReviewFieldBytes'];
+            $sourceCompressedDataBytes += $sourceByteSpanProvenance['compressedDataBytes'];
+            $sourceDataDescriptorBytes += $sourceByteSpanProvenance['dataDescriptorBytes'];
+            $sourceCentralDirectoryRecordBytes += $sourceByteSpanProvenance['centralDirectoryRecordBytes'] ?? 0;
+            $sourceCentralDirectoryFixedHeaderBytes += $sourceByteSpanProvenance['centralDirectoryFixedHeaderBytes'] ?? 0;
+            $sourceCentralDirectoryVariableFieldBytes += $sourceByteSpanProvenance['centralDirectoryVariableFieldBytes'] ?? 0;
+            $sourceCentralDirectoryRawNameBytes += $sourceByteSpanProvenance['centralDirectoryRawNameBytes'] ?? 0;
+            $sourceCentralDirectoryExtraFieldBytes += $sourceByteSpanProvenance['centralDirectoryExtraFieldBytes'] ?? 0;
+            $sourceCentralDirectoryRawCommentBytes += $sourceByteSpanProvenance['centralDirectoryRawCommentBytes'] ?? 0;
+            $sourceCentralDirectoryReviewFieldBytes += $sourceByteSpanProvenance['centralDirectoryReviewFieldBytes'] ?? 0;
+            $sourceTotalRecordBytes += $sourceByteSpanProvenance['sourceRecordBytes'];
+            foreach ($sourceByteSpanProvenance['sourceByteSpanIssues'] as $issue) {
+                self::appendUniqueIssue($sourceByteSpanIssues, $issue);
+            }
             $summary = [
                 'name' => $entry->name,
                 'isDirectory' => $isDirectory,
@@ -19513,7 +19557,7 @@ final class ZipPackage
                 'centralDirectoryRecordOffset' => $entry->centralDirectoryRecordOffset,
                 'centralDirectoryRecordEnd' => $entry->centralDirectoryRecordEnd,
                 'centralDirectoryRecordSha256' => $centralDirectoryRecordSha256,
-            ];
+            ] + $sourceByteSpanProvenance;
             $entries[] = $summary;
             $manifestEntries[] = [
                 'name' => $summary['name'],
@@ -19554,6 +19598,26 @@ final class ZipPackage
             'storedEntryCount' => $storedEntryCount,
             'deflatedEntryCount' => $deflatedEntryCount,
             'unsupportedCompressionMethodCount' => $unsupportedCompressionMethodCount,
+            'sourceByteSpanEntryCount' => count($this->entries),
+            'sourceLocalRecordBytes' => $sourceLocalRecordBytes,
+            'sourceLocalHeaderBytes' => $sourceLocalHeaderBytes,
+            'sourceLocalFixedHeaderBytes' => $sourceLocalFixedHeaderBytes,
+            'sourceLocalHeaderVariableFieldBytes' => $sourceLocalHeaderVariableFieldBytes,
+            'sourceLocalRawNameBytes' => $sourceLocalRawNameBytes,
+            'sourceLocalExtraFieldBytes' => $sourceLocalExtraFieldBytes,
+            'sourceLocalReviewFieldBytes' => $sourceLocalReviewFieldBytes,
+            'sourceCompressedDataBytes' => $sourceCompressedDataBytes,
+            'sourceDataDescriptorBytes' => $sourceDataDescriptorBytes,
+            'sourceCentralDirectoryRecordBytes' => $sourceCentralDirectoryRecordBytes,
+            'sourceCentralDirectoryFixedHeaderBytes' => $sourceCentralDirectoryFixedHeaderBytes,
+            'sourceCentralDirectoryVariableFieldBytes' => $sourceCentralDirectoryVariableFieldBytes,
+            'sourceCentralDirectoryRawNameBytes' => $sourceCentralDirectoryRawNameBytes,
+            'sourceCentralDirectoryExtraFieldBytes' => $sourceCentralDirectoryExtraFieldBytes,
+            'sourceCentralDirectoryRawCommentBytes' => $sourceCentralDirectoryRawCommentBytes,
+            'sourceCentralDirectoryReviewFieldBytes' => $sourceCentralDirectoryReviewFieldBytes,
+            'sourceTotalRecordBytes' => $sourceTotalRecordBytes,
+            'sourceByteSpanIssueCount' => count($sourceByteSpanIssues),
+            'sourceByteSpanIssues' => $sourceByteSpanIssues,
             'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
             'localHeaderOrderNames' => $localHeaderOrderNames,
             'centralDirectoryOrderMatchesLocalHeaderOrder' => $centralDirectoryOrderNames === $localHeaderOrderNames,
