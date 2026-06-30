@@ -65,6 +65,25 @@ checkout, so fixture names and bodies were confirmed read-only from the primary
 static assertions against `MathTexConverter`; no TexMath, Pandoc, TeX engine,
 browser renderer, or external converter is invoked by the test.
 
+## 2026-06-30 Addendum 2
+
+Added four more passing fixture-backed cases from the same TexMath reader
+corpus:
+
+- `test/reader/tex/axiom_of_power_set.test`
+- `test/reader/tex/span.test`
+- `test/reader/tex/sophomores_dream.test`
+- `test/reader/tex/moore_determinant.test`
+
+The added cases cover quantified logic and set membership, labeled horizontal
+arrows, an integral/series identity with normal differential text, and bmatrix
+rows with nested powers and diagonal ellipses. Fixture names and TeX bodies
+were confirmed read-only from local cache path
+`/home/claude/port-libs/polecats/1763/port_libs/.upstream-cache/texmath` at
+the same TexMath commit recorded above. The committed PHP tests remain static
+assertions against `MathTexConverter`; no TexMath, Pandoc, TeX engine, browser
+renderer, or external converter is invoked by the test.
+
 ## Counts
 
 - Static upstream denominator remains `2,276` inspected upstream Pandoc
@@ -77,6 +96,10 @@ browser renderer, or external converter is invoked by the test.
   addendum.
 - PlainMath static TexMath fixture cases: `11 -> 14` after the 2026-06-30
   addendum.
+- Focused mapped behavior checks: `2,313 -> 2,317` after the second
+  2026-06-30 addendum.
+- PlainMath static TexMath fixture cases: `14 -> 18` after the second
+  2026-06-30 addendum.
 
 ## Verification
 
@@ -92,3 +115,5 @@ external converter execution.
 2026-06-29 result: `1` file, `103` assertions, `0` failures.
 
 2026-06-30 result: `1` file, `126` assertions, `0` failures.
+
+2026-06-30 addendum 2 result: `1` file, `154` assertions, `0` failures.

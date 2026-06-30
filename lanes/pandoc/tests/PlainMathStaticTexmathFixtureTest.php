@@ -177,6 +177,70 @@ return [
             $t->true(!str_contains($mathml, '<mi>\\'), $path . ' leaves no literal TeX command identifiers in MathML');
         }
     },
+    'promotes additional generic texmath fixtures into plainmath conformance corpus' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $fixtures = [
+            'test/reader/tex/axiom_of_power_set.test' => [
+                'tex' => '   \forall A \, \exists P \, \forall B \, [B \in P \iff \forall C \, (C \in B \Rightarrow C \in A)]',
+                'fragments' => [
+                    '<mo>∀</mo><mi>A</mi><mspace width="0.1667em"></mspace><mo>∃</mo><mi>P</mi>',
+                    '<mi>B</mi><mo>∈</mo><mi>P</mi><mo>⇔</mo><mo>∀</mo><mi>C</mi>',
+                    '<mi>C</mi><mo>∈</mo><mi>B</mi><mo>⇒</mo><mi>C</mi><mo>∈</mo><mi>A</mi>',
+                    '<annotation encoding="application/x-tex">   \forall A \, \exists P \, \forall B \, [B \in P \iff \forall C \, (C \in B \Rightarrow C \in A)]</annotation>',
+                ],
+            ],
+            'test/reader/tex/span.test' => [
+                'tex' => 'Y \xleftarrow{f} X \xrightarrow{g} Z',
+                'fragments' => [
+                    '<mi>Y</mi><mover><mo stretchy="true">←</mo><mi>f</mi></mover><mi>X</mi><mover><mo stretchy="true">→</mo><mi>g</mi></mover><mi>Z</mi>',
+                    '<annotation encoding="application/x-tex">Y \xleftarrow{f} X \xrightarrow{g} Z</annotation>',
+                ],
+            ],
+            'test/reader/tex/sophomores_dream.test' => [
+                'tex' => '   \int_0^1 x^x\,\mathrm{d}x = \sum_{n = 1}^\infty{(-1)^{n + 1}\,n^{-n}}',
+                'fragments' => [
+                    '<msubsup><mo>∫</mo><mn>0</mn><mn>1</mn></msubsup><msup><mi>x</mi><mi>x</mi></msup>',
+                    '<mstyle mathvariant="normal"><mi>d</mi></mstyle><mi>x</mi><mo>=</mo><msubsup><mo>∑</mo>',
+                    '<msup><mi>n</mi><mrow><mo>-</mo><mi>n</mi></mrow></msup>',
+                    '<annotation encoding="application/x-tex">   \int_0^1 x^x\,\mathrm{d}x = \sum_{n = 1}^\infty{(-1)^{n + 1}\,n^{-n}}</annotation>',
+                ],
+            ],
+            'test/reader/tex/moore_determinant.test' => [
+                'tex' => <<<'TEX'
+   M =
+   \begin{bmatrix}
+     \alpha_1 & \alpha_1^q & \cdots & \alpha_1^{q^{n - 1}} \\
+     \alpha_2 & \alpha_2^q & \cdots & \alpha_2^{q^{n - 1}} \\
+     \vdots   & \vdots     & \ddots & \vdots             \\
+     \alpha_m & \alpha_m^q & \cdots & \alpha_m^{q^{n - 1}}
+   \end{bmatrix}
+TEX,
+                'fragments' => [
+                    '<mi>M</mi><mo>=</mo><mrow><mo fence="true" stretchy="true">[</mo><mtable>',
+                    '<mtd><msubsup><mi>α</mi><mn>1</mn><msup><mi>q</mi><mrow><mi>n</mi><mo>-</mo><mn>1</mn></mrow></msup></msubsup></mtd>',
+                    '<mtd><mo>⋮</mo></mtd><mtd><mo>⋮</mo></mtd><mtd><mo>⋱</mo></mtd><mtd><mo>⋮</mo></mtd>',
+                    '<mtd><msubsup><mi>α</mi><mi>m</mi><msup><mi>q</mi><mrow><mi>n</mi><mo>-</mo><mn>1</mn></mrow></msup></msubsup></mtd>',
+                    '<annotation encoding="application/x-tex">   M =',
+                    '\begin{bmatrix}',
+                ],
+            ],
+        ];
+
+        foreach ($fixtures as $path => $fixture) {
+            $mathml = $converter->texToMathMl($fixture['tex'], true);
+            $dom = new \DOMDocument('1.0', 'UTF-8');
+
+            $t->true(
+                $dom->loadXML($mathml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING),
+                $path . ' emits well-formed MathML'
+            );
+            $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $mathml);
+            foreach ($fixture['fragments'] as $fragment) {
+                $t->contains($fragment, $mathml);
+            }
+            $t->true(!str_contains($mathml, '<mi>\\'), $path . ' leaves no literal TeX command identifiers in MathML');
+        }
+    },
     'promotes texmath atom coercion fixtures into plainmath conformance corpus' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $fixtures = [
